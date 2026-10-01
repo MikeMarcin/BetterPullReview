@@ -85,3 +85,56 @@ evidence to look for is a run whose output carries
 The remaining acceptance item, a line explaining why these rows are not on
 the uncontained pin list, is not in `tests/CMakeLists.txt` or
 `scripts/verify_test_network_isolation.py` yet.
+
+## Settled on Windows (bpr-main-win, 2026-10-01)
+
+Windows 11 Home 10.0.26200, `build/windows-dev` Debug, at `5c52e4679` plus
+this card's two comments. The rows get past import since [[BPR-1261]].
+
+```powershell
+ctest --preset windows-dev -j1 -V -R "^test_network_isolation_(external|child|manifest|structure_contract)$"
+```
+
+- `test_network_isolation_external` passes in 0.10 s and prints
+  `NETWORK_ISOLATION_EXTERNAL_DENIED:10013`.
+- `test_network_isolation_child` passes in 0.17 s and prints
+  `NETWORK_ISOLATION_CHILD_DENIED`.
+- `test_network_isolation_structure_contract` passes.
+  `test_network_isolation_manifest` fails only on [[BPR-1237]]'s unpinned rows,
+  and names neither probe.
+
+Both rows still launch through `better_pull_review_network_sandbox.exe`, and
+both are in `EXIT_VERDICT_TESTS`. Run uncontained, straight from Python, they
+print `NETWORK_ISOLATION_EXTERNAL_NOT_DENIED:0` and
+`NETWORK_ISOLATION_CHILD_NOT_DENIED`. So each pass rests on the container's
+refusal.
+
+**Which is true: a child starts, or a child is denied.** A child starts. The
+contained Python started a grandchild Python. The grandchild had an
+AppContainer token of its own (the `external` self-check) and was refused the
+network with WSAEACCES. So "denies a child" in this row means the child's
+network. The container does not refuse to create the process.
+
+[[BPR-0872]]'s `child-process-denied` is a property of where the executable
+resolves, not of the container:
+
+- At `470920d5`, the build's interpreter was the per-user install,
+  `C:\Users\mikem\AppData\Local\Python\pythoncore-3.14-64\python.exe`.
+  `icacls` shows it grants no application-package entry, so `CreateProcess`
+  from inside the container failed with WinError 5.
+- Today `build/windows-dev` resolves `Python3_EXECUTABLE` to
+  `C:/Program Files/Python314/python.exe`. That grants
+  `ALL APPLICATION PACKAGES:(I)(RX)` and `ALL RESTRICTED APPLICATION
+  PACKAGES:(I)(RX)`, so a contained process may start it.
+
+The ten rows [[BPR-0872]] pinned `child-process-denied` were not re-measured
+here. Whether they would now pass contained under this interpreter is for
+[[BPR-1237]]'s Windows measurements, not this card.
+
+**Why they are not pinned.** This is now written in both places: beside the
+pin list in `scripts/verify_test_network_isolation.py`, and at the rows'
+`foreach` in `tests/CMakeLists.txt`. Both are comments only.
+
+**macOS and Linux.** No behavior changed. The two edits are comments, and the
+probes' code is [[BPR-1261]]'s, which bpr-main-linux ran 8 of 8 at
+`24068e2ee`.
