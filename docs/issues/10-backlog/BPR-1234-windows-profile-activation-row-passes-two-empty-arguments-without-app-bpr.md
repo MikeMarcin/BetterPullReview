@@ -106,3 +106,28 @@ and the contract in [[BPR-1121]]'s Windows run. The pin's comment in
 `scripts/verify_test_network_isolation.py` now records this in place of "not
 yet measured contained on Windows". Only the macOS or Linux run with `app_bpr`
 is still owed here.
+
+## macOS, with and without `app_bpr` — bpr-main-mac, 2026-10-01
+
+macOS 26.6.2 on Apple Silicon, Apple clang 21.0.0, Qt 6.11.2, Debug, at
+`5838fd12`, which contains `ab9d3fd7`.
+
+- **With `app_bpr`:** a separate tree, `build/bpr1234-tour`, configured from
+  the dev preset with `-DBPR_BUILD_TOUR_CLI=ON`. CTest's registered command
+  ends `--desktop-application …/better_pull_review --tour-application …/src/app/bpr`.
+  `application_profile_activation_public_path` passes in 8.84 s and prints
+  `PROFILE_TOUR_FORWARDING_OK` before `PROFILE_ACTIVATION_OK`, so the tour
+  course ran with the forwarded pair.
+- **Without `app_bpr`:** `build/dev` (`BPR_BUILD_TOUR_CLI=OFF`). The
+  registered command has no `--tour-application`, and the row passes in
+  7.55 s with `PROFILE_ACTIVATION_OK`.
+
+With the Linux entry above, "macOS and Linux still pass" is met, with
+`app_bpr` present and absent on both.
+
+**Still owed:** the first criterion's Windows run *with* `app_bpr`. The
+Windows run above was without it, and `app_bpr` is not platform-excluded:
+`src/app` builds it on Windows whenever `BPR_BUILD_TOUR_CLI` is on. On Windows
+the script accepts the pair and skips its POSIX-only tour course, so the run
+shows that the pair parses there. The card stays in Backlog until bpr-main-win
+records it.
