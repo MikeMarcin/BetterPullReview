@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0905"
 title: "Four more bounds are sized for a quiet host, one has already expired, and nothing says what margin a bound needs"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"dsp-007, from BPR-0901's fix and bpr-linux's BPR-0880 full-suite runs","found_at":"22023667","run":"run-20260916-stations","dispatch":"dsp-007","milestone_plan":{"id":"bpr0905-run-bounds","path":"docs/rfcs/plans/bpr0905-run-bounds/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4c3205c09 (macOS); db021262a (Windows, Linux)","evidence":{"kind":"artifact","detail":"docs/verification/BPR-0905-full-suite-2026-10-01.md: ctest -j10 full suites. macOS 577 rows/575 passed, Windows 550/518, Linux 556/541; the four rows pass on all three. Every PUBLIC_PATH_BUDGET line expired=0 (Mac and Windows from the full run's LastTest.log; Linux from a serial rerun at the same HEAD because --show-only overwrote LastTest.log; the full-run pass still excludes expiry via bpr_automated_run_result.cmake). Slowest phase 24,229/120,000 ms (Windows saved-server); SQLite 159.40 s Windows, 158.01 s Linux, 44.96 s Mac against 420 s. db021262a's only product diff from 4c3205c09 is local_workspace_source.cpp, not exercised by the four rows. Derivations in docs/development/run-budget-survey-2026-09-25.md."}},{"criterion":"AC2","outcome":"pass","revision":"HEAD of this finish","evidence":{"kind":"artifact","detail":"Survey docs/development/run-budget-survey-2026-09-25.md plus native Mac/Windows/Linux margin tables and the cross-platform union (37 rows under 3x on some platform, clock failures, five recommended follow-ups) in the full-suite record. No bound changed; the card asks for the survey to be recorded, not for its rows to be raised."}},{"criterion":"AC3","outcome":"pass","revision":"f6de40b63 and later, unchanged","evidence":{"kind":"artifact","detail":"docs/development/build-and-test.md#run-budgets-and-row-timeouts states the sizing rule, host-overload handling and result reporting."}},{"criterion":"AC4","outcome":"pass","revision":"eb55ff7f product candidate, unchanged since","evidence":{"kind":"observation","detail":"src/app/main.cpp prints RUN_BUDGET_EXPIRED before the failed marker for every automated application terminal; forced 1 ms runs of each corrected driver failed with RUN_BUDGET_EXPIRED in the headline; the result helper's five controls passed (card, 2026-09-25 section). Every clock failure in the 2026-10-01 runs reported itself as a clock failure."}},{"criterion":"AC5","outcome":"pass","revision":"HEAD of this finish","evidence":{"kind":"artifact","detail":"The rule in build-and-test.md links [[BPR-0901]] and [[BPR-0893]] and the survey; python3 scripts/verify_documentation.py --root . printed DOCUMENTATION_OK."}}]
 ---
 
 # BPR-0905: Four more bounds are sized for a quiet host, one has already expired
@@ -277,3 +278,59 @@ and self-naming expiry with forced-expiry controls. If a station returns a
 clock failure on one of the four rows, re-derive that bound from the returned
 measurement using the rule; do not retry it until it passes. Once both
 stations' results are recorded in the full-suite record, finish the card.
+
+## 2026-10-01 Windows and Linux results, and closeout
+
+Windows (`6e56ebe17`) and Linux (`5585da395`) returned their full suites,
+both at `db021262a`. The only product change there since `4c3205c09` is
+BPR-1244's workspace adapter, which none of the four rows exercises. The
+[full-suite record](../../verification/BPR-0905-full-suite-2026-10-01.md)
+holds both sections.
+
+**AC1: met.** All four rows pass under `-j10` on all three platforms. Every
+`PUBLIC_PATH_BUDGET` line reads `expired=0`. On Windows those lines come from
+the full run's own `LastTest.log`. Linux's came from a serial rerun of the four
+rows at the same `HEAD`, because the record's commands ran `--show-only`
+before the `grep`, and `--show-only` rewrites `LastTest.log`. The full run's
+passes still rule out an expiry: the result helper fails a row on
+`RUN_BUDGET_EXPIRED` even with a zero exit. The slowest phase anywhere was
+Windows' saved-server seed, 24,229 of 120,000 ms. SQLite took 159.40 s on
+Windows and 158.01 s on Linux against 420 s. Linux is where the old 180 s
+bound had expired twice. The derivations are unchanged in the survey.
+
+**AC2: met.** The survey now has native Windows and Linux inventories. The
+record's
+[cross-platform table](../../verification/BPR-0905-full-suite-2026-10-01.md#across-the-three-platforms)
+joins the three platforms: 37 rows under 3x somewhere. It also lists the clock
+failures elsewhere in the runs and five recommended follow-ups. None of those
+is required by this card's criteria. The card asks for the survey to be
+recorded, "whether it finds four or forty". It also says not to raise bounds
+as a reflex. So no bound changed. Every clock failure in these runs reported
+itself as one (`***Timeout`, or Python's timeout on Windows'
+`application_diagnostic_subsystems`). The two Windows 30 s expiries,
+`github_provider` and `large_review_replay_contract`, were already flagged in
+the survey at 2.61x. The bound failed for its own reason and said so, which is
+this card's goal. `diagnostic_context_age`, under 1.2x on all three, is a
+deliberate 180.1 s wait with under a second of other work, so it is not thin.
+
+**AC3, AC4 and AC5: met**, as recorded at the takeover. The rule and its
+BPR-0901 and BPR-0893 links are in `build-and-test.md`. Expiry names itself in
+the application's headline, and the forced-expiry controls passed. None of
+these was touched since.
+
+**Procedure fix.** The record's commands are restored as a
+[procedure for the next run](../../verification/BPR-0905-full-suite-2026-10-01.md#procedure-for-the-next-run).
+The procedure takes the inventory before the run and copies `LastTest.log`
+before any other `ctest`. The overwrite was reproduced with CTest 4.4.3 on the
+Mac. `build-and-test.md` now says the same where it tells a reader to search
+`LastTest.log` after a sweep.
+
+**Follow-ups recommended, not carded here.** These are all measurements first:
+
+- `github_provider` and `large_review_replay_contract`;
+- Windows' `application_diagnostic_subsystems` child timeout;
+- the Windows composed Qt rows that ran 8 to 19 times slower than on the Mac;
+- the device-flow rows;
+- `live_mutation_isolation` on the Mac.
+
+The record gives each one's ratios by platform.

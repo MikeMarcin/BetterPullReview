@@ -1148,7 +1148,10 @@ SKIPPED: dependency_modernization_tests.DependencyModernizationTests.test_syntax
 ```
 
 An expected failure prints `EXPECTED FAILURE: <case>`. To list every unchecked
-case in a sweep, search its log:
+case in a sweep, search its log. Copy or search `LastTest.log` before running
+`ctest` again for any reason: every invocation rewrites it, `--show-only`
+included, so take a `--show-only=json-v1` inventory before the sweep, not
+after it ([[BPR-0905]]'s Linux run lost its sweep's lines that way):
 
 ```sh
 grep -h -e '^SKIPPED: ' -e '^EXPECTED FAILURE: ' build/dev/Testing/Temporary/LastTest.log

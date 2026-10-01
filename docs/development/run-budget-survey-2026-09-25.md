@@ -15,7 +15,8 @@ explains sizing and expiry diagnostics.
 - 449 current rows; 299 have an explicit `TIMEOUT`; 244 of those have a matching
   historical passing duration, 55 have none. The other 150 have no explicit row
   timeout in this inventory. Platform-specific rows absent from the Mac graph
-  are outside this inventory; a native Windows/Linux inventory is still owed.
+  are outside this inventory; the 2026-10-01 record below adds native Windows
+  and Linux margin tables.
 - The historical logs span candidates, host loads and station dispatches. Their
   source locations below preserve that context. They do not establish current
   worst-case runtime, and the lack of a timeout line does not prove no expiry.
@@ -27,8 +28,15 @@ explains sizing and expiry diagnostics.
 ## Later runs
 
 The [2026-10-01 full-suite record](../verification/BPR-0905-full-suite-2026-10-01.md)
-repeats the margin table for the current Mac graph from one contended run,
-and holds the Windows and Linux tables when those stations return them.
+has a margin table from one contended full run on each of macOS (577 rows),
+Windows (550) and Linux (556). Its
+[cross-platform table](../verification/BPR-0905-full-suite-2026-10-01.md#across-the-three-platforms)
+lists the 37 rows under 3x on at least one platform, the clock failures in
+those runs, and five recommended follow-ups. The worst ratios are on Windows,
+where several composed Qt rows ran 8 to 19 times slower than on the Mac.
+`diagnostic_context_age` reads about 1.16x everywhere, but its course is a
+deliberate 180.1 s wait; the ratio is the wrong measure for it. No bound
+changed because of that table.
 
 ## Additional rows flagged for review
 
