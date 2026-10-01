@@ -6,7 +6,7 @@ status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
-platforms: ["win"]
+platforms: ["win", "mac", "linux"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json"}
 ---
 
@@ -99,3 +99,10 @@ sibling`, the same final check as Windows and Linux. So macOS passed 1 of 3
 runs, and the failure is shared by all three platforms. Whether the single Mac
 pass at `69493e235` came from timing or from the revision was not investigated.
 Nothing was changed; the owner's question above stands.
+
+## Linux again: bpr-main-linux, 2026-10-01
+
+At `db021262a`, the row failed in bpr-main-win's BPR-0905 Linux full suite and
+again run serially on its own, with `unavailable-anchor failed (1)` and then the
+same final check. The failure is shared by all three platforms, not
+Windows-only. The card's platforms now name all three.

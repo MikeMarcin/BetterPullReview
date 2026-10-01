@@ -6,7 +6,7 @@ status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
-platforms: ["win"]
+platforms: ["win", "linux"]
 metadata: {"found_by":"bpr-main-win station run of the main-stabilization Qt rows, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1251--BPR-1251--080a64f21ab7.json","related_cards":["BPR-1242","BPR-1033","BPR-1106"]}
 ---
 
@@ -57,3 +57,14 @@ that the title yields once.
 ## Acceptance
 
 - The six rows pass on Windows, and still pass on macOS and Linux.
+
+## Linux: bpr-main-linux, 2026-10-01
+
+At `db021262a` (WSL2, GCC 15.2, offscreen, `build/dev` Debug), the three
+`qt_document_tabs_scale_{100,125,200}` rows fail on Linux at the check
+Windows fails: `activation reveals the entire active tab including after
+restoration`. They failed in bpr-main-win's BPR-0905 full suite in this
+checkout and again in a serial rerun, 0.15 s each. So this card's Linux half
+is real, and "still pass on Linux" does not hold at this revision. On Linux
+the `qt_workbench_window_scale_*` rows fail at a different check, which
+[[BPR-1255]] owns.

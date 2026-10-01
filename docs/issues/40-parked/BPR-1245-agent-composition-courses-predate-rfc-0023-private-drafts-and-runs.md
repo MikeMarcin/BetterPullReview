@@ -94,3 +94,13 @@ course detail. The owner question is attended item `BPR-1245-workshop-v001`
 in session `cbd48b91000b00f1e72e1ad62c7c384c` (no server started).
 
 Published: `git pull --rebase` renamed the milestone commits. `b2fd518bd` above is `db162ddbd` on main and `1dbf9d5ca` is `68599e10c`; the attended item now names `db162ddbd`.
+
+## Linux: bpr-main-linux, 2026-10-01
+
+At `db021262a`, `application_agent_finding_workshop_press_contract` failed in
+bpr-main-win's BPR-0905 Linux full suite and again run serially in 46 s:
+`agent-finding-composition-failure:agent-run failed=run-quiescent process=0
+panel=Not started: Choose immutable revisions or findings in Private history,
+then Ask agent using sel…`. That is the parked refusal, so Linux waits on the
+same owner decision (`BPR-1245-workshop-v001`). The other fourteen rows did
+not fail in that run.
