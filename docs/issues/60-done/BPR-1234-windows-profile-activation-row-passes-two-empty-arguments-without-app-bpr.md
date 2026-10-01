@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1234"
 title: "Windows: application_profile_activation_public_path passes two empty arguments when app_bpr is not built, and its script refuses them"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json"}
+acceptance: [{"criterion":"The row passes on Windows, with and without app_bpr","outcome":"pass","revision":"f84babe27","evidence":{"kind":"command","detail":"bpr-main-win: without app_bpr (windows-dev, BPR_BUILD_TOUR_CLI off) the row passed in 17.19 s at ab9d3fd7 and in 17.21 s uncontained at the pin measurement; with app_bpr (build/windows-bpr1234-tour, -DBPR_BUILD_TOUR_CLI=ON) ctest -C Debug -R ^application_profile_activation_public_path$ -V registers --tour-application .../src/app/Debug/bpr.exe and passes in 17.44 s with PROFILE_ACTIVATION_OK."}},{"criterion":"macOS and Linux still pass","outcome":"pass","revision":"5838fd12","evidence":{"kind":"command","detail":"bpr-main-mac at 5838fd12: passes with app_bpr (8.84 s, PROFILE_TOUR_FORWARDING_OK then PROFILE_ACTIVATION_OK) and without (7.55 s). bpr-main-linux at bfc02529a: passes with app_bpr (4.00 s) and without (3.34 s)."}}]
 ---
 
 # BPR-1234: Windows: application_profile_activation_public_path passes two empty arguments when app_bpr is not built, and its script refuses them
