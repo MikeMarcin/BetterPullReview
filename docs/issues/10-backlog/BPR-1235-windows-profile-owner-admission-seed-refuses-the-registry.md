@@ -44,3 +44,21 @@ containment decision, so this card does not make it.
 - The owner's choice is recorded here.
 - The row passes on Windows.
 - `test_network_isolation_manifest` names no row this card changes.
+
+## Resolved by [[BPR-0907]] — bpr-main-win, 2026-10-01
+
+[[BPR-0907]] found and fixed the row's second obstacle in the course. Its
+Windows-only branches had been stale since [[BPR-0979]]. With them gone, the
+row passes uncontained on Windows: 8.22 s through `ctest`, and
+`PROFILE_OWNER_ADMISSION_OK`.
+
+This card's containment question then turned out not to be new. The contained
+refusal is the store's walk of the retained ancestor chain, which
+[[BPR-0872]]'s dictionary already names `dos-volume-name`. Integrator-decided
+pins already cover the same walk (BPR-0833, BPR-0845). So the row is pinned
+`WINDOWS_UNCONTAINED` under that term, with the measurement, in `1d7bdb35`.
+
+When this card was filed, I wrote that the decision was the owner's. Given
+those precedents, it was the integrator's to make, as it has been for every
+sibling pin. The integrator can finish this card, or reopen the question if
+the owner disagrees.
