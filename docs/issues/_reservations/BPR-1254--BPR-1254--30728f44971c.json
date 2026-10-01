@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1254"
+  ],
+  "reserve_for": "integrator",
+  "purpose": "intermittent agent_session_catalog_unavailable in the staleness contract (seen by the BPR-1121/1128/1139 takeover)",
+  "created": "2026-10-01T16:06:05.623780+00:00",
+  "base": "4aa6f544d71d96a809bb6590e33d4879d4302cb6"
+}
