@@ -93,3 +93,6 @@ Checked against the three criteria at `2ef17fd5`:
   its seed makes a root the container can use.
 
 The card is parked for that answer. No Windows or Linux run is owed.
+
+The question is attended item `BPR-1235-uncontained-pin-v001`, revision
+`1d7bdb35f`, in this checkout's attended-review session.
