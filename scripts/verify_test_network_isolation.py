@@ -137,8 +137,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_profile_runtime_lease": "dos-volume-name",
     # [[BPR-0979]]. The activation contract now binds a real lease over the same
     # canonical private root before creating its named pipe, and its public course
-    # composes the same profile roots as the BPR-0806 rows; both pinned by that
-    # shape, not yet measured contained on Windows.
+    # composes the same profile roots as the BPR-0806 rows. Measured on JaegAW
+    # 2026-10-01 ([[BPR-1234]]): contained, the contract stops at `canonical: Access
+    # is denied.` on its root, and the course's seed refuses the registry; both
+    # pass uncontained.
     "sqlite_profile_activation": "dos-volume-name",
     "application_profile_activation_public_path": "dos-volume-name",
     # BPR-0813: measured on JaegAW 2026-09-17. Contained, the contract's scratch

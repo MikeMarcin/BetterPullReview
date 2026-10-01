@@ -90,3 +90,19 @@ This is the Linux half of "macOS and Linux still pass", with `app_bpr` both
 present and absent. The Windows uncontained pin is not a Linux question and
 remains open. The logs are in `build/logs/bpr-station-rounds/` and are not
 committed.
+
+## The Windows pin, measured — bpr-main-win, 2026-10-01
+
+Both rows the [[BPR-0979]] pin covers were run contained, through the
+sandbox launcher:
+
+- `sqlite_profile_activation` stops at `canonical: Access is denied.` on its
+  root, `bpr-act-…` in the container's temporary directory;
+- `application_profile_activation_public_path` refuses at its seed's
+  registry, the retained ancestor chain.
+
+Both are `dos-volume-name`, and both pass uncontained: the course in 17.21 s,
+and the contract in [[BPR-1121]]'s Windows run. The pin's comment in
+`scripts/verify_test_network_isolation.py` now records this in place of "not
+yet measured contained on Windows". Only the macOS or Linux run with `app_bpr`
+is still owed here.
