@@ -92,7 +92,7 @@ Placement changes received their own decisions:
   `b45b64204b0d34fac1e9e9c977905768408536ff1e42cbd8b03021c1ee512715`.
   Current Dif placement/size code retains that subject; later window changes
   add Tour/diagnostics and semantic anchors, not new Dif pixels or geometry.
-- [BPR-0966](../issues/30-in-progress/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md)
+- [BPR-0966](../issues/60-done/BPR-0966-reconcile-dif-workshop-cues-with-composition-page.md)
   retains the exact Mac workshop Accept `3bcafec9-7811-46dd-83dd-f7bda4cdac1b`
   at source `388f814c`. Its deferred Windows cue course remains Backlog.
   That later semantic cue requirement is not a foundational RFC-0020 gate and

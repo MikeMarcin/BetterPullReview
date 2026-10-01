@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0966"
 title: "Reconcile Dif workshop cues with the dedicated composition page"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"origin_rfc":"RFC-BPR-0031","related_rfc":"RFC-BPR-0037","found_by":"BPR-0507 owner-amended closeout","mandate_revision":"r4-with-owner-compose-20260925-r3","found_at":"9479f1c3a7bd9e849e11fc64d3c156d0ede2a58d","scope":"Standalone later-UI contract follow-up; no RFC0012 product criterion is waived and no completed RFC0031 acceptance is rewritten","milestone_plan":{"id":"bpr0966-dif-cues","path":"docs/rfcs/plans/bpr0966-dif-cues/milestone-plan.json"},"accepted_platform_scope":"macOS exact candidate 388f814c with final human Dif Accept; historical Mac evidence retained","remaining_scope":"Deferred Windows consider-cue and exact-candidate composed-course verification; no waiver","owner_followup":"BPR-1212"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"observation","detail":"Owner decision dba44cfd from session06ad5734 selects visible Compose workshop slot; BPR1209 prime-slot reconciliation retained. No historical acceptance rewritten."}},{"criterion":"AC2","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"command","detail":"Baseline fails ready/acknowledge only. Candidate actual composed proposal and visible Accept button paint ready/acknowledge; exact session/action/draft router unchanged, one sprite, one acceptance intent and all publication counters zero. See compose-evidence.md."}},{"criterion":"AC3","outcome":"pending","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"observation","detail":"Mac behavior: six focused checks pass at 388f814c; main integration recorded in a773d803. Final human Accept 3bcafec9-7811-46dd-83dd-f7bda4cdac1b at session54fd75833481882c3bb47745f8e30b75 sequence5 accepts candidate BPR-0966-compose-slot-v002 fingerprint87eef088bdcccaf17caeaa52833756bca5bb4bee56287ccbe81a1bc888f8e3fd. Windows consider-cue and exact-candidate public-course outcome remain pending. Full Compose UX rethink deferred to BPR-1212; no native/cross-platform waiver."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"observation","detail":"Owner decision recorded 2026-09-25 (attended session 06ad5734) and the final Accept of BPR-0966-compose-slot-v002 on 2026-09-26 (decision 3bcafec9); unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","evidence":{"kind":"command","detail":"Bounded product correction verified on the exact Mac candidate with failing-before baseline (recorded above and in compose-evidence.md); unchanged."}},{"criterion":"AC3","outcome":"pass","revision":"02837c09","evidence":{"kind":"command","detail":"Mac: six exact-candidate checks plus the owner's Accept (above). Windows at 02837c09: application_agent_finding_dif_context_contract passes 6 of 6 with consider, ready and acknowledge Paint events recorded; the composition contract, qt_dif_workshop_placement, qt_dif_runtime, qt_review_draft_editor and architecture_boundaries pass. workshop_press fails on BPR-1245's parked RFC-0023 cause, which that card owns."}}]
 ---
 
 # Reconcile Dif workshop cues with the dedicated composition page
@@ -271,3 +271,29 @@ assertions, and record the revision and native limits. Diagnose an actual
 failure before changing the assertions. No new owner visual approval is owed
 for the unchanged accepted Mac slot; a materially changed candidate may need
 its own scoped review. No Linux or installed-release qualification is claimed.
+
+## Windows AC3 — bpr-main-win, 2026-10-01
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, offscreen,
+`build/windows-dev` Debug, at `02837c09`, which integrates the accepted slot.
+The Mac command's selection was run serially:
+
+| Row | Windows |
+|---|---|
+| `application_agent_finding_dif_context_contract` | **pass, 6 of 6** (14.68 to 14.82 s), every run with `agent-finding-dif-context:pass` |
+| `application_agent_finding_composition_contract` | pass, 8.34 s |
+| `qt_dif_workshop_placement`, `qt_dif_runtime`, `qt_review_draft_editor` | pass, 4.82, 1.75 and 0.35 s |
+| `architecture_boundaries` | pass, 23.88 s |
+| `application_agent_finding_workshop_press_contract` | fails at `agent-run`: `Not started: Choose immutable revisions or findings in Private history, then Ask agent…`. This is [[BPR-1245]]'s RFC-BPR-0023 cause. That card names this row and is parked on the owner's decision about it, so the failure is not this card's |
+
+**The consider cue.** Every pass requires `dif-saw-consider`, `ready` and
+`acknowledge`. Since `6729ad21`, the course records Dif's actual `Paint` events
+per clip (`dif_paint_observation`). Earlier it sampled the current clip between
+passes, which is why Windows missed consider in 9 of 9 runs before. That is the
+change this card asked for: "record the clip when Dif shows it, rather than
+sample it". With it, Windows saw consider, ready and acknowledge paint in all
+six runs.
+
+The run was offscreen. No native desktop observation was made, and none is
+owed: the owner accepted the unchanged slot on Mac, and the presentation is
+unchanged.
