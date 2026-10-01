@@ -504,6 +504,17 @@ namespace bpr::qt {
 		}
 		auto* document = Rendered->document();
 		document->setDefaultFont(font());
+		// [[BPR-0970]]. Restyling a fragment can merge it with its neighbour,
+		// which invalidates a QTextBlock::iterator standing on it; the parser
+		// fuzz target found `[_|_)]()` reading freed fragment nodes. Each
+		// block's fragments are therefore read first and restyled after.
+		struct fragment_style
+		{
+			int             Position = 0;
+			int             Length   = 0;
+			QTextCharFormat Format;
+		};
+		std::vector<fragment_style> fragments;
 		for (auto block = document->begin(); block.isValid(); block = block.next()) {
 			auto       cursor = QTextCursor{ block };
 			auto       format = block.blockFormat();
@@ -517,6 +528,7 @@ namespace bpr::qt {
 				format.setNonBreakableLines(code);
 				cursor.setBlockFormat(format);
 			}
+			fragments.clear();
 			for (auto it = block.begin(); !it.atEnd(); ++it) {
 				const auto fragment = it.fragment();
 				auto       chars    = fragment.charFormat();
@@ -530,9 +542,14 @@ namespace bpr::qt {
 					chars.setForeground(palette().link());
 					chars.setFontUnderline(true);
 				}
-				cursor.setPosition(fragment.position());
-				cursor.setPosition(fragment.position() + fragment.length(), QTextCursor::KeepAnchor);
-				cursor.setCharFormat(chars);
+				fragments.push_back({ .Position = fragment.position(), .Length = fragment.length(), .Format = chars });
+			}
+			// A character format changes no positions, so each span is still
+			// the fragment it was read from.
+			for (const auto& fragment : fragments) {
+				cursor.setPosition(fragment.Position);
+				cursor.setPosition(fragment.Position + fragment.Length, QTextCursor::KeepAnchor);
+				cursor.setCharFormat(fragment.Format);
 			}
 		}
 		style_tables(*document->rootFrame(), palette());

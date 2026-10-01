@@ -1,0 +1,8 @@
+{"type":"thread.started","thread_id":"thread-7"}
+{"type":"turn.started"}
+
+
+{"type":"item.completed","item":{"id":"item-9","type":"agent_message","text":"reviewed"}}
+
+
+{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1},"bprFindings":{"session":1,"findings":[{"provider":1,"severity":"major","confidence":"high","category":"correctness","path":"src/canary.cpp","lines":{"begin":10,"end":12},"anchor":{"line":{"comparison":"5555555555555555555555555555555555555555555555555555555555555555","side":"right","line":11}},"claim":"c","evidence":"e","consequence":"q","suggestedComment":"s","requiredContext":"r","analyzedBase":"1111111111111111111111111111111111111111","analyzedHead":"2222222222222222222222222222222222222222","analyzedCommits":["3333333333333333333333333333333333333333"]}]}}

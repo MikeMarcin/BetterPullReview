@@ -1,0 +1,6 @@
+{
+  "schema": "bpr.review-preparation.result.v1",
+  "kind": "rewrite",
+  "status": "insufficient_context",
+  "reason": "The supplied change does not establish what failure or limitation motivated it."
+}

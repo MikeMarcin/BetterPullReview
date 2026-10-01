@@ -68,6 +68,38 @@ option(
 )
 
 include("${CMAKE_ROOT}/Modules/CTest.cmake")
+# [[BPR-0970]]. An opt-in graph for the parser and mapping fuzz targets in
+# tests/fuzz. Every first-party unit is instrumented, not only the harnesses:
+# libFuzzer steers by the coverage of the production parser it calls, and
+# AddressSanitizer can only see that parser's accesses if it was compiled for
+# them. The flags are set here, before any first-party target exists.
+option(BPR_BUILD_FUZZERS "Build the libFuzzer parser and mapping targets (Clang on macOS or Linux)" OFF)
+if(BPR_BUILD_FUZZERS)
+    if(NOT BUILD_TESTING)
+        message(FATAL_ERROR "BPR_BUILD_FUZZERS requires BUILD_TESTING=ON")
+    endif()
+    if(WIN32 OR NOT CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
+        message(
+            FATAL_ERROR
+            "BPR_BUILD_FUZZERS needs Clang or Apple clang on macOS or Linux "
+            "(see docs/development/build-and-test.md)"
+        )
+    endif()
+    # -O1 keeps a campaign fast enough to matter; line tables keep its stacks
+    # readable. Both follow the libFuzzer documentation's recommendation.
+    set(BPR_FUZZ_INSTRUMENTATION
+        -fsanitize=fuzzer-no-link,address,undefined
+        -fno-omit-frame-pointer
+        -fno-sanitize-recover=all
+        -O1
+        -gline-tables-only
+    )
+    list(JOIN BPR_FUZZ_INSTRUMENTATION " " bpr_fuzz_flags)
+    string(APPEND CMAKE_C_FLAGS " ${bpr_fuzz_flags}")
+    string(APPEND CMAKE_CXX_FLAGS " ${bpr_fuzz_flags}")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS " -fsanitize=address,undefined")
+    string(APPEND CMAKE_SHARED_LINKER_FLAGS " -fsanitize=address,undefined")
+endif()
 option(BPR_DISTRIBUTION_BUILD "Restrict the product to its deployed runtime" OFF)
 if(BPR_DISTRIBUTION_BUILD AND (BUILD_TESTING OR NOT BPR_BUILD_QT))
     message(FATAL_ERROR "Distribution builds require the tests-disabled application graph")

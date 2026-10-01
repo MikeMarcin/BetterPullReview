@@ -78,4 +78,11 @@ Tests are direct evidence, not naming evidence.
   provider composition, or permission to contact GitHub. Use uninstrumented
   runs for cancellation/timeout behavior; a dependency trace may isolate one
   trusted-success case because tracing perturbs the fixture's timing.
+- Fuzz targets in `tests/fuzz` call the production entry point the
+  inventory in `docs/verification/BPR-0970-parser-fuzzing.md` names, through
+  the same seam a caller uses; a reader that is only reachable through a
+  process or a socket moves to a header the adapter itself calls, never to a
+  test-only backdoor. A target asserts the contract's properties, not only
+  the absence of a crash, and a fixed finding goes back into the corpus as a
+  regression seed.
 - A test must fail or visibly disagree when its claimed behavior is false.

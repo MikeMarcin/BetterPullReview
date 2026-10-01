@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <iterator>
 #include <optional>
 #include <ranges>
@@ -60,7 +61,22 @@ namespace bpr::core {
 			return bracket_result{ .Matched = matched != negated, .Next = index + 1 };
 		}
 
-		auto match(const std::string_view aPattern, std::size_t aPatternIndex, const std::string_view aText, std::size_t aTextIndex) -> bool
+		/// \brief How one attempt ended. Besides a plain mismatch, an attempt
+		/// can end because the text ran out with pattern left, or because a
+		/// single `*` reached a `/` it may not cross. Neither changes for an
+		/// enclosing `*` that starts later, so it stops at once.
+		/// \details [[BPR-0970]]. Without these stops the backtracking was
+		/// exponential in the number of `*`: the parser fuzz target found a
+		/// 6 KiB `.gitignore` line and path that took 13 seconds. They are
+		/// Git's own (`WM_ABORT_ALL`, `WM_ABORT_TO_STARSTAR` in wildmatch.c).
+		enum class attempt : std::uint8_t {
+			matched,
+			unmatched,
+			text_exhausted,
+			stopped_at_slash,
+		};
+
+		auto match(const std::string_view aPattern, std::size_t aPatternIndex, const std::string_view aText, std::size_t aTextIndex) -> attempt
 		{
 			while (aPatternIndex < aPattern.size()) {
 				auto character = aPattern[aPatternIndex];
@@ -71,41 +87,41 @@ namespace bpr::core {
 					const auto segmentEnd   = after == aPattern.size() || aPattern[after] == '/';
 					if (twice && segmentStart && segmentEnd) {
 						if (after == aPattern.size()) {
-							return true;
+							return attempt::matched;
 						}
-						const auto rest = after + 1;
-						if (match(aPattern, rest, aText, aTextIndex)) {
-							return true;
-						}
-						for (auto position = aTextIndex; position < aText.size(); ++position) {
-							if (aText[position] == '/' && match(aPattern, rest, aText, position + 1)) {
-								return true;
+						// `**/` may stand for any number of whole directories, so
+						// only a match or an exhausted text ends the search.
+						const auto rest  = after + 1;
+						auto       found = match(aPattern, rest, aText, aTextIndex);
+						for (auto position = aTextIndex; found != attempt::matched && found != attempt::text_exhausted && position < aText.size(); ++position) {
+							if (aText[position] == '/') {
+								found = match(aPattern, rest, aText, position + 1);
 							}
 						}
-						return false;
+						return found == attempt::matched ? attempt::matched : attempt::unmatched;
 					}
 					while (aPatternIndex < aPattern.size() && aPattern[aPatternIndex] == '*') {
 						++aPatternIndex;
 					}
 					if (aPatternIndex == aPattern.size()) {
-						return aText.find('/', aTextIndex) == std::string_view::npos;
+						return aText.find('/', aTextIndex) == std::string_view::npos ? attempt::matched : attempt::unmatched;
 					}
 					for (auto position = aTextIndex; position <= aText.size(); ++position) {
-						if (match(aPattern, aPatternIndex, aText, position)) {
-							return true;
+						if (const auto found = match(aPattern, aPatternIndex, aText, position); found != attempt::unmatched) {
+							return found;
 						}
 						if (position < aText.size() && aText[position] == '/') {
-							return false;
+							return attempt::stopped_at_slash;
 						}
 					}
-					return false;
+					return attempt::text_exhausted;
 				}
 				if (aTextIndex >= aText.size()) {
-					return false;
+					return attempt::text_exhausted;
 				}
 				if (character == '?') {
 					if (aText[aTextIndex] == '/') {
-						return false;
+						return attempt::unmatched;
 					}
 					++aPatternIndex;
 					++aTextIndex;
@@ -113,11 +129,11 @@ namespace bpr::core {
 				}
 				if (character == '[') {
 					if (aText[aTextIndex] == '/') {
-						return false;
+						return attempt::unmatched;
 					}
 					if (const auto result = bracket(aPattern, aPatternIndex, aText[aTextIndex])) {
 						if (!result->Matched) {
-							return false;
+							return attempt::unmatched;
 						}
 						aPatternIndex = result->Next;
 						++aTextIndex;
@@ -128,12 +144,12 @@ namespace bpr::core {
 					character = aPattern[++aPatternIndex];
 				}
 				if (aText[aTextIndex] != character) {
-					return false;
+					return attempt::unmatched;
 				}
 				++aPatternIndex;
 				++aTextIndex;
 			}
-			return aTextIndex == aText.size();
+			return aTextIndex == aText.size() ? attempt::matched : attempt::unmatched;
 		}
 
 		/// Removes unescaped trailing spaces, as Git does; `\ ` keeps one.
@@ -179,7 +195,7 @@ namespace bpr::core {
 
 	auto wildcard_match(const std::string_view aPattern, const std::string_view aPath) -> bool
 	{
-		return match(aPattern, 0, aPath, 0);
+		return match(aPattern, 0, aPath, 0) == attempt::matched;
 	}
 
 	auto workspace_ignore_rules::add(const std::string_view aBase, std::string_view aContents) -> bool

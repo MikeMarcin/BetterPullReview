@@ -1,0 +1,18 @@
+	{
+  "total_count": 1,
+  "incomplete_results": false,
+  "items": [
+    {
+      "node_id": "PR_fixture_17",
+      "number": 17,
+      "state": "open",
+      "title": "Keep review snapshots deterministic",
+      "draft": false,
+      "repository_url": "https://api.github.com/repos/octo-org/review-repository",
+      "html_url": "https://github.com/octo-org/review-repository/pull/17",
+      "pull_request": {
+        "url": "https://api.github.com/repos/octo-org/review-repository/pulls/17"
+      }
+    }
+  ]
+}

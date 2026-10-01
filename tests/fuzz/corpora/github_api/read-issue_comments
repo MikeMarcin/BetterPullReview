@@ -1,0 +1,10 @@
+[
+  {
+    "node_id": "IC_fixture_1",
+    "user": {
+      "node_id": "U_fixture_author",
+      "login": "octo-author"
+    },
+    "body": "Fixture follow-up: validation is complete."
+  }
+]

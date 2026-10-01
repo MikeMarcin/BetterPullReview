@@ -1,0 +1,32 @@
+{
+  "id": 3001,
+  "node_id": "PR_fixture_17",
+  "number": 17,
+  "state": "open",
+  "title": "Keep review snapshots deterministic",
+  "body": "This synthetic pull request exercises the normalized read contract.",
+  "changed_files": 1,
+  "commits": 1,
+  "draft": false,
+  "user": {
+    "node_id": "U_fixture_author",
+    "login": "octo-author"
+  },
+  "base": {
+    "ref": "main",
+    "sha": "1111111111111111111111111111111111111111",
+    "repo": {
+      "id": 2001,
+      "full_name": "octo-org/review-repository"
+    }
+  },
+  "head": {
+    "ref": "fixture/deterministic-snapshots",
+    "sha": "2222222222222222222222222222222222222222",
+    "repo": {
+      "id": 2001,
+      "full_name": "octo-org/review-repository"
+    }
+  },
+  "merged": false
+}

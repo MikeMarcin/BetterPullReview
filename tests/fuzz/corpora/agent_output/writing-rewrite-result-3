@@ -1,0 +1,7 @@
+{
+  "schema": "bpr.review-preparation.result.v1",
+  "kind": "rewrite",
+  "status": "ok",
+  "replacement_text": "Reading data can crash when that data is deleted concurrently.",
+  "notes": []
+}

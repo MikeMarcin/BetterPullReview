@@ -1,0 +1,11 @@
+{
+  "id": 2001,
+  "node_id": "R_fixture_repository",
+  "name": "review-repository",
+  "full_name": "octo-org/review-repository",
+  "owner": {
+    "login": "octo-org"
+  },
+  "private": false,
+  "default_branch": "main"
+}

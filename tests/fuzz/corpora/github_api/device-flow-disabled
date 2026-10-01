@@ -1,0 +1,3 @@
+Content-Type: application/json; charset=utf-8
+
+{"error":"device_flow_disabled","error_description":"Device Flow must be explicitly enabled for this App"}

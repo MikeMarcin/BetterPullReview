@@ -1,0 +1,5 @@
+	HTTP/1.1 200 OK
+Link: <https://api.github.com/repos/o/r/pulls?page=2>; rel="next", <https://api.github.com/repos/o/r/pulls?page=5>; rel="last"
+Retry-After: 3
+
+[]

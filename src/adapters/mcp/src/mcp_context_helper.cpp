@@ -440,6 +440,12 @@ namespace bpr::adapters::mcp {
 			case json_node::kind::string:
 				return json_string(aId.Text);
 			case json_node::kind::number: {
+				// [[BPR-0970]]. Converting a double outside the 64-bit range is
+				// undefined, so such an identity is refused before the cast.
+				// Both bounds are powers of two and exact as doubles.
+				if (!(aId.Number >= -9'223'372'036'854'775'808.0 && aId.Number < 9'223'372'036'854'775'808.0)) {
+					return std::nullopt;
+				}
 				const auto integral = static_cast<std::int64_t>(aId.Number);
 				if (static_cast<double>(integral) != aId.Number) {
 					return std::nullopt;

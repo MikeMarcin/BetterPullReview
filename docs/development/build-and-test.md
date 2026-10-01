@@ -1255,6 +1255,38 @@ looking at the screen can answer — that remains BPR-0168's. And `macdeployqt`
 does not run: Qt is still resolved through the build's rpath, exactly as for the
 flat executable.
 
+## Parser fuzzing
+
+[[BPR-0970]]. `BPR_BUILD_FUZZERS=ON` adds the libFuzzer targets in
+`tests/fuzz`, one per parser family, to a Clang or Apple clang build on macOS
+or Linux. It instruments every first-party unit for coverage and for
+AddressSanitizer and UndefinedBehaviorSanitizer, so use a tree of its own.
+Apple clang instruments but ships no libFuzzer runtime; name the archive of an
+LLVM installation instead. Linux Clang needs no runtime argument.
+
+```sh
+cmake --preset dev -B build/fuzz -DBPR_BUILD_FUZZERS=ON \
+  -DBPR_LIBFUZZER_RUNTIME=/opt/homebrew/opt/llvm/lib/clang/23/lib/darwin/libclang_rt.fuzzer_osx.a
+cmake --build build/fuzz --target parser-fuzzers
+ctest --test-dir build/fuzz -L bpr_fuzz_corpus --output-on-failure
+```
+
+Each `fuzz_<family>_corpus` row replays `tests/fuzz/corpora/<family>` once.
+A campaign runs a target on a copy of its corpus, never on the checked-in one,
+with the target's `-max_len` from `tests/fuzz/CMakeLists.txt`:
+
+```sh
+cp -R tests/fuzz/corpora/github_api /tmp/github_api
+build/fuzz/tests/fuzz/github_api -seed=970005 -max_total_time=900 \
+  -max_len=262144 -timeout=10 -rss_limit_mb=2048 -malloc_limit_mb=512 \
+  -print_final_stats=1 -artifact_prefix=/tmp/github_api- /tmp/github_api
+```
+
+A crash, sanitizer report, timeout or out-of-memory input is written beside
+the artifact prefix. Fix the cause, then add the input to the corpus as a
+regression seed. [docs/verification/BPR-0970-parser-fuzzing.md](../verification/BPR-0970-parser-fuzzing.md)
+holds the inventory of entry points and the campaigns run so far.
+
 ## Focused evidence
 
 ```sh

@@ -1,0 +1,7 @@
+## Review tour — Start here
+
+Follow the lifetime decision first, then its callers and evidence. This route is guidance, not a substitute for inspecting the remaining diff.
+
+1. [The lifetime assumption that breaks](https://github.example.invalid/acme/demo/pull/42#discussion_r101)
+2. [Retain lifetime before releasing the lock](https://github.example.invalid/acme/demo/pull/42#discussion_r102)
+3. [Exercise deletion during an active read](https://github.example.invalid/acme/demo/pull/42#discussion_r103)

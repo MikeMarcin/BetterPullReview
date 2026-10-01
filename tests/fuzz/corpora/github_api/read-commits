@@ -1,0 +1,13 @@
+[
+  {
+    "sha": "2222222222222222222222222222222222222222",
+    "node_id": "C_fixture_head",
+    "commit": {
+      "message": "Keep review snapshots deterministic"
+    },
+    "author": {
+      "node_id": "U_fixture_author",
+      "login": "octo-author"
+    }
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "total_count": 1,
+  "check_runs": [
+    {
+      "node_id": "CR_fixture_1",
+      "name": "Local verification",
+      "head_sha": "2222222222222222222222222222222222222222",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}

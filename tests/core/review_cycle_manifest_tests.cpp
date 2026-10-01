@@ -186,6 +186,13 @@ namespace {
 		expect(wildcard_match("\\*literal", "*literal") && !wildcard_match("\\*literal", "xliteral"), "escape");
 		expect(wildcard_match("foo**bar", "fooxbar") && !wildcard_match("foo**bar", "foo/bar"), "inline double star is a star");
 		expect(!wildcard_match("[[:alpha:]]", "a"), "classes unsupported and match nothing");
+		// [[BPR-0970]]. Many stars against a long name that never matches used
+		// to backtrack exponentially: this pair would run for years. Git's
+		// early stops answer it at once.
+		const auto stars = std::string{ "*a*a*a*a*a*a*a*a*a*a*a*a*b" };
+		expect(!wildcard_match(stars, std::string(400U, 'a')), "many stars against a long name end without backtracking");
+		expect(!wildcard_match("**/" + stars, std::string(200U, 'a') + "/" + std::string(200U, 'a')), "and so do they below a double star");
+		expect(wildcard_match(stars, std::string(400U, 'a') + "b"), "the same pattern still matches what it matches");
 	}
 
 	void applies_ignore_precedence()

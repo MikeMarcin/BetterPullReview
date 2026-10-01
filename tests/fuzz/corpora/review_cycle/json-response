@@ -1,0 +1,29 @@
+{
+  "schema": "bpr.cycle.response.v1",
+  "response_id": "RESP-1",
+  "cycle_id": "RC-17",
+  "round_id": "F1",
+  "round_payload_sha256": "061dd80030f4082164650da96c80cc5984c2f238bf8413b5c5120beac8d86acd",
+  "claimed_author": {
+    "display_name": "Example recipient",
+    "kind": "human",
+    "provider": null,
+    "model": null,
+    "effort": null
+  },
+  "result_source_revision_id": null,
+  "items": [
+    {
+      "item_id": "I5",
+      "item_revision": "1",
+      "disposition": "discussion_only",
+      "body": "This fixture contains no synchronization contract. I would ask for the actual project assumption before changing it. No code or tests have been run.",
+      "evidence": [
+        {
+          "kind": "text",
+          "value": "Synthetic response example only; not product or agent execution evidence."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "bpr.review-preparation.result.v1",
+  "kind": "outline",
+  "stops": [
+    {
+      "title": "The lifetime assumption that breaks",
+      "anchor_ref": "source:read-path",
+      "related_refs": [
+        "source:lifetime-contract"
+      ],
+      "reason": "Introduce the lifetime assumption the change addresses.",
+      "author_question": "Which interleaving exposed the failure?"
+    },
+    {
+      "title": "Retain lifetime before releasing the lock",
+      "anchor_ref": "source:handle-acquisition",
+      "related_refs": [],
+      "reason": "Explain the boundary that keeps the entry alive.",
+      "author_question": "What does this protect, and what does it not protect?"
+    }
+  ]
+}

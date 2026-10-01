@@ -1,0 +1,7 @@
+### Author's tour · 1 — The lifetime assumption that breaks
+
+The old lookup contract allowed a reader to retain a pointer after releasing the lookup lock. In this illustrative change, deletion can then retire that entry before the read finishes.
+
+Please check the other callers of this lookup: changing only this path would leave the same lifetime assumption elsewhere.
+
+[Tour overview](https://github.example.invalid/acme/demo/pull/42#pullrequestreview-900) · [Next: Retain lifetime before releasing the lock](https://github.example.invalid/acme/demo/pull/42#discussion_r102)

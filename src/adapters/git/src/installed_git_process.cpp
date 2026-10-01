@@ -1,6 +1,7 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
+#include "git_process_output.hpp"
 #include "windows_sharing_retry.hpp"
 #include <glaze/json.hpp>
 
@@ -1140,42 +1141,13 @@ namespace bpr::adapters::git {
 			return result;
 		}
 
-		[[nodiscard]] constexpr auto hex_value(const char aValue) noexcept
-			-> std::optional<std::uint8_t>
-		{
-			if (aValue >= '0' && aValue <= '9') {
-				return static_cast<std::uint8_t>(aValue - '0');
-			}
-			if (aValue >= 'a' && aValue <= 'f') {
-				return static_cast<std::uint8_t>(aValue - 'a' + 10);
-			}
-			return std::nullopt;
-		}
-
-		template <typename Object>
-		[[nodiscard]] auto parse_object(
-			const std::string_view   aText,
-			const git_hash_algorithm aAlgorithm) -> std::optional<Object>
-		{
-			const auto byteCount = aAlgorithm == git_hash_algorithm::sha1 ? 20U : 32U;
-			if (aText.size() != byteCount * 2U) {
-				return std::nullopt;
-			}
-			Object result{ .Algorithm = aAlgorithm };
-			for (std::size_t index = 0; index < byteCount; ++index) {
-				const auto high = hex_value(aText[index * 2U]);
-				const auto low  = hex_value(aText[index * 2U + 1U]);
-				if (!high.has_value() || !low.has_value()) {
-					return std::nullopt;
-				}
-				result.Digest[index] = static_cast<std::uint8_t>(
-					static_cast<std::uint8_t>(*high << 4U) | *low);
-			}
-			if (!application::valid(result)) {
-				return std::nullopt;
-			}
-			return result;
-		}
+		// [[BPR-0970]]. The output readers live in git_process_output.hpp, where
+		// the parser fuzz target reaches them.
+		using detail::hex_value;
+		using detail::parse_object;
+		using detail::tree_entry_path;
+		using detail::tree_entry_path_text;
+		using detail::valid_tree_entry_path;
 
 		template <typename Object>
 		[[nodiscard]] auto object_text(const Object& aObject) -> std::string
@@ -1183,40 +1155,6 @@ namespace bpr::adapters::git {
 			const auto byteCount = aObject.Algorithm == git_hash_algorithm::sha1 ? 20U : 32U;
 			return lower_hex(
 				std::span{ aObject.Digest }.first(byteCount));
-		}
-
-		[[nodiscard]] auto valid_tree_entry_path(
-			const std::filesystem::path& aPath) noexcept -> bool
-		{
-			const auto text = aPath.generic_u8string();
-			return !text.empty() && !aPath.is_absolute()
-				&& text.size() <= application::maximum_git_tree_entry_path_bytes
-				&& text.front() != u8'/'
-				&& text.find(u8'\0') == decltype(text)::npos
-				&& std::ranges::none_of(
-					aPath,
-					[](const auto& aComponent) {
-						return aComponent == "." || aComponent == "..";
-					});
-		}
-
-		[[nodiscard]] auto tree_entry_path_text(
-			const std::filesystem::path& aPath) -> std::string
-		{
-			const auto text = aPath.generic_u8string();
-			return {
-				reinterpret_cast<const char*>(text.data()),
-				text.size()
-			};
-		}
-
-		[[nodiscard]] auto tree_entry_path(
-			const std::string_view aText) -> std::filesystem::path
-		{
-			const auto* const begin = reinterpret_cast<const char8_t*>(aText.data());
-			return std::filesystem::path{
-				std::u8string{ begin, begin + aText.size() }
-			};
 		}
 
 		[[nodiscard]] auto validate_installed_pack(
@@ -4096,31 +4034,7 @@ namespace bpr::adapters::git {
 			const git_hash_algorithm aAlgorithm)
 			-> git_process_result<application::git_comparison_base_observation>
 		{
-			using status = application::git_comparison_base_status;
-			if (aResult.ExitCode == 1 && aResult.StandardOutput.empty()) {
-				return application::git_comparison_base_observation{ .Status = status::no_common_ancestor };
-			}
-			if (aResult.ExitCode != 0 || aResult.StandardOutput.empty()) {
-				return std::unexpected{ git_process_failure::malformed_output };
-			}
-			auto remaining = std::string_view{ aResult.StandardOutput };
-			auto bases     = std::vector<git_commit_id>{ };
-			while (!remaining.empty()) {
-				const auto newline = remaining.find('\n');
-				if (newline == std::string_view::npos) {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				const auto base = parse_object<git_commit_id>(remaining.substr(0U, newline), aAlgorithm);
-				if (!base || std::ranges::find(bases, *base) != bases.end()) {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				bases.push_back(*base);
-				remaining.remove_prefix(newline + 1U);
-			}
-			return application::git_comparison_base_observation{
-				.Status = bases.size() == 1U ? status::unique : status::multiple_merge_bases,
-				.Base   = bases.size() == 1U ? std::optional{ bases.front() } : std::nullopt,
-			};
+			return detail::parse_comparison_bases(aResult.ExitCode, aResult.StandardOutput, aAlgorithm);
 		}
 
 		class installed_git_process final
@@ -4824,33 +4738,11 @@ namespace bpr::adapters::git {
 				if (!checked.has_value()) {
 					return std::unexpected{ checked.error() };
 				}
-				if (checked->StandardOutput == blob + " missing\n") {
-					return std::unexpected{ git_process_failure::object_unavailable };
+				const auto parsedSize = detail::parse_blob_size(checked->StandardOutput, blob, aRequest.MaximumBytes);
+				if (!parsedSize.has_value()) {
+					return std::unexpected{ parsedSize.error() };
 				}
-				const auto prefix = blob + " blob ";
-				if (
-					!checked->StandardOutput.starts_with(prefix)
-					|| checked->StandardOutput.empty()
-					|| checked->StandardOutput.back() != '\n') {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				const auto sizeText = std::string_view{ checked->StandardOutput }.substr(
-					prefix.size(),
-					checked->StandardOutput.size() - prefix.size() - 1U);
-				std::uint64_t size      = 0U;
-				const auto [end, error] = std::from_chars(
-					sizeText.data(), sizeText.data() + sizeText.size(), size);
-				if (
-					error != std::errc{ } || end != sizeText.data() + sizeText.size()
-					|| size > aRequest.MaximumBytes
-					|| size > static_cast<std::uint64_t>(
-						   std::numeric_limits<std::size_t>::max())) {
-					return std::unexpected{
-						size > aRequest.MaximumBytes
-							? git_process_failure::standard_output_limit
-							: git_process_failure::malformed_output
-					};
-				}
+				const auto size = *parsedSize;
 
 				arguments = common_git_arguments(aRequest.Repository, HooksRoot);
 				append_arguments(arguments, "cat-file", "blob", blob);
@@ -4905,38 +4797,7 @@ namespace bpr::adapters::git {
 				if (!listed.has_value()) {
 					return std::unexpected{ listed.error() };
 				}
-				if (listed->StandardOutput.empty()) {
-					return std::optional<application::git_blob_id>{ };
-				}
-				const auto output = std::string_view{ listed->StandardOutput };
-				if (output.back() != '\0'
-					|| output.find('\0') != output.size() - 1U) {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				const auto record = output.substr(0U, output.size() - 1U);
-				const auto tab    = record.find('\t');
-				if (tab == std::string_view::npos
-					|| record.substr(tab + 1U) != requestedPath) {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				const auto header     = record.substr(0U, tab);
-				const auto firstSpace = header.find(' ');
-				const auto lastSpace  = header.rfind(' ');
-				if (firstSpace == std::string_view::npos || firstSpace == lastSpace
-					|| (header.substr(0U, firstSpace) != "100644"
-						&& header.substr(0U, firstSpace) != "100755"
-						&& header.substr(0U, firstSpace) != "120000")
-					|| header.substr(firstSpace + 1U, lastSpace - firstSpace - 1U)
-						!= "blob") {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				const auto blob = parse_object<application::git_blob_id>(
-					header.substr(lastSpace + 1U),
-					aRequest.Commit.Algorithm);
-				if (!blob.has_value()) {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				return blob;
+				return detail::parse_ls_tree_blob(listed->StandardOutput, requestedPath, aRequest.Commit.Algorithm);
 			}
 
 			[[nodiscard]] auto find_rename_pairs(
@@ -4986,66 +4847,10 @@ namespace bpr::adapters::git {
 					return std::unexpected{ renamed.error() };
 				}
 
-				auto       observation = application::git_rename_pair_observation{ };
-				const auto output      = std::string_view{ renamed->StandardOutput };
-				auto       offset      = std::size_t{ 0U };
-				auto       scanned     = std::size_t{ 0U };
-				const auto field       = [&]() -> std::optional<std::string_view> {
-					const auto end = output.find('\0', offset);
-					if (end == std::string_view::npos) {
-						return std::nullopt;
-					}
-					const auto result = output.substr(offset, end - offset);
-					offset            = end + 1U;
-					return result;
-				};
-				while (offset < output.size()) {
-					const auto status = field();
-					const auto left   = field();
-					const auto right  = field();
-					if (!status.has_value() || !left.has_value() || !right.has_value()) {
-						return std::unexpected{ git_process_failure::malformed_output };
-					}
-					++scanned;
-					if (scanned > application::maximum_git_rename_scan_records) {
-						return std::unexpected{ git_process_failure::standard_output_limit };
-					}
-					if (status->size() != 4U || status->front() != 'R' || left->empty()
-						|| right->empty() || *left == *right) {
-						return std::unexpected{ git_process_failure::malformed_output };
-					}
-					const auto score = status->substr(1U);
-					if (!std::ranges::all_of(score, [](const char aValue) {
-							return aValue >= '0' && aValue <= '9';
-						})
-						|| score < "050" || score > "100") {
-						return std::unexpected{ git_process_failure::malformed_output };
-					}
-					const auto leftPath  = tree_entry_path(*left);
-					const auto rightPath = tree_entry_path(*right);
-					const auto bound     = *left == currentPath || *right == currentPath
-						|| (previousPath.has_value()
-							&& (*left == *previousPath || *right == *previousPath));
-					if (!valid_tree_entry_path(leftPath)
-						|| !valid_tree_entry_path(rightPath)) {
-						return std::unexpected{ git_process_failure::malformed_output };
-					}
-					if (!bound) {
-						continue;
-					}
-					if (observation.Count
-						>= application::maximum_git_rename_pair_records) {
-						return std::unexpected{ git_process_failure::standard_output_limit };
-					}
-					observation.Records[observation.Count++] = {
-						.LeftPath  = leftPath,
-						.RightPath = rightPath,
-					};
-				}
-				if (offset != output.size()) {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				return observation;
+				return detail::parse_rename_pairs(
+					renamed->StandardOutput,
+					currentPath,
+					previousPath.has_value() ? std::optional<std::string_view>{ *previousPath } : std::nullopt);
 			}
 
 			[[nodiscard]] auto is_ancestor(
@@ -5167,17 +4972,11 @@ namespace bpr::adapters::git {
 				if (!result) {
 					return std::unexpected{ result.error() };
 				}
-				const auto& output = result->StandardOutput;
-				if (output.size() < 2U || output.back() != '\n') {
-					return std::unexpected{ git_process_failure::malformed_output };
+				const auto seconds = detail::parse_committer_seconds(result->StandardOutput);
+				if (!seconds.has_value()) {
+					return std::unexpected{ seconds.error() };
 				}
-				std::int64_t seconds = 0;
-				const auto   end     = output.data() + output.size() - 1U;
-				const auto   parsed  = std::from_chars(output.data(), end, seconds);
-				if (parsed.ec != std::errc{ } || parsed.ptr != end) {
-					return std::unexpected{ git_process_failure::malformed_output };
-				}
-				return seconds;
+				return *seconds;
 			}
 
 			[[nodiscard]] auto verify_connectivity(
@@ -5397,40 +5196,7 @@ namespace bpr::adapters::git {
 				if (!result.has_value()) {
 					return std::unexpected{ result.error() };
 				}
-				if (result->StandardOutput.empty()) {
-					return std::optional<git_commit_id>{ };
-				}
-				const auto nameSeparator   = result->StandardOutput.find('\0');
-				const auto objectSeparator = nameSeparator == std::string::npos
-					? std::string::npos
-					: result->StandardOutput.find('\0', nameSeparator + 1U);
-				if (
-					nameSeparator == std::string::npos
-					|| objectSeparator == std::string::npos
-					|| std::string_view{ result->StandardOutput }.substr(
-						   0U,
-						   nameSeparator)
-						!= *ref
-					|| result->StandardOutput.back() != '\n'
-					|| result->StandardOutput.find('\n')
-						!= result->StandardOutput.size() - 1U
-					|| objectSeparator + 1U
-						!= result->StandardOutput.size() - 1U) {
-					return std::unexpected{
-						git_process_failure::malformed_output
-					};
-				}
-				const auto object = parse_object<git_commit_id>(
-					std::string_view{ result->StandardOutput }.substr(
-						nameSeparator + 1U,
-						objectSeparator - nameSeparator - 1U),
-					*algorithm);
-				if (!object.has_value()) {
-					return std::unexpected{
-						git_process_failure::malformed_output
-					};
-				}
-				return std::optional<git_commit_id>{ object };
+				return detail::parse_ref_record(result->StandardOutput, *ref, *algorithm);
 			}
 
 			[[nodiscard]] auto capability_probe(std::stop_token aStop)
@@ -6680,86 +6446,7 @@ namespace bpr::adapters::git {
 				"d1b1a86a6b5182208ff0345ff6f64d9c48b9d058e0e8a88fbaefcf192384aa8d");
 		}
 
-		[[nodiscard]] auto parse_version(
-			const std::string_view aOutput)
-			-> std::optional<std::array<std::uint32_t, 3U>>
-		{
-			constexpr std::string_view prefix = "git version ";
-			if (!aOutput.starts_with(prefix) || aOutput.back() != '\n') {
-				return std::nullopt;
-			}
-			auto                          cursor = prefix.size();
-			std::array<std::uint32_t, 3U> version{ };
-			for (std::size_t component = 0U; component < version.size(); ++component) {
-				if (cursor >= aOutput.size()) {
-					return std::nullopt;
-				}
-				std::uint64_t value = 0U;
-				const auto    start = cursor;
-				while (
-					cursor < aOutput.size()
-					&& aOutput[cursor] >= '0' && aOutput[cursor] <= '9') {
-					value = value * 10U
-						+ static_cast<std::uint64_t>(
-								aOutput[cursor] - '0');
-					if (value > std::numeric_limits<std::uint32_t>::max()) {
-						return std::nullopt;
-					}
-					++cursor;
-				}
-				if (cursor == start) {
-					return std::nullopt;
-				}
-				version[component] = static_cast<std::uint32_t>(value);
-				if (component + 1U < version.size()) {
-					if (cursor >= aOutput.size() || aOutput[cursor] != '.') {
-						return std::nullopt;
-					}
-					++cursor;
-				}
-			}
-			if (cursor >= aOutput.size()) {
-				return std::nullopt;
-			}
-			if (aOutput[cursor] == '\n') {
-				return cursor + 1U == aOutput.size()
-					? std::optional{ version }
-					: std::nullopt;
-			}
-			const auto suffix = aOutput.substr(
-				cursor,
-				aOutput.size() - cursor - 1U);
-			if (aOutput.back() != '\n') {
-				return std::nullopt;
-			}
-			const auto decimal =
-				[](const std::string_view aValue) {
-					return !aValue.empty()
-						&& std::all_of(
-							aValue.begin(),
-							aValue.end(),
-							[](const char aCharacter) {
-								return aCharacter >= '0'
-									&& aCharacter <= '9';
-							});
-				};
-			constexpr std::string_view applePrefix = " (Apple Git-";
-			if (
-				suffix.starts_with(applePrefix)
-				&& suffix.ends_with(')')
-				&& decimal(suffix.substr(
-					applePrefix.size(),
-					suffix.size() - applePrefix.size() - 1U))) {
-				return version;
-			}
-			constexpr std::string_view windowsPrefix = ".windows.";
-			if (
-				suffix.starts_with(windowsPrefix)
-				&& decimal(suffix.substr(windowsPrefix.size()))) {
-				return version;
-			}
-			return std::nullopt;
-		}
+		using detail::parse_version;
 
 		[[nodiscard]] auto supported_version(
 			const std::array<std::uint32_t, 3U>& aVersion) noexcept -> bool

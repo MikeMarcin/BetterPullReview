@@ -1,0 +1,1 @@
+{"action":"implement","constraints":["Preserve CRLF."],"context":[],"goal":"Make insertion idempotent.","items":[],"large_context":false,"omissions":[],"schema":"bpr.cycle.round-draft.v1","source":1,"write_scope":["src/cache.cpp"]}

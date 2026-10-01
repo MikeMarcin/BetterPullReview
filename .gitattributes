@@ -41,3 +41,7 @@ tests/fixtures/github/**/*.md text eol=lf
 
 # The Review Cycles source archive pins exact fixture bytes, including CRLF.
 docs/rfcs/assets/bpr-review-cycles-v1/** -text -eol
+
+# [[BPR-0970]]. A fuzz seed is an exact input: its CRLF pairs, NULs and stray
+# bytes are the point. Never normalize one.
+tests/fuzz/corpora/** -text

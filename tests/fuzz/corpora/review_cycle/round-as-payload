@@ -1,0 +1,307 @@
+{
+  "schema": "bpr.cycle.round-envelope.v1",
+  "canonicalization": "bpr.cycle.canonical-json.v1",
+  "payload_sha256": "061dd80030f4082164650da96c80cc5984c2f238bf8413b5c5120beac8d86acd",
+  "payload": {
+    "schema": "bpr.cycle.round.v1",
+    "cycle_id": "RC-17",
+    "round_id": "F1",
+    "source_revision_id": "R0",
+    "source_consistency": "observed_stable",
+    "project": {
+      "id": "example-cache",
+      "label": "Synthetic cache review fixture",
+      "scope_paths": [
+        "include/cache.hpp",
+        "src",
+        "tests/cache_test.cpp"
+      ]
+    },
+    "assignment": {
+      "action": "implement",
+      "goal": "Make insertion idempotent and report whether it added an entry. Read all eight items together before editing.",
+      "constraints": [
+        "Preserve the cache ownership and synchronization model.",
+        "Use the exact interface suggestion; the implementation sketch is illustrative and must be adapted to the resulting bool return type.",
+        "Report tests actually run separately from tests merely proposed."
+      ],
+      "write_scope": [
+        "include/cache.hpp",
+        "src/cache.cpp",
+        "src/client.cpp",
+        "tests/cache_test.cpp"
+      ]
+    },
+    "items": [
+      {
+        "id": "I1",
+        "revision": "1",
+        "body": "suggestion: Make duplicate insertion an explicit interface outcome. Return whether an entry was added; update affected callers together.",
+        "action_override": null,
+        "anchors": [
+          {
+            "kind": "range",
+            "path": "include/cache.hpp",
+            "source_revision_id": "R0",
+            "blob_sha256": "33c8c9fdc3219d85250f441079e68b41f6ec3b7373ed6ebd52ea1ad6fbe46b9c",
+            "start_byte": 81,
+            "end_byte": 107
+          }
+        ],
+        "related_item_ids": [
+          "I2",
+          "I3",
+          "I4"
+        ],
+        "suggestions": [
+          {
+            "id": "SG1",
+            "revision": "1",
+            "intent": "exact_replacement",
+            "state": "proposed",
+            "anchor": {
+              "kind": "range",
+              "path": "include/cache.hpp",
+              "source_revision_id": "R0",
+              "blob_sha256": "33c8c9fdc3219d85250f441079e68b41f6ec3b7373ed6ebd52ea1ad6fbe46b9c",
+              "start_byte": 81,
+              "end_byte": 107
+            },
+            "original": {
+              "length": 26,
+              "sha256": "43679337ab3fb23e637bf9c6c901e3fed3eae0d849fc56d8e82df8aec56ca926",
+              "base64": "ICAgIHZvaWQgaW5zZXJ0KGludCBrZXkpOwo="
+            },
+            "replacement": {
+              "length": 40,
+              "sha256": "ac4ab9e61332ea439b5fe79355a1222bee4004323f352aebbec4baabdca4ed34",
+              "base64": "ICAgIFtbbm9kaXNjYXJkXV0gYm9vbCBpbnNlcnQoaW50IGtleSk7Cg=="
+            },
+            "already_applied_result_revision": null
+          }
+        ]
+      },
+      {
+        "id": "I2",
+        "revision": "1",
+        "body": "issue: Insertion must not create duplicate entries. This small replacement illustrates the intended early-return shape, not a complete implementation of the new return-value contract.",
+        "action_override": null,
+        "anchors": [
+          {
+            "kind": "range",
+            "path": "src/cache.cpp",
+            "source_revision_id": "R0",
+            "blob_sha256": "71687d8a3ea3820e28c6f20b868101182b2afea6032d71e043e4b173875ac610",
+            "start_byte": 136,
+            "end_byte": 162
+          }
+        ],
+        "related_item_ids": [
+          "I1",
+          "I7"
+        ],
+        "suggestions": [
+          {
+            "id": "SG2",
+            "revision": "1",
+            "intent": "illustrative",
+            "state": "proposed",
+            "anchor": {
+              "kind": "range",
+              "path": "src/cache.cpp",
+              "source_revision_id": "R0",
+              "blob_sha256": "71687d8a3ea3820e28c6f20b868101182b2afea6032d71e043e4b173875ac610",
+              "start_byte": 136,
+              "end_byte": 162
+            },
+            "original": {
+              "length": 26,
+              "sha256": "9554110217cebc5980112619fded3de51c5095368704b2cecca541cfbcd56f70",
+              "base64": "CWVudHJpZXMucHVzaF9iYWNrKGtleSk7DQo="
+            },
+            "replacement": {
+              "length": 64,
+              "sha256": "1a4472111ee41479b0f36dbfaf5935c94954af227a77532948f29d6054b96aef",
+              "base64": "CWlmIChjb250YWlucyhrZXkpKSB7DQoJCXJldHVybjsNCgl9DQoJZW50cmllcy5wdXNoX2JhY2soa2V5KTsNCg=="
+            },
+            "already_applied_result_revision": null
+          }
+        ]
+      },
+      {
+        "id": "I3",
+        "revision": "1",
+        "body": "thought: Prefer one insertion operation in the caller instead of a contains-then-insert sequence. Coordinate this with I1 and preserve caller behavior.",
+        "action_override": null,
+        "anchors": [
+          {
+            "kind": "file",
+            "path": "src/client.cpp",
+            "source_revision_id": "R0",
+            "blob_sha256": "aee0acfa9f8d5fa447d9d147619e048426b902c84ddc63990367f0484281a225",
+            "start_byte": null,
+            "end_byte": null
+          }
+        ],
+        "related_item_ids": [
+          "I1"
+        ],
+        "suggestions": []
+      },
+      {
+        "id": "I4",
+        "revision": "1",
+        "body": "todo: Add tests for first insertion and repeated insertion, including the return value and unchanged size on the duplicate path.",
+        "action_override": null,
+        "anchors": [
+          {
+            "kind": "file",
+            "path": "tests/cache_test.cpp",
+            "source_revision_id": "R0",
+            "blob_sha256": "eec10cd0d230f00eb83c4f4dd62348ab17b2f3bdf067d8ef1fe3af6d4957b87e",
+            "start_byte": null,
+            "end_byte": null
+          }
+        ],
+        "related_item_ids": [],
+        "suggestions": []
+      },
+      {
+        "id": "I5",
+        "revision": "1",
+        "body": "question: Does contains have a documented thread-safety contract? Discuss the current assumption; do not add synchronization or change ownership in this round.",
+        "action_override": "discuss",
+        "anchors": [
+          {
+            "kind": "file",
+            "path": "include/cache.hpp",
+            "source_revision_id": "R0",
+            "blob_sha256": "33c8c9fdc3219d85250f441079e68b41f6ec3b7373ed6ebd52ea1ad6fbe46b9c",
+            "start_byte": null,
+            "end_byte": null
+          }
+        ],
+        "related_item_ids": [],
+        "suggestions": []
+      },
+      {
+        "id": "I6",
+        "revision": "1",
+        "body": "nitpick: Use a descriptive parameter name in this public declaration and affected definitions; do not rename unrelated APIs.",
+        "action_override": null,
+        "anchors": [
+          {
+            "kind": "file",
+            "path": "include/cache.hpp",
+            "source_revision_id": "R0",
+            "blob_sha256": "33c8c9fdc3219d85250f441079e68b41f6ec3b7373ed6ebd52ea1ad6fbe46b9c",
+            "start_byte": null,
+            "end_byte": null
+          }
+        ],
+        "related_item_ids": [],
+        "suggestions": []
+      },
+      {
+        "id": "I7",
+        "revision": "1",
+        "body": "note: Preserve the tabs and CRLF in this implementation file. The proposal bytes attached to I2 retain both; do not normalize the file while addressing the behavior.",
+        "action_override": null,
+        "anchors": [
+          {
+            "kind": "file",
+            "path": "src/cache.cpp",
+            "source_revision_id": "R0",
+            "blob_sha256": "71687d8a3ea3820e28c6f20b868101182b2afea6032d71e043e4b173875ac610",
+            "start_byte": null,
+            "end_byte": null
+          }
+        ],
+        "related_item_ids": [],
+        "suggestions": []
+      },
+      {
+        "id": "I8",
+        "revision": "1",
+        "body": "praise: The caller currently keeps policy outside the cache implementation. Preserve that division while consolidating the insertion path.",
+        "action_override": "discuss",
+        "anchors": [
+          {
+            "kind": "file",
+            "path": "src/client.cpp",
+            "source_revision_id": "R0",
+            "blob_sha256": "aee0acfa9f8d5fa447d9d147619e048426b902c84ddc63990367f0484281a225",
+            "start_byte": null,
+            "end_byte": null
+          }
+        ],
+        "related_item_ids": [],
+        "suggestions": []
+      }
+    ],
+    "sources": [
+      {
+        "id": "S1",
+        "path": "include/cache.hpp",
+        "source_revision_id": "R0",
+        "kind": "full_file",
+        "start_byte": 0,
+        "end_byte": 140,
+        "blob_sha256": "33c8c9fdc3219d85250f441079e68b41f6ec3b7373ed6ebd52ea1ad6fbe46b9c",
+        "bytes": {
+          "length": 140,
+          "sha256": "33c8c9fdc3219d85250f441079e68b41f6ec3b7373ed6ebd52ea1ad6fbe46b9c",
+          "base64": "I3ByYWdtYSBvbmNlCiNpbmNsdWRlIDxjc3RkZGVmPgpzdHJ1Y3QgQ2FjaGUgewogICAgYm9vbCBjb250YWlucyhpbnQga2V5KSBjb25zdDsKICAgIHZvaWQgaW5zZXJ0KGludCBrZXkpOwogICAgc3RkOjpzaXplX3Qgc2l6ZSgpIGNvbnN0Owp9Owo="
+        }
+      },
+      {
+        "id": "S2",
+        "path": "src/cache.cpp",
+        "source_revision_id": "R0",
+        "kind": "full_file",
+        "start_byte": 0,
+        "end_byte": 165,
+        "blob_sha256": "71687d8a3ea3820e28c6f20b868101182b2afea6032d71e043e4b173875ac610",
+        "bytes": {
+          "length": 165,
+          "sha256": "71687d8a3ea3820e28c6f20b868101182b2afea6032d71e043e4b173875ac610",
+          "base64": "I2luY2x1ZGUgImNhY2hlLmhwcCINCg0KYm9vbCBDYWNoZTo6Y29udGFpbnMoaW50IGtleSkgY29uc3Qgew0KCXJldHVybiBmaW5kKGtleSkgIT0gZW50cmllcy5lbmQoKTsNCn0NCg0Kdm9pZCBDYWNoZTo6aW5zZXJ0KGludCBrZXkpIHsNCgllbnRyaWVzLnB1c2hfYmFjayhrZXkpOw0KfQ0K"
+        }
+      },
+      {
+        "id": "S3",
+        "path": "src/client.cpp",
+        "source_revision_id": "R0",
+        "kind": "full_file",
+        "start_byte": 0,
+        "end_byte": 126,
+        "blob_sha256": "aee0acfa9f8d5fa447d9d147619e048426b902c84ddc63990367f0484281a225",
+        "bytes": {
+          "length": 126,
+          "sha256": "aee0acfa9f8d5fa447d9d147619e048426b902c84ddc63990367f0484281a225",
+          "base64": "I2luY2x1ZGUgImNhY2hlLmhwcCIKdm9pZCBwcmVwYXJlKENhY2hlJiBjYWNoZSwgaW50IGtleSkgewogICAgaWYgKCFjYWNoZS5jb250YWlucyhrZXkpKSB7CiAgICAgICAgY2FjaGUuaW5zZXJ0KGtleSk7CiAgICB9Cn0K"
+        }
+      },
+      {
+        "id": "S4",
+        "path": "tests/cache_test.cpp",
+        "source_revision_id": "R0",
+        "kind": "full_file",
+        "start_byte": 0,
+        "end_byte": 123,
+        "blob_sha256": "eec10cd0d230f00eb83c4f4dd62348ab17b2f3bdf067d8ef1fe3af6d4957b87e",
+        "bytes": {
+          "length": 123,
+          "sha256": "eec10cd0d230f00eb83c4f4dd62348ab17b2f3bdf067d8ef1fe3af6d4957b87e",
+          "base64": "Ly8gRml4dHVyZSBza2V0Y2g7IHVzZSB0aGUgYWN0dWFsIHJlcG9zaXRvcnkgdGVzdCBmcmFtZXdvcmsuCnZvaWQgY2FjaGVfdGVzdHMoKSB7CiAgICAvLyBhZGQgZm9jdXNlZCBiZWhhdmlvciBjYXNlcyBoZXJlCn0K"
+        }
+      }
+    ],
+    "selection": {
+      "item_count": 8,
+      "source_count": 4,
+      "intentional_omissions": [],
+      "instruction_set_complete": true
+    }
+  }
+}

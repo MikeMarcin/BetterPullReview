@@ -1,0 +1,7 @@
+### Author's tour · 2 — Retain lifetime before releasing the lock
+
+The reader now acquires a lifetime handle while the entry is still protected by the lookup lock. The handle, rather than continued membership in the cache, keeps the entry alive during the read.
+
+This does not make mutable entry contents generally thread-safe. Please scrutinize whether every path releases the lookup lock only after acquiring the handle.
+
+[Previous: The lifetime assumption that breaks](https://github.example.invalid/acme/demo/pull/42#discussion_r101) · [Tour overview](https://github.example.invalid/acme/demo/pull/42#pullrequestreview-900) · [Next: Exercise deletion during an active read](https://github.example.invalid/acme/demo/pull/42#discussion_r103)

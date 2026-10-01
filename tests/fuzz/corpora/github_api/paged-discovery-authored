@@ -1,0 +1,7 @@
+	X-RateLimit-Limit: 30
+X-RateLimit-Remaining: 29
+{"total_count":2,"incomplete_results":false,"items":[{"number":17,"title":"Pull request 17","state":"open","draft":false,"pull_request":{"url":"https://api.github.com/repos/octo-org/review-repository/pulls/17"},"repository_url":"https://api.github.com/repos/Octo-Org/Review-Repository","user":{"login":"octo-reviewer","node_id":"U_octo-reviewer"}},{"number":18,"title":"Pull request 18","state":"open","draft":false,"pull_request":{"url":"https://api.github.com/repos/octo-org/review-repository/pulls/18"},"repository_url":"https://api.github.com/repos/Octo-Org/Review-Repository","user":{"login":"someone","node_id":"U_someone"}}]}
+
+{"users":[{"login":"octo-reviewer","node_id":"U_x"}],"teams":[{"slug":"team","node_id":"T_x"}]}
+
+{"users":[{"login":"octo-reviewer","node_id":"U_x"}],"teams":[{"slug":"team","node_id":"T_x"}]}

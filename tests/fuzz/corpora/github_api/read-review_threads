@@ -1,0 +1,199 @@
+{
+  "data": {
+    "repository": {
+      "id": "R_fixture_repository",
+		"pullRequest": {
+		  "id": "PR_fixture_17",
+		  "headRefOid": "2222222222222222222222222222222222222222",
+		  "files": {
+          "totalCount": 1,
+          "nodes": [
+            {
+              "path": "review.cpp",
+              "viewerViewedState": "VIEWED"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "Y3Vyc29yOlBSQ0ZfZml4dHVyZV8x"
+          }
+        },
+        "reviewThreads": {
+		  "totalCount": 4,
+          "nodes": [
+            {
+              "id": "PRRT_fixture_1",
+              "isResolved": false,
+              "isOutdated": false,
+              "viewerCanResolve": true,
+              "viewerCanUnresolve": false,
+              "subjectType": "LINE",
+              "path": "review.cpp",
+              "diffSide": "RIGHT",
+              "line": 42,
+              "originalLine": 42,
+              "comments": {
+                "totalCount": 1,
+                "nodes": [
+                  {
+                    "id": "PRRC_fixture_1",
+                    "bodyText": "Please preserve snapshot identity across refreshes.",
+                    "path": "review.cpp",
+                    "line": 42,
+                    "originalLine": 42,
+                    "outdated": false,
+                    "author": {
+                      "login": "octo-reviewer",
+                      "id": "U_fixture_viewer"
+                    },
+                    "replyTo": null
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": "Y3Vyc29yOlBSUkNfZml4dHVyZV8x"
+                }
+              }
+            },
+			{
+			  "id": "PRRT_fixture_3",
+			  "isResolved": false,
+			  "isOutdated": false,
+			  "viewerCanResolve": true,
+			  "viewerCanUnresolve": false,
+			  "subjectType": "LINE",
+			  "path": "review.cpp",
+			  "diffSide": "RIGHT",
+			  "line": 60,
+			  "originalLine": 60,
+			  "comments": {
+				"totalCount": 2,
+				"nodes": [
+				  {
+					"id": "PRRC_fixture_4",
+					"bodyText": "Keep the second current-head anchor exact.",
+					"path": "review.cpp",
+					"line": 60,
+					"originalLine": 60,
+					"outdated": false,
+					"author": {
+					  "login": "octo-reviewer",
+					  "id": "U_fixture_viewer"
+					},
+					"replyTo": null
+				  },
+				  {
+					"id": "PRRC_fixture_5",
+					"bodyText": "The exact current-head follow-up is ready to verify.",
+					"path": "review.cpp",
+					"line": 60,
+					"originalLine": 60,
+					"outdated": false,
+					"author": {
+					  "login": "octo-author",
+					  "id": "U_fixture_author"
+					},
+					"replyTo": {
+					  "id": "PRRC_fixture_4"
+					}
+				  }
+				],
+				"pageInfo": {
+				  "hasNextPage": false,
+				  "endCursor": "Y3Vyc29yOlBSUkNfZml4dHVyZV80"
+				}
+			  }
+			},
+			{
+			  "id": "PRRT_fixture_2",
+              "isResolved": false,
+              "isOutdated": true,
+              "viewerCanResolve": false,
+              "viewerCanUnresolve": false,
+              "subjectType": "LINE",
+              "path": "review.cpp",
+              "diffSide": "LEFT",
+              "line": null,
+              "originalLine": 84,
+              "comments": {
+                "totalCount": 2,
+                "nodes": [
+                  {
+                    "id": "PRRC_fixture_2",
+                    "bodyText": "Please keep the retained anchor visible.",
+                    "path": "review.cpp",
+                    "line": 84,
+                    "originalLine": 84,
+                    "outdated": true,
+                    "author": {
+                      "login": "octo-reviewer",
+                      "id": "U_fixture_viewer"
+                    },
+                    "replyTo": null
+                  },
+                  {
+                    "id": "PRRC_fixture_3",
+                    "bodyText": "Fixed in the current fixture head.",
+                    "path": "review.cpp",
+                    "line": 84,
+                    "originalLine": 84,
+                    "outdated": true,
+                    "author": {
+                      "login": "octo-author",
+                      "id": "U_fixture_author"
+                    },
+                    "replyTo": {
+                      "id": "PRRC_fixture_2"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": "Y3Vyc29yOlBSUkNfZml4dHVyZV8y"
+                }
+              }
+            },
+            {
+              "id": "PRRT_fixture_file",
+              "isResolved": false,
+              "isOutdated": false,
+              "viewerCanResolve": true,
+              "viewerCanUnresolve": false,
+              "subjectType": "FILE",
+              "path": "review.cpp",
+              "diffSide": "RIGHT",
+              "line": null,
+              "originalLine": null,
+              "comments": {
+                "totalCount": 1,
+                "nodes": [
+                  {
+                    "id": "PRRC_fixture_file",
+                    "bodyText": "Please review the file-level design.",
+                    "path": "review.cpp",
+                    "line": null,
+                    "originalLine": null,
+                    "outdated": false,
+                    "author": {
+                      "login": "octo-reviewer",
+                      "id": "U_fixture_viewer"
+                    },
+                    "replyTo": null
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": "Y3Vyc29yOlBSUkNfZml4dHVyZV9maWxl"
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "Y3Vyc29yOlBSUlRfZml4dHVyZV8x"
+          }
+        }
+      }
+    }
+  }
+}

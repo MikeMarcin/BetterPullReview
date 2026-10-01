@@ -1,0 +1,7 @@
+{"type":"system","subtype":"init","session_id":"session-7"}
+
+
+{"type":"assistant","session_id":"session-7","message":{"role":"assistant","content":[{"type":"text","text":"reviewed"}]}}
+
+
+{"type":"result","subtype":"success","is_error":false,"result":"done","session_id":"session-7","bprFindings":{"session":1,"findings":[{"provider":1,"severity":"major","confidence":"high","category":"correctness","path":"src/canary.cpp","lines":{"begin":10,"end":12},"anchor":{"line":{"comparison":"5555555555555555555555555555555555555555555555555555555555555555","side":"right","line":11}},"claim":"c","evidence":"e","consequence":"q","suggestedComment":"s","requiredContext":"r","analyzedBase":"1111111111111111111111111111111111111111","analyzedHead":"2222222222222222222222222222222222222222","analyzedCommits":["3333333333333333333333333333333333333333"]}]}}

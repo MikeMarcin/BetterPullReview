@@ -1,0 +1,7 @@
+https://github.example.invalid/acme/demo/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/docs/lifetime.md?plain=1#L12
+
+### Author's tour · 4 — The unchanged lifetime contract
+
+This contract explains why retaining a pointer is not enough. The comment is a file-level compatibility subject; the exact source destination is the permalink above.
+
+[Tour overview](https://github.example.invalid/acme/demo/pull/42#pullrequestreview-900)

@@ -1,0 +1,8 @@
+*.bin filter=lfs
+*.txt -filter
+[attr]macro filter
+
+
+a.bin
+b.txt
+nested/c.bin

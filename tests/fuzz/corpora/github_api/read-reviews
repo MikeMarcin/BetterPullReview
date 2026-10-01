@@ -1,0 +1,13 @@
+[
+  {
+    "id": 4001,
+    "node_id": "PRR_fixture_1",
+    "user": {
+      "node_id": "U_fixture_viewer",
+      "login": "octo-reviewer"
+    },
+    "body": "Please preserve snapshot identity across refreshes.",
+    "state": "CHANGES_REQUESTED",
+    "commit_id": "2222222222222222222222222222222222222222"
+  }
+]
