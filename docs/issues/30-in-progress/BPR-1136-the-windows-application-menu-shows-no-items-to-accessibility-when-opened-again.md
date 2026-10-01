@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1136"
 title: "The Windows strip's Application menu shows no items to accessibility when it opens again"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
