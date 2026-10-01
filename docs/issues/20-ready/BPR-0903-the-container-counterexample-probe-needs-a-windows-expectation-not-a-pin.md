@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0903"
 title: "Windows: the container counterexample probe needs a platform expectation, and must never be pinned uncontained"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
