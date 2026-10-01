@@ -838,3 +838,66 @@ written.
      with its own first-launch Defender check (foreground).
   5. This card's AC2 course on that image (foreground). Then record which
      image met each criterion.
+
+## A new candidate carrying BPR-1136, bpr-main-win, 2026-10-01
+
+Queue item 3, [[BPR-1136]], is done. The strip's Application menu now gives
+every reopening its own accessible items. It is pinned in
+`qt_workbench_strip_menu`, with a negative control. Item 4 follows: a new
+tests-disabled image carrying that fix, in a new task root. The owner's
+BPR-0653 image in `bpr0974-candidate-85e522d8\` was not touched.
+
+**Source and build.**
+
+- `main` at `7c8402fca46b638fb589866ad5dc23ba73807a22`, pushed through the
+  station gate, cloned clean into `C:\Users\mikem\bpr0974-candidate-7c8402fc`.
+- The same steps as `85e522d8`: preset `windows-app-release`, MSVC 19.51,
+  Qt 6.11.2 from the CPM cache, and the same digest-verified upstream source
+  archives.
+- `cmake --install` into `installed\`. No `warning` line.
+
+**Bytes.**
+
+- `installed\better_pull_review.exe` is SHA-256
+  `1947fa54a4d9886e3ae13e9a541ecaa5cccfb1bbdee2a901dd8e23dc5838e5f2`,
+  byte-identical to `b\src\app\better_pull_review.exe`.
+- `installed\better_pull_review.rcc` is SHA-256
+  `fd94a0e6dfc9703870adf38b25076787552519939d133b8af647eb8620d7971c`.
+- `installed\sbom.spdx.json` is `49203ca1…`.
+
+`verify_release_package.py` reports `RELEASE_PACKAGE_OK` over `installed\`:
+23 files, 16 PE images, 333 first-party compile units, and the bundle as
+runtime data. It is not trust or release approval.
+
+**Static properties, read from the file without running it.** The three
+owner-approved changes are all in place:
+
+- `VERSIONINFO` (GameCoreTech, BetterPullReview, 0.1.3);
+- a CodeView entry naming only `better_pull_review.pdb`;
+- resources in the separate `.rcc`.
+
+| | Cleared `85e522d8` | This candidate |
+|---|---|---|
+| Size | 9,640,960 bytes | 13,893,632 bytes |
+| Whole-file entropy | 6.466 bits/byte | 6.477 |
+| `.text` | 6.339 | 6.318 |
+| `.rdata` | 5.937 | 5.912 |
+
+The image is larger because it carries a week of product code (Review
+Cycles), not because of how it was built.
+
+**Defender, read-only.** Read at 15:40:08Z before the build and at
+15:45:16Z after it:
+
+- the same three detections;
+- the newest operational record is still 7014;
+- no event 1116 or 1117;
+- client 4.18.26080.4, signatures 1.459.497.0, real-time and tamper
+  protection on.
+
+Building, installing and reading the image produced no Defender event.
+
+**Not yet done: the first launch and the AC2 course.** Both are foreground
+runs on the station's desktop. Each has been run before only inside a
+foreground block the coordinator announced and cleared. They wait for that
+clearance. Nothing has launched this image.
