@@ -599,6 +599,15 @@ auto main(int argc, char** argv) -> int
 	// the platforms this fixture passes on; best-effort, as above
 	// (BPR-0240).
 	static_cast<void>(timeBeginPeriod(1U));
+	// [[BPR-1259]]. Windows 11 may ignore that request from a process it
+	// treats as unseen, and a canary under the agent supervisor has no window:
+	// its 1 ms sleeps took the default tick, and every course timed out
+	// mid-output. Asking that the resolution not be ignored keeps it.
+	auto throttling        = PROCESS_POWER_THROTTLING_STATE{ };
+	throttling.Version     = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+	throttling.ControlMask = PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION;
+	throttling.StateMask   = 0U;
+	static_cast<void>(::SetProcessInformation(::GetCurrentProcess(), ProcessPowerThrottling, &throttling, sizeof(throttling)));
 #endif
 	if (const auto marker = argument_after(argc, argv, "--descendant-heartbeat");
 		!marker.empty()) {

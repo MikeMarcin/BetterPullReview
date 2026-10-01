@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1259"
 title: "Windows: agent courses never report finished when the canary loses its timer resolution"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win BPR-0905 Windows full suite, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1259--BPR-1259--b28391b17369.json","related_cards":["BPR-0905","BPR-0240","BPR-1138","BPR-1229","BPR-1245"]}
+acceptance: [{"criterion":"The eight rows pass on Windows with the fix, run serially","outcome":"pass","revision":"bb88d12eb","evidence":{"kind":"command","detail":"ctest --preset windows-dev -j1 --output-on-failure -R \"^(agent_|application_agent_|qt_agent_)\" on bpr-main-win (Windows 11 10.0.26200, MSVC 14.51, Qt 6.11.2, build/windows-dev Debug) with this commit's canary change: agent_parent_death, application_agent_crash_recovery, application_agent_finding_composition_contract, application_agent_finding_dif_context_contract and the four application_agent_invocation_{composition,cancellation,staleness,cleanup_retry}_contract rows all pass; without it, agent_parent_death and the invocation composition contract fail alone at the same HEAD."}},{"criterion":"No other agent row changes result","outcome":"pass","revision":"bb88d12eb","evidence":{"kind":"command","detail":"Same run: 33 of 35 pass in 488.43 s. The two failures are qt_agent_launch_canary (open durable child course, BPR-1229) and application_agent_finding_workshop_press_contract (run-quiescent, BPR-1245), as in the BPR-0905 Windows full suite."}}]
 ---
 
 # BPR-1259: Windows: agent courses never report finished when the canary loses its timer resolution
