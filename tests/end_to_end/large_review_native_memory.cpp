@@ -16,8 +16,10 @@
 	#if !defined(WIN32_LEAN_AND_MEAN)
 		#define WIN32_LEAN_AND_MEAN
 	#endif
-	#include <psapi.h>
+	// windows.h supplies the base types psapi.h assumes are declared.
 	#include <windows.h>
+
+	#include <psapi.h>
 #elif defined(__linux__)
 	#include <malloc.h>
 

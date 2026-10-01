@@ -354,3 +354,23 @@ to return, and the next round: per-platform limits from those measurements,
 enforced in optimized builds, row timeouts sized from the Debug durations, and
 one confirmation run. Packaged launch, compositor presentation and physical
 input on every platform still need a person at the desktop.
+
+## Windows: the large-review benchmark did not compile under MSVC (bpr-main-win, 2026-10-01)
+
+The Windows station run at `cef11b982` stopped at step 2. The
+`windows-app-release` configure succeeded. The build failed on
+`tests/end_to_end/large_review_native_memory.cpp` with `psapi.h(132): error
+C2146: syntax error: missing ';' before identifier 'WINAPI'` and a run of
+`'int BOOL'` and `'int DWORD'` redefinitions.
+
+The file included `<psapi.h>` before `<windows.h>`. That is alphabetical
+order, which clang-format's `SortIncludes` keeps within one block, but
+`psapi.h` needs the base types `windows.h` declares. The fix is the
+repository's own idiom (`agent_canary_main.cpp`): `windows.h` in its own block,
+ahead of `psapi.h`, with a comment saying why.
+
+With the fix (MSVC 14.51), both trees build
+`bench_better_pull_review_large_review` with no warning:
+`build/bpr0967-release` (windows-app-release, Release) and
+`build/windows-dev` (Debug). `coding-format-check` passes. The Windows
+measurement is rerun at the fix commit.
