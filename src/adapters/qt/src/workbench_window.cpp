@@ -629,6 +629,14 @@ namespace bpr::qt {
 		menu->setAttribute(Qt::WA_DeleteOnClose);
 		for (auto* const action : PrimaryMenuBar->actions()) {
 			if (action->isVisible()) {
+				// [[BPR-1136]]. Qt caches a menu item's accessible interface by its
+				// action, and these actions outlive each strip menu. A menu shown
+				// again would find the item its deleted predecessor made, invalid
+				// and parented to nothing, and UI Automation saw an empty menu.
+				// Dropping it here lets this menu make its own.
+				if (auto* const stale = QAccessible::queryAccessibleInterface(action); stale != nullptr) {
+					QAccessible::deleteAccessibleInterface(QAccessible::uniqueId(stale));
+				}
 				menu->addAction(action);
 			}
 		}

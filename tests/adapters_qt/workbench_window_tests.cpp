@@ -2101,6 +2101,26 @@ namespace {
 		expect(closed.isNull() && window->findChildren<QMenu*>(QStringLiteral("workbenchStripMenu")).isEmpty(),
 			   "a closed strip menu deletes itself, so opening it again leaves nothing behind");
 
+		// [[BPR-1136]]. Each opening presents its items to accessibility, the
+		// third as much as the second. The items' interfaces were cached by
+		// action, so a menu opened after one that had been read found its
+		// predecessor's, invalid and parented to nothing: UI Automation saw an
+		// empty menu on the cleared Windows image.
+		for (auto opening = 0; opening < 2; ++opening) {
+			with_open_strip_menu(*window, [&](QMenu& aMenu) {
+				auto* const menu = QAccessible::queryAccessibleInterface(&aMenu);
+				expect(menu != nullptr && menu->childCount() == aMenu.actions().size(), "the reopened strip menu has an accessible item per entry");
+				for (auto i = 0; menu != nullptr && i < menu->childCount(); ++i) {
+					auto* const item = menu->child(i);
+					expect(item != nullptr && item->isValid() && item->parent() == menu && !item->text(QAccessible::Name).isEmpty(),
+						   "each item of a reopened strip menu is valid, named and the open menu's own");
+				}
+				aMenu.close();
+			});
+			QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+			QApplication::processEvents();
+		}
+
 		// Quit posts the window's destruction, as the desktop's own quit does,
 		// and is pressed the way UI Automation presses it: File is opened
 		// through its accessible item, and Quit's accessible press triggers the
