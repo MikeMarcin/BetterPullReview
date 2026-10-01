@@ -1722,8 +1722,18 @@ namespace {
 			aComparison.mapTo(central, QPoint{ 0, 0 }),
 			aComparison.size(),
 		};
+		// [[BPR-1256]]. `visibleRegion()` leaves out what the widget's own
+		// opaque children cover, so the comparison's shared scroll bar, 16
+		// pixels wide under the Windows style the Linux rows use, read as
+		// clipping. The comparison shows what it and its descendants show.
+		auto shown = aComparison.visibleRegion();
+		for (const auto* const child : aComparison.findChildren<QWidget*>()) {
+			if (child->isVisible()) {
+				shown += child->visibleRegion().translated(child->mapTo(&aComparison, QPoint{ 0, 0 }));
+			}
+		}
 		return central->rect().contains(placed)
-			&& aComparison.visibleRegion().boundingRect() == aComparison.rect();
+			&& shown.boundingRect() == aComparison.rect();
 	}
 
 	[[nodiscard]] auto prepare_native_appearance_probe(

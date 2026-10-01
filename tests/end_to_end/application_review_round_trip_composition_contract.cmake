@@ -508,6 +508,13 @@ endfunction()
 # of the same file. Two BPR_BUILD_TESTING probes report the ledger's opening
 # and the exclusion. No grant, target, provider or publication path changes;
 # mutation pin unchanged.
+# BPR-1256 reseal: 330104f2..this candidate; no intervening pinned-scope commit.
+# main.cpp's BPR_BUILD_TESTING comparison_is_wholly_visible counts what the
+# comparison's own visible descendants show as the comparison's, because
+# visibleRegion() leaves out its opaque children and the shared scroll bar read
+# as clipping on Linux. A sibling that covers the comparison still fails it. The
+# probe reads widget state only; no product action, grant, target, provider or
+# publication path changes; mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -712,7 +719,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b08ec815440f69c918352959c987bf7e2568f6fd3b7558cb52ba27ce3a7587a4"
+        "e7fdbbe05455e1d43429b9c13ac5ac9e15a06406713fbeb0aba1398a413dd9f3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
