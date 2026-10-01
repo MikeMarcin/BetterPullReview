@@ -37,31 +37,6 @@ namespace {
 		}
 		expect(aCondition(), aMessage);
 	}
-	class retry_on_refusal final : public QObject
-	{
-	public:
-		explicit retry_on_refusal(qt::profile_management_window& aManagement)
-			: Management{ aManagement }
-		{
-			Management.installEventFilter(this);
-		}
-		bool Retried = false;
-
-	protected:
-		auto eventFilter(QObject*, QEvent* aEvent) -> bool override
-		{
-			if (!Retried && aEvent->type() == QEvent::Show && Management.status_text().contains(QStringLiteral("already open"))) {
-				Retried = true;
-				// Show is synchronous inside refusal publication, before the failed
-				// runtime entry can be retired by the desktop's timer.
-				Management.open_button()->click();
-			}
-			return false;
-		}
-
-	private:
-		qt::profile_management_window& Management;
-	};
 }
 
 auto main(int aArgc, char** aArgv) -> int
@@ -103,12 +78,11 @@ auto main(int aArgc, char** aArgv) -> int
 	});
 	wait_for([&] { return terminal; }, "startup reaches a terminal");
 	if (mode == "contender") {
-		const auto expectedFailure =
-#if defined(__unix__) || defined(__APPLE__)
-			app::github_application_startup_failure::activation_queued;
-#else
-			app::github_application_startup_failure::owner_busy;
-#endif
+		// [[BPR-0907]]. Every platform hands a second launch to the owner since
+		// [[BPR-0979]] gave Windows the activation POSIX had. The Windows-only
+		// branches this replaced waited for an owner_busy refusal and its
+		// "already open" notice, which Windows no longer reaches.
+		const auto expectedFailure = app::github_application_startup_failure::activation_queued;
 		if (failure != expectedFailure) {
 			std::cerr << "unexpected startup result " << (failure ? static_cast<int>(*failure) : -1) << '\n';
 		}
@@ -124,15 +98,9 @@ auto main(int aArgc, char** aArgv) -> int
 	if (mode == "other") {
 		auto* management = desktop->management_window();
 		expect(management != nullptr, "management composed");
-#if !defined(__unix__) && !defined(__APPLE__)
-		retry_on_refusal retry{ *management };
-#endif
 		wait_for([&] { return management->open_button()->isEnabled(); }, "the management window offers open");
 		management->profiles()->setCurrentRow(0);
 		management->open_button()->click();
-#if !defined(__unix__) && !defined(__APPLE__)
-		wait_for([&] { return retry.Retried; }, "the refusal is retried");
-#endif
 		// [[BPR-0777]]. Create's enablement is the registry-settled fact the retired
 		// Reload Profiles button carried.
 		auto* settled = management->create_button();

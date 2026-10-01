@@ -400,6 +400,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_device_binding_relaunch": "dos-volume-name",
     "application_profile_window_layout_public_path": "dos-volume-name",
     "application_profile_window_review_restoration_public_path": "dos-volume-name",
+    # [[BPR-0907]], [[BPR-1235]]. Measured on JaegAW 2026-10-01. Contained, the seed
+    # refuses the registry (SEED_REGISTRY_REFUSAL:0): the store walks the data
+    # root's retained ancestor chain, which asks for the DOS form above the
+    # container's AC\Temp. Uncontained, the whole course passes once its
+    # Windows-only branches, stale since [[BPR-0979]], are gone.
+    "application_profile_owner_admission_public_path": "dos-volume-name",
     # [[BPR-0874]]. Measured on JaegAW 2026-09-23: with the data root in a
     # private temporary parent, as on POSIX, the three large-review courses
     # compose uncontained. Contained they stop at their first step, "private

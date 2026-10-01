@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0907"
 title: "Windows: the owner-admission course's Windows-only branch waits for an 'already open' refusal presentation that never arrives"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win, measuring a WINDOWS_UNCONTAINED pin on application_profile_owner_admission_public_path","found_at":"b9cf4edb","run":"run-20260916-stations","dispatch":"dsp-009"}
+acceptance: [{"criterion":"The card states whether the 'already open' refusal presentation is a product promise on Windows","outcome":"pass","revision":"02837c09","evidence":{"kind":"observation","detail":"Not any more: since BPR-0979 Windows hands a second launch to the owner (activation_queued), as POSIX does; the owner_busy notice text still exists in profile_management_window.cpp but this course no longer reaches it, and the old retry filter watched the window while the refusal shows a child notice."}},{"criterion":"The row's Windows branch observes what the product publishes; the row passes uncontained on the Windows station","outcome":"pass","revision":"02837c09","evidence":{"kind":"command","detail":"The Windows-only branches are removed so the course asserts the handoff on every platform; profile_owner_admission_contract.py prints PROFILE_OWNER_ADMISSION_OK uncontained, and through ctest the row passes in 8.22 s."}},{"criterion":"The WINDOWS_UNCONTAINED decision is made from that measurement; BPR-0872's rule still reads true","outcome":"pass","revision":"02837c09","evidence":{"kind":"command","detail":"Contained the seed refuses at the retained ancestor chain (SEED_REGISTRY_REFUSAL:0), which the dictionary already names dos-volume-name; pinned under it with the measurement; test_network_isolation_manifest does not name the row."}},{"criterion":"The other container-temp rows are classified by name","outcome":"pass","revision":"02837c09","evidence":{"kind":"observation","detail":"startup, management, multi_window, second_window_close, two_account_isolation, window_restart, window_layout and activation are pinned uncontained and pass; window_review_restoration fails for BPR-1236's selection difference, not this obstacle."}}]
 ---
 
 # BPR-0907: Windows: the owner-admission course's Windows-only branch waits for an 'already open' refusal presentation that never arrives
@@ -92,3 +93,60 @@ after measurement, exactly as the other twelve pins were landed.
   commit and [[BPR-0872]]'s rule still reads true.
 - The other five container-temp rows are classified as sharing this second
   obstacle or not, by name.
+
+## Answered and fixed — bpr-main-win, 2026-10-01
+
+Windows 11 Home 10.0.26200, MSVC 19.51, Qt 6.11.2, offscreen,
+`build/windows-dev` Debug, at `02837c09`.
+
+**Is the "already open" refusal a product promise on Windows? No, not any
+more.** The product still has the words, as the `owner_busy` text
+`profile_management_failure_text` shows in the management window's notice. But
+since [[BPR-0979]] (2026-09-22) Windows hands a second launch of an owned profile
+to its owner, as POSIX always has. So neither of this course's Windows-only
+branches is reached any more:
+
+- the contender's expected `owner_busy`. Run uncontained, the contender now
+  gets `activation_queued` (value 1), and the course stopped there first:
+  `same-profile startup routes or reports unavailable transport`;
+- the cross-profile Open's refusal, and the retry inside its `Show`. Even
+  when it was reached, the retry filter watched the management window. A
+  refusal shows the notice inside that window, and a child's `Show` never
+  reaches its parent's filter.
+
+**The fix is in the course, not the product.** The two `#if` branches and
+`retry_on_refusal` are gone, so the course asserts the same handoff on every
+platform. A comment names the reason.
+
+**Run uncontained:** `profile_owner_admission_contract.py` prints
+`PROFILE_OWNER_ADMISSION_OK`. That covers owner, contender handoff,
+cross-profile open, quit, restart, kill and recovery.
+
+**The pin, from that measurement.** Contained, the seed still refuses the
+registry (`SEED_REGISTRY_REFUSAL:0`). The cause is the store's walk of the data
+root's retained ancestor chain, which asks for the DOS form above the
+container's `AC\Temp`. The card expected a new cause term for it. But
+[[BPR-0872]]'s dictionary already names exactly this under `dos-volume-name`:
+"The product's retained ancestor chain asks for the DOS form". The siblings
+pinned for the same walk use it too (BPR-0845's
+`sqlite_queue_enrollment_storage` and `sqlite_workbench_settings_storage`). So
+the row is `WINDOWS_UNCONTAINED` under `dos-volume-name`, with this
+measurement in its comment, and the dictionary's rule still reads true.
+Through `ctest`, `application_profile_owner_admission_public_path` passes in
+8.22 s, and `test_network_isolation_manifest` does not name it.
+
+**The other container-temp rows, classified.** None shares this row's second
+obstacle. Every other profile public path is already pinned uncontained and
+passes:
+
+- `startup`, 11.21 s;
+- `management`, 19.60 s;
+- `multi_window`, 29.79 s;
+- `second_window_close`, 8.13 s;
+- `two_account_isolation`, 18.80 s;
+- `window_restart`, 19.77 s;
+- `window_layout`, 39.39 s;
+- `activation`, 17.21 s, since [[BPR-1234]].
+
+The one red row, `window_review_restoration_public_path`, fails for a
+different reason: a restored sibling tab gains a selection ([[BPR-1236]]).
