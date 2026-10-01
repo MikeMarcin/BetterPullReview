@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1254"
 title: "The staleness contract once refused to start its agent with agent_session_catalog_unavailable, in a long serial run on macOS"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"found_by":"bpr-main-mac's integration pass for BPR-1121, BPR-1128 and BPR-1139, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1254--BPR-1254--30728f44971c.json","related_cards":["BPR-1211","BPR-1245","BPR-1139"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e843d1d843ab10ea6350cb23b7b9554ba35b8db7","evidence":{"kind":"command","detail":"Cause: the reopened ledger's own opening was refused, not the window port. compose_review_ledger reopens the ledger on a head move; the open-time preflight refuses a file whose main/WAL/SHM bytes changed meanwhile, and the private review store touched the same file under its own mutex. Trial at e843d1d84 (uncommitted prints, BPR_TRIAL_PREFLIGHT_DELAY_MS): first run with prints only failed as observed (shm changed, ledger-opened ok=0, Not started: agent_session_catalog_unavailable); widened to 500 ms 3/3 and 100 ms 1/1 the reopen was refused (wal+shm changed by the private finish) and three catalog reads refused unavailable. Logs build/logs/bpr-1254/trial-*."}},{"criterion":"AC2","outcome":"pass","revision":"94201d9e63c12a32098e35d679e45ca3a6f1c9b1","evidence":{"kind":"command","detail":"With the fix the same trial at 500 ms (3 runs) and 100 ms: no change seen, both openings available, no catalog refusal, course passes. The eight application_agent_invocation_*_contract rows pass -j1; the staleness course 12/12 run six at a time. The course now checks the exclusion both ways before the head moves and requires the reopened ledger available after; negative controls (private gate unshared, or ledger host on the plain lane) fail ledger-file-exclusion. Integration rows pass except workshop_press, which fails identically at e843d1d84 (BPR-1245, parked)."}},{"criterion":"AC3","outcome":"pass","revision":"94201d9e63c12a32098e35d679e45ca3a6f1c9b1","evidence":{"kind":"command","detail":"A trial opener refusing every opening after the first: the staleness course fails ledger-reopened with ledger-available=false and status Not started: agent_session_catalog_unavailable, so a really unavailable ledger is still reported. application_review_ledger_composition_contract (its unavailable course places a directory at the ledger path) passes. No retry was added; the preflight is unchanged."}}]
 ---
 
 # BPR-1254: The staleness contract once refused to start its agent with agent_session_catalog_unavailable, in a long serial run on macOS
