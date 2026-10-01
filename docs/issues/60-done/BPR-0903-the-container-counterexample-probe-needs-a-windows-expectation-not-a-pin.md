@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0903"
 title: "Windows: the container counterexample probe needs a platform expectation, and must never be pinned uncontained"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win, while measuring BPR-0872's eleven rows uncontained","found_at":"d6dfca2b","run":"run-20260916-stations","dispatch":"dsp-006"}
+acceptance: [{"criterion":"The probe passes on Windows and still proves the denial rather than asserting nothing","outcome":"pass","revision":"5c52e4679","evidence":{"kind":"command","detail":"bpr-main-win, ctest --preset windows-dev -j1 -V -R ^test_network_isolation_(external|child)$: external passes printing NETWORK_ISOLATION_EXTERNAL_DENIED:10013, child passes printing NETWORK_ISOLATION_CHILD_DENIED; run uncontained straight from Python they print NETWORK_ISOLATION_EXTERNAL_NOT_DENIED:0 and NETWORK_ISOLATION_CHILD_NOT_DENIED, so each pass rests on the container's refusal. The child pass shows a contained grandchild with its own AppContainer token refused the network; the earlier WinError 5 came from the per-user Python lacking an application-package ACE."}},{"criterion":"It is still contained and still in EXIT_VERDICT_TESTS","outcome":"pass","revision":"5c52e4679","evidence":{"kind":"command","detail":"Both registered commands start with better_pull_review_network_sandbox.exe ... windows-appcontainer; both names are in EXIT_VERDICT_TESTS; test_network_isolation_manifest names neither (it fails only on BPR-1237's unpinned rows)."}},{"criterion":"The reason it is not pinned uncontained is written where a reader of the pin list will find it","outcome":"pass","revision":"5c52e4679","evidence":{"kind":"observation","detail":"A BPR-0903 comment above WINDOWS_UNCONTAINED_TESTS in scripts/verify_test_network_isolation.py, and the measured reason beside the rows' foreach in tests/CMakeLists.txt."}},{"criterion":"macOS and Linux behaviour is unchanged","outcome":"pass","revision":"24068e2ee","evidence":{"kind":"observation","detail":"This card's changes are comments only. The probe code is BPR-1261's, which bpr-main-linux ran 8 of 8 against its baseline at 24068e2ee (732177ce2); verify_test_network_isolation_tests.py passes."}}]
 ---
 
 # BPR-0903: Windows: the container counterexample probe needs a platform expectation, and must never be pinned uncontained

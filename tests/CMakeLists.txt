@@ -994,6 +994,14 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+# [[BPR-0903]]. These two are never pinned WINDOWS_UNCONTAINED, so they are
+# not in `scripts/verify_test_network_isolation.py`'s Windows pin list. Each
+# passes only with the container's own refusal: `external` needs WSAEACCES
+# (10013) and an AppContainer token on itself, and `child` needs both on a
+# child it starts. Run uncontained on Windows, they print
+# `NETWORK_ISOLATION_EXTERNAL_NOT_DENIED:0` and
+# `NETWORK_ISOLATION_CHILD_NOT_DENIED` and fail, so a pin could only turn a
+# working proof into a red row.
 foreach(bpr_network_probe IN ITEMS external child)
     bpr_add_network_isolated_test(
         NAME "test_network_isolation_${bpr_network_probe}"

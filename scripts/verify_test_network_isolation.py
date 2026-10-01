@@ -88,6 +88,11 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # the manifest gate, and a member found contained fails it too, so the pin has
 # to move when the truth does. The value names the cause so the next reader
 # does not have to re-measure it.
+#
+# BPR-0903. `test_network_isolation_external` and `_child` are never pinned
+# here: each passes only on the container's own refusal, for itself and for a
+# child it starts, and fails uncontained. The reason is beside their
+# registration in tests/CMakeLists.txt.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_device_binding_storage": "dos-volume-name",
     # BPR-0806: measured on JaegAW 2026-09-17. Contained, std::filesystem::canonical
