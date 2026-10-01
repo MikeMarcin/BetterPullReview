@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1254"
 title: "The staleness contract once refused to start its agent with agent_session_catalog_unavailable, in a long serial run on macOS"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
