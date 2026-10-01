@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1256"
 title: "Linux: application_diff_workbench_public_path and application_appearance_store_fallback_contract never see the comparison; its splitter share is zero"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
