@@ -117,3 +117,21 @@ At `3dad44a25` (main, after `8fe4eafad`): WSL2, 20 cores, `build/dev` Debug.
   Apple-clang build that this card's evidence used is unaffected. The
   `bpr_fuzz_corpus` rows were not run on Linux. The warning policy was not
   changed, and that is left for a follow-up decision.
+
+## Windows, MSVC — bpr-main-win, 2026-10-01
+
+Windows 11 Home 10.0.26200, Visual Studio 18 (MSVC 14.51), Qt 6.11.2,
+`build/windows-dev` Debug, at `e96b1e440`, which contains `b54a8719e`.
+
+- **Build.** `cmake --build --preset windows-dev` exited 0 and printed no
+  warning. It compiled the users of the two new headers:
+  `installed_git_process.cpp`, which includes `git_process_output.hpp`, and
+  `gh_cli_transport.cpp`, which includes `gh_cli_response.hpp`. Neither needed
+  a change for MSVC. `BPR_BUILD_FUZZERS` is off in this graph, so the fuzz
+  harnesses were not built here.
+- **Rows.** All 40 selected rows pass, in 429.83 s, `github_provider` among
+  them at 23.58 s:
+
+  ```powershell
+  ctest --preset windows-dev -j1 --output-on-failure -R "^(git_|epoch_|github_|gh_cli_|application_mcp_context_helper|qt_markdown_body_|core_review_cycle_manifest|review_cycle_capture|workspace_source|msvc_secure_crt_contract|architecture_boundaries)"
+  ```
