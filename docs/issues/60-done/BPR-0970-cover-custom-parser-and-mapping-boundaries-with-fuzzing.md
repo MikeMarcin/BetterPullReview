@@ -89,3 +89,31 @@ finds no live mutation provider in the eight fuzz binaries.
 The product changes compile on Windows and Linux only once a station builds
 them; the card has no platform requirement, so those builds are requested of
 the stations rather than owed here.
+
+## Linux: bpr-main-linux, 2026-10-01
+
+At `3dad44a25` (main, after `8fe4eafad`): WSL2, 20 cores, `build/dev` Debug.
+
+- **GCC 15.2.** `ctest --preset dev -j1 --output-on-failure -R
+  '^(git_|epoch_|github_|gh_cli_|application_mcp_context_helper|qt_markdown_body_|core_review_cycle_manifest|review_cycle_capture|workspace_source|architecture_boundaries|coding_format_check)'`:
+  **40 of 40 pass**, 101.86 s, load average 0.5 to 0.8.
+- **Clang (optional), did not build.** I configured `cmake --preset dev -B
+  build/fuzz -DBPR_BUILD_FUZZERS=ON -DCMAKE_C_COMPILER=clang
+  -DCMAKE_CXX_COMPILER=clang++` with Ubuntu clang 21.1.8. `cmake --build
+  build/fuzz --target parser-fuzzers` stops at 200 of 657 steps. There are 64
+  errors `missing field '…' initializer
+  [-Werror,-Wmissing-designated-field-initializers]` in eight core sources:
+  `appearance_contrast`, `diff_compute`, `diff_semantics`,
+  `epoch_transition`, `github_window_read`, `review_composition`,
+  `review_cycle` and `review_cycle_comparison`. These are ninja's first
+  failures, not an inventory.
+
+  `cmake/Warnings.cmake` turns the GCC counterpart off
+  (`-Wno-missing-field-initializers` for GNU) but not the Clang one, and
+  `_coding-standard/scripts/tidy.py` passes
+  `-Wno-missing-designated-field-initializers` to clang-tidy. So the Linux
+  Clang path that `docs/development/build-and-test.md` documents ("Linux Clang
+  needs no runtime argument") does not build at this revision. The macOS
+  Apple-clang build that this card's evidence used is unaffected. The
+  `bpr_fuzz_corpus` rows were not run on Linux. The warning policy was not
+  changed, and that is left for a follow-up decision.
