@@ -7,8 +7,11 @@
 # `state/v1` it did not write unless each carries the descriptor it would
 # have written itself: a protected DACL whose single entry grants the token
 # user full access and inherits to children (BPR-0436). `icacls` writes
-# exactly that, and it is the same descriptor the contract reads back on the
-# root the application narrows.
+# that here. That the product's own `workspace_parent_trusted` accepts it, as it
+# accepts the product's descriptor and the Python helper's, is not asserted
+# here: the Windows row `owner_private_descriptor_agreement` pins it, and fails
+# if this helper or the Python one stops removing a shared inherited grant
+# (BPR-0900).
 function(bpr_narrow_owner_private)
     file(
         CHMOD

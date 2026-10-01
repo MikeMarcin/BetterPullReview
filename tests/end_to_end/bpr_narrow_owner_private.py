@@ -9,6 +9,11 @@ process's own AppContainer SID when contained and removes the SYSTEM,
 Administrators and OWNER RIGHTS entries that CPython's `mkdir(mode=0o700)`
 leaves behind — entries the profile registry refuses.
 
+They differ on purpose, but they must agree on what the product's
+`workspace_parent_trusted` accepts. The Windows row
+`owner_private_descriptor_agreement` pins that, against the product's own
+descriptor, and fails if either helper stops removing a shared inherited grant.
+
 Promoted rather than written: this was byte-identical in
 `epoch_ordinary_update_public_path.py` and `epoch_portable_occurrence_public_path.py`,
 and a third spelling of one descriptor is the outcome worth avoiding.

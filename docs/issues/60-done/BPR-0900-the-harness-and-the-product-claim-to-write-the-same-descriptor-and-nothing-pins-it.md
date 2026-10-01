@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0900"
 title: "The harness and the product claim to write the same owner-private descriptor, and nothing pins that claim"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"dsp-006 integrator, adjudicating bpr-win's BPR-0875 fix","found_at":"81844fef","run":"run-20260916-stations","dispatch":"dsp-006"}
+acceptance: [{"criterion":"A Windows row fails if the two authors stop writing descriptors that workspace_parent_trusted treats alike","outcome":"pass","revision":"f826d758","evidence":{"kind":"command","detail":"owner_private_descriptor_agreement passes on Windows: the product, the real CMake helper and the real Python helper each narrow a directory inside a root granting Authenticated Users inheritable Modify; the product's recover_installed_agent_workspaces (workspace_parent_trusted) trusts all three and refuses the unnarrowed control."}},{"criterion":"The row's falsifiability is shown: change one author, see it fail","outcome":"pass","revision":"f826d758","evidence":{"kind":"command","detail":"With /inheritance:r dropped from the CMake helper the row fails at 'cmake: expected trusted, the product said REFUSED 1'; the same change to the Python helper fails it at 'python: ...'. Both trials restored."}},{"criterion":"The harness comment points at the row instead of asserting the equivalence itself","outcome":"pass","revision":"f826d758","evidence":{"kind":"observation","detail":"bpr_narrow_owner_private.cmake and bpr_narrow_owner_private.py name owner_private_descriptor_agreement as the pin; the CMake comment no longer claims icacls writes exactly the product's descriptor."}},{"criterion":"BPR-0875's thirteen rows still pass","outcome":"pass","revision":"f826d758","evidence":{"kind":"command","detail":"application_epoch_portable_occurrence_two_catalogues (99.84 s), application_epoch_ordinary_update_recreated (35.48 s) and agent_workspace_ownership (9.49 s) pass, the rows that consume both helpers; test_network_isolation_manifest names no new row."}}]
 ---
 
 # BPR-0900: The harness and the product claim to write the same owner-private descriptor, and nothing pins that claim
@@ -155,3 +156,69 @@ and a `WINDOWS_UNCONTAINED` pin alone would not make the row pass. That is
 Consequence for the acceptance row: pin the two remaining harness authors
 against the product, and say in the row that they differ on purpose, with the
 two facts above as the reason each is shaped as it is.
+
+## Pinned — bpr-main-win, 2026-10-01
+
+Windows 11 Home 10.0.26200, MSVC 19.51, `build/windows-dev` Debug, at
+`f826d758`, with `main` later at `02837c09`.
+
+**The row,** `owner_private_descriptor_agreement`, is Windows-only, in
+`tests/git_contract/`. The product is the judge. No copy of its rule is made.
+
+- `tests/scripts/owner_private_descriptor_agreement_tests.py` makes a root and
+  grants Authenticated Users an inheritable Modify on it. That is what a shared
+  build tree hands a course, made explicit so the row does not depend on where
+  it runs.
+- Under the root are four directories:
+  - `product`, narrowed by `make_storage_root_owner_private`, through the row's
+    executable;
+  - `cmake`, narrowed by the real `bpr_narrow_owner_private`, through
+    `cmake -P tests/scripts/owner_private_descriptor_agreement.cmake`, which
+    includes the helper;
+  - `python`, narrowed by the real `make_root_private`;
+  - `control`, left as made.
+- `owner_private_descriptor_agreement.exe judge` runs
+  `recover_installed_agent_workspaces(<dir>/registry, <dir>/neighbourhood)` on
+  each. That runs `workspace_parent_trusted(<dir>)`, the rule
+  [[BPR-0875]]'s rows depend on.
+- The row requires the three authors' directories to be trusted and the
+  control to be refused. It prints each directory's `icacls` listing as
+  record.
+
+**The two helpers differ on purpose, and the row says why.** The CMake one
+writes one inheritable user grant, which is enough for the uncontained
+composition rows. The Python one also grants the container SID and removes
+SYSTEM, Administrators and OWNER RIGHTS for contained courses. The row pins
+what they must share: the product trusts both, and refuses the shared
+inherited grant. Uncontained, all three read back as the single entry
+`JAEGAW\mikem:(OI)(CI)(F)`.
+
+| Run | control | product | cmake | python | Row |
+|---|---|---|---|---|---|
+| As committed | REFUSED 1 (`repair_required`) | TRUSTED | TRUSTED | TRUSTED | pass, 0.29 s |
+| CMake helper without `/inheritance:r` (trial, not committed) | REFUSED 1 | TRUSTED | **REFUSED 1** | TRUSTED | **fails**: `cmake: expected trusted, the product said REFUSED 1` |
+| Python helper without `/inheritance:r` (trial, not committed) | REFUSED 1 | TRUSTED | TRUSTED | **REFUSED 1** | **fails**: `python: expected trusted, …` |
+
+**Where it lives,** given [[BPR-0825]] item 3. The row reaches the rule through
+the Git adapter's public `recover_installed_agent_workspaces`, not through a
+private name or a copy. So if the owner moves the rule's definition, the row
+still asks whichever code the product calls.
+
+**`WINDOWS_UNCONTAINED`, measured.** Contained, the lowbox token cannot walk the
+container temporary directory's ancestors. The product then refuses all four
+directories, its own included, and the contained process cannot even remove
+the CMake-narrowed one, which has no container grant. The row compares what
+uncontained courses use, so it runs where they do. The pin is in
+`scripts/verify_test_network_isolation.py` with that measurement.
+`test_network_isolation_manifest` does not name the row.
+
+**The helpers' comments now point at the row.** `bpr_narrow_owner_private.cmake`
+no longer asserts on its own authority that `icacls` writes "exactly" the
+product's descriptor. `bpr_narrow_owner_private.py` says the two differ on
+purpose and names the row that pins their agreement.
+
+**[[BPR-0875]]'s rows still pass:**
+
+- `application_epoch_portable_occurrence_two_catalogues`, 99.84 s;
+- `application_epoch_ordinary_update_recreated`, 35.48 s;
+- `agent_workspace_ownership`, 9.49 s.

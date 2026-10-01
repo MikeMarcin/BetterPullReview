@@ -199,6 +199,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1230]]. Measured on JaegAW 2026-09-29: passes uncontained; contained
     # it stops at "publication SQLite journal opens" under its scratch root.
     "github_review_comment_permalink": "dos-volume-name",
+    # [[BPR-0900]]. Measured on JaegAW 2026-10-01: it compares the descriptors
+    # that uncontained courses narrow, so it runs where they do. Contained, the
+    # lowbox token cannot walk the container temporary directory's ancestors,
+    # so the product refuses every directory, including the product's own, and
+    # the CMake-narrowed one, which carries no container grant, cannot even be
+    # removed.
+    "owner_private_descriptor_agreement": "dos-volume-name",
     # [[BPR-1240]]. Measured on JaegAW 2026-09-30: passes uncontained; contained it
     # exits 1 before printing a line. Not traced further; the same composed tour
     # course as application_review_tour_composition_public_path.

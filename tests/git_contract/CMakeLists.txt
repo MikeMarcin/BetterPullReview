@@ -412,6 +412,29 @@ if(UNIX OR WIN32)
     set_tests_properties(agent_workspace_ownership PROPERTIES TIMEOUT 120)
 endif()
 
+# [[BPR-0900]]. The product, the CMake helper and the Python helper each
+# narrow a directory inside a root that grants Authenticated Users Modify, and
+# the product's own `workspace_parent_trusted` must trust all three and refuse
+# an unnarrowed control. Windows only: elsewhere every author is mode 0700.
+if(WIN32)
+    bpr_add_executable(test_owner_private_descriptor_agreement owner_private_descriptor_agreement_tests.cpp)
+    target_link_libraries(test_owner_private_descriptor_agreement PRIVATE BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite)
+    bpr_enable_hardening(test_owner_private_descriptor_agreement)
+    bpr_enable_warnings(test_owner_private_descriptor_agreement)
+    bpr_add_network_isolated_test(
+        NAME owner_private_descriptor_agreement
+        WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/owner_private_descriptor_agreement_tests.py"
+            --tool "$<TARGET_FILE:test_owner_private_descriptor_agreement>"
+            --cmake "${CMAKE_COMMAND}"
+            --helper "${PROJECT_SOURCE_DIR}/tests/end_to_end/bpr_narrow_owner_private.cmake"
+    )
+    set_tests_properties(owner_private_descriptor_agreement PROPERTIES
+        PASS_REGULAR_EXPRESSION "OWNER_PRIVATE_DESCRIPTORS_AGREE"
+        TIMEOUT 120)
+endif()
+
 # [[BPR-0622]]. Targets that compile installed_git_process.cpp directly carry
 # its Windows ownership-journal dependencies: the header-only guard rules and
 # the security API.
