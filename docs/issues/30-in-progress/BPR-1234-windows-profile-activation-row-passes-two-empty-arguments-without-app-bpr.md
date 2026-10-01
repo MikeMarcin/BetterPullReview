@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1234"
 title: "Windows: application_profile_activation_public_path passes two empty arguments when app_bpr is not built, and its script refuses them"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
