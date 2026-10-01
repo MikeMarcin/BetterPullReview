@@ -36,6 +36,10 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
                 _LIBCPP_ENABLE_EXPERIMENTAL
         )
     endif()
+    if(UNIX)
+        # [[BPR-1252]]. Each Git launch bounds its child's descriptor sweep.
+        target_link_libraries(better_pull_review_adapter_git PRIVATE BetterPullReview::Platform)
+    endif()
     if(WIN32)
         # [[BPR-0622]]. The ownership journal applies the same header-only
         # Windows guard and private-object rules as the agent supervisor.

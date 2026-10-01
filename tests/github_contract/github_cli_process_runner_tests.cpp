@@ -38,6 +38,9 @@
 
 extern char** environ;
 #endif
+#if defined(Q_OS_MACOS)
+	#include <sys/syslimits.h>
+#endif
 
 #if defined(_WIN32)
 	#if !defined(NOMINMAX)
@@ -378,6 +381,27 @@ namespace {
 				return 109;
 			}
 			std::cout << "hardened";
+			return 0;
+		}
+
+		// [[BPR-1252]]. Reports the soft descriptor limit this child was
+		// started with, after checking that the named descriptor, open and
+		// inheritable in the parent, is not open here.
+		if (mode == QStringLiteral("descriptor-bound")) {
+			if (aArguments.size() != 4) {
+				return 105;
+			}
+			bool       validDescriptor     = false;
+			const auto inheritedDescriptor = aArguments.at(3).toInt(&validDescriptor);
+			errno                          = 0;
+			if (!validDescriptor || ::fcntl(inheritedDescriptor, F_GETFD) != -1 || errno != EBADF) {
+				return 106;
+			}
+			struct rlimit descriptorLimit{ };
+			if (::getrlimit(RLIMIT_NOFILE, &descriptorLimit) != 0) {
+				return 107;
+			}
+			std::cout << descriptorLimit.rlim_cur;
 			return 0;
 		}
 
@@ -1065,6 +1089,63 @@ namespace {
 			"resets signals, and becomes the new session/group leader");
 	}
 
+	#if defined(Q_OS_MACOS)
+	/// \brief [[BPR-1252]]. A launch bounds its child's descriptor sweep on
+	/// macOS without letting an open descriptor through.
+	///
+	/// \details Qt's child closes each number up to its soft descriptor limit.
+	/// The runner's child lowers that limit, before the sweep, to one past its
+	/// highest open descriptor and never below `OPEN_MAX`. So an inheritable
+	/// descriptor above `OPEN_MAX` must still be closed, and must be what sets
+	/// the child's limit; without it the child gets `OPEN_MAX`; and a limit
+	/// already below that is left alone. Elsewhere the bound does nothing.
+	auto test_unix_descriptor_sweep_is_bounded() -> void
+	{
+		QTemporaryDir directory;
+		expect(directory.isValid(), "descriptor bound test directory is available");
+		const auto runner = make_github_cli_process_runner();
+
+		struct rlimit priorLimit{ };
+		expect(::getrlimit(RLIMIT_NOFILE, &priorLimit) == 0, "parent descriptor limit is available");
+		constexpr rlim_t raised = 65536U;
+		constexpr int    high   = 20000;
+		expect(priorLimit.rlim_max == RLIM_INFINITY || priorLimit.rlim_max >= raised,
+			   "parent may raise its descriptor limit above the bound");
+		const auto launch = [&](const int aDescriptor, const rlim_t aLimit) -> std::optional<std::string> {
+			auto limit     = priorLimit;
+			limit.rlim_cur = aLimit;
+			expect(::setrlimit(RLIMIT_NOFILE, &limit) == 0, "parent descriptor limit is set for the launch");
+			auto request                = base_request(directory, { "--bpr-helper", "descriptor-bound", std::to_string(aDescriptor) });
+			request.StandardOutputLimit = 32U;
+			const auto result           = runner->run(request, { });
+			expect(::setrlimit(RLIMIT_NOFILE, &priorLimit) == 0, "parent descriptor limit is restored");
+			if (!result.has_value()) {
+				return std::nullopt;
+			}
+			return result->StandardOutput;
+		};
+		auto raisedLimit     = priorLimit;
+		raisedLimit.rlim_cur = raised;
+		expect(::setrlimit(RLIMIT_NOFILE, &raisedLimit) == 0, "parent descriptor limit is raised");
+		const auto opened = ::open("/dev/null", O_RDONLY | O_CLOEXEC);
+		expect(opened >= 0 && ::dup2(opened, high) == high && ::close(opened) == 0,
+			   "an inheritable descriptor is open above OPEN_MAX");
+		expect(::fcntl(high, F_GETFD) == 0, "the high descriptor is inheritable");
+		const auto withHigh = launch(high, raised);
+		expect(::close(high) == 0, "parent high descriptor is closed");
+		expect(withHigh == std::to_string(high + 1),
+			   "the child closes an inheritable descriptor above OPEN_MAX and its limit is one past it");
+
+		const auto plain = ::open("/dev/null", O_RDONLY);
+		expect(plain >= 3, "an ordinary inheritable descriptor is open");
+		const auto withoutHigh = launch(plain, raised);
+		const auto lowered     = launch(plain, 256U);
+		expect(::close(plain) == 0, "parent ordinary descriptor is closed");
+		expect(withoutHigh == std::to_string(OPEN_MAX), "a raised limit reaches the child as OPEN_MAX");
+		expect(lowered == std::to_string(256U), "a limit below OPEN_MAX reaches the child unchanged");
+	}
+	#endif
+
 	auto test_descendant_process_group_is_killed() -> void
 	{
 		QTemporaryDir directory;
@@ -1714,6 +1795,9 @@ try {
 	test_completed_output_opt_in();
 #if defined(Q_OS_UNIX)
 	test_unix_process_hardening();
+	#if defined(Q_OS_MACOS)
+	test_unix_descriptor_sweep_is_bounded();
+	#endif
 	test_descendant_process_group_is_killed();
 	test_expired_queued_request_never_launches();
 #endif

@@ -147,6 +147,11 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
         )
     endif()
 
+    if(UNIX)
+        # [[BPR-1252]]. Each gh launch bounds its child's descriptor sweep.
+        target_link_libraries(better_pull_review_adapter_github PRIVATE BetterPullReview::Platform)
+    endif()
+
     if(WIN32)
         target_sources(
             better_pull_review_adapter_github

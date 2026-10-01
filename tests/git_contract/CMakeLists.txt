@@ -457,3 +457,19 @@ if(WIN32)
         endif()
     endforeach()
 endif()
+# [[BPR-1252]]. On Unix they carry the bound each Git launch puts on its
+# child's descriptor sweep.
+if(UNIX)
+    foreach(
+        bpr_git_source_target
+        IN ITEMS
+            test_better_pull_review_git_process_contract_tests
+            test_better_pull_review_git_cache_contract_tests
+            test_better_pull_review_git_anonymous_public_read_tests
+            test_better_pull_review_agent_workspace_ownership_tests
+    )
+        if(TARGET ${bpr_git_source_target})
+            target_link_libraries(${bpr_git_source_target} PRIVATE BetterPullReview::Platform)
+        endif()
+    endforeach()
+endif()

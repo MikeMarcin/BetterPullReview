@@ -50,6 +50,8 @@
 	#include <sys/stat.h>
 	#include <sys/types.h>
 	#include <unistd.h>
+
+	#include "bpr/platform/unix_descriptor_sweep.hpp"
 #endif
 
 #if defined(Q_OS_MACOS)
@@ -2116,6 +2118,9 @@ namespace bpr::adapters::git {
 						|| ::dup2(guard, 4) < 0 || ::fcntl(4, F_SETFD, 0) != 0) {
 						started->failChildProcessModifier("Git workspace lifetime", errno);
 					}
+					// [[BPR-1252]]. After the two inherited descriptors exist,
+					// so the bound counts them.
+					bpr::platform::unix_descriptor_sweep::bound();
 				});
 				aProcess.setUnixProcessParameters({
 					.flags = QProcess::UnixProcessFlag::CloseFileDescriptors
@@ -2500,6 +2505,9 @@ namespace bpr::adapters::git {
 				process->setChildProcessModifier(
 					[] {
 						static_cast<void>(::umask(S_IRWXG | S_IRWXO));
+						// [[BPR-1252]]. Git runs once per command, so its
+						// sweep must not cost one call per allowed descriptor.
+						bpr::platform::unix_descriptor_sweep::bound();
 					});
 #endif
 				if (aRequest.WorkspaceGuard && !lifetime.prepare(*process, *aRequest.WorkspaceGuard)) {

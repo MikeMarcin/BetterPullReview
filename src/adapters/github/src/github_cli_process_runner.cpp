@@ -29,6 +29,8 @@
 	#include <sys/resource.h>
 	#include <sys/types.h>
 	#include <unistd.h>
+
+	#include "bpr/platform/unix_descriptor_sweep.hpp"
 #endif
 
 #if defined(Q_OS_WIN)
@@ -606,14 +608,17 @@ namespace bpr::adapters::github::detail {
 					process->setStandardOutputFile(QString::fromStdString(aFileLimits.StandardOutputFile.string()), QIODevice::Truncate);
 				}
 #if defined(Q_OS_UNIX)
-				if (aFileLimits.MaximumFileBytes != 0U) {
-					process->setChildProcessModifier([limit = aFileLimits.MaximumFileBytes, child = process.get()] {
+				process->setChildProcessModifier([limit = aFileLimits.MaximumFileBytes, child = process.get()] {
+					if (limit != 0U) {
 						const rlimit fileLimit{ static_cast<rlim_t>(limit), static_cast<rlim_t>(limit) };
 						if (::setrlimit(RLIMIT_FSIZE, &fileLimit) != 0) {
 							child->failChildProcessModifier("file size limit", errno);
 						}
-					});
-				}
+					}
+					// [[BPR-1252]]. Every gh request is a launch, so its sweep
+					// must not cost one call per allowed descriptor.
+					bpr::platform::unix_descriptor_sweep::bound();
+				});
 				process->setUnixProcessParameters(
 					QProcess::UnixProcessFlag::CloseFileDescriptors
 					| QProcess::UnixProcessFlag::DisableCoreDumps

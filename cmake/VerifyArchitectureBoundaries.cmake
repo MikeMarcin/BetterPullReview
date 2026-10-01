@@ -4042,7 +4042,9 @@ endif()
 # gives the same Unix child RLIMIT_FSIZE at the store's per-file limit. The
 # span is matched over code with comments removed, so a limit in a comment,
 # a dead preprocessor branch or an uncalled function does not admit it. Every
-# other redirect is still refused.
+# other redirect is still refused. [[BPR-1252]]: the same child modifier then
+# bounds the child's descriptor sweep, so it is installed for every launch and
+# sets the limit whenever there is one.
 set(
     github_process_runner_spool_pattern
     "if[ \t\r\n]*\\([ \t\r\n]*!aFileLimits\\.StandardOutputFile\\.empty\\(\\)[ \t\r\n]*\\)[ \t\r\n]*\\{[ \t\r\n]*process->setStandardOutputFile\\([ \t\r\n]*QString::fromStdString\\(aFileLimits\\.StandardOutputFile\\.string\\(\\)\\),[ \t\r\n]*QIODevice::Truncate\\);[ \t\r\n]*\\}"
@@ -4072,7 +4074,7 @@ if(github_process_runner_code_compact MATCHES "${github_process_runner_spool_cod
         NOT github_process_runner_output_file_count EQUAL 1
         OR NOT github_process_runner_code_compact
             MATCHES
-                "${github_process_runner_spool_code} #if defined\\(Q_OS_UNIX\\) if \\(aFileLimits\\.MaximumFileBytes != 0U\\) \\{ process->setChildProcessModifier\\(\\[limit = aFileLimits\\.MaximumFileBytes, child = process\\.get\\(\\)\\] \\{ const rlimit fileLimit\\{ static_cast<rlim_t>\\(limit\\), static_cast<rlim_t>\\(limit\\) \\}; if \\(::setrlimit\\(RLIMIT_FSIZE, &fileLimit\\) != 0\\) \\{ child->failChildProcessModifier\\(\"file size limit\", errno\\); \\} \\}\\); \\}"
+                "${github_process_runner_spool_code} #if defined\\(Q_OS_UNIX\\) process->setChildProcessModifier\\(\\[limit = aFileLimits\\.MaximumFileBytes, child = process\\.get\\(\\)\\] \\{ if \\(limit != 0U\\) \\{ const rlimit fileLimit\\{ static_cast<rlim_t>\\(limit\\), static_cast<rlim_t>\\(limit\\) \\}; if \\(::setrlimit\\(RLIMIT_FSIZE, &fileLimit\\) != 0\\) \\{ child->failChildProcessModifier\\(\"file size limit\", errno\\); \\} \\} bpr::platform::unix_descriptor_sweep::bound\\(\\); \\}\\);"
     )
         message(
             FATAL_ERROR

@@ -14,6 +14,11 @@ the functional core or Qt presentation adapter.
   refused at creation, and a child started without the restriction is refused
   after the start (BPR-1114). That restriction is the runner's only
   process-creation modifier; `architecture_boundaries` refuses any other.
+- On Unix the runner's one child-process modifier sets the spool's file-size
+  limit when there is one and then bounds the child's descriptor sweep
+  (`bpr/platform/unix_descriptor_sweep.hpp`, BPR-1252), as Git's launches do:
+  without it, every `gh` request on macOS made one `close` call per allowed
+  descriptor.
 - Keep GitHub CLI invocation and child-environment construction in
   `src/gh_cli_transport.cpp`. The exact `GH_TELEMETRY=0` hardening setting in
   that source is the sole permitted telemetry reference.

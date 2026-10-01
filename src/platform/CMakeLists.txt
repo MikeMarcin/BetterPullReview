@@ -6,7 +6,8 @@
 # else, and refuses a launch whose list cannot be built. It holds no adapter
 # state and no Qt, provider, file-system policy or decision about what a process
 # runs, and depends on nothing first-party, so an adapter may include it without
-# an adapter-to-adapter edge.
+# an adapter-to-adapter edge. [[BPR-1252]] adds the bound a frequent Unix
+# launch puts on its child's descriptor sweep.
 add_library(better_pull_review_platform INTERFACE)
 add_library(BetterPullReview::Platform ALIAS better_pull_review_platform)
 target_sources(
@@ -17,6 +18,7 @@ target_sources(
         FILES
             "${CMAKE_CURRENT_SOURCE_DIR}/include/bpr/platform/windows_private_object.hpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/include/bpr/platform/windows_standard_handles.hpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/include/bpr/platform/unix_descriptor_sweep.hpp"
 )
 target_compile_features(better_pull_review_platform INTERFACE cxx_std_23)
 if(WIN32)
