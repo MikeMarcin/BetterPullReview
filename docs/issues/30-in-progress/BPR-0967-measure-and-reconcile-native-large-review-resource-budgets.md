@@ -344,3 +344,13 @@ leaves its partial report with `Failure`.
 
 No limit or threshold changed. Windows and Linux budgets are not yet set: they
 need the station measurements this milestone requests, then a confirmation run.
+
+At code candidate `568d45ca3`, all sixteen large-review rows pass on the Mac
+Release tree in 175.8 s with every limit enforced and no miss, and
+`architecture_boundaries` passes. The [station handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-stations.json)
+holds the exact Windows and Linux requests (optimized Release tree, then the
+station's ordinary Debug tree, sixteen rows each), their expected outputs, what
+to return, and the next round: per-platform limits from those measurements,
+enforced in optimized builds, row timeouts sized from the Debug durations, and
+one confirmation run. Packaged launch, compositor presentation and physical
+input on every platform still need a person at the desktop.

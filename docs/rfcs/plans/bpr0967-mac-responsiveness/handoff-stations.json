@@ -1,0 +1,108 @@
+{
+  "schema": "bpr0967.station-handoff.v1",
+  "assignment": "coordinator-implementer fresh rfc-implementer, 2026-10-01",
+  "milestone": "mac-full-remaining (amended 2026-10-01 with the Windows/Linux station exits)",
+  "mandate_revision": "unattended-milestones-20261001-stations",
+  "mandate": "\"find and implement available unattended milestones, keep going until you run out of candidates\"; amended \"You should be able to take over anything on another station and use the windows and linux remote stations as needed.\"",
+  "status": "round 1 harness landed and Mac-verified; station measurements requested; card In Progress",
+  "branch": "main",
+  "promotion_commit": "b724d3613",
+  "claim_commit": "245bc9b5f",
+  "code_candidate": "568d45ca3e91e50e706c2ed3a43ea94932f430aa",
+  "source_inputs": {
+    "tests/end_to_end/large_review_benchmark.cpp": "d433f3547ea2c7c5470ac0f9543d50adba0fad84c1720063d5d03d58db4f764d",
+    "tests/end_to_end/large_review_native_memory.cpp": "e3f6870d111a1e3ca38f273a1ca2adbd491e582a0223262b50cfb1093a3508c2",
+    "tests/end_to_end/large_review_observers.hpp": "2b2ca17973d19340a21a93ffc972c4e945ded6728ccaa8669fed089651e349c2",
+    "tests/end_to_end/CMakeLists.txt": "3564618ac9cad159b09536bb7d45401fed7916a461ca6f6fc905a1db96366689",
+    "tests/end_to_end/large_review_launch.py": "8017082ab79adc03ec4fe4fcf4bee9426d4a4466ba8a49ed2596795d54753205",
+    "tests/end_to_end/large_review_summary.py": "771b94d8ff5de4fb65bcabef16c92c629f7daa2b4706961a42bfc9a62c07cead"
+  },
+  "mac_verification": {
+    "station": "Apple M4 Pro, 48 GiB, 14 logical processors, macOS 26.6.2; Apple clang 21.0.0; Qt 6.11.2; build/bpr0967-release (Release -O3 -DNDEBUG, arm64, macOS 13.0)",
+    "integration": "16/16 large-review rows pass serially in 175.77 s (build/bpr0967-station/mac-release-integration.log sha256 c71d9ffa9ac45c7507ae49795aa7b97300e1a3e4e7df0dfc9776bb976b5bd77b; summary 021870760b5817b9a5526afef9a1db3e8293f93b6d358bb097d4199dbf9351a0). Every report: BudgetsEnforced true, Failure empty, no limit misses. heap-control: Samples 35, peak 66482752 over baseline 32928192, final 32928224.",
+    "observation": "The resources course records large_file_selection in InputBudgetFailures (that course does not gate input; its 1 ms sampler runs). Unchanged behavior, noted for the station comparison.",
+    "speed_context": "paged_review_and_git_load now takes 1.1-1.4 s on this Mac against about 10 s at 5a26d6b1; the cause is product change since then and is not attributed here.",
+    "controls": "Temporary, source restored to sha256 d433f3547ea2c7c5470ac0f9543d50adba0fad84c1720063d5d03d58db4f764d and rebuilt before the integration run. (A) Mac marked unjustified, footprint limit 1 MiB, input limit 1 ms: loaded_close and responsiveness pass; loaded-close names 3 limit misses, responsiveness 16 input failures and 14 unenforced completion misses. (B) Mac justified, same limits: both fail ('sampled Mac fixture footprint growth exceeded its budget', 'Mac fixture responsiveness budget exceeded') and each writes its partial report with Extended.Failure.",
+    "architecture_boundaries": "passes (24.0 s)",
+    "format": "clang-format 23.1.1 --dry-run --Werror clean on the three changed C++ files",
+    "tidy": "large_review_native_memory.cpp clean; large_review_benchmark.cpp reports 23 findings, all on lines this change did not touch (pre-existing naming, endl, static-through-instance, widening-cast)",
+    "documentation": "DOCUMENTATION_OK"
+  },
+  "station_requests": {
+    "rows_regex": "^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison)$",
+    "windows_bpr_main_win": [
+      "Preconditions: the station runs nothing else (no build, test or agent work) from step 1 to step 6; a vcvars64 PowerShell; Smart App Control off as for every station course.",
+      "1. git -C C:\\code\\git\\BetterPullReview status --porcelain --untracked-files=no   (must print nothing)",
+      "   git -C C:\\code\\git\\BetterPullReview fetch origin",
+      "   git -C C:\\code\\git\\BetterPullReview switch --detach 568d45ca3e91e50e706c2ed3a43ea94932f430aa",
+      "   git -C C:\\code\\git\\BetterPullReview rev-parse HEAD   (must print 568d45ca3e91e50e706c2ed3a43ea94932f430aa)",
+      "   New-Item -ItemType Directory -Force C:\\code\\git\\BetterPullReview\\build\\bpr0967-station | Out-Null",
+      "   (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average   (record as load before)",
+      "2. Set-Location C:\\code\\git\\BetterPullReview",
+      "   cmake --preset windows-app-release -B C:\\code\\git\\BetterPullReview\\build\\bpr0967-release -DBUILD_TESTING=ON -DBPR_DISTRIBUTION_BUILD=OFF -DBPR_DEPENDENCY_OFFLINE=ON",
+      "   cmake --build C:\\code\\git\\BetterPullReview\\build\\bpr0967-release --target bench_better_pull_review_large_review tool_better_pull_review_network_sandbox",
+      "   Expected: configure ends 'Build files have been written'; build exits 0. If the offline configure names a dependency missing from the cache, or the build fails, stop here and return the error text.",
+      "3. Get-Date -Format o; ctest --test-dir C:\\code\\git\\BetterPullReview\\build\\bpr0967-release -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison)$' --output-log C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-release-ctest.log *> C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-release-console.txt; \\\"exit=$LASTEXITCODE\\\"; Get-Date -Format o",
+      "   Expected: 16 rows, each Passed. A failed or timed-out row is data: do not rerun it, continue.",
+      "4. py -3 C:\\code\\git\\BetterPullReview\\tests\\end_to_end\\large_review_summary.py C:\\code\\git\\BetterPullReview\\build\\bpr0967-release C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-release-ctest.log --output C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-release-summary.json",
+      "5. cmake --build --preset windows-dev --target bench_better_pull_review_large_review tool_better_pull_review_network_sandbox   (from C:\\code\\git\\BetterPullReview; the station's ordinary Debug tree)",
+      "   Get-Date -Format o; ctest --test-dir C:\\code\\git\\BetterPullReview\\build\\windows-dev -C Debug -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison)$' --output-log C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-debug-ctest.log *> C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-debug-console.txt; \\\"exit=$LASTEXITCODE\\\"; Get-Date -Format o",
+      "   py -3 C:\\code\\git\\BetterPullReview\\tests\\end_to_end\\large_review_summary.py C:\\code\\git\\BetterPullReview\\build\\windows-dev C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-debug-ctest.log --brief --output C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-debug-summary.json",
+      "6. (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average   (record as load after)",
+      "   Get-FileHash -Algorithm SHA256 C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\*",
+      "   Select-String -Path C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-*-ctest.log -Pattern 'large-review-benchmark-failed:','\\*\\*\\*Failed','\\*\\*\\*Timeout','heap sampler'",
+      "   git -C C:\\code\\git\\BetterPullReview switch main"
+    ],
+    "linux_bpr_main_linux": [
+      "Preconditions: the station runs nothing else (no build, test or agent work) from step 1 to step 6.",
+      "1. git -C /home/mmarcin/BetterPullReview status --porcelain --untracked-files=no   (must print nothing)",
+      "   git -C /home/mmarcin/BetterPullReview fetch origin",
+      "   git -C /home/mmarcin/BetterPullReview switch --detach 568d45ca3e91e50e706c2ed3a43ea94932f430aa",
+      "   git -C /home/mmarcin/BetterPullReview rev-parse HEAD   (must print 568d45ca3e91e50e706c2ed3a43ea94932f430aa)",
+      "   mkdir -p /home/mmarcin/BetterPullReview/build/bpr0967-station",
+      "   uptime   (record as load before)",
+      "2. cd /home/mmarcin/BetterPullReview && cmake --preset app-release -B /home/mmarcin/BetterPullReview/build/bpr0967-release -DBUILD_TESTING=ON -DBPR_DEPENDENCY_OFFLINE=ON",
+      "   cmake --build /home/mmarcin/BetterPullReview/build/bpr0967-release --target bench_better_pull_review_large_review tool_better_pull_review_network_sandbox",
+      "   Expected: configure ends 'Build files have been written'; build exits 0. If the offline configure names a dependency missing from the cache, or the build fails, stop here and return the error text.",
+      "3. date -Is; ctest --test-dir /home/mmarcin/BetterPullReview/build/bpr0967-release -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison)$' --output-log /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-release-ctest.log > /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-release-console.txt 2>&1; echo exit=$?; date -Is",
+      "   Expected: 16 rows, each Passed. A failed or timed-out row is data: do not rerun it, continue.",
+      "4. python3 /home/mmarcin/BetterPullReview/tests/end_to_end/large_review_summary.py /home/mmarcin/BetterPullReview/build/bpr0967-release /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-release-ctest.log --output /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-release-summary.json",
+      "5. cd /home/mmarcin/BetterPullReview && cmake --build --preset dev --target bench_better_pull_review_large_review tool_better_pull_review_network_sandbox   (the station's ordinary Debug tree)",
+      "   date -Is; ctest --test-dir /home/mmarcin/BetterPullReview/build/dev -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison)$' --output-log /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-debug-ctest.log > /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-debug-console.txt 2>&1; echo exit=$?; date -Is",
+      "   python3 /home/mmarcin/BetterPullReview/tests/end_to_end/large_review_summary.py /home/mmarcin/BetterPullReview/build/dev /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-debug-ctest.log --brief --output /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-debug-summary.json",
+      "6. uptime   (record as load after)",
+      "   sha256sum /home/mmarcin/BetterPullReview/build/bpr0967-station/*",
+      "   grep -h -e 'large-review-benchmark-failed:' -e '\\*\\*\\*Failed' -e '\\*\\*\\*Timeout' -e 'heap sampler' /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-*-ctest.log",
+      "   git -C /home/mmarcin/BetterPullReview switch main"
+    ],
+    "expected": [
+      "Each row prints its marker and passes. Reports: BuildConfiguration 'Release' (step 3) or 'Debug' (step 5); Extended.BudgetsEnforced false; Extended.MemoryMethod beginning 'Windows GetProcessMemoryInfo' or 'Linux /proc/self/status'; Extended.Failure empty.",
+      "The summary's build.source_revision is the candidate and build.source_tracked_changes is 0; the Release summary's build.CMAKE_BUILD_TYPE is Release.",
+      "The summary's controls include heap-control with Samples > 1, PeakBytes >= BaselineBytes + 33554432 and FinalBytes + 16777216 < PeakBytes. If the sampler misses the held allocation, application_large_review_timing_control fails with 'independent heap sampler missed held allocation or release'; that is a finding, not a station fault.",
+      "Mac-justified limits may be missed off Mac without failing: they appear in Extended.UnenforcedLimitMisses, InputBudgetFailures and CompletionBudgets entries with Enforced false.",
+      "Plausible real findings to return unchanged: a row timeout (Debug especially), an exact-assertion failure, or active_work's 'lacks delivered input or public close during observed pending work' if no queued key meets pending diff work on that machine."
+    ],
+    "return": [
+      "The full text of <platform>-release-summary.json and <platform>-debug-summary.json (each one compact JSON line).",
+      "Both ctest exit codes, the four timestamps, load before and after, and the SHA-256 list from step 6.",
+      "Every line step 6's search prints.",
+      "Leave build/bpr0967-station and build/bpr0967-release on the station; commit nothing; switch the checkout back to main."
+    ],
+    "last_test_log_caveat": "Each ctest call writes its own --output-log file, so nothing depends on LastTest.log, which every ctest invocation (even -N) rewrites."
+  },
+  "next_round": [
+    "Reconcile both stations' Release summaries: per platform, set each numeric limit from the optimized measurement with stated headroom (the Mac rule: about 10% above the highest observed peak for memory; existing completion ceilings kept where they already hold), and keep the 100 ms input target unchanged; a miss stays a named InputBudgetFailures entry with attribution, never a raised limit.",
+    "Make those limits enforced in optimized builds on that platform (Debug keeps reporting, as BPR-1247), size Windows/Linux row timeouts from the Debug durations under the run-budget rule, and request one confirmation run at the enforcing candidate.",
+    "If the Windows heap-control fails, replace HeapSummary with a method the control accepts before any Windows heap budget is set."
+  ],
+  "pending_obligations": [
+    "Windows and Linux optimized measurements, budgets and confirmation run (this milestone; unattended, station runs).",
+    "Packaged/native application launch, compositor presentation and physical-input latency on macOS, Windows and Linux: need a person at the desktop; no fixture substitutes.",
+    "Mac-side limits recorded in handoff-full-mac.json remain: complete heap-only peak reconstruction beyond the loaded-close bound, production-limit pathological/long-line workloads, active-operation stages beyond the diff and held-provider courses."
+  ],
+  "ownership": {
+    "writer": "this implementer in /Users/jaeger/Documents/GitHub/BetterPullReview on main; another writer committed on main concurrently (BPR-1234 finish, BPR-1260/1261 allocations) and was not touched",
+    "commands": "all task-owned builds and ctest runs completed; no server, watcher or background command remains",
+    "temporary": "build/bpr0967-station (logs, summaries, the original-source copy used for the controls) and build/bpr0967-release are ignored build output kept for audit"
+  }
+}
