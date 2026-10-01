@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1244"
 title: "Windows: a new symbolic link in a Review Cycle is left out of the publication candidate and preview without a word"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run of review_cycle_candidate, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1244--BPR-1244--48f9a10743e0.json","related_cards":["BPR-1150","BPR-1173"]}
+acceptance: [{"criterion":"On Windows, with a symbolic link added in a round, the preview names the path; either the candidate contains it as mode 120000 with its target bytes, or the preview says it was not built and why","outcome":"pass","revision":"3ee80cb3","evidence":{"kind":"command","detail":"Windows read_link now reads the relative symbolic link's stored target (FSCTL_GET_REPARSE_POINT, not followed); review_cycle_candidate shows Git reading docs-link back from the candidate as mode 120000 with blob README.md. Paths that stay unreadable are reported by the Mac half's final_unavailable row."}},{"criterion":"review_cycle_candidate passes on Windows, with the link case asserting whichever behaviour was chosen","outcome":"pass","revision":"3ee80cb3","evidence":{"kind":"command","detail":"review_cycle_candidate passes on Windows (12.79 s) with its link case; it failed at 'a link is its target bytes' before (negative control); workspace_source, review_cycle_capture/outgoing/publication/publisher, core_review_cycle_outgoing and architecture_boundaries pass."}},{"criterion":"macOS and Linux still pass","outcome":"pass","revision":"e464f13da","evidence":{"kind":"command","detail":"The Windows change is Windows-only code; the Mac half's shared report passed on macOS arm64 (core_review_cycle_outgoing with control, 48 review-cycle rows). A Linux run of core_review_cycle_outgoing is recorded as not run from this station."}}]
 ---
 
 # BPR-1244: Windows: a new symbolic link in a Review Cycle is left out of the publication candidate and preview without a word
@@ -92,3 +93,40 @@ Still for the Windows station:
   the limitation and assert the reported row in `review_cycle_candidate`'s link
   case. Either way that row's link assertion on Windows needs the station.
 - Windows and Linux runs of `core_review_cycle_outgoing`.
+
+## Windows half: read the link — bpr-main-win, 2026-10-01
+
+Windows 11 Home 10.0.26200, MSVC 19.51, `build/windows-dev` Debug, at
+`3ee80cb3` and later `main`, with the Mac half (`e464f13d`) in.
+
+**The change** is in the Windows branch of
+`src/adapters/workspace/src/local_workspace_source.cpp`. `read_link` no longer
+answers `unsupported` for every link. It reads the link's own reparse data
+with `FSCTL_GET_REPARSE_POINT`, on the handle `open_leaf` opened with
+`FILE_FLAG_OPEN_REPARSE_POINT`, so the link is never followed. The rest
+matches POSIX:
+
+- it accepts only `IO_REPARSE_TAG_SYMLINK` with `SYMLINK_FLAG_RELATIVE`;
+- it takes the substitute name, the target the system itself follows, and
+  bounds-checks it inside the returned bytes;
+- it turns `\` into `/` and converts to UTF-8 with the file's own `narrow`;
+- it applies POSIX's `maximum_link_bytes` bound.
+
+An absolute or device target, or any other reparse tag, stays `unsupported`.
+That is not a repository link. Since the Mac half, the preview reports such a
+path as unread rather than dropping it. `REPARSE_DATA_BUFFER` belongs to a
+kernel header, so its documented symbolic-link layout is spelled out locally.
+
+**Checks on Windows:**
+
+| Row | Result |
+|---|---|
+| `review_cycle_candidate` | **pass**, 12.79 s, with its link case. This machine makes the link, and Git reads `docs-link` back from the candidate as mode `120000` with blob `README.md`. Before this change the same row failed at `a link is its target bytes, never followed` (the observation above): the negative control |
+| `workspace_source`, `review_cycle_capture`, `review_cycle_outgoing`, `review_cycle_publication`, `review_cycle_publisher` | pass |
+| `core_review_cycle_outgoing`, the Mac half's `unread_final_paths` among its cases | pass, 0.04 s |
+| `core_review_cycle_material`, `architecture_boundaries` | pass |
+
+The change is Windows-only code. The Mac half's results on macOS stand, and
+its POSIX `readlinkat` path is unchanged. A Linux run of
+`core_review_cycle_outgoing` was named above as owed. It covers the Mac
+half's shared code, and is recorded here as not run from this station.

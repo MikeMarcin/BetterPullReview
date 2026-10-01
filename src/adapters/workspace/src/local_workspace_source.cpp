@@ -22,6 +22,9 @@
 		#define WIN32_LEAN_AND_MEAN
 	#endif
 	#include <Windows.h>
+	#include <winioctl.h>
+
+	#include <cstring>
 #else
 	#include <cerrno>
 	#include <dirent.h>
@@ -742,8 +745,51 @@ namespace bpr::adapters::workspace {
 				if (!leaf) {
 					return fail(leaf.error());
 				}
-				// Reparse-data parsing is not implemented; the entry stays visible.
-				return fail(leaf->Facts.Entry.Kind == workspace_entry_kind::symlink ? workspace_failure::unsupported : workspace_failure::missing);
+				if (leaf->Facts.Entry.Kind != workspace_entry_kind::symlink) {
+					return fail(workspace_failure::missing);
+				}
+				// [[BPR-1244]]. The link's own stored target, read from its reparse data
+				// on the handle opened without following it, as `readlinkat` reads it on
+				// POSIX. Only a relative target is a repository link; an absolute or
+				// device one stays unsupported, and the plan reports it unread.
+				// `REPARSE_DATA_BUFFER` is a kernel header's, so its symbolic-link
+				// layout is spelled here: the documented header, then the names.
+				struct symbolic_link_reparse
+				{
+					DWORD Tag;
+					WORD  DataLength;
+					WORD  Reserved;
+					WORD  SubstituteOffset;
+					WORD  SubstituteLength;
+					WORD  PrintOffset;
+					WORD  PrintLength;
+					DWORD Flags;
+					WCHAR Names[1];
+				};
+				constexpr auto relative_link = DWORD{ 1U }; // SYMLINK_FLAG_RELATIVE
+				auto           buffer        = std::vector<std::byte>(MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+				auto           returned      = DWORD{ 0U };
+				if (::DeviceIoControl(leaf->Object.get(), FSCTL_GET_REPARSE_POINT, nullptr, 0U, buffer.data(), static_cast<DWORD>(buffer.size()), &returned, nullptr) == 0) {
+					return fail(windows_failure(::GetLastError()));
+				}
+				const auto names = offsetof(symbolic_link_reparse, Names);
+				if (returned < names) {
+					return fail(workspace_failure::unsupported);
+				}
+				auto data = symbolic_link_reparse{ };
+				std::memcpy(&data, buffer.data(), names);
+				if (data.Tag != IO_REPARSE_TAG_SYMLINK || (data.Flags & relative_link) == 0U || data.SubstituteLength == 0U
+					|| data.SubstituteLength % sizeof(WCHAR) != 0U || names + data.SubstituteOffset + data.SubstituteLength > returned) {
+					return fail(workspace_failure::unsupported);
+				}
+				auto target = std::wstring(data.SubstituteLength / sizeof(WCHAR), L'\0');
+				std::memcpy(target.data(), buffer.data() + names + data.SubstituteOffset, data.SubstituteLength);
+				std::ranges::replace(target, L'\\', L'/');
+				auto text = narrow(target);
+				if (text.size() > maximum_link_bytes) {
+					return fail(workspace_failure::too_large);
+				}
+				return text;
 			}
 
 			auto read_git(const workspace_git_area aArea, const std::string_view aPath, const std::uint64_t aMaximumBytes, std::stop_token aStop)
