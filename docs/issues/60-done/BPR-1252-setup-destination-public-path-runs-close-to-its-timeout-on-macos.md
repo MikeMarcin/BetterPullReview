@@ -135,3 +135,13 @@ gives them no reason to need more.
 - Not run: Windows and Linux. The header does nothing off macOS; on Linux the
   adapters now link the header-only platform target, and the new course is
   macOS-only.
+
+## Integration
+
+`b532b1420` was rebased onto `eea5314bc` before the push and is on `main` as
+`d5ba1a6f6`, with the same diff; the finish is `800802d3c`. The full run
+above, and the acceptance records, are at `b532b1420`. On the rebased head the
+build is clean, and `architecture_boundaries`, `coding_format_check`,
+`github_cli_process_runner`, every `git_*` contract row,
+`agent_workspace_ownership`, `gh_cli_git_smart_transport`, this row (17.26 s)
+and its two sibling rows pass.
