@@ -85,7 +85,7 @@ plus button. The strip reported a minimum of 0 and used an `Ignored`
 horizontal policy, so nothing kept room for the tab. On Windows the same
 shape appears as viewport 200.
 
-**Fix (the commit after `abe151700`, in `src/adapters/qt/src/document_tab_strip.cpp`).**
+**Fix (`42e536f67`, in `src/adapters/qt/src/document_tab_strip.cpp`).**
 The strip's minimum is one tab at `minimum_tab_width` plus the plus button's
 size hint. The strip sets it as its minimum width (an `Ignored` policy makes
 layouts read that), and resets it on a font or style change. The splitter
