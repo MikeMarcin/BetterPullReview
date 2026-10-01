@@ -316,10 +316,17 @@ def nested_run(
 # and the launcher stage a failure must name, if it fails.
 SLEEPING_CHILD = ("-c", "import time; time.sleep(20)")
 PROMPT_CHILD = ("-c", "pass")
+# [[BPR-1261]]. Only Linux runs these windows, and Windows' `signal` has no
+# SIGHUP: naming it unguarded here failed the module's import there, and with
+# it every row that loads this script.
 LEAK_WINDOWS = (
     (f"signal:{signal.SIGINT.value}", SLEEPING_CHILD, None),
     (f"signal:{signal.SIGTERM.value}", SLEEPING_CHILD, None),
-    (f"signal:{signal.SIGHUP.value}", SLEEPING_CHILD, None),
+    *(
+        ((f"signal:{signal.SIGHUP.value}", SLEEPING_CHILD, None),)
+        if hasattr(signal, "SIGHUP")
+        else ()
+    ),
     ("handlers", PROMPT_CHILD, "signal-handlers"),
     ("wait", PROMPT_CHILD, "wait"),
 )
