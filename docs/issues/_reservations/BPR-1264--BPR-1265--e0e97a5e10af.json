@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1264",
+    "BPR-1265"
+  ],
+  "reserve_for": "bpr0967-station-followups",
+  "purpose": "BPR-0967 follow-ups: platform input-target misses; Windows Debug byte-pressure course",
+  "created": "2026-10-01T22:04:30.893963+00:00",
+  "base": "f61340e17d0c7480de14b2908276166d75b47102"
+}
