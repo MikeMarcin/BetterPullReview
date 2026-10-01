@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1255"
 title: "Linux: a review-bar control folds into the overflow menu in the title-row and workbench-window scale rows"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
