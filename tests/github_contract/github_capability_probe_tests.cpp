@@ -1387,8 +1387,8 @@ namespace {
 			if (
 				field.at("name").get_string()
 				== "markFileAsViewed") {
-				auto arguments = field.at("args").get_array();
-				arguments.push_back(fixture_object{
+				auto       arguments      = field.at("args").get_array();
+				const auto futureArgument = fixture_value(fixture_object{
 					{ "name", "futureArgument" },
 					{ "defaultValue", nullptr },
 					{
@@ -1412,6 +1412,7 @@ namespace {
 							  }),
 					},
 				});
+				arguments.push_back(futureArgument);
 				field.insert_or_assign("args", arguments);
 			}
 			changed.push_back(field);
@@ -1423,11 +1424,11 @@ namespace {
 		const std::string& aBody,
 		const bool         aRequired) -> std::string
 	{
-		auto envelope = parse_fixture_object(aBody);
-		auto data     = envelope.at("data").get_object();
-		auto input    = data.at("markInput").get_object();
-		auto fields   = input.at("inputFields").get_array();
-		fields.push_back(fixture_object{
+		auto       envelope    = parse_fixture_object(aBody);
+		auto       data        = envelope.at("data").get_object();
+		auto       input       = data.at("markInput").get_object();
+		auto       fields      = input.at("inputFields").get_array();
+		const auto futureField = fixture_value(fixture_object{
 			{ "name", "futureInputField" },
 			{ "defaultValue", nullptr },
 			{
@@ -1451,6 +1452,7 @@ namespace {
 					  }),
 			},
 		});
+		fields.push_back(futureField);
 		input.insert_or_assign("inputFields", fields);
 		data.insert_or_assign("markInput", input);
 		envelope.insert_or_assign("data", data);

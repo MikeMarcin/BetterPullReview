@@ -115,13 +115,15 @@ namespace {
 		write_file(root / "src" / "errors.cpp", "int bad()\n{\n\t// bad\n\treturn -1;\n}\nint worse()\n{\n\t// worse\n\treturn -1;\n}\n");
 		std::filesystem::remove(root / "src" / "lexer.cpp");
 		write_file(root / "src" / "util.cpp", "int twice(int aValue)\n{\n\treturn aValue + aValue;\n}\n");
-		const auto& round    = frozen.Frozen->Content;
-		const auto  response = core::cycle_response_document{
+		const auto& round = frozen.Frozen->Content;
+		// The claimed author names its type for GCC 15's nested-aggregate
+		// miscompile ([[BPR-0816]], [[BPR-1262]]).
+		const auto response = core::cycle_response_document{
 			.ResponseId    = "RESP-1",
 			.CycleId       = round.Payload.CycleId,
 			.RoundId       = round.Payload.RoundId,
 			.RoundDigest   = round.Digest,
-			.ClaimedAuthor = { .DisplayName = "Harness", .Kind = core::cycle_claimed_author_kind::agent },
+			.ClaimedAuthor = core::cycle_claimed_author{ .DisplayName = "Harness", .Kind = core::cycle_claimed_author_kind::agent },
 			.Entries       = { { .Item = "I1", .ItemRevision = 1, .Disposition = core::cycle_response_disposition::addressed, .Body = "Renamed; tests pass." },
 							   { .Item = "I2", .ItemRevision = 1, .Disposition = core::cycle_response_disposition::addressed, .Body = "Removed the lexer." },
 							   { .Item = "I3", .ItemRevision = 1, .Disposition = core::cycle_response_disposition::disputed, .Body = "The -1 is the contract." } },

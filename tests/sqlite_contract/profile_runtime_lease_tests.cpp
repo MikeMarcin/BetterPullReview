@@ -103,7 +103,9 @@ namespace {
 				::close(ready[0]);
 				const auto lease  = acquire_profile_runtime_lease(root.Path);
 				const char result = lease ? 'y' : 'n';
-				(void)::write(ready[1], &result, 1);
+				// The parent reads this byte; if the write fails it reads end of
+				// file and the course fails there ([[BPR-1262]]).
+				[[maybe_unused]] const auto written = ::write(ready[1], &result, 1);
 				::close(ready[1]);
 				for (;;) {
 					::pause();

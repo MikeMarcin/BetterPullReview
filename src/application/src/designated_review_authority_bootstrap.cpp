@@ -962,12 +962,16 @@ namespace bpr::application::detail {
 			}
 			case designated_review_marker_mutation_for_testing::hard_link: {
 				const auto linkName = ".bpr-test-link-" + aName;
-				static_cast<void>(::linkat(
+				// A failed link leaves the marker singly linked, and the course
+				// that asked for a second link then reports the refusal it did
+				// not see. GCC does not let a void cast discard glibc's
+				// warn_unused_result under _FORTIFY_SOURCE ([[BPR-1262]]).
+				[[maybe_unused]] const auto linked = ::linkat(
 					aNamespace.Path.Directory.get(),
 					aName.c_str(),
 					aNamespace.Path.Directory.get(),
 					linkName.c_str(),
-					0));
+					0);
 				break;
 			}
 			}

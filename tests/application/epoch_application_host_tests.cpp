@@ -804,7 +804,16 @@ namespace {
 					application::epoch_catalog_failure::invalid_request
 				};
 			}
-			auto page = std::move(State.HistoryPages.front());
+			// [[BPR-1262]]. The value or the failure is moved out on its own.
+			// Moving the whole expected and returning it read as an
+			// uninitialized vector to GCC 15 at -O3.
+			auto& front = State.HistoryPages.front();
+			if (!front) {
+				const auto failure = front.error();
+				State.HistoryPages.pop_front();
+				return std::unexpected{ failure };
+			}
+			auto page = std::move(*front);
 			State.HistoryPages.pop_front();
 			return page;
 		}

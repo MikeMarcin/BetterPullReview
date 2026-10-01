@@ -107,8 +107,10 @@ namespace {
 		auto file = QFile{ QStringLiteral(BPR_DEEP_THREAD_FIXTURE) };
 		expect(file.open(QIODevice::ReadOnly),
 			   "the constructed deep-thread fixture opens");
-		const auto          bytes = file.readAll();
-		thread_fixture_json fixture;
+		const auto bytes = file.readAll();
+		// [[BPR-1262]]. Value-initialized: GCC 15 at -O3 could not see glaze
+		// fill every field. A missing key still fails the read.
+		thread_fixture_json fixture{ };
 		expect(!glz::read<fixture_json_options{ }>(fixture, std::string_view{ bytes.constData(), static_cast<std::size_t>(bytes.size()) }), "the fixture has its required typed JSON fields");
 		expect(!fixture.Provenance.RecordedEvidence, "the fixture still declares itself constructed, not recorded");
 		auto found = std::vector<conversation>{ };

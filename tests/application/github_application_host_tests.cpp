@@ -54,10 +54,25 @@ auto operator new(const std::size_t aSize) -> void*
 	}
 	throw std::bad_alloc{ };
 }
+// [[BPR-1262]]. GCC 15 at -O3 inlined these into delete-expressions and then
+// reported `free` on memory from `operator new`, not seeing that this file
+// replaces both. Out of line, the pair is a pair again.
+#if defined(__GNUC__)
+[[gnu::noinline]]
+#endif
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
-void operator delete(void* aBlock) noexcept { std::free(aBlock); }
+void operator delete(void* aBlock) noexcept
+{
+	std::free(aBlock);
+}
+#if defined(__GNUC__)
+[[gnu::noinline]]
+#endif
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
-void operator delete(void* aBlock, std::size_t) noexcept { std::free(aBlock); }
+void operator delete(void* aBlock, std::size_t) noexcept
+{
+	std::free(aBlock);
+}
 
 // [[BPR-1124]]. Whether the two allocation sweeps may fail every allocation in
 // turn. MSVC's checked standard library (`_ITERATOR_DEBUG_LEVEL` 1 or 2) gives

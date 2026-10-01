@@ -13,6 +13,10 @@ namespace bpr::tests {
 	using fixture_value  = glz::generic_sorted_u64;
 	using fixture_object = fixture_value::object_t;
 	using fixture_array  = fixture_value::array_t;
+	// [[BPR-1262]]. Courses copy a finished value into an array (emplace_back of an lvalue) rather than
+	// move it or push a temporary. In the Release graph GCC 15 at -O3 read
+	// the moved variant's alternatives as uninitialized
+	// (github_paged_read_tests, github_capability_probe_tests).
 
 	struct fixture_json_options : glz::opts
 	{

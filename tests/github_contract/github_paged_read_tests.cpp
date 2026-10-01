@@ -824,7 +824,7 @@ namespace {
 					// Every page as heavy as the heaviest measured one.
 					file.insert_or_assign("patch", measured_patch(measured_cap_largest_page_bytes / 100U));
 				}
-				files.push_back(std::move(file));
+				files.emplace_back(file);
 			}
 			if (Scenario == fixture_scenario::measured_largest_files_page
 				|| Scenario == fixture_scenario::measured_file_cap_pages) {
@@ -938,7 +938,7 @@ namespace {
 						   && Scenario == fixture_scenario::commit_wrong_required) {
 					commit.insert_or_assign("sha", "not-a-commit-oid");
 				}
-				commits.push_back(std::move(commit));
+				commits.emplace_back(commit);
 			}
 			if (end == total) {
 				return success_response(fixture_json(commits));
@@ -1130,7 +1130,7 @@ namespace {
 												 "review-repository/pulls/999");
 					item.insert_or_assign("pull_request", pullRequest);
 				}
-				items.push_back(std::move(item));
+				items.emplace_back(item);
 			}
 			auto envelope = fixture_object{
 				{ "incomplete_results", false },
@@ -1212,7 +1212,7 @@ namespace {
 					comment.insert_or_assign("line", nullptr);
 					comment.insert_or_assign("originalLine", nullptr);
 				}
-				comments.push_back(std::move(comment));
+				comments.emplace_back(comment);
 			}
 			const auto missing = Scenario == fixture_scenario::missing_cursor;
 			auto       thread  = fixture_object{
@@ -1387,7 +1387,7 @@ namespace {
 					comment.insert_or_assign("originalLine", nullptr);
 				}
 
-				comments.push_back(std::move(comment));
+				comments.emplace_back(comment);
 			}
 			const auto total             = repeat
 				? 201U

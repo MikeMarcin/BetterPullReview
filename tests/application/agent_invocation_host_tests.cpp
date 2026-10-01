@@ -219,8 +219,11 @@ namespace {
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::agent_workspace_failure::cancelled };
 			}
+			// [[BPR-1262]]. The nested workspace names its type: braced without
+			// it, an aggregate holding a std::string is the shape GCC 15
+			// destroys twice when a later member throws ([[BPR-0816]]).
 			auto result = application::owned_agent_workspace{
-				.Workspace = {
+				.Workspace = application::prepared_workspace{
 					.Policy     = core::agent_workspace_policy::disposable_review_workspace,
 					.PinnedHead = aRequest.Session.Binding.HeadOid,
 					.Path       = "/tmp/bpr-agent-owned/exact-head",

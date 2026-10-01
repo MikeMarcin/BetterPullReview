@@ -2823,12 +2823,14 @@ namespace bpr::app::detail {
 				return false;
 			}
 		}
+		// [[BPR-1262]]. The correlation names its type: braced without it, the
+		// nested aggregate is GCC 15's double-destroy shape ([[BPR-0816]]).
 		github_wire_request request{
-			.Correlation = { .Parent                = core::github_session_request_context{ .ApplicationSession = firstSession },
-							 .ProfileRevision       = profile->revision(),
-							 .Host                  = profile->host(),
-							 .Operation             = read_operation::get_repository,
-							 .AuthenticationSession = firstSession },
+			.Correlation = adapters::github::detail::github_wire_correlation{ .Parent                = core::github_session_request_context{ .ApplicationSession = firstSession },
+																			  .ProfileRevision       = profile->revision(),
+																			  .Host                  = profile->host(),
+																			  .Operation             = read_operation::get_repository,
+																			  .AuthenticationSession = firstSession },
 			.Wire        = second.front().Request
 		};
 		bool renewed = false;

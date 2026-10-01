@@ -76,13 +76,7 @@ namespace bpr::app {
 		{
 			InFlight.fetch_add(1U, std::memory_order_acq_rel);
 			Attempted.fetch_add(1U, std::memory_order_acq_rel);
-			auto result = application::workbench_settings_result<void>{ std::unexpected(application::workbench_settings_error{ .Failure = application::workbench_settings_failure::unavailable }) };
-			try {
-				result = Service->perform<application::workbench_settings_result<void>>(Window, aStop, [&](auto& aStore) { return aStore.store(aSettings, aStop); });
-			} catch (...) {
-				// The host maps a throwing port to unavailable; retain the same
-				// terminal here so cleanup cannot mistake the exception for success.
-			}
+			const auto result = perform_store(aSettings, aStop);
 			LastFailure.store(result ? -1 : static_cast<int>(result.error().Failure), std::memory_order_release);
 			if (result) {
 				Completed.fetch_add(1U, std::memory_order_acq_rel);
@@ -107,6 +101,20 @@ namespace bpr::app {
 		}
 
 	private:
+		// [[BPR-1262]]. Each terminal is returned where it is built. A
+		// reassigned expected<void, E> read as uninitialized to GCC 15 at -O3,
+		// as it did in the appearance host ([[BPR-0816]]).
+		auto perform_store(const application::workbench_layout_settings& aSettings, std::stop_token aStop) -> application::workbench_settings_result<void>
+		{
+			try {
+				return Service->perform<application::workbench_settings_result<void>>(Window, aStop, [&](auto& aStore) { return aStore.store(aSettings, aStop); });
+			} catch (...) {
+				// The host maps a throwing port to unavailable; return the same
+				// terminal here so cleanup cannot mistake the exception for success.
+				return std::unexpected(application::workbench_settings_error{ .Failure = application::workbench_settings_failure::unavailable });
+			}
+		}
+
 		std::shared_ptr<profile_window_layout_service> Service;
 		core::bpr_window_id                            Window;
 		std::atomic_size_t                             InFlight    = 0U;

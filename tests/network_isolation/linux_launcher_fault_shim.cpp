@@ -92,7 +92,10 @@ namespace {
 		if (descriptor < 0) {
 			return;
 		}
-		(void)::write(descriptor, aDirectory, std::strlen(aDirectory));
+		// A short or failed write leaves the record incomplete, and the course
+		// reading it fails on the directory it cannot find. GCC does not let a
+		// void cast discard glibc's warn_unused_result ([[BPR-1262]]).
+		[[maybe_unused]] const auto written = ::write(descriptor, aDirectory, std::strlen(aDirectory));
 		(void)::close(descriptor);
 	}
 } // namespace

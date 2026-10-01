@@ -772,7 +772,9 @@ namespace {
 		page.show();
 		bool opened = false;
 		page.set_file_dispatch([&](const QString&) { opened = true; });
-		application::github_cached_overview_projection cached{ .Overview = { .Title = "Historical review" }, .BaseOid = std::string(40, '1'), .HeadOid = std::string(40, '2') };
+		// The nested projection names its type for GCC 15's nested-aggregate
+		// miscompile ([[BPR-0816]], [[BPR-1262]]).
+		application::github_cached_overview_projection cached{ .Overview = application::github_loading_overview_projection{ .Title = "Historical review" }, .BaseOid = std::string(40, '1'), .HeadOid = std::string(40, '2') };
 		page.present_cached(cached);
 		auto* heading = page.findChild<QLabel*>(QStringLiteral("overviewFilesHeading"));
 		expect(heading->text().contains(QStringLiteral("catalogue unavailable")), "missing catalogue is explicitly unavailable");

@@ -515,6 +515,14 @@ endfunction()
 # as clipping on Linux. A sibling that covers the comparison still fails it. The
 # probe reads widget state only; no product action, grant, target, provider or
 # publication path changes; mutation pin unchanged.
+# BPR-1262 reseal: 2191da24..this candidate; no intervening pinned-scope commit.
+# GCC 15's tests-on Release graph (-O3, _FORTIFY_SOURCE) did not build. In
+# github_public_path_fixture.cpp (BPR_BUILD_TESTING) the request's nested
+# correlation names its type, avoiding the nested-aggregate double-destroy
+# shape BPR-0816 found. profile_window_layout_port.hpp's store returns each
+# terminal from a perform_store helper instead of reassigning an expected<void,
+# E>, with the same results: a throw still answers unavailable. No grant,
+# target, provider or publication path changes; mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -719,7 +727,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e7fdbbe05455e1d43429b9c13ac5ac9e15a06406713fbeb0aba1398a413dd9f3"
+        "e14b564f70b0d4c5955658893f8e9fc6f5e272108c48e680c3b358f2778284be"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

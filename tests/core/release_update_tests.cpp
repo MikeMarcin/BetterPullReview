@@ -202,8 +202,11 @@ namespace {
 	{
 		auto current = state();
 		offer(current);
-		auto wrong = current.Candidate;
-		++wrong->Size;
+		// [[BPR-1262]]. The candidate is copied out of its optional before it
+		// changes: GCC 15 at -O3 read the size inside a copied optional as
+		// possibly uninitialized.
+		auto wrong = *current.Candidate;
+		++wrong.Size;
 		expect(transition(current, release_update_intent{ command::download, wrong }, { 100'001, 101U }).Diagnostic == reason::changed_candidate, "gesture sealed to candidate");
 		static_cast<void>(transition(current, release_update_intent{ command::download, current.Candidate }, { 100'001, 101U }));
 		const auto download = *current.Pending;
