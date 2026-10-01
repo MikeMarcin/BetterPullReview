@@ -10,28 +10,49 @@
 #include <stop_token>
 #include <thread>
 
-#if defined(__APPLE__)
-	#include <malloc/malloc.h>
+#if defined(__APPLE__) || defined(_WIN32) || defined(__linux__)
+	#define BPR_LARGE_REVIEW_NATIVE_MEMORY 1
+#else
+	#define BPR_LARGE_REVIEW_NATIVE_MEMORY 0
 #endif
 
 namespace bpr::e2e::large_review {
+	/// \brief One native process-memory observation ([[BPR-0967]]).
+	/// \details Each platform pairs a current figure with the process-lifetime
+	/// peak of the same figure, so peak growth above a sampled baseline is
+	/// meaningful: macOS physical footprint and its ledger peak, Windows
+	/// private commit and its peak, Linux resident set and its high-water
+	/// mark. native_memory_method() names the exact counters.
+	struct native_process_memory
+	{
+		std::uint64_t ResidentBytes = 0, FootprintBytes = 0, LifetimePeakFootprintBytes = 0;
+	};
+
+	/// Throws when the platform refuses the observation.
+	[[nodiscard]] auto native_process_memory_sample() -> native_process_memory;
+	/// Live heap bytes in use: every malloc zone on macOS, the process heap
+	/// (which the UCRT allocates from) on Windows, glibc's in-use arena plus
+	/// mmapped chunks on Linux. Zero where no method exists.
+	[[nodiscard]] auto native_live_heap_bytes() -> std::uint64_t;
+	[[nodiscard]] auto native_memory_method() -> const char*;
+
 	struct live_heap_observation
 	{
 		std::uint64_t BaselineBytes = 0, PeakBytes = 0, FinalBytes = 0, Samples = 0;
 		double        MaxSampleIntervalMs = 0, MaxSampleCostMs = 0;
 	};
 
-	/// \brief Samples all malloc zones independently of the GUI event loop.
+	/// \brief Samples the live heap independently of the GUI event loop.
 	/// \details A sampled peak is a lower bound on the true live-heap peak.
 	/// The observed largest interval remains in the report; no timer can prove
-	/// an unsampled allocation peak absent. Never uses max_size_in_use, which
-	/// the SDK defines as touched memory, not live allocated bytes.
+	/// an unsampled allocation peak absent. Never uses the macOS SDK's
+	/// max_size_in_use, which is touched memory, not live allocated bytes.
 	class live_heap_sampler final
 	{
 	public:
 		explicit live_heap_sampler(bool aEnabled)
 		{
-#if defined(__APPLE__)
+#if BPR_LARGE_REVIEW_NATIVE_MEMORY
 			if (aEnabled) {
 				Observation.BaselineBytes = current_bytes();
 				Observation.PeakBytes     = Observation.BaselineBytes;
@@ -53,16 +74,7 @@ namespace bpr::e2e::large_review {
 			return Observation;
 		}
 
-		static auto current_bytes() -> std::uint64_t
-		{
-#if defined(__APPLE__)
-			malloc_statistics_t statistics{ };
-			malloc_zone_statistics(nullptr, &statistics);
-			return statistics.size_in_use;
-#else
-			return 0;
-#endif
-		}
+		static auto current_bytes() -> std::uint64_t { return native_live_heap_bytes(); }
 
 	private:
 		void sample(std::stop_token aStop)

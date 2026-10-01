@@ -302,3 +302,45 @@ handoff, with no delegation or intermediate owner turnover. The protected
 RFC0052 session is untouched. BPR-0967 returns to Backlog, with the
 [full durable handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-full-mac.json)
 preserving commands, candidates, controls, artifact identities and next actions.
+
+## Windows and Linux station measurements — 2026-10-01
+
+Promoted from Backlog under the user's unattended-milestone mandate, amended to
+allow the Windows and Linux remote stations. The milestone plan's one milestone
+keeps every Mac exit and adds the station exits
+([amendment receipt](../../rfcs/plans/bpr0967-mac-responsiveness/plan-amendment-stations.json)).
+
+**Harness, Mac side.** The resource courses no longer refuse off macOS.
+`tests/end_to_end/large_review_native_memory.cpp` supplies each platform's
+counters, a current figure paired with the process-lifetime peak of the same
+figure: Mac physical footprint and its ledger peak (unchanged); Windows private
+commit (`PrivateUsage`) and `PeakPagefileUsage`; Linux `VmRSS` and `VmHWM`. The
+live-heap sampler reads every malloc zone on Mac, `HeapSummary` of the process
+heap on Windows and glibc `mallinfo2` on Linux. Every report names its method in
+`Extended.MemoryMethod`, and the timing control's held 32 MiB allocation now
+checks the sampler on all three platforms.
+
+Every numeric limit is justified by optimized Mac measurements alone. Off Mac,
+`Extended.BudgetsEnforced` is false: completion budgets are reported with
+`Enforced: false`, the 100 ms input misses stay in `InputBudgetFailures`, and each
+resource/history limit that would have failed is named in
+`Extended.UnenforcedLimitMisses`. Exact source, cache, eviction, release and
+lifecycle assertions fail the row on every platform. `large_review_launch.py`
+enforces its limits only on macOS. A failed course now writes its partial
+report, with `Extended.Failure`, to the report path. The eleven rows that were
+Mac-only are now registered on Windows (uncontained, like BPR-0874's three) and
+Linux, so all sixteen large-review rows run on every platform.
+`tests/end_to_end/large_review_summary.py` condenses one tree's reports with
+their SHA-256 for a station return.
+
+Two temporary controls on Mac Release, with the source restored byte-for-byte
+afterwards (SHA-256 `d433f354…f764d`): with the Mac marked unjustified and the
+footprint and input limits lowered to 1 MiB and 1 ms, loaded-close and
+responsiveness pass and report three and zero limit misses, sixteen input
+failures and fourteen unenforced completion misses; with the Mac justified and
+the same lowered limits, both fail (`sampled Mac fixture footprint growth
+exceeded its budget`, `Mac fixture responsiveness budget exceeded`) and each
+leaves its partial report with `Failure`.
+
+No limit or threshold changed. Windows and Linux budgets are not yet set: they
+need the station measurements this milestone requests, then a confirmation run.

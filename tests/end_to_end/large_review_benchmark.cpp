@@ -61,14 +61,21 @@
 #include <string>
 #include <vector>
 
-#if defined(__APPLE__)
-	#include <mach/mach.h>
-	#include <malloc/malloc.h>
-#endif
-
 namespace bpr::e2e::large_review {
 	using namespace bpr;
 	using access = app::detail::github_application_fixture_access;
+
+	/// [[BPR-0967]]. Every numeric resource and latency limit below is
+	/// justified by optimized measurements on one platform: the M4 Pro Mac.
+	/// Elsewhere each is measured and reported, never enforced, until that
+	/// platform's own optimized measurements justify a limit for it. Exact
+	/// source, cache, eviction, release and lifecycle assertions are enforced
+	/// on every platform.
+#if defined(__APPLE__)
+	inline constexpr bool PlatformBudgetsJustified = true;
+#else
+	inline constexpr bool PlatformBudgetsJustified = false;
+#endif
 
 	struct fixture_blob
 	{
@@ -172,6 +179,13 @@ namespace bpr::e2e::large_review {
 		std::size_t           ProviderHeldInputs = 0;
 		double                ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
 		bool                  PathologicalCourse = false, ExactGeneratedSource = false;
+		// [[BPR-0967]]. BudgetsEnforced is false where no numeric limit is
+		// justified for this platform; each limit missed there is named in
+		// UnenforcedLimitMisses. Failure is the exception that ended the course.
+		// (benchmark_report is at glaze's reflected-member limit.)
+		bool                     BudgetsEnforced = PlatformBudgetsJustified;
+		std::vector<std::string> UnenforcedLimitMisses;
+		std::string              MemoryMethod = native_memory_method(), Failure;
 	};
 
 	struct benchmark_report
@@ -278,6 +292,34 @@ namespace bpr::e2e::large_review {
 		}
 	}
 
+	/// A numeric limit gates only where BudgetsEnforced; elsewhere its miss is
+	/// named once in UnenforcedLimitMisses and the course continues.
+	void require_limit(benchmark_report& aReport, bool aWithin, const std::string& aReason)
+	{
+		if (aWithin) {
+			return;
+		}
+		if (aReport.Extended.BudgetsEnforced) {
+			throw std::runtime_error{ aReason };
+		}
+		if (std::ranges::find(aReport.Extended.UnenforcedLimitMisses, aReason) == aReport.Extended.UnenforcedLimitMisses.end()) {
+			aReport.Extended.UnenforcedLimitMisses.push_back(aReason);
+		}
+	}
+
+	[[nodiscard]] auto budget_met(const latency_budget& aBudget) -> bool
+	{
+		return aBudget.Passed || !aBudget.Enforced;
+	}
+
+	/// The 100 ms input target and every enforced completion limit. Where no
+	/// limit is justified, InputBudgetFailures and the misses stay reported.
+	[[nodiscard]] auto budgets_met(const benchmark_report& aReport) -> bool
+	{
+		return (aReport.InputBudgetFailures.empty() || !aReport.Extended.BudgetsEnforced)
+			&& std::ranges::all_of(aReport.CompletionBudgets, budget_met);
+	}
+
 	[[nodiscard]] auto source_path(int aIndex) -> QString
 	{
 		return QStringLiteral("src/file_%1.cpp").arg(aIndex, 4, 10, QChar{ '0' });
@@ -294,25 +336,12 @@ namespace bpr::e2e::large_review {
 			return;
 		}
 		resource_sample sample;
-		sample.Phase = aPhase;
-#if !defined(__APPLE__)
-		// [[BPR-0831]]. Nothing follows the refusal on this path, so no statement
-		// after it is unreachable under MSVC's C4702.
-		static_cast<void>(aApplication);
-		throw std::runtime_error{ "the native memory resource course is currently Mac-only" };
-#else
-		task_vm_info_data_t    information{ };
-		mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
-		require(task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&information), &count) == KERN_SUCCESS,
-				"native process memory sample failed");
-		require(count >= TASK_VM_INFO_REV3_COUNT && information.ledger_phys_footprint_peak >= 0,
-				"native process peak footprint sample unavailable");
-		malloc_statistics_t heap{ };
-		malloc_zone_statistics(nullptr, &heap);
-		sample.ResidentBytes              = information.resident_size;
-		sample.PhysicalFootprintBytes     = information.phys_footprint;
-		sample.LifetimePeakFootprintBytes = static_cast<std::uint64_t>(information.ledger_phys_footprint_peak);
-		sample.LiveHeapBytes              = heap.size_in_use;
+		sample.Phase                      = aPhase;
+		const auto memory                 = native_process_memory_sample();
+		sample.ResidentBytes              = memory.ResidentBytes;
+		sample.PhysicalFootprintBytes     = memory.FootprintBytes;
+		sample.LifetimePeakFootprintBytes = memory.LifetimePeakFootprintBytes;
+		sample.LiveHeapBytes              = native_live_heap_bytes();
 		if (aApplication) {
 			const auto work         = access::diff_work_evidence(*aApplication);
 			sample.DiffCacheBytes   = work.CacheBytes;
@@ -339,24 +368,23 @@ namespace bpr::e2e::large_review {
 		if (!aReport.Resources.empty()) {
 			const auto footprintLimit = aReport.CacheByteCourse ? aReport.CacheByteFootprintGrowthLimitBytes
 																: aReport.SampledFootprintGrowthLimitBytes;
-			require(aReport.Extended.AllocationProfile || sample.FootprintGrowthBytes <= footprintLimit,
-					"sampled Mac fixture footprint growth exceeded its budget");
-			require(aReport.Extended.AllocationProfile || sample.LifetimePeakGrowthBytes <= footprintLimit,
-					"Mac fixture lifetime peak footprint growth exceeded its budget");
+			require_limit(aReport, aReport.Extended.AllocationProfile || sample.FootprintGrowthBytes <= footprintLimit,
+						  "sampled Mac fixture footprint growth exceeded its budget");
+			require_limit(aReport, aReport.Extended.AllocationProfile || sample.LifetimePeakGrowthBytes <= footprintLimit,
+						  "Mac fixture lifetime peak footprint growth exceeded its budget");
 			if (sample.Phase == "after_prune" || sample.Phase == "after_cache_delete"
 				|| sample.Phase == "shutdown_drained" || sample.Phase == "application_destroyed") {
 				const auto cleanupLimit = sample.Phase == "application_destroyed"
 					? aReport.DestroyedLiveHeapGrowthLimitBytes
 					: aReport.CleanupLiveHeapGrowthLimitBytes;
-				require(aReport.Extended.AllocationProfile || sample.LiveHeapGrowthBytes <= cleanupLimit,
-						"Mac cleanup left live heap growth above its budget");
+				require_limit(aReport, aReport.Extended.AllocationProfile || sample.LiveHeapGrowthBytes <= cleanupLimit,
+							  std::string{ "Mac cleanup left live heap growth above its budget at " } + aPhase);
 				require(sample.DiffCacheBytes == 0U && sample.DiffCacheEntries == 0U
 							&& sample.DiffJobs == 0U && sample.EpochJobs == 0U,
 						"completed cleanup retains derived cache or outstanding work");
 			}
 		}
 		aReport.Resources.push_back(sample);
-#endif
 	}
 
 	void confirm_fixture_maintenance(QAction& aAction, const QString& aDialogName)
@@ -747,11 +775,11 @@ namespace bpr::e2e::large_review {
 		require(work.FixtureDiffHelperInvocations == 0U, "many-epoch course used a fixture diff bypass");
 		for (const auto& phase : aReport.Phases) {
 			if (phase.Name.starts_with("epoch_refresh_")) {
-				require(phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistoryRefreshLimitMs,
-						"epoch refresh exceeded the provisional measured Mac budget");
+				require_limit(aReport, phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistoryRefreshLimitMs,
+							  "epoch refresh exceeded the provisional measured Mac budget");
 			} else if (phase.Name.starts_with("epoch_source_selection_")) {
-				require(phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistorySourceSelectionLimitMs,
-						"epoch source selection exceeded the provisional measured Mac budget");
+				require_limit(aReport, phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistorySourceSelectionLimitMs,
+							  "epoch source selection exceeded the provisional measured Mac budget");
 			}
 		}
 	}
@@ -1097,9 +1125,12 @@ namespace bpr::e2e::large_review {
 		// measurements alone ("no Debug budget justification") gate optimized
 		// builds. A Debug build still measures and reports them, marked not
 		// enforced; the historical Debug limits gate every build.
+		//
+		// [[BPR-0967]]. No limit is enforced where none is justified for the
+		// platform; misses are still reported.
 		const auto optimized = aReport.BuildConfiguration != "Debug";
 		const auto record    = [&](const std::string& aName, double aMeasured, double aLimit, bool aEnforced = true) {
-			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit, aEnforced });
+			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit, aEnforced && aReport.Extended.BudgetsEnforced });
 		};
 		const auto optimized_record = [&](const std::string& aName, double aMeasured, double aLimit) {
 			record(aName, aMeasured, aLimit, optimized);
@@ -1136,9 +1167,7 @@ namespace bpr::e2e::large_review {
 		record("next_change_dispatch", std::ranges::max(aReport.ChangeActionMs), aReport.InputIntervalLimitMs);
 		record("wheel_dispatch", aReport.MaxWheelEventMs, aReport.InputIntervalLimitMs);
 		record("measurement_input_gap", aReport.MaxMeasurementInputIntervalMs, aReport.InputIntervalLimitMs);
-		require(aReport.InputBudgetFailures.empty()
-					&& std::ranges::all_of(aReport.CompletionBudgets, [](const latency_budget& aBudget) { return aBudget.Passed || !aBudget.Enforced; }),
-				"Mac fixture responsiveness budget exceeded");
+		require(budgets_met(aReport), "Mac fixture responsiveness budget exceeded");
 	}
 
 	void verify_active_work_budgets(benchmark_report& aReport)
@@ -1152,7 +1181,7 @@ namespace bpr::e2e::large_review {
 					&& aReport.ActiveCloseDiffJobs != 0U && aReport.ActiveFinalHeldExact && aReport.ActiveCloseDrained,
 				"active-work course lacks delivered input or public close during observed pending work");
 		const auto record = [&](const std::string& aName, double aMeasured, double aLimit) {
-			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit });
+			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit, aReport.Extended.BudgetsEnforced });
 		};
 		const auto phase = [&](const char* aName) -> const phase_measurement& {
 			const auto found = std::ranges::find(aReport.Phases, aName, &phase_measurement::Name);
@@ -1170,7 +1199,7 @@ namespace bpr::e2e::large_review {
 		record("active_selection_completion", inputs.ElapsedMs, 10'000.0);
 		record("active_supersession_final_drain", aReport.SupersessionDrainMs, 1'250.0);
 		record("active_close_quiescence", aReport.ActiveCloseDrainMs, 100.0);
-		require(aReport.InputBudgetFailures.empty() && std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "Mac active-work input or drain budget exceeded");
+		require(budgets_met(aReport), "Mac active-work input or drain budget exceeded");
 	}
 
 	void run_responsiveness_interactions(app::github_application& aApplication, const fixture_manifest& aManifest,
@@ -1442,12 +1471,15 @@ namespace bpr::e2e::large_review {
 					&& access::diff_work_evidence(aApplication).CacheEntries == 0U
 					&& !access::large_review_snapshot(aApplication).has_value(),
 				"cancelled provider published state or retained resources");
+		const auto record = [&](const std::string& aName, double aMeasured) {
+			aReport.CompletionBudgets.push_back({ aName, aMeasured, 100.0, aMeasured <= 100.0, aReport.Extended.BudgetsEnforced });
+		};
 		for (const auto& phase : aReport.Phases) {
-			aReport.CompletionBudgets.push_back({ phase.Name + "_input_gap", phase.MaxPulseIntervalMs, 100.0, phase.MaxPulseIntervalMs <= 100.0 });
+			record(phase.Name + "_input_gap", phase.MaxPulseIntervalMs);
 		}
-		aReport.CompletionBudgets.push_back({ "provider_cancel_ack", aReport.Extended.ProviderCancelAckMs, 100.0, aReport.Extended.ProviderCancelAckMs <= 100.0 });
-		aReport.CompletionBudgets.push_back({ "provider_cancel_exit", aReport.Extended.ProviderExitMs, 100.0, aReport.Extended.ProviderExitMs <= 100.0 });
-		require(std::ranges::all_of(aReport.CompletionBudgets, &latency_budget::Passed), "held provider input/cancellation budget exceeded");
+		record("provider_cancel_ack", aReport.Extended.ProviderCancelAckMs);
+		record("provider_cancel_exit", aReport.Extended.ProviderExitMs);
+		require(std::ranges::all_of(aReport.CompletionBudgets, budget_met), "held provider input/cancellation budget exceeded");
 		aReport.ShutdownComplete = true;
 	}
 
@@ -1590,7 +1622,7 @@ namespace bpr::e2e::large_review {
 						"synchronous-ready phase hid its 120 ms event-loop stall");
 				require(trailing.Pulses != 0U && trailing.MaxPulseIntervalMs >= 100.0,
 						"terminal phase hid its final 120 ms event-loop stall");
-#if defined(__APPLE__)
+#if BPR_LARGE_REVIEW_NATIVE_MEMORY
 				live_heap_sampler heapControl{ true };
 				{
 					const auto     storage = std::make_unique<char[]>(32U * 1024U * 1024U);
@@ -2057,17 +2089,17 @@ namespace bpr::e2e::large_review {
 				report.Extended.SampledPeakHeapGrowthLimitBytes = report.CacheByteCourse
 					? report.CacheByteFootprintGrowthLimitBytes
 					: report.SampledFootprintGrowthLimitBytes;
-				require(report.Extended.Heap.Samples > 1U && (report.Extended.AllocationProfile || report.Extended.Heap.PeakBytes <= report.Extended.Heap.BaselineBytes + report.Extended.SampledPeakHeapGrowthLimitBytes),
-						"sampled live-heap peak growth exceeded the Mac fixture ceiling");
+				require(report.Extended.Heap.Samples > 1U, "live-heap sampler took no samples");
+				require_limit(report, report.Extended.AllocationProfile || report.Extended.Heap.PeakBytes <= report.Extended.Heap.BaselineBytes + report.Extended.SampledPeakHeapGrowthLimitBytes,
+							  "sampled live-heap peak growth exceeded the Mac fixture ceiling");
 			}
 			if (report.Extended.PathologicalCourse) {
 				for (const auto* name : { "unavailable_file_selection", "binary_file_selection", "supported_file_recovery" }) {
 					const auto found = std::ranges::find(report.Phases, name, &phase_measurement::Name);
 					require(found != report.Phases.end(), "pathological fallback phase missing");
-					report.CompletionBudgets.push_back({ name, found->ElapsedMs, 1'500.0, found->ElapsedMs <= 1'500.0 });
+					report.CompletionBudgets.push_back({ name, found->ElapsedMs, 1'500.0, found->ElapsedMs <= 1'500.0, report.Extended.BudgetsEnforced });
 				}
-				require(report.InputBudgetFailures.empty() && std::ranges::all_of(report.CompletionBudgets, &latency_budget::Passed),
-						"pathological fallback completion/input budget exceeded");
+				require(budgets_met(report), "pathological fallback completion/input budget exceeded");
 			}
 			application.reset();
 			const auto diagnostics = bpr::tests::read_diagnostic_logs(dataRoot);
@@ -2109,10 +2141,15 @@ namespace bpr::e2e::large_review {
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;
 		} catch (const std::exception& error) {
-			report.Extended.Heap = heapSampler.finish();
+			report.Extended.Heap    = heapSampler.finish();
+			report.Extended.Failure = error.what();
 			std::cerr << "large-review-benchmark-failed: " << error.what() << '\n';
 			if (const auto partial = glz::write_json(report); partial) {
 				std::cerr << "large-review-partial:" << *partial << '\n';
+				// [[BPR-0967]]. A failed course leaves its partial report, not a
+				// stale earlier success, at the report path.
+				std::ofstream output{ argv[2], std::ios::binary };
+				output << *partial << '\n';
 			}
 			return EXIT_FAILURE;
 		}

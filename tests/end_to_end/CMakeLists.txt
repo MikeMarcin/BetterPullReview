@@ -1108,8 +1108,12 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-bpr_add_executable(bench_better_pull_review_large_review large_review_benchmark.cpp)
+bpr_add_executable(bench_better_pull_review_large_review large_review_benchmark.cpp large_review_native_memory.cpp)
 target_link_libraries(bench_better_pull_review_large_review PRIVATE BetterPullReview::Composition glaze::glaze)
+if(WIN32)
+    # [[BPR-0967]]: GetProcessMemoryInfo for the native memory courses.
+    target_link_libraries(bench_better_pull_review_large_review PRIVATE psapi)
+endif()
 target_include_directories(bench_better_pull_review_large_review PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
 target_compile_definitions(bench_better_pull_review_large_review PRIVATE
     BPR_BUILD_TESTING=1
@@ -1170,10 +1174,9 @@ set_tests_properties(application_approximate_diff_public_path PROPERTIES
     PASS_REGULAR_EXPRESSION "APPROXIMATE_DIFF_COMPOSED_OK")
 
 # [[BPR-0891]]'s sweep: a measurement gate, not a security one. The cache-bytes,
-# cache-entries, loaded-close and resources rows sample the process through the
-# native memory sampler in `large_review_benchmark.cpp`, which is Mac-only and
-# throws on any other platform. The two history rows take no sample, and no
-# reason for keeping them on macOS alone has been recorded.
+# cache-entries, loaded-close and resources rows sample the process through
+# `large_review_native_memory.cpp`, which has macOS, Windows and Linux counters
+# since [[BPR-0967]].
 # [[BPR-1196]]. A short public-path control before the complete byte-pressure run.
 bpr_add_network_isolated_test(
     NAME application_first_tab_comparison
@@ -1187,10 +1190,15 @@ set_tests_properties(application_first_tab_comparison PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
     PASS_REGULAR_EXPRESSION "FIRST_TAB_COMPARISON_OK")
 
-if(APPLE)
-    # Measurements and exact public outcomes, with unmet input budgets retained in JSON.
+# [[BPR-0967]]. Measurements and exact public outcomes on every platform. The
+# numeric limits are justified by optimized Mac measurements alone, so on
+# Windows and Linux the benchmark reports them (`BudgetsEnforced: false`,
+# `UnenforcedLimitMisses`) and enforces only the exact outcomes. The Windows
+# rows run uncontained for the reason [[BPR-0874]] records above.
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_responsiveness
+        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-responsiveness.json"
@@ -1201,6 +1209,7 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESPONSIVENESS_MEASURED")
     bpr_add_network_isolated_test(
         NAME application_large_review_launch
+        WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_launch.py"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-launch.json"
             $<TARGET_FILE:bench_better_pull_review_large_review>
@@ -1213,6 +1222,7 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_LAUNCH_OBSERVED")
     bpr_add_network_isolated_test(
         NAME application_large_review_active_work
+        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-active-work.json"
@@ -1225,6 +1235,7 @@ if(APPLE)
         string(REPLACE "-" "_" course_name "${course}")
         bpr_add_network_isolated_test(
             NAME application_large_review_${course_name}
+            WINDOWS_UNCONTAINED
             COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
                 $<TARGET_FILE:Git::Git>
                 "${CMAKE_CURRENT_BINARY_DIR}/large-review-${course}.json"
@@ -1239,6 +1250,7 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_PROVIDER_CANCEL_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_bytes
+        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.json"
@@ -1249,6 +1261,7 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_BYTES_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_history_session_race
+        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-history-session-race.json"
@@ -1259,6 +1272,7 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_HISTORY_SESSION_RACE_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_entries
+        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-entries.json"
@@ -1269,6 +1283,7 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_ENTRIES_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_loaded_close
+        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-loaded-close.json"
@@ -1279,6 +1294,7 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_LOADED_CLOSE_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_history
+        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-history.json"
@@ -1289,6 +1305,7 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_HISTORY_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_resources
+        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-resources.json"

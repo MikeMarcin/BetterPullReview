@@ -4,6 +4,9 @@ The parent clock includes process creation, loader work, pipe delivery and paren
 scheduling. These are conservative observed marker-arrival times, not an OS exec
 timestamp, compositor presentation, or the packaged application's launch time.
 The CTest row invokes this observer inside the existing network-denial boundary.
+
+The limits are justified by optimized Mac measurements alone (BPR-0967). On
+another platform they are reported with Enforced false and never fail the row.
 """
 
 import json
@@ -37,12 +40,13 @@ def main():
         0 <= observation.get(name, float("inf")) <= limit
         for name, limit in observation["LimitsMs"].items()
     )
+    observation["Enforced"] = sys.platform == "darwin"
     Path(report_path).write_text(json.dumps(observation, indent=2) + "\n")
     if code or not all(name in observation for name in markers.values()):
         return 1
     if observation["ProcessToMainMarkerMs"] >= observation["ProcessToHomeMarkerMs"]:
         return 1
-    if not observation["WithinLimits"]:
+    if observation["Enforced"] and not observation["WithinLimits"]:
         return 1
     print("LARGE_REVIEW_LAUNCH_OBSERVED", flush=True)
     return 0

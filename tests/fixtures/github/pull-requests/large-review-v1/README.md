@@ -219,3 +219,22 @@ allows ten seconds for a no-content external heap-history capture. Instrumented
 allocation/footprint/cleanup measurements bypass their acceptance ceilings in
 this mode; ordinary CTest courses cannot select it and retain every ceiling.
 Its timing and physical footprint are excluded from performance acceptance.
+
+## Windows and Linux courses — BPR-0967
+
+Every large-review course row is registered on macOS, Windows and Linux. The
+native counters live in `tests/end_to_end/large_review_native_memory.cpp`;
+each report names them in `MemoryMethod`. Windows pairs private commit with its
+process-lifetime peak and samples the process heap's allocated bytes; Linux
+pairs `VmRSS` with `VmHWM` and samples glibc's in-use arena and mmapped bytes.
+The timing control's held 32 MiB allocation checks the live-heap sampler on all
+three platforms.
+
+Every numeric limit in the benchmark and `large_review_launch.py` is justified
+by optimized Mac measurements alone. On Windows and Linux a report therefore
+says `BudgetsEnforced: false`, marks its completion budgets not enforced, and
+names each limit it would have missed in `UnenforcedLimitMisses`; exact source,
+cache, eviction, release and lifecycle assertions still fail the row. A failed
+course writes its partial report, with `Failure`, to the report path.
+`tests/end_to_end/large_review_summary.py BUILD_ROOT [CTEST_LOG ...]` condenses
+one tree's reports, with their digests, for a station return.
