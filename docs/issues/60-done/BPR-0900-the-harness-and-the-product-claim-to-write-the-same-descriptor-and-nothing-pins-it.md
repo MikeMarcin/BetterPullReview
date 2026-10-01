@@ -222,3 +222,16 @@ purpose and names the row that pins their agreement.
 - `application_epoch_portable_occurrence_two_catalogues`, 99.84 s;
 - `application_epoch_ordinary_update_recreated`, 35.48 s;
 - `agent_workspace_ownership`, 9.49 s.
+
+**[[BPR-0875]]'s thirteen rows, run after the finish.** The acceptance record
+above names three representative consumers. The full list was run afterwards,
+at `563c41e0`. Twelve of the thirteen pass, in 397.60 s:
+
+- the UIforETW, workbench and round-trip composition contracts;
+- the overview-since-review, review-behaviour and saved-server contracts;
+- the three appearance contracts;
+- both epoch persistence rows and the epoch maintenance path.
+
+The thirteenth, `application_native_notification_attended_contract`, was not
+run. It drives the tray and window activation in the foreground, and
+foreground runs on this station are held until the owner clears them.
