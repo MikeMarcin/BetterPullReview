@@ -145,3 +145,24 @@ build is clean, and `architecture_boundaries`, `coding_format_check`,
 `github_cli_process_runner`, every `git_*` contract row,
 `agent_workspace_ownership`, `gh_cli_git_smart_transport`, this row (17.26 s)
 and its two sibling rows pass.
+
+## Linux smoke — 2026-10-01
+
+Run by bpr-main-win through `wsl` in the bpr-main-linux checkout
+`/home/mmarcin/BetterPullReview`, which was offline, under the owner's
+authorization relayed by the coordinator. Nothing was committed from WSL.
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, Qt 6.11.2, `build/dev`
+Debug, at `aac225a4`. `cmake --build --preset dev` printed no `warning:`
+line. Rows ran serially through `ctest`, offscreen, with `DISPLAY`,
+`WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset, and with fresh `HOME`
+and XDG roots. No set added a `/tmp` entry. The logs are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\linux\`, and are not
+committed.
+
+The four rows the coordinator named for this card's macOS-only fd-sweep header
+all pass:
+
+- `github_cli_process_runner`, 1.48 s;
+- `git_process_contract`, 5.73 s;
+- `architecture_boundaries`, 15.04 s;
+- `application_setup_destination_public_path`, 2.45 s.

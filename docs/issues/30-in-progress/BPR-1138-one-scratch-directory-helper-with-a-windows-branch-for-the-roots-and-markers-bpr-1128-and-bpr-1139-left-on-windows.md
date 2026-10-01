@@ -261,3 +261,30 @@ and `coding_format_check`, `architecture_boundaries` and
 **What this leaves.** AC5's macOS half and AC6's `tidy.py` are met. AC5 still
 needs the Linux build and rows. AC4 waits on [[BPR-1229]]. The card stays
 In Progress.
+
+## AC5 on Linux — 2026-10-01
+
+Run by bpr-main-win through `wsl` in the bpr-main-linux checkout
+`/home/mmarcin/BetterPullReview`, which was offline, under the owner's
+authorization relayed by the coordinator. Nothing was committed from WSL.
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, Qt 6.11.2, `build/dev`
+Debug, at `aac225a4`. `cmake --build --preset dev` printed no `warning:`
+line. Rows ran serially through `ctest`, offscreen, with `DISPLAY`,
+`WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset, and with fresh `HOME`
+and XDG roots. No set added a `/tmp` entry. The logs are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\linux\`, and are not
+committed.
+
+AC5, the Linux half. The changed sources build with no warning, and the 28
+rows of the Part A selection pass, in 113.24 s:
+
+- rows 1, 5 and 7 to 12;
+- all eight `application_agent_invocation_*_contract` rows, the canary's
+  marker among them;
+- the `scratch_root` users;
+- `architecture_boundaries` and `coding_format_check`.
+
+On POSIX the helper's `make_scratch_directory` still uses `mkdtemp`. The
+cross-platform `create_directory_only_if_absent` and
+`make_directory_at_random_name`, which `scratch_root.hpp` now takes, compile and
+run there. AC5's macOS half is the Mac station's.

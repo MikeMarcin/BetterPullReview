@@ -130,3 +130,23 @@ The change is Windows-only code. The Mac half's results on macOS stand, and
 its POSIX `readlinkat` path is unchanged. A Linux run of
 `core_review_cycle_outgoing` was named above as owed. It covers the Mac
 half's shared code, and is recorded here as not run from this station.
+
+## Linux — 2026-10-01
+
+Run by bpr-main-win through `wsl` in the bpr-main-linux checkout
+`/home/mmarcin/BetterPullReview`, which was offline, under the owner's
+authorization relayed by the coordinator. Nothing was committed from WSL.
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, Qt 6.11.2, `build/dev`
+Debug, at `aac225a4`. `cmake --build --preset dev` printed no `warning:`
+line. Rows ran serially through `ctest`, offscreen, with `DISPLAY`,
+`WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset, and with fresh `HOME`
+and XDG roots. No set added a `/tmp` entry. The logs are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\linux\`, and are not
+committed.
+
+These are the Linux runs this card named as owed:
+
+- `core_review_cycle_outgoing` passes, 0.01 s, the Mac half's
+  `unread_final_paths` case among them;
+- `review_cycle_candidate` passes, 1.07 s, its link case read with
+  `readlinkat` as before.

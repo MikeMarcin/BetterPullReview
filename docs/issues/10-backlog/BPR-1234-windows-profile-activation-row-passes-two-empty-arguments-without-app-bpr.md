@@ -131,3 +131,21 @@ Windows run above was without it, and `app_bpr` is not platform-excluded:
 the script accepts the pair and skips its POSIX-only tour course, so the run
 shows that the pair parses there. The card stays in Backlog until bpr-main-win
 records it.
+
+## Linux — 2026-10-01
+
+Run by bpr-main-win through `wsl` in the bpr-main-linux checkout
+`/home/mmarcin/BetterPullReview`, which was offline, under the owner's
+authorization relayed by the coordinator. Nothing was committed from WSL.
+Ubuntu 26.04 on WSL2 (kernel 6.18.33.2), GCC 15.2, Qt 6.11.2, `build/dev`
+Debug, at `aac225a4`. `cmake --build --preset dev` printed no `warning:`
+line. Rows ran serially through `ctest`, offscreen, with `DISPLAY`,
+`WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset, and with fresh `HOME`
+and XDG roots. No set added a `/tmp` entry. The logs are station records in
+`C:\Users\mikem\bpr-main-helpers\run\station-0929\linux\`, and are not
+committed.
+
+`application_profile_activation_public_path` passes, 3.22 s. But this checkout's
+`dev` graph has no `app_bpr`: the row's command carries no `--tour-application`
+pair. So this is the run without `app_bpr`, the fixed path, on Linux. The run
+with `app_bpr` stays on the platforms that build it.
