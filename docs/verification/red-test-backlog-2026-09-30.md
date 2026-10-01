@@ -40,7 +40,7 @@ failed step. `ctest --test-dir build/dev -j 8 --timeout 900` runs 577 tests:
 |---|---|
 | `application_agent_finding_workshop_press_contract` | Expected: parked on `BPR-1245-workshop-v001` |
 | `application_profile_window_review_restoration_public_path` | BPR-1236's failure, shared by all three platforms (fails alone too); recorded on that card |
-| `application_setup_destination_public_path` | Timed out at 60 s under the full run; passes alone in 50.6 s. Filed as [BPR-1252](../issues/20-ready/BPR-1252-setup-destination-public-path-runs-close-to-its-timeout-on-macos.md) |
+| `application_setup_destination_public_path` | Timed out at 60 s under the full run; passes alone in 50.6 s. Filed as [BPR-1252](../issues/30-in-progress/BPR-1252-setup-destination-public-path-runs-close-to-its-timeout-on-macos.md) |
 
 A `BPR_BUILD_TOUR_CLI` Debug build (`build/dev-tour-cli`) passes its six tour
 CLI rows. `python3 scripts/verify_documentation.py --root .` reports
