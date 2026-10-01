@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1235"
 title: "Windows: application_profile_owner_admission_public_path fails at its seed, which refuses the registry under the AppContainer's temporary directory"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
