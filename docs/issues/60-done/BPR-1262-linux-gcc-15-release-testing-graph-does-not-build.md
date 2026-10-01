@@ -94,3 +94,5 @@ resealed with a note (`e14b564f…`).
 
 Not built here: Apple clang or MSVC. The C++ changes are portable. The one
 GNU attribute is preprocessor-guarded.
+
+Published: `git pull --rebase` renamed the fix commit. `c1336c137`, named above and in the acceptance records, is `e257b236a` on main.
