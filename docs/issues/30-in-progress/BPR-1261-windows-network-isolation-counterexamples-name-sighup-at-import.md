@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1261"
 title: "Windows: the network isolation counterexamples name SIGHUP at import, and four rows fail before they start"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
