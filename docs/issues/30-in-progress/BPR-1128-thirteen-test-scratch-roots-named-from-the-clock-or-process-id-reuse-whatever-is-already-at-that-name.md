@@ -485,3 +485,39 @@ course, not for this card's change, which compiles `HEAD`'s code on
 Windows. The logs are station records in
 `C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`1139-1128.log` and
 `.xml`, `pass2.log`, `temp-*.txt`), and are not committed.
+
+## Finished on bpr-main-mac (2026-10-01)
+
+bpr-main-linux's claim was taken over by the Mac integrator, on the
+coordinator's direction. No source changed in this step.
+
+**The integration pass at `4aa6f544d`.** macOS, `build/dev` Debug, current
+with no `warning:` line. The card's 18 rows ran serially inside a 103-row
+pass with [[BPR-1121]]'s and [[BPR-1139]]'s selections, from 15:24:56Z to
+16:04:10Z: **18 of 18 pass**, `qt_agent_launch_canary` in 76.42 s. No `bpr-`
+entry was added to `/private/tmp`.
+
+**The judgment.**
+
+- **AC4 is met for this card's change.** The sources build on macOS and
+  Windows, and every row passes on macOS. On Windows 18 of the 19 rows pass.
+  `qt_agent_launch_canary` stops contained at `open durable child course`,
+  an RFC-BPR-0023 course that runs before any canary launch. That failure
+  is [[BPR-1229]]'s, which holds the owner's containment decision. On
+  Windows this card changed nothing the canary runs: its Windows branches
+  keep `HEAD`'s statements, and `scratch_directory.hpp` declares nothing
+  there, as AC4 requires. That they compile is shown by the Windows build.
+- **The Windows remainders move to [[BPR-1138]]**, written today from the
+  reservation and the follow-up section above. Part A, free now: rows 1, 5
+  and 7 to 12. Part B, after [[BPR-1229]]: row 13, the descendant marker
+  in `test_timeout_terminates_the_descendant_process_tree` and the
+  pre-assignment marker. Its acceptance asks for the canary row to pass on
+  Windows, which carries forward the one row this card could not see pass
+  there.
+- "Seen, not changed" in the macOS entry, the canary's lexical
+  working-directory check under a `TMPDIR` reached through a link, matters
+  only outside ctest. It gets no card.
+- AC1 to AC3 and AC5 stand on the Linux entry.
+
+The logs are station records in `build/logs/bpr-1121-1128-1139-takeover/`,
+not committed.

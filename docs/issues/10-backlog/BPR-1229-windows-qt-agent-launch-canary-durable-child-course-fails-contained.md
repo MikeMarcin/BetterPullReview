@@ -33,6 +33,12 @@ uncontained in `532cffaf`), and the five snapshot workspace rows.
 
 This row blocks the Windows halves of [[BPR-1128]] (AC4) and [[BPR-1139]] (AC5).
 
+Updated 2026-10-01 by bpr-main-mac. Both cards were finished with this row
+classified here: on Windows they compile `HEAD`'s canary code, and their
+Windows remainders moved to [[BPR-1138]]. Its Part B, the three Windows
+names in `agent_launch_canary_tests.cpp`, waits on this card's decision,
+because only this row runs them.
+
 ## The decision, which is the owner's
 
 The row launches the canary as an agent. Whether it may leave the AppContainer

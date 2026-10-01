@@ -642,3 +642,55 @@ exact name afterwards.
 The logs, the hook and the trial driver are station records in
 `C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`1121.log` and `.xml`,
 `trial-1121.txt`) and `…\station-0929\trial\`, and are not committed.
+
+## Finished on bpr-main-mac (2026-10-01)
+
+bpr-main-linux's claim was taken over by the Mac integrator, on the
+coordinator's direction, to judge the card against its acceptance now that
+all three stations have reported. No source changed in this step.
+
+### The integration pass at `4aa6f544d`
+
+macOS 26 on Apple Silicon, Apple clang, Qt 6.11.2, `build/dev` Debug. The
+build was current (`ninja: no work to do`, no `warning:` line). The card's
+selection, serially, with the native menu-bar row left out, ran from
+15:24:56Z to 16:04:10Z, beside [[BPR-1139]]'s rows:
+
+| Rows | Result |
+| --- | --- |
+| The card's selection on macOS: 92 rows | **91 pass**, among them `gh_cli_git_smart_transport`, `release_update_transaction`, `application_device_binding_restart` and the three `qt_markdown_body_` rows |
+| `application_profile_window_review_restoration_public_path` | fails at `FAILED: failed reading restoration preserves exact recorded identities and sibling`, after 454.50 s. This is [[BPR-1236]]'s failure, which that card records at the same check on macOS, Windows and Linux. The line is this card's `FAILED:` ending, as intended |
+| `/private/tmp`, listed before and after | no `bpr-` entry added |
+
+### The Windows reds, by the card that owns each
+
+The Windows run of 2026-09-29 failed nine rows, none at this card's
+unwinding. Each now has its own owner:
+
+| Row | Owner | State |
+| --- | --- | --- |
+| `qt_markdown_body_1_0`, `_1_25`, `_2_0` | [[BPR-1232]] | Done at `491c682f`: pass contained on Windows |
+| `sqlite_review_tour_storage` | `532cffaf` | runs uncontained on Windows |
+| `live_review_submission_restart_recovery` | [[BPR-1233]] | Done |
+| `qt_agent_launch_canary` | [[BPR-1229]] | Backlog, the owner's containment decision |
+| `application_profile_activation_public_path` | [[BPR-1234]] | Backlog, Windows |
+| `application_profile_owner_admission_public_path` | [[BPR-1235]] | Backlog, Windows |
+| `application_profile_window_review_restoration_public_path` | [[BPR-1236]] | Backlog; fails on every platform |
+
+### The judgment
+
+- **AC6 is met for this card's change.** The four sources built only on
+  macOS or Windows compile there with no warning, and the Windows-only row
+  passes. On each platform every row of the class passes except rows whose
+  failure is recorded, with its cause, on the card that owns it above. No
+  failure is in `test_expectation.hpp` or in how a failure ends, and on
+  macOS and Windows a forced failure while a root exists removes the root
+  while the `std::exit` control leaves it.
+- `application_profile_empty_desktop_native_menu_bar` compiles on macOS.
+  Its run needs the owner's unlocked Aqua session, and the row's own state
+  is [[BPR-1250]]'s, parked for the owner. It is not run here.
+- AC1 to AC5 and AC7 stand on the Linux, macOS and Windows entries above.
+
+The logs are station records in `build/logs/bpr-1121-1128-1139-takeover/`
+(`integration.log`, `rows.txt`, `tmp-before.txt`, `tmp-after.txt`), not
+committed.

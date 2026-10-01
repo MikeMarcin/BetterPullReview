@@ -383,3 +383,40 @@ reasons this card does not touch. Two fail with the same refusal that
 fails contained on Windows. The logs are
 station records in `C:\Users\mikem\bpr-main-helpers\run\station-0929\`
 (`1139-1128.log` and `.xml`, `pass2.log`), and are not committed.
+
+## Finished on bpr-main-mac (2026-10-01)
+
+bpr-main-linux's claim was taken over by the Mac integrator, on the
+coordinator's direction. No source changed in this step.
+
+**The integration pass at `4aa6f544d`.** macOS, `build/dev` Debug, current
+with no `warning:` line. The card's 13 rows ran serially inside a 103-row
+pass with [[BPR-1121]]'s and [[BPR-1128]]'s selections, from 15:24:56Z to
+16:04:10Z:
+
+| Rows | Result |
+| --- | --- |
+| 12 of the 13, among them `application_agent_invocation_cancellation_contract` (20.15 s), the composition and workspace-diagnostic contracts that [[BPR-1245]] has since repaired on macOS, and `qt_agent_launch_canary` (76.42 s) | pass |
+| `application_agent_invocation_staleness_contract` | failed once, after 64.62 s: `agent-terminal-status=Not started: agent_session_catalog_unavailable`. The application refused to start the agent, because the review ledger answered its session-catalog read with `unavailable`. The course runs the canary as `stale-wait`, which never uses the default marker. Run alone straight afterwards it passed twice, in 22.11 and 21.31 s. Filed as [[BPR-1254]] |
+| `/private/tmp`, listed before and after | no `bpr-` entry added |
+
+**The judgment.**
+
+- **AC5 is met for this card's change.** The canary builds on macOS and
+  Windows, and on Windows it compiles `HEAD`'s marker, as AC5 requires. The
+  one course that uses the default marker, the cancellation contract,
+  passes on all three platforms. The other reds are owned elsewhere:
+  - Windows, `qt_agent_launch_canary`: [[BPR-1229]]. The row stops at an
+    RFC-BPR-0023 course before any canary launch.
+  - Windows, the composition and workspace-diagnostic contracts: the private-run
+    refusal that [[BPR-1245]] records and has repaired on macOS. Their
+    Windows rerun is part of [[BPR-1138]]'s AC3, which runs all eight
+    invocation contracts there.
+  - macOS, the staleness contract, once: [[BPR-1254]].
+- **The Windows marker moves to [[BPR-1138]]**, Part A, as the coordinator
+  decided on 2026-09-25. Its user, the cancellation contract, is
+  `WINDOWS_UNCONTAINED`, so it does not wait on [[BPR-1229]].
+- AC1 to AC4 and AC6 stand on the Linux entry.
+
+The logs are station records in `build/logs/bpr-1121-1128-1139-takeover/`
+(`integration.log`, `staleness-rerun.log`), not committed.
