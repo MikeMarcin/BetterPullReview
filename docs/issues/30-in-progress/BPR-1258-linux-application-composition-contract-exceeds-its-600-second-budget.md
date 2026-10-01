@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1258"
 title: "Linux: application_composition_contract exceeds its 600 s timeout building its tests-disabled Release image"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
