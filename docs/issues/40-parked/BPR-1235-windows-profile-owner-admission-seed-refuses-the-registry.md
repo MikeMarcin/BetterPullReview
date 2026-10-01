@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1235"
 title: "Windows: application_profile_owner_admission_public_path fails at its seed, which refuses the registry under the AppContainer's temporary directory"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json","related_cards":["BPR-1229"]}
+parked_on: "human-review"
+acceptance: [{"criterion":"The owner's choice is recorded here","outcome":"pending","revision":"1d7bdb35f0ca144286e4611079201c195981bec2","evidence":{"kind":"freeform","detail":"The station pinned the row WINDOWS_UNCONTAINED under dos-volume-name in 1d7bdb35f, consistent with BPR-0833, BPR-0845 and the activation row's pin; the card reserved the decision for the owner, so one Accept/Reject question asks the owner to keep that pin. Accept finishes the card; Reject reopens the containment question."}},{"criterion":"The row passes on Windows","outcome":"pass","revision":"1d7bdb35f0ca144286e4611079201c195981bec2","evidence":{"kind":"command","detail":"bpr-main-win: application_profile_owner_admission_public_path passes uncontained through ctest in 8.22 s with PROFILE_OWNER_ADMISSION_OK, after BPR-0907 removed the course's stale Windows-only branches."}},{"criterion":"test_network_isolation_manifest names no row this card changes","outcome":"pass","revision":"2ef17fd5173bd958cdd96a97944cc8be74e90ec4","evidence":{"kind":"command","detail":"macOS build/dev: test_network_isolation_manifest passes, TEST_NETWORK_ISOLATION_OK:configured=577:registrations=523:backend=macos-sandbox-exec, with the new pin and its WINDOWS_UNCONTAINED registration in the inventory."}}]
 ---
 
 # BPR-1235: Windows: application_profile_owner_admission_public_path fails at its seed, which refuses the registry under the AppContainer's temporary directory
@@ -62,3 +64,32 @@ When this card was filed, I wrote that the decision was the owner's. Given
 those precedents, it was the integrator's to make, as it has been for every
 sibling pin. The integrator can finish this card, or reopen the question if
 the owner disagrees.
+
+## Integrator check — bpr-main-mac, 2026-10-01
+
+Checked against the three criteria at `2ef17fd5`:
+
+- **The row passes on Windows.** Met on bpr-main-win's run above: 8.22 s
+  through `ctest`, `PROFILE_OWNER_ADMISSION_OK`, uncontained as registered.
+- **`test_network_isolation_manifest` names no row this card changes.** Met.
+  On macOS it passes with `TEST_NETWORK_ISOLATION_OK:configured=577:registrations=523`,
+  with the new pin in the inventory and its registration `WINDOWS_UNCONTAINED`.
+  The Windows manifest run is part of [[BPR-0907]]'s finish.
+- **The owner's choice is recorded here.** Not met. The pin is consistent with
+  the precedents the station cites: [[BPR-0833]] and [[BPR-0845]] pinned the
+  same ancestor-chain refusal as `dos-volume-name`, and the
+  `application_profile_activation_public_path` row, whose seed refuses the
+  registry in the same way, carries the same pin ([[BPR-1234]]). But this card
+  was filed with the decision reserved for the owner, and its acceptance
+  still says so. An agent cannot meet that by deciding instead, so the pin
+  goes to the owner as one Accept or Reject question:
+
+  > Keep `application_profile_owner_admission_public_path` uncontained on
+  > Windows, pinned `dos-volume-name` like BPR-0833's and BPR-0845's rows
+  > (commit `1d7bdb35`)?
+
+  Accept finishes the card. Reject reopens the containment question. The
+  alternative is the card's second option: the row keeps its boundary, and
+  its seed makes a root the container can use.
+
+The card is parked for that answer. No Windows or Linux run is owed.
