@@ -24,6 +24,12 @@ explains sizing and expiry diagnostics.
   `BUDGET_MS`. Earlier passing application runs lacked an elapsed marker; those
   run margins remain unknown. BPR-0905 now emits that marker on success.
 
+## Later runs
+
+The [2026-10-01 full-suite record](../verification/BPR-0905-full-suite-2026-10-01.md)
+repeats the margin table for the current Mac graph from one contended run,
+and holds the Windows and Linux tables when those stations return them.
+
 ## Additional rows flagged for review
 
 These 21 rows have unchanged bounds. Investigate the row, platform, candidate

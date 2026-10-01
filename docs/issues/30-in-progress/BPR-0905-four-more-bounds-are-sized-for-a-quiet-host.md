@@ -241,3 +241,39 @@ courses. The [sweep follow-up](../../verification/BPR-0905-mac-full-suite-2026-0
 records the fourfold course-specific allowance and focused Mac pass. It does
 not change the four BPR-0905 target rows or satisfy their pending Windows/Linux
 contention evidence.
+
+## 2026-10-01 takeover and cross-platform checkpoint
+
+Claude rfc-implementer took over the stale Codex worktree
+`codex/bpr0905-budgets` (`ed884bd6f`). Nothing needed to be carried: every
+commit on that branch is patch-equivalent to one already on main
+(`07befacef`..`f6de40b63`, followed there by `0f0c461e0` and `49f4c1ec4`).
+The worktree was read, not edited. The owner's 2026-10-01 amendment allows the
+Windows and Linux stations to be used, so the earlier deferral of those runs
+no longer applies. The card was promoted to Ready (`723fe3a61`) and claimed
+(`4c3205c09`).
+
+**Candidate** `4c3205c09`. Its product tree is identical to `a3c2aa88c`.
+
+**Mac: done.** `ctest --preset dev -j10` ran all 577 rows in 717.73 s: 575
+passed. All four rows passed (saved-server 19.41 s, defect 10.95 s, ledger
+7.35 s, SQLite 44.96 s). Every per-phase `PUBLIC_PATH_BUDGET` line shows
+`expired=0` and was visible in the successful log, which also confirms the
+success-timing criterion on the full suite. The two failures were not clock
+failures and are already owned by BPR-1245 and BPR-1236. The
+[full-suite record](../../verification/BPR-0905-full-suite-2026-10-01.md)
+holds the per-phase figures and a fresh Mac margin table. In that table,
+`live_mutation_isolation` (1.15x) and `diagnostic_context_age` (1.16x) are
+newly thin. They are recorded as follow-up candidates, and neither bound was
+changed.
+
+**Remaining: Windows and Linux.** AC1 still needs the four rows under
+full-suite contention on `bpr-main-win` and `bpr-main-linux`. The survey also
+still lacks the native inventory margin table from each of those platforms.
+The exact commands, and what each station must return, are in that record's
+Windows and Linux sections. AC2 through AC5 are satisfied on main: the survey,
+the sizing rule in `build-and-test.md` with its BPR-0901 and BPR-0893 links,
+and self-naming expiry with forced-expiry controls. If a station returns a
+clock failure on one of the four rows, re-derive that bound from the returned
+measurement using the rule; do not retry it until it passes. Once both
+stations' results are recorded in the full-suite record, finish the card.
