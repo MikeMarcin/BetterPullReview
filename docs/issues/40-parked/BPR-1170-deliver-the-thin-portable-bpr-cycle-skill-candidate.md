@@ -73,3 +73,22 @@ requested change in the note.
 
 `coding_format_check` fails at main on `src/app/src/tour_cli.cpp`, which this
 card did not touch. It is filed as BPR-1268.
+
+## Linux: bpr-main-linux, 2026-10-02
+
+At `adef7a558`, which includes BPR-1268's `tour_cli.cpp` format fix, on WSL2 with
+GCC 15.2 and `build/dev-tour-cli`. The build exits 0 with 0 `warning:` lines.
+`ctest --test-dir build/dev-tour-cli -j4 --output-on-failure -R
+"^skill_bpr_cycle_package$|^skill_pr_tour_package$|^cycle_cli_public_path$|^tour_cli_|^coding_format_check$"`
+passes **9 of 9** in 32.18 s:
+
+- `skill_bpr_cycle_package` 4.67 s and `skill_pr_tour_package` 2.12 s
+- `cycle_cli_public_path` 13.50 s
+- the five `tour_cli_*` rows
+- `coding_format_check` 29.67 s
+
+**clang-format 22 agrees with 23 on the hoisted line.** `coding_format_check`
+ran `/usr/bin/clang-format` 22.1.8 explicitly ("Checking 1208 file(s) with
+/usr/bin/clang-format (22.1.8)"), not the 21.1.8 earlier on this station's
+`PATH`. A direct `/usr/bin/clang-format --dry-run --Werror
+src/app/src/tour_cli.cpp` is also clean. No remote mutation.
