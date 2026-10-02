@@ -65,6 +65,7 @@ executable SHA-256 `dc64a2c2956914f3774607908888680abd7959f7a58d31e153ab8d9820d2
 built at `7a385389c`, launched with
 `python3 /Users/jaeger/bpr-cycles-share-review.3aySQ6/launch.py` (own profile
 in `home/`, `HOME` and `CFFIXED_USER_HOME` set; saves may go to `shared/`).
+`7a385389c` landed as `8cbdc1477` with identical BPR-1161 source.
 
 ## Owed platform runs
 
