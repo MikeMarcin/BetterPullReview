@@ -96,6 +96,33 @@ namespace bpr::application {
 		/// the notes still open. Nothing is frozen, copied or sent.
 		void prepare_next_round();
 
+		/// \brief What Share feedback may use (BPR-1161), set by the
+		/// composition: the configured disclosure policy and the routes this
+		/// installation can reach. Without a setting, the defaults apply and
+		/// only Copy and Save are reachable.
+		void set_share_environment(core::cycle_disclosure_policy aPolicy, core::cycle_share_capabilities aCapabilities);
+		/// \brief The clipboard Copy writes to; it must outlive the host.
+		void set_clipboard(review_cycle_clipboard* aClipboard);
+		/// \brief Makes the destination for a chosen file; used on the effect lane only.
+		using destination_factory = std::function<std::unique_ptr<cycle_export_destination>(const std::string&)>;
+		void set_destination_factory(destination_factory aFactory);
+
+		/// \brief Compose feedback: opens the cycle's latest round draft, or
+		/// starts the first with every open note, and shows exactly what
+		/// sharing it sends. Nothing is frozen or sent.
+		void compose();
+		/// \brief Leaves Compose feedback; the draft stays as saved.
+		void close_compose();
+		/// \brief Saves one edit to the draft as its next revision.
+		void edit_composition(core::cycle_compose_edit aEdit);
+		/// \brief Freezes the shown revision and shares it by one route, in one
+		/// gesture: Copy to Clipboard, Save to File or Save as Bundle to
+		/// `aPath`, or Use in external agent. A refused route shares nothing
+		/// and uses no other route instead. What was observed is recorded.
+		void share(core::cycle_share_route aRoute, std::string aPath = { });
+		/// \brief Answers a pending replace: replace exactly the bytes named, or keep them.
+		void resolve_replace(bool aReplace);
+
 		[[nodiscard]] auto projection() const noexcept -> const review_cycle_workbench_projection&;
 		[[nodiscard]] auto selected() const noexcept -> std::optional<core::local_cycle_subject>;
 		void               shutdown();

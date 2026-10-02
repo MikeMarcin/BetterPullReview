@@ -32,6 +32,7 @@ add_library(
         src/review_cycle_json.cpp
         src/review_cycle_round.cpp
         src/review_cycle_round_markdown.cpp
+        src/review_cycle_share.cpp
         src/review_cycle_zip.cpp
         src/review_cycle_bundle.cpp
         src/review_cycle_import.cpp

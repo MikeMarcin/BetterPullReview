@@ -5,6 +5,7 @@
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_material.hpp"
 #include "bpr/core/review_cycle_response.hpp"
+#include "bpr/core/review_cycle_share.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
 #include "bpr/core/review_cycle_verification.hpp"
@@ -114,6 +115,57 @@ namespace bpr::application {
 		auto                        operator<=>(const review_cycle_next_round&) const = default;
 	};
 
+	/// \brief A save that would replace other bytes, waiting for the
+	/// reviewer's word (BPR-1161). Nothing was written.
+	struct review_cycle_replace_request
+	{
+		core::cycle_share_route     Route = core::cycle_share_route::save_document;
+		std::string                 Path;
+		std::string                 Name;
+		core::cycle_material_digest Existing;
+		std::uint64_t               Size                                                   = 0;
+		auto                        operator<=>(const review_cycle_replace_request&) const = default;
+	};
+
+	/// \brief Compose feedback and Share feedback (BPR-1161): the draft, the
+	/// exact document sharing it sends, the routes and every delivery
+	/// observation of the cycle.
+	struct review_cycle_share_view
+	{
+		core::cycle_round_draft     Draft;
+		core::cycle_round_selection Selection;
+		/// The round this revision freezes, or froze, as.
+		core::cycle_round_id Round;
+		/// This revision is frozen as `Round`: sharing it again reuses it.
+		bool Frozen = false;
+		/// A round frozen from an earlier revision of this draft, which
+		/// sharing this revision amends.
+		std::optional<core::cycle_round_id> Amends;
+		/// The readable document exactly as Copy and Save send it, while it is
+		/// small enough to show; `DocumentBytes` is its full size either way.
+		std::string                             Document;
+		std::uint64_t                           DocumentBytes = 0;
+		bool                                    DocumentShown = false;
+		std::optional<core::cycle_round_digest> Digest;
+		std::uint64_t                           Items       = 0;
+		std::uint64_t                           Suggestions = 0;
+		std::uint64_t                           Sources     = 0;
+		/// Why this selection cannot be shared as it stands.
+		std::optional<core::cycle_round_refusal> Refusal;
+		/// File names a save offers: identities only, never a path.
+		std::string                                DocumentName;
+		std::string                                BundleName;
+		std::vector<core::cycle_share_route_offer> Routes;
+		/// Every observation of every round of the cycle, in order.
+		std::vector<core::cycle_delivery_record>    Deliveries;
+		std::optional<review_cycle_replace_request> Replace;
+		/// What to ask an external agent to read, once its round is ready.
+		std::string Invocation;
+		/// Plain words about the last share, refusal or limit.
+		std::string Status;
+		auto        operator<=>(const review_cycle_share_view&) const = default;
+	};
+
 	enum class review_cycle_activity : std::uint8_t {
 		idle,
 		opening,
@@ -149,6 +201,8 @@ namespace bpr::application {
 		std::vector<review_cycle_response_entry> Responses;
 		/// The draft prepared for the next round, when one was prepared here.
 		std::optional<review_cycle_next_round> NextRound;
+		/// Present while Compose feedback is open.
+		std::optional<review_cycle_share_view> Share;
 		review_cycle_activity                  Activity = review_cycle_activity::idle;
 		/// Plain words about the last refusal or failure; empty otherwise.
 		std::string Message;

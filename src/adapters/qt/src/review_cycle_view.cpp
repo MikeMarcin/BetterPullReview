@@ -327,8 +327,7 @@ namespace bpr::qt {
 		ReviewBar->addAction(SuggestAction);
 		ComposeAction = new QAction{ strip_icon(strip_glyph::compose_review, palette()), QStringLiteral("Compose feedback"), this };
 		ComposeAction->setObjectName(QStringLiteral("cycleComposeAction"));
-		ComposeAction->setEnabled(false);
-		ComposeAction->setToolTip(QStringLiteral("Composing and sharing a feedback round is not available in this build yet"));
+		ComposeAction->setToolTip(QStringLiteral("Choose the notes for one round, read exactly what is shared, then copy or save it"));
 		ReviewBar->addAction(ComposeAction);
 		NotesToggle = new QAction{ strip_icon(strip_glyph::comments_drawer, palette()), QStringLiteral("Notes"), this };
 		NotesToggle->setObjectName(QStringLiteral("cycleNotesToggle"));
@@ -387,9 +386,12 @@ namespace bpr::qt {
 		Comparison->setReadOnly(true);
 		Comparison->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Comparison->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		// BPR-1161: Compose feedback takes the centre until Back or Escape.
+		SharePage = new review_cycle_share_page{ Centre };
 		Centre->addWidget(Source);
 		Centre->addWidget(SourceNotice);
 		Centre->addWidget(Comparison);
+		Centre->addWidget(SharePage);
 		ReadingPage = Source;
 
 		auto* const tray       = new QWidget{ Body };
@@ -532,12 +534,13 @@ namespace bpr::qt {
 		CancelKeys->setEnabled(false);
 		connect(CancelKeys, &QShortcut::activated, this, [this] { cancel_focused_composer(); });
 		// Leaving the composer, however it is left, gives the pane back to reading.
-		connect(TrayComposer, &QStackedWidget::currentChanged, this, [this, commentPage] {
+		connect(TrayComposer, &QStackedWidget::currentChanged, this, [this] {
 			if (!suggesting()) {
 				end_suggestion();
 			}
-			CancelKeys->setEnabled(TrayComposer->currentWidget() == commentPage || TrayComposer->currentWidget() == Composer);
+			refresh_cancel_keys();
 		});
+		connect(Centre, &QStackedWidget::currentChanged, this, [this] { refresh_cancel_keys(); });
 
 		Body->addWidget(Files);
 		Body->addWidget(Centre);
@@ -574,6 +577,11 @@ namespace bpr::qt {
 		});
 		connect(ViewMenu, &QMenu::aboutToShow, this, [this] { rebuild_view_menu(); });
 		connect(CommentAction, &QAction::triggered, this, [this] { begin_comment(); });
+		connect(ComposeAction, &QAction::triggered, this, [this] {
+			if (Dispatch.Compose && !Projection.Share) {
+				Dispatch.Compose();
+			}
+		});
 		connect(SuggestAction, &QAction::triggered, this, [this] { begin_suggestion(); });
 		connect(cycleNote, &QToolButton::clicked, this, [this] {
 			PendingTarget = core::cycle_whole_target{ };
@@ -682,6 +690,7 @@ namespace bpr::qt {
 	void review_cycle_view::set_dispatch(review_cycle_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
+		SharePage->set_dispatch(Dispatch.Share);
 	}
 
 	void review_cycle_view::set_code_font(const QFont& aFont)
@@ -690,6 +699,7 @@ namespace bpr::qt {
 		Comparison->setFont(aFont);
 		Comparison->setTabStopDistance(tab);
 		Composer->set_code_font(aFont);
+		SharePage->set_code_font(aFont);
 	}
 
 	void review_cycle_view::adopt_appearance(const appearance_profile& aProfile)
@@ -955,8 +965,18 @@ namespace bpr::qt {
 		if (suggesting() && latest && SuggestionSource && SuggestionSource->Revision != *latest) {
 			Composer->set_source_status(suggestion_source_status::newer_available);
 		}
+		if (Projection.Share) {
+			SharePage->present(*Projection.Share, Projection.Notes, Projection.Activity == application::review_cycle_activity::idle);
+		}
+		const auto composing = Projection.Share.has_value() && !previous.Share.has_value();
+		const auto composed  = !Projection.Share.has_value() && previous.Share.has_value();
 		show_reading_page();
 		refresh_actions();
+		if (composing) {
+			SharePage->focus_first();
+		} else if (composed && Centre->currentWidget() == Source) {
+			Source->setFocus(Qt::OtherFocusReason);
+		}
 		Presenting = false;
 	}
 
@@ -1220,7 +1240,16 @@ namespace bpr::qt {
 			cancel_comment();
 		} else if (suggesting() && (within(Source) || within(Composer)) && Composer->Cancelled) {
 			Composer->Cancelled();
+		} else if (Centre->currentWidget() == SharePage && within(SharePage) && Dispatch.Share.Back) {
+			// Back, as from a pull request's Compose review page; the draft stays.
+			Dispatch.Share.Back();
 		}
+	}
+
+	void review_cycle_view::refresh_cancel_keys()
+	{
+		const auto* const open = TrayComposer->currentWidget();
+		CancelKeys->setEnabled(open == CommentEditor->parentWidget() || open == Composer || Centre->currentWidget() == SharePage);
 	}
 
 	void review_cycle_view::begin_suggestion()
@@ -1276,7 +1305,8 @@ namespace bpr::qt {
 
 	void review_cycle_view::show_reading_page()
 	{
-		Centre->setCurrentWidget(suggesting() ? Source : ReadingPage);
+		Centre->setCurrentWidget(suggesting() ? Source : Projection.Share ? SharePage
+																		  : ReadingPage);
 	}
 
 	void review_cycle_view::read_source()
@@ -1335,7 +1365,8 @@ namespace bpr::qt {
 		const auto reading  = Centre->currentWidget() == Source && !suggesting();
 		const auto selected = Source->has_selection() && reading;
 		const auto editable = shown && Projection.Source->Bytes.size() <= core::maximum_suggestion_editor_bytes;
-		CommentAction->setEnabled(open && shown && !suggesting());
+		// Compose feedback holds the centre; the code's own gestures wait for Back.
+		CommentAction->setEnabled(open && shown && !suggesting() && !Projection.Share);
 		SuggestAction->setEnabled(open && reading && editable && !suggesting());
 		SuggestAction->setToolTip(shown && !editable ? QStringLiteral("This file is too large to edit here; comment on it instead") : suggest_tip());
 		const auto active = Projection.Source ? std::ranges::find(Projection.Files, Projection.Source->Path, &application::review_cycle_file_entry::Path) : Projection.Files.end();
@@ -1350,6 +1381,7 @@ namespace bpr::qt {
 		ViewButton->setEnabled(open && !Projection.Revisions.empty());
 		ReplyButton->setEnabled(open);
 		NextRound->setEnabled(open && !Projection.Facts.Rounds.empty() && Projection.Activity == application::review_cycle_activity::idle);
+		ComposeAction->setEnabled(open && !Projection.Revisions.empty() && !Projection.Share && !suggesting());
 	}
 
 	void review_cycle_view::step_file(const int aDirection)
@@ -1448,6 +1480,10 @@ namespace bpr::qt {
 	auto review_cycle_view::next_round_button() const noexcept -> QToolButton*
 	{
 		return NextRound;
+	}
+	auto review_cycle_view::share_page() const noexcept -> review_cycle_share_page*
+	{
+		return SharePage;
 	}
 	auto review_cycle_view::reply_button() const noexcept -> QToolButton*
 	{

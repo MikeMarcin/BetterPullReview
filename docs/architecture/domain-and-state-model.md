@@ -411,6 +411,29 @@ source. Prose replies need no protocol: a pasted answer is a turn of
 `unknown` or `self_reported` provenance, and the next capture needs no
 structured response.
 
+Compose feedback and Share feedback (RFC-BPR-0056, RFC-BPR-0061, BPR-1161)
+are one draft and one gesture. Compose opens the cycle's latest round draft,
+brought to its notes' current wording, or starts the first with every open
+note (`core::first_composition`); each edit (include or leave out a note, move
+it, the requested action, the optional goal) is one draft revision
+(`core::edit_composition`), and `application::preview_cycle_round` assembles
+the payload that revision would freeze as without installing anything, so the
+preview is exactly the document Copy and Save send. A share freezes and
+delivers in one step (`application::prepare_share`, `share_to_file`): the
+route's channel is decided by `core::authorize` for the round and digest it
+would take, the same decision every other exporter gets; a refused route,
+a selection that cannot freeze or output over the route's budget freezes
+nothing, and no other route stands in for a refused one. Copy and Save are
+always listed; Use in external agent and Send to Agent only when the host
+reaches them (`core::cycle_share_capabilities`), and this build reaches
+neither. What happened is a delivery observation (`core::cycle_delivery_observation`,
+schema 8's `deliveries`, admitted by `core::admit_delivery`): copied only when
+the platform clipboard hands the same text back (otherwise uncertain), saved
+with the file's name and never its folder, retrieved, accepted by an adapter
+or acknowledged only through a channel that can show it. No observation means
+the round was received, read, acted on or accepted, and none changes a note.
+Schema 8 migrates schemas 1 to 7 in place.
+
 Iteration is manual (RFC-BPR-0057, BPR-1163). Capture revision
 (`review_cycle_workbench::capture_revision`) is the only way back after
 someone else worked: no receipt, response, agent, commit or callback is

@@ -556,6 +556,84 @@ namespace bpr::application {
 															   std::move(aDone));
 	}
 
+	auto review_cycle_runtime::open_share_selected(cycle_operation_id aBegin, cycle_operation_id aSave, completion<cycle_share_draft> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_share_draft>([subject, host, aBegin, aSave](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_share_draft> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return open_share_draft(aStore, *host, *subject, aBegin, aSave, aStop);
+		},
+														 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::edit_share_selected(cycle_operation_id aSave, core::cycle_round_draft_ref aDraft, const std::uint64_t aExpectedRevision, core::cycle_compose_edit aEdit,
+												   completion<cycle_share_draft> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_share_draft>([subject, host, aSave, aDraft, aExpectedRevision, edit = std::move(aEdit)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_share_draft> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return edit_share_draft(aStore, *host, *subject, aSave, aDraft, aExpectedRevision, edit, aStop);
+		},
+														 std::move(aDone));
+	}
+
+	auto review_cycle_runtime::prepare_share_selected(cycle_share_request aRequest, completion<cycle_share_output> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_share_output>([subject, host, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_share_output> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return prepare_share(aStore, *host, *subject, request, aStop);
+		},
+														  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::share_to_file_selected(cycle_share_request aRequest, std::shared_ptr<cycle_export_destination> aDestination, std::string aName,
+													  std::optional<core::cycle_material_digest> aConfirmed, cycle_operation_id aRecord, completion<cycle_file_share> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<cycle_file_share>([subject, host, request = std::move(aRequest), destination = std::move(aDestination), name = std::move(aName), aConfirmed, aRecord](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_file_share> {
+			if (!subject || !destination) {
+				return std::unexpected(refused_selection());
+			}
+			return share_to_file(aStore, *host, *subject, request, *destination, name, aConfirmed, aRecord, aStop);
+		},
+														std::move(aDone));
+	}
+
+	auto review_cycle_runtime::record_delivery_selected(cycle_operation_id aOperation, core::cycle_delivery_observation aObservation, completion<cycle_write_receipt> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_write_receipt>([subject, aOperation, observation = std::move(aObservation)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.record_delivery(aOperation, *subject, observation, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::deliveries_selected(completion<std::vector<core::cycle_delivery_record>> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<std::vector<core::cycle_delivery_record>>([subject](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_delivery_record>> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return all_deliveries(aStore, *subject, aStop);
+		},
+																				std::move(aDone));
+	}
+
 	auto review_cycle_runtime::rounds_selected(const std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

@@ -90,8 +90,9 @@ bpr_add_network_isolated_test(NAME review_cycle_suggestion WINDOWS_UNCONTAINED C
 
 # [[BPR-1157]]. The desktop's local cycle host: Open Project to a first note.
 # [[BPR-1163]]. The manual iteration course: Capture revision, named views, checkpoints, Git chronology.
+# [[BPR-1161]]. Compose feedback and Share feedback through the host, the store and chosen files.
 bpr_add_executable(test_review_cycle_workbench review_cycle_workbench_tests.cpp)
-target_link_libraries(test_review_cycle_workbench PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application)
+target_link_libraries(test_review_cycle_workbench PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::AdapterSQLite BetterPullReview::Application)
 bpr_enable_hardening(test_review_cycle_workbench)
 if(WIN32)
     target_link_libraries(test_review_cycle_workbench PRIVATE advapi32 BetterPullReview::Platform)

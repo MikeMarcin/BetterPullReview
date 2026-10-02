@@ -12,6 +12,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QComboBox>
 #include <QDir>
 #include <QImage>
 #include <QKeySequence>
@@ -44,6 +45,8 @@
 /// revision, the view chooser, Mark reviewed, the newer-material refresh and
 /// the comparison pane, in the same review bar and pane. The source pane
 /// is coloured only from a classification of the exact bytes it shows.
+/// BPR-1161: Compose feedback and Share feedback in the centre, its routes,
+/// edits and delivery observations, each in its own words.
 
 namespace {
 	using namespace bpr;
@@ -127,7 +130,7 @@ namespace {
 		expect(aView.tabs()->tabs().size() == 1U && aView.tabs()->tabs()[0].Active && aView.tabs()->tabs()[0].OwnPair.isEmpty(), "one tab on the latest revision");
 		expect(aView.notes()->count() == 2 && aView.notes()->item(0)->text().contains(QStringLiteral("line 3")) && aView.notes()->item(0)->text().contains(QStringLiteral("Suggested change")), "anchored note with its line");
 		expect(aView.notes()->item(1)->text().startsWith(QStringLiteral("Whole cycle")) && aView.notes()->item(1)->text().contains(QStringLiteral("self-reported")), "cycle note without a line; provenance shown");
-		expect(!aView.compose_action()->isEnabled() && aView.comment_action()->isEnabled() && aView.suggest_action()->isEnabled(), "Compose is not offered yet; Suggest change needs only the caret");
+		expect(aView.compose_action()->isEnabled() && aView.comment_action()->isEnabled() && aView.suggest_action()->isEnabled(), "Compose feedback offered; Suggest change needs only the caret");
 		expect(!aView.updates_line()->isVisible(), "Updates line folded");
 		aView.updates_toggle()->click();
 		expect(aView.updates_line()->isVisible() && aView.updates_line()->text().contains(QStringLiteral("Captured: R1")), "Updates line unfolds");
@@ -1001,6 +1004,257 @@ namespace {
 	}
 }
 
+namespace {
+	struct share_gestures
+	{
+		int                                   Composed = 0;
+		int                                   Back     = 0;
+		std::vector<core::cycle_compose_edit> Edits;
+		std::vector<core::cycle_share_route>  Shared;
+		std::vector<bool>                     Replaced;
+	};
+
+	auto digest(const std::uint8_t aSeed) -> core::cycle_round_digest
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		bytes.fill(aSeed);
+		return core::cycle_round_digest{ bytes };
+	}
+
+	auto share_view() -> application::review_cycle_share_view
+	{
+		auto share      = application::review_cycle_share_view{ };
+		share.Draft     = { .Id = { .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_round_draft_id{ 1 } }, .Revision = 3 };
+		share.Selection = {
+			.Source = core::cycle_source_revision_id{ 1 },
+			.Items  = { { .Item = core::cycle_feedback_item_id{ 2 }, .Wording = core::private_review_turn_revision_id{ 1 } },
+						{ .Item = core::cycle_feedback_item_id{ 1 }, .Wording = core::private_review_turn_revision_id{ 1 } } },
+		};
+		share.Round         = core::cycle_round_id{ 1 };
+		share.Document      = "# Review round F1\n\nImplement the following feedback.\n";
+		share.DocumentBytes = share.Document.size();
+		share.DocumentShown = true;
+		share.Digest        = digest(0xAB);
+		share.Items         = 2;
+		share.Suggestions   = 1;
+		share.DocumentName  = "RC-1-F1.md";
+		share.BundleName    = "RC-1-F1.bpr-review.zip";
+		share.Routes        = { { .Route = core::cycle_share_route::copy_document, .Decision = core::cycle_authorization::allowed },
+								{ .Route = core::cycle_share_route::save_document, .Decision = core::cycle_authorization::allowed },
+								{ .Route = core::cycle_share_route::save_bundle, .Decision = core::cycle_authorization::allowed } };
+		return share;
+	}
+
+	auto record(const std::uint64_t aOrdinal, const std::uint64_t aRound, const core::cycle_delivery_state aState, const core::cycle_disclosure_channel aChannel, std::string aName = { },
+				const core::cycle_round_file_kind aFormat = core::cycle_round_file_kind::markdown) -> core::cycle_delivery_record
+	{
+		auto seen = core::cycle_delivery_observation{
+			.Round       = { .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_round_id{ aRound } },
+			.Digest      = digest(static_cast<std::uint8_t>(aRound)),
+			.State       = aState,
+			.Channel     = aChannel,
+			.Destination = std::move(aName),
+		};
+		if (aState != core::cycle_delivery_state::recipient_acknowledged && aState != core::cycle_delivery_state::failed) {
+			seen.Output = core::cycle_delivery_output{ .Format = aFormat, .Digest = core::cycle_material_digest{ digest(9).bytes() }, .Bytes = aFormat == core::cycle_round_file_kind::bundle ? 2'345U : 1'414U };
+		}
+		return { .Ordinal = aOrdinal, .Observation = std::move(seen) };
+	}
+
+	auto lines_of(const QListWidget& aList) -> QStringList
+	{
+		auto lines = QStringList{ };
+		for (auto row = 0; row < aList.count(); ++row) {
+			lines.append(aList.item(row)->text());
+		}
+		return lines;
+	}
+
+	/// RC61-05, RC61-06, RC56-07, RC56-10 as presented.
+	void composes_and_shares(qt::review_cycle_view& aView, share_gestures& aGestures)
+	{
+		auto shown = projection(1);
+		aView.present(shown);
+		settle();
+		aView.compose_action()->trigger();
+		expect(aGestures.Composed == 1, "Compose feedback asks the host once");
+		shown.Share = share_view();
+		aView.present(shown);
+		settle();
+		auto* const page = aView.share_page();
+		expect(page->isVisible() && !aView.source()->isVisible() && !aView.compose_action()->isEnabled() && !aView.comment_action()->isEnabled(), "Compose takes the centre; the code's gestures wait");
+		expect(page->title()->text() == QStringLiteral("Feedback round F1 · not shared yet"), "the round, not yet shared");
+		auto* const copy   = page->route_button(core::cycle_share_route::copy_document);
+		auto* const save   = page->route_button(core::cycle_share_route::save_document);
+		auto* const bundle = page->route_button(core::cycle_share_route::save_bundle);
+		expect(copy->isVisible() && copy->isEnabled() && copy->text() == QStringLiteral("Copy to Clipboard") && save->isVisible() && save->isEnabled() && save->text() == QStringLiteral("Save to File…") && bundle->isVisible(),
+			   "Copy and Save are first-class buttons on the page");
+		expect(copy->x() < save->x() && save->x() < bundle->x(), "Copy, then Save, then the bundle");
+		expect(!page->route_button(core::cycle_share_route::external_agent)->isVisible() && !page->route_button(core::cycle_share_route::send_to_agent)->isVisible(),
+			   "no agent route, and no disabled one, without the capability");
+		expect(aView.window()->focusWidget() == copy, "focus waits on Copy: one key shares the previewed round");
+		expect(lines_of(*page->items()) == QStringList{ QStringLiteral("1. Whole cycle — Pasted answer."), QStringLiteral("2. src/parser.cpp — Rename this. · 1 suggested change") }, "the round's notes in its order");
+		expect(page->items()->item(0)->checkState() == Qt::Checked && page->items()->item(1)->checkState() == Qt::Checked, "each included by its check box");
+		expect(page->preview()->toPlainText() == QStringLiteral("# Review round F1\n\nImplement the following feedback.\n") && page->preview()->isReadOnly(), "the preview is the document, read-only");
+		expect(page->facts()->text().startsWith(QStringLiteral("2 notes · 1 suggested change · no source files · 53 bytes of Markdown · round digest abababababab")), "what the round holds");
+		expect(lines_of(*page->deliveries()) == QStringList{ QStringLiteral("Nothing shared yet.") } && page->findChild<QLabel*>(QStringLiteral("cycleShareMeaning"))->text().contains(QStringLiteral("None of them means")),
+			   "nothing shared yet, and what sharing never means");
+		for (auto* const control : page->findChildren<QWidget*>()) {
+			if (control->isVisible() && control->focusPolicy() & Qt::TabFocus && control->objectName() != QStringLiteral("cycleKeyboardFocus")) {
+				expect(control->findChild<QWidget*>(QStringLiteral("cycleKeyboardFocus"), Qt::FindDirectChildrenOnly) != nullptr, "every Tab stop on the page shows the focus ring");
+			}
+		}
+		capture(aView, QStringLiteral("cycle-share-draft"));
+
+		// One gesture shares; no per-item confirmation and no second prompt.
+		copy->click();
+		expect(aGestures.Shared == std::vector{ core::cycle_share_route::copy_document }, "Copy is one gesture");
+		save->click();
+		expect(aGestures.Shared.size() == 2U && aGestures.Shared[1] == core::cycle_share_route::save_document, "Save asks the composition for its file");
+
+		// The reviewer's edits, one at a time.
+		page->items()->item(1)->setCheckState(Qt::Unchecked);
+		expect(aGestures.Edits.size() == 1U && std::get<core::include_round_item>(aGestures.Edits[0]) == core::include_round_item{ .Item = core::cycle_feedback_item_id{ 1 }, .Include = false }, "leave a note out");
+		page->items()->setCurrentRow(0);
+		expect(!page->move_up_button()->isEnabled() && page->move_down_button()->isEnabled(), "the first moves only later");
+		page->items()->setCurrentRow(1);
+		page->move_up_button()->click();
+		expect(std::get<core::move_round_item>(aGestures.Edits.back()) == core::move_round_item{ .Item = core::cycle_feedback_item_id{ 1 }, .Earlier = true }, "move earlier");
+		page->action_box()->setCurrentIndex(page->action_box()->findText(QStringLiteral("Plan")));
+		emit page->action_box()->activated(page->action_box()->currentIndex());
+		expect(std::get<core::set_round_action>(aGestures.Edits.back()).Action == core::cycle_round_action::plan, "the requested action");
+		page->goal()->setFocus(Qt::OtherFocusReason);
+		page->goal()->setText(QStringLiteral("Make parsing total."));
+		page->goal()->setModified(true);
+		emit page->goal()->editingFinished();
+		expect(std::get<core::set_round_goal>(aGestures.Edits.back()).Goal == "Make parsing total.", "the optional goal");
+
+		// Shared: each observation in its own words; repeats counted.
+		auto frozen       = share_view();
+		frozen.Frozen     = true;
+		frozen.Status     = "Copied F1 to the clipboard (1,414 bytes).";
+		frozen.Deliveries = {
+			record(1, 1, core::cycle_delivery_state::copied, core::cycle_disclosure_channel::clipboard),
+			record(2, 1, core::cycle_delivery_state::saved, core::cycle_disclosure_channel::local_file, "RC-1-F1.md"),
+			record(3, 1, core::cycle_delivery_state::saved, core::cycle_disclosure_channel::local_file, "RC-1-F1.md"),
+			record(4, 1, core::cycle_delivery_state::saved, core::cycle_disclosure_channel::local_file, "RC-1-F1.bpr-review.zip", core::cycle_round_file_kind::bundle),
+			record(5, 1, core::cycle_delivery_state::retrieved, core::cycle_disclosure_channel::external_retrieval),
+			record(6, 1, core::cycle_delivery_state::accepted_by_adapter, core::cycle_disclosure_channel::agent_adapter),
+			record(7, 1, core::cycle_delivery_state::recipient_acknowledged, core::cycle_disclosure_channel::agent_adapter),
+			record(8, 2, core::cycle_delivery_state::uncertain, core::cycle_disclosure_channel::clipboard),
+			record(9, 2, core::cycle_delivery_state::failed, core::cycle_disclosure_channel::clipboard),
+		};
+		shown.Share = frozen;
+		aView.present(shown);
+		settle();
+		expect(page->title()->text() == QStringLiteral("Feedback round F1 · frozen; sharing it again sends the same round") && page->status()->isVisible() && page->status()->text() == QStringLiteral("Copied F1 to the clipboard (1,414 bytes)."),
+			   "shared: the same round again, and what the last share did");
+		const auto delivered = lines_of(*page->deliveries());
+		expect(delivered == QStringList{
+				   QStringLiteral("F1 · Copied to the clipboard · 1,414 bytes"),
+				   QStringLiteral("F1 · Saved as RC-1-F1.md · 1,414 bytes · 2 times"),
+				   QStringLiteral("F1 · Saved a bundle as RC-1-F1.bpr-review.zip · 2,345 bytes"),
+				   QStringLiteral("F1 · Read through the local interface · 1,414 bytes"),
+				   QStringLiteral("F1 · Accepted by the agent adapter · 1,414 bytes"),
+				   QStringLiteral("F1 · The recipient acknowledged receiving it"),
+				   QStringLiteral("F2 · Copy not confirmed by the clipboard · 1,414 bytes"),
+				   QStringLiteral("F2 · Copy failed: there was no clipboard"),
+			   },
+			   "copied, saved, retrieved, accepted and acknowledged each said apart");
+		for (const auto& line : delivered) {
+			for (const auto* word : { "complete", "verified", "addressed", "done", "delivered" }) {
+				expect(!line.contains(QString::fromLatin1(word), Qt::CaseInsensitive), "no observation reads as completion or acceptance of the review");
+			}
+		}
+		capture(aView, QStringLiteral("cycle-share-shared"));
+
+		// After an edit: an amendment, the shared round untouched.
+		auto amended   = share_view();
+		amended.Round  = core::cycle_round_id{ 2 };
+		amended.Amends = core::cycle_round_id{ 1 };
+		shown.Share    = amended;
+		aView.present(shown);
+		settle();
+		expect(page->title()->text() == QStringLiteral("Feedback round F2 · amends F1, which stays as it was shared · not shared yet"), "an edit after sharing is the next round");
+
+		// A refused channel stays listed, refused; Save is decided on its own.
+		auto refused               = share_view();
+		refused.Routes[0].Decision = core::cycle_authorization::channel_denied;
+		refused.Status             = "Policy for this project's source does not allow copying to the clipboard. Nothing was frozen or shared, and no other way was used instead.";
+		shown.Share                = refused;
+		aView.present(shown);
+		settle();
+		expect(copy->isVisible() && !copy->isEnabled() && copy->toolTip().contains(QStringLiteral("no other way is used instead")) && save->isEnabled(), "Copy shown refused, never hidden; Save still its own choice");
+		expect(page->status()->text().contains(QStringLiteral("no other way was used instead")), "and said");
+		capture(aView, QStringLiteral("cycle-share-refused"));
+
+		// Nothing selected: nothing can be shared, and the page says why.
+		auto empty    = share_view();
+		empty.Refusal = core::cycle_round_refusal{ .Problem = core::cycle_round_problem::empty };
+		shown.Share   = empty;
+		aView.present(shown);
+		settle();
+		expect(!copy->isEnabled() && !save->isEnabled() && !bundle->isEnabled() && page->facts()->text().contains(QStringLiteral("Include at least one note to share.")), "an empty round is not shared");
+
+		// Over what the page shows: measured in full, never shown in part.
+		auto large          = share_view();
+		large.Document      = { };
+		large.DocumentShown = false;
+		large.DocumentBytes = 17'000'123;
+		large.Status        = "The round is 17,000,123 bytes (1 items, 1 sources), over the clipboard's limit of 16,777,216 bytes. Nothing was cut short, frozen or shared. Save to File keeps all of it.";
+		shown.Share         = large;
+		aView.present(shown);
+		settle();
+		expect(page->preview()->toPlainText().contains(QStringLiteral("17,000,123 bytes, too large to show here")) && page->preview()->toPlainText().contains(QStringLiteral("Nothing is cut short")), "the size, and nothing shown in part");
+		expect(page->status()->text().contains(QStringLiteral("over the clipboard's limit")), "the limit in words");
+		capture(aView, QStringLiteral("cycle-share-oversized"));
+
+		// Other bytes at the chosen file: the reviewer's word first.
+		auto pending    = share_view();
+		pending.Replace = application::review_cycle_replace_request{ .Route = core::cycle_share_route::save_document, .Path = "/work/notes.md", .Name = "notes.md", .Size = 22 };
+		shown.Share     = pending;
+		aView.present(shown);
+		settle();
+		expect(page->replace_button()->isVisible() && page->findChild<QLabel*>(QStringLiteral("cycleShareReplaceText"))->text().startsWith(QStringLiteral("notes.md already holds other content (22 bytes).")), "asks before replacing");
+		page->keep_button()->click();
+		expect(aGestures.Replaced == std::vector{ false }, "kept");
+
+		// An optional route, when reachable and allowed: the invocation and nothing else.
+		auto external = share_view();
+		external.Routes.push_back({ .Route = core::cycle_share_route::external_agent, .Decision = core::cycle_authorization::allowed });
+		external.Frozen     = true;
+		external.Invocation = "bpr cycle round read RC-1 --round F1";
+		shown.Share         = external;
+		aView.present(shown);
+		settle();
+		auto* const agent = page->route_button(core::cycle_share_route::external_agent);
+		expect(agent->isVisible() && agent->isEnabled() && agent->mapTo(page, QPoint{ }).y() > bundle->mapTo(page, QPoint{ }).y() && page->invocation()->isVisible() && page->invocation()->text() == QStringLiteral("bpr cycle round read RC-1 --round F1") && page->invocation()->isReadOnly(),
+			   "below Copy and Save: the round's invocation, to run in your own harness");
+		capture(aView, QStringLiteral("cycle-share-external"));
+
+		// Escape leaves, as Back does, from inside the page; with focus
+		// outside it, Escape does not.
+		auto* const keys = aView.findChild<QShortcut*>(QStringLiteral("cycleComposerCancelKeys"));
+		aView.activateWindow();
+		aView.files()->setFocus(Qt::TabFocusReason);
+		settle();
+		expect(keys->isEnabled(), "the cancel keys are live while Compose is open");
+		tests::window_system_key(*aView.files(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(aGestures.Back == 0, "Escape in the files drawer leaves Compose open");
+		page->items()->setFocus(Qt::TabFocusReason);
+		settle();
+		expect(QApplication::focusWidget() == page->items(), "focus in the notes of the round");
+		tests::window_system_key(*page->items(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(aGestures.Back == 1, "Escape is Back");
+		page->back_button()->click();
+		expect(aGestures.Back == 2, "and so is Back");
+		shown.Share.reset();
+		aView.present(shown);
+		settle();
+		expect(!page->isVisible() && aView.source()->isVisible() && aView.compose_action()->isEnabled(), "the source again; Compose offered again");
+	}
+}
+
 auto main(int aArgc, char** aArgv) -> int
 try {
 	QApplication app{ aArgc, aArgv };
@@ -1011,6 +1265,7 @@ try {
 	auto         gestures  = view_gestures{ };
 	auto         replies   = reply_gestures{ };
 	auto         decisions = decision_gestures{ };
+	auto         shares    = share_gestures{ };
 	view.set_dispatch({
 		.OpenFile         = [&](const std::string& aPath, bool) { opened = aPath; },
 		.Tab              = [](const core::document_tab_intent&) { },
@@ -1027,6 +1282,13 @@ try {
 		.Reply            = [&](const core::cycle_round_id aRound, core::cycle_manual_reply aReply) { replies.Replies.emplace_back(aRound, std::move(aReply)); },
 		.Decide           = [&](const core::cycle_feedback_item_ref& aItem, const std::optional<core::cycle_reviewer_decision> aDecision) { decisions.Decisions.emplace_back(aItem, aDecision); },
 		.PrepareNextRound = [&] { ++decisions.Prepared; },
+		.Compose          = [&] { ++shares.Composed; },
+		.Share            = {
+			.Back    = [&] { ++shares.Back; },
+			.Edit    = [&](core::cycle_compose_edit aEdit) { shares.Edits.push_back(std::move(aEdit)); },
+			.Share   = [&](const core::cycle_share_route aRoute) { shares.Shared.push_back(aRoute); },
+			.Replace = [&](const bool aReplace) { shares.Replaced.push_back(aReplace); },
+		},
 	});
 	view.resize(1280, 760);
 	view.show();
@@ -1045,11 +1307,24 @@ try {
 	captures_and_compares(view, gestures);
 	records_replies(view, replies);
 	decides_explicitly(view, decisions);
+	composes_and_shares(view, shares);
 	// The narrowest window the workbench supports still shows the three regions.
 	view.resize(900, 600);
 	settle();
 	expect(view.minimumSizeHint().width() <= 900, "fits the compact window");
 	capture(view, QStringLiteral("cycle-compact-900"));
+	// And with Compose feedback open, every route reachable.
+	auto composing  = projection(1);
+	composing.Share = share_view();
+	composing.Share->Routes.push_back({ .Route = core::cycle_share_route::external_agent, .Decision = core::cycle_authorization::allowed });
+	view.present(composing);
+	settle();
+	expect(view.minimumSizeHint().width() <= 900 && view.share_page()->route_button(core::cycle_share_route::external_agent)->isVisible(), "Compose feedback fits the compact window with every route");
+	for (const auto route : { core::cycle_share_route::copy_document, core::cycle_share_route::save_document, core::cycle_share_route::save_bundle, core::cycle_share_route::external_agent }) {
+		auto* const button = view.share_page()->route_button(route);
+		expect(button->mapTo(&view, QPoint{ button->width(), 0 }).x() <= view.width(), "no route is cut off at 900 pixels");
+	}
+	capture(view, QStringLiteral("cycle-share-compact-900"));
 	std::cout << "review-cycle-view-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

@@ -187,7 +187,7 @@ namespace bpr::application {
 			.Decision = aRequest.Decision,
 		};
 		if (const auto refusal = core::check_verification(*cycle, **thread, *wording, record)) {
-			return cycle_decision_result{ .Refusal = *refusal };
+			return cycle_decision_result{ .Refusal = refusal };
 		}
 		auto receipt = aStore.record_verification(aOperation, aSubject, record, aStop);
 		if (!receipt) {
@@ -247,6 +247,34 @@ namespace bpr::application {
 		return result;
 	}
 
+	auto current_note_items(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_next_round_item>>
+	{
+		auto threads = all_threads(aStore, aSubject, aStop);
+		if (!threads) {
+			return std::unexpected(threads.error());
+		}
+		auto items = std::vector<core::cycle_next_round_item>{ };
+		items.reserve(threads->size());
+		for (const auto& thread : *threads) {
+			auto wording = current_wording(aStore, aSubject, thread.Id, aStop);
+			if (!wording) {
+				return std::unexpected(wording.error());
+			}
+			auto suggestions = aStore.suggestions(aSubject, thread.Id, aStop);
+			if (!suggestions) {
+				return std::unexpected(suggestions.error());
+			}
+			auto pins = std::vector<core::cycle_round_suggestion_pin>{ };
+			for (const auto& suggestion : *suggestions) {
+				if (suggestion.State == core::cycle_suggestion_state::proposed) {
+					pins.push_back({ .Id = suggestion.Id.Id, .Revision = suggestion.Revision });
+				}
+			}
+			items.push_back({ .Item = thread.Id.Id, .Wording = *wording, .Lifecycle = thread.Lineage.Lifecycle, .Suggestions = std::move(pins) });
+		}
+		return items;
+	}
+
 	auto prepare_next_round(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const cycle_operation_id& aBegin,
 							const cycle_operation_id& aSave, std::stop_token aStop) -> cycle_store_result<cycle_next_round_result>
 	{
@@ -284,9 +312,9 @@ namespace bpr::application {
 		if (!reconciled) {
 			return std::unexpected(reconciled.error());
 		}
-		auto threads = all_threads(aStore, aSubject, aStop);
-		if (!threads) {
-			return std::unexpected(threads.error());
+		auto items = current_note_items(aStore, aSubject, aStop);
+		if (!items) {
+			return std::unexpected(items.error());
 		}
 		auto carried = std::set<core::cycle_feedback_item_id>{ };
 		for (const auto& [round, assignment] : assignments) {
@@ -294,34 +322,13 @@ namespace bpr::application {
 				carried.insert(item.Item);
 			}
 		}
-		auto items = std::vector<core::cycle_next_round_item>{ };
-		for (const auto& thread : *threads) {
-			auto wording = current_wording(aStore, aSubject, thread.Id, aStop);
-			if (!wording) {
-				return std::unexpected(wording.error());
-			}
-			auto suggestions = aStore.suggestions(aSubject, thread.Id, aStop);
-			if (!suggestions) {
-				return std::unexpected(suggestions.error());
-			}
-			auto pins = std::vector<core::cycle_round_suggestion_pin>{ };
-			for (const auto& suggestion : *suggestions) {
-				if (suggestion.State == core::cycle_suggestion_state::proposed) {
-					pins.push_back({ .Id = suggestion.Id.Id, .Revision = suggestion.Revision });
-				}
-			}
-			const auto state = std::ranges::find(*reconciled, thread.Id.Id, &core::cycle_item_reconciliation::Item);
-			items.push_back({
-				.Item        = thread.Id.Id,
-				.Wording     = *wording,
-				.Lifecycle   = thread.Lineage.Lifecycle,
-				.Suggestions = std::move(pins),
-				.InRound     = carried.contains(thread.Id.Id),
-				.Resolved    = state != reconciled->end() && core::resolved(*state),
-			});
+		for (auto& item : *items) {
+			const auto state = std::ranges::find(*reconciled, item.Item, &core::cycle_item_reconciliation::Item);
+			item.InRound     = carried.contains(item.Item);
+			item.Resolved    = state != reconciled->end() && core::resolved(*state);
 		}
 		result.From = assignments.back().first;
-		result.Plan = core::plan_next_round(assignments.back().second, items, latest);
+		result.Plan = core::plan_next_round(assignments.back().second, *items, latest);
 		auto begun  = aStore.begin_draft(aBegin, aSubject, cycle->Revision, aStop);
 		if (!begun) {
 			return std::unexpected(begun.error());

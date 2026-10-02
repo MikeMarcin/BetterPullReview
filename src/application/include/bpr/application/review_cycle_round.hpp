@@ -61,6 +61,26 @@ namespace bpr::application {
 		std::optional<cycle_frozen_round>        Frozen;
 		std::optional<core::cycle_round_refusal> Refusal;
 	};
+	/// \brief The round a draft's stored revision would freeze as, assembled
+	/// from the same records as freezing but installed nowhere and recorded
+	/// nowhere (BPR-1161): exactly what sharing it would send.
+	struct cycle_round_preview
+	{
+		core::cycle_round_draft     Draft;
+		core::cycle_round_selection Selection;
+		/// The identity it takes: this revision's round, or the next one.
+		core::cycle_round_id Round;
+		/// The canonical content, unless the selection cannot be frozen.
+		std::optional<core::cycle_decoded_round> Content;
+		std::optional<core::cycle_round_refusal> Refusal;
+		/// This draft revision's round, when it is already frozen.
+		std::optional<stored_cycle_round> Frozen;
+		/// The latest round frozen from this draft, from any revision.
+		std::optional<stored_cycle_round> Prior;
+	};
+	[[nodiscard]] auto preview_cycle_round(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const core::cycle_round_draft_ref& aDraft,
+										   std::stop_token aStop) -> cycle_store_result<cycle_round_preview>;
+
 	/// \brief Freezes the draft revision into an immutable round.
 	/// \details `aHost` must serve the same store and authority.
 	[[nodiscard]] auto freeze_cycle_round(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject,

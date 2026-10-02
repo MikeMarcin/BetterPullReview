@@ -192,8 +192,8 @@ namespace bpr::application {
 		return cycle_round_draft_content{ .Draft = (*stored)->Draft, .Selection = std::move(*selection) };
 	}
 
-	auto freeze_cycle_round(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const cycle_round_freeze_request& aRequest,
-							std::stop_token aStop) -> cycle_store_result<cycle_round_freeze_result>
+	auto preview_cycle_round(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const core::cycle_round_draft_ref& aDraft,
+							 std::stop_token aStop) -> cycle_store_result<cycle_round_preview>
 	{
 		auto cycle = aStore.load(aSubject, aStop);
 		if (!cycle) {
@@ -202,18 +202,12 @@ namespace bpr::application {
 		if (!*cycle) {
 			return failed(cycle_store_failure::not_found);
 		}
-		auto draft = load_round_selection(aStore, aSubject, aRequest.Draft, aStop);
+		auto draft = load_round_selection(aStore, aSubject, aDraft, aStop);
 		if (!draft) {
 			return std::unexpected(draft.error());
 		}
-		if (const auto problem = core::freeze_readiness(aRequest.Editor, draft->Draft.Revision)) {
-			return refused(*problem);
-		}
-		if (aRequest.ExpectedDraftRevision != draft->Draft.Revision) {
-			return refused(core::cycle_round_problem::stale_draft);
-		}
 		const auto& selection = draft->Selection;
-		auto        prior     = latest_round_of(aStore, aSubject, aRequest.Draft, aStop);
+		auto        prior     = latest_round_of(aStore, aSubject, aDraft, aStop);
 		auto        capture   = capture_of(aStore, aSubject, selection.Source, aStop);
 		auto        items     = item_materials(aStore, aSubject, selection, aStop);
 		auto        files     = context_files(aHost, aSubject, selection, aStop);
@@ -222,34 +216,62 @@ namespace bpr::application {
 									   : !items                      ? items.error()
 																	 : files.error());
 		}
+		auto preview = cycle_round_preview{ .Draft = draft->Draft, .Selection = selection, .Prior = *prior };
 		// A draft revision already frozen keeps its round; otherwise the next one.
 		const auto reuse = *prior && (*prior)->Round.DraftRevision == draft->Draft.Revision;
-		const auto round = reuse ? (*prior)->Round.Id.Id : core::cycle_round_id{ (*cycle)->Next.Round };
-		auto       built = core::assemble_round({ .Cycle = &**cycle, .Round = round, .SourceCapture = *capture, .Selection = &selection, .Items = *items, .Files = *files });
+		preview.Round    = reuse ? (*prior)->Round.Id.Id : core::cycle_round_id{ (*cycle)->Next.Round };
+		auto built       = core::assemble_round({ .Cycle = &**cycle, .Round = preview.Round, .SourceCapture = *capture, .Selection = &selection, .Items = *items, .Files = *files });
 		if (!built) {
-			return cycle_round_freeze_result{ .Refusal = built.error() };
+			preview.Refusal = built.error();
+			return preview;
 		}
 		auto canonical = core::encode_round_payload(*built);
 		if (!canonical) {
-			return refused(core::cycle_round_problem::invalid_text);
+			preview.Refusal = core::cycle_round_refusal{ .Problem = core::cycle_round_problem::invalid_text };
+			return preview;
 		}
 		const auto digest = core::round_digest(*canonical);
 		if (reuse && (*prior)->Round.Digest != digest) {
 			// The records changed under an unchanged draft revision: the draft
 			// must be saved again before its new content can be frozen.
+			preview.Refusal = core::cycle_round_refusal{ .Problem = core::cycle_round_problem::stale_draft };
+			return preview;
+		}
+		if (reuse) {
+			preview.Frozen = *prior;
+		}
+		preview.Content = core::cycle_decoded_round{ .Payload = std::move(*built), .Digest = digest, .Canonical = std::move(*canonical) };
+		return preview;
+	}
+
+	auto freeze_cycle_round(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const cycle_round_freeze_request& aRequest,
+							std::stop_token aStop) -> cycle_store_result<cycle_round_freeze_result>
+	{
+		auto preview = preview_cycle_round(aStore, aHost, aSubject, aRequest.Draft, aStop);
+		if (!preview) {
+			return std::unexpected(preview.error());
+		}
+		if (const auto problem = core::freeze_readiness(aRequest.Editor, preview->Draft.Revision)) {
+			return refused(*problem);
+		}
+		if (aRequest.ExpectedDraftRevision != preview->Draft.Revision) {
 			return refused(core::cycle_round_problem::stale_draft);
 		}
-		auto payload = aStore.install(bytes_of(*canonical), aStop);
+		if (preview->Refusal) {
+			return cycle_round_freeze_result{ .Refusal = preview->Refusal };
+		}
+		auto& content = *preview->Content;
+		auto  payload = aStore.install(bytes_of(content.Canonical), aStop);
 		if (!payload) {
 			return std::unexpected(payload.error());
 		}
-		auto receipt = aStore.freeze(aRequest.Operation, { .Subject = aSubject, .Draft = aRequest.Draft, .ExpectedDraftRevision = aRequest.ExpectedDraftRevision, .Payload = *payload, .Round = round }, aStop);
+		auto receipt = aStore.freeze(aRequest.Operation, { .Subject = aSubject, .Draft = aRequest.Draft, .ExpectedDraftRevision = aRequest.ExpectedDraftRevision, .Payload = *payload, .Round = preview->Round }, aStop);
 		if (!receipt) {
 			return std::unexpected(receipt.error());
 		}
 		auto frozen = cycle_frozen_round{
-			.Round    = { .Round = { .Id = { .Cycle = aSubject.Cycle, .Id = round }, .Draft = aRequest.Draft, .DraftRevision = draft->Draft.Revision, .Digest = digest }, .Payload = *payload },
-			.Content  = { .Payload = std::move(*built), .Digest = digest, .Canonical = std::move(*canonical) },
+			.Round    = { .Round = { .Id = { .Cycle = aSubject.Cycle, .Id = preview->Round }, .Draft = aRequest.Draft, .DraftRevision = preview->Draft.Revision, .Digest = content.Digest }, .Payload = *payload },
+			.Content  = std::move(content),
 			.Reused   = !receipt->Changed,
 			.Replayed = receipt->Replayed,
 		};

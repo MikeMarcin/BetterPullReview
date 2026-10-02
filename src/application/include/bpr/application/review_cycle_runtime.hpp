@@ -8,6 +8,7 @@
 #include "bpr/application/review_cycle_import.hpp"
 #include "bpr/application/review_cycle_response.hpp"
 #include "bpr/application/review_cycle_round.hpp"
+#include "bpr/application/review_cycle_share.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_cycle_verification.hpp"
 #include "bpr/application/review_cycle_views.hpp"
@@ -148,6 +149,24 @@ namespace bpr::application {
 		/// \brief One frozen round of the selected cycle, verified against its digest.
 		auto read_round_selected(core::cycle_round_id aRound, completion<cycle_frozen_round> aDone) -> bool;
 		auto rounds_selected(std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool;
+
+		/// \brief Compose feedback (BPR-1161): the selected cycle's latest
+		/// round draft, brought to its notes' current wording, or its first.
+		auto open_share_selected(cycle_operation_id aBegin, cycle_operation_id aSave, completion<cycle_share_draft> aDone) -> bool;
+		/// \brief One edit to the draft Compose feedback shows.
+		auto edit_share_selected(cycle_operation_id aSave, core::cycle_round_draft_ref aDraft, std::uint64_t aExpectedRevision, core::cycle_compose_edit aEdit,
+								 completion<cycle_share_draft> aDone) -> bool;
+		/// \brief Decides, freezes and renders a share whose bytes the host
+		/// hands on itself (Copy to Clipboard, Use in external agent).
+		auto prepare_share_selected(cycle_share_request aRequest, completion<cycle_share_output> aDone) -> bool;
+		/// \brief Shares to the chosen file, used only on the effect lane, and
+		/// records the save.
+		auto share_to_file_selected(cycle_share_request aRequest, std::shared_ptr<cycle_export_destination> aDestination, std::string aName,
+									std::optional<core::cycle_material_digest> aConfirmed, cycle_operation_id aRecord, completion<cycle_file_share> aDone) -> bool;
+		/// \brief Records one delivery observation of a frozen round of the selected cycle.
+		auto record_delivery_selected(cycle_operation_id aOperation, core::cycle_delivery_observation aObservation, completion<cycle_write_receipt> aDone) -> bool;
+		/// \brief Every delivery observation of the selected cycle, in order.
+		auto deliveries_selected(completion<std::vector<core::cycle_delivery_record>> aDone) -> bool;
 
 		/// \brief Opens a portable bundle into this profile's quarantine,
 		/// whatever is selected (BPR-1160). Needs no account, provider or agent.

@@ -3,6 +3,7 @@
 
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/review_cycle_share_page.hpp"
 #include "bpr/qt/suggestion_composer.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
@@ -48,6 +49,9 @@ namespace bpr::qt {
 		/// BPR-1165: the reviewer's decision about a note, and the next round's draft.
 		std::function<void(const core::cycle_feedback_item_ref&, std::optional<core::cycle_reviewer_decision>)> Decide;
 		std::function<void()>                                                                                   PrepareNextRound;
+		/// BPR-1161: Compose feedback opens and leaves; its page's own gestures.
+		std::function<void()>       Compose;
+		review_cycle_share_dispatch Share;
 	};
 
 	class appearance_profile;
@@ -92,8 +96,9 @@ namespace bpr::qt {
 	/// cancels the open note or suggestion from inside it, as its Cancel
 	/// does, and so does Control-C on macOS, where Command-C is Copy (owner,
 	/// native-keyboard v002, 2026-10-02); elsewhere Ctrl+C is Copy and stays
-	/// so. It decides nothing and performs no effect: gestures leave through
-	/// `review_cycle_dispatch`.
+	/// so. Compose feedback (BPR-1161) takes the centre, as a pull request's
+	/// Compose review does, until Back or Escape. It decides nothing and
+	/// performs no effect: gestures leave through `review_cycle_dispatch`.
 	class review_cycle_view final : public QWidget
 	{
 	public:
@@ -158,6 +163,8 @@ namespace bpr::qt {
 		/// \brief The decisions offered for the note at `aRow` (BPR-1165).
 		[[nodiscard]] auto decision_menu(int aRow) -> QMenu*;
 		[[nodiscard]] auto next_round_button() const noexcept -> QToolButton*;
+		/// \brief Compose feedback and Share feedback (BPR-1161).
+		[[nodiscard]] auto share_page() const noexcept -> review_cycle_share_page*;
 		/// \brief The exact anchor for the source pane's selection, if it has one.
 		[[nodiscard]] auto selection_anchor() const -> std::optional<core::cycle_source_anchor>;
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
@@ -175,8 +182,11 @@ namespace bpr::qt {
 		void save_comment();
 		/// The note composer closed without a note; the code takes focus back.
 		void cancel_comment();
-		/// Cancels the open note or suggestion when keyboard focus is inside it.
+		/// Cancels the open note or suggestion when keyboard focus is inside
+		/// it, or leaves Compose feedback from inside it.
 		void cancel_focused_composer();
+		/// The cancel keys are live while a note, a suggestion or Compose feedback is open.
+		void refresh_cancel_keys();
 		void refresh_actions();
 		void step_file(int aDirection);
 		void rebuild_view_menu();
@@ -235,6 +245,7 @@ namespace bpr::qt {
 		QCheckBox*                                           ReplyAbout    = nullptr;
 		QPlainTextEdit*                                      ReplyEditor   = nullptr;
 		QShortcut*                                           CancelKeys    = nullptr;
+		review_cycle_share_page*                             SharePage     = nullptr;
 		std::optional<core::cycle_round_id>                  ReplyRound;
 		std::optional<std::string>                           ReplyItem;
 		bool                                                 Presenting = false;

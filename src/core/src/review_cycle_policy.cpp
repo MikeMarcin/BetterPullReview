@@ -44,8 +44,8 @@ namespace bpr::core {
 			return aPolicy.EnterpriseRestricted;
 		}
 
-		auto channel_decision(const cycle_disclosure_policy& aPolicy, const cycle_data_classification aClassification,
-							  const cycle_disclosure_channel aChannel) -> cycle_authorization
+		auto channel_decision_of(const cycle_disclosure_policy& aPolicy, const cycle_data_classification aClassification,
+								 const cycle_disclosure_channel aChannel) -> cycle_authorization
 		{
 			if (index(aChannel) >= cycle_disclosure_channel_count) {
 				return cycle_authorization::channel_denied;
@@ -89,7 +89,7 @@ namespace bpr::core {
 				if (!aRequest.Channel) {
 					return cycle_authorization::channel_required;
 				}
-				return channel_decision(aPolicy, aRequest.Origin.Classification, *aRequest.Channel);
+				return channel_permission(aPolicy, aRequest.Origin.Classification, *aRequest.Channel);
 			case cycle_capability::publish:
 				return aRequest.PublicationConfirmed ? cycle_authorization::allowed : cycle_authorization::publication_unconfirmed;
 			}
@@ -118,7 +118,7 @@ namespace bpr::core {
 				if (channel != cycle_disclosure_channel::external_retrieval && channel != cycle_disclosure_channel::agent_adapter) {
 					return cycle_authorization::reviewer_only;
 				}
-				return channel_decision(aPolicy, aRequest.Origin.Classification, channel);
+				return channel_permission(aPolicy, aRequest.Origin.Classification, channel);
 			}
 			case cycle_capability::append_response:
 				return grant.AppendResponse ? cycle_authorization::allowed : cycle_authorization::not_granted;
@@ -149,6 +149,11 @@ namespace bpr::core {
 	auto response_only_grant(const local_cycle_subject& aSubject, const cycle_round& aRound) -> cycle_round_grant
 	{
 		return { .Subject = aSubject, .Round = aRound.Id, .Digest = aRound.Digest, .ReadRound = true, .AppendResponse = true };
+	}
+
+	auto channel_permission(const cycle_disclosure_policy& aPolicy, const cycle_data_classification aClassification, const cycle_disclosure_channel aChannel) -> cycle_authorization
+	{
+		return channel_decision_of(aPolicy, aClassification, aChannel);
 	}
 
 	auto authorize(const cycle_disclosure_policy& aPolicy, const cycle_authorization_request& aRequest) -> cycle_authorization

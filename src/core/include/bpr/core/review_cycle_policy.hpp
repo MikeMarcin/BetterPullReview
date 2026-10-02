@@ -170,6 +170,10 @@ namespace bpr::core {
 	/// \brief Decides one request. The same inputs give the same answer from
 	/// the desktop, the CLI or an adapter, whatever format the export uses.
 	[[nodiscard]] auto authorize(const cycle_disclosure_policy& aPolicy, const cycle_authorization_request& aRequest) -> cycle_authorization;
+	/// \brief The channel decision an export makes, on its own: what Share
+	/// feedback lists before a round exists to name (BPR-1161). `authorize`
+	/// reaches the same answer through this for every exporting actor.
+	[[nodiscard]] auto channel_permission(const cycle_disclosure_policy& aPolicy, cycle_data_classification aClassification, cycle_disclosure_channel aChannel) -> cycle_authorization;
 
 	/// \brief Reads a recipient's reported disposition. Only the six claim
 	/// words are accepted; words such as "verified" or "approved" are not a

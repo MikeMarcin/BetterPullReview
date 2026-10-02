@@ -42,6 +42,13 @@ namespace bpr::application {
 	[[nodiscard]] auto reconcile_cycle_items(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, core::cycle_source_revision_id aAgainst,
 											 std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_item_reconciliation>>;
 
+	/// \brief Every note of the cycle, in item order, as a round would carry
+	/// it now: its current wording, the suggestions it still offers and its
+	/// lifecycle (BPR-1161). Whether a round carried it, or a decision
+	/// resolved it, is left unset.
+	[[nodiscard]] auto current_note_items(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, std::stop_token aStop)
+		-> cycle_store_result<std::vector<core::cycle_next_round_item>>;
+
 	struct cycle_next_round_result
 	{
 		/// The new draft, when a previous round existed to carry forward.

@@ -6,6 +6,7 @@
 #include "bpr/core/review_cycle_import.hpp"
 #include "bpr/core/review_cycle_publication.hpp"
 #include "bpr/core/review_cycle_response.hpp"
+#include "bpr/core/review_cycle_share.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
 #include "bpr/core/review_cycle_verification.hpp"
@@ -233,6 +234,13 @@ namespace bpr::application {
 		std::vector<core::cycle_response_record> Responses;
 		std::optional<core::cycle_response_id>   Next;
 	};
+	/// \brief Delivery observations in the order they were made (BPR-1161).
+	struct cycle_delivery_page
+	{
+		std::vector<core::cycle_delivery_record> Deliveries;
+		/// The ordinal to continue after.
+		std::optional<std::uint64_t> Next;
+	};
 
 	struct cycle_verification_page
 	{
@@ -395,6 +403,16 @@ namespace bpr::application {
 		virtual auto append_response(const cycle_operation_id& aOperation, const cycle_response_commit& aCommit, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
 		/// \brief The cycle's statements in append order.
 		virtual auto responses(const core::local_cycle_subject& aSubject, std::optional<core::cycle_response_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_response_page> = 0;
+
+		/// \brief Appends one observation of a frozen round of the cycle
+		/// leaving by one channel (BPR-1161): the round must be this cycle's,
+		/// frozen with the observation's digest, and the core must admit the
+		/// observation. Nothing else in the cycle changes; an observation is
+		/// never a receipt, a reading or a completion. `Allocated` is its ordinal.
+		virtual auto record_delivery(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_delivery_observation& aObservation, std::stop_token aStop)
+			-> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief The cycle's delivery observations in order.
+		virtual auto deliveries(const core::local_cycle_subject& aSubject, std::optional<std::uint64_t> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_delivery_page> = 0;
 
 		/// \brief Appends one reviewer decision about a note (BPR-1165): the
 		/// wording and captured revision it checked and that material's digest.

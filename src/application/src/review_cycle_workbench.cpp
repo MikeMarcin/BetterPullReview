@@ -3,6 +3,7 @@
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <iterator>
@@ -85,6 +86,81 @@ namespace bpr::application {
 			return { };
 		}
 
+		/// What a route does, in the words a status line uses.
+		auto route_words(const core::cycle_share_route aRoute) -> std::string
+		{
+			switch (aRoute) {
+			case core::cycle_share_route::copy_document:  return "copying to the clipboard";
+			case core::cycle_share_route::save_document:  return "saving to a file";
+			case core::cycle_share_route::save_bundle:    return "saving a bundle";
+			case core::cycle_share_route::external_agent: return "reading by an external agent";
+			case core::cycle_share_route::send_to_agent:  return "sending to an agent";
+			}
+			return "sharing";
+		}
+
+		/// A refused route: nothing left, and no other route stood in for it.
+		auto decision_words(const core::cycle_authorization aDecision, const core::cycle_share_route aRoute) -> std::string
+		{
+			switch (aDecision) {
+			case core::cycle_authorization::allowed:              return { };
+			case core::cycle_authorization::channel_denied:       return "Policy for this project's source does not allow " + route_words(aRoute) + ". Nothing was frozen or shared, and no other way was used instead.";
+			case core::cycle_authorization::channel_unconfigured: return "Nothing configured allows " + route_words(aRoute) + " for source of unknown origin. Nothing was frozen or shared, and no other way was used instead.";
+			default:                                              return "Sharing was refused (" + std::string{ core::name(aDecision) } + "). Nothing was frozen or shared.";
+			}
+		}
+
+		auto grouped(const std::uint64_t aValue) -> std::string
+		{
+			auto digits = std::to_string(aValue);
+			for (auto at = static_cast<std::ptrdiff_t>(digits.size()) - 3; at > 0; at -= 3) {
+				digits.insert(static_cast<std::size_t>(at), ",");
+			}
+			return digits;
+		}
+
+		auto limit_words(const core::cycle_round_output_limit& aLimit, const core::cycle_share_route aRoute) -> std::string
+		{
+			const auto what = aRoute == core::cycle_share_route::copy_document ? std::string{ "the clipboard's" } : aRoute == core::cycle_share_route::save_bundle ? std::string{ "a bundle's" }
+																																								   : std::string{ "a saved document's" };
+			auto       text = "The round is " + grouped(aLimit.RequiredBytes) + " bytes (" + grouped(aLimit.Items) + " items, " + grouped(aLimit.Sources) + " sources), over " + what + " limit of "
+				+ grouped(aLimit.BudgetBytes) + " bytes. Nothing was cut short, frozen or shared.";
+			return aRoute == core::cycle_share_route::copy_document ? text + " Save to File keeps all of it." : text;
+		}
+
+		auto refusal_words(const core::cycle_round_refusal& aRefusal) -> std::string
+		{
+			const auto item = aRefusal.Item ? " (item " + std::to_string(*aRefusal.Item + 1U) + ")" : std::string{ };
+			switch (aRefusal.Problem) {
+			case core::cycle_round_problem::empty:            return "Include at least one note to share.";
+			case core::cycle_round_problem::archived_item:    return "A note in the round is archived" + item + "; leave it out to share.";
+			case core::cycle_round_problem::stale_wording:
+			case core::cycle_round_problem::stale_suggestion:
+			case core::cycle_round_problem::stale_draft:      return "The round changed while it was shared; look at it again, then share.";
+			case core::cycle_round_problem::oversized:        return "The round is over its size budget; split it into rounds you choose. Nothing was frozen or shared.";
+			default:                                          return "This round cannot be frozen as it stands (" + std::string{ core::stable_name(aRefusal.Problem) } + "); nothing was shared.";
+			}
+		}
+
+		auto export_words(const cycle_export_failure aFailure) -> std::string
+		{
+			switch (aFailure) {
+			case cycle_export_failure::exists:      return "Another file appeared there while saving; nothing was replaced.";
+			case cycle_export_failure::changed:     return "The file there changed after you chose to replace it; nothing was replaced.";
+			case cycle_export_failure::not_regular: return "That is a link, a folder or another special file; nothing was written.";
+			case cycle_export_failure::too_large:   return "The file there is too large to compare; nothing was written.";
+			case cycle_export_failure::cancelled:   return { };
+			default:                                return "The file could not be written there; nothing was saved.";
+			}
+		}
+
+		/// The file's own name, as UTF-8; never its folder.
+		auto file_name(const std::string& aPath) -> std::string
+		{
+			const auto name = std::filesystem::path{ std::u8string{ aPath.begin(), aPath.end() } }.filename().u8string();
+			return { name.begin(), name.end() };
+		}
+
 		auto revision_name(const core::cycle_source_revision_id aRevision) -> std::string
 		{
 			// The name the surface and the round's wire form use.
@@ -136,6 +212,13 @@ namespace bpr::application {
 		review_cycle_workbench::file_reader Reader;
 		/// Recipient statements, kept to describe notes as they reload.
 		cycle_response_entries Responses;
+		/// What Share feedback may use (BPR-1161).
+		core::cycle_disclosure_policy               Policy;
+		core::cycle_share_capabilities              Capabilities;
+		review_cycle_clipboard*                     Clipboard = nullptr;
+		review_cycle_workbench::destination_factory Destinations;
+		/// Compose edits waiting for the one in flight.
+		std::deque<core::cycle_compose_edit> Edits;
 
 		auto operation() -> cycle_operation_id
 		{
@@ -751,6 +834,207 @@ namespace bpr::application {
 												aSelf.add_suggestions(aItem, std::move(request), aNext + 1U);
 											}));
 		}
+
+		/// Applies the oldest waiting edit to the revision shown now.
+		void next_edit()
+		{
+			if (Edits.empty() || !View.Share) {
+				Edits.clear();
+				return;
+			}
+			View.Activity = review_cycle_activity::saving;
+			View.Share->Replace.reset();
+			publish();
+			Runtime.edit_share_selected(operation(), View.Share->Draft.Id, View.Share->Draft.Revision, Edits.front(), [weak = weak_from_this(), generation = Generation](cycle_store_result<cycle_share_draft> aResult) {
+				const auto self = weak.lock();
+				if (!self || self->Closing || self->Generation != generation) {
+					return;
+				}
+				if (!self->Edits.empty()) {
+					self->Edits.pop_front();
+				}
+				if (!aResult) {
+					self->Edits.clear();
+					if (aResult.error().Failure != cycle_store_failure::cancelled) {
+						self->fail(store_words(aResult.error()));
+					}
+					return;
+				}
+				if (self->View.Share) {
+					self->present_draft(std::move(*aResult));
+					self->View.Share->Status.clear();
+					self->View.Share->Invocation.clear();
+				}
+				if (!self->Edits.empty()) {
+					self->next_edit();
+					return;
+				}
+				self->View.Activity = review_cycle_activity::idle;
+				self->publish();
+			});
+		}
+
+		/// Shows a draft on Compose feedback, keeping what was said about the last share.
+		void present_draft(cycle_share_draft aDraft)
+		{
+			auto        share   = View.Share ? std::move(*View.Share) : review_cycle_share_view{ };
+			const auto& preview = aDraft.Preview;
+			share.Draft         = preview.Draft;
+			share.Selection     = preview.Selection;
+			share.Round         = preview.Round;
+			share.Frozen        = preview.Frozen.has_value();
+			share.Amends        = !share.Frozen && preview.Prior ? std::optional{ preview.Prior->Round.Id.Id } : std::nullopt;
+			share.Refusal       = preview.Refusal;
+			share.Digest.reset();
+			share.Items = share.Suggestions = share.Sources = 0U;
+			share.DocumentName.clear();
+			share.BundleName.clear();
+			if (preview.Content) {
+				const auto& payload = preview.Content->Payload;
+				share.Digest        = preview.Content->Digest;
+				share.Items         = payload.Items.size();
+				share.Sources       = payload.Sources.size();
+				for (const auto& item : payload.Items) {
+					share.Suggestions += item.Suggestions.size();
+				}
+				share.DocumentName = core::round_file_name(payload, core::cycle_round_file_kind::markdown);
+				share.BundleName   = core::round_file_name(payload, core::cycle_round_file_kind::bundle);
+			}
+			share.DocumentShown = aDraft.Document.has_value();
+			share.Document      = aDraft.Document ? std::move(*aDraft.Document) : std::string{ };
+			share.DocumentBytes = aDraft.DocumentBytes;
+			share.Routes        = core::share_routes(Policy, Cycle ? core::cycle_origin(*Cycle) : core::cycle_workspace_origin{ }, Capabilities);
+			View.Share          = std::move(share);
+		}
+
+		/// The draft again, then every observation and the rounds the
+		/// surface lists; `aStatus` says what just happened.
+		void reload_share(std::string aStatus)
+		{
+			Runtime.open_share_selected(operation(), operation(), guarded<cycle_share_draft>([status = std::move(aStatus)](implementation& aSelf, cycle_share_draft aDraft) mutable {
+											if (aSelf.View.Share) {
+												aSelf.present_draft(std::move(aDraft));
+												aSelf.View.Share->Status = std::move(status);
+											}
+											aSelf.Runtime.deliveries_selected(aSelf.guarded<std::vector<core::cycle_delivery_record>>([](implementation& aHost, std::vector<core::cycle_delivery_record> aRecords) {
+												if (aHost.View.Share) {
+													aHost.View.Share->Deliveries = std::move(aRecords);
+												}
+												aHost.Runtime.view_facts_selected(aHost.guarded<core::cycle_view_facts>([](implementation& aLast, core::cycle_view_facts aFacts) {
+													aLast.View.Facts    = std::move(aFacts);
+													aLast.View.Activity = review_cycle_activity::idle;
+													aLast.publish();
+												}));
+											}));
+										}));
+		}
+
+		/// Why nothing left, in plain words; empty when the share produced a round.
+		static auto unshared_words(const cycle_share_output& aOutput, const core::cycle_share_route aRoute) -> std::string
+		{
+			if (aOutput.Decision != core::cycle_authorization::allowed) {
+				return decision_words(aOutput.Decision, aRoute);
+			}
+			if (aOutput.Limit) {
+				return limit_words(*aOutput.Limit, aRoute);
+			}
+			if (aOutput.Refusal || !aOutput.Round) {
+				return refusal_words(aOutput.Refusal.value_or(core::cycle_round_refusal{ }));
+			}
+			return { };
+		}
+
+		/// Copy to Clipboard or Use in external agent, once the round is frozen.
+		void shared(const core::cycle_share_route aRoute, cycle_share_output aOutput)
+		{
+			if (const auto words = unshared_words(aOutput, aRoute); !words.empty()) {
+				reload_share(words);
+				return;
+			}
+			const auto& round = *aOutput.Round;
+			const auto  name  = round.Content.Payload.RoundId;
+			if (aRoute == core::cycle_share_route::external_agent) {
+				// Nothing is sent or started: the reviewer's own harness reads it.
+				if (View.Share) {
+					View.Share->Invocation = "bpr cycle round read " + round.Content.Payload.CycleId + " --round " + name;
+				}
+				reload_share(name + " is ready to be read by your own harness through the local interface. Nothing was sent or started.");
+				return;
+			}
+			const auto outcome     = Clipboard != nullptr ? Clipboard->write(aOutput.Bytes) : review_cycle_clipboard::outcome::unavailable;
+			const auto state       = outcome == review_cycle_clipboard::outcome::confirmed ? core::cycle_delivery_state::copied
+				: outcome == review_cycle_clipboard::outcome::unconfirmed                  ? core::cycle_delivery_state::uncertain
+																						   : core::cycle_delivery_state::failed;
+			const auto words       = state == core::cycle_delivery_state::copied ? "Copied " + name + " to the clipboard (" + grouped(aOutput.Bytes.size()) + " bytes)."
+				: state == core::cycle_delivery_state::uncertain                 ? "The clipboard did not confirm it holds " + name + "; paste to check before relying on it."
+																				 : "There is no clipboard to copy " + name + " to; nothing was copied.";
+			auto       observation = delivery_observation(round, state, core::cycle_disclosure_channel::clipboard, aOutput.Bytes, aOutput.Format);
+			Runtime.record_delivery_selected(operation(), std::move(observation), guarded<cycle_write_receipt>([words](implementation& aSelf, cycle_write_receipt) { aSelf.reload_share(words); }));
+		}
+
+		/// Save to File or Save as Bundle: a conflict asks before replacing anything.
+		void saved(const core::cycle_share_route aRoute, const std::string& aPath, cycle_file_share aResult)
+		{
+			if (const auto words = unshared_words(aResult.Output, aRoute); !words.empty()) {
+				reload_share(words);
+				return;
+			}
+			const auto name = file_name(aPath);
+			if (aResult.Failure) {
+				reload_share(export_words(*aResult.Failure));
+				return;
+			}
+			if (aResult.Save && aResult.Save->Action == core::cycle_round_save_action::conflict && aResult.Save->Existing) {
+				if (View.Share) {
+					View.Share->Replace = review_cycle_replace_request{ .Route = aRoute, .Path = aPath, .Name = name, .Existing = aResult.Save->Existing->Digest, .Size = aResult.Save->Existing->Size };
+				}
+				reload_share(name + " already holds other content (" + grouped(aResult.Save->Existing->Size) + " bytes). Replace it, or keep it and choose another file.");
+				return;
+			}
+			const auto round = aResult.Output.Round->Content.Payload.RoundId;
+			const auto bytes = grouped(aResult.Output.Bytes.size());
+			const auto same  = aResult.Save && aResult.Save->Action == core::cycle_round_save_action::already_saved;
+			reload_share(same ? name + " already holds " + round + " exactly (" + bytes + " bytes); nothing was written." : "Saved " + round + " as " + name + " (" + bytes + " bytes).");
+		}
+
+		void share(const core::cycle_share_route aRoute, std::string aPath, const std::optional<core::cycle_material_digest>& aConfirmed)
+		{
+			if (!View.Share || !Cycle) {
+				return;
+			}
+			auto request = cycle_share_request{
+				.Freeze                = operation(),
+				.Draft                 = View.Share->Draft.Id,
+				.ExpectedDraftRevision = View.Share->Draft.Revision,
+				.Route                 = aRoute,
+				.Policy                = Policy,
+			};
+			View.Share->Replace.reset();
+			View.Share->Invocation.clear();
+			View.Activity = review_cycle_activity::saving;
+			publish();
+			switch (aRoute) {
+			case core::cycle_share_route::copy_document:
+			case core::cycle_share_route::external_agent:
+				Runtime.prepare_share_selected(std::move(request), guarded<cycle_share_output>([aRoute](implementation& aSelf, cycle_share_output aOutput) { aSelf.shared(aRoute, std::move(aOutput)); }));
+				return;
+			case core::cycle_share_route::save_document:
+			case core::cycle_share_route::save_bundle:   {
+				auto destination = Destinations && !aPath.empty() ? std::shared_ptr<cycle_export_destination>{ Destinations(aPath) } : nullptr;
+				if (!destination) {
+					reload_share("Saving needs a file to save to; nothing was saved.");
+					return;
+				}
+				Runtime.share_to_file_selected(std::move(request), std::move(destination), file_name(aPath), aConfirmed, operation(),
+											   guarded<cycle_file_share>([aRoute, path = aPath](implementation& aSelf, cycle_file_share aResult) { aSelf.saved(aRoute, path, std::move(aResult)); }));
+				return;
+			}
+			case core::cycle_share_route::send_to_agent:
+				// No adapter ships in this build; the route is never offered by it.
+				reload_share("No agent adapter is installed here; nothing was sent.");
+				return;
+			}
+		}
 	};
 
 	review_cycle_workbench::review_cycle_workbench(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
@@ -1008,6 +1292,87 @@ namespace bpr::application {
 			aSelf.View.Message.clear();
 			aSelf.publish();
 		}));
+	}
+
+	void review_cycle_workbench::set_share_environment(core::cycle_disclosure_policy aPolicy, const core::cycle_share_capabilities aCapabilities)
+	{
+		Implementation->Policy       = std::move(aPolicy);
+		Implementation->Capabilities = aCapabilities;
+	}
+
+	void review_cycle_workbench::set_clipboard(review_cycle_clipboard* aClipboard)
+	{
+		Implementation->Clipboard = aClipboard;
+	}
+
+	void review_cycle_workbench::set_destination_factory(destination_factory aFactory)
+	{
+		Implementation->Destinations = std::move(aFactory);
+	}
+
+	void review_cycle_workbench::compose()
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle || !self.Cycle->Latest) {
+			return;
+		}
+		self.View.Activity = review_cycle_activity::loading;
+		self.publish();
+		self.Runtime.open_share_selected(self.operation(), self.operation(), self.guarded<cycle_share_draft>([](implementation& aSelf, cycle_share_draft aDraft) {
+			aSelf.View.Share = review_cycle_share_view{ };
+			aSelf.present_draft(std::move(aDraft));
+			aSelf.Runtime.deliveries_selected(aSelf.guarded<std::vector<core::cycle_delivery_record>>([](implementation& aHost, std::vector<core::cycle_delivery_record> aRecords) {
+				if (aHost.View.Share) {
+					aHost.View.Share->Deliveries = std::move(aRecords);
+				}
+				aHost.View.Activity = review_cycle_activity::idle;
+				aHost.publish();
+			}));
+		}));
+	}
+
+	void review_cycle_workbench::close_compose()
+	{
+		auto& self = *Implementation;
+		self.Edits.clear();
+		if (self.View.Share) {
+			self.View.Share.reset();
+			self.publish();
+		}
+	}
+
+	void review_cycle_workbench::edit_composition(core::cycle_compose_edit aEdit)
+	{
+		auto& self = *Implementation;
+		if (!self.View.Share || !self.Cycle) {
+			return;
+		}
+		// Edits apply one after another, each to the revision the last one saved.
+		self.Edits.push_back(std::move(aEdit));
+		if (self.Edits.size() == 1U) {
+			self.next_edit();
+		}
+	}
+
+	void review_cycle_workbench::share(const core::cycle_share_route aRoute, std::string aPath)
+	{
+		Implementation->share(aRoute, std::move(aPath), std::nullopt);
+	}
+
+	void review_cycle_workbench::resolve_replace(const bool aReplace)
+	{
+		auto& self = *Implementation;
+		if (!self.View.Share || !self.View.Share->Replace) {
+			return;
+		}
+		const auto pending = *self.View.Share->Replace;
+		self.View.Share->Replace.reset();
+		if (!aReplace) {
+			self.View.Share->Status = pending.Name + " was kept as it is; nothing was saved.";
+			self.publish();
+			return;
+		}
+		self.share(pending.Route, pending.Path, pending.Existing);
 	}
 
 	auto review_cycle_workbench::projection() const noexcept -> const review_cycle_workbench_projection&

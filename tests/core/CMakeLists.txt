@@ -730,6 +730,13 @@ bpr_enable_hardening(test_better_pull_review_review_cycle_round_markdown_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_round_markdown_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_round_markdown COMMAND test_better_pull_review_review_cycle_round_markdown_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
 
+# [[BPR-1161]]. Share routes decided as authorize decides, Compose feedback's edits and delivery observations.
+bpr_add_executable(test_better_pull_review_review_cycle_share_tests review_cycle_share_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_share_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_share_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_share_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_share COMMAND test_better_pull_review_review_cycle_share_tests)
+
 # [[BPR-1160]]. Portable review bundles: the pack's bundle, determinism and the adversarial corpus.
 bpr_add_executable(test_better_pull_review_review_cycle_bundle_tests review_cycle_bundle_tests.cpp)
 target_link_libraries(test_better_pull_review_review_cycle_bundle_tests PRIVATE BetterPullReview::Core)

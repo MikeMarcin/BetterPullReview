@@ -9,7 +9,9 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAction>
+#include <QClipboard>
 #include <QFileDialog>
+#include <QGuiApplication>
 #include <QRandomGenerator>
 
 #include <algorithm>
@@ -71,6 +73,30 @@ namespace bpr::app {
 	};
 
 	namespace {
+		/// \brief The platform clipboard as Copy to Clipboard sees it
+		/// (BPR-1161): plain text, confirmed only when the platform hands the
+		/// same text back. Nothing here can tell whether anyone pasted it.
+		class platform_clipboard final : public application::review_cycle_clipboard
+		{
+		public:
+			auto write(const std::string_view aText) -> outcome override
+			{
+				auto* const clipboard = QGuiApplication::clipboard();
+				if (clipboard == nullptr) {
+					return outcome::unavailable;
+				}
+				const auto text = QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size()));
+				clipboard->setText(text, QClipboard::Clipboard);
+				return clipboard->text(QClipboard::Clipboard) == text ? outcome::confirmed : outcome::unconfirmed;
+			}
+		};
+
+		auto utf8_path(const std::string& aPath) -> std::filesystem::path
+		{
+			// The path is UTF-8 on every platform, so it is not read in a code page.
+			return std::filesystem::path{ std::u8string{ aPath.begin(), aPath.end() } };
+		}
+
 		/// Operation identities must not repeat across runs of the same profile; the
 		/// global generator is securely seeded.
 		auto random_seed() -> std::array<std::uint8_t, 32>
@@ -126,11 +152,28 @@ namespace bpr::app {
 			.Reply            = [this](const core::cycle_round_id aRound, core::cycle_manual_reply aReply) { Host->attach_reply(aRound, std::move(aReply)); },
 			.Decide           = [this](const core::cycle_feedback_item_ref& aItem, const std::optional<core::cycle_reviewer_decision> aDecision) { Host->decide(aItem, aDecision); },
 			.PrepareNextRound = [this] { Host->prepare_next_round(); },
+			.Compose          = [this] { Host->compose(); },
+			.Share            = {
+				.Back    = [this] { Host->close_compose(); },
+				.Edit    = [this](core::cycle_compose_edit aEdit) { Host->edit_composition(std::move(aEdit)); },
+				.Share   = [this](const core::cycle_share_route aRoute) { share(aRoute); },
+				.Replace = [this](const bool aReplace) { Host->resolve_replace(aReplace); },
+			},
 		});
+		// BPR-1161: Copy writes the platform clipboard; Save writes only the
+		// file chosen, on the effect lane. No other route is reachable here.
+		Clipboard = std::make_unique<platform_clipboard>();
+		Host->set_clipboard(Clipboard.get());
+		Host->set_destination_factory([](const std::string& aPath) { return adapters::workspace::make_local_export_destination(utf8_path(aPath)); });
+		ChooseSave = [this](const std::string& aSuggested, const bool aBundle) {
+			const auto chosen = QFileDialog::getSaveFileName(&Window, aBundle ? QStringLiteral("Save as Bundle") : QStringLiteral("Save to File"), QString::fromStdString(aSuggested),
+															 aBundle ? QStringLiteral("Review bundles (*.bpr-review.zip)") : QStringLiteral("Markdown (*.md);;All files (*)"));
+			const auto bytes  = chosen.toUtf8();
+			return std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) };
+		};
 		// A chosen response file is read on the effect lane, never through a link.
 		Host->set_file_reader([](const std::string& aPath, const std::uint64_t aMaximum, std::stop_token aStop) {
-			// The path is UTF-8 on every platform, so it is not read in a code page.
-			return adapters::workspace::read_chosen_file(std::filesystem::path{ std::u8string{ aPath.begin(), aPath.end() } }, aMaximum, std::move(aStop));
+			return adapters::workspace::read_chosen_file(utf8_path(aPath), aMaximum, std::move(aStop));
 		});
 		Window.set_local_cycle_entry_dispatch(
 			[this] {
@@ -187,6 +230,29 @@ namespace bpr::app {
 	void review_cycle_desktop::adopt_appearance(const qt::appearance_profile& aProfile)
 	{
 		View->adopt_appearance(aProfile);
+	}
+
+	void review_cycle_desktop::set_save_chooser(save_chooser aChooser)
+	{
+		ChooseSave = std::move(aChooser);
+	}
+
+	void review_cycle_desktop::share(const core::cycle_share_route aRoute)
+	{
+		const auto& shown = Host->projection().Share;
+		if (!shown) {
+			return;
+		}
+		if (aRoute != core::cycle_share_route::save_document && aRoute != core::cycle_share_route::save_bundle) {
+			Host->share(aRoute);
+			return;
+		}
+		// The reviewer names the file; nothing is written without one.
+		const auto bundle = aRoute == core::cycle_share_route::save_bundle;
+		auto       path   = ChooseSave ? ChooseSave(bundle ? shown->BundleName : shown->DocumentName, bundle) : std::string{ };
+		if (!path.empty()) {
+			Host->share(aRoute, std::move(path));
+		}
 	}
 
 	void review_cycle_desktop::want_syntax(const qt::suggestion_syntax_request& aRequest)

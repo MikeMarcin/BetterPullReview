@@ -1,12 +1,16 @@
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
+#include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
 #include "bpr/application/review_cycle_workbench.hpp"
+#include "bpr/core/review_cycle_bundle.hpp"
+#include "bpr/core/sha256.hpp"
 #include "workspace_fixture.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -26,7 +30,9 @@
 /// first note and suggestion, resume by root, restart with the same tabs, and
 /// recents. BPR-1163: the manual iteration course, in which Capture revision
 /// is the only way back, and the named views resolve from captures and the
-/// reviewer's own checkpoints.
+/// reviewer's own checkpoints. BPR-1161: Compose feedback and Share
+/// feedback, from the first draft to Copy, Save, a bundle, an amendment, a
+/// refused channel, an optional route and output over the clipboard's limit.
 
 namespace {
 	using namespace bpr;
@@ -365,11 +371,279 @@ namespace {
 	}
 }
 
+namespace {
+	/// The platform clipboard's double: it keeps what was written and
+	/// answers as told.
+	struct clipboard_double final : application::review_cycle_clipboard
+	{
+		outcome                  Answer = outcome::confirmed;
+		std::vector<std::string> Written;
+		auto                     write(const std::string_view aText) -> outcome override
+		{
+			Written.emplace_back(aText);
+			return Answer;
+		}
+	};
+
+	auto offer(const application::review_cycle_share_view& aShare, const core::cycle_share_route aRoute) -> std::optional<core::cycle_share_route_offer>
+	{
+		for (const auto& route : aShare.Routes) {
+			if (route.Route == aRoute) {
+				return route;
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto digest_of(const std::string_view aBytes) -> core::cycle_material_digest
+	{
+		return core::cycle_material_digest{ core::sha256({ reinterpret_cast<const std::uint8_t*>(aBytes.data()), aBytes.size() }) };
+	}
+
+	/// A desk whose Share feedback reaches a clipboard double and chosen files.
+	void connect(desk& aDesk, clipboard_double& aClipboard)
+	{
+		aDesk.Host->set_clipboard(&aClipboard);
+		aDesk.Host->set_destination_factory([](const std::string& aPath) { return adapters::workspace::make_local_export_destination(std::filesystem::path{ aPath }); });
+	}
+
+	/// RC56-07, RC56-10, RC61-05, RC61-06 through the desktop host, the real
+	/// store and real files.
+	void composes_and_shares_one_round(const std::filesystem::path& aScratch)
+	{
+		tests::sqlite_contract::scratch_root profileScratch{ "cycle-share-profile" };
+		const auto&                          profileRoot = profileScratch.path();
+		const auto                           project     = aScratch / "share-project";
+		const auto                           handoff     = aScratch / "share-handoff";
+		write_file(project / "README.md", "# Parser\n");
+		write_file(project / "src" / "parser.cpp", "int parse(const char* aText)\n{\n\treturn check(aText);\n}\n");
+		std::filesystem::create_directories(handoff);
+
+		auto clipboard = clipboard_double{ };
+		auto work      = desk{ profileRoot, 21 };
+		connect(work, clipboard);
+		work.Host->open_project(project.string());
+		work.Lanes.drain();
+		work.Host->open_file("src/parser.cpp", false);
+		const auto source = work.view().Source->Bytes;
+		expect(work.view().Source->Path == "src/parser.cpp", "the parser is shown");
+		const auto at = text(source).find("check(aText)");
+		work.Host->comment({ .Primary = *core::make_anchor(work.view().Source->Revision, "src/parser.cpp", source, at, at + 12U), .Body = "Why check here?" });
+		work.Lanes.drain();
+		work.Host->comment({ .Primary = core::cycle_whole_target{ }, .Body = "Keep the parser free of I/O." });
+		work.Lanes.drain();
+		auto request = application::review_cycle_suggestion_request{ .Rationale = "Name it for what it does." };
+		for (const auto& hunk : core::derive_edit_hunks(text(source), "int parse(const char* aText)\n{\n\treturn validate(aText);\n}\n")) {
+			request.Edits.push_back({ .Selection = *core::make_anchor(work.view().Source->Revision, "src/parser.cpp", source, hunk.Start, hunk.End), .Replacement = hunk.Replacement });
+		}
+		work.Host->suggest(std::move(request));
+		expect(work.view().Notes.size() == 3U && work.view().Message.empty(), "three notes, one with a suggestion");
+		const auto before = snapshot(project);
+
+		// Compose feedback: one complete assignment of every open note, with no
+		// setup, no second prompt and nothing frozen or sent.
+		work.Host->compose();
+		const auto& composed = *work.view().Share;
+		expect(composed.Items == 3U && composed.Suggestions == 1U && composed.Selection.Items.size() == 3U && !composed.Frozen && !composed.Amends && composed.Round == core::cycle_round_id{ 1 },
+			   "the first draft holds every open note, not yet frozen");
+		expect(composed.DocumentShown && composed.DocumentBytes == composed.Document.size() && composed.Document.find("Why check here?") != std::string::npos
+				   && composed.Document.find("Keep the parser free of I/O.") != std::string::npos && composed.Document.find("validate(aText)") != std::string::npos,
+			   "the preview is the readable document, every note and the exact replacement");
+		expect(composed.DocumentName == "RC-1-F1.md" && composed.BundleName == "RC-1-F1.bpr-review.zip", "file names from identities only");
+		expect(composed.Routes.size() == 3U && offer(composed, core::cycle_share_route::copy_document)->offered() && offer(composed, core::cycle_share_route::save_document)->offered()
+				   && offer(composed, core::cycle_share_route::save_bundle)->offered(),
+			   "Copy and Save first-class, with no agent route and no disabled agent banner");
+		expect(work.view().Facts.Rounds.empty() && composed.Deliveries.empty() && clipboard.Written.empty(), "composing froze and sent nothing");
+		const auto preview = composed.Document;
+		const auto f1      = *composed.Digest;
+
+		// Copy: freeze and copy in one gesture; the bytes are the preview's.
+		work.Host->share(core::cycle_share_route::copy_document);
+		const auto& copied = *work.view().Share;
+		expect(clipboard.Written.size() == 1U && clipboard.Written[0] == preview, "the clipboard holds exactly the previewed document");
+		expect(copied.Frozen && copied.Round == core::cycle_round_id{ 1 } && copied.Digest == f1 && work.view().Facts.Rounds.size() == 1U, "F1 frozen by that one gesture");
+		expect(copied.Deliveries.size() == 1U && copied.Deliveries[0].Observation.State == core::cycle_delivery_state::copied && copied.Deliveries[0].Observation.Channel == core::cycle_disclosure_channel::clipboard
+				   && copied.Deliveries[0].Observation.Output && copied.Deliveries[0].Observation.Output->Digest == digest_of(preview) && copied.Deliveries[0].Observation.Output->Bytes == preview.size(),
+			   "observed: copied, with the exact bytes' digest and size");
+		expect(copied.Status.starts_with("Copied F1 to the clipboard") && copied.Status.find("read") == std::string::npos, "the words claim the copy and nothing more");
+
+		// Save the identical round: the same identity and the same bytes.
+		const auto saved = handoff / "RC-1-F1.md";
+		work.Host->share(core::cycle_share_route::save_document, saved.string());
+		const auto& filed = *work.view().Share;
+		expect(read_file(saved) == preview && filed.Round == core::cycle_round_id{ 1 } && work.view().Facts.Rounds.size() == 1U, "saved: the same round, byte for byte");
+		expect(filed.Deliveries.size() == 2U && filed.Deliveries[1].Observation.State == core::cycle_delivery_state::saved && filed.Deliveries[1].Observation.Destination == "RC-1-F1.md"
+				   && filed.Deliveries[1].Observation.Output == filed.Deliveries[0].Observation.Output && filed.Deliveries[1].Observation.Digest == f1,
+			   "observed: saved, under the file's name only, with the same bytes as the copy");
+		work.Host->share(core::cycle_share_route::save_document, saved.string());
+		work.Lanes.drain();
+		expect(work.view().Share->Status.find("nothing was written") != std::string::npos && read_file(saved) == preview, "saving the same bytes again writes nothing");
+
+		// Other bytes at the destination are never replaced unasked.
+		const auto other = handoff / "notes.md";
+		write_file(other, "someone else's notes\n");
+		const auto observed = work.view().Share->Deliveries.size();
+		work.Host->share(core::cycle_share_route::save_document, other.string());
+		const auto& pending = *work.view().Share;
+		expect(pending.Replace && pending.Replace->Name == "notes.md" && pending.Replace->Existing == digest_of("someone else's notes\n") && read_file(other) == "someone else's notes\n"
+				   && pending.Deliveries.size() == observed,
+			   "a conflict asks first, writes nothing and records nothing");
+		work.Host->resolve_replace(false);
+		expect(!work.view().Share->Replace && read_file(other) == "someone else's notes\n", "kept");
+		work.Host->share(core::cycle_share_route::save_document, other.string());
+		expect(work.view().Share->Replace.has_value(), "asked again");
+		work.Host->resolve_replace(true);
+		work.Lanes.drain();
+		expect(read_file(other) == preview && work.view().Share->Deliveries.back().Observation.Destination == "notes.md", "replaced exactly the bytes named, on the reviewer's word");
+
+		// The bundle carries the same round.
+		const auto bundled = handoff / "RC-1-F1.bpr-review.zip";
+		work.Host->share(core::cycle_share_route::save_bundle, bundled.string());
+		work.Lanes.drain();
+		const auto archive = read_file(bundled);
+		const auto opened  = core::open_round_bundle({ reinterpret_cast<const std::uint8_t*>(archive.data()), archive.size() });
+		expect(opened && opened->Round.Digest == f1 && opened->Review == preview, "the bundle holds F1 and its exact document");
+		expect(work.view().Share->Deliveries.back().Observation.Output->Format == core::cycle_round_file_kind::bundle && work.view().Facts.Rounds.size() == 1U, "observed as a bundle of the same round");
+
+		// RC56-07: nothing claims more than happened.
+		for (const auto& record : work.view().Share->Deliveries) {
+			const auto state = record.Observation.State;
+			expect(state == core::cycle_delivery_state::copied || state == core::cycle_delivery_state::saved, "only copies and saves were observed: no retrieval, acceptance or acknowledgment");
+		}
+		expect(work.view().Notes.size() == 3U && std::ranges::all_of(work.view().Notes, [](const application::review_cycle_note_entry& aNote) { return !aNote.Reconciliation || aNote.Reconciliation->Status == core::cycle_item_status::open; }),
+			   "and no note reads as addressed or verified because the round left");
+
+		// An edit after sharing is an amendment: F1 stays exactly as shared.
+		const auto second = work.view().Notes[1].Item.Id;
+		work.Host->edit_composition(core::include_round_item{ .Item = second, .Include = false });
+		const auto& amended = *work.view().Share;
+		expect(!amended.Frozen && amended.Amends == core::cycle_round_id{ 1 } && amended.Round == core::cycle_round_id{ 2 } && amended.Items == 2U && amended.Digest != f1, "the edit is F2, amending F1");
+		expect(amended.Document.find("Keep the parser free of I/O.") == std::string::npos && work.view().Facts.Rounds.size() == 1U, "the edit froze nothing");
+		work.Host->edit_composition(core::move_round_item{ .Item = work.view().Share->Selection.Items[1].Item, .Earlier = true });
+		work.Host->edit_composition(core::set_round_action{ core::cycle_round_action::plan });
+		work.Host->edit_composition(core::set_round_goal{ "Make parsing total." });
+		const auto& ordered = *work.view().Share;
+		expect(ordered.Selection.Action == core::cycle_round_action::plan && ordered.Selection.Goal == "Make parsing total." && ordered.Document.find("Make parsing total.") != std::string::npos
+				   && ordered.Document.find("Name it for what it does.") < ordered.Document.find("Why check here?"),
+			   "order, action and goal are the reviewer's");
+		clipboard.Answer = clipboard_double::outcome::unconfirmed;
+		work.Host->share(core::cycle_share_route::copy_document);
+		const auto& unconfirmed = *work.view().Share;
+		expect(unconfirmed.Frozen && unconfirmed.Round == core::cycle_round_id{ 2 } && work.view().Facts.Rounds.size() == 2U, "F2 frozen");
+		expect(unconfirmed.Deliveries.back().Observation.State == core::cycle_delivery_state::uncertain && unconfirmed.Status.find("did not confirm") != std::string::npos,
+			   "a copy the platform did not confirm is uncertain, not copied");
+		expect(unconfirmed.Deliveries.front().Observation.Digest == f1, "F1's observations still name F1");
+		clipboard.Answer = clipboard_double::outcome::confirmed;
+
+		// RC56-10: a refused channel shares nothing and is not routed around.
+		auto policy                                                                                          = core::cycle_disclosure_policy{ };
+		policy.Unclassified.Channels.at(static_cast<std::size_t>(core::cycle_disclosure_channel::clipboard)) = core::cycle_channel_permission::denied;
+		work.Host->set_share_environment(policy, { });
+		work.Host->edit_composition(core::include_round_item{ .Item = second });
+		const auto& refused = *work.view().Share;
+		expect(offer(refused, core::cycle_share_route::copy_document)->Decision == core::cycle_authorization::channel_denied && offer(refused, core::cycle_share_route::save_document)->offered(),
+			   "Copy shown refused; Save decided on its own");
+		const auto writes = clipboard.Written.size();
+		const auto seen   = refused.Deliveries.size();
+		work.Host->share(core::cycle_share_route::copy_document);
+		const auto& denied = *work.view().Share;
+		expect(clipboard.Written.size() == writes && denied.Deliveries.size() == seen && !denied.Frozen && work.view().Facts.Rounds.size() == 2U, "nothing copied, recorded or frozen");
+		expect(denied.Status.find("does not allow copying") != std::string::npos && denied.Status.find("no other way was used") != std::string::npos, "said in words, with no fallback");
+		expect(std::filesystem::directory_iterator{ handoff } != std::filesystem::directory_iterator{ } && !std::filesystem::exists(handoff / "RC-1-F3.md"), "and no file was written instead");
+
+		// RC61-06: Use in external agent appears only when reachable, needs its
+		// own allowance, adds nothing and starts nothing.
+		work.Host->set_share_environment({ }, { .ExternalInterface = true });
+		work.Host->edit_composition(core::set_round_goal{ "Make parsing total, and say why." });
+		expect(offer(*work.view().Share, core::cycle_share_route::external_agent)->Decision == core::cycle_authorization::channel_unconfigured, "unknown source: not allowed until configured");
+		work.Host->share(core::cycle_share_route::external_agent);
+		expect(work.view().Share->Invocation.empty() && !work.view().Share->Frozen && work.view().Facts.Rounds.size() == 2U, "refused: no invocation, nothing frozen");
+		auto open                                                                                                   = core::cycle_disclosure_policy{ };
+		open.Unclassified.Channels.at(static_cast<std::size_t>(core::cycle_disclosure_channel::external_retrieval)) = core::cycle_channel_permission::allowed;
+		work.Host->set_share_environment(open, { .ExternalInterface = true });
+		const auto expected = *work.view().Share->Digest;
+		const auto recorded = work.view().Share->Deliveries.size();
+		work.Host->share(core::cycle_share_route::external_agent);
+		const auto& external = *work.view().Share;
+		expect(external.Invocation == "bpr cycle round read RC-1 --round F3" && external.Frozen && external.Digest == expected, "the exact round, as previewed, ready to be read");
+		expect(external.Deliveries.size() == recorded && clipboard.Written.size() == writes, "no delivery claimed and nothing sent until something reads it");
+
+		// Over the clipboard's limit: said with the full measure; Save keeps it all.
+		work.Host->close_compose();
+		expect(!work.view().Share && snapshot(project) == before, "closing Compose keeps the draft; the project was only read");
+		std::cout << "NATIVE: Compose and Share through the host: copy, save, conflict, bundle, amendment, refused channel, external route\n";
+	}
+
+	/// Output over the clipboard's limit is refused with its measure and
+	/// nothing cut short or frozen; Save to File stays offered.
+	void refuses_a_copy_over_the_clipboard_limit(const std::filesystem::path& aScratch)
+	{
+		tests::sqlite_contract::scratch_root profileScratch{ "cycle-share-limit" };
+		const auto&                          profileRoot = profileScratch.path();
+		const auto                           project     = aScratch / "large-project";
+		auto                                 large       = std::string{ };
+		while (large.size() <= core::maximum_round_clipboard_bytes) {
+			large += "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde\n";
+		}
+		write_file(project / "data.txt", large);
+		auto clipboard = clipboard_double{ };
+		auto subject   = core::local_cycle_subject{ };
+		{
+			auto first = desk{ profileRoot, 31 };
+			first.Host->open_project(project.string());
+			first.Lanes.drain();
+			first.Host->comment({ .Primary = core::cycle_whole_target{ }, .Body = "Read all of it." });
+			first.Lanes.drain();
+			first.Host->compose();
+			expect(first.view().Share && first.view().Share->Items == 1U, "a first draft");
+			subject = first.view().Cycle->Subject;
+		}
+		// The whole file joins the draft as explicitly admitted large context.
+		{
+			application::manual_executor      lanes;
+			application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(profileRoot, profile), lanes, lanes };
+			runtime.select(subject);
+			auto draft = std::optional<application::cycle_store_result<application::cycle_round_draft_content>>{ };
+			runtime.load_round_selected({ .Cycle = subject.Cycle, .Id = core::cycle_round_draft_id{ 1 } }, [&](auto aValue) { draft = std::move(aValue); });
+			lanes.drain();
+			expect(draft && *draft, "the draft");
+			auto selection         = (*draft)->Selection;
+			selection.Context      = { { .Revision = selection.Source, .Path = "data.txt" } };
+			selection.LargeContext = true;
+			auto saved             = std::optional<application::cycle_store_result<application::cycle_write_receipt>>{ };
+			auto operation         = std::array<std::uint8_t, 32>{ };
+			operation[0]           = 0xC1;
+			runtime.save_round_selected(application::cycle_operation_id{ operation }, (*draft)->Draft.Id, (*draft)->Draft.Revision, selection, [&](auto aValue) { saved = std::move(aValue); });
+			lanes.drain();
+			expect(saved && *saved, "context selected");
+			runtime.shutdown();
+			lanes.drain();
+		}
+		auto work = desk{ profileRoot, 32 };
+		connect(work, clipboard);
+		work.Host->open_project(project.string());
+		work.Lanes.drain();
+		work.Host->compose();
+		const auto& composed = *work.view().Share;
+		expect(composed.Sources == 1U && composed.DocumentBytes > core::maximum_round_clipboard_bytes && !composed.DocumentShown && composed.Document.empty(), "measured in full, not shown in part");
+		work.Host->share(core::cycle_share_route::copy_document);
+		const auto& refused = *work.view().Share;
+		expect(clipboard.Written.empty() && refused.Deliveries.empty() && !refused.Frozen && work.view().Facts.Rounds.empty(), "nothing copied, frozen or recorded");
+		expect(refused.Status.find(std::to_string(core::maximum_round_clipboard_bytes).substr(0, 2)) != std::string::npos && refused.Status.find("Nothing was cut short") != std::string::npos
+				   && refused.Status.find("Save to File keeps all of it") != std::string::npos,
+			   "the limit and the full measure, in words");
+		expect(offer(refused, core::cycle_share_route::save_document)->offered(), "Save to File stays offered for the whole document");
+		std::cout << "NATIVE: a round over the clipboard's limit refused with its measure, nothing cut short\n";
+	}
+}
+
 auto main(const int aArgc, char** aArgv) -> int
 try {
 	tests::sqlite_contract::scratch_root scratch{ "cycle-workbench" };
 	opens_a_folder_to_a_first_note(scratch.path());
 	iterates_manually(scratch.path(), tests::workspace_contract::git_from(aArgc, aArgv));
+	composes_and_shares_one_round(scratch.path());
+	refuses_a_copy_over_the_clipboard_limit(scratch.path());
 	std::cout << "review-cycle-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

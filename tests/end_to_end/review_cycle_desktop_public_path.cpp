@@ -17,6 +17,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QDir>
 #include <QGuiApplication>
 #include <QImage>
@@ -62,6 +63,8 @@
 /// recents, and a switch to a pull request and back. The source pane is in
 /// the review panes' syntax colours, and a profile whose cycles another
 /// version saved leaves Home in place and says so when a project is opened.
+/// BPR-1161: Compose feedback and Share feedback through the real composition:
+/// the platform clipboard, a chosen file and the store, across a restart.
 
 namespace {
 	using namespace bpr;
@@ -800,9 +803,76 @@ try {
 		   "the next round's draft: the verified note left out, the other note added");
 	expect(snapshot(project) == written && page->projection().Revisions.size() == 2U, "deciding and preparing wrote no source");
 	capture(window, QStringLiteral("desktop-cycle-verified"));
+
+	// BPR-1161: Compose feedback opens that draft; one click freezes F2 and
+	// copies it, Save writes the same bytes to the file chosen, and each
+	// observation is listed in its own words, after a restart too.
+	const auto handoff = scratch.path() / "handoff";
+	std::filesystem::create_directories(handoff);
+	auto chosen = std::vector<std::string>{ };
+	desktop.set_save_chooser([&](const std::string& aSuggested, const bool aBundle) {
+		chosen.push_back(aSuggested);
+		const auto path = (handoff / aSuggested).u8string();
+		return aBundle ? std::string{ } : std::string{ path.begin(), path.end() };
+	});
+	auto* const clipboard = QGuiApplication::clipboard();
+	const auto  kept      = clipboard->text();
+	page->compose_action()->trigger();
+	settle(lanes);
+	auto* const share = page->share_page();
+	expect(share->isVisible() && page->projection().Share && page->projection().Share->Round == core::cycle_round_id{ 2 } && page->projection().Share->Items == 1U, "Compose opens the next round's draft");
+	expect(share->title()->text() == QStringLiteral("Feedback round F2 · not shared yet") && share->items()->count() >= 1 && share->items()->item(0)->checkState() == Qt::Checked, "F2, its note included");
+	auto* const copy = share->route_button(core::cycle_share_route::copy_document);
+	expect(copy->isVisible() && copy->isEnabled() && share->route_button(core::cycle_share_route::save_document)->isEnabled() && !share->route_button(core::cycle_share_route::external_agent)->isVisible()
+			   && !share->route_button(core::cycle_share_route::send_to_agent)->isVisible(),
+		   "Copy and Save, and no agent route in a build with none");
+	const auto bytes    = page->projection().Share->Document;
+	const auto document = QString::fromUtf8(bytes.data(), static_cast<qsizetype>(bytes.size()));
+	expect(share->preview()->toPlainText() == QString{ document }.remove(QLatin1Char('\r')) && document.startsWith(QStringLiteral("#")) && document.contains(QStringLiteral("validate(aText)")),
+		   "the preview is the readable document, the suggestion in it");
+	capture(window, QStringLiteral("desktop-cycle-share-draft"));
+	const auto unchanged = snapshot(project);
+	copy->click();
+	settle(lanes);
+	const auto& copied = *page->projection().Share;
+	expect(clipboard->text() == document && copied.Frozen && copied.Round == core::cycle_round_id{ 2 } && page->projection().Facts.Rounds.size() == 2U, "one click froze F2 and copied exactly the preview");
+	expect(share->status()->text().startsWith(QStringLiteral("Copied F2 to the clipboard")) && share->deliveries()->item(0)->text().startsWith(QStringLiteral("F2 · Copied to the clipboard")), "and says only that");
+	share->route_button(core::cycle_share_route::save_document)->click();
+	settle(lanes);
+	expect(chosen == std::vector<std::string>{ "RC-1-F2.md" } && read_file(handoff / "RC-1-F2.md") == bytes, "Save offers the round's own name and writes the same bytes");
+	share->route_button(core::cycle_share_route::save_bundle)->click();
+	settle(lanes);
+	expect(chosen.size() == 2U && chosen[1] == "RC-1-F2.bpr-review.zip" && !std::filesystem::exists(handoff / "RC-1-F2.bpr-review.zip") && page->projection().Share->Deliveries.size() == 2U,
+		   "a save dialog dismissed writes nothing and records nothing");
+	expect(share->deliveries()->count() == 2 && share->deliveries()->item(1)->text().startsWith(QStringLiteral("F2 · Saved as RC-1-F2.md")), "copied and saved, each said apart");
+	expect(snapshot(project) == unchanged && page->projection().Revisions.size() == 2U, "sharing wrote no source and captured nothing");
+	capture(window, QStringLiteral("desktop-cycle-share-shared"));
+	clipboard->setText(kept);
+	share->items()->setFocus(Qt::TabFocusReason);
+	tests::window_system_key(*share->items(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+	settle(lanes);
+	expect(!share->isVisible() && !page->projection().Share && (page->source()->isVisible() || page->comparison()->isVisible()), "Escape is Back; the reading pane again");
 	desktop.shutdown();
 	settle(lanes);
 	expect(desktop.is_quiescent(), "quiescent after shutdown");
+	{
+		// A restart: the observations are the store's, not the window's.
+		auto other = qt::workbench_window{ };
+		other.resize(1280, 800);
+		other.show();
+		auto again = app::review_cycle_desktop{ other, profile.path(), core::bpr_profile_id{ 1 }, lanes, lanes };
+		again.open_project(project.string());
+		settle(lanes);
+		auto* const restarted = other.local_cycle();
+		restarted->compose_action()->trigger();
+		settle(lanes);
+		const auto& reopened = *restarted->projection().Share;
+		expect(reopened.Frozen && reopened.Round == core::cycle_round_id{ 2 } && reopened.Deliveries.size() == 2U && restarted->share_page()->deliveries()->item(0)->text().startsWith(QStringLiteral("F2 · Copied")),
+			   "after a restart F2 is still shared, with the same two observations");
+		again.shutdown();
+		settle(lanes);
+		expect(again.is_quiescent(), "the restarted desktop is quiescent");
+	}
 
 	// BPR-1157 v001 was rejected on a window that showed an empty
 	// "Open Project · Local cycle" page at start: an older build met a store

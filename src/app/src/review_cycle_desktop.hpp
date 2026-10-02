@@ -11,6 +11,7 @@
 
 #include <array>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -72,6 +73,11 @@ namespace bpr::app {
 		void open_project(const std::string& aLocation);
 		/// \brief Gives the source pane and Suggest change the applied syntax colours.
 		void adopt_appearance(const qt::appearance_profile& aProfile);
+		/// \brief Chooses the file Save to File or Save as Bundle writes, given
+		/// the suggested name; empty when the reviewer chose none (BPR-1161).
+		using save_chooser = std::function<std::string(const std::string& aSuggested, bool aBundle)>;
+		/// \brief Replaces the native save dialog, for a course that cannot answer one.
+		void set_save_chooser(save_chooser aChooser);
 		/// \brief The window's pull request took the review surface back.
 		void               leave();
 		[[nodiscard]] auto host() noexcept -> application::review_cycle_workbench&;
@@ -91,6 +97,8 @@ namespace bpr::app {
 		/// The composer's two sides, then the source pane.
 		static constexpr std::size_t source_slot = 2U;
 
+		/// Share feedback by one route; Save asks for the file first.
+		void share(core::cycle_share_route aRoute);
 		void want_syntax(const qt::suggestion_syntax_request& aRequest);
 		void want_source_syntax(const qt::source_syntax_request& aRequest);
 		void want(std::size_t aSlot, const std::string& aPath, const std::string& aDocument);
@@ -110,6 +118,9 @@ namespace bpr::app {
 		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>        SyntaxClassifier;
 		std::unique_ptr<application::syntax_classification_application_host> SyntaxHost;
 		std::array<std::optional<wanted_syntax>, 3>                          Wanted;
+		/// The platform clipboard Copy to Clipboard writes to (BPR-1161).
+		std::unique_ptr<application::review_cycle_clipboard> Clipboard;
+		save_chooser                                         ChooseSave;
 
 		/// Whether the reviewer has asked for a cycle, so a refusal is said on
 		/// the page rather than taking Home over at start.
