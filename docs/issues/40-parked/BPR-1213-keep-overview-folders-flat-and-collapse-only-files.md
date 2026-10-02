@@ -9,7 +9,7 @@ priority: "P2"
 platforms: ["mac","win","linux"]
 metadata: {"origin":"Owner clarification during BPR-1199 review, 2026-09-26","related_rfcs":["RFC-BPR-0037"],"related_issues":["BPR-0934","BPR-0972","BPR-1199"],"scope":"Tracking-only later Overview presentation correction; not a new performance requirement or private-comparison diagnosis","session":"2c2e72e3af2e2fd7fa1a566ec49bc5ca","candidate":"BPR-1199-private-comparison-v001","candidate_revision":"c982586fbfc774614c6f4993c4e6c81d450d15be; executable sha256 4c4adf38b82511e9d2b77e7fc85f6f8fd3a4a327e15341ca65e23aecdd23bf58","fingerprint":"ef60b7926f20db034da29907f0d9e30c4d5bf2f7aeb48e4981f3083599d0d212","decision_id":"a74d529b-4aff-4662-b97a-a78d0277b255","mandate_revision":"r4-with-owner-compose-20260925-r3; coordinator tracking addendum 2026-09-26"}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"qt_pull_request_overview_page: one row per folder that holds files, named by whole path (no Engine/Private/Deep rows), zero indentation and a single left column for folder rows and direct, deep and root files; compared point by point with the owner's quoted request on the card; native macOS and offscreen 1.0/1.25/2.0 renders inspected."}},{"criterion":"AC2","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and application_setup_destination_public_path: accessible expandable/expanded folder state; the row click, disclosure mark and Left/Right hide only that folder's files and restore the same identities and order; focus moves to the folder without file activation; same-authority refresh keeps collapse and focus; authority clearing drops the former expansion."}},{"criterion":"AC3","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"Focused Qt course covers empty intermediate folders, direct, nested and root files, sibling folders, collapse/reopen, incremental insert/remove/reorder refresh and authority transition; the composed read-only Overview course also passes; application_active_changed_scaling passes; zero dispatches and no comparison from disclosure; renders at 1.0/1.25/2.0 and natively. Windows/Linux native evidence not captured."}},{"criterion":"AC4","outcome":"pending","revision":"830ef134b","evidence":{"kind":"freeform","detail":"Owner verdicts at hand-back 815, session cbd48b91: BPR-1213-flat-rows-v001 accepted (event 813); BPR-1213-collapse-v001 rejected (event 812): \"Impossible to tell with this PR, only one folder and no subfidrs\". Collapse needs asking again on a pull request with several folders and nested subfolders."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"qt_pull_request_overview_page: one row per folder that holds files, named by whole path (no Engine/Private/Deep rows), zero indentation and a single left column for folder rows and direct, deep and root files; compared point by point with the owner's quoted request on the card; native macOS and offscreen 1.0/1.25/2.0 renders inspected."}},{"criterion":"AC2","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and application_setup_destination_public_path: accessible expandable/expanded folder state; the row click, disclosure mark and Left/Right hide only that folder's files and restore the same identities and order; focus moves to the folder without file activation; same-authority refresh keeps collapse and focus; authority clearing drops the former expansion."}},{"criterion":"AC3","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"Focused Qt course covers empty intermediate folders, direct, nested and root files, sibling folders, collapse/reopen, incremental insert/remove/reorder refresh and authority transition; the composed read-only Overview course also passes; application_active_changed_scaling passes; zero dispatches and no comparison from disclosure; renders at 1.0/1.25/2.0 and natively. Windows/Linux native evidence not captured."}},{"criterion":"AC4","outcome":"pending","revision":"830ef134b","evidence":{"kind":"freeform","detail":"Owner verdicts at hand-back 815, session cbd48b91: BPR-1213-flat-rows-v001 accepted (event 813); BPR-1213-collapse-v001 rejected (event 812): \"Impossible to tell with this PR, only one folder and no subfidrs\". Collapse needs asking again on a pull request with several folders and nested subfolders. BPR-1213-collapse-v002 (fingerprint e573cace…, session sequence 825) asks it on the constructed nested-folders-v1 pull request, frozen build of 0f6e7b292, app sha256 d1c5ed68…; pending."}}]
 ---
 
 # Keep Overview folders flat and collapse only their files
@@ -189,3 +189,48 @@ AC4 stays pending on the collapse question. The next step is a separate
 milestone: ask `collapse-v002` on a pull request with several folders and
 nested subfolders. The flat-rows verdict stands. Both candidates are still
 protected for that milestone. The card stays Parked.
+
+## Collapse asked again on nested folders — 2026-10-02
+
+No existing sanitized fixture has nested folders: `uiforetw-74` has one,
+`large-review-v1` has four flat ones, and the other recordings have fewer.
+`0f6e7b292` adds `nested-folders-v1`, a constructed pull request
+(`bpr-fixtures/nested-folders#21`) with 17 files in 12 folder rows, folders
+nested three deep (`src`, `src/engine`, `src/engine/shaders`,
+`src/engine/shaders/post`), intermediate folders with no file of their own
+(`src/ui`, `tests/ui`, `tools`, `tools/build`) and a root file.
+`scripts/build_nested_folders_fixture.py` writes its construction, and the
+existing pack and contract builders make its `objects.pack` and served tree.
+It is served as `--github-fixture nested-folders-v1`; see
+`tests/fixtures/github/pull-requests/nested-folders-v1/README.md`.
+
+No collapse defect showed up with nested folders, so the Overview code did
+not change. A folder row hides only the files directly in it. A deeper
+folder is its own row and stays, with its files.
+
+| Check | Result |
+|---|---|
+| `application_nested_overview_folders_public_path` (new, composed) | Pass. Opens the pull request on Overview. Rows are `/`, `docs`, `docs/api`, `docs/api/v2`, `src`, `src/engine`, `src/engine/shaders`, `src/engine/shaders/post`, `src/ui/widgets`, `tests/engine`, `tests/ui/widgets`, `tools/build/scripts`, all expanded, and all 17 files share the folder rows' left column. A click on `src` hides only `src/main.cpp`. Left on `src/engine/shaders` hides only its two files, keeps it current, and leaves `post` shown. Right and a second click restore the same files in order. No file selection, no comparison, still Overview. The collapsed and expanded offscreen captures were inspected |
+| `application_github_public_path_nested_folders_v1` (new) | Pass. `PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:nested-folders-v1`, `RENDER_OK` |
+| `github_recorded_fixture_contract`, `github_contract_fixture_security` | Pass. Negative control: one hand-edited path in the served `files.json` fails the byte comparison |
+| `test_network_isolation_structure_contract`, `test_network_isolation_manifest` | Pass with both new rows pinned `dos-volume-name`. The Windows pin is by analogy with the `uiforetw-74` and selected-file-safety rows, not measured |
+| Frozen app, native cocoa | `PUBLIC_PATH_OK` in 2.0 s. The native render is attached to the question |
+| clang-format; documentation gate | Pass; `DOCUMENTATION_OK` |
+
+`BPR-1213-collapse-v001` was released by candidate name. Its Reject stays
+recorded. `BPR-1213-collapse-v002` (fingerprint `e573cace…`) is ready in session
+`cbd48b91…` at sequence 825 and asks one Accept/Reject question. The owner opens
+`https://github.com/bpr-fixtures/nested-folders/pull/21`, clicks `src`
+(only `main.cpp` hides), clicks or presses Left on `src/engine/shaders`
+(only `basic.frag` and `basic.vert` hide, and `post` stays), and restores
+both. The frozen tests-enabled app is
+`/Users/jaeger/bpr1213-review-v002.tXA1Io/BetterPullReview-bpr1213-v002.app`,
+built from `0f6e7b292`, executable SHA-256
+`d1c5ed68e9bb0fc28371712776b0be42b3fe889535a95727fed9011d98544eee`. It reads
+its fixture from this checkout. Its `launch.py` sets HOME and
+CFFIXED_USER_HOME to the root's `home` and closes the window after 15
+minutes. `flat-rows-v001` keeps its Accept and protection.
+
+Next: on hand-back, record the v002 verdict against its fingerprint. On
+Accept, AC4 is complete. Finish the card with Windows and Linux native renders
+recorded as not captured. On Reject, apply the note.
