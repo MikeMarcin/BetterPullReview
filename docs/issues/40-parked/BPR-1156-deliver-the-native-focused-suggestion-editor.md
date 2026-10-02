@@ -332,3 +332,37 @@ lines. The requested `ctest --preset dev -j4` selection passes **14 of 14** in
 - `syntax_classification_contract` and `architecture_boundaries`
 
 No pixel check failed at 1×. No remote mutation.
+
+## Windows at `54c4154d4`, whole-file Suggest change (bpr-main-win, 2026-10-01)
+
+At `54c4154d4`, which contains `da459c4e1`. Windows 11 Home 10.0.26200, MSVC
+14.51, Qt 6.11.2, `build/windows-dev` Debug.
+
+So that no stale executable could pass, the 11 executables these rows run
+were deleted before the build:
+
+- the four core test executables;
+- `better_pull_review_suggestion_editor_tests.exe` and
+  `better_pull_review_review_cycle_view_tests.exe`;
+- `review_cycle_suggestion.exe` and `review_cycle_workbench.exe`;
+- `review_cycle_desktop_public_path.exe`;
+- `better_pull_review_syntax_classification_contract_tests.exe`;
+- `better_pull_review.exe`.
+
+`cmake --build --preset windows-dev` exited 0 and printed no `warning C` line,
+and all 11 were rebuilt. No Windows-only compile fix was needed.
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^(core_suggestion_text_editing|core_review_cycle_(feedback|suggestion|tabs)|qt_suggestion_editor_|qt_review_cycle_view_|review_cycle_workbench|review_cycle_suggestion|application_review_cycle_desktop_public_path|application_review_round_trip_composition_contract|syntax_classification_contract|architecture_boundaries)"
+```
+
+All 14 rows pass, in 28.02 s:
+
+- `review_cycle_suggestion` (1.25 s) and `review_cycle_workbench` (4.59 s);
+- `qt_suggestion_editor_1_0` (0.45 s) and `_2_0` (0.77 s);
+- `qt_review_cycle_view_1_0` (2.03 s) and `_2_0` (5.70 s);
+- `application_review_cycle_desktop_public_path` (9.66 s);
+- `application_review_round_trip_composition_contract` (12.40 s);
+- `syntax_classification_contract` (0.43 s);
+- the four core rows;
+- `architecture_boundaries` (27.96 s).
