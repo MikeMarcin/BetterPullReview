@@ -12,7 +12,7 @@ metadata: {"origin":"focused BPR-1170 run, build/dev-tour-cli, macOS arm64, 2026
 
 ## Observation
 
-At `0c2b55488` (main), `ctest --test-dir build/dev-tour-cli -R
+At `1b8fd4a5c` (main), `ctest --test-dir build/dev-tour-cli -R
 "^coding_format_check$"` fails with one file needing formatting:
 `src/app/src/tour_cli.cpp`, line 649, the long `capabilities` presentation
 initializer whose `export_policy` conditional continues on line 650.
