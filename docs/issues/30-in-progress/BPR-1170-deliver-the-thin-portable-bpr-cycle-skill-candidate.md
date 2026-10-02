@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1170"
 title: "Deliver the thin portable bpr-cycle skill candidate"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0058"]
 depends_on: ["BPR-1169"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "external-consumers", "acceptance": ["RC58-08", "RC58-10"], "pack_alias": "PACK-CYCLE-28", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
