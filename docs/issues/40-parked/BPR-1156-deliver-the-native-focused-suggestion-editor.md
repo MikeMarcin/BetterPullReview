@@ -587,3 +587,18 @@ The 14-row selection above passes 14/14, in 28.60 s, with every
 before/after-Suggest-change comparison and role/text colour check unchanged.
 The build printed no `warning C` line, and `clang-format --dry-run --Werror`
 is clean. The macOS and Linux reruns are the coordinator's.
+
+### Linux at `3868375a7`: cached glyph runs (bpr-main-linux, 2026-10-02)
+
+Includes `3868375a7`. WSL2, GCC 15.2, `build/dev` Debug, offscreen.
+`cmake --preset dev && cmake --build --preset dev` exits 0 with 0 `warning:`
+lines. The same 14-row `ctest --preset dev -j4` selection passes **14 of 14**
+in 21.16 s, with every pixel check unchanged.
+
+| Row | `53d27c5b2`, -j4 | `3868375a7`, -j4 | `3868375a7`, alone (-j1, 3 runs) |
+|---|---|---|---|
+| `qt_review_cycle_view_1_0` | 2.06 s | 1.00 s | 0.97, 0.96, 0.96 s |
+| `qt_review_cycle_view_2_0` | 3.23 s | 3.00 s | 1.83, 1.82, 1.83 s |
+
+The -j4 times depend on what ran beside them. The rows ran alone only at this
+revision. No remote mutation.
