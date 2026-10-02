@@ -53,6 +53,9 @@ namespace bpr::app::detail {
 		large_review_v1,
 		/// Synthetic two-file sibling-head graph for independent window restoration.
 		profile_window_restoration_v1,
+		/// [[BPR-1213]]. Constructed 17-file pull request with several folders,
+		/// nested subfolders and a root file, served on github.com with one head.
+		nested_folders_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

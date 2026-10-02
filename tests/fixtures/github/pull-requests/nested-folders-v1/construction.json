@@ -1,0 +1,225 @@
+{
+	"commits": [
+		{
+			"author": {
+				"date": "2020-01-01T00:00:00Z",
+				"name": "fixture-author"
+			},
+			"message": "Move renderer, shaders and widgets into nested folders",
+			"parents": [
+				"c58160c2ffe27d7cf5e6759d78b80f023547c789"
+			],
+			"sha": "b20cb443428212543f5911e091a0ffeb407d23cf"
+		}
+	],
+	"constructed": "Synthetic BPR-1213 fixture written by scripts/build_nested_folders_fixture.py; not a recording",
+	"files": [
+		{
+			"additions": 2,
+			"base_content_base64": "IyBOZXN0ZWQgRm9sZGVycwoKQSBzeW50aGV0aWMgcHJvamVjdCBmb3IgcmV2aWV3IGZpeHR1cmVzLgoKQnVpbGQgd2l0aCBgdG9vbHMvYnVpbGQvc2NyaXB0cy9wYWNrYWdlLnB5YC4K",
+			"changes": 3,
+			"deletions": 1,
+			"filename": "README.md",
+			"head_content_base64": "IyBOZXN0ZWQgRm9sZGVycwoKQSBzeW50aGV0aWMgcHJvamVjdCBmb3IgcmV2aWV3IGZpeHR1cmVzLgoKQnVpbGQgd2l0aCBgdG9vbHMvYnVpbGQvc2NyaXB0cy9wYWNrYWdlLnB5IC0tcmVsZWFzZWAuClJ1biB0aGUgdGVzdHMgZnJvbSBgdGVzdHMvYC4K",
+			"patch": "@@ -2,4 +2,5 @@\n \n A synthetic project for review fixtures.\n \n-Build with `tools/build/scripts/package.py`.\n+Build with `tools/build/scripts/package.py --release`.\n+Run the tests from `tests/`.",
+			"sha": "d86fd4874cefc1ab0418df0dc44a9ee5b2764450",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "IyBBUEkgcmVmZXJlbmNlCgojIyBSZW5kZXJlcgoKYFJlbmRlcmVyOjpkcmF3KClgIGRyYXdzIG9uZSBmcmFtZS4K",
+			"changes": 1,
+			"deletions": 0,
+			"filename": "docs/api/reference.md",
+			"head_content_base64": "IyBBUEkgcmVmZXJlbmNlCgojIyBSZW5kZXJlcgoKYFJlbmRlcmVyOjpkcmF3KClgIGRyYXdzIG9uZSBmcmFtZS4KYFJlbmRlcmVyOjpyZXNpemUod2lkdGgsIGhlaWdodClgIGNoYW5nZXMgdGhlIHRhcmdldCBzaXplLgo=",
+			"patch": "@@ -3,3 +3,4 @@\n ## Renderer\n \n `Renderer::draw()` draws one frame.\n+`Renderer::resize(width, height)` changes the target size.",
+			"sha": "d6a3404d563eb9528f18cbb221c71de9b7278bdc",
+			"status": "modified"
+		},
+		{
+			"additions": 4,
+			"changes": 4,
+			"deletions": 0,
+			"filename": "docs/api/v2/endpoints.md",
+			"head_content_base64": "IyBWZXJzaW9uIDIgZW5kcG9pbnRzCgotIGBHRVQgL2ZyYW1lc2AgbGlzdHMgcmVjZW50IGZyYW1lcy4KLSBgR0VUIC9mcmFtZXMve2lkfWAgcmV0dXJucyBvbmUgZnJhbWUuCg==",
+			"patch": "@@ -0,0 +1,4 @@\n+# Version 2 endpoints\n+\n+- `GET /frames` lists recent frames.\n+- `GET /frames/{id}` returns one frame.",
+			"sha": "2a9d461182ba9126426f61d7c249301fbf00f0d1",
+			"status": "added"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "IyBHdWlkZQoKT3BlbiB0aGUgbWFpbiB3aW5kb3cgYW5kIGNob29zZSBhIHNjZW5lLgo=",
+			"changes": 1,
+			"deletions": 0,
+			"filename": "docs/guide.md",
+			"head_content_base64": "IyBHdWlkZQoKT3BlbiB0aGUgbWFpbiB3aW5kb3cgYW5kIGNob29zZSBhIHNjZW5lLgpQcmVzcyBGIHRvIHNob3cgdGhlIGZyYW1lIGNvdW50ZXIuCg==",
+			"patch": "@@ -1,3 +1,4 @@\n # Guide\n \n Open the main window and choose a scene.\n+Press F to show the frame counter.",
+			"sha": "bb3b3a29ca1d36a2b79cb861178d8ad96250788a",
+			"status": "modified"
+		},
+		{
+			"additions": 7,
+			"base_content_base64": "I2luY2x1ZGUgInJlbmRlcmVyLmgiCgp2b2lkIFJlbmRlcmVyOjpkcmF3KCkKewoJY2xlYXIoKTsKCXByZXNlbnQoKTsKfQo=",
+			"changes": 7,
+			"deletions": 0,
+			"filename": "src/engine/renderer.cpp",
+			"head_content_base64": "I2luY2x1ZGUgInJlbmRlcmVyLmgiCgp2b2lkIFJlbmRlcmVyOjpkcmF3KCkKewoJY2xlYXIoKTsKCWRyYXdfc2NlbmUoKTsKCXByZXNlbnQoKTsKfQoKdm9pZCBSZW5kZXJlcjo6cmVzaXplKGNvbnN0IGludCBhV2lkdGgsIGNvbnN0IGludCBhSGVpZ2h0KQp7CglXaWR0aCAgPSBhV2lkdGg7CglIZWlnaHQgPSBhSGVpZ2h0Owp9Cg==",
+			"patch": "@@ -3,5 +3,12 @@\n void Renderer::draw()\n {\n \tclear();\n+\tdraw_scene();\n \tpresent();\n }\n+\n+void Renderer::resize(const int aWidth, const int aHeight)\n+{\n+\tWidth  = aWidth;\n+\tHeight = aHeight;\n+}",
+			"sha": "d4ca47188030aaeb563fd92fb9fd174e48934198",
+			"status": "modified"
+		},
+		{
+			"additions": 5,
+			"base_content_base64": "I3ByYWdtYSBvbmNlCgpjbGFzcyBSZW5kZXJlcgp7CnB1YmxpYzoKCXZvaWQgZHJhdygpOwoKcHJpdmF0ZToKCXZvaWQgY2xlYXIoKTsKCXZvaWQgcHJlc2VudCgpOwp9Owo=",
+			"changes": 5,
+			"deletions": 0,
+			"filename": "src/engine/renderer.h",
+			"head_content_base64": "I3ByYWdtYSBvbmNlCgpjbGFzcyBSZW5kZXJlcgp7CnB1YmxpYzoKCXZvaWQgZHJhdygpOwoJdm9pZCByZXNpemUoaW50IGFXaWR0aCwgaW50IGFIZWlnaHQpOwoKcHJpdmF0ZToKCXZvaWQgY2xlYXIoKTsKCXZvaWQgZHJhd19zY2VuZSgpOwoJdm9pZCBwcmVzZW50KCk7CgoJaW50IFdpZHRoICA9IDA7CglpbnQgSGVpZ2h0ID0gMDsKfTsK",
+			"patch": "@@ -4,8 +4,13 @@\n {\n public:\n \tvoid draw();\n+\tvoid resize(int aWidth, int aHeight);\n \n private:\n \tvoid clear();\n+\tvoid draw_scene();\n \tvoid present();\n+\n+\tint Width  = 0;\n+\tint Height = 0;\n };",
+			"sha": "11c5e3de47a7447652346d89b47eb82bbc5f99e6",
+			"status": "modified"
+		},
+		{
+			"additions": 2,
+			"base_content_base64": "I3ZlcnNpb24gMzMwIGNvcmUKaW4gdmVjNCB2Q29sb3VyOwpvdXQgdmVjNCBmcmFnQ29sb3VyOwp2b2lkIG1haW4oKSB7IGZyYWdDb2xvdXIgPSB2Q29sb3VyOyB9Cg==",
+			"changes": 3,
+			"deletions": 1,
+			"filename": "src/engine/shaders/basic.frag",
+			"head_content_base64": "I3ZlcnNpb24gMzMwIGNvcmUKaW4gdmVjNCB2Q29sb3VyOwp1bmlmb3JtIGZsb2F0IHVFeHBvc3VyZTsKb3V0IHZlYzQgZnJhZ0NvbG91cjsKdm9pZCBtYWluKCkgeyBmcmFnQ29sb3VyID0gdkNvbG91ciAqIHVFeHBvc3VyZTsgfQo=",
+			"patch": "@@ -1,4 +1,5 @@\n #version 330 core\n in vec4 vColour;\n+uniform float uExposure;\n out vec4 fragColour;\n-void main() { fragColour = vColour; }\n+void main() { fragColour = vColour * uExposure; }",
+			"sha": "db70c9b577d4946c133beab69fa143dc43ad1d4b",
+			"status": "modified"
+		},
+		{
+			"additions": 2,
+			"base_content_base64": "I3ZlcnNpb24gMzMwIGNvcmUKbGF5b3V0KGxvY2F0aW9uID0gMCkgaW4gdmVjMyBhUG9zaXRpb247CnZvaWQgbWFpbigpIHsgZ2xfUG9zaXRpb24gPSB2ZWM0KGFQb3NpdGlvbiwgMS4wKTsgfQo=",
+			"changes": 3,
+			"deletions": 1,
+			"filename": "src/engine/shaders/basic.vert",
+			"head_content_base64": "I3ZlcnNpb24gMzMwIGNvcmUKbGF5b3V0KGxvY2F0aW9uID0gMCkgaW4gdmVjMyBhUG9zaXRpb247CnVuaWZvcm0gbWF0NCB1UHJvamVjdGlvbjsKdm9pZCBtYWluKCkgeyBnbF9Qb3NpdGlvbiA9IHVQcm9qZWN0aW9uICogdmVjNChhUG9zaXRpb24sIDEuMCk7IH0K",
+			"patch": "@@ -1,3 +1,4 @@\n #version 330 core\n layout(location = 0) in vec3 aPosition;\n-void main() { gl_Position = vec4(aPosition, 1.0); }\n+uniform mat4 uProjection;\n+void main() { gl_Position = uProjection * vec4(aPosition, 1.0); }",
+			"sha": "d3606eb92be1a8916f808eddb576f38d9d6bc5b5",
+			"status": "modified"
+		},
+		{
+			"additions": 5,
+			"changes": 5,
+			"deletions": 0,
+			"filename": "src/engine/shaders/post/bloom.frag",
+			"head_content_base64": "I3ZlcnNpb24gMzMwIGNvcmUKdW5pZm9ybSBzYW1wbGVyMkQgdVNjZW5lOwppbiB2ZWMyIHZVdjsKb3V0IHZlYzQgZnJhZ0NvbG91cjsKdm9pZCBtYWluKCkgeyBmcmFnQ29sb3VyID0gdGV4dHVyZSh1U2NlbmUsIHZVdikgKiAxLjI7IH0K",
+			"patch": "@@ -0,0 +1,5 @@\n+#version 330 core\n+uniform sampler2D uScene;\n+in vec2 vUv;\n+out vec4 fragColour;\n+void main() { fragColour = texture(uScene, vUv) * 1.2; }",
+			"sha": "0807494990d8cc91bc955ce65763589a8dddcc3c",
+			"status": "added"
+		},
+		{
+			"additions": 5,
+			"changes": 5,
+			"deletions": 0,
+			"filename": "src/engine/shaders/post/tonemap.frag",
+			"head_content_base64": "I3ZlcnNpb24gMzMwIGNvcmUKdW5pZm9ybSBzYW1wbGVyMkQgdVNjZW5lOwppbiB2ZWMyIHZVdjsKb3V0IHZlYzQgZnJhZ0NvbG91cjsKdm9pZCBtYWluKCkgeyB2ZWM0IGMgPSB0ZXh0dXJlKHVTY2VuZSwgdlV2KTsgZnJhZ0NvbG91ciA9IGMgLyAoYyArIHZlYzQoMS4wKSk7IH0K",
+			"patch": "@@ -0,0 +1,5 @@\n+#version 330 core\n+uniform sampler2D uScene;\n+in vec2 vUv;\n+out vec4 fragColour;\n+void main() { vec4 c = texture(uScene, vUv); fragColour = c / (c + vec4(1.0)); }",
+			"sha": "0e4f2743c6bcdc149a9891668128e45881ff94bd",
+			"status": "added"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "I2luY2x1ZGUgImVuZ2luZS9yZW5kZXJlci5oIgoKaW50IG1haW4oKQp7CglSZW5kZXJlciByZW5kZXJlcjsKCXJlbmRlcmVyLmRyYXcoKTsKCXJldHVybiAwOwp9Cg==",
+			"changes": 1,
+			"deletions": 0,
+			"filename": "src/main.cpp",
+			"head_content_base64": "I2luY2x1ZGUgImVuZ2luZS9yZW5kZXJlci5oIgoKaW50IG1haW4oKQp7CglSZW5kZXJlciByZW5kZXJlcjsKCXJlbmRlcmVyLnJlc2l6ZSgxMjgwLCA3MjApOwoJcmVuZGVyZXIuZHJhdygpOwoJcmV0dXJuIDA7Cn0K",
+			"patch": "@@ -3,6 +3,7 @@\n int main()\n {\n \tRenderer renderer;\n+\trenderer.resize(1280, 720);\n \trenderer.draw();\n \treturn 0;\n }",
+			"sha": "803cd0d7ebfe61e18e1fcd6549b8ddbaa9029dfb",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "I2luY2x1ZGUgImJ1dHRvbi5oIgoKdm9pZCBCdXR0b246OmNsaWNrKCkKewoJaWYgKEhhbmRsZXIpIHsKCQlIYW5kbGVyKCk7Cgl9Cn0K",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "src/ui/widgets/button.cpp",
+			"head_content_base64": "I2luY2x1ZGUgImJ1dHRvbi5oIgoKdm9pZCBCdXR0b246OmNsaWNrKCkKewoJaWYgKEVuYWJsZWQgJiYgSGFuZGxlcikgewoJCUhhbmRsZXIoKTsKCX0KfQo=",
+			"patch": "@@ -2,7 +2,7 @@\n \n void Button::click()\n {\n-\tif (Handler) {\n+\tif (Enabled && Handler) {\n \t\tHandler();\n \t}\n }",
+			"sha": "11ad358b0cf2ae356f8d85ac28695e3926b552dc",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "I3ByYWdtYSBvbmNlCgojaW5jbHVkZSA8ZnVuY3Rpb25hbD4KCmNsYXNzIEJ1dHRvbgp7CnB1YmxpYzoKCXZvaWQgY2xpY2soKTsKCglzdGQ6OmZ1bmN0aW9uPHZvaWQoKT4gSGFuZGxlcjsKfTsK",
+			"changes": 1,
+			"deletions": 0,
+			"filename": "src/ui/widgets/button.h",
+			"head_content_base64": "I3ByYWdtYSBvbmNlCgojaW5jbHVkZSA8ZnVuY3Rpb25hbD4KCmNsYXNzIEJ1dHRvbgp7CnB1YmxpYzoKCXZvaWQgY2xpY2soKTsKCglzdGQ6OmZ1bmN0aW9uPHZvaWQoKT4gSGFuZGxlcjsKCWJvb2wgICAgICAgICAgICAgICAgICBFbmFibGVkID0gdHJ1ZTsKfTsK",
+			"patch": "@@ -8,4 +8,5 @@\n \tvoid click();\n \n \tstd::function<void()> Handler;\n+\tbool                  Enabled = true;\n };",
+			"sha": "fae2d01d61e35edef877da46cbf189355a911d54",
+			"status": "modified"
+		},
+		{
+			"additions": 6,
+			"changes": 6,
+			"deletions": 0,
+			"filename": "src/ui/widgets/slider.cpp",
+			"head_content_base64": "I2luY2x1ZGUgInNsaWRlci5oIgoKdm9pZCBTbGlkZXI6OnNldF92YWx1ZShjb25zdCBpbnQgYVZhbHVlKQp7CglWYWx1ZSA9IGFWYWx1ZSA8IE1pbmltdW0gPyBNaW5pbXVtIDogKGFWYWx1ZSA+IE1heGltdW0gPyBNYXhpbXVtIDogYVZhbHVlKTsKfQo=",
+			"patch": "@@ -0,0 +1,6 @@\n+#include \"slider.h\"\n+\n+void Slider::set_value(const int aValue)\n+{\n+\tValue = aValue < Minimum ? Minimum : (aValue > Maximum ? Maximum : aValue);\n+}",
+			"sha": "4b4401fbc29ba7bd2ab7f885519578d2eace3873",
+			"status": "added"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "I2luY2x1ZGUgImVuZ2luZS9yZW5kZXJlci5oIgoKaW50IG1haW4oKQp7CglSZW5kZXJlciByZW5kZXJlcjsKCXJlbmRlcmVyLmRyYXcoKTsKCXJldHVybiAwOwp9Cg==",
+			"changes": 1,
+			"deletions": 0,
+			"filename": "tests/engine/renderer_tests.cpp",
+			"head_content_base64": "I2luY2x1ZGUgImVuZ2luZS9yZW5kZXJlci5oIgoKaW50IG1haW4oKQp7CglSZW5kZXJlciByZW5kZXJlcjsKCXJlbmRlcmVyLnJlc2l6ZSgxLCAxKTsKCXJlbmRlcmVyLmRyYXcoKTsKCXJldHVybiAwOwp9Cg==",
+			"patch": "@@ -3,6 +3,7 @@\n int main()\n {\n \tRenderer renderer;\n+\trenderer.resize(1, 1);\n \trenderer.draw();\n \treturn 0;\n }",
+			"sha": "44ed90dee677e3aa0dceca2770c540ba298fc4e9",
+			"status": "modified"
+		},
+		{
+			"additions": 11,
+			"changes": 11,
+			"deletions": 0,
+			"filename": "tests/ui/widgets/button_tests.cpp",
+			"head_content_base64": "I2luY2x1ZGUgInVpL3dpZGdldHMvYnV0dG9uLmgiCgppbnQgbWFpbigpCnsKCWF1dG8gY2xpY2tlZCA9IGZhbHNlOwoJQnV0dG9uIGJ1dHRvbjsKCWJ1dHRvbi5IYW5kbGVyID0gWyZdIHsgY2xpY2tlZCA9IHRydWU7IH07CglidXR0b24uRW5hYmxlZCA9IGZhbHNlOwoJYnV0dG9uLmNsaWNrKCk7CglyZXR1cm4gY2xpY2tlZCA/IDEgOiAwOwp9Cg==",
+			"patch": "@@ -0,0 +1,11 @@\n+#include \"ui/widgets/button.h\"\n+\n+int main()\n+{\n+\tauto clicked = false;\n+\tButton button;\n+\tbutton.Handler = [&] { clicked = true; };\n+\tbutton.Enabled = false;\n+\tbutton.click();\n+\treturn clicked ? 1 : 0;\n+}",
+			"sha": "c4e6aba492ae6bd9cdb74b43d573d8a07d7a025f",
+			"status": "added"
+		},
+		{
+			"additions": 2,
+			"base_content_base64": "aW1wb3J0IHN5cwoKZGVmIG1haW4oKToKICAgIHByaW50KCdwYWNrYWdpbmcnKQogICAgcmV0dXJuIDAKCnN5cy5leGl0KG1haW4oKSkK",
+			"changes": 3,
+			"deletions": 1,
+			"filename": "tools/build/scripts/package.py",
+			"head_content_base64": "aW1wb3J0IHN5cwoKZGVmIG1haW4oKToKICAgIHJlbGVhc2UgPSAnLS1yZWxlYXNlJyBpbiBzeXMuYXJndgogICAgcHJpbnQoJ3BhY2thZ2luZycsICdyZWxlYXNlJyBpZiByZWxlYXNlIGVsc2UgJ2RlYnVnJykKICAgIHJldHVybiAwCgpzeXMuZXhpdChtYWluKCkpCg==",
+			"patch": "@@ -1,7 +1,8 @@\n import sys\n \n def main():\n-    print('packaging')\n+    release = '--release' in sys.argv\n+    print('packaging', 'release' if release else 'debug')\n     return 0\n \n sys.exit(main())",
+			"sha": "675d33df2beeb940bd6fb0d30d73d06a46e482f8",
+			"status": "modified"
+		}
+	],
+	"pull_request": {
+		"additions": 57,
+		"author": {
+			"login": "fixture-author"
+		},
+		"base": {
+			"ref": "main",
+			"sha": "c58160c2ffe27d7cf5e6759d78b80f023547c789"
+		},
+		"body": "Constructed fixture: several folders, nested subfolders and a root file.\n",
+		"changed_files": 17,
+		"commits": 1,
+		"deletions": 5,
+		"head": {
+			"ref": "nested-folders",
+			"sha": "b20cb443428212543f5911e091a0ffeb407d23cf"
+		},
+		"number": 21,
+		"state": "open",
+		"title": "Move renderer, shaders and widgets into nested folders"
+	},
+	"repository": {
+		"name": "nested-folders",
+		"owner": "bpr-fixtures"
+	}
+}

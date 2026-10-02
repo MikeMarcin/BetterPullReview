@@ -417,6 +417,29 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "uiforetw-74/objects.pack" },
 				};
+			// [[BPR-1213]]. Constructed by `scripts/build_nested_folders_fixture.py`
+			// and served like `uiforetw_74`: one head, github.com's capability
+			// snapshot, and the commits the pack builder makes from its blobs.
+			case github_public_path_fixture::nested_folders_v1:
+				return {
+					.ContractDirectory   = "nested-folders-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 21U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "nested-folders",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "c58160c2ffe27d7cf5e6759d78b80f023547c789",
+					.HeadOneOid          = "b20cb443428212543f5911e091a0ffeb407d23cf",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "nested-folders-v1/objects.pack" },
+				};
 			}
 			return { };
 		}

@@ -7949,6 +7949,22 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 0,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "nested-folders-v1") {
+				// [[BPR-1213]]. Constructed, not recorded: several folders,
+				// nested subfolders and a root file, for judging the Overview's
+				// folder rows. It carries no review, thread or comment.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::nested_folders_v1;
+				fixtureName            = "nested-folders-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move renderer, shaders and widgets into nested folders",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else {
 				QTextStream{ stdout } << "PUBLIC_PATH_FAILED\n";
 				return EXIT_FAILURE;

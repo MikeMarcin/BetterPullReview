@@ -1856,6 +1856,35 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# [[BPR-1213]]. The constructed nested-folders pull request, served through
+# the same public path and the same evidence gate as the recorded one.
+bpr_add_network_isolated_test(
+    NAME application_github_public_path_nested_folders_v1
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --github-fixture
+        nested-folders-v1
+        --render-evidence
+        "${CMAKE_CURRENT_BINARY_DIR}/github-public-path-nested-folders-v1.png"
+        --automated-run-budget-ms
+        ${bpr_fixture_run_budget_ms}
+)
+set_tests_properties(
+    application_github_public_path_nested_folders_v1
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:nested-folders-v1[\r\n]+RENDER_OK"
+)
+bpr_bound_automated_run(
+    application_github_public_path_nested_folders_v1
+    TIMEOUT 60
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 bpr_add_network_isolated_test(
     NAME application_uiforetw_selected_diff_contract
     WINDOWS_UNCONTAINED
@@ -2858,6 +2887,16 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_selected_file_safety_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 60
     PASS_REGULAR_EXPRESSION "selected-file-safety-public-path:pass")
+# [[BPR-1213]]. The constructed nested-folders pull request on Overview: flat
+# folder rows, and a click or Left/Right hiding only that folder's own files.
+bpr_add_network_isolated_test(
+    NAME application_nested_overview_folders_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --nested-overview-folders
+)
+set_tests_properties(application_nested_overview_folders_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 60
+    PASS_REGULAR_EXPRESSION "nested-overview-folders-public-path:pass")
 
 bpr_add_executable(test_attended_recent_replay attended_recent_replay_tests.cpp)
 target_link_libraries(test_attended_recent_replay PRIVATE BetterPullReview::Composition BetterPullReview::AdapterGitHub)

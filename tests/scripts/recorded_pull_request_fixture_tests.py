@@ -260,7 +260,73 @@ def check(expected: dict) -> None:
 
 
 
-def check_generated_contract_matches(name: str) -> None:
+# [[BPR-1213]]. Constructed pull requests: no provenance line to hold, but the
+# same served-tree and pack checks, plus the construction itself regenerating
+# to the same bytes and its blobs diffing to the counts it claims.
+CONSTRUCTIONS = (
+    {
+        "Directory": "nested-folders-v1",
+        "Generator": "scripts/build_nested_folders_fixture.py",
+        "Files": 17,
+        "Folders": 12,
+    },
+)
+
+
+def check_construction(expected: dict) -> None:
+    name = expected["Directory"]
+    path = ROOT / "tests/fixtures/github/pull-requests" / name / "construction.json"
+    expect(path.is_file(), f"{name}: the construction exists at {path}")
+    if not path.is_file():
+        return
+    with contained_temporary_directory() as directory:
+        regenerated = Path(directory) / "construction.json"
+        result = subprocess.run(
+            [sys.executable, str(ROOT / expected["Generator"]), str(regenerated)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        expect(
+            result.returncode == 0 and regenerated.read_bytes() == path.read_bytes(),
+            f"{name}: construction.json is exactly what {expected['Generator']} "
+            "writes, so it was not edited by hand",
+        )
+    raw = path.read_text(encoding="utf-8")
+    construction = json.loads(raw)
+    expect(
+        "recorded_from" not in construction and "recorded_on" not in construction
+        and bool(construction.get("constructed")),
+        f"{name}: a construction says so and makes no recording claim",
+    )
+    expect(
+        re.findall(r"https?://", raw) == [],
+        f"{name}: a construction names no URL",
+    )
+    lowered = raw.lower()
+    for token in FORBIDDEN:
+        expect(token not in lowered, f"{name}: the construction carries no {token!r}")
+    files = construction.get("files", [])
+    expect(len(files) == expected["Files"], f"{name}: carries {expected['Files']} files, found {len(files)}")
+    folders = {entry["filename"].rpartition("/")[0] for entry in files}
+    expect(
+        len(folders) == expected["Folders"],
+        f"{name}: its files sit in {expected['Folders']} folders, found {len(folders)}",
+    )
+    for entry in files:
+        before = base64.b64decode(entry.get("base_content_base64", "")).decode("utf-8").splitlines()
+        after = base64.b64decode(entry["head_content_base64"]).decode("utf-8").splitlines()
+        diff = list(difflib.unified_diff(before, after, n=0))
+        adds = sum(1 for line in diff if line.startswith("+") and not line.startswith("+++"))
+        dels = sum(1 for line in diff if line.startswith("-") and not line.startswith("---"))
+        expect(
+            (adds, dels) == (entry["additions"], entry["deletions"])
+            and (entry["status"] == "added") == ("base_content_base64" not in entry),
+            f"{name}: {entry['filename']!r} blobs diff to +{adds} -{dels} as claimed",
+        )
+
+
+def check_generated_contract_matches(name: str, source: str = "recording.json") -> None:
     """The served tree must be exactly what the generator writes today.
 
     The contract directory is generated from `recording.json`, so the two can
@@ -268,7 +334,7 @@ def check_generated_contract_matches(name: str) -> None:
     pass. Regenerating into a temporary directory and comparing bytes is the
     only check that notices; comparing shapes would not.
     """
-    recording = ROOT / "tests/fixtures/github/pull-requests" / name / "recording.json"
+    recording = ROOT / "tests/fixtures/github/pull-requests" / name / source
     committed = ROOT / "tests/fixtures/github/contracts/v1" / name
     if not committed.is_dir():
         return
@@ -288,7 +354,7 @@ def check_generated_contract_matches(name: str) -> None:
         )
         if result.returncode != 0:
             FAILURES.append(
-                f"{name}: the generator refuses its own recording: "
+                f"{name}: the generator refuses its own {source}: "
                 f"{result.stderr.strip()}"
             )
             return
@@ -316,7 +382,7 @@ def check_generated_contract_matches(name: str) -> None:
             ).read_bytes():
                 FAILURES.append(
                     f"{name}: {relative} differs from what the generator "
-                    f"writes from recording.json - the served tree was edited "
+                    f"writes from {source} - the served tree was edited "
                     f"by hand, or the generator changed without regenerating"
                 )
 
@@ -339,6 +405,14 @@ def main() -> int:
         check(expected)
         check_generated_contract_matches(expected["Directory"])
         check_pack(expected["Directory"])
+    for expected in CONSTRUCTIONS:
+        check_construction(expected)
+        check_generated_contract_matches(expected["Directory"], "construction.json")
+        check_pack(expected["Directory"])
+        expect(
+            (ROOT / "tests/fixtures/github/contracts/v1" / expected["Directory"]).is_dir(),
+            f"{expected['Directory']}: the served contract tree exists",
+        )
 
     for failure in FAILURES:
         print(f"FAILED: {failure}", file=sys.stderr)

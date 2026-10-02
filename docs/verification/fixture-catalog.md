@@ -63,6 +63,21 @@ It claims `github-com`'s capability directory rather than a copy of it: the
 recorded pull request lives on github.com, so the honest capability claim is
 GitHub.com's pinned schema snapshot.
 
+### `nested-folders-v1`, a constructed pull request with nested folders
+
+The fourth `--github-fixture` name, added for [[BPR-1213]]. It is constructed,
+not recorded: `scripts/build_nested_folders_fixture.py` writes its 17 files'
+base and head text into
+`tests/fixtures/github/pull-requests/nested-folders-v1/construction.json`, and
+the same pack and contract builders as `uiforetw-74` turn that into
+`objects.pack` and the served tree. It exists because the recorded pull request
+has one folder and no subfolder, which is too little to judge the Overview's
+folder rows and their disclosure. Its files sit in 12 folders, including
+folders nested three deep and intermediate folders with no file of their own.
+The construction carries no `recorded_from`, names no URL, and its fixture test
+regenerates it byte for byte. Like `uiforetw-74`, it serves the builder's
+commits, one head, and github.com's capability snapshot.
+
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,
 transport metadata, remote URLs, patches, source content, email addresses,

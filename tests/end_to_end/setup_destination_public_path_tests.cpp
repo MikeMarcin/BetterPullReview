@@ -53,9 +53,11 @@
 #include <cstdlib>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <utility>
 
 #if defined(Q_OS_MACOS)
@@ -303,6 +305,128 @@ namespace {
 		capture(window, QStringLiteral("folder-retains-exact-diff.png"));
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "folder course quiescence");
+	}
+
+	/// [[BPR-1213]]. The constructed nested-folders pull request in the
+	/// composed window, on the Overview it opens on: the flat folder rows the
+	/// owner judges, and a click or Left/Right on one of them hiding and
+	/// showing only that folder's own files, never a deeper folder's.
+	void run_nested_overview_folders_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated nested-folders course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private nested-folders course root");
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::nested_folders_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "nested-folders course startup");
+		expect(owner != nullptr, "nested-folders course application");
+		auto& window = owner->window();
+		window.resize(1100, 900);
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_open_action()->isEnabled(); }, "nested-folders course connection");
+		submit(window, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const page  = window.overview_page();
+		auto* const view  = page->files_view();
+		auto* const model = page->file_model();
+		wait_for([&] { return page->isVisible() && page->presented() && model->file_count() == 17U; }, "nested-folders pull request opens on Overview with all 17 files");
+		expect(window.current_modality() == qt::review_modality::overview, "the named pull request opens on Overview");
+		const auto folders = QStringList{ QStringLiteral("/"), QStringLiteral("docs"), QStringLiteral("docs/api"), QStringLiteral("docs/api/v2"),
+										  QStringLiteral("src"), QStringLiteral("src/engine"), QStringLiteral("src/engine/shaders"),
+										  QStringLiteral("src/engine/shaders/post"), QStringLiteral("src/ui/widgets"), QStringLiteral("tests/engine"),
+										  QStringLiteral("tests/ui/widgets"), QStringLiteral("tools/build/scripts") };
+		auto       shown   = QStringList{ };
+		for (auto row = 0; row < model->rowCount(); ++row) {
+			const auto folder = model->index(row, qt::overview_file_model::file_column);
+			expect(folder.data(qt::overview_file_model::folder_role).toBool() && view->isExpanded(folder.siblingAtColumn(0)),
+				   "every top-level Overview row is an expanded folder");
+			shown.push_back(folder.data(Qt::DisplayRole).toString());
+		}
+		expect(shown == folders && model->folder_count() == 12U,
+			   "one flat row per folder that holds files, named by its whole path; src/ui, tests/ui, tools and tools/build take none");
+		const auto file    = [&](const char* aPath) { return model->index_for_path(QString::fromUtf8(aPath)); };
+		const auto visible = [&](const char* aPath) { return !view->visualRect(file(aPath)).isEmpty(); };
+		const auto left    = [&](const QModelIndex& aIndex) {
+			return view->visualRect(aIndex.siblingAtColumn(qt::overview_file_model::file_column)).left();
+		};
+		const auto all    = { "README.md", "docs/api/reference.md", "docs/api/v2/endpoints.md", "docs/guide.md", "src/engine/renderer.cpp",
+							  "src/engine/renderer.h", "src/engine/shaders/basic.frag", "src/engine/shaders/basic.vert",
+							  "src/engine/shaders/post/bloom.frag", "src/engine/shaders/post/tonemap.frag", "src/main.cpp",
+							  "src/ui/widgets/button.cpp", "src/ui/widgets/button.h", "src/ui/widgets/slider.cpp",
+							  "tests/engine/renderer_tests.cpp", "tests/ui/widgets/button_tests.cpp", "tools/build/scripts/package.py" };
+		const auto column = left(file("README.md").parent());
+		for (const auto* path : all) {
+			expect(file(path).isValid() && visible(path) && left(file(path)) == column, "every file starts at the folder rows' left column");
+		}
+		const auto selections = window.statistics().FileSelections;
+		const auto unchanged  = [&] {
+			QApplication::processEvents();
+			expect(window.statistics().FileSelections == selections && window.current_modality() == qt::review_modality::overview
+					   && window.comparison_surface()->current_result() == nullptr,
+				   "a folder gesture opens no file and leaves Overview");
+		};
+		const auto only = [&](std::initializer_list<const char*> aHidden, const char* aMessage) {
+			for (const auto* path : all) {
+				const auto hidden = std::ranges::any_of(aHidden, [path](const char* aEntry) { return std::string_view{ aEntry } == path; });
+				expect(visible(path) != hidden, aMessage);
+			}
+		};
+		const auto click = [&](const QModelIndex& aFolder) {
+			const auto  point = QPointF{ view->visualRect(aFolder.siblingAtColumn(qt::overview_file_model::file_column)).center() };
+			QMouseEvent press{ QEvent::MouseButtonPress, point, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QMouseEvent release{ QEvent::MouseButtonRelease, point, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(view->viewport(), &press);
+			QApplication::sendEvent(view->viewport(), &release);
+			QApplication::processEvents();
+		};
+		const auto key = [&](const QModelIndex& aFolder, const Qt::Key aKey) {
+			view->setCurrentIndex(aFolder);
+			view->setFocus();
+			QKeyEvent event{ QEvent::KeyPress, aKey, Qt::NoModifier };
+			QApplication::sendEvent(view, &event);
+			QApplication::processEvents();
+		};
+		// A click on `src` hides src/main.cpp and nothing under src/engine or
+		// src/ui/widgets, whose rows are folders of their own.
+		const auto src = file("src/main.cpp").parent().siblingAtColumn(0);
+		click(src);
+		expect(!view->isExpanded(src), "a click on the src row collapses it");
+		only({ "src/main.cpp" }, "collapsing src hides only src/main.cpp");
+		unchanged();
+		// A nested folder between its parent and its own subfolder.
+		const auto shaders = file("src/engine/shaders/basic.frag").parent().siblingAtColumn(0);
+		key(shaders, Qt::Key_Left);
+		expect(!view->isExpanded(shaders) && view->currentIndex().siblingAtColumn(0) == shaders, "Left collapses src/engine/shaders and keeps it current");
+		only({ "src/main.cpp", "src/engine/shaders/basic.frag", "src/engine/shaders/basic.vert" },
+			 "collapsing src/engine/shaders hides its two files and leaves src/engine/shaders/post's");
+		unchanged();
+		capture(window, QStringLiteral("nested-overview-folders-collapsed.png"));
+		const auto order = [&](const QModelIndex& aFolder) {
+			auto paths = QStringList{ };
+			for (auto row = 0; row < model->rowCount(aFolder); ++row) {
+				paths.push_back(model->index(row, qt::overview_file_model::file_column, aFolder).data(qt::overview_file_model::path_role).toString());
+			}
+			return paths;
+		};
+		key(shaders, Qt::Key_Right);
+		click(src);
+		expect(view->isExpanded(shaders) && view->isExpanded(src)
+				   && order(shaders) == QStringList{ QStringLiteral("src/engine/shaders/basic.frag"), QStringLiteral("src/engine/shaders/basic.vert") }
+				   && order(src) == QStringList{ QStringLiteral("src/main.cpp") },
+			   "Right and a second click bring back the same files in the same order");
+		only({ }, "every file is shown again");
+		unchanged();
+		capture(window, QStringLiteral("nested-overview-folders-expanded.png"));
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "nested-folders course quiescence");
 	}
 
 	void run_modified_missing_endpoint_course()
@@ -1513,6 +1637,11 @@ try {
 		run_folder_selection_course();
 		run_modified_missing_endpoint_course();
 		std::cout << "selected-file-safety-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--nested-overview-folders")) {
+		run_nested_overview_folders_course();
+		std::cout << "nested-overview-folders-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--link-locations")) {

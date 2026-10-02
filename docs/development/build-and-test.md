@@ -1400,6 +1400,13 @@ QT_QPA_PLATFORM=offscreen \
   build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
   --github-fixture uiforetw-74 \
   --render-evidence build/dev/github-public-path-uiforetw-74.png
+
+# The constructed nested-folders pull request bpr-fixtures/nested-folders#21,
+# from tests/fixtures/github/pull-requests/nested-folders-v1/ (BPR-1213).
+QT_QPA_PLATFORM=offscreen \
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
+  --github-fixture nested-folders-v1 \
+  --render-evidence build/dev/github-public-path-nested-folders-v1.png
 ```
 
 On headless Linux, also set `QT_STYLE_OVERRIDE=Windows`. Each run must report

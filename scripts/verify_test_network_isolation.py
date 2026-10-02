@@ -277,6 +277,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_native_appearance_probe_contract": "dos-volume-name",
     "application_github_public_path_github_com": "dos-volume-name",
     "application_github_public_path_uiforetw_74": "dos-volume-name",
+    # [[BPR-1213]]. The same public path over the constructed nested-folders fixture.
+    "application_github_public_path_nested_folders_v1": "dos-volume-name",
     "application_uiforetw_selected_diff_contract": "dos-volume-name",
     "application_diff_workbench_public_path": "dos-volume-name",
     "application_workbench_composition_contract": "dos-volume-name",
@@ -383,6 +385,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # log's properties among them.
     "quill_logging": "dos-volume-name",
     "application_selected_file_safety_public_path": "dos-volume-name",
+    # [[BPR-1213]]. The same composed course executable, nested-folders mode.
+    "application_nested_overview_folders_public_path": "dos-volume-name",
     # [[BPR-1031]]. Measured on JaegAW 2026-09-23: contained, the course stops
     # at its first step, "disposable private state". A reverted probe showed the
     # WRITE_DAC open of its QTemporaryDir under AC\Temp refused with error 5,
