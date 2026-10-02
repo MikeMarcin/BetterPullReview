@@ -2,6 +2,7 @@
 
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -9,6 +10,7 @@
 #include <QColor>
 #include <QFontDatabase>
 #include <QHBoxLayout>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -179,6 +181,41 @@ namespace bpr::qt {
 		{
 			return text_of(aBody).section(QLatin1Char('\n'), 0, 0).trimmed().left(160);
 		}
+
+		/// \brief [[BPR-1157]]. The key that notes the caret's line in the code
+		/// view, with Shift the one that begins Suggest change there: Return as
+		/// macOS names it, Enter as Windows and Linux do. The code view takes
+		/// the key itself (`suggestion_editor::Activated`), so this sequence
+		/// only labels menus.
+		auto note_key(const bool aShift) -> QKeySequence
+		{
+#if defined(Q_OS_MACOS)
+			const auto key = Qt::Key_Return;
+#else
+			const auto key = Qt::Key_Enter;
+#endif
+			return aShift ? QKeySequence{ Qt::SHIFT | key } : QKeySequence{ key };
+		}
+
+		/// The same key in words, for a tooltip or an accessible description.
+		auto note_key_words(const bool aShift) -> QString
+		{
+#if defined(Q_OS_MACOS)
+			return aShift ? QStringLiteral("Shift+Return") : QStringLiteral("Return");
+#else
+			return aShift ? QStringLiteral("Shift+Enter") : QStringLiteral("Enter");
+#endif
+		}
+
+		auto comment_tip() -> QString
+		{
+			return QStringLiteral("Comment on the selection, or on the file when nothing is selected. In the code, %1 comments on the selection or the caret's line").arg(note_key_words(false));
+		}
+
+		auto suggest_tip() -> QString
+		{
+			return QStringLiteral("Edit this file in place, starting at the cursor, and propose the changes as exact replacements (%1 in the code)").arg(note_key_words(true));
+		}
 	}
 
 	review_cycle_view::review_cycle_view(QWidget* aParent)
@@ -257,11 +294,11 @@ namespace bpr::qt {
 		ReviewBar->addAction(MarkReviewed);
 		CommentAction = new QAction{ strip_icon(strip_glyph::comment, palette()), QStringLiteral("Comment"), this };
 		CommentAction->setObjectName(QStringLiteral("cycleCommentAction"));
-		CommentAction->setToolTip(QStringLiteral("Comment on the selection, or on the file when nothing is selected"));
+		CommentAction->setToolTip(comment_tip());
 		ReviewBar->addAction(CommentAction);
 		SuggestAction = new QAction{ QStringLiteral("Suggest change"), this };
 		SuggestAction->setObjectName(QStringLiteral("cycleSuggestAction"));
-		SuggestAction->setToolTip(QStringLiteral("Edit this file in place, starting at the cursor, and propose the changes as exact replacements"));
+		SuggestAction->setToolTip(suggest_tip());
 		ReviewBar->addAction(SuggestAction);
 		ComposeAction = new QAction{ strip_icon(strip_glyph::compose_review, palette()), QStringLiteral("Compose feedback"), this };
 		ComposeAction->setObjectName(QStringLiteral("cycleComposeAction"));
@@ -312,7 +349,7 @@ namespace bpr::qt {
 		// caret (owner rejection of composer-layout v004, 2026-10-02).
 		Source = new suggestion_editor{ Centre };
 		Source->setObjectName(QStringLiteral("cycleSource"));
-		Source->set_read_only(true);
+		read_source();
 		Source->setContextMenuPolicy(Qt::CustomContextMenu);
 		SourceNotice = new QLabel{ Centre };
 		SourceNotice->setObjectName(QStringLiteral("cycleSourceNotice"));
@@ -513,6 +550,23 @@ namespace bpr::qt {
 			TrayComposer->setCurrentIndex(0);
 		});
 		Source->SelectionChanged = [this] { refresh_actions(); };
+		// [[BPR-1157]]. Reading, Return notes the selection or the caret's line
+		// and Shift+Return begins Suggest change there (owner, native-keyboard
+		// v001, 2026-10-02). Editing, the code view keeps Return for itself.
+		Source->Activated = [this](const bool aShift) {
+			if (aShift) {
+				if (!SuggestAction->isEnabled()) {
+					return false;
+				}
+				begin_suggestion();
+				return true;
+			}
+			if (!CommentAction->isEnabled()) {
+				return false;
+			}
+			comment_here();
+			return true;
+		};
 		connect(Source, &QWidget::customContextMenuRequested, this, [this](const QPoint& aAt) {
 			if (auto* const menu = source_menu(aAt)) {
 				menu->popup(Source->viewport()->mapToGlobal(aAt));
@@ -585,6 +639,9 @@ namespace bpr::qt {
 			Dispatch.Suggest(std::move(request));
 		};
 		Composer->Cancelled = [this] { TrayComposer->setCurrentIndex(0); };
+		// [[BPR-1157]]. Every stop Tab reaches on the page shows the window's
+		// focus ring; the review bar's controls draw it themselves.
+		ring_keyboard_focus(*this, QStringLiteral("cycleKeyboardFocus"), ReviewBar);
 		refresh_actions();
 	}
 
@@ -1077,6 +1134,27 @@ namespace bpr::qt {
 		CommentEditor->setFocus(Qt::OtherFocusReason);
 	}
 
+	void review_cycle_view::comment_here()
+	{
+		if (!Projection.Source || selection_anchor()) {
+			begin_comment();
+			return;
+		}
+		// A caret alone: a note on its line, never on the whole file.
+		const auto& shown = *Projection.Source;
+		const auto  line  = Centre->currentWidget() == Source ? core::line_text_at(shown.Bytes, Source->selected_bytes().second) : std::nullopt;
+		auto        at    = line ? core::make_anchor(shown.Revision, shown.Path, shown.Bytes, line->Start, line->End) : std::nullopt;
+		if (!at) {
+			begin_comment();
+			return;
+		}
+		const auto span = core::project_lines(shown.Bytes, at->Start, at->End);
+		CommentTarget->setText(span ? QStringLiteral("%1 · %2").arg(text_of(at->Path), lines_text(*span)) : text_of(at->Path));
+		PendingTarget = std::move(*at);
+		TrayComposer->setCurrentIndex(1);
+		CommentEditor->setFocus(Qt::OtherFocusReason);
+	}
+
 	void review_cycle_view::save_comment()
 	{
 		if (!PendingTarget) {
@@ -1150,7 +1228,7 @@ namespace bpr::qt {
 	{
 		Source->set_read_only(true);
 		Source->setAccessibleName(QStringLiteral("Source"));
-		Source->setAccessibleDescription(QStringLiteral("The captured file. Select text to comment on it, or Suggest change to edit it here."));
+		Source->setAccessibleDescription(QStringLiteral("The captured file. %1 comments on the selection or the caret's line; %2 begins Suggest change there.").arg(note_key_words(false), note_key_words(true)));
 	}
 
 	auto review_cycle_view::source_menu(const QPoint& aAt) -> QMenu*
@@ -1170,9 +1248,26 @@ namespace bpr::qt {
 		menu->setObjectName(QStringLiteral("cycleSourceMenu"));
 		menu->setAttribute(Qt::WA_DeleteOnClose);
 		if (!suggesting()) {
-			const auto first = menu->actions().isEmpty() ? nullptr : menu->actions().constFirst();
-			menu->insertAction(first, CommentAction);
-			menu->insertAction(first, SuggestAction);
+			// [[BPR-1157]]. The menu's own Comment and Suggest change, so each
+			// shows the key that does the same in the code. They act where the
+			// caret is, as the keys do; the review bar's Comment notes the file
+			// when nothing is selected.
+			const auto first   = menu->actions().isEmpty() ? nullptr : menu->actions().constFirst();
+			auto*      comment = new QAction{ QStringLiteral("Comment"), menu };
+			comment->setObjectName(QStringLiteral("cycleSourceComment"));
+			comment->setEnabled(CommentAction->isEnabled());
+			connect(comment, &QAction::triggered, this, [this] { comment_here(); });
+			auto* const suggest = new QAction{ SuggestAction->text(), menu };
+			suggest->setObjectName(QStringLiteral("cycleSourceSuggest"));
+			suggest->setEnabled(SuggestAction->isEnabled());
+			connect(suggest, &QAction::triggered, this, [this] { begin_suggestion(); });
+			for (auto* const action : { comment, suggest }) {
+				// A label only: an action of a menu alone never matches a key.
+				action->setShortcut(note_key(action == suggest));
+				action->setShortcutContext(Qt::WidgetShortcut);
+				action->setShortcutVisibleInContextMenu(true);
+				menu->insertAction(first, action);
+			}
 			menu->insertSeparator(first);
 		}
 		return menu;
@@ -1187,8 +1282,7 @@ namespace bpr::qt {
 		const auto editable = shown && Projection.Source->Bytes.size() <= core::maximum_suggestion_editor_bytes;
 		CommentAction->setEnabled(open && shown && !suggesting());
 		SuggestAction->setEnabled(open && reading && editable && !suggesting());
-		SuggestAction->setToolTip(shown && !editable ? QStringLiteral("This file is too large to edit here; comment on it instead")
-													 : QStringLiteral("Edit this file in place, starting at the cursor, and propose the changes as exact replacements"));
+		SuggestAction->setToolTip(shown && !editable ? QStringLiteral("This file is too large to edit here; comment on it instead") : suggest_tip());
 		const auto active = Projection.Source ? std::ranges::find(Projection.Files, Projection.Source->Path, &application::review_cycle_file_entry::Path) : Projection.Files.end();
 		PreviousFile->setEnabled(active != Projection.Files.end() && active != Projection.Files.begin());
 		NextFile->setEnabled(active != Projection.Files.end() && active + 1 != Projection.Files.end());

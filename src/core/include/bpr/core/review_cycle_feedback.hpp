@@ -108,6 +108,21 @@ namespace bpr::core {
 	/// CR each end a line. Nothing when the range lies outside the file.
 	[[nodiscard]] auto project_lines(std::span<const std::uint8_t> aFile, std::uint64_t aStart, std::uint64_t aEnd) -> std::optional<cycle_line_span>;
 
+	/// \brief A half-open byte range of one file.
+	struct cycle_byte_range
+	{
+		std::uint64_t Start                                      = 0;
+		std::uint64_t End                                        = 0;
+		auto          operator<=>(const cycle_byte_range&) const = default;
+	};
+	/// \brief The text of the display line that holds byte `aOffset`, without
+	/// its ending: what a note made at a caret is about ([[BPR-1157]]).
+	/// \details LF, CRLF and a lone CR each end a line, as `project_lines`
+	/// counts them; an offset between a CR and its LF is the end of the line
+	/// before. An empty line is an insertion point at its start. Nothing when
+	/// the offset lies outside the file.
+	[[nodiscard]] auto line_text_at(std::span<const std::uint8_t> aFile, std::uint64_t aOffset) -> std::optional<cycle_byte_range>;
+
 	/// \brief Whether a related location travels with the note when a round is
 	/// frozen. A private reference stays in the cycle.
 	enum class cycle_reference_disclosure : std::uint8_t {

@@ -746,22 +746,35 @@ namespace bpr::core {
 		return target;
 	}
 
+	namespace {
+		/// `aColour`, or the least move of it toward black or white, whichever
+		/// `aGround` contrasts with more, that reaches `aMinimum` on `aGround`.
+		auto reaching_floor(const appearance_color aColour, const appearance_color aGround, const std::uint32_t aMinimum) noexcept -> appearance_color
+		{
+			if (contrast_ratio_hundredths(aColour, aGround) >= aMinimum) {
+				return aColour;
+			}
+			const auto target = emphasis_foreground(aGround);
+			for (auto alpha = std::uint16_t{ 1U }; alpha <= 255U; ++alpha) {
+				const auto candidate = composited(target, aColour, static_cast<std::uint8_t>(alpha));
+				if (contrast_ratio_hundredths(candidate, aGround) >= aMinimum) {
+					return candidate;
+				}
+			}
+			return target;
+		}
+	}
+
 	auto readable_selection_ink(
 		const appearance_color aSyntax, const appearance_color aFill,
 		const appearance_variant aVariant) noexcept -> appearance_color
 	{
-		const auto minimum = minimum_contrast_hundredths(contrast_kind::text, aVariant);
-		if (contrast_ratio_hundredths(aSyntax, aFill) >= minimum) {
-			return aSyntax;
-		}
-		const auto target = emphasis_foreground(aFill);
-		for (auto alpha = std::uint16_t{ 1U }; alpha <= 255U; ++alpha) {
-			const auto candidate = composited(target, aSyntax, static_cast<std::uint8_t>(alpha));
-			if (contrast_ratio_hundredths(candidate, aFill) >= minimum) {
-				return candidate;
-			}
-		}
-		return target;
+		return reaching_floor(aSyntax, aFill, minimum_contrast_hundredths(contrast_kind::text, aVariant));
+	}
+
+	auto visible_focus_indicator(const appearance_color aAccent, const appearance_color aSurface) noexcept -> appearance_color
+	{
+		return reaching_floor(aAccent, aSurface, indicator_contrast_minimum_hundredths);
 	}
 
 	auto emphasis_needs_own_foreground(

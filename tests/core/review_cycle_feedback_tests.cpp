@@ -172,6 +172,18 @@ namespace {
 		expect(project_lines(bytes(mixed), 8, 8) == cycle_line_span{ 4, 4 }, "insertion point at the end");
 		expect(project_lines(bytes(mixed), 1, 2) == cycle_line_span{ 1, 1 }, "between CR and LF is still line one");
 		expect(!project_lines(bytes(mixed), 3, 99), "outside the file");
+
+		// [[BPR-1157]]: a note made at a caret is about the caret's line, without its ending.
+		expect(line_text_at(bytes(mixed), 0) == cycle_byte_range{ 0, 1 } && line_text_at(bytes(mixed), 1) == cycle_byte_range{ 0, 1 }, "line one, without its CRLF");
+		expect(line_text_at(bytes(mixed), 2) == cycle_byte_range{ 0, 1 }, "between CR and LF is the end of line one");
+		expect(line_text_at(bytes(mixed), 3) == cycle_byte_range{ 3, 4 } && line_text_at(bytes(mixed), 6) == cycle_byte_range{ 5, 6 }, "after CRLF and after a lone CR");
+		expect(line_text_at(bytes(mixed), 8) == cycle_byte_range{ 7, 8 }, "the last line, with no ending");
+		constexpr auto blank = std::string_view{ "a\n\nb\n" };
+		expect(line_text_at(bytes(blank), 2) == cycle_byte_range{ 2, 2 } && line_text_at(bytes(blank), 5) == cycle_byte_range{ 5, 5 }, "an empty line is an insertion point at its start");
+		expect(!line_text_at(bytes(mixed), 9), "outside the file");
+		const auto caret = line_text_at(bytes(parser_r1), 35);
+		expect(caret && project_lines(bytes(parser_r1), caret->Start, caret->End) == cycle_line_span{ 3, 3 } && make_anchor(cycle_source_revision_id{ 1 }, "src/parser.cpp", bytes(parser_r1), caret->Start, caret->End),
+			   "the caret's line anchors as that line");
 	}
 
 	/// Where an original attachment sits in newer material is observed, never chosen.

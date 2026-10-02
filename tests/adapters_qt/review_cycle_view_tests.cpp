@@ -1,14 +1,19 @@
 #include "../support/test_expectation.hpp"
+#include "../support/window_system_keys.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 
+#include <QAccessible>
+#include <QAccessibleEvent>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QDir>
 #include <QImage>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -19,6 +24,7 @@
 #include <QPushButton>
 #include <QTabBar>
 #include <QToolButton>
+#include <QWindow>
 
 #include <array>
 #include <cmath>
@@ -414,7 +420,15 @@ namespace {
 		auto* menu = aView.source_menu(point_of(aView, 3));
 		expect(menu != nullptr && !aView.source()->has_selection() && aView.source()->selected_bytes().first == 3U, "the caret moved to the click");
 		const auto actions = menu->actions();
-		expect(actions.size() > 3 && actions[0] == aView.comment_action() && actions[1] == aView.suggest_action() && actions[2]->isSeparator(), "Comment and Suggest change first in the menu");
+		expect(actions.size() > 3 && actions[0]->objectName() == QStringLiteral("cycleSourceComment") && actions[0]->text() == QStringLiteral("Comment") && actions[1]->objectName() == QStringLiteral("cycleSourceSuggest")
+				   && actions[1]->text() == aView.suggest_action()->text() && actions[2]->isSeparator(),
+			   "Comment and Suggest change first in the menu");
+		// [[BPR-1157]]. Each shows the key that does the same in the code.
+		expect(actions[0]->shortcut().count() == 1 && (actions[0]->shortcut()[0].key() == Qt::Key_Return || actions[0]->shortcut()[0].key() == Qt::Key_Enter)
+				   && actions[0]->shortcut()[0].keyboardModifiers() == Qt::NoModifier && actions[1]->shortcut()[0].key() == actions[0]->shortcut()[0].key()
+				   && actions[1]->shortcut()[0].keyboardModifiers() == Qt::ShiftModifier && actions[0]->isShortcutVisibleInContextMenu() && actions[1]->isShortcutVisibleInContextMenu(),
+			   "Return and Shift+Return shown beside them");
+		expect(aView.comment_action()->toolTip().contains(QStringLiteral("caret's line")) && aView.suggest_action()->toolTip().contains(QStringLiteral("Shift+")), "and named in the review bar's tooltips");
 		expect(std::ranges::any_of(actions, [](const QAction* aAction) { return aAction->text().contains(QStringLiteral("Copy")); }), "then the pane's own Copy");
 		expect(aView.suggest_action()->isEnabled(), "offered with only a caret");
 		capture(aView, QStringLiteral("cycle-source-menu"));
@@ -671,6 +685,217 @@ namespace {
 		capture(aView, QStringLiteral("cycle-verification"));
 	}
 
+	/// \brief [[BPR-1157]]: ring pixels inside the left and right edges of a
+	/// control's render, over the middle third of its height.
+	/// \details The band is one ring wide. A pixel counts when it is within 24
+	/// of the ring's colour on every channel, the local-colour rule the
+	/// syntax checks use, so anti-aliasing and scale do not matter.
+	auto ring_pixels(const QImage& aImage, const QColor& aRing) -> int
+	{
+		const auto band  = static_cast<int>(std::ceil(qt::focus_ring_width * aImage.devicePixelRatio()));
+		auto       count = 0;
+		for (auto y = aImage.height() / 3; y < (2 * aImage.height()) / 3; ++y) {
+			for (auto x = 0; x < band; ++x) {
+				count += colour_near(aImage.pixelColor(x, y), aRing) ? 1 : 0;
+				count += colour_near(aImage.pixelColor(aImage.width() - 1 - x, y), aRing) ? 1 : 0;
+			}
+		}
+		return count;
+	}
+
+	/// \brief Whether `aOn` shows a ring that `aOff`, the same control
+	/// unfocused, does not: the band gains ring pixels on most of its rows.
+	auto ring_appears(const QImage& aOff, const QImage& aOn, const QColor& aRing) -> bool
+	{
+		const auto rows = (2 * aOn.height()) / 3 - aOn.height() / 3;
+		return aOff.size() == aOn.size() && ring_pixels(aOn, aRing) - ring_pixels(aOff, aRing) >= rows;
+	}
+
+	/// The focus events accessibility was told of, in order.
+	auto focus_events() -> std::vector<QObject*>&
+	{
+		static auto events = std::vector<QObject*>{ };
+		return events;
+	}
+
+	void record_focus(QAccessibleEvent* const aEvent)
+	{
+		if (aEvent->type() == QAccessible::Focus) {
+			focus_events().push_back(aEvent->object());
+		}
+	}
+
+	/// \brief [[BPR-1157]]. The owner rejected native-keyboard v001 (event
+	/// 794): "Tab does cycle between things but it's not obvious at all what
+	/// has focus." Tab through the page with window-system keys, on the dark
+	/// profile the owner reviewed in: every stop shows the window's focus
+	/// ring when focus arrives and loses it when focus leaves, and
+	/// accessibility is told of each by its own name.
+	void shows_where_focus_is()
+	{
+		auto view = qt::review_cycle_view{ };
+		auto look = qt::appearance_profile{ qt::default_appearance_settings(), { .Scheme = core::os_color_scheme::dark } };
+		look.apply_to(view);
+		view.adopt_appearance(look);
+		view.resize(1280, 760);
+		view.show();
+		view.activateWindow();
+		view.present(projection(1));
+		settle();
+		auto* const code = view.source();
+		const auto  ring = qt::focus_ring_colour(code->palette(), code->backgroundRole());
+		const auto  fill = code->palette().color(QPalette::Highlight);
+		expect(!colour_near(ring, fill), "the ring is lifted off the dark selection colour, which is too faint to find");
+		expect(code->accessibleName() == QStringLiteral("Source") && code->accessibleDescription().contains(QStringLiteral("caret's line")), "the reading pane is named Source and says what Return does");
+
+		QAccessible::installUpdateHandler(&record_focus);
+		code->setFocus(Qt::TabFocusReason);
+		settle();
+		auto stops = std::vector<QWidget*>{ code };
+		for (auto step = 0; step < 60; ++step) {
+			auto* const from = QApplication::focusWidget();
+			// The next stop is not known before Tab moves, so every control is
+			// rendered unfocused first and compared once focus arrives.
+			auto before = std::vector<std::pair<QWidget*, QImage>>{ };
+			for (auto* const control : view.findChildren<QWidget*>()) {
+				if ((control->focusPolicy() & Qt::TabFocus) != 0 && control->isVisible() && control != from) {
+					before.emplace_back(control, control->grab().toImage());
+				}
+			}
+			const auto held = from->grab().toImage();
+			focus_events().clear();
+			tests::window_system_key(*from, Qt::Key_Tab);
+			auto* const to = QApplication::focusWidget();
+			if (to == code) {
+				break;
+			}
+			const auto unfocused = std::ranges::find(before, to, &std::pair<QWidget*, QImage>::first);
+			const auto name      = (to->objectName() + QStringLiteral(" ") + to->accessibleName()).toStdString();
+			expect(unfocused != before.end() && view.isAncestorOf(to), "Tab stays on the page");
+			// The review bar's controls draw the ring over the bar; the others over their own background.
+			const auto surface = [&view](const QWidget* aControl) { return view.review_bar()->isAncestorOf(aControl) ? QPalette::Window : aControl->backgroundRole(); };
+			const auto colour  = qt::focus_ring_colour(to->palette(), surface(to));
+			if (!ring_appears(unfocused->second, to->grab().toImage(), colour)) {
+				std::cerr << "no ring on " << name << '\n';
+			}
+			expect(ring_appears(unfocused->second, to->grab().toImage(), colour), "the focus ring appears on the stop Tab reaches");
+			const auto fromColour = qt::focus_ring_colour(from->palette(), surface(from));
+			expect(ring_appears(from->grab().toImage(), held, fromColour), "and leaves the stop it left");
+			expect(!focus_events().empty() && focus_events().back() == to, "accessibility is told focus moved there");
+			auto* const accessible = QAccessible::queryAccessibleInterface(to);
+			expect(accessible != nullptr && (!accessible->text(QAccessible::Name).isEmpty() || !accessible->text(QAccessible::Description).isEmpty()), "and the stop has a name");
+			stops.push_back(to);
+		}
+		QAccessible::installUpdateHandler(nullptr);
+		std::cout << "focus stops ringed:";
+		for (const auto* const stop : stops) {
+			std::cout << ' ' << (stop->objectName().isEmpty() ? stop->accessibleName() : stop->objectName()).toStdString();
+		}
+		std::cout << '\n';
+		expect(QApplication::focusWidget() == code, "Tab comes round to the code again");
+		const auto reached = [&stops](QWidget* aWidget) { return std::ranges::find(stops, aWidget) != stops.end(); };
+		expect(reached(view.files()) && reached(view.notes()) && reached(view.updates_toggle()) && reached(view.tabs()->findChild<QWidget*>(QStringLiteral("documentTabBar")))
+				   && reached(view.review_bar()->widgetForAction(view.comment_action())) && reached(view.view_button()),
+			   "the stops include the review bar, the tabs, the files, the code and the notes");
+
+		// The rule refuses a stop whose ring is missing: the code view with its
+		// ring hidden shows no more ring than it does unfocused.
+		view.files()->setFocus(Qt::TabFocusReason);
+		settle();
+		const auto unfocusedCode = code->grab().toImage();
+		code->setFocus(Qt::TabFocusReason);
+		settle();
+		auto* const codeRing = code->findChild<QWidget*>(QStringLiteral("cycleKeyboardFocus"), Qt::FindDirectChildrenOnly);
+		expect(codeRing != nullptr && codeRing->isVisible() && ring_appears(unfocusedCode, code->grab().toImage(), ring), "the code view's ring");
+		auto* const accessibleRing = QAccessible::queryAccessibleInterface(codeRing);
+		expect(accessibleRing != nullptr && accessibleRing->state().invisible && !accessibleRing->state().focusable, "the ring is invisible decoration to accessibility");
+		codeRing->hide();
+		expect(!ring_appears(unfocusedCode, code->grab().toImage(), ring), "negative control: without its ring the code view is found unringed");
+		codeRing->show();
+		// A focused code view's caret is drawn in the text colour, an unfocused one's dimmed.
+		const auto caret = [&] {
+			const auto image = code->viewport()->grab().toImage();
+			const auto at    = QPointF{ code->caret_rectangle().center() } * image.devicePixelRatio();
+			return image.pixelColor(static_cast<int>(at.x()), static_cast<int>(at.y()));
+		};
+		expect(colour_near(caret(), code->palette().color(QPalette::Text)), "the reading caret is drawn in the text colour while focused");
+		view.files()->setFocus(Qt::TabFocusReason);
+		settle();
+		expect(!colour_near(caret(), code->palette().color(QPalette::Text)) && !codeRing->isVisible(), "and dimmed, with no ring, once focus leaves");
+		capture(view, QStringLiteral("cycle-focus-files"));
+		code->setFocus(Qt::TabFocusReason);
+		settle();
+		capture(view, QStringLiteral("cycle-focus-code"));
+	}
+
+	/// \brief [[BPR-1157]]. The owner's suggestion, recorded as the decision
+	/// (native-keyboard v001, event 794): reading the code, Return makes a
+	/// note and Shift+Return suggests a change, where the caret is. Editing,
+	/// Return still breaks the line and indents. Window-system keys.
+	void return_notes_and_suggests_where_the_caret_is(qt::review_cycle_view& aView, core::begin_cycle_feedback& aNoted)
+	{
+		aView.present(projection(1));
+		aView.activateWindow();
+		settle();
+		auto* const code = aView.source();
+		code->setFocus(Qt::TabFocusReason);
+		// The caret alone, on line 3: a note on that line, not on the file.
+		code->select_bytes(24U, 24U);
+		tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		expect(aView.comment_editor()->isVisible() && QApplication::focusWidget() == aView.comment_editor(), "Return opens the note composer, focused");
+		expect(aView.findChild<QLabel*>(QStringLiteral("cycleCommentTarget"))->text() == QStringLiteral("src/parser.cpp · line 3"), "on the caret's line");
+		aView.comment_editor()->setPlainText(QStringLiteral("Explain this line."));
+		aView.findChild<QPushButton*>(QStringLiteral("cycleCommentSave"))->click();
+		const auto* line = std::get_if<core::cycle_source_anchor>(&aNoted.Primary);
+		expect(line != nullptr && line->Start == 12U && line->End == 29U && line->Original == "\treturn caf\xC3\xA9(1);" && aNoted.Body == "Explain this line.", "the line's exact bytes, without its CRLF");
+		expect(code->read_only() && code->text() == parser, "the file unchanged");
+
+		// A selection: a note on exactly it, with the keypad's Enter as well.
+		code->setFocus(Qt::TabFocusReason);
+		code->select_bytes(20U, 28U);
+		tests::window_system_key(*code, Qt::Key_Enter, Qt::KeypadModifier, QStringLiteral("\r"));
+		expect(aView.comment_editor()->isVisible() && aView.findChild<QLabel*>(QStringLiteral("cycleCommentTarget"))->text() == QStringLiteral("src/parser.cpp · line 3"), "Enter notes the selection");
+		aView.comment_editor()->setPlainText(QStringLiteral("Rename."));
+		aView.findChild<QPushButton*>(QStringLiteral("cycleCommentSave"))->click();
+		const auto* range = std::get_if<core::cycle_source_anchor>(&aNoted.Primary);
+		expect(range != nullptr && range->Start == 20U && range->End == 28U, "the selection's exact bytes");
+
+		// Negative controls: another modifier is not the gesture.
+		aNoted = { };
+		code->setFocus(Qt::TabFocusReason);
+		code->select_bytes(24U, 24U);
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ControlModifier, QStringLiteral("\r"));
+		tests::window_system_key(*code, Qt::Key_Return, Qt::AltModifier, QStringLiteral("\r"));
+		expect(!aView.comment_editor()->isVisible() && !aView.suggesting() && QApplication::focusWidget() == code, "Ctrl+Return and Alt+Return open nothing");
+
+		// Shift+Return: Suggest change from the caret, in the same view.
+		code->select_bytes(13U, 13U);
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+		expect(aView.suggesting() && !code->read_only() && QApplication::focusWidget() == code && code->model().state().Carets.size() == 1U && code->model().state().Carets[0].Head == core::text_point{ 2U, 4U },
+			   "Shift+Return begins Suggest change at the caret");
+		// Editing, Return is the editor's: a line break, indented after the brace.
+		code->apply(core::place_caret{ .At = { 1U, 1U } });
+		tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		expect(code->text() == "int f()\r\n{\r\n\t\r\n\treturn caf\xC3\xA9(1);\r\n}\r\n" && aView.suggesting() && !aView.comment_editor()->isVisible(), "editing, Return breaks the line and indents, and opens no note");
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+		expect(aView.suggesting() && std::ranges::count(code->text(), '\n') == 6, "and Shift+Return is a line break too");
+		aView.findChild<QPushButton*>(QStringLiteral("suggestionCancel"))->click();
+		settle();
+		expect(!aView.suggesting() && code->read_only() && code->text() == parser, "cancelled back to reading");
+
+		// The context menu's Comment acts where the caret is, as Return does.
+		auto* const menu = aView.source_menu(point_of(aView, 3));
+		menu->actions()[0]->trigger();
+		delete menu;
+		expect(aView.findChild<QLabel*>(QStringLiteral("cycleCommentTarget"))->text() == QStringLiteral("src/parser.cpp · line 1"), "the menu's Comment notes the clicked line");
+		aView.findChild<QPushButton*>(QStringLiteral("cycleCommentCancel"))->click();
+		// The review bar's Comment still notes the file when nothing is selected.
+		aView.comment_action()->trigger();
+		expect(aView.findChild<QLabel*>(QStringLiteral("cycleCommentTarget"))->text() == QStringLiteral("src/parser.cpp (whole file)"), "the review bar's Comment notes the file");
+		aView.findChild<QPushButton*>(QStringLiteral("cycleCommentCancel"))->click();
+		settle();
+	}
+
 	void opens_files_and_steps(qt::review_cycle_view& aView, std::string& aOpened)
 	{
 		aView.findChild<QAction*>(QStringLiteral("cyclePreviousFile"))->trigger();
@@ -718,6 +943,8 @@ try {
 	reads_a_file_too_large_to_edit();
 	anchors_exact_bytes_from_a_native_selection(view, suggested, noted);
 	suggests_from_the_caret_and_the_context_menu(view, suggested);
+	return_notes_and_suggests_where_the_caret_is(view, noted);
+	shows_where_focus_is();
 	states_newer_material_without_moving(view);
 	opens_files_and_steps(view, opened);
 	captures_and_compares(view, gestures);

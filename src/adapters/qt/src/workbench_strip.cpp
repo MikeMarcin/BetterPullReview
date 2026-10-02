@@ -1,6 +1,7 @@
 #include "bpr/qt/workbench_strip.hpp"
 
 #include "bpr/qt/epoch_line.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 
 #include <QAbstractButton>
 #include <QAction>
@@ -355,12 +356,15 @@ namespace bpr::qt {
 		aPainter->setBrush(fill);
 		aPainter->drawRoundedRect(box, radius, radius);
 		if ((option->state & State_HasFocus) != 0) {
-			// Visible keyboard focus, drawn inside the border so it never
-			// changes the button's footprint.
-			aPainter->setPen(QPen{ accent, 1.0 });
+			// [[BPR-1157]]. Keyboard focus is the window's focus ring: two
+			// pixels over the border, so it never changes the button's
+			// footprint, and distinct from a checked button's one-pixel
+			// accent border. The owner could not tell what had focus when it
+			// was one pixel of the accent inside the border.
+			aPainter->setPen(QPen{ focus_ring_colour(palette, QPalette::Window), focus_ring_width });
 			aPainter->setBrush(Qt::NoBrush);
-			aPainter->drawRoundedRect(
-				box.adjusted(1.5, 1.5, -1.5, -1.5), radius - 1.5, radius - 1.5);
+			const auto inset = (focus_ring_width - 1.0) / 2.0;
+			aPainter->drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), radius - inset, radius - inset);
 		}
 
 		const auto hasIcon = !option->icon.isNull()
@@ -1005,11 +1009,12 @@ namespace bpr::qt {
 				colours);
 		}
 		if (hasFocus()) {
-			auto focus = QStyleOptionFocusRect{ };
-			focus.initFrom(this);
-			focus.rect            = frame.adjusted(1, 1, -1, -1);
-			focus.backgroundColor = colours.color(QPalette::Active, QPalette::Window);
-			style()->drawPrimitive(QStyle::PE_FrameFocusRect, &focus, &painter, this);
+			// [[BPR-1157]]. The window's focus ring, as the review bar's buttons
+			// draw it: a style's focus rectangle is nothing at all on macOS.
+			constexpr auto inset = focus_ring_width / 2.0;
+			painter.setPen(QPen{ focus_ring_colour(colours, QPalette::Window), focus_ring_width });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(QRectF{ frame }.adjusted(inset, inset, -inset, -inset), 5.0 - inset, 5.0 - inset);
 		}
 	}
 } // namespace bpr::qt

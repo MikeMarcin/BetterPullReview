@@ -1,4 +1,5 @@
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include <QAction>
 #include <QApplication>
@@ -30,45 +31,6 @@
 namespace bpr::qt {
 	namespace {
 		constexpr int preparation_role = Qt::UserRole + 1;
-
-		// Keep the cue inside the control's bounds, including scroll viewports.
-		// Some native styles omit button focus when full keyboard access is off.
-		class tour_focus_ring final : public QWidget
-		{
-		public:
-			explicit tour_focus_ring(QWidget* aParent)
-				: QWidget{ aParent }
-			{
-				setObjectName(QStringLiteral("tourKeyboardFocus"));
-				setAttribute(Qt::WA_TransparentForMouseEvents);
-				setAttribute(Qt::WA_NoSystemBackground);
-				setGeometry(aParent->rect());
-				hide();
-				aParent->installEventFilter(this);
-			}
-
-		protected:
-			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
-			{
-				if (aEvent->type() == QEvent::FocusIn) {
-					show();
-					raise();
-				} else if (aEvent->type() == QEvent::FocusOut) {
-					hide();
-				} else if (aEvent->type() == QEvent::Resize) {
-					setGeometry(parentWidget()->rect());
-				}
-				return QWidget::eventFilter(aWatched, aEvent);
-			}
-			void paintEvent(QPaintEvent*) override
-			{
-				QPainter painter{ this };
-				painter.setRenderHint(QPainter::Antialiasing);
-				painter.setBrush(Qt::NoBrush);
-				painter.setPen(QPen{ palette().color(QPalette::Highlight), 2.0 });
-				painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 3.0, 3.0);
-			}
-		};
 
 		void paint_preparation(QPainter& aPainter, core::tour_preparation aPreparation)
 		{
@@ -370,7 +332,9 @@ namespace bpr::qt {
 			widget->installEventFilter(this);
 			widget->setAttribute(Qt::WA_MacShowFocusRect);
 			if (widget->focusPolicy() & Qt::TabFocus) {
-				new tour_focus_ring{ widget };
+				// Inside the control's bounds, including scroll viewports: some
+				// native styles omit button focus when full keyboard access is off.
+				new keyboard_focus_ring{ *widget, QStringLiteral("tourKeyboardFocus") };
 			}
 		}
 		present({ });

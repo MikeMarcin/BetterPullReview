@@ -4,6 +4,7 @@
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -110,8 +111,10 @@ namespace {
 		expect(focus && scroll && scroll->viewport()->rect().contains(focus->mapTo(scroll->viewport(), focus->rect().center())), "keyboard focus is inside the actual Tour viewport, not merely an unhidden offscreen child");
 		auto* frame = focus->findChild<QWidget*>(QStringLiteral("tourKeyboardFocus"), Qt::FindDirectChildrenOnly);
 		expect(frame && frame->isVisible(), "visible focus ring follows the real focused control");
-		const auto pixels     = frame->grab().toImage();
-		const auto highlight  = focus->palette().color(QPalette::Highlight);
+		const auto pixels = frame->grab().toImage();
+		// [[BPR-1157]]. The window's focus ring: Highlight, lifted only as far
+		// as the indicator floor needs over the control's background.
+		const auto highlight  = qt::focus_ring_colour(focus->palette(), focus->backgroundRole());
 		int        ringPixels = 0;
 		for (int y = 0; y < pixels.height(); ++y) {
 			for (int x = 0; x < pixels.width(); ++x) {

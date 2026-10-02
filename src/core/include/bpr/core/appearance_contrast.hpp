@@ -449,6 +449,22 @@ namespace bpr::core {
 		appearance_color aSyntax, appearance_color aFill, appearance_variant aVariant) noexcept
 		-> appearance_color;
 
+	/// \brief The colour a keyboard focus ring is drawn in over `aSurface`.
+	///
+	/// \details [[BPR-1157]]. The window's focus rings are drawn in the
+	/// selection colour (`code_selection_background`, which the profile
+	/// gives Qt as `Highlight`), as Home's bar and panels already draw
+	/// theirs. A selection colour is chosen to sit quietly under text, so
+	/// on the standard dark surface it measured about 2:1 and the owner
+	/// could not tell what had focus (`BPR-1157-native-keyboard-v001`,
+	/// 2026-10-02). A ring is an indicator, so it is held to the indicator
+	/// floor: a colour that already reaches it on the surface is kept, and
+	/// one that does not moves toward black or white, whichever the surface
+	/// contrasts with more, by the least amount that reaches it. The hue
+	/// stays the theme's. When even black or white cannot reach the floor,
+	/// it is that extreme.
+	[[nodiscard]] auto visible_focus_indicator(appearance_color aAccent, appearance_color aSurface) noexcept -> appearance_color;
+
 	/// \brief Reports whether an emphasis fill must carry its own foreground.
 	///
 	/// \details True when any syntax role fails the emphasis floor over the

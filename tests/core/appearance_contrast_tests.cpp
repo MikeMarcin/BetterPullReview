@@ -914,6 +914,32 @@ namespace {
 			   "where no ink reaches the floor, the extreme that contrasts most");
 	}
 
+	/// [[BPR-1157]]. A focus ring keeps a selection colour that already stands
+	/// out on its surface and lifts one that does not to the indicator floor,
+	/// keeping its hue (owner rejection of native-keyboard v001).
+	auto test_focus_ring_reaches_the_indicator_floor() -> void
+	{
+		constexpr auto selection = srgb(0x28518C);
+		constexpr auto dark      = srgb(0x1C2026);
+		constexpr auto light     = srgb(0xFFFFFF);
+		expect(contrast_ratio_hundredths(selection, dark) < indicator_contrast_minimum_hundredths, "the dark selection colour alone is too faint a ring");
+		const auto ring = visible_focus_indicator(selection, dark);
+		expect(contrast_ratio_hundredths(ring, dark) >= indicator_contrast_minimum_hundredths, "lifted to the indicator floor");
+		expect(contrast_ratio_hundredths(ring, dark) < text_contrast_minimum_hundredths, "and not to the stricter text floor");
+		expect(ring.Blue > ring.Red && ring.Blue > ring.Green, "still the theme's blue");
+		auto step = std::uint16_t{ 1U };
+		while (step < 255U && composited(srgb(0xFFFFFF), selection, static_cast<std::uint8_t>(step)) != ring) {
+			++step;
+		}
+		expect(step < 255U && contrast_ratio_hundredths(composited(srgb(0xFFFFFF), selection, static_cast<std::uint8_t>(step - 1U)), dark) < indicator_contrast_minimum_hundredths,
+			   "moved toward white by the least amount that stands out");
+		expect(visible_focus_indicator(srgb(0x0A64C8), light) == srgb(0x0A64C8), "a colour that already stands out is kept exactly");
+		const auto pale = visible_focus_indicator(srgb(0xADD6FF), light);
+		expect(contrast_ratio_hundredths(pale, light) >= indicator_contrast_minimum_hundredths && pale.Red < 0xADU, "a pale selection on white moves toward black");
+		const auto grey = visible_focus_indicator(srgb(0x777777), srgb(0x767676));
+		expect(contrast_ratio_hundredths(grey, srgb(0x767676)) >= indicator_contrast_minimum_hundredths || grey == srgb(0x000000) || grey == srgb(0xFFFFFF), "where nothing between reaches it, the extreme");
+	}
+
 } // namespace
 
 int main()
@@ -941,5 +967,6 @@ int main()
 	test_only_a_bold_fill_carries_its_own_foreground();
 	test_emphasis_preserves_readable_ink_and_adjusts_only_contrast();
 	test_selection_ink_keeps_readable_roles_and_lifts_faint_ones();
+	test_focus_ring_reaches_the_indicator_floor();
 	return EXIT_SUCCESS;
 }

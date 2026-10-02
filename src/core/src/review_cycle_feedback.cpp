@@ -295,6 +295,28 @@ namespace bpr::core {
 		return cycle_line_span{ .First = first, .Last = last };
 	}
 
+	auto line_text_at(const std::span<const std::uint8_t> aFile, const std::uint64_t aOffset) -> std::optional<cycle_byte_range>
+	{
+		if (aOffset > aFile.size()) {
+			return std::nullopt;
+		}
+		auto offset = static_cast<std::size_t>(aOffset);
+		// Between a CR and its LF is the end of the line the pair ends.
+		if (offset > 0U && offset < aFile.size() && aFile[offset - 1U] == '\r' && aFile[offset] == '\n') {
+			--offset;
+		}
+		const auto ends  = [&](const std::size_t aIndex) { return aFile[aIndex] == '\n' || aFile[aIndex] == '\r'; };
+		auto       start = offset;
+		while (start > 0U && !ends(start - 1U)) {
+			--start;
+		}
+		auto end = offset;
+		while (end < aFile.size() && !ends(end)) {
+			++end;
+		}
+		return cycle_byte_range{ .Start = start, .End = end };
+	}
+
 	auto valid(const cycle_feedback_author& aAuthor) noexcept -> bool
 	{
 		const auto fields = std::array{ &aAuthor.Adapter, &aAuthor.Provider, &aAuthor.Model, &aAuthor.Effort };

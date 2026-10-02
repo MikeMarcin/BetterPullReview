@@ -82,8 +82,10 @@ namespace bpr::qt {
 	/// line-start and line-end sequences; a double click selects a word and a
 	/// triple click a line, and dragging on grows the selection by words or
 	/// lines; Tab inserts a tab and Ctrl+Tab moves focus; Enter keeps the
-	/// indentation (`set_indentation`). A box copy carries a marker so
-	/// pasting it on one caret makes a box again.
+	/// indentation (`set_indentation`). Read-only, Tab moves focus and Return
+	/// and Shift+Return are offered to whoever reads the file (`Activated`).
+	/// A box copy carries a marker so pasting it on one caret makes a box
+	/// again.
 	class suggestion_editor final : public QAbstractScrollArea
 	{
 	public:
@@ -153,6 +155,11 @@ namespace bpr::qt {
 		std::function<void()> Changed;
 		/// \brief Called after any caret or selection moved.
 		std::function<void()> SelectionChanged;
+		/// \brief Read-only, Return or Enter with no modifier, or with Shift
+		/// only: called with whether Shift was held, and returns whether it
+		/// acted. Otherwise the key goes on to the parent. Editable, Return
+		/// always breaks the line ([[BPR-1157]]).
+		std::function<bool(bool)> Activated;
 
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;

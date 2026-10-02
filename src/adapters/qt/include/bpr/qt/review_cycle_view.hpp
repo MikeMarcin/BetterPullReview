@@ -84,8 +84,12 @@ namespace bpr::qt {
 	/// same code view becomes editable until the suggestion is saved or
 	/// cancelled, so nothing on screen moves or changes colour, and the tray
 	/// holds the rationale and the before/after (owner amendment to BPR-1156,
-	/// 2026-10-01, and its v004 rejection, 2026-10-02). It decides nothing and
-	/// performs no effect: gestures leave through `review_cycle_dispatch`.
+	/// 2026-10-01, and its v004 rejection, 2026-10-02). Reading the code,
+	/// Return (Enter) notes the selection or the caret's line and Shift+Return
+	/// begins Suggest change there, and every stop Tab reaches shows the
+	/// window's focus ring (owner, native-keyboard v001, 2026-10-02). It
+	/// decides nothing and performs no effect: gestures leave through
+	/// `review_cycle_dispatch`.
 	class review_cycle_view final : public QWidget
 	{
 	public:
@@ -119,8 +123,10 @@ namespace bpr::qt {
 		/// \brief The source pane's context menu at a viewport point: the
 		/// code view's own Copy and Select All after Comment and Suggest
 		/// change, or its editing menu while a suggestion is edited. A click
-		/// outside the selection moves the caret there first. The caller owns
-		/// the menu; it deletes itself when closed.
+		/// outside the selection moves the caret there first. Comment notes
+		/// the selection or the caret's line, as Return does in the code, and
+		/// each shows its key ([[BPR-1157]]). The caller owns the menu; it
+		/// deletes itself when closed.
 		[[nodiscard]] auto source_menu(const QPoint& aAt) -> QMenu*;
 		[[nodiscard]] auto comment_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto updates_line() const noexcept -> QLabel*;
@@ -154,6 +160,8 @@ namespace bpr::qt {
 
 	private:
 		void begin_comment();
+		/// A note where the caret is: the selection, else the caret's line.
+		void comment_here();
 		void begin_suggestion();
 		void end_suggestion();
 		void show_reading_page();

@@ -1,5 +1,6 @@
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
+#include "../support/window_system_keys.hpp"
 #include "../support/window_system_mouse.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
@@ -9,6 +10,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "review_cycle_desktop.hpp"
@@ -18,7 +20,7 @@
 #include <QDir>
 #include <QGuiApplication>
 #include <QImage>
-#include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -34,6 +36,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextLayout>
+#include <QToolBar>
 #include <QToolButton>
 
 #include <sqlite3.h>
@@ -347,6 +350,40 @@ namespace {
 		return std::abs(aPixel.red() - aColour.red()) <= 3 && std::abs(aPixel.green() - aColour.green()) <= 3 && std::abs(aPixel.blue() - aColour.blue()) <= 3;
 	}
 
+	/// \brief [[BPR-1157]]. Ring pixels inside the left and right edges of a
+	/// control's render, over the middle third of its height: within 24 of
+	/// the ring's colour on every channel, as `colour_near` reads a role.
+	auto ring_pixels(const QImage& aImage, const QColor& aRing) -> int
+	{
+		const auto band  = static_cast<int>(std::ceil(qt::focus_ring_width * aImage.devicePixelRatio()));
+		auto       count = 0;
+		for (auto y = aImage.height() / 3; y < (2 * aImage.height()) / 3; ++y) {
+			for (auto x = 0; x < band; ++x) {
+				count += colour_near(aImage.pixelColor(x, y), aRing) ? 1 : 0;
+				count += colour_near(aImage.pixelColor(aImage.width() - 1 - x, y), aRing) ? 1 : 0;
+			}
+		}
+		return count;
+	}
+
+	/// Whether `aOn` shows a ring `aOff`, the same control unfocused, does not.
+	auto ring_appears(const QImage& aOff, const QImage& aOn, const QColor& aRing) -> bool
+	{
+		const auto rows = (2 * aOn.height()) / 3 - aOn.height() / 3;
+		return aOff.size() == aOn.size() && ring_pixels(aOn, aRing) - ring_pixels(aOff, aRing) >= rows;
+	}
+
+	/// The ring's colour on a control: over the bar for a toolbar's button,
+	/// over the control's own background otherwise.
+	auto ring_on(const QWidget& aControl) -> QColor
+	{
+		auto barred = false;
+		for (const auto* parent = aControl.parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+			barred = barred || parent->inherits("QToolBar");
+		}
+		return qt::focus_ring_colour(aControl.palette(), barred ? QPalette::Window : aControl.backgroundRole());
+	}
+
 	auto identity_text(qt::workbench_window& aWindow) -> QString
 	{
 		auto* const label = aWindow.findChild<QLabel*>(QStringLiteral("workbenchStripIdentity"));
@@ -408,13 +445,76 @@ try {
 	const auto flow     = appearance.color(core::appearance_role::syntax_control_flow);
 	expect(word_painted(*page->source(), QStringLiteral("return"), flow) && word_painted(*page->source(), QStringLiteral("check"), function), "the source pane in the panes' syntax colours");
 	capture(window, QStringLiteral("desktop-cycle-source-syntax"));
+
+	// [[BPR-1157]]. The owner rejected native-keyboard v001 (event 794): "Tab
+	// does cycle between things but it's not obvious at all what has focus."
+	// In the composed window, with window-system keys, every stop Tab reaches
+	// shows the window's focus ring as focus arrives and loses it as focus
+	// leaves, the window's own title row included.
+	using byte_range = std::pair<std::uint64_t, std::uint64_t>;
+	auto* const code = page->source();
+	window.raise();
+	window.activateWindow();
+	for (auto wait = 0; wait < 40 && !window.isActiveWindow(); ++wait) {
+		QApplication::processEvents(QEventLoop::AllEvents, 50);
+	}
+	page->files()->setFocus(Qt::TabFocusReason);
+	QApplication::processEvents();
+	auto ringed = 0;
+	for (auto step = 0; step < 80; ++step) {
+		auto* const from     = QApplication::focusWidget();
+		auto        unringed = std::vector<std::pair<QWidget*, QImage>>{ };
+		for (auto* const control : window.findChildren<QWidget*>()) {
+			if ((control->focusPolicy() & Qt::TabFocus) != 0 && control->isVisible() && control != from) {
+				unringed.emplace_back(control, control->grab().toImage());
+			}
+		}
+		const auto held = from->grab().toImage();
+		tests::window_system_key(*from, Qt::Key_Tab);
+		auto* const to        = QApplication::focusWidget();
+		const auto  unfocused = std::ranges::find(unringed, to, &std::pair<QWidget*, QImage>::first);
+		if (unfocused == unringed.end() || !ring_appears(unfocused->second, to->grab().toImage(), ring_on(*to))) {
+			std::cerr << "no ring on " << (to != nullptr ? (to->objectName() + QStringLiteral(" ") + to->accessibleName()).toStdString() : std::string{ "nothing" }) << '\n';
+		}
+		expect(unfocused != unringed.end() && ring_appears(unfocused->second, to->grab().toImage(), ring_on(*to)), "every stop Tab reaches shows the focus ring");
+		expect(ring_appears(from->grab().toImage(), held, ring_on(*from)), "and the stop it left loses it");
+		++ringed;
+		if (to == page->review_bar()->widgetForAction(page->comment_action())) {
+			capture(window, QStringLiteral("desktop-cycle-focus-review-bar"));
+		}
+		if (to == page->files()) {
+			break;
+		}
+	}
+	std::cout << "focus stops ringed in the window: " << ringed << '\n';
+	expect(QApplication::focusWidget() == page->files() && ringed > 10, "Tab comes round, through the title row, the review bar, the tabs, the code and the notes");
+	tests::window_system_key(*page->files(), Qt::Key_Tab);
+	expect(QApplication::focusWidget() == code, "the code view follows the files");
+	capture(window, QStringLiteral("desktop-cycle-focus-code"));
+
+	// The owner's suggestion, recorded as the decision: reading the code,
+	// Return makes a note where the caret is and Shift+Return suggests a
+	// change there. No window shortcut claims either key, so the window's own
+	// keys never shadow them.
+	for (auto* const action : window.findChildren<QAction*>()) {
+		for (const auto& key : action->shortcuts()) {
+			const auto bare = key[0].key();
+			expect(key.count() != 1 || (bare != Qt::Key_Return && bare != Qt::Key_Enter) || (key[0].keyboardModifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) != Qt::NoModifier,
+				   "no window shortcut claims Return or Shift+Return");
+		}
+	}
+	code->select_bytes(36U, 36U);
+	tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+	expect(page->comment_editor()->isVisible() && QApplication::focusWidget() == page->comment_editor() && page->findChild<QLabel*>(QStringLiteral("cycleCommentTarget"))->text() == QStringLiteral("src/parser.cpp · line 3"),
+		   "Return in the reading pane opens a note on the caret's line");
+	capture(window, QStringLiteral("desktop-cycle-return-note"));
+	page->findChild<QPushButton*>(QStringLiteral("cycleCommentCancel"))->click();
+	QApplication::processEvents();
 	// BPR-1156, the owner's notes on composer-layout v005 (event 776), in the
 	// composed window through the window system. A double click selects the
 	// word even with the pointer drifting while the button is down; a click
 	// past a line's end puts the caret at the end, not in virtual space; and
 	// a selection is the profile's solid selection colour, ending at the text.
-	using byte_range = std::pair<std::uint64_t, std::uint64_t>;
-	auto* const code = page->source();
 	tests::window_system_clicks(*code->viewport(), byte_point(*code, 6U), 2, 1.0);
 	expect(code->selected_bytes() == byte_range{ 4U, 9U }, "reading: a double click in the window selects exactly the word");
 	tests::window_system_clicks(*code->viewport(), byte_point(*code, 6U), 3, 1.0);
@@ -456,10 +556,12 @@ try {
 	page->source()->select_bytes(41U, 53U);
 	QApplication::processEvents();
 	capture(window, QStringLiteral("desktop-cycle-source-selection"));
-	auto* const sourceMenu = page->source_menu(page->source()->cell_rectangle(page->source()->model().point_of(45U)).center().toPoint());
-	expect(sourceMenu != nullptr && sourceMenu->actions().contains(page->suggest_action()) && page->suggest_action()->isEnabled() && page->source()->selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ 41U, 53U },
+	auto* const sourceMenu  = page->source_menu(page->source()->cell_rectangle(page->source()->model().point_of(45U)).center().toPoint());
+	auto* const menuSuggest = sourceMenu != nullptr ? sourceMenu->findChild<QAction*>(QStringLiteral("cycleSourceSuggest")) : nullptr;
+	expect(menuSuggest != nullptr && sourceMenu->actions().contains(menuSuggest) && menuSuggest->isEnabled() && page->source()->selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ 41U, 53U },
 		   "Suggest change in the source pane's context menu; a click inside the selection keeps it");
-	page->suggest_action()->trigger();
+	expect(menuSuggest->shortcut()[0].keyboardModifiers() == Qt::ShiftModifier && menuSuggest->isShortcutVisibleInContextMenu(), "shown with Shift+Return");
+	menuSuggest->trigger();
 	delete sourceMenu;
 	QApplication::processEvents();
 	capture(window, QStringLiteral("desktop-cycle-suggest-begun"));
@@ -494,16 +596,20 @@ try {
 	expect(page->notes()->count() == 2 && page->notes()->item(1)->text().contains(QStringLiteral("Suggested change · 2")) && page->projection().Notes[1].Suggestions == 2U, "one note with both suggestions saved");
 	expect(!page->suggesting() && page->source()->isVisible() && page->source()->read_only() && page->source()->text() == original && read_file(project / "src" / "parser.cpp") == original,
 		   "the source pane back on the captured bytes; the file on disk untouched");
-	// Enter indents as a code editor does: after the opening brace, one tab
-	// more, chosen for this C++ file (owner note of 2026-10-02).
-	page->suggest_action()->trigger();
-	QApplication::processEvents();
+	// Shift+Return in the reading pane begins Suggest change at the caret
+	// ([[BPR-1157]]); then Enter indents as a code editor does: after the
+	// opening brace, one tab more, chosen for this C++ file (owner note of
+	// 2026-10-02).
+	code->setFocus(Qt::TabFocusReason);
+	code->select_bytes(36U, 36U);
+	tests::window_system_key(*code, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+	expect(page->suggesting() && !code->read_only() && QApplication::focusWidget() == code && code->selected_bytes() == byte_range{ 36U, 36U }, "Shift+Return in the reading pane begins Suggest change at the caret");
+	capture(window, QStringLiteral("desktop-cycle-shift-return-suggest"));
 	tests::window_system_clicks(*code->viewport(), byte_point(*code, 43U), 2, 1.0);
 	expect(!code->read_only() && code->selected_bytes() == byte_range{ 41U, 46U }, "editing: a double click in the window selects exactly the word");
 	page->source()->apply(core::place_caret{ .At = { 1U, 1U } });
-	QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r") };
-	QApplication::sendEvent(page->source(), &enter);
-	expect(page->source()->text() == "int parse(const char* aText)\r\n{\r\n\t\r\n\treturn check(aText);\r\n}\r\n", "Enter after a brace indents one tab, CRLF kept");
+	tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+	expect(page->source()->text() == "int parse(const char* aText)\r\n{\r\n\t\r\n\treturn check(aText);\r\n}\r\n" && !page->comment_editor()->isVisible(), "Enter after a brace indents one tab, CRLF kept, and opens no note");
 	page->findChild<QPushButton*>(QStringLiteral("suggestionCancel"))->click();
 	settle(lanes);
 	expect(!page->suggesting() && page->source()->text() == original, "cancelled back to the captured bytes");

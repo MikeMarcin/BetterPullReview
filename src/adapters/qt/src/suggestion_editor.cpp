@@ -796,6 +796,12 @@ namespace bpr::qt {
 			return;
 		}
 		if (ReadOnly) {
+			// [[BPR-1157]]. Return and Shift+Return are the reader's: they make
+			// a note or begin a suggestion where the caret is.
+			const auto extra = modifiers & ~(Qt::ShiftModifier | Qt::KeypadModifier);
+			if ((aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) && extra == Qt::NoModifier && Activated && Activated(shift)) {
+				return;
+			}
 			QAbstractScrollArea::keyPressEvent(aEvent);
 			return;
 		}
