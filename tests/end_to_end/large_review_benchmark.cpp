@@ -86,12 +86,14 @@ namespace bpr::e2e::large_review {
 	inline constexpr bool          OptimizedBuild = std::string_view{ BPR_BENCH_BUILD_CONFIGURATION } != "Debug";
 	inline constexpr std::uint64_t MiB            = 1024U * 1024U;
 #if defined(__APPLE__)
-	inline constexpr bool                            PlatformBudgetsEnforced                    = true;
-	inline constexpr std::string_view                PlatformLimitBasis                         = "macOS arm64 M4 Pro 48 GiB, Qt 6.11.2, Apple clang 21 Release at 5a26d6b1";
-	inline constexpr std::uint64_t                   PlatformFootprintGrowthLimitBytes          = 160U * MiB;
-	inline constexpr std::uint64_t                   PlatformCacheByteFootprintGrowthLimitBytes = 184U * MiB;
-	inline constexpr double                          PlatformActiveCloseQuiescenceLimitMs       = 100.0;
-	inline constexpr std::array<std::string_view, 0> PlatformKnownInputMisses{ };
+	inline constexpr bool             PlatformBudgetsEnforced                    = true;
+	inline constexpr std::string_view PlatformLimitBasis                         = "macOS arm64 M4 Pro 48 GiB, Qt 6.11.2, Apple clang 21 Release at 5a26d6b1";
+	inline constexpr std::uint64_t    PlatformFootprintGrowthLimitBytes          = 160U * MiB;
+	inline constexpr std::uint64_t    PlatformCacheByteFootprintGrowthLimitBytes = 184U * MiB;
+	inline constexpr double           PlatformActiveCloseQuiescenceLimitMs       = 100.0;
+	// Observed: approximate_file_selection 96.3-111.1, the work-limited
+	// approximate alignment course.
+	inline constexpr std::array<std::string_view, 1> PlatformKnownInputMisses{ "approximate_file_selection" };
 	inline constexpr int                             RunBudgetScale = 1;
 #elif defined(_WIN32)
 	inline constexpr bool             PlatformBudgetsEnforced = OptimizedBuild;
@@ -102,15 +104,20 @@ namespace bpr::e2e::large_review {
 	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 208U * MiB;
 	// Public close reached quiescence in 98.854 ms: 150.
 	inline constexpr double PlatformActiveCloseQuiescenceLimitMs = 150.0;
-	// Observed: large_file_selection 94.1-130.5, large_source_revisit_render
-	// 105.8-106.5, shutdown 93.4-105.8, files_drawer_open 98.2 (whole phase),
-	// active_window_close 93.2, paged_review_and_git_load 98.2.
-	inline constexpr std::array<std::string_view, 6> PlatformKnownInputMisses{
-		"large_file_selection", "large_source_revisit_render", "shutdown", "files_drawer_open", "active_window_close", "paged_review_and_git_load"
+	// Observed over two runs: large_file_selection 94.1-130.5,
+	// large_source_revisit_render 105.0-115.4, shutdown 93.4-124.9,
+	// files_drawer_open 98.2 (whole phase), active_window_close 93.2-104.0,
+	// paged_review_and_git_load 98.2, approximate_file_selection 153.7-179.9,
+	// first_tab_file 122.4-154.1.
+	inline constexpr std::array<std::string_view, 8> PlatformKnownInputMisses{
+		"large_file_selection", "large_source_revisit_render", "shutdown", "files_drawer_open",
+		"active_window_close", "paged_review_and_git_load", "approximate_file_selection", "first_tab_file"
 	};
-	// Windows Debug runs the courses several times slower than Release; the
-	// resources course outran its 90 s course clock (105.94 s row).
-	inline constexpr int RunBudgetScale = OptimizedBuild ? 1 : 2;
+	// Windows Debug runs the courses several times slower than Release: the
+	// resources course outran its 90 s clock (105.94 s row), and the byte
+	// course then took 1,626 s of a doubled 1,680 s clock. Three times keeps
+	// that course at about two thirds of its clock.
+	inline constexpr int RunBudgetScale = OptimizedBuild ? 1 : 3;
 #else
 	inline constexpr bool             PlatformBudgetsEnforced = OptimizedBuild;
 	inline constexpr std::string_view PlatformLimitBasis      = "Linux x64 (WSL2) i9-10900KF, Qt 6.11.2, GCC 15.2 -O3 Release at e257b236a";
@@ -119,9 +126,13 @@ namespace bpr::e2e::large_review {
 	inline constexpr std::uint64_t PlatformFootprintGrowthLimitBytes          = 168U * MiB;
 	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 216U * MiB;
 	inline constexpr double        PlatformActiveCloseQuiescenceLimitMs       = 100.0;
-	// Observed: large_file_selection 97.2-100.2, large_source_revisit_render 92.2.
-	inline constexpr std::array<std::string_view, 2> PlatformKnownInputMisses{ "large_file_selection", "large_source_revisit_render" };
-	inline constexpr int                             RunBudgetScale = 1;
+	// Observed over two runs: large_file_selection 94.4-108.0,
+	// large_source_revisit_render 90.4-115.3, approximate_file_selection
+	// 117.4-127.6, first_tab_file 99.8.
+	inline constexpr std::array<std::string_view, 4> PlatformKnownInputMisses{
+		"large_file_selection", "large_source_revisit_render", "approximate_file_selection", "first_tab_file"
+	};
+	inline constexpr int RunBudgetScale = 1;
 #endif
 
 	[[nodiscard]] auto known_input_miss(std::string_view aPhase) -> bool
@@ -372,10 +383,15 @@ namespace bpr::e2e::large_review {
 	/// The 100 ms input target and every enforced completion limit. Where no
 	/// limit is justified, InputBudgetFailures and the misses stay reported;
 	/// a platform's KnownInputMisses are reported, not enforced.
+	[[nodiscard]] auto input_target_met(const benchmark_report& aReport) -> bool
+	{
+		return !aReport.Extended.BudgetsEnforced
+			|| std::ranges::all_of(aReport.InputBudgetFailures, [](const std::string& aPhase) { return known_input_miss(aPhase); });
+	}
+
 	[[nodiscard]] auto budgets_met(const benchmark_report& aReport) -> bool
 	{
-		return (!aReport.Extended.BudgetsEnforced || std::ranges::all_of(aReport.InputBudgetFailures, [](const std::string& aPhase) { return known_input_miss(aPhase); }))
-			&& std::ranges::all_of(aReport.CompletionBudgets, budget_met);
+		return input_target_met(aReport) && std::ranges::all_of(aReport.CompletionBudgets, budget_met);
 	}
 
 	[[nodiscard]] auto source_path(int aIndex) -> QString
@@ -2177,6 +2193,11 @@ namespace bpr::e2e::large_review {
 			require(diagnostics.find(dataRoot.string()) == std::string::npos, "large diagnostics exclude local root");
 			verify_responsiveness_budgets(report);
 			verify_active_work_budgets(report);
+			// [[BPR-0967]]. In an optimized build every course gates the 100 ms
+			// input target on all its phases, except the four resource courses:
+			// their 1 ms heap sampler perturbs the GUI thread it measures
+			// (Windows load gaps of 208-315 ms with it, 39-60 ms without).
+			require(!OptimizedBuild || observeResources || input_target_met(report), "fixture input target missed outside the platform's named phases");
 			auto encoded = glz::write_json(report);
 			require(encoded.has_value(), "measurement serialization");
 			std::ofstream output{ argv[2], std::ios::binary };

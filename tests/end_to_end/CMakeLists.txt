@@ -1318,18 +1318,18 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 # [[BPR-0967]]. Windows row timeouts for the large-review courses. A Windows
-# Debug build doubles each course clock (the benchmark's run budget: 90 s, or
-# 180 s for cache entries, 540 s for history, 840 s for byte pressure), because
-# the Debug resources course outran 90 s there (bpr-main-win, 682ea1392,
-# i9-10900KF, MSVC 19.51, Qt 6.11.2, load 3-10%). Each timeout keeps
-# clock + 30 s reserve <= 0.75 * TIMEOUT, rounded up to a minute, and is at
-# least three times the row's measured Debug completion: responsiveness 52.4 s,
-# launch 52.8, active work 36.6, loaded close 93.8, cache entries 61.6, history
-# 187.5, first tab 25.9, benchmark 34.7. The Debug resources and byte-pressure
-# rows have no measured completion yet (they failed at 105.9 s and 323.5 s), and
-# Release byte pressure took 280.7 s. macOS and Linux keep the timeouts above:
-# every Linux Debug row finishes in under a third of them (byte pressure 65.6 s,
-# history 46.7 s, all others under 9 s).
+# Debug build triples each course clock (the benchmark's run budget: 90 s, or
+# 180 s for cache entries, 540 s for history, 840 s for byte pressure). On
+# bpr-main-win (i9-10900KF, MSVC 19.51, Qt 6.11.2, load 3-10%) the Debug
+# resources course outran 90 s at 682ea1392, and at f61340e17 the byte course
+# took 1,626.01 s of the doubled 1,680 s clock. Each timeout keeps
+# clock + 30 s reserve <= 0.75 * TIMEOUT, rounded up to a minute. Measured
+# Debug completions at f61340e17 against them: resources 110.80 s and loaded
+# close 89.39 (420 s, 3.8x and more), cache entries 61.07 (780 s), history
+# 187.44 (2,220 s), byte pressure 1,626.01 (3,420 s, 2.1x: three times would
+# be 81 minutes, and the clock itself is 1.55x the completion). macOS and Linux
+# keep the timeouts above: every Linux Debug row finishes in under a third of
+# them (byte pressure 62.64 s of 900, history 45.35 of 600, the rest under 9 s).
 if(WIN32)
     set_tests_properties(
         application_large_review_benchmark
@@ -1344,10 +1344,10 @@ if(WIN32)
         application_large_review_provider_cancel
         application_large_review_loaded_close
         application_large_review_resources
-        PROPERTIES TIMEOUT 300)
-    set_tests_properties(application_large_review_cache_entries PROPERTIES TIMEOUT 540)
-    set_tests_properties(application_large_review_history PROPERTIES TIMEOUT 1500)
-    set_tests_properties(application_large_review_cache_bytes PROPERTIES TIMEOUT 2280)
+        PROPERTIES TIMEOUT 420)
+    set_tests_properties(application_large_review_cache_entries PROPERTIES TIMEOUT 780)
+    set_tests_properties(application_large_review_history PROPERTIES TIMEOUT 2220)
+    set_tests_properties(application_large_review_cache_bytes PROPERTIES TIMEOUT 3420)
 endif()
 
 bpr_add_executable(test_better_pull_review_large_review_replay large_review_replay_tests.cpp)
@@ -1361,11 +1361,13 @@ bpr_enable_warnings(test_better_pull_review_large_review_replay)
 bpr_add_network_isolated_test(NAME large_review_replay_contract COMMAND $<TARGET_FILE:test_better_pull_review_large_review_replay>)
 set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 30)
 if(WIN32)
-    # [[BPR-0967]]. On bpr-main-win (Debug, 682ea1392) the row ran into its
-    # 30 s bound alone (30.03 s) and in the full suite (30.04 s): a lower bound,
-    # not a completion. 120 s is four times that bound until the confirmation
-    # run measures a completion.
+    # [[BPR-0967]]. bpr-main-win Debug at f61340e17: 33.23 s (30 s timed out
+    # at 682ea1392); 120 s is 3.6 times that.
     set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 120)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # [[BPR-0967]]. bpr-main-linux Debug at f61340e17: 16.32 s; 60 s is 3.7
+    # times that (Release 1.68 s).
+    set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 60)
 endif()
 
 bpr_add_executable(
