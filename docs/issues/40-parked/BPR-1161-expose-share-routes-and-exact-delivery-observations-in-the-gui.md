@@ -73,3 +73,22 @@ Not gating. Linux station (`build/dev`):
 `cmake --build --preset dev && ctest --preset dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^application_review_cycle_desktop_public_path$|^architecture_boundaries$"`.
 Windows station: the same selector with `--preset windows-dev` plus
 `|^test_network_isolation_manifest$`.
+
+### Linux at `dbe6966ea`: share page and delivery records (bpr-main-linux, 2026-10-02)
+
+Includes `8cbdc1477`. WSL2 (i9-10900KF, 20 logical processors), GCC 15.2,
+Qt 6.11.2, `build/dev` Debug, offscreen. `cmake --build --preset dev` exits 0
+with 0 `warning:` lines. The requested `ctest --preset dev -j4` selection
+passes **12 of 12** in 32.96 s:
+
+- `core_review_cycle_share` and `core_review_cycle_policy`
+- `sqlite_review_cycle_storage`
+- `review_cycle_{round,export,bundle,verification}`
+- `qt_review_cycle_view_1_0` and `_2_0`
+- `application_review_cycle_desktop_public_path`, 2.82 s. The real clipboard
+  works offscreen on Linux; there was no clipboard-owner failure.
+- `architecture_boundaries`
+
+**`review_cycle_workbench`, which renders the 16 MiB round, takes 32.94 s at
+-j4, and 30.94 s and 31.00 s alone.** The row sets no `TIMEOUT` property, so
+it runs under CTest's default. No remote mutation.
