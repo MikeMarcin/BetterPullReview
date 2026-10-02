@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0055", "RFC-BPR-0061"]
 depends_on: ["BPR-1154", "BPR-1155"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-07", "RC55-09", "RC61-04"], "pack_alias": "PACK-CYCLE-14", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0): Alt+Shift+Down x2 then Shift+End one caret per line to its own end, typing at every caret with CRLF kept, undo, virtual space, Tab, box copy/paste with marker, cut, Alt+click, IME preedit and commit. Owner judgment pending: attended item BPR-1156-editor-gestures-v001 on the frozen candidate (revision c2a0df54a)."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"028882c3a","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected BPR-1156-composer-layout-v001 (event 713: \"There's no syntax highlighting.\") and v002 (event 719: \"The main file pane stll has no syntax highlight.\"). At 028882c3a the cycle page's source pane, the composer's editor and its before/after preview are all coloured by the review panes' packaged classifier and role colours (qt_review_cycle_view_1_0/2_0 and qt_suggestion_editor_1_0/2_0 rendered pixels, application_review_cycle_desktop_public_path with the real classifier); the earlier share (prefill, before/after in context, newer material stated without moving, related location, ambiguous/deleted/unmapped words) still passes. Owner judgment pending: BPR-1156-composer-layout-v003 on the frozen candidate /Users/jaeger/bpr-cycles-syntax-review.rMJBTD (app sha256 85492e75...7ebef307)."}}]
+acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"da459c4e1","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 at da459c4e1 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0): Alt+Shift+Down x2 then Shift+End one caret per line to its own end, typing at every caret with CRLF kept, undo, virtual space, Tab, box copy/paste with marker, cut, Alt+click, IME preedit and commit; the same editor is now the main pane over the whole file (owner amendment, RFC-BPR-0055). Owner judgment pending: BPR-1156-editor-gestures-v002 on the frozen candidate /Users/jaeger/bpr-cycles-inplace-review.hnx9k9 (app sha256 bdb77d98...6ca112c13), superseding the undecided v001."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"da459c4e1","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected composer-layout v001 (event 713), v002 (event 719) and v003 (event 742); the v003 note is an owner amendment recorded in RFC-BPR-0055 and reflected in RC61-04's text. At da459c4e1 Suggest change starts from the caret (review bar and the source pane's context menu), edits the whole file in the main pane, saves one exact suggestion per separate changed run of lines on one note, and the before/after shows removed and added rows in the diff panes' fills and syntax colours (qt_review_cycle_view_1_0/2_0, qt_suggestion_editor_1_0/2_0, review_cycle_workbench, application_review_cycle_desktop_public_path offscreen and under cocoa with the real classifier). Owner judgment pending: BPR-1156-composer-layout-v004 on the frozen candidate /Users/jaeger/bpr-cycles-inplace-review.hnx9k9 (app sha256 bdb77d98...6ca112c13)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-14** (live `BPR-1156`, allocated at import).
@@ -244,3 +244,74 @@ All six rows pass on the rebuilt binaries, in 19.13 s:
 
 Before the rename, the desktop row passed only because CTest ran the stale
 executable.
+
+## Owner amendment: Suggest change edits the file in place (2026-10-01)
+
+In attended session `cbd48b91000b00f1e72e1ad62c7c384c` the owner rejected
+`BPR-1156-composer-layout-v003` at event 742 and handed back at 743:
+
+> If you're going to show +/- lines in the bottom right they should be colored
+> like we do our diffs.
+>
+> I should be able to right click suggest change. I'm not sure why i can't
+> suggest change without a selected block, I feel like a cursor should be
+> sufficient.
+>
+> I don't want to edit in a tiny box on the right I want to edit in the main
+> window. I don't want to be limited to changing the lines I initially selected
+> either, can't I just suggest change and start editing in that whole file?
+
+This is a product decision, not an observation. It changes the card's outcome
+("prefilled Suggest change" in a focused composer) to: Suggest change from the
+caret, including a right click; the whole file edited in the main pane; and a
+before/after coloured like the diffs. The decision, how a suggestion's extent
+is derived and what is delivered when changes are not contiguous are recorded
+as the [owner amendment in RFC-BPR-0055](../../rfcs/RFC-BPR-0055-source-feedback-and-exact-suggested-edits.md#owner-amendment-2026-10-01-suggest-change-edits-the-file-in-place).
+RC55-04 and RC61-04 are amended there and in their closeout rows.
+
+## Suggest change in the main pane — macOS, 2026-10-01
+
+Observations at `da459c4e1`.
+
+- From the caret: Suggest change needs no selection, from the review bar and
+  from the source pane's context menu (Comment, Suggest change, then the pane's
+  own Copy and Select All). A right click outside the selection moves the caret.
+- In place: the main pane becomes the multi-caret suggestion editor holding the
+  whole captured file, at the caret or with the selection selected again, at
+  the same scroll line. The tray keeps location, intent, rationale and the
+  before/after. Save or Cancel gives the pane back; a later capture moves
+  nothing. A file over 1 MiB is not opened (the editor model's new bound; undo
+  is bounded by bytes as well as steps).
+- Extent: `core::derive_edit_hunks` returns whole-line runs separated by at
+  least one unchanged line, exact against the edited file; each run is one
+  exact suggestion of one note (`review_cycle_suggestion_request::Edits`, added
+  in order by the host). More than 64 runs or a run over 64 KiB is refused with
+  the reason shown.
+- Preview: `core::preview_edit_hunks` rows; removed and added rows wear the diff
+  panes' fills (`code_sample_row_fill`), the header the hunk-header roles.
+
+| Check (macOS arm64, `build/dev`, `da459c4e1`) | Result |
+|---|---|
+| `core_review_cycle_suggestion`: exact hunks with CRLF, deletion and insertion, CRLF to LF, no final newline, empty file, 300 random edits exact and separated, one exact hunk past the bound, the save refusals, preview rows and headers | Pass |
+| `core_suggestion_text_editing` (`point_of`), `review_cycle_workbench` (two changes saved as one note's two suggestions) | Pass |
+| `qt_suggestion_editor_1_0`/`_2_0`: whole file at the caret or selection; two separate changes with exact hunks; summary; undo back to nothing to save; editor and preview words by the local role-colour/text-colour rule; removed, added and unchanged row fills by a flat-fill pixel rule | Pass |
+| `qt_review_cycle_view_1_0`/`_2_0`: Suggest change enabled with only a caret; context menu order and caret move; editor in the main pane, focused; one and two exact edits handed over; Cancel; a capture while editing moves nothing | Pass |
+| `application_review_cycle_desktop_public_path`, offscreen and under `QT_QPA_PLATFORM=cocoa`, real classifier: Suggest change from the context menu, two changes, coloured editor and preview rows, diff fills, one note with `Suggested change · 2`, file on disk unchanged | Pass |
+| 52 rows matching `review_cycle\|suggestion\|syntax\|round_trip_composition\|architecture_boundaries\|code_sample`; full `cmake --build --preset dev` with no warning; clang-format and `tidy.py --changed --warnings-as-errors` | Pass |
+| Negative controls (not committed): preview row fills removed; the editor's syntax lines not set; Suggest change dropped from the menu; Suggest change enabled only with a selection | Each fails `qt_suggestion_editor_*`, the desktop course or `qt_review_cycle_view_*` at the matching check |
+
+Attended: `BPR-1156-composer-layout-v004` (RC61-04) and
+`BPR-1156-editor-gestures-v002` (RC55-07, superseding the undecided v001,
+whose small tray editor no longer exists) on the frozen candidate
+`/Users/jaeger/bpr-cycles-inplace-review.hnx9k9` (app sha256
+`bdb77d98…6ca112c13`; its launcher sets HOME and CFFIXED_USER_HOME, and an
+offscreen trial start wrote its profile only under the given home). Session
+cursor 764. The card stays Parked on human-review.
+
+A `resume-development` for v001 and v003 was given `--paths` as well as
+`--candidate`; the tool releases the union, so it also released the four
+undecided BPR-1157 items. Their frozen apps and questions are unchanged, so
+they were prepared again from the same material and the reason recorded on
+each; no verdict changed.
+
+Owed: Linux and Windows runs of the changed rows at `da459c4e1` or later.
