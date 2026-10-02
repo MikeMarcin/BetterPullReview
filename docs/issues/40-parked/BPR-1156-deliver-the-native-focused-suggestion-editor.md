@@ -481,3 +481,15 @@ released by candidate name only; the BPR-1157 items stay protected. Session
 cursor 775. The card stays Parked on human-review.
 
 Owed: Linux and Windows runs of the changed rows at `b486149a5` or later.
+
+### Linux at `fbd4ab206`: one shared code view and auto-indent (bpr-main-linux, 2026-10-02)
+
+Includes `b486149a5`. WSL2, GCC 15.2, Qt 6.11.2, `build/dev` Debug, offscreen.
+`cmake --preset dev && cmake --build --preset dev` exits 0 with 0 `warning:`
+lines. The requested `ctest --preset dev -j4` selection passes **14 of 14** in
+19.25 s. That includes `qt_review_cycle_view_1_0` and `_2_0` with the new
+before-and-after Suggest change pixel comparisons, as well as
+`qt_suggestion_editor_1_0` and `_2_0`, `review_cycle_suggestion`, the
+round-trip contract, `syntax_classification_contract` and
+`architecture_boundaries`. No pixel check failed on the Linux fonts. No
+remote mutation.
