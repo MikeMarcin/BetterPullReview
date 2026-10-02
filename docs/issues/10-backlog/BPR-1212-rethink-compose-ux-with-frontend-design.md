@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"BPR-0966 final owner verdict, 2026-09-26","related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"related_issues":["BPR-0966","BPR-1203","BPR-1207"],"requested_skill":"frontend-design","timing":"Later follow-up; not active m2b work or a blocker for accepted Dif placement","decision_id":"3bcafec9-7811-46dd-83dd-f7bda4cdac1b","candidate":"BPR-0966-compose-slot-v002","candidate_revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","mandate_revision":"r4-with-owner-compose-20260925-r3"}
+metadata: {"origin":"BPR-0966 final owner verdict, 2026-09-26","related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"related_issues":["BPR-0966","BPR-1203","BPR-1207","BPR-1161"],"requested_skill":"frontend-design","timing":"Later follow-up; not active m2b work or a blocker for accepted Dif placement","decision_id":"3bcafec9-7811-46dd-83dd-f7bda4cdac1b","candidate":"BPR-0966-compose-slot-v002","candidate_revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","mandate_revision":"r4-with-owner-compose-20260925-r3"}
 ---
 
 # Rethink the Compose UX with frontend-design
@@ -54,6 +54,23 @@ revision. Preserve review/comment/reply semantics, retained draft content,
 keyboard return paths and accessible controls. Dif remains decorative with one
 widget; redesigning the surrounding page does not authorize asset changes or
 invented success cues.
+
+## Related: sharing a Review Cycles round ([[BPR-1161]], 2026-10-02)
+
+The owner rejected Review Cycles' Compose feedback page,
+`BPR-1161-compose-share-v001`, at event 834. Their note: "I have no idea how
+I got to this screen, why I would wnat to do any of these actions, and what
+is important." The `frontend-design` round that followed lives on BPR-1161,
+because it is that card's RC61-05 and RC61-06 and not this card's pull
+request flows. The round is [design round
+v1](../../design/BPR-1161-share-round-v1.html), with directions A (a share
+sheet), B (sharing from the Notes tray) and C (the round as a letter), and
+the owner's choice is asked as `BPR-1161-share-direction-v001`. When this
+card is activated, start from that choice and its plain-word vocabulary. It
+covers a labelled entry, purpose stated beside each action, one primary
+action, and machine detail behind "exact text". Do not redraw it as a
+separate convention. This note neither activates this card nor changes its
+criteria.
 
 ## Acceptance
 
