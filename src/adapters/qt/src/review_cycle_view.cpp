@@ -279,7 +279,7 @@ namespace bpr::qt {
 		ReviewBar->addAction(CommentAction);
 		SuggestAction = new QAction{ QStringLiteral("Suggest change"), this };
 		SuggestAction->setObjectName(QStringLiteral("cycleSuggestAction"));
-		SuggestAction->setToolTip(QStringLiteral("Propose exact replacement code for the selection"));
+		SuggestAction->setToolTip(QStringLiteral("Edit this file in place, starting at the cursor, and propose the changes as exact replacements"));
 		ReviewBar->addAction(SuggestAction);
 		ComposeAction = new QAction{ strip_icon(strip_glyph::compose_review, palette()), QStringLiteral("Compose feedback"), this };
 		ComposeAction->setObjectName(QStringLiteral("cycleComposeAction"));
@@ -331,6 +331,7 @@ namespace bpr::qt {
 		Source->setReadOnly(true);
 		Source->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Source->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		Source->setContextMenuPolicy(Qt::CustomContextMenu);
 		SourceNotice = new QLabel{ Centre };
 		SourceNotice->setObjectName(QStringLiteral("cycleSourceNotice"));
 		SourceNotice->setAlignment(Qt::AlignCenter);
@@ -342,9 +343,13 @@ namespace bpr::qt {
 		Comparison->setReadOnly(true);
 		Comparison->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Comparison->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		// Suggest change edits the whole file here, in the main pane.
+		SuggestionEditor = new suggestion_editor{ Centre };
 		Centre->addWidget(Source);
 		Centre->addWidget(SourceNotice);
 		Centre->addWidget(Comparison);
+		Centre->addWidget(SuggestionEditor);
+		ReadingPage = Source;
 
 		auto* const tray       = new QWidget{ Body };
 		auto* const trayColumn = new QVBoxLayout{ tray };
@@ -469,10 +474,16 @@ namespace bpr::qt {
 			TrayComposer->setCurrentIndex(0);
 		});
 		connect(ReplyMenu, &QMenu::aboutToShow, this, [this] { rebuild_reply_menu(); });
-		Composer = new suggestion_composer{ TrayComposer };
+		Composer = new suggestion_composer{ *SuggestionEditor, TrayComposer };
 		TrayComposer->addWidget(Composer);
 		TrayComposer->setCurrentIndex(0);
 		trayColumn->addWidget(TrayComposer);
+		// Leaving the composer, however it is left, gives the pane back to reading.
+		connect(TrayComposer, &QStackedWidget::currentChanged, this, [this] {
+			if (!suggesting()) {
+				end_suggestion();
+			}
+		});
 
 		Body->addWidget(Files);
 		Body->addWidget(Centre);
@@ -523,6 +534,11 @@ namespace bpr::qt {
 			TrayComposer->setCurrentIndex(0);
 		});
 		connect(Source, &QPlainTextEdit::selectionChanged, this, [this] { refresh_actions(); });
+		connect(Source, &QWidget::customContextMenuRequested, this, [this](const QPoint& aAt) {
+			if (auto* const menu = source_menu(aAt)) {
+				menu->popup(Source->viewport()->mapToGlobal(aAt));
+			}
+		});
 		connect(Notes, &QListWidget::currentRowChanged, this, [this](int) { refresh_actions(); });
 		connect(RelateButton, &QPushButton::clicked, this, [this] {
 			const auto row    = Notes->currentRow();
@@ -571,16 +587,23 @@ namespace bpr::qt {
 			menu->popup(Files->viewport()->mapToGlobal(aAt));
 		});
 		Composer->Saved = [this] {
-			const auto anchor = selection_anchor();
-			if (anchor && Dispatch.Suggest) {
-				Dispatch.Suggest({
-					.Selection   = *anchor,
-					.Replacement = Composer->replacement(),
-					.Intent      = Composer->illustrative() ? core::cycle_suggestion_intent::illustrative : core::cycle_suggestion_intent::exact_replacement,
-					.Rationale   = Composer->rationale(),
-				});
+			if (!SuggestionSource || !Dispatch.Suggest) {
+				return;
+			}
+			// Each separate change is one exact suggestion of whole original lines.
+			auto request = application::review_cycle_suggestion_request{
+				.Intent    = Composer->illustrative() ? core::cycle_suggestion_intent::illustrative : core::cycle_suggestion_intent::exact_replacement,
+				.Rationale = Composer->rationale(),
+			};
+			for (const auto& edit : Composer->edits()) {
+				auto anchor = core::make_anchor(SuggestionSource->Revision, SuggestionSource->Path, SuggestionSource->Bytes, edit.Start, edit.End);
+				if (!anchor) {
+					return;
+				}
+				request.Edits.push_back({ .Selection = std::move(*anchor), .Replacement = edit.Replacement });
 			}
 			TrayComposer->setCurrentIndex(0);
+			Dispatch.Suggest(std::move(request));
 		};
 		Composer->Cancelled = [this] { TrayComposer->setCurrentIndex(0); };
 		refresh_actions();
@@ -611,7 +634,7 @@ namespace bpr::qt {
 	auto review_cycle_view::adopt_source_syntax(const std::string_view aDocument, application::shared_token_spans aSpans) -> bool
 	{
 		const auto& source = Projection.Source;
-		if (!aSpans || !source || Centre->currentWidget() != Source || std::string_view{ reinterpret_cast<const char*>(source->Bytes.data()), source->Bytes.size() } != aDocument) {
+		if (!aSpans || !source || ReadingPage != Source || std::string_view{ reinterpret_cast<const char*>(source->Bytes.data()), source->Bytes.size() } != aDocument) {
 			return false;
 		}
 		SourceSyntax = classify_text_lines(source->Bytes, std::move(aSpans));
@@ -740,15 +763,15 @@ namespace bpr::qt {
 			} else {
 				SourceNotice->setText(QStringLiteral("Open a project to review it locally."));
 			}
-			Centre->setCurrentWidget(SourceNotice);
+			ReadingPage = SourceNotice;
 		} else if (source->Status != application::review_material_status::available) {
 			SourceNotice->setText(QStringLiteral("The captured bytes of %1 in %2 are not available; nothing else is shown in their place.").arg(text_of(source->Path), revision_text(source->Revision)));
-			Centre->setCurrentWidget(SourceNotice);
+			ReadingPage = SourceNotice;
 		} else if (!readable(source->Text)) {
 			SourceNotice->setText(QStringLiteral("%1 is binary or not UTF-8 (%2 bytes). Notes can still be made on the whole file.").arg(text_of(source->Path)).arg(source->Bytes.size()));
-			Centre->setCurrentWidget(SourceNotice);
+			ReadingPage = SourceNotice;
 		} else {
-			Centre->setCurrentWidget(Source);
+			ReadingPage = Source;
 			if (changed) {
 				Source->setPlainText(display_text(source->Bytes));
 				Source->verticalScrollBar()->setValue(static_cast<int>(source->Line));
@@ -845,9 +868,10 @@ namespace bpr::qt {
 			item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
 		}
 		// A later capture never moves an open composer: it states newer material.
-		if (TrayComposer->currentWidget() == Composer && latest && Projection.Source && Projection.Source->Revision != *latest) {
+		if (suggesting() && latest && SuggestionSource && SuggestionSource->Revision != *latest) {
 			Composer->set_source_status(suggestion_source_status::newer_available);
 		}
+		show_reading_page();
 		refresh_actions();
 		Presenting = false;
 	}
@@ -857,19 +881,19 @@ namespace bpr::qt {
 		const auto path = text_of(aComparison.Path);
 		if (aComparison.Status != application::review_material_status::available && aComparison.Rows.empty()) {
 			SourceNotice->setText(QStringLiteral("The captured bytes of %1 in %2 are not available; nothing else is shown in their place.").arg(path, pair_text(aComparison.Pair)));
-			Centre->setCurrentWidget(SourceNotice);
+			ReadingPage = SourceNotice;
 			return;
 		}
 		if (aComparison.File && aComparison.File->Change == core::cycle_path_change::unknown) {
 			SourceNotice->setText(QStringLiteral("%1 is not known on one side of %2 (outside the scope or not captured); no change is claimed.").arg(path, pair_text(aComparison.Pair)));
-			Centre->setCurrentWidget(SourceNotice);
+			ReadingPage = SourceNotice;
 			return;
 		}
 		if (aComparison.Rows.empty()) {
 			const auto unchanged = aComparison.File && !aComparison.File->changed();
 			SourceNotice->setText(unchanged ? QStringLiteral("%1 is unchanged from %2.").arg(path, pair_text(aComparison.Pair))
 											: QStringLiteral("%1 has no text comparison in %2 (binary, not UTF-8 or too large).").arg(path, pair_text(aComparison.Pair)));
-			Centre->setCurrentWidget(SourceNotice);
+			ReadingPage = SourceNotice;
 			return;
 		}
 		if (aChanged) {
@@ -897,7 +921,7 @@ namespace bpr::qt {
 			}
 			Comparison->setExtraSelections(marks);
 		}
-		Centre->setCurrentWidget(Comparison);
+		ReadingPage = Comparison;
 	}
 
 	void review_cycle_view::rebuild_view_menu()
@@ -1100,35 +1124,93 @@ namespace bpr::qt {
 
 	void review_cycle_view::begin_suggestion()
 	{
-		const auto anchor = selection_anchor();
-		if (!anchor) {
+		if (!SuggestAction->isEnabled() || !Projection.Source) {
 			return;
 		}
-		const auto span = core::project_lines(Projection.Source->Bytes, anchor->Start, anchor->End);
-		Composer->begin({
-			.Location = utf8(span ? QStringLiteral("%1 · %2 · %3").arg(text_of(anchor->Path), lines_text(*span), revision_text(anchor->Revision)) : text_of(anchor->Path)),
-			.Before   = anchor->Before,
-			.Original = anchor->Original,
-			.After    = anchor->After,
-			.Path     = anchor->Path,
-			.File     = std::string{ Projection.Source->Bytes.begin(), Projection.Source->Bytes.end() },
-			.Start    = anchor->Start,
-		});
+		// The caret is enough: a selection, if there is one, is selected again in the editor.
+		const auto  cursor = Source->textCursor();
+		const auto  start  = source_offset(cursor.selectionStart());
+		const auto  end    = source_offset(cursor.selectionEnd());
+		const auto& shown  = *Projection.Source;
+		if (!start || !end || !Composer->begin({
+				.Location = utf8(QStringLiteral("%1 · %2 · editing the whole file").arg(text_of(shown.Path), revision_text(shown.Revision))),
+				.Path     = shown.Path,
+				.File     = std::string{ shown.Bytes.begin(), shown.Bytes.end() },
+				.Start    = *start,
+				.End      = *end,
+			})) {
+			return;
+		}
+		SuggestionSource  = shown;
 		const auto latest = Projection.Revisions.empty() ? std::nullopt : std::optional{ Projection.Revisions.back() };
-		if (latest && *latest != anchor->Revision) {
+		if (latest && *latest != shown.Revision) {
 			Composer->set_source_status(suggestion_source_status::newer_available);
 		}
+		const auto top = static_cast<std::uint64_t>(std::max(Source->verticalScrollBar()->value(), 0));
 		TrayComposer->setCurrentWidget(Composer);
-		Composer->editor()->setFocus(Qt::OtherFocusReason);
+		show_reading_page();
+		SuggestionEditor->scroll_to_line(top);
+		SuggestionEditor->setFocus(Qt::OtherFocusReason);
+		refresh_actions();
+	}
+
+	void review_cycle_view::end_suggestion()
+	{
+		if (!SuggestionSource) {
+			return;
+		}
+		SuggestionSource.reset();
+		show_reading_page();
+		refresh_actions();
+		if (Centre->currentWidget() == Source) {
+			Source->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	auto review_cycle_view::suggesting() const -> bool
+	{
+		return TrayComposer->currentWidget() == Composer && SuggestionSource.has_value();
+	}
+
+	void review_cycle_view::show_reading_page()
+	{
+		Centre->setCurrentWidget(suggesting() ? SuggestionEditor : ReadingPage);
+	}
+
+	auto review_cycle_view::source_menu(const QPoint& aAt) -> QMenu*
+	{
+		if (Centre->currentWidget() != Source) {
+			return nullptr;
+		}
+		// A right click outside the selection moves the caret, as a click would.
+		auto       cursor  = Source->textCursor();
+		const auto clicked = Source->cursorForPosition(aAt).position();
+		if (!cursor.hasSelection() || clicked < cursor.selectionStart() || clicked > cursor.selectionEnd()) {
+			cursor.setPosition(clicked);
+			Source->setTextCursor(cursor);
+		}
+		refresh_actions();
+		auto* const menu  = Source->createStandardContextMenu();
+		const auto  first = menu->actions().isEmpty() ? nullptr : menu->actions().constFirst();
+		menu->setObjectName(QStringLiteral("cycleSourceMenu"));
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		menu->insertAction(first, CommentAction);
+		menu->insertAction(first, SuggestAction);
+		menu->insertSeparator(first);
+		return menu;
 	}
 
 	void review_cycle_view::refresh_actions()
 	{
 		const auto open     = Projection.Cycle.has_value();
 		const auto shown    = Projection.Source && Projection.Source->Status == application::review_material_status::available;
-		const auto selected = Source->textCursor().hasSelection() && Centre->currentWidget() == Source;
-		CommentAction->setEnabled(open && shown);
-		SuggestAction->setEnabled(open && shown && selected);
+		const auto reading  = Centre->currentWidget() == Source;
+		const auto selected = Source->textCursor().hasSelection() && reading;
+		const auto editable = shown && Projection.Source->Bytes.size() <= core::maximum_suggestion_editor_bytes;
+		CommentAction->setEnabled(open && shown && !suggesting());
+		SuggestAction->setEnabled(open && reading && editable && !suggesting());
+		SuggestAction->setToolTip(shown && !editable ? QStringLiteral("This file is too large to edit here; comment on it instead")
+													 : QStringLiteral("Edit this file in place, starting at the cursor, and propose the changes as exact replacements"));
 		const auto active = Projection.Source ? std::ranges::find(Projection.Files, Projection.Source->Path, &application::review_cycle_file_entry::Path) : Projection.Files.end();
 		PreviousFile->setEnabled(active != Projection.Files.end() && active != Projection.Files.begin());
 		NextFile->setEnabled(active != Projection.Files.end() && active + 1 != Projection.Files.end());

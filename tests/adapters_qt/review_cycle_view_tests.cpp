@@ -122,7 +122,7 @@ namespace {
 		expect(aView.tabs()->tabs().size() == 1U && aView.tabs()->tabs()[0].Active && aView.tabs()->tabs()[0].OwnPair.isEmpty(), "one tab on the latest revision");
 		expect(aView.notes()->count() == 2 && aView.notes()->item(0)->text().contains(QStringLiteral("line 3")) && aView.notes()->item(0)->text().contains(QStringLiteral("Suggested change")), "anchored note with its line");
 		expect(aView.notes()->item(1)->text().startsWith(QStringLiteral("Whole cycle")) && aView.notes()->item(1)->text().contains(QStringLiteral("self-reported")), "cycle note without a line; provenance shown");
-		expect(!aView.compose_action()->isEnabled() && aView.comment_action()->isEnabled() && !aView.suggest_action()->isEnabled(), "Compose is not offered yet; Suggest needs a selection");
+		expect(!aView.compose_action()->isEnabled() && aView.comment_action()->isEnabled() && aView.suggest_action()->isEnabled(), "Compose is not offered yet; Suggest change needs only the caret");
 		expect(!aView.updates_line()->isVisible(), "Updates line folded");
 		aView.updates_toggle()->click();
 		expect(aView.updates_line()->isVisible() && aView.updates_line()->text().contains(QStringLiteral("Captured: R1")), "Updates line unfolds");
@@ -236,15 +236,82 @@ namespace {
 		aView.findChild<QPushButton*>(QStringLiteral("cycleCommentSave"))->click();
 		expect(std::holds_alternative<core::cycle_file_target>(aNoted.Primary) && std::get<core::cycle_file_target>(aNoted.Primary).Path == "src/parser.cpp", "whole-file note");
 
+		// Suggest change from the selection: the whole file is edited in the
+		// main pane, with the selection selected again (owner amendment to
+		// BPR-1156, 2026-10-01).
 		select(aView, 18, 25);
 		aView.suggest_action()->trigger();
 		settle();
-		expect(aView.composer()->isVisible() && aView.composer()->replacement() == "caf\xC3\xA9(1)", "composer prefilled with the selected bytes");
-		aView.composer()->editor()->apply(core::select_all{ });
-		aView.composer()->editor()->apply(core::insert_text{ "coffee(1)" });
+		auto* const editor = aView.composer()->editor();
+		expect(aView.suggesting() && aView.composer()->isVisible() && editor->isVisible() && !aView.source()->isVisible(), "the editor takes the source pane's place");
+		expect(editor->text() == parser && aView.window()->focusWidget() == editor, "the whole file, focused");
+		expect(editor->model().state().Carets.size() == 1U && editor->model().state().Carets[0].Anchor == core::text_point{ 2U, 11U } && editor->model().state().Carets[0].Head == core::text_point{ 2U, 18U },
+			   "the selection selected again");
+		expect(!aView.suggest_action()->isEnabled() && !aView.comment_action()->isEnabled(), "one suggestion at a time");
+		editor->apply(core::insert_text{ "coffee(1)" });
 		capture(aView, QStringLiteral("cycle-suggest-change"));
 		aView.composer()->save_button()->click();
-		expect(aSuggested.Selection == *anchor && aSuggested.Replacement == "coffee(1)" && aSuggested.Intent == core::cycle_suggestion_intent::exact_replacement, "suggestion handed over exactly");
+		settle();
+		const auto line = *core::make_anchor(core::cycle_source_revision_id{ 1 }, "src/parser.cpp", bytes(parser), 12, 31);
+		expect(aSuggested.Edits.size() == 1U && aSuggested.Edits[0].Selection == line && aSuggested.Edits[0].Replacement == "\treturn coffee(1);\r\n"
+				   && aSuggested.Intent == core::cycle_suggestion_intent::exact_replacement,
+			   "the changed line handed over exactly, whole");
+		expect(!aView.suggesting() && aView.source()->isVisible() && !editor->isVisible(), "the source pane back after Save");
+	}
+
+	/// The point of UTF-16 position `aPosition` of the source pane, in its viewport.
+	auto point_of(qt::review_cycle_view& aView, const int aPosition) -> QPoint
+	{
+		auto cursor = aView.source()->textCursor();
+		cursor.setPosition(aPosition);
+		return aView.source()->cursorRect(cursor).center();
+	}
+
+	/// Owner amendment to BPR-1156 (2026-10-01): Suggest change from a caret
+	/// and from the source pane's context menu, and several separate changes
+	/// in one file become one note's exact suggestions.
+	void suggests_from_the_caret_and_the_context_menu(qt::review_cycle_view& aView, application::review_cycle_suggestion_request& aSuggested)
+	{
+		aView.present(projection(1));
+		select(aView, 18, 25);
+		// A right click outside the selection moves the caret there, as a click would.
+		auto* menu = aView.source_menu(point_of(aView, 3));
+		expect(menu != nullptr && !aView.source()->textCursor().hasSelection() && aView.source()->textCursor().position() == 3, "the caret moved to the click");
+		const auto actions = menu->actions();
+		expect(actions.size() > 3 && actions[0] == aView.comment_action() && actions[1] == aView.suggest_action() && actions[2]->isSeparator(), "Comment and Suggest change first in the menu");
+		expect(std::ranges::any_of(actions, [](const QAction* aAction) { return aAction->text().contains(QStringLiteral("Copy")); }), "then the pane's own Copy");
+		expect(aView.suggest_action()->isEnabled(), "offered with only a caret");
+		capture(aView, QStringLiteral("cycle-source-menu"));
+		actions[1]->trigger();
+		delete menu;
+		settle();
+		auto* const editor = aView.composer()->editor();
+		expect(aView.suggesting() && editor->isVisible() && editor->text() == parser, "the whole file from the menu");
+		expect(editor->model().state().Carets.size() == 1U && editor->model().state().Carets[0].empty() && editor->model().state().Carets[0].Head == core::text_point{ 0U, 3U }, "a caret where the click was");
+		// Two separate changes: the first line and the third.
+		editor->apply(core::insert_text{ "_impl" });
+		editor->apply(core::place_caret{ .At = { 2U, 11U } });
+		editor->apply(core::place_caret{ .At = { 2U, 18U }, .Extend = true });
+		editor->apply(core::insert_text{ "coffee(2)" });
+		settle();
+		expect(aView.composer()->summary_text() == QStringLiteral("2 changes · lines 1, 3"), "two changes found");
+		aView.findChild<QPlainTextEdit*>(QStringLiteral("suggestionRationale"))->setPlainText(QStringLiteral("Name it for what it does."));
+		capture(aView, QStringLiteral("cycle-suggest-two-changes"));
+		aView.composer()->save_button()->click();
+		settle();
+		const auto first = *core::make_anchor(core::cycle_source_revision_id{ 1 }, "src/parser.cpp", bytes(parser), 0, 9);
+		const auto third = *core::make_anchor(core::cycle_source_revision_id{ 1 }, "src/parser.cpp", bytes(parser), 12, 31);
+		expect(aSuggested.Edits.size() == 2U && aSuggested.Edits[0].Selection == first && aSuggested.Edits[0].Replacement == "int_impl f()\r\n" && aSuggested.Edits[1].Selection == third
+				   && aSuggested.Edits[1].Replacement == "\treturn coffee(2);\r\n" && aSuggested.Rationale == "Name it for what it does.",
+			   "one note, two exact suggestions in the original's coordinates");
+
+		// Cancel gives the pane back with nothing handed over.
+		aSuggested = { };
+		aView.suggest_action()->trigger();
+		editor->apply(core::insert_text{ "x" });
+		aView.findChild<QPushButton*>(QStringLiteral("suggestionCancel"))->click();
+		settle();
+		expect(aSuggested.Edits.empty() && !aView.suggesting() && aView.source()->isVisible(), "cancelled");
 	}
 
 	void states_newer_material_without_moving(qt::review_cycle_view& aView)
@@ -255,8 +322,14 @@ namespace {
 		expect(aView.notes()->item(0)->text().contains(QStringLiteral("Appears 2 times in R2; none chosen")), "ambiguous correspondence stated");
 		select(aView, 18, 25);
 		aView.suggest_action()->trigger();
-		expect(aView.composer()->source_status() == qt::suggestion_source_status::newer_available && aView.selection_anchor()->Revision == core::cycle_source_revision_id{ 1 }, "newer material stated; anchor stays on R1");
+		expect(aView.composer()->source_status() == qt::suggestion_source_status::newer_available && aView.composer()->editor()->text() == parser, "newer material stated; the edit stays on R1's bytes");
 		capture(aView, QStringLiteral("cycle-newer-material"));
+		// A capture arriving while editing moves nothing.
+		aView.present(projection(3));
+		settle();
+		expect(aView.suggesting() && aView.composer()->editor()->isVisible() && aView.composer()->editor()->text() == parser, "still editing R1");
+		aView.findChild<QPushButton*>(QStringLiteral("suggestionCancel"))->click();
+		settle();
 	}
 
 	struct view_gestures
@@ -506,6 +579,7 @@ try {
 	presents_the_scaffold_and_notes(view);
 	colours_the_source_from_its_classification();
 	anchors_exact_bytes_from_a_native_selection(view, suggested, noted);
+	suggests_from_the_caret_and_the_context_menu(view, suggested);
 	states_newer_material_without_moving(view);
 	opens_files_and_steps(view, opened);
 	captures_and_compares(view, gestures);

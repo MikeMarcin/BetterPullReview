@@ -720,22 +720,35 @@ namespace bpr::application {
 
 		void suggest(review_cycle_suggestion_request aRequest)
 		{
-			if (!Cycle) {
+			if (!Cycle || aRequest.Edits.empty()) {
 				return;
 			}
 			View.Activity = review_cycle_activity::saving;
 			publish();
-			auto note = core::begin_cycle_feedback{ .Primary = aRequest.Selection, .Body = aRequest.Rationale };
+			auto note = core::begin_cycle_feedback{ .Primary = aRequest.Edits.front().Selection, .Body = aRequest.Rationale };
 			Runtime.begin_feedback_selected(operation(), Cycle->Revision, std::move(note), guarded<cycle_write_receipt>([request = std::move(aRequest)](implementation& aSelf, cycle_write_receipt aReceipt) mutable {
 												aSelf.Cycle->Revision = aReceipt.Revision;
 												++aSelf.Cycle->Next.FeedbackItem;
-												const auto item   = core::cycle_feedback_item_ref{ .Cycle = aSelf.Subject->Cycle, .Id = core::cycle_feedback_item_id{ aReceipt.Allocated } };
-												auto       change = core::suggest_change{ .Selection = std::move(request.Selection), .Replacement = std::move(request.Replacement), .Intent = request.Intent };
-												aSelf.Runtime.add_suggestion_selected(aSelf.operation(), item, 1, std::move(change), aSelf.guarded<cycle_write_receipt>([](implementation& aHost, cycle_write_receipt) {
-													aHost.View.Activity = review_cycle_activity::idle;
-													aHost.View.Message.clear();
-													aHost.load_notes();
-												}));
+												const auto item = core::cycle_feedback_item_ref{ .Cycle = aSelf.Subject->Cycle, .Id = core::cycle_feedback_item_id{ aReceipt.Allocated } };
+												aSelf.add_suggestions(item, std::move(request), 0U);
+											}));
+		}
+
+		/// Adds a note's suggestions one after another; each write moves the
+		/// note to its next version.
+		void add_suggestions(const core::cycle_feedback_item_ref& aItem, review_cycle_suggestion_request aRequest, const std::size_t aNext)
+		{
+			if (aNext >= aRequest.Edits.size()) {
+				View.Activity = review_cycle_activity::idle;
+				View.Message.clear();
+				load_notes();
+				return;
+			}
+			auto& edit   = aRequest.Edits[aNext];
+			auto  change = core::suggest_change{ .Selection = std::move(edit.Selection), .Replacement = std::move(edit.Replacement), .Intent = aRequest.Intent };
+			Runtime.add_suggestion_selected(operation(), aItem, 1U + aNext, std::move(change),
+											guarded<cycle_write_receipt>([aItem, request = std::move(aRequest), aNext](implementation& aSelf, cycle_write_receipt) mutable {
+												aSelf.add_suggestions(aItem, std::move(request), aNext + 1U);
 											}));
 		}
 	};

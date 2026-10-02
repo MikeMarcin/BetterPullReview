@@ -128,9 +128,19 @@ namespace {
 			expect(anchor.has_value(), "anchor from the shown bytes");
 			desk1.Host->comment({ .Primary = *anchor, .Body = "Why check here?" });
 			expect(desk1.view().Notes.size() == 1U && desk1.view().Notes[0].Body == "Why check here?" && desk1.view().Notes[0].Suggestions == 0U, "first note");
-			desk1.Host->suggest({ .Selection = *anchor, .Replacement = "validate(aText)", .Rationale = "Name it for what it does." });
+			// The whole file edited in place: two separate changes are one
+			// note's two exact suggestions (owner amendment to BPR-1156).
+			const auto edited  = std::string{ "int parse(std::string_view aText)\r\n{\r\n\treturn validate(aText);\r\n}\r\n" };
+			auto       request = application::review_cycle_suggestion_request{ .Rationale = "Name it for what it does." };
+			for (const auto& hunk : core::derive_edit_hunks(text(bytes), edited)) {
+				const auto lines = core::make_anchor(source.Source->Revision, "src/parser.cpp", bytes, hunk.Start, hunk.End);
+				expect(lines.has_value(), "each change anchors whole lines of the shown bytes");
+				request.Edits.push_back({ .Selection = *lines, .Replacement = hunk.Replacement });
+			}
+			expect(request.Edits.size() == 2U, "two separate changes");
+			desk1.Host->suggest(std::move(request));
 			const auto& suggested = desk1.view();
-			expect(suggested.Notes.size() == 2U && suggested.Notes[1].Suggestions == 1U && suggested.Notes[1].Body == "Name it for what it does.", "note with a suggestion");
+			expect(suggested.Message.empty() && suggested.Notes.size() == 2U && suggested.Notes[1].Suggestions == 2U && suggested.Notes[1].Body == "Name it for what it does.", "one note with both suggestions");
 			// One discussion across files: the README heading joins the first note.
 			desk1.Host->open_file("README.md", false);
 			const auto readme  = desk1.view().Source->Bytes;

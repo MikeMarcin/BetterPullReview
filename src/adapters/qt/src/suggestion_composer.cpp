@@ -11,38 +11,18 @@
 #include <QTextBlock>
 #include <QVBoxLayout>
 
-#include <algorithm>
 #include <span>
 #include <utility>
 #include <vector>
 
 namespace bpr::qt {
 	namespace {
+		/// Unchanged lines shown around each change in the preview.
+		constexpr std::size_t preview_context = 2U;
+
 		auto text_of(const std::string& aBytes) -> QString
 		{
 			return QString::fromUtf8(aBytes.data(), static_cast<qsizetype>(aBytes.size()));
-		}
-
-		/// One display line of exact bytes and where it begins in its text.
-		struct located_line
-		{
-			std::uint64_t Begin = 0;
-			std::string   Content;
-		};
-
-		/// Display lines of exact bytes that begin at `aBase` in their text:
-		/// LF, CRLF and a lone CR each end a line.
-		auto lines_of(const std::string& aBytes, const std::uint64_t aBase) -> std::vector<located_line>
-		{
-			auto lines = std::vector<located_line>{ };
-			auto begin = aBase;
-			for (auto& line : core::split_text_lines(aBytes)) {
-				const auto length = line.Content.size() + (line.Ending == core::text_line_ending::crlf ? 2U : line.Ending == core::text_line_ending::none ? 0U
-																																						  : 1U);
-				lines.push_back({ .Begin = begin, .Content = std::move(line.Content) });
-				begin += length;
-			}
-			return lines;
 		}
 
 		auto bytes_of(const std::string& aText) -> std::span<const std::uint8_t>
@@ -50,27 +30,41 @@ namespace bpr::qt {
 			return { reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() };
 		}
 
-		/// Complete lines at the start of `aBytes`, before its last line break.
-		auto complete_lines(const std::string& aBytes) -> std::size_t
+		auto role_of(const code_role_colors& aColors, const core::appearance_role aRole) -> QColor
 		{
-			return core::split_text_lines(aBytes).size() - 1U;
+			return aColors[static_cast<std::size_t>(aRole)];
 		}
 
 		auto status_message(const suggestion_source_status aStatus) -> QString
 		{
 			switch (aStatus) {
 			case suggestion_source_status::current:         return { };
-			case suggestion_source_status::newer_available: return QStringLiteral("A newer revision was captured. This suggestion stays on the exact bytes you selected.");
-			case suggestion_source_status::stale:           return QStringLiteral("The selected code changed in the newer revision. The suggestion stays on the original bytes until you revalidate it.");
-			case suggestion_source_status::ambiguous:       return QStringLiteral("The selected code appears more than once in the newer revision. Nothing was chosen for you.");
+			case suggestion_source_status::newer_available: return QStringLiteral("A newer revision was captured. This suggestion stays on the revision you are editing.");
+			case suggestion_source_status::stale:           return QStringLiteral("The code changed in the newer revision. The suggestion stays on the original bytes until you revalidate it.");
+			case suggestion_source_status::ambiguous:       return QStringLiteral("The code appears more than once in the newer revision. Nothing was chosen for you.");
 			case suggestion_source_status::deleted:         return QStringLiteral("The file is gone from the newer revision. The original source stays readable here.");
 			}
 			return { };
 		}
+
+		/// "3 changes · lines 3, 5, 7–8": where each change is in the original;
+		/// an insertion names the line it goes before.
+		auto summary_of(const std::string& aOriginal, const std::vector<core::cycle_edit_hunk>& aHunks) -> QString
+		{
+			auto places = QStringList{ };
+			for (const auto& hunk : aHunks) {
+				const auto span = core::project_lines(bytes_of(aOriginal), hunk.Start, hunk.End);
+				if (span) {
+					places.append(span->Last > span->First ? QStringLiteral("%1\u2013%2").arg(span->First).arg(span->Last) : QString::number(span->First));
+				}
+			}
+			return aHunks.size() == 1U ? QStringLiteral("1 change · line %1").arg(places.value(0)) : QStringLiteral("%1 changes · lines %2").arg(aHunks.size()).arg(places.join(QStringLiteral(", ")));
+		}
 	}
 
-	suggestion_composer::suggestion_composer(QWidget* aParent)
+	suggestion_composer::suggestion_composer(suggestion_editor& aEditor, QWidget* aParent)
 		: QWidget{ aParent }
+		, Editor{ &aEditor }
 	{
 		setObjectName(QStringLiteral("suggestionComposer"));
 		setAccessibleName(QStringLiteral("Suggest change"));
@@ -91,8 +85,12 @@ namespace bpr::qt {
 		StatusLabel->hide();
 		column->addWidget(StatusLabel);
 
-		Editor = new suggestion_editor{ this };
-		column->addWidget(Editor, 2);
+		Summary = new QLabel{ this };
+		Summary->setObjectName(QStringLiteral("suggestionSummary"));
+		Summary->setTextFormat(Qt::PlainText);
+		Summary->setWordWrap(true);
+		Summary->setAccessibleName(QStringLiteral("Suggested changes"));
+		column->addWidget(Summary);
 
 		Illustrative = new QCheckBox{ QStringLiteral("Illustrative only (never offered as a patch)"), this };
 		Illustrative->setObjectName(QStringLiteral("suggestionIllustrative"));
@@ -128,7 +126,7 @@ namespace bpr::qt {
 		set_code_font(suggestion_code_font());
 		Editor->Changed = [this] { text_changed(); };
 		connect(Save, &QPushButton::clicked, this, [this] {
-			if (Saved) {
+			if (Saved && !core::edit_hunks_problem(Hunks)) {
 				Saved();
 			}
 		});
@@ -137,28 +135,24 @@ namespace bpr::qt {
 				Cancelled();
 			}
 		});
-		setTabOrder(Editor, Illustrative);
 		setTabOrder(Illustrative, Rationale);
 		setTabOrder(Rationale, Preview);
 		setTabOrder(Preview, Cancel);
 		setTabOrder(Cancel, Save);
 	}
 
-	void suggestion_composer::begin(const suggestion_composer_source& aSource)
+	auto suggestion_composer::begin(const suggestion_composer_source& aSource) -> bool
 	{
-		Source = aSource;
-		// The proposal is classified inside its file when the file is the one
-		// the selection was read from; otherwise inside its context alone.
-		const auto context = Source.Before + Source.Original + Source.After;
-		const auto inFile  = Source.Start >= Source.Before.size() && Source.Start <= Source.File.size()
-			&& std::string_view{ Source.File }.substr(Source.Start - Source.Before.size()).starts_with(context);
-		Texts[0]   = inFile ? Source.File : context;
-		Base       = inFile ? Source.Start - Source.Before.size() : 0U;
-		Selection  = Base + Source.Before.size();
-		Texts[1]   = Texts[0];
+		if (aSource.File.size() > core::maximum_suggestion_editor_bytes) {
+			return false;
+		}
+		Source     = aSource;
+		Texts      = { Source.File, Source.File };
 		Classified = { };
-		Location->setText(text_of(aSource.Location));
-		Editor->set_text(aSource.Original);
+		Hunks.clear();
+		Location->setText(text_of(Source.Location));
+		Editor->set_text(Source.File);
+		Editor->select_bytes(Source.Start, Source.End);
 		Illustrative->setChecked(false);
 		Rationale->clear();
 		set_source_status(suggestion_source_status::current);
@@ -166,14 +160,18 @@ namespace bpr::qt {
 		request_syntax(suggestion_syntax_side::original);
 		request_syntax(suggestion_syntax_side::proposed);
 		Editor->setFocus(Qt::OtherFocusReason);
+		return true;
 	}
 
 	void suggestion_composer::text_changed()
 	{
-		Texts[1]      = core::splice_text(Texts[0], Selection, Selection + Source.Original.size(), Editor->text()).value_or(std::string{ });
-		Classified[1] = { };
+		Texts[1]      = Editor->text();
+		Hunks         = core::derive_edit_hunks(Texts[0], Texts[1]);
+		Classified[1] = Texts[1] == Texts[0] ? Classified[0] : classified_text{ };
 		refresh_preview();
-		request_syntax(suggestion_syntax_side::proposed);
+		if (!Classified[1].Spans) {
+			request_syntax(suggestion_syntax_side::proposed);
+		}
 	}
 
 	void suggestion_composer::request_syntax(const suggestion_syntax_side aSide)
@@ -196,6 +194,10 @@ namespace bpr::qt {
 			return false;
 		}
 		Classified[index] = classify_text_lines(bytes_of(Texts[index]), std::move(aSpans));
+		// The unedited file is both texts.
+		if (Texts[0] == Texts[1]) {
+			Classified[1 - index] = Classified[index];
+		}
 		apply_syntax();
 		return true;
 	}
@@ -209,25 +211,47 @@ namespace bpr::qt {
 	{
 		if (Classified[1].Spans) {
 			auto lines = std::vector<suggestion_line_syntax>{ };
-			for (auto& line : lines_of(Editor->text(), Selection)) {
-				auto formats = formats_of(suggestion_syntax_side::proposed, line.Begin, line.Content);
+			auto begin = std::uint64_t{ 0 };
+			for (auto& line : core::split_text_lines(Texts[1])) {
+				const auto length  = line.Content.size() + (line.Ending == core::text_line_ending::crlf ? 2U : line.Ending == core::text_line_ending::none ? 0U
+																																						   : 1U);
+				auto       formats = formats_of(suggestion_syntax_side::proposed, begin, line.Content);
 				lines.push_back({ .Content = std::move(line.Content), .Formats = std::move(formats) });
+				begin += length;
 			}
 			Editor->set_syntax(std::move(lines));
 		}
-		// Each preview row after its marker and a space.
+		// Each row after its marker and a space; a header in the diff panes' header colours.
 		auto block = Preview->document()->firstBlock();
-		for (const auto& row : PreviewRows) {
-			if (!block.isValid()) {
+		auto bands = QList<QTextEdit::ExtraSelection>{ };
+		for (std::size_t index = 0; index < PreviewRows.size() && block.isValid(); ++index, block = block.next()) {
+			const auto& row     = PreviewRows[index];
+			const auto  line    = core::line_span{ .Begin = static_cast<std::uint32_t>(index), .End = static_cast<std::uint32_t>(index + 1U) };
+			auto        formats = QList<QTextLayout::FormatRange>{ };
+			switch (row.Kind) {
+			case core::cycle_edit_row_kind::header: {
+				append_line_band(bands, *Preview, line, role_of(SyntaxColors, core::appearance_role::diff_hunk_header_background));
+				if (const auto colour = role_of(SyntaxColors, core::appearance_role::diff_hunk_header_text); colour.isValid()) {
+					auto range = QTextLayout::FormatRange{ .start = 0, .length = block.length() - 1, .format = { } };
+					range.format.setForeground(colour);
+					formats.append(range);
+				}
 				break;
 			}
-			auto formats = formats_of(row.Side, row.Begin, row.Content);
-			for (auto& range : formats) {
-				range.start += 2;
+			case core::cycle_edit_row_kind::removed:
+			case core::cycle_edit_row_kind::added:
+				append_line_band(bands, *Preview, line, code_sample_row_fill(row.Kind == core::cycle_edit_row_kind::removed ? code_sample_row_kind::removed : code_sample_row_kind::added, SyntaxColors));
+				[[fallthrough]];
+			case core::cycle_edit_row_kind::context:
+				formats = formats_of(row.Edited ? suggestion_syntax_side::proposed : suggestion_syntax_side::original, row.Begin, row.Text);
+				for (auto& range : formats) {
+					range.start += 2;
+				}
+				break;
 			}
 			apply_syntax_format_ranges(*Preview->document(), block, formats);
-			block = block.next();
 		}
+		Preview->setExtraSelections(bands);
 	}
 
 	void suggestion_composer::set_source_status(const suggestion_source_status aStatus)
@@ -249,9 +273,14 @@ namespace bpr::qt {
 		return Editor;
 	}
 
-	auto suggestion_composer::replacement() const -> std::string
+	auto suggestion_composer::edits() const noexcept -> const std::vector<core::cycle_edit_hunk>&
 	{
-		return Editor->text();
+		return Hunks;
+	}
+
+	auto suggestion_composer::source() const noexcept -> const suggestion_composer_source&
+	{
+		return Source;
 	}
 
 	auto suggestion_composer::rationale() const -> std::string
@@ -275,6 +304,16 @@ namespace bpr::qt {
 		return Preview->toPlainText();
 	}
 
+	auto suggestion_composer::preview() const noexcept -> QPlainTextEdit*
+	{
+		return Preview;
+	}
+
+	auto suggestion_composer::summary_text() const -> QString
+	{
+		return Summary->text();
+	}
+
 	auto suggestion_composer::status_text() const -> QString
 	{
 		return StatusLabel->text();
@@ -287,33 +326,34 @@ namespace bpr::qt {
 
 	void suggestion_composer::refresh_preview()
 	{
-		// Whole lines around the selection, then its lines before and after the edit.
-		const auto before   = lines_of(Source.Before + Source.Original + Source.After, Base);
-		const auto after    = lines_of(Source.Before + Editor->text() + Source.After, Base);
-		const auto leading  = complete_lines(Source.Before);
-		const auto trailing = complete_lines(Source.After);
-		auto       shown    = QString{ };
-		PreviewRows.clear();
-		const auto append = [&](const QChar aMarker, const suggestion_syntax_side aSide, const located_line& aLine) {
-			shown += aMarker;
-			shown += QLatin1Char(' ');
-			shown += text_of(aLine.Content);
-			shown += QLatin1Char('\n');
-			PreviewRows.push_back({ .Side = aSide, .Begin = aLine.Begin, .Content = aLine.Content });
-		};
-		for (std::size_t index = 0; index < std::min(leading, before.size()); ++index) {
-			append(QLatin1Char(' '), suggestion_syntax_side::original, before[index]);
+		PreviewRows = core::preview_edit_hunks(Texts[0], Texts[1], Hunks, preview_context);
+		auto shown  = QStringList{ };
+		for (const auto& row : PreviewRows) {
+			switch (row.Kind) {
+			case core::cycle_edit_row_kind::header:  shown.append(text_of(row.Text)); break;
+			case core::cycle_edit_row_kind::context: shown.append(QStringLiteral("  ") + text_of(row.Text)); break;
+			case core::cycle_edit_row_kind::removed: shown.append(QStringLiteral("- ") + text_of(row.Text)); break;
+			case core::cycle_edit_row_kind::added:   shown.append(QStringLiteral("+ ") + text_of(row.Text)); break;
+			}
 		}
-		for (std::size_t index = leading; index + trailing < before.size(); ++index) {
-			append(QLatin1Char('-'), suggestion_syntax_side::original, before[index]);
+		Preview->setPlainText(shown.join(QLatin1Char('\n')));
+		const auto problem = core::edit_hunks_problem(Hunks);
+		if (!problem) {
+			Summary->setText(summary_of(Texts[0], Hunks));
+		} else {
+			switch (*problem) {
+			case core::cycle_edit_problem::unchanged:
+				Summary->setText(QStringLiteral("Edit the file to suggest a change. Each separate change becomes one exact suggestion on this note."));
+				break;
+			case core::cycle_edit_problem::too_many:
+				Summary->setText(QStringLiteral("%1 separate changes; one note holds at most %2. Keep fewer changes, or save them as separate suggestions.").arg(Hunks.size()).arg(core::maximum_cycle_suggestions));
+				break;
+			case core::cycle_edit_problem::too_large:
+				Summary->setText(QStringLiteral("One change is larger than %1 KiB, the most one suggestion holds.").arg(core::maximum_cycle_suggestion_bytes / 1024U));
+				break;
+			}
 		}
-		for (std::size_t index = leading; index + trailing < after.size(); ++index) {
-			append(QLatin1Char('+'), suggestion_syntax_side::proposed, after[index]);
-		}
-		for (std::size_t index = std::max(leading, after.size() - std::min(after.size(), trailing)); index < after.size(); ++index) {
-			append(QLatin1Char(' '), suggestion_syntax_side::proposed, after[index]);
-		}
-		Preview->setPlainText(shown);
+		Save->setEnabled(!problem);
 		apply_syntax();
 	}
 }

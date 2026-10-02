@@ -78,8 +78,12 @@ namespace bpr::qt {
 	/// shows the shared engine's rows in the same pane. The full source is
 	/// coloured from a classification it asks for (`SourceSyntaxWanted`),
 	/// painted through the review panes' role colours and span-to-format
-	/// rule. It decides nothing and performs no effect: gestures leave through
-	/// `review_cycle_dispatch`.
+	/// rule. Suggest change starts from the caret, from the review bar or the
+	/// source pane's context menu, and edits the whole file in place: the
+	/// pane becomes the suggestion editor until the suggestion is saved or
+	/// cancelled, and the tray holds the rationale and the before/after
+	/// (owner amendment to BPR-1156, 2026-10-01). It decides nothing and
+	/// performs no effect: gestures leave through `review_cycle_dispatch`.
 	class review_cycle_view final : public QWidget
 	{
 	public:
@@ -107,6 +111,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto files() const noexcept -> QListWidget*;
 		[[nodiscard]] auto notes() const noexcept -> QListWidget*;
 		[[nodiscard]] auto composer() const noexcept -> suggestion_composer*;
+		/// \brief Whether Suggest change is editing a file in the main pane.
+		[[nodiscard]] auto suggesting() const -> bool;
+		/// \brief The source pane's context menu at a viewport point: the
+		/// pane's own Copy and Select All after Comment and Suggest change. A
+		/// click outside the selection moves the caret there first. The
+		/// caller owns the menu; it deletes itself when closed.
+		[[nodiscard]] auto source_menu(const QPoint& aAt) -> QMenu*;
 		[[nodiscard]] auto comment_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto updates_line() const noexcept -> QLabel*;
 		[[nodiscard]] auto comment_action() const noexcept -> QAction*;
@@ -140,6 +151,8 @@ namespace bpr::qt {
 	private:
 		void               begin_comment();
 		void               begin_suggestion();
+		void               end_suggestion();
+		void               show_reading_page();
 		void               save_comment();
 		void               refresh_actions();
 		void               step_file(int aDirection);
@@ -164,38 +177,43 @@ namespace bpr::qt {
 		QListWidget*                               Files         = nullptr;
 		QStackedWidget*                            Centre        = nullptr;
 		QPlainTextEdit*                            Source        = nullptr;
-		QLabel*                                    SourceNotice  = nullptr;
-		QListWidget*                               Notes         = nullptr;
-		QStackedWidget*                            TrayComposer  = nullptr;
-		QPlainTextEdit*                            CommentEditor = nullptr;
-		QLabel*                                    CommentTarget = nullptr;
-		suggestion_composer*                       Composer      = nullptr;
-		QAction*                                   PreviousFile  = nullptr;
-		QAction*                                   NextFile      = nullptr;
-		QAction*                                   CommentAction = nullptr;
-		QAction*                                   SuggestAction = nullptr;
-		QAction*                                   ComposeAction = nullptr;
-		QAction*                                   FilesToggle   = nullptr;
-		QAction*                                   NotesToggle   = nullptr;
-		QPushButton*                               RelateButton  = nullptr;
-		QAction*                                   CaptureAction = nullptr;
-		QAction*                                   CaptureAgain  = nullptr;
-		QToolButton*                               ViewButton    = nullptr;
-		QMenu*                                     ViewMenu      = nullptr;
-		QAction*                                   MarkReviewed  = nullptr;
-		QAction*                                   RefreshAction = nullptr;
-		QPlainTextEdit*                            Comparison    = nullptr;
-		QToolButton*                               ReplyButton   = nullptr;
-		QToolButton*                               NextRound     = nullptr;
-		QMenu*                                     ReplyMenu     = nullptr;
-		QWidget*                                   ReplyPage     = nullptr;
-		QLabel*                                    ReplyTarget   = nullptr;
-		QLineEdit*                                 ReplyFrom     = nullptr;
-		QCheckBox*                                 ReplyAbout    = nullptr;
-		QPlainTextEdit*                            ReplyEditor   = nullptr;
-		std::optional<core::cycle_round_id>        ReplyRound;
-		std::optional<std::string>                 ReplyItem;
-		bool                                       Presenting = false;
+		/// What the centre shows when no suggestion is being edited.
+		QWidget*           ReadingPage      = nullptr;
+		suggestion_editor* SuggestionEditor = nullptr;
+		/// The exact file a suggestion edits, kept while it is edited.
+		std::optional<application::review_cycle_source_view> SuggestionSource;
+		QLabel*                                              SourceNotice  = nullptr;
+		QListWidget*                                         Notes         = nullptr;
+		QStackedWidget*                                      TrayComposer  = nullptr;
+		QPlainTextEdit*                                      CommentEditor = nullptr;
+		QLabel*                                              CommentTarget = nullptr;
+		suggestion_composer*                                 Composer      = nullptr;
+		QAction*                                             PreviousFile  = nullptr;
+		QAction*                                             NextFile      = nullptr;
+		QAction*                                             CommentAction = nullptr;
+		QAction*                                             SuggestAction = nullptr;
+		QAction*                                             ComposeAction = nullptr;
+		QAction*                                             FilesToggle   = nullptr;
+		QAction*                                             NotesToggle   = nullptr;
+		QPushButton*                                         RelateButton  = nullptr;
+		QAction*                                             CaptureAction = nullptr;
+		QAction*                                             CaptureAgain  = nullptr;
+		QToolButton*                                         ViewButton    = nullptr;
+		QMenu*                                               ViewMenu      = nullptr;
+		QAction*                                             MarkReviewed  = nullptr;
+		QAction*                                             RefreshAction = nullptr;
+		QPlainTextEdit*                                      Comparison    = nullptr;
+		QToolButton*                                         ReplyButton   = nullptr;
+		QToolButton*                                         NextRound     = nullptr;
+		QMenu*                                               ReplyMenu     = nullptr;
+		QWidget*                                             ReplyPage     = nullptr;
+		QLabel*                                              ReplyTarget   = nullptr;
+		QLineEdit*                                           ReplyFrom     = nullptr;
+		QCheckBox*                                           ReplyAbout    = nullptr;
+		QPlainTextEdit*                                      ReplyEditor   = nullptr;
+		std::optional<core::cycle_round_id>                  ReplyRound;
+		std::optional<std::string>                           ReplyItem;
+		bool                                                 Presenting = false;
 
 		/// The shown file's classification, and the colours it is painted in.
 		classified_text  SourceSyntax;

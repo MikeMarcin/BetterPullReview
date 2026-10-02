@@ -128,22 +128,6 @@ namespace {
 		return content;
 	}
 
-	/// Pixels of the rendered widget within a small distance of `aColour`.
-	auto pixels_near(QWidget& aWidget, const QColor& aColour) -> int
-	{
-		const auto image = aWidget.grab().toImage();
-		auto       count = 0;
-		for (int y = 0; y < image.height(); ++y) {
-			for (int x = 0; x < image.width(); ++x) {
-				const auto pixel = image.pixelColor(x, y);
-				if (std::abs(pixel.red() - aColour.red()) <= 24 && std::abs(pixel.green() - aColour.green()) <= 24 && std::abs(pixel.blue() - aColour.blue()) <= 24) {
-					++count;
-				}
-			}
-		}
-		return count;
-	}
-
 	// Not `near`: the Windows SDK defines `near` as an empty macro.
 	auto colour_near(const QColor& aPixel, const QColor& aColour) -> bool
 	{
@@ -180,6 +164,66 @@ namespace {
 			}
 		}
 		return role > 0 && plain == 0;
+	}
+
+	/// \brief The same rule in the suggestion editor, between the middles of
+	/// columns `aFirst` and `aLast` of the caret's line.
+	auto span_painted(qt::suggestion_editor& aEditor, const std::uint64_t aFirst, const std::uint64_t aLast, const QColor& aColour) -> bool
+	{
+		const auto line  = aEditor.caret_rectangle();
+		auto       begin = -1;
+		auto       end   = -1;
+		for (auto x = 0; x < aEditor.viewport()->width() && end < 0; ++x) {
+			const auto column = aEditor.point_at(QPoint{ x, line.center().y() }).Column;
+			if (begin < 0 && column > aFirst) {
+				begin = x;
+			}
+			if (column > aLast) {
+				end = x;
+			}
+		}
+		if (begin < 0 || end <= begin) {
+			return false;
+		}
+		const auto pixmap = aEditor.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		const auto text   = aEditor.palette().color(QPalette::Text);
+		auto       role   = 0;
+		auto       plain  = 0;
+		for (auto y = static_cast<int>(line.top() * ratio); y < static_cast<int>((line.bottom() + 1) * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(begin * ratio); x < static_cast<int>(end * ratio) && x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				role += colour_near(pixel, aColour) ? 1 : 0;
+				plain += colour_near(pixel, text) ? 1 : 0;
+			}
+		}
+		return role > 0 && plain == 0;
+	}
+
+	/// `aTop` laid over `aBase`, as a band with alpha is painted.
+	auto over(const QColor& aTop, const QColor& aBase) -> QColor
+	{
+		const auto alpha = aTop.alphaF();
+		return QColor::fromRgbF(static_cast<float>(aTop.redF() * alpha + aBase.redF() * (1.0 - alpha)), static_cast<float>(aTop.greenF() * alpha + aBase.greenF() * (1.0 - alpha)),
+								static_cast<float>(aTop.blueF() * alpha + aBase.blueF() * (1.0 - alpha)));
+	}
+
+	/// Whether the preview row `aRow` is filled with `aColour` past the end
+	/// of its text, where no glyph is. A flat fill rounds by a few units at most.
+	auto row_filled(QPlainTextEdit& aPreview, const QString& aRow, const QColor& aColour) -> bool
+	{
+		for (auto block = aPreview.document()->firstBlock(); block.isValid(); block = block.next()) {
+			if (block.text() != aRow) {
+				continue;
+			}
+			const auto row    = aPreview.cursorRect(QTextCursor{ block });
+			const auto pixmap = aPreview.viewport()->grab();
+			const auto ratio  = pixmap.devicePixelRatio();
+			const auto pixel  = pixmap.toImage().pixelColor(static_cast<int>((aPreview.viewport()->width() - 4) * ratio), static_cast<int>(row.center().y() * ratio));
+			return std::abs(pixel.red() - aColour.red()) <= 3 && std::abs(pixel.green() - aColour.green()) <= 3 && std::abs(pixel.blue() - aColour.blue()) <= 3;
+		}
+		return false;
 	}
 
 	/// Marks a profile's cycle store as saved by another schema version.
@@ -275,27 +319,47 @@ try {
 	settle(lanes);
 	expect(page->notes()->count() == 1 && page->notes()->item(0)->text().contains(QStringLiteral("Why check here?")), "first note saved and listed");
 
-	// A suggestion from the same selection, coloured by the panes' classifier
-	// with the proposal inside its whole file (BPR-1156).
+	// Suggest change from the source pane's context menu, on the same
+	// selection: the whole file is edited in the main pane and each separate
+	// change is one exact suggestion (owner amendment to BPR-1156,
+	// 2026-10-01), coloured by the panes' classifier.
 	page->source()->setTextCursor(cursor);
+	QApplication::processEvents();
+	auto* const sourceMenu = page->source_menu(page->source()->cursorRect(cursor).center());
+	expect(sourceMenu != nullptr && sourceMenu->actions().contains(page->suggest_action()) && page->suggest_action()->isEnabled() && page->source()->textCursor().hasSelection(),
+		   "Suggest change in the source pane's context menu; a click inside the selection keeps it");
 	page->suggest_action()->trigger();
+	delete sourceMenu;
 	auto* const suggestion = page->composer()->editor();
-	auto* const preview    = page->composer()->findChild<QPlainTextEdit*>(QStringLiteral("suggestionPreview"));
+	auto* const preview    = page->composer()->preview();
+	const auto  original   = read_file(project / "src" / "parser.cpp");
+	expect(page->suggesting() && suggestion->isVisible() && !page->source()->isVisible() && suggestion->text() == original, "the whole file in the main pane");
 	// The source pane already classified these bytes, so the retained
-	// classification colours the proposal without waiting.
-	expect(pixels_near(*suggestion, function) > 10, "the editor paints check( in the function colour the panes use");
+	// classification colours the editor without waiting.
+	expect(span_painted(*suggestion, 4U, 9U, flow), "the editor paints return in the control-flow colour the panes use");
+	// Replace the selection, then add a line at the top: two separate changes.
+	suggestion->apply(core::insert_text{ "validate(aText)" });
+	suggestion->apply(core::move_carets{ .Motion = core::text_motion::document_start });
+	suggestion->apply(core::insert_text{ "// Parses one value.\r\n" });
 	settle(lanes);
-	expect(row_coloured(*preview, QStringLiteral("- \treturn check(aText);"), 3, 6, flow), "the preview's removed row colours return as control flow");
-	page->composer()->editor()->apply(core::select_all{ });
-	page->composer()->editor()->apply(core::insert_text{ "validate(aText)" });
-	settle(lanes);
-	expect(suggestion->text() == "validate(aText)" && pixels_near(*suggestion, function) > 10, "the edited proposal is classified again and coloured");
-	expect(row_coloured(*preview, QStringLiteral("+ \treturn validate(aText);"), 3, 6, flow), "the added row too");
+	expect(suggestion->text() == "// Parses one value.\r\nint parse(const char* aText)\r\n{\r\n\treturn validate(aText);\r\n}\r\n", "edited in place, CRLF kept");
+	expect(page->composer()->edits().size() == 2U && page->composer()->summary_text() == QStringLiteral("2 changes · lines 1, 3"), "two separate changes");
+	expect(row_coloured(*preview, QStringLiteral("- \treturn check(aText);"), 3, 6, flow) && word_painted(*preview, QStringLiteral("return"), flow), "the preview's removed row colours return as control flow");
+	expect(row_coloured(*preview, QStringLiteral("+ \treturn validate(aText);"), 3, 6, flow), "the added row too, once the edited file is classified");
+	const auto base = preview->palette().color(QPalette::Base);
+	expect(row_filled(*preview, QStringLiteral("- \treturn check(aText);"), over(appearance.color(core::appearance_role::diff_removed_background), base))
+			   && row_filled(*preview, QStringLiteral("+ \treturn validate(aText);"), over(appearance.color(core::appearance_role::diff_added_background), base))
+			   && row_filled(*preview, QStringLiteral("+ // Parses one value."), over(appearance.color(core::appearance_role::diff_added_background), base)),
+		   "removed and added rows in the diff panes' fills");
+	suggestion->apply(core::place_caret{ .At = { 3U, 0U } });
+	QApplication::processEvents();
+	expect(span_painted(*suggestion, 4U, 9U, flow), "the edited file is classified again and coloured");
 	capture(window, QStringLiteral("desktop-cycle-suggest"));
 	capture(*page->composer(), QStringLiteral("desktop-cycle-suggest-composer"));
 	page->composer()->save_button()->click();
 	settle(lanes);
-	expect(page->notes()->count() == 2 && page->notes()->item(1)->text().contains(QStringLiteral("Suggested change")), "suggestion saved");
+	expect(page->notes()->count() == 2 && page->notes()->item(1)->text().contains(QStringLiteral("Suggested change · 2")) && page->projection().Notes[1].Suggestions == 2U, "one note with both suggestions saved");
+	expect(!page->suggesting() && page->source()->isVisible() && read_file(project / "src" / "parser.cpp") == original, "the source pane back; the file on disk untouched");
 	capture(window, QStringLiteral("desktop-cycle-notes"));
 
 	// One discussion across two files: link a README range to the first note.

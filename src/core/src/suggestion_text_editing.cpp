@@ -135,17 +135,6 @@ namespace bpr::core {
 		return text;
 	}
 
-	auto splice_text(const std::string_view aFile, const std::uint64_t aStart, const std::uint64_t aEnd, const std::string_view aReplacement) -> std::optional<std::string>
-	{
-		if (aStart > aEnd || aEnd > aFile.size()) {
-			return std::nullopt;
-		}
-		auto text = std::string{ aFile.substr(0, static_cast<std::size_t>(aStart)) };
-		text += aReplacement;
-		text += aFile.substr(static_cast<std::size_t>(aEnd));
-		return text;
-	}
-
 	suggestion_text_editor::suggestion_text_editor(const std::string_view aText, const std::uint32_t aTabWidth)
 	{
 		State.Lines    = split_text_lines(aText.substr(0, std::min(aText.size(), maximum_suggestion_editor_bytes)));
@@ -181,6 +170,22 @@ namespace bpr::core {
 	{
 		const auto line = std::min<std::uint64_t>(aPoint.Line, State.Lines.size() - 1U);
 		return offset_of(State.Lines[line].Content, aPoint.Column, State.TabWidth);
+	}
+
+	auto suggestion_text_editor::point_of(std::size_t aOffset) const -> text_point
+	{
+		for (std::uint64_t line = 0; line < State.Lines.size(); ++line) {
+			const auto& content = State.Lines[line].Content;
+			if (aOffset <= content.size() || line + 1U == State.Lines.size()) {
+				return { line, column_of(content, std::min(aOffset, content.size()), State.TabWidth) };
+			}
+			const auto total = content.size() + ending_bytes(State.Lines[line].Ending).size();
+			if (aOffset < total) {
+				return { line, width_of(content, State.TabWidth) };
+			}
+			aOffset -= total;
+		}
+		return { };
 	}
 
 	auto suggestion_text_editor::copy() const -> copied_text
@@ -229,7 +234,12 @@ namespace bpr::core {
 	{
 		if (!(aCoalesce && Typing)) {
 			Undo.push_back(State);
-			if (Undo.size() > maximum_suggestion_undo_steps) {
+			// A whole file per step: the oldest steps go first, by count and by size.
+			auto bytes = std::size_t{ 0 };
+			for (const auto& line : State.Lines) {
+				bytes += line.Content.size() + 2U;
+			}
+			while (Undo.size() > maximum_suggestion_undo_steps || (Undo.size() > 1U && Undo.size() * bytes > maximum_suggestion_undo_bytes)) {
 				Undo.erase(Undo.begin());
 			}
 		}

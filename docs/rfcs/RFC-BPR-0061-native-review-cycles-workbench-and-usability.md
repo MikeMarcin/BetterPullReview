@@ -21,6 +21,15 @@ Capture revision and reviewer verification form the return path even without rec
 
 Use existing native keyboard/accessibility/editor behavior and conduct bounded attended design decisions where genuinely unresolved. This pack does not assert approval of new art or override the accepted scaffolding. Validate usability on actual supported platforms and measure human steering/reconstruction savings without assuming token or quality improvements from batching alone.
 
+## Owner amendment, 2026-10-01: Suggest change in the main pane
+
+The owner's decision on `BPR-1156-composer-layout-v003` is recorded in
+[RFC-BPR-0055](RFC-BPR-0055-source-feedback-and-exact-suggested-edits.md#owner-amendment-2026-10-01-suggest-change-edits-the-file-in-place).
+For this workbench it means: Suggest change is offered with only a caret, from
+the review bar and the source pane's context menu; the whole file is edited in
+the main pane rather than in the tray; and the tray's before/after colours its
+removed and added lines the way the diff panes do. RC61-04 is amended to match.
+
 ## Normative contracts
 
 The detailed contracts [UX.md](assets/bpr-review-cycles-v1/specs/UX.md), [LIMITS.md](assets/bpr-review-cycles-v1/specs/LIMITS.md) are normative parts of this proposal. The common [domain](assets/bpr-review-cycles-v1/specs/DOMAIN.md), [decisions](assets/bpr-review-cycles-v1/supporting/DECISIONS.md) and [security boundary](assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md) apply. If a live predecessor differs, record a specific compatibility decision; do not quietly implement a weaker alternate workflow.
@@ -30,7 +39,7 @@ The detailed contracts [UX.md](assets/bpr-review-cycles-v1/specs/UX.md), [LIMITS
 - **RC61-01:** Open Project/Review Cycles offers a simple no-account/no-agent local entry with a clear Local cycle identity distinct from PRs and Review Tours.
 - **RC61-02:** Cycle controls integrate the 0052 title/review bar, folding Updates line, tabs and tray without a new unapproved persistent row or PR regression.
 - **RC61-03:** Initial/full-source browsing is single-pane and remains available after comparisons; unchanged/historical local source stays commentable.
-- **RC61-04:** Native note/suggestion workflows support primary/related anchors, accurate before/after, keyboard editing and explicit stale/ambiguous states.
+- **RC61-04:** Native note/suggestion workflows support primary/related anchors, accurate before/after, keyboard editing and explicit stale/ambiguous states; Suggest change starts from the caret, including the source pane's context menu, edits the whole file in the main pane, and previews removed and added lines in the diff panes' colours (owner amendment, 2026-10-01).
 - **RC61-05:** Compose/Share prepares one complete assignment with first-class Copy and Save and no mandatory AI setup, second prompt or per-item ceremony.
 - **RC61-06:** Whole-round feedback and exact delivery observations remain legible; optional direct/external routes add no hidden context or automatic dispatch.
 - **RC61-07:** Capture, response display, comparison, reviewer verification and next-round composition work without callback/protocol prerequisites.

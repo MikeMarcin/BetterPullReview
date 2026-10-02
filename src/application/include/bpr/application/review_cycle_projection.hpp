@@ -174,13 +174,23 @@ namespace bpr::application {
 		virtual void publish(const std::vector<review_cycle_recent>& aRecents)     = 0;
 	};
 
-	/// \brief A selection's note and optional exact suggestion, as the
-	/// composer hands them over.
+	/// \brief One changed run of lines and what replaces it.
+	struct review_cycle_suggested_edit
+	{
+		/// Whole original lines; empty for an insertion at a line start.
+		core::cycle_source_anchor Selection;
+		std::string               Replacement;
+	};
+
+	/// \brief One note and its exact suggestions, as the composer hands them
+	/// over after an in-place edit of one file (owner amendment to BPR-1156,
+	/// 2026-10-01).
+	/// \details One edit per separate change, in file order and in the
+	/// original file's coordinates; the first is the note's own location.
 	struct review_cycle_suggestion_request
 	{
-		core::cycle_source_anchor     Selection;
-		std::string                   Replacement;
-		core::cycle_suggestion_intent Intent = core::cycle_suggestion_intent::exact_replacement;
+		std::vector<review_cycle_suggested_edit> Edits;
+		core::cycle_suggestion_intent            Intent = core::cycle_suggestion_intent::exact_replacement;
 		/// The note's body: the rationale, as written.
 		std::string Rationale;
 	};

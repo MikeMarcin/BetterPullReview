@@ -446,6 +446,219 @@ namespace bpr::core {
 		return decoded;
 	}
 
+	namespace {
+		/// One line of exact bytes, with and without its own ending, and where
+		/// it begins. LF, CRLF and a lone CR end a line; a text ending in a
+		/// line break has no empty line after it.
+		struct exact_line
+		{
+			std::uint64_t    Begin = 0;
+			std::string_view Bytes;
+			std::string_view Content;
+		};
+
+		auto exact_lines(const std::string_view aText) -> std::vector<exact_line>
+		{
+			auto lines = std::vector<exact_line>{ };
+			auto begin = std::size_t{ 0 };
+			for (std::size_t index = 0; index < aText.size(); ++index) {
+				if (aText[index] != '\n' && aText[index] != '\r') {
+					continue;
+				}
+				const auto content = index;
+				if (aText[index] == '\r' && index + 1U < aText.size() && aText[index + 1U] == '\n') {
+					++index;
+				}
+				lines.push_back({ .Begin = begin, .Bytes = aText.substr(begin, index + 1U - begin), .Content = aText.substr(begin, content - begin) });
+				begin = index + 1U;
+			}
+			if (begin < aText.size()) {
+				lines.push_back({ .Begin = begin, .Bytes = aText.substr(begin), .Content = aText.substr(begin) });
+			}
+			return lines;
+		}
+
+		/// Where line `aIndex` begins, or the text's end past its last line.
+		auto line_begin(const std::vector<exact_line>& aLines, const std::size_t aIndex, const std::string_view aText) -> std::uint64_t
+		{
+			return aIndex < aLines.size() ? aLines[aIndex].Begin : aText.size();
+		}
+
+		/// The line that begins at `aOffset`, or the count past the last.
+		auto line_at(const std::vector<exact_line>& aLines, const std::uint64_t aOffset) -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::lower_bound(aLines, aOffset, { }, &exact_line::Begin) - aLines.begin());
+		}
+
+		/// A hunk is one suggestion side and one anchor.
+		constexpr auto maximum_edit_hunk_bytes = std::min(maximum_cycle_suggestion_bytes, maximum_cycle_anchor_bytes);
+
+		/// The work bound of the alignment, in changed lines.
+		constexpr std::ptrdiff_t maximum_edit_distance = 512;
+
+		/// Matched line pairs of the shortest line edit from `aLeft` to `aRight`
+		/// (Myers), in order; nothing when the edit is longer than the bound.
+		auto matched_lines(const std::span<const exact_line> aLeft, const std::span<const exact_line> aRight) -> std::optional<std::vector<std::pair<std::size_t, std::size_t>>>
+		{
+			const auto left     = static_cast<std::ptrdiff_t>(aLeft.size());
+			const auto right    = static_cast<std::ptrdiff_t>(aRight.size());
+			const auto limit    = std::min(left + right, maximum_edit_distance);
+			const auto offset   = limit + 1;
+			auto       furthest = std::vector<std::ptrdiff_t>(static_cast<std::size_t>(2 * limit + 3), 0);
+			auto       trace    = std::vector<std::vector<std::ptrdiff_t>>{ };
+			const auto at       = [offset](std::vector<std::ptrdiff_t>& aRow, const std::ptrdiff_t aDiagonal) -> std::ptrdiff_t& { return aRow[static_cast<std::size_t>(offset + aDiagonal)]; };
+			const auto down     = [&at](std::vector<std::ptrdiff_t>& aRow, const std::ptrdiff_t aDiagonal, const std::ptrdiff_t aDistance) {
+				return aDiagonal == -aDistance || (aDiagonal != aDistance && at(aRow, aDiagonal - 1) < at(aRow, aDiagonal + 1));
+			};
+			for (std::ptrdiff_t distance = 0; distance <= limit; ++distance) {
+				trace.push_back(furthest);
+				for (auto diagonal = -distance; diagonal <= distance; diagonal += 2) {
+					auto x = down(furthest, diagonal, distance) ? at(furthest, diagonal + 1) : at(furthest, diagonal - 1) + 1;
+					auto y = x - diagonal;
+					while (x < left && y < right && aLeft[static_cast<std::size_t>(x)].Bytes == aRight[static_cast<std::size_t>(y)].Bytes) {
+						++x;
+						++y;
+					}
+					at(furthest, diagonal) = x;
+					if (x < left || y < right) {
+						continue;
+					}
+					// Back from the end through each step's furthest points.
+					auto pairs = std::vector<std::pair<std::size_t, std::size_t>>{ };
+					for (auto step = distance; step >= 0; --step) {
+						auto&      row      = trace[static_cast<std::size_t>(step)];
+						const auto current  = x - y;
+						const auto previous = down(row, current, step) ? current + 1 : current - 1;
+						const auto fromX    = at(row, previous);
+						const auto fromY    = fromX - previous;
+						while (x > fromX && y > fromY) {
+							--x;
+							--y;
+							pairs.emplace_back(static_cast<std::size_t>(x), static_cast<std::size_t>(y));
+						}
+						x = fromX;
+						y = fromY;
+					}
+					std::ranges::reverse(pairs);
+					return pairs;
+				}
+			}
+			return std::nullopt;
+		}
+	}
+
+	auto derive_edit_hunks(const std::string_view aOriginal, const std::string_view aEdited) -> std::vector<cycle_edit_hunk>
+	{
+		const auto left  = exact_lines(aOriginal);
+		const auto right = exact_lines(aEdited);
+		// The unchanged lines at both ends are not aligned again.
+		auto prefix = std::size_t{ 0 };
+		while (prefix < left.size() && prefix < right.size() && left[prefix].Bytes == right[prefix].Bytes) {
+			++prefix;
+		}
+		auto suffix = std::size_t{ 0 };
+		while (suffix < left.size() - prefix && suffix < right.size() - prefix && left[left.size() - 1U - suffix].Bytes == right[right.size() - 1U - suffix].Bytes) {
+			++suffix;
+		}
+		const auto middleLeft  = std::span{ left }.subspan(prefix, left.size() - prefix - suffix);
+		const auto middleRight = std::span{ right }.subspan(prefix, right.size() - prefix - suffix);
+		// Past the bound the whole middle is one hunk.
+		auto pairs = matched_lines(middleLeft, middleRight).value_or(std::vector<std::pair<std::size_t, std::size_t>>{ });
+		pairs.emplace_back(middleLeft.size(), middleRight.size());
+		auto hunks = std::vector<cycle_edit_hunk>{ };
+		auto fromL = std::size_t{ 0 };
+		auto fromR = std::size_t{ 0 };
+		for (const auto& [toL, toR] : pairs) {
+			if (toL > fromL || toR > fromR) {
+				const auto editedStart = line_begin(right, prefix + fromR, aEdited);
+				const auto editedEnd   = line_begin(right, prefix + toR, aEdited);
+				hunks.push_back({
+					.Start       = line_begin(left, prefix + fromL, aOriginal),
+					.End         = line_begin(left, prefix + toL, aOriginal),
+					.EditedStart = editedStart,
+					.Replacement = std::string{ aEdited.substr(static_cast<std::size_t>(editedStart), static_cast<std::size_t>(editedEnd - editedStart)) },
+				});
+			}
+			fromL = toL + 1U;
+			fromR = toR + 1U;
+		}
+		return hunks;
+	}
+
+	auto edit_hunks_problem(const std::span<const cycle_edit_hunk> aHunks) -> std::optional<cycle_edit_problem>
+	{
+		if (aHunks.empty()) {
+			return cycle_edit_problem::unchanged;
+		}
+		if (aHunks.size() > maximum_cycle_suggestions) {
+			return cycle_edit_problem::too_many;
+		}
+		if (std::ranges::any_of(aHunks, [](const cycle_edit_hunk& aHunk) { return aHunk.End - aHunk.Start > maximum_edit_hunk_bytes || aHunk.Replacement.size() > maximum_edit_hunk_bytes; })) {
+			return cycle_edit_problem::too_large;
+		}
+		return std::nullopt;
+	}
+
+	auto preview_edit_hunks(const std::string_view aOriginal, const std::string_view aEdited, const std::span<const cycle_edit_hunk> aHunks, const std::size_t aContext)
+		-> std::vector<cycle_edit_row>
+	{
+		const auto left  = exact_lines(aOriginal);
+		const auto right = exact_lines(aEdited);
+		struct located
+		{
+			std::size_t RemovedBegin = 0;
+			std::size_t RemovedEnd   = 0;
+			std::size_t AddedBegin   = 0;
+			std::size_t AddedEnd     = 0;
+		};
+		auto lines = std::vector<located>{ };
+		for (const auto& hunk : aHunks) {
+			lines.push_back({ line_at(left, hunk.Start), line_at(left, hunk.End), line_at(right, hunk.EditedStart), line_at(right, hunk.EditedStart + hunk.Replacement.size()) });
+		}
+		const auto range = [](const std::size_t aFirst, const std::size_t aCount) {
+			// One-based, and the line before an empty range, as unified diffs write it.
+			return std::to_string(aCount == 0U ? aFirst : aFirst + 1U) + "," + std::to_string(aCount);
+		};
+		auto rows  = std::vector<cycle_edit_row>{ };
+		auto shift = std::ptrdiff_t{ 0 };
+		for (std::size_t first = 0; first < lines.size();) {
+			// Changes whose context meets share one group.
+			auto last = first;
+			while (last + 1U < lines.size() && lines[last + 1U].RemovedBegin <= lines[last].RemovedEnd + 2U * aContext) {
+				++last;
+			}
+			const auto from  = lines[first].RemovedBegin - std::min(lines[first].RemovedBegin, aContext);
+			const auto to    = std::min(left.size(), lines[last].RemovedEnd + aContext);
+			auto       grown = std::ptrdiff_t{ 0 };
+			for (auto index = first; index <= last; ++index) {
+				grown += static_cast<std::ptrdiff_t>(lines[index].AddedEnd - lines[index].AddedBegin) - static_cast<std::ptrdiff_t>(lines[index].RemovedEnd - lines[index].RemovedBegin);
+			}
+			const auto editedFrom = static_cast<std::size_t>(static_cast<std::ptrdiff_t>(from) + shift);
+			rows.push_back({ .Kind = cycle_edit_row_kind::header, .Text = "@@ -" + range(from, to - from) + " +" + range(editedFrom, static_cast<std::size_t>(static_cast<std::ptrdiff_t>(to - from) + grown)) + " @@" });
+			const auto context = [&](const std::size_t aBegin, const std::size_t aEnd) {
+				for (auto line = aBegin; line < aEnd; ++line) {
+					rows.push_back({ .Kind = cycle_edit_row_kind::context, .Begin = left[line].Begin, .OriginalLine = line + 1U, .EditedLine = static_cast<std::uint64_t>(static_cast<std::ptrdiff_t>(line + 1U) + shift), .Text = std::string{ left[line].Content } });
+				}
+			};
+			auto cursor = from;
+			for (auto index = first; index <= last; ++index) {
+				const auto& change = lines[index];
+				context(cursor, change.RemovedBegin);
+				for (auto line = change.RemovedBegin; line < change.RemovedEnd; ++line) {
+					rows.push_back({ .Kind = cycle_edit_row_kind::removed, .Begin = left[line].Begin, .OriginalLine = line + 1U, .Text = std::string{ left[line].Content } });
+				}
+				for (auto line = change.AddedBegin; line < change.AddedEnd; ++line) {
+					rows.push_back({ .Kind = cycle_edit_row_kind::added, .Edited = true, .Begin = right[line].Begin, .EditedLine = line + 1U, .Text = std::string{ right[line].Content } });
+				}
+				shift += static_cast<std::ptrdiff_t>(change.AddedEnd - change.AddedBegin) - static_cast<std::ptrdiff_t>(change.RemovedEnd - change.RemovedBegin);
+				cursor = change.RemovedEnd;
+			}
+			context(cursor, to);
+			first = last + 1U;
+		}
+		return rows;
+	}
+
 	auto stable_name(const cycle_suggestion_intent aValue) noexcept -> std::string_view
 	{
 		switch (aValue) {

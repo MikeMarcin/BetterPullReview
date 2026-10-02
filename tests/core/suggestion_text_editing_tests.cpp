@@ -37,13 +37,16 @@ namespace {
 		expect(lines.size() == 4 && lines[0].Ending == text_line_ending::crlf && lines[1].Ending == text_line_ending::cr && lines[2].Ending == text_line_ending::lf && lines[3].Ending == text_line_ending::none, "line endings kept");
 	}
 
-	/// BPR-1156: the proposal is highlighted inside its file, exactly.
-	void splices_the_proposal_into_its_file()
+	/// Owner amendment to BPR-1156: Suggest change opens the whole file at the
+	/// reader's caret, so a byte offset of the file names its point.
+	void locates_byte_offsets()
 	{
-		expect(splice_text("int f()\r\n{\r\n\treturn 1;\r\n}\r\n", 20, 21, "g(2)") == "int f()\r\n{\r\n\treturn g(2);\r\n}\r\n", "replaced in place");
-		expect(splice_text("/* a\nb */", 5, 5, "c") == "/* a\ncb */", "an insertion inside a comment");
-		expect(splice_text("abc", 0, 3, "") == "", "a deletion of everything");
-		expect(!splice_text("abc", 2, 4, "x") && !splice_text("abc", 2, 1, "x"), "a range outside the file is refused");
+		const auto editor = suggestion_text_editor{ "int f()\r\n{\r\n\treturn caf\xC3\xA9(1);\r\n}" };
+		expect(editor.point_of(0U) == text_point{ 0U, 0U } && editor.point_of(7U) == text_point{ 0U, 7U }, "the first line");
+		expect(editor.point_of(8U) == text_point{ 0U, 7U }, "inside a CRLF: the end of its line");
+		expect(editor.point_of(12U) == text_point{ 2U, 0U } && editor.point_of(13U) == text_point{ 2U, 4U }, "a tab advances to its stop");
+		expect(editor.point_of(23U) == text_point{ 2U, 14U } && editor.point_of(25U) == text_point{ 2U, 15U }, "a two-byte character is one column");
+		expect(editor.point_of(31U) == text_point{ 3U, 0U } && editor.point_of(99U) == text_point{ 3U, 1U }, "the last line and past the end");
 	}
 
 	/// Alt+Shift+Down twice, then Shift+End: one caret per line, each
@@ -198,7 +201,7 @@ namespace {
 auto main() -> int
 {
 	keeps_exact_bytes();
-	splices_the_proposal_into_its_file();
+	locates_byte_offsets();
 	box_then_shift_end_stays_on_each_line();
 	edits_in_virtual_space();
 	copies_and_pastes_boxes();

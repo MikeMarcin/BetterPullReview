@@ -36,7 +36,8 @@ namespace bpr::qt {
 		QList<QTextLayout::FormatRange> Formats;
 	};
 
-	/// \brief The focused code-proposal editor of Suggest change (BPR-1156).
+	/// \brief The code editor of Suggest change (BPR-1156): the whole file,
+	/// edited in place in the main pane.
 	///
 	/// \details A small native editor over `core::suggestion_text_editor`: it
 	/// paints lines in the code font with tabs at their stops, draws every
@@ -74,6 +75,12 @@ namespace bpr::qt {
 		/// arrives and a line that merely moved keeps its colours. New text
 		/// clears the colours.
 		void set_syntax(std::vector<suggestion_line_syntax> aLines);
+		/// \brief Places the only caret by byte offsets of the text: a
+		/// selection of [`aStart`, `aEnd`), or a caret when they are equal.
+		void select_bytes(std::uint64_t aStart, std::uint64_t aEnd);
+		/// \brief Shows `aLine` as the first visible line, then keeps the
+		/// primary caret in view.
+		void scroll_to_line(std::uint64_t aLine);
 		/// \brief Applies one semantic edit as a gesture would.
 		auto apply(const core::suggestion_edit& aEdit) -> bool;
 		/// \brief The primary caret's rectangle in viewport coordinates.

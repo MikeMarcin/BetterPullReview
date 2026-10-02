@@ -56,10 +56,14 @@ namespace bpr::core {
 	};
 
 	inline constexpr std::uint32_t default_suggestion_tab_width = 4U;
-	/// A focused editor holds small proposals.
-	inline constexpr std::size_t maximum_suggestion_editor_bytes  = 64U * 1024U;
+	/// Suggest change edits the whole file in place (owner amendment to
+	/// BPR-1156, 2026-10-01), so the editor holds a source file; a larger
+	/// file is refused before it is opened, never truncated.
+	inline constexpr std::size_t maximum_suggestion_editor_bytes  = 1024U * 1024U;
 	inline constexpr std::size_t maximum_suggestion_editor_carets = 1024U;
 	inline constexpr std::size_t maximum_suggestion_undo_steps    = 256U;
+	/// Undo keeps whole snapshots; older steps go once these hold about this many bytes.
+	inline constexpr std::size_t maximum_suggestion_undo_bytes = 64U * 1024U * 1024U;
 
 	struct suggestion_text_state
 	{
@@ -184,6 +188,9 @@ namespace bpr::core {
 		/// \brief The byte offset of a visual column in a line and how many
 		/// columns of virtual space lie beyond the line's end.
 		[[nodiscard]] auto locate(const text_point& aPoint) const -> std::pair<std::size_t, std::uint64_t>;
+		/// \brief The point of byte `aOffset` of the text. An offset inside a
+		/// line ending is the end of its line; one past the text is its end.
+		[[nodiscard]] auto point_of(std::size_t aOffset) const -> text_point;
 
 	private:
 		void remember(bool aCoalesce);
@@ -199,12 +206,6 @@ namespace bpr::core {
 	[[nodiscard]] auto split_text_lines(std::string_view aText) -> std::vector<text_line>;
 	/// \brief Joins lines back into exact bytes.
 	[[nodiscard]] auto join_text_lines(const std::vector<text_line>& aLines) -> std::string;
-	/// \brief The bytes a proposal is highlighted as: `aFile` with
-	/// [`aStart`, `aEnd`) replaced by `aReplacement` (BPR-1156).
-	/// \details The proposal is classified inside its whole file rather than
-	/// on its own, so a selection that begins inside a comment or a string
-	/// reads the way the file does. Nothing when the range lies outside the file.
-	[[nodiscard]] auto splice_text(std::string_view aFile, std::uint64_t aStart, std::uint64_t aEnd, std::string_view aReplacement) -> std::optional<std::string>;
 }
 
 #endif

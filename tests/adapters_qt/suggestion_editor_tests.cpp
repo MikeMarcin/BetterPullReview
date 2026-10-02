@@ -185,8 +185,9 @@ namespace {
 		expect(!aEditor.accessibleName().isEmpty() && !aEditor.accessibleDescription().isEmpty(), "accessible name and description");
 	}
 
-	/// Pixels of the rendered widget within a small distance of `aColour`.
-	auto near(const QColor& aPixel, const QColor& aColour) -> bool
+	/// Within a small distance of `aColour`. Not `near`: the Windows SDK
+	/// defines `near` as an empty macro.
+	auto colour_near(const QColor& aPixel, const QColor& aColour) -> bool
 	{
 		return std::abs(aPixel.red() - aColour.red()) <= 24 && std::abs(aPixel.green() - aColour.green()) <= 24 && std::abs(aPixel.blue() - aColour.blue()) <= 24;
 	}
@@ -197,7 +198,7 @@ namespace {
 		auto       count = 0;
 		for (int y = 0; y < image.height(); ++y) {
 			for (int x = 0; x < image.width(); ++x) {
-				if (near(image.pixelColor(x, y), aColour)) {
+				if (colour_near(image.pixelColor(x, y), aColour)) {
 					++count;
 				}
 			}
@@ -235,8 +236,8 @@ namespace {
 		for (auto y = static_cast<int>(left.top() * ratio); y < static_cast<int>((left.bottom() + 1) * ratio) && y < image.height(); ++y) {
 			for (auto x = static_cast<int>(left.left() * ratio); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
 				const auto pixel = image.pixelColor(x, y);
-				role += near(pixel, aColour) ? 1 : 0;
-				plain += near(pixel, text) ? 1 : 0;
+				role += colour_near(pixel, aColour) ? 1 : 0;
+				plain += colour_near(pixel, text) ? 1 : 0;
 			}
 		}
 		return role > 0 && plain == 0;
@@ -272,8 +273,8 @@ namespace {
 		for (auto y = static_cast<int>(line.top() * ratio); y < static_cast<int>((line.bottom() + 1) * ratio) && y < image.height(); ++y) {
 			for (auto x = static_cast<int>(begin * ratio); x < static_cast<int>(end * ratio) && x < image.width(); ++x) {
 				const auto pixel = image.pixelColor(x, y);
-				role += near(pixel, aColour) ? 1 : 0;
-				plain += near(pixel, text) ? 1 : 0;
+				role += colour_near(pixel, aColour) ? 1 : 0;
+				plain += colour_near(pixel, text) ? 1 : 0;
 			}
 		}
 		return role > 0 && plain == 0;
@@ -284,9 +285,40 @@ namespace {
 		return std::max({ aColour.red(), aColour.green(), aColour.blue() }) - std::min({ aColour.red(), aColour.green(), aColour.blue() }) > 60;
 	}
 
+	/// `aTop` laid over `aBase`, as a band with alpha is painted.
+	auto over(const QColor& aTop, const QColor& aBase) -> QColor
+	{
+		const auto alpha = aTop.alphaF();
+		return QColor::fromRgbF(static_cast<float>(aTop.redF() * alpha + aBase.redF() * (1.0 - alpha)), static_cast<float>(aTop.greenF() * alpha + aBase.greenF() * (1.0 - alpha)),
+								static_cast<float>(aTop.blueF() * alpha + aBase.blueF() * (1.0 - alpha)));
+	}
+
+	/// A flat fill has no anti-aliasing: a few units of rounding at most.
+	auto fill_is(const QColor& aPixel, const QColor& aColour) -> bool
+	{
+		return std::abs(aPixel.red() - aColour.red()) <= 3 && std::abs(aPixel.green() - aColour.green()) <= 3 && std::abs(aPixel.blue() - aColour.blue()) <= 3;
+	}
+
+	/// \brief The fill painted behind the preview row `aRow`, read past the
+	/// end of its text, where no glyph is.
+	auto row_fill(QPlainTextEdit& aPreview, const QString& aRow) -> QColor
+	{
+		for (auto block = aPreview.document()->firstBlock(); block.isValid(); block = block.next()) {
+			if (block.text() != aRow) {
+				continue;
+			}
+			const auto row    = aPreview.cursorRect(QTextCursor{ block });
+			const auto pixmap = aPreview.viewport()->grab();
+			const auto ratio  = pixmap.devicePixelRatio();
+			return pixmap.toImage().pixelColor(static_cast<int>((aPreview.viewport()->width() - 4) * ratio), static_cast<int>(row.center().y() * ratio));
+		}
+		return { };
+	}
+
 	/// BPR-1156: Suggest change paints classified code in the review panes'
-	/// role colours: the proposal inside its whole file, the editor and the
-	/// before/after preview, and nothing from a classification of other text.
+	/// role colours: the whole file in the editor and the before/after
+	/// preview, nothing from a classification of other text, and the
+	/// preview's removed and added rows in the diff panes' own fills.
 	void syntax(qt::suggestion_composer& aComposer)
 	{
 		using role             = core::appearance_role;
@@ -298,14 +330,16 @@ namespace {
 		const auto number      = profile.color(role::syntax_number);
 		expect(chromatic(flow) && chromatic(number), "the role colours are told apart from text by hue");
 		aComposer.adopt_appearance(profile);
-		aComposer.begin({ .Location = "src/f.cpp \xC2\xB7 line 5 \xC2\xB7 R1", .Before = "{\r\n\t", .Original = "return g(1)", .After = ";\r\n}\r\n", .Path = "src/f.cpp", .File = file, .Start = 35U });
+		// The caret before `return`, nothing selected.
+		expect(aComposer.begin({ .Location = "src/f.cpp \xC2\xB7 R1", .Path = "src/f.cpp", .File = file, .Start = 35U, .End = 35U }), "begun at the caret");
 		settle();
 		expect(asked.size() == 2U && asked[0].Side == qt::suggestion_syntax_side::original && asked[1].Side == qt::suggestion_syntax_side::proposed && asked[0].Path == "src/f.cpp"
 				   && asked[0].Document == file && asked[1].Document == file,
 			   "both texts asked for, each the whole file");
 		auto* const editor  = aComposer.editor();
-		auto* const preview = aComposer.findChild<QPlainTextEdit*>(QStringLiteral("suggestionPreview"));
-		expect(pixels_near(*editor, flow) == 0, "nothing coloured before a classification arrives");
+		auto* const preview = aComposer.preview();
+		expect(editor->text() == file && editor->caret_rectangle().isValid(), "the editor holds the whole file");
+		expect(!span_painted(*editor, 4U, 9U, flow), "nothing coloured before a classification arrives");
 
 		// What the classifier reports for the file: lines split at LF, byte columns.
 		const auto spans = std::make_shared<const application::token_span_list>(application::token_span_list{
@@ -317,64 +351,92 @@ namespace {
 			{ .Line = 4U, .Column = 10U, .Length = 1U, .Role = role::syntax_number },
 		});
 		expect(!aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file + "x", spans), "a classification of other text is refused");
-		expect(aComposer.adopt_syntax(qt::suggestion_syntax_side::original, file, spans) && aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file, spans), "both adopted");
+		expect(aComposer.adopt_syntax(qt::suggestion_syntax_side::original, file, spans), "the unedited file's classification is adopted");
 		settle();
-		expect(span_painted(*editor, 0U, 5U, flow) && pixels_near(*editor, number) > 0, "the editor paints the keyword and the number in their role colours");
-		capture(aComposer, QStringLiteral("suggestion-composer-syntax"));
-		const auto removed = preview->document()->findBlockByNumber(1);
-		expect(removed.text() == QStringLiteral("- \treturn g(1);"), "the removed row");
-		const auto formats = removed.layout()->formats();
-		expect(std::ranges::any_of(formats, [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 3 && aRange.length == 6 && aRange.format.foreground().color() == flow; }),
-			   "the preview colours the keyword after its marker");
-		expect(word_painted(*preview, QStringLiteral("return"), flow), "and paints it");
+		// `return` is columns 4 to 9 after the tab.
+		expect(span_painted(*editor, 4U, 9U, flow) && pixels_near(*editor, number) > 0, "the editor paints the keyword and the number in their role colours");
 
-		// An edit asks again; the edited line is plain until its own classification arrives.
+		// An edit at the end of the line: one change, asked for again.
 		editor->setFocus();
 		key(*editor, Qt::Key_End);
 		type(*editor, QStringLiteral("x"));
 		settle();
-		const auto edited = std::string{ "/* note\r\n   still */\r\nint f()\r\n{\r\n\treturn g(1)x;\r\n}\r\n" };
-		expect(asked.size() == 3U && asked[2].Side == qt::suggestion_syntax_side::proposed && asked[2].Document == edited, "the proposal asked for inside its file after the edit");
-		expect(pixels_near(*editor, flow) == 0, "a changed line drops colours that no longer describe it");
+		const auto edited = std::string{ "/* note\r\n   still */\r\nint f()\r\n{\r\n\treturn g(1);x\r\n}\r\n" };
+		expect(asked.size() == 3U && asked[2].Side == qt::suggestion_syntax_side::proposed && asked[2].Document == edited, "the edited file asked for after the edit");
+		expect(!span_painted(*editor, 4U, 9U, flow), "a changed line drops colours that no longer describe it");
+		expect(preview->toPlainText() == QStringLiteral("@@ -3,4 +3,4 @@\n  int f()\n  {\n- \treturn g(1);\n+ \treturn g(1);x\n  }"), "one change in context");
+		expect(word_painted(*preview, QStringLiteral("return"), flow), "the removed row is coloured from the original's classification at once");
+		const auto base    = preview->palette().color(QPalette::Base);
+		const auto removed = over(profile.color(role::diff_removed_background), base);
+		const auto added   = over(profile.color(role::diff_added_background), base);
+		expect(!fill_is(removed, added) && !fill_is(removed, base) && !fill_is(added, base), "the diff fills differ from the background and each other");
+		expect(fill_is(row_fill(*preview, QStringLiteral("- \treturn g(1);")), removed), "the removed row wears the diff panes' removed fill");
+		expect(fill_is(row_fill(*preview, QStringLiteral("+ \treturn g(1);x")), added), "the added row wears the diff panes' added fill");
+		expect(fill_is(row_fill(*preview, QStringLiteral("  int f()")), base), "an unchanged row wears none");
 		expect(!aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file, spans), "a late classification of the earlier text is refused");
 		expect(aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, edited, spans), "the current one is adopted");
 		settle();
-		expect(span_painted(*editor, 0U, 5U, flow), "coloured again");
+		expect(span_painted(*editor, 4U, 9U, flow), "coloured again");
+		const auto addedRow = [&] {
+			for (auto block = preview->document()->firstBlock(); block.isValid(); block = block.next()) {
+				if (block.text().startsWith(QLatin1Char('+'))) {
+					return block;
+				}
+			}
+			return QTextBlock{ };
+		}();
+		expect(std::ranges::any_of(addedRow.layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 3 && aRange.length == 6 && aRange.format.foreground().color() == flow; }),
+			   "the added row colours the keyword after its marker");
+		capture(aComposer, QStringLiteral("suggestion-composer-syntax"));
 		// A line that only moves keeps its colours until the next classification.
 		key(*editor, Qt::Key_Home);
 		key(*editor, Qt::Key_Home);
 		key(*editor, Qt::Key_Return);
 		settle();
-		expect(editor->text() == "\r\nreturn g(1)x" || editor->text() == "\nreturn g(1)x", "a line break before the line");
-		expect(span_painted(*editor, 0U, 5U, flow), "the moved line keeps its colours");
+		expect(editor->text() == "/* note\r\n   still */\r\nint f()\r\n{\r\n\r\n\treturn g(1);x\r\n}\r\n", "a line break before the line, in the file's own ending");
+		expect(span_painted(*editor, 4U, 9U, flow), "the moved line keeps its colours");
 		aComposer.SyntaxWanted = { };
 	}
 
+	/// Owner amendment to BPR-1156 (2026-10-01): the whole file is edited in
+	/// place from a caret, and each separate change is one exact suggestion.
 	void composer(qt::suggestion_composer& aComposer)
 	{
-		aComposer.begin({
-			.Location = "src/f.cpp \xC2\xB7 line 3 \xC2\xB7 R1",
-			.Before   = "int f()\r\n{\r\n\treturn ",
-			.Original = "caf\xC3\xA9(1)",
-			.After    = ";\r\n}\r\n",
-		});
+		const auto file = std::string{ "int f()\r\n{\r\n\treturn caf\xC3\xA9(1);\r\n}\r\n" };
+		expect(!aComposer.begin({ .Path = "big.txt", .File = std::string(core::maximum_suggestion_editor_bytes + 1U, 'a') }), "a file too large to hold is refused, not cut");
+		// A selection is selected again in the editor.
+		expect(aComposer.begin({ .Location = "src/f.cpp \xC2\xB7 R1", .Path = "src/f.cpp", .File = file, .Start = 20U, .End = 28U }), "begun on a selection");
 		settle();
-		expect(aComposer.replacement() == "caf\xC3\xA9(1)", "prefilled with the exact selected bytes");
 		auto* editor = aComposer.editor();
-		key(*editor, Qt::Key_End);
-		key(*editor, Qt::Key_Left);
-		key(*editor, Qt::Key_Backspace);
-		type(*editor, QStringLiteral("2"));
-		expect(aComposer.replacement() == "caf\xC3\xA9(2)", "edited");
-		expect(aComposer.preview_text() == QStringLiteral("  int f()\n  {\n- \treturn café(1);\n+ \treturn café(2);\n  }\n  \n"), "before and after in context");
-		aComposer.set_source_status(qt::suggestion_source_status::stale);
-		expect(aComposer.status_text().contains(QStringLiteral("original bytes")) && aComposer.replacement() == "caf\xC3\xA9(2)", "stale source stated; the edit stays");
-		capture(aComposer, QStringLiteral("suggestion-composer-stale"));
-		auto saved      = std::string{ };
-		aComposer.Saved = [&] { saved = aComposer.replacement(); };
+		expect(editor->text() == file && aComposer.edits().empty(), "the whole file, unchanged");
+		const auto& caret = editor->model().state().Carets;
+		expect(caret.size() == 1U && caret[0].Anchor == core::text_point{ 2U, 11U } && caret[0].Head == core::text_point{ 2U, 18U }, "the selection carried into the editor");
+		expect(!aComposer.save_button()->isEnabled() && aComposer.summary_text().startsWith(QStringLiteral("Edit the file")), "nothing to save yet");
+
+		// Typing replaces the selection; a second change two lines up stays separate.
+		type(*editor, QStringLiteral("coffee(2)"));
+		editor->apply(core::move_carets{ .Motion = core::text_motion::document_start });
+		type(*editor, QStringLiteral("static "));
+		settle();
+		const auto edited = std::string{ "static int f()\r\n{\r\n\treturn coffee(2);\r\n}\r\n" };
+		expect(editor->text() == edited, "edited in place");
+		expect(aComposer.edits() == std::vector{ core::cycle_edit_hunk{ .Start = 0U, .End = 9U, .EditedStart = 0U, .Replacement = "static int f()\r\n" }, core::cycle_edit_hunk{ .Start = 12U, .End = 31U, .EditedStart = 19U, .Replacement = "\treturn coffee(2);\r\n" } },
+			   "two separate changes, whole lines in the original's coordinates");
+		expect(aComposer.summary_text() == QStringLiteral("2 changes · lines 1, 3") && aComposer.save_button()->isEnabled(), "summarised and savable");
+		expect(aComposer.preview_text() == QStringLiteral("@@ -1,4 +1,4 @@\n- int f()\n+ static int f()\n  {\n- \treturn café(1);\n+ \treturn coffee(2);\n  }"), "nearby changes share one group");
+		aComposer.set_source_status(qt::suggestion_source_status::newer_available);
+		expect(aComposer.status_text().contains(QStringLiteral("revision you are editing")) && editor->text() == edited, "newer material stated; the edit stays");
+		capture(aComposer, QStringLiteral("suggestion-composer-two-changes"));
+		auto saved      = std::vector<core::cycle_edit_hunk>{ };
+		aComposer.Saved = [&] { saved = aComposer.edits(); };
 		aComposer.findChild<QCheckBox*>(QStringLiteral("suggestionIllustrative"))->setChecked(true);
 		aComposer.save_button()->click();
-		expect(saved == "caf\xC3\xA9(2)" && aComposer.illustrative(), "save hands over the exact bytes and intent");
+		expect(saved.size() == 2U && aComposer.illustrative(), "save hands over every change and the intent");
+		// Undo returns to the captured file, and with it nothing to save.
+		key(*editor, Qt::Key_Z, Qt::ControlModifier);
+		key(*editor, Qt::Key_Z, Qt::ControlModifier);
+		settle();
+		expect(editor->text() == file && aComposer.edits().empty() && !aComposer.save_button()->isEnabled(), "undone to the captured bytes");
 	}
 }
 
@@ -394,10 +456,16 @@ try {
 	virtual_space_tabs_and_deletion(*editor);
 	box_copy_and_paste(*editor, *target);
 	ime_and_mouse(*editor);
-	auto composer = qt::suggestion_composer{ };
-	composer.resize(560, 520);
-	composer.show();
+	// The editor sits where the file is read; the composer beside it.
+	auto        pane  = QWidget{ };
+	auto* const code  = new qt::suggestion_editor{ &pane };
+	auto* const panel = new qt::suggestion_composer{ *code, &pane };
+	code->setGeometry(0, 0, 520, 360);
+	panel->setGeometry(530, 0, 400, 360);
+	pane.resize(940, 370);
+	pane.show();
 	settle();
+	auto& composer = *panel;
 	::composer(composer);
 	syntax(composer);
 	std::cout << "suggestion-editor-tests:pass\n";

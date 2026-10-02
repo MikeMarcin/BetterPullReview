@@ -215,6 +215,126 @@ namespace {
 		wrong[hash]      = wrong[hash] == '0' ? '1' : '0';
 		expect(!decode_suggestion_wire(wrong), "hash checked");
 	}
+	/// Applies hunks to the original the way exact application does: in
+	/// descending offset order, each in original coordinates.
+	auto apply_hunks(std::string aOriginal, const std::vector<cycle_edit_hunk>& aHunks) -> std::string
+	{
+		for (auto hunk = aHunks.rbegin(); hunk != aHunks.rend(); ++hunk) {
+			aOriginal.replace(static_cast<std::size_t>(hunk->Start), static_cast<std::size_t>(hunk->End - hunk->Start), hunk->Replacement);
+		}
+		return aOriginal;
+	}
+
+	/// File order, and an unchanged line between any two hunks.
+	auto separated(const std::vector<cycle_edit_hunk>& aHunks) -> bool
+	{
+		for (std::size_t index = 1; index < aHunks.size(); ++index) {
+			if (aHunks[index - 1U].End >= aHunks[index].Start) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	constexpr std::string_view two_functions = "int f()\r\n{\r\n\treturn caf\xC3\xA9(1);\r\n}\r\n\r\nint g()\r\n{\r\n\treturn 2;\r\n}\r\n";
+	constexpr std::string_view two_edited    = "int f()\r\n{\r\n\treturn coffee(1);\r\n}\r\nint g()\r\n{\r\n\t// two\r\n\treturn 2;\r\n}\r\n";
+
+	/// Owner amendment to BPR-1156 (2026-10-01): Suggest change edits the
+	/// whole file in place, and each changed run of lines becomes one exact
+	/// suggestion in the original's coordinates.
+	void derives_separate_suggestions_from_an_in_place_edit()
+	{
+		expect(derive_edit_hunks(two_functions, two_functions).empty(), "no edit, no hunk");
+		const auto hunks = derive_edit_hunks(two_functions, two_edited);
+		expect(hunks.size() == 3U && separated(hunks), "three separate changes");
+		expect(hunks[0] == cycle_edit_hunk{ .Start = 12, .End = 31, .EditedStart = 12, .Replacement = "\treturn coffee(1);\r\n" }, "a changed line, whole with its ending");
+		expect(hunks[1] == cycle_edit_hunk{ .Start = 34, .End = 36, .EditedStart = 35, .Replacement = "" }, "a deleted blank line");
+		expect(hunks[2] == cycle_edit_hunk{ .Start = 48, .End = 48, .EditedStart = 47, .Replacement = "\t// two\r\n" }, "an insertion at a line start");
+		expect(apply_hunks(std::string{ two_functions }, hunks) == two_edited, "exact");
+
+		// The same hunks are one note's suggestions, and exact application
+		// reproduces the edited file byte for byte.
+		auto suggestions = std::vector<cycle_suggestion>{ };
+		for (std::size_t index = 0; index < hunks.size(); ++index) {
+			const auto ref  = cycle_suggestion_ref{ .Item = { .Cycle = review_cycle_id{ 1 }, .Id = cycle_feedback_item_id{ 1 } }, .Id = cycle_suggestion_id{ index + 1U } };
+			const auto made = make_suggestion(ref, { .Selection = selection(two_functions, hunks[index].Start, hunks[index].End), .Replacement = hunks[index].Replacement });
+			expect(made.has_value(), "each hunk is a valid suggestion");
+			suggestions.push_back(*made);
+		}
+		const auto applied = preflight_suggestions(suggestions, bytes(two_functions));
+		expect(applied.applicable() && text(*applied.Result) == two_edited, "the set applies to exactly the edited file");
+
+		// Line endings are bytes: a changed ending is a change, a final line
+		// without one stays exact.
+		expect(derive_edit_hunks("a\r\nb\r\n", "a\nb\r\n") == std::vector{ cycle_edit_hunk{ .Start = 0, .End = 3, .EditedStart = 0, .Replacement = "a\n" } }, "CRLF to LF");
+		expect(derive_edit_hunks("a\nb", "a\nb\nc") == std::vector{ cycle_edit_hunk{ .Start = 2, .End = 3, .EditedStart = 2, .Replacement = "b\nc" } }, "no final newline");
+		expect(derive_edit_hunks("", "x\n") == std::vector{ cycle_edit_hunk{ .Start = 0, .End = 0, .EditedStart = 0, .Replacement = "x\n" } }, "an empty file");
+
+		// Many small edits at random places stay exact and separated.
+		auto       state = std::uint32_t{ 1156 };
+		const auto next  = [&state](const std::uint32_t aBound) {
+			state = state * 1664525U + 1013904223U;
+			return (state >> 8U) % aBound;
+		};
+		auto original = std::string{ };
+		for (int line = 0; line < 60; ++line) {
+			original += "line " + std::to_string(line % 7) + (line % 5 == 0 ? "\r\n" : "\n");
+		}
+		for (int round = 0; round < 300; ++round) {
+			auto edited = original;
+			for (auto edit = next(6U); edit > 0U; --edit) {
+				const auto at = next(static_cast<std::uint32_t>(edited.size() + 1U));
+				switch (next(3U)) {
+				case 0:  edited.insert(at, "x\n"); break;
+				case 1:  edited.erase(at, next(12U)); break;
+				default: edited.insert(at, "y"); break;
+				}
+			}
+			const auto found = derive_edit_hunks(original, edited);
+			expect(apply_hunks(original, found) == edited && separated(found), "random edits stay exact and separated");
+		}
+
+		// Past the alignment's bound the changed middle is one hunk, still exact.
+		auto many  = std::string{ };
+		auto other = std::string{ };
+		for (int line = 0; line < 600; ++line) {
+			many += "a" + std::to_string(line) + "\n";
+			other += "b" + std::to_string(line) + "\n";
+		}
+		const auto whole = derive_edit_hunks("head\n" + many + "tail\n", "head\n" + other + "tail\n");
+		expect(whole.size() == 1U && whole[0].Start == 5U && apply_hunks("head\n" + many + "tail\n", whole) == "head\n" + other + "tail\n", "one exact hunk past the bound");
+
+		expect(edit_hunks_problem(std::vector<cycle_edit_hunk>{ }) == cycle_edit_problem::unchanged && !edit_hunks_problem(hunks), "nothing to save; savable");
+		expect(edit_hunks_problem(std::vector<cycle_edit_hunk>(maximum_cycle_suggestions + 1U, hunks[0])) == cycle_edit_problem::too_many, "more changes than one note carries");
+		expect(edit_hunks_problem(std::vector{ cycle_edit_hunk{ .Replacement = std::string(maximum_cycle_suggestion_bytes + 1U, 'x') } }) == cycle_edit_problem::too_large, "a change larger than a suggestion");
+	}
+
+	auto row_texts(const std::vector<cycle_edit_row>& aRows) -> std::vector<std::string>
+	{
+		auto texts = std::vector<std::string>{ };
+		for (const auto& row : aRows) {
+			const auto* marker = row.Kind == cycle_edit_row_kind::removed ? "-" : row.Kind == cycle_edit_row_kind::added ? "+"
+				: row.Kind == cycle_edit_row_kind::context                                                               ? " "
+																														 : "";
+			texts.push_back(marker + row.Text);
+		}
+		return texts;
+	}
+
+	/// The before/after of an in-place edit: removed then added lines with
+	/// unchanged context, and one header per group of nearby changes.
+	void previews_the_changes_in_context()
+	{
+		const auto hunks = derive_edit_hunks(two_functions, two_edited);
+		const auto near  = preview_edit_hunks(two_functions, two_edited, hunks, 1U);
+		expect(row_texts(near) == std::vector<std::string>{ "@@ -2,7 +2,7 @@", " {", "-\treturn caf\xC3\xA9(1);", "+\treturn coffee(1);", " }", "-", " int g()", " {", "+\t// two", " \treturn 2;" }, "changes whose context meets share a group");
+		expect(near[2].OriginalLine == 3U && !near[2].EditedLine && !near[2].Edited && near[2].Begin == 12U, "a removed row names its original line and bytes");
+		expect(near[3].EditedLine == 3U && !near[3].OriginalLine && near[3].Edited && near[3].Begin == 12U, "an added row its edited ones");
+		expect(near[6].OriginalLine == 6U && near[6].EditedLine == 5U && near[6].Begin == 36U, "context after a deletion is numbered on both sides");
+		const auto apart = preview_edit_hunks(two_functions, two_edited, hunks, 0U);
+		expect(row_texts(apart) == std::vector<std::string>{ "@@ -3,1 +3,1 @@", "-\treturn caf\xC3\xA9(1);", "+\treturn coffee(1);", "@@ -5,1 +4,0 @@", "-", "@@ -7,0 +7,1 @@", "+\t// two" }, "without context each change has its own header");
+		expect(preview_edit_hunks(two_functions, two_functions, { }, 3U).empty(), "no change, no rows");
+	}
 }
 
 auto main() -> int
@@ -225,5 +345,7 @@ auto main() -> int
 	observes_application_without_similarity();
 	revises_revalidates_and_records_application();
 	round_trips_the_wire_form();
+	derives_separate_suggestions_from_an_in_place_edit();
+	previews_the_changes_in_context();
 	return EXIT_SUCCESS;
 }

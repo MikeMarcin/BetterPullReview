@@ -150,6 +150,27 @@ namespace bpr::qt {
 		return moved == SyntaxByContent.end() ? nullptr : &Syntax[moved->second].Formats;
 	}
 
+	void suggestion_editor::select_bytes(const std::uint64_t aStart, const std::uint64_t aEnd)
+	{
+		const auto start = Editor.point_of(static_cast<std::size_t>(aStart));
+		const auto end   = Editor.point_of(static_cast<std::size_t>(aEnd));
+		Editor.apply(core::place_caret{ .At = start });
+		if (end != start) {
+			Editor.apply(core::place_caret{ .At = end, .Extend = true });
+		}
+		update_scrollbars();
+		ensure_visible();
+		viewport()->update();
+	}
+
+	void suggestion_editor::scroll_to_line(const std::uint64_t aLine)
+	{
+		update_scrollbars();
+		verticalScrollBar()->setValue(static_cast<int>(std::min<std::uint64_t>(aLine, static_cast<std::uint64_t>(verticalScrollBar()->maximum()))));
+		ensure_visible();
+		viewport()->update();
+	}
+
 	auto suggestion_editor::apply(const core::suggestion_edit& aEdit) -> bool
 	{
 		const auto before  = Editor.text();

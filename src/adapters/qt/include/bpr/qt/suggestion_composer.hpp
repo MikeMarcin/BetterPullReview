@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_SUGGESTION_COMPOSER_HPP
 
 #include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 
@@ -22,26 +23,23 @@ class QPushButton;
 namespace bpr::qt {
 	class appearance_profile;
 
-	/// \brief The exact source a suggestion starts from, as the host read it
-	/// from retained material.
+	/// \brief The file a suggestion edits, as the host read it from retained
+	/// material, and where the reader's caret was.
 	struct suggestion_composer_source
 	{
-		/// Where the selection is, for people: file, lines and revision.
+		/// Which file and revision, for people.
 		std::string Location;
-		/// The bytes around the selection and the selection itself.
-		std::string Before;
-		std::string Original;
-		std::string After;
-		/// The file's path and its complete bytes, with the selection at
-		/// `Start`, so the proposal is classified inside its file. With no
-		/// file, or one these bytes do not match, the context alone is used.
-		std::string   Path;
-		std::string   File;
+		/// The file's path, which chooses its syntax, and its complete bytes.
+		std::string Path;
+		std::string File;
+		/// Bytes [`Start`, `End`) of `File` are selected when editing starts;
+		/// equal, they are only the caret.
 		std::uint64_t Start = 0;
+		std::uint64_t End   = 0;
 	};
 
-	/// \brief Which text a classification describes: the source as selected,
-	/// or the source with the proposal in place of the selection.
+	/// \brief Which text a classification describes: the file as captured,
+	/// or the file as edited.
 	enum class suggestion_syntax_side : std::uint8_t {
 		original,
 		proposed,
@@ -73,27 +71,34 @@ namespace bpr::qt {
 		deleted,
 	};
 
-	/// \brief Suggest change: a focused composer prefilled from a selection
-	/// (BPR-1156).
-	/// \details It holds the suggested code, an optional rationale in the
-	/// note's own Markdown, whether the code is exact or only illustrative,
-	/// and a before/after preview of the selection in its context. It reads
-	/// no file and writes nothing: Save hands the exact replacement bytes,
-	/// intent and rationale to whoever composed the widget. The editor and the
-	/// preview are coloured from classifications it asks for
-	/// (`SyntaxWanted`), painted through the review panes' own role colours
-	/// and span-to-format rule.
+	/// \brief Suggest change: the whole file edited in place (BPR-1156,
+	/// owner amendment of 2026-10-01).
+	/// \details The edit happens in a `suggestion_editor` that whoever
+	/// composed the widget lays out where the file is read: the editor starts
+	/// with the whole captured file and the reader's caret or selection. The
+	/// composer itself is the side panel: which file, an optional rationale in
+	/// the note's own Markdown, whether the code is exact or only
+	/// illustrative, and a before/after preview of every change. Each
+	/// separate changed run of lines is one exact suggestion
+	/// (`core::derive_edit_hunks`). It reads no file and writes nothing: Save
+	/// hands the changes, intent and rationale to whoever composed the widget.
+	/// The editor and the preview are coloured from classifications it asks
+	/// for (`SyntaxWanted`), painted through the review panes' role colours
+	/// and span-to-format rule; the preview's removed and added rows wear the
+	/// diff panes' own row fills (`code_sample_row_fill`).
 	class suggestion_composer final : public QWidget
 	{
 	public:
-		explicit suggestion_composer(QWidget* aParent = nullptr);
+		explicit suggestion_composer(suggestion_editor& aEditor, QWidget* aParent = nullptr);
 
-		/// \brief Starts a suggestion from a selection; the editor holds its exact bytes.
-		void begin(const suggestion_composer_source& aSource);
+		/// \brief Starts editing a file at the reader's caret.
+		/// \returns False, and leaves the editor alone, for a file too large
+		/// to hold (`core::maximum_suggestion_editor_bytes`).
+		auto begin(const suggestion_composer_source& aSource) -> bool;
 		/// \brief States how the source relates to newer material, without moving it.
 		void set_source_status(suggestion_source_status aStatus);
 		void set_code_font(const QFont& aFont);
-		/// \brief Takes the syntax role colours of the applied appearance.
+		/// \brief Takes the syntax and diff role colours of the applied appearance.
 		void adopt_appearance(const appearance_profile& aProfile);
 		/// \brief Colours the editor and preview from one classification.
 		/// \returns Whether the spans were adopted: only a classification of
@@ -101,30 +106,29 @@ namespace bpr::qt {
 		auto adopt_syntax(suggestion_syntax_side aSide, std::string_view aDocument, application::shared_token_spans aSpans) -> bool;
 
 		[[nodiscard]] auto editor() const noexcept -> suggestion_editor*;
-		[[nodiscard]] auto replacement() const -> std::string;
+		/// \brief The separate changes, in the original file's coordinates.
+		[[nodiscard]] auto edits() const noexcept -> const std::vector<core::cycle_edit_hunk>&;
+		/// \brief The source the suggestion began from.
+		[[nodiscard]] auto source() const noexcept -> const suggestion_composer_source&;
 		[[nodiscard]] auto rationale() const -> std::string;
 		[[nodiscard]] auto illustrative() const -> bool;
 		[[nodiscard]] auto source_status() const noexcept -> suggestion_source_status;
-		/// \brief The preview text: the selection's context before and after the edit.
+		/// \brief The preview text: each change in context, before then after.
 		[[nodiscard]] auto preview_text() const -> QString;
+		/// \brief The preview pane, whose rows carry the diff fills.
+		[[nodiscard]] auto preview() const noexcept -> QPlainTextEdit*;
+		/// \brief What the edit amounts to, or why it cannot be saved.
+		[[nodiscard]] auto summary_text() const -> QString;
 		[[nodiscard]] auto status_text() const -> QString;
 		[[nodiscard]] auto save_button() const noexcept -> QPushButton*;
 
 		std::function<void()> Saved;
 		std::function<void()> Cancelled;
 		/// Asks for a classification: both texts when a suggestion begins,
-		/// the proposed text after every edit.
+		/// the edited text after every edit.
 		std::function<void(const suggestion_syntax_request&)> SyntaxWanted;
 
 	private:
-		/// One preview row: the text it came from and where it begins there.
-		struct preview_row
-		{
-			suggestion_syntax_side Side  = suggestion_syntax_side::original;
-			std::uint64_t          Begin = 0;
-			std::string            Content;
-		};
-
 		void               text_changed();
 		void               refresh_preview();
 		void               request_syntax(suggestion_syntax_side aSide);
@@ -132,22 +136,22 @@ namespace bpr::qt {
 		[[nodiscard]] auto formats_of(suggestion_syntax_side aSide, std::uint64_t aBegin, const std::string& aContent) const -> QList<QTextLayout::FormatRange>;
 
 		suggestion_composer_source Source;
-		/// Where the context begins in both texts, and where the selection does.
-		std::uint64_t                  Base      = 0;
-		std::uint64_t                  Selection = 0;
-		std::array<std::string, 2>     Texts;
-		std::array<classified_text, 2> Classified;
-		std::vector<preview_row>       PreviewRows;
-		code_role_colors               SyntaxColors{ };
-		suggestion_source_status       Status       = suggestion_source_status::current;
-		QLabel*                        Location     = nullptr;
-		QLabel*                        StatusLabel  = nullptr;
-		suggestion_editor*             Editor       = nullptr;
-		QCheckBox*                     Illustrative = nullptr;
-		QPlainTextEdit*                Rationale    = nullptr;
-		QPlainTextEdit*                Preview      = nullptr;
-		QPushButton*                   Save         = nullptr;
-		QPushButton*                   Cancel       = nullptr;
+		/// The file as captured and as edited.
+		std::array<std::string, 2>         Texts;
+		std::array<classified_text, 2>     Classified;
+		std::vector<core::cycle_edit_hunk> Hunks;
+		std::vector<core::cycle_edit_row>  PreviewRows;
+		code_role_colors                   SyntaxColors{ };
+		suggestion_source_status           Status       = suggestion_source_status::current;
+		suggestion_editor*                 Editor       = nullptr;
+		QLabel*                            Location     = nullptr;
+		QLabel*                            StatusLabel  = nullptr;
+		QLabel*                            Summary      = nullptr;
+		QCheckBox*                         Illustrative = nullptr;
+		QPlainTextEdit*                    Rationale    = nullptr;
+		QPlainTextEdit*                    Preview      = nullptr;
+		QPushButton*                       Save         = nullptr;
+		QPushButton*                       Cancel       = nullptr;
 	};
 }
 

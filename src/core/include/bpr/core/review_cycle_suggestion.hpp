@@ -208,6 +208,72 @@ namespace bpr::core {
 	[[nodiscard]] auto observe_application(const cycle_suggestion& aSuggestion, std::span<const std::uint8_t> aOriginalFile, const cycle_material_digest& aLater)
 		-> cycle_application_observation;
 
+	/// \brief One changed run of whole lines of a file edited in place, in the
+	/// original file's coordinates (owner amendment to BPR-1156, 2026-10-01).
+	/// \details Original bytes [`Start`, `End`) are whole lines with their own
+	/// endings; `Replacement` is the edited lines that take their place, which
+	/// begin at `EditedStart` of the edited text. An empty range is an
+	/// insertion at a line start; an empty replacement deletes the lines.
+	struct cycle_edit_hunk
+	{
+		std::uint64_t Start       = 0;
+		std::uint64_t End         = 0;
+		std::uint64_t EditedStart = 0;
+		std::string   Replacement;
+		auto          operator<=>(const cycle_edit_hunk&) const = default;
+	};
+	/// \brief The hunks that turn `aOriginal` into `aEdited`.
+	/// \details Lines are compared with their own endings, so a changed line
+	/// ending is a change, and the result is exact: applying every hunk to the
+	/// original gives exactly the edited text. Hunks come in file order and
+	/// are separated by at least one unchanged line, so no two overlap, touch
+	/// or share a boundary, which is what `preflight_suggestions` requires of
+	/// one note's suggestions. The alignment is the shortest line edit; past a
+	/// bound on its work the changed middle of the file is one hunk, still
+	/// exact. This compares exact line bytes, unlike the review panes'
+	/// comparison engine, which aligns display lines and their decoded text.
+	[[nodiscard]] auto derive_edit_hunks(std::string_view aOriginal, std::string_view aEdited) -> std::vector<cycle_edit_hunk>;
+
+	/// \brief Why an in-place edit cannot become a note's suggestions.
+	enum class cycle_edit_problem : std::uint8_t {
+		/// Nothing changed.
+		unchanged,
+		/// More separate changes than one note may carry (`maximum_cycle_suggestions`).
+		too_many,
+		/// One change is larger than a suggestion side or an anchor may be.
+		too_large,
+	};
+	/// \brief The reason `aHunks` cannot be saved, or nothing when they can.
+	[[nodiscard]] auto edit_hunks_problem(std::span<const cycle_edit_hunk> aHunks) -> std::optional<cycle_edit_problem>;
+
+	/// \brief One row of the before/after preview of an in-place edit.
+	enum class cycle_edit_row_kind : std::uint8_t {
+		/// Where a group of nearby changes starts: `@@ -a,b +c,d @@`.
+		header,
+		context,
+		removed,
+		added,
+	};
+	struct cycle_edit_row
+	{
+		cycle_edit_row_kind Kind = cycle_edit_row_kind::context;
+		/// Which text the row's bytes are from: the edited one for added rows.
+		bool Edited = false;
+		/// Where the row's line begins in that text.
+		std::uint64_t Begin = 0;
+		/// One-based line numbers of the row on each side; none on a header.
+		std::optional<std::uint64_t> OriginalLine;
+		std::optional<std::uint64_t> EditedLine;
+		/// The line without its ending, or the header's text.
+		std::string Text;
+		auto        operator<=>(const cycle_edit_row&) const = default;
+	};
+	/// \brief The preview rows of `aHunks`: each change as removed then added
+	/// lines, with `aContext` unchanged lines around it; changes whose context
+	/// meets share one header.
+	[[nodiscard]] auto preview_edit_hunks(std::string_view aOriginal, std::string_view aEdited, std::span<const cycle_edit_hunk> aHunks, std::size_t aContext)
+		-> std::vector<cycle_edit_row>;
+
 	/// \brief A self-describing text form of one suggestion revision: both
 	/// sides as base64 with their byte lengths and SHA-256, so arbitrary bytes
 	/// survive any transport that keeps ASCII lines.

@@ -308,18 +308,26 @@ A native selection becomes an exact byte anchor of the retained bytes, and
 the source pane shows them in the review panes' syntax colours: the page asks
 for the exact bytes it shows to be classified and paints only spans of those
 bytes. A store the build cannot read leaves Home in place at start, and its
-refusal is said in the source pane once a project is asked for. The
-focused suggestion editor (`suggestion_text_editing.hpp` with
-`bpr/qt/suggestion_editor.hpp`) keeps exact lines with their own endings and
-offers multiple carets, box selection, virtual space, IME composition and
-ordinary undo; its composer previews the edit in context and never writes a
-file. The editor and the preview are coloured by the review panes' packaged
-classifier: the composition classifies the proposal inside its whole file
-(`core::splice_text`) on the panes' effect lane, and the composer paints the
+refusal is said in the source pane once a project is asked for. Suggest
+change starts from the caret, from the review bar or the source pane's
+context menu, and edits the whole file in place: the main pane becomes the
+suggestion editor (`suggestion_text_editing.hpp` with
+`bpr/qt/suggestion_editor.hpp`), which keeps exact lines with their own
+endings and offers multiple carets, box selection, virtual space, IME
+composition and ordinary undo, and the tray holds the composer. The core
+turns the edit into one exact suggestion per separate changed run of whole
+lines (`core::derive_edit_hunks`, in the original's coordinates and never
+overlapping or touching) and lays out the before/after rows
+(`core::preview_edit_hunks`); all of them are suggestions of one note, and
+nothing is written to a file. The editor and the preview are coloured by the
+review panes' packaged classifier: the composition classifies the captured
+and the edited file on the panes' effect lane, and the composer paints the
 spans through the same role colours and span-to-format rule
 (`code_sample_painter.hpp`), adopting only spans of the text it still shows;
-the source pane and the composer share one classifier and its cache, so a
-file the pane already classified colours the composer at once.
+the preview's removed and added rows wear the diff panes' fills
+(`code_sample_row_fill`). The source pane and the composer share one
+classifier and its cache, so a file the pane already classified colours the
+editor at once.
 
 A round (RFC-BPR-0056, BPR-1158) is one assignment frozen from a round draft
 (`bpr/core/review_cycle_round.hpp`). The draft stores the reviewer's selection
