@@ -265,10 +265,54 @@ feedback routes, its Copy, Save and Use in external agent, `export`, `round
 grant` and every harness read get the same answer. A denial made after a grant
 holds against it.
 
+## The bpr-cycle skill
+
+`packaging/agent-skills/bpr-cycle/` is the ready-to-import Agent Skills package
+for a harness that consumes a round ([[BPR-1170]]): `SKILL.md` plus three small
+references (commands and fields, responses, refusals), and nothing to execute.
+It teaches only the consumer commands, each run with `BPR_CYCLE_ROLE=consumer`
+and `--json`: `capabilities` once, `round read` and every `round page` before
+acting, `round source` for the round's own attachments, and, only when the user
+asks and the grant allows, `response append` on standard input. It keeps the
+harness's own tools, approvals and orchestration, starts no model, publishes
+nothing, and sends the user to the reviewer for a grant, a policy change or a
+split round rather than working around a refusal. Without `bpr`, it works from
+the round's Markdown and replies in prose by item ID; the cycle needs no
+callback.
+
+`skill_bpr_cycle_package` (in a graph with `-DBPR_BUILD_TOUR_CLI=ON`) pins the
+text: identity (`bpr-cycle`, contracts `bpr.cycle.cli-result.v1` and
+`bpr.cycle.response.v1`), portable frontmatter with no tool grant, thinness,
+that every command line it teaches is a declared consumer's and every other
+`bpr cycle` command it names is a prohibition, that a publisher, the database,
+a second model or an installation appears only as a prohibition, and that every
+field, value and refusal it names is one the CLI says or decodes. It then runs
+the documented lines, placeholders filled, through the real `bpr` against a
+local cycle: refused without a grant (the harness cannot grant itself), then
+read whole at the default page and at 4 KiB pages, from the bound folder, with
+a partition refusal; attachments listed and read; the responses reference's own
+example appended as a `local_interface` statement that changes no note or round;
+every non-consumer command the binary lists refused to the declared consumer; a
+read-only grant, a denying or unconfigured policy and a revoked grant (mid-page
+too) each refused as the refusals reference says; and the reviewer's Markdown
+export carrying every item for a person with no skill. Thirteen deliberately
+broken copies of the package must fail its lint. It cannot show that a model
+follows the text.
+
+The canonical home is the shared AgentSkills repository, installed by MASK, as
+for [`pr-tour`](tour-cli.md); BPR keeps no `.claude/skills`, `.codex/skills` or
+`.agents/skills` copy, and the row fails if one appears or if `.mask.json`
+selects `bpr-cycle` from another source. Importing it is that repository's
+work, authorized by its owner: copy the package unchanged to
+`skills/bpr-cycle/` there, add `{"id": "bpr-cycle", "source": "agentskills"}`
+to this repository's `.mask.json`, and check the import with `python3
+tests/scripts/bpr_cycle_skill_tests.py PACKAGE_DIR BPR --digest`, whose digest
+must equal the one recorded for the candidate. Until then the package here is a
+candidate, not an installed skill, and no harness has been observed using it.
+
 ## Not in this build
 
-The portable skill is [[BPR-1170]]'s. The parity course across desktop,
-terminal and external consumer is [[BPR-1171]]'s. The desktop does not list
-Use in external agent yet ([[BPR-1161]]'s route stays hidden until it is
+The parity course across desktop, terminal and external consumer is
+[[BPR-1171]]'s. The desktop does not list Use in external agent yet ([[BPR-1161]]'s route stays hidden until it is
 enabled there); its host side stores the same grant `round grant` does.
 `publication` commands are not offered here.
