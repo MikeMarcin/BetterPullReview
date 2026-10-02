@@ -315,3 +315,20 @@ they were prepared again from the same material and the reason recorded on
 each; no verdict changed.
 
 Owed: Linux and Windows runs of the changed rows at `da459c4e1` or later.
+
+### Linux at `54c4154d4`: in-place Suggest change (bpr-main-linux, 2026-10-01)
+
+Includes `da459c4e1`. WSL2, GCC 15.2, Qt 6.11.2, `build/dev` Debug, offscreen.
+`cmake --preset dev && cmake --build --preset dev` exits 0 with 0 `warning:`
+lines. The requested `ctest --preset dev -j4` selection passes **14 of 14** in
+19.38 s:
+
+- `core_suggestion_text_editing` and `core_review_cycle_{feedback,suggestion,tabs}`
+- `qt_suggestion_editor_1_0` and `_2_0`
+- `qt_review_cycle_view_1_0` and `_2_0`
+- `review_cycle_workbench` and `review_cycle_suggestion`
+- `application_review_cycle_desktop_public_path`
+- `application_review_round_trip_composition_contract`
+- `syntax_classification_contract` and `architecture_boundaries`
+
+No pixel check failed at 1×. No remote mutation.
