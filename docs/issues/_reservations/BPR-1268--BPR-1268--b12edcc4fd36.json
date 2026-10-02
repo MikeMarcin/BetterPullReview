@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1268"
+  ],
+  "reserve_for": "bpr1170-format-finding",
+  "purpose": "coding_format_check red at main on tour_cli.cpp, found during BPR-1170",
+  "created": "2026-10-02T23:40:03.827466+00:00",
+  "base": "0c2b55488b3a71f084041b49fcea35c064d7a83f"
+}
