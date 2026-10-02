@@ -9,6 +9,7 @@
 #include <QFontDatabase>
 #include <QFontInfo>
 #include <QFontMetricsF>
+#include <QGlyphRun>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QMenu>
@@ -357,6 +358,7 @@ namespace bpr::qt {
 		RowHeight   = std::max<qreal>(1.0, line.height());
 		Ascent      = line.ascent();
 		ColumnWidth = std::max<qreal>(1.0, QFontMetricsF{ CodeFont, viewport() }.horizontalAdvance(QLatin1Char('M')));
+		ShapedGlyphs.clear();
 	}
 
 	void suggestion_editor::set_syntax(std::vector<suggestion_line_syntax> aLines)
@@ -480,6 +482,32 @@ namespace bpr::qt {
 		return document_margin() + static_cast<qreal>(aColumn) * ColumnWidth - horizontalScrollBar()->value();
 	}
 
+	auto suggestion_editor::shaped(const QString& aGlyph) const -> const shaped_glyph&
+	{
+		// [[BPR-1156]]. Shaped alone, on this device, as a one-character
+		// drawText shapes it, so the glyph and its offset are the ones that
+		// call drew. A move to a screen of another ratio shapes again.
+		if (const auto ratio = viewport()->devicePixelRatioF(); ratio != ShapedRatio) {
+			ShapedGlyphs.clear();
+			ShapedRatio = ratio;
+		}
+		if (const auto found = ShapedGlyphs.constFind(aGlyph); found != ShapedGlyphs.cend()) {
+			return *found;
+		}
+		auto glyph  = shaped_glyph{ };
+		auto layout = QTextLayout{ aGlyph, CodeFont, viewport() };
+		layout.beginLayout();
+		const auto line = layout.createLine();
+		layout.endLayout();
+		if (const auto runs = layout.glyphRuns(); runs.size() == 1 && runs.front().glyphIndexes().size() == 1) {
+			glyph.Font   = runs.front().rawFont();
+			glyph.Index  = runs.front().glyphIndexes().front();
+			glyph.Offset = runs.front().positions().front() - QPointF{ 0.0, line.ascent() };
+			glyph.Single = true;
+		}
+		return *ShapedGlyphs.insert(aGlyph, glyph);
+	}
+
 	void suggestion_editor::update_scrollbars()
 	{
 		const auto& state   = Editor.state();
@@ -569,14 +597,49 @@ namespace bpr::qt {
 		// role's colour; everything else is the native text colour.
 		const auto text = palette().text().color();
 		const auto tab  = state.TabWidth;
+		// [[BPR-1156]]. Each glyph is still shaped alone and placed in its own
+		// cell, but a run of glyphs in one colour and font is drawn in one
+		// call, and the colours come from a per-line table rather than a
+		// search of the ranges for every glyph.
+		auto       unitColours = std::vector<QColor>{ };
+		auto       runFont     = QRawFont{ };
+		auto       runColour   = QColor{ };
+		auto       runIndexes  = QList<quint32>{ };
+		auto       runPoints   = QList<QPointF>{ };
+		const auto flush       = [&] {
+			if (runIndexes.isEmpty()) {
+				return;
+			}
+			auto run = QGlyphRun{ };
+			run.setRawFont(runFont);
+			run.setGlyphIndexes(runIndexes);
+			run.setPositions(runPoints);
+			painter.setPen(runColour);
+			painter.drawGlyphRun(QPointF{ }, run);
+			runIndexes.clear();
+			runPoints.clear();
+		};
 		for (auto line = first; line < last; ++line) {
 			const auto  y       = top(line) + Ascent;
 			const auto& content = state.Lines[line].Content;
-			const auto* formats = syntax_of(line);
-			auto        column  = std::uint64_t{ 0 };
+			// The colour of each UTF-16 unit, the first range in the list that
+			// covers a unit winning, as a search in list order would choose.
+			unitColours.assign(content.size() + 1U, text);
+			if (const auto* formats = syntax_of(line); formats != nullptr) {
+				for (auto range = formats->crbegin(); range != formats->crend(); ++range) {
+					if (!range->format.hasProperty(QTextFormat::ForegroundBrush)) {
+						continue;
+					}
+					const auto colour = range->format.foreground().color();
+					const auto from   = std::clamp<qsizetype>(range->start, 0, static_cast<qsizetype>(unitColours.size()));
+					const auto to     = std::clamp<qsizetype>(static_cast<qsizetype>(range->start) + range->length, from, static_cast<qsizetype>(unitColours.size()));
+					std::fill(unitColours.begin() + from, unitColours.begin() + to, colour);
+				}
+			}
+			auto column = std::uint64_t{ 0 };
 			// The glyph's position in UTF-16 units, which is how the shared
 			// painter's ranges count.
-			auto unit = 0;
+			auto unit = std::size_t{ 0 };
 			for (std::size_t index = 0; index < content.size();) {
 				if (content[index] == '\t') {
 					column += tab - (column % tab);
@@ -588,20 +651,28 @@ namespace bpr::qt {
 				while (index + length < content.size() && (static_cast<unsigned char>(content[index + length]) & 0xC0U) == 0x80U && length < 4U) {
 					++length;
 				}
-				auto colour = text;
-				if (formats != nullptr) {
-					const auto range = std::ranges::find_if(*formats, [unit](const QTextLayout::FormatRange& aRange) { return unit >= aRange.start && unit < aRange.start + aRange.length; });
-					if (range != formats->end() && range->format.hasProperty(QTextFormat::ForegroundBrush)) {
-						colour = range->format.foreground().color();
+				const auto& colour = unitColours[std::min(unit, unitColours.size() - 1U)];
+				const auto  glyph  = QString::fromUtf8(content.data() + index, static_cast<qsizetype>(length));
+				const auto  origin = QPointF{ column_x(column), y };
+				if (const auto& found = shaped(glyph); found.Single) {
+					if (found.Font != runFont || colour != runColour) {
+						flush();
+						runFont   = found.Font;
+						runColour = colour;
 					}
+					runIndexes.append(found.Index);
+					runPoints.append(origin + found.Offset);
+				} else {
+					flush();
+					painter.setPen(colour);
+					painter.drawText(origin, glyph);
 				}
-				painter.setPen(colour);
-				painter.drawText(QPointF{ column_x(column), y }, QString::fromUtf8(content.data() + index, static_cast<qsizetype>(length)));
 				index += length;
-				unit += length == 4U ? 2 : 1;
+				unit += length == 4U ? 2U : 1U;
 				++column;
 			}
 		}
+		flush();
 		painter.setPen(text);
 		// Carets, and the IME composition at the primary one.
 		const auto caretColour = hasFocus() ? palette().text().color() : palette().placeholderText().color();

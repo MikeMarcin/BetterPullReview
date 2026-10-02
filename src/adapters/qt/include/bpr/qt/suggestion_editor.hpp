@@ -7,8 +7,10 @@
 #include <QAbstractScrollArea>
 #include <QElapsedTimer>
 #include <QFont>
+#include <QHash>
 #include <QList>
 #include <QPointF>
+#include <QRawFont>
 #include <QString>
 #include <QTextLayout>
 
@@ -183,6 +185,21 @@ namespace bpr::qt {
 		qreal RowHeight   = 1.0;
 		qreal Ascent      = 0.0;
 		qreal ColumnWidth = 1.0;
+		/// \brief [[BPR-1156]]. One character shaped alone in the code font, as a
+		/// one-character `drawText` shapes it, kept so a paint does not shape it again.
+		struct shaped_glyph
+		{
+			QRawFont Font;
+			quint32  Index = 0U;
+			/// The glyph's offset from the cell's baseline origin.
+			QPointF Offset;
+			/// False when the character needs more than one glyph or a second font;
+			/// such a character is drawn with `drawText` as before.
+			bool Single = false;
+		};
+		mutable QHash<QString, shaped_glyph> ShapedGlyphs;
+		mutable qreal                        ShapedRatio = 0.0;
+		[[nodiscard]] auto                   shaped(const QString& aGlyph) const -> const shaped_glyph&;
 		/// Where and when the last double click was, so a third click selects the line.
 		QElapsedTimer DoubleClicked;
 		QPointF       DoubleClickedAt;

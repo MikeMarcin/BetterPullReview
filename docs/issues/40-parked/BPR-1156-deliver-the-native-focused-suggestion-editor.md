@@ -543,3 +543,47 @@ Debug Qt makes expensive. The other 12 rows pass:
 - `syntax_classification_contract` (0.42 s);
 - the four core rows;
 - `architecture_boundaries` (31.93 s).
+
+## The code view paints by cached glyph runs (bpr-main-win, 2026-10-02)
+
+`suggestion_editor::paintEvent` drew every visible character with its own
+one-character `QString`, a linear search of the line's format ranges, and a
+`setPen` and `drawText` call. On Windows Debug that put
+`qt_review_cycle_view_*` past their 60 s bound (above).
+
+**Chosen: per-glyph `QGlyphRun` caching, not `drawText` over a run.** Drawing
+a run with `drawText` would let a font apply kerning or ligatures across
+characters, so it is pixel-identical only for some fonts. Instead:
+
+- `shaped()` shapes each distinct character once, alone, with a `QTextLayout`
+  in the code font on the viewport. That is how a one-character `drawText`
+  shapes it. The cache keeps the glyph, its raw font and its baseline offset.
+- A character that needs more than one glyph or a second font is still drawn
+  with `drawText`.
+- The cache is cleared when the font is measured and when the device pixel
+  ratio changes.
+- Each run of glyphs in one colour and one raw font is drawn with a single
+  `drawGlyphRun`, every glyph still at its own cell's `column_x`.
+- The colours come from a per-line table of UTF-16 units, filled from the
+  ranges in reverse. So the first range in list order that covers a unit
+  wins, exactly as the linear search chose.
+
+**Pixel identity, measured.** A temporary switch, not committed, restored
+the old path: per-glyph `drawText` with the linear search. The
+`review_cycle_view` course ran both ways at scale 1.0 and 2.0 with
+`BPR_CYCLE_RENDER_DIR`, and all 24 captured renders (12 per scale) are
+byte-identical PNGs.
+
+**Timing on Windows Debug (MSVC 14.51, Qt 6.11.2):**
+
+| Row | Before (`fbd4ab206`) | After |
+|---|---|---|
+| `qt_review_cycle_view_1_0` | `***Timeout` at 60 s; 66.5 s run directly | 6.12 s |
+| `qt_review_cycle_view_2_0` | `***Timeout` at 60 s | 10.38 s |
+
+The 60 s bound is unchanged.
+
+The 14-row selection above passes 14/14, in 28.60 s, with every
+before/after-Suggest-change comparison and role/text colour check unchanged.
+The build printed no `warning C` line, and `clang-format --dry-run --Werror`
+is clean. The macOS and Linux reruns are the coordinator's.
