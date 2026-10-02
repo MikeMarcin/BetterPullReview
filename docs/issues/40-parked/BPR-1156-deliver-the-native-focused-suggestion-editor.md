@@ -700,3 +700,44 @@ candidate name only. Session cursor 787, host on port 59998. The card stays
 Parked on human-review.
 
 Owed: Linux and Windows runs of the changed rows at `fd5ca4412` or later.
+
+### Linux at `0dd841b40`: selection shade, virtual space, double click (bpr-main-linux, 2026-10-02)
+
+Includes `fd5ca4412`. WSL2, GCC 15.2, Qt 6.11.2, `build/dev` Debug, offscreen.
+`cmake --preset dev && cmake --build --preset dev` exits 0 with 0 `warning:`
+lines, and there is **no link error**. `tests/support/window_system_mouse.hpp`'s
+`qt_handleMouseEvent` resolves against QtGui. The requested 15-row `ctest
+--preset dev -j4` selection passes **14 of 15**.
+
+**`application_review_cycle_desktop_public_path` fails, deterministically (4 of
+4), at `a selected call keeps its role, in the ink that reads on the
+selection`.** The earlier window-system checks in the same course pass: the
+double click, the triple click, the click past the end, the drag selection in
+the solid selection colour, and "nothing past the text". A probe, not
+committed, printed the counts that check uses, over bytes 41–46 after
+`select_bytes(41, 46)`:
+
+| Colour | ±4 (the check's `solid_pixels`) | ±12 | ±24 | ±48 |
+|---|---|---|---|---|
+| `functionInk` `#4e2b8e` (`readable_selection_ink`; check needs `> 0`) | **0** | 9 | 25 | 49 |
+| `function` `#6639ba` (check needs `== 0`) | 0 | 0 | 30 | 80 |
+| selection fill `#7fb0e8` | 311 | 329 | 342 | 369 |
+
+Region: x 83.4–119.5, y 28–42 at DPR 1. The source pane's font is
+`monospace` 9 pt, which fontconfig resolves to DejaVu Sans Mono, with text
+`#1f2328`. The pixel closest to the ink is `#513193`, 6 off on its largest
+channel.
+
+So the selected call is drawn in the selection ink, not the role colour: no
+role-coloured pixel is within ±12, and ink-tinted pixels are. But at 1× in
+this face, no pixel of the thin strokes reaches the ink within ±4, which is the
+"solid core" that `solid_pixels` assumes. This is the same calibration
+question as the earlier editor check, now on the selection ink. I changed
+nothing and loosened nothing.
+
+The other 14 rows pass: `core_suggestion_text_editing`,
+`core_appearance_contrast`, `core_review_cycle_{feedback,suggestion,tabs}`,
+`qt_suggestion_editor_1_0` and `_2_0`, `qt_review_cycle_view_1_0` and `_2_0`,
+`review_cycle_workbench`, `review_cycle_suggestion`, the round-trip contract,
+`syntax_classification_contract` and `architecture_boundaries`. No remote
+mutation.
