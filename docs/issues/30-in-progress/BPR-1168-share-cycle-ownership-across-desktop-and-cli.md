@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1168"
 title: "Share cycle ownership across desktop and CLI"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0058"]
 depends_on: ["BPR-1145", "BPR-1167"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "external-consumers", "acceptance": ["RC58-05", "RC58-06"], "pack_alias": "PACK-CYCLE-26", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
