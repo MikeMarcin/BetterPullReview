@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1266",
+    "BPR-1267"
+  ],
+  "reserve_for": "bpr-main-linux",
+  "purpose": "BPR-1167 Linux findings: Qt C-locale notice on stderr; Linux TourCLI install lacks Qt runtime/runpath",
+  "created": "2026-10-02T21:53:43.887555+00:00",
+  "base": "3c30961a4f194fc765de9bfc6b04d91464fb9697"
+}
