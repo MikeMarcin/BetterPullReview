@@ -55,6 +55,9 @@ Tests are direct evidence, not naming evidence.
   fixtures headlessly and serially during local verification.
 - Runtime-surface tests inspect the launched process on macOS, Linux, and
   Windows; keep platform queries process-scoped and directly unit-tested.
+- Do not name a test identifier `near`, `far`, `small`, `min` or `max`: the
+  Windows SDK defines them as macros, and MSVC then fails to compile the file
+  (BPR-1156 hit `near` twice). Pixel helpers use `colour_near`.
 - Fixtures are sanitized and deterministic; never include credentials or
   private repository content.
 - Native credential fixtures use an adapter-owned integration service and
