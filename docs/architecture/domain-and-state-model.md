@@ -304,7 +304,11 @@ The Qt page (`bpr/qt/review_cycle_view.hpp`) takes the review surface's place
 in the window with its own review bar, folding Updates line, tabs, files
 drawer, one source pane and notes tray; the title row names the cycle with a
 Local cycle badge, and another pull request arriving takes the surface back.
-A native selection becomes an exact byte anchor of the retained bytes. The
+A native selection becomes an exact byte anchor of the retained bytes, and
+the source pane shows them in the review panes' syntax colours: the page asks
+for the exact bytes it shows to be classified and paints only spans of those
+bytes. A store the build cannot read leaves Home in place at start, and its
+refusal is said in the source pane once a project is asked for. The
 focused suggestion editor (`suggestion_text_editing.hpp` with
 `bpr/qt/suggestion_editor.hpp`) keeps exact lines with their own endings and
 offers multiple carets, box selection, virtual space, IME composition and
@@ -313,7 +317,9 @@ file. The editor and the preview are coloured by the review panes' packaged
 classifier: the composition classifies the proposal inside its whole file
 (`core::splice_text`) on the panes' effect lane, and the composer paints the
 spans through the same role colours and span-to-format rule
-(`code_sample_painter.hpp`), adopting only spans of the text it still shows.
+(`code_sample_painter.hpp`), adopting only spans of the text it still shows;
+the source pane and the composer share one classifier and its cache, so a
+file the pane already classified colours the composer at once.
 
 A round (RFC-BPR-0056, BPR-1158) is one assignment frozen from a round draft
 (`bpr/core/review_cycle_round.hpp`). The draft stores the reviewer's selection

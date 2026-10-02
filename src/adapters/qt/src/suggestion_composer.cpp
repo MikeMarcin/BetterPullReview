@@ -45,16 +45,6 @@ namespace bpr::qt {
 			return lines;
 		}
 
-		/// Where each classifier line begins: the classifier splits at LF only.
-		auto line_starts_of(const std::string& aText) -> std::vector<std::uint64_t>
-		{
-			auto starts = std::vector<std::uint64_t>{ 0U };
-			for (std::size_t index = aText.find('\n'); index != std::string::npos; index = aText.find('\n', index + 1U)) {
-				starts.push_back(index + 1U);
-			}
-			return starts;
-		}
-
 		auto bytes_of(const std::string& aText) -> std::span<const std::uint8_t>
 		{
 			return { reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() };
@@ -205,31 +195,14 @@ namespace bpr::qt {
 		if (!aSpans || aDocument != Texts[index]) {
 			return false;
 		}
-		Classified[index] = { .LineStarts = line_starts_of(Texts[index]), .Spans = std::move(aSpans) };
+		Classified[index] = classify_text_lines(bytes_of(Texts[index]), std::move(aSpans));
 		apply_syntax();
 		return true;
 	}
 
 	auto suggestion_composer::formats_of(const suggestion_syntax_side aSide, const std::uint64_t aBegin, const std::string& aContent) const -> QList<QTextLayout::FormatRange>
 	{
-		// The spans of the classifier line holding this display line, cut to
-		// it and counted from its start; a display line never crosses an LF.
-		const auto& text = Classified[static_cast<std::size_t>(aSide)];
-		if (!text.Spans || text.LineStarts.empty()) {
-			return { };
-		}
-		const auto line  = static_cast<std::size_t>(std::ranges::upper_bound(text.LineStarts, aBegin) - text.LineStarts.begin()) - 1U;
-		const auto start = text.LineStarts[line];
-		const auto end   = aBegin + aContent.size();
-		auto       spans = std::vector<application::token_span>{ };
-		for (const auto& span : spans_of_line(*text.Spans, static_cast<std::uint32_t>(line))) {
-			const auto from = std::max<std::uint64_t>(start + span.Column, aBegin);
-			const auto to   = std::min<std::uint64_t>(start + span.Column + span.Length, end);
-			if (from < to) {
-				spans.push_back({ .Line = 0U, .Column = static_cast<std::uint32_t>(from - aBegin), .Length = static_cast<std::uint32_t>(to - from), .Role = span.Role });
-			}
-		}
-		return code_syntax_format_ranges({ .LineBytes = bytes_of(aContent), .Spans = spans, .Colors = &SyntaxColors });
+		return code_syntax_format_ranges_at(Classified[static_cast<std::size_t>(aSide)], aBegin, bytes_of(aContent), SyntaxColors);
 	}
 
 	void suggestion_composer::apply_syntax()

@@ -11,6 +11,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 
 class QAction;
 class QCheckBox;
@@ -48,6 +49,19 @@ namespace bpr::qt {
 		std::function<void()>                                                                                   PrepareNextRound;
 	};
 
+	class appearance_profile;
+
+	/// \brief The source pane asks for the file it shows to be classified
+	/// ([[BPR-1157]]).
+	/// \details The page runs no lexer. Whoever composed it classifies
+	/// `Document`, chosen by `Path`, and hands the spans back through
+	/// `review_cycle_view::adopt_source_syntax` with the same bytes.
+	struct source_syntax_request
+	{
+		std::string Path;
+		std::string Document;
+	};
+
 	/// \brief A local Review Cycle's review surface (RFC-BPR-0061, BPR-1157).
 	///
 	/// \details Built from the RFC-BPR-0052 scaffold's own parts in the same
@@ -61,8 +75,11 @@ namespace bpr::qt {
 	/// Capture revision, the view chooser (full source, this round, since my
 	/// last review, all cycle changes, chosen revisions), Mark reviewed and a
 	/// refresh that appears only when newer material exists; a comparison
-	/// shows the shared engine's rows in the same pane. It decides nothing and
-	/// performs no effect: gestures leave through `review_cycle_dispatch`.
+	/// shows the shared engine's rows in the same pane. The full source is
+	/// coloured from a classification it asks for (`SourceSyntaxWanted`),
+	/// painted through the review panes' role colours and span-to-format
+	/// rule. It decides nothing and performs no effect: gestures leave through
+	/// `review_cycle_dispatch`.
 	class review_cycle_view final : public QWidget
 	{
 	public:
@@ -72,6 +89,17 @@ namespace bpr::qt {
 		/// \brief Shows the host's projection.
 		void present(const application::review_cycle_workbench_projection& aProjection);
 		void set_code_font(const QFont& aFont);
+		/// \brief Takes the syntax role colours of the applied appearance, for
+		/// the source pane and Suggest change.
+		void adopt_appearance(const appearance_profile& aProfile);
+		/// \brief Colours the source pane from one classification.
+		/// \returns Whether the spans were adopted: only a classification of
+		/// the exact bytes the pane shows now is.
+		auto adopt_source_syntax(std::string_view aDocument, application::shared_token_spans aSpans) -> bool;
+
+		/// Asks for the shown file to be classified, whenever the pane shows
+		/// other bytes.
+		std::function<void(const source_syntax_request&)> SourceSyntaxWanted;
 
 		[[nodiscard]] auto review_bar() const noexcept -> workbench_strip*;
 		[[nodiscard]] auto tabs() const noexcept -> document_tab_strip*;
@@ -118,6 +146,7 @@ namespace bpr::qt {
 		void               rebuild_view_menu();
 		void               rebuild_reply_menu();
 		void               save_reply();
+		void               apply_source_syntax();
 		void               present_comparison(const application::review_cycle_comparison_view& aComparison, bool aChanged);
 		[[nodiscard]] auto source_offset(int aPosition) const -> std::optional<std::uint64_t>;
 
@@ -167,6 +196,10 @@ namespace bpr::qt {
 		std::optional<core::cycle_round_id>        ReplyRound;
 		std::optional<std::string>                 ReplyItem;
 		bool                                       Presenting = false;
+
+		/// The shown file's classification, and the colours it is painted in.
+		classified_text  SourceSyntax;
+		code_role_colors SyntaxColors{ };
 	};
 }
 

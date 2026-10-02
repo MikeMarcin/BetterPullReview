@@ -102,6 +102,7 @@ namespace bpr::app {
 				*SyntaxClassifier, *aSyntax.Effects, aDecisions, static_cast<application::appearance_projection_port&>(*this), core::application_session_id{ 1U },
 				application::appearance_host_limits{ .OutstandingRequests = 4U, .TokenSpanCacheEntries = 4U });
 			View->composer()->SyntaxWanted = [this](const qt::suggestion_syntax_request& aRequest) { want_syntax(aRequest); };
+			View->SourceSyntaxWanted       = [this](const qt::source_syntax_request& aRequest) { want_source_syntax(aRequest); };
 		}
 		View->set_dispatch({
 			.OpenFile     = [this](const std::string& aPath, const bool aNewTab) { Host->open_file(aPath, aNewTab); },
@@ -138,7 +139,10 @@ namespace bpr::app {
 					open_project(chosen.toStdString());
 				}
 			},
-			[this](const core::local_cycle_subject& aSubject) { Host->resume(aSubject); });
+			[this](const core::local_cycle_subject& aSubject) {
+				Asked = true;
+				Host->resume(aSubject);
+			});
 		Host->refresh_recents();
 	}
 
@@ -155,8 +159,9 @@ namespace bpr::app {
 		View->present(aProjection);
 		if (aProjection.Cycle) {
 			Window.show_local_cycle(QString::fromUtf8(aProjection.Cycle->Title.data(), static_cast<qsizetype>(aProjection.Cycle->Title.size())));
-		} else if (!aProjection.Message.empty()) {
-			// A refusal before any cycle opened is said on the page it was asked from.
+		} else if (!aProjection.Message.empty() && Asked) {
+			// A refusal before any cycle opened is said on the page it was
+			// asked from; one at start, from listing recents, leaves Home in place.
 			Window.show_local_cycle(QStringLiteral("Open Project"));
 		}
 		// Recents change when a cycle is created or first opened, not on every reading step.
@@ -175,23 +180,34 @@ namespace bpr::app {
 
 	void review_cycle_desktop::open_project(const std::string& aLocation)
 	{
+		Asked = true;
 		Host->open_project(aLocation);
 	}
 
 	void review_cycle_desktop::adopt_appearance(const qt::appearance_profile& aProfile)
 	{
-		View->composer()->adopt_appearance(aProfile);
+		View->adopt_appearance(aProfile);
 	}
 
 	void review_cycle_desktop::want_syntax(const qt::suggestion_syntax_request& aRequest)
 	{
+		want(static_cast<std::size_t>(aRequest.Side), aRequest.Path, aRequest.Document);
+	}
+
+	void review_cycle_desktop::want_source_syntax(const qt::source_syntax_request& aRequest)
+	{
+		want(source_slot, aRequest.Path, aRequest.Document);
+	}
+
+	void review_cycle_desktop::want(const std::size_t aSlot, const std::string& aPath, const std::string& aDocument)
+	{
 		if (Closing || !SyntaxHost) {
 			return;
 		}
-		auto       document                             = std::make_shared<const std::string>(aRequest.Document);
-		const auto bytes                                = std::span{ reinterpret_cast<const std::uint8_t*>(document->data()), document->size() };
-		Wanted[static_cast<std::size_t>(aRequest.Side)] = wanted_syntax{
-			.Key      = { .Blob = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1), .Definition = SyntaxDefinitions->definition_for_path(aRequest.Path) },
+		auto       document = std::make_shared<const std::string>(aDocument);
+		const auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(document->data()), document->size() };
+		Wanted[aSlot]       = wanted_syntax{
+			.Key      = { .Blob = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1), .Definition = SyntaxDefinitions->definition_for_path(aPath) },
 			.Document = std::move(document),
 		};
 		submit_syntax();
@@ -222,6 +238,10 @@ namespace bpr::app {
 				if (!Closing && wanted && wanted->Key == spans.Key) {
 					View->composer()->adopt_syntax(side, *wanted->Document, spans.Spans);
 				}
+			}
+			const auto& source = Wanted[source_slot];
+			if (!Closing && source && source->Key == spans.Key) {
+				View->adopt_source_syntax(*source->Document, spans.Spans);
 			}
 		}
 		submit_syntax();
@@ -257,6 +277,7 @@ namespace bpr::app {
 		// Once: a destructor's repeat may run after the window has gone.
 		if (SyntaxHost && !SyntaxHost->is_closing()) {
 			View->composer()->SyntaxWanted = { };
+			View->SourceSyntaxWanted       = { };
 			SyntaxHost->shutdown();
 		}
 	}

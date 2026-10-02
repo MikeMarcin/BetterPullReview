@@ -161,6 +161,37 @@ namespace bpr::qt {
 		std::uint32_t                       aLine)
 		-> std::span<const application::token_span>;
 
+	/// \brief One whole text's classification and where its classifier lines
+	/// begin, so a display line of that text can be coloured by its offset.
+	///
+	/// \details The classifier splits at LF only; a surface may split display
+	/// lines at CRLF or a lone CR as well. [[BPR-1156]] for Suggest change,
+	/// [[BPR-1157]] for the cycle page's source pane.
+	struct classified_text
+	{
+		std::vector<std::uint64_t>      LineStarts;
+		application::shared_token_spans Spans;
+	};
+
+	/// \brief Pairs the classification of `aText` with its LF line starts.
+	[[nodiscard]] auto classify_text_lines(
+		std::span<const std::uint8_t>   aText,
+		application::shared_token_spans aSpans)
+		-> classified_text;
+
+	/// \brief The format ranges of one display line that begins at byte
+	/// `aBegin` of a classified text, through `code_syntax_format_ranges`.
+	///
+	/// \details The spans of the classifier line holding the display line,
+	/// cut to it and counted from its start; a display line never crosses an
+	/// LF. An unclassified text gives no ranges.
+	[[nodiscard]] auto code_syntax_format_ranges_at(
+		const classified_text&        aText,
+		std::uint64_t                 aBegin,
+		std::span<const std::uint8_t> aContent,
+		const code_role_colors&       aColors)
+		-> QList<QTextLayout::FormatRange>;
+
 	/// \brief What one sample row is: unchanged, removed, added, or where I am.
 	enum class code_sample_row_kind : std::uint8_t {
 		context,

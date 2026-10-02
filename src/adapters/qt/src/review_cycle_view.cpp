@@ -1,6 +1,7 @@
 #include "bpr/qt/review_cycle_view.hpp"
 
 #include "bpr/core/sha256.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -23,6 +24,8 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <span>
+#include <utility>
 
 namespace bpr::qt {
 	namespace {
@@ -598,6 +601,44 @@ namespace bpr::qt {
 		Composer->set_code_font(aFont);
 	}
 
+	void review_cycle_view::adopt_appearance(const appearance_profile& aProfile)
+	{
+		SyntaxColors = code_role_colors_of(aProfile.palette());
+		apply_source_syntax();
+		Composer->adopt_appearance(aProfile);
+	}
+
+	auto review_cycle_view::adopt_source_syntax(const std::string_view aDocument, application::shared_token_spans aSpans) -> bool
+	{
+		const auto& source = Projection.Source;
+		if (!aSpans || !source || Centre->currentWidget() != Source || std::string_view{ reinterpret_cast<const char*>(source->Bytes.data()), source->Bytes.size() } != aDocument) {
+			return false;
+		}
+		SourceSyntax = classify_text_lines(source->Bytes, std::move(aSpans));
+		apply_source_syntax();
+		return true;
+	}
+
+	void review_cycle_view::apply_source_syntax()
+	{
+		// One block per display line of the shown bytes, as `display_text` made them.
+		if (!SourceSyntax.Spans || !Projection.Source) {
+			return;
+		}
+		const auto& bytes = Projection.Source->Bytes;
+		auto        block = Source->document()->firstBlock();
+		auto        begin = std::uint64_t{ 0 };
+		for (const auto& line : core::split_text_lines({ reinterpret_cast<const char*>(bytes.data()), bytes.size() })) {
+			if (!block.isValid()) {
+				break;
+			}
+			const auto content = std::span{ reinterpret_cast<const std::uint8_t*>(line.Content.data()), line.Content.size() };
+			apply_syntax_format_ranges(*Source->document(), block, code_syntax_format_ranges_at(SourceSyntax, begin, content, SyntaxColors));
+			begin += line.Content.size() + ending_size(line.Ending);
+			block = block.next();
+		}
+	}
+
 	void review_cycle_view::present(const application::review_cycle_workbench_projection& aProjection)
 	{
 		Presenting          = true;
@@ -685,10 +726,20 @@ namespace bpr::qt {
 		const auto& source  = Projection.Source;
 		const auto  changed = !previous.Source || !source || previous.Source->Tab != source->Tab || previous.Source->Revision != source->Revision
 			|| previous.Source->Path != source->Path || previous.Source->Bytes != source->Bytes;
+		if (changed) {
+			SourceSyntax = { };
+		}
 		if (Projection.Comparison) {
 			present_comparison(*Projection.Comparison, !previous.Comparison || *previous.Comparison != *Projection.Comparison);
 		} else if (!source) {
-			SourceNotice->setText(Projection.Cycle ? QStringLiteral("Choose a file to read its captured source.") : QStringLiteral("Open a project to review it locally."));
+			// A refusal before any cycle opened is said where the page would show the source.
+			if (Projection.Cycle) {
+				SourceNotice->setText(QStringLiteral("Choose a file to read its captured source."));
+			} else if (!Projection.Message.empty()) {
+				SourceNotice->setText(text_of(Projection.Message));
+			} else {
+				SourceNotice->setText(QStringLiteral("Open a project to review it locally."));
+			}
 			Centre->setCurrentWidget(SourceNotice);
 		} else if (source->Status != application::review_material_status::available) {
 			SourceNotice->setText(QStringLiteral("The captured bytes of %1 in %2 are not available; nothing else is shown in their place.").arg(text_of(source->Path), revision_text(source->Revision)));
@@ -697,11 +748,15 @@ namespace bpr::qt {
 			SourceNotice->setText(QStringLiteral("%1 is binary or not UTF-8 (%2 bytes). Notes can still be made on the whole file.").arg(text_of(source->Path)).arg(source->Bytes.size()));
 			Centre->setCurrentWidget(SourceNotice);
 		} else {
+			Centre->setCurrentWidget(Source);
 			if (changed) {
 				Source->setPlainText(display_text(source->Bytes));
 				Source->verticalScrollBar()->setValue(static_cast<int>(source->Line));
+				// Plain until the classification of exactly these bytes arrives.
+				if (SourceSyntaxWanted) {
+					SourceSyntaxWanted({ .Path = source->Path, .Document = std::string{ source->Bytes.begin(), source->Bytes.end() } });
+				}
 			}
-			Centre->setCurrentWidget(Source);
 		}
 		const auto shownPath = source ? std::optional{ source->Path } : Projection.Comparison ? std::optional{ Projection.Comparison->Path }
 																							  : std::nullopt;

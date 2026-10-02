@@ -20,13 +20,18 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPalette>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTextBlock>
 #include <QTextCursor>
+#include <QTextDocument>
 #include <QTextLayout>
 #include <QToolButton>
+
+#include <sqlite3.h>
 
 #include <algorithm>
 #include <array>
@@ -42,7 +47,9 @@
 /// \brief The real workbench window with the real local-cycle composition
 /// (BPR-1157): Open Project with no account to a first note and a suggestion
 /// in the RFC-BPR-0052 scaffold, Home's Review Cycles section, resume from
-/// recents, and a switch to a pull request and back.
+/// recents, and a switch to a pull request and back. The source pane is in
+/// the review panes' syntax colours, and a profile whose cycles another
+/// version saved leaves Home in place and says so when a project is opened.
 
 namespace {
 	using namespace bpr;
@@ -135,6 +142,52 @@ namespace {
 		return count;
 	}
 
+	auto near(const QColor& aPixel, const QColor& aColour) -> bool
+	{
+		return std::abs(aPixel.red() - aColour.red()) <= 24 && std::abs(aPixel.green() - aColour.green()) <= 24 && std::abs(aPixel.blue() - aColour.blue()) <= 24;
+	}
+
+	/// \brief Whether the first `aWord` in `aEdit` is painted in `aColour`:
+	/// inside the word's own rectangle at least one pixel is near `aColour`
+	/// and none is near the plain text colour. Relative to the word's own
+	/// ink, so it holds at any scale and face.
+	auto word_painted(QPlainTextEdit& aEdit, const QString& aWord, const QColor& aColour) -> bool
+	{
+		const auto found = aEdit.document()->find(aWord);
+		if (found.isNull()) {
+			return false;
+		}
+		auto start = found;
+		start.setPosition(found.selectionStart());
+		auto end = found;
+		end.setPosition(found.selectionEnd());
+		const auto left   = aEdit.cursorRect(start);
+		const auto right  = aEdit.cursorRect(end);
+		const auto pixmap = aEdit.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		const auto text   = aEdit.palette().color(QPalette::Text);
+		auto       role   = 0;
+		auto       plain  = 0;
+		for (auto y = static_cast<int>(left.top() * ratio); y < static_cast<int>((left.bottom() + 1) * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(left.left() * ratio); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				role += near(pixel, aColour) ? 1 : 0;
+				plain += near(pixel, text) ? 1 : 0;
+			}
+		}
+		return role > 0 && plain == 0;
+	}
+
+	/// Marks a profile's cycle store as saved by another schema version.
+	void mark_store_newer(const std::filesystem::path& aProfileRoot)
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open((aProfileRoot / "state" / "v1" / "review-cycles.sqlite3").string().c_str(), &database) == SQLITE_OK, "open the owned store");
+		expect(sqlite3_exec(database, "PRAGMA user_version=99", nullptr, nullptr, nullptr) == SQLITE_OK, "store marked newer");
+		sqlite3_close(database);
+	}
+
 	/// Whether a preview row carries `aColour` on the characters [aStart, aStart + aLength).
 	auto row_coloured(const QPlainTextEdit& aPreview, const QString& aRow, const int aStart, const int aLength, const QColor& aColour) -> bool
 	{
@@ -197,6 +250,12 @@ try {
 	emit page->files()->itemActivated(page->files()->item(1));
 	settle(lanes);
 	expect(page->projection().Source && page->projection().Source->Path == "src/parser.cpp", "file opened from the drawer");
+	// BPR-1157: the owner rejected a plain source pane. The real classifier
+	// colours the file the pane shows, as the diff panes would.
+	const auto function = appearance.color(core::appearance_role::syntax_function);
+	const auto flow     = appearance.color(core::appearance_role::syntax_control_flow);
+	expect(word_painted(*page->source(), QStringLiteral("return"), flow) && word_painted(*page->source(), QStringLiteral("check"), function), "the source pane in the panes' syntax colours");
+	capture(window, QStringLiteral("desktop-cycle-source-syntax"));
 	auto cursor = page->source()->textCursor();
 	cursor.setPosition(39);
 	cursor.setPosition(51, QTextCursor::KeepAnchor);
@@ -216,11 +275,10 @@ try {
 	page->suggest_action()->trigger();
 	auto* const suggestion = page->composer()->editor();
 	auto* const preview    = page->composer()->findChild<QPlainTextEdit*>(QStringLiteral("suggestionPreview"));
-	const auto  function   = appearance.color(core::appearance_role::syntax_function);
-	const auto  flow       = appearance.color(core::appearance_role::syntax_control_flow);
-	expect(pixels_near(*suggestion, function) == 0, "plain until the classification arrives");
-	settle(lanes);
+	// The source pane already classified these bytes, so the retained
+	// classification colours the proposal without waiting.
 	expect(pixels_near(*suggestion, function) > 10, "the editor paints check( in the function colour the panes use");
+	settle(lanes);
 	expect(row_coloured(*preview, QStringLiteral("- \treturn check(aText);"), 3, 6, flow), "the preview's removed row colours return as control flow");
 	page->composer()->editor()->apply(core::select_all{ });
 	page->composer()->editor()->apply(core::insert_text{ "validate(aText)" });
@@ -356,6 +414,32 @@ try {
 	desktop.shutdown();
 	settle(lanes);
 	expect(desktop.is_quiescent(), "quiescent after shutdown");
+
+	// BPR-1157 v001 was rejected on a window that showed an empty
+	// "Open Project · Local cycle" page at start: an older build met a store
+	// a newer one had saved. Home stays; the refusal is said on the page.
+	{
+		tests::sqlite_contract::scratch_root newer{ "cycle-desktop-newer" };
+		{
+			auto store = adapters::sqlite::make_review_cycle_store(newer.path(), core::bpr_profile_id{ 1 });
+			expect(store->catalog({ }).has_value(), "a store to mark");
+		}
+		mark_store_newer(newer.path());
+		auto other = qt::workbench_window{ };
+		other.resize(1280, 800);
+		other.show();
+		auto refused = app::review_cycle_desktop{ other, newer.path(), core::bpr_profile_id{ 1 }, lanes, lanes };
+		settle(lanes);
+		expect(other.showing_home() && !other.showing_local_cycle(), "Home stays in place at start");
+		refused.open_project(project.string());
+		settle(lanes);
+		auto* const notice = other.findChild<QLabel*>(QStringLiteral("cycleSourceNotice"));
+		expect(other.showing_local_cycle() && notice != nullptr && notice->isVisible() && notice->text().contains(QStringLiteral("saved by a different version")), "the refusal is said where the source would be");
+		capture(other, QStringLiteral("desktop-cycle-newer-store"));
+		refused.shutdown();
+		settle(lanes);
+		expect(refused.is_quiescent(), "the refused desktop is quiescent");
+	}
 	std::cout << "review-cycle-desktop-public-path:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

@@ -3405,7 +3405,7 @@ bpr_bound_automated_run(application_private_review_retry
 # composition: no-account Open Project to a first note and a suggestion,
 # Home's Review Cycles section, and a switch to a pull request and back.
 bpr_add_executable(test_review_cycle_desktop_public_path review_cycle_desktop_public_path.cpp)
-target_link_libraries(test_review_cycle_desktop_public_path PRIVATE BetterPullReview::Composition)
+target_link_libraries(test_review_cycle_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_include_directories(test_review_cycle_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
 target_compile_features(test_review_cycle_desktop_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_review_cycle_desktop_public_path)

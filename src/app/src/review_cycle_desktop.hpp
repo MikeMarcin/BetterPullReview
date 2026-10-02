@@ -25,6 +25,7 @@ namespace bpr::qt {
 	class appearance_profile;
 	class workbench_window;
 	class review_cycle_view;
+	struct source_syntax_request;
 	struct suggestion_syntax_request;
 }
 
@@ -50,9 +51,9 @@ namespace bpr::app {
 	/// window and wires File > Open Project…, Home's Review Cycles section and
 	/// the page's gestures. Nothing here needs an account, a remote, an agent or
 	/// the network; the chosen folder is only read. With `review_cycle_syntax`
-	/// it also classifies what Suggest change shows ([[BPR-1156]]): latest
-	/// text wins on each side, and the composer adopts only spans of the text
-	/// it still shows.
+	/// it also classifies the file the source pane shows ([[BPR-1157]]) and
+	/// what Suggest change shows ([[BPR-1156]]): latest text wins on each
+	/// slot, and each surface adopts only spans of the text it still shows.
 	class review_cycle_desktop final : public application::review_cycle_workbench_port, private application::appearance_projection_port
 	{
 	public:
@@ -69,7 +70,7 @@ namespace bpr::app {
 
 		/// \brief Opens a chosen location as a cycle, as the dialog would.
 		void open_project(const std::string& aLocation);
-		/// \brief Gives the suggestion composer the applied syntax colours.
+		/// \brief Gives the source pane and Suggest change the applied syntax colours.
 		void adopt_appearance(const qt::appearance_profile& aProfile);
 		/// \brief The window's pull request took the review surface back.
 		void               leave();
@@ -78,8 +79,8 @@ namespace bpr::app {
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 
 	private:
-		/// The text the composer last asked about on one side, and whether
-		/// it has been handed to the classifier yet.
+		/// The text a surface last asked about on one slot, and whether it
+		/// has been handed to the classifier yet.
 		struct wanted_syntax
 		{
 			application::token_span_cache_key  Key;
@@ -87,7 +88,12 @@ namespace bpr::app {
 			bool                               Submitted = false;
 		};
 
+		/// The composer's two sides, then the source pane.
+		static constexpr std::size_t source_slot = 2U;
+
 		void want_syntax(const qt::suggestion_syntax_request& aRequest);
+		void want_source_syntax(const qt::source_syntax_request& aRequest);
+		void want(std::size_t aSlot, const std::string& aPath, const std::string& aDocument);
 		void submit_syntax();
 		void publish(const application::appearance_projection& aProjection) override;
 		void fail(const application::appearance_failure_publication& aFailure) override;
@@ -103,7 +109,11 @@ namespace bpr::app {
 		std::unique_ptr<suggestion_text_source>                              SyntaxTexts;
 		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>        SyntaxClassifier;
 		std::unique_ptr<application::syntax_classification_application_host> SyntaxHost;
-		std::array<std::optional<wanted_syntax>, 2>                          Wanted;
+		std::array<std::optional<wanted_syntax>, 3>                          Wanted;
+
+		/// Whether the reviewer has asked for a cycle, so a refusal is said on
+		/// the page rather than taking Home over at start.
+		bool Asked = false;
 	};
 }
 

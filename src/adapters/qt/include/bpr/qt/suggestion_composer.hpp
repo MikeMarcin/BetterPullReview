@@ -117,12 +117,6 @@ namespace bpr::qt {
 		std::function<void(const suggestion_syntax_request&)> SyntaxWanted;
 
 	private:
-		/// One classified text and where its lines begin.
-		struct classified_text
-		{
-			std::vector<std::uint64_t>      LineStarts;
-			application::shared_token_spans Spans;
-		};
 		/// One preview row: the text it came from and where it begins there.
 		struct preview_row
 		{

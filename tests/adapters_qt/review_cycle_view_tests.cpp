@@ -1,5 +1,6 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/core/sha256.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 
 #include <QAction>
@@ -11,15 +12,19 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QPalette>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabBar>
 #include <QTextCursor>
+#include <QTextDocument>
 #include <QToolButton>
 
 #include <array>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,7 +34,8 @@
 /// review bar, Updates line, tabs, one full-source pane, notes, and exact byte
 /// anchors from native selections, through real Qt events. BPR-1163: Capture
 /// revision, the view chooser, Mark reviewed, the newer-material refresh and
-/// the comparison pane, in the same review bar and pane.
+/// the comparison pane, in the same review bar and pane. The source pane
+/// is coloured only from a classification of the exact bytes it shows.
 
 namespace {
 	using namespace bpr;
@@ -122,6 +128,92 @@ namespace {
 		expect(aView.updates_line()->isVisible() && aView.updates_line()->text().contains(QStringLiteral("Captured: R1")), "Updates line unfolds");
 		capture(aView, QStringLiteral("cycle-full-source"));
 		aView.updates_toggle()->click();
+	}
+
+	auto near(const QColor& aPixel, const QColor& aColour) -> bool
+	{
+		return std::abs(aPixel.red() - aColour.red()) <= 24 && std::abs(aPixel.green() - aColour.green()) <= 24 && std::abs(aPixel.blue() - aColour.blue()) <= 24;
+	}
+
+	/// \brief Whether the first `aWord` in `aEdit` is painted in `aColour`:
+	/// inside the word's own rectangle at least one pixel is near `aColour`
+	/// and none is near the plain text colour.
+	/// \details Relative to the word's own ink rather than a pixel count, so it
+	/// holds at 1x and 2x and in any face: anti-aliasing blends a role colour
+	/// toward the background, never toward the text colour.
+	auto word_painted(QPlainTextEdit& aEdit, const QString& aWord, const QColor& aColour) -> bool
+	{
+		const auto found = aEdit.document()->find(aWord);
+		if (found.isNull()) {
+			return false;
+		}
+		auto start = found;
+		start.setPosition(found.selectionStart());
+		auto end = found;
+		end.setPosition(found.selectionEnd());
+		const auto left   = aEdit.cursorRect(start);
+		const auto right  = aEdit.cursorRect(end);
+		const auto pixmap = aEdit.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		const auto text   = aEdit.palette().color(QPalette::Text);
+		auto       role   = 0;
+		auto       plain  = 0;
+		for (auto y = static_cast<int>(left.top() * ratio); y < static_cast<int>((left.bottom() + 1) * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(left.left() * ratio); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				role += near(pixel, aColour) ? 1 : 0;
+				plain += near(pixel, text) ? 1 : 0;
+			}
+		}
+		return role > 0 && plain == 0;
+	}
+
+	/// \brief [[BPR-1157]]: the owner rejected a plain source pane. The page
+	/// asks for its file's classification and paints only spans of the
+	/// exact bytes it shows, through the review panes' role colours.
+	void colours_the_source_from_its_classification()
+	{
+		auto       view         = qt::review_cycle_view{ };
+		auto       requests     = std::vector<qt::source_syntax_request>{ };
+		const auto look         = qt::appearance_profile{ };
+		view.SourceSyntaxWanted = [&requests](const qt::source_syntax_request& aRequest) { requests.push_back(aRequest); };
+		view.adopt_appearance(look);
+		view.resize(1280, 760);
+		view.show();
+		view.present(projection(1));
+		settle();
+		expect(requests.size() == 1U && requests[0].Path == "src/parser.cpp" && requests[0].Document == parser, "the shown file is asked for, by path and exact bytes");
+		const auto flow     = look.color(core::appearance_role::syntax_control_flow);
+		const auto function = look.color(core::appearance_role::syntax_function);
+		const auto number   = look.color(core::appearance_role::syntax_number);
+		expect(flow != view.source()->palette().color(QPalette::Text) && function != view.source()->palette().color(QPalette::Text), "the roles differ from plain text");
+		expect(!word_painted(*view.source(), QStringLiteral("return"), flow), "plain until its classification arrives");
+		// Classifier lines split at LF: line 2 is "\treturn caf\xC3\xA9(1);\r", so
+		// the number sits after a two-byte character.
+		const auto spans = std::make_shared<const application::token_span_list>(application::token_span_list{
+			{ .Line = 2U, .Column = 1U, .Length = 6U, .Role = core::appearance_role::syntax_control_flow },
+			{ .Line = 2U, .Column = 8U, .Length = 5U, .Role = core::appearance_role::syntax_function },
+			{ .Line = 2U, .Column = 14U, .Length = 1U, .Role = core::appearance_role::syntax_number },
+		});
+		expect(!view.adopt_source_syntax("int g()\n", spans), "spans of other bytes are refused");
+		settle();
+		expect(!word_painted(*view.source(), QStringLiteral("return"), flow), "and paint nothing");
+		expect(view.adopt_source_syntax(parser, spans), "spans of the shown bytes are adopted");
+		settle();
+		expect(word_painted(*view.source(), QStringLiteral("return"), flow), "return in the control-flow colour");
+		expect(word_painted(*view.source(), QStringLiteral("caf\u00E9"), function), "the call in the function colour");
+		expect(word_painted(*view.source(), QStringLiteral("1"), number), "the number after a two-byte character in its own colour");
+		capture(view, QStringLiteral("cycle-source-syntax"));
+		view.present(projection(1));
+		settle();
+		expect(requests.size() == 1U && word_painted(*view.source(), QStringLiteral("return"), flow), "the same bytes again keep their colours and ask nothing");
+		auto other          = projection(1);
+		other.Source->Bytes = bytes("int g()\r\n{\r\n\treturn caf\xC3\xA9(2);\r\n}\r\n");
+		view.present(other);
+		settle();
+		expect(requests.size() == 2U && !word_painted(*view.source(), QStringLiteral("return"), flow), "other bytes go plain and are asked for");
+		expect(!view.adopt_source_syntax(parser, spans), "a late classification of the earlier bytes is refused");
 	}
 
 	void anchors_exact_bytes_from_a_native_selection(qt::review_cycle_view& aView, application::review_cycle_suggestion_request& aSuggested, core::begin_cycle_feedback& aNoted)
@@ -412,6 +504,7 @@ try {
 	view.show();
 	settle();
 	presents_the_scaffold_and_notes(view);
+	colours_the_source_from_its_classification();
 	anchors_exact_bytes_from_a_native_selection(view, suggested, noted);
 	states_newer_material_without_moving(view);
 	opens_files_and_steps(view, opened);

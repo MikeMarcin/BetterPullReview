@@ -20,6 +20,7 @@ namespace bpr::application {
 			case cycle_store_failure::object_unavailable: return "Retained material is missing; nothing was substituted.";
 			case cycle_store_failure::corrupt:            return "Retained material is damaged; nothing was substituted.";
 			case cycle_store_failure::refused:            return "The cycle refused this change.";
+			case cycle_store_failure::schema_mismatch:    return "This profile's Review Cycles were saved by a different version of BetterPullReview; they were left as they are.";
 			case cycle_store_failure::cancelled:          return { };
 			default:                                      return "The local cycle store is unavailable.";
 			}

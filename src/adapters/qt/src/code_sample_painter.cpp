@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	namespace {
@@ -218,6 +220,44 @@ namespace bpr::qt {
 				return aSpan.Line != aLine;
 			});
 		return std::span<const application::token_span>{ first, last };
+	}
+
+	auto classify_text_lines(
+		const std::span<const std::uint8_t> aText,
+		application::shared_token_spans     aSpans)
+		-> classified_text
+	{
+		auto starts = std::vector<std::uint64_t>{ 0U };
+		for (std::size_t index = 0; index < aText.size(); ++index) {
+			if (aText[index] == static_cast<std::uint8_t>('\n')) {
+				starts.push_back(index + 1U);
+			}
+		}
+		return { .LineStarts = std::move(starts), .Spans = std::move(aSpans) };
+	}
+
+	auto code_syntax_format_ranges_at(
+		const classified_text&              aText,
+		const std::uint64_t                 aBegin,
+		const std::span<const std::uint8_t> aContent,
+		const code_role_colors&             aColors)
+		-> QList<QTextLayout::FormatRange>
+	{
+		if (!aText.Spans || aText.LineStarts.empty()) {
+			return { };
+		}
+		const auto line  = static_cast<std::size_t>(std::ranges::upper_bound(aText.LineStarts, aBegin) - aText.LineStarts.begin()) - 1U;
+		const auto start = aText.LineStarts[line];
+		const auto end   = aBegin + aContent.size();
+		auto       spans = std::vector<application::token_span>{ };
+		for (const auto& span : spans_of_line(*aText.Spans, static_cast<std::uint32_t>(line))) {
+			const auto from = std::max<std::uint64_t>(start + span.Column, aBegin);
+			const auto to   = std::min<std::uint64_t>(start + span.Column + span.Length, end);
+			if (from < to) {
+				spans.push_back({ .Line = 0U, .Column = static_cast<std::uint32_t>(from - aBegin), .Length = static_cast<std::uint32_t>(to - from), .Role = span.Role });
+			}
+		}
+		return code_syntax_format_ranges({ .LineBytes = aContent, .Spans = spans, .Colors = &aColors });
 	}
 
 	auto code_sample_row_fill(
