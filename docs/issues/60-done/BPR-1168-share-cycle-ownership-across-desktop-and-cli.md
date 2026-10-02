@@ -55,3 +55,34 @@ its MSVC build and runs, and Linux runs, are owed with the commands in the
 ledger. `application_profile_cycle_handoff_public_path` and
 `sqlite_tour_owner_channel` are registered contained; a measured refusal inside
 the container is pinned `WINDOWS_UNCONTAINED` with its line, not guessed.
+
+## Linux: bpr-main-linux, 2026-10-02
+
+At `1eab89550` (includes `7e5a093cc`), on WSL2 (i9-10900KF, 20 logical processors)
+with GCC 15.2 and `build/dev-tour-cli` (`BPR_BUILD_TOUR_CLI=ON`). The
+configure and build exit 0 with 0 `warning:` lines. The requested `ctest -j4`
+selection passes **10 of 10** in 33.27 s:
+
+| Row | Time |
+|---|---|
+| `application_profile_cycle_handoff_public_path` | 6.85 s |
+| `application_profile_tour_handoff_public_path` | 2.96 s |
+| `cycle_cli_public_path` | 7.84 s |
+| `sqlite_tour_owner_channel` | 5.76 s |
+| `core_review_cycle_command` | 0.00 s |
+| `review_cycle_workbench` | 33.25 s |
+| `application_review_cycle_desktop_public_path` | 2.59 s |
+| `application_review_round_trip_composition_contract` | 5.03 s |
+| `architecture_boundaries` | 23.07 s |
+| `test_network_isolation_manifest` | 1.64 s |
+
+The Mac saw the new handoff course flake once in 9 runs, so it was repeated
+here. These are additional runs, not reruns of a failure; none failed.
+
+- `--repeat until-fail:15`, alone: 15 of 15 pass.
+- `--repeat until-fail:10` at `-j6`, beside `review_cycle_workbench`,
+  `architecture_boundaries`, the tour handoff, `cycle_cli_public_path` and
+  `sqlite_tour_owner_channel`: 10 of 10 pass. Load average ran from 4.5 down
+  to 2.7.
+
+So no flake reproduced on Linux in 25 runs. No remote mutation.
