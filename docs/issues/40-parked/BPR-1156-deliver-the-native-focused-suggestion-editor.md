@@ -493,3 +493,53 @@ before-and-after Suggest change pixel comparisons, as well as
 round-trip contract, `syntax_classification_contract` and
 `architecture_boundaries`. No pixel check failed on the Linux fonts. No
 remote mutation.
+
+## Windows at `fbd4ab206`, the shared code view: the view rows time out (bpr-main-win, 2026-10-02)
+
+At `fbd4ab206`, which contains `b486149a5`. Windows 11 Home 10.0.26200, MSVC
+14.51, Qt 6.11.2, `build/windows-dev` Debug. The 11 executables these rows run
+were deleted first, and the build rebuilt all of them. It exited 0 with no
+`warning C` line, and no Windows-only compile fix was needed.
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^(core_suggestion_text_editing|core_review_cycle_(feedback|suggestion|tabs)|qt_suggestion_editor_|qt_review_cycle_view_|review_cycle_workbench|review_cycle_suggestion|application_review_cycle_desktop_public_path|application_review_round_trip_composition_contract|syntax_classification_contract|architecture_boundaries)"
+```
+
+12 of 14 pass. The two failures are clock failures:
+`qt_review_cycle_view_1_0` and `_2_0` each hit `***Timeout` at their 60 s
+bound, with no output. They ran again alone with the same result. At
+`54c4154d4` they passed in 2.03 and 5.70 s.
+
+- **Not a hang.** Run directly and uncontained, with the row's environment
+  (`QT_QPA_PLATFORM=offscreen`, `QT_SCALE_FACTOR=1.0`), the `1_0` course prints
+  `review-cycle-view-tests:pass` and exits 0 after 66.5 s.
+- **Where the time goes.** Stack samples of the running test, taken seconds
+  apart, all sit in `bpr::qt::suggestion_editor::paintEvent` at
+  `src/adapters/qt/src/suggestion_editor.cpp:599`. The process had used 36.7 s
+  of CPU by then. That line is the per-glyph loop. For every character of
+  every visible row, it builds a one-character `QString`, searches the line's
+  format ranges linearly, sets the pen and calls `QPainter::drawText`. The loop
+  is bounded to the visible rows, so the cost is per paint, and since
+  `b486149a5` the shared code view in these courses paints far more often or
+  far more text.
+- No pixel-compare check failed. Nothing was loosened, and the 60 s bound was
+  not changed.
+
+Ways forward, for the view's owner:
+
+- Paint each run of glyphs that share a colour in one call, still placed by
+  column. With a fixed-pitch font this keeps the "one glyph per column cell"
+  alignment.
+- Or cache the shaped glyphs per line: `QStaticText`, or `QGlyphRun` with
+  explicit positions.
+
+Either keeps the rule and cuts the per-character `drawText` that Windows'
+Debug Qt makes expensive. The other 12 rows pass:
+
+- `review_cycle_suggestion` (1.19 s) and `review_cycle_workbench` (4.40 s);
+- `application_review_cycle_desktop_public_path` (11.30 s);
+- `application_review_round_trip_composition_contract` (13.65 s);
+- `qt_suggestion_editor_1_0` (0.47 s) and `_2_0` (0.83 s);
+- `syntax_classification_contract` (0.42 s);
+- the four core rows;
+- `architecture_boundaries` (31.93 s).
