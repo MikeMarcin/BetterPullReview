@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1235"
 title: "Windows: application_profile_owner_admission_public_path fails at its seed, which refuses the registry under the AppContainer's temporary directory"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json","related_cards":["BPR-1229"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"The owner's choice is recorded here","outcome":"pending","revision":"1d7bdb35f0ca144286e4611079201c195981bec2","evidence":{"kind":"freeform","detail":"The station pinned the row WINDOWS_UNCONTAINED under dos-volume-name in 1d7bdb35f, consistent with BPR-0833, BPR-0845 and the activation row's pin; the card reserved the decision for the owner, so one Accept/Reject question asks the owner to keep that pin. Accept finishes the card; Reject reopens the containment question."}},{"criterion":"The row passes on Windows","outcome":"pass","revision":"1d7bdb35f0ca144286e4611079201c195981bec2","evidence":{"kind":"command","detail":"bpr-main-win: application_profile_owner_admission_public_path passes uncontained through ctest in 8.22 s with PROFILE_OWNER_ADMISSION_OK, after BPR-0907 removed the course's stale Windows-only branches."}},{"criterion":"test_network_isolation_manifest names no row this card changes","outcome":"pass","revision":"2ef17fd5173bd958cdd96a97944cc8be74e90ec4","evidence":{"kind":"command","detail":"macOS build/dev: test_network_isolation_manifest passes, TEST_NETWORK_ISOLATION_OK:configured=577:registrations=523:backend=macos-sandbox-exec, with the new pin and its WINDOWS_UNCONTAINED registration in the inventory."}}]
+acceptance: [{"criterion":"The owner's choice is recorded here","outcome":"pass","revision":"1d7bdb35f0ca144286e4611079201c195981bec2","evidence":{"kind":"observation","detail":"The owner accepted BPR-1235-uncontained-pin-v001 (1d7bdb35f) with an empty note at event 814 of session cbd48b91000b00f1e72e1ad62c7c384c, hand-back 815: keep application_profile_owner_admission_public_path uncontained on Windows, pinned dos-volume-name as BPR-0833 and BPR-0845."}},{"criterion":"The row passes on Windows","outcome":"pass","revision":"1d7bdb35f0ca144286e4611079201c195981bec2","evidence":{"kind":"command","detail":"bpr-main-win: application_profile_owner_admission_public_path passes uncontained through ctest in 8.22 s with PROFILE_OWNER_ADMISSION_OK, after BPR-0907 removed the course's stale Windows-only branches."}},{"criterion":"test_network_isolation_manifest names no row this card changes","outcome":"pass","revision":"2ef17fd5173bd958cdd96a97944cc8be74e90ec4","evidence":{"kind":"command","detail":"macOS build/dev: test_network_isolation_manifest passes, TEST_NETWORK_ISOLATION_OK:configured=577:registrations=523:backend=macos-sandbox-exec, with the new pin and its WINDOWS_UNCONTAINED registration in the inventory."}}]
 ---
 
 # BPR-1235: Windows: application_profile_owner_admission_public_path fails at its seed, which refuses the registry under the AppContainer's temporary directory
