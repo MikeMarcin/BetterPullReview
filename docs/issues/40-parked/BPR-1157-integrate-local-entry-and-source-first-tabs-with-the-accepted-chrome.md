@@ -303,3 +303,22 @@ Limits: the rendered checks run offscreen and natively on macOS only. On
 macOS with Keyboard navigation off, plain push and tool buttons are not Tab
 stops, as in other Mac applications. The comparison pane is ringed but has no
 Return gesture.
+
+### Linux at `862e31a93`: focus rings and Return/Shift+Return (bpr-main-linux, 2026-10-02)
+
+Includes `73b2160fc`. WSL2, GCC 15.2, Qt 6.11.2, `build/dev` Debug, offscreen.
+`cmake --preset dev && cmake --build --preset dev` exits 0 with 0 `warning:`
+lines, and there is **no link error**: `tests/support/window_system_keys.hpp`,
+used by `review_cycle_view_tests` and `review_cycle_desktop_public_path`,
+links against QtGui. The requested `ctest --preset dev -j4` selection passes
+**117 of 123** in 89.93 s.
+
+The 6 failures are [[BPR-1255]]'s rows, `qt_workbench_title_row_scale_{100,125,200}`
+and `qt_workbench_window_scale_{100,125,200}`. Each fails only at `no
+review-bar control folds into an overflow menu at any width`, which is parked
+on the owner's choice. No other row failed: `qt_review_cycle_view_*`,
+`application_review_cycle_desktop_public_path`, the three
+`application_review_tour_composition_*` rows, `core_appearance_contrast`,
+`core_review_cycle_feedback`, `review_cycle_workbench` and
+`architecture_boundaries` all pass, so no pixel check failed at 1×. The
+[[BPR-1236]] row is not in this selection. No remote mutation.
