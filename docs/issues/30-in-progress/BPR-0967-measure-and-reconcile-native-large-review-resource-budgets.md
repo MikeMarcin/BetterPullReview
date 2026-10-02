@@ -467,3 +467,60 @@ SHA-256 of the station files:
 | `windows-confirm-release-console.txt` | `DFD3958727003F72F44E137A3F5D9A8E2118191DCEE3B9EC3B116C2E386F6C7D` |
 | `windows-confirm-release-ctest.log` | `B95D6464E41BF0B9447DE66F597D93FB1A76891B85864B2668F6C3548B41F426` |
 | `windows-confirm-release-summary.json` | `DF08C5CA73EAD0201581093801C0AE1A0E629D0B60207B2E91BDD510BF001D42` |
+
+## Reconciliation — 2026-10-01
+
+Both confirmations at `f61340e17` passed: Windows Release 17/17 with every
+limit enforced and Debug 17/17; Linux Release 17/17 in 89.30 s and Debug 17/17
+in 189.24 s. The [station budget record](../../verification/BPR-0967-station-budgets-2026-10-01.md)
+has the detail.
+
+The Linux run exposed a gap: the approximate, unavailable, first-tab, ordinary
+and history courses recorded input misses without failing. From `9aa3df3bb`
+every course gates the 100 ms target in optimized builds, except the four
+heap-sampled resource courses. The newly gated phases over 90 ms are named
+under [[BPR-1264]]. The same commit:
+
+- triples the Windows Debug course clocks, since the byte course had used
+  1,626 of its 1,680 s;
+- resizes the Windows timeouts;
+- gives the Linux replay contract 60 s.
+
+Mac Release passes at that commit. Windows and Linux Release confirmation at
+`9aa3df3bb` is the last unattended step.
+
+| Criterion | State |
+|---|---|
+| AC1, attribution of the Mac growth | Met on macOS: BPR-0893, then BPR-1032's repair. On Windows and Linux, growth stays within limits set from its own measurement, with no failure to attribute. |
+| AC2, preserved invariants and justified changes | Met. Every changed limit has a measured basis and a documented rule, with failing-before controls for the gating mechanisms. Cache ceilings, exact source and anchors, eviction and revisit, and close/prune ownership are enforced on all three platforms. No limit was raised to absorb a miss. |
+| AC3, platform budgets on eligible hardware | Met for the fixture composition on all three platforms. That covers metadata, first render, navigation, drawers, theme and fallback, active work, input and cancellation, memory and cache, and launch to Home from process creation. Pending after the `9aa3df3bb` confirmation: packaged-application launch, compositor presentation and physical-input latency, which need a person. Remaining named input-target phases go to BPR-1264; the Mac's unmeasured items (heap-only peak, production-limit pathological workloads, further active stages) are in the [full Mac handoff](../../rfcs/plans/bpr0967-mac-responsiveness/handoff-full-mac.json). |
+
+## Native items for a person at the desktop
+
+These can't be produced by an offscreen fixture course. For each, record the
+platform, hardware, display (refresh rate and scale), package version and file
+digest, how it was measured, and the measured values.
+
+1. **Packaged-application launch.** Install the release package:
+   - macOS: `macos-release` DMG;
+   - Windows: `windows-app-release` MSI;
+   - Linux: `linux-package`.
+
+   Measure from activation (Finder or Dock click, Start menu entry, desktop
+   launcher) until the Home window is visible and accepts input. Take a cold
+   launch after a reboot and three warm launches. The fixture course's
+   process-to-Home figures (Mac 348 ms, Windows 558, Linux 324) are the
+   comparison, not the result.
+2. **Compositor presentation.** Record the screen at 60 fps or more. Measure
+   from the triggering input to the first presented frame showing the result,
+   for three steps: Home appearing; opening a large review (a safe public or
+   test repository, never a private target); selecting a large file in it.
+3. **Physical-input latency.** For a key press and a mouse click on the Files
+   drawer toggle, the theme switch and next-change navigation, measure from
+   physical actuation to visible response. A high-speed camera works, or an
+   input-to-photon tool. The course's queue-to-delivery figures (2–20 ms) are
+   not this measurement.
+
+When the confirmation returns clean, this card parks on `human-review` with
+these items as its pending criteria. Each would be one attended question per
+platform and item, asked as Accept or Reject against a stated threshold.

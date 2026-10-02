@@ -38,3 +38,15 @@ decision for the row.
 
 - The row passes in Windows Debug, or the card records the measured cause and
   the owner's decision for the Debug row.
+
+## Second sample: a pass — 2026-10-01
+
+At `f61340e17` (bpr-main-win, windows-dev Debug) the row passed in 1,626.01 s,
+with an empty `WaitExpiry` and no `large-review wait:` line. The 323 s ending
+at `682ea1392` was not reproduced, and it happened before `WaitExpiry`
+existed, so its cause is still unknown: one failure and one pass. The card
+stays open for that ending.
+
+The pass also showed the doubled Windows Debug clock (1,680 s) was too tight
+for this course. From `9aa3df3bb` Windows Debug triples it (2,520 s) and the
+row's timeout is 3,420 s.

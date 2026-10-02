@@ -1,12 +1,12 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1264"
-title: "Windows and Linux: large-review phases at or over the 100 ms input target"
+title: "Large-review phases at or over the 100 ms input target (Windows, Linux, and one on macOS)"
 status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
-platforms: ["win", "linux"]
+platforms: ["mac", "win", "linux"]
 metadata: {"found_by":"BPR-0967 station runs, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1264--BPR-1265--e0e97a5e10af.json","related_cards":["BPR-0967","BPR-1043","BPR-1259"]}
 ---
 
@@ -52,3 +52,27 @@ check, not an attribution.
 - Each listed phase is either removed from its platform's list with an
   optimized station run under 100 ms, or carries a recorded owning cause and
   owner decision.
+
+## Confirmation run and newly gated courses — 2026-10-01
+
+The confirmation runs at `f61340e17` (`windows-confirm-*` and `linux-confirm-*`
+summaries) widen the observed ranges: Windows `large_source_revisit_render`
+105.0-115.4, `shutdown` 93.4-124.9, `active_window_close` 93.2-104.0; Linux
+`large_file_selection` 94.4-108.0, `large_source_revisit_render` 90.4-115.3.
+
+From `9aa3df3bb` every course without the heap sampler gates the target, not
+only the responsiveness, active-work, pathological and provider courses. That
+names three more phases:
+
+| Platform | Phase | Observed ms |
+|---|---|---|
+| macOS | `approximate_file_selection` | 96.3, 97.6, 99.4, 111.1 |
+| Windows | `approximate_file_selection` | 153.7, 179.9 |
+| Windows | `first_tab_file` | 122.4, 154.1 |
+| Linux | `approximate_file_selection` | 117.4, 127.6 |
+| Linux | `first_tab_file` | 99.8 |
+
+`approximate_file_selection` is the work-limited approximate alignment of the
+20,000-line file; `first_tab_file` opens the first comparison tab's file. The
+four resource courses stay ungated: their 1 ms heap sampler perturbs the thread
+it measures.

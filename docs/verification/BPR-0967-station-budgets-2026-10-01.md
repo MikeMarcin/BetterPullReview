@@ -135,3 +135,63 @@ Mac Release (M4 Pro, Qt 6.11.2), at the code committed as `f61340e17`:
 `large_review_summary.py` now keeps failed and timed-out rows, whose CTest
 status can wrap across lines. A synthetic log with a wrapped failure, a timeout
 and a pass is parsed correctly. Rows are keyed by log file.
+
+## Confirmation at `f61340e17`
+
+Both stations reran the 16 rows plus `large_review_replay_contract` at the
+enforcing commit (summaries `windows-confirm-*`, `linux-confirm-*`).
+
+| | Windows | Linux |
+|---|---|---|
+| Release, enforced | 17/17 in 444.37 s; no limit failed | 17/17 in 89.30 s |
+| Debug, reported only | 17/17 in 2,358.98 s | 17/17 in 189.24 s |
+| Replay contract | Release 2.56 s, Debug 33.23 s | Release 1.68 s, Debug 16.32 s |
+
+On Windows Debug the resources course now completes (110.80 s). The byte course
+passed in 1,626.01 s with no wait expiry. That is the second sample for
+[[BPR-1265]], whose 323 s ending is not reproduced. Every Release report has
+`BudgetsEnforced` true and no limit miss. The launch reports enforce.
+
+## Gate every unsampled course — `9aa3df3bb`
+
+The Linux confirmation reported `approximate_file_selection` at 117.4 ms, and
+the row passed: the approximate course, like the unavailable, first-tab,
+ordinary benchmark and history courses, recorded input misses without failing.
+In an optimized build every course now gates the 100 ms target on all its
+phases. The exception is the four resource courses, whose 1 ms heap sampler
+perturbs the GUI thread it measures (Windows `paged_review_and_git_load` gaps
+of 208–315 ms with it, 39–60 ms without).
+
+The newly gated phases at or over 90 ms on a platform are named, and
+[[BPR-1264]] owns them:
+
+- `approximate_file_selection` on macOS (96.3–111.1 ms), Windows (153.7–179.9)
+  and Linux (117.4–127.6);
+- `first_tab_file` on Windows (122.4–154.1) and Linux (99.8).
+
+The target is unchanged.
+
+The confirmation also showed the doubled Windows Debug byte-course clock was
+nearly used up: 1,626 s of 1,680. Windows Debug now triples every course clock,
+and the Windows timeouts follow the same invariant:
+
+| Rows | Timeout | Measured Debug completion | Ratio |
+|---|---:|---:|---:|
+| 90 s-clock rows | 420 s | largest: resources 110.80 s | 3.8× |
+| Cache entries | 780 s | 61.07 s | |
+| History | 2,220 s | 187.44 s | |
+| Byte pressure | 3,420 s | 1,626.01 s | 2.1× |
+
+The byte-pressure timeout is below three times its completion, which would be
+81 minutes; the 2,520 s clock itself is 1.55 times the completion. These
+replace the timeouts in the "Row timeouts" section above.
+
+The Linux replay contract gets 60 s, 3.7 times its 16.32 s Debug completion.
+Its 30 s bound was only 1.8 times that.
+
+**Mac Release at `9aa3df3bb`:** the 16 large-review rows, `architecture_boundaries`
+and the replay contract pass in 153.72 s (log SHA-256 `e1d5cf1a…b297`). With
+macOS's name removed, the approximate course fails on its own 111.1 ms
+selection gap with "fixture input target missed outside the platform's named
+phases". That failure was the natural control for the new gate; the source was
+restored byte-for-byte.

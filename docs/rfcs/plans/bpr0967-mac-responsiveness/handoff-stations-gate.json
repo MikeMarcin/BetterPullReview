@@ -1,0 +1,55 @@
+{
+  "schema": "bpr0967.station-handoff.v1",
+  "round": "3: every unsampled course gates the input target",
+  "mandate_revision": "unattended-milestones-20261001-stations",
+  "code_candidate": "9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2",
+  "changes": "Optimized builds gate the 100 ms target in every course except the four heap-sampled resource courses; newly named phases: approximate_file_selection (mac, win, linux), first_tab_file (win, linux); Windows Debug course clocks x3 and timeouts 420/780/2220/3420 s; Linux replay contract TIMEOUT 60.",
+  "debug_not_rerun": "Debug enforces no limit off macOS, so the new gate does not apply there; the only Debug change is a longer Windows clock and timeout, more lenient than the f61340e17 Debug pass (17/17 on both stations).",
+  "mac_verification": "Mac Release at 9aa3df3bb: 16 large-review rows, architecture_boundaries and the replay contract pass in 153.72 s (log sha256 e1d5cf1a425662b1e43fc6953fafd17e0841f0ab5563b9ff40cbae91d8a6b297). Natural control: with macOS's name removed, the approximate course fails on its own 111.1 ms gap with the new message; source restored byte-for-byte.",
+  "confirmation_request": {
+    "rows_regex": "^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison|large_review_replay_contract)$",
+    "windows_bpr_main_win": [
+      "Preconditions: the station runs nothing else from step 1 to step 5; vcvars64 PowerShell.",
+      "1. git -C C:\\code\\git\\BetterPullReview status --porcelain --untracked-files=no   (must print nothing)",
+      "   git -C C:\\code\\git\\BetterPullReview fetch origin",
+      "   git -C C:\\code\\git\\BetterPullReview switch --detach 9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2",
+      "   git -C C:\\code\\git\\BetterPullReview rev-parse HEAD   (must print 9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2)",
+      "   (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average   (load before)",
+      "2. Set-Location C:\\code\\git\\BetterPullReview",
+      "   cmake --build C:\\code\\git\\BetterPullReview\\build\\bpr0967-release --target bench_better_pull_review_large_review test_better_pull_review_large_review_replay tool_better_pull_review_network_sandbox",
+      "3. Get-Date -Format o; ctest --test-dir C:\\code\\git\\BetterPullReview\\build\\bpr0967-release -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison|large_review_replay_contract)$' --output-log C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-gate-release-ctest.log *> C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-gate-release-console.txt; \"exit=$LASTEXITCODE\"; Get-Date -Format o",
+      "4. py -3 C:\\code\\git\\BetterPullReview\\tests\\end_to_end\\large_review_summary.py C:\\code\\git\\BetterPullReview\\build\\bpr0967-release C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-gate-release-ctest.log --output C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-gate-release-summary.json",
+      "5. (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average   (load after)",
+      "   Get-FileHash -Algorithm SHA256 C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-gate-*",
+      "   Select-String -Path C:\\code\\git\\BetterPullReview\\build\\bpr0967-station\\windows-gate-release-ctest.log -Pattern 'large-review-benchmark-failed:','large-review wait:','\\*\\*\\*Failed','\\*\\*\\*Timeout'",
+      "   git -C C:\\code\\git\\BetterPullReview switch main"
+    ],
+    "linux_bpr_main_linux": [
+      "Preconditions: the station runs nothing else from step 1 to step 5.",
+      "1. git -C /home/mmarcin/BetterPullReview status --porcelain --untracked-files=no   (must print nothing)",
+      "   git -C /home/mmarcin/BetterPullReview fetch origin",
+      "   git -C /home/mmarcin/BetterPullReview switch --detach 9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2",
+      "   git -C /home/mmarcin/BetterPullReview rev-parse HEAD   (must print 9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2)",
+      "   uptime   (load before)",
+      "2. cmake --build /home/mmarcin/BetterPullReview/build/bpr0967-release --target bench_better_pull_review_large_review test_better_pull_review_large_review_replay tool_better_pull_review_network_sandbox",
+      "3. date -Is; ctest --test-dir /home/mmarcin/BetterPullReview/build/bpr0967-release -j1 -V -R '^(application_large_review_(benchmark|timing_control|responsiveness|launch|active_work|pathological|provider_cancel|loaded_close|resources|cache_entries|cache_bytes|history|history_session_race)|application_(unavailable|approximate)_diff_public_path|application_first_tab_comparison|large_review_replay_contract)$' --output-log /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-gate-release-ctest.log > /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-gate-release-console.txt 2>&1; echo exit=$?; date -Is",
+      "4. python3 /home/mmarcin/BetterPullReview/tests/end_to_end/large_review_summary.py /home/mmarcin/BetterPullReview/build/bpr0967-release /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-gate-release-ctest.log --output /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-gate-release-summary.json",
+      "5. uptime   (load after)",
+      "   sha256sum /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-gate-*",
+      "   grep -h -e 'large-review-benchmark-failed:' -e 'large-review wait:' -e '\\*\\*\\*Failed' -e '\\*\\*\\*Timeout' /home/mmarcin/BetterPullReview/build/bpr0967-station/linux-gate-release-ctest.log",
+      "   git -C /home/mmarcin/BetterPullReview switch main"
+    ],
+    "expected": [
+      "Release 17/17 on each station; every report BudgetsEnforced true, empty Failure and UnenforcedLimitMisses; KnownInputMisses lists 8 phases on Windows and 4 on Linux.",
+      "A row failing with 'fixture input target missed outside the platform's named phases' is a real finding: return the report's InputBudgetFailures and the phase's gap; do not rerun."
+    ],
+    "return": [
+      "The summary JSON, exit code, the two timestamps, load before/after, the SHA-256 list and every line step 5 prints.",
+      "Commit nothing; switch back to main."
+    ]
+  },
+  "next": "On a clean return: park BPR-0967 on human-review with the card's 'Native items for a person at the desktop' as its pending criteria (packaged launch, compositor presentation, physical input; macOS, Windows, Linux). On a gate failure: name the phase under BPR-1264 with its measurement, or attribute it; never raise the 100 ms target.",
+  "ownership": {
+    "commands": "all task-owned builds and runs finished; none running"
+  }
+}
