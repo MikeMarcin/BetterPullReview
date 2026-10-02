@@ -83,7 +83,7 @@ caret on a line's text. It also asks that a selection read like a normal
 editor's, and that a double click select the word.
 
 Observations and evidence for this amendment are recorded on
-[BPR-1156](../issues/40-parked/BPR-1156-deliver-the-native-focused-suggestion-editor.md)
+[BPR-1156](../issues/60-done/BPR-1156-deliver-the-native-focused-suggestion-editor.md)
 and in the [execution ledger](../verification/RFC-BPR-0053-0061.md), not here.
 
 ## Normative contracts

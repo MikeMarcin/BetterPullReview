@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1156"
 title: "Deliver the native focused suggestion editor"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0055", "RFC-BPR-0061"]
 depends_on: ["BPR-1154", "BPR-1155"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-07", "RC55-09", "RC61-04"], "pack_alias": "PACK-CYCLE-14", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"fd5ca4412","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 at fd5ca4412 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0, application_review_cycle_desktop_public_path): the gestures of b486149a5, with virtual space now only part of a box selection (a click, drag, Right, Up and Down stay on the text; Up and Down keep the column aimed for), and double and triple click that keep their word or line when the pointer drifts, driven through the window system in both modes. Owner judgment pending: BPR-1156-editor-gestures-v004 on the frozen candidate /Users/jaeger/bpr-cycles-selection-review.Ev9QTV (app sha256 af38e32d...f9c5538), superseding the undecided v003."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"fd5ca4412","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected composer-layout v001 (event 713), v002 (719), v003 (742, an owner amendment in RFC-BPR-0055), v004 (765) and v005 (776: selection darker than usual, always in virtual space, double click not selecting the word). At fd5ca4412 the code view fills a selection with the solid Highlight every text box uses, under syntax colours kept readable on it (core::readable_selection_ink), ending at the text; only a box reaches past a line's end; and a double click keeps its word under pointer drift (qt_suggestion_editor_1_0/2_0, qt_review_cycle_view_1_0/2_0, application_review_cycle_desktop_public_path offscreen and under cocoa, through the window system). Owner judgment pending: BPR-1156-composer-layout-v006 on the frozen candidate /Users/jaeger/bpr-cycles-selection-review.Ev9QTV (app sha256 af38e32d...f9c5538)."}}]
+acceptance: [{"criterion":"RC55-07","outcome":"pass","revision":"fd5ca4412","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner accepted BPR-1156-editor-gestures-v004 (session cbd48b91000b00f1e72e1ad62c7c384c, event 790, hand-back 795) on the frozen fd5ca4412 build (app sha256 af38e32d...f9c5538); src/ unchanged to 97d387a79. Automated share: the 15-row selection (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0, qt_review_cycle_view_1_0/2_0, application_review_cycle_desktop_public_path and others) passes on macOS arm64 at 97d387a79, Linux at caae4cc9e and Windows at caae4cc9e+7eb48fbb0. BPR-1182's native workbench course also cites RC55-07 and remains its own."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pass","revision":"fd5ca4412","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner accepted BPR-1156-composer-layout-v006 (session cbd48b91000b00f1e72e1ad62c7c384c, events 788/789, hand-back 795) after rejecting v001-v005; frozen fd5ca4412 build, src/ unchanged to 97d387a79. Automated share (anchors, before/after in diff fills, stale states, Suggest change from the caret and context menu, whole file in the main pane, solid selection, virtual space only in a box, double click under drift) passes in the 15-row selection on macOS at 97d387a79, Linux at caae4cc9e and Windows at caae4cc9e+7eb48fbb0; native cocoa desktop course passes, sensitive to live pointer moves (recorded on the card)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-14** (live `BPR-1156`, allocated at import).
@@ -812,3 +811,86 @@ All 15 rows pass, in 29.40 s:
 - `syntax_classification_contract` 0.41 s;
 - `core_appearance_contrast` and the four other core rows;
 - `architecture_boundaries` 29.34 s.
+
+## Owner verdicts: v006 and gestures v004 accepted — macOS, 2026-10-02
+
+In attended session `cbd48b91000b00f1e72e1ad62c7c384c` the owner accepted
+both open questions, with empty notes, and handed back at event 795:
+
+| Candidate | Criterion | Events | Verdict |
+|---|---|---|---|
+| `BPR-1156-composer-layout-v006` (selection shade, line ends, double click, in both modes) | RC61-04 | 788, then 789 (the same accept saved again) | Accept |
+| `BPR-1156-editor-gestures-v004` (Enter indentation, a typed closer, Alt+Shift+Down then Shift+End, typing at every caret, virtual space only in a box, box copy and paste, undo, IME; Home and End per caret) | RC55-07 | 790 | Accept |
+
+Both were asked on the frozen candidate
+`/Users/jaeger/bpr-cycles-selection-review.Ev9QTV`, app sha256
+`af38e32d3aad3b66a80176b23033def563921af834b06c439f7311142c9f5538`, built
+from `fd5ca4412`. `git diff fd5ca4412 HEAD -- src/` is empty at `97d387a79`,
+so the accepted build is the shipped source. Since then only
+`tests/end_to_end/review_cycle_desktop_public_path.cpp`, this card and the
+ledger have changed. The undecided `editor-gestures-v001` to `v003` were
+superseded by v004 and were never answered. The rejections of
+composer-layout v001 to v005 are recorded above.
+
+### macOS at `97d387a79` (includes `caae4cc9e` and `7eb48fbb0`)
+
+macOS arm64, `build/dev`, dark scheme. The build recompiled only the desktop
+course and printed no `warning:` line. The 15-row selection that Linux and
+Windows ran, `ctest --preset dev -j4 --output-on-failure -R
+"^(core_suggestion_text_editing|core_appearance_contrast|core_review_cycle_(feedback|suggestion|tabs)|qt_suggestion_editor_|qt_review_cycle_view_|review_cycle_workbench|review_cycle_suggestion|application_review_cycle_desktop_public_path|application_review_round_trip_composition_contract|syntax_classification_contract|architecture_boundaries)"`,
+passes **15 of 15** in 25.05 s.
+
+The desktop course was also run natively, as
+`QT_QPA_PLATFORM=cocoa build/dev/tests/end_to_end/review_cycle_desktop_public_path`.
+It passes, including the new nearest-colour selection-ink check at 2x. It is
+not stable while someone is using the desktop. Of 7 runs of the unmodified
+course, 4 passed, including the last 3 in a row. The other 3 failed at
+"reading: a double click in the window selects exactly the word". The HID idle
+time was under a second throughout, and the real pointer was sometimes over
+the course's window. A probe, not committed, printed the
+selection and the pointer:
+
+- In 14 of 15 probe runs the selection was bytes 4 to 9, as expected.
+- The one failure selected bytes 6 to 7. The pointer was inside the window.
+
+A control, not committed, injected one pointer move 300 px away between the
+two presses. It fails the check offscreen every time: the second press is
+then a single click, so the drift drags by characters. Qt cancels a double
+click when the pointer moves beyond its double-click distance between the
+presses, and the course's injected clicks share QtGui's state with the live
+pointer. So this is interference with the native run, not an editor defect.
+The registered offscreen row is unaffected. The probe is reverted, and the
+row passed again after the revert.
+
+### Criteria
+
+- **RC55-07: pass.** The automated share passes on all three platforms with
+  the same 15-row selection: macOS at `97d387a79`, Linux at `caae4cc9e`
+  (above), and Windows at `caae4cc9e` with `7eb48fbb0`'s rename (above). The
+  owner accepted the gestures through `editor-gestures-v004` at event 790.
+  BPR-1182's native workbench courses also cite RC55-07, and they remain that
+  card's own work.
+- **RC55-09: pass.** Unchanged since `0d0872fbd`. Round preparation is
+  BPR-1158's.
+- **RC61-04: pass.** The automated share for primary and related anchors,
+  before/after with diff fills, stale and ambiguous states, Suggest change
+  from the caret and the context menu, and the whole file in the main pane
+  passes on all three platforms (above). The owner accepted the layout through
+  `composer-layout-v006` at event 789, after rejecting v001 to v005 for the
+  reasons recorded above.
+- The card's own list (Alt+Shift+Down then Shift+End, virtual space, box and
+  multi-caret copy and paste, tabs, CRLF, deletion, undo, IME, a stale source
+  while composing, no checkout write and no model call) is covered by
+  `core_suggestion_text_editing`, `qt_suggestion_editor_*`,
+  `qt_review_cycle_view_*` (a capture while editing moves nothing) and the
+  desktop course (the file on disk is unchanged). The owner's v004 verdict
+  covers the gestures.
+- RC55-04's 2026-10-01 amendment (one exact suggestion for each separate
+  changed run) was delivered here at `da459c4e1`. It passes on all three
+  platforms. The criterion's original share is BPR-1155's.
+
+Limits: the macOS native course is sensitive to live pointer movement, as
+described above. The Linux and Windows rows are offscreen, not native xcb,
+Wayland or Win32 sessions. The comparison view and the diff panes still use
+Qt's own text selection, as recorded under v005. That is outside this
+card's criteria.
