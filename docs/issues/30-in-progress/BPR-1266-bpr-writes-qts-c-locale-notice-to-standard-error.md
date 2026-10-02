@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1266"
 title: "bpr writes Qt's C-locale notice to standard error, breaking the CLI's stderr contract in a C locale"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
