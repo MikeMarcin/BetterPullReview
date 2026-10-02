@@ -234,3 +234,9 @@ minutes. `flat-rows-v001` keeps its Accept and protection.
 Next: on hand-back, record the v002 verdict against its fingerprint. On
 Accept, AC4 is complete. Finish the card with Windows and Linux native renders
 recorded as not captured. On Reject, apply the note.
+
+The push rebased `0f6e7b292` onto main as `5b7eddb83`. The only commit in
+between, `f21072628`, edits one BPR-1157 card. `git diff 0f6e7b292 5b7eddb83 --
+src tests scripts CMakeLists.txt cmake` is empty, so the frozen build is
+also `5b7eddb83`'s. The review item keeps the name `0f6e7b292` that its
+fingerprint binds.
