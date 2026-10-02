@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","milestone_plan":{"id":"bpr0967-mac-responsiveness","path":"docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2","evidence":{"kind":"observation","detail":"Mac growth attributed (BPR-0893; repaired by BPR-1032). Windows and Linux growth measured by native counters on the stations and within limits set from those measurements; no failure left to attribute. docs/verification/BPR-0967-station-budgets-2026-10-01.md"}},{"criterion":"AC2","outcome":"pass","revision":"9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2","evidence":{"kind":"command","detail":"Cache ceilings, exact source/anchors, eviction/revisit and close/prune ownership enforced on all three platforms. Each changed limit has a measured basis and stated rule; failing-before controls for reporting, enforcement, named phases and the every-course gate. Release gates at 9aa3df3bb: macOS 16 rows + architecture + replay pass; Windows 17/17 (440.84 s), Linux 17/17 (95.92 s), all enforced. No limit raised to absorb a miss; misses named under BPR-1264."}},{"criterion":"AC3","outcome":"pending","revision":"6a573ac7fce5f84716f2439c2c9de1c198a58fd2","evidence":{"kind":"freeform","detail":"Fixture-composition budgets (metadata, first render, navigation, drawers, theme, fallback, active work, input/cancellation, memory/cache, process-to-Home launch) measured and enforced on macOS, Windows and Linux. Pending human/native: packaged launch, compositor presentation and physical-input latency per platform, attended items BPR-0967-{packaged-launch,presentation,physical-input}-{mac,win,linux}-v001 in session cbd48b91000b00f1e72e1ad62c7c384c."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2","evidence":{"kind":"observation","detail":"Mac growth attributed (BPR-0893; repaired by BPR-1032). Windows and Linux growth measured by native counters on the stations and within limits set from those measurements. docs/verification/BPR-0967-station-budgets-2026-10-01.md"}},{"criterion":"AC2","outcome":"pass","revision":"9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2","evidence":{"kind":"command","detail":"Invariants enforced on all three platforms; each changed limit has a measured basis and stated rule with failing-before controls. Release gates at 9aa3df3bb: macOS 16 rows + architecture + replay; Windows 17/17 (440.84 s); Linux 17/17 (95.92 s), all enforced. No limit raised; misses named under BPR-1264."}},{"criterion":"AC3","outcome":"pass","revision":"6a573ac7fce5f84716f2439c2c9de1c198a58fd2","evidence":{"kind":"observation","detail":"Fixture-composition budgets enforced on macOS, Windows and Linux. Native packaged launch, compositor presentation and physical input: owner accepted all nine attended items (session cbd48b91, events 704-712, decision IDs on the card) with empty notes; no measured values were recorded with the verdicts."}}]
 ---
 
 # Measure and reconcile native large-review resource budgets
@@ -554,3 +553,32 @@ to revision `6a573ac7f`, package version 0.1.3.
 
 A Reject with a note either reports a miss or proposes a different threshold.
 Either becomes the next engineering step. The card parks on `human-review`.
+
+## Owner verdicts on the native items — 2026-10-02
+
+The owner accepted all nine items in attended-review session
+`cbd48b91000b00f1e72e1ad62c7c384c`, then handed the session back at sequence
+714:
+
+| Seq | Item | Decision ID | Outcome | Saved (UTC) |
+|---|---|---|---|---|
+| 704 | `BPR-0967-packaged-launch-linux-v001` | `b26dbd84-1d6c-4893-8750-ba0e70d9d6ca` | accept | 2026-10-02T02:54:25Z |
+| 705 | `BPR-0967-packaged-launch-mac-v001` | `4342ae6f-53ac-4402-85b3-1707d1a1f4b3` | accept | 2026-10-02T02:55:33Z |
+| 706 | `BPR-0967-packaged-launch-win-v001` | `ca2a05ca-f402-46d9-8032-b5fc460a48e6` | accept | 2026-10-02T02:55:45Z |
+| 707 | `BPR-0967-physical-input-linux-v001` | `df361d59-f247-45c9-ba2a-9390aa057958` | accept | 2026-10-02T02:55:52Z |
+| 708 | `BPR-0967-physical-input-mac-v001` | `cc222219-602e-4726-a0ed-7044f1197795` | accept | 2026-10-02T02:55:58Z |
+| 709 | `BPR-0967-physical-input-win-v001` | `2465605a-db7e-4763-98de-93e274713182` | accept | 2026-10-02T02:56:04Z |
+| 710 | `BPR-0967-presentation-linux-v001` | `fa61842a-df3c-4d12-93a5-b542b187f242` | accept | 2026-10-02T02:56:14Z |
+| 711 | `BPR-0967-presentation-mac-v001` | `8381dc1d-46c8-4107-8a9c-957c63703af6` | accept | 2026-10-02T02:56:18Z |
+| 712 | `BPR-0967-presentation-win-v001` | `a0bb185c-8783-4ff7-9ddc-c3e19fb515cf` | accept | 2026-10-02T02:56:25Z |
+
+Every note is empty. The items asked for measured values, hardware, display
+and the package digest in the note; none were recorded, and the nine verdicts
+were saved within two minutes (02:54:25–02:56:25). These are recorded here as
+the owner's explicit Accept of each threshold on each platform. They are not
+measurements this card can cite.
+
+AC3 is therefore met by the owner's acceptance of the native items, together
+with the enforced fixture-composition budgets on all three platforms.
+[[BPR-1264]] (the named input-target phases) and [[BPR-1265]] (the Windows
+Debug byte course) stay open as separate work.
