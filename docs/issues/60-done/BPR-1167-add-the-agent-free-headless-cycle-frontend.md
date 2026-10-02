@@ -53,3 +53,64 @@ Not gating. Linux and Windows configure a second binary directory with
 `-DBPR_BUILD_TOUR_CLI=ON`; the exact commands are in the ledger section. If
 Windows contained refuses `cycle_cli_public_path` at the store, pin it
 `WINDOWS_UNCONTAINED` with the measured line.
+
+## Linux: bpr-main-linux, 2026-10-02
+
+At `29b243f07` (includes `2a79d08eb`), on WSL2 with GCC 15.2 and Qt 6.11.2 from the
+CPM cache `build/.cpm-cache`. Nothing was changed. No remote mutation.
+
+**Command 1 (`build/dev-tour-cli`, `BPR_BUILD_TOUR_CLI=ON`).** The build exits 0
+with 0 `warning:` lines; the configure prints only CMake's
+`uninitialized variable 'QT_FEATURE_…'` notices from Qt's own config. The
+selection passes **14 of 15** in 33.74 s:
+
+- `tour_cli_*` (5 rows) and `skill_pr_tour_package`
+- `core_review_cycle_{round,feedback,workspace,share}`
+- `review_cycle_export` and `review_cycle_workbench` (31.48 s)
+- `application_review_cycle_desktop_public_path` and `architecture_boundaries`
+
+**`cycle_cli_public_path` fails** (0.05 s) at its first command:
+
+```
+cycle_cli_tests.py:78 human: AssertionError: success writes nothing to standard error:
+'Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead. …'
+```
+
+`environment()` in `tests/scripts/cycle_cli_tests.py` starts from an empty
+environment (`QT_QPA_PLATFORM` and `NO_COLOR` only, plus four variables on
+Windows), so there is no `LANG`. On Linux, glibc then runs in the C locale,
+and Qt's core start prints that notice to standard error. macOS has no
+equivalent notice. `tour_cli_tests.py` inherits `os.environ` (`LANG=C.UTF-8`
+here), so its rows pass. The station's own locale is `C.UTF-8`.
+
+Either side could own the fix. The course could pass a UTF-8 `LC_ALL`/`LANG` on
+POSIX. Or `bpr` could keep that notice off standard error: a user whose
+locale is C would see it on every `bpr cycle` success, against the contract
+that a success writes nothing to standard error.
+
+**Command 2 (`tour-cli` preset, `TourCLI` install, script).**
+
+- The configure and build exit 0. The one `warning:` line is the vendored
+  `_bpr/sqlite/3.53.4/sqlite3.c` `-Wstringop-overread`, the known third-party
+  line.
+- `cmake --install … --component TourCLI` exits 0.
+- The script then fails at its first command with exit **127**:
+
+```
+build/tour-cli-install/bin/bpr: error while loading shared libraries: libQt6Network.so.6: cannot open shared object file: No such file or directory
+```
+
+The install log says `Set non-toolchain portion of runtime path of
+".../tour-cli-install/bin/bpr" to ""`, and `readelf -d` shows no
+RPATH or RUNPATH on the installed `bpr`. The build-tree `bpr` has RUNPATH
+`…/build/.cpm-cache/bprqt/6.11.2/6.11.2/gcc_64/lib`.
+
+`src/app/CMakeLists.txt` gives non-Apple builds only
+`INSTALL_RPATH_USE_LINK_PATH TRUE`, and installs no Qt libraries. The Apple
+branch installs QtCore and QtNetwork frameworks, the TLS plugin and `qt.conf`.
+CMake adds a link directory to the install runpath only when it lies outside
+the project, and this station's Qt cache is under the source tree
+(`build/.cpm-cache`). So the Linux install is not self-contained here. It
+needs a Qt that is installed beside the binary, or one the system loader
+finds. The script's pseudo-terminal part was therefore not reached on Linux.
