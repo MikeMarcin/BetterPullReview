@@ -141,3 +141,27 @@ replaced checks were "the editor paints the keyword…", "and paints it"
 | Negative control: `suggestion_editor.cpp`'s colour lookup disabled (`formats = nullptr` in place of `syntax_of(line)`, not committed) | Both scales fail at "the editor paints the keyword and the number in their role colours" |
 | The same control with that check reduced to `span_painted` alone | Both scales fail, so the new keyword rule fails without the number's count |
 | `/usr/bin/clang-format` 22 `--dry-run --Werror`, `git diff --check`, `tidy.py --paths` on the file | Clean, `tidy=0` |
+
+## Windows (bpr-main-win, 2026-10-01)
+
+Windows 11 Home 10.0.26200, Visual Studio 18 (MSVC 14.51), Qt 6.11.2,
+`build/windows-dev` Debug, at `3a69349d5`. That revision contains
+`f3327b74b` and Linux's revised keyword check: a role-colour pixel present
+and no text-colour pixel in the keyword's rectangle. `cmake --build --preset
+windows-dev` exited 0 and printed no `warning C` line.
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^(core_suggestion_text_editing|core_review_cycle_(feedback|suggestion|tabs)|qt_suggestion_editor_|qt_review_cycle_view_|review_cycle_workbench|application_review_cycle_desktop_public_path|application_review_round_trip_composition_contract|syntax_classification_contract|architecture_boundaries)"
+```
+
+All 13 rows pass, in 30.07 s:
+
+- `qt_suggestion_editor_1_0` (0.44 s) and `_2_0` (0.89 s);
+- `qt_review_cycle_view_1_0` (1.40 s) and `_2_0` (3.61 s);
+- `review_cycle_workbench` (4.87 s);
+- `application_review_cycle_desktop_public_path` (6.69 s);
+- `application_review_round_trip_composition_contract` (11.74 s);
+- `syntax_classification_contract` (0.43 s);
+- `core_suggestion_text_editing`, and `core_review_cycle_feedback`,
+  `_suggestion` and `_tabs`;
+- `architecture_boundaries` (26.27 s).
