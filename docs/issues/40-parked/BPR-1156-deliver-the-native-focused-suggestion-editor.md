@@ -741,3 +741,34 @@ The other 14 rows pass: `core_suggestion_text_editing`,
 `review_cycle_workbench`, `review_cycle_suggestion`, the round-trip contract,
 `syntax_classification_contract` and `architecture_boundaries`. No remote
 mutation.
+
+### The selection-ink check no longer requires a ±4 solid core (bpr-main-linux, 2026-10-02)
+
+Test only. The card stays Parked. In
+`tests/end_to_end/review_cycle_desktop_public_path.cpp`, `solid_pixels` (±4 of
+the ink) is replaced by `ink_painted`. Inside the selected call's cells there
+must be at least one pixel nearer (squared RGB distance) to the selection ink
+than to the role colour, the selection fill and the plain text colour, and
+no pixel within ±12 of the role colour or of the text colour. The region is
+inset one logical pixel from each side.
+
+Two additions go beyond the integrator's two conditions, and both are
+measured:
+
+- **The text colour.** Without it, an unpainted call (plain text colour)
+  passed at both scales. Anti-aliased blends of `#1f2328` toward the fill come
+  nearer to the ink `#4e2b8e` than to the role colour or the fill. The text
+  core within ±12 refuses it.
+- **The inset.** At 2×, the next glyph `(` reached two device pixels (x
+  237–238) across byte 46's cell edge at x 239, and put 56 text-coloured
+  pixels in the region.
+
+| Run (Linux, GCC 15.2, `build/dev`, offscreen) | Scale 1 | Scale 2 (`QT_SCALE_FACTOR=2`, same command) |
+|---|---|---|
+| Fixed | pass | pass |
+| Control A: the selected call painted in its role colour (`colour = role` at `suggestion_editor.cpp:703`, not committed) | fails at the check | fails at the check |
+| Control B: the selected call unpainted (`colour = palette().color(QPalette::Text)` inside the selection, not committed) | fails at the check | fails at the check |
+
+The CTest row passes 3 of 3, and the 15-row selection from the previous
+request passes 15 of 15. clang-format 22, `git diff --check` and `tidy.py`
+(`tidy=0`) are clean on the file.

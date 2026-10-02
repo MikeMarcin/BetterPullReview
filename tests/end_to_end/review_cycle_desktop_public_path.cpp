@@ -294,24 +294,51 @@ namespace {
 		return pixmap.toImage().pixelColor(static_cast<int>(middle.x()), static_cast<int>(middle.y()));
 	}
 
-	/// \brief Pixels of the cells of bytes [aFrom, aTo) of the code view in
-	/// exactly `aColour`, give or take rounding: a glyph's solid core, which
-	/// anti-aliasing toward the background never reaches from another colour.
-	auto solid_pixels(qt::suggestion_editor& aView, const std::uint64_t aFrom, const std::uint64_t aTo, const QColor& aColour) -> int
+	/// \brief Whether the cells of bytes [aFrom, aTo) of the code view are
+	/// painted in `aInk`, not in `aRole` and not in the plain text colour:
+	/// at least one pixel is closer to the ink than to the role colour, the
+	/// fill and the text colour, and none is within 12 of the role colour
+	/// or of the text colour.
+	///
+	/// \details [[BPR-1156]]. A thin stroke at 1x need not reach its ink
+	/// exactly: in 9-point DejaVu Sans Mono the closest pixel was 6 off, so
+	/// counting pixels within 4 of the ink found none. Anti-aliasing blends a
+	/// stroke toward the fill, so the nearest colour still names the one a
+	/// stroke's core was painted in. A plain-text stroke's blend toward the
+	/// fill can also come nearest the ink, so a plain-text core near the
+	/// text colour refuses it.
+	auto ink_painted(qt::suggestion_editor& aView, const std::uint64_t aFrom, const std::uint64_t aTo, const QColor& aInk, const QColor& aRole, const QColor& aFill) -> bool
 	{
-		const auto left   = aView.cell_rectangle(aView.model().point_of(aFrom));
-		const auto right  = aView.cell_rectangle(aView.model().point_of(aTo));
-		const auto pixmap = aView.viewport()->grab();
-		const auto image  = pixmap.toImage();
-		const auto ratio  = pixmap.devicePixelRatio();
-		auto       count  = 0;
+		const auto text     = aView.palette().color(QPalette::Text);
+		const auto left     = aView.cell_rectangle(aView.model().point_of(aFrom));
+		const auto right    = aView.cell_rectangle(aView.model().point_of(aTo));
+		const auto pixmap   = aView.viewport()->grab();
+		const auto image    = pixmap.toImage();
+		const auto ratio    = pixmap.devicePixelRatio();
+		const auto distance = [](const QColor& aPixel, const QColor& aColour) {
+			const auto red   = aPixel.red() - aColour.red();
+			const auto green = aPixel.green() - aColour.green();
+			const auto blue  = aPixel.blue() - aColour.blue();
+			return (red * red) + (green * green) + (blue * blue);
+		};
+		const auto near = [](const QColor& aPixel, const QColor& aColour) {
+			return std::abs(aPixel.red() - aColour.red()) <= 12 && std::abs(aPixel.green() - aColour.green()) <= 12 && std::abs(aPixel.blue() - aColour.blue()) <= 12;
+		};
+		auto inked = 0;
+		auto other = 0;
+		// One logical pixel in from each side: a neighbouring glyph's edge
+		// reaches across the cell boundary at 2x.
+		const auto first = static_cast<int>(std::ceil((left.left() + 1.0) * ratio));
+		const auto last  = static_cast<int>(std::floor((right.left() - 1.0) * ratio));
 		for (auto y = static_cast<int>(std::ceil(left.top() * ratio)); y < static_cast<int>(left.bottom() * ratio) && y < image.height(); ++y) {
-			for (auto x = static_cast<int>(std::ceil(left.left() * ratio)); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
+			for (auto x = first; x < last && x < image.width(); ++x) {
 				const auto pixel = image.pixelColor(x, y);
-				count += std::abs(pixel.red() - aColour.red()) <= 4 && std::abs(pixel.green() - aColour.green()) <= 4 && std::abs(pixel.blue() - aColour.blue()) <= 4 ? 1 : 0;
+				const auto ink   = distance(pixel, aInk);
+				inked += ink < distance(pixel, aRole) && ink < distance(pixel, aFill) && ink < distance(pixel, text) ? 1 : 0;
+				other += near(pixel, aRole) || near(pixel, text) ? 1 : 0;
 			}
 		}
-		return count;
+		return inked > 0 && other == 0;
 	}
 
 	auto fill_is(const QColor& aPixel, const QColor& aColour) -> bool
@@ -409,7 +436,7 @@ try {
 	}();
 	code->select_bytes(41U, 46U);
 	QApplication::processEvents();
-	expect(functionInk != function && solid_pixels(*code, 41U, 46U, functionInk) > 0 && solid_pixels(*code, 41U, 46U, function) == 0, "a selected call keeps its role, in the ink that reads on the selection");
+	expect(functionInk != function && ink_painted(*code, 41U, 46U, functionInk, function, selectionFill), "a selected call keeps its role, in the ink that reads on the selection");
 	capture(window, QStringLiteral("desktop-cycle-source-word-selection"));
 	page->source()->select_bytes(41U, 53U);
 	QApplication::processEvents();
