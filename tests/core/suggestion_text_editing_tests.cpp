@@ -132,12 +132,13 @@ namespace {
 		editor.apply(insert_text{ "\t" });
 		expect(editor.text() == "\tx\r\n\t\t\ty\r\n", "tab inserted as a tab");
 		editor.apply(insert_line_break{ });
-		expect(editor.text() == "\tx\r\n\t\t\r\n\ty\r\n", "a line break takes CRLF");
+		expect(editor.text() == "\tx\r\n\t\t\r\n\t\t\ty\r\n" && heads(editor).front() == text_point{ 2U, 8U }, "a line break takes CRLF and keeps the indentation");
+		editor.apply(place_caret{ { 2U, 0U } });
 		editor.apply(delete_backward{ });
-		expect(editor.text() == "\tx\r\n\t\t\ty\r\n", "backspace at a line start removes the whole CRLF");
+		expect(editor.text() == "\tx\r\n\t\t\t\t\ty\r\n", "backspace at a line start removes the whole CRLF");
 		editor.apply(place_caret{ { 0U, 5U } });
 		editor.apply(delete_forward{ });
-		expect(editor.text() == "\tx\t\t\ty\r\n", "delete at a line end joins the next line");
+		expect(editor.text() == "\tx\t\t\t\t\ty\r\n", "delete at a line end joins the next line");
 		editor.apply(select_all{ });
 		editor.apply(delete_forward{ });
 		expect(editor.text().empty(), "deleting everything");
@@ -147,6 +148,90 @@ namespace {
 		expect(unicode.text() == "caf", "backspace removes a whole scalar");
 		unicode.apply(insert_text{ "\xE6\x97\xA5\xE6\x9C\xAC" });
 		expect(unicode.text() == "caf\xE6\x97\xA5\xE6\x9C\xAC", "committed IME text inserted exactly");
+	}
+
+	/// The owner asked for indentation on Enter like a modern editor
+	/// (BPR-1156, 2026-10-02): the line's blanks, a level after an opener,
+	/// a bracket's closer on its own line, and a typed closer outdents.
+	void indents_on_enter()
+	{
+		auto editor = suggestion_text_editor{ "\tif (x) {\n\t}\n" };
+		editor.apply(place_caret{ { 0U, 13U } });
+		expect(editor.apply(insert_line_break{ }) && editor.text() == "\tif (x) {\n\t\t\n\t}\n" && heads(editor).front() == text_point{ 1U, 8U }, "a level more after an opening brace");
+		editor.apply(insert_text{ "y();" });
+		editor.apply(insert_line_break{ });
+		expect(editor.text() == "\tif (x) {\n\t\ty();\n\t\t\n\t}\n", "the same level after an ordinary line");
+		editor.apply(insert_text{ "}" });
+		expect(editor.text() == "\tif (x) {\n\t\ty();\n\t}\n\t}\n" && heads(editor).front() == text_point{ 2U, 5U }, "a closer typed on blanks takes a level away");
+		expect(editor.apply(undo_edit{ }) && editor.text() == "\tif (x) {\n\t\ty();\n\t\t\n\t}\n", "and undoes as typing");
+
+		// Between a bracket and its closer: the closer goes on its own line.
+		auto pair = suggestion_text_editor{ "    call(\r\n" };
+		pair.set_indentation({ .Unit = "    " });
+		pair.apply(place_caret{ { 0U, 9U } });
+		pair.apply(insert_text{ ")" });
+		pair.apply(move_carets{ text_motion::left });
+		expect(pair.apply(insert_line_break{ }) && pair.text() == "    call(\r\n        \r\n    )\r\n" && heads(pair).front() == text_point{ 1U, 8U }, "the closer on its own line, CRLF kept");
+
+		// The caret inside the indentation keeps only what lies before it.
+		auto inside = suggestion_text_editor{ "\t\tx\n" };
+		inside.apply(place_caret{ { 0U, 4U } });
+		inside.apply(insert_line_break{ });
+		expect(inside.text() == "\t\n\t\tx\n", "only the blanks before the caret");
+
+		// Every caret indents for its own line; virtual space adds no blanks.
+		auto carets = suggestion_text_editor{ "a {\n  b\n" };
+		carets.apply(place_caret{ { 0U, 3U } });
+		carets.apply(add_caret{ { 1U, 9U } });
+		carets.apply(insert_line_break{ });
+		expect(carets.text() == "a {\n\t\n  b\n  \n", "each caret its own indentation");
+
+		// A colon opens a level only where the language says so.
+		auto python = suggestion_text_editor{ "def f():\n" };
+		python.set_indentation(indentation_for("tool/run.py", python.text()));
+		python.apply(place_caret{ { 0U, 8U } });
+		python.apply(insert_line_break{ });
+		expect(python.text() == "def f():\n    \n", "Python: four spaces after a colon");
+		auto cpp = suggestion_text_editor{ "public:\n" };
+		cpp.set_indentation(indentation_for("a.hpp", cpp.text()));
+		cpp.apply(place_caret{ { 0U, 7U } });
+		cpp.apply(insert_line_break{ });
+		expect(cpp.text() == "public:\n\n", "C++: no level after a colon");
+		auto prose = suggestion_text_editor{ "  See (\n" };
+		prose.set_indentation(indentation_for("README.md", prose.text()));
+		prose.apply(place_caret{ { 0U, 7U } });
+		prose.apply(insert_line_break{ });
+		expect(prose.text() == "  See (\n  \n", "prose: the indentation only");
+	}
+
+	void chooses_the_indentation_unit()
+	{
+		expect(indentation_for("a.cpp", "int f()\n{\n\treturn 1;\n}\n") == text_indentation{ .Unit = "\t" }, "tabs");
+		expect(indentation_for("a.ts", "f() {\n  if (x) {\n    y();\n  }\n}\n").Unit == "  ", "two spaces");
+		expect(indentation_for("a.ts", "f() {\n    if (x) {\n        y();\n           z;\n    }\n}\n").Unit == "    ", "the common step, not an alignment");
+		expect(indentation_for("CONFIG.YML", "a:\n").Unit == "  " && indentation_for("CONFIG.YML", "a:\n").Colon, "YAML by extension, any case");
+		expect(indentation_for("dir.v2/Makefile", "all:\n").Unit == "\t" && !indentation_for("dir.v2/Makefile", "all:\n").Colon, "a dot in a folder is no extension");
+		expect(!indentation_for("notes.txt", "x\n").Brackets, "prose opens nothing");
+	}
+
+	void selects_words_and_lines()
+	{
+		auto editor = suggestion_text_editor{ "\tint caf\xC3\xA9_x = a->b;\r\nnext\r\n" };
+		editor.apply(select_word_at{ { 0U, 10U } });
+		expect(editor.state().Carets.size() == 1U && editor.state().Carets[0] == text_caret{ { 0U, 8U }, { 0U, 14U } }, "a double click selects the word, multi-byte letters included");
+		expect(editor.copy().Text == "caf\xC3\xA9_x", "the word's bytes");
+		editor.apply(select_word_at{ { 0U, 18U } });
+		expect(editor.copy().Text == "-", "one punctuation mark");
+		editor.apply(select_word_at{ { 0U, 2U } });
+		expect(editor.copy().Text == "\t", "a run of blanks");
+		editor.apply(select_word_at{ { 0U, 40U } });
+		expect(editor.copy().Text == ";", "past the end: the last thing on the line");
+		editor.apply(select_line_at{ { 0U, 3U } });
+		expect(editor.copy().Text == "\tint caf\xC3\xA9_x = a->b;\r\n", "a triple click selects the line with its break");
+		editor.apply(select_line_at{ { 9U, 0U } });
+		expect(editor.state().Carets[0] == text_caret{ { 2U, 0U }, { 2U, 0U } }, "the last, empty line");
+		expect(!changes_text(select_word_at{ }) && !changes_text(place_caret{ }) && changes_text(insert_line_break{ }) && changes_text(undo_edit{ }), "which edits change text");
+		expect(editor.byte_offset_of({ 0U, 14U }) == 12U && editor.byte_offset_of({ 1U, 2U }) == 24U && editor.byte_offset_of({ 1U, 30U }) == 26U, "byte offsets of points; virtual space is the line end");
 	}
 
 	void undoes_ordinary_steps()
@@ -174,6 +259,12 @@ namespace {
 		const auto before = editor.state();
 		expect(!editor.apply(insert_text{ "bc" }) && editor.state() == before && !editor.can_undo(), "over the bound changes nothing");
 		expect(editor.apply(insert_text{ "b" }) && editor.text().size() == maximum_suggestion_editor_bytes, "up to the bound");
+		// The cycle page reads larger files in the same view: held whole, read, never edited.
+		auto large = suggestion_text_editor{ std::string(maximum_suggestion_editor_bytes + 10U, 'a') + "\nb" };
+		expect(large.text().size() == maximum_suggestion_editor_bytes + 12U, "a larger text is held whole");
+		expect(large.apply(move_carets{ text_motion::document_end }) && heads(large).front() == text_point{ 1U, 1U } && large.apply(select_word_at{ { 0U, 3U } }), "and its carets move");
+		large.apply(place_caret{ { 1U, 1U } });
+		expect(!large.apply(insert_text{ "x" }) && large.text().size() == maximum_suggestion_editor_bytes + 12U, "but an edit that keeps it over the bound is refused");
 	}
 
 	void moves_and_collapses()
@@ -206,6 +297,9 @@ auto main() -> int
 	edits_in_virtual_space();
 	copies_and_pastes_boxes();
 	handles_tabs_breaks_and_deletion();
+	indents_on_enter();
+	chooses_the_indentation_unit();
+	selects_words_and_lines();
 	undoes_ordinary_steps();
 	refuses_over_the_bound();
 	moves_and_collapses();

@@ -70,8 +70,9 @@ namespace bpr::qt {
 	/// Comment, Suggest change and Compose feedback), the folding Updates line
 	/// of captured revisions, the document tabs, and the files drawer, one
 	/// full-source pane and the notes tray. It adds no permanent row. The
-	/// source pane shows the active tab's exact retained bytes; a selection
-	/// becomes an exact byte anchor. BPR-1163 adds to the same review bar
+	/// source pane is the shared code view (`suggestion_editor`, read-only)
+	/// over the active tab's exact retained bytes, in the review panes' code
+	/// font and tab width; a selection becomes an exact byte anchor. BPR-1163 adds to the same review bar
 	/// Capture revision, the view chooser (full source, this round, since my
 	/// last review, all cycle changes, chosen revisions), Mark reviewed and a
 	/// refresh that appears only when newer material exists; a comparison
@@ -80,9 +81,10 @@ namespace bpr::qt {
 	/// painted through the review panes' role colours and span-to-format
 	/// rule. Suggest change starts from the caret, from the review bar or the
 	/// source pane's context menu, and edits the whole file in place: the
-	/// pane becomes the suggestion editor until the suggestion is saved or
-	/// cancelled, and the tray holds the rationale and the before/after
-	/// (owner amendment to BPR-1156, 2026-10-01). It decides nothing and
+	/// same code view becomes editable until the suggestion is saved or
+	/// cancelled, so nothing on screen moves or changes colour, and the tray
+	/// holds the rationale and the before/after (owner amendment to BPR-1156,
+	/// 2026-10-01, and its v004 rejection, 2026-10-02). It decides nothing and
 	/// performs no effect: gestures leave through `review_cycle_dispatch`.
 	class review_cycle_view final : public QWidget
 	{
@@ -107,16 +109,18 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto review_bar() const noexcept -> workbench_strip*;
 		[[nodiscard]] auto tabs() const noexcept -> document_tab_strip*;
-		[[nodiscard]] auto source() const noexcept -> QPlainTextEdit*;
+		/// \brief The code view: the file read, and edited by Suggest change.
+		[[nodiscard]] auto source() const noexcept -> suggestion_editor*;
 		[[nodiscard]] auto files() const noexcept -> QListWidget*;
 		[[nodiscard]] auto notes() const noexcept -> QListWidget*;
 		[[nodiscard]] auto composer() const noexcept -> suggestion_composer*;
 		/// \brief Whether Suggest change is editing a file in the main pane.
 		[[nodiscard]] auto suggesting() const -> bool;
 		/// \brief The source pane's context menu at a viewport point: the
-		/// pane's own Copy and Select All after Comment and Suggest change. A
-		/// click outside the selection moves the caret there first. The
-		/// caller owns the menu; it deletes itself when closed.
+		/// code view's own Copy and Select All after Comment and Suggest
+		/// change, or its editing menu while a suggestion is edited. A click
+		/// outside the selection moves the caret there first. The caller owns
+		/// the menu; it deletes itself when closed.
 		[[nodiscard]] auto source_menu(const QPoint& aAt) -> QMenu*;
 		[[nodiscard]] auto comment_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto updates_line() const noexcept -> QLabel*;
@@ -149,19 +153,21 @@ namespace bpr::qt {
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
 
 	private:
-		void               begin_comment();
-		void               begin_suggestion();
-		void               end_suggestion();
-		void               show_reading_page();
-		void               save_comment();
-		void               refresh_actions();
-		void               step_file(int aDirection);
-		void               rebuild_view_menu();
-		void               rebuild_reply_menu();
-		void               save_reply();
-		void               apply_source_syntax();
-		void               present_comparison(const application::review_cycle_comparison_view& aComparison, bool aChanged);
-		[[nodiscard]] auto source_offset(int aPosition) const -> std::optional<std::uint64_t>;
+		void begin_comment();
+		void begin_suggestion();
+		void end_suggestion();
+		void show_reading_page();
+		/// The code view back to reading, and the shown file's bytes in it.
+		void read_source();
+		void show_source();
+		void save_comment();
+		void refresh_actions();
+		void step_file(int aDirection);
+		void rebuild_view_menu();
+		void rebuild_reply_menu();
+		void save_reply();
+		void apply_source_syntax();
+		void present_comparison(const application::review_cycle_comparison_view& aComparison, bool aChanged);
 
 		review_cycle_dispatch                          Dispatch;
 		application::review_cycle_workbench_projection Projection;
@@ -176,10 +182,11 @@ namespace bpr::qt {
 		QSplitter*                                 Body          = nullptr;
 		QListWidget*                               Files         = nullptr;
 		QStackedWidget*                            Centre        = nullptr;
-		QPlainTextEdit*                            Source        = nullptr;
+		suggestion_editor*                         Source        = nullptr;
 		/// What the centre shows when no suggestion is being edited.
-		QWidget*           ReadingPage      = nullptr;
-		suggestion_editor* SuggestionEditor = nullptr;
+		QWidget* ReadingPage = nullptr;
+		/// The review panes' tab width, in columns.
+		std::uint32_t TabWidth = core::default_suggestion_tab_width;
 		/// The exact file a suggestion edits, kept while it is edited.
 		std::optional<application::review_cycle_source_view> SuggestionSource;
 		QLabel*                                              SourceNotice  = nullptr;

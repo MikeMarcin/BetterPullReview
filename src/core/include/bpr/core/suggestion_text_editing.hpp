@@ -24,8 +24,9 @@
 /// space, which becomes real spaces only when text is inserted there. A box
 /// gesture (Alt+Shift+Arrow) makes one caret per line at the same visual
 /// columns; End and Shift+End then act on each caret's own line and never
-/// cross a line break. The Qt view owns painting, focus, IME composition and
-/// the clipboard, and passes semantic edits here.
+/// cross a line break. Enter keeps the line's indentation and adds a level
+/// after an opener (`text_indentation`). The Qt view owns painting, focus,
+/// IME composition and the clipboard, and passes semantic edits here.
 namespace bpr::core {
 	struct text_line
 	{
@@ -58,12 +59,43 @@ namespace bpr::core {
 	inline constexpr std::uint32_t default_suggestion_tab_width = 4U;
 	/// Suggest change edits the whole file in place (owner amendment to
 	/// BPR-1156, 2026-10-01), so the editor holds a source file; a larger
-	/// file is refused before it is opened, never truncated.
+	/// file is refused before it is opened, never truncated. The bound is on
+	/// editing: a larger text is held whole and read, and no edit applies to it.
 	inline constexpr std::size_t maximum_suggestion_editor_bytes  = 1024U * 1024U;
 	inline constexpr std::size_t maximum_suggestion_editor_carets = 1024U;
 	inline constexpr std::size_t maximum_suggestion_undo_steps    = 256U;
 	/// Undo keeps whole snapshots; older steps go once these hold about this many bytes.
 	inline constexpr std::size_t maximum_suggestion_undo_bytes = 64U * 1024U * 1024U;
+
+	/// \brief How Enter indents the new line, and how a typed closer outdents.
+	/// \details The owner asked for indentation on Enter "like a modern text
+	/// editor" (BPR-1156, 2026-10-02). The new line keeps the leading blanks
+	/// of the line before the caret; a line whose text before the caret ends
+	/// in an opener gets one more `Unit`, and Enter between an opening bracket
+	/// and its closer puts the closer on its own line at the old indentation.
+	/// Typing a closing bracket on a line of blanks that ends in one `Unit`
+	/// removes that `Unit`. Nothing else is reformatted.
+	struct text_indentation
+	{
+		/// One level: a tab, or the file's own run of spaces.
+		std::string Unit = "\t";
+		/// `{`, `[` and `(` open a level.
+		bool Brackets = true;
+		/// `:` opens a level (Python, YAML).
+		bool Colon                                      = false;
+		auto operator<=>(const text_indentation&) const = default;
+	};
+
+	/// \brief The indentation Enter uses in one file.
+	/// \details The openers come from the path's extension: prose (Markdown,
+	/// reStructuredText, AsciiDoc, plain text) opens no level, Python and YAML
+	/// open one after `:` as well as after a bracket, and anything else after
+	/// a bracket. The unit is the one the text itself uses: a tab when more
+	/// lines start with a tab than with a space, otherwise the most common
+	/// step by which a line's leading spaces exceed the previous line's. A
+	/// text with no indented line uses four spaces for Python, two for YAML
+	/// and a tab otherwise.
+	[[nodiscard]] auto indentation_for(std::string_view aPath, std::string_view aText) -> text_indentation;
 
 	struct suggestion_text_state
 	{
@@ -116,6 +148,18 @@ namespace bpr::core {
 	{
 		text_point At;
 	};
+	/// \brief A double click: the word, run of blanks or punctuation mark at
+	/// a point becomes the only selection.
+	struct select_word_at
+	{
+		text_point At;
+	};
+	/// \brief A triple click: the line at a point, with its line break,
+	/// becomes the only selection.
+	struct select_line_at
+	{
+		text_point At;
+	};
 	/// \brief Typed or IME-committed text, inserted at every caret. A line
 	/// break in it becomes the text's own line ending.
 	struct insert_text
@@ -151,8 +195,11 @@ namespace bpr::core {
 	struct redo_edit
 	{
 	};
-	using suggestion_edit = std::variant<move_carets, extend_box, place_caret, add_caret, insert_text, insert_line_break, paste_text, delete_backward, delete_forward,
-										 select_all, collapse_carets, undo_edit, redo_edit>;
+	using suggestion_edit = std::variant<move_carets, extend_box, place_caret, add_caret, select_word_at, select_line_at, insert_text, insert_line_break, paste_text, delete_backward,
+										 delete_forward, select_all, collapse_carets, undo_edit, redo_edit>;
+
+	/// \brief Whether an edit can change the text, as opposed to only the carets.
+	[[nodiscard]] auto changes_text(const suggestion_edit& aEdit) noexcept -> bool;
 
 	/// \brief What copying the selections puts on the clipboard.
 	struct copied_text
@@ -170,9 +217,14 @@ namespace bpr::core {
 		/// \brief An editor over exact bytes, with one caret at the start.
 		explicit suggestion_text_editor(std::string_view aText = { }, std::uint32_t aTabWidth = default_suggestion_tab_width);
 
+		/// \brief How Enter indents from now on; the text is unchanged.
+		void               set_indentation(text_indentation aIndentation);
+		[[nodiscard]] auto indentation() const noexcept -> const text_indentation&;
+
 		/// \brief Applies one edit. Returns true when the text or carets changed.
 		/// \details An edit that would exceed the byte or caret bound is refused
-		/// whole and changes nothing.
+		/// whole and changes nothing. A gesture that only moves carets costs
+		/// the carets, not the text.
 		auto apply(const suggestion_edit& aEdit) -> bool;
 
 		[[nodiscard]] auto state() const noexcept -> const suggestion_text_state&;
@@ -191,11 +243,15 @@ namespace bpr::core {
 		/// \brief The point of byte `aOffset` of the text. An offset inside a
 		/// line ending is the end of its line; one past the text is its end.
 		[[nodiscard]] auto point_of(std::size_t aOffset) const -> text_point;
+		/// \brief The byte offset of a point in the text; a point in virtual
+		/// space is the end of its line.
+		[[nodiscard]] auto byte_offset_of(const text_point& aPoint) const -> std::size_t;
 
 	private:
 		void remember(bool aCoalesce);
 
 		suggestion_text_state              State;
+		text_indentation                   Indentation;
 		std::vector<suggestion_text_state> Undo;
 		std::vector<suggestion_text_state> Redo;
 		/// The last edit was a single typed character that later typing may join.

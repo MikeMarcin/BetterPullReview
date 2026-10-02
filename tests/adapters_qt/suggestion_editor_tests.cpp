@@ -3,6 +3,8 @@
 #include "bpr/qt/suggestion_composer.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 
+#include <QAccessible>
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
@@ -11,6 +13,7 @@
 #include <QImage>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPixmap>
@@ -61,15 +64,23 @@ namespace {
 	void click(qt::suggestion_editor& aEditor, const core::text_point& aAt, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
 	{
 		// The editor's own geometry names where a point is; the event goes through Qt.
-		auto editor = core::suggestion_text_editor{ aEditor.text() };
-		static_cast<void>(editor);
-		const auto  rectangle = aEditor.caret_rectangle();
-		const auto  width     = aEditor.fontMetrics().horizontalAdvance(QLatin1Char('M'));
-		const auto  height    = rectangle.height();
-		const auto  position  = QPointF{ 6.0 + static_cast<double>(aAt.Column) * width + 1.0, static_cast<double>(aAt.Line) * height + height / 2.0 };
+		const auto  cell     = aEditor.cell_rectangle(aAt);
+		const auto  position = QPointF{ cell.left() + 1.0, cell.center().y() };
 		QMouseEvent press{ QEvent::MouseButtonPress, position, aEditor.viewport()->mapToGlobal(position), Qt::LeftButton, Qt::LeftButton, aModifiers };
 		QApplication::sendEvent(aEditor.viewport(), &press);
 		QMouseEvent release{ QEvent::MouseButtonRelease, position, aEditor.viewport()->mapToGlobal(position), Qt::LeftButton, Qt::NoButton, aModifiers };
+		QApplication::sendEvent(aEditor.viewport(), &release);
+	}
+
+	/// A second click where the first was, as Qt reports it: a double click.
+	void double_click(qt::suggestion_editor& aEditor, const core::text_point& aAt)
+	{
+		click(aEditor, aAt);
+		const auto  cell     = aEditor.cell_rectangle(aAt);
+		const auto  position = QPointF{ cell.left() + 1.0, cell.center().y() };
+		QMouseEvent twice{ QEvent::MouseButtonDblClick, position, aEditor.viewport()->mapToGlobal(position), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(aEditor.viewport(), &twice);
+		QMouseEvent release{ QEvent::MouseButtonRelease, position, aEditor.viewport()->mapToGlobal(position), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(aEditor.viewport(), &release);
 	}
 
@@ -133,8 +144,85 @@ namespace {
 		key(aEditor, Qt::Key_Tab);
 		expect(aEditor.text() == "\tlong line here\n\t\tab            \n", "Tab inserts a tab");
 		key(aEditor, Qt::Key_Return);
+		expect(aEditor.text() == "\tlong line here\n\t\n\t\tab            \n", "a line break keeps the indentation before the caret");
 		key(aEditor, Qt::Key_Delete);
-		expect(aEditor.text() == "\tlong line here\n\t\nab            \n", "line break and forward delete");
+		expect(aEditor.text() == "\tlong line here\n\t\n\tab            \n", "forward delete");
+	}
+
+	/// The owner asked for indentation on Enter like a modern editor
+	/// (BPR-1156, 2026-10-02), through real key events.
+	void indents_like_an_editor(qt::suggestion_editor& aEditor)
+	{
+		aEditor.set_text("int f() {\n}\n");
+		aEditor.set_indentation(core::indentation_for("src/f.cpp", aEditor.text()));
+		aEditor.setFocus();
+		settle();
+		key(aEditor, Qt::Key_End);
+		key(aEditor, Qt::Key_Return);
+		expect(aEditor.text() == "int f() {\n\t\n}\n" && heads(aEditor).front() == core::text_point{ 1U, 4U }, "Enter after a brace indents one level");
+		type(aEditor, QStringLiteral("if (x) {"));
+		key(aEditor, Qt::Key_Return);
+		type(aEditor, QStringLiteral("y();"));
+		key(aEditor, Qt::Key_Return);
+		expect(aEditor.text() == "int f() {\n\tif (x) {\n\t\ty();\n\t\t\n}\n", "the level kept, one more after another brace");
+		type(aEditor, QStringLiteral("}"));
+		expect(aEditor.text() == "int f() {\n\tif (x) {\n\t\ty();\n\t}\n}\n", "a typed closer goes back a level");
+		// Between a pair: the closer moves to its own line.
+		aEditor.set_text("    call()\n");
+		aEditor.set_indentation(core::indentation_for("a.py", aEditor.text()));
+		key(aEditor, Qt::Key_End);
+		key(aEditor, Qt::Key_Left);
+		key(aEditor, Qt::Key_Return);
+		expect(aEditor.text() == "    call(\n        \n    )\n" && heads(aEditor).front() == core::text_point{ 1U, 8U }, "the closer on its own line, the file's four spaces");
+		capture(aEditor, QStringLiteral("suggestion-editor-auto-indent"));
+	}
+
+	/// Read-only, the same view is the cycle page's file pane: every
+	/// selection gesture works and nothing changes the text.
+	void reads_without_editing(qt::suggestion_editor& aEditor)
+	{
+		aEditor.set_text("auto value = other;\n");
+		aEditor.set_read_only(true);
+		aEditor.setFocus();
+		settle();
+		type(aEditor, QStringLiteral("x"));
+		key(aEditor, Qt::Key_Return);
+		key(aEditor, Qt::Key_Backspace);
+		key(aEditor, Qt::Key_Delete);
+		QApplication::clipboard()->setText(QStringLiteral("pasted"));
+		key(aEditor, Qt::Key_V, Qt::ControlModifier);
+		key(aEditor, Qt::Key_X, Qt::ControlModifier);
+		QInputMethodEvent committed{ QString{ }, { } };
+		committed.setCommitString(QStringLiteral("日本"));
+		QApplication::sendEvent(&aEditor, &committed);
+		expect(aEditor.text() == "auto value = other;\n" && !aEditor.inputMethodQuery(Qt::ImEnabled).toBool(), "nothing typed, pasted, cut or composed changes the text");
+		key(aEditor, Qt::Key_End, Qt::ShiftModifier);
+		key(aEditor, Qt::Key_C, Qt::ControlModifier);
+		expect(QApplication::clipboard()->text() == QStringLiteral("auto value = other;"), "Shift+End selects and Ctrl+C copies");
+		double_click(aEditor, { 0U, 7U });
+		expect(aEditor.has_selection() && aEditor.selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ 5U, 10U }, "a double click selects the word");
+		click(aEditor, { 0U, 7U });
+		expect(aEditor.selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ 0U, 20U }, "a third click selects the line");
+		auto* const menu  = aEditor.standard_menu(nullptr);
+		auto        shown = QStringList{ };
+		for (const auto* action : menu->actions()) {
+			if (!action->isSeparator()) {
+				shown.append(action->text());
+			}
+		}
+		expect(shown == QStringList{ QStringLiteral("&Copy"), QStringLiteral("Select All") }, "the read-only menu offers Copy and Select All");
+		delete menu;
+		auto* const accessible = QAccessible::queryAccessibleInterface(&aEditor);
+		auto* const reading    = accessible != nullptr ? accessible->textInterface() : nullptr;
+		expect(reading != nullptr && reading->text(0, reading->characterCount()) == QStringLiteral("auto value = other;\n") && accessible->state().readOnly && accessible->state().multiLine, "a screen reader reads the text");
+		int start = 0;
+		int end   = 0;
+		reading->selection(0, &start, &end);
+		expect(reading->selectionCount() == 1 && start == 0 && end == 20, "and the selection");
+		aEditor.set_read_only(false);
+		auto* const editing = aEditor.standard_menu(nullptr);
+		expect(editing->actions().size() > 5 && !accessible->state().readOnly, "editable: the full editing menu");
+		delete editing;
 	}
 
 	void box_copy_and_paste(qt::suggestion_editor& aEditor, qt::suggestion_editor& aTarget)
@@ -456,6 +544,8 @@ try {
 	virtual_space_tabs_and_deletion(*editor);
 	box_copy_and_paste(*editor, *target);
 	ime_and_mouse(*editor);
+	indents_like_an_editor(*editor);
+	reads_without_editing(*editor);
 	// The editor sits where the file is read; the composer beside it.
 	auto        pane  = QWidget{ };
 	auto* const code  = new qt::suggestion_editor{ &pane };

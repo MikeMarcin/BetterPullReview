@@ -16,6 +16,7 @@
 #include <QDir>
 #include <QGuiApplication>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -37,6 +38,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -44,6 +46,8 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 /// \file
 /// \brief The real workbench window with the real local-cycle composition
@@ -158,6 +162,32 @@ namespace {
 		auto       plain  = 0;
 		for (auto y = static_cast<int>(left.top() * ratio); y < static_cast<int>((left.bottom() + 1) * ratio) && y < image.height(); ++y) {
 			for (auto x = static_cast<int>(left.left() * ratio); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				role += colour_near(pixel, aColour) ? 1 : 0;
+				plain += colour_near(pixel, text) ? 1 : 0;
+			}
+		}
+		return role > 0 && plain == 0;
+	}
+
+	/// \brief The same rule in the code view, over the first `aWord`'s cells.
+	auto word_painted(qt::suggestion_editor& aView, const QString& aWord, const QColor& aColour) -> bool
+	{
+		const auto word  = aWord.toUtf8();
+		const auto found = aView.text().find(std::string_view{ word.constData(), static_cast<std::size_t>(word.size()) });
+		if (found == std::string::npos) {
+			return false;
+		}
+		const auto left   = aView.cell_rectangle(aView.model().point_of(found));
+		const auto right  = aView.cell_rectangle(aView.model().point_of(found + static_cast<std::size_t>(word.size())));
+		const auto pixmap = aView.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		const auto text   = aView.palette().color(QPalette::Text);
+		auto       role   = 0;
+		auto       plain  = 0;
+		for (auto y = static_cast<int>(std::ceil(left.top() * ratio)); y < static_cast<int>(left.bottom() * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(std::ceil(left.left() * ratio)); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
 				const auto pixel = image.pixelColor(x, y);
 				role += colour_near(pixel, aColour) ? 1 : 0;
 				plain += colour_near(pixel, text) ? 1 : 0;
@@ -289,7 +319,7 @@ try {
 	auto* const page = window.local_cycle();
 	expect(window.showing_local_cycle() && page != nullptr && page->isVisible(), "the cycle takes the review surface's place");
 	expect(identity_text(window).contains(QStringLiteral("parser-project")) && identity_text(window).contains(QStringLiteral("Local cycle")), "title row names the cycle and badges it local");
-	expect(page->projection().Revisions.size() == 1U && page->source()->toPlainText().startsWith(QStringLiteral("# Parser")), "R0 full source in one pane");
+	expect(page->projection().Revisions.size() == 1U && page->source()->text().starts_with("# Parser") && page->source()->read_only(), "R0 full source in one pane");
 	auto* const modality = window.findChild<QWidget*>(QStringLiteral("workbenchModalityAction"));
 	static_cast<void>(modality);
 	capture(window, QStringLiteral("desktop-cycle-r0"));
@@ -306,10 +336,7 @@ try {
 	const auto flow     = appearance.color(core::appearance_role::syntax_control_flow);
 	expect(word_painted(*page->source(), QStringLiteral("return"), flow) && word_painted(*page->source(), QStringLiteral("check"), function), "the source pane in the panes' syntax colours");
 	capture(window, QStringLiteral("desktop-cycle-source-syntax"));
-	auto cursor = page->source()->textCursor();
-	cursor.setPosition(39);
-	cursor.setPosition(51, QTextCursor::KeepAnchor);
-	page->source()->setTextCursor(cursor);
+	page->source()->select_bytes(41U, 53U);
 	QApplication::processEvents();
 	const auto anchor = page->selection_anchor();
 	expect(anchor && anchor->Original == "check(aText)" && anchor->Start == 41U, "exact CRLF byte anchor from the native selection");
@@ -323,17 +350,17 @@ try {
 	// selection: the whole file is edited in the main pane and each separate
 	// change is one exact suggestion (owner amendment to BPR-1156,
 	// 2026-10-01), coloured by the panes' classifier.
-	page->source()->setTextCursor(cursor);
+	page->source()->select_bytes(41U, 53U);
 	QApplication::processEvents();
-	auto* const sourceMenu = page->source_menu(page->source()->cursorRect(cursor).center());
-	expect(sourceMenu != nullptr && sourceMenu->actions().contains(page->suggest_action()) && page->suggest_action()->isEnabled() && page->source()->textCursor().hasSelection(),
+	auto* const sourceMenu = page->source_menu(page->source()->cell_rectangle(page->source()->model().point_of(45U)).center().toPoint());
+	expect(sourceMenu != nullptr && sourceMenu->actions().contains(page->suggest_action()) && page->suggest_action()->isEnabled() && page->source()->selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ 41U, 53U },
 		   "Suggest change in the source pane's context menu; a click inside the selection keeps it");
 	page->suggest_action()->trigger();
 	delete sourceMenu;
 	auto* const suggestion = page->composer()->editor();
 	auto* const preview    = page->composer()->preview();
 	const auto  original   = read_file(project / "src" / "parser.cpp");
-	expect(page->suggesting() && suggestion->isVisible() && !page->source()->isVisible() && suggestion->text() == original, "the whole file in the main pane");
+	expect(page->suggesting() && suggestion == page->source() && suggestion->isVisible() && !suggestion->read_only() && suggestion->text() == original, "the whole file in the main pane, in the same code view");
 	// The source pane already classified these bytes, so the retained
 	// classification colours the editor without waiting.
 	expect(span_painted(*suggestion, 4U, 9U, flow), "the editor paints return in the control-flow colour the panes use");
@@ -359,16 +386,24 @@ try {
 	page->composer()->save_button()->click();
 	settle(lanes);
 	expect(page->notes()->count() == 2 && page->notes()->item(1)->text().contains(QStringLiteral("Suggested change · 2")) && page->projection().Notes[1].Suggestions == 2U, "one note with both suggestions saved");
-	expect(!page->suggesting() && page->source()->isVisible() && read_file(project / "src" / "parser.cpp") == original, "the source pane back; the file on disk untouched");
+	expect(!page->suggesting() && page->source()->isVisible() && page->source()->read_only() && page->source()->text() == original && read_file(project / "src" / "parser.cpp") == original,
+		   "the source pane back on the captured bytes; the file on disk untouched");
+	// Enter indents as a code editor does: after the opening brace, one tab
+	// more, chosen for this C++ file (owner note of 2026-10-02).
+	page->suggest_action()->trigger();
+	page->source()->apply(core::place_caret{ .At = { 1U, 1U } });
+	QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r") };
+	QApplication::sendEvent(page->source(), &enter);
+	expect(page->source()->text() == "int parse(const char* aText)\r\n{\r\n\t\r\n\treturn check(aText);\r\n}\r\n", "Enter after a brace indents one tab, CRLF kept");
+	page->findChild<QPushButton*>(QStringLiteral("suggestionCancel"))->click();
+	settle(lanes);
+	expect(!page->suggesting() && page->source()->text() == original, "cancelled back to the captured bytes");
 	capture(window, QStringLiteral("desktop-cycle-notes"));
 
 	// One discussion across two files: link a README range to the first note.
 	emit page->files()->itemActivated(page->files()->item(0));
 	settle(lanes);
-	auto readme = page->source()->textCursor();
-	readme.setPosition(2);
-	readme.setPosition(8, QTextCursor::KeepAnchor);
-	page->source()->setTextCursor(readme);
+	page->source()->select_bytes(2U, 8U);
 	page->notes()->setCurrentRow(0);
 	QApplication::processEvents();
 	expect(page->relate_button()->isEnabled(), "a selection can join a note");

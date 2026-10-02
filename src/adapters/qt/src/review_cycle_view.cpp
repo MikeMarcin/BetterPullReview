@@ -75,16 +75,9 @@ namespace bpr::qt {
 			return { };
 		}
 
-		/// The display text of exact bytes: one block per line, whatever the ending.
-		auto display_text(const std::vector<std::uint8_t>& aBytes) -> QString
+		auto bytes_text(const std::vector<std::uint8_t>& aBytes) -> std::string_view
 		{
-			const auto lines = core::split_text_lines({ reinterpret_cast<const char*>(aBytes.data()), aBytes.size() });
-			auto       shown = QStringList{ };
-			shown.reserve(static_cast<qsizetype>(lines.size()));
-			for (const auto& line : lines) {
-				shown.append(text_of(line.Content));
-			}
-			return shown.join(QLatin1Char('\n'));
+			return { reinterpret_cast<const char*>(aBytes.data()), aBytes.size() };
 		}
 
 		/// "line 3" or "lines 3–5".
@@ -185,17 +178,6 @@ namespace bpr::qt {
 		auto first_line(const std::string& aBody) -> QString
 		{
 			return text_of(aBody).section(QLatin1Char('\n'), 0, 0).trimmed().left(160);
-		}
-
-		auto ending_size(const core::text_line_ending aEnding) -> std::uint64_t
-		{
-			switch (aEnding) {
-			case core::text_line_ending::crlf: return 2U;
-			case core::text_line_ending::lf:
-			case core::text_line_ending::cr:   return 1U;
-			case core::text_line_ending::none: return 0U;
-			}
-			return 0U;
 		}
 	}
 
@@ -325,12 +307,12 @@ namespace bpr::qt {
 		Files->setMinimumWidth(140);
 		Files->setContextMenuPolicy(Qt::CustomContextMenu);
 		Centre = new QStackedWidget{ Body };
-		Source = new QPlainTextEdit{ Centre };
+		// One code view: the file is read here, and Suggest change edits it
+		// here, so starting a suggestion changes nothing on screen but the
+		// caret (owner rejection of composer-layout v004, 2026-10-02).
+		Source = new suggestion_editor{ Centre };
 		Source->setObjectName(QStringLiteral("cycleSource"));
-		Source->setAccessibleName(QStringLiteral("Source"));
-		Source->setReadOnly(true);
-		Source->setLineWrapMode(QPlainTextEdit::NoWrap);
-		Source->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		Source->set_read_only(true);
 		Source->setContextMenuPolicy(Qt::CustomContextMenu);
 		SourceNotice = new QLabel{ Centre };
 		SourceNotice->setObjectName(QStringLiteral("cycleSourceNotice"));
@@ -343,12 +325,9 @@ namespace bpr::qt {
 		Comparison->setReadOnly(true);
 		Comparison->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Comparison->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		// Suggest change edits the whole file here, in the main pane.
-		SuggestionEditor = new suggestion_editor{ Centre };
 		Centre->addWidget(Source);
 		Centre->addWidget(SourceNotice);
 		Centre->addWidget(Comparison);
-		Centre->addWidget(SuggestionEditor);
 		ReadingPage = Source;
 
 		auto* const tray       = new QWidget{ Body };
@@ -474,7 +453,7 @@ namespace bpr::qt {
 			TrayComposer->setCurrentIndex(0);
 		});
 		connect(ReplyMenu, &QMenu::aboutToShow, this, [this] { rebuild_reply_menu(); });
-		Composer = new suggestion_composer{ *SuggestionEditor, TrayComposer };
+		Composer = new suggestion_composer{ *Source, TrayComposer };
 		TrayComposer->addWidget(Composer);
 		TrayComposer->setCurrentIndex(0);
 		trayColumn->addWidget(TrayComposer);
@@ -533,7 +512,7 @@ namespace bpr::qt {
 			PendingTarget.reset();
 			TrayComposer->setCurrentIndex(0);
 		});
-		connect(Source, &QPlainTextEdit::selectionChanged, this, [this] { refresh_actions(); });
+		Source->SelectionChanged = [this] { refresh_actions(); };
 		connect(Source, &QWidget::customContextMenuRequested, this, [this](const QPoint& aAt) {
 			if (auto* const menu = source_menu(aAt)) {
 				menu->popup(Source->viewport()->mapToGlobal(aAt));
@@ -552,7 +531,7 @@ namespace bpr::qt {
 			Dispatch.Relate(item, version, core::cycle_related_reference{ .Target = *anchor });
 		});
 		connect(Source->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](const int aValue) {
-			if (!Presenting && Projection.Source && Dispatch.ObserveLine) {
+			if (!Presenting && !suggesting() && Projection.Source && Dispatch.ObserveLine) {
 				Dispatch.ObserveLine(Projection.Source->Tab, static_cast<std::uint64_t>(std::max(aValue, 0)));
 			}
 		});
@@ -616,9 +595,7 @@ namespace bpr::qt {
 
 	void review_cycle_view::set_code_font(const QFont& aFont)
 	{
-		const auto tab = QFontMetricsF{ aFont }.horizontalAdvance(QLatin1Char(' ')) * core::default_suggestion_tab_width;
-		Source->setFont(aFont);
-		Source->setTabStopDistance(tab);
+		const auto tab = QFontMetricsF{ aFont }.horizontalAdvance(QLatin1Char(' ')) * TabWidth;
 		Comparison->setFont(aFont);
 		Comparison->setTabStopDistance(tab);
 		Composer->set_code_font(aFont);
@@ -627,6 +604,12 @@ namespace bpr::qt {
 	void review_cycle_view::adopt_appearance(const appearance_profile& aProfile)
 	{
 		SyntaxColors = code_role_colors_of(aProfile.palette());
+		// The review panes' code font and tab width, so the file reads as it does there.
+		if (const auto width = aProfile.typography().Code.TabWidth; width != TabWidth && width > 0U) {
+			TabWidth = width;
+			show_source();
+		}
+		set_code_font(aProfile.code_font());
 		apply_source_syntax();
 		Composer->adopt_appearance(aProfile);
 	}
@@ -644,22 +627,28 @@ namespace bpr::qt {
 
 	void review_cycle_view::apply_source_syntax()
 	{
-		// One block per display line of the shown bytes, as `display_text` made them.
-		if (!SourceSyntax.Spans || !Projection.Source) {
+		// While a suggestion is edited, the composer colours the text it holds.
+		if (!SourceSyntax.Spans || !Projection.Source || suggesting()) {
 			return;
 		}
-		const auto& bytes = Projection.Source->Bytes;
-		auto        block = Source->document()->firstBlock();
-		auto        begin = std::uint64_t{ 0 };
-		for (const auto& line : core::split_text_lines({ reinterpret_cast<const char*>(bytes.data()), bytes.size() })) {
-			if (!block.isValid()) {
-				break;
-			}
-			const auto content = std::span{ reinterpret_cast<const std::uint8_t*>(line.Content.data()), line.Content.size() };
-			apply_syntax_format_ranges(*Source->document(), block, code_syntax_format_ranges_at(SourceSyntax, begin, content, SyntaxColors));
-			begin += line.Content.size() + ending_size(line.Ending);
-			block = block.next();
+		Source->set_syntax(suggestion_syntax_lines(SourceSyntax, bytes_text(Projection.Source->Bytes), SyntaxColors));
+	}
+
+	void review_cycle_view::show_source()
+	{
+		if (suggesting() || !Projection.Source || ReadingPage != Source) {
+			return;
 		}
+		// The same line stays at the top, and the caret where it was.
+		const auto top                   = Source->first_visible_line();
+		const auto [selected, selection] = Source->selected_bytes();
+		const auto bytes                 = bytes_text(Projection.Source->Bytes);
+		const auto same                  = Source->text() == bytes;
+		Source->set_text(bytes, TabWidth);
+		if (same) {
+			Source->select_bytes(selected, selection);
+		}
+		Source->scroll_to_line(top);
 	}
 
 	void review_cycle_view::present(const application::review_cycle_workbench_projection& aProjection)
@@ -772,9 +761,12 @@ namespace bpr::qt {
 			ReadingPage = SourceNotice;
 		} else {
 			ReadingPage = Source;
+			// A file being edited stays as it is; leaving the suggestion shows these bytes.
+			if (changed && !suggesting()) {
+				Source->set_text(bytes_text(source->Bytes), TabWidth);
+				Source->scroll_to_line(source->Line);
+			}
 			if (changed) {
-				Source->setPlainText(display_text(source->Bytes));
-				Source->verticalScrollBar()->setValue(static_cast<int>(source->Line));
 				// Plain until the classification of exactly these bytes arrives.
 				if (SourceSyntaxWanted) {
 					SourceSyntaxWanted({ .Path = source->Path, .Document = std::string{ source->Bytes.begin(), source->Bytes.end() } });
@@ -1057,38 +1049,13 @@ namespace bpr::qt {
 		}
 	}
 
-	auto review_cycle_view::source_offset(const int aPosition) const -> std::optional<std::uint64_t>
-	{
-		if (!Projection.Source) {
-			return std::nullopt;
-		}
-		const auto& bytes = Projection.Source->Bytes;
-		const auto  lines = core::split_text_lines({ reinterpret_cast<const char*>(bytes.data()), bytes.size() });
-		const auto  block = Source->document()->findBlock(aPosition);
-		if (!block.isValid() || static_cast<std::size_t>(block.blockNumber()) >= lines.size()) {
-			return std::nullopt;
-		}
-		auto offset = std::uint64_t{ 0 };
-		for (auto line = 0; line < block.blockNumber(); ++line) {
-			const auto& entry = lines[static_cast<std::size_t>(line)];
-			offset += entry.Content.size() + ending_size(entry.Ending);
-		}
-		const auto prefix = block.text().left(aPosition - block.position()).toUtf8().size();
-		return offset + static_cast<std::uint64_t>(prefix);
-	}
-
 	auto review_cycle_view::selection_anchor() const -> std::optional<core::cycle_source_anchor>
 	{
-		const auto cursor = Source->textCursor();
-		if (!Projection.Source || !cursor.hasSelection() || Centre->currentWidget() != Source) {
+		if (!Projection.Source || !Source->has_selection() || Centre->currentWidget() != Source || suggesting()) {
 			return std::nullopt;
 		}
-		const auto start = source_offset(cursor.selectionStart());
-		const auto end   = source_offset(cursor.selectionEnd());
-		if (!start || !end) {
-			return std::nullopt;
-		}
-		return core::make_anchor(Projection.Source->Revision, Projection.Source->Path, Projection.Source->Bytes, *start, *end);
+		const auto [start, end] = Source->selected_bytes();
+		return core::make_anchor(Projection.Source->Revision, Projection.Source->Path, Projection.Source->Bytes, start, end);
 	}
 
 	void review_cycle_view::begin_comment()
@@ -1127,17 +1094,15 @@ namespace bpr::qt {
 		if (!SuggestAction->isEnabled() || !Projection.Source) {
 			return;
 		}
-		// The caret is enough: a selection, if there is one, is selected again in the editor.
-		const auto  cursor = Source->textCursor();
-		const auto  start  = source_offset(cursor.selectionStart());
-		const auto  end    = source_offset(cursor.selectionEnd());
-		const auto& shown  = *Projection.Source;
-		if (!start || !end || !Composer->begin({
+		// The caret is enough; the file stays where it is and becomes editable.
+		const auto [start, end] = Source->selected_bytes();
+		const auto& shown       = *Projection.Source;
+		if (!Composer->begin({
 				.Location = utf8(QStringLiteral("%1 · %2 · editing the whole file").arg(text_of(shown.Path), revision_text(shown.Revision))),
 				.Path     = shown.Path,
 				.File     = std::string{ shown.Bytes.begin(), shown.Bytes.end() },
-				.Start    = *start,
-				.End      = *end,
+				.Start    = start,
+				.End      = end,
 			})) {
 			return;
 		}
@@ -1146,11 +1111,11 @@ namespace bpr::qt {
 		if (latest && *latest != shown.Revision) {
 			Composer->set_source_status(suggestion_source_status::newer_available);
 		}
-		const auto top = static_cast<std::uint64_t>(std::max(Source->verticalScrollBar()->value(), 0));
 		TrayComposer->setCurrentWidget(Composer);
+		Source->setAccessibleName(QStringLiteral("Suggested code"));
+		Source->setAccessibleDescription(QStringLiteral("Edit the whole file. Alt+Shift+Arrow makes a box selection; Ctrl+Tab leaves the editor."));
 		show_reading_page();
-		SuggestionEditor->scroll_to_line(top);
-		SuggestionEditor->setFocus(Qt::OtherFocusReason);
+		Source->setFocus(Qt::OtherFocusReason);
 		refresh_actions();
 	}
 
@@ -1160,6 +1125,9 @@ namespace bpr::qt {
 			return;
 		}
 		SuggestionSource.reset();
+		read_source();
+		show_source();
+		apply_source_syntax();
 		show_reading_page();
 		refresh_actions();
 		if (Centre->currentWidget() == Source) {
@@ -1174,7 +1142,14 @@ namespace bpr::qt {
 
 	void review_cycle_view::show_reading_page()
 	{
-		Centre->setCurrentWidget(suggesting() ? SuggestionEditor : ReadingPage);
+		Centre->setCurrentWidget(suggesting() ? Source : ReadingPage);
+	}
+
+	void review_cycle_view::read_source()
+	{
+		Source->set_read_only(true);
+		Source->setAccessibleName(QStringLiteral("Source"));
+		Source->setAccessibleDescription(QStringLiteral("The captured file. Select text to comment on it, or Suggest change to edit it here."));
 	}
 
 	auto review_cycle_view::source_menu(const QPoint& aAt) -> QMenu*
@@ -1183,20 +1158,22 @@ namespace bpr::qt {
 			return nullptr;
 		}
 		// A right click outside the selection moves the caret, as a click would.
-		auto       cursor  = Source->textCursor();
-		const auto clicked = Source->cursorForPosition(aAt).position();
-		if (!cursor.hasSelection() || clicked < cursor.selectionStart() || clicked > cursor.selectionEnd()) {
-			cursor.setPosition(clicked);
-			Source->setTextCursor(cursor);
+		const auto point      = Source->point_at(aAt);
+		const auto clicked    = Source->model().byte_offset_of(point);
+		const auto [from, to] = Source->selected_bytes();
+		if (from == to || clicked < from || clicked > to) {
+			Source->apply(core::place_caret{ .At = point });
 		}
 		refresh_actions();
-		auto* const menu  = Source->createStandardContextMenu();
-		const auto  first = menu->actions().isEmpty() ? nullptr : menu->actions().constFirst();
+		auto* const menu = Source->standard_menu(this);
 		menu->setObjectName(QStringLiteral("cycleSourceMenu"));
 		menu->setAttribute(Qt::WA_DeleteOnClose);
-		menu->insertAction(first, CommentAction);
-		menu->insertAction(first, SuggestAction);
-		menu->insertSeparator(first);
+		if (!suggesting()) {
+			const auto first = menu->actions().isEmpty() ? nullptr : menu->actions().constFirst();
+			menu->insertAction(first, CommentAction);
+			menu->insertAction(first, SuggestAction);
+			menu->insertSeparator(first);
+		}
 		return menu;
 	}
 
@@ -1204,8 +1181,8 @@ namespace bpr::qt {
 	{
 		const auto open     = Projection.Cycle.has_value();
 		const auto shown    = Projection.Source && Projection.Source->Status == application::review_material_status::available;
-		const auto reading  = Centre->currentWidget() == Source;
-		const auto selected = Source->textCursor().hasSelection() && reading;
+		const auto reading  = Centre->currentWidget() == Source && !suggesting();
+		const auto selected = Source->has_selection() && reading;
 		const auto editable = shown && Projection.Source->Bytes.size() <= core::maximum_suggestion_editor_bytes;
 		CommentAction->setEnabled(open && shown && !suggesting());
 		SuggestAction->setEnabled(open && reading && editable && !suggesting());
@@ -1250,7 +1227,7 @@ namespace bpr::qt {
 	{
 		return Tabs;
 	}
-	auto review_cycle_view::source() const noexcept -> QPlainTextEdit*
+	auto review_cycle_view::source() const noexcept -> suggestion_editor*
 	{
 		return Source;
 	}

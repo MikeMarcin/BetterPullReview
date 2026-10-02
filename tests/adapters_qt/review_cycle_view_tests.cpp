@@ -17,11 +17,10 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabBar>
-#include <QTextCursor>
-#include <QTextDocument>
 #include <QToolButton>
 
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -101,13 +100,10 @@ namespace {
 		}
 	}
 
-	/// Selects UTF-16 positions [aFrom, aTo) in the source pane, as a drag would.
-	void select(qt::review_cycle_view& aView, const int aFrom, const int aTo)
+	/// Selects bytes [aFrom, aTo) of the shown file in the source pane, as a drag would.
+	void select(qt::review_cycle_view& aView, const std::uint64_t aFrom, const std::uint64_t aTo)
 	{
-		auto cursor = aView.source()->textCursor();
-		cursor.setPosition(aFrom);
-		cursor.setPosition(aTo, QTextCursor::KeepAnchor);
-		aView.source()->setTextCursor(cursor);
+		aView.source()->select_bytes(aFrom, aTo);
 		settle();
 	}
 
@@ -116,7 +112,7 @@ namespace {
 		aView.present(projection(1));
 		settle();
 		expect(aView.review_bar() != nullptr && aView.review_bar()->role() == qt::strip_role::review_bar, "the scaffold's review bar");
-		expect(aView.source()->toPlainText() == QStringLiteral("int f()\n{\n\treturn café(1);\n}\n"), "one block per line, whatever the ending");
+		expect(aView.source()->text() == parser && aView.source()->model().state().Lines.size() == 5U && aView.source()->read_only(), "the exact bytes, one line per line whatever the ending, read-only");
 		expect(aView.findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"))->text() == QStringLiteral("Full source · R1"), "full source names its revision");
 		expect(aView.findChild<QLabel*>(QStringLiteral("cycleFilePosition"))->text() == QStringLiteral("File 2 of 2"), "file position");
 		expect(aView.tabs()->tabs().size() == 1U && aView.tabs()->tabs()[0].Active && aView.tabs()->tabs()[0].OwnPair.isEmpty(), "one tab on the latest revision");
@@ -130,43 +126,155 @@ namespace {
 		aView.updates_toggle()->click();
 	}
 
-	auto near(const QColor& aPixel, const QColor& aColour) -> bool
+	/// Within a small distance of `aColour`. Not `near`: the Windows SDK
+	/// defines `near` as an empty macro.
+	auto colour_near(const QColor& aPixel, const QColor& aColour) -> bool
 	{
 		return std::abs(aPixel.red() - aColour.red()) <= 24 && std::abs(aPixel.green() - aColour.green()) <= 24 && std::abs(aPixel.blue() - aColour.blue()) <= 24;
 	}
 
-	/// \brief Whether the first `aWord` in `aEdit` is painted in `aColour`:
-	/// inside the word's own rectangle at least one pixel is near `aColour`
-	/// and none is near the plain text colour.
+	/// \brief Whether the first `aWord` in the code view is painted in
+	/// `aColour`: inside the word's own cells at least one pixel is near
+	/// `aColour` and none is near the plain text colour.
 	/// \details Relative to the word's own ink rather than a pixel count, so it
 	/// holds at 1x and 2x and in any face: anti-aliasing blends a role colour
-	/// toward the background, never toward the text colour.
-	auto word_painted(QPlainTextEdit& aEdit, const QString& aWord, const QColor& aColour) -> bool
+	/// toward the background, never toward the text colour. The same rule
+	/// holds under a selection, which is a wash under the glyphs.
+	auto bytes_painted(qt::suggestion_editor& aView, const std::size_t aOffset, const std::size_t aLength, const QColor& aColour) -> bool
 	{
-		const auto found = aEdit.document()->find(aWord);
-		if (found.isNull()) {
-			return false;
-		}
-		auto start = found;
-		start.setPosition(found.selectionStart());
-		auto end = found;
-		end.setPosition(found.selectionEnd());
-		const auto left   = aEdit.cursorRect(start);
-		const auto right  = aEdit.cursorRect(end);
-		const auto pixmap = aEdit.viewport()->grab();
+		const auto left   = aView.cell_rectangle(aView.model().point_of(aOffset));
+		const auto right  = aView.cell_rectangle(aView.model().point_of(aOffset + aLength));
+		const auto pixmap = aView.viewport()->grab();
 		const auto image  = pixmap.toImage();
 		const auto ratio  = pixmap.devicePixelRatio();
-		const auto text   = aEdit.palette().color(QPalette::Text);
+		const auto plain  = aView.palette().color(QPalette::Text);
 		auto       role   = 0;
-		auto       plain  = 0;
-		for (auto y = static_cast<int>(left.top() * ratio); y < static_cast<int>((left.bottom() + 1) * ratio) && y < image.height(); ++y) {
-			for (auto x = static_cast<int>(left.left() * ratio); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
+		auto       other  = 0;
+		for (auto y = static_cast<int>(std::ceil(left.top() * ratio)); y < static_cast<int>(left.bottom() * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(std::ceil(left.left() * ratio)); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
 				const auto pixel = image.pixelColor(x, y);
-				role += near(pixel, aColour) ? 1 : 0;
-				plain += near(pixel, text) ? 1 : 0;
+				role += colour_near(pixel, aColour) ? 1 : 0;
+				other += colour_near(pixel, plain) ? 1 : 0;
 			}
 		}
-		return role > 0 && plain == 0;
+		return role > 0 && other == 0;
+	}
+
+	auto word_painted(qt::suggestion_editor& aView, const QString& aWord, const QColor& aColour) -> bool
+	{
+		const auto word  = aWord.toUtf8();
+		const auto found = aView.text().find(std::string_view{ word.constData(), static_cast<std::size_t>(word.size()) });
+		return found != std::string::npos && bytes_painted(aView, found, static_cast<std::size_t>(word.size()), aColour);
+	}
+
+	/// `aTop` laid over `aBase`, as a wash with alpha is painted.
+	auto over(const QColor& aTop, const QColor& aBase) -> QColor
+	{
+		const auto alpha = aTop.alphaF();
+		return QColor::fromRgbF(static_cast<float>(aTop.redF() * alpha + aBase.redF() * (1.0 - alpha)), static_cast<float>(aTop.greenF() * alpha + aBase.greenF() * (1.0 - alpha)),
+								static_cast<float>(aTop.blueF() * alpha + aBase.blueF() * (1.0 - alpha)));
+	}
+
+	/// A flat fill has no anti-aliasing: a few units of rounding at most.
+	auto fill_is(const QColor& aPixel, const QColor& aColour) -> bool
+	{
+		return std::abs(aPixel.red() - aColour.red()) <= 3 && std::abs(aPixel.green() - aColour.green()) <= 3 && std::abs(aPixel.blue() - aColour.blue()) <= 3;
+	}
+
+	/// The pixel at the middle of one cell of the code view.
+	auto cell_pixel(qt::suggestion_editor& aView, const QImage& aImage, const core::text_point& aPoint) -> QColor
+	{
+		const auto middle = aView.cell_rectangle(aPoint).center() * aImage.devicePixelRatio();
+		return aImage.pixelColor(static_cast<int>(middle.x()), static_cast<int>(middle.y()));
+	}
+
+	/// Pixels that differ between two renders of the code view, outside the
+	/// columns around the caret, whose colour follows focus.
+	auto differing_pixels(const QImage& aBefore, const QImage& aAfter, const QRect& aCaret) -> int
+	{
+		if (aBefore.size() != aAfter.size()) {
+			return -1;
+		}
+		const auto ratio = aBefore.devicePixelRatio();
+		const auto caret = QRectF{ QPointF{ aCaret.left() - 2.0, static_cast<qreal>(aCaret.top()) }, QPointF{ aCaret.right() + 3.0, aCaret.bottom() + 1.0 } };
+		auto       count = 0;
+		for (auto y = 0; y < aBefore.height(); ++y) {
+			for (auto x = 0; x < aBefore.width(); ++x) {
+				if (!caret.contains(QPointF{ x / ratio, y / ratio }) && aBefore.pixel(x, y) != aAfter.pixel(x, y)) {
+					++count;
+				}
+			}
+		}
+		return count;
+	}
+
+	/// \brief The owner rejected composer-layout v004 (2026-10-02): the text
+	/// changed when Suggest change began, selected lines lost their syntax
+	/// colours, and selection behaved differently in the two modes. The file
+	/// is now read and edited in one code view.
+	/// \details Rendered before and after Suggest change at the same scroll
+	/// position, the pane is the same pixel for pixel but for the caret; a
+	/// selected keyword keeps its role colour by the local role/text pixel
+	/// rule; and the selection is the review panes' wash, `Highlight` at
+	/// `core::selection_wash_alpha` over the code background.
+	void suggesting_changes_nothing_on_screen()
+	{
+		auto       view = qt::review_cycle_view{ };
+		const auto look = qt::appearance_profile{ };
+		view.adopt_appearance(look);
+		view.resize(1280, 760);
+		view.show();
+		auto file  = std::string{ };
+		auto spans = application::token_span_list{ };
+		for (auto block = 0U; block < 80U; ++block) {
+			const auto number = std::to_string(block);
+			file.append("int f").append(number).append("()\r\n{\r\n\treturn caf\xC3\xA9(").append(number).append(");\r\n}\r\n");
+			spans.push_back({ .Line = 4U * block + 2U, .Column = 1U, .Length = 6U, .Role = core::appearance_role::syntax_control_flow });
+			spans.push_back({ .Line = 4U * block + 2U, .Column = 8U, .Length = 5U, .Role = core::appearance_role::syntax_function });
+			spans.push_back({ .Line = 4U * block + 2U, .Column = 14U, .Length = static_cast<std::uint32_t>(number.size()), .Role = core::appearance_role::syntax_number });
+		}
+		auto shown          = projection(1);
+		shown.Source->Bytes = bytes(file);
+		view.present(shown);
+		settle();
+		expect(view.adopt_source_syntax(file, std::make_shared<const application::token_span_list>(std::move(spans))), "classified");
+		auto* const code = view.source();
+		// Line 42 is "\treturn café(10);": select "return café(10)", a third of the way down.
+		const auto line   = file.find("\treturn caf\xC3\xA9(10);") + 1U;
+		const auto length = std::string_view{ "return caf\xC3\xA9(10)" }.size();
+		const auto flow   = look.color(core::appearance_role::syntax_control_flow);
+		const auto base   = code->palette().color(QPalette::Base);
+		auto       wash   = code->palette().color(QPalette::Highlight);
+		code->scroll_to_line(30U);
+		code->select_bytes(line, line + length);
+		code->setFocus(Qt::MouseFocusReason);
+		settle();
+		wash.setAlpha(core::selection_wash_alpha);
+		const auto selected = over(wash, base);
+		expect(code->first_visible_line() == 30U && code->has_selection(), "a selection in view, scrolled down");
+		expect(!fill_is(selected, base), "the wash differs from the background");
+		const auto before = code->viewport()->grab().toImage();
+		capture(*code, QStringLiteral("cycle-code-view-reading"));
+		expect(bytes_painted(*code, line, 6U, flow), "reading: the selected keyword keeps its role colour");
+		expect(fill_is(cell_pixel(*code, before, { 42U, 10U }), selected), "reading: the selection is the review panes' wash");
+		expect(fill_is(cell_pixel(*code, before, { 41U, 30U }), base), "and outside it the code background");
+
+		view.suggest_action()->trigger();
+		settle();
+		expect(view.suggesting() && code == view.composer()->editor() && !code->read_only() && view.window()->focusWidget() == code, "the same view, now editable and focused");
+		expect(code->first_visible_line() == 30U && code->selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ line, line + length }, "the same scroll position and selection");
+		const auto after = code->viewport()->grab().toImage();
+		capture(*code, QStringLiteral("cycle-code-view-suggesting"));
+		expect(bytes_painted(*code, line, 6U, flow), "editing: the selected keyword keeps its role colour");
+		expect(cell_pixel(*code, after, { 42U, 10U }) == cell_pixel(*code, before, { 42U, 10U }), "the selection fill is identical in both modes");
+		const auto changed = differing_pixels(before, after, code->caret_rectangle());
+		if (changed != 0) {
+			std::cerr << "differing pixels outside the caret: " << changed << '\n';
+		}
+		expect(changed == 0, "the pane is the same pixel for pixel but for the caret");
+		view.findChild<QPushButton*>(QStringLiteral("suggestionCancel"))->click();
+		settle();
+		expect(!view.suggesting() && code->read_only() && code->first_visible_line() == 30U && differing_pixels(before, code->viewport()->grab().toImage(), code->caret_rectangle()) == 0, "and back to reading without a change");
 	}
 
 	/// \brief [[BPR-1157]]: the owner rejected a plain source pane. The page
@@ -216,10 +324,28 @@ namespace {
 		expect(!view.adopt_source_syntax(parser, spans), "a late classification of the earlier bytes is refused");
 	}
 
+	/// A file too large to edit is still read whole in the same view, and
+	/// Suggest change is not offered for it.
+	void reads_a_file_too_large_to_edit()
+	{
+		auto view = qt::review_cycle_view{ };
+		view.resize(1280, 760);
+		view.show();
+		auto large          = projection(1);
+		auto file           = std::string(core::maximum_suggestion_editor_bytes, 'x') + "\nlast line\n";
+		large.Source->Bytes = bytes(file);
+		view.present(large);
+		settle();
+		expect(view.source()->text() == file && view.source()->read_only(), "held whole, never cut");
+		view.source()->setFocus(Qt::OtherFocusReason);
+		view.source()->apply(core::move_carets{ .Motion = core::text_motion::document_end, .Extend = true });
+		expect(view.source()->selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ 0U, file.size() } && !view.suggest_action()->isEnabled() && view.comment_action()->isEnabled(), "selected and commented on, not suggested on");
+	}
+
 	void anchors_exact_bytes_from_a_native_selection(qt::review_cycle_view& aView, application::review_cycle_suggestion_request& aSuggested, core::begin_cycle_feedback& aNoted)
 	{
-		// "café(1)" is UTF-16 positions 18..25 of the display text; bytes 20..28 of the CRLF file.
-		select(aView, 18, 25);
+		// "café(1)" is bytes 20..28 of the CRLF file.
+		select(aView, 20, 28);
 		const auto anchor = aView.selection_anchor();
 		expect(anchor && anchor->Start == 20U && anchor->End == 28U && anchor->Original == "caf\xC3\xA9(1)", "exact byte anchor across CRLF and UTF-8");
 		expect(anchor->Blob == core::cycle_material_digest{ core::sha256(bytes(parser)) } && anchor->Before == "int f()\r\n{\r\n\treturn " && anchor->After == ";\r\n}\r\n", "digest and context");
@@ -239,11 +365,11 @@ namespace {
 		// Suggest change from the selection: the whole file is edited in the
 		// main pane, with the selection selected again (owner amendment to
 		// BPR-1156, 2026-10-01).
-		select(aView, 18, 25);
+		select(aView, 20, 28);
 		aView.suggest_action()->trigger();
 		settle();
 		auto* const editor = aView.composer()->editor();
-		expect(aView.suggesting() && aView.composer()->isVisible() && editor->isVisible() && !aView.source()->isVisible(), "the editor takes the source pane's place");
+		expect(aView.suggesting() && aView.composer()->isVisible() && editor == aView.source() && editor->isVisible() && !editor->read_only(), "the source pane itself becomes the editor");
 		expect(editor->text() == parser && aView.window()->focusWidget() == editor, "the whole file, focused");
 		expect(editor->model().state().Carets.size() == 1U && editor->model().state().Carets[0].Anchor == core::text_point{ 2U, 11U } && editor->model().state().Carets[0].Head == core::text_point{ 2U, 18U },
 			   "the selection selected again");
@@ -256,15 +382,14 @@ namespace {
 		expect(aSuggested.Edits.size() == 1U && aSuggested.Edits[0].Selection == line && aSuggested.Edits[0].Replacement == "\treturn coffee(1);\r\n"
 				   && aSuggested.Intent == core::cycle_suggestion_intent::exact_replacement,
 			   "the changed line handed over exactly, whole");
-		expect(!aView.suggesting() && aView.source()->isVisible() && !editor->isVisible(), "the source pane back after Save");
+		expect(!aView.suggesting() && aView.source()->isVisible() && aView.source()->read_only() && aView.source()->text() == parser, "the source pane back after Save, read-only, on the captured bytes");
 	}
 
-	/// The point of UTF-16 position `aPosition` of the source pane, in its viewport.
-	auto point_of(qt::review_cycle_view& aView, const int aPosition) -> QPoint
+	/// The point of byte `aOffset` of the shown file in the source pane, in its viewport.
+	auto point_of(qt::review_cycle_view& aView, const std::uint64_t aOffset) -> QPoint
 	{
-		auto cursor = aView.source()->textCursor();
-		cursor.setPosition(aPosition);
-		return aView.source()->cursorRect(cursor).center();
+		const auto cell = aView.source()->cell_rectangle(aView.source()->model().point_of(aOffset));
+		return QPointF{ cell.left() + 1.0, cell.center().y() }.toPoint();
 	}
 
 	/// Owner amendment to BPR-1156 (2026-10-01): Suggest change from a caret
@@ -273,10 +398,10 @@ namespace {
 	void suggests_from_the_caret_and_the_context_menu(qt::review_cycle_view& aView, application::review_cycle_suggestion_request& aSuggested)
 	{
 		aView.present(projection(1));
-		select(aView, 18, 25);
+		select(aView, 20, 28);
 		// A right click outside the selection moves the caret there, as a click would.
 		auto* menu = aView.source_menu(point_of(aView, 3));
-		expect(menu != nullptr && !aView.source()->textCursor().hasSelection() && aView.source()->textCursor().position() == 3, "the caret moved to the click");
+		expect(menu != nullptr && !aView.source()->has_selection() && aView.source()->selected_bytes().first == 3U, "the caret moved to the click");
 		const auto actions = menu->actions();
 		expect(actions.size() > 3 && actions[0] == aView.comment_action() && actions[1] == aView.suggest_action() && actions[2]->isSeparator(), "Comment and Suggest change first in the menu");
 		expect(std::ranges::any_of(actions, [](const QAction* aAction) { return aAction->text().contains(QStringLiteral("Copy")); }), "then the pane's own Copy");
@@ -311,7 +436,7 @@ namespace {
 		editor->apply(core::insert_text{ "x" });
 		aView.findChild<QPushButton*>(QStringLiteral("suggestionCancel"))->click();
 		settle();
-		expect(aSuggested.Edits.empty() && !aView.suggesting() && aView.source()->isVisible(), "cancelled");
+		expect(aSuggested.Edits.empty() && !aView.suggesting() && aView.source()->read_only() && aView.source()->text() == parser, "cancelled; the edit is gone from the pane");
 	}
 
 	void states_newer_material_without_moving(qt::review_cycle_view& aView)
@@ -320,7 +445,7 @@ namespace {
 		settle();
 		expect(aView.tabs()->tabs()[0].OwnPair == QStringLiteral("R1"), "a tab on an older revision says so");
 		expect(aView.notes()->item(0)->text().contains(QStringLiteral("Appears 2 times in R2; none chosen")), "ambiguous correspondence stated");
-		select(aView, 18, 25);
+		select(aView, 20, 28);
 		aView.suggest_action()->trigger();
 		expect(aView.composer()->source_status() == qt::suggestion_source_status::newer_available && aView.composer()->editor()->text() == parser, "newer material stated; the edit stays on R1's bytes");
 		capture(aView, QStringLiteral("cycle-newer-material"));
@@ -578,6 +703,8 @@ try {
 	settle();
 	presents_the_scaffold_and_notes(view);
 	colours_the_source_from_its_classification();
+	suggesting_changes_nothing_on_screen();
+	reads_a_file_too_large_to_edit();
 	anchors_exact_bytes_from_a_native_selection(view, suggested, noted);
 	suggests_from_the_caret_and_the_context_menu(view, suggested);
 	states_newer_material_without_moving(view);

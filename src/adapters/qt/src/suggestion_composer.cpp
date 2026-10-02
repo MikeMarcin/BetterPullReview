@@ -151,7 +151,10 @@ namespace bpr::qt {
 		Classified = { };
 		Hunks.clear();
 		Location->setText(text_of(Source.Location));
-		Editor->set_text(Source.File);
+		// The file already shown keeps its colours and scroll: only the caret changes.
+		Editor->set_text(Source.File, Editor->model().state().TabWidth);
+		Editor->set_indentation(core::indentation_for(Source.Path, Source.File));
+		Editor->set_read_only(false);
 		Editor->select_bytes(Source.Start, Source.End);
 		Illustrative->setChecked(false);
 		Rationale->clear();
@@ -210,16 +213,7 @@ namespace bpr::qt {
 	void suggestion_composer::apply_syntax()
 	{
 		if (Classified[1].Spans) {
-			auto lines = std::vector<suggestion_line_syntax>{ };
-			auto begin = std::uint64_t{ 0 };
-			for (auto& line : core::split_text_lines(Texts[1])) {
-				const auto length  = line.Content.size() + (line.Ending == core::text_line_ending::crlf ? 2U : line.Ending == core::text_line_ending::none ? 0U
-																																						   : 1U);
-				auto       formats = formats_of(suggestion_syntax_side::proposed, begin, line.Content);
-				lines.push_back({ .Content = std::move(line.Content), .Formats = std::move(formats) });
-				begin += length;
-			}
-			Editor->set_syntax(std::move(lines));
+			Editor->set_syntax(suggestion_syntax_lines(Classified[1], Texts[1], SyntaxColors));
 		}
 		// Each row after its marker and a space; a header in the diff panes' header colours.
 		auto block = Preview->document()->firstBlock();

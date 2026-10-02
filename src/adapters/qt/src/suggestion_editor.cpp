@@ -1,5 +1,8 @@
 #include "bpr/qt/suggestion_editor.hpp"
 
+#include <QAccessible>
+#include <QAccessibleWidget>
+#include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QFocusEvent>
@@ -8,24 +11,38 @@
 #include <QFontMetricsF>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
+#include <QStyleHints>
+#include <QTextDocument>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <span>
 #include <utility>
 
 namespace bpr::qt {
 	namespace {
-		constexpr int margin = 6;
+		/// The text document's own margin, which the review panes lay their text out from.
+		auto document_margin() -> qreal
+		{
+			static const auto margin = QTextDocument{ }.documentMargin();
+			return margin;
+		}
 
 		auto utf8(const QString& aText) -> std::string
 		{
 			const auto bytes = aText.toUtf8();
 			return { bytes.constData(), static_cast<std::size_t>(bytes.size()) };
+		}
+
+		auto text_of(const std::string_view aBytes) -> QString
+		{
+			return QString::fromUtf8(aBytes.data(), static_cast<qsizetype>(aBytes.size()));
 		}
 
 		/// A standard key sequence and the motion it means.
@@ -68,24 +85,196 @@ namespace bpr::qt {
 			default:            return std::nullopt;
 			}
 		}
+
+		/// The text interface a screen reader reads the code view through,
+		/// in UTF-16 offsets of the whole text, as `QPlainTextEdit` offers.
+		class code_view_accessible final : public QAccessibleWidget, public QAccessibleTextInterface
+		{
+		public:
+			explicit code_view_accessible(suggestion_editor* const aView)
+				: QAccessibleWidget{ aView, QAccessible::EditableText }
+			{
+			}
+
+			auto interface_cast(const QAccessible::InterfaceType aType) -> void* override
+			{
+				return aType == QAccessible::TextInterface ? static_cast<QAccessibleTextInterface*>(this) : QAccessibleWidget::interface_cast(aType);
+			}
+
+			[[nodiscard]] auto state() const -> QAccessible::State override
+			{
+				auto state           = QAccessibleWidget::state();
+				state.multiLine      = true;
+				state.selectableText = true;
+				state.readOnly       = view().read_only();
+				state.editable       = !view().read_only();
+				return state;
+			}
+
+			[[nodiscard]] auto text(const QAccessible::Text aKind) const -> QString override
+			{
+				return aKind == QAccessible::Value ? whole() : QAccessibleWidget::text(aKind);
+			}
+
+			void selection(const int aIndex, int* const aStart, int* const aEnd) const override
+			{
+				*aStart = 0;
+				*aEnd   = 0;
+				if (aIndex == 0 && view().has_selection()) {
+					const auto [start, end] = view().selected_bytes();
+					*aStart                 = units_of(start);
+					*aEnd                   = units_of(end);
+				}
+			}
+
+			[[nodiscard]] auto selectionCount() const -> int override
+			{
+				return view().has_selection() ? 1 : 0;
+			}
+
+			void addSelection(const int aStart, const int aEnd) override
+			{
+				view().select_bytes(bytes_of(aStart), bytes_of(aEnd));
+			}
+
+			void removeSelection(const int aIndex) override
+			{
+				static_cast<void>(aIndex);
+				const auto caret = view().selected_bytes().second;
+				view().select_bytes(caret, caret);
+			}
+
+			void setSelection(const int aIndex, const int aStart, const int aEnd) override
+			{
+				static_cast<void>(aIndex);
+				view().select_bytes(bytes_of(aStart), bytes_of(aEnd));
+			}
+
+			[[nodiscard]] auto cursorPosition() const -> int override
+			{
+				const auto& state = view().model().state();
+				return units_of(view().model().byte_offset_of(state.Carets[state.Primary].Head));
+			}
+
+			void setCursorPosition(const int aPosition) override
+			{
+				const auto at = bytes_of(aPosition);
+				view().select_bytes(at, at);
+			}
+
+			[[nodiscard]] auto text(const int aStart, const int aEnd) const -> QString override
+			{
+				return whole().mid(aStart, aEnd - aStart);
+			}
+
+			[[nodiscard]] auto characterCount() const -> int override
+			{
+				return static_cast<int>(whole().size());
+			}
+
+			[[nodiscard]] auto characterRect(const int aOffset) const -> QRect override
+			{
+				const auto cell = view().cell_rectangle(view().model().point_of(bytes_of(aOffset))).toAlignedRect();
+				return QRect{ view().viewport()->mapToGlobal(cell.topLeft()), cell.size() };
+			}
+
+			[[nodiscard]] auto offsetAtPoint(const QPoint& aPoint) const -> int override
+			{
+				const auto at = view().point_at(view().viewport()->mapFromGlobal(aPoint));
+				return units_of(view().model().byte_offset_of(at));
+			}
+
+			void scrollToSubstring(const int aStart, const int aEnd) override
+			{
+				static_cast<void>(aEnd);
+				view().scroll_to_line(view().model().point_of(bytes_of(aStart)).Line);
+			}
+
+			[[nodiscard]] auto attributes(const int aOffset, int* const aStart, int* const aEnd) const -> QString override
+			{
+				*aStart = aOffset;
+				*aEnd   = aOffset;
+				return { };
+			}
+
+		private:
+			[[nodiscard]] auto view() const -> suggestion_editor&
+			{
+				return *static_cast<suggestion_editor*>(widget());
+			}
+
+			[[nodiscard]] auto whole() const -> QString
+			{
+				return text_of(view().text());
+			}
+
+			[[nodiscard]] auto units_of(const std::uint64_t aBytes) const -> int
+			{
+				const auto bytes = view().text();
+				return static_cast<int>(text_of(std::string_view{ bytes }.substr(0, std::min<std::size_t>(aBytes, bytes.size()))).size());
+			}
+
+			[[nodiscard]] auto bytes_of(const int aUnits) const -> std::uint64_t
+			{
+				return static_cast<std::uint64_t>(whole().left(std::max(aUnits, 0)).toUtf8().size());
+			}
+		};
+
+		auto code_view_accessible_factory(const QString& aKey, QObject* const aObject) -> QAccessibleInterface*
+		{
+			static_cast<void>(aKey);
+			if (auto* const view = dynamic_cast<suggestion_editor*>(aObject); view != nullptr) {
+				return new code_view_accessible{ view };
+			}
+			return nullptr;
+		}
+
+		void install_code_view_accessibility()
+		{
+			static auto installed = false;
+			if (!installed) {
+				QAccessible::installFactory(&code_view_accessible_factory);
+				installed = true;
+			}
+		}
 	}
 
 	auto suggestion_code_font() -> QFont
 	{
-		auto font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-		font.setStyleHint(QFont::TypeWriter);
-		font.setFixedPitch(true);
-		if (!QFontInfo{ font }.fixedPitch()) {
-			font.setFamilies({ font.family(), QStringLiteral("Menlo"), QStringLiteral("SF Mono"), QStringLiteral("Consolas"), QStringLiteral("Cascadia Mono"),
-							   QStringLiteral("DejaVu Sans Mono"), QStringLiteral("Liberation Mono"), QStringLiteral("Noto Sans Mono"), QStringLiteral("Courier New") });
+		return fixed_pitch_code_font(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+	}
+
+	auto fixed_pitch_code_font(QFont aFont) -> QFont
+	{
+		if (QFontInfo{ aFont }.fixedPitch()) {
+			return aFont;
 		}
-		return font;
+		aFont.setStyleHint(QFont::TypeWriter);
+		aFont.setFixedPitch(true);
+		aFont.setFamilies({ aFont.family(), QStringLiteral("Menlo"), QStringLiteral("SF Mono"), QStringLiteral("Consolas"), QStringLiteral("Cascadia Mono"), QStringLiteral("DejaVu Sans Mono"),
+							QStringLiteral("Liberation Mono"), QStringLiteral("Noto Sans Mono"), QStringLiteral("Courier New") });
+		return aFont;
+	}
+
+	auto suggestion_syntax_lines(const classified_text& aClassified, const std::string_view aText, const code_role_colors& aColors) -> std::vector<suggestion_line_syntax>
+	{
+		auto lines = std::vector<suggestion_line_syntax>{ };
+		auto begin = std::uint64_t{ 0 };
+		for (auto& line : core::split_text_lines(aText)) {
+			const auto ending  = line.Ending == core::text_line_ending::crlf ? 2U : line.Ending == core::text_line_ending::none ? 0U
+																																: 1U;
+			auto       formats = code_syntax_format_ranges_at(aClassified, begin, std::span{ reinterpret_cast<const std::uint8_t*>(line.Content.data()), line.Content.size() }, aColors);
+			begin += line.Content.size() + ending;
+			lines.push_back({ .Content = std::move(line.Content), .Formats = std::move(formats) });
+		}
+		return lines;
 	}
 
 	suggestion_editor::suggestion_editor(QWidget* aParent)
 		: QAbstractScrollArea{ aParent }
 		, CodeFont{ suggestion_code_font() }
 	{
+		install_code_view_accessibility();
 		setObjectName(QStringLiteral("suggestionEditor"));
 		setAccessibleName(QStringLiteral("Suggested code"));
 		setAccessibleDescription(QStringLiteral("Edit the proposed code. Alt+Shift+Arrow makes a box selection; Ctrl+Tab leaves the editor."));
@@ -93,15 +282,22 @@ namespace bpr::qt {
 		setFocusPolicy(Qt::StrongFocus);
 		viewport()->setCursor(Qt::IBeamCursor);
 		setFont(CodeFont);
+		measure();
 		update_scrollbars();
 	}
 
 	void suggestion_editor::set_text(const std::string_view aText, const std::uint32_t aTabWidth)
 	{
-		Editor = core::suggestion_text_editor{ aText, aTabWidth };
+		const auto same = Editor.text() == aText && Editor.state().TabWidth == aTabWidth;
+		auto       next = core::suggestion_text_editor{ aText, aTabWidth };
+		next.set_indentation(Editor.indentation());
+		Editor = std::move(next);
 		Preedit.clear();
-		Syntax.clear();
-		SyntaxByContent.clear();
+		measure_lines();
+		if (!same) {
+			Syntax.clear();
+			SyntaxByContent.clear();
+		}
 		update_scrollbars();
 		viewport()->update();
 	}
@@ -116,6 +312,24 @@ namespace bpr::qt {
 		return Editor;
 	}
 
+	void suggestion_editor::set_read_only(const bool aReadOnly)
+	{
+		ReadOnly = aReadOnly;
+		Preedit.clear();
+		setAttribute(Qt::WA_InputMethodEnabled, !aReadOnly);
+		viewport()->update();
+	}
+
+	auto suggestion_editor::read_only() const noexcept -> bool
+	{
+		return ReadOnly;
+	}
+
+	void suggestion_editor::set_indentation(core::text_indentation aIndentation)
+	{
+		Editor.set_indentation(std::move(aIndentation));
+	}
+
 	auto suggestion_editor::preedit() const noexcept -> const QString&
 	{
 		return Preedit;
@@ -123,11 +337,26 @@ namespace bpr::qt {
 
 	void suggestion_editor::set_code_font(const QFont& aFont)
 	{
-		CodeFont = aFont;
+		CodeFont = fixed_pitch_code_font(aFont);
 		setFont(CodeFont);
+		measure();
 		update_scrollbars();
 		viewport()->update();
 		updateGeometry();
+	}
+
+	void suggestion_editor::measure()
+	{
+		// One line of the code font as the review panes' text layout sets it,
+		// so a row here has the pitch and baseline of a row there.
+		auto layout = QTextLayout{ QStringLiteral("M"), CodeFont, viewport() };
+		layout.beginLayout();
+		auto line = layout.createLine();
+		line.setLeadingIncluded(true);
+		layout.endLayout();
+		RowHeight   = std::max<qreal>(1.0, line.height());
+		Ascent      = line.ascent();
+		ColumnWidth = std::max<qreal>(1.0, QFontMetricsF{ CodeFont, viewport() }.horizontalAdvance(QLatin1Char('M')));
 	}
 
 	void suggestion_editor::set_syntax(std::vector<suggestion_line_syntax> aLines)
@@ -161,60 +390,108 @@ namespace bpr::qt {
 		update_scrollbars();
 		ensure_visible();
 		viewport()->update();
+		announce_selection();
+	}
+
+	auto suggestion_editor::selected_bytes() const -> std::pair<std::uint64_t, std::uint64_t>
+	{
+		const auto& caret = Editor.state().Carets[Editor.state().Primary];
+		return { Editor.byte_offset_of(std::min(caret.Anchor, caret.Head)), Editor.byte_offset_of(std::max(caret.Anchor, caret.Head)) };
+	}
+
+	auto suggestion_editor::has_selection() const -> bool
+	{
+		// A selection only in virtual space selects no byte.
+		if (Editor.state().Carets[Editor.state().Primary].empty()) {
+			return false;
+		}
+		const auto [start, end] = selected_bytes();
+		return start != end;
+	}
+
+	void suggestion_editor::measure_lines()
+	{
+		WidestLine = 0U;
+		for (std::uint64_t line = 0; line < Editor.state().Lines.size(); ++line) {
+			WidestLine = std::max(WidestLine, Editor.line_width(line));
+		}
 	}
 
 	void suggestion_editor::scroll_to_line(const std::uint64_t aLine)
 	{
 		update_scrollbars();
 		verticalScrollBar()->setValue(static_cast<int>(std::min<std::uint64_t>(aLine, static_cast<std::uint64_t>(verticalScrollBar()->maximum()))));
-		ensure_visible();
 		viewport()->update();
+	}
+
+	auto suggestion_editor::first_visible_line() const -> std::uint64_t
+	{
+		return static_cast<std::uint64_t>(std::max(verticalScrollBar()->value(), 0));
 	}
 
 	auto suggestion_editor::apply(const core::suggestion_edit& aEdit) -> bool
 	{
-		const auto before  = Editor.text();
+		if (ReadOnly && core::changes_text(aEdit)) {
+			return false;
+		}
+		// Only an edit can change the text, so only an edit pays for comparing it.
+		const auto edit    = core::changes_text(aEdit);
+		const auto before  = edit ? Editor.text() : std::string{ };
 		const auto changed = Editor.apply(aEdit);
+		const auto edited  = edit && changed && Editor.text() != before;
+		if (edited) {
+			measure_lines();
+		}
 		if (changed) {
 			update_scrollbars();
 			ensure_visible();
 			viewport()->update();
-			if (Editor.text() != before && Changed) {
+			announce_selection();
+			if (edited && Changed) {
 				Changed();
 			}
 		}
 		return changed;
 	}
 
-	auto suggestion_editor::line_height() const -> int
+	void suggestion_editor::announce_selection()
 	{
-		return std::max(1, QFontMetrics{ CodeFont, viewport() }.lineSpacing());
+		if (SelectionChanged) {
+			SelectionChanged();
+		}
+		if (auto* const accessible = QAccessible::isActive() ? QAccessible::queryAccessibleInterface(this) : nullptr; accessible != nullptr && accessible->textInterface() != nullptr) {
+			auto moved = QAccessibleTextCursorEvent{ this, accessible->textInterface()->cursorPosition() };
+			QAccessible::updateAccessibility(&moved);
+		}
 	}
 
-	auto suggestion_editor::column_width() const -> qreal
+	auto suggestion_editor::row_height() const -> qreal
 	{
-		return std::max<qreal>(1.0, QFontMetricsF{ CodeFont, viewport() }.horizontalAdvance(QLatin1Char('M')));
+		return RowHeight;
+	}
+
+	auto suggestion_editor::visible_rows() const -> int
+	{
+		return std::max(1, static_cast<int>(std::floor(static_cast<qreal>(viewport()->height()) / RowHeight)));
 	}
 
 	auto suggestion_editor::column_x(const std::uint64_t aColumn) const -> qreal
 	{
-		return margin + static_cast<qreal>(aColumn) * column_width() - horizontalScrollBar()->value();
+		return document_margin() + static_cast<qreal>(aColumn) * ColumnWidth - horizontalScrollBar()->value();
 	}
 
 	void suggestion_editor::update_scrollbars()
 	{
 		const auto& state   = Editor.state();
-		const auto  visible = std::max(1, viewport()->height() / line_height());
+		const auto  visible = visible_rows();
 		verticalScrollBar()->setRange(0, std::max(0, static_cast<int>(state.Lines.size()) - visible));
 		verticalScrollBar()->setPageStep(visible);
-		auto widest = std::uint64_t{ 0 };
-		for (std::uint64_t line = 0; line < state.Lines.size(); ++line) {
-			widest = std::max(widest, Editor.line_width(line));
-		}
+		auto widest = WidestLine;
 		for (const auto& caret : state.Carets) {
 			widest = std::max({ widest, caret.Head.Column, caret.Anchor.Column });
 		}
-		const auto content = static_cast<int>(std::ceil(static_cast<qreal>(widest + 2U) * column_width())) + 2 * margin;
+		const auto margin  = document_margin();
+		const auto content = static_cast<int>(std::ceil(static_cast<qreal>(widest + 2U) * ColumnWidth + 2.0 * margin));
 		horizontalScrollBar()->setRange(0, std::max(0, content - viewport()->width()));
 		horizontalScrollBar()->setPageStep(viewport()->width());
 	}
@@ -222,14 +499,15 @@ namespace bpr::qt {
 	void suggestion_editor::ensure_visible()
 	{
 		const auto& head    = Editor.state().Carets[Editor.state().Primary].Head;
-		const auto  visible = std::max(1, viewport()->height() / line_height());
+		const auto  visible = visible_rows();
 		const auto  line    = static_cast<int>(head.Line);
 		if (line < verticalScrollBar()->value()) {
 			verticalScrollBar()->setValue(line);
 		} else if (line >= verticalScrollBar()->value() + visible) {
 			verticalScrollBar()->setValue(line - visible + 1);
 		}
-		const auto x = static_cast<int>(static_cast<qreal>(head.Column) * column_width()) + margin;
+		const auto margin = static_cast<int>(document_margin());
+		const auto x      = static_cast<int>(static_cast<qreal>(head.Column) * ColumnWidth) + margin;
 		if (x < horizontalScrollBar()->value()) {
 			horizontalScrollBar()->setValue(std::max(0, x - margin));
 		} else if (x > horizontalScrollBar()->value() + viewport()->width() - 2 * margin) {
@@ -237,18 +515,24 @@ namespace bpr::qt {
 		}
 	}
 
+	auto suggestion_editor::cell_rectangle(const core::text_point& aPoint) const -> QRectF
+	{
+		const auto top = (static_cast<qreal>(aPoint.Line) - static_cast<qreal>(verticalScrollBar()->value())) * RowHeight;
+		return { column_x(aPoint.Column), top, ColumnWidth, RowHeight };
+	}
+
 	auto suggestion_editor::caret_rectangle() const -> QRect
 	{
-		const auto& head = Editor.state().Carets[Editor.state().Primary].Head;
-		const auto  y    = (static_cast<int>(head.Line) - verticalScrollBar()->value()) * line_height();
-		return QRect{ static_cast<int>(std::floor(column_x(head.Column))), y, 2, line_height() };
+		const auto cell = cell_rectangle(Editor.state().Carets[Editor.state().Primary].Head);
+		return QRect{ static_cast<int>(std::floor(cell.left())), static_cast<int>(std::floor(cell.top())), 2, static_cast<int>(std::ceil(RowHeight)) };
 	}
 
 	auto suggestion_editor::point_at(const QPoint& aPosition) const -> core::text_point
 	{
 		const auto lines  = static_cast<int>(Editor.state().Lines.size());
-		const auto line   = std::clamp(verticalScrollBar()->value() + aPosition.y() / line_height(), 0, lines - 1);
-		const auto offset = (static_cast<qreal>(aPosition.x()) + horizontalScrollBar()->value() - margin) / column_width();
+		const auto row    = static_cast<int>(std::floor(static_cast<qreal>(aPosition.y()) / RowHeight));
+		const auto line   = std::clamp(verticalScrollBar()->value() + row, 0, lines - 1);
+		const auto offset = (static_cast<qreal>(aPosition.x()) - column_x(0U)) / ColumnWidth;
 		return { static_cast<std::uint64_t>(line), static_cast<std::uint64_t>(std::max<qreal>(0.0, std::round(offset))) };
 	}
 
@@ -257,16 +541,16 @@ namespace bpr::qt {
 		static_cast<void>(aEvent);
 		auto        painter = QPainter{ viewport() };
 		const auto& state   = Editor.state();
-		const auto  height  = line_height();
-		const auto  first   = static_cast<std::uint64_t>(verticalScrollBar()->value());
-		const auto  last    = std::min<std::uint64_t>(state.Lines.size(), first + static_cast<std::uint64_t>(viewport()->height() / height) + 2U);
-		const auto  ascent  = QFontMetrics{ CodeFont, viewport() }.ascent();
+		const auto  first   = first_visible_line();
+		const auto  last    = std::min<std::uint64_t>(state.Lines.size(), first + static_cast<std::uint64_t>(visible_rows()) + 2U);
+		const auto  top     = [&](const std::uint64_t aLine) { return static_cast<qreal>(aLine - first) * RowHeight; };
 		painter.setFont(CodeFont);
 		painter.fillRect(viewport()->rect(), palette().base());
 
-		// Selections: each caret's range, virtual space included, then the text over them.
-		auto selection = palette().highlight().color();
-		selection.setAlpha(hasFocus() ? 110 : 60);
+		// Selections: the review panes' wash under the text, so a selected
+		// glyph keeps its syntax colour; virtual space included.
+		auto selection = palette().color(QPalette::Highlight);
+		selection.setAlpha(core::selection_wash_alpha);
 		for (const auto& caret : state.Carets) {
 			if (caret.empty()) {
 				continue;
@@ -277,8 +561,7 @@ namespace bpr::qt {
 				const auto from = line == start.Line ? start.Column : 0U;
 				// A selection that continues past a line includes its line break.
 				const auto to = line == end.Line ? end.Column : Editor.line_width(line) + 1U;
-				const auto y  = static_cast<int>(line - first) * height;
-				painter.fillRect(QRectF{ column_x(from), static_cast<qreal>(y), column_x(to) - column_x(from), static_cast<qreal>(height) }, selection);
+				painter.fillRect(QRectF{ column_x(from), top(line), column_x(to) - column_x(from), RowHeight }, selection);
 			}
 		}
 		// One glyph per column cell, so carets, selections and boxes line up
@@ -287,7 +570,7 @@ namespace bpr::qt {
 		const auto text = palette().text().color();
 		const auto tab  = state.TabWidth;
 		for (auto line = first; line < last; ++line) {
-			const auto  y       = static_cast<qreal>(static_cast<int>(line - first) * height + ascent);
+			const auto  y       = top(line) + Ascent;
 			const auto& content = state.Lines[line].Content;
 			const auto* formats = syntax_of(line);
 			auto        column  = std::uint64_t{ 0 };
@@ -327,14 +610,14 @@ namespace bpr::qt {
 			if (head.Line < first || head.Line >= last) {
 				continue;
 			}
-			const auto y = static_cast<int>(head.Line - first) * height;
+			const auto y = top(head.Line);
 			if (index == state.Primary && !Preedit.isEmpty()) {
 				const auto width = QFontMetricsF{ CodeFont, viewport() }.horizontalAdvance(Preedit);
-				painter.fillRect(QRectF{ column_x(head.Column), static_cast<qreal>(y), width, static_cast<qreal>(height) }, palette().alternateBase());
-				painter.drawText(QPointF{ column_x(head.Column), static_cast<qreal>(y + ascent) }, Preedit);
-				painter.drawLine(QPointF{ column_x(head.Column), static_cast<qreal>(y + height - 1) }, QPointF{ column_x(head.Column) + width, static_cast<qreal>(y + height - 1) });
+				painter.fillRect(QRectF{ column_x(head.Column), y, width, RowHeight }, palette().alternateBase());
+				painter.drawText(QPointF{ column_x(head.Column), y + Ascent }, Preedit);
+				painter.drawLine(QPointF{ column_x(head.Column), y + RowHeight - 1.0 }, QPointF{ column_x(head.Column) + width, y + RowHeight - 1.0 });
 			}
-			painter.fillRect(QRectF{ column_x(head.Column) - 1.0, static_cast<qreal>(y), index == state.Primary ? 2.0 : 1.5, static_cast<qreal>(height) }, caretColour);
+			painter.fillRect(QRectF{ column_x(head.Column) - 1.0, y, index == state.Primary ? 2.0 : 1.5, RowHeight }, caretColour);
 		}
 	}
 
@@ -348,7 +631,8 @@ namespace bpr::qt {
 			apply(core::extend_box{ *motion });
 			return;
 		}
-		if ((aEvent->key() == Qt::Key_Tab || aEvent->key() == Qt::Key_Backtab) && modifiers.testFlag(Qt::ControlModifier)) {
+		// Ctrl+Tab leaves; read-only, Tab does too, as it does a read-only text pane.
+		if ((aEvent->key() == Qt::Key_Tab || aEvent->key() == Qt::Key_Backtab) && (modifiers.testFlag(Qt::ControlModifier) || ReadOnly)) {
 			QAbstractScrollArea::focusNextPrevChild(aEvent->key() == Qt::Key_Tab && !shift);
 			return;
 		}
@@ -361,7 +645,7 @@ namespace bpr::qt {
 			return;
 		}
 		if (aEvent->matches(QKeySequence::Copy) || aEvent->matches(QKeySequence::Cut)) {
-			copy_selection(aEvent->matches(QKeySequence::Cut));
+			copy_selection(aEvent->matches(QKeySequence::Cut) && !ReadOnly);
 			return;
 		}
 		if (aEvent->matches(QKeySequence::Paste)) {
@@ -383,20 +667,25 @@ namespace bpr::qt {
 				return;
 			}
 		}
-		switch (aEvent->key()) {
-		case Qt::Key_Return:
-		case Qt::Key_Enter:     apply(core::insert_line_break{ }); return;
-		case Qt::Key_Backspace: apply(core::delete_backward{ }); return;
-		case Qt::Key_Delete:    apply(core::delete_forward{ }); return;
-		case Qt::Key_Tab:       apply(core::insert_text{ "\t" }); return;
-		case Qt::Key_Escape:
+		if (aEvent->key() == Qt::Key_Escape) {
 			if (Editor.state().Carets.size() > 1U || !Editor.state().Carets.front().empty()) {
 				apply(core::collapse_carets{ });
 				return;
 			}
 			aEvent->ignore();
 			return;
-		default: break;
+		}
+		if (ReadOnly) {
+			QAbstractScrollArea::keyPressEvent(aEvent);
+			return;
+		}
+		switch (aEvent->key()) {
+		case Qt::Key_Return:
+		case Qt::Key_Enter:     apply(core::insert_line_break{ }); return;
+		case Qt::Key_Backspace: apply(core::delete_backward{ }); return;
+		case Qt::Key_Delete:    apply(core::delete_forward{ }); return;
+		case Qt::Key_Tab:       apply(core::insert_text{ "\t" }); return;
+		default:                break;
 		}
 		const auto typed = aEvent->text();
 		if (!typed.isEmpty() && std::ranges::all_of(typed, [](const QChar aCharacter) { return aCharacter.isPrint() || aCharacter.isSurrogate(); })) {
@@ -408,6 +697,10 @@ namespace bpr::qt {
 
 	void suggestion_editor::inputMethodEvent(QInputMethodEvent* aEvent)
 	{
+		if (ReadOnly) {
+			aEvent->ignore();
+			return;
+		}
 		if (!aEvent->commitString().isEmpty()) {
 			apply(core::insert_text{ utf8(aEvent->commitString()) });
 		}
@@ -423,22 +716,24 @@ namespace bpr::qt {
 		const auto& state = Editor.state();
 		const auto& head  = state.Carets[state.Primary].Head;
 		switch (aQuery) {
-		case Qt::ImEnabled:         return true;
+		case Qt::ImEnabled:         return !ReadOnly;
 		case Qt::ImCursorRectangle: return caret_rectangle();
 		case Qt::ImFont:            return CodeFont;
 		case Qt::ImHints:           return static_cast<int>(Qt::ImhMultiLine | Qt::ImhNoAutoUppercase | Qt::ImhNoPredictiveText);
-		case Qt::ImSurroundingText: {
-			const auto& content = state.Lines[head.Line].Content;
-			return QString::fromUtf8(content.data(), static_cast<qsizetype>(content.size()));
-		}
+		case Qt::ImSurroundingText: return text_of(state.Lines[head.Line].Content);
 		case Qt::ImCursorPosition:
-		case Qt::ImAnchorPosition: {
+		case Qt::ImAnchorPosition:  {
 			const auto& content = state.Lines[head.Line].Content;
 			const auto  offset  = Editor.locate(head).first;
-			return static_cast<int>(QString::fromUtf8(content.data(), static_cast<qsizetype>(offset)).size());
+			return static_cast<int>(text_of(std::string_view{ content }.substr(0, offset)).size());
 		}
 		default: return QAbstractScrollArea::inputMethodQuery(aQuery);
 		}
+	}
+
+	void suggestion_editor::copy()
+	{
+		copy_selection(false);
 	}
 
 	void suggestion_editor::copy_selection(const bool aCut)
@@ -448,7 +743,7 @@ namespace bpr::qt {
 			return;
 		}
 		auto* mime = new QMimeData{ };
-		mime->setText(QString::fromUtf8(copied.Text.data(), static_cast<qsizetype>(copied.Text.size())));
+		mime->setText(text_of(copied.Text));
 		if (copied.Box) {
 			mime->setData(QString::fromLatin1(box_mime_type), QByteArray{ "1" });
 			// Visual Studio's marker, so a box copied here pastes as a box there.
@@ -464,11 +759,37 @@ namespace bpr::qt {
 	void suggestion_editor::paste()
 	{
 		const auto* mime = QApplication::clipboard()->mimeData();
-		if (mime == nullptr || !mime->hasText()) {
+		if (ReadOnly || mime == nullptr || !mime->hasText()) {
 			return;
 		}
 		const auto box = mime->hasFormat(QString::fromLatin1(box_mime_type)) || mime->hasFormat(QStringLiteral("MSDEVColumnSelect"));
 		apply(core::paste_text{ .Text = utf8(mime->text()), .Box = box });
+	}
+
+	auto suggestion_editor::standard_menu(QWidget* aParent) -> QMenu*
+	{
+		auto* const menu      = new QMenu{ aParent };
+		const auto  selected  = std::ranges::any_of(Editor.state().Carets, [](const core::text_caret& aCaret) { return !aCaret.empty(); });
+		const auto  addAction = [&](const QString& aText, const QKeySequence::StandardKey aKey, const bool aEnabled, auto aDo) {
+			auto* const action = menu->addAction(aText);
+			action->setShortcut(QKeySequence{ aKey });
+			action->setEnabled(aEnabled);
+			connect(action, &QAction::triggered, this, aDo);
+		};
+		if (!ReadOnly) {
+			addAction(QStringLiteral("&Undo"), QKeySequence::Undo, Editor.can_undo(), [this] { apply(core::undo_edit{ }); });
+			addAction(QStringLiteral("&Redo"), QKeySequence::Redo, Editor.can_redo(), [this] { apply(core::redo_edit{ }); });
+			menu->addSeparator();
+			addAction(QStringLiteral("Cu&t"), QKeySequence::Cut, selected, [this] { copy_selection(true); });
+		}
+		addAction(QStringLiteral("&Copy"), QKeySequence::Copy, selected, [this] { copy_selection(false); });
+		if (!ReadOnly) {
+			const auto* mime = QApplication::clipboard()->mimeData();
+			addAction(QStringLiteral("&Paste"), QKeySequence::Paste, mime != nullptr && mime->hasText(), [this] { paste(); });
+		}
+		menu->addSeparator();
+		addAction(QStringLiteral("Select All"), QKeySequence::SelectAll, true, [this] { apply(core::select_all{ }); });
+		return menu;
 	}
 
 	void suggestion_editor::mousePressEvent(QMouseEvent* aEvent)
@@ -479,11 +800,29 @@ namespace bpr::qt {
 		}
 		setFocus(Qt::MouseFocusReason);
 		const auto at = point_at(aEvent->position().toPoint());
+		// A third click soon after a double click, where it was, selects the line.
+		const auto distance = (aEvent->position() - DoubleClickedAt).manhattanLength();
+		if (DoubleClicked.isValid() && DoubleClicked.elapsed() < QApplication::doubleClickInterval() && distance <= QApplication::styleHints()->mouseDoubleClickDistance()) {
+			DoubleClicked.invalidate();
+			apply(core::select_line_at{ at });
+			return;
+		}
 		if (aEvent->modifiers().testFlag(Qt::AltModifier)) {
 			apply(core::add_caret{ at });
 		} else {
 			apply(core::place_caret{ .At = at, .Extend = aEvent->modifiers().testFlag(Qt::ShiftModifier) });
 		}
+	}
+
+	void suggestion_editor::mouseDoubleClickEvent(QMouseEvent* aEvent)
+	{
+		if (aEvent->button() != Qt::LeftButton || aEvent->modifiers() != Qt::NoModifier) {
+			mousePressEvent(aEvent);
+			return;
+		}
+		DoubleClicked.start();
+		DoubleClickedAt = aEvent->position();
+		apply(core::select_word_at{ point_at(aEvent->position().toPoint()) });
 	}
 
 	void suggestion_editor::mouseMoveEvent(QMouseEvent* aEvent)
@@ -513,14 +852,17 @@ namespace bpr::qt {
 
 	auto suggestion_editor::focusNextPrevChild(const bool aNext) -> bool
 	{
-		// Tab inserts a tab; Ctrl+Tab leaves (keyPressEvent).
-		static_cast<void>(aNext);
-		return false;
+		// Editable, Tab inserts a tab and Ctrl+Tab leaves (keyPressEvent).
+		return ReadOnly ? QAbstractScrollArea::focusNextPrevChild(aNext) : false;
 	}
 
 	void suggestion_editor::changeEvent(QEvent* aEvent)
 	{
 		QAbstractScrollArea::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::FontChange) {
+			measure();
+			update_scrollbars();
+		}
 		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::FontChange) {
 			viewport()->update();
 		}
@@ -528,11 +870,11 @@ namespace bpr::qt {
 
 	auto suggestion_editor::sizeHint() const -> QSize
 	{
-		return { static_cast<int>(60.0 * column_width()) + 2 * margin, line_height() * 8 + 2 * frameWidth() };
+		return { static_cast<int>(60.0 * ColumnWidth + 2.0 * document_margin()), static_cast<int>(std::ceil(RowHeight * 8.0)) + 2 * frameWidth() };
 	}
 
 	auto suggestion_editor::minimumSizeHint() const -> QSize
 	{
-		return { static_cast<int>(20.0 * column_width()) + 2 * margin, line_height() * 3 + 2 * frameWidth() };
+		return { static_cast<int>(20.0 * ColumnWidth + 2.0 * document_margin()), static_cast<int>(std::ceil(RowHeight * 3.0)) + 2 * frameWidth() };
 	}
 }

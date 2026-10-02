@@ -1,6 +1,8 @@
 #include "bpr/core/suggestion_text_editing.hpp"
 
 #include <algorithm>
+#include <array>
+#include <map>
 #include <utility>
 
 namespace bpr::core {
@@ -102,6 +104,84 @@ namespace bpr::core {
 			std::size_t   Caret        = 0;
 			std::uint64_t CaretVirtual = 0;
 		};
+
+		constexpr auto blanks = std::string_view{ " \t" };
+
+		/// The leading blanks of a line.
+		auto leading_blanks(const std::string_view aText) -> std::string_view
+		{
+			return aText.substr(0, std::min(aText.find_first_not_of(blanks), aText.size()));
+		}
+
+		/// The closer of an opening bracket, or nothing.
+		auto closer_of(const char aOpener) -> char
+		{
+			switch (aOpener) {
+			case '{': return '}';
+			case '[': return ']';
+			case '(': return ')';
+			default:  return '\0';
+			}
+		}
+
+		auto lowercase(std::string_view aText) -> std::string
+		{
+			auto lowered = std::string{ aText };
+			std::ranges::transform(lowered, lowered.begin(), [](const char aByte) { return aByte >= 'A' && aByte <= 'Z' ? static_cast<char>(aByte - 'A' + 'a') : aByte; });
+			return lowered;
+		}
+
+		/// The most common step by which a line's leading spaces exceed the
+		/// previous non-blank line's, or zero when no line steps in.
+		auto common_space_step(const std::vector<text_line>& aLines) -> std::size_t
+		{
+			auto steps    = std::map<std::size_t, std::size_t>{ };
+			auto previous = std::size_t{ 0 };
+			for (const auto& line : aLines) {
+				const auto lead = leading_blanks(line.Content);
+				if (lead.size() == line.Content.size() || lead.find('\t') != std::string_view::npos) {
+					continue;
+				}
+				if (lead.size() > previous) {
+					++steps[lead.size() - previous];
+				}
+				previous = lead.size();
+			}
+			const auto most = std::ranges::max_element(steps, [](const auto& aLeft, const auto& aRight) { return aLeft.second < aRight.second; });
+			return most == steps.end() ? 0U : most->first;
+		}
+	}
+
+	auto indentation_for(const std::string_view aPath, const std::string_view aText) -> text_indentation
+	{
+		const auto     dot       = aPath.find_last_of('.');
+		const auto     slash     = aPath.find_last_of("/\\");
+		const auto     extension = dot == std::string_view::npos || (slash != std::string_view::npos && dot < slash) ? std::string{ } : lowercase(aPath.substr(dot + 1U));
+		constexpr auto prose     = std::array<std::string_view, 6>{ "md", "markdown", "rst", "adoc", "txt", "text" };
+		constexpr auto colon     = std::array<std::string_view, 5>{ "py", "pyi", "pyw", "yaml", "yml" };
+		auto           rule      = text_indentation{ };
+		rule.Brackets            = std::ranges::find(prose, extension) == prose.end();
+		rule.Colon               = std::ranges::find(colon, extension) != colon.end();
+
+		const auto lines  = split_text_lines(aText);
+		const auto tabbed = std::ranges::count_if(lines, [](const text_line& aLine) { return aLine.Content.starts_with('\t'); });
+		const auto spaced = std::ranges::count_if(lines, [](const text_line& aLine) { return aLine.Content.starts_with(' ') && leading_blanks(aLine.Content).size() < aLine.Content.size(); });
+		if (tabbed > 0 && tabbed >= spaced) {
+			return rule;
+		}
+		if (const auto step = common_space_step(lines); step > 0U) {
+			rule.Unit = std::string(std::min<std::size_t>(step, 8U), ' ');
+		} else if (rule.Colon) {
+			rule.Unit = std::string(extension.starts_with('y') ? 2U : 4U, ' ');
+		}
+		return rule;
+	}
+
+	auto changes_text(const suggestion_edit& aEdit) noexcept -> bool
+	{
+		return std::holds_alternative<insert_text>(aEdit) || std::holds_alternative<insert_line_break>(aEdit) || std::holds_alternative<paste_text>(aEdit)
+			|| std::holds_alternative<delete_backward>(aEdit) || std::holds_alternative<delete_forward>(aEdit) || std::holds_alternative<undo_edit>(aEdit)
+			|| std::holds_alternative<redo_edit>(aEdit);
 	}
 
 	auto split_text_lines(const std::string_view aText) -> std::vector<text_line>
@@ -137,8 +217,18 @@ namespace bpr::core {
 
 	suggestion_text_editor::suggestion_text_editor(const std::string_view aText, const std::uint32_t aTabWidth)
 	{
-		State.Lines    = split_text_lines(aText.substr(0, std::min(aText.size(), maximum_suggestion_editor_bytes)));
+		State.Lines    = split_text_lines(aText);
 		State.TabWidth = aTabWidth == 0U ? default_suggestion_tab_width : aTabWidth;
+	}
+
+	void suggestion_text_editor::set_indentation(text_indentation aIndentation)
+	{
+		Indentation = std::move(aIndentation);
+	}
+
+	auto suggestion_text_editor::indentation() const noexcept -> const text_indentation&
+	{
+		return Indentation;
 	}
 
 	auto suggestion_text_editor::state() const noexcept -> const suggestion_text_state&
@@ -186,6 +276,16 @@ namespace bpr::core {
 			aOffset -= total;
 		}
 		return { };
+	}
+
+	auto suggestion_text_editor::byte_offset_of(const text_point& aPoint) const -> std::size_t
+	{
+		const auto line   = std::min<std::uint64_t>(aPoint.Line, State.Lines.size() - 1U);
+		auto       offset = std::size_t{ 0 };
+		for (std::uint64_t index = 0; index < line; ++index) {
+			offset += State.Lines[index].Content.size() + ending_bytes(State.Lines[index].Ending).size();
+		}
+		return offset + offset_of(State.Lines[line].Content, aPoint.Column, State.TabWidth).first;
 	}
 
 	auto suggestion_text_editor::copy() const -> copied_text
@@ -249,11 +349,15 @@ namespace bpr::core {
 
 	auto suggestion_text_editor::apply(const suggestion_edit& aEdit) -> bool
 	{
-		const auto before = State;
-		const auto tab    = State.TabWidth;
-		const auto lines  = [this] { return static_cast<std::uint64_t>(State.Lines.size()); };
-		const auto width  = [this](const std::uint64_t aLine) { return line_width(aLine); };
-		const auto snap   = [&](const text_point& aPoint) {
+		// A gesture that only moves carets compares the carets, so reading a
+		// large file costs nothing per keystroke; an edit keeps the whole
+		// state to fall back to.
+		const auto editing = changes_text(aEdit);
+		const auto before  = editing ? State : suggestion_text_state{ .Lines = { }, .Carets = State.Carets, .Primary = State.Primary, .TabWidth = State.TabWidth, .BoxAnchor = State.BoxAnchor };
+		const auto tab     = State.TabWidth;
+		const auto lines   = [this] { return static_cast<std::uint64_t>(State.Lines.size()); };
+		const auto width   = [this](const std::uint64_t aLine) { return line_width(aLine); };
+		const auto snap    = [&](const text_point& aPoint) {
 			const auto  line                    = std::min(aPoint.Line, lines() - 1U);
 			const auto& content                 = State.Lines[line].Content;
 			const auto [offset, virtualColumns] = offset_of(content, aPoint.Column, tab);
@@ -450,18 +554,53 @@ namespace bpr::core {
 			}
 			return aHead;
 		};
-		const auto insertEverywhere = [&](const std::vector<std::string>& aTexts) {
+		// A closer typed on a line of blanks ending in one level takes that level away.
+		const auto outdented = [&](const text_caret& aCaret, const std::string_view aText) -> std::size_t {
+			const auto& unit = Indentation.Unit;
+			if (!Indentation.Brackets || unit.empty() || aText.size() != 1U || std::string_view{ "}])" }.find(aText.front()) == std::string_view::npos || !aCaret.empty()) {
+				return 0U;
+			}
+			const auto& content                 = State.Lines[aCaret.Head.Line].Content;
+			const auto [offset, virtualColumns] = offset_of(content, aCaret.Head.Column, tab);
+			const auto prefix                   = std::string_view{ content }.substr(0, offset);
+			return virtualColumns == 0U && leading_blanks(prefix).size() == prefix.size() && prefix.ends_with(unit) ? unit.size() : 0U;
+		};
+		const auto insertEverywhere = [&](const std::vector<std::string>& aTexts, const bool aTyped) {
 			auto edits = std::vector<std::optional<flat_edit>>{ };
 			for (std::size_t index = 0; index < State.Carets.size(); ++index) {
-				const auto& caret = State.Carets[index];
-				const auto  start = std::min(caret.Anchor, caret.Head);
-				const auto  end   = std::max(caret.Anchor, caret.Head);
-				const auto  from  = flat(start);
-				const auto  to    = flat(end);
-				auto        text  = std::string(from.second, ' ') + (aTexts.size() == 1U ? aTexts.front() : aTexts[index]);
-				edits.emplace_back(flat_edit{ .Start = from.first, .End = std::max(from.first, to.first), .Insert = text, .Caret = text.size() });
+				const auto& caret  = State.Carets[index];
+				const auto  start  = std::min(caret.Anchor, caret.Head);
+				const auto  end    = std::max(caret.Anchor, caret.Head);
+				const auto  from   = flat(start);
+				const auto  to     = flat(end);
+				const auto& typed  = aTexts.size() == 1U ? aTexts.front() : aTexts[index];
+				const auto  remove = aTyped ? outdented(caret, typed) : 0U;
+				auto        text   = std::string(from.second, ' ') + typed;
+				edits.emplace_back(flat_edit{ .Start = from.first - remove, .End = std::max(from.first, to.first), .Insert = text, .Caret = text.size() });
 			}
 			return replace(std::move(edits));
+		};
+		// Enter: the line's own blanks before the caret, one more level after
+		// an opener, and a bracket's closer on a line of its own.
+		const auto lineBreak = [&](const text_caret& aCaret) {
+			const auto  start       = std::min(aCaret.Anchor, aCaret.Head);
+			const auto  end         = std::max(aCaret.Anchor, aCaret.Head);
+			const auto  ending      = std::string{ ending_bytes(endingAt(start.Line)) };
+			const auto  prefix      = std::string_view{ State.Lines[start.Line].Content }.substr(0, offset_of(State.Lines[start.Line].Content, start.Column, tab).first);
+			const auto  lead        = std::string{ leading_blanks(prefix) };
+			const auto  last        = prefix.find_last_not_of(blanks);
+			const auto  opener      = last == std::string_view::npos ? '\0' : prefix[last];
+			const auto  opens       = (Indentation.Brackets && closer_of(opener) != '\0') || (Indentation.Colon && opener == ':');
+			const auto  indent      = opens ? lead + Indentation.Unit : lead;
+			const auto& after       = State.Lines[end.Line].Content;
+			const auto  afterOffset = offset_of(after, end.Column, tab).first;
+			const auto  closer      = std::min(after.find_first_not_of(blanks, afterOffset), after.size());
+			const auto  from        = flat(start).first;
+			const auto  to          = std::max(from, flat(end).first);
+			if (opens && closer < after.size() && after[closer] == closer_of(opener)) {
+				return flat_edit{ .Start = from, .End = to + (closer - afterOffset), .Insert = ending + indent + ending + lead, .Caret = ending.size() + indent.size() };
+			}
+			return flat_edit{ .Start = from, .End = to, .Insert = ending + indent, .Caret = ending.size() + indent.size() };
 		};
 
 		auto changed = false;
@@ -525,6 +664,41 @@ namespace bpr::core {
 					const auto at     = snap(aValue.At);
 					carets.push_back({ at, at });
 					normalize(std::move(carets), at);
+				} else if constexpr (std::is_same_v<value_type, select_word_at>) {
+					Typing              = false;
+					State.BoxAnchor     = std::nullopt;
+					const auto  at      = snap(aValue.At);
+					const auto& content = State.Lines[at.Line].Content;
+					auto        first   = std::min(offset_of(content, at.Column, tab).first, content.size());
+					if (first == content.size() && first > 0U) {
+						// Past the end: the last thing on the line.
+						first = 0U;
+						for (std::size_t index = 0; index < content.size(); index += scalar_length(content, index)) {
+							first = index;
+						}
+					}
+					auto last = first;
+					if (first < content.size()) {
+						const auto kind = class_of(content[first]);
+						last            = first + scalar_length(content, first);
+						if (kind != character_class::punctuation) {
+							while (first > 0U && class_of(content[first - 1U]) == kind) {
+								--first;
+							}
+							while (last < content.size() && class_of(content[last]) == kind) {
+								++last;
+							}
+						}
+					}
+					State.Carets  = { { { at.Line, column_of(content, first, tab) }, { at.Line, column_of(content, last, tab) } } };
+					State.Primary = 0;
+				} else if constexpr (std::is_same_v<value_type, select_line_at>) {
+					Typing           = false;
+					State.BoxAnchor  = std::nullopt;
+					const auto line  = std::min(aValue.At.Line, lines() - 1U);
+					const auto below = line + 1U < lines() ? text_point{ line + 1U, 0U } : text_point{ line, width(line) };
+					State.Carets     = { { { line, 0U }, below } };
+					State.Primary    = 0;
 				} else if constexpr (std::is_same_v<value_type, insert_text>) {
 					const auto single = split_text_lines(aValue.Text).size() == 1U && !aValue.Text.empty() && scalar_length(aValue.Text, 0) == aValue.Text.size();
 					State.BoxAnchor   = std::nullopt;
@@ -535,7 +709,7 @@ namespace bpr::core {
 					for (const auto& caret : State.Carets) {
 						texts.push_back(normalizeBreaks(aValue.Text, std::min(caret.Anchor, caret.Head).Line));
 					}
-					if (!insertEverywhere(texts)) {
+					if (!insertEverywhere(texts, true)) {
 						if (pushed) {
 							Undo.pop_back();
 						}
@@ -545,11 +719,11 @@ namespace bpr::core {
 				} else if constexpr (std::is_same_v<value_type, insert_line_break>) {
 					State.BoxAnchor = std::nullopt;
 					remember(false);
-					auto texts = std::vector<std::string>{ };
+					auto edits = std::vector<std::optional<flat_edit>>{ };
 					for (const auto& caret : State.Carets) {
-						texts.emplace_back(ending_bytes(endingAt(std::min(caret.Anchor, caret.Head).Line)));
+						edits.emplace_back(lineBreak(caret));
 					}
-					if (!insertEverywhere(texts)) {
+					if (!replace(std::move(edits))) {
 						Undo.pop_back();
 						State = before;
 					}
@@ -585,7 +759,7 @@ namespace bpr::core {
 							texts.push_back(normalizeBreaks(aValue.Text, std::min(caret.Anchor, caret.Head).Line));
 						}
 					}
-					if (!insertEverywhere(texts)) {
+					if (!insertEverywhere(texts, false)) {
 						Undo.pop_back();
 						State = before;
 					}
@@ -669,7 +843,7 @@ namespace bpr::core {
 				}
 			},
 			aEdit);
-		changed = State != before;
+		changed = editing ? State != before : State.Carets != before.Carets || State.Primary != before.Primary || State.BoxAnchor != before.BoxAnchor;
 		return changed;
 	}
 }
