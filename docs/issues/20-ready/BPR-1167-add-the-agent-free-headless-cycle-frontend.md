@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1167"
 title: "Add the agent-free headless cycle frontend"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0058"]
 depends_on: ["BPR-1146", "BPR-1158", "BPR-1159", "BPR-1164"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "external-consumers", "acceptance": ["RC58-01", "RC58-02"], "pack_alias": "PACK-CYCLE-25", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
