@@ -200,3 +200,18 @@ Asked as `BPR-1156-composer-layout-v003` on the frozen candidate
 `/Users/jaeger/bpr-cycles-syntax-review.rMJBTD` (app sha256
 `85492e75…ebef307`). Its launcher also sets `CFFIXED_USER_HOME`; see BPR-1157's
 note of the same date for why. The card stays Parked.
+
+### Linux at `2f5894786` (bpr-main-linux, 2026-10-01)
+
+Includes the file-pane highlighting and `028882c3a`'s Home store-failure fix.
+WSL2, GCC 15.2, Qt 6.11.2, `build/dev` Debug, offscreen. `cmake --build --preset
+dev` exits 0 with 0 `warning:` lines. `ctest --preset dev --output-on-failure -R
+"qt_review_cycle_view|application_review_cycle_desktop_public_path|qt_suggestion_editor|review_cycle_workbench"`
+passes **6 of 6** in 3.90 s:
+
+- `review_cycle_workbench`
+- `qt_suggestion_editor_1_0` and `_2_0`
+- `qt_review_cycle_view_1_0` and `_2_0`
+- `application_review_cycle_desktop_public_path`
+
+No remote mutation.
