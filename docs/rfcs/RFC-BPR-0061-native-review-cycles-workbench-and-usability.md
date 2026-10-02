@@ -42,7 +42,7 @@ change at the caret; while Suggest change edits, Return stays a line break.
 Every stop Tab reaches on the cycle page shows the window's focus ring, the
 theme's selection colour lifted to the 3:1 indicator floor. RC61-09 is
 amended to match; the evidence is on
-[BPR-1157](../issues/40-parked/BPR-1157-integrate-local-entry-and-source-first-tabs-with-the-accepted-chrome.md#owner-verdicts-at-hand-back-795-and-native-keyboard-v002--macos-2026-10-02).
+[BPR-1157](../issues/60-done/BPR-1157-integrate-local-entry-and-source-first-tabs-with-the-accepted-chrome.md#owner-verdicts-at-hand-back-795-and-native-keyboard-v002--macos-2026-10-02).
 
 ## Owner request, 2026-10-02: a key that cancels the note or suggestion
 
@@ -54,7 +54,7 @@ it, Escape cancels it on every platform, as its Cancel button does. On macOS,
 Control-C cancels it as well; Command-C stays Copy. On Windows and Linux,
 Ctrl+C is Copy, so cancel is not bound to it there. In the code, Escape first
 collapses a selection or extra carets. The evidence is on
-[BPR-1157](../issues/40-parked/BPR-1157-integrate-local-entry-and-source-first-tabs-with-the-accepted-chrome.md#owner-verdicts-at-hand-back-815-and-a-key-to-cancel--macos-2026-10-02).
+[BPR-1157](../issues/60-done/BPR-1157-integrate-local-entry-and-source-first-tabs-with-the-accepted-chrome.md#owner-verdicts-at-hand-back-815-and-a-key-to-cancel--macos-2026-10-02).
 
 ## Normative contracts
 
