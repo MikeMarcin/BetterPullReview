@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1267"
 title: "Linux: the TourCLI install is not self-contained; the installed bpr cannot find Qt"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
