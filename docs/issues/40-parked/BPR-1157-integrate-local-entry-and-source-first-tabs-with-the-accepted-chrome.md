@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0061"]
 depends_on: ["BPR-1146", "BPR-1151"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC61-01", "RC61-02", "RC61-03", "RC61-09"], "pack_alias": "PACK-CYCLE-15", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC61-01","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"application_review_cycle_desktop_public_path and review_cycle_workbench on macOS arm64: signed-out Open Project to R0 full source, title row '<name> · Local cycle', first note, suggestion and related location, Home recents and resume, restart resumes by root, folder unchanged. Owner judgment pending: BPR-1157-local-identity-v001 and BPR-1157-home-section-v002 (v001 rejected at event 720 on a launcher fault, fixed at 028882c3a; see the 2026-10-01 note)."}},{"criterion":"RC61-02","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"The page replaces the review surface in place with the review bar and tabs above the panes, Updates folded, PR-only title-row controls and status line hidden; a pull request arriving takes the surface back and Home returns to the cycle. Owner judgment pending: BPR-1157-surface-rows-v001."}},{"criterion":"RC61-03","outcome":"pass","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Full source is one pane from R0; unchanged, whole-file and older-revision notes accepted; comparison gestures on cycle tabs refused so no all-added diff or empty baseline appears (core_review_cycle_tabs, qt_review_cycle_view, review_cycle_workbench). Comparison views are BPR-1163."}},{"criterion":"RC61-09","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share: tabs restored after restart, 900-pixel compact width, named regions, exact CRLF/UTF-8 byte anchors from native selection. Owner Mac observation pending (BPR-1157-native-keyboard-v001); Windows and Linux runs owed with the ledger command."}}]
+acceptance: [{"criterion":"RC61-01","outcome":"pass","revision":"028882c3a","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share as before (application_review_cycle_desktop_public_path and review_cycle_workbench on macOS arm64; Linux and Windows at 2f5894786). The owner accepted BPR-1157-home-section-v002 (028882c3a build, event 791) and BPR-1157-local-identity-v001 (c2a0df54a build, event 792) in session cbd48b91000b00f1e72e1ad62c7c384c, both with empty notes, and handed back at 795."}},{"criterion":"RC61-02","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"The page replaces the review surface in place with the review bar and tabs above the panes, Updates folded, PR-only title-row controls and status line hidden; a pull request arriving takes the surface back and Home returns to the cycle. Owner judgment pending: BPR-1157-surface-rows-v001, still unanswered at hand-back 795; 73b2160fc changes nothing it asks (observation at event 801)."}},{"criterion":"RC61-03","outcome":"pass","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Full source is one pane from R0; unchanged, whole-file and older-revision notes accepted; comparison gestures on cycle tabs refused so no all-added diff or empty baseline appears (core_review_cycle_tabs, qt_review_cycle_view, review_cycle_workbench). Comparison views are BPR-1163."}},{"criterion":"RC61-09","outcome":"pending","revision":"73b2160fc","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected BPR-1157-native-keyboard-v001 (events 793/794): no visible focus; asked for Return to comment and Shift+Return to suggest in the read-only code pane; narrow width fine. 73b2160fc: a two-pixel focus ring on every Tab stop (Highlight lifted to the 3:1 indicator floor), Return notes the selection or the caret's line and Shift+Return begins Suggest change; qt_review_cycle_view_1_0/_2_0 and application_review_cycle_desktop_public_path drive window-system Tab/Return/Shift+Return, offscreen and natively under cocoa (17 stops ringed); five negative controls fail. Owner observation pending as BPR-1157-native-keyboard-v002; Linux and Windows runs of the changed rows owed."}}]
 ---
 
 Pack alias: **PACK-CYCLE-15** (live `BPR-1157`, allocated at import).
@@ -137,3 +137,169 @@ All six rows pass on the rebuilt binaries, in 19.13 s:
 
 Before the rename, the desktop row passed only because CTest ran the stale
 executable.
+
+## Owner verdicts at hand-back 795 and native-keyboard v002 — macOS, 2026-10-02
+
+In attended session `cbd48b91000b00f1e72e1ad62c7c384c` the owner decided
+three of this card's four open items and handed back at event 795:
+
+| Candidate | Criterion | Event | Verdict |
+|---|---|---|---|
+| `BPR-1157-home-section-v002` (028882c3a build) | RC61-01 | 791 | Accept |
+| `BPR-1157-local-identity-v001` (c2a0df54a build) | RC61-01 | 792 | Accept |
+| `BPR-1157-native-keyboard-v001` (c2a0df54a build) | RC61-09 | 793, then 794 (the note completed) | Reject |
+| `BPR-1157-surface-rows-v001` | RC61-02 | — | Not answered |
+
+The rejection, verbatim (event 794):
+
+> Tab does cycle between things but it's not obvious at all what has focus.
+> Also we need a good shortcut key to add comment. Like maybe when focused on
+> teh code pane in the read-only mode enter adds comment, shift+enter suggests
+> edit?
+>
+> Resizing the window to be narrow worked fine.
+
+RC61-01 passes: both of its questions are accepted. The narrow window needs no
+change.
+
+### Why focus did not show
+
+A native run of the composed window walked the Tab chain on the cycle page:
+the title row's Home, Account and Settings, the Updates disclosure, the review
+bar's enabled buttons, the document tab bar and New tab, the files list, the
+code pane and the notes (with macOS Keyboard navigation off, plain buttons are
+not stops). None of them showed focus clearly:
+
+- The review bar's buttons marked focus with one pixel of `Highlight` inside
+  their border. Under the profile that is the selection colour, `#28518C` on
+  the dark surface `#1C2026`, about 2.06:1, and on a checked toggle (Files,
+  Notes) it was the same colour as the toggle's own border.
+- The Updates disclosure, the tab bar and the lists asked the style for a
+  focus rectangle, which macOS styles do not draw at all.
+- The code pane only changed its caret from dimmed to the text colour.
+
+The reading pane was also announced to accessibility as "Suggested code" until
+the first suggestion ended. It is now "Source" from the start, and its
+description names Return and Shift+Return.
+
+### What changed at `73b2160fc`
+
+- **One focus ring.** `keyboard_focus_ring` (new, `src/adapters/qt`) is a
+  transparent overlay that draws a two-pixel rounded ring inside its control's
+  edge while the control has focus. It keeps the ring while a popup opened from
+  the control is up. It takes no pointer input and no focus, and it tells
+  accessibility it is invisible decoration, so the control keeps its own
+  accessible focus. The cycle page puts one on every stop Tab can reach outside
+  the review bar (tabs, New tab, files, code, comparison, notes, the tray's
+  buttons and editors, and the composer's controls). The review bar's buttons
+  (through the strip style, so the title row's too) and the Updates disclosure
+  draw the same two-pixel ring over their border. A checked toggle keeps its
+  one-pixel border; focus adds the thicker ring. The tour editor's private copy
+  of the same overlay is replaced by the shared one.
+- **Its colour, decided by the core.** `core::visible_focus_indicator` keeps
+  `Highlight` where it reaches the 3:1 indicator floor on the surface and
+  otherwise moves it toward white or black by the least amount that does, the
+  rule `readable_selection_ink` already applies at the text floor. On the
+  standard dark profile the ring is about `#486B9D`, 3.01:1; the hue stays the
+  theme's.
+- **Return and Shift+Return, the owner's suggestion recorded as the decision.**
+  The code view hands Return or keypad Enter, alone or with Shift only, to its
+  reader while it is read-only (`suggestion_editor::Activated`). The cycle page
+  answers Return with a note on the selection, or on the caret's line when
+  nothing is selected (`core::line_text_at`: the line's bytes without its
+  ending, an empty line being an insertion point), and Shift+Return with
+  Suggest change at the caret. Editing, the code view never offers the key:
+  Return breaks the line with the core's indentation, as before. Ctrl+Return
+  and Alt+Return do nothing in the reading pane.
+- **Hints.** The source pane's context menu now holds its own Comment and
+  Suggest change, which show Return and Shift+Return beside them (`↩`/`⇧↩` on
+  macOS, Enter/Shift+Enter elsewhere). They are labels only: an action of a
+  standalone menu never matches a key, so nothing is registered in the window.
+  The menu's Comment acts where the caret is, as Return does. The review bar's
+  Comment still notes the whole file when nothing is selected, and its tooltip
+  and Suggest change's name the keys.
+
+Conflicts checked. No action in the composed window claims Return or
+Shift+Return; the desktop course scans every action for them. The window's
+`Alt+C` (Comment on a pull request), `Alt+R` and the tour's `Alt+Return` are
+untouched. The workbench's duplicate-key scan (`qt_workbench_window_*`) still
+passes.
+
+### Verification
+
+macOS arm64, `build/dev`, Qt 6.11.2, dark scheme.
+
+- `cmake --build --preset dev`: full build, no `warning:` line.
+  `clang-format --dry-run --Werror` and `_coding-standard/scripts/tidy.py
+  --warnings-as-errors` on the changed files are clean. The `core-only` preset
+  builds and passes `core_appearance_contrast` and `core_review_cycle_feedback`.
+- Integration pass:
+  `ctest --preset dev -j 8 -R "^qt_|^core_|^application_(workbench|composed|review_cycle|review_tour|review_round_trip|diff_workbench_public_path|workbench_composition_contract)|^review_cycle|^sqlite_review_cycle|^syntax_classification_contract$|^architecture|network_isolation"`
+  passes **236 of 236**.
+- `qt_review_cycle_view_1_0` and `_2_0` walk the page with window-system Tab
+  on the dark profile. At every stop the ring appears where it was absent, by
+  the local-colour rule over a ring-wide band inside the left and right edges.
+  It leaves the stop focus left, and accessibility receives a focus event for
+  the stop, which has a name. Ringed stops: the code, the tray's two buttons,
+  the notes, Updates, the review bar's buttons, the tab bar, New tab and the
+  files. Return with only a caret opens the note composer, focused, on
+  `src/parser.cpp · line 3`, and saves exactly bytes 12–29 without the CRLF;
+  keypad Enter on a selection notes it exactly. Shift+Return begins Suggest
+  change with the caret where it was. Editing, Return gives
+  `{\r\n\t\r\n` and opens no note.
+- `application_review_cycle_desktop_public_path` does the same in the composed
+  window through its real shortcut map: 19 stops ringed offscreen, title row
+  included. Run natively as
+  `QT_QPA_PLATFORM=cocoa build/dev/tests/end_to_end/review_cycle_desktop_public_path`,
+  it passes with 17 stops (Keyboard navigation off). One native run crashed
+  when another application kept the window from activating, so nothing had
+  focus. `ce0ea8368` makes the course fail at "the window is active, so keys
+  reach it" instead.
+
+Negative controls, each a temporary source change (none committed), each
+failing where it should:
+
+| Control | Fails at |
+|---|---|
+| No rings on the page (`ring_keyboard_focus` call removed) | "the focus ring appears on the stop Tab reaches" (view), "every stop Tab reaches shows the focus ring" (desktop) |
+| The old one-pixel strip ring | the same two checks, on a review-bar and a title-row button |
+| No `Activated` handler | "Return opens the note composer, focused"; "Return in the reading pane opens a note on the caret's line" |
+| The code view offering Return while editing | "editing, Return breaks the line and indents, and opens no note"; "Enter after a brace indents one tab, CRLF kept, and opens no note" |
+| The ring left at raw `Highlight` | `core_appearance_contrast` "lifted to the indicator floor"; the view's "the ring is lifted off the dark selection colour" |
+
+The view course also hides the code view's ring and checks the rule then finds
+none.
+
+### Asked again
+
+Asked as `BPR-1157-native-keyboard-v002` (RC61-09). It is one Accept/Reject
+question that states what to see: a ring on each stop, and Return and
+Shift+Return in the read-only pane. Four native renders are attached. The
+candidate is frozen at `/Users/jaeger/bpr-cycles-focus-review.NGa8CN` (app
+sha256 `f92f544b8994d0ef5ecdf624edd41259f73bd9315e42bd7fed0be1808b8761d8`, a
+copy of the dev bundle at `73b2160fc`). Its launcher sets `HOME` and
+`CFFIXED_USER_HOME` to the root's `home/`. An eight-second offscreen trial
+start wrote its profile there and left
+`~/Library/Application Support/BetterPullReview` untouched. Session cursor 805.
+
+Protections were released by candidate name only (events 798–800):
+`native-keyboard-v001`, `home-section-v002` and `local-identity-v001`, whose
+verdicts stand. `surface-rows-v001` and `BPR-1241-retarget-key-v001` stay
+protected. This change touches their files but nothing either asks, as recorded
+in observations 801 and 802.
+
+Owed: Linux and Windows runs of the changed rows. The card stays Parked on
+RC61-02 (`surface-rows-v001`) and RC61-09 (`native-keyboard-v002`).
+
+```sh
+ctest --preset dev -j4 --output-on-failure -R "^qt_|^core_appearance_contrast$|^core_review_cycle_feedback$|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^review_cycle_workbench$|^architecture_boundaries$"
+```
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^qt_|^core_appearance_contrast$|^core_review_cycle_feedback$|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^review_cycle_workbench$|^architecture_boundaries$"
+```
+
+Limits: the rendered checks run offscreen and natively on macOS only. On
+macOS with Keyboard navigation off, plain push and tool buttons are not Tab
+stops, as in other Mac applications. The comparison pane is ringed but has no
+Return gesture.

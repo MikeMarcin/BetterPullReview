@@ -30,6 +30,20 @@ the review bar and the source pane's context menu; the whole file is edited in
 the main pane rather than in the tray; and the tray's before/after colours its
 removed and added lines the way the diff panes do. RC61-04 is amended to match.
 
+## Owner decision, 2026-10-02: Return and Shift+Return in the code, and visible focus
+
+The owner rejected `BPR-1157-native-keyboard-v001` (events 793 and 794): Tab
+moved between controls but nothing showed which had focus, and a key was
+wanted for commenting, "maybe when focused on the code pane in the read-only
+mode enter adds comment, shift+enter suggests edit". That suggestion is the
+decision. Reading the code, Return (Enter) makes a note on the selection, or
+on the caret's line when nothing is selected, and Shift+Return begins Suggest
+change at the caret; while Suggest change edits, Return stays a line break.
+Every stop Tab reaches on the cycle page shows the window's focus ring, the
+theme's selection colour lifted to the 3:1 indicator floor. RC61-09 is
+amended to match; the evidence is on
+[BPR-1157](../issues/40-parked/BPR-1157-integrate-local-entry-and-source-first-tabs-with-the-accepted-chrome.md#owner-verdicts-at-hand-back-795-and-native-keyboard-v002--macos-2026-10-02).
+
 ## Normative contracts
 
 The detailed contracts [UX.md](assets/bpr-review-cycles-v1/specs/UX.md), [LIMITS.md](assets/bpr-review-cycles-v1/specs/LIMITS.md) are normative parts of this proposal. The common [domain](assets/bpr-review-cycles-v1/specs/DOMAIN.md), [decisions](assets/bpr-review-cycles-v1/supporting/DECISIONS.md) and [security boundary](assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md) apply. If a live predecessor differs, record a specific compatibility decision; do not quietly implement a weaker alternate workflow.
@@ -44,7 +58,7 @@ The detailed contracts [UX.md](assets/bpr-review-cycles-v1/specs/UX.md), [LIMITS
 - **RC61-06:** Whole-round feedback and exact delivery observations remain legible; optional direct/external routes add no hidden context or automatic dispatch.
 - **RC61-07:** Capture, response display, comparison, reviewer verification and next-round composition work without callback/protocol prerequisites.
 - **RC61-08:** Publication preview differentiates bases and selected final content and links the actual PR while preserving local history/privacy.
-- **RC61-09:** Native width/focus/shortcuts/accessibility/IME/tab-restoration courses preserve accepted workbench design and record actual platform/user evidence.
+- **RC61-09:** Native width/focus/shortcuts/accessibility/IME/tab-restoration courses preserve accepted workbench design and record actual platform/user evidence; every Tab stop shows a visible focus ring, and in the read-only code Return notes the selection or the caret's line and Shift+Return begins Suggest change there (owner decision, 2026-10-02).
 - **RC61-10:** Named-corpus latency/memory and the eight-item/two-suggestion human-steering course measure benefit/limitations without unverified savings claims.
 
 ## Implementation and evidence
