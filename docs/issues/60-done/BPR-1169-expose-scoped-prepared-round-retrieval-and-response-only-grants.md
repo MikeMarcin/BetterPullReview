@@ -81,3 +81,26 @@ Not gating. Linux and Windows configure `build/*-tour-cli` with
 `sqlite_tour_owner_channel` are registered contained and unmeasured on
 Windows: a refusal inside the container is pinned `WINDOWS_UNCONTAINED` with
 its measured line, not guessed.
+
+## Linux: bpr-main-linux, 2026-10-02
+
+At `7d8181527` (includes `58e25ded7`), on WSL2 with GCC 15.2. No remote mutation.
+
+- **`build/dev-tour-cli` (`BPR_BUILD_TOUR_CLI=ON`).** The configure and build
+  exit 0 with 0 `warning:` lines. The requested `ctest -j4` selection passes
+  **19 of 19** in 34.49 s, including:
+  - `core_review_cycle_{retrieval,command,policy,share,response,round}`
+  - `sqlite_review_cycle_storage` (schema 9) and `sqlite_tour_owner_channel`
+    (owner protocol 4)
+  - `review_cycle_{workbench,export,response}` (workbench 34.40 s)
+  - `cycle_cli_public_path` (14.02 s) and
+    `application_profile_cycle_handoff_public_path` (9.73 s)
+  - `application_review_cycle_desktop_public_path`
+  - `qt_review_cycle_view_1_0` and `_2_0`
+  - the round-trip contract, `architecture_boundaries` and
+    `test_network_isolation_manifest`
+- **Installed TourCLI.** The `tour-cli` preset configure and build exit 0
+  with 0 `warning:` lines, and `cmake --install … --component TourCLI` into a
+  fresh `build/tour-cli-install` exits 0. `python3
+  tests/scripts/cycle_cli_tests.py build/tour-cli-install/bin/bpr` passes:
+  `cycle-cli-public-path:pass`, its pseudo-terminal part included.
