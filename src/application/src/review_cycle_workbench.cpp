@@ -690,6 +690,47 @@ namespace bpr::application {
 			load_source();
 		}
 
+		/// Whether another write moved the cycle on since this host read it.
+		static auto revision_moved(const cycle_store_error& aError) -> bool
+		{
+			return aError.Failure == cycle_store_failure::conflict || (aError.Failure == cycle_store_failure::refused && aError.Refusal == core::cycle_refusal::conflict);
+		}
+
+		/// Starts a note on the cycle as it stands. A note stands on its own
+		/// target, so when another interface wrote the cycle since it was read
+		/// (BPR-1168) the note is tried once more, under the same operation, on
+		/// the cycle as it is now; the core checks it again. The reviewer's text
+		/// is never dropped for a revision they could not see.
+		void begin_note(core::begin_cycle_feedback aNote, std::function<void(implementation&, cycle_write_receipt)> aThen)
+		{
+			const auto identity = operation();
+			Runtime.begin_feedback_selected(identity, Cycle->Revision, aNote, [weak = weak_from_this(), generation = Generation, identity, note = aNote, then = std::move(aThen)](cycle_store_result<cycle_write_receipt> aResult) mutable {
+				const auto self = weak.lock();
+				if (!self || self->Closing || self->Generation != generation) {
+					return;
+				}
+				if (aResult) {
+					then(*self, *aResult);
+					return;
+				}
+				if (!revision_moved(aResult.error())) {
+					if (aResult.error().Failure != cycle_store_failure::cancelled) {
+						self->fail(cycle_store_words(aResult.error()));
+					}
+					return;
+				}
+				self->Runtime.load_selected(self->guarded<std::optional<core::review_cycle_state>>([identity, retried = std::move(note), afterwards = std::move(then)](implementation& aHost, std::optional<core::review_cycle_state> aState) mutable {
+					if (!aState) {
+						aHost.fail("The cycle no longer exists.");
+						return;
+					}
+					aHost.Cycle      = std::move(*aState);
+					aHost.View.Cycle = core::project(*aHost.Cycle);
+					aHost.Runtime.begin_feedback_selected(identity, aHost.Cycle->Revision, std::move(retried), aHost.guarded<cycle_write_receipt>(std::move(afterwards)));
+				}));
+			});
+		}
+
 		void comment(core::begin_cycle_feedback aNote)
 		{
 			if (!Cycle) {
@@ -697,13 +738,13 @@ namespace bpr::application {
 			}
 			View.Activity = review_cycle_activity::saving;
 			publish();
-			Runtime.begin_feedback_selected(operation(), Cycle->Revision, std::move(aNote), guarded<cycle_write_receipt>([](implementation& aSelf, cycle_write_receipt aReceipt) {
-												aSelf.Cycle->Revision = aReceipt.Revision;
-												++aSelf.Cycle->Next.FeedbackItem;
-												aSelf.View.Activity = review_cycle_activity::idle;
-												aSelf.View.Message.clear();
-												aSelf.load_notes();
-											}));
+			begin_note(std::move(aNote), [](implementation& aSelf, cycle_write_receipt aReceipt) {
+				aSelf.Cycle->Revision = aReceipt.Revision;
+				++aSelf.Cycle->Next.FeedbackItem;
+				aSelf.View.Activity = review_cycle_activity::idle;
+				aSelf.View.Message.clear();
+				aSelf.load_notes();
+			});
 		}
 
 		void suggest(review_cycle_suggestion_request aRequest)
@@ -714,12 +755,12 @@ namespace bpr::application {
 			View.Activity = review_cycle_activity::saving;
 			publish();
 			auto note = core::begin_cycle_feedback{ .Primary = aRequest.Edits.front().Selection, .Body = aRequest.Rationale };
-			Runtime.begin_feedback_selected(operation(), Cycle->Revision, std::move(note), guarded<cycle_write_receipt>([request = std::move(aRequest)](implementation& aSelf, cycle_write_receipt aReceipt) mutable {
-												aSelf.Cycle->Revision = aReceipt.Revision;
-												++aSelf.Cycle->Next.FeedbackItem;
-												const auto item = core::cycle_feedback_item_ref{ .Cycle = aSelf.Subject->Cycle, .Id = core::cycle_feedback_item_id{ aReceipt.Allocated } };
-												aSelf.add_suggestions(item, std::move(request), 0U);
-											}));
+			begin_note(std::move(note), [request = std::make_shared<review_cycle_suggestion_request>(std::move(aRequest))](implementation& aSelf, cycle_write_receipt aReceipt) {
+				aSelf.Cycle->Revision = aReceipt.Revision;
+				++aSelf.Cycle->Next.FeedbackItem;
+				const auto item = core::cycle_feedback_item_ref{ .Cycle = aSelf.Subject->Cycle, .Id = core::cycle_feedback_item_id{ aReceipt.Allocated } };
+				aSelf.add_suggestions(item, std::move(*request), 0U);
+			});
 		}
 
 		/// Adds a note's suggestions one after another; each write moves the
@@ -755,15 +796,31 @@ namespace bpr::application {
 				if (!self || self->Closing || self->Generation != generation) {
 					return;
 				}
+				auto applied = std::optional<core::cycle_compose_edit>{ };
 				if (!self->Edits.empty()) {
+					applied = std::move(self->Edits.front());
 					self->Edits.pop_front();
 				}
 				if (!aResult) {
 					self->Edits.clear();
+					if (revision_moved(aResult.error()) && self->View.Share) {
+						// Another interface changed the draft first (BPR-1168). Its
+						// change stands; a goal typed here is kept to save again.
+						const auto* goal = applied ? std::get_if<core::set_round_goal>(&*applied) : nullptr;
+						if (goal != nullptr) {
+							self->View.Share->UnsavedGoal = goal->Goal;
+						}
+						self->reload_share(goal != nullptr ? "The draft changed elsewhere first, so your goal was not saved. It is still in Goal: press Return to save it over the new revision."
+														   : "The draft changed elsewhere first, so that change was not made. Here is the draft as it is now.");
+						return;
+					}
 					if (aResult.error().Failure != cycle_store_failure::cancelled) {
 						self->fail(cycle_store_words(aResult.error()));
 					}
 					return;
+				}
+				if (applied && std::holds_alternative<core::set_round_goal>(*applied) && self->View.Share) {
+					self->View.Share->UnsavedGoal.reset();
 				}
 				if (self->View.Share) {
 					self->present_draft(std::move(*aResult));
@@ -956,6 +1013,23 @@ namespace bpr::application {
 	void review_cycle_workbench::refresh_recents()
 	{
 		Implementation->refresh_recents();
+	}
+
+	void review_cycle_workbench::observe_external_change(const core::review_cycle_id aCycle)
+	{
+		auto& self = *Implementation;
+		if (self.Closing || !self.Subject || self.Subject->Cycle != aCycle || !self.Cycle) {
+			return;
+		}
+		self.load(false);
+		if (self.View.Share) {
+			self.reload_share(self.View.Share->Status);
+		}
+	}
+
+	auto review_cycle_workbench::saving_draft() const noexcept -> bool
+	{
+		return !Implementation->Edits.empty();
 	}
 
 	void review_cycle_workbench::open_project(std::string aLocation)

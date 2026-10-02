@@ -2350,6 +2350,10 @@ namespace bpr::adapters::sqlite {
 				if (!opened) {
 					return fail(cycle_store_failure::unavailable);
 				}
+				// Another connection may be writing (a window and a forwarded terminal
+				// command each have one, BPR-1168): the schema is read waiting for it,
+				// never taken for another version's because it was busy.
+				(void)sqlite3_busy_timeout(*opened, 2'000);
 				if (auto established = establish(*opened, aStop); !established) {
 					sqlite3_close_v2(*opened);
 					return std::unexpected(established.error());

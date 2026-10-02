@@ -637,6 +637,75 @@ namespace {
 	}
 }
 
+namespace {
+	/// [[BPR-1168]]. Another interface writes the cycle while this window
+	/// holds it open (a forwarded terminal command runs on a session of its
+	/// own beside the window): the reviewer's note is not dropped for a
+	/// revision they could not see, a goal refused for a newer draft stays to
+	/// save again, and the window reads the cycle again when told.
+	void keeps_work_beside_another_interface(const std::filesystem::path& aScratch)
+	{
+		tests::sqlite_contract::scratch_root profileScratch{ "cycle-beside-profile" };
+		const auto&                          profileRoot = profileScratch.path();
+		const auto                           project     = aScratch / "beside-project";
+		write_file(project / "README.md", "# Beside\n");
+
+		auto window = desk{ profileRoot, 31 };
+		window.Host->open_project(project.string());
+		window.Lanes.drain();
+		window.Host->comment({ .Primary = core::cycle_whole_target{ }, .Body = "From the window." });
+		window.Host->compose();
+		const auto shown = window.view().Share->Draft.Revision;
+		expect(window.view().Notes.size() == 1U && window.view().Share, "the window composes over its note");
+
+		// The other interface: a note, then the draft's goal.
+		{
+			auto other = desk{ profileRoot, 32 };
+			other.Host->open_project(project.string());
+			other.Lanes.drain();
+			other.Host->comment({ .Primary = core::cycle_whole_target{ }, .Body = "From the terminal." });
+			other.Host->compose();
+			other.Lanes.drain();
+			other.Host->edit_composition(core::set_round_goal{ .Goal = "Theirs" });
+			expect(other.view().Notes.size() == 2U && other.view().Share->Selection.Goal == "Theirs" && other.view().Message.empty(), "the other interface wrote the cycle and the draft");
+		}
+
+		// The window still holds the revisions it read. Its note is added to the
+		// cycle as it is now, and both notes stand.
+		window.Host->comment({ .Primary = core::cycle_whole_target{ }, .Body = "Written while the terminal wrote." });
+		const auto& noted = window.view();
+		expect(noted.Message.empty() && noted.Notes.size() == 3U && std::ranges::any_of(noted.Notes, [](const auto& aNote) { return aNote.Body == "Written while the terminal wrote."; }),
+			   "the window's note is kept, beside the terminal's");
+
+		// A goal typed against the draft the window showed is refused, not
+		// written over the newer draft, and kept for the reviewer.
+		window.Host->edit_composition(core::set_round_goal{ .Goal = "Mine" });
+		expect(window.Host->saving_draft(), "the edit is waiting to be saved");
+		const auto& refused = window.view();
+		expect(!window.Host->saving_draft() && refused.Share && refused.Share->UnsavedGoal == std::optional<std::string>{ "Mine" } && refused.Share->Selection.Goal == "Theirs"
+				   && refused.Share->Draft.Revision > shown && refused.Share->Status.find("not saved") != std::string::npos,
+			   "the terminal's goal stands, the window's is kept unsaved, and the draft is shown as it is now");
+		window.Host->edit_composition(core::set_round_goal{ .Goal = "Mine" });
+		const auto& saved = window.view();
+		expect(saved.Share->Selection.Goal == "Mine" && !saved.Share->UnsavedGoal, "saved again by the reviewer, over the revision they now see");
+
+		// Told that another interface wrote the cycle, the window reads it again.
+		{
+			auto other = desk{ profileRoot, 33 };
+			other.Host->open_project(project.string());
+			other.Lanes.drain();
+			other.Host->comment({ .Primary = core::cycle_whole_target{ }, .Body = "Later, from the terminal." });
+			other.Lanes.drain();
+		}
+		expect(window.view().Notes.size() == 3U, "nothing told the window yet");
+		window.Host->observe_external_change(core::review_cycle_id{ 2 });
+		expect(window.view().Notes.size() == 3U, "another cycle's change is not this one's");
+		window.Host->observe_external_change(saved.Cycle->Subject.Cycle);
+		expect(window.view().Notes.size() == 4U && window.view().Share && window.view().Share->Selection.Goal == "Mine", "read again, Compose feedback with it");
+		std::cout << "NATIVE: a window keeps its note and its goal beside another interface's writes\n";
+	}
+}
+
 auto main(const int aArgc, char** aArgv) -> int
 try {
 	tests::sqlite_contract::scratch_root scratch{ "cycle-workbench" };
@@ -644,6 +713,7 @@ try {
 	iterates_manually(scratch.path(), tests::workspace_contract::git_from(aArgc, aArgv));
 	composes_and_shares_one_round(scratch.path());
 	refuses_a_copy_over_the_clipboard_limit(scratch.path());
+	keeps_work_beside_another_interface(scratch.path());
 	std::cout << "review-cycle-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

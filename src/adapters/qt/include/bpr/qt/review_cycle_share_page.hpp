@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_CYCLE_SHARE_PAGE_HPP
 
 #include "bpr/application/review_cycle_projection.hpp"
+#include "bpr/core/review_cycle_command.hpp"
 
 #include <QWidget>
 
@@ -54,6 +55,12 @@ namespace bpr::qt {
 		/// \brief Gives focus to the first share route offered, else Back.
 		void focus_first();
 
+		/// \brief What Goal holds that the draft does not (BPR-1168): text
+		/// entered but not yet saved, or an input method still composing.
+		[[nodiscard]] auto draft_editor() const -> core::cycle_draft_editor;
+		/// \brief Saves what Goal holds, as Return would; composing text is not saved.
+		void save_draft_editor();
+
 		[[nodiscard]] auto back_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto title() const noexcept -> QLabel*;
 		[[nodiscard]] auto facts() const noexcept -> QLabel*;
@@ -70,6 +77,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto invocation() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto replace_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto keep_button() const noexcept -> QPushButton*;
+
+	protected:
+		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
 		void rebuild_items(const application::review_cycle_share_view& aShare, const std::vector<application::review_cycle_note_entry>& aNotes);
@@ -102,6 +112,10 @@ namespace bpr::qt {
 		std::vector<QString>                                       ShownDeliveries;
 		bool                                                       Idle       = true;
 		bool                                                       Presenting = false;
+		/// The goal the draft holds, as last shown.
+		QString ShownGoal;
+		/// An input method is composing in Goal: preedit text, not text yet.
+		bool GoalComposing = false;
 	};
 }
 

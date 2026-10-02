@@ -2,6 +2,7 @@
 #include "bpr/application/tour_assist.hpp"
 #include "bpr/core/sha256.hpp"
 #include "review_tour_codec.hpp"
+#include <algorithm>
 namespace bpr::adapters::sqlite {
 	namespace {
 		void edit_codec(detail::tour_codec& aCodec, application::tour_service_request& aRequest)
@@ -42,14 +43,89 @@ namespace bpr::adapters::sqlite {
 				aCodec.Good = false;
 			}
 		}
+		auto flag(detail::tour_codec& aCodec, bool& aValue)
+		{
+			auto value = static_cast<std::uint8_t>(aValue);
+			aCodec.byte(value);
+			if (value > 1U) {
+				aCodec.Good = false;
+			}
+			aValue = value != 0U;
+		}
+		/// [[BPR-1168]]. A cycle command: a registry name and that entry's options only. The caller's
+		/// own choices (output form, profile, data root, schema) stay with the caller.
+		void cycle_request_codec(detail::tour_codec& aCodec, application::cycle_owner_request& aRequest)
+		{
+			aCodec.enumeration(aRequest.Command);
+			aCodec.text(aRequest.Operation, core::maximum_cycle_operation_id_bytes);
+			aCodec.number(aRequest.Step);
+			aCodec.list(aRequest.Positional, 1U, [&](auto& aValue) { aCodec.text(aValue, 8192U); });
+			aCodec.list(aRequest.Options, 24U, [&](auto& aValue) {
+				aCodec.text(aValue.first, 32U);
+				aCodec.text(aValue.second, 8192U);
+			});
+			aCodec.text(aRequest.Directory, 8192U);
+			aCodec.optional(aRequest.Text, [&](auto& aValue) { aCodec.text(aValue, application::maximum_cycle_owner_text_bytes); });
+			aCodec.optional(aRequest.Document, [&](auto& aValue) { aCodec.text(aValue, application::maximum_cycle_owner_document_bytes); });
+			flag(aCodec, aRequest.Check);
+			flag(aCodec, aRequest.Interactive);
+			if (!aCodec.Good) {
+				return;
+			}
+			if (aRequest.Command > core::cycle_command::export_record || !core::valid_cycle_operation_id(aRequest.Operation)) {
+				aCodec.Good = false;
+				return;
+			}
+			const auto allowed = core::cycle_command_options(aRequest.Command);
+			for (const auto& [option, value] : aRequest.Options) {
+				const auto repeated = std::ranges::count(aRequest.Options, option, &std::pair<std::string, std::string>::first) != 1;
+				if (repeated || std::ranges::find(allowed, std::string_view{ option }) == allowed.end() || (core::cycle_option_is_flag(option) && value != "true")) {
+					aCodec.Good = false;
+					return;
+				}
+			}
+			for (const auto& text : aRequest.Positional) {
+				if (!core::valid_writing_utf8(text)) {
+					aCodec.Good = false;
+				}
+			}
+			if (!core::valid_writing_utf8(aRequest.Directory) || (aRequest.Text && !core::valid_writing_utf8(*aRequest.Text))) {
+				aCodec.Good = false;
+			}
+		}
+		void cycle_response_codec(detail::tour_codec& aCodec, application::cycle_owner_response& aResponse)
+		{
+			constexpr std::size_t bulk = application::maximum_tour_channel_bytes;
+			aCodec.text(aResponse.Operation, core::maximum_cycle_operation_id_bytes);
+			aCodec.number(aResponse.Step);
+			flag(aCodec, aResponse.Ok);
+			aCodec.text(aResponse.Code, 128U);
+			aCodec.text(aResponse.Message, 16384U);
+			aCodec.text(aResponse.Next, 16384U);
+			aCodec.text(aResponse.Detail, 65536U);
+			aCodec.text(aResponse.Data, bulk);
+			aCodec.text(aResponse.Human, bulk);
+			flag(aCodec, aResponse.Complete);
+			aCodec.text(aResponse.Output, bulk);
+			if (aCodec.Good && aResponse.Ok == !aResponse.Code.empty()) {
+				aCodec.Good = false;
+			}
+		}
 		void request_codec(detail::tour_codec& aCodec, application::tour_owner_request& aRequest)
 		{
 			aCodec.enumeration(aRequest.Operation);
 			aCodec.text(aRequest.Draft, 64);
 			aCodec.text(aRequest.Edit.RequestId, 64);
-			const bool profileWide = aRequest.Operation == application::tour_owner_operation::hooks_show;
-			if (aRequest.Operation > application::tour_owner_operation::hooks_show || aRequest.Draft.size() != (profileWide ? 0U : 64U)) {
+			const bool profileWide = aRequest.Operation == application::tour_owner_operation::hooks_show || aRequest.Operation == application::tour_owner_operation::cycle;
+			if (aRequest.Operation > application::tour_owner_operation::cycle || aRequest.Draft.size() != (profileWide ? 0U : 64U)) {
 				aCodec.Good = false;
+			}
+			if (aRequest.Operation == application::tour_owner_operation::cycle) {
+				if (!aRequest.Edit.RequestId.empty()) {
+					aCodec.Good = false;
+				}
+				cycle_request_codec(aCodec, aRequest.Cycle);
+				return;
 			}
 			if (aRequest.Operation == application::tour_owner_operation::mutate) {
 				edit_codec(aCodec, aRequest.Edit);
@@ -80,6 +156,7 @@ namespace bpr::adapters::sqlite {
 			aCodec.optional(aResponse.Receipt, [&](auto& aReceipt) { aCodec.text(aReceipt.Id,64); for(auto& aValue:aReceipt.Digest){aCodec.byte(aValue);} aCodec.byte(aReceipt.Status); aCodec.enumeration(aReceipt.Refusal); aCodec.number(aReceipt.Revision); });
 			aCodec.text(aResponse.Error, 128);
 			aCodec.text(aResponse.Json, 65536);
+			aCodec.optional(aResponse.Cycle, [&](auto& aValue) { cycle_response_codec(aCodec, aValue); });
 			if (aResponse.Draft && core::validate(*aResponse.Draft) != core::tour_refusal::none) {
 				aCodec.Good = false;
 			}

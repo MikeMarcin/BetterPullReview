@@ -8,6 +8,7 @@
 #include "bpr/application/workspace_source_port.hpp"
 #include "bpr/core/model.hpp"
 #include "bpr/core/review_cycle.hpp"
+#include "bpr/core/review_cycle_command.hpp"
 
 #include <array>
 #include <filesystem>
@@ -78,6 +79,13 @@ namespace bpr::app {
 		using save_chooser = std::function<std::string(const std::string& aSuggested, bool aBundle)>;
 		/// \brief Replaces the native save dialog, for a course that cannot answer one.
 		void set_save_chooser(save_chooser aChooser);
+		/// \brief What this window holds of cycle `aCycle`'s round draft that
+		/// the store does not (BPR-1168), for a forwarded terminal command.
+		[[nodiscard]] auto draft_editor(core::review_cycle_id aCycle) const -> core::cycle_draft_editor;
+		/// \brief Saves the goal typed for cycle `aCycle`'s draft, as Return would.
+		void save_draft_editor(core::review_cycle_id aCycle);
+		/// \brief A forwarded terminal command wrote cycle `aCycle`: show it as it is now.
+		void external_change(core::review_cycle_id aCycle);
 		/// \brief The window's pull request took the review surface back.
 		void               leave();
 		[[nodiscard]] auto host() noexcept -> application::review_cycle_workbench&;

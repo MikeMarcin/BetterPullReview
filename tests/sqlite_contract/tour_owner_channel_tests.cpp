@@ -19,7 +19,9 @@
 #include <thread>
 #include <utility>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+	#include "scratch_root.hpp"
+#else
 	#include <sys/socket.h>
 	#include <sys/stat.h>
 	#include <sys/un.h>
@@ -162,6 +164,78 @@ namespace {
 		const auto reply = decode_tour_response(response_bytes("revision_conflict"));
 		expect(reply && reply->Error == "revision_conflict" && !reply->Draft, "a refusal response round-trips");
 		expect(!decode_tour_response({ }), "an empty response is refused");
+	}
+
+	/// [[BPR-1168]]. A cycle command is a registry name and that entry's options; nothing else rides along.
+	auto cycle_request(core::cycle_command aCommand = core::cycle_command::note) -> tour_owner_request
+	{
+		tour_owner_request result{ .Operation = tour_owner_operation::cycle };
+		result.Cycle.Command    = aCommand;
+		result.Cycle.Operation  = "op-1";
+		result.Cycle.Step       = 2U;
+		result.Cycle.Positional = { "RC-1" };
+		result.Cycle.Options    = { { "--file", "src/a.cpp" }, { "--lines", "2:3" }, { "--body-file", "-" } };
+		result.Cycle.Directory  = "/work/project";
+		result.Cycle.Text       = "Cache this lookup.\n";
+		return result;
+	}
+
+	void test_cycle_codec()
+	{
+		const auto request = cycle_request();
+		const auto decoded = decode_tour_request(encode_tour_request(request));
+		expect(decoded && decoded->Operation == tour_owner_operation::cycle && decoded->Cycle.Command == core::cycle_command::note && decoded->Cycle.Operation == "op-1" && decoded->Cycle.Step == 2U
+				   && decoded->Cycle.Options == request.Cycle.Options && decoded->Cycle.Text == request.Cycle.Text && decoded->Cycle.Directory == "/work/project",
+			   "a cycle command round-trips exactly");
+		const auto refused = [](tour_owner_request aRequest, const char* aWhat) { expect(encode_tour_request(std::move(aRequest)).empty(), aWhat); };
+		auto       changed = request;
+		changed.Cycle.Options.push_back({ "--expected-revision", "3" });
+		refused(changed, "an option of another command is refused");
+		changed = request;
+		changed.Cycle.Options.push_back({ "--profile", "2" });
+		refused(changed, "the caller's own profile choice never reaches the owner");
+		changed = request;
+		changed.Cycle.Options.push_back({ "--yes", "true" });
+		refused(changed, "there is no bypass to carry");
+		changed = request;
+		changed.Cycle.Options.push_back({ "--file", "other" });
+		refused(changed, "a repeated option is refused");
+		changed               = cycle_request(core::cycle_command::capture);
+		changed.Cycle.Options = { { "--again", "yes" } };
+		refused(changed, "a flag carries no value");
+		changed                 = request;
+		changed.Cycle.Operation = "op 1";
+		refused(changed, "an operation identity is letters, digits and hyphens");
+		changed.Cycle.Operation = "";
+		refused(changed, "and is never empty");
+		changed       = request;
+		changed.Draft = draft;
+		refused(changed, "a cycle command names no tour draft");
+		changed                = request;
+		changed.Edit.RequestId = "req-1";
+		refused(changed, "nor a tour request");
+		changed                  = request;
+		changed.Cycle.Positional = { "RC-1", "RC-2" };
+		refused(changed, "at most one cycle");
+		changed            = request;
+		changed.Cycle.Text = std::string(application::maximum_cycle_owner_text_bytes + 1U, 'x');
+		refused(changed, "text is bounded");
+		changed            = request;
+		changed.Cycle.Text = std::string{ "bad\xff" };
+		refused(changed, "text is UTF-8");
+		changed                = request;
+		changed.Cycle.Document = std::string(application::maximum_cycle_owner_document_bytes + 1U, 'x');
+		refused(changed, "a response document is bounded");
+		auto bytes = encode_tour_request(request);
+		bytes[17]  = static_cast<std::uint8_t>(static_cast<std::uint8_t>(core::cycle_command::export_record) + 1U); // after the operation and two empty texts
+		expect(!decode_tour_request(bytes), "an unknown cycle command does not decode");
+
+		application::tour_owner_response answer;
+		answer.Cycle        = application::cycle_owner_response{ .Operation = "op-1", .Step = 2U, .Ok = true, .Data = "{\"item\":\"I3\"}", .Human = "Noted I3.\n", .Output = "#" };
+		const auto answered = decode_tour_response(encode_tour_response(answer));
+		expect(answered && answered->Cycle && answered->Cycle->Operation == "op-1" && answered->Cycle->Step == 2U && answered->Cycle->Data == answer.Cycle->Data && answered->Cycle->Output == "#", "a cycle answer round-trips");
+		answer.Cycle->Code = "conflict";
+		expect(encode_tour_response(answer).empty(), "an answer is either a result or a refusal");
 	}
 
 #if !defined(_WIN32)
@@ -461,10 +535,11 @@ namespace {
 		client    caller{ root.Path, profile, load_request() };
 		const int accepted = ::accept(listen, nullptr, nullptr);
 		expect(accepted >= 0, "the caller connects");
-		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', 9 };
-		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version 9");
+		// Version 2 is the owner before cycle commands (BPR-1168).
+		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', 2 };
+		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version 2");
 		const auto& result = caller.wait();
-		expect(!result && result.error() == tour_channel_failure::refused, "another protocol version is refused before a payload is sent");
+		expect(!result && result.error() == tour_channel_failure::version_mismatch, "another protocol version is named as such, before a payload is sent");
 		std::array<std::uint8_t, 1> probe{ };
 		expect(::recv(accepted, probe.data(), 1, MSG_DONTWAIT) <= 0, "no request bytes reached the mismatched owner");
 		::close(accepted);
@@ -554,6 +629,134 @@ namespace {
 		expect(!uncertain && uncertain.error() == tour_channel_failure::indeterminate, "cancellation after delivery is uncertain");
 		pending->Reply->complete(response_bytes("late"));
 	}
+#else
+	// [[BPR-1168]]. The Windows owner command pipe: the same authority, binding,
+	// version, framing and lifetime as the POSIX socket, with a cycle command
+	// carried end to end. There is no stale-endpoint course because a pipe dies
+	// with the process that bound it; the name is shown bindable again instead.
+	class scratch_directory
+	{
+	public:
+		scratch_directory()
+			: Root{ "bpr-tourpipe" }
+			, Path{ std::filesystem::canonical(Root.path()) }
+		{ }
+		tests::sqlite_contract::scratch_root Root;
+		std::filesystem::path                Path;
+	};
+
+	class client
+	{
+	public:
+		client(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, tour_channel_bytes aPayload, std::stop_token aStop = { })
+			: Thread{ [this, aRoot, aProfile, payload = std::move(aPayload), aStop] { Result = send_tour_owner(aRoot, aProfile, payload, aStop); } }
+		{ }
+		auto wait() -> const std::expected<tour_channel_bytes, tour_channel_failure>&
+		{
+			Thread.join();
+			return Result;
+		}
+
+	private:
+		std::expected<tour_channel_bytes, tour_channel_failure> Result{ std::unexpected(tour_channel_failure::unavailable) };
+		std::thread                                             Thread;
+	};
+
+	auto receive(application::tour_owner_server& aServer, std::chrono::milliseconds aWithin = std::chrono::seconds{ 5 }) -> std::optional<application::tour_owner_message>
+	{
+		const auto until = std::chrono::steady_clock::now() + aWithin;
+		while (std::chrono::steady_clock::now() < until) {
+			if (auto message = aServer.receive()) {
+				return message;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+		}
+		return std::nullopt;
+	}
+
+	void test_windows_pipe()
+	{
+		const scratch_directory root;
+		const scratch_directory other;
+		auto                    lease = acquire_profile_runtime_lease(root.Path);
+		expect(lease.has_value(), "acquire the profile lease");
+		expect(!make_tour_owner_server(root.Path, profile, { }), "a null lease is refused");
+		expect(!make_tour_owner_server(root.Path, profile, std::make_shared<application::profile_runtime_lease>()), "a forged lease is refused");
+		expect(!make_tour_owner_server(other.Path, profile, *lease), "another root's lease is refused");
+		const auto missing = send_tour_owner(root.Path, profile, load_request());
+		expect(!missing && missing.error() == tour_channel_failure::unavailable, "no owner, no endpoint");
+		auto server = make_tour_owner_server(root.Path, profile, *lease);
+		expect(server.has_value(), "the admitted owner binds its command pipe");
+		const auto endpoint = tour_owner_endpoint(root.Path);
+		expect(endpoint && endpoint->wstring().starts_with(L"\\\\.\\pipe\\bpr-tourcmd--"), "a local named pipe beside activation");
+		expect(!make_tour_owner_server(root.Path, profile, *lease), "a duplicate listener is refused");
+
+		// A tour request and its answer.
+		{
+			client caller{ root.Path, profile, load_request() };
+			auto   message = receive(**server);
+			expect(message.has_value(), "the request arrives");
+			const auto decoded = decode_tour_request(message->Payload);
+			expect(decoded && decoded->Draft == draft, "the admitted bytes are the exact request");
+			expect(!(*server)->receive(), "one pending request bounds the owner");
+			message->Reply->complete(encode_tour_response({ .Error = "target_ambiguous" }));
+			const auto& answer = caller.wait();
+			const auto  reply  = answer ? decode_tour_response(*answer) : std::nullopt;
+			expect(reply && reply->Error == "target_ambiguous", "the answer reaches the caller");
+		}
+		// A cycle command larger than one pipe buffer, both ways.
+		{
+			tour_owner_request request{ .Operation = tour_owner_operation::cycle };
+			request.Cycle.Command   = core::cycle_command::response_import;
+			request.Cycle.Operation = "pipe-1";
+			request.Cycle.Options   = { { "--round", "F1" }, { "--file", "-" } };
+			request.Cycle.Document  = std::string(300U * 1024U, 'r');
+			client caller{ root.Path, profile, encode_tour_request(request) };
+			auto   message = receive(**server);
+			expect(message.has_value(), "the large request arrives whole");
+			const auto decoded = decode_tour_request(message->Payload);
+			expect(decoded && decoded->Cycle.Document == request.Cycle.Document, "every byte of it");
+			application::tour_owner_response answer;
+			answer.Cycle = application::cycle_owner_response{ .Operation = "pipe-1", .Ok = true, .Data = "{}", .Output = std::string(400U * 1024U, 'o') };
+			message->Reply->complete(encode_tour_response(answer));
+			const auto& bytes = caller.wait();
+			const auto  reply = bytes ? decode_tour_response(*bytes) : std::nullopt;
+			expect(reply && reply->Cycle && reply->Cycle->Output == answer.Cycle->Output, "and the large answer");
+		}
+		// A caller naming another profile is refused by the advertised binding and sends nothing.
+		{
+			client     caller{ root.Path, core::bpr_profile_id{ 2U }, load_request() };
+			const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds{ 500 };
+			while (std::chrono::steady_clock::now() < deadline) {
+				expect(!(*server)->receive(), "nothing from the wrong profile is admitted");
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+			}
+			const auto& refused = caller.wait();
+			expect(!refused && refused.error() == tour_channel_failure::refused, "the wrong profile is refused");
+		}
+		// The owner drains before answering: the delivery is uncertain, never a retry signal.
+		{
+			client caller{ root.Path, profile, load_request() };
+			auto   message = receive(**server);
+			expect(message.has_value(), "the request arrives");
+			server->reset();
+			message.reset();
+			const auto& lost = caller.wait();
+			expect(!lost && lost.error() == tour_channel_failure::indeterminate, "an owner lost after admission is indeterminate");
+		}
+		// Cancellation before delivery is a clean cancel.
+		{
+			std::stop_source stop;
+			stop.request_stop();
+			const auto cancelled = send_tour_owner(root.Path, profile, load_request(), stop.get_token());
+			expect(!cancelled && cancelled.error() == tour_channel_failure::cancelled, "cancelled before send");
+		}
+		lease->reset();
+		expect(acquire_profile_runtime_lease(root.Path).has_value(), "the lease is released after the server");
+		lease       = acquire_profile_runtime_lease(root.Path);
+		auto rebind = make_tour_owner_server(root.Path, profile, *lease);
+		expect(rebind.has_value(), "the drained name binds again");
+	}
 #endif
 }
 
@@ -562,11 +765,10 @@ int main()
 	try {
 		std::cout << "test_codec" << std::endl;
 		test_codec();
+		test_cycle_codec();
 #if defined(_WIN32)
-		// [[BPR-1061]]. The Windows named-pipe transport is not implemented; the owner and the
-		// caller both report it unavailable rather than opening a second writer.
-		auto root = std::filesystem::temp_directory_path();
-		expect(!make_tour_owner_server(root, profile, { }), "no Windows tour endpoint without the native pipe");
+		std::cout << "test_windows_pipe" << std::endl;
+		test_windows_pipe();
 #else
 		std::cout << "test_authority" << std::endl;
 		test_authority();

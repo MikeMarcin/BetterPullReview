@@ -210,7 +210,10 @@ takes the lease or starts the desktop. An owner that predates the channel answer
 `owner_protocol_unsupported` (exit 4). Provider-reading commands (`add`, `open`,
 `show --source`, `walk`, refresh, publish, recover) answer `interaction_required`
 while a desktop owns the profile; forwarding source reads is BPR-1227. The
-transport is implemented on POSIX; a Windows owner reports no tour channel.
+channel is a same-user local socket on macOS and Linux and an owner-private named
+pipe on Windows ([[BPR-1168]]), protocol 3; an owner of another protocol version
+answers `owner_protocol_unsupported` before anything is sent. The same channel
+carries `bpr cycle` commands ([Review Cycles terminal](cycle-cli.md)).
 
 Every local edit carries a request ID (`--request-id`, generated when omitted; at
 most 64 letters, digits or hyphens). The owner commits the outcome with the edit,

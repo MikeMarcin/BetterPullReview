@@ -916,10 +916,11 @@ namespace bpr::adapters::sqlite {
 	}
 
 	namespace {
-		using tour_failure = application::tour_channel_failure;
-		using tour_bytes   = application::tour_channel_bytes;
-		using tour_hello   = std::array<std::uint8_t, 64>;
-		auto tour_endpoint(const std::filesystem::path& aRoot) -> std::optional<std::filesystem::path>
+		using tour_failure                           = application::tour_channel_failure;
+		using tour_bytes                             = application::tour_channel_bytes;
+		using tour_hello                             = std::array<std::uint8_t, 64>;
+		constexpr std::uint8_t tour_protocol_version = 3U;
+		auto                   tour_endpoint(const std::filesystem::path& aRoot) -> std::optional<std::filesystem::path>
 		{
 			auto path = profile_activation_endpoint(aRoot);
 			if (!path) {
@@ -943,7 +944,8 @@ namespace bpr::adapters::sqlite {
 		}
 		auto make_tour_hello(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, bool aOwner) -> tour_hello
 		{
-			tour_hello result{ 'B', 'P', 'R', 'T', 2, 0, 0, 0 };
+			// Version 3 added the finite cycle commands (BPR-1168); either side refuses another version.
+			tour_hello result{ 'B', 'P', 'R', 'T', tour_protocol_version, 0, 0, 0 };
 			for (unsigned i = 0; i < 8; ++i) {
 				result[8 + i] = static_cast<std::uint8_t>(aProfile.value() >> (i * 8));
 			}
@@ -1141,6 +1143,272 @@ namespace bpr::adapters::sqlite {
 			std::size_t                                         Expected = 0;
 			std::weak_ptr<tour_native_reply>                    Pending;
 		};
+#else
+		// [[BPR-1168]]. The Windows owner command endpoint is an owner-private named pipe
+		// beside the activation pipe, with the POSIX socket's framing: the owner
+		// advertises its 64-byte binding, the caller echoes it with an 8-byte length and
+		// the request, and the owner answers the same way. Byte mode, because a request
+		// or an answer is far larger than one pipe buffer; the length delimits the frame.
+		constexpr DWORD tour_pipe_buffer = 64U * 1024U;
+
+		auto create_tour_instance(const std::wstring& aName, const private_security& aSecurity, const bool aFirst) -> windows_handle
+		{
+			private_security_attributes attributes;
+			if (!attributes.initialize(aSecurity, windows_object_kind::regular_file)) {
+				return windows_handle{ };
+			}
+			return windows_handle{ ::CreateNamedPipeW(aName.c_str(),
+													  PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | (aFirst ? FILE_FLAG_FIRST_PIPE_INSTANCE : 0U),
+													  PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+													  pipe_instances, tour_pipe_buffer, tour_pipe_buffer, 0U, attributes.attributes()) };
+		}
+		/// \brief Writes every byte before the deadline, or reports that it could not.
+		auto write_tour_pipe(HANDLE aPipe, std::span<const std::uint8_t> aBytes, const clock_type::time_point aDeadline, const std::stop_token aStop = { }) -> bool
+		{
+			while (!aBytes.empty()) {
+				pipe_operation write;
+				const auto     chunk = static_cast<DWORD>(std::min<std::size_t>(aBytes.size(), tour_pipe_buffer));
+				if (!write.valid() || (::WriteFile(aPipe, aBytes.data(), chunk, nullptr, write.overlapped()) == 0 && ::GetLastError() != ERROR_IO_PENDING)) {
+					return false;
+				}
+				DWORD bytes = 0U;
+				DWORD error = ERROR_SUCCESS;
+				if (!write.await(aPipe, aDeadline, aStop, bytes, error) || bytes == 0U) {
+					return false;
+				}
+				aBytes = aBytes.subspan(bytes);
+			}
+			return true;
+		}
+		/// \brief Reads exactly as many bytes as `aBytes` holds before the deadline.
+		auto read_tour_pipe(HANDLE aPipe, std::span<std::uint8_t> aBytes, const clock_type::time_point aDeadline, const std::stop_token aStop) -> bool
+		{
+			while (!aBytes.empty()) {
+				pipe_operation read;
+				const auto     chunk = static_cast<DWORD>(std::min<std::size_t>(aBytes.size(), tour_pipe_buffer));
+				if (!read.valid() || (::ReadFile(aPipe, aBytes.data(), chunk, nullptr, read.overlapped()) == 0 && ::GetLastError() != ERROR_IO_PENDING)) {
+					return false;
+				}
+				DWORD bytes = 0U;
+				DWORD error = ERROR_SUCCESS;
+				if (!read.await(aPipe, aDeadline, aStop, bytes, error) || bytes == 0U) {
+					return false;
+				}
+				aBytes = aBytes.subspan(bytes);
+			}
+			return true;
+		}
+		class tour_native_reply final : public application::tour_owner_reply
+		{
+		public:
+			tour_native_reply(windows_handle aPipe, tour_hello aHello, std::shared_ptr<application::profile_runtime_lease> aLease)
+				: Pipe{ std::move(aPipe) }
+				, Hello{ aHello }
+				, Lease{ std::move(aLease) }
+			{ }
+			void complete(std::span<const std::uint8_t> aResponse) noexcept override
+			{
+				const std::lock_guard lock{ Mutex };
+				if (!Pipe.valid()) {
+					return;
+				}
+				try {
+					if (!aResponse.empty() && aResponse.size() <= application::maximum_tour_channel_bytes) {
+						tour_bytes header{ Hello.begin(), Hello.end() };
+						append_size(header, aResponse.size());
+						// Bounded: a caller that stops reading cannot hold the owner.
+						const auto deadline = clock_type::now() + std::chrono::seconds{ 10 };
+						if (write_tour_pipe(Pipe.Value, header, deadline)) {
+							static_cast<void>(write_tour_pipe(Pipe.Value, aResponse, deadline));
+						}
+					}
+				} catch (...) { }
+				// Closing without DisconnectNamedPipe keeps a written answer readable; an
+				// unanswered request sees the pipe break, which is indeterminate.
+				Pipe = windows_handle{ };
+				Lease.reset();
+			}
+			auto pending() -> bool
+			{
+				const std::lock_guard lock{ Mutex };
+				return Pipe.valid();
+			}
+
+		private:
+			std::mutex                                          Mutex;
+			windows_handle                                      Pipe;
+			tour_hello                                          Hello;
+			std::shared_ptr<application::profile_runtime_lease> Lease;
+		};
+		class tour_native_server final : public application::tour_owner_server
+		{
+		public:
+			tour_native_server(windows_handle aListener, std::wstring aName, private_security aSecurity, tour_hello aHello, std::shared_ptr<application::profile_runtime_lease> aLease)
+				: Listener{ std::move(aListener) }
+				, Name{ std::move(aName) }
+				, Security{ std::move(aSecurity) }
+				, Hello{ aHello }
+				, Lease{ std::move(aLease) }
+			{
+				arm();
+			}
+			~tour_native_server() override
+			{
+				if (auto pending = Pending.lock()) {
+					pending->complete({ });
+				}
+				release_listener();
+			}
+			tour_native_server(const tour_native_server&)                    = delete;
+			auto operator=(const tour_native_server&) -> tour_native_server& = delete;
+			auto receive() -> std::optional<application::tour_owner_message> override
+			{
+				if (auto pending = Pending.lock(); pending && pending->pending()) {
+					return std::nullopt;
+				}
+				if (!Listener.valid()) {
+					Listener = create_tour_instance(Name, Security, false);
+					if (!Listener.valid()) {
+						return std::nullopt;
+					}
+					arm();
+				}
+				DWORD bytes = 0U;
+				DWORD error = ERROR_SUCCESS;
+				if (!Connected) {
+					const auto connected = Connect.poll(Listener.Value, bytes, error);
+					if (connected == pipe_operation::state::pending) {
+						return std::nullopt;
+					}
+					if (connected == pipe_operation::state::failed || !same_user(Listener.Value, true, Security)) {
+						drop_client();
+						return std::nullopt;
+					}
+					Connected = true;
+					Reading   = false;
+					Deadline  = clock_type::now() + std::chrono::seconds{ 5 };
+					Input.clear();
+					Expected = 0;
+					// The owner advertises its binding first; the caller sends nothing until it matches.
+					if (!write_tour_pipe(Listener.Value, Hello, Deadline)) {
+						drop_client();
+						return std::nullopt;
+					}
+				}
+				if (clock_type::now() >= Deadline) {
+					drop_client();
+					return std::nullopt;
+				}
+				if (!Reading) {
+					Read.reset();
+					if (::ReadFile(Listener.Value, Chunk.data(), static_cast<DWORD>(Chunk.size()), nullptr, Read.overlapped()) == 0 && ::GetLastError() != ERROR_IO_PENDING) {
+						drop_client();
+						return std::nullopt;
+					}
+					Reading = true;
+				}
+				const auto read = Read.poll(Listener.Value, bytes, error);
+				if (read == pipe_operation::state::pending) {
+					return std::nullopt;
+				}
+				Reading = false;
+				if (read == pipe_operation::state::failed || bytes == 0U || Input.size() + bytes > application::maximum_tour_channel_bytes + Hello.size() + 8) {
+					drop_client();
+					return std::nullopt;
+				}
+				Input.insert(Input.end(), Chunk.begin(), Chunk.begin() + bytes);
+				if (Input.size() >= Hello.size() + 8 && Expected == 0) {
+					const auto length = payload_size(std::span{ Input }.subspan(Hello.size(), 8));
+					if (!length || !std::equal(Hello.begin(), Hello.end(), Input.begin())) {
+						drop_client();
+						return std::nullopt;
+					}
+					Expected = Hello.size() + 8 + *length;
+				}
+				if (Expected == 0 || Input.size() < Expected) {
+					return std::nullopt;
+				}
+				if (Input.size() > Expected) {
+					drop_client();
+					return std::nullopt;
+				}
+				tour_bytes payload{ Input.begin() + static_cast<std::ptrdiff_t>(Hello.size() + 8), Input.end() };
+				if (!decode_tour_request(payload)) {
+					drop_client();
+					return std::nullopt;
+				}
+				// The connected instance travels with the reply; a fresh instance keeps the name bound.
+				auto instance = std::move(Listener);
+				Connected     = false;
+				Listener      = create_tour_instance(Name, Security, false);
+				if (Listener.valid()) {
+					arm();
+				}
+				auto reply = std::make_shared<tour_native_reply>(std::move(instance), Hello, Lease);
+				Pending    = reply;
+				return application::tour_owner_message{ std::move(payload), std::move(reply) };
+			}
+
+		private:
+			void arm()
+			{
+				Connected = false;
+				Reading   = false;
+				Connect.reset();
+				if (::ConnectNamedPipe(Listener.Value, Connect.overlapped()) != 0) {
+					return;
+				}
+				const auto error = ::GetLastError();
+				if (error == ERROR_PIPE_CONNECTED) {
+					(void)::SetEvent(Connect.overlapped()->hEvent);
+				} else if (error != ERROR_IO_PENDING) {
+					release_listener();
+				}
+			}
+			/// \brief Discards the peer and returns the same instance to waiting, so the name stays bound.
+			void drop_client()
+			{
+				if (!Listener.valid()) {
+					return;
+				}
+				(void)::CancelIoEx(Listener.Value, nullptr);
+				DWORD ignored = 0U;
+				if (Reading) {
+					(void)::GetOverlappedResult(Listener.Value, Read.overlapped(), &ignored, TRUE);
+				}
+				(void)::DisconnectNamedPipe(Listener.Value);
+				arm();
+			}
+			void release_listener()
+			{
+				if (Listener.valid()) {
+					(void)::CancelIoEx(Listener.Value, nullptr);
+					DWORD ignored = 0U;
+					if (Reading) {
+						(void)::GetOverlappedResult(Listener.Value, Read.overlapped(), &ignored, TRUE);
+					}
+					(void)::DisconnectNamedPipe(Listener.Value);
+					Listener = windows_handle{ };
+				}
+				Connected = false;
+				Reading   = false;
+			}
+
+			windows_handle                                      Listener;
+			std::wstring                                        Name;
+			private_security                                    Security;
+			tour_hello                                          Hello;
+			std::shared_ptr<application::profile_runtime_lease> Lease;
+			pipe_operation                                      Connect;
+			pipe_operation                                      Read;
+			bool                                                Connected = false;
+			bool                                                Reading   = false;
+			clock_type::time_point                              Deadline;
+			tour_bytes                                          Input;
+			std::size_t                                         Expected = 0;
+			std::array<std::uint8_t, tour_pipe_buffer>          Chunk{ };
+			std::weak_ptr<tour_native_reply>                    Pending;
+		};
 #endif
 	}
 	auto make_tour_owner_server(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, std::shared_ptr<application::profile_runtime_lease> aLease) -> std::expected<std::shared_ptr<application::tour_owner_server>, application::tour_channel_failure>
@@ -1154,7 +1422,16 @@ namespace bpr::adapters::sqlite {
 				return std::unexpected(tour_failure::unavailable);
 			}
 #if defined(_WIN32)
-			return std::unexpected(tour_failure::unavailable);
+			auto security = private_security::load();
+			if (!security) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+			// The first instance is the claim: an existing name, whoever holds it, refuses this owner.
+			auto listener = create_tour_instance(path->native(), *security, true);
+			if (!listener.valid()) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+			return std::make_shared<tour_native_server>(std::move(listener), path->native(), std::move(*security), make_tour_hello(aRoot, aProfile, true), std::move(aLease));
 #else
 			const auto address = endpoint_address(*path);
 			if (!address) {
@@ -1186,7 +1463,16 @@ namespace bpr::adapters::sqlite {
 			return std::unexpected(tour_failure::unavailable);
 		}
 	}
-	auto send_tour_owner(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, std::span<const std::uint8_t> aPayload, std::stop_token aStop) -> std::expected<application::tour_channel_bytes, application::tour_channel_failure>
+	auto tour_owner_endpoint(const std::filesystem::path& aRoot) -> std::optional<std::filesystem::path>
+	{
+		try {
+			return tour_endpoint(aRoot);
+		} catch (...) {
+			return std::nullopt;
+		}
+	}
+	auto send_tour_owner(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, std::span<const std::uint8_t> aPayload, std::stop_token aStop, std::chrono::seconds aAnswerWait)
+		-> std::expected<application::tour_channel_bytes, application::tour_channel_failure>
 	{
 		bool sent = false;
 		try {
@@ -1201,8 +1487,51 @@ namespace bpr::adapters::sqlite {
 				return std::unexpected(tour_failure::unavailable);
 			}
 #if defined(_WIN32)
-			static_cast<void>(aProfile);
-			return std::unexpected(tour_failure::unavailable);
+			const auto security = private_security::load();
+			if (!security) {
+				return std::unexpected(tour_failure::unavailable);
+			}
+			const auto deadline = clock_type::now() + std::chrono::seconds{ 10 };
+			auto       pipe     = open_endpoint(path->native(), deadline, aStop);
+			if (!pipe.valid()) {
+				return std::unexpected(aStop.stop_requested() ? tour_failure::cancelled : tour_failure::unavailable);
+			}
+			// The owner is authenticated before a byte is sent: it runs as this user and its
+			// pipe carries exactly the owner-private descriptor this adapter writes.
+			if (!same_user(pipe.Value, false, *security) || !validate_private_security(pipe.Value, *security, windows_object_kind::regular_file)) {
+				return std::unexpected(tour_failure::refused);
+			}
+			tour_hello hello{ };
+			const auto expected = make_tour_hello(aRoot, aProfile, false);
+			if (!read_tour_pipe(pipe.Value, hello, deadline, aStop)) {
+				return std::unexpected(tour_failure::refused);
+			}
+			if (std::equal(expected.begin(), expected.begin() + 4, hello.begin()) && hello[4] != expected[4]) {
+				return std::unexpected(tour_failure::version_mismatch);
+			}
+			if (!std::equal(expected.begin(), expected.begin() + 48, hello.begin())) {
+				return std::unexpected(tour_failure::refused);
+			}
+			tour_bytes header{ hello.begin(), hello.end() };
+			append_size(header, aPayload.size());
+			sent = true;
+			if (!write_tour_pipe(pipe.Value, header, deadline, aStop) || !write_tour_pipe(pipe.Value, aPayload, deadline, aStop)) {
+				return std::unexpected(tour_failure::indeterminate);
+			}
+			const auto                   answered = clock_type::now() + aAnswerWait;
+			std::array<std::uint8_t, 72> response{ };
+			if (!read_tour_pipe(pipe.Value, response, answered, aStop) || !std::equal(hello.begin(), hello.end(), response.begin())) {
+				return std::unexpected(tour_failure::indeterminate);
+			}
+			const auto size = payload_size(std::span{ response }.subspan(64));
+			if (!size) {
+				return std::unexpected(tour_failure::indeterminate);
+			}
+			tour_bytes result(*size);
+			if (!read_tour_pipe(pipe.Value, result, answered, aStop) || !decode_tour_response(result)) {
+				return std::unexpected(tour_failure::indeterminate);
+			}
+			return result;
 #else
 			const auto address = endpoint_address(*path);
 			if (!address || !private_socket(path->c_str())) {
@@ -1228,7 +1557,14 @@ namespace bpr::adapters::sqlite {
 			}
 			tour_hello hello{ };
 			const auto expected = make_tour_hello(aRoot, aProfile, false);
-			if (!read_tour_bytes(socket.Value, hello, deadline, aStop) || !std::equal(expected.begin(), expected.begin() + 48, hello.begin())) {
+			if (!read_tour_bytes(socket.Value, hello, deadline, aStop)) {
+				return std::unexpected(tour_failure::refused);
+			}
+			if (std::equal(expected.begin(), expected.begin() + 4, hello.begin()) && hello[4] != expected[4]) {
+				// An older or newer owner: say so, and send it nothing.
+				return std::unexpected(tour_failure::version_mismatch);
+			}
+			if (!std::equal(expected.begin(), expected.begin() + 48, hello.begin())) {
 				return std::unexpected(tour_failure::refused);
 			}
 			tour_bytes header{ hello.begin(), hello.end() };
@@ -1237,8 +1573,10 @@ namespace bpr::adapters::sqlite {
 			if (!write_tour_bytes(socket.Value, header, deadline, aStop) || !write_tour_bytes(socket.Value, aPayload, deadline, aStop) || ::shutdown(socket.Value, SHUT_WR) != 0) {
 				return std::unexpected(tour_failure::indeterminate);
 			}
+			// The owner may take as long as the command does; the caller bounds its own wait.
+			const auto                   answered = clock_type::now() + aAnswerWait;
 			std::array<std::uint8_t, 72> response{ };
-			if (!read_tour_bytes(socket.Value, response, deadline, aStop) || !std::equal(hello.begin(), hello.end(), response.begin())) {
+			if (!read_tour_bytes(socket.Value, response, answered, aStop) || !std::equal(hello.begin(), hello.end(), response.begin())) {
 				return std::unexpected(tour_failure::indeterminate);
 			}
 			const auto size = payload_size(std::span{ response }.subspan(64));
@@ -1246,7 +1584,7 @@ namespace bpr::adapters::sqlite {
 				return std::unexpected(tour_failure::indeterminate);
 			}
 			tour_bytes result(*size);
-			if (!read_tour_bytes(socket.Value, result, deadline, aStop) || !decode_tour_response(result)) {
+			if (!read_tour_bytes(socket.Value, result, answered, aStop) || !decode_tour_response(result)) {
 				return std::unexpected(tour_failure::indeterminate);
 			}
 			return result;

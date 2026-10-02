@@ -163,7 +163,10 @@ namespace bpr::application {
 		std::string Invocation;
 		/// Plain words about the last share, refusal or limit.
 		std::string Status;
-		auto        operator<=>(const review_cycle_share_view&) const = default;
+		/// A goal the reviewer entered that was not saved because the draft
+		/// changed elsewhere first (BPR-1168): kept for them to save again.
+		std::optional<std::string> UnsavedGoal;
+		auto                       operator<=>(const review_cycle_share_view&) const = default;
 	};
 
 	enum class review_cycle_activity : std::uint8_t {

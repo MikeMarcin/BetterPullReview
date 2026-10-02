@@ -674,6 +674,13 @@ bpr_enable_hardening(test_better_pull_review_review_cycle_views_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_views_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_views COMMAND test_better_pull_review_review_cycle_views_tests)
 
+# [[BPR-1168]]. The finite cycle command registry and the owner's admission beside an open draft.
+bpr_add_executable(test_better_pull_review_review_cycle_command_tests review_cycle_command_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_command_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_command_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_command_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_command COMMAND test_better_pull_review_review_cycle_command_tests)
+
 # [[BPR-1164]]. Recipient responses and manual replies: the pack's response, forged authority and correlation.
 bpr_add_executable(test_better_pull_review_review_cycle_response_tests review_cycle_response_tests.cpp)
 target_link_libraries(test_better_pull_review_review_cycle_response_tests PRIVATE BetterPullReview::Core)

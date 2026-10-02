@@ -9,6 +9,7 @@ output versus standard error, refusal without a terminal, typed errors with exit
 codes, an unsupported schema version, explicit standard input only, and one
 writer per profile.
 """
+import contextlib
 import hashlib
 import json
 import os
@@ -214,6 +215,24 @@ def responses(course, printed):
     assert all(note["lifecycle"] == "open" for note in notes), "a response changes no note"
 
 
+@contextlib.contextmanager
+def hold_lease(profile_root):
+    """Holds the default profile's runtime lease as another process would: a lock
+    on the profile root itself (POSIX), or its lock file opened without the
+    exclusive sharing the lease needs (Windows)."""
+    if os.name == "nt":
+        with open(Path(profile_root) / "profile-runtime.lock", "rb"):
+            yield
+        return
+    import fcntl
+    holder = os.open(profile_root, os.O_RDONLY)
+    try:
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+    finally:
+        os.close(holder)
+
+
 def one_writer(course):
     """A profile one process owns is refused, never opened a second time."""
     course.refused("over_limit", 5, "note", "RC-1", "--body-file", "-", stdin=b"y" * 17000)
@@ -222,23 +241,13 @@ def one_writer(course):
         item = course.json("note", "RC-1", "--body-file", "-", stdin=(f"bulk {index} " + "x" * 15000).encode())["data"]["item"]
         review = course.json("review", "RC-1", "--include", item, "--expected-revision", review["draft_revision"])["data"]
     frozen = course.json("freeze", "RC-1", "--expected-revision", review["draft_revision"])["data"]
-    holder = subprocess.Popen([course.binary, "cycle", "export", "RC-1", "--round", frozen["round"], "--output", "-", "--data-root", str(course.data)],
-                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment(), cwd=course.home, bufsize=0)
-    try:
-        # One byte, unbuffered: the rest stays in the pipe and the holder blocks writing it.
-        first = os.read(holder.stdout.fileno(), 1)
-        assert first == b"#", "the holder writes while it owns the profile"
-        time.sleep(0.2)
-        assert holder.poll() is None, "the holder is blocked writing, still owning the profile"
+    status, printed, _ = course.run("export", "RC-1", "--round", frozen["round"], "--output", "-")
+    assert status == 0 and len(printed.encode()) > 90000 and printed.startswith("#"), "the round prints whole"
+    # Another process holds the profile's runtime lease and offers no command
+    # channel, as a bpr command does: nothing is opened a second time (BPR-1168).
+    with hold_lease(course.data):
         course.refused("capability_unavailable", 5, "show", "RC-1")
         course.refused("capability_unavailable", 5, "note", "RC-1", "--body-file", "-", stdin=b"second writer")
-        rest = holder.stdout.read()
-        assert holder.wait(timeout=60) == 0 and holder.stderr.read() == b""
-    finally:
-        if holder.poll() is None:
-            holder.kill()
-            holder.wait()
-    assert len(first + rest) > 90000
     bodies = [note["body"] for note in course.json("show", "RC-1")["data"]["notes"]]
     assert "second writer" not in bodies, "no second writer was opened"
 

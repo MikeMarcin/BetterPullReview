@@ -90,6 +90,7 @@
 #include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/setup_destination.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
+#include "cycle_owner_service.hpp"
 #include "tour_owner_service.hpp"
 
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
@@ -3684,6 +3685,9 @@ namespace bpr::app {
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
 		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
 		std::shared_ptr<const tour_owner_service>               TourOwnerService;
+		/// [[BPR-1168]]. Forwarded cycle commands, run one at a time on their own lane.
+		std::shared_ptr<cycle_owner_service> CycleOwnerService;
+		std::stop_source                     CycleOwnerStop;
 		/// A routed command whose live draft is not yet durable; answered by the decision-lane tick.
 		struct waiting_tour_request
 		{
@@ -3706,6 +3710,9 @@ namespace bpr::app {
 		worker_executor                  AppearanceEffects;
 		worker_executor                  QueueEffects;
 		worker_executor                  ReviewMutationEffects;
+		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
+		/// session, never on a lane a window's work runs on.
+		worker_executor CycleOwnerEffects;
 		/// [[BPR-1254]]. Held by whatever touches the profile's review-ledger
 		/// file: a ledger store task, or a private review store operation.
 		/// Declared before the lane so it outlives the lane's last task.
@@ -4056,6 +4063,8 @@ namespace bpr::app {
 		void begin_shutdown()
 		{
 			Closing = true;
+			// A forwarded cycle command stops waiting and cancels its store work.
+			CycleOwnerStop.request_stop();
 			if (Diagnostics) {
 				Diagnostics->shutdown();
 			}
@@ -4115,7 +4124,7 @@ namespace bpr::app {
 			if (!ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
 				|| !EpochEffects.idle() || !DiffEffects.idle() || !AgentEffects.idle() || !McpEffects.idle()
 				|| !WorkbenchEffects.idle() || !AppearanceEffects.idle() || !QueueEffects.idle()
-				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle()) {
+				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle() || !CycleOwnerEffects.idle()) {
 				return;
 			}
 			if (!AgentWorkspaceCleanupAttempted) {
@@ -15772,18 +15781,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					bpr::app::detail::terminal_text_stream{ } << "profile-activation-endpoint-unavailable "
 															  << (resolved ? "bind-refused" : adapters::sqlite::describe_profile_activation_endpoint_failure(resolved.error())) << '\n';
 				}
-				// The tour command endpoint is separate: without it the owner keeps working and a
-				// CLI caller is told the owner has no tour channel, never given a second writer.
+				// The owner command endpoint (tour and, since BPR-1168, cycle commands) is separate:
+				// without it the owner keeps working and a CLI caller is told the owner has no
+				// channel, never given a second writer. Windows binds a named pipe (BPR-1168).
 				const auto tour = adapters::sqlite::make_tour_owner_server(*root, Config.Profile, RuntimeLease);
 				if (tour) {
-					TourOwnerServer  = *tour;
-					TourOwnerService = std::make_shared<const tour_owner_service>(*root, Config.Profile);
-				}
-#if !defined(_WIN32)
-				else {
+					TourOwnerServer   = *tour;
+					TourOwnerService  = std::make_shared<const tour_owner_service>(*root, Config.Profile);
+					CycleOwnerService = std::make_shared<cycle_owner_service>(*root, Config.Profile);
+				} else {
 					bpr::app::detail::terminal_text_stream{ } << "tour-owner-endpoint-unavailable\n";
 				}
-#endif
 			}
 			auto store  = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
 			auto loaded = store ? store->load(aStop) : std::unexpected(application::queue_store_failure::unavailable);
@@ -15831,11 +15839,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																		Fixture, std::move(Options)
 #endif
 				);
-				profile->ActivationServer = std::move(ActivationServer);
-				profile->TourOwnerServer  = std::move(TourOwnerServer);
-				profile->TourOwnerService = std::move(TourOwnerService);
-				auto runtime              = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
-				step                      = "profile-services-start";
+				profile->ActivationServer  = std::move(ActivationServer);
+				profile->TourOwnerServer   = std::move(TourOwnerServer);
+				profile->TourOwnerService  = std::move(TourOwnerService);
+				profile->CycleOwnerService = std::move(CycleOwnerService);
+				auto runtime               = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
+				step                       = "profile-services-start";
 				runtime->Profile->start_services();
 				if (!OwnerOnly) {
 					step               = "compatibility-window-open";
@@ -15875,6 +15884,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
 		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
 		std::shared_ptr<const tour_owner_service>               TourOwnerService;
+		std::shared_ptr<cycle_owner_service>                    CycleOwnerService;
 		std::optional<github_application_startup_failure>       Handoff;
 		github_application_startup_completion                   Completion;
 		std::filesystem::path                                   RegistryRoot;
@@ -16017,6 +16027,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			aRespond(tour_owner_error("invalid_request"));
 			return;
 		}
+		if (request->Operation == application::tour_owner_operation::cycle) {
+			desktop_cycle_owner_route(std::move(aRequest), request->Cycle, std::move(aRespond));
+			return;
+		}
 		// The draft is read or written where its author is: an open window's host is the one committed
 		// history, so a forwarded command never runs beside it on a second copy read from the store.
 		const auto found = [&]() -> implementation::live_tour_view {
@@ -16109,6 +16123,87 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		profile.WaitingTourRequests.push_back({ request->Draft, std::move(outcomeJson), adapters::sqlite::encode_tour_request(read), std::move(aRespond), std::chrono::steady_clock::now() + std::chrono::seconds{ 5 } });
 		desktop_tour_owner_tick();
+	}
+	void github_application::desktop_cycle_owner_route(application::tour_channel_bytes aRequest, application::cycle_owner_request aCycle, std::function<void(application::tour_channel_bytes)> aRespond)
+	{
+		auto& profile = *Profile;
+		if (Profile->Closing || !profile.CycleOwnerService) {
+			aRespond(tour_owner_error("owner_unavailable"));
+			return;
+		}
+		const auto liveness  = std::weak_ptr<const int>{ Liveness };
+		auto&      decisions = profile.DecisionLane;
+		const auto stop      = profile.CycleOwnerStop.get_token();
+		// Before the command reads or changes a round draft a window may hold, the
+		// core decides from what the windows hold; the windows answer on their lane.
+		auto guard = [this, liveness, &decisions, stop](const core::cycle_command aCommand, const core::review_cycle_id aTarget) -> cycle_result<void> {
+			const auto ask = [&](const bool aSave) -> std::optional<core::cycle_draft_editor> {
+				auto promise = std::make_shared<std::promise<core::cycle_draft_editor>>();
+				auto future  = promise->get_future();
+				decisions.post([this, liveness, promise, aTarget, aSave] {
+					promise->set_value(liveness.expired() ? core::cycle_draft_editor::settled : cycle_draft_editors(aTarget, aSave));
+				});
+				if (future.wait_for(std::chrono::seconds{ 1 }) != std::future_status::ready) {
+					return std::nullopt;
+				}
+				return future.get();
+			};
+			const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 5 };
+			auto       saved    = false;
+			while (!stop.stop_requested() && std::chrono::steady_clock::now() < deadline) {
+				const auto editor = ask(!saved);
+				if (!editor) {
+					continue;
+				}
+				const auto admission = core::admit_owner_command(aCommand, *editor);
+				if (admission == core::cycle_owner_admission::serve) {
+					return { };
+				}
+				if (admission == core::cycle_owner_admission::busy) {
+					return std::unexpected(cycle_failure{ "draft_busy", "The desktop is composing text in this round's draft (an input method is open). Finish or cancel it, then retry; nothing was changed.", { }, { } });
+				}
+				// The window saves what it holds; this command then reads what was saved.
+				saved = true;
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 20 });
+			}
+			return std::unexpected(cycle_failure{ "draft_busy", "The desktop is still saving this round's draft. Retry shortly; nothing was changed.", { }, { } });
+		};
+		profile.CycleOwnerEffects.post([service = profile.CycleOwnerService, payload = std::move(aRequest), cycle = std::move(aCycle), admit = std::move(guard), respond = std::move(aRespond), stop, this, liveness, &decisions] {
+			auto answer = service->serve(payload, cycle, admit, [stop] { return stop.stop_requested(); });
+			respond(std::move(answer.Bytes));
+			if (answer.Changed) {
+				decisions.post([this, liveness, changed = *answer.Changed] {
+					if (!liveness.expired()) {
+						cycle_written(changed);
+					}
+				});
+			}
+		});
+	}
+	auto github_application::cycle_draft_editors(const core::review_cycle_id aCycle, const bool aSave) -> core::cycle_draft_editor
+	{
+		auto held = core::cycle_draft_editor::settled;
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (session->Closing || !session->CycleDesktop) {
+				continue;
+			}
+			const auto editor = session->CycleDesktop->draft_editor(aCycle);
+			if (editor == core::cycle_draft_editor::unsaved && aSave) {
+				session->CycleDesktop->save_draft_editor(aCycle);
+			}
+			held = std::max(held, editor);
+		}
+		return held;
+	}
+	void github_application::cycle_written(const core::review_cycle_id aCycle)
+	{
+		for (const auto& [context, session] : Sessions) {
+			static_cast<void>(context);
+			if (!session->Closing && session->CycleDesktop) {
+				session->CycleDesktop->external_change(aCycle);
+			}
+		}
 	}
 	void github_application::desktop_tour_owner_tick()
 	{

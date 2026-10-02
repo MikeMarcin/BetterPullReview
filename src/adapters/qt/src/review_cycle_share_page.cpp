@@ -3,6 +3,7 @@
 #include <QComboBox>
 #include <QFont>
 #include <QHBoxLayout>
+#include <QInputMethodEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -282,6 +283,7 @@ namespace bpr::qt {
 		Goal->setAccessibleName(QStringLiteral("Goal"));
 		Goal->setPlaceholderText(QStringLiteral("Goal for the whole round (optional)"));
 		leftColumn->addWidget(Goal);
+		Goal->installEventFilter(this);
 		auto* const itemsLabel = new QLabel{ QStringLiteral("Notes in this round, in order"), left };
 		itemsLabel->setWordWrap(true);
 		leftColumn->addWidget(itemsLabel);
@@ -350,10 +352,8 @@ namespace bpr::qt {
 			}
 		});
 		connect(Goal, &QLineEdit::editingFinished, this, [this] {
-			if (!Presenting && Dispatch.Edit && Goal->isModified()) {
-				Goal->setModified(false);
-				const auto bytes = Goal->text().toUtf8();
-				Dispatch.Edit(core::set_round_goal{ std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) } });
+			if (!Presenting) {
+				save_draft_editor();
 			}
 		});
 		connect(Items, &QListWidget::itemChanged, this, [this](QListWidgetItem* aItem) {
@@ -433,8 +433,13 @@ namespace bpr::qt {
 		Invocation->setVisible(!aShare.Invocation.empty());
 
 		Action->setCurrentIndex(Action->findData(static_cast<int>(aShare.Selection.Action)));
-		if (!Goal->hasFocus() || !Goal->isModified()) {
-			Goal->setText(text_of(aShare.Selection.Goal));
+		ShownGoal = text_of(aShare.Selection.Goal);
+		if (aShare.UnsavedGoal && !Goal->isModified()) {
+			// Refused because the draft changed elsewhere first: kept to save again.
+			Goal->setText(text_of(*aShare.UnsavedGoal));
+			Goal->setModified(true);
+		} else if (!aShare.UnsavedGoal && (!Goal->hasFocus() || !Goal->isModified())) {
+			Goal->setText(ShownGoal);
 			Goal->setModified(false);
 		}
 		Action->setEnabled(aIdle);
@@ -589,6 +594,37 @@ namespace bpr::qt {
 	{
 		return Action;
 	}
+	auto review_cycle_share_page::draft_editor() const -> core::cycle_draft_editor
+	{
+		if (GoalComposing) {
+			return core::cycle_draft_editor::composing;
+		}
+		return Goal->isModified() && Goal->text() != ShownGoal ? core::cycle_draft_editor::unsaved : core::cycle_draft_editor::settled;
+	}
+
+	void review_cycle_share_page::save_draft_editor()
+	{
+		if (GoalComposing || !Dispatch.Edit || !Goal->isModified()) {
+			return;
+		}
+		Goal->setModified(false);
+		const auto bytes = Goal->text().toUtf8();
+		Dispatch.Edit(core::set_round_goal{ std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) } });
+	}
+
+	auto review_cycle_share_page::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
+	{
+		if (aWatched == Goal) {
+			if (aEvent->type() == QEvent::InputMethod) {
+				// Preedit text is not committed text: another interface waits for it.
+				GoalComposing = !static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty();
+			} else if (aEvent->type() == QEvent::FocusOut || aEvent->type() == QEvent::Hide) {
+				GoalComposing = false;
+			}
+		}
+		return QWidget::eventFilter(aWatched, aEvent);
+	}
+
 	auto review_cycle_share_page::goal() const noexcept -> QLineEdit*
 	{
 		return Goal;

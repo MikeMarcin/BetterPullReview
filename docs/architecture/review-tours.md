@@ -355,8 +355,13 @@ The journal keeps at most 4096 outcomes per draft and refuses further requests
 rather than forget one, and it records only the local outcome, never that GitHub
 accepted anything.
 
-The Windows named-pipe transport is not implemented; a Windows owner reports no
-tour endpoint.
+On Windows the same framing runs over an owner-private named pipe beside the
+activation pipe, in byte mode, rejecting remote clients; the caller checks the
+owner's user and the pipe's descriptor before sending ([[BPR-1168]]). Protocol 3
+added the `cycle` operation: one finite `bpr cycle` command and that command's
+own options, run by the owner on its cycle store (see
+[the cycle terminal](../development/cycle-cli.md)). An owner or caller of another
+version is told so before a payload is sent.
 
 ### A draft the desktop has open
 

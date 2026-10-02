@@ -123,6 +123,13 @@ namespace bpr::application {
 		/// \brief Answers a pending replace: replace exactly the bytes named, or keep them.
 		void resolve_replace(bool aReplace);
 
+		/// \brief Another interface wrote cycle `aCycle` (BPR-1168): when it is
+		/// the open cycle, read it again, and Compose feedback's draft with it.
+		/// Nothing the reviewer is typing is touched.
+		void observe_external_change(core::review_cycle_id aCycle);
+		/// \brief A change to Compose feedback's draft is waiting or being saved.
+		[[nodiscard]] auto saving_draft() const noexcept -> bool;
+
 		[[nodiscard]] auto projection() const noexcept -> const review_cycle_workbench_projection&;
 		[[nodiscard]] auto selected() const noexcept -> std::optional<core::local_cycle_subject>;
 		void               shutdown();

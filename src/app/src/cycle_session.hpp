@@ -9,26 +9,36 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 namespace bpr::app {
-	[[nodiscard]] auto cycle_command_cancelled() noexcept -> bool;
+	/// \brief The seed of every store operation one cycle command makes
+	/// (BPR-1168): a pure function of the caller's operation identity and of
+	/// which of its requests this is. The same request repeated makes the same
+	/// operations, which the store returns rather than repeating; reused for
+	/// another request, the store refuses them.
+	[[nodiscard]] auto cycle_operation_seed(std::string_view aOperation, std::uint64_t aStep) -> std::array<std::uint8_t, 32>;
 
 	/// \brief One `bpr cycle` command's composition (BPR-1167): this profile's
 	/// own cycle store under the same Review Cycles runtime the desktop
 	/// composes, the read-only workspace source and nothing else. No window,
 	/// account, provider, credential, agent or network is composed.
-	/// \details It holds the profile's runtime lease for its whole life; a
-	/// command waiting on a person destroys it first and opens another after.
+	/// \details A terminal session holds the profile's runtime lease for its
+	/// whole life. The profile owner's session holds none: the owner's own
+	/// lease covers it (BPR-1168).
 	class cycle_session final
 	{
 	public:
-		/// \brief Admits the profile and takes its lease. A profile another
-		/// process owns is refused: no second writer is opened.
-		[[nodiscard]] static auto open(const std::filesystem::path& aBase, const std::string& aProfile) -> tour_cli_result<std::unique_ptr<cycle_session>>;
+		/// \brief A terminal's session on a profile it holds the lease of.
+		/// `aCancelled` is polled while a call is outstanding.
+		cycle_session(profile_admission aAdmission, const std::array<std::uint8_t, 32>& aSeed, std::function<bool()> aCancelled);
+		/// \brief The profile owner's session for one forwarded command.
+		cycle_session(std::filesystem::path aRoot, core::bpr_profile_id aProfile, const std::array<std::uint8_t, 32>& aSeed, std::function<bool()> aCancelled);
 		~cycle_session();
 		cycle_session(const cycle_session&)                    = delete;
 		auto operator=(const cycle_session&) -> cycle_session& = delete;
@@ -38,11 +48,11 @@ namespace bpr::app {
 		[[nodiscard]] auto runtime() noexcept -> application::review_cycle_runtime& { return *Runtime; }
 		[[nodiscard]] auto workspace() noexcept -> application::workspace_source_port& { return *Source; }
 		[[nodiscard]] auto profile() const noexcept -> core::bpr_profile_id { return Admission.Profile; }
-		/// \brief A fresh operation identity: never repeated across runs of the profile.
+		/// \brief The next operation identity of this command.
 		[[nodiscard]] auto operation() -> application::cycle_operation_id;
 
-		/// \brief Runs one runtime call to its completion on this thread. An
-		/// interrupt shuts the runtime down, so the call completes `cancelled`.
+		/// \brief Runs one runtime call to its completion on this thread. A
+		/// cancellation shuts the runtime down, so the call completes `cancelled`.
 		template <typename T, typename TStart>
 		[[nodiscard]] auto await(TStart aStart) -> application::cycle_store_result<T>
 		{
@@ -51,7 +61,7 @@ namespace bpr::app {
 				return std::unexpected(application::cycle_store_error{ .Failure = application::cycle_store_failure::cancelled });
 			}
 			while (!result) {
-				if (cycle_command_cancelled()) {
+				if (Cancelled && Cancelled()) {
 					Runtime->shutdown();
 				}
 				Decisions.drain();
@@ -63,9 +73,8 @@ namespace bpr::app {
 		}
 
 	private:
-		explicit cycle_session(profile_admission aAdmission);
-
 		profile_admission                                   Admission;
+		std::function<bool()>                               Cancelled;
 		worker_executor                                     Effects;
 		terminal_decisions                                  Decisions;
 		std::unique_ptr<application::workspace_source_port> Source;

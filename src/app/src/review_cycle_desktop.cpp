@@ -194,6 +194,35 @@ namespace bpr::app {
 		shutdown();
 	}
 
+	auto review_cycle_desktop::draft_editor(const core::review_cycle_id aCycle) const -> core::cycle_draft_editor
+	{
+		const auto selected = Host->selected();
+		if (Closing || !selected || selected->Cycle != aCycle || !Host->projection().Share) {
+			return core::cycle_draft_editor::settled;
+		}
+		if (const auto shown = View->share_page()->draft_editor(); shown != core::cycle_draft_editor::settled) {
+			return shown;
+		}
+		return Host->saving_draft() ? core::cycle_draft_editor::unsaved : core::cycle_draft_editor::settled;
+	}
+
+	void review_cycle_desktop::save_draft_editor(const core::review_cycle_id aCycle)
+	{
+		const auto selected = Host->selected();
+		if (!Closing && selected && selected->Cycle == aCycle && Host->projection().Share) {
+			View->share_page()->save_draft_editor();
+		}
+	}
+
+	void review_cycle_desktop::external_change(const core::review_cycle_id aCycle)
+	{
+		if (Closing) {
+			return;
+		}
+		Host->observe_external_change(aCycle);
+		Host->refresh_recents();
+	}
+
 	void review_cycle_desktop::publish(const application::review_cycle_workbench_projection& aProjection)
 	{
 		if (Closing) {

@@ -553,6 +553,23 @@ endfunction()
 # CLI and admission only: none composes a grant, target, provider, mutation or
 # publication path, none is in github_application.cpp or the production
 # manifest, and no digest changes.
+# BPR-1168 reseal: 551551c9..this candidate; no intervening pinned-scope
+# commit since the BPR-1213 seal (BPR-1266 and BPR-1267 leave all three pins as
+# they were). github_application.cpp routes the owner channel's new `cycle`
+# operation to desktop_cycle_owner_route, which runs one forwarded `bpr cycle`
+# command on its own CycleOwnerEffects lane through cycle_owner_service (a
+# session of the profile's cycle store under the owner's lease, the command's
+# registry options only). Before review or freeze it asks the windows, on the
+# decision lane, what they hold of that cycle's draft (core::admit_owner_command
+# decides: save the typed goal first, or draft_busy while composing); after a
+# write, cycle_written makes windows showing the cycle read it again. Shutdown
+# stops the lane's work and waits for it to go idle. The tour-endpoint refusal
+# line now prints on Windows too, where the endpoint is now a named pipe.
+# github_application.hpp declares the three members. cycle_commands and
+# cycle_owner_service enter the tree inventory: the cycle CLI's commands, run by
+# the terminal and the owner alike, over the local cycle store, workspace source
+# and export destination. No grant, target, provider, mutation or publication
+# path changes; mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -571,7 +588,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3c20aedd5d9417f152c504286fb2860b793b930a300e224c3f16c99e07df4e10"
+		"85dc3e868cef0b0e1d48d32dce12dca61d818bade2d979d930bc9000809fe3f8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -665,6 +682,10 @@ function(bpr_verify_app_source_tree app_source_root)
         "main.cpp"
 		"src/cycle_cli.cpp"
 		"src/cycle_cli.hpp"
+		"src/cycle_commands.cpp"
+		"src/cycle_commands.hpp"
+		"src/cycle_owner_service.cpp"
+		"src/cycle_owner_service.hpp"
 		"src/cycle_session.cpp"
 		"src/cycle_session.hpp"
 		"src/designated_live_macos_capsule_identity.cpp"
@@ -765,7 +786,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e42a57abe83465850332012dc50af0c26ed2122c7b42be6914fe4d49601da58c"
+        "5f9814c138a04be3ebb718355b526bd0941f1973e04aa26c086accc1e1a4ece4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
