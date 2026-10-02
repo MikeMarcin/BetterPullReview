@@ -772,3 +772,43 @@ measured:
 The CTest row passes 3 of 3, and the 15-row selection from the previous
 request passes 15 of 15. clang-format 22, `git diff --check` and `tidy.py`
 (`tidy=0`) are clean on the file.
+
+## Windows at `caae4cc9e`: selection, virtual space and double click (bpr-main-win, 2026-10-02)
+
+At `caae4cc9e`, which contains `fd5ca4412` and Linux's nearest-colour
+selection-ink rule. Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2,
+`build/windows-dev` Debug. Every executable these rows run was deleted before
+the build.
+
+The first build failed in `tests/end_to_end/review_cycle_desktop_public_path.cpp`:
+
+```
+(324,19): error C2513: 'const auto': no variable declared before '='
+(338,24): error C2678: binary '||': no operator found which takes a left-hand operand of type 'const QColor'
+```
+
+The new selection-ink check named a local lambda `near`. As with the helper
+above, the Windows SDK defines `near` as an empty macro. The lambda is now
+`colour_near`, and no behavior changed. `tests/support/window_system_mouse.hpp`
+needed nothing: its `Q_GUI_EXPORT` declaration of `qt_handleMouseEvent` links
+under MSVC.
+
+With the rename, the build exits 0 and prints no `warning C` or
+`warning LNK` line. Every deleted executable was rebuilt, and
+`clang-format --dry-run --Werror` is clean.
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^(core_suggestion_text_editing|core_appearance_contrast|core_review_cycle_(feedback|suggestion|tabs)|qt_suggestion_editor_|qt_review_cycle_view_|review_cycle_workbench|review_cycle_suggestion|application_review_cycle_desktop_public_path|application_review_round_trip_composition_contract|syntax_classification_contract|architecture_boundaries)"
+```
+
+All 15 rows pass, in 29.40 s:
+
+- `qt_review_cycle_view_1_0` 6.11 s and `_2_0` 11.03 s, inside their 60 s
+  bound;
+- `application_review_cycle_desktop_public_path` 10.19 s;
+- `application_review_round_trip_composition_contract` 12.57 s;
+- `review_cycle_workbench` 4.65 s and `review_cycle_suggestion` 1.48 s;
+- `qt_suggestion_editor_1_0` 0.49 s and `_2_0` 0.91 s;
+- `syntax_classification_contract` 0.41 s;
+- `core_appearance_contrast` and the four other core rows;
+- `architecture_boundaries` 29.34 s.

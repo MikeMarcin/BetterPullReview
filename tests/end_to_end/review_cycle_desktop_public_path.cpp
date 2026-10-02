@@ -321,7 +321,8 @@ namespace {
 			const auto blue  = aPixel.blue() - aColour.blue();
 			return (red * red) + (green * green) + (blue * blue);
 		};
-		const auto near = [](const QColor& aPixel, const QColor& aColour) {
+		// Not `near`: the Windows SDK defines `near` as an empty macro.
+		const auto colour_near = [](const QColor& aPixel, const QColor& aColour) {
 			return std::abs(aPixel.red() - aColour.red()) <= 12 && std::abs(aPixel.green() - aColour.green()) <= 12 && std::abs(aPixel.blue() - aColour.blue()) <= 12;
 		};
 		auto inked = 0;
@@ -335,7 +336,7 @@ namespace {
 				const auto pixel = image.pixelColor(x, y);
 				const auto ink   = distance(pixel, aInk);
 				inked += ink < distance(pixel, aRole) && ink < distance(pixel, aFill) && ink < distance(pixel, text) ? 1 : 0;
-				other += near(pixel, aRole) || near(pixel, text) ? 1 : 0;
+				other += colour_near(pixel, aRole) || colour_near(pixel, text) ? 1 : 0;
 			}
 		}
 		return inked > 0 && other == 0;
