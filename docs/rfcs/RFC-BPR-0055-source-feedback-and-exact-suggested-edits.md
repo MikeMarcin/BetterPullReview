@@ -76,6 +76,12 @@ in which selected code keeps its syntax colours, and that Enter indent like a
 modern editor (RC55-07's editing workflows): the new line keeps the line's
 indentation and adds a level after an opener.
 
+The owner's rejection of `BPR-1156-composer-layout-v005` (event 776) refines
+"the user's virtual-space ergonomics" for this composer: virtual space belongs
+to the box selection (Alt+Shift+Arrow) alone, and every other gesture keeps the
+caret on a line's text. It also asks that a selection read like a normal
+editor's, and that a double click select the word.
+
 Observations and evidence for this amendment are recorded on
 [BPR-1156](../issues/40-parked/BPR-1156-deliver-the-native-focused-suggestion-editor.md)
 and in the [execution ledger](../verification/RFC-BPR-0053-0061.md), not here.

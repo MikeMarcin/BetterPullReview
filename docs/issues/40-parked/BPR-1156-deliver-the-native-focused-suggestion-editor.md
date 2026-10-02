@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0055", "RFC-BPR-0061"]
 depends_on: ["BPR-1154", "BPR-1155"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-07", "RC55-09", "RC61-04"], "pack_alias": "PACK-CYCLE-14", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"b486149a5","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 at b486149a5 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0): the gestures of da459c4e1 plus Enter keeping the indentation and adding a level after an opener, a typed closer outdenting, double-click word and triple-click line selection, and a read-only mode in which nothing changes the text. Owner judgment pending: BPR-1156-editor-gestures-v003 on the frozen candidate /Users/jaeger/bpr-cycles-codeview-review.u1YDg8 (app sha256 5b0770df...b7ff3ec7), superseding the undecided v002."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"b486149a5","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected composer-layout v001 (event 713), v002 (719), v003 (742, an owner amendment in RFC-BPR-0055) and v004 (765): the text changed on Suggest change, selected lines lost their colour and selection differed between modes. At b486149a5 the file pane and Suggest change are one code view; rendered before and after Suggest change the pane is identical pixel for pixel outside the caret, and a selection is the review panes' wash under syntax-coloured glyphs (qt_review_cycle_view_1_0/2_0, application_review_cycle_desktop_public_path offscreen and under cocoa). Owner judgment pending: BPR-1156-composer-layout-v005 on the frozen candidate /Users/jaeger/bpr-cycles-codeview-review.u1YDg8 (app sha256 5b0770df...b7ff3ec7)."}}]
+acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"fd5ca4412","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 at fd5ca4412 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0, application_review_cycle_desktop_public_path): the gestures of b486149a5, with virtual space now only part of a box selection (a click, drag, Right, Up and Down stay on the text; Up and Down keep the column aimed for), and double and triple click that keep their word or line when the pointer drifts, driven through the window system in both modes. Owner judgment pending: BPR-1156-editor-gestures-v004 on the frozen candidate /Users/jaeger/bpr-cycles-selection-review.Ev9QTV (app sha256 af38e32d...f9c5538), superseding the undecided v003."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"fd5ca4412","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected composer-layout v001 (event 713), v002 (719), v003 (742, an owner amendment in RFC-BPR-0055), v004 (765) and v005 (776: selection darker than usual, always in virtual space, double click not selecting the word). At fd5ca4412 the code view fills a selection with the solid Highlight every text box uses, under syntax colours kept readable on it (core::readable_selection_ink), ending at the text; only a box reaches past a line's end; and a double click keeps its word under pointer drift (qt_suggestion_editor_1_0/2_0, qt_review_cycle_view_1_0/2_0, application_review_cycle_desktop_public_path offscreen and under cocoa, through the window system). Owner judgment pending: BPR-1156-composer-layout-v006 on the frozen candidate /Users/jaeger/bpr-cycles-selection-review.Ev9QTV (app sha256 af38e32d...f9c5538)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-14** (live `BPR-1156`, allocated at import).
@@ -602,3 +602,101 @@ in 21.16 s, with every pixel check unchanged.
 
 The -j4 times depend on what ran beside them. The rows ran alone only at this
 revision. No remote mutation.
+
+## Owner verdict on v005: selection shade, virtual space, double click — macOS, 2026-10-02
+
+In attended session `cbd48b91000b00f1e72e1ad62c7c384c` the owner rejected
+`BPR-1156-composer-layout-v005` at event 776 and handed back at 777:
+
+> Better but...
+>
+> I feel like selected text highlight is darker than usual. And we're
+> seemingly always in virtual space mode when we should only enter that
+> through the box-select edit mode. Also double click should select the word
+> like a normal text editor but its not.
+
+These are observations about the candidate. The second is also a refinement
+of RC55-07's "virtual-space ergonomics": virtual space belongs to the box
+gesture only. RFC-BPR-0055 records that.
+
+### What was wrong at `b486149a5`
+
+- **Shade.** The view laid `QPalette::Highlight` over the code at the diff
+  panes' line-wash alpha, `core::selection_wash_alpha` (72/255). Every other
+  text box in the window, `QPlainTextEdit` and `QLineEdit` alike, fills a
+  selection with solid `Highlight`. In the dark profile the wash is `#152338`
+  on `#0D1117` (1.20:1 against the pane). A text box's selection is `#28518C`
+  (2.38:1). In the light profile the wash is `#DBE9F9` and a text box's
+  selection is `#7FB0E8`.
+- **Virtual space.** Every caret gesture could leave the caret past a line's
+  end. A click or a drag snapped to a virtual column. Right at the end went
+  one column further. Up and Down carried the column onto shorter lines. The
+  box gesture, Alt+Shift+Arrow, is the only box mode the editor has. The mouse
+  has no box gesture: Alt+click adds a caret.
+- **Double click.** It is reproduced through QtGui's window-system entry
+  (`qt_handleMouseEvent`, the path QTest drives), not only with events sent
+  to the widget. A still double click selected the word, bytes 5 to 10 of
+  `auto value = …`. If the pointer drifted one to three pixels while the
+  button was down, `mouseMoveEvent` extended the selection by characters from
+  the word's start to the pointer, giving bytes 5 to 8, in both modes. A
+  triple click lost its line the same way (0 to 17 for 0 to 25). A trackpad
+  click drifts like that routinely. A double click on the right half of a
+  word's last letter also rounded to the next boundary and selected the
+  following space.
+
+### What changed at `fd5ca4412`
+
+- **The selection a text box makes.** The view fills a selection with solid
+  `Highlight` and ends it at the line's text, plus one cell where it includes
+  the line break. The glyphs on the selection keep their role colours. A
+  colour that does not reach the variant's text floor on the fill (4.5:1, or
+  7:1 for high contrast) moves toward black or white by the least amount that
+  does, so it keeps its hue. That is `core::readable_selection_ink`. In the
+  dark profile, for example, the keyword's `#6DA9DB` becomes `#A1C8E8`. Every
+  role of the four built-in profiles reads on its own selection. The
+  required-pair audit is unchanged: its wash pairs measure the diff panes'
+  line wash, which those panes still paint, and this ink meets the floor by
+  construction wherever any ink can.
+- **Virtual space only in a box.** A click, Shift+click, Alt+click or drag
+  lands on the text. Right at a line's end goes to the next line, and Left
+  from a box's virtual column returns to the line end. Up and Down aim for
+  the column they started from and stop at a shorter line's end. The column
+  is kept across a run of vertical moves as `suggestion_text_state::Goals`.
+  Alt+Shift+Arrow still reaches past short lines, and typing there pads them
+  with spaces.
+- **A press keeps what it selected.** A drag with the button held grows from
+  what the press selected, by the press's unit: characters after a click,
+  whole words after a double click, whole lines after a triple click
+  (`core::drag_selection`). A double click names the character under the
+  pointer (`suggestion_editor::cell_at`), not the nearer edge.
+- The painter is still the cached glyph runs of `3868375a7`. A selection only
+  changes a glyph's colour, which splits a run.
+
+| Check (macOS arm64, `build/dev`, `fd5ca4412`) | Result |
+|---|---|
+| `core_suggestion_text_editing`: Down stops at a short line's end and the column is reached again further on; Up likewise; Right at the end wraps; a click, Shift+click and Alt+click past the end land at the end; typing there adds no blanks; a box stands in virtual space, backspaces there, and pads on typing; Left after a box returns to the line end; word and line drags keep the double- or triple-clicked unit, grow by whole units both ways, and stop at a line's end by characters | Pass |
+| `core_appearance_contrast`: the selection ink keeps a readable role exactly, lifts a faint one to the text floor (not the emphasis floor) by the least step, keeping its hue, and holds a high-contrast variant to its own floor | Pass |
+| `qt_suggestion_editor_1_0`/`_2_0`, through the window system: double click with 0, 1 and 3 px of drift selects exactly the word, and a triple click the line, reading and editing; the right half of a word's last letter and the left half of its first; a drag after a double click by whole words both ways; End then Down, Up and Up again; Right wraps; a click and a drag past the end; a box past a short line; the solid `Highlight` fill at a blank selected cell, the base past the text, a selected line break one cell; every built-in profile's roles read on its selection | Pass |
+| `qt_review_cycle_view_1_0`/`_2_0`: the selection is solid `Highlight` and differs from the wash; the selected `return` is in the selection's ink, not plain text; 0 differing pixels outside the caret before and after Suggest change, and after Cancel | Pass |
+| `application_review_cycle_desktop_public_path`, offscreen and under `QT_QPA_PLATFORM=cocoa` (dark scheme, 2x), the composed window in the profile's palette: a double click with drift selects `parse` reading and `check` editing; a triple click selects the line; a click past the end puts the caret at the end; a drag past the end selects the text in `code_selection_background` and paints the base after it; the selected `check` has solid pixels in the function role's selection ink and none in the bare role colour | Pass |
+| 64 rows matching `review_cycle\|suggestion\|syntax\|round_trip_composition\|architecture_boundaries\|code_sample\|appearance`, the network-isolation rows, `core-only` build and its suggestion/appearance rows, full `cmake --build --preset dev` with no warning, `coding-format-check`, `tidy.py --changed --warnings-as-errors` | Pass |
+| Negative controls, not committed: (1) the 72/255 wash restored; (2) the bare role colour on the selection; (3) virtual columns kept by a click; (4) the old character drag after a double click; (5) a double click at the nearer edge; (6) Down into virtual space | Each fails where it should: (1) "the selection is the solid Highlight…" in three courses; (2) "a selected call keeps its role, in the ink…" and the cycle view's ink check; (3) "a click past the end puts the caret at the line's end" and "Down stops at a shorter line's end"; (4) "a double click … selects exactly the word" in the editor course and the composed window; (5) "a double click on the right half of the last letter…"; (6) "Down stops at a shorter line's end" in core and Qt |
+
+The window-system mouse helper is `tests/support/window_system_mouse.hpp`.
+It declares QtGui's exported `qt_handleMouseEvent` exactly as `qtestmouse.h`
+does, so no new Qt module is linked.
+
+Attended: `BPR-1156-composer-layout-v006` (RC61-04, one question on the shade,
+line ends and double click) and `BPR-1156-editor-gestures-v004` (RC55-07,
+superseding the undecided v003, whose wording offered virtual space past
+short lines outside a box). Both are on the frozen candidate
+`/Users/jaeger/bpr-cycles-selection-review.Ev9QTV`, a copy of the dev bundle
+at `fd5ca4412` with app sha256
+`af38e32d3aad3b66a80176b23033def563921af834b06c439f7311142c9f5538`. Its
+launcher sets HOME and CFFIXED_USER_HOME. An eight-second offscreen trial
+start wrote its profile only under the given home and changed nothing under
+the account's own Application Support. v005 and v003 were released by
+candidate name only. Session cursor 787, host on port 59998. The card stays
+Parked on human-review.
+
+Owed: Linux and Windows runs of the changed rows at `fd5ca4412` or later.
