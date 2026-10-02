@@ -18,6 +18,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTextBlock>
@@ -215,6 +216,30 @@ namespace bpr::qt {
 		auto suggest_tip() -> QString
 		{
 			return QStringLiteral("Edit this file in place, starting at the cursor, and propose the changes as exact replacements (%1 in the code)").arg(note_key_words(true));
+		}
+
+		/// \brief [[BPR-1157]]. The keys that cancel an open note or suggestion
+		/// (owner, native-keyboard v002, 2026-10-02): Escape everywhere, and on
+		/// macOS Control-C as well. Qt names the Mac's Control key Meta, so
+		/// Command-C, Qt's Control, stays Copy. On Windows and Linux Ctrl+C is
+		/// Copy, so it never cancels there.
+		auto composer_cancel_keys() -> QList<QKeySequence>
+		{
+#if defined(Q_OS_MACOS)
+			return { QKeySequence{ Qt::Key_Escape }, QKeySequence{ Qt::META | Qt::Key_C } };
+#else
+			return { QKeySequence{ Qt::Key_Escape } };
+#endif
+		}
+
+		/// The same keys in words, for tooltips and accessible descriptions.
+		auto cancel_key_words() -> QString
+		{
+#if defined(Q_OS_MACOS)
+			return QStringLiteral("Esc or Control-C");
+#else
+			return QStringLiteral("Esc");
+#endif
 		}
 	}
 
@@ -444,6 +469,7 @@ namespace bpr::qt {
 		commentButtons->addStretch(1);
 		auto* const cancelComment = new QPushButton{ QStringLiteral("Cancel"), commentPage };
 		cancelComment->setObjectName(QStringLiteral("cycleCommentCancel"));
+		cancelComment->setToolTip(QStringLiteral("Discard this note (%1)").arg(cancel_key_words()));
 		auto* const saveComment = new QPushButton{ QStringLiteral("Save note"), commentPage };
 		saveComment->setObjectName(QStringLiteral("cycleCommentSave"));
 		saveComment->setDefault(true);
@@ -494,11 +520,23 @@ namespace bpr::qt {
 		TrayComposer->addWidget(Composer);
 		TrayComposer->setCurrentIndex(0);
 		trayColumn->addWidget(TrayComposer);
+		Composer->cancel_button()->setToolTip(QStringLiteral("Discard this suggestion (%1)").arg(cancel_key_words()));
+		// [[BPR-1157]]. Escape, and Control-C on macOS, cancel the open note or
+		// suggestion as its Cancel does, while focus is inside it. The keys
+		// are claimed only while one is open; the code view keeps Escape
+		// while it has a selection or extra carets to collapse.
+		CancelKeys = new QShortcut{ this };
+		CancelKeys->setObjectName(QStringLiteral("cycleComposerCancelKeys"));
+		CancelKeys->setKeys(composer_cancel_keys());
+		CancelKeys->setContext(Qt::WidgetWithChildrenShortcut);
+		CancelKeys->setEnabled(false);
+		connect(CancelKeys, &QShortcut::activated, this, [this] { cancel_focused_composer(); });
 		// Leaving the composer, however it is left, gives the pane back to reading.
-		connect(TrayComposer, &QStackedWidget::currentChanged, this, [this] {
+		connect(TrayComposer, &QStackedWidget::currentChanged, this, [this, commentPage] {
 			if (!suggesting()) {
 				end_suggestion();
 			}
+			CancelKeys->setEnabled(TrayComposer->currentWidget() == commentPage || TrayComposer->currentWidget() == Composer);
 		});
 
 		Body->addWidget(Files);
@@ -544,11 +582,7 @@ namespace bpr::qt {
 			CommentEditor->setFocus(Qt::OtherFocusReason);
 		});
 		connect(saveComment, &QPushButton::clicked, this, [this] { save_comment(); });
-		connect(cancelComment, &QPushButton::clicked, this, [this] {
-			CommentEditor->clear();
-			PendingTarget.reset();
-			TrayComposer->setCurrentIndex(0);
-		});
+		connect(cancelComment, &QPushButton::clicked, this, [this] { cancel_comment(); });
 		Source->SelectionChanged = [this] { refresh_actions(); };
 		// [[BPR-1157]]. Reading, Return notes the selection or the caret's line
 		// and Shift+Return begins Suggest change there (owner, native-keyboard
@@ -1168,6 +1202,27 @@ namespace bpr::qt {
 		TrayComposer->setCurrentIndex(0);
 	}
 
+	void review_cycle_view::cancel_comment()
+	{
+		CommentEditor->clear();
+		PendingTarget.reset();
+		TrayComposer->setCurrentIndex(0);
+		if (Centre->currentWidget() == Source) {
+			Source->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void review_cycle_view::cancel_focused_composer()
+	{
+		const auto* const focus  = QApplication::focusWidget();
+		const auto        within = [focus](const QWidget* aRegion) { return focus != nullptr && (focus == aRegion || aRegion->isAncestorOf(focus)); };
+		if (TrayComposer->currentWidget() == CommentEditor->parentWidget() && within(CommentEditor->parentWidget())) {
+			cancel_comment();
+		} else if (suggesting() && (within(Source) || within(Composer)) && Composer->Cancelled) {
+			Composer->Cancelled();
+		}
+	}
+
 	void review_cycle_view::begin_suggestion()
 	{
 		if (!SuggestAction->isEnabled() || !Projection.Source) {
@@ -1192,7 +1247,7 @@ namespace bpr::qt {
 		}
 		TrayComposer->setCurrentWidget(Composer);
 		Source->setAccessibleName(QStringLiteral("Suggested code"));
-		Source->setAccessibleDescription(QStringLiteral("Edit the whole file. Alt+Shift+Arrow makes a box selection; Ctrl+Tab leaves the editor."));
+		Source->setAccessibleDescription(QStringLiteral("Edit the whole file. Alt+Shift+Arrow makes a box selection; Ctrl+Tab leaves the editor; %1 cancels the suggestion.").arg(cancel_key_words()));
 		show_reading_page();
 		Source->setFocus(Qt::OtherFocusReason);
 		refresh_actions();

@@ -30,6 +30,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QShortcut>
 #include <QStackedWidget>
 #include <QStyleHints>
 #include <QTextBlock>
@@ -325,7 +326,7 @@ namespace {
 			return (red * red) + (green * green) + (blue * blue);
 		};
 		// Not `near`: the Windows SDK defines `near` as an empty macro.
-		const auto colour_near = [](const QColor& aPixel, const QColor& aColour) {
+		const auto closeColour = [](const QColor& aPixel, const QColor& aColour) {
 			return std::abs(aPixel.red() - aColour.red()) <= 12 && std::abs(aPixel.green() - aColour.green()) <= 12 && std::abs(aPixel.blue() - aColour.blue()) <= 12;
 		};
 		auto inked = 0;
@@ -339,7 +340,7 @@ namespace {
 				const auto pixel = image.pixelColor(x, y);
 				const auto ink   = distance(pixel, aInk);
 				inked += ink < distance(pixel, aRole) && ink < distance(pixel, aFill) && ink < distance(pixel, text) ? 1 : 0;
-				other += colour_near(pixel, aRole) || colour_near(pixel, text) ? 1 : 0;
+				other += closeColour(pixel, aRole) || closeColour(pixel, text) ? 1 : 0;
 			}
 		}
 		return inked > 0 && other == 0;
@@ -513,7 +514,54 @@ try {
 	expect(page->comment_editor()->isVisible() && QApplication::focusWidget() == page->comment_editor() && page->findChild<QLabel*>(QStringLiteral("cycleCommentTarget"))->text() == QStringLiteral("src/parser.cpp · line 3"),
 		   "Return in the reading pane opens a note on the caret's line");
 	capture(window, QStringLiteral("desktop-cycle-return-note"));
-	page->findChild<QPushButton*>(QStringLiteral("cycleCommentCancel"))->click();
+	// [[BPR-1157]]. The owner's request with native-keyboard v002 (event 806):
+	// Escape, and Control-C on macOS, cancel the open note or suggestion. Qt
+	// names the Mac's Control key Meta; its Control (Command-C on macOS,
+	// Ctrl+C elsewhere) is Copy and stays so. Nothing else in the window
+	// claims a cancel key where the page has focus, and no standard key of
+	// this platform's theme is Meta+C.
+	const auto controlC = QKeySequence{ Qt::META | Qt::Key_C };
+	const auto escape   = QKeySequence{ Qt::Key_Escape };
+	auto*      ours     = page->findChild<QShortcut*>(QStringLiteral("cycleComposerCancelKeys"));
+	// A key bound to a widget is live where that widget, or its child, has
+	// focus: it competes on the page only when that widget is the page, holds
+	// it, or lies inside it.
+	const auto overPage = [&](const Qt::ShortcutContext aContext, const QWidget* aOwner) {
+		return aContext == Qt::WindowShortcut || aContext == Qt::ApplicationShortcut || aOwner == nullptr || aOwner == page || aOwner->isAncestorOf(page) || page->isAncestorOf(aOwner);
+	};
+	for (auto* const action : window.findChildren<QAction*>()) {
+		const auto claims = action->shortcuts().contains(controlC) || action->shortcuts().contains(escape);
+		const auto owners = action->associatedObjects();
+		const auto live   = owners.isEmpty() ? overPage(action->shortcutContext(), nullptr) : std::ranges::any_of(owners, [&](QObject* aOwner) { return overPage(action->shortcutContext(), qobject_cast<QWidget*>(aOwner)); });
+		if (claims && live) {
+			std::cerr << "action " << action->objectName().toStdString() << " claims a cancel key over the page\n";
+		}
+		expect(!claims || !live, "no window action claims Escape or Control-C where the page has focus");
+	}
+	for (auto* const shortcut : window.findChildren<QShortcut*>()) {
+		const auto claims = shortcut != ours && (shortcut->keys().contains(controlC) || shortcut->keys().contains(escape));
+		if (claims && overPage(shortcut->context(), qobject_cast<QWidget*>(shortcut->parent()))) {
+			std::cerr << "shortcut " << shortcut->objectName().toStdString() << " claims a cancel key over the page\n";
+		}
+		expect(!claims || !overPage(shortcut->context(), qobject_cast<QWidget*>(shortcut->parent())), "no other shortcut claims Escape or Control-C where the page has focus");
+	}
+	for (auto standard = int{ QKeySequence::HelpContents }; standard <= int{ QKeySequence::Cancel }; ++standard) {
+		const auto bindings = QKeySequence::keyBindings(static_cast<QKeySequence::StandardKey>(standard));
+		expect(!bindings.contains(controlC), "no standard key is Meta+C, the Mac's Control-C");
+		expect(standard == int{ QKeySequence::Cancel } || !bindings.contains(escape), "Escape is only the standard Cancel");
+	}
+#if defined(Q_OS_MACOS)
+	constexpr auto onMac = true;
+#else
+	constexpr auto onMac = false;
+#endif
+	expect(ours != nullptr && ours->isEnabled() && ours->keys().contains(escape) && ours->keys().contains(controlC) == onMac, "the page claims Escape, and Control-C on macOS only, while the note is open");
+	page->comment_editor()->setPlainText(QStringLiteral("Not this one."));
+	// Copy, with nothing selected, copies nothing and leaves the note open.
+	tests::window_system_key(*page->comment_editor(), Qt::Key_C, Qt::ControlModifier, QStringLiteral("\x03"));
+	expect(page->comment_editor()->isVisible() && page->comment_editor()->toPlainText() == QStringLiteral("Not this one."), "Copy is not cancel");
+	tests::window_system_key(*page->comment_editor(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+	expect(!page->comment_editor()->isVisible() && QApplication::focusWidget() == code && page->notes()->count() == 0 && !ours->isEnabled(), "Escape cancels the note in the window; the code has focus again");
 	QApplication::processEvents();
 	// BPR-1156, the owner's notes on composer-layout v005 (event 776), in the
 	// composed window through the window system. A double click selects the
@@ -615,9 +663,25 @@ try {
 	page->source()->apply(core::place_caret{ .At = { 1U, 1U } });
 	tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
 	expect(page->source()->text() == "int parse(const char* aText)\r\n{\r\n\t\r\n\treturn check(aText);\r\n}\r\n" && !page->comment_editor()->isVisible(), "Enter after a brace indents one tab, CRLF kept, and opens no note");
-	page->findChild<QPushButton*>(QStringLiteral("suggestionCancel"))->click();
+	// Escape with only a caret cancels the suggestion ([[BPR-1157]]).
+	tests::window_system_key(*code, Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
 	settle(lanes);
-	expect(!page->suggesting() && page->source()->text() == original, "cancelled back to the captured bytes");
+	expect(!page->suggesting() && page->source()->text() == original && page->notes()->count() == 2, "Escape cancels the suggestion back to the captured bytes; nothing saved");
+#if defined(Q_OS_MACOS)
+	// And Control-C on macOS, on a note and on a suggestion.
+	code->setFocus(Qt::TabFocusReason);
+	code->select_bytes(36U, 36U);
+	tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+	page->comment_editor()->setPlainText(QStringLiteral("Not this one either."));
+	tests::window_system_key(*page->comment_editor(), Qt::Key_C, Qt::MetaModifier);
+	expect(!page->comment_editor()->isVisible() && page->notes()->count() == 2, "Control-C cancels the note on macOS");
+	code->select_bytes(36U, 36U);
+	tests::window_system_key(*code, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+	page->source()->apply(core::insert_text{ "x" });
+	tests::window_system_key(*code, Qt::Key_C, Qt::MetaModifier);
+	settle(lanes);
+	expect(!page->suggesting() && page->source()->text() == original && page->notes()->count() == 2, "and the suggestion");
+#endif
 	capture(window, QStringLiteral("desktop-cycle-notes"));
 
 	// One discussion across two files: link a README range to the first note.

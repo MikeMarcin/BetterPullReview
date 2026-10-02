@@ -121,6 +121,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto summary_text() const -> QString;
 		[[nodiscard]] auto status_text() const -> QString;
 		[[nodiscard]] auto save_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto cancel_button() const noexcept -> QPushButton*;
 
 		std::function<void()> Saved;
 		std::function<void()> Cancelled;

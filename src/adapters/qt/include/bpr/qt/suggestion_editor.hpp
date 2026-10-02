@@ -166,6 +166,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto inputMethodQuery(Qt::InputMethodQuery aQuery) const -> QVariant override;
 
 	protected:
+		/// Claims Escape ahead of any shortcut while it has a selection or
+		/// extra carets to collapse ([[BPR-1157]]).
+		auto event(QEvent* aEvent) -> bool override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
 		void inputMethodEvent(QInputMethodEvent* aEvent) override;
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -187,6 +190,7 @@ namespace bpr::qt {
 		void               measure();
 		void               measure_lines();
 		void               announce_selection();
+		[[nodiscard]] auto collapsible() const -> bool;
 		[[nodiscard]] auto row_height() const -> qreal;
 		[[nodiscard]] auto visible_rows() const -> int;
 		[[nodiscard]] auto column_x(std::uint64_t aColumn) const -> qreal;

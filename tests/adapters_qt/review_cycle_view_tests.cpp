@@ -11,6 +11,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QDir>
 #include <QImage>
 #include <QKeySequence>
@@ -22,6 +23,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QShortcut>
 #include <QTabBar>
 #include <QToolButton>
 #include <QWindow>
@@ -896,6 +898,98 @@ namespace {
 		settle();
 	}
 
+	/// \brief [[BPR-1157]]. The owner's request with native-keyboard v002
+	/// (event 806): Escape cancels the open note or suggestion, and on macOS
+	/// Control-C does too. Qt names the Mac's Control key Meta; Qt's Control
+	/// is Command-C there and Ctrl+C elsewhere, and stays Copy. Window-system
+	/// keys, with the negative controls beside each gesture.
+	void cancels_the_open_composer_from_the_keyboard(qt::review_cycle_view& aView, core::begin_cycle_feedback& aNoted, application::review_cycle_suggestion_request& aSuggested)
+	{
+		aView.present(projection(1));
+		aView.activateWindow();
+		settle();
+		auto* const code     = aView.source();
+		auto* const editor   = aView.comment_editor();
+		auto* const keys     = aView.findChild<QShortcut*>(QStringLiteral("cycleComposerCancelKeys"));
+		const auto  noteLine = [&] {
+			code->setFocus(Qt::TabFocusReason);
+			code->select_bytes(24U, 24U);
+			tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		};
+		expect(keys != nullptr && !keys->isEnabled(), "the cancel keys are claimed only while something is composed");
+		expect(aView.findChild<QPushButton*>(QStringLiteral("cycleCommentCancel"))->toolTip().contains(QStringLiteral("Esc")) && aView.composer()->cancel_button()->toolTip().contains(QStringLiteral("Esc")),
+			   "each Cancel names its key");
+
+		// Escape in the note: nothing saved, and the code has focus again.
+		aNoted = { };
+		noteLine();
+		expect(editor->isVisible() && QApplication::focusWidget() == editor && keys->isEnabled(), "Return opens the note, and claims the cancel keys");
+		editor->setPlainText(QStringLiteral("A draft to drop."));
+		tests::window_system_key(*editor, Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(!editor->isVisible() && editor->toPlainText().isEmpty() && aNoted.Body.empty() && QApplication::focusWidget() == code && !keys->isEnabled(),
+			   "Escape in the note cancels it: nothing saved, the code focused again");
+
+		// Negative controls. Copy is not cancel; and Escape with focus outside
+		// the open note leaves it alone.
+		noteLine();
+		editor->setPlainText(QStringLiteral("Keep me."));
+		editor->selectAll();
+		QApplication::clipboard()->clear();
+		tests::window_system_key(*editor, Qt::Key_C, Qt::ControlModifier, QStringLiteral("\x03"));
+		expect(editor->isVisible() && editor->toPlainText() == QStringLiteral("Keep me.") && QApplication::clipboard()->text() == QStringLiteral("Keep me."),
+			   "Qt's Control+C (Command-C on macOS, Ctrl+C elsewhere) copies the note's text and leaves it open");
+		aView.files()->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*aView.files(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(editor->isVisible() && editor->toPlainText() == QStringLiteral("Keep me."), "Escape outside the open note leaves it open");
+		editor->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*editor, Qt::Key_C, Qt::MetaModifier);
+#if defined(Q_OS_MACOS)
+		expect(!editor->isVisible() && aNoted.Body.empty() && QApplication::focusWidget() == code, "on macOS Control-C cancels the note");
+#else
+		expect(editor->isVisible() && editor->toPlainText() == QStringLiteral("Keep me."), "off macOS Meta+C is not a cancel key");
+		aView.findChild<QPushButton*>(QStringLiteral("cycleCommentCancel"))->click();
+		settle();
+#endif
+
+		// Escape in Suggest change: a selection collapses first, as in any
+		// editor, so a box of carets is never lost to one key; then it cancels.
+		aSuggested = { };
+		code->setFocus(Qt::TabFocusReason);
+		code->select_bytes(13U, 13U);
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+		expect(aView.suggesting() && keys->isEnabled(), "Shift+Return begins Suggest change and claims the cancel keys");
+		code->apply(core::insert_text{ "x" });
+		code->select_bytes(13U, 20U);
+		QApplication::clipboard()->clear();
+		tests::window_system_key(*code, Qt::Key_C, Qt::ControlModifier, QStringLiteral("\x03"));
+		expect(aView.suggesting() && QApplication::clipboard()->text() == QStringLiteral("xreturn"), "Qt's Control+C copies the edited selection and keeps the suggestion");
+		tests::window_system_key(*code, Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(aView.suggesting() && !code->has_selection() && code->text() != parser, "the first Escape collapses the selection and keeps the edit");
+		aView.composer()->findChild<QPlainTextEdit*>(QStringLiteral("suggestionRationale"))->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*QApplication::focusWidget(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(!aView.suggesting() && code->read_only() && code->text() == parser && aSuggested.Edits.empty() && !keys->isEnabled() && QApplication::focusWidget() == code,
+			   "Escape in the tray's rationale cancels the suggestion: the captured bytes back, nothing saved");
+		code->setFocus(Qt::TabFocusReason);
+		code->select_bytes(13U, 13U);
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+		code->apply(core::insert_text{ "y" });
+		tests::window_system_key(*code, Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(!aView.suggesting() && code->text() == parser && aSuggested.Edits.empty(), "Escape in the code with only a caret cancels the suggestion");
+		code->select_bytes(13U, 13U);
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+		code->apply(core::insert_text{ "z" });
+		code->select_bytes(13U, 20U);
+		tests::window_system_key(*code, Qt::Key_C, Qt::MetaModifier);
+#if defined(Q_OS_MACOS)
+		expect(!aView.suggesting() && code->text() == parser && aSuggested.Edits.empty(), "on macOS Control-C cancels the suggestion at once");
+#else
+		expect(aView.suggesting() && code->text() != parser, "off macOS Meta+C is not a cancel key");
+		aView.composer()->cancel_button()->click();
+		settle();
+#endif
+		expect(!aView.suggesting() && code->read_only(), "back to reading");
+	}
+
 	void opens_files_and_steps(qt::review_cycle_view& aView, std::string& aOpened)
 	{
 		aView.findChild<QAction*>(QStringLiteral("cyclePreviousFile"))->trigger();
@@ -944,6 +1038,7 @@ try {
 	anchors_exact_bytes_from_a_native_selection(view, suggested, noted);
 	suggests_from_the_caret_and_the_context_menu(view, suggested);
 	return_notes_and_suggests_where_the_caret_is(view, noted);
+	cancels_the_open_composer_from_the_keyboard(view, noted, suggested);
 	shows_where_focus_is();
 	states_newer_material_without_moving(view);
 	opens_files_and_steps(view, opened);

@@ -318,6 +318,11 @@ namespace bpr::qt {
 		return Save;
 	}
 
+	auto suggestion_composer::cancel_button() const noexcept -> QPushButton*
+	{
+		return Cancel;
+	}
+
 	void suggestion_composer::refresh_preview()
 	{
 		PreviewRows = core::preview_edit_hunks(Texts[0], Texts[1], Hunks, preview_context);

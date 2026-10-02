@@ -741,6 +741,25 @@ namespace bpr::qt {
 		}
 	}
 
+	auto suggestion_editor::event(QEvent* aEvent) -> bool
+	{
+		// Escape collapses before it can cancel what the editor is part of.
+		if (aEvent->type() == QEvent::ShortcutOverride) {
+			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if (key->key() == Qt::Key_Escape && collapsible()) {
+				aEvent->accept();
+				return true;
+			}
+		}
+		return QAbstractScrollArea::event(aEvent);
+	}
+
+	/// Whether Escape has something to collapse: a selection or extra carets.
+	auto suggestion_editor::collapsible() const -> bool
+	{
+		return Editor.state().Carets.size() > 1U || !Editor.state().Carets.front().empty();
+	}
+
 	void suggestion_editor::keyPressEvent(QKeyEvent* aEvent)
 	{
 		const auto modifiers = aEvent->modifiers();
@@ -788,7 +807,7 @@ namespace bpr::qt {
 			}
 		}
 		if (aEvent->key() == Qt::Key_Escape) {
-			if (Editor.state().Carets.size() > 1U || !Editor.state().Carets.front().empty()) {
+			if (collapsible()) {
 				apply(core::collapse_carets{ });
 				return;
 			}

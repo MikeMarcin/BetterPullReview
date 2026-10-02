@@ -21,6 +21,7 @@ class QListWidget;
 class QMenu;
 class QPlainTextEdit;
 class QPushButton;
+class QShortcut;
 class QSplitter;
 class QStackedWidget;
 class QToolButton;
@@ -87,8 +88,11 @@ namespace bpr::qt {
 	/// 2026-10-01, and its v004 rejection, 2026-10-02). Reading the code,
 	/// Return (Enter) notes the selection or the caret's line and Shift+Return
 	/// begins Suggest change there, and every stop Tab reaches shows the
-	/// window's focus ring (owner, native-keyboard v001, 2026-10-02). It
-	/// decides nothing and performs no effect: gestures leave through
+	/// window's focus ring (owner, native-keyboard v001, 2026-10-02). Escape
+	/// cancels the open note or suggestion from inside it, as its Cancel
+	/// does, and so does Control-C on macOS, where Command-C is Copy (owner,
+	/// native-keyboard v002, 2026-10-02); elsewhere Ctrl+C is Copy and stays
+	/// so. It decides nothing and performs no effect: gestures leave through
 	/// `review_cycle_dispatch`.
 	class review_cycle_view final : public QWidget
 	{
@@ -169,6 +173,10 @@ namespace bpr::qt {
 		void read_source();
 		void show_source();
 		void save_comment();
+		/// The note composer closed without a note; the code takes focus back.
+		void cancel_comment();
+		/// Cancels the open note or suggestion when keyboard focus is inside it.
+		void cancel_focused_composer();
 		void refresh_actions();
 		void step_file(int aDirection);
 		void rebuild_view_menu();
@@ -226,6 +234,7 @@ namespace bpr::qt {
 		QLineEdit*                                           ReplyFrom     = nullptr;
 		QCheckBox*                                           ReplyAbout    = nullptr;
 		QPlainTextEdit*                                      ReplyEditor   = nullptr;
+		QShortcut*                                           CancelKeys    = nullptr;
 		std::optional<core::cycle_round_id>                  ReplyRound;
 		std::optional<std::string>                           ReplyItem;
 		bool                                                 Presenting = false;
