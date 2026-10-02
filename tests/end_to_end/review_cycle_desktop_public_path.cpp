@@ -14,6 +14,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QDir>
+#include <QGuiApplication>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
@@ -25,6 +26,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStackedWidget>
+#include <QStyleHints>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -225,7 +227,10 @@ try {
 	// BPR-1156: the packaged definitions the review panes classify with.
 	const auto definitions = adapters::syntax::packaged_definition_catalog{ };
 	auto       desktop     = app::review_cycle_desktop{ window, profile.path(), core::bpr_profile_id{ 1 }, lanes, lanes, { .Definitions = &definitions, .Effects = &lanes } };
-	const auto appearance  = qt::appearance_profile{ };
+	// The platform's own scheme, as the application observes it, so a native
+	// render paints dark-scheme role colours on a dark window.
+	const auto scheme     = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? core::os_color_scheme::dark : core::os_color_scheme::light;
+	const auto appearance = qt::appearance_profile{ qt::default_appearance_settings(), { .Scheme = scheme } };
 	desktop.adopt_appearance(appearance);
 	settle(lanes);
 
