@@ -230,3 +230,16 @@ and offscreen. The dev build has no warnings.
   reverted. **All six pass**: title row in 3.0, 4.1 and 5.8 s, window in 25.9,
   27.3 and 30.9 s. So on Linux the title-yield rule holds at every scale,
   and only [[BPR-1255]]'s owner decision keeps these rows red.
+
+### macOS after `facf69d53` (bpr-main-mac, 2026-10-01)
+
+Clean worktree at `9751195d0`, Apple clang, `dev` preset. The build exits 0
+with no project warning (this also builds [[BPR-1262]]'s portable changes under
+Apple clang). `ctest --preset dev -j1 -R '^qt_workbench_(window|title_row)_scale_'`:
+**all six pass** (title row 3.55, 2.09, 2.76 s; window 21.96, 22.77, 24.30 s),
+so on macOS the title still yields from the whole-modality room and the
+overflow fold is reached and met.
+
+What remains for this card's acceptance is the Windows and Linux six, which now
+stop only at [[BPR-1255]]'s overflow check. The card finishes when the owner's
+[[BPR-1255]] decision lands and those rows are rerun.
