@@ -99,6 +99,10 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_review_cycle_workbench)
 bpr_add_network_isolated_test(NAME review_cycle_workbench WINDOWS_UNCONTAINED COMMAND test_review_cycle_workbench ${bpr_workspace_git_arguments})
+# [[BPR-1161]]. It renders a 16 MiB round. Slowest isolated run: Windows Debug
+# 38.13 s (MSVC 14.51, Qt 6.11.2, dbe6966ea); Linux about 31 s, macOS about 18 s.
+# Three times the slowest, rounded up (docs/development/build-and-test.md).
+set_tests_properties(review_cycle_workbench PROPERTIES TIMEOUT 120)
 
 # [[BPR-1158]]. Round drafts frozen into one canonical payload through the runtime and store.
 bpr_add_executable(test_review_cycle_round review_cycle_round_tests.cpp)

@@ -49,7 +49,6 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     STAGE_ZERO_PRELOADER_SOURCE,
     WINDOWS_UNCONTAINED_LABEL,
     WINDOWS_UNCONTAINED_TESTS,
-    WINDOWS_PENDING_REGISTRATIONS,
     WORKSPACE_REFUSAL_EXPRESSION,
     boundary_marker_failures,
     composition_symbols,
@@ -578,8 +577,11 @@ class ConfiguredManifestTests(unittest.TestCase):
             self.assertLessEqual(uncontained_registration_count(root), len(WINDOWS_UNCONTAINED_TESTS))
 
     def test_pending_windows_inventory_grants_no_configured_exception(self) -> None:
-        source, name = next(pair for pair in WINDOWS_PENDING_REGISTRATIONS if "${" not in pair[1])
-        with contained_temporary_directory() as directory:
+        # [[BPR-1237]]. The inventory is empty now that every row is measured, so
+        # the course plants one pending registration of its own, a name no pin has.
+        source, name = "tests/end_to_end/CMakeLists.txt", "application_pending_probe"
+        self.assertNotIn(name, WINDOWS_UNCONTAINED_TESTS)
+        with unittest.mock.patch("scripts.verify_test_network_isolation.WINDOWS_PENDING_REGISTRATIONS", frozenset({(source, name)})), contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             write(root, source, f"bpr_add_network_isolated_test(NAME {name} WINDOWS_UNCONTAINED COMMAND x)\n")
             self.assertEqual(uncontained_registration_count(root), 1)

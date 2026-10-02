@@ -582,3 +582,20 @@ AC3 is therefore met by the owner's acceptance of the native items, together
 with the enforced fixture-composition budgets on all three platforms.
 [[BPR-1264]] (the named input-target phases) and [[BPR-1265]] (the Windows
 Debug byte course) stay open as separate work.
+
+## The large-review rows' Windows pins (bpr-main-win, 2026-10-02)
+
+`cef11b982` registered the large-review courses `WINDOWS_UNCONTAINED` without
+Windows pins, so `test_network_isolation_manifest` failed on them. Measured
+at `dbe6966ea`, contained through the sandbox launcher and uncontained as
+registered:
+
+- active work, cache bytes and entries, history, launch, loaded close,
+  pathological, provider cancel, resources and responsiveness each fail
+  contained at "large-review-benchmark-failed: private data root parent" and
+  pass uncontained. They are pinned `dos-volume-name` with that line.
+- `application_large_review_history_session_race` passes contained
+  (`LARGE_REVIEW_HISTORY_SESSION_RACE_OK`), because it opens no data root. Its
+  keyword is removed, and it runs in the container.
+
+Recorded with [[BPR-1237]]'s pins. The manifest passes on Windows.

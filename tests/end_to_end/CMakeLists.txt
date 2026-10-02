@@ -1260,9 +1260,10 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_tests_properties(application_large_review_cache_bytes PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 900
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_BYTES_OK")
+    # [[BPR-0967]]. Contained on Windows: measured 2026-10-02, it passes inside
+    # the container (LARGE_REVIEW_HISTORY_SESSION_RACE_OK); it opens no data root.
     bpr_add_network_isolated_test(
         NAME application_large_review_history_session_race
-        WINDOWS_UNCONTAINED
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-history-session-race.json"

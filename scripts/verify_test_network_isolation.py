@@ -476,40 +476,102 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # holds under concurrency. Registered contained on JaegAW 2026-09-24, every
     # launch stopped at firewall-service:win32=5.
     "test_network_isolation_concurrent_launch": "service-manager-denied",
+    # [[BPR-1237]], [[BPR-0967]]. Measured on JaegAW 2026-10-02 at dbe6966ea: each row
+    # below run through the sandbox launcher with its own registered environment,
+    # and as registered. Every one fails contained at the step its comment
+    # names and passes uncontained. The steps are the private data root's
+    # canonicalisation or owner-private narrowing, the profile registry's
+    # ancestor-chain walk, or a store opened under such a root: the drive-letter
+    # translation and WRITE_DAC refusal this file files under dos-volume-name
+    # (BPR-0833, BPR-0874, BPR-1031).
+    # [[BPR-0967]]. The large-review courses registered uncontained by cef11b982:
+    # contained, each stops at "large-review-benchmark-failed: private data root parent".
+    "application_large_review_active_work": "dos-volume-name",
+    "application_large_review_cache_bytes": "dos-volume-name",
+    "application_large_review_cache_entries": "dos-volume-name",
+    "application_large_review_history": "dos-volume-name",
+    "application_large_review_launch": "dos-volume-name",
+    "application_large_review_loaded_close": "dos-volume-name",
+    "application_large_review_pathological": "dos-volume-name",
+    "application_large_review_provider_cancel": "dos-volume-name",
+    "application_large_review_resources": "dos-volume-name",
+    "application_large_review_responsiveness": "dos-volume-name",
+    # [[BPR-1237]]. The same benchmark's other courses stop at the same step.
+    "application_large_review_timing_control": "dos-volume-name",
+    "application_first_tab_comparison": "dos-volume-name",
+    # [[BPR-1237]]. Composed courses that stop at e2e::private_data_root(), the
+    # QTemporaryDir's canonicalFilePath: the tour courses exit there silently, the
+    # others say "private data root" ("private data root exists" for the drain).
+    "application_review_tour_cold_import_public_path": "dos-volume-name",
+    "application_review_tour_composition_public_path": "dos-volume-name",
+    "application_review_tour_composition_scale_125": "dos-volume-name",
+    "application_review_tour_composition_scale_200": "dos-volume-name",
+    "application_review_tour_publication_compat": "dos-volume-name",
+    "application_review_tour_publication_conflict": "dos-volume-name",
+    "application_review_tour_publication_description": "dos-volume-name",
+    "application_review_tour_publication_maintenance": "dos-volume-name",
+    "application_review_tour_publication_manual": "dos-volume-name",
+    "application_review_tour_publication_native": "dos-volume-name",
+    "application_review_tour_publication_reconciliation": "dos-volume-name",
+    "application_review_tour_publication_stop": "dos-volume-name",
+    "application_review_tour_publication_unsupported": "dos-volume-name",
+    "application_diagnostic_controls_public_path": "dos-volume-name",
+    "application_review_submission_composition_scale_125": "dos-volume-name",
+    "application_review_submission_composition_scale_200": "dos-volume-name",
+    "application_profile_window_layout_drain": "dos-volume-name",
+    # [[BPR-1237]]. Courses whose own private root cannot be narrowed contained:
+    # "owner-private root", "wire fixture root is owner-private", "owner-private data
+    # root", "private application root", "private fixture state root", "native private
+    # root before composed startup" (the four logging courses), "private test root",
+    # "test owner creates private root before logger admission", and the crash
+    # recovery's session_retention child, which stops at its private test root
+    # before it reaches "flushed".
+    "application_active_changed_scaling": "dos-volume-name",
+    "application_attended_recent_replay": "dos-volume-name",
+    "application_rate_limit_render_recovery": "dos-volume-name",
+    "application_release_maintenance_public_path": "dos-volume-name",
+    "application_release_update_public_path": "dos-volume-name",
+    "application_logging_cancel_startup": "dos-volume-name",
+    "application_logging_capability-failure": "dos-volume-name",
+    "application_logging_full": "dos-volume-name",
+    "application_logging_unavailable": "dos-volume-name",
+    "logging_session_retention": "dos-volume-name",
+    "quill_logging_content_policy": "dos-volume-name",
+    "logging_crash_recovery": "dos-volume-name",
+    # [[BPR-1237]]. QTemporaryDir roots under AC\Temp that the course then writes in:
+    # "create_directory: Access is denied" inside qt_temp-*, the refusal BPR-1031
+    # measured for the same root.
+    "diagnostic_context_age": "dos-volume-name",
+    "diagnostic_controls": "dos-volume-name",
+    # [[BPR-1237]]. "canonical: Access is denied" on the course's AC\Temp root.
+    "git_haves_trimmed_pack_tour-source": "dos-volume-name",
+    "sqlite_release_maintenance_files": "dos-volume-name",
+    # [[BPR-1237]]. Startup refuses at the profile registry
+    # (STARTUP_PROFILE_REFUSAL:registry_unavailable, the private-review seed),
+    # "desktop admitted" (the seed's desktop, refused the same way), or the
+    # auth seed's exit 3, this station's contained abort for canonical.
+    "application_private_review_file": "dos-volume-name",
+    "application_private_review_native": "dos-volume-name",
+    "application_private_review_retry": "dos-volume-name",
+    "application_offline_inventory": "dos-volume-name",
+    "application_recent_account_isolation": "dos-volume-name",
+    "application_document_tabs_restoration_public_path": "dos-volume-name",
+    # [[BPR-1237]]. A store opened under such a root is refused: "production staged
+    # journal opens", "accepted overview saves", "public factory opens migrated
+    # ledger", and the private-review host's store, an unchecked std::expected.
+    "staged_review_session": "dos-volume-name",
+    "staged_review_restart": "dos-volume-name",
+    "sqlite_cached_review_overview": "dos-volume-name",
+    "sqlite_private_review_storage": "dos-volume-name",
+    "application_private_review_host": "dos-volume-name",
 }
-# BPR-0573 integration audit at 0ff88046. These existing source registrations
-# have no measured Windows exception in the allowlist above. Count them only
-# as pending source inventory so they cannot break another platform's contained
-# manifest. They are deliberately NOT allowed by configured_failures on Windows.
-# Reconcile each with native evidence or remove its exception before Windows
-# qualification; this list grants no executable or network authority.
-WINDOWS_PENDING_REGISTRATIONS = frozenset(
-    {
-        ('tests/end_to_end/CMakeLists.txt', 'application_active_changed_scaling'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_attended_recent_replay'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_diagnostic_controls_public_path'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_document_tabs_restoration_public_path'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_first_tab_comparison'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_large_review_timing_control'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_logging_${scenario}'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_logging_cancel_startup'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_offline_inventory'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_profile_window_layout_drain'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_rate_limit_render_recovery'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_recent_account_isolation'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_release_maintenance_public_path'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_release_update_public_path'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_review_submission_composition_scale_${scale}'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_review_tour_composition_public_path'),
-        ('tests/end_to_end/CMakeLists.txt', 'application_review_tour_composition_scale_${scale}'),
-        ('tests/logging/CMakeLists.txt', 'diagnostic_context_age'),
-        ('tests/logging/CMakeLists.txt', 'diagnostic_controls'),
-        ('tests/logging/CMakeLists.txt', 'logging_session_retention'),
-        ('tests/logging/CMakeLists.txt', 'quill_logging_content_policy'),
-        ('tests/sqlite_contract/CMakeLists.txt', 'sqlite_cached_review_overview'),
-        ('tests/sqlite_contract/CMakeLists.txt', 'sqlite_release_maintenance_files'),
-    }
-)
+# BPR-0573 integration audit at 0ff88046 listed source registrations with no
+# measured Windows exception, counted only as pending source inventory so they
+# could not break another platform's contained manifest, and never allowed by
+# configured_failures on Windows. [[BPR-1237]] measured every one on JaegAW on
+# 2026-10-02 and pinned it above, or moved it into the container, so none is
+# pending. A registration added here grants no executable or network authority.
+WINDOWS_PENDING_REGISTRATIONS: frozenset[tuple[str, str]] = frozenset()
 
 # BPR-0802. The macOS rows that cannot run under the sandbox runner, because
 # they start a sandbox of their own and macOS refuses nested sandbox

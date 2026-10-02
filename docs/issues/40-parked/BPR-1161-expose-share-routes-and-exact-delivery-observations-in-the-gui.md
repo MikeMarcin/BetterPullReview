@@ -131,3 +131,12 @@ them.
   `cef11b982` (BPR-0967) registered them `WINDOWS_UNCONTAINED` without adding
   them to `scripts/verify_test_network_isolation.py`'s Windows set. They are
   BPR-0967's to pin.
+
+## `review_cycle_workbench` bound, and the manifest (bpr-main-win, 2026-10-02)
+
+`review_cycle_workbench` now sets `TIMEOUT 120`. That is three times the
+slowest isolated run, Windows Debug's 38.13 s, rounded up
+(`docs/development/build-and-test.md`). Linux, about 31 s, and macOS, about
+18 s, sit well inside it. On Windows it passes in 34.91 s under the new
+bound. `test_network_isolation_manifest`, red above on other cards' rows, now
+passes on Windows ([[BPR-1237]]).

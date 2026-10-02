@@ -520,7 +520,9 @@ target_link_libraries(test_tour_owner_channel PRIVATE BetterPullReview::AdapterS
 bpr_enable_hardening(test_tour_owner_channel)
 bpr_enable_warnings(test_tour_owner_channel)
 # [[BPR-1061]]. Real native sockets under the same private root shape as sqlite_profile_activation.
-bpr_add_network_isolated_test(NAME sqlite_tour_owner_channel WINDOWS_UNCONTAINED COMMAND test_tour_owner_channel)
+# [[BPR-1237]]. Contained on Windows: measured 2026-10-02, it passes inside the
+# container (tour-owner-channel-tests:pass).
+bpr_add_network_isolated_test(NAME sqlite_tour_owner_channel COMMAND test_tour_owner_channel)
 set_tests_properties(sqlite_tour_owner_channel PROPERTIES TIMEOUT 60)
 
 bpr_add_executable(test_better_pull_review_window_review_restoration_storage_tests window_review_restoration_storage_tests.cpp)

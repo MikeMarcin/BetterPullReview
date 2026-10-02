@@ -69,3 +69,59 @@ among them.
 
 - `test_network_isolation_manifest` passes on Windows.
 - It still passes on macOS and Linux.
+
+## Every row measured and pinned; the manifest passes on Windows (bpr-main-win, 2026-10-02)
+
+At `dbe6966ea` the manifest listed 58 rows registered `bpr_windows_uncontained`
+with no Windows pin. 47 are this card's, and 11 are BPR-0967's
+`application_large_review_*` rows. Windows 11 Home 10.0.26200, MSVC 14.51,
+Qt 6.11.2, `build/windows-dev` Debug.
+
+**Contained.** A station probe, not committed, ran each row through
+`better_pull_review_network_sandbox.exe`. It used the row's own command,
+`ENVIRONMENT`, `ENVIRONMENT_MODIFICATION`, `WORKING_DIRECTORY`, `TIMEOUT` and
+pass/fail expressions from `ctest --show-only=json-v1`. 56 failed and two
+passed. Each failure stops at the row's private data root (its
+canonicalisation or owner-private narrowing), at the profile registry's
+ancestor-chain walk, or at a store opened under such a root:
+
+- the large-review benchmark's courses: "large-review-benchmark-failed: private
+  data root parent";
+- the tour and other composed courses: `e2e::private_data_root()`, which the
+  tour courses leave silently and the others report as "private data root";
+- "owner-private root", "wire fixture root is owner-private", "native private
+  root before composed startup" and similar narrowing steps, the four logging
+  courses among them;
+- `diagnostic_context_age` and `diagnostic_controls`: "create_directory: Access
+  is denied" inside their `QTemporaryDir`;
+- `git_haves_trimmed_pack_tour-source` and `sqlite_release_maintenance_files`:
+  "canonical: Access is denied";
+- the private-review seeds: `STARTUP_PROFILE_REFUSAL:registry_unavailable`;
+  `application_offline_inventory` and `_recent_account_isolation`: "desktop
+  admitted"; the auth seed's exit 3;
+- store opens: "production staged journal opens", "accepted overview saves",
+  "public factory opens migrated ledger", and the private-review host's
+  unchecked `std::expected`.
+
+**Uncontained, as registered**, all 58 pass, with `ctest -j4` over the set
+taking 2,772.57 s. One row, `application_private_review_retry`, failed under
+`-j4` only at cleanup: `WinError 32` on its held `review-ledger.sqlite3`. It
+passed alone in 21.97 s.
+
+**The change, in one commit so the manifest is never red in between:**
+
+- 56 pins in `WINDOWS_UNCONTAINED_TESTS`, all `dos-volume-name`, the term this
+  file already uses for root canonicalisation and narrowing refused inside the
+  container (BPR-0833, BPR-0874, BPR-1031). Each group's comment names the
+  measured step.
+- `sqlite_tour_owner_channel` passes contained (`tour-owner-channel-tests:pass`),
+  so its `WINDOWS_UNCONTAINED` keyword is removed and it runs in the container.
+  So does BPR-0967's `application_large_review_history_session_race`.
+- `WINDOWS_PENDING_REGISTRATIONS` is now empty, because every audited row is
+  reconciled. Its test plants a pending registration of its own in place of
+  borrowing one.
+
+After the change, on Windows: `test_network_isolation_manifest` passes
+(7.97 s), `test_network_isolation_structure_contract` passes, and both moved
+rows pass contained under CTest. The macOS and Linux manifests count the same
+registrations and need a rerun.
