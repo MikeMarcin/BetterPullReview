@@ -144,7 +144,8 @@ namespace {
 		return count;
 	}
 
-	auto near(const QColor& aPixel, const QColor& aColour) -> bool
+	// Not `near`: the Windows SDK defines `near` as an empty macro.
+	auto colour_near(const QColor& aPixel, const QColor& aColour) -> bool
 	{
 		return std::abs(aPixel.red() - aColour.red()) <= 24 && std::abs(aPixel.green() - aColour.green()) <= 24 && std::abs(aPixel.blue() - aColour.blue()) <= 24;
 	}
@@ -174,8 +175,8 @@ namespace {
 		for (auto y = static_cast<int>(left.top() * ratio); y < static_cast<int>((left.bottom() + 1) * ratio) && y < image.height(); ++y) {
 			for (auto x = static_cast<int>(left.left() * ratio); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
 				const auto pixel = image.pixelColor(x, y);
-				role += near(pixel, aColour) ? 1 : 0;
-				plain += near(pixel, text) ? 1 : 0;
+				role += colour_near(pixel, aColour) ? 1 : 0;
+				plain += colour_near(pixel, text) ? 1 : 0;
 			}
 		}
 		return role > 0 && plain == 0;

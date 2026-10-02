@@ -215,3 +215,32 @@ passes **6 of 6** in 3.90 s:
 - `application_review_cycle_desktop_public_path`
 
 No remote mutation.
+
+## Windows at `2f5894786` (bpr-main-win, 2026-10-01)
+
+At first, `cmake --build --preset windows-dev` (MSVC 14.51, Qt 6.11.2, Debug)
+failed in `tests/end_to_end/review_cycle_desktop_public_path.cpp`:
+
+```
+(147,12): error C2059: syntax error: 'const'
+(177,23): error C2440: '?': cannot convert from 'const QColor' to 'bool'
+```
+
+The colour helper `028882c3a` added there was named `near`, which the Windows
+SDK defines as an empty macro (`minwindef.h`). It is now `colour_near`, with a
+comment saying why. No behavior changed. With the rename, the build exits 0
+and prints no `warning C` line, and `clang-format --dry-run --Werror` is clean.
+
+```powershell
+ctest --preset windows-dev --output-on-failure -R "qt_review_cycle_view|application_review_cycle_desktop_public_path|qt_suggestion_editor|review_cycle_workbench"
+```
+
+All six rows pass on the rebuilt binaries, in 19.13 s:
+
+- `review_cycle_workbench` (4.09 s);
+- `qt_suggestion_editor_1_0` (0.42 s) and `_2_0` (0.83 s);
+- `qt_review_cycle_view_1_0` (1.60 s) and `_2_0` (3.95 s);
+- `application_review_cycle_desktop_public_path` (8.17 s).
+
+Before the rename, the desktop row passed only because CTest ran the stale
+executable.
