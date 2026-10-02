@@ -79,3 +79,36 @@ released and its verdict kept. The card stays Parked on human-review.
 
 The cycle page's own source pane is still plain text. That pane is
 BPR-1157's, and this change does not touch it.
+
+## Linux: bpr-main-linux, 2026-10-01
+
+At `37b0b192b` (includes `f3327b74b`): WSL2, GCC 15.2, Qt 6.11.2, `build/dev`
+Debug, offscreen with the Windows style that the Linux Qt rows use. The dev
+build has 0 `warning:` lines. `ctest --preset dev -j4 --output-on-failure -R
+'^(core_suggestion_text_editing|core_review_cycle_(feedback|suggestion|tabs)|qt_suggestion_editor_|qt_review_cycle_view_|review_cycle_workbench|application_review_cycle_desktop_public_path|application_review_round_trip_composition_contract|syntax_classification_contract|architecture_boundaries)'`:
+**12 of 13 pass**.
+
+**`qt_suggestion_editor_1_0` fails, deterministically (3 of 3 reruns), at
+`the editor paints the keyword and the number in their role colours`.**
+`qt_suggestion_editor_2_0` passes. A probe, not committed, printed the two
+counts right after the check's own `pixels_near` calls:
+
+| Row | `keyword` (`pixels_near(editor, #a40e26)`, needs `> 10`) | `number` (`#0550ae`, needs `> 0`) | Editor font | DPR |
+|---|---|---|---|---|
+| scale 1.0 | **8** | 10 | `monospace` 9 pt (fontconfig resolves it to DejaVu Sans Mono) | 1 |
+| scale 2.0 | 154 | 43 | same | 2 |
+
+So the colours do arrive: the keyword has 8 pixels within ±24 of the
+control-flow colour, and the number has 10. The issue is that `return` at 9 pt
+and 1× in DejaVu Sans Mono has thin, anti-aliased strokes. Fewer than 11 of its
+pixels fall within the ±24 tolerance, which the `> 10` threshold assumes. This
+looks like the check's calibration to the platform font, not a painting
+defect. I changed nothing. The choices are a threshold relative to the glyph's
+ink, or a bolder or larger sample. That decision belongs to the card's owner.
+
+Passing rows: `core_suggestion_text_editing`, `core_review_cycle_feedback`,
+`_suggestion` and `_tabs`, `qt_suggestion_editor_2_0`,
+`qt_review_cycle_view_1_0` and `_2_0`, `review_cycle_workbench`,
+`application_review_cycle_desktop_public_path`,
+`application_review_round_trip_composition_contract`,
+`syntax_classification_contract` and `architecture_boundaries`.
