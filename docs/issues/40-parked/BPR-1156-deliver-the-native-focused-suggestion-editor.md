@@ -112,3 +112,32 @@ Passing rows: `core_suggestion_text_editing`, `core_review_cycle_feedback`,
 `application_review_cycle_desktop_public_path`,
 `application_review_round_trip_composition_contract`,
 `syntax_classification_contract` and `architecture_boundaries`.
+
+### The keyword checks no longer count pixels (bpr-main-linux, 2026-10-01)
+
+Test only. The card stays Parked. In `tests/adapters_qt/suggestion_editor_tests.cpp`,
+the four `pixels_near(…, flow) > 10` checks are replaced with a local, colour
+rule. Inside the keyword's own rectangle there must be at least one pixel
+within ±24 of the role colour, and none within ±24 of the plain text colour
+(`QPalette::Text`). Anti-aliasing blends the role colour toward the
+background, never toward the text colour. So a painted keyword passes at any
+scale and face, and an unpainted one has many text-coloured pixels. The
+replaced checks were "the editor paints the keyword…", "and paints it"
+(preview), "coloured again" and "the moved line keeps its colours".
+
+- `span_painted` (proposal editor): the region lies on the caret's line,
+  between the x where `point_at` moves past column 0 and the x where it moves
+  past column 5. Those are the middles of `r` and `n`, so the region holds
+  only `return`'s ink.
+- `word_painted` (preview `QPlainTextEdit`): the region is the
+  `cursorRect`-bounded rectangle of the first `return`.
+- The number keeps `pixels_near(editor, number) > 0`. It had 10 pixels at 1×.
+  The two `== 0` checks before classification and after an edit are
+  unchanged.
+
+| Check (Linux, GCC 15.2, `build/dev`, offscreen) | Result |
+|---|---|
+| `qt_suggestion_editor_1_0` and `_2_0`, 3 runs each | 6 of 6 pass (were: `_1_0` failed at `keyword=8`, needing `> 10`) |
+| Negative control: `suggestion_editor.cpp`'s colour lookup disabled (`formats = nullptr` in place of `syntax_of(line)`, not committed) | Both scales fail at "the editor paints the keyword and the number in their role colours" |
+| The same control with that check reduced to `span_painted` alone | Both scales fail, so the new keyword rule fails without the number's count |
+| `/usr/bin/clang-format` 22 `--dry-run --Werror`, `git diff --check`, `tidy.py --paths` on the file | Clean, `tidy=0` |

@@ -13,11 +13,15 @@
 #include <QKeyEvent>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -182,19 +186,97 @@ namespace {
 	}
 
 	/// Pixels of the rendered widget within a small distance of `aColour`.
+	auto near(const QColor& aPixel, const QColor& aColour) -> bool
+	{
+		return std::abs(aPixel.red() - aColour.red()) <= 24 && std::abs(aPixel.green() - aColour.green()) <= 24 && std::abs(aPixel.blue() - aColour.blue()) <= 24;
+	}
+
 	auto pixels_near(QWidget& aWidget, const QColor& aColour) -> int
 	{
 		const auto image = aWidget.grab().toImage();
 		auto       count = 0;
 		for (int y = 0; y < image.height(); ++y) {
 			for (int x = 0; x < image.width(); ++x) {
-				const auto pixel = image.pixelColor(x, y);
-				if (std::abs(pixel.red() - aColour.red()) <= 24 && std::abs(pixel.green() - aColour.green()) <= 24 && std::abs(pixel.blue() - aColour.blue()) <= 24) {
+				if (near(image.pixelColor(x, y), aColour)) {
 					++count;
 				}
 			}
 		}
 		return count;
+	}
+
+	/// \brief Whether the first `aWord` in `aEdit` is painted in `aColour`:
+	/// inside the word's own rectangle at least one pixel is near `aColour`
+	/// and none is near the plain text colour.
+	///
+	/// \details [[BPR-1156]]. A whole-widget pixel count does not carry across
+	/// scales or faces: at 1x a 9-point keyword in DejaVu Sans Mono has 8
+	/// pixels near its role colour, and 154 at 2x. Anti-aliasing blends the
+	/// role colour toward the background, never toward the text colour, so
+	/// a painted word has no text-coloured pixel and an unpainted one has many.
+	auto word_painted(QPlainTextEdit& aEdit, const QString& aWord, const QColor& aColour) -> bool
+	{
+		const auto found = aEdit.document()->find(aWord);
+		if (found.isNull()) {
+			return false;
+		}
+		auto start = found;
+		start.setPosition(found.selectionStart());
+		auto end = found;
+		end.setPosition(found.selectionEnd());
+		const auto left   = aEdit.cursorRect(start);
+		const auto right  = aEdit.cursorRect(end);
+		const auto pixmap = aEdit.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		const auto text   = aEdit.palette().color(QPalette::Text);
+		auto       role   = 0;
+		auto       plain  = 0;
+		for (auto y = static_cast<int>(left.top() * ratio); y < static_cast<int>((left.bottom() + 1) * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(left.left() * ratio); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				role += near(pixel, aColour) ? 1 : 0;
+				plain += near(pixel, text) ? 1 : 0;
+			}
+		}
+		return role > 0 && plain == 0;
+	}
+
+	/// \brief The same rule for the proposal editor, between the middles of
+	/// columns `aFirst` and `aLast` of the caret's line.
+	/// \details `point_at` moves to the next column at a glyph's middle, so
+	/// the region holds only that word's ink, never a neighbour's.
+	auto span_painted(qt::suggestion_editor& aEditor, const std::uint64_t aFirst, const std::uint64_t aLast, const QColor& aColour) -> bool
+	{
+		const auto line  = aEditor.caret_rectangle();
+		auto       begin = -1;
+		auto       end   = -1;
+		for (auto x = 0; x < aEditor.viewport()->width() && end < 0; ++x) {
+			const auto column = aEditor.point_at(QPoint{ x, line.center().y() }).Column;
+			if (begin < 0 && column > aFirst) {
+				begin = x;
+			}
+			if (column > aLast) {
+				end = x;
+			}
+		}
+		if (begin < 0 || end <= begin) {
+			return false;
+		}
+		const auto pixmap = aEditor.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		const auto text   = aEditor.palette().color(QPalette::Text);
+		auto       role   = 0;
+		auto       plain  = 0;
+		for (auto y = static_cast<int>(line.top() * ratio); y < static_cast<int>((line.bottom() + 1) * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(begin * ratio); x < static_cast<int>(end * ratio) && x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				role += near(pixel, aColour) ? 1 : 0;
+				plain += near(pixel, text) ? 1 : 0;
+			}
+		}
+		return role > 0 && plain == 0;
 	}
 
 	auto chromatic(const QColor& aColour) -> bool
@@ -237,15 +319,14 @@ namespace {
 		expect(!aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file + "x", spans), "a classification of other text is refused");
 		expect(aComposer.adopt_syntax(qt::suggestion_syntax_side::original, file, spans) && aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file, spans), "both adopted");
 		settle();
-		const auto keyword = pixels_near(*editor, flow);
-		expect(keyword > 10 && pixels_near(*editor, number) > 0, "the editor paints the keyword and the number in their role colours");
+		expect(span_painted(*editor, 0U, 5U, flow) && pixels_near(*editor, number) > 0, "the editor paints the keyword and the number in their role colours");
 		capture(aComposer, QStringLiteral("suggestion-composer-syntax"));
 		const auto removed = preview->document()->findBlockByNumber(1);
 		expect(removed.text() == QStringLiteral("- \treturn g(1);"), "the removed row");
 		const auto formats = removed.layout()->formats();
 		expect(std::ranges::any_of(formats, [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 3 && aRange.length == 6 && aRange.format.foreground().color() == flow; }),
 			   "the preview colours the keyword after its marker");
-		expect(pixels_near(*preview, flow) > 10, "and paints it");
+		expect(word_painted(*preview, QStringLiteral("return"), flow), "and paints it");
 
 		// An edit asks again; the edited line is plain until its own classification arrives.
 		editor->setFocus();
@@ -258,14 +339,14 @@ namespace {
 		expect(!aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file, spans), "a late classification of the earlier text is refused");
 		expect(aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, edited, spans), "the current one is adopted");
 		settle();
-		expect(pixels_near(*editor, flow) > 10, "coloured again");
+		expect(span_painted(*editor, 0U, 5U, flow), "coloured again");
 		// A line that only moves keeps its colours until the next classification.
 		key(*editor, Qt::Key_Home);
 		key(*editor, Qt::Key_Home);
 		key(*editor, Qt::Key_Return);
 		settle();
 		expect(editor->text() == "\r\nreturn g(1)x" || editor->text() == "\nreturn g(1)x", "a line break before the line");
-		expect(pixels_near(*editor, flow) > 10, "the moved line keeps its colours");
+		expect(span_painted(*editor, 0U, 5U, flow), "the moved line keeps its colours");
 		aComposer.SyntaxWanted = { };
 	}
 
