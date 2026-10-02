@@ -227,6 +227,13 @@ namespace bpr::core {
 	[[nodiscard]] auto cycle_wire_name(cycle_feedback_item_id aItem) -> std::string;
 	[[nodiscard]] auto cycle_wire_name(const cycle_suggestion_ref& aSuggestion) -> std::string;
 	[[nodiscard]] auto cycle_wire_project(const local_cycle_subject& aSubject) -> std::string;
+	/// \brief Reads a wire name back (BPR-1167): exactly the prefix and a
+	/// decimal identity with no sign, space or leading zero, within the
+	/// durable identity domain. Nothing for any other spelling.
+	[[nodiscard]] auto parse_cycle_name(std::string_view aText) noexcept -> std::optional<review_cycle_id>;
+	[[nodiscard]] auto parse_round_name(std::string_view aText) noexcept -> std::optional<cycle_round_id>;
+	[[nodiscard]] auto parse_revision_name(std::string_view aText) noexcept -> std::optional<cycle_source_revision_id>;
+	[[nodiscard]] auto parse_item_name(std::string_view aText) noexcept -> std::optional<cycle_feedback_item_id>;
 	/// \brief The wire identifier pattern `^[A-Za-z][A-Za-z0-9._:-]{0,127}$`.
 	[[nodiscard]] auto valid_cycle_wire_identifier(std::string_view aText) noexcept -> bool;
 

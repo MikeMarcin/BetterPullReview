@@ -317,6 +317,34 @@ namespace bpr::core {
 		return cycle_byte_range{ .Start = start, .End = end };
 	}
 
+	auto line_span_bytes(const std::span<const std::uint8_t> aFile, const cycle_line_span aLines) -> std::optional<cycle_byte_range>
+	{
+		if (aLines.First == 0U || aLines.Last < aLines.First) {
+			return std::nullopt;
+		}
+		auto line  = std::uint64_t{ 1 };
+		auto start = std::size_t{ 0 };
+		auto begin = std::size_t{ 0 };
+		for (;;) {
+			if (line == aLines.First) {
+				begin = start;
+			}
+			auto end = start;
+			while (end < aFile.size() && aFile[end] != '\n' && aFile[end] != '\r') {
+				++end;
+			}
+			if (line == aLines.Last) {
+				return cycle_byte_range{ .Start = begin, .End = end };
+			}
+			if (end == aFile.size()) {
+				return std::nullopt;
+			}
+			// CRLF ends one line, as a lone CR or LF does.
+			start = end + (aFile[end] == '\r' && end + 1U < aFile.size() && aFile[end + 1U] == '\n' ? 2U : 1U);
+			++line;
+		}
+	}
+
 	auto valid(const cycle_feedback_author& aAuthor) noexcept -> bool
 	{
 		const auto fields = std::array{ &aAuthor.Adapter, &aAuthor.Provider, &aAuthor.Model, &aAuthor.Effort };

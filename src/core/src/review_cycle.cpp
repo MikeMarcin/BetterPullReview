@@ -477,4 +477,9 @@ namespace bpr::core {
 			.WorkspaceVersion = aCycle.Workspace ? aCycle.Workspace->Version : 0,
 		};
 	}
+
+	auto bound_to(const review_cycle_state& aCycle, const workspace_root_observation& aRoot) noexcept -> bool
+	{
+		return aCycle.Lifecycle == cycle_lifecycle::active && aCycle.Workspace && aCycle.Workspace->Root.Kind == aRoot.Kind && aCycle.Workspace->Root.Root == aRoot.Root;
+	}
 }

@@ -610,6 +610,31 @@ namespace bpr::application {
 														std::move(aDone));
 	}
 
+	auto review_cycle_runtime::export_round_selected(cycle_round_export_request aRequest, completion<cycle_share_output> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_share_output>([subject, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_share_output> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return export_frozen_round(aStore, *subject, request, aStop);
+		},
+														  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::export_round_to_file_selected(cycle_round_export_request aRequest, std::shared_ptr<cycle_export_destination> aDestination, std::string aName,
+															 std::optional<core::cycle_material_digest> aConfirmed, cycle_operation_id aRecord, completion<cycle_file_share> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_file_share>([subject, request = std::move(aRequest), destination = std::move(aDestination), name = std::move(aName), aConfirmed, aRecord](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_file_share> {
+			if (!subject || !destination) {
+				return std::unexpected(refused_selection());
+			}
+			return export_frozen_round_to_file(aStore, *subject, request, *destination, name, aConfirmed, aRecord, aStop);
+		},
+														std::move(aDone));
+	}
+
 	auto review_cycle_runtime::record_delivery_selected(cycle_operation_id aOperation, core::cycle_delivery_observation aObservation, completion<cycle_write_receipt> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

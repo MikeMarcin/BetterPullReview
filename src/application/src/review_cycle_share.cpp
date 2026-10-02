@@ -76,6 +76,50 @@ namespace bpr::application {
 			}
 			return true;
 		}
+
+		/// One decision for every channel: the same one any other exporter gets.
+		auto export_decision(const core::cycle_disclosure_policy& aPolicy, const core::local_cycle_subject& aSubject, const core::review_cycle_state& aCycle,
+							 const core::cycle_round_id aRound, const core::cycle_round_digest& aDigest, const core::cycle_disclosure_channel aChannel) -> core::cycle_authorization
+		{
+			return core::authorize(aPolicy, {
+												.Actor      = core::cycle_actor::reviewer,
+												.Capability = core::cycle_capability::export_round,
+												.Subject    = aSubject,
+												.Origin     = core::cycle_origin(aCycle),
+												.Round      = core::cycle_round_ref{ .Cycle = aSubject.Cycle, .Id = aRound },
+												.Digest     = aDigest,
+												.Channel    = aChannel,
+											});
+		}
+
+		/// Saves a rendered round to the chosen file and records the save; a
+		/// refusal, a failure or a conflict records nothing.
+		auto save_and_record(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, cycle_share_output aOutput, cycle_export_destination& aDestination,
+							 const std::string& aName, const std::optional<core::cycle_material_digest>& aConfirmed, const cycle_operation_id& aRecord, std::stop_token aStop)
+			-> cycle_store_result<cycle_file_share>
+		{
+			auto result = cycle_file_share{ .Output = std::move(aOutput) };
+			if (!result.Output.Round) {
+				return result;
+			}
+			auto saved = save_round_document(aDestination, bytes_of(result.Output.Bytes), aConfirmed, aStop);
+			if (!saved) {
+				result.Failure = saved.error();
+				return result;
+			}
+			result.Save = *saved;
+			if (saved->Action == core::cycle_round_save_action::conflict) {
+				return result;
+			}
+			const auto observation = delivery_observation(*result.Output.Round, core::cycle_delivery_state::saved, core::cycle_disclosure_channel::local_file, result.Output.Bytes,
+														  result.Output.Format, aName);
+			auto       recorded    = aStore.record_delivery(aRecord, aSubject, observation, std::move(aStop));
+			if (!recorded) {
+				return std::unexpected(recorded.error());
+			}
+			result.Recorded = *recorded;
+			return result;
+		}
 	}
 
 	auto open_share_draft(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const cycle_operation_id& aBegin,
@@ -168,17 +212,8 @@ namespace bpr::application {
 		if (!*cycle) {
 			return failed(cycle_store_failure::not_found);
 		}
-		// One decision for every channel: the same one any other exporter gets.
 		const auto& content = *preview->Content;
-		output.Decision     = core::authorize(aRequest.Policy, {
-																   .Actor      = core::cycle_actor::reviewer,
-																   .Capability = core::cycle_capability::export_round,
-																   .Subject    = aSubject,
-																   .Origin     = core::cycle_origin(**cycle),
-																   .Round      = core::cycle_round_ref{ .Cycle = aSubject.Cycle, .Id = preview->Round },
-																   .Digest     = content.Digest,
-																   .Channel    = core::share_channel(aRequest.Route),
-															   });
+		output.Decision     = export_decision(aRequest.Policy, aSubject, **cycle, preview->Round, content.Digest, core::share_channel(aRequest.Route));
 		if (output.Decision != core::cycle_authorization::allowed || !render(content, aRequest.Route, output)) {
 			return output;
 		}
@@ -214,27 +249,43 @@ namespace bpr::application {
 		if (!prepared) {
 			return std::unexpected(prepared.error());
 		}
-		auto result = cycle_file_share{ .Output = std::move(*prepared) };
-		if (!result.Output.Round) {
-			return result;
+		return save_and_record(aStore, aSubject, std::move(*prepared), aDestination, aName, aConfirmed, aRecord, std::move(aStop));
+	}
+
+	auto export_frozen_round(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const cycle_round_export_request& aRequest, std::stop_token aStop)
+		-> cycle_store_result<cycle_share_output>
+	{
+		auto cycle = aStore.load(aSubject, aStop);
+		if (!cycle) {
+			return std::unexpected(cycle.error());
 		}
-		auto saved = save_round_document(aDestination, bytes_of(result.Output.Bytes), aConfirmed, aStop);
-		if (!saved) {
-			result.Failure = saved.error();
-			return result;
+		if (!*cycle) {
+			return failed(cycle_store_failure::not_found);
 		}
-		result.Save = *saved;
-		if (saved->Action == core::cycle_round_save_action::conflict) {
-			return result;
+		auto round = read_cycle_round(aStore, aSubject, aRequest.Round, aStop);
+		if (!round) {
+			return std::unexpected(round.error());
 		}
-		const auto observation = delivery_observation(*result.Output.Round, core::cycle_delivery_state::saved, core::cycle_disclosure_channel::local_file, result.Output.Bytes,
-													  result.Output.Format, aName);
-		auto       recorded    = aStore.record_delivery(aRecord, aSubject, observation, std::move(aStop));
-		if (!recorded) {
-			return std::unexpected(recorded.error());
+		auto output     = cycle_share_output{ };
+		output.Decision = export_decision(aRequest.Policy, aSubject, **cycle, aRequest.Round, round->Round.Round.Digest, aRequest.Channel);
+		// A saved document's budget for either destination; a bundle's for a bundle.
+		const auto route = aRequest.Format == core::cycle_round_file_kind::bundle ? core::cycle_share_route::save_bundle : core::cycle_share_route::save_document;
+		if (output.Decision != core::cycle_authorization::allowed || !render(round->Content, route, output)) {
+			return output;
 		}
-		result.Recorded = *recorded;
-		return result;
+		output.Round = std::move(*round);
+		return output;
+	}
+
+	auto export_frozen_round_to_file(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const cycle_round_export_request& aRequest,
+									 cycle_export_destination& aDestination, const std::string& aName, const std::optional<core::cycle_material_digest>& aConfirmed,
+									 const cycle_operation_id& aRecord, std::stop_token aStop) -> cycle_store_result<cycle_file_share>
+	{
+		auto prepared = export_frozen_round(aStore, aSubject, aRequest, aStop);
+		if (!prepared) {
+			return std::unexpected(prepared.error());
+		}
+		return save_and_record(aStore, aSubject, std::move(*prepared), aDestination, aName, aConfirmed, aRecord, std::move(aStop));
 	}
 
 	auto delivery_observation(const cycle_frozen_round& aRound, const core::cycle_delivery_state aState, const core::cycle_disclosure_channel aChannel, const std::string_view aBytes,

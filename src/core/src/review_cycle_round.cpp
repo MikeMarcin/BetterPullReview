@@ -1421,6 +1421,53 @@ namespace bpr::core {
 		return decoded;
 	}
 
+	namespace {
+		/// The identity after `aPrefix`, spelled exactly as `cycle_wire_name` spells it.
+		auto wire_identity(const std::string_view aText, const std::string_view aPrefix) noexcept -> std::optional<std::uint64_t>
+		{
+			if (!aText.starts_with(aPrefix)) {
+				return std::nullopt;
+			}
+			const auto digits = aText.substr(aPrefix.size());
+			if (digits.empty() || digits.front() == '0' || !std::ranges::all_of(digits, [](const char aSymbol) { return aSymbol >= '0' && aSymbol <= '9'; })) {
+				return std::nullopt;
+			}
+			auto       value  = std::uint64_t{ 0 };
+			const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), value);
+			if (parsed.ec != std::errc{ } || parsed.ptr != digits.data() + digits.size() || value > maximum_cycle_identity) {
+				return std::nullopt;
+			}
+			return value;
+		}
+
+		template <typename TIdentity>
+		auto parse_wire(const std::string_view aText, const std::string_view aPrefix) noexcept -> std::optional<TIdentity>
+		{
+			const auto value = wire_identity(aText, aPrefix);
+			return value ? std::optional{ TIdentity{ *value } } : std::nullopt;
+		}
+	}
+
+	auto parse_cycle_name(const std::string_view aText) noexcept -> std::optional<review_cycle_id>
+	{
+		return parse_wire<review_cycle_id>(aText, "RC-");
+	}
+
+	auto parse_round_name(const std::string_view aText) noexcept -> std::optional<cycle_round_id>
+	{
+		return parse_wire<cycle_round_id>(aText, "F");
+	}
+
+	auto parse_revision_name(const std::string_view aText) noexcept -> std::optional<cycle_source_revision_id>
+	{
+		return parse_wire<cycle_source_revision_id>(aText, "R");
+	}
+
+	auto parse_item_name(const std::string_view aText) noexcept -> std::optional<cycle_feedback_item_id>
+	{
+		return parse_wire<cycle_feedback_item_id>(aText, "I");
+	}
+
 	auto valid_cycle_wire_identifier(const std::string_view aText) noexcept -> bool
 	{
 		if (aText.empty() || aText.size() > 128U) {

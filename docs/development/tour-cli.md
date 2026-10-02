@@ -10,6 +10,9 @@ cmake --install build/tour-cli --component TourCLI --prefix /absolute/install/ro
 /absolute/install/root/bin/bpr tour capabilities --json
 ```
 
+The same executable serves local Review Cycles as `bpr cycle`; see
+[Review Cycles terminal](cycle-cli.md).
+
 `BPR_BUILD_TOUR_CLI` is independent of `BPR_BUILD_QT`. Core-only remains Qt-free;
 the terminal uses `QCoreApplication`, Qt Core/Network, the existing GitHub and Git
 adapters, and the profile-private SQLite services. It does not initialize a

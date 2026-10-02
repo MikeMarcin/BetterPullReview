@@ -3,6 +3,7 @@
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/review_tour_destination.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
+#include "terminal_text.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_editor.hpp"
 #include "tour_text_input.hpp"
@@ -17,75 +18,9 @@
 #include <charconv>
 #include <iostream>
 #include <limits>
-#if defined(_WIN32)
-	#include <io.h>
-#else
-	#include <unistd.h>
-#endif
 namespace bpr::app {
 	namespace {
 		auto text(std::string_view aValue) -> QString { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); }
-		auto safe_terminal(const QString& aText) -> QString
-		{
-			QString result;
-			for (const auto value : aText.toUcs4()) {
-				if ((value < 32 && value != 10 && value != 9) || (value >= 127 && value <= 159) || (value >= 0x202a && value <= 0x202e) || value == 0x061c || value == 0x200e || value == 0x200f || (value >= 0x2066 && value <= 0x2069)) {
-					result += QStringLiteral("\\u%1").arg(value, 4, 16, QChar{ '0' });
-				} else {
-					const char32_t scalar = value;
-					result += QString::fromUcs4(&scalar, 1);
-				}
-			}
-			return result;
-		}
-		auto terminal_text(const QString& aText) -> QString
-		{
-			bool       parsed    = false;
-			const auto requested = qEnvironmentVariable("COLUMNS").toInt(&parsed);
-			const int  width     = parsed ? std::clamp(requested, 20, 240) : 80;
-			QString    result;
-			int        column = 0;
-			for (const auto scalar : safe_terminal(aText).toUcs4()) {
-				if (scalar == '\n') {
-					result += '\n';
-					column = 0;
-					continue;
-				}
-				if (scalar == '\t') {
-					for (int space = 0; space < 4; ++space) {
-						if (column == width) {
-							result += '\n';
-							column = 0;
-						}
-						result += ' ';
-						++column;
-					}
-					continue;
-				}
-				const auto category  = QChar::category(scalar);
-				const bool combining = category == QChar::Mark_NonSpacing || category == QChar::Mark_Enclosing || scalar == 0x200d;
-				const bool wide      = (scalar >= 0x1100 && scalar <= 0x115f) || (scalar >= 0x2e80 && scalar <= 0xa4cf) || (scalar >= 0xac00 && scalar <= 0xd7a3) || (scalar >= 0xf900 && scalar <= 0xfaff) || (scalar >= 0xfe10 && scalar <= 0xfe6f) || (scalar >= 0xff01 && scalar <= 0xff60) || scalar >= 0x1f300;
-				const int  cells     = combining ? 0 : wide ? 2
-															: 1;
-				if (column && column + cells > width) {
-					result += '\n';
-					column = 0;
-				}
-				const char32_t value = scalar;
-				result += QString::fromUcs4(&value, 1);
-				column += cells;
-			}
-			return result;
-		}
-
-		auto terminal() -> bool
-		{
-#if defined(_WIN32)
-			return _isatty(_fileno(stdin)) && _isatty(_fileno(stdout));
-#else
-			return isatty(STDIN_FILENO) && isatty(STDOUT_FILENO);
-#endif
-		}
 		struct command_options
 		{
 			QString                             Command;
@@ -172,7 +107,7 @@ namespace bpr::app {
 				result.Values.insert(value, aArguments[++i]);
 			}
 			result.Json        = result.Values.contains("--json");
-			result.Interactive = terminal() && !result.Json && !result.Values.contains("--non-interactive");
+			result.Interactive = interactive_terminal() && !result.Json && !result.Values.contains("--non-interactive");
 			if (result.Values.contains("--schema-version") && result.Values["--schema-version"] != "1") {
 				return refuse("unsupported_schema", "Only CLI schema version 1 is supported.");
 			}
@@ -681,7 +616,7 @@ namespace bpr::app {
 			}
 			// A human prompt never retains the profile lease or a provider capability.
 			aRuntime.reset();
-			std::cout << terminal_text(rendered->Human).toUtf8().constData();
+			std::cout << wrapped_terminal_text(rendered->Human).toUtf8().constData();
 			std::cout << "Type publish to authorize exactly this finite plan, or press Enter to cancel: " << std::flush;
 			auto answer = read_tour_terminal_line();
 			if (!answer || *answer != "publish") {
@@ -924,8 +859,8 @@ namespace bpr::app {
 				options.Values["--profile"] = QString::number(runtime->admission()->value());
 				options.Values["--draft"]   = text(token);
 				runtime.reset();
-				std::cout << terminal_text(page).toUtf8().constData()
-						  << terminal_text("[e] Edit comment\n[t] Edit title\n[r] Ready and next\n[n] Next  [p] Previous\n[m before ID] Move\n[m after ID] Move\n[d] Remove  [q] Quit\n> ").toUtf8().constData() << std::flush;
+				std::cout << wrapped_terminal_text(page).toUtf8().constData()
+						  << wrapped_terminal_text("[e] Edit comment\n[t] Edit title\n[r] Ready and next\n[n] Next  [p] Previous\n[m before ID] Move\n[m after ID] Move\n[d] Remove  [q] Quit\n> ").toUtf8().constData() << std::flush;
 				auto input = read_tour_terminal_line();
 				if (!input) {
 					return std::unexpected(input.error());
@@ -968,7 +903,7 @@ namespace bpr::app {
 				}
 				auto changed = perform(command, aReaders);
 				if (!changed) {
-					std::cerr << safe_terminal(text(changed.error().Message)).toUtf8().constData() << '\n';
+					std::cerr << neutral_terminal_text(text(changed.error().Message)).toUtf8().constData() << '\n';
 					if (changed.error().Exit == 130) {
 						return changed;
 					}
@@ -1275,12 +1210,12 @@ namespace bpr::app {
 			const QJsonObject envelope{ { "schema", "bpr.tour.cli-result.v1" }, { "command", command }, { "request_id", options ? options->RequestId : QString{ } }, { "status", result ? result->Status : (result.error().Exit == 4 ? "conflict" : "error") }, { "data", result ? result->Data : QJsonObject{ } }, { "warnings", result ? result->Warnings : QJsonArray{ } }, { "error", error } };
 			std::cout << QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).constData() << '\n';
 		} else if (result) {
-			std::cout << terminal_text(result->Human).toUtf8().constData();
+			std::cout << wrapped_terminal_text(result->Human).toUtf8().constData();
 			for (const auto& warning : result->Warnings) {
-				std::cerr << terminal_text(warning.toObject()["message"].toString()).toUtf8().constData() << '\n';
+				std::cerr << wrapped_terminal_text(warning.toObject()["message"].toString()).toUtf8().constData() << '\n';
 			}
 		} else {
-			std::cerr << safe_terminal(text(result.error().Message)).toUtf8().constData() << '\n';
+			std::cerr << neutral_terminal_text(text(result.error().Message)).toUtf8().constData() << '\n';
 		}
 		return result ? result->Exit : result.error().Exit;
 	}

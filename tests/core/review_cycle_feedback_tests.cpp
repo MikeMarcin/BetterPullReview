@@ -181,6 +181,16 @@ namespace {
 		constexpr auto blank = std::string_view{ "a\n\nb\n" };
 		expect(line_text_at(bytes(blank), 2) == cycle_byte_range{ 2, 2 } && line_text_at(bytes(blank), 5) == cycle_byte_range{ 5, 5 }, "an empty line is an insertion point at its start");
 		expect(!line_text_at(bytes(mixed), 9), "outside the file");
+
+		// [[BPR-1167]]: `bpr cycle note --lines` names display lines, counted the same way.
+		expect(line_span_bytes(bytes(mixed), { 1, 1 }) == cycle_byte_range{ 0, 1 } && line_span_bytes(bytes(mixed), { 2, 3 }) == cycle_byte_range{ 3, 6 }, "lines without their last ending");
+		expect(line_span_bytes(bytes(mixed), { 1, 4 }) == cycle_byte_range{ 0, 8 } && line_span_bytes(bytes(mixed), { 4, 4 }) == cycle_byte_range{ 7, 8 }, "through the last line");
+		expect(!line_span_bytes(bytes(mixed), { 4, 5 }) && !line_span_bytes(bytes(mixed), { 0, 1 }) && !line_span_bytes(bytes(mixed), { 3, 2 }), "beyond the file, zero or backwards");
+		expect(line_span_bytes(bytes(blank), { 2, 2 }) == cycle_byte_range{ 2, 2 } && line_span_bytes(bytes(blank), { 4, 4 }) == cycle_byte_range{ 5, 5 }, "an empty line is an insertion point");
+		for (const auto span : { cycle_line_span{ 1, 1 }, cycle_line_span{ 2, 3 }, cycle_line_span{ 3, 4 } }) {
+			const auto range = line_span_bytes(bytes(mixed), span);
+			expect(range && project_lines(bytes(mixed), range->Start, range->End) == span, "projects back onto the same lines");
+		}
 		const auto caret = line_text_at(bytes(parser_r1), 35);
 		expect(caret && project_lines(bytes(parser_r1), caret->Start, caret->End) == cycle_line_span{ 3, 3 } && make_anchor(cycle_source_revision_id{ 1 }, "src/parser.cpp", bytes(parser_r1), caret->Start, caret->End),
 			   "the caret's line anchors as that line");

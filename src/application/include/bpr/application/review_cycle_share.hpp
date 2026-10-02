@@ -96,6 +96,27 @@ namespace bpr::application {
 									 cycle_export_destination& aDestination, const std::string& aName, const std::optional<core::cycle_material_digest>& aConfirmed,
 									 const cycle_operation_id& aRecord, std::stop_token aStop) -> cycle_store_result<cycle_file_share>;
 
+	/// \brief One frozen round leaving as it was frozen (BPR-1167): printed by
+	/// the terminal or saved to a chosen file. Nothing is frozen or amended.
+	struct cycle_round_export_request
+	{
+		core::cycle_round_id           Round;
+		core::cycle_disclosure_channel Channel = core::cycle_disclosure_channel::local_file;
+		core::cycle_round_file_kind    Format  = core::cycle_round_file_kind::markdown;
+		core::cycle_disclosure_policy  Policy;
+	};
+	/// \brief Reads the frozen round, decides its channel as every exporter
+	/// does and renders it within the saved document's or bundle's budget. A
+	/// refused channel or an output over budget renders nothing.
+	[[nodiscard]] auto export_frozen_round(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const cycle_round_export_request& aRequest, std::stop_token aStop)
+		-> cycle_store_result<cycle_share_output>;
+	/// \brief `export_frozen_round` to `aDestination`, whose name (never its
+	/// folder) is `aName`, then the `saved` observation. `aConfirmed` is the
+	/// digest of other bytes there the reviewer agreed to replace.
+	[[nodiscard]] auto export_frozen_round_to_file(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const cycle_round_export_request& aRequest,
+												   cycle_export_destination& aDestination, const std::string& aName, const std::optional<core::cycle_material_digest>& aConfirmed,
+												   const cycle_operation_id& aRecord, std::stop_token aStop) -> cycle_store_result<cycle_file_share>;
+
 	/// \brief The observation of these bytes leaving through `aChannel`.
 	[[nodiscard]] auto delivery_observation(const cycle_frozen_round& aRound, core::cycle_delivery_state aState, core::cycle_disclosure_channel aChannel, std::string_view aBytes,
 											core::cycle_round_file_kind aFormat, std::string aDestination = { }) -> core::cycle_delivery_observation;

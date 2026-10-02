@@ -2,6 +2,7 @@
 #include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/review_cycle_export.hpp"
+#include "bpr/application/review_cycle_share.hpp"
 #include "bpr/core/review_cycle_round_markdown.hpp"
 #include "bpr/core/sha256.hpp"
 #include "cycle_course.hpp"
@@ -13,6 +14,7 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -63,6 +65,59 @@ namespace {
 	{
 		const auto destination = adapters::workspace::make_local_export_destination(aFile);
 		return application::save_round_document(*destination, bytes_of(aDocument), aConfirmed, { });
+	}
+
+	/// [[BPR-1167]]. `bpr cycle export` through the runtime: a named frozen
+	/// round leaves exactly as it was frozen, even after an amendment, by the
+	/// channel policy allows; a save records only the save.
+	void exports_a_frozen_round_as_frozen(session& aNotes, const std::filesystem::path& aExports, const std::string& aFirst, const std::string& aSecond)
+	{
+		const auto request = [](const std::uint64_t aRound, const core::cycle_disclosure_channel aChannel, core::cycle_disclosure_policy aPolicy = { }) {
+			return application::cycle_round_export_request{ .Round = core::cycle_round_id{ aRound }, .Channel = aChannel, .Policy = aPolicy };
+		};
+		const auto printed = aNotes.run<application::cycle_share_output>([&](auto aDone) { return aNotes.Runtime.export_round_selected(request(1, core::cycle_disclosure_channel::terminal_output), std::move(aDone)); });
+		expect(printed && printed->Decision == core::cycle_authorization::allowed && printed->Round && printed->Round->Round.Round.Id.Id == core::cycle_round_id{ 1 } && printed->Bytes == aFirst,
+			   "F1 prints as it was frozen after F2 amended it");
+		const auto bundle = aNotes.run<application::cycle_share_output>([&](auto aDone) {
+			auto asked   = request(2, core::cycle_disclosure_channel::local_file);
+			asked.Format = core::cycle_round_file_kind::bundle;
+			return aNotes.Runtime.export_round_selected(asked, std::move(aDone));
+		});
+		expect(bundle && bundle->Format == core::cycle_round_file_kind::bundle && !bundle->Bytes.empty() && bundle->Bytes != aSecond, "a bundle of F2");
+
+		// A channel configured off renders nothing and stands nothing else in.
+		auto denied                                                                                                = core::cycle_disclosure_policy{ };
+		denied.Unclassified.Channels.at(static_cast<std::size_t>(core::cycle_disclosure_channel::terminal_output)) = core::cycle_channel_permission::denied;
+		const auto refused                                                                                         = aNotes.run<application::cycle_share_output>([&](auto aDone) { return aNotes.Runtime.export_round_selected(request(1, core::cycle_disclosure_channel::terminal_output, denied), std::move(aDone)); });
+		expect(refused && refused->Decision == core::cycle_authorization::channel_denied && refused->Bytes.empty() && !refused->Round, "denied terminal output renders nothing");
+		const auto unknown = aNotes.run<application::cycle_share_output>([&](auto aDone) { return aNotes.Runtime.export_round_selected(request(9, core::cycle_disclosure_channel::terminal_output), std::move(aDone)); });
+		expect(!unknown && unknown.error().Failure == application::cycle_store_failure::not_found, "no F9 to export");
+
+		const auto deliveries = [&] {
+			const auto records = aNotes.run<std::vector<core::cycle_delivery_record>>([&](auto aDone) { return aNotes.Runtime.deliveries_selected(std::move(aDone)); });
+			expect(records.has_value(), "deliveries read");
+			return *records;
+		};
+		const auto before = deliveries().size();
+		const auto file   = aExports / "printed.md";
+		write_file(file, "kept\n");
+		const auto to_file = [&](const std::optional<core::cycle_material_digest>& aConfirmed) {
+			auto destination = std::shared_ptr<application::cycle_export_destination>{ adapters::workspace::make_local_export_destination(file) };
+			return aNotes.run<application::cycle_file_share>([&](auto aDone) {
+				return aNotes.Runtime.export_round_to_file_selected(request(1, core::cycle_disclosure_channel::local_file), destination, "printed.md", aConfirmed,
+																	tests::workspace_contract::session_operation(aNotes.NextOperation++), std::move(aDone));
+			});
+		};
+		const auto kept = to_file(std::nullopt);
+		expect(kept && kept->Save && kept->Save->Action == cycle_round_save_action::conflict && !kept->Recorded && read_file(file) == "kept\n" && deliveries().size() == before,
+			   "other bytes are kept and nothing is recorded");
+		const auto saved = to_file(digest_of("kept\n"));
+		expect(saved && saved->Recorded && read_file(file) == aFirst, "F1 replaces exactly the confirmed bytes");
+		const auto recorded = deliveries();
+		expect(recorded.size() == before + 1U && recorded.back().Observation.State == core::cycle_delivery_state::saved && recorded.back().Observation.Destination == "printed.md"
+				   && recorded.back().Observation.Round.Id == core::cycle_round_id{ 1 } && recorded.back().Observation.Output && recorded.back().Observation.Output->Digest == digest_of(aFirst),
+			   "the save of F1 is recorded under the file's name");
+		std::cout << "NATIVE: a named frozen round exported as frozen to the terminal and a file; a denied channel and an unknown round export nothing\n";
 	}
 
 	void copies_and_saves_one_document(const std::filesystem::path& aScratch)
@@ -158,6 +213,8 @@ namespace {
 		expect(names_in(exports) == expected, "no temporary file left behind");
 		expect(read_file(root / "src" / "cache.cpp") == body, "workspace bytes unchanged");
 		std::cout << "NATIVE: one complete round document copied and saved; conflicts, links and folders refused; nothing else written\n";
+
+		exports_a_frozen_round_as_frozen(notes, exports, *clipboard, second);
 	}
 }
 

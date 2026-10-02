@@ -24,6 +24,7 @@ add_library(
         src/review_cycle_share.cpp
         src/review_cycle_import.cpp
         src/review_cycle_workbench.cpp
+        src/review_cycle_words.cpp
         src/review_cycle_runtime.cpp
         src/review_tour_source.cpp
         src/window_review_restoration_host.cpp

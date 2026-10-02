@@ -163,6 +163,13 @@ namespace bpr::application {
 		/// records the save.
 		auto share_to_file_selected(cycle_share_request aRequest, std::shared_ptr<cycle_export_destination> aDestination, std::string aName,
 									std::optional<core::cycle_material_digest> aConfirmed, cycle_operation_id aRecord, completion<cycle_file_share> aDone) -> bool;
+		/// \brief Decides and renders one frozen round of the selected cycle as
+		/// it was frozen (BPR-1167); the host hands the bytes on itself.
+		auto export_round_selected(cycle_round_export_request aRequest, completion<cycle_share_output> aDone) -> bool;
+		/// \brief Exports one frozen round to the chosen file, used only on the
+		/// effect lane, and records the save.
+		auto export_round_to_file_selected(cycle_round_export_request aRequest, std::shared_ptr<cycle_export_destination> aDestination, std::string aName,
+										   std::optional<core::cycle_material_digest> aConfirmed, cycle_operation_id aRecord, completion<cycle_file_share> aDone) -> bool;
 		/// \brief Records one delivery observation of a frozen round of the selected cycle.
 		auto record_delivery_selected(cycle_operation_id aOperation, core::cycle_delivery_observation aObservation, completion<cycle_write_receipt> aDone) -> bool;
 		/// \brief Every delivery observation of the selected cycle, in order.

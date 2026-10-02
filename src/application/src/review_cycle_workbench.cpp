@@ -1,5 +1,7 @@
 #include "bpr/application/review_cycle_workbench.hpp"
 
+#include "bpr/application/review_cycle_words.hpp"
+
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -13,45 +15,6 @@
 
 namespace bpr::application {
 	namespace {
-		auto store_words(const cycle_store_error& aError) -> std::string
-		{
-			switch (aError.Failure) {
-			case cycle_store_failure::quota:              return "The retained-material budget is full; nothing was evicted. Remove an old cycle to make room.";
-			case cycle_store_failure::conflict:           return "The cycle changed while this was prepared. Try again.";
-			case cycle_store_failure::object_unavailable: return "Retained material is missing; nothing was substituted.";
-			case cycle_store_failure::corrupt:            return "Retained material is damaged; nothing was substituted.";
-			case cycle_store_failure::refused:            return "The cycle refused this change.";
-			case cycle_store_failure::schema_mismatch:    return "This profile's Review Cycles were saved by a different version of BetterPullReview; they were left as they are.";
-			case cycle_store_failure::cancelled:          return { };
-			default:                                      return "The local cycle store is unavailable.";
-			}
-		}
-
-		auto workspace_words(const workspace_failure aFailure) -> std::string
-		{
-			switch (aFailure) {
-			case workspace_failure::missing:           return "The chosen folder or file no longer exists.";
-			case workspace_failure::permission_denied: return "The chosen folder or file cannot be read.";
-			case workspace_failure::unsupported:       return "The chosen item is not a folder or a regular file.";
-			default:                                   return "The chosen folder or file could not be opened.";
-			}
-		}
-
-		auto capture_words(const cycle_capture_outcome& aOutcome) -> std::string
-		{
-			switch (aOutcome.Status) {
-			case cycle_capture_status::captured:         return { };
-			case cycle_capture_status::unstable:         return "Files kept changing while they were read; nothing was recorded. Capture again when the folder is quiet.";
-			case cycle_capture_status::root_changed:     return "The chosen folder was replaced while it was read; nothing was recorded.";
-			case cycle_capture_status::too_many_entries: return "The folder holds more entries than one capture keeps; narrow the scope.";
-			case cycle_capture_status::store:            return aOutcome.Store ? store_words(*aOutcome.Store) : "The local cycle store is unavailable.";
-			case cycle_capture_status::workspace:        return aOutcome.Workspace ? workspace_words(*aOutcome.Workspace) : "The chosen folder could not be read.";
-			case cycle_capture_status::not_bound:        return "The cycle has no folder to capture.";
-			case cycle_capture_status::cancelled:        return { };
-			}
-			return { };
-		}
-
 		auto view_words(const core::cycle_view_problem aProblem) -> std::string
 		{
 			switch (aProblem) {
@@ -59,29 +22,6 @@ namespace bpr::application {
 			case core::cycle_view_problem::unknown_revision:     return "That revision was never captured here; nothing else is shown in its place.";
 			case core::cycle_view_problem::no_review_checkpoint: return "No review is marked yet. Mark reviewed to compare since it.";
 			case core::cycle_view_problem::unknown_round:        return "That is not a frozen round of this cycle.";
-			}
-			return { };
-		}
-
-		auto response_words(const cycle_response_result& aResult) -> std::string
-		{
-			if (aResult.Read) {
-				return "The chosen file could not be read; nothing was added.";
-			}
-			if (aResult.Decode) {
-				return "The file is not a response this build reads (" + std::string{ core::stable_name(aResult.Decode->Problem) } + "); nothing was added.";
-			}
-			if (!aResult.Refusal) {
-				return { };
-			}
-			switch (aResult.Refusal->Problem) {
-			case core::cycle_response_problem::wrong_cycle:       return "The response is for another cycle; nothing was added.";
-			case core::cycle_response_problem::wrong_round:       return "The response is for another round; nothing was added.";
-			case core::cycle_response_problem::wrong_digest:      return "The response names this round with other content than was frozen; nothing was added.";
-			case core::cycle_response_problem::unknown_item:      return "The reply names an item this round does not hold; nothing was added.";
-			case core::cycle_response_problem::stale_item:        return "The response answers another revision of an item; nothing was added.";
-			case core::cycle_response_problem::empty:             return "A reply needs some text.";
-			case core::cycle_response_problem::reused_identifier: return "A different response with the same identifier was already added; nothing was added.";
 			}
 			return { };
 		}
@@ -110,21 +50,12 @@ namespace bpr::application {
 			}
 		}
 
-		auto grouped(const std::uint64_t aValue) -> std::string
-		{
-			auto digits = std::to_string(aValue);
-			for (auto at = static_cast<std::ptrdiff_t>(digits.size()) - 3; at > 0; at -= 3) {
-				digits.insert(static_cast<std::size_t>(at), ",");
-			}
-			return digits;
-		}
-
 		auto limit_words(const core::cycle_round_output_limit& aLimit, const core::cycle_share_route aRoute) -> std::string
 		{
 			const auto what = aRoute == core::cycle_share_route::copy_document ? std::string{ "the clipboard's" } : aRoute == core::cycle_share_route::save_bundle ? std::string{ "a bundle's" }
 																																								   : std::string{ "a saved document's" };
-			auto       text = "The round is " + grouped(aLimit.RequiredBytes) + " bytes (" + grouped(aLimit.Items) + " items, " + grouped(aLimit.Sources) + " sources), over " + what + " limit of "
-				+ grouped(aLimit.BudgetBytes) + " bytes. Nothing was cut short, frozen or shared.";
+			auto       text = "The round is " + grouped_count(aLimit.RequiredBytes) + " bytes (" + grouped_count(aLimit.Items) + " items, " + grouped_count(aLimit.Sources) + " sources), over " + what + " limit of "
+				+ grouped_count(aLimit.BudgetBytes) + " bytes. Nothing was cut short, frozen or shared.";
 			return aRoute == core::cycle_share_route::copy_document ? text + " Save to File keeps all of it." : text;
 		}
 
@@ -142,18 +73,6 @@ namespace bpr::application {
 			}
 		}
 
-		auto export_words(const cycle_export_failure aFailure) -> std::string
-		{
-			switch (aFailure) {
-			case cycle_export_failure::exists:      return "Another file appeared there while saving; nothing was replaced.";
-			case cycle_export_failure::changed:     return "The file there changed after you chose to replace it; nothing was replaced.";
-			case cycle_export_failure::not_regular: return "That is a link, a folder or another special file; nothing was written.";
-			case cycle_export_failure::too_large:   return "The file there is too large to compare; nothing was written.";
-			case cycle_export_failure::cancelled:   return { };
-			default:                                return "The file could not be written there; nothing was saved.";
-			}
-		}
-
 		/// The file's own name, as UTF-8; never its folder.
 		auto file_name(const std::string& aPath) -> std::string
 		{
@@ -167,19 +86,6 @@ namespace bpr::application {
 			return "R" + std::to_string(aRevision.value());
 		}
 
-		/// An intelligible default title: the chosen folder's or file's name.
-		auto default_title(const std::string& aLocation) -> std::string
-		{
-			auto path = std::filesystem::path{ aLocation };
-			while (path.has_relative_path() && path.filename().empty()) {
-				path = path.parent_path();
-			}
-			auto name = path.filename().string();
-			if (name.empty()) {
-				return "Local project";
-			}
-			return name.substr(0, core::maximum_cycle_title_bytes);
-		}
 	}
 
 	struct review_cycle_workbench::implementation : std::enable_shared_from_this<implementation>
@@ -254,7 +160,7 @@ namespace bpr::application {
 				}
 				if (!aResult) {
 					if (aResult.error().Failure != cycle_store_failure::cancelled) {
-						self->fail(store_words(aResult.error()));
+						self->fail(cycle_store_words(aResult.error()));
 					}
 					return;
 				}
@@ -317,7 +223,7 @@ namespace bpr::application {
 			with_catalog([location = std::move(aLocation)](implementation& aSelf) {
 				aSelf.Runtime.observe_workspace(aSelf.Source, location, aSelf.guarded<workspace_root_observation_result>([location](implementation& aHost, workspace_root_observation_result aResult) {
 					if (!aResult.Root) {
-						aHost.fail(workspace_words(aResult.Failure.value_or(workspace_failure::io)));
+						aHost.fail(cycle_workspace_words(aResult.Failure.value_or(workspace_failure::io)));
 						return;
 					}
 					aHost.find_bound(*aResult.Root, std::nullopt, { });
@@ -350,8 +256,7 @@ namespace bpr::application {
 			}
 			const auto subject = aSubjects[aIndex];
 			Runtime.load(subject, guarded<std::optional<core::review_cycle_state>>([root = std::move(aRoot), subjects = std::move(aSubjects), aIndex](implementation& aSelf, std::optional<core::review_cycle_state> aState) mutable {
-							 // The same root object, wherever it now is, is the same project.
-							 if (aState && aState->Workspace && aState->Workspace->Root.Root == root.Root) {
+							 if (aState && core::bound_to(*aState, root)) {
 								 aSelf.select(aState->Subject);
 								 aSelf.load(true);
 								 return;
@@ -362,7 +267,7 @@ namespace bpr::application {
 
 		void create_bound(core::workspace_root_observation aRoot)
 		{
-			const auto command = core::create_review_cycle{ .Authority = Catalog->Authority, .Title = default_title(View.Location), .Scope = { } };
+			const auto command = core::create_review_cycle{ .Authority = Catalog->Authority, .Title = default_cycle_title(View.Location), .Scope = { } };
 			Runtime.create(operation(), command, guarded<cycle_write_receipt>([root = std::move(aRoot)](implementation& aSelf, cycle_write_receipt aReceipt) mutable {
 							   aSelf.select({ .Authority = aSelf.Catalog->Authority, .Cycle = aReceipt.Cycle, .Generation = 1 });
 							   aSelf.Runtime.apply_selected(aSelf.operation(), aReceipt.Revision, core::bind_cycle_workspace{ .Root = std::move(root) }, aSelf.guarded<cycle_write_receipt>([](implementation& aHost, cycle_write_receipt) {
@@ -387,7 +292,7 @@ namespace bpr::application {
 			auto request = cycle_capture_request{ .Operation = operation(), .ExpectedRevision = Cycle->Revision, .Deliberate = aDeliberate };
 			Runtime.capture_workspace(Source, std::move(request), guarded<cycle_capture_outcome>([](implementation& aSelf, cycle_capture_outcome aOutcome) {
 										  if (aOutcome.Status != cycle_capture_status::captured) {
-											  aSelf.fail(capture_words(aOutcome));
+											  aSelf.fail(cycle_capture_words(aOutcome));
 											  return;
 										  }
 										  aSelf.View.Message.clear();
@@ -735,7 +640,7 @@ namespace bpr::application {
 		void response_done(const cycle_response_result& aResult)
 		{
 			View.Activity    = review_cycle_activity::idle;
-			const auto words = response_words(aResult);
+			const auto words = cycle_response_words(aResult);
 			if (!words.empty()) {
 				fail(words);
 				return;
@@ -856,7 +761,7 @@ namespace bpr::application {
 				if (!aResult) {
 					self->Edits.clear();
 					if (aResult.error().Failure != cycle_store_failure::cancelled) {
-						self->fail(store_words(aResult.error()));
+						self->fail(cycle_store_words(aResult.error()));
 					}
 					return;
 				}
@@ -965,7 +870,7 @@ namespace bpr::application {
 			const auto state       = outcome == review_cycle_clipboard::outcome::confirmed ? core::cycle_delivery_state::copied
 				: outcome == review_cycle_clipboard::outcome::unconfirmed                  ? core::cycle_delivery_state::uncertain
 																						   : core::cycle_delivery_state::failed;
-			const auto words       = state == core::cycle_delivery_state::copied ? "Copied " + name + " to the clipboard (" + grouped(aOutput.Bytes.size()) + " bytes)."
+			const auto words       = state == core::cycle_delivery_state::copied ? "Copied " + name + " to the clipboard (" + grouped_count(aOutput.Bytes.size()) + " bytes)."
 				: state == core::cycle_delivery_state::uncertain                 ? "The clipboard did not confirm it holds " + name + "; paste to check before relying on it."
 																				 : "There is no clipboard to copy " + name + " to; nothing was copied.";
 			auto       observation = delivery_observation(round, state, core::cycle_disclosure_channel::clipboard, aOutput.Bytes, aOutput.Format);
@@ -981,18 +886,18 @@ namespace bpr::application {
 			}
 			const auto name = file_name(aPath);
 			if (aResult.Failure) {
-				reload_share(export_words(*aResult.Failure));
+				reload_share(cycle_export_words(*aResult.Failure));
 				return;
 			}
 			if (aResult.Save && aResult.Save->Action == core::cycle_round_save_action::conflict && aResult.Save->Existing) {
 				if (View.Share) {
 					View.Share->Replace = review_cycle_replace_request{ .Route = aRoute, .Path = aPath, .Name = name, .Existing = aResult.Save->Existing->Digest, .Size = aResult.Save->Existing->Size };
 				}
-				reload_share(name + " already holds other content (" + grouped(aResult.Save->Existing->Size) + " bytes). Replace it, or keep it and choose another file.");
+				reload_share(name + " already holds other content (" + grouped_count(aResult.Save->Existing->Size) + " bytes). Replace it, or keep it and choose another file.");
 				return;
 			}
 			const auto round = aResult.Output.Round->Content.Payload.RoundId;
-			const auto bytes = grouped(aResult.Output.Bytes.size());
+			const auto bytes = grouped_count(aResult.Output.Bytes.size());
 			const auto same  = aResult.Save && aResult.Save->Action == core::cycle_round_save_action::already_saved;
 			reload_share(same ? name + " already holds " + round + " exactly (" + bytes + " bytes); nothing was written." : "Saved " + round + " as " + name + " (" + bytes + " bytes).");
 		}

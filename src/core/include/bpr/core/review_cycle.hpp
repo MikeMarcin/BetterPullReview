@@ -493,6 +493,10 @@ namespace bpr::core {
 		auto                                     operator<=>(const review_cycle_projection&) const = default;
 	};
 	[[nodiscard]] auto project(const review_cycle_state& aCycle) -> review_cycle_projection;
+	/// \brief The same root object, wherever it now is, is the same project:
+	/// true for an active cycle bound to a root of this kind and identity.
+	/// What Open Project and the terminal's working folder resolve by.
+	[[nodiscard]] auto bound_to(const review_cycle_state& aCycle, const workspace_root_observation& aRoot) noexcept -> bool;
 }
 
 #endif

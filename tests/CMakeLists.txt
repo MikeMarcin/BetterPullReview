@@ -19,6 +19,12 @@ if(BPR_BUILD_TOUR_CLI)
         "${PROJECT_SOURCE_DIR}/packaging/agent-skills/pr-tour" "$<TARGET_FILE:test_tour_cli_composition>")
     bpr_add_network_isolated_test(NAME tour_cli_public_entry
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_tests.py" "$<TARGET_FILE:app_bpr>")
+    # [[BPR-1167]]. `bpr cycle` as real processes in a near-empty environment:
+    # open, note, review, freeze, export, capture, compare and response import
+    # on a fixture folder, with the contract's typed refusals and one writer.
+    bpr_add_network_isolated_test(NAME cycle_cli_public_path
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/cycle_cli_tests.py" "$<TARGET_FILE:app_bpr>")
+    set_tests_properties(cycle_cli_public_path PROPERTIES TIMEOUT 300)
 endif()
 
 bpr_add_executable(

@@ -428,6 +428,17 @@ namespace {
 		const auto again = freeze_named_round(frozen->Cycle, draft, 1, payload, frozen->Round, cycle_round_id{ 1 });
 		expect(again && again->Reused && again->Round == frozen->Round, "identical freeze reuses the round");
 	}
+
+	/// [[BPR-1167]]: a name the terminal is given is read back exactly as it is written.
+	void reads_wire_names_back_exactly()
+	{
+		expect(parse_cycle_name("RC-17") == review_cycle_id{ 17 } && parse_cycle_name(cycle_wire_name(review_cycle_id{ maximum_cycle_identity })) == review_cycle_id{ maximum_cycle_identity }, "cycle names");
+		expect(parse_round_name("F3") == cycle_round_id{ 3 } && parse_revision_name("R1") == cycle_source_revision_id{ 1 } && parse_item_name("I12") == cycle_feedback_item_id{ 12 }, "round, revision and item");
+		for (const auto* spelling : { "RC-0", "RC-017", "RC-", "rc-1", "RC-1 ", " RC-1", "RC-+1", "RC--1", "RC-1x", "RC-9223372036854775808", "RC-99999999999999999999", "F1", "" }) {
+			expect(!parse_cycle_name(spelling), spelling);
+		}
+		expect(!parse_round_name("R1") && !parse_revision_name("F1") && !parse_item_name("I0") && !parse_round_name("F") && !parse_item_name("i3"), "each prefix is its own");
+	}
 }
 
 auto main(const int aCount, char** aArguments) -> int
@@ -442,6 +453,7 @@ auto main(const int aCount, char** aArguments) -> int
 	freezes_only_a_flushed_current_draft();
 	stores_the_selection_exactly();
 	freezes_named_rounds_only();
+	reads_wire_names_back_exactly();
 	std::cout << "review cycle round tests passed\n";
 	return EXIT_SUCCESS;
 }

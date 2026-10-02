@@ -221,6 +221,18 @@ namespace {
 		expect(run(rebound.Accepted, capture(1, 2)).Refusal == cycle_refusal::stale_workspace, "bytes from the old binding refused");
 		expect(run(rebound.Accepted, capture(2, 2)).Refusal == cycle_refusal::none, "bytes from the new binding accepted");
 
+		// [[BPR-1167]]: Open Project and the terminal's working folder find a
+		// cycle by its root object, wherever it now is; another object or kind,
+		// or an archived cycle, is not it.
+		expect(bound_to(first.Accepted, checkout("/moved/project", 10, 11, 12)), "the same root object, moved, is the same project");
+		expect(!bound_to(first.Accepted, other) && !bound_to(cycle, checkout("/work/a/project", 10, 11, 12)), "another object, or an unbound cycle, is not");
+		auto sameObject = checkout("/work/a/project", 10, 11, 12);
+		sameObject.Kind = workspace_root_kind::folder;
+		expect(!bound_to(first.Accepted, sameObject), "another kind of root is not");
+		auto archived      = first.Accepted;
+		archived.Lifecycle = cycle_lifecycle::archived;
+		expect(!bound_to(archived, checkout("/work/a/project", 10, 11, 12)), "an archived cycle is not resolved to");
+
 		// A moved root keeps its identity but is still an explicit rebind.
 		const auto moved = run(captured.Accepted, bind_cycle_workspace{ .Root = checkout("/moved/project", 10, 11, 12) });
 		expect(moved.Refusal == cycle_refusal::unconfirmed, "moved root needs confirmation");

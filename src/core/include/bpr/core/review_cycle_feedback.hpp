@@ -122,6 +122,11 @@ namespace bpr::core {
 	/// before. An empty line is an insertion point at its start. Nothing when
 	/// the offset lies outside the file.
 	[[nodiscard]] auto line_text_at(std::span<const std::uint8_t> aFile, std::uint64_t aOffset) -> std::optional<cycle_byte_range>;
+	/// \brief The bytes of display lines `aLines` (one-based, inclusive):
+	/// from the first line's start to the last line's end, without its
+	/// ending, counted as `project_lines` counts them (BPR-1167). Nothing
+	/// when a line is zero, the span runs backwards or the file has fewer lines.
+	[[nodiscard]] auto line_span_bytes(std::span<const std::uint8_t> aFile, cycle_line_span aLines) -> std::optional<cycle_byte_range>;
 
 	/// \brief Whether a related location travels with the note when a round is
 	/// frozen. A private reference stays in the cycle.

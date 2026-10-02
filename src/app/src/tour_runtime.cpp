@@ -1,14 +1,11 @@
 #include "tour_runtime.hpp"
-#include "bpr/adapters/sqlite/profile_registry_store.hpp"
-#include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
-#include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
-#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/sha256.hpp"
+#include "profile_admission.hpp"
 #include "review_submission_execution_authority.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_decisions.hpp"
@@ -139,48 +136,18 @@ namespace bpr::app {
 			if (!Readers) {
 				Readers = make_tour_remote_reader;
 			}
-			if (!effect([&] { return adapters::sqlite::create_storage_root_owner_private(aBase); })) {
-				Failure = tour_cli_error{ "profile_unavailable", "The application root is unavailable or is not owner-private.", 7 };
+			auto admitted = effect([&] { return admit_profile(aBase, aProfile); });
+			if (!admitted) {
+				Failure = admitted.error();
 				return;
 			}
-			auto registry = adapters::sqlite::make_profile_registry_store(aBase);
-			auto loaded   = effect([&] { return registry->load({ }); });
-			if (!loaded) {
-				Failure = tour_cli_error{ "profile_unavailable", "The private profile registry could not be opened.", 7 };
+			Root    = admitted->Root;
+			Profile = admitted->Profile;
+			if (!admitted->Lease) {
+				Forward = true;
 				return;
 			}
-			const auto matches = [&](const auto& aEntry) { return aProfile.empty() ? aEntry.Profile.Id == core::default_bpr_profile_id : aProfile == std::to_string(aEntry.Profile.Id.value()) || aProfile == aEntry.Profile.Label; };
-			if (std::ranges::count_if(loaded->Profiles, matches) > 1) {
-				Failure = tour_cli_error{ "profile_ambiguous", "The profile label is ambiguous; select its numeric ID.", 2 };
-				return;
-			}
-			const auto found = std::ranges::find_if(loaded->Profiles, matches);
-			if (found == loaded->Profiles.end()) {
-				Failure = tour_cli_error{ "profile_unknown", "Select an existing profile by its exact name or ID.", 2 };
-				return;
-			}
-			Profile        = found->Profile.Id;
-			auto authority = application::profile_storage_authority::select(*loaded, Profile);
-			if (!authority) {
-				Failure = tour_cli_error{ "profile_unavailable", "The profile root authority is invalid.", 7 };
-				return;
-			}
-			auto root = effect([&] { return adapters::sqlite::resolve_profile_storage_root(aBase, *authority); });
-			if (!root) {
-				Failure = tour_cli_error{ "profile_unavailable", "The profile root is unavailable or is not owner-private.", 7 };
-				return;
-			}
-			Root       = *root;
-			auto lease = effect([&] { return adapters::sqlite::acquire_profile_runtime_lease(Root); });
-			if (!lease) {
-				if (lease.error() == application::profile_runtime_lease_failure::busy) {
-					Forward = true;
-				} else {
-					Failure = tour_cli_error{ "profile_unavailable", "The profile lease is unavailable.", 7 };
-				}
-				return;
-			}
-			Lease = std::move(*lease);
+			Lease = std::move(admitted->Lease);
 			Store = adapters::sqlite::make_review_tour_store(Root, Profile);
 		}
 		static auto owner_exit(std::string_view aCode) -> int
