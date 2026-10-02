@@ -1,0 +1,38 @@
+{
+  "schema": "bpr0967.station-handoff.v1",
+  "round": "human handoff",
+  "status": "unattended scope complete; card parked on human-review",
+  "code_candidate": "9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2",
+  "package_revision": "6a573ac7fce5f84716f2439c2c9de1c198a58fd2 (version 0.1.3)",
+  "gates": {
+    "macos": "16 rows + architecture_boundaries + replay pass at 9aa3df3bb (153.72 s)",
+    "windows": "6a573ac7f record: 17/17 in 440.84 s, enforced, 8 named phases",
+    "linux": "59b71b144 record: 17/17 in 95.92 s, enforced, 4 named phases"
+  },
+  "attended_review": {
+    "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+    "sequence_after_prepare": 703,
+    "host_pid": 9702,
+    "port": 59998,
+    "items": {
+      "BPR-0967-packaged-launch-linux-v001": "752cdffa97b477e936b910b075422cf2d126a8465cd1d75161e50008eed629b6",
+      "BPR-0967-packaged-launch-mac-v001": "dad042c60ad5349c33fcebf2a00e8686cb4c1cfccdeb1d2705ac6e590c56fb45",
+      "BPR-0967-packaged-launch-win-v001": "995c815a0f25f3516111ee373a1aef808e67ad90a01e194df7a873e09f40fc50",
+      "BPR-0967-physical-input-linux-v001": "5aa913157b48ab422f7b2e5052419a0f22a7340451ee88c5c53481200890807c",
+      "BPR-0967-physical-input-mac-v001": "3fb0eb7f87f94ebed58186c6dac58660ab8848f53c7a1b105c23e83010fd48dc",
+      "BPR-0967-physical-input-win-v001": "c195cd02d1ac38f99dc7a0a1114ce8785dfff45aa4d897996179bee6c4805b26",
+      "BPR-0967-presentation-linux-v001": "0a7c032afee82557fd247737fe46c46780f4567aac6b52b06ef03e6ade0da43e",
+      "BPR-0967-presentation-mac-v001": "33e315cd0da419663f5fe98f2af1a67bb1e33d9f0e438a24105888604960372f",
+      "BPR-0967-presentation-win-v001": "35c06462aa009fc8cdb860e4b06c7fa7c7a0ac847018d0f5eb6432cfd2b8fe02"
+    },
+    "note": "Host URL with token is local-only and not recorded here; obtain it from attended_review.py status."
+  },
+  "next": "On each decision: Accept records that platform's native measurement against its threshold (with the note's values); Reject with values or a proposed threshold becomes the next engineering step. When all nine are accepted, finish BPR-0967.",
+  "follow_ups": [
+    "BPR-1264 named input-target phases (mac, win, linux)",
+    "BPR-1265 Windows Debug byte-pressure 323 s ending (one failure, one pass)"
+  ],
+  "ownership": {
+    "commands": "none running; the attended-review host (pid 9702) predates this work and was not started by it"
+  }
+}

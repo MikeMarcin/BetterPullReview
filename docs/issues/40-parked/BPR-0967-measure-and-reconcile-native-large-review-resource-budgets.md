@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0967"
 title: "Measure and reconcile native large-review resource budgets"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin_rfc":"RFC-BPR-0013","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC0013 closeout dependency","source_candidate":"3efe61dfcf6874d35400bf777a7e86dbbf0a4693","milestone_plan":{"id":"bpr0967-mac-responsiveness","path":"docs/rfcs/plans/bpr0967-mac-responsiveness/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2","evidence":{"kind":"observation","detail":"Mac growth attributed (BPR-0893; repaired by BPR-1032). Windows and Linux growth measured by native counters on the stations and within limits set from those measurements; no failure left to attribute. docs/verification/BPR-0967-station-budgets-2026-10-01.md"}},{"criterion":"AC2","outcome":"pass","revision":"9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2","evidence":{"kind":"command","detail":"Cache ceilings, exact source/anchors, eviction/revisit and close/prune ownership enforced on all three platforms. Each changed limit has a measured basis and stated rule; failing-before controls for reporting, enforcement, named phases and the every-course gate. Release gates at 9aa3df3bb: macOS 16 rows + architecture + replay pass; Windows 17/17 (440.84 s), Linux 17/17 (95.92 s), all enforced. No limit raised to absorb a miss; misses named under BPR-1264."}},{"criterion":"AC3","outcome":"pending","revision":"6a573ac7fce5f84716f2439c2c9de1c198a58fd2","evidence":{"kind":"freeform","detail":"Fixture-composition budgets (metadata, first render, navigation, drawers, theme, fallback, active work, input/cancellation, memory/cache, process-to-Home launch) measured and enforced on macOS, Windows and Linux. Pending human/native: packaged launch, compositor presentation and physical-input latency per platform, attended items BPR-0967-{packaged-launch,presentation,physical-input}-{mac,win,linux}-v001 in session cbd48b91000b00f1e72e1ad62c7c384c."}}]
 ---
 
 # Measure and reconcile native large-review resource budgets
@@ -524,3 +526,31 @@ digest, how it was measured, and the measured values.
 When the confirmation returns clean, this card parks on `human-review` with
 these items as its pending criteria. Each would be one attended question per
 platform and item, asked as Accept or Reject against a stated threshold.
+
+## Release gates at `9aa3df3bb` and the attended native items — 2026-10-01
+
+Both stations ran the Release-only gate confirmation at `9aa3df3bb`, the commit
+that makes every unsampled course gate the 100 ms target:
+
+- **Linux** (`59b71b144`): 17/17 in 95.92 s. Four named phases, no other input
+  miss, and the failure search printed nothing.
+- **Windows** (`6a573ac7f`): 17/17 in 440.84 s, at load 15% → 6%. Eight named
+  phases, every report enforced with no limit miss, and the failure search
+  printed nothing. The byte-pressure course's selection misses are recorded but
+  not gated, since it is a heap-sampled resource course.
+- **macOS**: passed at the same commit before the request.
+
+The unattended scope is complete. What remains needs a person: nine Accept or
+Reject items in the existing attended-review session, one per platform for
+each native measurement. Each states its threshold, the measuring method, the
+package build command with absolute paths, and what to record. All are bound
+to revision `6a573ac7f`, package version 0.1.3.
+
+| Item | Threshold |
+|---|---|
+| `BPR-0967-packaged-launch-{mac,win,linux}-v001` | Home accepts input within 1,000 ms of activation on three warm launches, 3,000 ms on the first after a reboot |
+| `BPR-0967-presentation-{mac,win,linux}-v001` | First presented frame within 100 ms for drawer, theme, next change and large-file selection; large file fully drawn within 2,500 ms |
+| `BPR-0967-physical-input-{mac,win,linux}-v001` | Physical actuation to visible response at most 100 ms in each of five trials per action |
+
+A Reject with a note either reports a miss or proposes a different threshold.
+Either becomes the next engineering step. The card parks on `human-review`.
