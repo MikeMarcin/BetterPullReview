@@ -92,3 +92,42 @@ passes **12 of 12** in 32.96 s:
 **`review_cycle_workbench`, which renders the 16 MiB round, takes 32.94 s at
 -j4, and 30.94 s and 31.00 s alone.** The row sets no `TIMEOUT` property, so
 it runs under CTest's default. No remote mutation.
+
+## Windows (bpr-main-win, 2026-10-02)
+
+At `dbe6966ea`, which contains `8cbdc1477`. Windows 11 Home 10.0.26200, MSVC
+14.51, Qt 6.11.2, `build/windows-dev` Debug. The 10 executables these rows
+run were deleted first, and the build rebuilt every one. It printed no
+`warning C` or `warning LNK` line. The sources changed since `ce2b02c0b`
+declare no `near`, `far` or `small` identifier.
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^application_review_cycle_desktop_public_path$|^architecture_boundaries$|^test_network_isolation_manifest$"
+```
+
+12 of 13 pass, in 53.87 s:
+
+- `review_cycle_workbench`, which renders the 16 MiB round, passes in
+  38.13 s. It has no `TIMEOUT` of its own, so CTest's 1,500 s default bounds
+  it.
+- `application_review_cycle_desktop_public_path` 15.67 s.
+- `qt_review_cycle_view_1_0` 8.82 s and `_2_0` 17.60 s, against 60 s.
+- `review_cycle_round` 1.62 s, `_verification` 2.56 s, `_bundle` 1.37 s and
+  `_export` 0.54 s.
+- `sqlite_review_cycle_storage` 3.39 s.
+- `core_review_cycle_share` and `core_review_cycle_policy`.
+- `architecture_boundaries` 32.92 s.
+
+`test_network_isolation_manifest` fails, and not on this card's rows. All 58
+of its lines are "uses `bpr_windows_uncontained` but is not in the pinned
+Windows set". No `review_cycle_*` row or other row of this card is among
+them.
+
+- Most of them are [[BPR-1237]]'s unmeasured pins: the private-review,
+  tour-publication, logging, scale and other rows that card lists.
+- The 11 `application_large_review_*` rows are not on [[BPR-1237]]: active
+  work, cache bytes and entries, history and its session race, launch, loaded
+  close, pathological, provider cancel, resources and responsiveness.
+  `cef11b982` (BPR-0967) registered them `WINDOWS_UNCONTAINED` without adding
+  them to `scripts/verify_test_network_isolation.py`'s Windows set. They are
+  BPR-0967's to pin.
