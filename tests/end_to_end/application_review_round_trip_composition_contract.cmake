@@ -532,6 +532,17 @@ endfunction()
 # syntax_classification_application_host and adopts only spans of the text
 # still shown. It reads no file and runs no process; no grant, target, provider
 # or publication path changes; mutation pin unchanged.
+# BPR-1213 reseal (by bpr-main-linux): f3327b74..this candidate. Of the
+# pinned-scope commits since the BPR-1156 seal, only 5b7eddb83 moves a pin;
+# 028882c3a, 8cbdc1477 and 2a79d08eb leave all three digests unchanged
+# (checked with BPR_PRINT_PINNED_DIGESTS at each). 5b7eddb83 adds the
+# constructed nested-folders-v1 public-path fixture: one enum value, its
+# fixture-host case in github_application.cpp (github.com, the same profile,
+# host and server contract as uiforetw_74), its contract case in
+# github_public_path_fixture.cpp and its --github-fixture expectations in
+# main.cpp. Fixture selection only; no grant, target, provider, mutation or
+# publication path changes; mutation pin unchanged. main was red here from
+# 5b7eddb83 until this reseal.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -550,7 +561,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0cfde91e4344491a7e9627a555d15046c5adcb4b6477611aaa85a410e87fe856"
+		"3c20aedd5d9417f152c504286fb2860b793b930a300e224c3f16c99e07df4e10"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -736,7 +747,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "154c060972674583fd711cc20fef8a31c1b34c7677695575d9e5c1f1f76ecb99"
+        "e42a57abe83465850332012dc50af0c26ed2122c7b42be6914fe4d49601da58c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

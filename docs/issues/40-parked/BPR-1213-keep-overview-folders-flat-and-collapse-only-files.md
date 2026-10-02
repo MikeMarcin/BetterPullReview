@@ -275,3 +275,30 @@ unchanged. Their comments in `scripts/verify_test_network_isolation.py` now
 record this measurement in place of the analogy.
 `test_network_isolation_manifest` names neither row, and
 `verify_test_network_isolation_tests.py` passes.
+
+### The round-trip pin, resealed for 5b7eddb83 (bpr-main-linux, 2026-10-02)
+
+`5b7eddb83` changed `src/app/src/github_application.cpp` (the `nested_folders_v1`
+fixture-host case) and three other pinned files without resealing
+`application_review_round_trip_composition_contract`. **main was red on that
+row from 5b7eddb83 until this reseal.** It failed with `full LF-normalized
+github_application.cpp digest drifted`.
+
+`BPR_PRINT_PINNED_DIGESTS` was run at every pinned-scope commit since the
+BPR-1156 seal (`f3327b74b`): `028882c3a`, `5b7eddb83`, `8cbdc1477`, `2a79d08eb`
+and HEAD. Only `5b7eddb83` moved a pin. `full_application` went from `0cfde91e…`
+to `3c20aedd…`, and `production_app_manifest` from `154c0609…` to `e42a57ab…`.
+The mutation branch `e067befe…` is unchanged.
+
+Review of the change: one enum value; its fixture-host case in
+`github_application.cpp`, with the same github.com profile, host and server
+contract as `uiforetw_74`; its contract case in `github_public_path_fixture.cpp`;
+and its `--github-fixture nested-folders-v1` expectations in `main.cpp`. It is
+fixture selection only, with no grant, target, provider, mutation or
+publication path change. The reseal note sits beside the digests.
+
+After this reseal the row still fails, at a later check:
+`application source-tree inventory drifted`. [[BPR-1167]]'s `2a79d08eb` added
+eight `src/app/src` files to the tree but not to the inventory
+(`cycle_cli.*`, `cycle_session.*`, `profile_admission.*`, `terminal_text.*`).
+That is BPR-1167's to register, and this reseal does not do it.
