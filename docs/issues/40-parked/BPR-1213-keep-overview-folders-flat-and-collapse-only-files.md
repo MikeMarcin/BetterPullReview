@@ -240,3 +240,38 @@ between, `f21072628`, edits one BPR-1157 card. `git diff 0f6e7b292 5b7eddb83 --
 src tests scripts CMakeLists.txt cmake` is empty, so the frozen build is
 also `5b7eddb83`'s. The review item keeps the name `0f6e7b292` that its
 fingerprint binds.
+
+## The Windows pins, measured (bpr-main-win, 2026-10-02)
+
+`5b7eddb83` pinned both new rows `WINDOWS_UNCONTAINED` under
+`dos-volume-name` by analogy. Measured at `de4883dec`: Windows 11 Home
+10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug.
+
+**Contained.** With the keyword removed locally (not committed) and the
+graph reconfigured, both rows run through
+`better_pull_review_network_sandbox.exe`:
+
+- `application_github_public_path_nested_folders_v1` fails in 0.12 s at
+  startup: `STARTUP_FAILED_CAUSE: startup_failure=registry`,
+  `STARTUP_PROFILE_REFUSAL:registry_unavailable`. That is the profile
+  registry's ancestor-chain walk, as for the other pinned
+  `application_github_public_path_*` rows.
+- `application_nested_overview_folders_public_path` fails in 0.07 s at
+  `FAILED: private nested-folders course root`. The course's
+  `e2e::private_data_root()` starts from `QFileInfo::canonicalFilePath()` of
+  its `QTemporaryDir`, which a container may not resolve, because it asks for
+  the volume's drive letter.
+
+**Uncontained, as registered:**
+
+- `application_github_public_path_nested_folders_v1` passes in 7.93 s with
+  `PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:nested-folders-v1` and `RENDER_OK`;
+- `application_nested_overview_folders_public_path` passes in 3.84 s with
+  `nested-overview-folders-public-path:pass`.
+
+So both pins are right: each row fails contained only on the drive-letter
+translation that `dos-volume-name` names, and passes uncontained. The pins are
+unchanged. Their comments in `scripts/verify_test_network_isolation.py` now
+record this measurement in place of the analogy.
+`test_network_isolation_manifest` names neither row, and
+`verify_test_network_isolation_tests.py` passes.

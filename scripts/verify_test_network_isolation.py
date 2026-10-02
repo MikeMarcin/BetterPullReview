@@ -278,6 +278,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_github_public_path_github_com": "dos-volume-name",
     "application_github_public_path_uiforetw_74": "dos-volume-name",
     # [[BPR-1213]]. The same public path over the constructed nested-folders fixture.
+    # Measured on JaegAW 2026-10-02: contained, startup refuses at the registry
+    # (STARTUP_PROFILE_REFUSAL:registry_unavailable, its ancestor-chain walk);
+    # uncontained it passes with PUBLIC_PATH_OK, GITHUB_FIXTURE_OK and RENDER_OK.
     "application_github_public_path_nested_folders_v1": "dos-volume-name",
     "application_uiforetw_selected_diff_contract": "dos-volume-name",
     "application_diff_workbench_public_path": "dos-volume-name",
@@ -386,6 +389,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "quill_logging": "dos-volume-name",
     "application_selected_file_safety_public_path": "dos-volume-name",
     # [[BPR-1213]]. The same composed course executable, nested-folders mode.
+    # Measured on JaegAW 2026-10-02: contained, private_data_root's
+    # canonicalFilePath is refused ("private nested-folders course root");
+    # uncontained the course passes.
     "application_nested_overview_folders_public_path": "dos-volume-name",
     # [[BPR-1031]]. Measured on JaegAW 2026-09-23: contained, the course stops
     # at its first step, "disposable private state". A reverted probe showed the
