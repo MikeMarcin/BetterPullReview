@@ -88,3 +88,5 @@ under a `/usr` prefix.
 | `build/dev` build; `architecture_boundaries`, `test_network_isolation_{manifest,structure_contract}`; `DOCUMENTATION_OK`; `git diff --check` | Clean, 3 of 3 pass |
 
 Not touched: the Apple and Windows install branches.
+
+Published: `git pull --rebase` renamed the fix commit. `68b81a88b`, named above and in the acceptance records, is `b6bb96645` on main.
