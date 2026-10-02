@@ -72,7 +72,7 @@ namespace bpr::adapters::sqlite {
 			if (!aCodec.Good) {
 				return;
 			}
-			if (aRequest.Command > core::cycle_command::export_record || !core::valid_cycle_operation_id(aRequest.Operation)) {
+			if (aRequest.Command > core::last_cycle_command || !core::valid_cycle_operation_id(aRequest.Operation)) {
 				aCodec.Good = false;
 				return;
 			}

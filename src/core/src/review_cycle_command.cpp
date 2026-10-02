@@ -18,19 +18,32 @@ namespace bpr::core {
 			cycle_command::export_round,
 			cycle_command::compare,
 			cycle_command::response_import,
+			cycle_command::round_grant,
+			cycle_command::round_revoke,
+			cycle_command::round_read,
+			cycle_command::round_page,
+			cycle_command::round_source,
+			cycle_command::response_append,
+			cycle_command::policy,
 		};
 		constexpr auto common       = std::array{ "--json"sv, "--non-interactive"sv, "--schema-version"sv, "--data-root"sv, "--profile"sv, "--operation-id"sv };
-		constexpr auto flags        = std::array{ "--json"sv, "--non-interactive"sv, "--again"sv, "--changed-only"sv };
+		constexpr auto flags        = std::array{ "--json"sv, "--non-interactive"sv, "--again"sv, "--changed-only"sv, "--read-only"sv };
 		constexpr auto none         = std::array<std::string_view, 0>{ };
 		constexpr auto list_options = std::array{ "--cursor"sv };
 		constexpr auto capture      = std::array{ "--again"sv };
 		constexpr auto note         = std::array{ "--file"sv, "--lines"sv, "--body-file"sv };
-		constexpr auto review       = std::array{ "--include"sv, "--exclude"sv, "--earlier"sv, "--later"sv, "--action"sv, "--goal-file"sv, "--expected-revision"sv };
+		constexpr auto review       = std::array{ "--include"sv, "--exclude"sv, "--earlier"sv, "--later"sv, "--action"sv, "--goal-file"sv, "--context"sv, "--context-lines"sv, "--drop-context"sv, "--expected-revision"sv };
 		constexpr auto freeze       = std::array{ "--expected-revision"sv };
 		constexpr auto exporting    = std::array{ "--round"sv, "--output"sv, "--format"sv, "--replace"sv };
 		constexpr auto compare      = std::array{ "--from"sv, "--to"sv, "--changed-only"sv, "--cursor"sv, "--path"sv };
 		constexpr auto response     = std::array{ "--round"sv, "--file"sv };
 		constexpr auto record       = std::array{ "--round"sv, "--state"sv, "--digest"sv };
+		constexpr auto grant        = std::array{ "--round"sv, "--read-only"sv };
+		constexpr auto round_only   = std::array{ "--round"sv };
+		constexpr auto reading      = std::array{ "--round"sv, "--page-bytes"sv, "--budget-bytes"sv };
+		constexpr auto paging       = std::array{ "--round"sv, "--cursor"sv };
+		constexpr auto sourcing     = std::array{ "--round"sv, "--source"sv, "--range"sv, "--cursor"sv };
+		constexpr auto policy       = std::array{ "--classification"sv, "--channel"sv, "--permission"sv };
 	}
 
 	auto name(const cycle_command aCommand) noexcept -> std::string_view
@@ -47,6 +60,13 @@ namespace bpr::core {
 		case cycle_command::compare:         return "compare";
 		case cycle_command::response_import: return "response import";
 		case cycle_command::export_record:   return "export record";
+		case cycle_command::round_grant:     return "round grant";
+		case cycle_command::round_revoke:    return "round revoke";
+		case cycle_command::round_read:      return "round read";
+		case cycle_command::round_page:      return "round page";
+		case cycle_command::round_source:    return "round source";
+		case cycle_command::response_append: return "response append";
+		case cycle_command::policy:          return "policy";
 		}
 		return "unknown";
 	}
@@ -74,6 +94,13 @@ namespace bpr::core {
 		case cycle_command::compare:         return compare;
 		case cycle_command::response_import: return response;
 		case cycle_command::export_record:   return record;
+		case cycle_command::round_grant:     return grant;
+		case cycle_command::round_revoke:    return round_only;
+		case cycle_command::round_read:      return reading;
+		case cycle_command::round_page:      return paging;
+		case cycle_command::round_source:    return sourcing;
+		case cycle_command::response_append: return response;
+		case cycle_command::policy:          return policy;
 		case cycle_command::open:
 		case cycle_command::show:            return none;
 		}
@@ -95,8 +122,22 @@ namespace bpr::core {
 		switch (aCommand) {
 		case cycle_command::list:
 		case cycle_command::show:
-		case cycle_command::compare: return false;
-		default:                     return true;
+		case cycle_command::compare:
+		case cycle_command::round_read:
+		case cycle_command::round_page:
+		case cycle_command::round_source: return false;
+		default:                          return true;
+		}
+	}
+
+	auto authority_of(const cycle_command aCommand) noexcept -> cycle_command_authority
+	{
+		switch (aCommand) {
+		case cycle_command::round_read:
+		case cycle_command::round_page:
+		case cycle_command::round_source:
+		case cycle_command::response_append: return cycle_command_authority::granted_consumer;
+		default:                             return cycle_command_authority::reviewer;
 		}
 	}
 

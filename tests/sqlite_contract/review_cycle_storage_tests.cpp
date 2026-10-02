@@ -370,7 +370,7 @@ namespace {
 		}
 		// Rewrite the file into exactly the first published shape.
 		sql(database_path(scratch.path()),
-			"DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+			"DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 			"DROP TABLE feedback;"
 			"DROP TABLE feedback_revisions;"
 			"DROP TABLE suggestions;"
@@ -400,7 +400,7 @@ namespace {
 			expect(store.capture(2, subject, "v2 manifest", 1).has_value(), "capture before downgrade");
 		}
 		// The second published shape had everything but feedback and suggestions.
-		sql(database_path(scratch.path()), "DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 										   "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; DROP TABLE views; PRAGMA user_version=2;");
 		auto       store  = open(scratch.path());
 		const auto loaded = store.state(subject);
@@ -428,7 +428,7 @@ namespace {
 			expect(note.has_value(), "feedback before downgrade");
 		}
 		// The third published shape had everything but the tab views.
-		sql(database_path(scratch.path()), "DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 										   "DROP TABLE views; PRAGMA user_version=3;");
 		auto       store = open(scratch.path());
 		const auto page  = store.Store->feedback(subject, std::nullopt, { });
@@ -547,7 +547,7 @@ namespace {
 			subject    = store.create(1);
 			expect(store.capture(2, subject, "v4 manifest", 1).has_value(), "capture before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
+		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v4 cycle reads unchanged");
 
@@ -596,7 +596,7 @@ namespace {
 			expect(store.capture(2, subject, "v5 manifest", 1).has_value(), "capture before downgrade");
 			expect(store.Store->save_tabs(subject, plain, { }).has_value(), "a full-source record before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; PRAGMA user_version=5;");
+		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; PRAGMA user_version=5;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v5 cycle reads unchanged");
 		const auto old = store.Store->load_tabs(subject, { });
@@ -699,7 +699,7 @@ namespace {
 			subject    = store.create(1);
 			expect(store.capture(2, subject, "v6 manifest", 1).has_value(), "R1 before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE deliveries; DROP TABLE publications; PRAGMA user_version=6;");
+		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; PRAGMA user_version=6;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v6 cycle reads unchanged");
 		expect(store.Store->publications(subject, std::nullopt, { })->Publications.empty(), "no publication after migration");
@@ -783,7 +783,7 @@ namespace {
 			const auto payload = store.Store->install(bytes_of("{\"round\":1}"), { });
 			expect(saved && payload && store.Store->freeze(operation(4), { .Subject = subject, .Draft = draft, .ExpectedDraftRevision = 2, .Payload = *payload }, { }).has_value(), "F1 before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE deliveries; PRAGMA user_version=7;");
+		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; PRAGMA user_version=7;");
 		auto       store  = open(scratch.path());
 		const auto rounds = store.Store->rounds(subject, std::nullopt, { });
 		expect(rounds && rounds->Rounds.size() == 1U, "v7 round reads unchanged");
@@ -833,6 +833,74 @@ namespace {
 		auto count = sql_count(database_path(scratch.path()), "SELECT count(*) FROM deliveries");
 		expect(count == 0, "its observations leave with it");
 	}
+
+	/// [[BPR-1169]]. The ninth schema adds one grant per frozen round, kept
+	/// exactly and replaced or revoked in place, and the profile's channel
+	/// policy; an eighth-schema store keeps everything it had.
+	void migrates_the_eighth_schema_and_keeps_grants_and_policy()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-migrate-v8" };
+		auto                                 subject = core::local_cycle_subject{ };
+		{
+			auto store         = open(scratch.path());
+			subject            = store.create(1);
+			const auto begun   = store.Store->begin_draft(operation(2), subject, 1, { });
+			const auto draft   = core::cycle_round_draft_ref{ .Cycle = subject.Cycle, .Id = core::cycle_round_draft_id{ begun->Allocated } };
+			const auto saved   = store.Store->save_draft(operation(3), subject, draft, 1, bytes_of("Fix the lexer."), { });
+			const auto payload = store.Store->install(bytes_of("{\"round\":1}"), { });
+			expect(saved && payload && store.Store->freeze(operation(4), { .Subject = subject, .Draft = draft, .ExpectedDraftRevision = 2, .Payload = *payload }, { }).has_value(), "F1 before downgrade");
+		}
+		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; PRAGMA user_version=8;");
+		auto       store  = open(scratch.path());
+		const auto rounds = store.Store->rounds(subject, std::nullopt, { });
+		expect(rounds && rounds->Rounds.size() == 1U, "v8 round reads unchanged");
+		const auto& round = rounds->Rounds[0].Round;
+		expect(store.Store->grants(subject, { })->empty() && store.Store->disclosure_policy({ }) == core::cycle_disclosure_policy{ }, "no grant and no configured channel after migration");
+		const auto revision = store.state(subject).Revision;
+
+		const auto grant = core::response_only_grant(subject, round);
+		const auto first = store.Store->record_grant(operation(10), grant, { });
+		expect(first && first->Changed && first->Allocated == 1U && first->Revision == revision, "granted; the cycle's revision does not move");
+		expect(store.Store->record_grant(operation(10), grant, { })->Replayed, "a retried grant replays");
+		expect(!store.Store->record_grant(operation(11), grant, { })->Changed, "the same grant again changes nothing");
+		auto other   = grant;
+		other.Digest = core::cycle_round_digest{ core::sha256(bytes_of("other")) };
+		expect(store.Store->record_grant(operation(12), other, { }).error().Refusal == core::cycle_refusal::invalid_target, "a grant names the digest the round was frozen with");
+		auto missing     = grant;
+		missing.Round.Id = core::cycle_round_id{ 2 };
+		expect(store.Store->record_grant(operation(13), missing, { }).error().Refusal == core::cycle_refusal::invalid_target, "and a round that was frozen");
+		auto foreign        = grant;
+		foreign.Round.Cycle = core::review_cycle_id{ subject.Cycle.value() + 1U };
+		expect(store.Store->record_grant(operation(14), foreign, { }).error().Refusal == core::cycle_refusal::invalid_target, "of this cycle");
+		auto revoked    = grant;
+		revoked.Revoked = true;
+		expect(store.Store->record_grant(operation(15), revoked, { })->Changed, "revoked in place");
+
+		expect(store.Store->set_channel_permission(operation(20), core::cycle_data_classification::unclassified, core::cycle_disclosure_channel::external_retrieval, core::cycle_channel_permission::allowed, { })->Changed,
+			   "external retrieval allowed for unclassified source");
+		expect(store.Store->set_channel_permission(operation(21), core::cycle_data_classification::enterprise_restricted, core::cycle_disclosure_channel::clipboard, core::cycle_channel_permission::denied, { })->Changed,
+			   "the clipboard denied for enterprise source");
+		expect(!store.Store->set_channel_permission(operation(22), core::cycle_data_classification::unclassified, core::cycle_disclosure_channel::external_retrieval, core::cycle_channel_permission::allowed, { })->Changed,
+			   "setting it again changes nothing");
+
+		store.Store.reset();
+		auto       reopened = open(scratch.path());
+		const auto kept     = reopened.Store->grants(subject, { });
+		expect(kept && kept->size() == 1U && kept->front() == revoked && reopened.Store->load_grant(subject, round.Id.Id, { }).value() == revoked, "the grant reads back exactly, revoked");
+		expect(!reopened.Store->load_grant(subject, core::cycle_round_id{ 2 }, { }).value(), "no grant for another round");
+		auto expected = core::with_permission({ }, core::cycle_data_classification::unclassified, core::cycle_disclosure_channel::external_retrieval, core::cycle_channel_permission::allowed);
+		expected      = core::with_permission(expected, core::cycle_data_classification::enterprise_restricted, core::cycle_disclosure_channel::clipboard, core::cycle_channel_permission::denied);
+		expect(reopened.Store->disclosure_policy({ }) == expected, "the policy reads back exactly");
+		expect(reopened.Store->set_channel_permission(operation(23), core::cycle_data_classification::enterprise_restricted, core::cycle_disclosure_channel::clipboard, core::cycle_channel_permission::unconfigured, { })->Changed,
+			   "unconfigured removes a setting");
+		expect(sql_count(database_path(scratch.path()), "SELECT count(*) FROM channel_policy") == 1, "one setting left");
+		expect(reopened.state(subject).Revision == revision, "nothing else changed");
+
+		const auto preview = reopened.Store->removal_preview(subject, { });
+		expect(preview && reopened.Store->remove(operation(24), *preview, { }).has_value(), "explicit removal");
+		expect(sql_count(database_path(scratch.path()), "SELECT count(*) FROM grants") == 0, "its grants leave with it");
+		expect(sql_count(database_path(scratch.path()), "SELECT count(*) FROM channel_policy") == 1, "the profile's policy stays");
+	}
 }
 
 int main()
@@ -852,6 +920,7 @@ int main()
 	migrates_the_fifth_schema_and_keeps_checkpoints();
 	migrates_the_sixth_schema_and_journals_publications();
 	migrates_the_seventh_schema_and_records_deliveries();
+	migrates_the_eighth_schema_and_keeps_grants_and_policy();
 #if !defined(_WIN32)
 	survives_kills_at_every_commit();
 #endif

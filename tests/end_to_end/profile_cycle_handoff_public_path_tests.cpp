@@ -147,6 +147,20 @@ auto main(int aArgc, char** aArgv) -> int
 			emit       window.home_cycles_list()->itemActivated(window.home_cycles_list()->item(0));
 			const auto open = wait_for([&] { return window.showing_local_cycle() && page->projection().Cycle && page->projection().Source && idle(*page); });
 			say(open ? "RESUMED " + page->projection().Cycle->Title : std::string{ "RESUME_FAILED" });
+		} else if (verb == "resume-title") {
+			// [[BPR-1169]]. The reviewer moves the window to another cycle, by its title in Home.
+			window.choose_home(true);
+			wait_for([&] { return window.home_cycles_list()->count() >= 2; });
+			auto found = false;
+			for (int row = 0; row < window.home_cycles_list()->count() && !found; ++row) {
+				auto* item = window.home_cycles_list()->item(row);
+				if (item->text().contains(QString::fromStdString(argument))) {
+					emit window.home_cycles_list()->itemActivated(item);
+					found = true;
+				}
+			}
+			const auto open = found && wait_for([&] { return window.showing_local_cycle() && page->projection().Cycle && page->projection().Cycle->Title == argument && idle(*page); });
+			say(open ? "FOCUSED " + core::cycle_wire_name(page->projection().Cycle->Subject.Cycle) : std::string{ "FOCUS_FAILED" });
 		} else if (verb == "notes") {
 			say(notes_line(*page));
 		} else if (verb == "wait-notes") {

@@ -659,6 +659,82 @@ namespace bpr::application {
 																				std::move(aDone));
 	}
 
+	auto review_cycle_runtime::grant_round_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, const bool aReadOnly, core::cycle_disclosure_policy aImposed,
+													completion<cycle_grant_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_grant_result>([subject, aOperation, aRound, aReadOnly, imposed = std::move(aImposed)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_grant_result> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return grant_cycle_round(aStore, *subject, aRound, aReadOnly, imposed, aOperation, aStop);
+		},
+														  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::revoke_round_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, completion<cycle_grant_result> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_grant_result>([subject, aOperation, aRound](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_grant_result> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return revoke_cycle_round(aStore, *subject, aRound, aOperation, aStop);
+		},
+														  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::grants_selected(completion<std::vector<core::cycle_round_grant>> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<std::vector<core::cycle_round_grant>>([subject](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_round_grant>> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return aStore.grants(*subject, aStop);
+		},
+																			std::move(aDone));
+	}
+
+	auto review_cycle_runtime::read_granted_round_selected(const core::cycle_round_id aRound, core::cycle_disclosure_policy aImposed, completion<cycle_granted_round> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_granted_round>([subject, aRound, imposed = std::move(aImposed)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_granted_round> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return read_granted_round(aStore, *subject, aRound, imposed, aStop);
+		},
+														   std::move(aDone));
+	}
+
+	auto review_cycle_runtime::append_granted_response_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, cycle_response_file_reader aRead,
+																completion<cycle_granted_response> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_granted_response>([subject, aOperation, aRound, read = std::move(aRead)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_granted_response> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return append_granted_response(aStore, *subject, aRound, read, aOperation, aStop);
+		},
+															  std::move(aDone));
+	}
+
+	auto review_cycle_runtime::disclosure_policy(completion<core::cycle_disclosure_policy> aDone) -> bool
+	{
+		return Implementation->submit<core::cycle_disclosure_policy>([](review_cycle_store& aStore, std::stop_token aStop) { return aStore.disclosure_policy(aStop); }, std::move(aDone));
+	}
+
+	auto review_cycle_runtime::set_channel_permission(cycle_operation_id aOperation, const core::cycle_data_classification aClassification, const core::cycle_disclosure_channel aChannel,
+													  const core::cycle_channel_permission aPermission, completion<cycle_write_receipt> aDone) -> bool
+	{
+		return Implementation->submit<cycle_write_receipt>([aOperation, aClassification, aChannel, aPermission](review_cycle_store& aStore, std::stop_token aStop) {
+			return aStore.set_channel_permission(aOperation, aClassification, aChannel, aPermission, aStop);
+		},
+														   std::move(aDone));
+	}
+
 	auto review_cycle_runtime::rounds_selected(const std::optional<core::cycle_round_id> aAfter, completion<cycle_round_page> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

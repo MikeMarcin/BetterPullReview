@@ -40,6 +40,9 @@ namespace bpr::application {
 		std::optional<std::string> Document;
 		/// Its full size, whether shown or not.
 		std::uint64_t DocumentBytes = 0;
+		/// The profile's stored disclosure policy, which every route's
+		/// decision combines with the host's ([[BPR-1169]]).
+		core::cycle_disclosure_policy Policy;
 	};
 	/// \brief Opens the cycle's latest draft, brought to its notes' current
 	/// wording; or, with none, starts one: from the latest frozen round as
@@ -57,8 +60,9 @@ namespace bpr::application {
 		cycle_operation_id          Freeze;
 		core::cycle_round_draft_ref Draft;
 		/// The draft revision the reviewer saw previewed.
-		std::uint64_t                 ExpectedDraftRevision = 0;
-		core::cycle_share_route       Route                 = core::cycle_share_route::copy_document;
+		std::uint64_t           ExpectedDraftRevision = 0;
+		core::cycle_share_route Route                 = core::cycle_share_route::copy_document;
+		/// Imposed by the host, combined with the profile's stored policy.
 		core::cycle_disclosure_policy Policy;
 	};
 	/// \brief A share before it leaves: the decision, and either why nothing
@@ -103,7 +107,8 @@ namespace bpr::application {
 		core::cycle_round_id           Round;
 		core::cycle_disclosure_channel Channel = core::cycle_disclosure_channel::local_file;
 		core::cycle_round_file_kind    Format  = core::cycle_round_file_kind::markdown;
-		core::cycle_disclosure_policy  Policy;
+		/// Imposed by the host, combined with the profile's stored policy.
+		core::cycle_disclosure_policy Policy;
 	};
 	/// \brief Reads the frozen round, decides its channel as every exporter
 	/// does and renders it within the saved document's or bundle's budget. A

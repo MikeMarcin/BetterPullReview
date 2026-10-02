@@ -7,6 +7,7 @@
 #include "bpr/application/review_cycle_feedback.hpp"
 #include "bpr/application/review_cycle_import.hpp"
 #include "bpr/application/review_cycle_response.hpp"
+#include "bpr/application/review_cycle_retrieval.hpp"
 #include "bpr/application/review_cycle_round.hpp"
 #include "bpr/application/review_cycle_share.hpp"
 #include "bpr/application/review_cycle_store.hpp"
@@ -174,6 +175,26 @@ namespace bpr::application {
 		auto record_delivery_selected(cycle_operation_id aOperation, core::cycle_delivery_observation aObservation, completion<cycle_write_receipt> aDone) -> bool;
 		/// \brief Every delivery observation of the selected cycle, in order.
 		auto deliveries_selected(completion<std::vector<core::cycle_delivery_record>> aDone) -> bool;
+
+		/// \brief Exposes a frozen round of the selected cycle to a harness
+		/// ([[BPR-1169]]): the response-only grant, or reading only.
+		auto grant_round_selected(cycle_operation_id aOperation, core::cycle_round_id aRound, bool aReadOnly, core::cycle_disclosure_policy aImposed, completion<cycle_grant_result> aDone)
+			-> bool;
+		/// \brief Withdraws the round's grant; it stays stored as revoked.
+		auto revoke_round_selected(cycle_operation_id aOperation, core::cycle_round_id aRound, completion<cycle_grant_result> aDone) -> bool;
+		/// \brief Every grant of the selected cycle, by round.
+		auto grants_selected(completion<std::vector<core::cycle_round_grant>> aDone) -> bool;
+		/// \brief Reads a frozen round of the selected cycle for a consumer
+		/// holding its stored grant, and only then.
+		auto read_granted_round_selected(core::cycle_round_id aRound, core::cycle_disclosure_policy aImposed, completion<cycle_granted_round> aDone) -> bool;
+		/// \brief Reads a response with `aRead` and appends it to a round of the
+		/// selected cycle for a consumer whose grant allows it.
+		auto append_granted_response_selected(cycle_operation_id aOperation, core::cycle_round_id aRound, cycle_response_file_reader aRead, completion<cycle_granted_response> aDone) -> bool;
+		/// \brief The profile's stored disclosure policy, whatever is selected.
+		auto disclosure_policy(completion<core::cycle_disclosure_policy> aDone) -> bool;
+		/// \brief Sets one channel's permission for one classification.
+		auto set_channel_permission(cycle_operation_id aOperation, core::cycle_data_classification aClassification, core::cycle_disclosure_channel aChannel,
+									core::cycle_channel_permission aPermission, completion<cycle_write_receipt> aDone) -> bool;
 
 		/// \brief Opens a portable bundle into this profile's quarantine,
 		/// whatever is selected (BPR-1160). Needs no account, provider or agent.

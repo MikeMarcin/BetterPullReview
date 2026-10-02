@@ -681,6 +681,13 @@ bpr_enable_hardening(test_better_pull_review_review_cycle_command_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_command_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_command COMMAND test_better_pull_review_review_cycle_command_tests)
 
+# [[BPR-1169]]. Reading one frozen round from outside: measure, whole-item pages bound to the digest, attachments.
+bpr_add_executable(test_better_pull_review_review_cycle_retrieval_tests review_cycle_retrieval_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_retrieval_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_review_cycle_retrieval_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_retrieval_tests)
+bpr_add_network_isolated_test(NAME core_review_cycle_retrieval COMMAND test_better_pull_review_review_cycle_retrieval_tests)
+
 # [[BPR-1164]]. Recipient responses and manual replies: the pack's response, forged authority and correlation.
 bpr_add_executable(test_better_pull_review_review_cycle_response_tests review_cycle_response_tests.cpp)
 target_link_libraries(test_better_pull_review_review_cycle_response_tests PRIVATE BetterPullReview::Core)

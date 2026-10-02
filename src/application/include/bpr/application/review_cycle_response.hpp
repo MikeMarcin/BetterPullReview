@@ -37,10 +37,12 @@ namespace bpr::application {
 	/// \brief Reads the chosen response file, within `core::maximum_response_document_bytes`.
 	using cycle_response_file_reader = std::function<std::expected<std::vector<std::uint8_t>, cycle_export_failure>(std::stop_token)>;
 
-	/// \brief Checks a response document against round `aRound` of the cycle and appends it.
+	/// \brief Checks a response document against round `aRound` of the cycle
+	/// and appends it, as received through `aChannel`: a file the reviewer
+	/// chose, or a granted harness through the local interface ([[BPR-1169]]).
 	[[nodiscard]] auto import_cycle_response(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, core::cycle_round_id aRound,
-											 std::span<const std::uint8_t> aDocument, const cycle_operation_id& aOperation, std::stop_token aStop)
-		-> cycle_store_result<cycle_response_result>;
+											 std::span<const std::uint8_t> aDocument, const cycle_operation_id& aOperation, std::stop_token aStop,
+											 core::cycle_response_channel aChannel = core::cycle_response_channel::response_file) -> cycle_store_result<cycle_response_result>;
 	/// \brief Appends a reply the reviewer entered for round `aRound`; its
 	/// round name is taken from the round.
 	[[nodiscard]] auto attach_manual_reply(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, core::cycle_round_id aRound, core::cycle_manual_reply aReply,

@@ -151,6 +151,114 @@ namespace bpr::core {
 		return { .Subject = aSubject, .Round = aRound.Id, .Digest = aRound.Digest, .ReadRound = true, .AppendResponse = true };
 	}
 
+	auto read_only_grant(const local_cycle_subject& aSubject, const cycle_round& aRound) -> cycle_round_grant
+	{
+		return { .Subject = aSubject, .Round = aRound.Id, .Digest = aRound.Digest, .ReadRound = true, .AppendResponse = false };
+	}
+
+	auto stable_name(const cycle_data_classification aValue) noexcept -> std::string_view
+	{
+		switch (aValue) {
+		case cycle_data_classification::unclassified:          return "unclassified";
+		case cycle_data_classification::public_source:         return "public_source";
+		case cycle_data_classification::enterprise_restricted: return "enterprise_restricted";
+		}
+		return "unclassified";
+	}
+
+	auto stable_name(const cycle_disclosure_channel aValue) noexcept -> std::string_view
+	{
+		switch (aValue) {
+		case cycle_disclosure_channel::clipboard:          return "clipboard";
+		case cycle_disclosure_channel::local_file:         return "local_file";
+		case cycle_disclosure_channel::terminal_output:    return "terminal_output";
+		case cycle_disclosure_channel::external_retrieval: return "external_retrieval";
+		case cycle_disclosure_channel::agent_adapter:      return "agent_adapter";
+		}
+		return "agent_adapter";
+	}
+
+	auto stable_name(const cycle_channel_permission aValue) noexcept -> std::string_view
+	{
+		switch (aValue) {
+		case cycle_channel_permission::unconfigured: return "unconfigured";
+		case cycle_channel_permission::allowed:      return "allowed";
+		case cycle_channel_permission::denied:       return "denied";
+		}
+		return "unconfigured";
+	}
+
+	auto parse_classification(const std::string_view aName) noexcept -> std::optional<cycle_data_classification>
+	{
+		for (const auto value : { cycle_data_classification::unclassified, cycle_data_classification::public_source, cycle_data_classification::enterprise_restricted }) {
+			if (stable_name(value) == aName) {
+				return value;
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto parse_channel(const std::string_view aName) noexcept -> std::optional<cycle_disclosure_channel>
+	{
+		for (std::size_t channel = 0; channel < cycle_disclosure_channel_count; ++channel) {
+			if (stable_name(static_cast<cycle_disclosure_channel>(channel)) == aName) {
+				return static_cast<cycle_disclosure_channel>(channel);
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto parse_permission(const std::string_view aName) noexcept -> std::optional<cycle_channel_permission>
+	{
+		for (const auto value : { cycle_channel_permission::unconfigured, cycle_channel_permission::allowed, cycle_channel_permission::denied }) {
+			if (stable_name(value) == aName) {
+				return value;
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto configured_permission(const cycle_disclosure_policy& aPolicy, const cycle_data_classification aClassification, const cycle_disclosure_channel aChannel) noexcept
+		-> cycle_channel_permission
+	{
+		if (index(aChannel) >= cycle_disclosure_channel_count) {
+			return cycle_channel_permission::denied;
+		}
+		return configured(aPolicy, aClassification).Channels[index(aChannel)];
+	}
+
+	auto with_permission(cycle_disclosure_policy aPolicy, const cycle_data_classification aClassification, const cycle_disclosure_channel aChannel,
+						 const cycle_channel_permission aPermission) -> cycle_disclosure_policy
+	{
+		if (index(aChannel) < cycle_disclosure_channel_count) {
+			auto& channels                        = aClassification == cycle_data_classification::unclassified ? aPolicy.Unclassified
+				: aClassification == cycle_data_classification::public_source                                  ? aPolicy.PublicSource
+																											   : aPolicy.EnterpriseRestricted;
+			channels.Channels.at(index(aChannel)) = aPermission;
+		}
+		return aPolicy;
+	}
+
+	auto combine_policies(const cycle_disclosure_policy& aFirst, const cycle_disclosure_policy& aSecond) -> cycle_disclosure_policy
+	{
+		const auto stricter = [](const cycle_channel_policy& aOne, const cycle_channel_policy& aOther) {
+			auto combined = cycle_channel_policy{ };
+			for (std::size_t channel = 0; channel < cycle_disclosure_channel_count; ++channel) {
+				const auto one                = aOne.Channels.at(channel);
+				const auto other              = aOther.Channels.at(channel);
+				combined.Channels.at(channel) = one == cycle_channel_permission::denied || other == cycle_channel_permission::denied ? cycle_channel_permission::denied
+					: one == cycle_channel_permission::allowed || other == cycle_channel_permission::allowed                         ? cycle_channel_permission::allowed
+																																	 : cycle_channel_permission::unconfigured;
+			}
+			return combined;
+		};
+		return {
+			.Unclassified         = stricter(aFirst.Unclassified, aSecond.Unclassified),
+			.PublicSource         = stricter(aFirst.PublicSource, aSecond.PublicSource),
+			.EnterpriseRestricted = stricter(aFirst.EnterpriseRestricted, aSecond.EnterpriseRestricted),
+		};
+	}
+
 	auto channel_permission(const cycle_disclosure_policy& aPolicy, const cycle_data_classification aClassification, const cycle_disclosure_channel aChannel) -> cycle_authorization
 	{
 		return channel_decision_of(aPolicy, aClassification, aChannel);

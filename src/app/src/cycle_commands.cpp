@@ -4,7 +4,9 @@
 #include "bpr/application/review_cycle_words.hpp"
 #include "bpr/core/review_cycle_bundle.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
+#include "bpr/core/review_cycle_policy.hpp"
 #include "bpr/core/review_cycle_response.hpp"
+#include "bpr/core/review_cycle_retrieval.hpp"
 #include "bpr/core/review_cycle_round.hpp"
 #include "bpr/core/review_cycle_round_markdown.hpp"
 #include "bpr/core/review_cycle_views.hpp"
@@ -698,6 +700,20 @@ namespace bpr::app {
 			}
 			data["responses"] = statements;
 			human += "Responses: " + decimal(responses->size()) + ". A response is a recipient's statement; it verifies nothing.\n";
+
+			// What a harness may read: the reviewer's grants, one per round ([[BPR-1169]]).
+			auto grants = checked(owned.await<std::vector<core::cycle_round_grant>>([&](auto aDone) { return runtime.grants_selected(std::move(aDone)); }));
+			if (!grants) {
+				return std::unexpected(grants.error());
+			}
+			QJsonArray exposed;
+			for (const auto& grant : *grants) {
+				exposed.append(QJsonObject{ { "round", wire(grant.Round.Id) }, { "read", grant.ReadRound }, { "respond", grant.AppendResponse }, { "revoked", grant.Revoked } });
+				human += "Grant " + wire(grant.Round.Id) + ": " + (grant.Revoked ? QString{ "revoked" } : grant.AppendResponse ? QString{ "a harness may read it and add a response" }
+																															   : QString{ "a harness may read it" })
+					+ ".\n";
+			}
+			data["grants"] = exposed;
 			return output{ data, human, true };
 		}
 
@@ -736,6 +752,18 @@ namespace bpr::app {
 				|| (aError.Failure == application::cycle_store_failure::refused && aError.Refusal == core::cycle_refusal::conflict);
 		}
 
+		/// `FIRST:LAST` or `LINE`, one-based and inclusive.
+		auto line_span_of(const QString& aText) -> std::optional<core::cycle_line_span>
+		{
+			const auto parts = aText.split(':');
+			const auto first = parts.size() <= 2 ? positive(parts.front()) : std::nullopt;
+			const auto last  = parts.size() == 2 ? positive(parts.back()) : first;
+			if (!first || !last || *last < *first) {
+				return std::nullopt;
+			}
+			return core::cycle_line_span{ .First = *first, .Last = *last };
+		}
+
 		auto run_note(const command& aCommand, const cycle_host& aHost) -> result<output>
 		{
 			if (aCommand.has("--lines") && !aCommand.has("--file")) {
@@ -743,13 +771,10 @@ namespace bpr::app {
 			}
 			auto lines = std::optional<core::cycle_line_span>{ };
 			if (aCommand.has("--lines")) {
-				const auto parts = aCommand.value("--lines").split(':');
-				const auto first = parts.size() <= 2 ? positive(parts.front()) : std::nullopt;
-				const auto last  = parts.size() == 2 ? positive(parts.back()) : first;
-				if (!first || !last || *last < *first) {
+				lines = line_span_of(aCommand.value("--lines"));
+				if (!lines) {
 					return fail("invalid_input", "--lines takes FIRST:LAST or LINE, one-based and inclusive, e.g. 40:52.");
 				}
-				lines = core::cycle_line_span{ .First = *first, .Last = *last };
 			}
 			if (!aCommand.Text && !aCommand.Check) {
 				// Never an editor, a prompt or stray standard input here: the caller reads the text.
@@ -856,6 +881,33 @@ namespace bpr::app {
 			return std::optional<core::cycle_compose_edit>{ };
 		}
 
+		/// `--context PATH [--context-lines A:B]` or `--drop-context PATH`: a
+		/// whole file or some of its lines at revision `aSource`, which must hold it.
+		auto context_edit(cycle_session& aSession, const core::review_cycle_state& aCycle, const command& aCommand, const core::cycle_source_revision_id aSource)
+			-> result<core::cycle_compose_edit>
+		{
+			if (aCommand.has("--drop-context")) {
+				return core::cycle_compose_edit{ core::exclude_round_context{ .Path = utf8(aCommand.value("--drop-context")) } };
+			}
+			const auto path  = utf8(aCommand.value("--context"));
+			auto       bytes = retained_file(aSession, aCycle, aSource, path);
+			if (!bytes) {
+				return std::unexpected(bytes.error());
+			}
+			auto selection = core::cycle_context_selection{ .Revision = aSource, .Path = path, .Kind = core::cycle_context_kind::full_file };
+			if (aCommand.has("--context-lines")) {
+				const auto lines = line_span_of(aCommand.value("--context-lines"));
+				const auto range = lines ? core::line_span_bytes(*bytes, *lines) : std::nullopt;
+				if (!range) {
+					return fail("invalid_input", "--context-lines takes FIRST:LAST or LINE of " + path + " at " + core::cycle_wire_name(aSource) + ", one-based and inclusive.");
+				}
+				selection.Kind  = core::cycle_context_kind::excerpt;
+				selection.Start = range->Start;
+				selection.End   = range->End;
+			}
+			return core::cycle_compose_edit{ core::include_round_context{ .Context = std::move(selection) } };
+		}
+
 		auto compose(cycle_session& aSession) -> result<application::cycle_share_draft>
 		{
 			auto draft = aSession.await<application::cycle_share_draft>([&](auto aDone) { return aSession.runtime().open_share_selected(aSession.operation(), aSession.operation(), std::move(aDone)); });
@@ -956,11 +1008,16 @@ namespace bpr::app {
 				}
 				goal = *aCommand.Text;
 			}
-			const auto edits = std::ranges::count_if(QStringList{ "--include", "--exclude", "--earlier", "--later", "--action", "--goal-file" }, [&](const QString& aOption) { return aCommand.has(aOption); });
+			const auto edits = std::ranges::count_if(QStringList{ "--include", "--exclude", "--earlier", "--later", "--action", "--goal-file", "--context", "--drop-context" },
+													 [&](const QString& aOption) { return aCommand.has(aOption); });
 			if (edits > 1) {
 				return fail("invalid_input", "Make one change to the draft per command.");
 			}
-			auto edit = composition_edit(aCommand, std::move(goal));
+			if (aCommand.has("--context-lines") && !aCommand.has("--context")) {
+				return fail("invalid_input", "--context-lines needs --context PATH, a file of the revision under review.");
+			}
+			const auto context = aCommand.has("--context") || aCommand.has("--drop-context");
+			auto       edit    = composition_edit(aCommand, std::move(goal));
 			if (!edit) {
 				return std::unexpected(edit.error());
 			}
@@ -971,7 +1028,7 @@ namespace bpr::app {
 					return fail("invalid_input", "--expected-revision takes the draft revision review reported.");
 				}
 			}
-			if (*edit && !expected && !aCommand.Interactive) {
+			if ((*edit || context) && !expected && !aCommand.Interactive) {
 				return fail("interaction_required", "A scripted change to the draft names the revision it read: --expected-revision N.", "bpr cycle review" + aCommand.named() + " --json");
 			}
 			auto session = open_session(aHost);
@@ -992,6 +1049,14 @@ namespace bpr::app {
 				auto error = draft.error();
 				error.Next = error.Code == "round_not_ready" ? "bpr cycle capture " + name : error.Next;
 				return std::unexpected(std::move(error));
+			}
+			if (context) {
+				// Source for the recipient to read, from the revision under review ([[BPR-1169]]).
+				auto included = context_edit(owned, *cycle, aCommand, draft->Preview.Selection.Source);
+				if (!included) {
+					return std::unexpected(included.error());
+				}
+				*edit = std::move(*included);
 			}
 			auto changed = false;
 			if (*edit) {
@@ -1336,6 +1401,32 @@ namespace bpr::app {
 			return output{ { { "cycle", text(name) }, { "round", wire(*round) }, { "state", state } }, { }, true };
 		}
 
+		/// What appending a response did: its receipt, or why nothing was appended.
+		auto response_output(const application::cycle_response_result& aImported, const std::string& aName, const core::cycle_round_id aRound) -> result<output>
+		{
+			if (!aImported.Receipt) {
+				const auto words = application::cycle_response_words(aImported);
+				if (aImported.Read) {
+					return fail("source_unavailable", words);
+				}
+				if (aImported.Refusal) {
+					using problem   = core::cycle_response_problem;
+					const auto kind = aImported.Refusal->Problem;
+					return fail(kind == problem::stale_item ? "stale_revision" : kind == problem::reused_identifier || kind == problem::wrong_cycle || kind == problem::wrong_round || kind == problem::wrong_digest ? "conflict"
+																																																					 : "invalid_input",
+								words, { }, QJsonObject{ { "problem", text(core::stable_name(kind)) } });
+				}
+				return fail("invalid_input", words, { }, aImported.Decode ? QJsonObject{ { "problem", text(core::stable_name(aImported.Decode->Problem)) } } : QJsonObject{ });
+			}
+			const auto& receipt = *aImported.Receipt;
+			// The same response under the same identifier is appended once.
+			const auto again = receipt.Replayed || !receipt.Changed;
+			return output{ { { "cycle", text(aName) }, { "round", wire(aRound) }, { "response", decimal(receipt.Allocated) }, { "appended", !again } },
+						   text((again ? "That response was already added to " : "Added the response to ") + core::cycle_wire_name(aRound) + " of " + aName
+								+ ". It is the recipient's statement: it changes no note and verifies nothing.\n"),
+						   true };
+		}
+
 		auto run_response_import(const command& aCommand, const cycle_host& aHost) -> result<output>
 		{
 			const auto round = core::parse_round_name(utf8(aCommand.value("--round")));
@@ -1375,28 +1466,536 @@ namespace bpr::app {
 			if (!imported) {
 				return std::unexpected(imported.error());
 			}
-			if (!imported->Receipt) {
-				const auto words = application::cycle_response_words(*imported);
-				if (imported->Read) {
-					return fail("source_unavailable", words);
-				}
-				if (imported->Refusal) {
-					using problem   = core::cycle_response_problem;
-					const auto kind = imported->Refusal->Problem;
-					return fail(kind == problem::stale_item ? "stale_revision" : kind == problem::reused_identifier || kind == problem::wrong_cycle || kind == problem::wrong_round || kind == problem::wrong_digest ? "conflict"
-																																																					 : "invalid_input",
-								words, { }, QJsonObject{ { "problem", text(core::stable_name(kind)) } });
-				}
-				return fail("invalid_input", words, { }, imported->Decode ? QJsonObject{ { "problem", text(core::stable_name(imported->Decode->Problem)) } } : QJsonObject{ });
+			return response_output(*imported, name, *round);
+		}
+		// ---- [[BPR-1169]]: one frozen round, exposed by the reviewer and read by a granted harness.
+
+		auto round_named(const command& aCommand) -> result<core::cycle_round_id>
+		{
+			const auto round = core::parse_round_name(utf8(aCommand.value("--round")));
+			if (!round) {
+				return fail("invalid_input", "Name the frozen round: --round F<n>.");
 			}
-			const auto& receipt = *imported->Receipt;
-			// The same response under the same identifier is appended once.
-			const auto again = receipt.Replayed || !receipt.Changed;
-			return output{ { { "cycle", text(name) }, { "round", wire(*round) }, { "response", decimal(receipt.Allocated) }, { "appended", !again } },
-						   text((again ? "That response was already added to " : "Added the response to ") + core::cycle_wire_name(*round) + " of " + name
-								+ ". It is the recipient's statement: it changes no note and verifies nothing.\n"),
+			return *round;
+		}
+
+		auto require_frozen(const core::review_cycle_state& aCycle, const core::cycle_round_id aRound) -> result<void>
+		{
+			const auto name = core::cycle_wire_name(aCycle.Subject.Cycle);
+			if (aRound.value() >= aCycle.Next.Round) {
+				return fail("round_not_ready", core::cycle_wire_name(aRound) + " of " + name + " is not frozen; only a frozen round is exposed or read. Nothing was read or changed.", "bpr cycle show " + name);
+			}
+			return { };
+		}
+
+		/// Why a consumer request was refused. Naming a round is never permission.
+		auto grant_failure(const core::cycle_authorization aDecision, const std::string& aName, const core::cycle_round_id aRound, const std::string& aDoing) -> failure
+		{
+			const auto round  = core::cycle_wire_name(aRound);
+			const auto detail = QJsonObject{ { "decision", text(core::name(aDecision)) } };
+			switch (aDecision) {
+			case core::cycle_authorization::not_granted:
+				return { "policy_denied", "No grant lets a harness " + aDoing + " " + round + " of " + aName + ". Naming a round is not permission: the reviewer grants it. Nothing was read or changed.",
+						 "bpr cycle round grant " + aName + " --round " + round, detail };
+			case core::cycle_authorization::revoked:
+				return { "policy_denied", "The grant for " + round + " of " + aName + " was revoked. Nothing was read or changed; what was read before cannot be recalled.", { }, detail };
+			case core::cycle_authorization::channel_denied:
+				return { "policy_denied", "Policy for this project's source does not allow external retrieval. Nothing was read or changed.", "bpr cycle policy", detail };
+			case core::cycle_authorization::channel_unconfigured:
+				return { "policy_denied", "Nothing configured allows external retrieval for source of unknown origin. Nothing was read or changed.",
+						 "bpr cycle policy --classification unclassified --channel external_retrieval --permission allowed", detail };
+			default: return { "policy_denied", "Refused (" + std::string{ core::name(aDecision) } + "). Nothing was read or changed.", { }, detail };
+			}
+		}
+
+		auto retrieval_failure(const core::cycle_retrieval_problem aProblem, const std::string& aRound) -> failure
+		{
+			const auto detail = QJsonObject{ { "problem", text(core::stable_name(aProblem)) } };
+			switch (aProblem) {
+			case core::cycle_retrieval_problem::item_over_page:
+				return { "requires_partition", "An item of " + aRound + " is larger than any page (" + application::grouped_count(core::maximum_round_page_bytes) + " bytes) and is never cut. Ask the reviewer to split the round; act on none of it meanwhile.", { }, detail };
+			case core::cycle_retrieval_problem::page_size:
+				return { "invalid_input", "--page-bytes takes " + std::to_string(core::minimum_round_page_bytes) + " to " + std::to_string(core::maximum_round_page_bytes) + ".", { }, detail };
+			case core::cycle_retrieval_problem::cursor:
+				return { "invalid_input", "That cursor is not one of " + aRound + "'s pages; start again with bpr cycle round read.", { }, detail };
+			case core::cycle_retrieval_problem::unknown_source:
+				return { "not_found", aRound + " has no attachment by that name; bpr cycle round source lists what it includes. Nothing else of the project is readable here.", { }, detail };
+			case core::cycle_retrieval_problem::source_range:
+				return { "invalid_input", "--range takes START:END within the attachment's bytes, half-open.", { }, detail };
+			default: return { "invalid_input", "That listing position is past " + aRound + "'s last attachment.", { }, detail };
+			}
+		}
+
+		/// The round a granted consumer may read, and only that; never on the reviewer's authority.
+		auto granted_round(cycle_session& aSession, const core::review_cycle_state& aCycle, const core::cycle_round_id aRound) -> result<application::cycle_frozen_round>
+		{
+			if (auto frozen = require_frozen(aCycle, aRound); !frozen) {
+				return std::unexpected(frozen.error());
+			}
+			auto read = checked(aSession.await<application::cycle_granted_round>([&](auto aDone) { return aSession.runtime().read_granted_round_selected(aRound, { }, std::move(aDone)); }));
+			if (!read) {
+				return std::unexpected(read.error());
+			}
+			if (read->Decision != core::cycle_authorization::allowed || !read->Round) {
+				return std::unexpected(grant_failure(read->Decision, core::cycle_wire_name(aCycle.Subject.Cycle), aRound, "read"));
+			}
+			return std::move(*read->Round);
+		}
+
+		auto texts_json(const std::vector<std::string>& aTexts) -> QJsonArray
+		{
+			QJsonArray values;
+			for (const auto& value : aTexts) {
+				values.append(text(value));
+			}
+			return values;
+		}
+
+		/// What the round asks, and how much of it there is; no item, no source byte.
+		auto round_header(const application::cycle_frozen_round& aRound, const core::cycle_round_extent& aExtent, const std::string& aName) -> QJsonObject
+		{
+			const auto& payload = aRound.Content.Payload;
+			return {
+				{ "cycle", text(aName) },
+				{ "round", text(payload.RoundId) },
+				{ "payload_sha256", hex(aRound.Content.Digest) },
+				{ "project", QJsonObject{ { "id", text(payload.Project.Id) }, { "label", text(payload.Project.Label) } } },
+				{ "source_revision", text(payload.SourceRevision) },
+				{ "source_consistency", text(core::stable_name(payload.Consistency)) },
+				{ "assignment", QJsonObject{ { "action", text(core::stable_name(payload.Assignment.Action)) }, { "goal", text(payload.Assignment.Goal) }, { "constraints", texts_json(payload.Assignment.Constraints) }, { "write_scope", texts_json(payload.Assignment.WriteScope) } } },
+				{ "items_total", decimal(aExtent.Items) },
+				{ "suggestions_total", decimal(aExtent.Suggestions) },
+				{ "sources_total", decimal(aExtent.Sources) },
+				{ "instruction_bytes", decimal(aExtent.InstructionBytes) },
+				{ "source_bytes", decimal(aExtent.SourceBytes) },
+				{ "intentional_omissions", texts_json(payload.Selection.Omissions) },
+				{ "instruction_set_complete", payload.Selection.Complete },
+			};
+		}
+
+		auto decoded_text(const QJsonValue& aRecord) -> QString
+		{
+			return QString::fromUtf8(QByteArray::fromBase64(aRecord.toObject().value("base64").toString().toLatin1()));
+		}
+		auto anchor_words(const QJsonObject& aAnchor) -> QString
+		{
+			const auto kind = aAnchor.value("kind").toString();
+			const auto at   = " @" + aAnchor.value("source_revision_id").toString();
+			if (kind == "range") {
+				return aAnchor.value("path").toString() + " bytes " + QString::number(aAnchor.value("start_byte").toInteger()) + "-" + QString::number(aAnchor.value("end_byte").toInteger()) + at;
+			}
+			if (kind == "file") {
+				return aAnchor.value("path").toString() + at + " (whole file)";
+			}
+			return kind == "module" ? aAnchor.value("path").toString() + " (module)" : QStringLiteral("the whole cycle");
+		}
+		/// One item as a person reads it: where, what, and each suggestion's exact text.
+		auto item_words(const QJsonObject& aItem, const QString& aAction) -> QString
+		{
+			const auto action = aItem.value("action_override").isString() ? aItem.value("action_override").toString() : aAction;
+			auto       words  = "## " + aItem.value("id").toString() + " (" + action + ")\n";
+			for (const auto& anchor : aItem.value("anchors").toArray()) {
+				words += "At " + anchor_words(anchor.toObject()) + "\n";
+			}
+			auto body = aItem.value("body").toString();
+			words += body + (body.endsWith('\n') ? "" : "\n");
+			for (const auto& entry : aItem.value("suggestions").toArray()) {
+				const auto suggestion = entry.toObject();
+				words += "Suggestion " + suggestion.value("id").toString() + " at " + anchor_words(suggestion.value("anchor").toObject()) + "\n--- original\n" + decoded_text(suggestion.value("original"))
+					+ "\n--- replacement\n" + decoded_text(suggestion.value("replacement")) + "\n--- end\n";
+			}
+			return words;
+		}
+
+		/// One page of items, each exactly as the payload holds it.
+		auto page_of(QJsonObject aData, const core::cycle_round_items_page& aPage, const QString& aAction, QString& aHuman) -> QJsonObject
+		{
+			QJsonArray items;
+			for (const auto& entry : aPage.Items) {
+				const auto item = QJsonDocument::fromJson(QByteArray::fromStdString(entry)).object();
+				aHuman += "\n" + item_words(item, aAction);
+				items.append(item);
+			}
+			aData["first_item"]    = decimal(aPage.First);
+			aData["items_through"] = decimal(aPage.First + aPage.Items.size());
+			aData["items"]         = items;
+			aData["next"]          = aPage.Next ? QJsonValue{ text(core::encode_round_cursor(*aPage.Next)) } : QJsonValue{ };
+			return aData;
+		}
+		auto page_footer(const core::cycle_round_items_page& aPage, const core::cycle_round_extent& aExtent, const std::string& aName, const std::string& aRound) -> QString
+		{
+			const auto through = aPage.First + aPage.Items.size();
+			if (aPage.Next) {
+				return "\nItems " + decimal(aPage.First + 1U) + " to " + decimal(through) + " of " + decimal(aExtent.Items) + ". Read every page before acting on any:\nbpr cycle round page " + text(aName) + " --round "
+					+ text(aRound) + " --cursor " + text(core::encode_round_cursor(*aPage.Next)) + "\n";
+			}
+			return "\nThat is every instruction: items " + decimal(aPage.First + 1U) + " to " + decimal(through) + " of " + decimal(aExtent.Items) + ".\n";
+		}
+
+		auto run_round_read(const command& aCommand, const cycle_host& aHost) -> result<output>
+		{
+			const auto round = round_named(aCommand);
+			if (!round) {
+				return std::unexpected(round.error());
+			}
+			auto pageBytes = core::default_round_page_bytes;
+			if (aCommand.has("--page-bytes")) {
+				const auto asked = positive(aCommand.value("--page-bytes"));
+				if (!asked) {
+					return std::unexpected(retrieval_failure(core::cycle_retrieval_problem::page_size, core::cycle_wire_name(*round)));
+				}
+				pageBytes = *asked;
+			}
+			auto budget = std::optional<std::uint64_t>{ };
+			if (aCommand.has("--budget-bytes")) {
+				budget = positive(aCommand.value("--budget-bytes"));
+				if (!budget) {
+					return fail("invalid_input", "--budget-bytes takes the most instruction bytes you can hold, a positive number.");
+				}
+			}
+			auto session = open_session(aHost);
+			if (!session) {
+				return std::unexpected(session.error());
+			}
+			auto& owned = **session;
+			auto  cycle = resolve(owned, aCommand);
+			if (!cycle) {
+				return std::unexpected(cycle.error());
+			}
+			const auto name   = core::cycle_wire_name(cycle->Subject.Cycle);
+			auto       frozen = granted_round(owned, *cycle, *round);
+			if (!frozen) {
+				return std::unexpected(frozen.error());
+			}
+			const auto extent = core::measure_round(frozen->Content.Payload);
+			if (!extent) {
+				return fail("source_unavailable", "The round could not be measured; nothing was read.");
+			}
+			const auto shown = core::cycle_wire_name(*round);
+			if (budget && core::admit_round_budget(*extent, *budget)) {
+				return fail("requires_partition",
+							shown + "'s instructions are " + application::grouped_count(extent->InstructionBytes) + " bytes (" + application::grouped_count(extent->Items) + " items), more than the "
+								+ application::grouped_count(*budget) + " you can hold. Nothing was read: ask the reviewer to split it into rounds, and act on no part of it meanwhile.",
+							{ }, QJsonObject{ { "instruction_bytes", decimal(extent->InstructionBytes) }, { "items_total", decimal(extent->Items) }, { "budget_bytes", decimal(*budget) } });
+			}
+			auto page = core::page_round_items(frozen->Content, *round, 0, pageBytes);
+			if (!page) {
+				return std::unexpected(retrieval_failure(page.error(), shown));
+			}
+			const auto& payload = frozen->Content.Payload;
+			const auto  action  = text(core::stable_name(payload.Assignment.Action));
+			auto        human   = text(name) + " " + text(shown) + " (sha256 " + hex(frozen->Content.Digest) + "): asks to " + action + " " + decimal(extent->Items) + (extent->Items == 1U ? " item" : " items")
+				+ " against " + text(payload.SourceRevision) + ".\n";
+			if (!payload.Assignment.Goal.empty()) {
+				human += "Goal: " + text(payload.Assignment.Goal) + "\n";
+			}
+			if (extent->Sources > 0U) {
+				human += decimal(extent->Sources) + (extent->Sources == 1U ? " source attachment" : " source attachments") + ": bpr cycle round source " + text(name) + " --round " + text(shown) + "\n";
+			}
+			auto data = page_of(round_header(*frozen, *extent, name), *page, action, human);
+			human += page_footer(*page, *extent, name, shown);
+			return output{ std::move(data), human, !page->Next };
+		}
+
+		auto run_round_page(const command& aCommand, const cycle_host& aHost) -> result<output>
+		{
+			const auto round = round_named(aCommand);
+			if (!round) {
+				return std::unexpected(round.error());
+			}
+			const auto cursor = core::parse_round_cursor(utf8(aCommand.value("--cursor")));
+			if (!cursor) {
+				return std::unexpected(retrieval_failure(core::cycle_retrieval_problem::cursor, core::cycle_wire_name(*round)));
+			}
+			auto session = open_session(aHost);
+			if (!session) {
+				return std::unexpected(session.error());
+			}
+			auto& owned = **session;
+			auto  cycle = resolve(owned, aCommand);
+			if (!cycle) {
+				return std::unexpected(cycle.error());
+			}
+			const auto name   = core::cycle_wire_name(cycle->Subject.Cycle);
+			const auto shown  = core::cycle_wire_name(*round);
+			auto       frozen = granted_round(owned, *cycle, *round);
+			if (!frozen) {
+				return std::unexpected(frozen.error());
+			}
+			const auto extent = core::measure_round(frozen->Content.Payload);
+			if (!extent) {
+				return fail("source_unavailable", "The round could not be measured; nothing was read.");
+			}
+			if (const auto problem = core::admit_round_cursor(*cursor, *round, frozen->Content.Digest, *extent)) {
+				return std::unexpected(retrieval_failure(*problem, shown));
+			}
+			auto page = core::page_round_items(frozen->Content, *round, cursor->Next, cursor->PageBytes);
+			if (!page) {
+				return std::unexpected(retrieval_failure(page.error(), shown));
+			}
+			auto human = text(name) + " " + text(shown) + " (sha256 " + hex(frozen->Content.Digest) + "), continued.\n";
+			auto data  = QJsonObject{ { "cycle", text(name) }, { "round", text(shown) }, { "payload_sha256", hex(frozen->Content.Digest) }, { "items_total", decimal(extent->Items) } };
+			data       = page_of(std::move(data), *page, text(core::stable_name(frozen->Content.Payload.Assignment.Action)), human);
+			human += page_footer(*page, *extent, name, shown);
+			return output{ std::move(data), human, !page->Next };
+		}
+
+		auto source_json(const core::cycle_wire_source& aSource) -> QJsonObject
+		{
+			return {
+				{ "id", text(aSource.Id) },
+				{ "path", text(aSource.Path) },
+				{ "source_revision", text(aSource.Revision) },
+				{ "kind", text(core::stable_name(aSource.Kind)) },
+				{ "start_byte", decimal(aSource.Start) },
+				{ "end_byte", decimal(aSource.End) },
+				{ "blob_sha256", hex(aSource.Blob) },
+				{ "bytes", decimal(aSource.Bytes.size()) },
+			};
+		}
+
+		auto run_round_source(const command& aCommand, const cycle_host& aHost) -> result<output>
+		{
+			const auto round = round_named(aCommand);
+			if (!round) {
+				return std::unexpected(round.error());
+			}
+			const auto shown = core::cycle_wire_name(*round);
+			if (aCommand.has("--range") && !aCommand.has("--source")) {
+				return fail("invalid_input", "--range needs --source S<n>, an attachment of the round.");
+			}
+			if (aCommand.has("--cursor") && aCommand.has("--source")) {
+				return fail("invalid_input", "--cursor continues a listing; --source reads one attachment.");
+			}
+			auto range = std::optional<core::cycle_source_range>{ };
+			if (aCommand.has("--range")) {
+				range = core::parse_source_range(utf8(aCommand.value("--range")));
+				if (!range) {
+					return std::unexpected(retrieval_failure(core::cycle_retrieval_problem::source_range, shown));
+				}
+			}
+			auto from = std::uint64_t{ 0 };
+			if (aCommand.has("--cursor")) {
+				const auto position = positive(aCommand.value("--cursor"));
+				if (!position) {
+					return std::unexpected(retrieval_failure(core::cycle_retrieval_problem::source_cursor, shown));
+				}
+				from = *position;
+			}
+			auto session = open_session(aHost);
+			if (!session) {
+				return std::unexpected(session.error());
+			}
+			auto& owned = **session;
+			auto  cycle = resolve(owned, aCommand);
+			if (!cycle) {
+				return std::unexpected(cycle.error());
+			}
+			const auto name   = core::cycle_wire_name(cycle->Subject.Cycle);
+			auto       frozen = granted_round(owned, *cycle, *round);
+			if (!frozen) {
+				return std::unexpected(frozen.error());
+			}
+			const auto& payload = frozen->Content.Payload;
+			auto        data    = QJsonObject{ { "cycle", text(name) }, { "round", text(shown) }, { "payload_sha256", hex(frozen->Content.Digest) }, { "sources_total", decimal(payload.Sources.size()) } };
+			if (!aCommand.has("--source")) {
+				const auto listing = core::list_round_sources(payload, from);
+				if (!listing) {
+					return std::unexpected(retrieval_failure(listing.error(), shown));
+				}
+				QJsonArray sources;
+				auto       human = text(name) + " " + text(shown) + " includes " + decimal(payload.Sources.size()) + (payload.Sources.size() == 1U ? " source attachment" : " source attachments") + (payload.Sources.empty() ? "." : ":") + "\n";
+				for (auto index = listing->First; index < listing->First + listing->Count; ++index) {
+					const auto& source = payload.Sources[index];
+					sources.append(source_json(source));
+					human += "  " + text(source.Id) + "  " + text(source.Path) + " @" + text(source.Revision) + "  " + text(core::stable_name(source.Kind)) + ", " + decimal(source.Bytes.size()) + " bytes\n";
+				}
+				if (listing->Next) {
+					human += "More: bpr cycle round source " + text(name) + " --round " + text(shown) + " --cursor " + decimal(*listing->Next) + "\n";
+				}
+				data["first"]   = decimal(listing->First);
+				data["sources"] = sources;
+				data["next"]    = listing->Next ? QJsonValue{ decimal(*listing->Next) } : QJsonValue{ };
+				return output{ std::move(data), human, !listing->Next };
+			}
+			const auto slice = core::slice_round_source(payload, utf8(aCommand.value("--source")), range);
+			if (!slice) {
+				return std::unexpected(retrieval_failure(slice.error(), shown));
+			}
+			const auto& source = payload.Sources[slice->Source];
+			const auto  bytes  = std::string_view{ source.Bytes }.substr(slice->Range.Start, slice->Range.End - slice->Range.Start);
+			data["source"]     = source_json(source);
+			data["start"]      = decimal(slice->Range.Start);
+			data["end"]        = decimal(slice->Range.End);
+			data["base64"]     = text(core::encode_cycle_base64(bytes));
+			data["sha256"]     = sha256_hex(bytes);
+			data["next_range"] = slice->Next ? QJsonValue{ decimal(slice->Next->Start) + ":" + decimal(slice->Next->End) } : QJsonValue{ };
+			auto human         = text(source.Id) + "  " + text(source.Path) + " @" + text(source.Revision) + ", bytes " + decimal(slice->Range.Start) + " to " + decimal(slice->Range.End) + " of " + decimal(source.Bytes.size()) + ":\n"
+				+ text(bytes) + (bytes.ends_with('\n') ? "" : "\n");
+			if (slice->Next) {
+				human += "More: bpr cycle round source " + text(name) + " --round " + text(shown) + " --source " + text(source.Id) + " --range " + decimal(slice->Next->Start) + ":" + decimal(slice->Next->End) + "\n";
+			}
+			return output{ std::move(data), human, !slice->Next };
+		}
+
+		auto run_round_grant(const command& aCommand, const cycle_host& aHost) -> result<output>
+		{
+			const auto round = round_named(aCommand);
+			if (!round) {
+				return std::unexpected(round.error());
+			}
+			auto session = open_session(aHost);
+			if (!session) {
+				return std::unexpected(session.error());
+			}
+			auto& owned = **session;
+			auto  cycle = resolve(owned, aCommand);
+			if (!cycle) {
+				return std::unexpected(cycle.error());
+			}
+			if (auto frozen = require_frozen(*cycle, *round); !frozen) {
+				return std::unexpected(frozen.error());
+			}
+			const auto name     = core::cycle_wire_name(cycle->Subject.Cycle);
+			const auto shown    = core::cycle_wire_name(*round);
+			const auto readOnly = aCommand.has("--read-only");
+			auto       granted  = checked(owned.await<application::cycle_grant_result>([&](auto aDone) { return owned.runtime().grant_round_selected(owned.operation(), *round, readOnly, { }, std::move(aDone)); }));
+			if (!granted) {
+				return std::unexpected(granted.error());
+			}
+			if (granted->Decision != core::cycle_authorization::allowed || !granted->Grant) {
+				auto refusal    = grant_failure(granted->Decision, name, *round, "read");
+				refusal.Message = "The round cannot be exposed: " + refusal.Message;
+				return std::unexpected(std::move(refusal));
+			}
+			const auto invocation = "bpr cycle round read " + name + " --round " + shown;
+			return output{ { { "cycle", text(name) }, { "round", text(shown) }, { "payload_sha256", hex(granted->Grant->Digest) }, { "read", true }, { "respond", granted->Grant->AppendResponse }, { "revoked", false }, { "changed", granted->Receipt && granted->Receipt->Changed }, { "invocation", text(invocation) } },
+						   text(name) + " " + text(shown) + " can now be read by a harness through the local interface" + (readOnly ? QString{ "" } : QString{ ", which may also add a response to it" })
+							   + "; nothing else of this profile is readable that way. Nothing was sent or started.\nThe harness runs: " + text(invocation) + "\nWithdraw it: bpr cycle round revoke " + text(name) + " --round " + text(shown) + "\n",
 						   true };
 		}
+
+		auto run_round_revoke(const command& aCommand, const cycle_host& aHost) -> result<output>
+		{
+			const auto round = round_named(aCommand);
+			if (!round) {
+				return std::unexpected(round.error());
+			}
+			auto session = open_session(aHost);
+			if (!session) {
+				return std::unexpected(session.error());
+			}
+			auto& owned = **session;
+			auto  cycle = resolve(owned, aCommand);
+			if (!cycle) {
+				return std::unexpected(cycle.error());
+			}
+			const auto name    = core::cycle_wire_name(cycle->Subject.Cycle);
+			const auto shown   = core::cycle_wire_name(*round);
+			auto       revoked = checked(owned.await<application::cycle_grant_result>([&](auto aDone) { return owned.runtime().revoke_round_selected(owned.operation(), *round, std::move(aDone)); }));
+			if (!revoked) {
+				return std::unexpected(revoked.error());
+			}
+			if (!revoked->Grant) {
+				return fail("not_found", shown + " of " + name + " has no grant to revoke.", "bpr cycle show " + name);
+			}
+			return output{ { { "cycle", text(name) }, { "round", text(shown) }, { "revoked", true }, { "changed", revoked->Receipt && revoked->Receipt->Changed } },
+						   "Revoked the grant for " + text(name) + " " + text(shown) + ": no harness can read it or add a response to it now. What was read before cannot be recalled.\n",
+						   true };
+		}
+
+		auto run_response_append(const command& aCommand, const cycle_host& aHost) -> result<output>
+		{
+			const auto round = round_named(aCommand);
+			if (!round) {
+				return std::unexpected(round.error());
+			}
+			if (!aCommand.has("--file")) {
+				return fail("invalid_input", "Name the response: --file PATH, or --file - for standard input.");
+			}
+			auto reader = application::cycle_response_file_reader{ };
+			if (aCommand.Document) {
+				reader = [document = std::vector<std::uint8_t>(aCommand.Document->begin(), aCommand.Document->end())](std::stop_token) -> std::expected<std::vector<std::uint8_t>, application::cycle_export_failure> { return document; };
+			} else {
+				auto path = absolute_path(aCommand.value("--file"), "--file");
+				if (!path) {
+					return std::unexpected(path.error());
+				}
+				reader = [chosen = utf8_path(*path)](std::stop_token aStop) { return adapters::workspace::read_chosen_file(chosen, core::maximum_response_document_bytes, std::move(aStop)); };
+			}
+			auto session = open_session(aHost);
+			if (!session) {
+				return std::unexpected(session.error());
+			}
+			auto& owned = **session;
+			auto  cycle = resolve(owned, aCommand);
+			if (!cycle) {
+				return std::unexpected(cycle.error());
+			}
+			if (auto frozen = require_frozen(*cycle, *round); !frozen) {
+				return std::unexpected(frozen.error());
+			}
+			const auto name     = core::cycle_wire_name(cycle->Subject.Cycle);
+			auto       appended = checked(owned.await<application::cycle_granted_response>([&](auto aDone) { return owned.runtime().append_granted_response_selected(owned.operation(), *round, std::move(reader), std::move(aDone)); }));
+			if (!appended) {
+				return std::unexpected(appended.error());
+			}
+			if (appended->Decision != core::cycle_authorization::allowed || !appended->Result) {
+				return std::unexpected(grant_failure(appended->Decision, name, *round, "add a response to"));
+			}
+			return response_output(*appended->Result, name, *round);
+		}
+
+		auto run_policy(const command& aCommand, const cycle_host& aHost) -> result<output>
+		{
+			if (!aCommand.Positional.isEmpty()) {
+				return fail("invalid_input", "The disclosure policy is the profile's, not a cycle's: bpr cycle policy takes no RC-<n>.");
+			}
+			const auto setting        = std::ranges::count_if(QStringList{ "--classification", "--channel", "--permission" }, [&](const QString& aOption) { return aCommand.has(aOption); });
+			const auto classification = core::parse_classification(utf8(aCommand.value("--classification")));
+			const auto channel        = core::parse_channel(utf8(aCommand.value("--channel")));
+			const auto permission     = core::parse_permission(utf8(aCommand.value("--permission")));
+			if (setting != 0 && (setting != 3 || !classification || !channel || !permission)) {
+				return fail("invalid_input",
+							"Set one channel with all three: --classification unclassified|public_source|enterprise_restricted, --channel clipboard|local_file|terminal_output|external_retrieval|agent_adapter and --permission allowed|denied|unconfigured.");
+			}
+			auto session = open_session(aHost);
+			if (!session) {
+				return std::unexpected(session.error());
+			}
+			auto& owned   = **session;
+			auto  changed = std::optional<bool>{ };
+			if (setting == 3) {
+				auto written = checked(owned.await<application::cycle_write_receipt>([&](auto aDone) { return owned.runtime().set_channel_permission(owned.operation(), *classification, *channel, *permission, std::move(aDone)); }));
+				if (!written) {
+					return std::unexpected(written.error());
+				}
+				changed = written->Changed;
+			}
+			auto policy = checked(owned.await<core::cycle_disclosure_policy>([&](auto aDone) { return owned.runtime().disclosure_policy(std::move(aDone)); }));
+			if (!policy) {
+				return std::unexpected(policy.error());
+			}
+			QJsonArray rows;
+			auto       human = changed ? QString{ *changed ? "Saved.\n" : "Already so; nothing changed.\n" } : QString{ };
+			human += "Disclosure policy of this profile (what each channel decides for each kind of source):\n";
+			for (const auto kind : { core::cycle_data_classification::unclassified, core::cycle_data_classification::public_source, core::cycle_data_classification::enterprise_restricted }) {
+				for (std::size_t index = 0; index < core::cycle_disclosure_channel_count; ++index) {
+					const auto way        = static_cast<core::cycle_disclosure_channel>(index);
+					const auto configured = core::configured_permission(*policy, kind, way);
+					const auto decision   = core::channel_permission(*policy, kind, way);
+					rows.append(QJsonObject{ { "classification", text(core::stable_name(kind)) }, { "channel", text(core::stable_name(way)) }, { "configured", text(core::stable_name(configured)) }, { "decision", text(core::name(decision)) } });
+					human += "  " + text(core::stable_name(kind)).leftJustified(22) + text(core::stable_name(way)).leftJustified(20) + text(core::name(decision))
+						+ (configured == core::cycle_channel_permission::unconfigured ? QString{ " (default)" } : QString{ }) + "\n";
+				}
+			}
+			auto data = QJsonObject{ { "policy", rows } };
+			if (changed) {
+				data["changed"] = *changed;
+			}
+			return output{ std::move(data), human, true };
+		}
+
 	}
 
 	auto cycle_invocation::named() const -> std::string
@@ -1443,6 +2042,13 @@ namespace bpr::app {
 			case core::cycle_command::compare:         return run_compare(aInvocation, aHost);
 			case core::cycle_command::response_import: return run_response_import(aInvocation, aHost);
 			case core::cycle_command::export_record:   return run_export_record(aInvocation, aHost);
+			case core::cycle_command::round_grant:     return run_round_grant(aInvocation, aHost);
+			case core::cycle_command::round_revoke:    return run_round_revoke(aInvocation, aHost);
+			case core::cycle_command::round_read:      return run_round_read(aInvocation, aHost);
+			case core::cycle_command::round_page:      return run_round_page(aInvocation, aHost);
+			case core::cycle_command::round_source:    return run_round_source(aInvocation, aHost);
+			case core::cycle_command::response_append: return run_response_append(aInvocation, aHost);
+			case core::cycle_command::policy:          return run_policy(aInvocation, aHost);
 			}
 			return fail("unsupported_command", "bpr cycle has no such command.", "bpr cycle capabilities");
 		}();

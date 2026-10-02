@@ -41,11 +41,18 @@ connection; `QCoreApplication` is its only Qt object.
 | `show [RC-n]` | The cycle, its notes, frozen rounds, delivery observations and responses. |
 | `capture [RC-n] [--again]` | Reads the bound folder now. Identical bytes record nothing unless `--again`. |
 | `note [RC-n] [--file PATH [--lines A:B]] [--body-file PATH\|-]` | A note on a line range, a whole file of the latest capture, or the whole cycle. |
-| `review [RC-n] [one of --include/--exclude/--earlier/--later In, --action A, --goal-file PATH\|-] [--expected-revision N]` | The next round's draft and the exact document it freezes as; one change per command. |
+| `review [RC-n] [one of --include/--exclude/--earlier/--later In, --action A, --goal-file PATH\|-, --context PATH [--context-lines A:B], --drop-context PATH] [--expected-revision N]` | The next round's draft and the exact document it freezes as; one change per command. `--context` includes a file, or some of its lines, of the revision under review for the recipient to read. |
 | `freeze [RC-n] [--expected-revision N]` | Freezes the draft revision you read into an immutable round. |
 | `export [RC-n] --round Fn --output PATH\|- [--format markdown\|bundle] [--replace SHA256]` | A frozen round exactly as frozen, to a chosen file or standard output. |
 | `compare [RC-n] [--from Rn] [--to Rn] [--changed-only] [--cursor PATH] [--path P]` | Files of a capture or a pair, or one file's rows, from retained bytes. |
 | `response import [RC-n] --round Fn --file PATH\|-` | Appends a recipient's structured response to the round. It changes no note and verifies nothing. |
+| `round grant [RC-n] --round Fn [--read-only]` | Exposes one frozen round to a harness: reading it and, unless `--read-only`, adding a response to it. Decided like any export of the round. |
+| `round revoke [RC-n] --round Fn` | Withdraws the round's grant. What was read before cannot be recalled. |
+| `round read [RC-n] --round Fn [--page-bytes N] [--budget-bytes N]` | For a harness: the granted round's assignment and its first page of items. |
+| `round page [RC-n] --round Fn --cursor C` | The next page, by the cursor the previous page gave. |
+| `round source [RC-n] --round Fn [--cursor N \| --source Sn [--range A:B]]` | The round's own source attachments: listed, or one's bytes. |
+| `response append [RC-n] --round Fn --file PATH\|-` | For a harness whose grant allows it: a structured response to the round. |
+| `policy [--classification C --channel CH --permission P]` | The profile's disclosure policy: what each channel decides for each kind of source; or one channel set. |
 
 A cycle is named `RC-n`. Without one, the command uses the one active cycle
 bound to the working folder; several are `target_ambiguous` and none is
@@ -124,7 +131,7 @@ The profile has one writer: whichever process holds its runtime lease
 releases it while a person answers. When another BetterPullReview process
 holds it, the command is sent to that owner over its same-user command channel
 (a local socket beside the desktop's activation endpoint on macOS and Linux, an
-owner-private named pipe on Windows) and the owner runs it on its own store, in
+owner-private named pipe on Windows; protocol 4) and the owner runs it on its own store, in
 a session of its own beside its windows. The terminal never opens the store a
 second time, takes the lease or starts the desktop.
 
@@ -170,9 +177,98 @@ running desktop up to 4 MiB (give `--file PATH` beyond that), and an answer
 larger than the channel carries is `over_limit`, with anything already written
 kept.
 
+## A harness reading one round
+
+A harness that can run `bpr` reads a frozen round without a copy, a file or
+another model ([[BPR-1169]]). The reviewer exposes the round:
+
+```sh
+bpr cycle round grant RC-3 --round F2
+```
+
+The grant is stored in the profile, names exactly that round of that cycle and
+its digest, and allows reading it and adding a response to it (with
+`--read-only`, reading only); nothing else. Granting is the reviewer's export
+of the round through `external_retrieval`, decided by the same
+`core::authorize` as Copy, Save and `export`, so a source of unknown origin
+needs that channel allowed first (see below). Naming a round is not
+permission: without a grant, `round read` is `policy_denied` (`not_granted`)
+however exactly the round is named, and a grant for `F2` reads neither `F1` nor
+another cycle's `F2`. `round revoke` withdraws it; the grant stays listed by
+`show` as revoked, and every later read or response is refused. What was read
+before cannot be recalled.
+
+The harness then runs:
+
+```sh
+bpr cycle round read RC-3 --round F2 --json
+```
+
+It receives the round's identities (`cycle`, `round`, `payload_sha256`, the
+logical project), the assignment, counts (`items_total`, `suggestions_total`,
+`sources_total`, `instruction_bytes`, `source_bytes`) and the first page of
+items, each exactly as the canonical payload holds it. A page holds whole
+items up to `--page-bytes` (1 MiB by default, 4 KiB to 2 MiB) and never cuts
+one; `next` is the cursor of the next page, or null on the last, and
+`complete` is false until then. The harness reads every page with `round page
+--cursor C` before acting on any, and checks that every page names the same
+`payload_sha256` and that the items it holds run from `0` to `items_total`. A
+cursor names its round, digest, position and page size: one from another round
+or digest, or past the end, is `invalid_input`. A harness that states how much
+it can hold with `--budget-bytes N` is told `requires_partition`, with the
+round's measure and nothing else, when the instructions are larger, and so is
+any reader of a round with an item larger than the largest page: the reviewer
+splits it into rounds. A read writes nothing; repeating one returns the same
+bytes.
+
+`round source` lists the round's own attachments (`S1`, `S2`, … with path,
+revision, kind, range and digests, 256 at a time) and returns one's bytes
+(`--source S1`, optionally `--range START:END` within them, 1 MiB at a time,
+base64 with their SHA-256 in JSON). Nothing else of the project is readable this
+way: not another file of the capture, a note or draft outside the round, or the
+store. The working folder may find the cycle (`round read --round F2` inside the
+folder it is bound to), never a window's selection.
+
+`response append` adds a structured response under a grant that allows it,
+recorded as received through the local interface (`local_interface` in
+`show`). It is the recipient's statement: it changes no note, wording or round,
+verifies nothing and publishes nothing, and its claimed author, provider and
+model are kept as claims. `round grant`, `round revoke`, `policy`, `export`,
+`review`, `freeze`, `note` and every other command are the reviewer's, on the
+reviewer's authority: a harness's grant reaches none of them.
+
+A harness may declare itself for every command it runs with
+`BPR_CYCLE_ROLE=consumer` in its environment. `bpr` then refuses every command
+but `round read`, `round page`, `round source`, `response append` and
+`capabilities` with `policy_denied`. That confines a cooperating harness; it is
+not containment of another process running as the same user, which needs the
+operating system's or the harness's own policy.
+
+## Disclosure policy
+
+`bpr cycle policy` shows what each channel (`clipboard`, `local_file`,
+`terminal_output`, `external_retrieval`, `agent_adapter`) decides for each kind
+of source (`unclassified`, `public_source`, `enterprise_restricted`), and
+whether that is configured or the default. A folder or checkout is
+`unclassified` until its classification is observed, and channels that reach
+another program (`external_retrieval`, `agent_adapter`) are not allowed for it
+until configured:
+
+```sh
+bpr cycle policy --classification unclassified --channel external_retrieval --permission allowed
+```
+
+`--permission unconfigured` returns a channel to its default. The policy is
+the profile's, stored with its cycles, and every decision combines it with any
+policy the host imposes, a denial in either standing: the desktop's Compose
+feedback routes, its Copy, Save and Use in external agent, `export`, `round
+grant` and every harness read get the same answer. A denial made after a grant
+holds against it.
+
 ## Not in this build
 
-`round read`, its pages and response-only grants for an external harness are
-[[BPR-1169]]'s; the portable skill is [[BPR-1170]]'s. The parity course across
-desktop, terminal and external consumer is [[BPR-1171]]'s. `publication` commands are not
-offered here.
+The portable skill is [[BPR-1170]]'s. The parity course across desktop,
+terminal and external consumer is [[BPR-1171]]'s. The desktop does not list
+Use in external agent yet ([[BPR-1161]]'s route stays hidden until it is
+enabled there); its host side stores the same grant `round grant` does.
+`publication` commands are not offered here.

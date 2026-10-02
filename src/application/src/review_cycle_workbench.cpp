@@ -865,7 +865,7 @@ namespace bpr::application {
 			share.DocumentShown = aDraft.Document.has_value();
 			share.Document      = aDraft.Document ? std::move(*aDraft.Document) : std::string{ };
 			share.DocumentBytes = aDraft.DocumentBytes;
-			share.Routes        = core::share_routes(Policy, Cycle ? core::cycle_origin(*Cycle) : core::cycle_workspace_origin{ }, Capabilities);
+			share.Routes        = core::share_routes(core::combine_policies(aDraft.Policy, Policy), Cycle ? core::cycle_origin(*Cycle) : core::cycle_workspace_origin{ }, Capabilities);
 			View.Share          = std::move(share);
 		}
 
@@ -916,11 +916,21 @@ namespace bpr::application {
 			const auto& round = *aOutput.Round;
 			const auto  name  = round.Content.Payload.RoundId;
 			if (aRoute == core::cycle_share_route::external_agent) {
-				// Nothing is sent or started: the reviewer's own harness reads it.
-				if (View.Share) {
-					View.Share->Invocation = "bpr cycle round read " + round.Content.Payload.CycleId + " --round " + name;
-				}
-				reload_share(name + " is ready to be read by your own harness through the local interface. Nothing was sent or started.");
+				// Nothing is sent or started: the round is exposed by a stored
+				// grant, which the same channel decision allows, and the
+				// reviewer's own harness reads it ([[BPR-1169]]).
+				auto command = "bpr cycle round read " + round.Content.Payload.CycleId + " --round " + name;
+				Runtime.grant_round_selected(operation(), round.Round.Round.Id.Id, false, Policy,
+											 guarded<cycle_grant_result>([name, invocation = std::move(command)](implementation& aSelf, cycle_grant_result aGranted) mutable {
+												 if (aGranted.Decision != core::cycle_authorization::allowed || !aGranted.Grant) {
+													 aSelf.reload_share(decision_words(aGranted.Decision, core::cycle_share_route::external_agent));
+													 return;
+												 }
+												 if (aSelf.View.Share) {
+													 aSelf.View.Share->Invocation = std::move(invocation);
+												 }
+												 aSelf.reload_share(name + " is ready to be read by your own harness through the local interface: it may read this round and add a response to it, nothing else. Nothing was sent or started.");
+											 }));
 				return;
 			}
 			const auto outcome     = Clipboard != nullptr ? Clipboard->write(aOutput.Bytes) : review_cycle_clipboard::outcome::unavailable;

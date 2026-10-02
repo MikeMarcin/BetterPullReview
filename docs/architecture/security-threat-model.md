@@ -1444,6 +1444,25 @@ evidence text, paths, URLs and test reports are never opened, resolved or run,
 and appending a response or a pasted reply grants no capability, verification
 or publication and changes no source.
 
+Scoped retrieval (BPR-1169) lets a harness that can run `bpr` read one frozen
+round. Its authority is a grant the reviewer stores in the profile for exactly
+that cycle, round and digest: reading it and, unless read-only, appending a
+response. Granting is decided as the reviewer's export of that round through
+`external_retrieval`, so it is refused for a source of unknown or enterprise
+origin until the profile's stored channel policy allows that channel; the
+stored policy is combined with any policy the host imposes, a denial in either
+standing, for every export, route and read alike. Every consumer request is
+decided by `authorize` as a granted consumer from the stored grant, never from
+an identity the caller names, and a revoked grant or a later denial reads
+nothing. A read returns only the round's canonical items, whole and a page at a
+time bound to its digest, and its own attachments; no other capture file,
+note, draft or database record is reachable through it, and a response appended
+under a grant is untrusted data like any other. The commands travel to a
+running desktop over the same owner channel, now protocol 4. A harness can
+declare itself with `BPR_CYCLE_ROLE=consumer`, which confines a cooperating
+harness to these commands; none of this contains another process running as
+the same user, which needs operating-system or harness policy.
+
 Publication preparation (BPR-1172, BPR-1173) is the first cycle surface that
 runs Git, and it is a separate, finite catalog (`publication_candidate_port`,
 `bpr/adapters/git/installed_git_publication.hpp`) that shares the epoch

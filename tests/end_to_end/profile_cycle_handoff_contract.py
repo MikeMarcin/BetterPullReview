@@ -196,6 +196,39 @@ def main():
             assert frozen["round"] == "F1"
             assert "frozen=1" in desktop.ask("wait-share frozen", "SHARE "), "the window shows the round frozen"
 
+            # [[BPR-1169]]. Through the owner, a harness reads the round the reviewer
+            # granted and responds to it; the window's focus redirects nothing, and a
+            # revoked grant reads nothing.
+            refused("policy_denied", 5, "round", "read", "RC-1", "--round", "F1")
+            ok("policy", "--classification", "unclassified", "--channel", "external_retrieval", "--permission", "allowed")
+            granted = ok("round", "grant", "RC-1", "--round", "F1")
+            digest = next(entry["digest"] for entry in ok("show", "RC-1")["rounds"] if entry["round"] == "F1")
+            assert granted["payload_sha256"] == digest and granted["respond"] is True, granted
+            second = workspace / "second"
+            second.mkdir()
+            (second / "notes.txt").write_text("second\n", encoding="utf-8")
+            assert ok("open", str(second))["cycle"] == "RC-2"
+            assert desktop.ask("resume-title second", "FOCUS") == "FOCUSED RC-2", "the window now shows another cycle"
+            read = ok("round", "read", "--round", "F1", cwd=project)
+            assert read["cycle"] == "RC-1" and read["payload_sha256"] == digest and read["next"] is None, "the working folder's cycle, not the window's"
+            assert "Ship the cache" in read["assignment"]["goal"] and int(read["items_total"]) == len(read["items"])
+            refused("not_found", 2, "round", "read", "--round", "F1", cwd=workspace)
+            refused("round_not_ready", 5, "round", "read", "--round", "F1", cwd=second)
+            response = json.dumps({
+                "schema": "bpr.cycle.response.v1", "response_id": "RESP-OWNER", "cycle_id": "RC-1", "round_id": "F1", "round_payload_sha256": digest,
+                "claimed_author": {"display_name": "A harness", "kind": "agent", "provider": "unknown", "model": None, "effort": None}, "result_source_revision_id": None,
+                "items": [{"item_id": read["items"][0]["id"], "item_revision": read["items"][0]["revision"], "disposition": "addressed", "body": "Done.", "evidence": []}],
+            }).encode()
+            assert ok("response", "append", "RC-1", "--round", "F1", "--file", "-", stdin=response)["appended"] is True
+            statements = ok("show", "RC-1")["responses"]
+            assert statements[-1]["channel"] == "local_interface" and statements[-1]["foreign_id"] == "RESP-OWNER", statements
+            assert ok("round", "revoke", "RC-1", "--round", "F1")["revoked"] is True
+            assert refused("policy_denied", 5, "round", "read", "RC-1", "--round", "F1")["detail"]["decision"] == "revoked"
+            harness = subprocess.run([args.cycle_application, "cycle", "show", "RC-1", "--json", "--profile", "1", "--data-root", str(data)], capture_output=True, timeout=120, cwd=workspace,
+                                     env=dict(os.environ, BPR_CYCLE_ROLE="consumer"))
+            assert harness.returncode == 5 and json.loads(harness.stdout)["error"]["code"] == "policy_denied", "a declared harness is held to its grant"
+            assert desktop.ask("resume-title project", "FOCUS") == "FOCUSED RC-1"
+
             # A repeated request is answered as it was first answered and applied once;
             # the same identity for another request is refused.
             count = len(bodies())
@@ -236,7 +269,7 @@ def main():
         # Replacement: a new owner replaces the stale endpoint and is reached in turn.
         desktop = Desktop(args.application, data, workspace, 2)
         try:
-            assert desktop.ask("resume", "RESUMED") == "RESUMED project"
+            assert desktop.ask("resume-title project", "FOCUS") == "FOCUSED RC-1"
             total = len(bodies())
             ok("note", "RC-1", "--body-file", "-", stdin=b"To the new owner.\n")
             assert desktop.ask(f"wait-notes {total + 1}", "NOTES ").endswith("To the new owner."), "the new owner served it and its window shows it"

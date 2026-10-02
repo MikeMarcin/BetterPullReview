@@ -1357,6 +1357,11 @@ namespace bpr::core {
 		return canonical_cycle_json(payload_json(aPayload));
 	}
 
+	auto encode_round_item(const cycle_wire_item& aItem) -> std::optional<std::string>
+	{
+		return canonical_cycle_json(item_json(aItem));
+	}
+
 	auto round_digest(const std::string_view aCanonicalPayload) -> cycle_round_digest
 	{
 		return cycle_round_digest{ sha256(bytes_of(aCanonicalPayload)) };

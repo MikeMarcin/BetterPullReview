@@ -1,5 +1,6 @@
 #include "bpr/application/review_cycle_share.hpp"
 
+#include "bpr/application/review_cycle_retrieval.hpp"
 #include "bpr/application/review_cycle_verification.hpp"
 #include "bpr/core/review_cycle_bundle.hpp"
 #include "bpr/core/review_cycle_round_markdown.hpp"
@@ -25,11 +26,15 @@ namespace bpr::application {
 		auto read_draft(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const core::cycle_round_draft_ref& aDraft,
 						std::vector<core::cycle_next_round_item> aNotes, std::stop_token aStop) -> cycle_store_result<cycle_share_draft>
 		{
+			auto policy = aStore.disclosure_policy(aStop);
+			if (!policy) {
+				return std::unexpected(policy.error());
+			}
 			auto preview = preview_cycle_round(aStore, aHost, aSubject, aDraft, std::move(aStop));
 			if (!preview) {
 				return std::unexpected(preview.error());
 			}
-			auto draft = cycle_share_draft{ .Preview = std::move(*preview), .Notes = std::move(aNotes) };
+			auto draft = cycle_share_draft{ .Preview = std::move(*preview), .Notes = std::move(aNotes), .Policy = *policy };
 			if (draft.Preview.Content) {
 				auto text           = core::render_round_markdown(*draft.Preview.Content);
 				draft.DocumentBytes = text.size();
@@ -212,8 +217,12 @@ namespace bpr::application {
 		if (!*cycle) {
 			return failed(cycle_store_failure::not_found);
 		}
+		auto policy = effective_cycle_policy(aStore, aRequest.Policy, aStop);
+		if (!policy) {
+			return std::unexpected(policy.error());
+		}
 		const auto& content = *preview->Content;
-		output.Decision     = export_decision(aRequest.Policy, aSubject, **cycle, preview->Round, content.Digest, core::share_channel(aRequest.Route));
+		output.Decision     = export_decision(*policy, aSubject, **cycle, preview->Round, content.Digest, core::share_channel(aRequest.Route));
 		if (output.Decision != core::cycle_authorization::allowed || !render(content, aRequest.Route, output)) {
 			return output;
 		}
@@ -266,8 +275,12 @@ namespace bpr::application {
 		if (!round) {
 			return std::unexpected(round.error());
 		}
+		auto policy = effective_cycle_policy(aStore, aRequest.Policy, aStop);
+		if (!policy) {
+			return std::unexpected(policy.error());
+		}
 		auto output     = cycle_share_output{ };
-		output.Decision = export_decision(aRequest.Policy, aSubject, **cycle, aRequest.Round, round->Round.Round.Digest, aRequest.Channel);
+		output.Decision = export_decision(*policy, aSubject, **cycle, aRequest.Round, round->Round.Round.Digest, aRequest.Channel);
 		// A saved document's budget for either destination; a bundle's for a bundle.
 		const auto route = aRequest.Format == core::cycle_round_file_kind::bundle ? core::cycle_share_route::save_bundle : core::cycle_share_route::save_document;
 		if (output.Decision != core::cycle_authorization::allowed || !render(round->Content, route, output)) {

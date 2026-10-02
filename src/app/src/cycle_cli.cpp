@@ -5,6 +5,7 @@
 #include "bpr/core/private_thread_lineage.hpp"
 #include "bpr/core/review_cycle_bundle.hpp"
 #include "bpr/core/review_cycle_response.hpp"
+#include "bpr/core/review_cycle_retrieval.hpp"
 #include "bpr/core/review_cycle_round_markdown.hpp"
 #include "bpr/core/review_tour.hpp"
 #include "cycle_commands.hpp"
@@ -63,6 +64,8 @@ namespace bpr::app {
 			bool                  Json = false, Interactive = false;
 			std::filesystem::path Base;
 			std::string           Profile;
+			/// Declared by `BPR_CYCLE_ROLE=consumer`: only grant-scoped commands.
+			bool Consumer = false;
 		};
 
 		auto command_names() -> QStringList
@@ -132,20 +135,37 @@ namespace bpr::app {
 				result.Name = "capabilities";
 				return result;
 			}
-			if (words.front() == "response") {
-				if (words.size() < 2 || words[1] != "import") {
-					return fail("unsupported_command", "Use bpr cycle response import RC-<n> --round F<n> --file PATH.", "bpr cycle capabilities");
+			if (words.front() == "response" || words.front() == "round") {
+				// Two-word commands: response import|append, round grant|revoke|read|page|source.
+				const auto joined = words.size() < 2 ? std::nullopt : core::parse_cycle_command(utf8(words[0] + " " + words[1]));
+				if (!joined) {
+					return fail("unsupported_command",
+								words.front() == "response" ? "Use bpr cycle response import (or append) RC-<n> --round F<n> --file PATH." : "Use bpr cycle round grant, revoke, read, page or source RC-<n> --round F<n>.",
+								"bpr cycle capabilities");
 				}
-				words[1] = "response import";
+				words[1] = words[0] + " " + words[1];
 				words.removeFirst();
 			}
 			const auto parsed = words.front() == "capabilities" ? std::nullopt : core::parse_cycle_command(utf8(words.front()));
 			if (words.front() != "capabilities" && !parsed) {
 				return fail("unsupported_command", "bpr cycle has no command " + utf8(words.front().left(64)) + ".", "bpr cycle capabilities");
 			}
+			// A harness may declare, for every command it runs, that it acts only on
+			// a grant. The terminal then refuses every other command; this confines
+			// a cooperating harness, it is not containment of a same-user process.
+			const auto role = qEnvironmentVariable("BPR_CYCLE_ROLE");
+			if (!role.isEmpty() && role != "consumer" && role != "reviewer") {
+				return fail("invalid_input", "BPR_CYCLE_ROLE is consumer or reviewer.");
+			}
+			result.Consumer = role == "consumer";
+			if (result.Consumer && parsed && core::authority_of(*parsed) != core::cycle_command_authority::granted_consumer) {
+				return fail("policy_denied",
+							"This bpr acts for a harness (BPR_CYCLE_ROLE=consumer): it reads a round the reviewer granted (bpr cycle round read, page, source) and adds a response to it (bpr cycle response append), nothing else. Nothing was read or changed.",
+							"bpr cycle capabilities");
+			}
 			result.Name           = words.front();
 			const auto positional = words.mid(1);
-			const auto maximum    = parsed ? 1 : 0;
+			const auto maximum    = parsed && parsed != core::cycle_command::policy ? 1 : 0;
 			const auto needed     = parsed == core::cycle_command::open ? 1 : 0;
 			if (positional.size() < needed || positional.size() > maximum) {
 				return fail("invalid_input", needed ? "Name the folder or file to open: bpr cycle open PATH." : "Name at most one cycle, as RC-<n>.");
@@ -189,7 +209,8 @@ namespace bpr::app {
 			}
 			// Paths the owner may act on are made absolute here: it has no working folder of ours.
 			for (const auto& option : { QStringLiteral("--output"), QStringLiteral("--file") }) {
-				if (values.contains(option) && values[option] != "-" && (*parsed == core::cycle_command::export_round || *parsed == core::cycle_command::response_import)) {
+				const auto owners = *parsed == core::cycle_command::export_round || *parsed == core::cycle_command::response_import || *parsed == core::cycle_command::response_append;
+				if (values.contains(option) && values[option] != "-" && owners) {
 					values[option] = chosen_path(values[option]);
 				}
 			}
@@ -230,7 +251,8 @@ namespace bpr::app {
 					aInvocation.Values[option] = "-";
 				}
 			}
-			if (aInvocation.Command == core::cycle_command::response_import && aInvocation.value("--file") == "-") {
+			const auto responding = aInvocation.Command == core::cycle_command::response_import || aInvocation.Command == core::cycle_command::response_append;
+			if (responding && aInvocation.value("--file") == "-") {
 				// Read now, explicitly asked for, before any lease is taken.
 				QFile input;
 				if (!input.open(stdin, QIODevice::ReadOnly, QFileDevice::DontCloseHandle)) {
@@ -248,7 +270,18 @@ namespace bpr::app {
 			return { };
 		}
 
-		auto capabilities() -> output
+		auto consumer_command_names() -> QStringList
+		{
+			QStringList names;
+			for (const auto command : core::typed_cycle_commands()) {
+				if (core::authority_of(command) == core::cycle_command_authority::granted_consumer) {
+					names.push_back(text(core::name(command)));
+				}
+			}
+			return names;
+		}
+
+		auto capabilities(const bool aConsumer) -> output
 		{
 			const auto data = QJsonObject{
 				{ "cli_contract", "1" },
@@ -262,12 +295,15 @@ namespace bpr::app {
 				{ "network", false },
 				{ "cycle_names", "RC-<n> cycles, R<n> captures, I<n> notes, F<n> frozen rounds" },
 				{ "target_resolution", "an explicit RC-<n>, or the one active cycle bound to the working folder; never a remembered or active-window cycle" },
-				{ "owner", "one writer: while another BetterPullReview process owns the profile, each command is forwarded to it over its same-user command channel (protocol 3) and run on its store; an owner without one is refused with capability_unavailable" },
+				{ "owner", "one writer: while another BetterPullReview process owns the profile, each command is forwarded to it over its same-user command channel (protocol 4) and run on its store; an owner without one is refused with capability_unavailable" },
 				{ "operation_id", "--operation-id names a command; repeating it never applies the command twice, and an owner answers a repeat as it answered the first" },
-				{ "round_read", "not in this build: export a frozen round, or read it with bpr cycle export --output -" },
-				{ "response_append", "reviewer import of a chosen file or standard input; it verifies and publishes nothing" },
+				{ "role", aConsumer ? "consumer" : "reviewer" },
+				{ "consumer_commands", QJsonArray::fromStringList(consumer_command_names()) },
+				{ "round_read", "bpr cycle round read RC-<n> --round F<n> reads one frozen round the reviewer granted (bpr cycle round grant): its assignment and its items, whole, a page at a time (round page) with the payload digest and counts; round source reads only the round's own attachments. Naming a round is not permission." },
+				{ "response_append", "bpr cycle response append RC-<n> --round F<n> --file PATH|- adds a structured response under a grant that allows it; it changes no note, verifies nothing and publishes nothing" },
+				{ "grants", "one per frozen round: reading it and, unless --read-only, adding a response; nothing else. Decided like every export of that round; revocable. Grant, revoke and policy are the reviewer's commands." },
 				{ "export_channels", QJsonArray{ "local_file", "terminal_output" } },
-				{ "limits", QJsonObject{ { "page_entries", decimal(cycle_page_entries) }, { "file_rows", decimal(cycle_file_rows) }, { "note_bytes", decimal(core::maximum_private_reviewer_body_bytes) }, { "document_bytes", decimal(core::maximum_round_document_file_bytes) }, { "bundle_bytes", decimal(core::maximum_bundle_archive_bytes) }, { "response_bytes", decimal(core::maximum_response_document_bytes) }, { "owner_message_bytes", decimal(application::maximum_tour_channel_bytes) } } },
+				{ "limits", QJsonObject{ { "page_entries", decimal(cycle_page_entries) }, { "file_rows", decimal(cycle_file_rows) }, { "note_bytes", decimal(core::maximum_private_reviewer_body_bytes) }, { "document_bytes", decimal(core::maximum_round_document_file_bytes) }, { "bundle_bytes", decimal(core::maximum_bundle_archive_bytes) }, { "response_bytes", decimal(core::maximum_response_document_bytes) }, { "owner_message_bytes", decimal(application::maximum_tour_channel_bytes) }, { "round_page_bytes", decimal(core::default_round_page_bytes) }, { "round_page_bytes_minimum", decimal(core::minimum_round_page_bytes) }, { "round_page_bytes_maximum", decimal(core::maximum_round_page_bytes) }, { "round_source_chunk_bytes", decimal(core::maximum_round_source_chunk_bytes) }, { "round_source_list_entries", decimal(core::round_source_list_entries) } } },
 				{ "exit_codes", QJsonObject{ { "0", "ok" }, { "2", "invalid input or target" }, { "3", "interaction_required" }, { "4", "stale_revision, conflict or draft_busy" }, { "5", "refused or unavailable" }, { "6", "uncertain" }, { "7", "storage" }, { "130", "cancelled" } } },
 			};
 			return { data,
@@ -491,7 +527,7 @@ namespace bpr::app {
 		auto perform(const command& aCommand) -> result<output>
 		{
 			if (aCommand.Name == "capabilities") {
-				return capabilities();
+				return capabilities(aCommand.Consumer);
 			}
 			auto invocation = aCommand.Invocation;
 			if (auto read = read_inputs(invocation); !read) {

@@ -4,6 +4,7 @@
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_import.hpp"
+#include "bpr/core/review_cycle_policy.hpp"
 #include "bpr/core/review_cycle_publication.hpp"
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/core/review_cycle_share.hpp"
@@ -413,6 +414,23 @@ namespace bpr::application {
 			-> cycle_store_result<cycle_write_receipt> = 0;
 		/// \brief The cycle's delivery observations in order.
 		virtual auto deliveries(const core::local_cycle_subject& aSubject, std::optional<std::uint64_t> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_delivery_page> = 0;
+
+		/// \brief Stores the reviewer's grant for one frozen round of the cycle
+		/// ([[BPR-1169]]): the round must be this cycle's, frozen with the
+		/// grant's digest. A round has one grant; storing another replaces it,
+		/// and a revoked grant is kept as revoked. `Allocated` is the round.
+		virtual auto record_grant(const cycle_operation_id& aOperation, const core::cycle_round_grant& aGrant, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief The grant stored for one round of the cycle, if any.
+		virtual auto load_grant(const core::local_cycle_subject& aSubject, core::cycle_round_id aRound, std::stop_token aStop) -> cycle_store_result<std::optional<core::cycle_round_grant>> = 0;
+		/// \brief Every grant of the cycle, by round.
+		virtual auto grants(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_round_grant>> = 0;
+		/// \brief The profile's configured disclosure policy ([[BPR-1169]]);
+		/// unconfigured channels are absent and fall back to the defaults.
+		virtual auto disclosure_policy(std::stop_token aStop) -> cycle_store_result<core::cycle_disclosure_policy> = 0;
+		/// \brief Sets one channel's permission for one classification.
+		/// `unconfigured` removes the setting. `Cycle` is zero: no cycle changes.
+		virtual auto set_channel_permission(const cycle_operation_id& aOperation, core::cycle_data_classification aClassification, core::cycle_disclosure_channel aChannel,
+											core::cycle_channel_permission aPermission, std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
 
 		/// \brief Appends one reviewer decision about a note (BPR-1165): the
 		/// wording and captured revision it checked and that material's digest.

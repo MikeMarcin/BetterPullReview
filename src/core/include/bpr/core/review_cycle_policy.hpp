@@ -87,6 +87,28 @@ namespace bpr::core {
 		cycle_channel_policy EnterpriseRestricted;
 		auto                 operator<=>(const cycle_disclosure_policy&) const = default;
 	};
+	inline constexpr std::size_t cycle_data_classification_count = 3U;
+
+	/// \brief Stable names, for the terminal and its scripts ([[BPR-1169]]),
+	/// and back. Nothing for any other spelling.
+	[[nodiscard]] auto stable_name(cycle_data_classification aValue) noexcept -> std::string_view;
+	[[nodiscard]] auto stable_name(cycle_disclosure_channel aValue) noexcept -> std::string_view;
+	[[nodiscard]] auto stable_name(cycle_channel_permission aValue) noexcept -> std::string_view;
+	[[nodiscard]] auto parse_classification(std::string_view aName) noexcept -> std::optional<cycle_data_classification>;
+	[[nodiscard]] auto parse_channel(std::string_view aName) noexcept -> std::optional<cycle_disclosure_channel>;
+	[[nodiscard]] auto parse_permission(std::string_view aName) noexcept -> std::optional<cycle_channel_permission>;
+
+	/// \brief The configured permission of one channel for one classification.
+	[[nodiscard]] auto configured_permission(const cycle_disclosure_policy& aPolicy, cycle_data_classification aClassification, cycle_disclosure_channel aChannel) noexcept
+		-> cycle_channel_permission;
+	/// \brief The same policy with one channel set for one classification.
+	[[nodiscard]] auto with_permission(cycle_disclosure_policy aPolicy, cycle_data_classification aClassification, cycle_disclosure_channel aChannel, cycle_channel_permission aPermission)
+		-> cycle_disclosure_policy;
+	/// \brief Two configurations at once, such as the profile's stored policy
+	/// and one an embedding host imposes ([[BPR-1169]]). A denial in either
+	/// stands; otherwise an allowance in either allows; otherwise nothing is
+	/// configured and the default applies.
+	[[nodiscard]] auto combine_policies(const cycle_disclosure_policy& aFirst, const cycle_disclosure_policy& aSecond) -> cycle_disclosure_policy;
 
 	/// \brief Separate cycle capabilities. There is no execute capability:
 	/// review data is never a command.
@@ -127,6 +149,8 @@ namespace bpr::core {
 	/// \brief The first external profile: read the ready round and append a
 	/// response to it, nothing else.
 	[[nodiscard]] auto response_only_grant(const local_cycle_subject& aSubject, const cycle_round& aRound) -> cycle_round_grant;
+	/// \brief Reading the ready round and nothing else ([[BPR-1169]]).
+	[[nodiscard]] auto read_only_grant(const local_cycle_subject& aSubject, const cycle_round& aRound) -> cycle_round_grant;
 
 	struct cycle_authorization_request
 	{

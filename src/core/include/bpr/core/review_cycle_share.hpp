@@ -104,7 +104,20 @@ namespace bpr::core {
 		std::string Goal;
 		auto        operator<=>(const set_round_goal&) const = default;
 	};
-	using cycle_compose_edit = std::variant<include_round_item, move_round_item, set_round_action, set_round_goal>;
+	/// \brief Includes source for the recipient to read: a whole file or a
+	/// byte range of it, at a captured revision ([[BPR-1169]]).
+	struct include_round_context
+	{
+		cycle_context_selection Context;
+		auto                    operator<=>(const include_round_context&) const = default;
+	};
+	/// \brief Leaves out every included piece of one file.
+	struct exclude_round_context
+	{
+		std::string Path;
+		auto        operator<=>(const exclude_round_context&) const = default;
+	};
+	using cycle_compose_edit = std::variant<include_round_item, move_round_item, set_round_action, set_round_goal, include_round_context, exclude_round_context>;
 
 	/// \brief The first draft of a cycle: every open note in item order, at
 	/// its current wording with the suggestions it still offers, against

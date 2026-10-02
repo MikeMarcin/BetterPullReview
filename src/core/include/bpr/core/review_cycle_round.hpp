@@ -341,6 +341,9 @@ namespace bpr::core {
 	/// Nothing when the payload has no canonical form.
 	[[nodiscard]] auto encode_round_payload(const cycle_round_payload& aPayload) -> std::optional<std::string>;
 	[[nodiscard]] auto round_digest(std::string_view aCanonicalPayload) -> cycle_round_digest;
+	/// \brief One item exactly as the canonical payload holds it, for a
+	/// consumer that reads the round a page at a time ([[BPR-1169]]).
+	[[nodiscard]] auto encode_round_item(const cycle_wire_item& aItem) -> std::optional<std::string>;
 	/// \brief The envelope document (`round.json`): schema, canonicalization,
 	/// digest and payload, as canonical JSON with a final newline.
 	[[nodiscard]] auto encode_round_envelope(const cycle_round_payload& aPayload) -> std::optional<std::string>;

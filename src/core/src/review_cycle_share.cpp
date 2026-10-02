@@ -126,8 +126,15 @@ namespace bpr::core {
 		auto next = aSelection;
 		if (const auto* change = std::get_if<set_round_action>(&aEdit)) {
 			next.Action = change->Action;
+		} else if (const auto* goal = std::get_if<set_round_goal>(&aEdit)) {
+			next.Goal = goal->Goal;
+		} else if (const auto* context = std::get_if<include_round_context>(&aEdit)) {
+			// The same piece twice is one piece; freezing checks it against its revision.
+			if (std::ranges::find(next.Context, context->Context) == next.Context.end()) {
+				next.Context.push_back(context->Context);
+			}
 		} else {
-			next.Goal = std::get<set_round_goal>(aEdit).Goal;
+			std::erase_if(next.Context, [&](const cycle_context_selection& aSelected) { return aSelected.Path == std::get<exclude_round_context>(aEdit).Path; });
 		}
 		return next == aSelection ? std::nullopt : std::optional{ std::move(next) };
 	}

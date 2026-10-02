@@ -193,8 +193,14 @@ namespace bpr::core {
 		response_file,
 		/// Text the reviewer entered or pasted.
 		manual_entry,
+		/// A structured response a harness holding a response grant appended
+		/// through the local interface ([[BPR-1169]]).
+		local_interface,
 	};
 	[[nodiscard]] auto stable_name(cycle_response_channel aValue) noexcept -> std::string_view;
+	/// \brief Whether the statement is a structured response document, as
+	/// opposed to a manual reply.
+	[[nodiscard]] auto structured_response(cycle_response_channel aValue) noexcept -> bool;
 	/// \brief One appended statement as the store records it. Its content is
 	/// an immutable object: the canonical response or manual reply.
 	struct cycle_response_record

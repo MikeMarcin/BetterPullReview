@@ -155,7 +155,12 @@ namespace bpr::qt {
 				auto model = aClaimed->Model ? text_of(*aClaimed->Model) : QString{ };
 				who += model.isEmpty() ? QStringLiteral(" (claims to be an agent)") : QStringLiteral(" (claims agent %1)").arg(model);
 			}
-			return who + (aChannel == core::cycle_response_channel::response_file ? QStringLiteral(", response file") : QStringLiteral(", entered by hand"));
+			switch (aChannel) {
+			case core::cycle_response_channel::response_file:   return who + QStringLiteral(", response file");
+			case core::cycle_response_channel::local_interface: return who + QStringLiteral(", appended by a granted harness");
+			case core::cycle_response_channel::manual_entry:    break;
+			}
+			return who + QStringLiteral(", entered by hand");
 		}
 
 		/// Where a note stands, from the reviewer's own decision or else from
@@ -944,7 +949,7 @@ namespace bpr::qt {
 		// Statements about a round as a whole, and structured responses, after the notes.
 		for (const auto& response : Projection.Responses) {
 			auto lines = QStringList{ };
-			if (response.Channel == core::cycle_response_channel::response_file) {
+			if (core::structured_response(response.Channel)) {
 				lines.append(QStringLiteral("Response %1 to F%2 · %3").arg(text_of(response.ForeignId)).arg(response.Round.value()).arg(sender_text(response.From, response.ClaimedAuthor, response.Channel)));
 				lines.append(QStringLiteral("Speaks to %1 item(s); items it does not name have no response").arg(response.Items));
 				if (response.ClaimedResult) {

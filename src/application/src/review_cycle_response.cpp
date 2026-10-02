@@ -53,7 +53,7 @@ namespace bpr::application {
 	}
 
 	auto import_cycle_response(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const core::cycle_round_id aRound, const std::span<const std::uint8_t> aDocument,
-							   const cycle_operation_id& aOperation, std::stop_token aStop) -> cycle_store_result<cycle_response_result>
+							   const cycle_operation_id& aOperation, std::stop_token aStop, const core::cycle_response_channel aChannel) -> cycle_store_result<cycle_response_result>
 	{
 		if (aDocument.size() > core::maximum_response_document_bytes) {
 			return cycle_response_result{ .Decode = core::cycle_response_decode_error{ .Problem = core::cycle_response_decode_problem::bounds } };
@@ -70,9 +70,12 @@ namespace bpr::application {
 			return std::unexpected(round.error());
 		}
 		if (const auto refusal = core::check_response(decoded->Document, round->Content.Payload, round->Content.Digest)) {
-			return cycle_response_result{ .Refusal = *refusal };
+			return cycle_response_result{ .Refusal = refusal };
 		}
-		return append(aStore, aSubject, *round, core::cycle_response_channel::response_file, decoded->Document.ResponseId, decoded->Canonical, aOperation, aStop);
+		if (!core::structured_response(aChannel)) {
+			return failed(cycle_store_failure::bounds);
+		}
+		return append(aStore, aSubject, *round, aChannel, decoded->Document.ResponseId, decoded->Canonical, aOperation, aStop);
 	}
 
 	auto attach_manual_reply(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const core::cycle_round_id aRound, core::cycle_manual_reply aReply,
@@ -87,7 +90,7 @@ namespace bpr::application {
 		}
 		aReply.RoundId = round->Content.Payload.RoundId;
 		if (const auto refusal = core::check_manual_reply(aReply, round->Content.Payload)) {
-			return cycle_response_result{ .Refusal = *refusal };
+			return cycle_response_result{ .Refusal = refusal };
 		}
 		const auto canonical = core::encode_manual_reply(aReply);
 		if (!canonical) {
@@ -111,7 +114,7 @@ namespace bpr::application {
 					return std::unexpected(bytes.error());
 				}
 				const auto text = std::string_view{ reinterpret_cast<const char*>(bytes->data()), bytes->size() };
-				if (record.Channel == core::cycle_response_channel::response_file) {
+				if (core::structured_response(record.Channel)) {
 					auto decoded = core::decode_response_document(text);
 					if (!decoded || decoded->Canonical != text || decoded->Document.ResponseId != record.ForeignId) {
 						return failed(cycle_store_failure::corrupt);

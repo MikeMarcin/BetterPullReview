@@ -574,6 +574,93 @@ namespace {
 		std::cout << "NATIVE: Compose and Share through the host: copy, save, conflict, bundle, amendment, refused channel, external route\n";
 	}
 
+	/// Runs one runtime call on its own lanes, beside a desk, to its completion.
+	template <typename T, typename TStart>
+	auto settle(const std::filesystem::path& aProfileRoot, const std::optional<core::local_cycle_subject>& aSubject, TStart aStart) -> application::cycle_store_result<T>
+	{
+		application::manual_executor      lanes;
+		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), lanes, lanes };
+		if (aSubject) {
+			runtime.select(*aSubject);
+		}
+		auto result = std::optional<application::cycle_store_result<T>>{ };
+		aStart(runtime, [&](application::cycle_store_result<T> aValue) { result = std::move(aValue); });
+		lanes.drain();
+		runtime.shutdown();
+		lanes.drain();
+		expect(result.has_value(), "the call completed");
+		return std::move(*result);
+	}
+
+	auto operation_of(const std::uint8_t aIndex) -> application::cycle_operation_id
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		bytes[0]   = 0xB9;
+		bytes[1]   = aIndex;
+		return application::cycle_operation_id{ bytes };
+	}
+
+	/// [[BPR-1169]]. The profile's stored policy decides the desktop's routes as
+	/// it decides the terminal's, and Use in external agent exposes exactly the
+	/// round it froze by a stored response-only grant, which a consumer then
+	/// reads only while policy allows it.
+	void exposes_a_round_under_the_stored_policy(const std::filesystem::path& aScratch)
+	{
+		tests::sqlite_contract::scratch_root profileScratch{ "cycle-grant-profile" };
+		const auto&                          profileRoot = profileScratch.path();
+		const auto                           project     = aScratch / "grant-project";
+		write_file(project / "README.md", "# Grant\n");
+		auto clipboard = clipboard_double{ };
+		auto work      = desk{ profileRoot, 41 };
+		connect(work, clipboard);
+		work.Host->open_project(project.string());
+		work.Lanes.drain();
+		work.Host->comment({ .Primary = core::cycle_whole_target{ }, .Body = "Say what it grants." });
+		work.Lanes.drain();
+		const auto subject = work.view().Cycle->Subject;
+		const auto set     = [&](const core::cycle_disclosure_channel aChannel, const core::cycle_channel_permission aPermission, const std::uint8_t aIndex) {
+			const auto written = settle<application::cycle_write_receipt>(profileRoot, std::nullopt, [&](auto& aRuntime, auto aDone) {
+				aRuntime.set_channel_permission(operation_of(aIndex), core::cycle_data_classification::unclassified, aChannel, aPermission, std::move(aDone));
+			});
+			expect(written.has_value(), "the policy is stored");
+		};
+
+		// A stored denial holds for the desktop although the host imposes nothing.
+		set(core::cycle_disclosure_channel::clipboard, core::cycle_channel_permission::denied, 1);
+		work.Host->compose();
+		expect(offer(*work.view().Share, core::cycle_share_route::copy_document)->Decision == core::cycle_authorization::channel_denied, "Copy is refused by the stored policy");
+		work.Host->share(core::cycle_share_route::copy_document);
+		expect(clipboard.Written.empty() && !work.view().Share->Frozen, "nothing copied or frozen");
+		set(core::cycle_disclosure_channel::clipboard, core::cycle_channel_permission::unconfigured, 2);
+
+		// Use in external agent: refused until allowed, then a stored grant for the round it froze.
+		work.Host->set_share_environment({ }, { .ExternalInterface = true });
+		work.Host->compose();
+		expect(offer(*work.view().Share, core::cycle_share_route::external_agent)->Decision == core::cycle_authorization::channel_unconfigured, "not allowed until configured");
+		set(core::cycle_disclosure_channel::external_retrieval, core::cycle_channel_permission::allowed, 3);
+		work.Host->compose();
+		expect(offer(*work.view().Share, core::cycle_share_route::external_agent)->offered(), "allowed by the stored policy");
+		const auto digest = *work.view().Share->Digest;
+		work.Host->share(core::cycle_share_route::external_agent);
+		const auto& shared = *work.view().Share;
+		expect(shared.Frozen && shared.Invocation == "bpr cycle round read RC-1 --round F1" && shared.Status.find("add a response") != std::string::npos, "frozen, and the exact invocation shown");
+		const auto grants = settle<std::vector<core::cycle_round_grant>>(profileRoot, subject, [](auto& aRuntime, auto aDone) { aRuntime.grants_selected(std::move(aDone)); });
+		expect(grants && grants->size() == 1U && grants->front().Round.Id == core::cycle_round_id{ 1 } && grants->front().Digest == digest && grants->front().ReadRound && grants->front().AppendResponse
+				   && !grants->front().Revoked,
+			   "the response-only grant for exactly that round");
+		const auto read = [&] {
+			return settle<application::cycle_granted_round>(profileRoot, subject, [](auto& aRuntime, auto aDone) { aRuntime.read_granted_round_selected(core::cycle_round_id{ 1 }, { }, std::move(aDone)); });
+		};
+		const auto granted = read();
+		expect(granted && granted->Decision == core::cycle_authorization::allowed && granted->Round && granted->Round->Content.Digest == digest, "a consumer reads that round");
+		const auto other = settle<application::cycle_granted_round>(profileRoot, subject, [](auto& aRuntime, auto aDone) { aRuntime.read_granted_round_selected(core::cycle_round_id{ 2 }, { }, std::move(aDone)); });
+		expect(!other && other.error().Failure == application::cycle_store_failure::not_found, "and no round that was not frozen");
+		set(core::cycle_disclosure_channel::external_retrieval, core::cycle_channel_permission::denied, 4);
+		const auto denied = read();
+		expect(denied && denied->Decision == core::cycle_authorization::channel_denied && !denied->Round, "a later denial holds against the stored grant");
+		std::cout << "NATIVE: the stored policy decides desktop routes; Use in external agent stores a response-only grant for the round it froze\n";
+	}
+
 	/// Output over the clipboard's limit is refused with its measure and
 	/// nothing cut short or frozen; Save to File stays offered.
 	void refuses_a_copy_over_the_clipboard_limit(const std::filesystem::path& aScratch)
@@ -713,6 +800,7 @@ try {
 	iterates_manually(scratch.path(), tests::workspace_contract::git_from(aArgc, aArgv));
 	composes_and_shares_one_round(scratch.path());
 	refuses_a_copy_over_the_clipboard_limit(scratch.path());
+	exposes_a_round_under_the_stored_policy(scratch.path());
 	keeps_work_beside_another_interface(scratch.path());
 	std::cout << "review-cycle-workbench-tests:pass\n";
 	return EXIT_SUCCESS;

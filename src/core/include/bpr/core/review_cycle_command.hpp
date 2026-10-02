@@ -27,7 +27,33 @@ namespace bpr::core {
 		/// Records what standard output did with an exported round; the
 		/// terminal issues it after writing, never a person.
 		export_record,
+		/// [[BPR-1169]]. Lets a harness read one frozen round, and by default
+		/// append a response to it; nothing else.
+		round_grant,
+		round_revoke,
+		/// Read the round a grant names: its assignment and a page of items.
+		round_read,
+		/// The next page of items, by the cursor the previous one gave.
+		round_page,
+		/// The round's source attachments: listed, or one's bytes.
+		round_source,
+		/// A granted harness's structured response to the round.
+		response_append,
+		/// The profile's disclosure policy: shown, or one channel set.
+		policy,
 	};
+	/// The last command in the registry, for codecs that check a range.
+	inline constexpr auto last_cycle_command = cycle_command::policy;
+
+	/// \brief On whose authority a command acts ([[BPR-1169]]).
+	enum class cycle_command_authority : std::uint8_t {
+		/// The reviewer's local authoring authority.
+		reviewer,
+		/// Only what a stored grant for one frozen round allows: never the
+		/// reviewer's, whoever runs it.
+		granted_consumer,
+	};
+	[[nodiscard]] auto authority_of(cycle_command aCommand) noexcept -> cycle_command_authority;
 
 	/// \brief The command as typed after `bpr cycle` ("export", "response import").
 	[[nodiscard]] auto name(cycle_command aCommand) noexcept -> std::string_view;
