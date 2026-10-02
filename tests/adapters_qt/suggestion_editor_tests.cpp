@@ -1,4 +1,5 @@
 #include "../support/test_expectation.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/suggestion_composer.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 
@@ -14,10 +15,14 @@
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTextBlock>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <string>
+#include <vector>
 
 /// \file
 /// \brief Native course for the focused suggestion editor (BPR-1156): real
@@ -176,6 +181,94 @@ namespace {
 		expect(!aEditor.accessibleName().isEmpty() && !aEditor.accessibleDescription().isEmpty(), "accessible name and description");
 	}
 
+	/// Pixels of the rendered widget within a small distance of `aColour`.
+	auto pixels_near(QWidget& aWidget, const QColor& aColour) -> int
+	{
+		const auto image = aWidget.grab().toImage();
+		auto       count = 0;
+		for (int y = 0; y < image.height(); ++y) {
+			for (int x = 0; x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				if (std::abs(pixel.red() - aColour.red()) <= 24 && std::abs(pixel.green() - aColour.green()) <= 24 && std::abs(pixel.blue() - aColour.blue()) <= 24) {
+					++count;
+				}
+			}
+		}
+		return count;
+	}
+
+	auto chromatic(const QColor& aColour) -> bool
+	{
+		return std::max({ aColour.red(), aColour.green(), aColour.blue() }) - std::min({ aColour.red(), aColour.green(), aColour.blue() }) > 60;
+	}
+
+	/// BPR-1156: Suggest change paints classified code in the review panes'
+	/// role colours: the proposal inside its whole file, the editor and the
+	/// before/after preview, and nothing from a classification of other text.
+	void syntax(qt::suggestion_composer& aComposer)
+	{
+		using role             = core::appearance_role;
+		const auto file        = std::string{ "/* note\r\n   still */\r\nint f()\r\n{\r\n\treturn g(1);\r\n}\r\n" };
+		auto       asked       = std::vector<qt::suggestion_syntax_request>{ };
+		aComposer.SyntaxWanted = [&asked](const qt::suggestion_syntax_request& aRequest) { asked.push_back(aRequest); };
+		const auto profile     = qt::appearance_profile{ };
+		const auto flow        = profile.color(role::syntax_control_flow);
+		const auto number      = profile.color(role::syntax_number);
+		expect(chromatic(flow) && chromatic(number), "the role colours are told apart from text by hue");
+		aComposer.adopt_appearance(profile);
+		aComposer.begin({ .Location = "src/f.cpp \xC2\xB7 line 5 \xC2\xB7 R1", .Before = "{\r\n\t", .Original = "return g(1)", .After = ";\r\n}\r\n", .Path = "src/f.cpp", .File = file, .Start = 35U });
+		settle();
+		expect(asked.size() == 2U && asked[0].Side == qt::suggestion_syntax_side::original && asked[1].Side == qt::suggestion_syntax_side::proposed && asked[0].Path == "src/f.cpp"
+				   && asked[0].Document == file && asked[1].Document == file,
+			   "both texts asked for, each the whole file");
+		auto* const editor  = aComposer.editor();
+		auto* const preview = aComposer.findChild<QPlainTextEdit*>(QStringLiteral("suggestionPreview"));
+		expect(pixels_near(*editor, flow) == 0, "nothing coloured before a classification arrives");
+
+		// What the classifier reports for the file: lines split at LF, byte columns.
+		const auto spans = std::make_shared<const application::token_span_list>(application::token_span_list{
+			{ .Line = 0U, .Column = 0U, .Length = 7U, .Role = role::syntax_comment },
+			{ .Line = 1U, .Column = 0U, .Length = 11U, .Role = role::syntax_comment },
+			{ .Line = 2U, .Column = 4U, .Length = 1U, .Role = role::syntax_function },
+			{ .Line = 4U, .Column = 1U, .Length = 6U, .Role = role::syntax_control_flow },
+			{ .Line = 4U, .Column = 8U, .Length = 1U, .Role = role::syntax_function },
+			{ .Line = 4U, .Column = 10U, .Length = 1U, .Role = role::syntax_number },
+		});
+		expect(!aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file + "x", spans), "a classification of other text is refused");
+		expect(aComposer.adopt_syntax(qt::suggestion_syntax_side::original, file, spans) && aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file, spans), "both adopted");
+		settle();
+		const auto keyword = pixels_near(*editor, flow);
+		expect(keyword > 10 && pixels_near(*editor, number) > 0, "the editor paints the keyword and the number in their role colours");
+		capture(aComposer, QStringLiteral("suggestion-composer-syntax"));
+		const auto removed = preview->document()->findBlockByNumber(1);
+		expect(removed.text() == QStringLiteral("- \treturn g(1);"), "the removed row");
+		const auto formats = removed.layout()->formats();
+		expect(std::ranges::any_of(formats, [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 3 && aRange.length == 6 && aRange.format.foreground().color() == flow; }),
+			   "the preview colours the keyword after its marker");
+		expect(pixels_near(*preview, flow) > 10, "and paints it");
+
+		// An edit asks again; the edited line is plain until its own classification arrives.
+		editor->setFocus();
+		key(*editor, Qt::Key_End);
+		type(*editor, QStringLiteral("x"));
+		settle();
+		const auto edited = std::string{ "/* note\r\n   still */\r\nint f()\r\n{\r\n\treturn g(1)x;\r\n}\r\n" };
+		expect(asked.size() == 3U && asked[2].Side == qt::suggestion_syntax_side::proposed && asked[2].Document == edited, "the proposal asked for inside its file after the edit");
+		expect(pixels_near(*editor, flow) == 0, "a changed line drops colours that no longer describe it");
+		expect(!aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, file, spans), "a late classification of the earlier text is refused");
+		expect(aComposer.adopt_syntax(qt::suggestion_syntax_side::proposed, edited, spans), "the current one is adopted");
+		settle();
+		expect(pixels_near(*editor, flow) > 10, "coloured again");
+		// A line that only moves keeps its colours until the next classification.
+		key(*editor, Qt::Key_Home);
+		key(*editor, Qt::Key_Home);
+		key(*editor, Qt::Key_Return);
+		settle();
+		expect(editor->text() == "\r\nreturn g(1)x" || editor->text() == "\nreturn g(1)x", "a line break before the line");
+		expect(pixels_near(*editor, flow) > 10, "the moved line keeps its colours");
+		aComposer.SyntaxWanted = { };
+	}
+
 	void composer(qt::suggestion_composer& aComposer)
 	{
 		aComposer.begin({
@@ -225,6 +318,7 @@ try {
 	composer.show();
 	settle();
 	::composer(composer);
+	syntax(composer);
 	std::cout << "suggestion-editor-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

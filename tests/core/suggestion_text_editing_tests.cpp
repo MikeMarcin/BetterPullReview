@@ -37,6 +37,15 @@ namespace {
 		expect(lines.size() == 4 && lines[0].Ending == text_line_ending::crlf && lines[1].Ending == text_line_ending::cr && lines[2].Ending == text_line_ending::lf && lines[3].Ending == text_line_ending::none, "line endings kept");
 	}
 
+	/// BPR-1156: the proposal is highlighted inside its file, exactly.
+	void splices_the_proposal_into_its_file()
+	{
+		expect(splice_text("int f()\r\n{\r\n\treturn 1;\r\n}\r\n", 20, 21, "g(2)") == "int f()\r\n{\r\n\treturn g(2);\r\n}\r\n", "replaced in place");
+		expect(splice_text("/* a\nb */", 5, 5, "c") == "/* a\ncb */", "an insertion inside a comment");
+		expect(splice_text("abc", 0, 3, "") == "", "a deletion of everything");
+		expect(!splice_text("abc", 2, 4, "x") && !splice_text("abc", 2, 1, "x"), "a range outside the file is refused");
+	}
+
 	/// Alt+Shift+Down twice, then Shift+End: one caret per line, each
 	/// selecting to its own line end and never across a line break.
 	void box_then_shift_end_stays_on_each_line()
@@ -189,6 +198,7 @@ namespace {
 auto main() -> int
 {
 	keeps_exact_bytes();
+	splices_the_proposal_into_its_file();
 	box_then_shift_end_stays_on_each_line();
 	edits_in_virtual_space();
 	copies_and_pastes_boxes();

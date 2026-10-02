@@ -6553,7 +6553,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			});
 			Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
-			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane);
+			// Suggest change is coloured by the panes' classifier over the same
+			// definitions, on the lane every classifier over them runs on.
+			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
+																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects });
 			Window->set_profile_label(QString::fromStdString(aAdmission.Label));
 			Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));
 			Window->set_receipt_dispatch(
@@ -14536,6 +14539,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {
 				overview->adopt_appearance(*AppearanceProfile);
+			}
+			// [[BPR-1156]]. Suggest change paints its code in the panes' role colours.
+			if (CycleDesktop) {
+				CycleDesktop->adopt_appearance(*AppearanceProfile);
 			}
 			if (auto* const files = Window->files_tree(); files != nullptr) {
 				files->adopt_appearance(*AppearanceProfile);

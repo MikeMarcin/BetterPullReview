@@ -199,6 +199,12 @@ namespace bpr::core {
 	[[nodiscard]] auto split_text_lines(std::string_view aText) -> std::vector<text_line>;
 	/// \brief Joins lines back into exact bytes.
 	[[nodiscard]] auto join_text_lines(const std::vector<text_line>& aLines) -> std::string;
+	/// \brief The bytes a proposal is highlighted as: `aFile` with
+	/// [`aStart`, `aEnd`) replaced by `aReplacement` (BPR-1156).
+	/// \details The proposal is classified inside its whole file rather than
+	/// on its own, so a selection that begins inside a comment or a string
+	/// reads the way the file does. Nothing when the range lies outside the file.
+	[[nodiscard]] auto splice_text(std::string_view aFile, std::uint64_t aStart, std::uint64_t aEnd, std::string_view aReplacement) -> std::optional<std::string>;
 }
 
 #endif

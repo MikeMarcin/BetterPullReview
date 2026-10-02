@@ -5,13 +5,17 @@
 
 #include <QAbstractScrollArea>
 #include <QFont>
+#include <QList>
 #include <QString>
+#include <QTextLayout>
 
 #include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <vector>
 
 class QInputMethodEvent;
 class QKeyEvent;
@@ -24,13 +28,22 @@ namespace bpr::qt {
 	/// back through common monospace families when that one is proportional.
 	[[nodiscard]] auto suggestion_code_font() -> QFont;
 
+	/// \brief The syntax colours of one editor line and the exact content
+	/// they were classified from.
+	struct suggestion_line_syntax
+	{
+		std::string                     Content;
+		QList<QTextLayout::FormatRange> Formats;
+	};
+
 	/// \brief The focused code-proposal editor of Suggest change (BPR-1156).
 	///
 	/// \details A small native editor over `core::suggestion_text_editor`: it
 	/// paints lines in the code font with tabs at their stops, draws every
 	/// caret and selection, and translates keys, IME composition, mouse
 	/// gestures and the clipboard into semantic edits. It is not an IDE: no
-	/// completion, syntax service, file access or process. Alt+Shift+Arrow
+	/// completion, file access or process, and it runs no lexer; syntax
+	/// colours arrive already classified (`set_syntax`). Alt+Shift+Arrow
 	/// grows a box selection on every platform; Home and End (with Shift)
 	/// act on each caret's own line on every platform, alongside the
 	/// platform's own line-start and line-end sequences; Tab inserts a tab
@@ -53,6 +66,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto preedit() const noexcept -> const QString&;
 		/// \brief Uses the composed code typography; the palette stays native.
 		void set_code_font(const QFont& aFont);
+		/// \brief Colours lines from a classification of the text (BPR-1156).
+		/// \details Formats are the shared code painter's ranges, in UTF-16
+		/// units of each line. A line is coloured only by an entry whose
+		/// content it still equals, at its own index or elsewhere, so a line
+		/// typed since the classification stays plain until the next one
+		/// arrives and a line that merely moved keeps its colours. New text
+		/// clears the colours.
+		void set_syntax(std::vector<suggestion_line_syntax> aLines);
 		/// \brief Applies one semantic edit as a gesture would.
 		auto apply(const core::suggestion_edit& aEdit) -> bool;
 		/// \brief The primary caret's rectangle in viewport coordinates.
@@ -88,10 +109,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto line_height() const -> int;
 		[[nodiscard]] auto column_width() const -> qreal;
 		[[nodiscard]] auto column_x(std::uint64_t aColumn) const -> qreal;
+		[[nodiscard]] auto syntax_of(std::uint64_t aLine) const -> const QList<QTextLayout::FormatRange>*;
 
-		core::suggestion_text_editor Editor;
-		QString                      Preedit;
-		QFont                        CodeFont;
+		core::suggestion_text_editor                 Editor;
+		QString                                      Preedit;
+		QFont                                        CodeFont;
+		std::vector<suggestion_line_syntax>          Syntax;
+		std::unordered_map<std::string, std::size_t> SyntaxByContent;
 	};
 }
 

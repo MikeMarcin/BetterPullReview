@@ -100,6 +100,8 @@ namespace bpr::qt {
 	{
 		Editor = core::suggestion_text_editor{ aText, aTabWidth };
 		Preedit.clear();
+		Syntax.clear();
+		SyntaxByContent.clear();
 		update_scrollbars();
 		viewport()->update();
 	}
@@ -126,6 +128,26 @@ namespace bpr::qt {
 		update_scrollbars();
 		viewport()->update();
 		updateGeometry();
+	}
+
+	void suggestion_editor::set_syntax(std::vector<suggestion_line_syntax> aLines)
+	{
+		Syntax = std::move(aLines);
+		SyntaxByContent.clear();
+		for (std::size_t index = 0; index < Syntax.size(); ++index) {
+			SyntaxByContent.try_emplace(Syntax[index].Content, index);
+		}
+		viewport()->update();
+	}
+
+	auto suggestion_editor::syntax_of(const std::uint64_t aLine) const -> const QList<QTextLayout::FormatRange>*
+	{
+		const auto& content = Editor.state().Lines[aLine].Content;
+		if (aLine < Syntax.size() && Syntax[aLine].Content == content) {
+			return &Syntax[aLine].Formats;
+		}
+		const auto moved = SyntaxByContent.find(content);
+		return moved == SyntaxByContent.end() ? nullptr : &Syntax[moved->second].Formats;
 	}
 
 	auto suggestion_editor::apply(const core::suggestion_edit& aEdit) -> bool
@@ -239,28 +261,44 @@ namespace bpr::qt {
 			}
 		}
 		// One glyph per column cell, so carets, selections and boxes line up
-		// whatever the font's own advances are.
-		painter.setPen(palette().text().color());
-		const auto tab = state.TabWidth;
+		// whatever the font's own advances are. A classified glyph takes its
+		// role's colour; everything else is the native text colour.
+		const auto text = palette().text().color();
+		const auto tab  = state.TabWidth;
 		for (auto line = first; line < last; ++line) {
 			const auto  y       = static_cast<qreal>(static_cast<int>(line - first) * height + ascent);
 			const auto& content = state.Lines[line].Content;
+			const auto* formats = syntax_of(line);
 			auto        column  = std::uint64_t{ 0 };
+			// The glyph's position in UTF-16 units, which is how the shared
+			// painter's ranges count.
+			auto unit = 0;
 			for (std::size_t index = 0; index < content.size();) {
 				if (content[index] == '\t') {
 					column += tab - (column % tab);
 					++index;
+					++unit;
 					continue;
 				}
 				auto length = std::size_t{ 1 };
 				while (index + length < content.size() && (static_cast<unsigned char>(content[index + length]) & 0xC0U) == 0x80U && length < 4U) {
 					++length;
 				}
+				auto colour = text;
+				if (formats != nullptr) {
+					const auto range = std::ranges::find_if(*formats, [unit](const QTextLayout::FormatRange& aRange) { return unit >= aRange.start && unit < aRange.start + aRange.length; });
+					if (range != formats->end() && range->format.hasProperty(QTextFormat::ForegroundBrush)) {
+						colour = range->format.foreground().color();
+					}
+				}
+				painter.setPen(colour);
 				painter.drawText(QPointF{ column_x(column), y }, QString::fromUtf8(content.data() + index, static_cast<qsizetype>(length)));
 				index += length;
+				unit += length == 4U ? 2 : 1;
 				++column;
 			}
 		}
+		painter.setPen(text);
 		// Carets, and the IME composition at the primary one.
 		const auto caretColour = hasFocus() ? palette().text().color() : palette().placeholderText().color();
 		for (std::size_t index = 0; index < state.Carets.size(); ++index) {

@@ -135,6 +135,17 @@ namespace bpr::core {
 		return text;
 	}
 
+	auto splice_text(const std::string_view aFile, const std::uint64_t aStart, const std::uint64_t aEnd, const std::string_view aReplacement) -> std::optional<std::string>
+	{
+		if (aStart > aEnd || aEnd > aFile.size()) {
+			return std::nullopt;
+		}
+		auto text = std::string{ aFile.substr(0, static_cast<std::size_t>(aStart)) };
+		text += aReplacement;
+		text += aFile.substr(static_cast<std::size_t>(aEnd));
+		return text;
+	}
+
 	suggestion_text_editor::suggestion_text_editor(const std::string_view aText, const std::uint32_t aTabWidth)
 	{
 		State.Lines    = split_text_lines(aText.substr(0, std::min(aText.size(), maximum_suggestion_editor_bytes)));

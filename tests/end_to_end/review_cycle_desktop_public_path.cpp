@@ -2,9 +2,11 @@
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
+#include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
 #include "bpr/core/review_cycle_response.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "review_cycle_desktop.hpp"
@@ -21,7 +23,9 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStackedWidget>
+#include <QTextBlock>
 #include <QTextCursor>
+#include <QTextLayout>
 #include <QToolButton>
 
 #include <algorithm>
@@ -115,6 +119,35 @@ namespace {
 		return content;
 	}
 
+	/// Pixels of the rendered widget within a small distance of `aColour`.
+	auto pixels_near(QWidget& aWidget, const QColor& aColour) -> int
+	{
+		const auto image = aWidget.grab().toImage();
+		auto       count = 0;
+		for (int y = 0; y < image.height(); ++y) {
+			for (int x = 0; x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				if (std::abs(pixel.red() - aColour.red()) <= 24 && std::abs(pixel.green() - aColour.green()) <= 24 && std::abs(pixel.blue() - aColour.blue()) <= 24) {
+					++count;
+				}
+			}
+		}
+		return count;
+	}
+
+	/// Whether a preview row carries `aColour` on the characters [aStart, aStart + aLength).
+	auto row_coloured(const QPlainTextEdit& aPreview, const QString& aRow, const int aStart, const int aLength, const QColor& aColour) -> bool
+	{
+		for (auto block = aPreview.document()->firstBlock(); block.isValid(); block = block.next()) {
+			if (block.text() == aRow && block.layout() != nullptr) {
+				return std::ranges::any_of(block.layout()->formats(), [&](const QTextLayout::FormatRange& aRange) {
+					return aRange.start == aStart && aRange.length == aLength && aRange.format.foreground().color() == aColour;
+				});
+			}
+		}
+		return false;
+	}
+
 	auto identity_text(qt::workbench_window& aWindow) -> QString
 	{
 		auto* const label = aWindow.findChild<QLabel*>(QStringLiteral("workbenchStripIdentity"));
@@ -136,7 +169,11 @@ try {
 	auto window = qt::workbench_window{ };
 	window.resize(1280, 800);
 	window.show();
-	auto desktop = app::review_cycle_desktop{ window, profile.path(), core::bpr_profile_id{ 1 }, lanes, lanes };
+	// BPR-1156: the packaged definitions the review panes classify with.
+	const auto definitions = adapters::syntax::packaged_definition_catalog{ };
+	auto       desktop     = app::review_cycle_desktop{ window, profile.path(), core::bpr_profile_id{ 1 }, lanes, lanes, { .Definitions = &definitions, .Effects = &lanes } };
+	const auto appearance  = qt::appearance_profile{ };
+	desktop.adopt_appearance(appearance);
 	settle(lanes);
 
 	// Home offers the local way in with no account: File > Open Project… and the section.
@@ -173,12 +210,25 @@ try {
 	settle(lanes);
 	expect(page->notes()->count() == 1 && page->notes()->item(0)->text().contains(QStringLiteral("Why check here?")), "first note saved and listed");
 
-	// A suggestion from the same selection.
+	// A suggestion from the same selection, coloured by the panes' classifier
+	// with the proposal inside its whole file (BPR-1156).
 	page->source()->setTextCursor(cursor);
 	page->suggest_action()->trigger();
+	auto* const suggestion = page->composer()->editor();
+	auto* const preview    = page->composer()->findChild<QPlainTextEdit*>(QStringLiteral("suggestionPreview"));
+	const auto  function   = appearance.color(core::appearance_role::syntax_function);
+	const auto  flow       = appearance.color(core::appearance_role::syntax_control_flow);
+	expect(pixels_near(*suggestion, function) == 0, "plain until the classification arrives");
+	settle(lanes);
+	expect(pixels_near(*suggestion, function) > 10, "the editor paints check( in the function colour the panes use");
+	expect(row_coloured(*preview, QStringLiteral("- \treturn check(aText);"), 3, 6, flow), "the preview's removed row colours return as control flow");
 	page->composer()->editor()->apply(core::select_all{ });
 	page->composer()->editor()->apply(core::insert_text{ "validate(aText)" });
+	settle(lanes);
+	expect(suggestion->text() == "validate(aText)" && pixels_near(*suggestion, function) > 10, "the edited proposal is classified again and coloured");
+	expect(row_coloured(*preview, QStringLiteral("+ \treturn validate(aText);"), 3, 6, flow), "the added row too");
 	capture(window, QStringLiteral("desktop-cycle-suggest"));
+	capture(*page->composer(), QStringLiteral("desktop-cycle-suggest-composer"));
 	page->composer()->save_button()->click();
 	settle(lanes);
 	expect(page->notes()->count() == 2 && page->notes()->item(1)->text().contains(QStringLiteral("Suggested change")), "suggestion saved");

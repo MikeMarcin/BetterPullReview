@@ -1055,6 +1055,9 @@ namespace bpr::qt {
 			.Before   = anchor->Before,
 			.Original = anchor->Original,
 			.After    = anchor->After,
+			.Path     = anchor->Path,
+			.File     = std::string{ Projection.Source->Bytes.begin(), Projection.Source->Bytes.end() },
+			.Start    = anchor->Start,
 		});
 		const auto latest = Projection.Revisions.empty() ? std::nullopt : std::optional{ Projection.Revisions.back() };
 		if (latest && *latest != anchor->Revision) {

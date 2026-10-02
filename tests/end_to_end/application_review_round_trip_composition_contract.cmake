@@ -523,6 +523,15 @@ endfunction()
 # terminal from a perform_store helper instead of reassigning an expected<void,
 # E>, with the same results: a throw still answers unavailable. No grant,
 # target, provider or publication path changes; mutation pin unchanged.
+# BPR-1156 reseal: e257b236..this candidate; no intervening pinned-scope commit.
+# Suggest change is coloured by the review panes' packaged classifier: the
+# composition hands review_cycle_desktop the existing definition catalog and
+# the appearance effect lane (the lane the panes' classifier already runs on),
+# and apply_appearance gives it the profile's role colours. The desktop holds
+# the composer's in-memory texts by blob identity for a small, separate
+# syntax_classification_application_host and adopts only spans of the text
+# still shown. It reads no file and runs no process; no grant, target, provider
+# or publication path changes; mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -541,7 +550,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"ec5ac66a92d918ba4d9535882ba844a4af2a12a4a0f573ab40933cf0a0510b1e"
+		"0cfde91e4344491a7e9627a555d15046c5adcb4b6477611aaa85a410e87fe856"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -727,7 +736,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e14b564f70b0d4c5955658893f8e9fc6f5e272108c48e680c3b358f2778284be"
+        "154c060972674583fd711cc20fef8a31c1b34c7677695575d9e5c1f1f76ecb99"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

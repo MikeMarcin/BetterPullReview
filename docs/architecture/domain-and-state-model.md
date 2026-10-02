@@ -309,7 +309,11 @@ focused suggestion editor (`suggestion_text_editing.hpp` with
 `bpr/qt/suggestion_editor.hpp`) keeps exact lines with their own endings and
 offers multiple carets, box selection, virtual space, IME composition and
 ordinary undo; its composer previews the edit in context and never writes a
-file.
+file. The editor and the preview are coloured by the review panes' packaged
+classifier: the composition classifies the proposal inside its whole file
+(`core::splice_text`) on the panes' effect lane, and the composer paints the
+spans through the same role colours and span-to-format rule
+(`code_sample_painter.hpp`), adopting only spans of the text it still shows.
 
 A round (RFC-BPR-0056, BPR-1158) is one assignment frozen from a round draft
 (`bpr/core/review_cycle_round.hpp`). The draft stores the reviewer's selection
