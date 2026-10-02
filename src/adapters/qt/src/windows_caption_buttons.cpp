@@ -1,5 +1,6 @@
 #include "bpr/qt/windows_caption_buttons.hpp"
 
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
 #include <QEnterEvent>
@@ -9,9 +10,9 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QPainter>
+#include <QPen>
 #include <QPixmap>
 #include <QStyle>
-#include <QStyleOptionFocusRect>
 
 #include <algorithm>
 
@@ -173,10 +174,12 @@ namespace bpr::qt {
 		painter.setPen(glyphInk);
 		painter.drawText(rect(), Qt::AlignCenter, QString{ QChar{ glyph } });
 		if (hasFocus()) {
-			auto option = QStyleOptionFocusRect{ };
-			option.initFrom(this);
-			option.rect = rect().adjusted(2, 2, -2, -2);
-			style()->drawPrimitive(QStyle::PE_FrameFocusRect, &option, &painter, this);
+			// [[BPR-1157]]. The window's focus ring over the title row, as the
+			// review bar's buttons draw it, square like the button itself.
+			constexpr auto inset = focus_ring_width / 2.0;
+			painter.setPen(QPen{ focus_ring_colour(palette(), QPalette::Window), focus_ring_width });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRect(QRectF{ rect() }.adjusted(inset, inset, -inset, -inset));
 		}
 	}
 

@@ -438,3 +438,38 @@ passes **6 of 6** in 2.51 s. That covers `qt_review_cycle_view_1_0` and
 `application_review_cycle_desktop_public_path` and `review_cycle_workbench`.
 This is the first run of the non-macOS branch, where Escape cancels and Ctrl+C
 stays Copy. No remote mutation.
+
+## Windows: focus rings, Return keys and cancel keys (bpr-main-win, 2026-10-02)
+
+At `37c30a413`, which contains `73b2160fc` and `fa9f42381`. Windows 11 Home
+10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug. The 56
+executables these rows run were deleted first, along with
+`windows_title_row_host_tests.exe`, and the build rebuilt every one. The build
+printed no `warning C` or `warning LNK` line. `tests/support/window_system_keys.hpp`
+links as written, and the changed sources use no SDK-macro identifier.
+
+The first run, at `862e31a93`, had one failure outside the parked cards.
+`application_review_cycle_desktop_public_path` failed at "every stop Tab
+reaches shows the focus ring", with `no ring on workbenchMinimizeButton
+Minimize`. On Windows the title row carries the window's own caption buttons
+([[BPR-0653]]). They are Tab stops, and on focus they drew the style's
+`PE_FrameFocusRect`, not the window's ring. They now draw the same two-pixel
+ring the review bar's buttons draw, in `focus_ring_colour` over the title
+row's `Window`, square like the button
+(`src/adapters/qt/src/windows_caption_buttons.cpp`). They stay Tab stops.
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^qt_|^core_appearance_contrast$|^core_review_cycle_feedback$|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^review_cycle_workbench$|^architecture_boundaries$|^application_windows_title_row$"
+```
+
+117 of 125 pass, in 372.57 s.
+`application_review_cycle_desktop_public_path` passes in 11.67 s. Every
+failure is carried by a parked card, with its earlier headline:
+
+- `qt_workbench_title_row_scale_{100,125,200}` and
+  `qt_workbench_window_scale_{100,125,200}`: `no review-bar control folds into
+  an overflow menu at any width` ([[BPR-1255]]);
+- `qt_agent_launch_canary`: `open durable child course` ([[BPR-1229]]);
+- `application_windows_title_row`, added to this run because it tests the
+  caption buttons: `a published review replaces Home with the review surface`
+  ([[BPR-0653]]), as before this change.
