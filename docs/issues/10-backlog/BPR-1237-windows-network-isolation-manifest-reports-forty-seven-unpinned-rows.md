@@ -125,3 +125,19 @@ After the change, on Windows: `test_network_isolation_manifest` passes
 (7.97 s), `test_network_isolation_structure_contract` passes, and both moved
 rows pass contained under CTest. The macOS and Linux manifests count the same
 registrations and need a rerun.
+
+### Linux at `e517d66d0` (bpr-main-linux, 2026-10-02)
+
+WSL2, GCC 15.2, `build/dev` Debug. The build has 0 `warning:` lines. `ctest
+--preset dev --output-on-failure -R
+"^test_network_isolation_(manifest|structure_contract)$|^sqlite_tour_owner_channel$|^application_large_review_history_session_race$"`
+passes **4 of 4**:
+
+- `test_network_isolation_structure_contract`, 2.59 s
+- `test_network_isolation_manifest`, 1.34 s
+- `sqlite_tour_owner_channel`, 5.77 s
+- `application_large_review_history_session_race`, 0.98 s
+
+The two rows contained again on Windows pass under the Linux network sandbox,
+and the Windows pin-set change leaves the Linux manifest and structure gates
+green. No remote mutation.
