@@ -543,6 +543,16 @@ endfunction()
 # main.cpp. Fixture selection only; no grant, target, provider, mutation or
 # publication path changes; mutation pin unchanged. main was red here from
 # 5b7eddb83 until this reseal.
+# BPR-1167 inventory (registered by BPR-1168): 2a79d08eb added eight
+# src/app/src files to the tour runtime library without registering them, so
+# the tree inventory drifted from then on. Reviewed: cycle_cli (the `bpr cycle`
+# terminal front over the local cycle store, read-only workspace source and
+# local export destination), cycle_session (one command's composition of the
+# Review Cycles runtime), profile_admission (registry lookup and runtime lease,
+# shared with `bpr tour`) and terminal_text (terminal text neutralization).
+# CLI and admission only: none composes a grant, target, provider, mutation or
+# publication path, none is in github_application.cpp or the production
+# manifest, and no digest changes.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -653,6 +663,10 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
+		"src/cycle_cli.cpp"
+		"src/cycle_cli.hpp"
+		"src/cycle_session.cpp"
+		"src/cycle_session.hpp"
 		"src/designated_live_macos_capsule_identity.cpp"
 		"src/designated_live_macos_capsule_identity.hpp"
 		"src/designated_live_macos_provenance.cpp"
@@ -681,6 +695,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/private_review_fixture_course.hpp"
         "src/private_review_workflow.cpp"
         "src/private_review_workflow.hpp"
+		"src/profile_admission.cpp"
+		"src/profile_admission.hpp"
         "src/profile_desktop.cpp"
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
@@ -696,6 +712,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/system_browser_opener.hpp"
         "src/terminal_diagnostics.cpp"
         "src/terminal_diagnostics.hpp"
+		"src/terminal_text.cpp"
+		"src/terminal_text.hpp"
 		"src/tour_assist.cpp"
 		"src/tour_assist.hpp"
 		"src/tour_cancellation.cpp"
