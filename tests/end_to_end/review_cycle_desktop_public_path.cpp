@@ -458,8 +458,12 @@ try {
 	for (auto wait = 0; wait < 40 && !window.isActiveWindow(); ++wait) {
 		QApplication::processEvents(QEventLoop::AllEvents, 50);
 	}
+	// Keys reach only an active window: natively, another application in
+	// front can keep this one from activating, and the course says so.
+	expect(window.isActiveWindow(), "the window is active, so keys reach it");
 	page->files()->setFocus(Qt::TabFocusReason);
 	QApplication::processEvents();
+	expect(QApplication::focusWidget() == page->files(), "focus starts on the files");
 	auto ringed = 0;
 	for (auto step = 0; step < 80; ++step) {
 		auto* const from     = QApplication::focusWidget();
@@ -471,8 +475,9 @@ try {
 		}
 		const auto held = from->grab().toImage();
 		tests::window_system_key(*from, Qt::Key_Tab);
-		auto* const to        = QApplication::focusWidget();
-		const auto  unfocused = std::ranges::find(unringed, to, &std::pair<QWidget*, QImage>::first);
+		auto* const to = QApplication::focusWidget();
+		expect(to != nullptr, "Tab leaves focus on a control");
+		const auto unfocused = std::ranges::find(unringed, to, &std::pair<QWidget*, QImage>::first);
 		if (unfocused == unringed.end() || !ring_appears(unfocused->second, to->grab().toImage(), ring_on(*to))) {
 			std::cerr << "no ring on " << (to != nullptr ? (to->objectName() + QStringLiteral(" ") + to->accessibleName()).toStdString() : std::string{ "nothing" }) << '\n';
 		}
