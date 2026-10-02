@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1169"
 title: "Expose scoped prepared-round retrieval and response-only grants"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0058", "RFC-BPR-0060"]
 depends_on: ["BPR-1147", "BPR-1167", "BPR-1168"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "external-consumers", "acceptance": ["RC58-03", "RC58-04", "RC58-07", "RC58-09"], "pack_alias": "PACK-CYCLE-27", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
