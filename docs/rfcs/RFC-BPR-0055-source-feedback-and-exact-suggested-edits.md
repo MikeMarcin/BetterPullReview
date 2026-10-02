@@ -69,6 +69,13 @@ otherwise, this amendment governs; the imported packet stays byte for byte.
   remains. More than 64 separate changes, or one change larger than 64 KiB,
   cannot be saved, and the composer says why instead of cutting anything.
 
+The owner's rejection of `BPR-1156-composer-layout-v004` (event 765) does not
+change this decision. It asks that reading and editing be one code view whose
+text does not change when Suggest change begins, with one selection behaviour
+in which selected code keeps its syntax colours, and that Enter indent like a
+modern editor (RC55-07's editing workflows): the new line keeps the line's
+indentation and adds a level after an opener.
+
 Observations and evidence for this amendment are recorded on
 [BPR-1156](../issues/40-parked/BPR-1156-deliver-the-native-focused-suggestion-editor.md)
 and in the [execution ledger](../verification/RFC-BPR-0053-0061.md), not here.

@@ -305,7 +305,10 @@ try {
 	// The platform's own scheme, as the application observes it, so a native
 	// render paints dark-scheme role colours on a dark window.
 	const auto scheme     = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? core::os_color_scheme::dark : core::os_color_scheme::light;
-	const auto appearance = qt::appearance_profile{ qt::default_appearance_settings(), { .Scheme = scheme } };
+	auto       appearance = qt::appearance_profile{ qt::default_appearance_settings(), { .Scheme = scheme } };
+	// The window's palette as the application applies it, so the selection is
+	// the profile's own code_selection_background wash (BPR-1156, v005).
+	appearance.apply_to(window);
 	desktop.adopt_appearance(appearance);
 	settle(lanes);
 
@@ -352,11 +355,14 @@ try {
 	// 2026-10-01), coloured by the panes' classifier.
 	page->source()->select_bytes(41U, 53U);
 	QApplication::processEvents();
+	capture(window, QStringLiteral("desktop-cycle-source-selection"));
 	auto* const sourceMenu = page->source_menu(page->source()->cell_rectangle(page->source()->model().point_of(45U)).center().toPoint());
 	expect(sourceMenu != nullptr && sourceMenu->actions().contains(page->suggest_action()) && page->suggest_action()->isEnabled() && page->source()->selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ 41U, 53U },
 		   "Suggest change in the source pane's context menu; a click inside the selection keeps it");
 	page->suggest_action()->trigger();
 	delete sourceMenu;
+	QApplication::processEvents();
+	capture(window, QStringLiteral("desktop-cycle-suggest-begun"));
 	auto* const suggestion = page->composer()->editor();
 	auto* const preview    = page->composer()->preview();
 	const auto  original   = read_file(project / "src" / "parser.cpp");

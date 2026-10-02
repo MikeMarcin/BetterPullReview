@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0055", "RFC-BPR-0061"]
 depends_on: ["BPR-1154", "BPR-1155"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-07", "RC55-09", "RC61-04"], "pack_alias": "PACK-CYCLE-14", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"da459c4e1","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 at da459c4e1 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0): Alt+Shift+Down x2 then Shift+End one caret per line to its own end, typing at every caret with CRLF kept, undo, virtual space, Tab, box copy/paste with marker, cut, Alt+click, IME preedit and commit; the same editor is now the main pane over the whole file (owner amendment, RFC-BPR-0055). Owner judgment pending: BPR-1156-editor-gestures-v002 on the frozen candidate /Users/jaeger/bpr-cycles-inplace-review.hnx9k9 (app sha256 bdb77d98...6ca112c13), superseding the undecided v001."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"da459c4e1","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected composer-layout v001 (event 713), v002 (event 719) and v003 (event 742); the v003 note is an owner amendment recorded in RFC-BPR-0055 and reflected in RC61-04's text. At da459c4e1 Suggest change starts from the caret (review bar and the source pane's context menu), edits the whole file in the main pane, saves one exact suggestion per separate changed run of lines on one note, and the before/after shows removed and added rows in the diff panes' fills and syntax colours (qt_review_cycle_view_1_0/2_0, qt_suggestion_editor_1_0/2_0, review_cycle_workbench, application_review_cycle_desktop_public_path offscreen and under cocoa with the real classifier). Owner judgment pending: BPR-1156-composer-layout-v004 on the frozen candidate /Users/jaeger/bpr-cycles-inplace-review.hnx9k9 (app sha256 bdb77d98...6ca112c13)."}}]
+acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"b486149a5","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 at b486149a5 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0): the gestures of da459c4e1 plus Enter keeping the indentation and adding a level after an opener, a typed closer outdenting, double-click word and triple-click line selection, and a read-only mode in which nothing changes the text. Owner judgment pending: BPR-1156-editor-gestures-v003 on the frozen candidate /Users/jaeger/bpr-cycles-codeview-review.u1YDg8 (app sha256 5b0770df...b7ff3ec7), superseding the undecided v002."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"b486149a5","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected composer-layout v001 (event 713), v002 (719), v003 (742, an owner amendment in RFC-BPR-0055) and v004 (765): the text changed on Suggest change, selected lines lost their colour and selection differed between modes. At b486149a5 the file pane and Suggest change are one code view; rendered before and after Suggest change the pane is identical pixel for pixel outside the caret, and a selection is the review panes' wash under syntax-coloured glyphs (qt_review_cycle_view_1_0/2_0, application_review_cycle_desktop_public_path offscreen and under cocoa). Owner judgment pending: BPR-1156-composer-layout-v005 on the frozen candidate /Users/jaeger/bpr-cycles-codeview-review.u1YDg8 (app sha256 5b0770df...b7ff3ec7)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-14** (live `BPR-1156`, allocated at import).
@@ -366,3 +366,118 @@ All 14 rows pass, in 28.02 s:
 - `syntax_classification_contract` (0.43 s);
 - the four core rows;
 - `architecture_boundaries` (27.96 s).
+
+## Owner verdict on v004, and one code view — macOS, 2026-10-02
+
+In attended session `cbd48b91000b00f1e72e1ad62c7c384c` the owner rejected
+`BPR-1156-composer-layout-v004` at event 765 and handed back at 766:
+
+> Much better but...
+>
+> The text editor changes in a weird way once i click suggest edit. Quite
+> noticable under selection. For some reaosn the non-edit window loses color on
+> higlighted lines. I don't understand why we don't have a consistent code text
+> view rendering across the presentation surface.
+>
+> Selection also behaves oddly differently between the two modes.
+>
+> It would be great if things like auto indention on newlines while editng code
+> in blocks would work like a modern text edtiro. I dunno if Qt has something
+> built in or if there is a library that can help or if we have to roll our own.
+
+These are observations about the candidate and one request (indentation on
+Enter) within RC55-07's editing workflows; the outcome the v003 amendment set
+is unchanged.
+
+### How the code text views differed at `54c4154d4`
+
+| Surface | Widget | Font | Rows | Selection | Syntax colour under a selection |
+|---|---|---|---|---|---|
+| Diff panes (two-pane and one-pane) | `QPlainTextEdit` (`source_pane`) | The profile's code font (`apply_code_font_to`) and tab stop | Text layout line with leading; 4 px document margin | Semantic line selection: full-width `Highlight` wash at `core::selection_wash_alpha` (72). A mouse text selection is Qt's: opaque `Highlight` with `HighlightedText` glyphs | Kept under the line wash; lost under a mouse text selection |
+| Cycle file pane, reading | `QPlainTextEdit` (`cycleSource`) | Never given a code font: `review_cycle_view::set_code_font` had no caller, so it drew in the window's UI font with Qt's default 80 px tab stops | Text layout line; 4 px margin | Qt's: opaque `Highlight`, glyphs redrawn in `HighlightedText`; caret only with keyboard selection | **Lost**: a probe drew 248 role-coloured pixels unselected and 0 selected |
+| Cycle file pane, Suggest change | `suggestion_editor` (separate widget) | `suggestion_code_font()` (platform fixed font) | `QFontMetrics::lineSpacing`, 6 px margin, one glyph per column cell | `Highlight` at alpha 110 focused, 60 unfocused, under the glyphs; virtual space; no double or triple click | Kept |
+| Before/after preview | `QPlainTextEdit` | `suggestion_code_font()` | Text layout line | Qt's | Lost under a text selection; rows wear the diff fills |
+| Comparison view (View menu) | `QPlainTextEdit` | UI font (same missing call) | Text layout line | Qt's | No syntax colours; fixed red/green row tints |
+
+So entering Suggest change swapped a UI-font pane for a fixed-font one with
+another pitch, margin and selection, and the reading pane repainted selected
+text in one colour.
+
+### What changed at `b486149a5`
+
+- **One code view.** The file pane is `suggestion_editor` in read-only mode,
+  and Suggest change makes the same widget editable; nothing is reloaded, so
+  text, scroll, selection and colours stay and only the caret's colour follows
+  focus. Save or Cancel reloads the captured bytes at the same top line.
+  Read-only, every movement and selection gesture works and typing, paste,
+  cut, undo and IME are refused.
+- **The panes' typography.** `review_cycle_view::adopt_appearance` gives the
+  view the profile's code font and tab width; rows use the panes' pitch (a
+  laid-out line of the code font with leading) and the text document's margin.
+  A proportional code font falls back through monospace families, because the
+  view gives every column one cell.
+- **The panes' selection.** `QPalette::Highlight` at
+  `core::selection_wash_alpha` under the glyphs, in both modes and whatever the
+  focus, so a selected keyword keeps its role colour and the selection is the
+  one the contrast contract audits.
+- **One selection behaviour.** Double-click selects a word and triple-click a
+  line (`core::select_word_at`, `core::select_line_at`) in both modes; the
+  context menu is the view's own (Comment, Suggest change, Copy, Select All
+  while reading; Undo, Redo, Cut, Copy, Paste, Select All while editing).
+- **Indentation on Enter** (the core decides): the blanks before the caret, a
+  level more after `{`, `[` or `(`, and after `:` in Python and YAML
+  (`core::indentation_for`, by extension; Markdown, reStructuredText, AsciiDoc
+  and plain text open no level); between a bracket and its closer the closer
+  goes on its own line; a closer typed on a line of blanks outdents one level.
+  The unit is the file's own: a tab when more lines start with a tab,
+  otherwise the most common step of leading spaces.
+- **Kept whole and fast.** The view now shows any captured file, so a text over
+  the 1 MiB editing bound is held whole and read, and no edit applies to it
+  (Suggest change was already not offered). Caret-only gestures compare carets
+  instead of copying the state, and line widths are measured only when the
+  text changes.
+- **Accessibility.** The view answers `QAccessibleTextInterface` (text,
+  selection, caret, character rectangles) so a screen reader still reads the
+  file the `QPlainTextEdit` used to expose.
+
+Why not a library: `QPlainTextEdit` has no auto-indent, and KSyntaxHighlighting
+provides indenters only through KTextEditor (KF6 Parts, a full editor
+component with its own document, view and rendering), which would replace this
+view rather than serve it and add a large dependency. QScintilla and
+KTextEditor remain the options if the product later wants language-aware
+indentation, folding or completion; this rule is about 60 lines in the core
+model and fully tested.
+
+| Check (macOS arm64, `build/dev`, `b486149a5`) | Result |
+|---|---|
+| `core_suggestion_text_editing`: indentation after brace, bracket pair, colon by language, inside the indentation, per caret, a typed closer and its undo; units for tabs, two and four spaces, alignment ignored, extension case and a dot in a folder; word and line selection; byte offsets; a text over the bound read but not edited | Pass |
+| `qt_suggestion_editor_1_0`/`_2_0`: Enter through key events in C++ and Python; read-only gestures (nothing typed, pasted, cut or composed changes the text; Shift+End and Copy; double and triple click; the read-only menu; the accessible text and selection) | Pass |
+| `qt_review_cycle_view_1_0`/`_2_0`: an 80-block file scrolled to line 30 with a selection, rendered before and after Suggest change: the same widget, scroll and selection; **0 differing pixels outside the caret columns**; the selected `return` keeps the control-flow colour by the local role/text pixel rule in both; a blank selected cell is `over(Highlight@72, Base)` and identical in both; Cancel returns with 0 differing pixels; a 1 MiB + 11 byte file read whole and not offered for Suggest change | Pass |
+| `application_review_cycle_desktop_public_path`, offscreen and under `QT_QPA_PLATFORM=cocoa`, real classifier, the window in the profile's own palette as the application applies it: same view on Suggest change, Enter after `{` in `parser.cpp` gives `\r\n\t`, Save and Cancel back to the captured bytes; native renders of the window before and just after Suggest change differ nowhere in the file pane | Pass |
+| 52 rows matching `review_cycle\|suggestion\|syntax\|round_trip_composition\|architecture_boundaries\|code_sample`, full `cmake --build --preset dev` with no warning, `coding-format-check`, `tidy.py --changed --warnings-as-errors` | Pass |
+| Negative controls (not committed): Qt-style selection while reading (opaque fill, `HighlightedText` glyphs); wash alpha 110 while editing; glyphs one pixel right while editing; colours cleared when Suggest change begins; Enter without indentation | Fail at, in order: "reading: the selected keyword keeps its role colour"; "the selection fill is identical in both modes"; "the pane is the same pixel for pixel but for the caret" (13379 pixels at 1x); "editing: the selected keyword keeps its role colour"; the Qt and core indentation checks |
+
+`qt_suggestion_editor_*` under cocoa in the dark scheme fails at the preview's
+"the removed row is coloured…" check: that course leaves the native dark palette
+under the light profile, so the light removed-row fill reads as text-coloured.
+The preview is unchanged here and the row is registered offscreen.
+
+Not changed, recorded as options: the diff panes, the before/after preview and
+the comparison view are still `QPlainTextEdit`s whose mouse text selection is
+Qt's opaque one, and the comparison view still uses fixed red/green tints and
+the UI font. Moving them onto this view (with line bands, gutters and the
+panes' scroll machinery) or reimplementing their paint to wash would finish
+"consistent across the presentation surface"; that is a larger change across
+BPR-1157/BPR-1163 and the diff workbench. The view draws one glyph per column
+cell, so ligatures (off by default) are not drawn.
+
+Attended: `BPR-1156-composer-layout-v005` (RC61-04) and
+`BPR-1156-editor-gestures-v003` (RC55-07, superseding the undecided v002) on
+the frozen candidate `/Users/jaeger/bpr-cycles-codeview-review.u1YDg8` (a copy
+of the dev bundle, app sha256 `5b0770dfd5bccba66f20dfc19e18e5d1c1b528bec36f2b71686c5297b7ff3ec7`;
+its launcher sets HOME and CFFIXED_USER_HOME, and an eight-second offscreen
+trial start wrote its profile only under the given home). v004 and v002 were
+released by candidate name only; the BPR-1157 items stay protected. Session
+cursor 775. The card stays Parked on human-review.
+
+Owed: Linux and Windows runs of the changed rows at `b486149a5` or later.
