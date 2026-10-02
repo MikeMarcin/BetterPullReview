@@ -1,10 +1,12 @@
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
+#include "../support/window_system_mouse.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
@@ -278,6 +280,45 @@ namespace {
 		return false;
 	}
 
+	/// The middle of the cell of byte `aByte` of the code view, in its viewport.
+	auto byte_point(const qt::suggestion_editor& aView, const std::uint64_t aByte) -> QPointF
+	{
+		return aView.cell_rectangle(aView.model().point_of(aByte)).center();
+	}
+
+	/// The pixel at the middle of one cell of the code view.
+	auto cell_colour(qt::suggestion_editor& aView, const core::text_point& aPoint) -> QColor
+	{
+		const auto pixmap = aView.viewport()->grab();
+		const auto middle = aView.cell_rectangle(aPoint).center() * pixmap.devicePixelRatio();
+		return pixmap.toImage().pixelColor(static_cast<int>(middle.x()), static_cast<int>(middle.y()));
+	}
+
+	/// \brief Pixels of the cells of bytes [aFrom, aTo) of the code view in
+	/// exactly `aColour`, give or take rounding: a glyph's solid core, which
+	/// anti-aliasing toward the background never reaches from another colour.
+	auto solid_pixels(qt::suggestion_editor& aView, const std::uint64_t aFrom, const std::uint64_t aTo, const QColor& aColour) -> int
+	{
+		const auto left   = aView.cell_rectangle(aView.model().point_of(aFrom));
+		const auto right  = aView.cell_rectangle(aView.model().point_of(aTo));
+		const auto pixmap = aView.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		auto       count  = 0;
+		for (auto y = static_cast<int>(std::ceil(left.top() * ratio)); y < static_cast<int>(left.bottom() * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(std::ceil(left.left() * ratio)); x < static_cast<int>(right.left() * ratio) && x < image.width(); ++x) {
+				const auto pixel = image.pixelColor(x, y);
+				count += std::abs(pixel.red() - aColour.red()) <= 4 && std::abs(pixel.green() - aColour.green()) <= 4 && std::abs(pixel.blue() - aColour.blue()) <= 4 ? 1 : 0;
+			}
+		}
+		return count;
+	}
+
+	auto fill_is(const QColor& aPixel, const QColor& aColour) -> bool
+	{
+		return std::abs(aPixel.red() - aColour.red()) <= 3 && std::abs(aPixel.green() - aColour.green()) <= 3 && std::abs(aPixel.blue() - aColour.blue()) <= 3;
+	}
+
 	auto identity_text(qt::workbench_window& aWindow) -> QString
 	{
 		auto* const label = aWindow.findChild<QLabel*>(QStringLiteral("workbenchStripIdentity"));
@@ -339,6 +380,37 @@ try {
 	const auto flow     = appearance.color(core::appearance_role::syntax_control_flow);
 	expect(word_painted(*page->source(), QStringLiteral("return"), flow) && word_painted(*page->source(), QStringLiteral("check"), function), "the source pane in the panes' syntax colours");
 	capture(window, QStringLiteral("desktop-cycle-source-syntax"));
+	// BPR-1156, the owner's notes on composer-layout v005 (event 776), in the
+	// composed window through the window system. A double click selects the
+	// word even with the pointer drifting while the button is down; a click
+	// past a line's end puts the caret at the end, not in virtual space; and
+	// a selection is the profile's solid selection colour, ending at the text.
+	using byte_range = std::pair<std::uint64_t, std::uint64_t>;
+	auto* const code = page->source();
+	tests::window_system_clicks(*code->viewport(), byte_point(*code, 6U), 2, 1.0);
+	expect(code->selected_bytes() == byte_range{ 4U, 9U }, "reading: a double click in the window selects exactly the word");
+	tests::window_system_clicks(*code->viewport(), byte_point(*code, 6U), 3, 1.0);
+	expect(code->selected_bytes() == byte_range{ 0U, 30U }, "reading: a triple click selects the line and its break");
+	tests::window_system_clicks(*code->viewport(), code->cell_rectangle({ 0U, 40U }).center(), 1);
+	expect(!code->has_selection() && code->model().state().Carets.front().Head == core::text_point{ 0U, 28U }, "a click past the end puts the caret at the line's end");
+	tests::window_system_mouse(*code->viewport(), code->cell_rectangle({ 0U, 0U }).topLeft() + QPointF{ 1.0, 4.0 }, QEvent::MouseButtonPress, Qt::LeftButton, 2000);
+	tests::window_system_mouse(*code->viewport(), code->cell_rectangle({ 0U, 40U }).center(), QEvent::MouseMove, Qt::LeftButton);
+	tests::window_system_mouse(*code->viewport(), code->cell_rectangle({ 0U, 40U }).center(), QEvent::MouseButtonRelease, Qt::NoButton);
+	const auto selectionFill = appearance.color(core::appearance_role::code_selection_background);
+	expect(code->selected_bytes() == byte_range{ 0U, 28U } && fill_is(cell_colour(*code, { 0U, 3U }), selectionFill), "a drag selects the line's text in the profile's solid selection colour");
+	expect(fill_is(cell_colour(*code, { 0U, 29U }), code->palette().color(QPalette::Base)), "and paints nothing past the text");
+	// The selected call keeps its role, in the ink that reads on the selection.
+	const auto functionInk = [&] {
+		const auto channel = [](const QColor& aSource) {
+			return core::appearance_color{ static_cast<std::uint8_t>(aSource.red()), static_cast<std::uint8_t>(aSource.green()), static_cast<std::uint8_t>(aSource.blue()), 255U };
+		};
+		const auto ink = core::readable_selection_ink(channel(function), channel(selectionFill), appearance.variant());
+		return QColor{ ink.Red, ink.Green, ink.Blue };
+	}();
+	code->select_bytes(41U, 46U);
+	QApplication::processEvents();
+	expect(functionInk != function && solid_pixels(*code, 41U, 46U, functionInk) > 0 && solid_pixels(*code, 41U, 46U, function) == 0, "a selected call keeps its role, in the ink that reads on the selection");
+	capture(window, QStringLiteral("desktop-cycle-source-word-selection"));
 	page->source()->select_bytes(41U, 53U);
 	QApplication::processEvents();
 	const auto anchor = page->selection_anchor();
@@ -397,6 +469,9 @@ try {
 	// Enter indents as a code editor does: after the opening brace, one tab
 	// more, chosen for this C++ file (owner note of 2026-10-02).
 	page->suggest_action()->trigger();
+	QApplication::processEvents();
+	tests::window_system_clicks(*code->viewport(), byte_point(*code, 43U), 2, 1.0);
+	expect(!code->read_only() && code->selected_bytes() == byte_range{ 41U, 46U }, "editing: a double click in the window selects exactly the word");
 	page->source()->apply(core::place_caret{ .At = { 1U, 1U } });
 	QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r") };
 	QApplication::sendEvent(page->source(), &enter);

@@ -886,6 +886,34 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1156]]. Glyphs on the code view's solid text selection keep a
+	/// readable role colour exactly and move a faint one only as far as the
+	/// variant's text floor, keeping its hue (owner note on composer-layout v005).
+	auto test_selection_ink_keeps_readable_roles_and_lifts_faint_ones() -> void
+	{
+		constexpr auto fill    = srgb(0x28518C);
+		constexpr auto text    = srgb(0xE6EDF3);
+		constexpr auto keyword = srgb(0x6DA9DB);
+		expect(readable_selection_ink(text, fill, appearance_variant::dark) == text, "a readable role keeps its exact colour on the selection");
+		const auto lifted = readable_selection_ink(keyword, fill, appearance_variant::dark);
+		expect(contrast_ratio_hundredths(keyword, fill) < text_contrast_minimum_hundredths && contrast_ratio_hundredths(lifted, fill) >= text_contrast_minimum_hundredths,
+			   "a faint role reaches the text floor, not the lower emphasis floor");
+		expect(lifted.Blue > lifted.Red && lifted.Blue > lifted.Green, "and stays blue");
+		auto step = std::uint16_t{ 1U };
+		while (step < 255U && composited(srgb(0xFFFFFF), keyword, static_cast<std::uint8_t>(step)) != lifted) {
+			++step;
+		}
+		expect(step < 255U && contrast_ratio_hundredths(composited(srgb(0xFFFFFF), keyword, static_cast<std::uint8_t>(step - 1U)), fill) < text_contrast_minimum_hundredths,
+			   "moved toward white by the least amount that reads");
+		expect(readable_selection_ink(srgb(0x7A3E9D), srgb(0xFFE877), appearance_variant::high_contrast_light) == srgb(0x7A3E9D)
+				   || contrast_ratio_hundredths(readable_selection_ink(srgb(0x7A3E9D), srgb(0xFFE877), appearance_variant::high_contrast_light), srgb(0xFFE877))
+					   >= high_contrast_text_minimum_hundredths,
+			   "a high-contrast variant is held to its own floor");
+		expect(readable_selection_ink(srgb(0x777777), srgb(0x767676), appearance_variant::high_contrast_dark) == srgb(0x000000)
+				   || readable_selection_ink(srgb(0x777777), srgb(0x767676), appearance_variant::high_contrast_dark) == srgb(0xFFFFFF),
+			   "where no ink reaches the floor, the extreme that contrasts most");
+	}
+
 } // namespace
 
 int main()
@@ -912,5 +940,6 @@ int main()
 	test_a_derived_mark_brightens_a_dark_fill();
 	test_only_a_bold_fill_carries_its_own_foreground();
 	test_emphasis_preserves_readable_ink_and_adjusts_only_contrast();
+	test_selection_ink_keeps_readable_roles_and_lifts_faint_ones();
 	return EXIT_SUCCESS;
 }

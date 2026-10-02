@@ -1,4 +1,6 @@
 #include "../support/test_expectation.hpp"
+#include "../support/window_system_mouse.hpp"
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/suggestion_composer.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
@@ -84,6 +86,25 @@ namespace {
 		QApplication::sendEvent(aEditor.viewport(), &release);
 	}
 
+	/// A left-button event through the window system, at a viewport point.
+	void system_mouse(qt::suggestion_editor& aEditor, const QPointF& aAt, const QEvent::Type aType, const Qt::MouseButtons aHeld, const int aAfter = 30)
+	{
+		tests::window_system_mouse(*aEditor.viewport(), aAt, aType, aHeld, aAfter);
+	}
+
+	/// A point `aAcross` of the way across the cell of `aAt`.
+	auto point_in(const qt::suggestion_editor& aEditor, const core::text_point& aAt, const qreal aAcross = 0.5) -> QPointF
+	{
+		const auto cell = aEditor.cell_rectangle(aAt);
+		return { cell.left() + (cell.width() * aAcross), cell.center().y() };
+	}
+
+	/// Clicks through the window system in one cell, `aAcross` of the way over.
+	void system_clicks(qt::suggestion_editor& aEditor, const core::text_point& aAt, const int aCount, const qreal aDrift = 0.0, const qreal aAcross = 0.5)
+	{
+		tests::window_system_clicks(*aEditor.viewport(), point_in(aEditor, aAt, aAcross), aCount, aDrift);
+	}
+
 	auto heads(const qt::suggestion_editor& aEditor) -> std::vector<core::text_point>
 	{
 		auto found = std::vector<core::text_point>{ };
@@ -127,26 +148,6 @@ namespace {
 		expect(aEditor.text() == "auto a = 1;\r\nauto bb = 22;\r\nauto c = 3;\r\n", "undo restores the exact bytes");
 		key(aEditor, Qt::Key_Escape);
 		expect(aEditor.model().state().Carets.size() == 1U, "Escape leaves one caret");
-	}
-
-	void virtual_space_tabs_and_deletion(qt::suggestion_editor& aEditor)
-	{
-		aEditor.set_text("\tlong line here\n\tab\n");
-		settle();
-		key(aEditor, Qt::Key_End);
-		key(aEditor, Qt::Key_Down);
-		expect(heads(aEditor).front() == core::text_point{ 1U, 18U }, "down keeps the column in virtual space");
-		type(aEditor, QStringLiteral(";"));
-		expect(aEditor.text() == "\tlong line here\n\tab            ;\n", "virtual space filled with spaces on typing");
-		key(aEditor, Qt::Key_Backspace);
-		key(aEditor, Qt::Key_Home);
-		key(aEditor, Qt::Key_Home);
-		key(aEditor, Qt::Key_Tab);
-		expect(aEditor.text() == "\tlong line here\n\t\tab            \n", "Tab inserts a tab");
-		key(aEditor, Qt::Key_Return);
-		expect(aEditor.text() == "\tlong line here\n\t\n\t\tab            \n", "a line break keeps the indentation before the caret");
-		key(aEditor, Qt::Key_Delete);
-		expect(aEditor.text() == "\tlong line here\n\t\n\tab            \n", "forward delete");
 	}
 
 	/// The owner asked for indentation on Enter like a modern editor
@@ -251,6 +252,97 @@ namespace {
 		key(aTarget, Qt::Key_X, Qt::ControlModifier);
 		expect(aTarget.text().empty() && QApplication::clipboard()->text() == QStringLiteral("12345\n12bcd345\n  bcd\n  b  "), "cut");
 		aEditor.setFocus();
+	}
+
+	/// \brief [[BPR-1156]]. The owner's double click (composer-layout v005,
+	/// event 776), through the window system: still, and with the pointer
+	/// drifting a pixel or three while the button is down, as a hand does.
+	/// \details Before the fix a still double click selected the word, but a
+	/// one-pixel drift turned it into the word's start up to the pointer
+	/// (bytes 5 to 8 of 5 to 10), and a triple click into part of the line.
+	void double_click_selects_the_word(qt::suggestion_editor& aEditor)
+	{
+		using bytes = std::pair<std::uint64_t, std::uint64_t>;
+		for (const auto readOnly : { true, false }) {
+			aEditor.set_text("auto value = other_name;\n\tnext line\n");
+			aEditor.set_read_only(readOnly);
+			settle();
+			for (const auto drift : { 0.0, 1.0, 3.0 }) {
+				system_clicks(aEditor, { 0U, 7U }, 2, drift);
+				expect(aEditor.selected_bytes() == bytes{ 5U, 10U }, readOnly ? "reading: a double click selects exactly the word" : "editing: a double click selects exactly the word");
+				system_clicks(aEditor, { 0U, 16U }, 3, drift);
+				expect(aEditor.selected_bytes() == bytes{ 0U, 25U }, readOnly ? "reading: a triple click selects the line and its break" : "editing: a triple click selects the line and its break");
+			}
+			// On the right half of the word's last letter, still that word.
+			system_clicks(aEditor, { 0U, 9U }, 2, 0.0, 0.85);
+			expect(aEditor.selected_bytes() == bytes{ 5U, 10U }, "a double click on the right half of the last letter selects the word");
+			system_clicks(aEditor, { 0U, 5U }, 2, 0.0, 0.1);
+			expect(aEditor.selected_bytes() == bytes{ 5U, 10U }, "and on the left half of the first");
+			// Dragging on after a double click grows by whole words.
+			const auto from = point_in(aEditor, { 0U, 7U });
+			system_mouse(aEditor, from, QEvent::MouseButtonPress, Qt::LeftButton, 2000);
+			system_mouse(aEditor, from, QEvent::MouseButtonRelease, Qt::NoButton, 40);
+			system_mouse(aEditor, from, QEvent::MouseButtonPress, Qt::LeftButton, 60);
+			system_mouse(aEditor, point_in(aEditor, { 0U, 17U }), QEvent::MouseMove, Qt::LeftButton, 20);
+			expect(aEditor.selected_bytes() == bytes{ 5U, 23U }, "a drag after a double click selects whole words");
+			system_mouse(aEditor, point_in(aEditor, { 0U, 1U }), QEvent::MouseMove, Qt::LeftButton, 20);
+			expect(aEditor.selected_bytes() == bytes{ 0U, 10U }, "and back past where it began, still keeping the first word");
+			system_mouse(aEditor, point_in(aEditor, { 0U, 1U }), QEvent::MouseButtonRelease, Qt::NoButton, 40);
+			// A single click still places a caret, at the nearer edge of the
+			// character clicked, and a later move without the button selects nothing.
+			system_clicks(aEditor, { 1U, 6U }, 1);
+			expect(!aEditor.has_selection() && heads(aEditor).front() == core::text_point{ 1U, 7U }, "one click places a caret");
+			system_mouse(aEditor, point_in(aEditor, { 0U, 3U }), QEvent::MouseMove, Qt::NoButton, 20);
+			expect(!aEditor.has_selection(), "a move without the button selects nothing");
+			expect(aEditor.text() == "auto value = other_name;\n\tnext line\n", "no gesture changed the text");
+		}
+		aEditor.set_read_only(false);
+	}
+
+	/// \brief Virtual space belongs to the box (owner note on
+	/// composer-layout v005): a click, a drag, Right and Up and Down stay on
+	/// the text; Alt+Shift+Arrow alone reaches past a line's end.
+	void virtual_space_only_in_a_box(qt::suggestion_editor& aEditor)
+	{
+		aEditor.set_text("\tlong line here\n\tab\n");
+		aEditor.setFocus();
+		settle();
+		key(aEditor, Qt::Key_End);
+		key(aEditor, Qt::Key_Down);
+		expect(heads(aEditor).front() == core::text_point{ 1U, 6U }, "Down stops at a shorter line's end");
+		key(aEditor, Qt::Key_Down);
+		key(aEditor, Qt::Key_Up);
+		key(aEditor, Qt::Key_Up);
+		expect(heads(aEditor).front() == core::text_point{ 0U, 18U }, "and Up comes back to the column it aimed for");
+		key(aEditor, Qt::Key_Right);
+		expect(heads(aEditor).front() == core::text_point{ 1U, 0U }, "Right at a line's end goes on to the next line");
+		system_clicks(aEditor, { 1U, 15U }, 1);
+		expect(heads(aEditor).front() == core::text_point{ 1U, 6U } && !aEditor.has_selection(), "a click past the end puts the caret at the end");
+		const auto start = point_in(aEditor, { 0U, 5U });
+		system_mouse(aEditor, start, QEvent::MouseButtonPress, Qt::LeftButton, 2000);
+		system_mouse(aEditor, point_in(aEditor, { 0U, 30U }), QEvent::MouseMove, Qt::LeftButton, 20);
+		system_mouse(aEditor, point_in(aEditor, { 0U, 30U }), QEvent::MouseButtonRelease, Qt::NoButton, 20);
+		const auto& dragged = aEditor.model().state().Carets.front();
+		expect(dragged.Head == core::text_point{ 0U, 18U }, "a drag past the end stops at the end");
+		key(aEditor, Qt::Key_Down);
+		type(aEditor, QStringLiteral(";"));
+		expect(aEditor.text() == "\tlong line here\n\tab;\n", "typing at a short line's end adds no blanks");
+		key(aEditor, Qt::Key_Up);
+		key(aEditor, Qt::Key_End);
+		key(aEditor, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		expect(heads(aEditor) == std::vector<core::text_point>{ { 0U, 18U }, { 1U, 18U } }, "a box reaches past a short line's end");
+		type(aEditor, QStringLiteral(";"));
+		expect(aEditor.text() == "\tlong line here;\n\tab;           ;\n", "and typing there pads the line with spaces");
+		key(aEditor, Qt::Key_Escape);
+		key(aEditor, Qt::Key_Backspace);
+		key(aEditor, Qt::Key_Home);
+		key(aEditor, Qt::Key_Home);
+		key(aEditor, Qt::Key_Tab);
+		expect(aEditor.text() == "\tlong line here;\n\t\tab;           \n", "Tab inserts a tab");
+		key(aEditor, Qt::Key_Return);
+		expect(aEditor.text() == "\tlong line here;\n\t\n\t\tab;           \n", "a line break keeps the indentation before the caret");
+		key(aEditor, Qt::Key_Delete);
+		expect(aEditor.text() == "\tlong line here;\n\t\n\tab;           \n", "forward delete");
 	}
 
 	void ime_and_mouse(qt::suggestion_editor& aEditor)
@@ -385,6 +477,57 @@ namespace {
 	auto fill_is(const QColor& aPixel, const QColor& aColour) -> bool
 	{
 		return std::abs(aPixel.red() - aColour.red()) <= 3 && std::abs(aPixel.green() - aColour.green()) <= 3 && std::abs(aPixel.blue() - aColour.blue()) <= 3;
+	}
+
+	/// \brief [[BPR-1156]]. A text selection reads as one in any text box
+	/// (owner note on composer-layout v005: "darker than usual"): the solid
+	/// `Highlight` fill, ending at the line's text plus one cell for a
+	/// selected line break, under glyphs in the selection's ink.
+	void selection_reads_like_a_text_box(qt::suggestion_editor& aEditor)
+	{
+		aEditor.set_text("int  value = 1;\nx\n");
+		aEditor.set_read_only(true);
+		settle();
+		const auto highlight = aEditor.palette().color(QPalette::Highlight);
+		const auto base      = aEditor.palette().color(QPalette::Base);
+		auto       wash      = highlight;
+		wash.setAlpha(core::selection_wash_alpha);
+		// The blank fourth column of "int  value", selected by a drag past the end.
+		const auto press = point_in(aEditor, { 0U, 0U }) - QPointF{ aEditor.cell_rectangle({ 0U, 0U }).width() * 0.4, 0.0 };
+		system_mouse(aEditor, press, QEvent::MouseButtonPress, Qt::LeftButton, 2000);
+		system_mouse(aEditor, point_in(aEditor, { 0U, 40U }), QEvent::MouseMove, Qt::LeftButton, 20);
+		system_mouse(aEditor, point_in(aEditor, { 0U, 40U }), QEvent::MouseButtonRelease, Qt::NoButton, 20);
+		auto       image = aEditor.viewport()->grab().toImage();
+		const auto at    = [&](const core::text_point& aPoint) {
+			const auto middle = aEditor.cell_rectangle(aPoint).center() * image.devicePixelRatio();
+			return image.pixelColor(static_cast<int>(middle.x()), static_cast<int>(middle.y()));
+		};
+		expect(aEditor.selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ 0U, 15U }, "the drag selected the line's text and stopped at its end");
+		expect(fill_is(at({ 0U, 4U }), highlight), "the selection is the solid Highlight a text box selects with");
+		expect(!fill_is(over(wash, base), highlight), "which is not the panes' line wash");
+		expect(fill_is(at({ 0U, 15U }), base) && fill_is(at({ 0U, 20U }), base), "a selection to the line's end paints nothing past the text");
+		key(aEditor, Qt::Key_Down, Qt::ShiftModifier);
+		image = aEditor.viewport()->grab().toImage();
+		expect(fill_is(at({ 0U, 15U }), highlight) && fill_is(at({ 0U, 16U }), base), "a selected line break is one cell");
+		capture(aEditor, QStringLiteral("suggestion-editor-selection"));
+		// The ink: a role kept where it reads on the fill, moved toward legibility where it does not.
+		const auto fill  = core::appearance_color{ 0x28U, 0x51U, 0x8CU, 255U };
+		const auto kept  = core::appearance_color{ 0xE6U, 0xEDU, 0xF3U, 255U };
+		const auto faint = core::appearance_color{ 0x6DU, 0xA9U, 0xDBU, 255U };
+		const auto moved = core::readable_selection_ink(faint, fill, core::appearance_variant::dark);
+		expect(core::readable_selection_ink(kept, fill, core::appearance_variant::dark) == kept, "a role that reads on the selection keeps its colour");
+		// Every built-in profile: each syntax role reads on its own selection at its variant's floor.
+		for (const auto variant : { core::appearance_variant::light, core::appearance_variant::dark, core::appearance_variant::high_contrast_light, core::appearance_variant::high_contrast_dark }) {
+			const auto& palette   = qt::builtin_appearance_palette(variant);
+			const auto  selection = palette[core::index_of(core::appearance_role::code_selection_background)];
+			for (auto index = core::index_of(core::appearance_role::syntax_normal); index < core::appearance_role_count; ++index) {
+				const auto ink = core::readable_selection_ink(palette[index], selection, variant);
+				expect(core::contrast_ratio_hundredths(ink, selection) >= core::minimum_contrast_hundredths(core::contrast_kind::text, variant), "every built-in role reads on its profile's selection");
+			}
+		}
+		expect(core::contrast_ratio_hundredths(faint, fill) < core::text_contrast_minimum_hundredths && core::contrast_ratio_hundredths(moved, fill) >= core::text_contrast_minimum_hundredths && moved.Blue > moved.Red,
+			   "one that does not is lightened to the floor and stays blue");
+		aEditor.set_read_only(false);
 	}
 
 	/// \brief The fill painted behind the preview row `aRow`, read past the
@@ -540,8 +683,10 @@ try {
 	window.show();
 	settle();
 	expect(QFontInfo{ editor->font() }.fixedPitch(), "the code font is fixed pitch");
+	double_click_selects_the_word(*editor);
 	box_then_shift_end(*editor);
-	virtual_space_tabs_and_deletion(*editor);
+	virtual_space_only_in_a_box(*editor);
+	selection_reads_like_a_text_box(*editor);
 	box_copy_and_paste(*editor, *target);
 	ime_and_mouse(*editor);
 	indents_like_an_editor(*editor);

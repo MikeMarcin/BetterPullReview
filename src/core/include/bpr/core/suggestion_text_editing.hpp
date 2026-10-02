@@ -20,11 +20,14 @@
 /// The text is UTF-8 kept as lines with their own endings, so CRLF, lone CR,
 /// tabs and a missing final newline survive every edit. Positions are visual
 /// columns: a tab advances to the next tab stop and every other scalar value
-/// is one column; a caret may sit beyond the end of its line in virtual
-/// space, which becomes real spaces only when text is inserted there. A box
-/// gesture (Alt+Shift+Arrow) makes one caret per line at the same visual
-/// columns; End and Shift+End then act on each caret's own line and never
-/// cross a line break. Enter keeps the line's indentation and adds a level
+/// is one column. Virtual space, a column beyond the end of a line, belongs
+/// to the box gesture alone (Alt+Shift+Arrow), which makes one caret per line
+/// at the same visual columns however short a line is; typing there pads the
+/// line with spaces. Every other gesture keeps a caret on its line's text: a
+/// click past the end lands at the end, Right at the end goes to the next
+/// line, and Up and Down aim for the column they started from but stop at a
+/// shorter line's end (owner note on composer-layout v005, 2026-10-02). End
+/// and Shift+End act on each caret's own line and never cross a line break. Enter keeps the line's indentation and adds a level
 /// after an opener (`text_indentation`). The Qt view owns painting, focus,
 /// IME composition and the clipboard, and passes semantic edits here.
 namespace bpr::core {
@@ -108,7 +111,10 @@ namespace bpr::core {
 		std::uint32_t TabWidth = default_suggestion_tab_width;
 		/// The fixed corner of the box selection in progress, if any.
 		std::optional<text_point> BoxAnchor;
-		auto                      operator<=>(const suggestion_text_state&) const = default;
+		/// The column each caret aims for while Up and Down move it, kept
+		/// across lines too short to reach it; empty after any other gesture.
+		std::vector<std::uint64_t> Goals;
+		auto                       operator<=>(const suggestion_text_state&) const = default;
 	};
 
 	enum class text_motion : std::uint8_t {
@@ -160,6 +166,26 @@ namespace bpr::core {
 	{
 		text_point At;
 	};
+	/// \brief What a drag after a press selects by.
+	enum class selection_unit : std::uint8_t {
+		/// After a click: characters.
+		character,
+		/// After a double click: whole words.
+		word,
+		/// After a triple click: whole lines.
+		line,
+	};
+	/// \brief The pointer moving with the button held after a press.
+	/// \details The selection runs from what the press selected (`Origin`)
+	/// to the unit under the pointer, and always keeps all of `Origin`; so a
+	/// double-clicked word stays selected while the pointer wanders inside
+	/// it, and dragging on grows it by whole words.
+	struct drag_selection
+	{
+		text_caret     Origin;
+		text_point     To;
+		selection_unit Unit = selection_unit::character;
+	};
 	/// \brief Typed or IME-committed text, inserted at every caret. A line
 	/// break in it becomes the text's own line ending.
 	struct insert_text
@@ -195,8 +221,8 @@ namespace bpr::core {
 	struct redo_edit
 	{
 	};
-	using suggestion_edit = std::variant<move_carets, extend_box, place_caret, add_caret, select_word_at, select_line_at, insert_text, insert_line_break, paste_text, delete_backward,
-										 delete_forward, select_all, collapse_carets, undo_edit, redo_edit>;
+	using suggestion_edit = std::variant<move_carets, extend_box, place_caret, add_caret, select_word_at, select_line_at, drag_selection, insert_text, insert_line_break, paste_text,
+										 delete_backward, delete_forward, select_all, collapse_carets, undo_edit, redo_edit>;
 
 	/// \brief Whether an edit can change the text, as opposed to only the carets.
 	[[nodiscard]] auto changes_text(const suggestion_edit& aEdit) noexcept -> bool;

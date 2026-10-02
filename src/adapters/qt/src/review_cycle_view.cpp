@@ -610,6 +610,7 @@ namespace bpr::qt {
 			show_source();
 		}
 		set_code_font(aProfile.code_font());
+		Source->set_contrast_variant(aProfile.variant());
 		apply_source_syntax();
 		Composer->adopt_appearance(aProfile);
 	}

@@ -71,26 +71,84 @@ namespace {
 		expect(editor.state().Carets.size() == 1U && editor.state().Carets[0].Head == text_point{ 2U, 6U }, "Escape keeps the primary caret");
 	}
 
+	/// Virtual space belongs to the box (owner note on composer-layout v005,
+	/// 2026-10-02): every other gesture keeps a caret on its line's text.
 	void edits_in_virtual_space()
 	{
-		auto editor = suggestion_text_editor{ "long line here\nab\n" };
+		auto editor = suggestion_text_editor{ "long line here\nab\n\nlonger line here\n" };
 		editor.apply(place_caret{ { 0U, 10U } });
 		editor.apply(move_carets{ text_motion::down });
-		expect(heads(editor).front() == text_point{ 1U, 10U }, "down keeps the column beyond a short line");
+		expect(heads(editor).front() == text_point{ 1U, 2U }, "down stops at a short line's end");
+		editor.apply(move_carets{ text_motion::down });
+		expect(heads(editor).front() == text_point{ 2U, 0U } && editor.state().Goals == std::vector<std::uint64_t>{ 10U }, "an empty line, the column still aimed for");
+		editor.apply(move_carets{ .Motion = text_motion::down, .Extend = true });
+		expect(editor.state().Carets[0] == text_caret{ { 2U, 0U }, { 3U, 10U } }, "and reached again on a long enough line, extending too");
+		editor.apply(move_carets{ text_motion::up });
+		editor.apply(move_carets{ text_motion::up });
+		expect(heads(editor).front() == text_point{ 1U, 2U }, "up stops at the end as well");
 		editor.apply(move_carets{ text_motion::right });
-		expect(heads(editor).front() == text_point{ 1U, 11U }, "right in virtual space does not wrap");
-		const auto untouched = editor.text();
-		editor.apply(delete_backward{ });
-		expect(editor.text() == untouched && heads(editor).front() == text_point{ 1U, 10U }, "backspace in virtual space only moves");
+		expect(heads(editor).front() == text_point{ 2U, 0U } && editor.state().Goals.empty(), "right at a line's end goes on to the next line and forgets the column");
+		editor.apply(place_caret{ { 1U, 9U } });
+		expect(heads(editor).front() == text_point{ 1U, 2U }, "a click past the end lands at the end");
+		editor.apply(place_caret{ { 0U, 3U } });
+		editor.apply(place_caret{ .At = { 1U, 9U }, .Extend = true });
+		expect(editor.state().Carets[0] == text_caret{ { 0U, 3U }, { 1U, 2U } }, "so does a Shift+click or a drag");
+		editor.apply(add_caret{ { 2U, 7U } });
+		expect(heads(editor).back() == text_point{ 2U, 0U }, "and an Alt+click");
+		editor.apply(collapse_carets{ });
+		editor.apply(place_caret{ { 1U, 9U } });
 		editor.apply(insert_text{ "y" });
-		expect(editor.text() == "long line here\nab        y\n", "virtual space becomes spaces only on insertion");
-		// A zero-width box across short and long lines, then typing.
+		expect(editor.text() == "long line here\naby\n\nlonger line here\n", "typing after a click past the end adds no blanks");
+		// The box alone reaches past a line's end: a zero-width box across
+		// short and long lines, then typing, pads the short ones.
 		auto box = suggestion_text_editor{ "abcdef\nab\nabcd\n" };
 		box.apply(place_caret{ { 0U, 4U } });
 		box.apply(extend_box{ text_motion::down });
 		box.apply(extend_box{ text_motion::down });
+		expect(heads(box) == std::vector<text_point>{ { 0U, 4U }, { 1U, 4U }, { 2U, 4U } }, "box carets stand in virtual space");
+		const auto boxed = box.text();
+		box.apply(delete_backward{ });
+		expect(box.text() != boxed && heads(box)[1] == text_point{ 1U, 3U }, "backspace in a box's virtual space moves left there and deletes elsewhere");
+		box.apply(undo_edit{ });
 		box.apply(insert_text{ "|" });
 		expect(box.text() == "abcd|ef\nab  |\nabcd|\n", "box insertion pads short lines");
+		auto back = suggestion_text_editor{ "abcdef\nab\n" };
+		back.apply(place_caret{ { 0U, 5U } });
+		back.apply(extend_box{ text_motion::down });
+		back.apply(move_carets{ text_motion::left });
+		expect(heads(back) == std::vector<text_point>{ { 0U, 4U }, { 1U, 2U } }, "after the box, Left brings a caret in virtual space back to its line's end");
+	}
+
+	/// A drag with the button held after a double or triple click grows by
+	/// whole words or lines and never loses what the clicks selected (owner
+	/// note on composer-layout v005: a double click must select the word).
+	void drags_by_words_and_lines()
+	{
+		auto       editor = suggestion_text_editor{ "auto value = other_name;\nnext line\nlast\n" };
+		const auto word   = text_caret{ { 0U, 5U }, { 0U, 10U } };
+		editor.apply(select_word_at{ { 0U, 7U } });
+		expect(editor.state().Carets[0] == word, "the double-clicked word");
+		// The character under the pointer: any of the word's five.
+		for (const auto column : { 5U, 7U, 9U }) {
+			editor.apply(drag_selection{ .Origin = word, .To = { 0U, column }, .Unit = selection_unit::word });
+			expect(editor.state().Carets[0] == word, "a pointer drifting inside the word keeps the word");
+		}
+		editor.apply(drag_selection{ .Origin = word, .To = { 0U, 15U }, .Unit = selection_unit::word });
+		expect(editor.state().Carets[0] == text_caret{ { 0U, 5U }, { 0U, 23U } }, "forward by whole words");
+		editor.apply(drag_selection{ .Origin = word, .To = { 0U, 1U }, .Unit = selection_unit::word });
+		expect(editor.state().Carets[0] == text_caret{ { 0U, 10U }, { 0U, 0U } }, "backward by whole words, from the word's far end");
+		const auto line = text_caret{ { 1U, 0U }, { 2U, 0U } };
+		editor.apply(select_line_at{ { 1U, 3U } });
+		expect(editor.state().Carets[0] == line, "the triple-clicked line");
+		editor.apply(drag_selection{ .Origin = line, .To = { 1U, 8U }, .Unit = selection_unit::line });
+		expect(editor.state().Carets[0] == line, "a pointer drifting inside the line keeps it");
+		editor.apply(drag_selection{ .Origin = line, .To = { 2U, 1U }, .Unit = selection_unit::line });
+		expect(editor.state().Carets[0] == text_caret{ { 1U, 0U }, { 3U, 0U } }, "down by whole lines");
+		editor.apply(drag_selection{ .Origin = line, .To = { 0U, 30U }, .Unit = selection_unit::line });
+		expect(editor.state().Carets[0] == text_caret{ { 2U, 0U }, { 0U, 0U } }, "up by whole lines");
+		editor.apply(drag_selection{ .Origin = text_caret{ { 0U, 2U }, { 0U, 2U } }, .To = { 1U, 30U }, .Unit = selection_unit::character });
+		expect(editor.state().Carets[0] == text_caret{ { 0U, 2U }, { 1U, 9U } }, "by characters, stopping at a line's end");
+		expect(!changes_text(drag_selection{ }), "a drag changes no text");
 	}
 
 	void copies_and_pastes_boxes()
@@ -295,6 +353,7 @@ auto main() -> int
 	locates_byte_offsets();
 	box_then_shift_end_stays_on_each_line();
 	edits_in_virtual_space();
+	drags_by_words_and_lines();
 	copies_and_pastes_boxes();
 	handles_tabs_breaks_and_deletion();
 	indents_on_enter();

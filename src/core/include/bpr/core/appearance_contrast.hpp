@@ -427,6 +427,28 @@ namespace bpr::core {
 		appearance_color aSyntax, appearance_color aFill, appearance_variant aVariant) noexcept
 		-> appearance_color;
 
+	/// \brief The ink a syntax-coloured glyph is drawn in on an opaque text
+	/// selection.
+	///
+	/// \details [[BPR-1156]]. The code view selects text as every text box in
+	/// the window does, with `code_selection_background` filled solid, rather
+	/// than with the translucent wash the diff panes lay over a selected line,
+	/// which the owner read as darker than a usual selection (composer-layout
+	/// v005, 2026-10-02). Unlike Qt's own selection it keeps the glyphs' role
+	/// colours, which the owner asked for in v004. A role colour that already
+	/// reaches the variant's text floor on the fill is kept; one that does not
+	/// moves toward black or white, whichever the fill contrasts with more,
+	/// by the least amount that reaches the floor, so it stays recognisably
+	/// its role. When even black or white cannot reach the floor, it is that
+	/// extreme.
+	///
+	/// The required-pair audit is unchanged: its wash pairs measure the diff
+	/// panes' line wash, which they still paint, and this ink meets the text
+	/// floor by construction wherever any ink can.
+	[[nodiscard]] auto readable_selection_ink(
+		appearance_color aSyntax, appearance_color aFill, appearance_variant aVariant) noexcept
+		-> appearance_color;
+
 	/// \brief Reports whether an emphasis fill must carry its own foreground.
 	///
 	/// \details True when any syntax role fails the emphasis floor over the

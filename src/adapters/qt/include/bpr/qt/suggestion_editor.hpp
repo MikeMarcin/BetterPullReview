@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_SUGGESTION_EDITOR_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_SUGGESTION_EDITOR_HPP
 
+#include "bpr/core/appearance_model.hpp"
 #include "bpr/core/suggestion_text_editing.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 
@@ -67,16 +68,20 @@ namespace bpr::qt {
 	/// the caret (owner rejection of composer-layout v004, 2026-10-02).
 	///
 	/// Rows have the review panes' pitch and left margin (a laid-out line of
-	/// the code font, leading included, and the text document's margin), and
-	/// a selection is the panes' own wash: `QPalette::Highlight` at
-	/// `core::selection_wash_alpha` under the glyphs, which keep their syntax
-	/// colours. It is not an IDE: no completion, file access or process, and
-	/// it runs no lexer; syntax colours arrive already classified
-	/// (`set_syntax`). Alt+Shift+Arrow grows a box selection on every
-	/// platform; Home and End (with Shift) act on each caret's own line on
-	/// every platform, alongside the platform's own line-start and line-end
-	/// sequences; a double click selects a word and a triple click a line;
-	/// Tab inserts a tab and Ctrl+Tab moves focus; Enter keeps the
+	/// the code font, leading included, and the text document's margin). A
+	/// text selection is filled with `QPalette::Highlight`, solid, as every
+	/// text box in the window fills one, and ends at the line's text plus one
+	/// cell for a selected line break; the glyphs on it keep their syntax
+	/// colours, moved only as far as `core::readable_selection_ink` needs for
+	/// the variant's text floor (owner note on composer-layout v005). It is
+	/// not an IDE: no completion, file access or process, and it runs no
+	/// lexer; syntax colours arrive already classified (`set_syntax`).
+	/// Alt+Shift+Arrow grows a box selection on every platform, and only a box
+	/// reaches past a line's end; Home and End (with Shift) act on each
+	/// caret's own line on every platform, alongside the platform's own
+	/// line-start and line-end sequences; a double click selects a word and a
+	/// triple click a line, and dragging on grows the selection by words or
+	/// lines; Tab inserts a tab and Ctrl+Tab moves focus; Enter keeps the
 	/// indentation (`set_indentation`). A box copy carries a marker so
 	/// pasting it on one caret makes a box again.
 	class suggestion_editor final : public QAbstractScrollArea
@@ -102,6 +107,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto preedit() const noexcept -> const QString&;
 		/// \brief Uses the composed code typography; the palette stays native.
 		void set_code_font(const QFont& aFont);
+		/// \brief The appearance variant whose text floor selected glyphs meet.
+		void set_contrast_variant(core::appearance_variant aVariant);
 		/// \brief Colours lines from a classification of the text (BPR-1156).
 		/// \details Formats are the shared code painter's ranges, in UTF-16
 		/// units of each line. A line is coloured only by an entry whose
@@ -130,8 +137,12 @@ namespace bpr::qt {
 		/// \brief The cell of one column of one line, in viewport coordinates.
 		[[nodiscard]] auto cell_rectangle(const core::text_point& aPoint) const -> QRectF;
 		/// \brief The text position under a viewport point, in virtual space
-		/// beyond a line's end.
+		/// beyond a line's end; a gesture other than the box places a caret
+		/// at the line's end instead.
 		[[nodiscard]] auto point_at(const QPoint& aPosition) const -> core::text_point;
+		/// \brief The cell under a viewport point: the character a double
+		/// click or a word drag means, where `point_at` is the nearer edge.
+		[[nodiscard]] auto cell_at(const QPoint& aPosition) const -> core::text_point;
 		/// \brief Undo, Redo, Cut, Copy, Paste and Select All when editable;
 		/// Copy and Select All when read-only. The caller owns the menu.
 		[[nodiscard]] auto standard_menu(QWidget* aParent) -> QMenu*;
@@ -154,6 +165,7 @@ namespace bpr::qt {
 		void mousePressEvent(QMouseEvent* aEvent) override;
 		void mouseDoubleClickEvent(QMouseEvent* aEvent) override;
 		void mouseMoveEvent(QMouseEvent* aEvent) override;
+		void mouseReleaseEvent(QMouseEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void focusInEvent(QFocusEvent* aEvent) override;
 		void focusOutEvent(QFocusEvent* aEvent) override;
@@ -172,6 +184,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto visible_rows() const -> int;
 		[[nodiscard]] auto column_x(std::uint64_t aColumn) const -> qreal;
 		[[nodiscard]] auto syntax_of(std::uint64_t aLine) const -> const QList<QTextLayout::FormatRange>*;
+		[[nodiscard]] auto selection_ink(const QColor& aColour, const QColor& aFill) const -> QColor;
+		/// Remembers what a press selected, for a drag with the button held.
+		void hold(core::selection_unit aUnit);
 
 		core::suggestion_text_editor                 Editor;
 		QString                                      Preedit;
@@ -203,6 +218,14 @@ namespace bpr::qt {
 		/// Where and when the last double click was, so a third click selects the line.
 		QElapsedTimer DoubleClicked;
 		QPointF       DoubleClickedAt;
+		/// What the press under a held button selected, and the unit a drag grows it by.
+		core::text_caret         DragOrigin;
+		core::selection_unit     DragUnit = core::selection_unit::character;
+		bool                     Dragging = false;
+		core::appearance_variant Variant  = core::appearance_variant::light;
+		/// The ink of each colour on the selection fill, for the fill in `InkFill`.
+		mutable QHash<QRgb, QColor> SelectionInk;
+		mutable QRgb                InkFill = 0U;
 	};
 }
 

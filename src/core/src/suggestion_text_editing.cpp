@@ -352,16 +352,51 @@ namespace bpr::core {
 		// A gesture that only moves carets compares the carets, so reading a
 		// large file costs nothing per keystroke; an edit keeps the whole
 		// state to fall back to.
+		// Up and Down remember the column they aim for; any other gesture forgets it.
+		auto       goals   = std::exchange(State.Goals, { });
 		const auto editing = changes_text(aEdit);
 		const auto before  = editing ? State : suggestion_text_state{ .Lines = { }, .Carets = State.Carets, .Primary = State.Primary, .TabWidth = State.TabWidth, .BoxAnchor = State.BoxAnchor };
 		const auto tab     = State.TabWidth;
 		const auto lines   = [this] { return static_cast<std::uint64_t>(State.Lines.size()); };
 		const auto width   = [this](const std::uint64_t aLine) { return line_width(aLine); };
-		const auto snap    = [&](const text_point& aPoint) {
-			const auto  line                    = std::min(aPoint.Line, lines() - 1U);
-			const auto& content                 = State.Lines[line].Content;
-			const auto [offset, virtualColumns] = offset_of(content, aPoint.Column, tab);
-			return text_point{ line, column_of(content, offset, tab) + virtualColumns };
+		// A point on its line's text: past the end is the end, inside a tab
+		// is the tab's start. Only the box gesture reaches virtual space.
+		const auto clamped = [&](const text_point& aPoint) {
+			const auto  line    = std::min(aPoint.Line, lines() - 1U);
+			const auto& content = State.Lines[line].Content;
+			return text_point{ line, column_of(content, offset_of(content, aPoint.Column, tab).first, tab) };
+		};
+		// The word, run of blanks or punctuation mark at a point; past the
+		// end of a line, the last thing on it.
+		const auto wordAt = [&](const text_point& aPoint) {
+			const auto  at      = clamped(aPoint);
+			const auto& content = State.Lines[at.Line].Content;
+			auto        first   = std::min(offset_of(content, at.Column, tab).first, content.size());
+			if (first == content.size() && first > 0U) {
+				first = 0U;
+				for (std::size_t index = 0; index < content.size(); index += scalar_length(content, index)) {
+					first = index;
+				}
+			}
+			auto last = first;
+			if (first < content.size()) {
+				const auto kind = class_of(content[first]);
+				last            = first + scalar_length(content, first);
+				if (kind != character_class::punctuation) {
+					while (first > 0U && class_of(content[first - 1U]) == kind) {
+						--first;
+					}
+					while (last < content.size() && class_of(content[last]) == kind) {
+						++last;
+					}
+				}
+			}
+			return std::pair{ text_point{ at.Line, column_of(content, first, tab) }, text_point{ at.Line, column_of(content, last, tab) } };
+		};
+		// A line with its line break: from its start to the next line's.
+		const auto lineAt = [&](const std::uint64_t aLine) {
+			const auto line = std::min(aLine, lines() - 1U);
+			return std::pair{ text_point{ line, 0U }, line + 1U < lines() ? text_point{ line + 1U, 0U } : text_point{ line, width(line) } };
 		};
 		// The ending a new line break takes at a line: its own, or the text's first.
 		const auto endingAt = [&](const std::uint64_t aLine) {
@@ -494,8 +529,9 @@ namespace bpr::core {
 			const auto [offset, virtualColumns] = offset_of(content, aHead.Column, tab);
 			switch (aMotion) {
 			case text_motion::left:
+				// A caret a box left in virtual space comes back to the text.
 				if (virtualColumns > 0U) {
-					return { aHead.Line, aHead.Column - 1U };
+					return { aHead.Line, width(aHead.Line) };
 				}
 				if (offset > 0U) {
 					auto previous = std::size_t{ 0 };
@@ -506,13 +542,17 @@ namespace bpr::core {
 				}
 				return aHead.Line > 0U ? text_point{ aHead.Line - 1U, width(aHead.Line - 1U) } : aHead;
 			case text_motion::right:
-				// Virtual space: Right never wraps onto the next line.
+				// At the end, Right goes on to the next line, as in any editor.
 				if (offset < content.size()) {
 					return { aHead.Line, column_of(content, offset + scalar_length(content, offset), tab) };
 				}
-				return { aHead.Line, aHead.Column + 1U };
-			case text_motion::up:             return aHead.Line > 0U ? text_point{ aHead.Line - 1U, aHead.Column } : text_point{ 0U, 0U };
-			case text_motion::down:           return aHead.Line + 1U < lines() ? text_point{ aHead.Line + 1U, aHead.Column } : text_point{ aHead.Line, width(aHead.Line) };
+				if (virtualColumns > 0U || aHead.Line + 1U >= lines()) {
+					return { aHead.Line, width(aHead.Line) };
+				}
+				return { aHead.Line + 1U, 0U };
+			// The column aimed for, stopping at a shorter line's end.
+			case text_motion::up:             return aHead.Line > 0U ? clamped({ aHead.Line - 1U, aHead.Column }) : text_point{ 0U, 0U };
+			case text_motion::down:           return aHead.Line + 1U < lines() ? clamped({ aHead.Line + 1U, aHead.Column }) : text_point{ aHead.Line, width(aHead.Line) };
 			case text_motion::line_end:       return { aHead.Line, width(aHead.Line) };
 			case text_motion::document_start: return { 0U, 0U };
 			case text_motion::document_end:   return { lines() - 1U, width(lines() - 1U) };
@@ -608,20 +648,32 @@ namespace bpr::core {
 			[&](const auto& aValue) {
 				using value_type = std::decay_t<decltype(aValue)>;
 				if constexpr (std::is_same_v<value_type, move_carets>) {
-					Typing          = false;
-					State.BoxAnchor = std::nullopt;
-					auto carets     = State.Carets;
-					for (auto& caret : carets) {
+					Typing              = false;
+					State.BoxAnchor     = std::nullopt;
+					auto       carets   = State.Carets;
+					const auto vertical = aValue.Motion == text_motion::up || aValue.Motion == text_motion::down;
+					// A run of Up and Down keeps aiming for the columns it started from.
+					if (vertical && goals.size() != carets.size()) {
+						goals.clear();
+						for (const auto& caret : carets) {
+							goals.push_back(caret.Head.Column);
+						}
+					}
+					for (std::size_t index = 0; index < carets.size(); ++index) {
+						auto& caret = carets[index];
 						if (!aValue.Extend && !caret.empty() && (aValue.Motion == text_motion::left || aValue.Motion == text_motion::right)) {
 							const auto edge = aValue.Motion == text_motion::left ? std::min(caret.Anchor, caret.Head) : std::max(caret.Anchor, caret.Head);
 							caret           = { edge, edge };
 							continue;
 						}
-						const auto head = moved(caret.Head, aValue.Motion);
+						const auto head = moved(vertical ? text_point{ caret.Head.Line, goals[index] } : caret.Head, aValue.Motion);
 						caret           = { aValue.Extend ? caret.Anchor : head, head };
 					}
 					const auto primary = carets[State.Primary].Head;
 					normalize(std::move(carets), primary);
+					if (vertical && State.Carets.size() == goals.size()) {
+						State.Goals = std::move(goals);
+					}
 				} else if constexpr (std::is_same_v<value_type, extend_box>) {
 					Typing            = false;
 					const auto& owner = State.Carets[State.Primary];
@@ -651,7 +703,7 @@ namespace bpr::core {
 				} else if constexpr (std::is_same_v<value_type, place_caret>) {
 					Typing          = false;
 					State.BoxAnchor = std::nullopt;
-					const auto at   = snap(aValue.At);
+					const auto at   = clamped(aValue.At);
 					State.Carets    = { { aValue.Extend ? State.Carets[State.Primary].Anchor : at, at } };
 					State.Primary   = 0;
 				} else if constexpr (std::is_same_v<value_type, add_caret>) {
@@ -661,44 +713,40 @@ namespace bpr::core {
 						return;
 					}
 					auto       carets = State.Carets;
-					const auto at     = snap(aValue.At);
+					const auto at     = clamped(aValue.At);
 					carets.push_back({ at, at });
 					normalize(std::move(carets), at);
 				} else if constexpr (std::is_same_v<value_type, select_word_at>) {
-					Typing              = false;
-					State.BoxAnchor     = std::nullopt;
-					const auto  at      = snap(aValue.At);
-					const auto& content = State.Lines[at.Line].Content;
-					auto        first   = std::min(offset_of(content, at.Column, tab).first, content.size());
-					if (first == content.size() && first > 0U) {
-						// Past the end: the last thing on the line.
-						first = 0U;
-						for (std::size_t index = 0; index < content.size(); index += scalar_length(content, index)) {
-							first = index;
-						}
-					}
-					auto last = first;
-					if (first < content.size()) {
-						const auto kind = class_of(content[first]);
-						last            = first + scalar_length(content, first);
-						if (kind != character_class::punctuation) {
-							while (first > 0U && class_of(content[first - 1U]) == kind) {
-								--first;
-							}
-							while (last < content.size() && class_of(content[last]) == kind) {
-								++last;
-							}
-						}
-					}
-					State.Carets  = { { { at.Line, column_of(content, first, tab) }, { at.Line, column_of(content, last, tab) } } };
-					State.Primary = 0;
+					Typing                = false;
+					State.BoxAnchor       = std::nullopt;
+					const auto [from, to] = wordAt(aValue.At);
+					State.Carets          = { { from, to } };
+					State.Primary         = 0;
 				} else if constexpr (std::is_same_v<value_type, select_line_at>) {
+					Typing                = false;
+					State.BoxAnchor       = std::nullopt;
+					const auto [from, to] = lineAt(aValue.At.Line);
+					State.Carets          = { { from, to } };
+					State.Primary         = 0;
+				} else if constexpr (std::is_same_v<value_type, drag_selection>) {
 					Typing           = false;
 					State.BoxAnchor  = std::nullopt;
-					const auto line  = std::min(aValue.At.Line, lines() - 1U);
-					const auto below = line + 1U < lines() ? text_point{ line + 1U, 0U } : text_point{ line, width(line) };
-					State.Carets     = { { { line, 0U }, below } };
-					State.Primary    = 0;
+					const auto start = clamped(std::min(aValue.Origin.Anchor, aValue.Origin.Head));
+					const auto end   = clamped(std::max(aValue.Origin.Anchor, aValue.Origin.Head));
+					const auto to    = clamped(aValue.To);
+					const auto unit  = aValue.Unit == selection_unit::word ? wordAt(to) : aValue.Unit == selection_unit::line ? lineAt(to.Line)
+																															  : std::pair{ to, to };
+					// From the far side of what the press selected, toward the pointer.
+					if (aValue.Unit == selection_unit::character) {
+						State.Carets = { { clamped(aValue.Origin.Anchor), to } };
+					} else if (unit.first < start) {
+						State.Carets = { { end, unit.first } };
+					} else if (end < unit.second) {
+						State.Carets = { { start, unit.second } };
+					} else {
+						State.Carets = { { start, end } };
+					}
+					State.Primary = 0;
 				} else if constexpr (std::is_same_v<value_type, insert_text>) {
 					const auto single = split_text_lines(aValue.Text).size() == 1U && !aValue.Text.empty() && scalar_length(aValue.Text, 0) == aValue.Text.size();
 					State.BoxAnchor   = std::nullopt;

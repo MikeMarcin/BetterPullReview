@@ -1,5 +1,7 @@
 #include "bpr/qt/suggestion_editor.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
+
 #include <QAccessible>
 #include <QAccessibleWidget>
 #include <QAction>
@@ -346,6 +348,33 @@ namespace bpr::qt {
 		updateGeometry();
 	}
 
+	void suggestion_editor::set_contrast_variant(const core::appearance_variant aVariant)
+	{
+		if (Variant != aVariant) {
+			Variant = aVariant;
+			SelectionInk.clear();
+			viewport()->update();
+		}
+	}
+
+	auto suggestion_editor::selection_ink(const QColor& aColour, const QColor& aFill) const -> QColor
+	{
+		// [[BPR-1156]]. The core's rule, once per colour and fill: few
+		// colours appear on a page, and a paint asks for each many times.
+		if (InkFill != aFill.rgba()) {
+			SelectionInk.clear();
+			InkFill = aFill.rgba();
+		}
+		if (const auto found = SelectionInk.constFind(aColour.rgba()); found != SelectionInk.cend()) {
+			return *found;
+		}
+		const auto channel = [](const QColor& aSource) {
+			return core::appearance_color{ static_cast<std::uint8_t>(aSource.red()), static_cast<std::uint8_t>(aSource.green()), static_cast<std::uint8_t>(aSource.blue()), 255U };
+		};
+		const auto ink = core::readable_selection_ink(channel(aColour), channel(aFill), Variant);
+		return *SelectionInk.insert(aColour.rgba(), QColor{ ink.Red, ink.Green, ink.Blue });
+	}
+
 	void suggestion_editor::measure()
 	{
 		// One line of the code font as the review panes' text layout sets it,
@@ -564,6 +593,13 @@ namespace bpr::qt {
 		return { static_cast<std::uint64_t>(line), static_cast<std::uint64_t>(std::max<qreal>(0.0, std::round(offset))) };
 	}
 
+	auto suggestion_editor::cell_at(const QPoint& aPosition) const -> core::text_point
+	{
+		const auto edge   = point_at(aPosition);
+		const auto offset = (static_cast<qreal>(aPosition.x()) - column_x(0U)) / ColumnWidth;
+		return { edge.Line, static_cast<std::uint64_t>(std::max<qreal>(0.0, std::floor(offset))) };
+	}
+
 	void suggestion_editor::paintEvent(QPaintEvent* aEvent)
 	{
 		static_cast<void>(aEvent);
@@ -575,10 +611,13 @@ namespace bpr::qt {
 		painter.setFont(CodeFont);
 		painter.fillRect(viewport()->rect(), palette().base());
 
-		// Selections: the review panes' wash under the text, so a selected
-		// glyph keeps its syntax colour; virtual space included.
-		auto selection = palette().color(QPalette::Highlight);
-		selection.setAlpha(core::selection_wash_alpha);
+		// [[BPR-1156]]. Selections: the solid `Highlight` every text box in
+		// the window selects with, under the glyphs. A selection ends at the
+		// line's text, plus one cell where it takes the line break; only a
+		// box's carets stand in virtual space, and a box paints there.
+		const auto selection = palette().color(QPalette::Highlight);
+		// The selected columns of each visible line, whose glyphs take the selection's ink.
+		auto selected = std::vector<std::vector<std::pair<std::uint64_t, std::uint64_t>>>(static_cast<std::size_t>(last - std::min(first, last)));
 		for (const auto& caret : state.Carets) {
 			if (caret.empty()) {
 				continue;
@@ -586,10 +625,17 @@ namespace bpr::qt {
 			const auto start = std::min(caret.Anchor, caret.Head);
 			const auto end   = std::max(caret.Anchor, caret.Head);
 			for (auto line = std::max(start.Line, first); line <= end.Line && line < last; ++line) {
-				const auto from = line == start.Line ? start.Column : 0U;
-				// A selection that continues past a line includes its line break.
-				const auto to = line == end.Line ? end.Column : Editor.line_width(line) + 1U;
-				painter.fillRect(QRectF{ column_x(from), top(line), column_x(to) - column_x(from), RowHeight }, selection);
+				const auto lineWidth = Editor.line_width(line);
+				auto       from      = line == start.Line ? start.Column : 0U;
+				auto       to        = end.Column;
+				if (line != end.Line) {
+					from = std::min(from, lineWidth);
+					to   = lineWidth + 1U;
+				}
+				if (to > from) {
+					painter.fillRect(QRectF{ column_x(from), top(line), column_x(to) - column_x(from), RowHeight }, selection);
+					selected[static_cast<std::size_t>(line - first)].emplace_back(from, to);
+				}
 			}
 		}
 		// One glyph per column cell, so carets, selections and boxes line up
@@ -639,7 +685,8 @@ namespace bpr::qt {
 			auto column = std::uint64_t{ 0 };
 			// The glyph's position in UTF-16 units, which is how the shared
 			// painter's ranges count.
-			auto unit = std::size_t{ 0 };
+			auto        unit  = std::size_t{ 0 };
+			const auto& spans = selected[static_cast<std::size_t>(line - first)];
 			for (std::size_t index = 0; index < content.size();) {
 				if (content[index] == '\t') {
 					column += tab - (column % tab);
@@ -651,7 +698,9 @@ namespace bpr::qt {
 				while (index + length < content.size() && (static_cast<unsigned char>(content[index + length]) & 0xC0U) == 0x80U && length < 4U) {
 					++length;
 				}
-				const auto& colour = unitColours[std::min(unit, unitColours.size() - 1U)];
+				const auto& role   = unitColours[std::min(unit, unitColours.size() - 1U)];
+				const auto  inside = std::ranges::any_of(spans, [column](const auto& aSpan) { return aSpan.first <= column && column < aSpan.second; });
+				const auto  colour = inside ? selection_ink(role, selection) : role;
 				const auto  glyph  = QString::fromUtf8(content.data() + index, static_cast<qsizetype>(length));
 				const auto  origin = QPointF{ column_x(column), y };
 				if (const auto& found = shaped(glyph); found.Single) {
@@ -876,13 +925,23 @@ namespace bpr::qt {
 		if (DoubleClicked.isValid() && DoubleClicked.elapsed() < QApplication::doubleClickInterval() && distance <= QApplication::styleHints()->mouseDoubleClickDistance()) {
 			DoubleClicked.invalidate();
 			apply(core::select_line_at{ at });
+			hold(core::selection_unit::line);
 			return;
 		}
 		if (aEvent->modifiers().testFlag(Qt::AltModifier)) {
 			apply(core::add_caret{ at });
+			Dragging = false;
 		} else {
 			apply(core::place_caret{ .At = at, .Extend = aEvent->modifiers().testFlag(Qt::ShiftModifier) });
+			hold(core::selection_unit::character);
 		}
+	}
+
+	void suggestion_editor::hold(const core::selection_unit aUnit)
+	{
+		DragOrigin = Editor.state().Carets[Editor.state().Primary];
+		DragUnit   = aUnit;
+		Dragging   = true;
 	}
 
 	void suggestion_editor::mouseDoubleClickEvent(QMouseEvent* aEvent)
@@ -893,14 +952,29 @@ namespace bpr::qt {
 		}
 		DoubleClicked.start();
 		DoubleClickedAt = aEvent->position();
-		apply(core::select_word_at{ point_at(aEvent->position().toPoint()) });
+		// The character under the pointer, not the nearer edge: a double
+		// click on the right half of a word's last letter means that word.
+		apply(core::select_word_at{ cell_at(aEvent->position().toPoint()) });
+		hold(core::selection_unit::word);
 	}
 
 	void suggestion_editor::mouseMoveEvent(QMouseEvent* aEvent)
 	{
-		if (aEvent->buttons().testFlag(Qt::LeftButton) && !aEvent->modifiers().testFlag(Qt::AltModifier)) {
-			apply(core::place_caret{ .At = point_at(aEvent->position().toPoint()), .Extend = true });
+		// [[BPR-1156]]. The pointer drifts while a hand holds the button: the
+		// selection grows from what the press selected and never loses it, so a
+		// double-clicked word stays whole (owner note on composer-layout v005).
+		if (Dragging && aEvent->buttons().testFlag(Qt::LeftButton)) {
+			const auto position = aEvent->position().toPoint();
+			apply(core::drag_selection{ .Origin = DragOrigin, .To = DragUnit == core::selection_unit::character ? point_at(position) : cell_at(position), .Unit = DragUnit });
 		}
+	}
+
+	void suggestion_editor::mouseReleaseEvent(QMouseEvent* aEvent)
+	{
+		if (aEvent->button() == Qt::LeftButton) {
+			Dragging = false;
+		}
+		QAbstractScrollArea::mouseReleaseEvent(aEvent);
 	}
 
 	void suggestion_editor::resizeEvent(QResizeEvent* aEvent)

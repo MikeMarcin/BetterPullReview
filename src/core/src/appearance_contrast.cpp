@@ -746,6 +746,24 @@ namespace bpr::core {
 		return target;
 	}
 
+	auto readable_selection_ink(
+		const appearance_color aSyntax, const appearance_color aFill,
+		const appearance_variant aVariant) noexcept -> appearance_color
+	{
+		const auto minimum = minimum_contrast_hundredths(contrast_kind::text, aVariant);
+		if (contrast_ratio_hundredths(aSyntax, aFill) >= minimum) {
+			return aSyntax;
+		}
+		const auto target = emphasis_foreground(aFill);
+		for (auto alpha = std::uint16_t{ 1U }; alpha <= 255U; ++alpha) {
+			const auto candidate = composited(target, aSyntax, static_cast<std::uint8_t>(alpha));
+			if (contrast_ratio_hundredths(candidate, aFill) >= minimum) {
+				return candidate;
+			}
+		}
+		return target;
+	}
+
 	auto emphasis_needs_own_foreground(
 		const appearance_palette& aPalette,
 		const appearance_role     aFill,

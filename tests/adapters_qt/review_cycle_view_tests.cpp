@@ -1,4 +1,5 @@
 #include "../support/test_expectation.hpp"
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
@@ -215,8 +216,8 @@ namespace {
 	/// \details Rendered before and after Suggest change at the same scroll
 	/// position, the pane is the same pixel for pixel but for the caret; a
 	/// selected keyword keeps its role colour by the local role/text pixel
-	/// rule; and the selection is the review panes' wash, `Highlight` at
-	/// `core::selection_wash_alpha` over the code background.
+	/// rule, in the selection's ink; and the selection is the solid
+	/// `Highlight` every text box selects with (owner note on v005).
 	void suggesting_changes_nothing_on_screen()
 	{
 		auto       view = qt::review_cycle_view{ };
@@ -244,19 +245,29 @@ namespace {
 		const auto length = std::string_view{ "return caf\xC3\xA9(10)" }.size();
 		const auto flow   = look.color(core::appearance_role::syntax_control_flow);
 		const auto base   = code->palette().color(QPalette::Base);
-		auto       wash   = code->palette().color(QPalette::Highlight);
+		const auto fill   = code->palette().color(QPalette::Highlight);
+		// The control-flow colour as it reads on the selection, moved only as
+		// far as the variant's text floor needs.
+		const auto ink = [&] {
+			const auto channel = [](const QColor& aSource) {
+				return core::appearance_color{ static_cast<std::uint8_t>(aSource.red()), static_cast<std::uint8_t>(aSource.green()), static_cast<std::uint8_t>(aSource.blue()), 255U };
+			};
+			const auto readable = core::readable_selection_ink(channel(flow), channel(fill), look.variant());
+			return QColor{ readable.Red, readable.Green, readable.Blue };
+		}();
 		code->scroll_to_line(30U);
 		code->select_bytes(line, line + length);
 		code->setFocus(Qt::MouseFocusReason);
 		settle();
+		auto wash = fill;
 		wash.setAlpha(core::selection_wash_alpha);
-		const auto selected = over(wash, base);
 		expect(code->first_visible_line() == 30U && code->has_selection(), "a selection in view, scrolled down");
-		expect(!fill_is(selected, base), "the wash differs from the background");
+		expect(!fill_is(fill, base) && !fill_is(over(wash, base), fill), "the selection differs from the background and from the panes' line wash");
+		expect(ink != code->palette().color(QPalette::Text), "the selection's ink for control flow is not plain text");
 		const auto before = code->viewport()->grab().toImage();
 		capture(*code, QStringLiteral("cycle-code-view-reading"));
-		expect(bytes_painted(*code, line, 6U, flow), "reading: the selected keyword keeps its role colour");
-		expect(fill_is(cell_pixel(*code, before, { 42U, 10U }), selected), "reading: the selection is the review panes' wash");
+		expect(bytes_painted(*code, line, 6U, ink), "reading: the selected keyword keeps its role, in the selection's ink");
+		expect(fill_is(cell_pixel(*code, before, { 42U, 10U }), fill), "reading: the selection is the solid Highlight a text box selects with");
 		expect(fill_is(cell_pixel(*code, before, { 41U, 30U }), base), "and outside it the code background");
 
 		view.suggest_action()->trigger();
@@ -265,7 +276,7 @@ namespace {
 		expect(code->first_visible_line() == 30U && code->selected_bytes() == std::pair<std::uint64_t, std::uint64_t>{ line, line + length }, "the same scroll position and selection");
 		const auto after = code->viewport()->grab().toImage();
 		capture(*code, QStringLiteral("cycle-code-view-suggesting"));
-		expect(bytes_painted(*code, line, 6U, flow), "editing: the selected keyword keeps its role colour");
+		expect(bytes_painted(*code, line, 6U, ink), "editing: the selected keyword keeps its role, in the selection's ink");
 		expect(cell_pixel(*code, after, { 42U, 10U }) == cell_pixel(*code, before, { 42U, 10U }), "the selection fill is identical in both modes");
 		const auto changed = differing_pixels(before, after, code->caret_rectangle());
 		if (changed != 0) {
