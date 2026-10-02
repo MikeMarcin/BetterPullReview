@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1268"
 title: "coding_format_check is red at main on tour_cli.cpp"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 metadata: {"origin":"focused BPR-1170 run, build/dev-tour-cli, macOS arm64, 2026-10-02","reservation":"docs/issues/_reservations/BPR-1268--BPR-1268--b12edcc4fd36.json","related_cards":["BPR-1168","BPR-1243","BPR-1170"]}
