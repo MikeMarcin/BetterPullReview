@@ -69,3 +69,24 @@ including Save to file's Windows replace semantics, are in the
 "Windows station, portable rounds".
 
 No native Windows attended run was made. This entry adds evidence only, and the card stays Parked.
+
+## Owner verdict and result — macOS, 2026-10-02
+
+The owner accepted `BPR-1159-readable-round-v001` (RC56-04) with an empty
+note at event 808 of session `cbd48b91000b00f1e72e1ad62c7c384c`, and handed
+back at 815. The candidate was `RC-17-F1.md` (SHA-256 `79186a22…fc236b3d4`),
+written by the product renderer at `a5eb785a4`. Its protection was released
+by name at event 818.
+
+Every criterion is checked against the evidence above:
+
+- RC56-03 and RC56-08 pass on the macOS course at `10c3154cd`. The Linux and
+  Windows stations ran the same rows on 2026-09-29 and they pass there too.
+- RC56-04 passes. The automated share is `core_review_cycle_round_markdown`,
+  and the owner has now judged the document readable without BPR.
+- The save-conflict record's owed platform runs are supplied:
+  `review_cycle_export` passes on Linux, exercising `renameat2`, and on
+  Windows, exercising `MoveFileExW` (see "Linux" and "Windows" above).
+
+Nothing remains open, so the card is Done. RC56-03's bundle, CLI and adapter
+shares belong to BPR-1160 and later cards.

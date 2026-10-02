@@ -96,3 +96,16 @@ The card is parked for that answer. No Windows or Linux run is owed.
 
 The question is attended item `BPR-1235-uncontained-pin-v001`, revision
 `1d7bdb35f`, in this checkout's attended-review session.
+
+## Owner verdict and result — 2026-10-02
+
+The owner accepted `BPR-1235-uncontained-pin-v001` (revision `1d7bdb35f`)
+with an empty note at event 814 of session `cbd48b91000b00f1e72e1ad62c7c384c`,
+and handed back at 815. The protection was released by name at event 821.
+
+The owner's choice is to keep `application_profile_owner_admission_public_path`
+uncontained on Windows, pinned `dos-volume-name` as BPR-0833 and BPR-0845
+were. With that choice recorded, all three criteria are met: the row passes
+on Windows (bpr-main-win, 8.22 s, `PROFILE_OWNER_ADMISSION_OK`), and
+`test_network_isolation_manifest` passes with the pin in its inventory. The
+card is Done, and no further run is owed.

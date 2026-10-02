@@ -9,7 +9,7 @@ priority: "P2"
 platforms: ["mac","win","linux"]
 metadata: {"origin":"Owner clarification during BPR-1199 review, 2026-09-26","related_rfcs":["RFC-BPR-0037"],"related_issues":["BPR-0934","BPR-0972","BPR-1199"],"scope":"Tracking-only later Overview presentation correction; not a new performance requirement or private-comparison diagnosis","session":"2c2e72e3af2e2fd7fa1a566ec49bc5ca","candidate":"BPR-1199-private-comparison-v001","candidate_revision":"c982586fbfc774614c6f4993c4e6c81d450d15be; executable sha256 4c4adf38b82511e9d2b77e7fc85f6f8fd3a4a327e15341ca65e23aecdd23bf58","fingerprint":"ef60b7926f20db034da29907f0d9e30c4d5bf2f7aeb48e4981f3083599d0d212","decision_id":"a74d529b-4aff-4662-b97a-a78d0277b255","mandate_revision":"r4-with-owner-compose-20260925-r3; coordinator tracking addendum 2026-09-26"}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"qt_pull_request_overview_page: one row per folder that holds files, named by whole path (no Engine/Private/Deep rows), zero indentation and a single left column for folder rows and direct, deep and root files; compared point by point with the owner's quoted request on the card; native macOS and offscreen 1.0/1.25/2.0 renders inspected."}},{"criterion":"AC2","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and application_setup_destination_public_path: accessible expandable/expanded folder state; the row click, disclosure mark and Left/Right hide only that folder's files and restore the same identities and order; focus moves to the folder without file activation; same-authority refresh keeps collapse and focus; authority clearing drops the former expansion."}},{"criterion":"AC3","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"Focused Qt course covers empty intermediate folders, direct, nested and root files, sibling folders, collapse/reopen, incremental insert/remove/reorder refresh and authority transition; the composed read-only Overview course also passes; application_active_changed_scaling passes; zero dispatches and no comparison from disclosure; renders at 1.0/1.25/2.0 and natively. Windows/Linux native evidence not captured."}},{"criterion":"AC4","outcome":"pending","revision":"830ef134b","evidence":{"kind":"freeform","detail":"Owner judgment pending: attended candidates BPR-1213-flat-rows-v001 (e1f885cc) and BPR-1213-collapse-v001 (4dc42f1c) are prepared at session sequence 619 on frozen app sha256 637ff866...50be; one Accept/Reject question each; no server started."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"qt_pull_request_overview_page: one row per folder that holds files, named by whole path (no Engine/Private/Deep rows), zero indentation and a single left column for folder rows and direct, deep and root files; compared point by point with the owner's quoted request on the card; native macOS and offscreen 1.0/1.25/2.0 renders inspected."}},{"criterion":"AC2","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and application_setup_destination_public_path: accessible expandable/expanded folder state; the row click, disclosure mark and Left/Right hide only that folder's files and restore the same identities and order; focus moves to the folder without file activation; same-authority refresh keeps collapse and focus; authority clearing drops the former expansion."}},{"criterion":"AC3","outcome":"pass","revision":"830ef134b","evidence":{"kind":"command","detail":"Focused Qt course covers empty intermediate folders, direct, nested and root files, sibling folders, collapse/reopen, incremental insert/remove/reorder refresh and authority transition; the composed read-only Overview course also passes; application_active_changed_scaling passes; zero dispatches and no comparison from disclosure; renders at 1.0/1.25/2.0 and natively. Windows/Linux native evidence not captured."}},{"criterion":"AC4","outcome":"pending","revision":"830ef134b","evidence":{"kind":"freeform","detail":"Owner verdicts at hand-back 815, session cbd48b91: BPR-1213-flat-rows-v001 accepted (event 813); BPR-1213-collapse-v001 rejected (event 812): \"Impossible to tell with this PR, only one folder and no subfidrs\". Collapse needs asking again on a pull request with several folders and nested subfolders."}}]
 ---
 
 # Keep Overview folders flat and collapse only their files
@@ -168,3 +168,24 @@ Both ran offscreen. No native Windows render was captured, so AC3's
 Windows native evidence is still not captured. AC4 still waits on the
 owner, and the card stays Parked. The logs are station records in
 `C:\Users\mikem\bpr-main-helpers\run\station-0929\` (`new.log`, `pass2.log`), and are not committed.
+
+## Owner verdicts at hand-back 815 — 2026-10-02
+
+The owner decided both AC4 items in session
+`cbd48b91000b00f1e72e1ad62c7c384c` and handed back at event 815. Both were
+asked on the `830ef134b` build (app SHA-256 `637ff866…50be`):
+
+| Candidate | Event | Verdict |
+|---|---|---|
+| `BPR-1213-flat-rows-v001` | 813 | Accept |
+| `BPR-1213-collapse-v001` | 812 | Reject |
+
+The rejection, verbatim: "Impossible to tell with this PR, only one folder
+and no subfidrs". The owner could not judge collapse on the review pull
+request, which has one folder and no subfolders. The rejection is about the
+material the item was asked on, not the behaviour.
+
+AC4 stays pending on the collapse question. The next step is a separate
+milestone: ask `collapse-v002` on a pull request with several folders and
+nested subfolders. The flat-rows verdict stands. Both candidates are still
+protected for that milestone. The card stays Parked.

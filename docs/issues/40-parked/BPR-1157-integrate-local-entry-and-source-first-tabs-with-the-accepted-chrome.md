@@ -322,3 +322,108 @@ on the owner's choice. No other row failed: `qt_review_cycle_view_*`,
 `core_review_cycle_feedback`, `review_cycle_workbench` and
 `architecture_boundaries` all pass, so no pixel check failed at 1×. The
 [[BPR-1236]] row is not in this selection. No remote mutation.
+
+## Owner verdicts at hand-back 815, and a key to cancel — macOS, 2026-10-02
+
+In session `cbd48b91000b00f1e72e1ad62c7c384c` the owner decided both of this
+card's open items and handed back at event 815:
+
+| Candidate | Criterion | Event | Verdict |
+|---|---|---|---|
+| `BPR-1157-native-keyboard-v002` (73b2160fc build) | RC61-09 | 806 | Accept, with a request (below) |
+| `BPR-1157-surface-rows-v001` (c2a0df54a build) | RC61-02 | 807 | Accept |
+
+The request, verbatim (event 806): "can control+c (mac) shortcut to  cancel
+the suggestion/comment?"
+
+Protections were released by candidate name only (events 816 and 817).
+
+### The owner-requested addition at `fa9f42381`
+
+- **Escape cancels, on every platform.** While a note or Suggest change is
+  open and keyboard focus is inside it (the note's page; for a suggestion the
+  code view or the tray's composer), Escape cancels it exactly as its Cancel
+  button does: nothing is saved, the captured bytes come back, and the code
+  view takes focus again. Escape was not bound before.
+- **Control-C cancels too, on macOS only.** Qt reports the Mac's Control key
+  as `Meta`, so the binding is `Qt::META | Qt::Key_C`; Command-C is Qt's
+  `Control` and stays Copy.
+- **Not on Windows or Linux.** There Ctrl+C is Copy, in the note editor and in
+  the code view alike, so cancel is not bound to it. Escape is the cancel key
+  there. This is the decision; Meta+C (the Windows or Super key) is not
+  bound either.
+- **Escape collapses first in the code.** The code view claims Escape
+  (`ShortcutOverride`) while it has a selection or extra carets to collapse,
+  as it did before, so a box of carets or a selection is never lost to one
+  key; the next Escape cancels. Control-C on macOS cancels at once.
+- The shortcut (`cycleComposerCancelKeys`) is enabled only while a note or
+  suggestion is open, and acts only with focus inside it, so Escape elsewhere
+  on the page, or anywhere with nothing open, is left alone. The Cancel
+  buttons' tooltips name the keys ("Esc or Control-C" on macOS, "Esc"
+  elsewhere), and so does the editing pane's accessible description.
+- No collision. The composed window's other Escape bindings, such as the
+  epoch control's `cancelEpochRefreshAction` and the composition pages'
+  Back, are scoped to widgets outside the cycle page. Nothing binds
+  Meta+C, and no standard key of the platform theme is Meta+C; Escape is only
+  the standard Cancel. The desktop course checks all three, under the native
+  cocoa theme as well.
+
+The reply editor (BPR-1164) keeps its Cancel button only; the owner asked
+about the note and the suggestion.
+
+### Verification
+
+macOS arm64, `build/dev`, Qt 6.11.2.
+
+- `cmake --build --preset dev`: no `warning:` line. `coding-format-check`
+  passes (1178 files); `tidy.py --warnings-as-errors` on the five changed
+  translation units passes after renaming the course's local `colour_near`
+  lambda (a `readability-identifier-naming` finding from `7eb48fbb0`).
+- `ctest --preset dev -j 8 -R "^qt_|^core_appearance_contrast$|^core_review_cycle_feedback$|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^review_cycle_workbench$|^architecture_boundaries$"`
+  passes **123 of 123**.
+- `qt_review_cycle_view_1_0` and `_2_0`, through window-system keys: Return
+  opens the note and enables the keys; Escape in it cancels with nothing
+  saved and focus back on the code; Qt's Control+C copies the note's
+  selected text and leaves it open; Escape with focus on the files list
+  leaves the note open; Meta+C cancels it on macOS. In Suggest change, Qt's
+  Control+C copies the edited selection and keeps the suggestion; the first
+  Escape collapses the selection and keeps the edit; Escape in the tray's
+  rationale, or in the code with only a caret, cancels with the captured
+  bytes back and no suggestion dispatched; Meta+C cancels at once on macOS.
+  Off macOS the same file asserts that Meta+C cancels nothing.
+- `application_review_cycle_desktop_public_path` does the same in the
+  composed window: the collision scan, Copy on the note, Escape on the note
+  and on a suggestion, and Control-C on both on macOS. Run natively as
+  `QT_QPA_PLATFORM=cocoa build/dev/tests/end_to_end/review_cycle_desktop_public_path`,
+  it passed 8 consecutive times (17 stops ringed). The first three native
+  runs failed earlier window-system steps, once at "editing: a double click
+  in the window selects exactly the word" and twice at "Shift+Return in the
+  reading pane begins Suggest change at the caret", while the desktop was in
+  use. This is the live-input interference recorded on BPR-1156, and neither
+  step involves the cancel keys.
+
+Negative controls, each a temporary source change (none committed), each
+failing where it should:
+
+| Control | Fails at |
+|---|---|
+| Shortcut not connected | "Escape in the note cancels it" (view); "Escape cancels the note in the window" (desktop) |
+| Meta+C replaced by Qt's Control+C | "on macOS Control-C cancels the note" (view); "the page claims Escape, and Control-C on macOS only" (desktop) |
+| Qt's Control+C added as a third key | "Qt's Control+C copies the edited selection and keeps the suggestion" |
+| Code view not claiming Escape | "the first Escape collapses the selection and keeps the edit" |
+| No focus-inside check | "Escape outside the open note leaves it open" |
+| Epoch control's Escape made window-wide | "no window action claims Escape or Control-C where the page has focus" (desktop) |
+
+Limits: the keys are injected through Qt's window-system entry, natively and
+offscreen; no hardware Control-C was pressed. Windows and Linux runs of the
+changed rows are owed (commands in the
+[ledger](../../verification/RFC-BPR-0053-0061.md)); the off-macOS branch of
+the view course compiles only there.
+
+### Result
+
+All four criteria pass: RC61-01 (events 791 and 792), RC61-02 (event 807),
+RC61-03 (automated) and RC61-09 (event 806, with Linux's run of the changed
+rows at `862e31a93`). The card carries no `platforms` requirement; the
+Windows run of `73b2160fc` and `fa9f42381` is owed as station evidence, not
+as a gate. The card is Done.

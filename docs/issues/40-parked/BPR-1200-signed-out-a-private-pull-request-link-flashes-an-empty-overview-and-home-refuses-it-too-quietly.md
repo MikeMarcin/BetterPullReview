@@ -127,3 +127,17 @@ copied to the disposable root `/Users/jaeger/bpr1200-review.cM4Yfi/review`
 Accept/Reject question for AC3. Next: on hand-back, record the verdict; on
 Accept finish to Done; on Reject apply the note and prepare v002. Follow-up
 worth a card: the signed-out provider publishes no overview observation.
+
+## Owner verdict and result — macOS, 2026-10-02
+
+The owner accepted `BPR-1200-refusal-card-v001` (AC3) at event 810 of
+session `cbd48b91000b00f1e72e1ad62c7c384c`. A second save at event 811 kept
+Accept and added the note "Marvelous." The owner handed back at 815, and the
+protection was released by name at event 820. The candidate was the
+tests-disabled app built from `3bbc6561c` (executable SHA-256
+`5a965e91…ac87`).
+
+AC1 and AC2 pass on the evidence recorded above, and AC3 now passes. The card
+names no platform requirement, so it is Done. The follow-up noted in the
+checkpoint still stands as a candidate card: the signed-out provider
+publishes no overview observation.

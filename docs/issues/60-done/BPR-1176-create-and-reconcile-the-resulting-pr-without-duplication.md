@@ -196,3 +196,16 @@ The helper then removed that run's leftover clone, the same read-only tree.
 The log is a station record in
 `C:\Users\mikem\bpr-main-helpers\run\station-0929\live-rc59-10.log`, and
 is not committed.
+
+## Owner verdict on RC59-10's scope — 2026-10-02
+
+The owner accepted `BPR-1176-rc59-10-scope` (revision `9b344212a`) with an
+empty note at event 809 of session `cbd48b91000b00f1e72e1ad62c7c384c`, and
+handed back at 815. The protection was released by name at event 819.
+
+That settles how "per claimed supported host" is read: for RC59-10 it means
+the GitHub server, so GitHub.com is qualified by the live course above.
+GHES is not claimed for native publication until a target is designated. The
+Linux and Windows live runs (#17–#21 and #22–#26) were supplied on
+2026-09-30. The card was already Done, and this verdict leaves its acceptance
+unchanged.

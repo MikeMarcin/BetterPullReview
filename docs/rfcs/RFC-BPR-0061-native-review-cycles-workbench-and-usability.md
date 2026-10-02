@@ -44,6 +44,18 @@ theme's selection colour lifted to the 3:1 indicator floor. RC61-09 is
 amended to match; the evidence is on
 [BPR-1157](../issues/40-parked/BPR-1157-integrate-local-entry-and-source-first-tabs-with-the-accepted-chrome.md#owner-verdicts-at-hand-back-795-and-native-keyboard-v002--macos-2026-10-02).
 
+## Owner request, 2026-10-02: a key that cancels the note or suggestion
+
+When the owner accepted `BPR-1157-native-keyboard-v002` (event 806), the
+accept carried a request: "can control+c (mac) shortcut to  cancel the
+suggestion/comment?" The request is recorded as a decision under RC61-09's
+shortcuts. While a note or Suggest change is open and keyboard focus is inside
+it, Escape cancels it on every platform, as its Cancel button does. On macOS,
+Control-C cancels it as well; Command-C stays Copy. On Windows and Linux,
+Ctrl+C is Copy, so cancel is not bound to it there. In the code, Escape first
+collapses a selection or extra carets. The evidence is on
+[BPR-1157](../issues/40-parked/BPR-1157-integrate-local-entry-and-source-first-tabs-with-the-accepted-chrome.md#owner-verdicts-at-hand-back-815-and-a-key-to-cancel--macos-2026-10-02).
+
 ## Normative contracts
 
 The detailed contracts [UX.md](assets/bpr-review-cycles-v1/specs/UX.md), [LIMITS.md](assets/bpr-review-cycles-v1/specs/LIMITS.md) are normative parts of this proposal. The common [domain](assets/bpr-review-cycles-v1/specs/DOMAIN.md), [decisions](assets/bpr-review-cycles-v1/supporting/DECISIONS.md) and [security boundary](assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md) apply. If a live predecessor differs, record a specific compatibility decision; do not quietly implement a weaker alternate workflow.
