@@ -426,3 +426,15 @@ RC61-03 (automated) and RC61-09 (event 806, with Linux's run of the changed
 rows at `862e31a93`). The card carries no `platforms` requirement; the
 Windows run of `73b2160fc` and `fa9f42381` is owed as station evidence, not
 as a gate. The card is Done.
+
+### Linux at `37c30a413`: cancel keys, first non-macOS run (bpr-main-linux, 2026-10-02)
+
+Includes `fa9f42381`. WSL2, GCC 15.2, Qt 6.11.2, `build/dev` Debug, offscreen.
+`cmake --build --preset dev` exits 0 with 0 `warning:` lines. `ctest --preset
+dev -j4 --output-on-failure -R
+"^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^review_cycle_workbench$"`
+passes **6 of 6** in 2.51 s. That covers `qt_review_cycle_view_1_0` and
+`_2_0`, `qt_suggestion_editor_1_0` and `_2_0`,
+`application_review_cycle_desktop_public_path` and `review_cycle_workbench`.
+This is the first run of the non-macOS branch, where Escape cancels and Ctrl+C
+stays Copy. No remote mutation.
