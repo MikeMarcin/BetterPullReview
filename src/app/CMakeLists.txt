@@ -33,6 +33,32 @@ if(BPR_BUILD_TOUR_CLI)
             DESTINATION lib/bpr/plugins/tls COMPONENT TourCLI)
         file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/tour-qt.conf" "[Paths]\nPlugins=../lib/bpr/plugins\n")
         install(FILES "${CMAKE_CURRENT_BINARY_DIR}/tour-qt.conf" DESTINATION bin RENAME qt.conf COMPONENT TourCLI)
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # [[BPR-1267]]. As on macOS, the install carries its own Qt: Core,
+        # Network and the ICU they need under lib/, the TLS plugin under
+        # lib/bpr/tls and a qt.conf naming lib/bpr as the plugin root, so the
+        # installed bpr needs no Qt on the system, as the packaged application
+        # does (packaging/package_runtime.py). Each library is the real file
+        # under its soname, so no symlink can point outside the prefix. The
+        # plugin takes Qt Core and Network from the process that loads it.
+        set_target_properties(app_bpr PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+        get_target_property(bpr_tour_qt_core Qt6::Core LOCATION)
+        get_filename_component(bpr_tour_qt_lib "${bpr_tour_qt_core}" DIRECTORY)
+        foreach(bpr_tour_library IN ITEMS Qt6Core Qt6Network icui18n icuuc icudata)
+            file(GLOB bpr_tour_sonames "${bpr_tour_qt_lib}/lib${bpr_tour_library}.so.*")
+            list(FILTER bpr_tour_sonames INCLUDE REGEX "/lib${bpr_tour_library}\\.so\\.[0-9]+$")
+            list(LENGTH bpr_tour_sonames bpr_tour_soname_count)
+            if(NOT bpr_tour_soname_count EQUAL 1)
+                message(FATAL_ERROR "TourCLI expects one lib${bpr_tour_library} soname in ${bpr_tour_qt_lib}")
+            endif()
+            file(REAL_PATH "${bpr_tour_sonames}" bpr_tour_library_file)
+            get_filename_component(bpr_tour_soname "${bpr_tour_sonames}" NAME)
+            install(FILES "${bpr_tour_library_file}" DESTINATION lib RENAME "${bpr_tour_soname}" COMPONENT TourCLI)
+        endforeach()
+        install(FILES "${bpr_tour_qt_lib}/../plugins/tls/libqopensslbackend.so"
+            DESTINATION lib/bpr/tls COMPONENT TourCLI)
+        file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/tour-qt.conf" "[Paths]\nPlugins=../lib/bpr\n")
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/tour-qt.conf" DESTINATION bin RENAME qt.conf COMPONENT TourCLI)
     else()
         set_target_properties(app_bpr PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
     endif()
