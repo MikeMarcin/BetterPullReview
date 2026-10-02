@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0055", "RFC-BPR-0061"]
 depends_on: ["BPR-1154", "BPR-1155"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "authoring", "acceptance": ["RC55-07", "RC55-09", "RC61-04"], "pack_alias": "PACK-CYCLE-14", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0): Alt+Shift+Down x2 then Shift+End one caret per line to its own end, typing at every caret with CRLF kept, undo, virtual space, Tab, box copy/paste with marker, cut, Alt+click, IME preedit and commit. Owner judgment pending: attended item BPR-1156-editor-gestures-v001 on the frozen candidate (revision c2a0df54a)."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"f3327b74b","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected BPR-1156-composer-layout-v001 at session event 713: \"There's no syntax highlighting.\" At f3327b74b the editor and before/after preview are coloured by the review panes' packaged classifier and role colours (qt_suggestion_editor_1_0/2_0 rendered pixels, application_review_cycle_desktop_public_path with the real classifier); the earlier share (prefill, before/after in context, newer material stated without moving, related location, ambiguous/deleted/unmapped words) still passes. Owner judgment pending: BPR-1156-composer-layout-v002 on the frozen candidate /Users/jaeger/bpr-suggestion-syntax-review.w9G5mr (app sha256 6c3f20c0...dbef85c)."}}]
+acceptance: [{"criterion":"RC55-07","outcome":"pending","revision":"c2a0df54a7b2ca0b48f76777afc6975728392e51","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes on macOS arm64 (core_suggestion_text_editing, qt_suggestion_editor_1_0/2_0): Alt+Shift+Down x2 then Shift+End one caret per line to its own end, typing at every caret with CRLF kept, undo, virtual space, Tab, box copy/paste with marker, cut, Alt+click, IME preedit and commit. Owner judgment pending: attended item BPR-1156-editor-gestures-v001 on the frozen candidate (revision c2a0df54a)."}},{"criterion":"RC55-09","outcome":"pass","revision":"0d0872fbd5bfce9f3ff405b42ad649b7ed5ea5cb","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Card share: the composer hands exact replacement bytes, intent and rationale to its owner with no model, summarizer or second prompt and no file write (qt_suggestion_editor, application_review_cycle_desktop_public_path). Round preparation is BPR-1158."}},{"criterion":"RC61-04","outcome":"pending","revision":"028882c3a","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner rejected BPR-1156-composer-layout-v001 (event 713: \"There's no syntax highlighting.\") and v002 (event 719: \"The main file pane stll has no syntax highlight.\"). At 028882c3a the cycle page's source pane, the composer's editor and its before/after preview are all coloured by the review panes' packaged classifier and role colours (qt_review_cycle_view_1_0/2_0 and qt_suggestion_editor_1_0/2_0 rendered pixels, application_review_cycle_desktop_public_path with the real classifier); the earlier share (prefill, before/after in context, newer material stated without moving, related location, ambiguous/deleted/unmapped words) still passes. Owner judgment pending: BPR-1156-composer-layout-v003 on the frozen candidate /Users/jaeger/bpr-cycles-syntax-review.rMJBTD (app sha256 85492e75...7ebef307)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-14** (live `BPR-1156`, allocated at import).
@@ -165,3 +165,38 @@ All 13 rows pass, in 30.07 s:
 - `core_suggestion_text_editing`, and `core_review_cycle_feedback`,
   `_suggestion` and `_tabs`;
 - `architecture_boundaries` (26.27 s).
+
+## The file pane in syntax colours — macOS, 2026-10-01
+
+The owner rejected `BPR-1156-composer-layout-v002` at session event 719: "The
+main file pane stll has no syntax highlight." v002 had coloured the composer
+and left the cycle page's source pane plain as BPR-1157's.
+
+`028882c3a` colours that pane through the same path. The page asks for the
+exact bytes it shows (`review_cycle_view::SourceSyntaxWanted`) and adopts only
+spans of those bytes. `review_cycle_desktop` serves it from a third slot on the
+composer's classifier host. The per-line mapping the composer used is now
+shared in `code_sample_painter` (`classified_text`,
+`code_syntax_format_ranges_at`), so the pane and the composer follow one rule.
+A file the pane has already classified colours the composer at once from the
+host's cache. The comparison view (View menu) still shows plain rows.
+`57fff5a41` makes the desktop course paint in the platform's own colour
+scheme, so native renders show dark-scheme colours on a dark window.
+
+| Check (macOS arm64, `build/dev`) | Result |
+|---|---|
+| `qt_review_cycle_view_1_0` and `_2_0`: asks for the shown bytes, plain until adopted, refuses spans of other and earlier bytes, paints `return`, `café` and a number after a two-byte character in their role colours | Pass |
+| `application_review_cycle_desktop_public_path`, offscreen and under `QT_QPA_PLATFORM=cocoa`: the real classifier colours `return` and `check` in the source pane | Pass |
+| Negative control (not committed): `apply_source_syntax` returns at once | Both `qt_review_cycle_view` scales and the desktop course fail at their colour checks |
+| 52 focused rows (`review_cycle`, `suggestion`, `syntax`, round-trip composition, `architecture_boundaries`), `coding-format-check`, `tidy.py --changed` | Pass |
+
+The colour checks are local to each word's ink: at least one role-coloured
+pixel and no plain-text-coloured pixel inside the word's rectangle, the rule
+`3a69349d5` adopted for `qt_suggestion_editor`. They need no pixel count, so
+they hold at 1x with Linux fonts. Linux and Windows runs of the two changed
+rows are owed.
+
+Asked as `BPR-1156-composer-layout-v003` on the frozen candidate
+`/Users/jaeger/bpr-cycles-syntax-review.rMJBTD` (app sha256
+`85492e75…ebef307`). Its launcher also sets `CFFIXED_USER_HOME`; see BPR-1157's
+note of the same date for why. The card stays Parked.
