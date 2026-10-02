@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1161 share round, design round v1</title>
+<!--
+  [[BPR-1161]] share-round design round v1: the audit of the rejected Compose feedback page
+  (BPR-1161-compose-share-v001, Reject at event 834) and links to directions A, B and C.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873;
+  --rule:#D2D7DD; --rule-2:#B9C0C8; --signal:#2F6FD6; --marker:#B7791F; --redline:#B8266B;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body { margin: 0; color: var(--ink); font: 15px/1.55 var(--ui); }
+main { max-width: 1336px; margin: 0 auto; padding: 44px 28px 96px; }
+.prose { max-width: 74ch; }
+h1 { font-size: 30px; line-height: 1.18; font-weight: 650; letter-spacing: -.01em; margin: 0 0 10px; }
+h2 { font-size: 21px; line-height: 1.3; font-weight: 640; margin: 56px 0 12px; padding-top: 18px; border-top: 1px solid var(--rule-2); }
+h3 { font-size: 16px; margin: 26px 0 6px; font-weight: 640; }
+p { margin: 0 0 12px; }
+.lede { font-size: 17px; }
+.byline { color: var(--ink-3); font-size: 13px; margin-bottom: 18px; }
+a { color: var(--signal); text-underline-offset: 2px; }
+blockquote { margin: 10px 0 16px; padding: 2px 0 2px 16px; border-left: 3px solid var(--marker); color: var(--ink-2); }
+blockquote p { margin: 0; }
+.qa { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 10px 26px; max-width: 980px; margin-top: 8px; }
+.qa dt { font-weight: 640; }
+.qa dd { margin: 0; color: var(--ink); }
+ul.plain { padding-left: 20px; margin: 0 0 12px; }
+ul.plain li { margin-bottom: 6px; }
+.frame { margin: 30px 0 0; }
+.frame figcaption { font-size: 14px; color: var(--ink-2); margin: 0 0 10px; max-width: 90ch; }
+.frame figcaption b { color: var(--ink); }
+.stage { overflow-x: auto; padding: 4px 4px 24px; }
+.nav { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; margin: 0 0 24px; }
+.nav a[aria-current] { color: var(--ink); font-weight: 640; text-decoration: none; }
+table.cmp { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--sheet); border: 1px solid var(--rule); }
+table.cmp th, table.cmp td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+table.cmp thead th { font-weight: 640; border-bottom: 1px solid var(--rule-2); }
+table.cmp tbody th { font-weight: 560; width: 210px; }
+.keep { background: var(--sheet); border: 1px solid var(--rule); border-left: 3px solid var(--marker); border-radius: 6px; padding: 10px 14px; max-width: 80ch; font-size: 14px; }
+.dir-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 14px; }
+.dir-links a.card { display: block; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; color: var(--ink); text-decoration: none; }
+.dir-links a.card:hover, .dir-links a.card:focus-visible { border-color: var(--signal); outline: none; }
+.dir-links .name { font-weight: 650; font-size: 16px; color: var(--signal); }
+.dir-links p { font-size: 14px; color: var(--ink-2); margin: 6px 0 0; }
+.audit { position: relative; width: 1280px; }
+.audit img { display: block; width: 1280px; height: 800px; border: 1px solid var(--rule-2); border-radius: 6px; }
+.audit .pin { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; background: var(--redline); color: #fff; font: 700 12px/24px var(--ui); text-align: center; box-shadow: 0 0 0 2px #fff; }
+ol.findings { padding-left: 22px; max-width: 86ch; }
+ol.findings li { margin-bottom: 9px; }
+ol.findings li b { font-weight: 640; }
+code { font: 13px "SF Mono", Menlo, monospace; background: #E3E6EA; padding: 1px 4px; border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+<nav class="nav"><a href="BPR-1161-share-round-v1.html" aria-current="page">Audit and the three directions</a><a href="BPR-1161-share-round-A-sheet-v1.html">A: Share sheet</a><a href="BPR-1161-share-round-B-tray-v1.html">B: Share from Notes</a><a href="BPR-1161-share-round-C-letter-v1.html">C: The round as a letter</a></nav>
+
+<header class="prose">
+  <h1>Sharing a round: what the rejected page got wrong, and three ways to fix it</h1>
+  <div class="byline">BPR-1161, share-round design round v1, for RC61-05. 2026-10-02. Drawn with the frontend-design skill against the app&#8217;s own light and dark palettes.</div>
+  <p class="lede">The owner rejected the Compose feedback page at candidate BPR-1161-compose-share-v001: &#8220;There is a lot going on in this screen and it&#8217;s not a very pretty experience. I have no idea how I got to this screen, why I would wnat to do any of these actions, and what is important.&#8221; This round audits that page from its frozen render and offers three different answers.</p>
+  <p>Attended session cbd48b91, Reject at event 834, handed back at 835. The behaviour the automated course proves is not in question: one click fixes and copies the round, Copy and Save need no AI setup, and no note asks for its own confirmation. What failed is how the page presents it.</p>
+</header>
+
+<section>
+  <h2>The audit</h2>
+  <p class="prose">The frozen candidate&#8217;s own render (7a385389c, executable dc64a2c2&#8230;0f2128), at 1280 by 800. The pins mark the findings below.</p>
+  <div class="stage"><div class="audit"><img src="../verification/BPR-1161-share-round-v1/frozen-share-draft.png" alt="The rejected Compose feedback page: Back, the round's title, three share buttons, a facts line, the action and goal, the note list with Move Up and Move Down, an empty Shared so far box, and a raw Markdown preview, between the file list and the Notes tray."><span class="pin" style="left:1208px;top:84px">1</span><span class="pin" style="left:1240px;top:140px">2</span><span class="pin" style="left:588px;top:124px">3</span><span class="pin" style="left:632px;top:176px">4</span><span class="pin" style="left:880px;top:202px">5</span><span class="pin" style="left:258px;top:242px">6</span><span class="pin" style="left:450px;top:489px">7</span><span class="pin" style="left:405px;top:620px">8</span><span class="pin" style="left:962px;top:640px">9</span><span class="pin" style="left:128px;top:300px">10</span><span class="pin" style="left:1120px;top:440px">11</span></div></div>
+  <div class="prose">
+<h3>How did I get here? The entry path</h3>
+<ol class="findings">
+  <li><b>The only way in is an unlabeled pencil</b>, 28 pixels wide, second from the right end of the review bar, beside the tray toggle. &#8220;Compose feedback&#8221; exists only in its tooltip. Nothing near the notes you have just written points to it.</li>
+  <li><b>The tray&#8217;s &#8220;Next round&#8221; sounds like the way to share</b>, and is not: it prepares the next draft from the last round. It is the one round-related word visible before the page opens.</li>
+  <li><b>The page&#8217;s title is its only context</b>, and it is jargon: &#8220;Feedback round F2 &#183; not shared yet&#8221;. The reviewer never made a round or named one F2. Nothing says that a round is the notes written since the last share, or who it is for.</li>
+</ol>
+<h3>Why would I do this? Purpose and the primary action</h3>
+<ol class="findings" start="4">
+  <li><b>Three equal buttons, no primary, no reasons.</b> Copy to Clipboard, Save to File&#8230; and Save as Bundle&#8230; have the same weight and come first, above the choices that shape what they send. Copy&#8217;s ring is only keyboard focus. Their purposes, and the fact that one click fixes the round, live only in tooltips.</li>
+  <li><b>A line of internal facts</b> sits directly under the buttons: note and suggestion counts, &#8220;no source files&#8221;, 1,952 bytes of Markdown and a round digest. None of it helps the decision to share.</li>
+  <li><b>&#8220;Asks to&#8221; is unexplained</b>, and the goal field under it has no label: &#8220;Rename check.&#8221; reads like a note, not like the round&#8217;s overall request.</li>
+  <li><b>Move Up and Move Down</b> are full buttons for ordering a two-item list.</li>
+</ol>
+<h3>What&#8217;s important? Hierarchy and noise</h3>
+<ol class="findings" start="8">
+  <li><b>&#8220;Shared so far&#8221; is a 200-pixel empty box</b> before anything has been shared, and its three-line caveat is permanent.</li>
+  <li><b>The preview is the biggest thing on the page and the least needed.</b> It is raw Markdown with SHA-256 values, &#8220;observed_stable&#8221;, &#8220;item revision 1&#8221;, byte ranges and &#8220;exact_replacement / proposed&#8221;. The reviewer has to read machine detail to check their own words.</li>
+  <li><b>The file list stays beside the page</b> though nothing on the page uses it.</li>
+  <li><b>The Notes tray shows the same notes again</b>, in a different format, beside the page&#8217;s own list of them. Six bordered boxes of similar contrast compete, and the reading order zigzags between them.</li>
+</ol>
+</div>
+  <div class="keep"><b>Keep in every direction.</b> One gesture fixes and shares the round. Copy and Save are both visible without opening anything. No AI setup, no second prompt, no per-note confirmation. The exact text stays reachable and unchanged. A refused channel is shown refused, never swapped for another. These are RC61-05, RC56-07 and RC56-10, and the automated course already passes them.</div>
+</section>
+
+<section>
+  <h2>Three directions</h2>
+  <p class="prose">Each answers the three complaints differently. They share the app&#8217;s chrome, palette and type, and the same plain words: &#8220;Round 2&#8221; instead of F2, &#8220;Ask them to&#8221; with a line per choice, a reason beside Copy and Save, and the next step after sharing. The digest, byte counts and raw Markdown are moved behind &#8220;Read the exact text&#8221; in all three.</p>
+  <div class="dir-links">
+    <a class="card" href="BPR-1161-share-round-A-sheet-v1.html"><span class="name">A: Share sheet</span><p>A short sheet drops from the review bar over the code, asks two things, and offers Copy round 2. Done returns you to the file. The lightest change.</p></a>
+    <a class="card" href="BPR-1161-share-round-B-tray-v1.html"><span class="name">B: Share from Notes</span><p>No page at all. The Notes tray shows your notes as round 2, and its foot holds Copy round 2. You never leave the code.</p></a>
+    <a class="card" href="BPR-1161-share-round-C-letter-v1.html"><span class="name">C: The round as a letter</span><p>The page becomes what you send: the request, then each note with its code and change, rendered. One panel beside it sends the round.</p></a>
+  </div>
+
+  <h3>Side by side</h3>
+  <table class="cmp">
+    <thead><tr><th></th><th>A: Share sheet</th><th>B: Share from Notes</th><th>C: The round as a letter</th></tr></thead>
+    <tbody>
+      <tr><th>Where you start</th><td>Share notes, labelled with the count, in the review bar</td><td>The Notes tray; its toggle carries the count</td><td>Share notes, labelled with the count, in the review bar</td></tr>
+      <tr><th>Leaves the code?</th><td>No; a sheet over it, Escape closes</td><td>No</td><td>Yes; a page with Back and Escape</td></tr>
+      <tr><th>Choosing and ordering notes</th><td>A compact list in the sheet</td><td>The tray&#8217;s own note cards</td><td>The full notes, with code and changes</td></tr>
+      <tr><th>The one primary action</th><td>Copy round 2, the sheet&#8217;s default</td><td>Copy round 2, full width at the tray&#8217;s foot</td><td>Copy round 2, top of the side panel</td></tr>
+      <tr><th>The exact text</th><td>A link that opens it in a document tab</td><td>A link that opens it in a document tab</td><td>A disclosure at the letter&#8217;s foot</td></tr>
+      <tr><th>After sharing</th><td>The sheet says what happened, what&#8217;s next, and what has been shared</td><td>The tray&#8217;s foot does; round 3 opens above</td><td>The panel does; the letter becomes read-only</td></tr>
+      <tr><th>Best for</th><td>Short rounds shared often</td><td>Reviewers who live in the tray</td><td>Long rounds that deserve a last read</td></tr>
+      <tr><th>Cost in Qt</th><td>Low: a sheet of existing widgets</td><td>Medium: tray delegate and foot</td><td>Highest: draws each note&#8217;s code on the page</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Not decided here</h3>
+  <p class="prose">The words for each delivery observation (&#8220;Copied to the clipboard&#8221;, &#8220;Saved as &#8230;&#8221;, and the caveat that none of them means the round was read or acted on) are drawn in every direction&#8217;s after frames, but they belong to the open question BPR-1161-delivery-words-v001 (RC61-06). Changing a word in the exact text&#8217;s own format is RFC-BPR-0056&#8217;s, and none of the directions does.</p>
+  <p class="prose">Compose review on a pull request has its own later rethink, BPR-1212. Whichever direction is chosen here should give that card a starting vocabulary, but this round does not redesign it.</p>
+</section>
+
+<section class="prose">
+  <h2>How these were made</h2>
+  <p>The audit image is the candidate&#8217;s own offscreen render from its automated course. The frames are static HTML at the window&#8217;s real size, 1280 by 800, drawn with the colour roles in <code>src/adapters/qt/src/appearance_profile.cpp</code> and the chrome of the accepted RFC-BPR-0052 scaffolding (<a href="BPR-1106-scaffolding-v8.html">round v8</a>). They are design evidence only. None of them is the built product, and none claims a native or owner result.</p>
+</section>
+
+</main>
+</body>
+</html>

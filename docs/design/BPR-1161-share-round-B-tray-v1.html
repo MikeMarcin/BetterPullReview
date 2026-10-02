@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1161 share round, direction B: share from Notes</title>
+<!--
+  [[BPR-1161]] share-round design round v1, direction B. Static mockup; every colour is an
+  appearance_profile.cpp role. Generated from one script so the three directions share a frame.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873;
+  --rule:#D2D7DD; --rule-2:#B9C0C8; --signal:#2F6FD6; --marker:#B7791F; --redline:#B8266B;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body { margin: 0; color: var(--ink); font: 15px/1.55 var(--ui); }
+main { max-width: 1336px; margin: 0 auto; padding: 44px 28px 96px; }
+.prose { max-width: 74ch; }
+h1 { font-size: 30px; line-height: 1.18; font-weight: 650; letter-spacing: -.01em; margin: 0 0 10px; }
+h2 { font-size: 21px; line-height: 1.3; font-weight: 640; margin: 56px 0 12px; padding-top: 18px; border-top: 1px solid var(--rule-2); }
+h3 { font-size: 16px; margin: 26px 0 6px; font-weight: 640; }
+p { margin: 0 0 12px; }
+.lede { font-size: 17px; }
+.byline { color: var(--ink-3); font-size: 13px; margin-bottom: 18px; }
+a { color: var(--signal); text-underline-offset: 2px; }
+blockquote { margin: 10px 0 16px; padding: 2px 0 2px 16px; border-left: 3px solid var(--marker); color: var(--ink-2); }
+blockquote p { margin: 0; }
+.qa { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 10px 26px; max-width: 980px; margin-top: 8px; }
+.qa dt { font-weight: 640; }
+.qa dd { margin: 0; color: var(--ink); }
+ul.plain { padding-left: 20px; margin: 0 0 12px; }
+ul.plain li { margin-bottom: 6px; }
+.frame { margin: 30px 0 0; }
+.frame figcaption { font-size: 14px; color: var(--ink-2); margin: 0 0 10px; max-width: 90ch; }
+.frame figcaption b { color: var(--ink); }
+.stage { overflow-x: auto; padding: 4px 4px 24px; }
+.nav { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; margin: 0 0 24px; }
+.nav a[aria-current] { color: var(--ink); font-weight: 640; text-decoration: none; }
+table.cmp { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--sheet); border: 1px solid var(--rule); }
+table.cmp th, table.cmp td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+table.cmp thead th { font-weight: 640; border-bottom: 1px solid var(--rule-2); }
+table.cmp tbody th { font-weight: 560; width: 210px; }
+.keep { background: var(--sheet); border: 1px solid var(--rule); border-left: 3px solid var(--marker); border-radius: 6px; padding: 10px 14px; max-width: 80ch; font-size: 14px; }
+.dir-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 14px; }
+.dir-links a.card { display: block; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; color: var(--ink); text-decoration: none; }
+.dir-links a.card:hover, .dir-links a.card:focus-visible { border-color: var(--signal); outline: none; }
+.dir-links .name { font-weight: 650; font-size: 16px; color: var(--signal); }
+.dir-links p { font-size: 14px; color: var(--ink-2); margin: 6px 0 0; }
+.audit { position: relative; width: 1280px; }
+.audit img { display: block; width: 1280px; height: 800px; border: 1px solid var(--rule-2); border-radius: 6px; }
+.audit .pin { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; background: var(--redline); color: #fff; font: 700 12px/24px var(--ui); text-align: center; box-shadow: 0 0 0 2px #fff; }
+ol.findings { padding-left: 22px; max-width: 86ch; }
+ol.findings li { margin-bottom: 9px; }
+ol.findings li b { font-weight: 640; }
+code { font: 13px "SF Mono", Menlo, monospace; background: #E3E6EA; padding: 1px 4px; border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.win { --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono: "JetBrains Mono NL", "JetBrains Mono", "SF Mono", Menlo, monospace;
+  position: relative; width: 1280px; height: 800px; overflow: hidden; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--ink); font: 12px/1.4 var(--ui); border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--frame-edge), 0 18px 50px rgba(15,20,30,.22); text-align: left; }
+.win.dark { --bg:#1C2026; --side:#20252C; --panel:#242930; --panel-2:#2A3039; --rule:#343A44; --rule-2:#414955;
+  --ink:#E6EDF3; --ink-2:#A0A8B2; --ink-3:#8B949E; --signal:#7FB0E8; --signal-soft:#26374F; --on-signal:#0D1117;
+  --marker:#E0B15A; --marker-soft:#3A3120; --code:#0D1117; --gutter:#141921; --lnum:#8B949E; --curline:#161C24;
+  --add:#153622; --del:#3E1F1F; --add2:#104A17; --del2:#672323; --ok:#3FB950; --ok-soft:#173523; --field:#161B22;
+  --scrim: rgba(5,8,12,.52); --shadow: 0 22px 60px rgba(0,0,0,.55); --frame-edge:#0b0e12;
+  --s-nm:#DCDCDC; --s-kw:#6DA9DB; --s-cf:#D8A0DF; --s-fn:#FF8000; --s-var:#BDB76B; --s-ty:#FFD700; --s-num:#B5CEA8;
+  --s-str:#D69D85; --s-cm:#66B559; --s-pp:#A3A3A3; --s-op:#B4B4B4; }
+.win.light { --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#EEF1F5; --rule:#D9DEE5; --rule-2:#C3CAD3;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#5B6570; --signal:#2F6FD6; --signal-soft:#DCE8F9; --on-signal:#FFFFFF;
+  --marker:#B7791F; --marker-soft:#FBF1DC; --code:#FFFFFF; --gutter:#F0F2F5; --lnum:#5B6570; --curline:#F2F6FC;
+  --add:#E6FFEC; --del:#FFEBE9; --add2:#9EFFB5; --del2:#F1B9B4; --ok:#1A7F37; --ok-soft:#E3F4E8; --field:#FFFFFF;
+  --scrim: rgba(31,35,40,.28); --shadow: 0 22px 56px rgba(31,35,40,.26); --frame-edge:#B9C0C8;
+  --s-nm:#1F2328; --s-kw:#B51D27; --s-cf:#A40E26; --s-fn:#6639BA; --s-var:#24509B; --s-ty:#6E3EC8; --s-num:#0550AE;
+  --s-str:#086A49; --s-cm:#555E69; --s-pp:#7A3E9D; --s-op:#24292F; }
+.win * { box-sizing: border-box; }
+.win svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* title row */
+.w-title { flex: 0 0 30px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 0; background: var(--panel); border-bottom: 1px solid var(--rule-2); font-size: 12px; }
+.w-lights { display: flex; gap: 8px; width: 78px; padding-left: 10px; flex: none; }
+.w-lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.w-lights i:nth-child(1) { background:#FF5F57 } .w-lights i:nth-child(2) { background:#FEBC2E } .w-lights i:nth-child(3) { background:#28C840 }
+.w-name { font-weight: 600; margin-left: 4px; }
+.w-badge { font-size: 11px; color: var(--ink-2); border: 1px solid var(--rule-2); border-radius: 9px; padding: 0 7px; line-height: 16px; }
+.w-gap { flex: 1; }
+
+/* buttons as the app draws them */
+.ib { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 22px; min-width: 28px; padding: 0 8px; border: 1px solid var(--rule-2); background: var(--panel-2); color: var(--ink); border-radius: 5px; white-space: nowrap; font-size: 12px; flex: none; }
+.ib.flat { background: transparent; border-color: transparent; }
+.ib.on { background: var(--signal-soft); border-color: var(--signal); color: var(--ink); }
+.ib.on svg.i { color: var(--signal); }
+.ib .caret { font-size: 8px; color: var(--ink-2); }
+.ib .count { min-width: 16px; height: 16px; border-radius: 8px; background: var(--signal); color: var(--on-signal); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; padding: 0 4px; }
+.ib.icononly { padding: 0; width: 28px; }
+.ib .badge { position: absolute; margin: -15px 0 0 19px; min-width: 15px; height: 15px; border-radius: 8px; background: var(--signal); color: var(--on-signal); font-size: 9px; font-weight: 700; line-height: 15px; text-align: center; padding: 0 3px; }
+
+/* review bar */
+.w-bar { flex: 0 0 30px; display: flex; align-items: center; gap: 6px; padding: 0 6px; background: var(--panel); border-bottom: 1px solid var(--rule); }
+.w-bar .cmp { color: var(--ink); white-space: nowrap; }
+.w-bar .cmp b { font-weight: 500; }
+.w-bar .div { width: 1px; height: 18px; background: var(--rule-2); margin: 0 4px; }
+.w-bar .rail { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px; }
+.w-bar .rail .lab { color: var(--ink-2); }
+.w-bar .rail .pos { color: var(--ink); min-width: 44px; text-align: center; }
+.w-bar .disc { color: var(--ink-2); font-size: 9px; width: 14px; text-align: center; }
+
+/* tabs */
+.w-tabs { flex: 0 0 28px; display: flex; align-items: stretch; background: var(--side); border-bottom: 1px solid var(--rule); padding-left: 6px; }
+.w-tab { display: flex; align-items: center; gap: 6px; padding: 0 14px; min-width: 170px; color: var(--ink-2); border-right: 1px solid var(--rule); font-size: 12px; }
+.w-tab.on { background: var(--code); color: var(--ink); box-shadow: inset 0 2px 0 var(--signal); }
+.w-tab .x { margin-left: auto; color: var(--ink-3); font-size: 11px; }
+.w-tab .sub { color: var(--ink-3); font-size: 11px; }
+.w-tabs .plus { display: flex; align-items: center; padding: 0 10px; color: var(--ink-2); }
+
+/* body */
+.w-body { position: relative; flex: 1; display: flex; min-height: 0; }
+.w-files { flex: 0 0 196px; background: var(--side); border-right: 1px solid var(--rule); padding: 8px 0; }
+.w-files .f { display: flex; align-items: center; gap: 6px; padding: 3px 12px; color: var(--ink); }
+.w-files .f.on { background: var(--signal-soft); }
+.w-files .f .n { margin-left: auto; color: var(--ink-3); font-size: 11px; }
+.w-files .dir { color: var(--ink-3); padding: 6px 12px 2px; font-size: 11px; }
+.w-main { flex: 1; min-width: 0; background: var(--code); display: flex; flex-direction: column; }
+.code { font: 12.5px/19px var(--mono); padding: 6px 0; color: var(--s-nm); }
+.code .ln { display: flex; white-space: pre; }
+.code .ln .g { flex: 0 0 52px; text-align: right; padding-right: 12px; color: var(--lnum); background: var(--gutter); position: relative; }
+.code .ln .t { padding-left: 12px; flex: 1; }
+.code .ln.cur .t { background: var(--curline); }
+.code .ln .g .nm { position: absolute; left: 8px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--marker); }
+.k { color: var(--s-kw) } .cf { color: var(--s-cf) } .fn { color: var(--s-fn) } .ty { color: var(--s-ty) } .va { color: var(--s-var) }
+.nu { color: var(--s-num) } .st { color: var(--s-str) } .cm { color: var(--s-cm) } .pp { color: var(--s-pp) } .op { color: var(--s-op) }
+
+/* tray */
+.w-tray { flex: 0 0 330px; background: var(--panel); border-left: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; }
+.tr-head { flex: 0 0 30px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid var(--rule); }
+.tr-tab { padding: 0 10px; line-height: 29px; color: var(--ink-2); }
+.tr-tab.on { color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--signal); }
+.tr-list { flex: 1; overflow: hidden; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
+.note { border: 1px solid var(--rule); border-radius: 6px; background: var(--bg); padding: 7px 9px; }
+.note .wh { color: var(--ink-2); font-size: 11px; display: flex; gap: 6px; align-items: center; }
+.note .wh .ref { color: var(--ink); font-weight: 500; }
+.note .bd { margin-top: 3px; color: var(--ink); }
+.note .meta { margin-top: 4px; color: var(--ink-3); font-size: 11px; }
+
+/* status bar */
+.w-status { flex: 0 0 22px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--panel); border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 11px; }
+
+/* shared controls in the new surfaces */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 26px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--rule-2); background: var(--panel-2); color: var(--ink); font: 500 12.5px/1 var(--ui); white-space: nowrap; }
+.btn.primary { background: var(--signal); border-color: var(--signal); color: var(--on-signal); font-weight: 600; }
+.btn.big { height: 32px; font-size: 13px; }
+.btn.wide { width: 100%; }
+.btn.link { border-color: transparent; background: transparent; color: var(--signal); padding: 0 4px; }
+.seg { display: inline-flex; border: 1px solid var(--rule-2); background: var(--bg); border-radius: 6px; padding: 2px; gap: 2px; }
+.seg span { border-radius: 4px; line-height: 20px; padding: 0 12px; color: var(--ink); }
+.seg span.on { background: var(--signal); color: var(--on-signal); font-weight: 600; }
+.fld { border: 1px solid var(--rule-2); background: var(--field); border-radius: 5px; padding: 6px 8px; color: var(--ink); min-height: 28px; }
+.fld.ph { color: var(--ink-3); }
+.lbl { font-weight: 600; color: var(--ink); }
+.muted { color: var(--ink-2); font-weight: 400; }
+.hint { color: var(--ink-2); font-size: 11.5px; line-height: 1.45; }
+.chk { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--rule-2); background: var(--field); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.chk.on { background: var(--signal); border-color: var(--signal); }
+.chk.on::after { content: ""; width: 7px; height: 4px; border: 2px solid var(--on-signal); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px,-1px); }
+.grip { color: var(--ink-3); letter-spacing: -2px; font-size: 11px; flex: none; }
+.pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 10px; padding: 0 8px; line-height: 18px; font-size: 11px; font-weight: 600; border: 1px solid var(--rule-2); color: var(--ink-2); }
+.pill.draft { color: var(--marker); border-color: var(--marker); background: var(--marker-soft); }
+.pill.done { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.tick { width: 18px; height: 18px; border-radius: 50%; background: var(--ok); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.tick::after { content: ""; width: 8px; height: 4px; border: 2px solid var(--on-signal); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px,-1px); }
+.win.dark .tick::after { border-color: #0D1117; }
+.diff { font: 11.5px/17px var(--mono); border: 1px solid var(--rule); border-radius: 5px; overflow: hidden; background: var(--code); color: var(--s-nm); }
+.diff .r { display: flex; white-space: pre; }
+.diff .r .g { flex: 0 0 34px; text-align: right; padding-right: 6px; color: var(--lnum); }
+.diff .r .s { flex: 0 0 14px; color: var(--ink-2); }
+.diff .r.del { background: var(--del); } .diff .r.add { background: var(--add); }
+.diff .r.del mark { background: var(--del2); color: inherit; border-radius: 2px; }
+.diff .r.add mark { background: var(--add2); color: inherit; border-radius: 2px; }
+.diff .r.ctx .t { color: var(--s-nm); }
+.diff .sep { padding: 1px 8px; color: var(--ink-3); font: 11px/16px var(--ui); background: var(--gutter); }
+.focus { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--signal); }
+
+.w-tray.b { flex-basis: 384px; }
+.b-round { padding: 10px 12px 8px; border-bottom: 1px solid var(--rule); }
+.b-round .top { display: flex; align-items: center; gap: 8px; }
+.b-round .top b { font-size: 13px; }
+.b-round .hint { margin-top: 4px; }
+.b-cards { flex: 1; overflow: hidden; padding: 8px 10px; display: flex; flex-direction: column; gap: 7px; }
+.b-card { display: flex; gap: 8px; border: 1px solid var(--rule); border-radius: 7px; background: var(--bg); padding: 8px 10px 9px 6px; }
+.b-card.sel { border-color: var(--signal); box-shadow: inset 3px 0 0 var(--signal); }
+.b-card .side { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 1px; width: 26px; flex: none; }
+.b-card .num { color: var(--ink-3); font-size: 11px; }
+.b-card .main { flex: 1; min-width: 0; }
+.b-card .wh { color: var(--ink-2); font-size: 11px; }
+.b-card .wh b { color: var(--ink); font-weight: 500; }
+.b-card .bd { margin-top: 2px; }
+.b-card .diff { margin-top: 6px; }
+.b-older { padding: 7px 12px; color: var(--ink-2); border-top: 1px solid var(--rule); display: flex; gap: 6px; }
+.b-dock { flex: none; border-top: 1px solid var(--rule-2); background: var(--panel-2); padding: 12px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.b-dock .row { display: flex; align-items: center; gap: 8px; }
+.b-dock .row .lbl { flex: none; }
+.b-dock .seg span { padding: 0 9px; }
+.b-dock .fld { background: var(--field); }
+.b-dock .hint.c { text-align: center; margin-top: -2px; }
+.b-dock .sp { flex: 1; }
+.b-dock .done { display: flex; gap: 9px; align-items: flex-start; }
+.b-dock .done b { font-size: 13px; }
+.b-hist { list-style: none; margin: 0; padding: 0; font-size: 11.5px; }
+.b-hist li { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--rule); }
+.b-hist li:last-child { border-bottom: 0; }
+.b-hist .when { margin-left: auto; color: var(--ink-3); }
+.b-hist .r { width: 52px; color: var(--ink-2); flex: none; }
+.b-empty { border: 1px dashed var(--rule-2); border-radius: 7px; padding: 8px 10px; color: var(--ink-2); font-size: 11.5px; }
+.md { font: 12px/19px var(--mono); color: var(--s-nm); padding: 14px 22px; white-space: pre-wrap; max-width: 760px; }
+.md .h { color: var(--ink); font-weight: 700; }
+.md .q { color: var(--ink-3); }
+.doc-tab-note { padding: 7px 22px; border-bottom: 1px solid var(--rule); background: var(--side); color: var(--ink-2); font: 11.5px/1.4 var(--ui); display: flex; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+<main>
+<nav class="nav"><a href="BPR-1161-share-round-v1.html">Audit and the three directions</a><a href="BPR-1161-share-round-A-sheet-v1.html">A: Share sheet</a><a href="BPR-1161-share-round-B-tray-v1.html" aria-current="page">B: Share from Notes</a><a href="BPR-1161-share-round-C-letter-v1.html">C: The round as a letter</a></nav>
+
+<header class="prose">
+  <h1>Direction B: share from the Notes tray</h1>
+  <div class="byline">BPR-1161, share-round design round v1, for RC61-05. Drawn on 2026-10-02 from the rejected candidate BPR-1161-compose-share-v001 (built at 7a385389c).</div>
+  <p class="lede">There is no share page at all. The Notes tray, where every note already lands as you write it, shows the notes as the round they belong to, and its foot holds the one button that sends them. You never leave the code.</p>
+</header>
+
+<section class="prose">
+  <h2>The owner&#8217;s three complaints, answered</h2>
+  <blockquote><p>&#8220;There is a lot going on in this screen and it&#8217;s not a very pretty experience. I have no idea how I got to this screen, why I would wnat to do any of these actions, and what is important.&#8221;</p></blockquote>
+  <dl class="qa">
+    <dt>How did I get here?</dt>
+    <dd>You don&#8217;t go anywhere. The round is the list of notes you have been writing, headed &#8220;Round 2, not shared yet&#8221;, with one line saying that new notes join it. Sharing happens at the foot of that list. The review bar loses its pencil; the tray toggle carries the number of notes waiting, so a reviewer with the tray closed still sees that there is something to share.</dd>
+    <dt>Why would I do each thing?</dt>
+    <dd>The tray&#8217;s foot reads top to bottom as one sentence: ask them to Implement, optionally say something about the whole round, then Copy round 2, with the line under it saying where to paste it. Save as File and Read the exact text sit below as the secondary choices, and the bundle is in the &#8943; menu with its purpose in the menu item.</dd>
+    <dt>What&#8217;s important?</dt>
+    <dd>The full-width Copy round 2 is the only filled control in the window. Each note keeps its check box and its order in the list you were already reading, so choosing what goes is part of the note list, not a separate step.</dd>
+  </dl>
+
+  <h2>What changes from the rejected page</h2>
+  <ul class="plain">
+    <li>The Compose feedback page goes. Back and Escape no longer have anything to return from.</li>
+    <li>The notes appear once, in the tray, instead of once in the tray and again in the page&#8217;s list.</li>
+    <li>Read the exact text opens a document tab, &#8220;Round 2 as shared&#8221;, beside the file tabs, so the exact bytes are read like any other document. The after frames show it open.</li>
+    <li>After sharing, the shared round folds below a fresh &#8220;Round 3&#8221; heading, and the foot says what happened, what to do next, and what has been shared so far.</li>
+  </ul>
+
+  <h2>Building it in Qt</h2>
+  <p>The Notes tray is already a Qt widget with the notes in it. This adds a round heading, a check box and grip on each note (a <code>QListView</code> delegate with drag reordering), and a fixed foot inside the tray: three checkable buttons, a line edit and a default-styled <code>QPushButton</code>. The exact-text tab reuses the document tabs from RFC-BPR-0052. The window gains no row; the tray grows from 330 to 384 pixels while it holds a draft round. Return on a focused note row opens it in the code.</p>
+
+  <h2>What it costs</h2>
+  <ul class="plain">
+    <li>The tray is narrow. A suggested change with long lines wraps or scrolls inside its card, and the foot takes about 200 pixels of the tray&#8217;s height.</li>
+    <li>With the tray closed there is no share control on screen, only the count on the tray toggle. The menu command and its shortcut remain.</li>
+    <li>The tray now holds two jobs, writing notes and sending them, and the Notes tab&#8217;s design from RFC-BPR-0052 (private notes and AI conversations) has to make room for the round heading.</li>
+  </ul>
+</section>
+<h2>The frames, 1280 by 800, macOS</h2><figure class="frame"><figcaption><b>Before sharing, light.</b> The notes you wrote are round 2. The caret is on line 14, so its note is selected in the tray. Copy round 2 has keyboard focus.</figcaption><div class="stage"><div class="win light"><div class="w-title"><div class="w-lights"><i></i><i></i><i></i></div><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/></svg></span><span class="w-name">parser-project</span><span class="w-badge">Local cycle</span><span class="w-gap"></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M5.2 18.8l2.1-2.1M16.7 7.3l2.1-2.1"/></svg></span></div><div class="w-bar"><span class="ib flat icononly on" style="background:transparent;border-color:transparent"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/></svg></span><span class="disc">&#9656;</span><span class="cmp"><b>Full source</b> &middot; R2</span><span class="ib">View <span class="caret">&#9660;</span></span><span class="div"></span><span class="rail"><span class="lab">File</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg></span><span class="pos">2 of 3</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg></span></span><span class="w-gap"></span><span class="ib">Capture revision <span class="caret">&#9660;</span></span><span class="ib">Mark reviewed</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></span><span class="ib">Suggest change</span><span class="ib icononly on"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/></svg><span class="badge">3</span></span></div><div class="w-tabs"><div class="w-tab on">parser.cpp<span class="x">&#10005;</span></div><span class="plus"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="w-body"><div class="w-files"><div class="f">README.md<span class="n">1</span></div><div class="f on">src/parser.cpp<span class="n">2</span></div><div class="f">src/parser.hpp</div></div><div class="w-main"><div class="code"><div class="ln"><span class="g">1</span><span class="t"><span class="pp">#include</span> <span class="st">"parser.hpp"</span></span></div><div class="ln"><span class="g">2</span><span class="t"> </span></div><div class="ln"><span class="g">3</span><span class="t"><span class="pp">#include</span> <span class="st">&lt;cctype&gt;</span></span></div><div class="ln"><span class="g">4</span><span class="t"><span class="pp">#include</span> <span class="st">&lt;string_view&gt;</span></span></div><div class="ln"><span class="g">5</span><span class="t"> </span></div><div class="ln"><span class="g">6</span><span class="t"><span class="k">namespace</span> sample {</span></div><div class="ln"><span class="g">7</span><span class="t"> </span></div><div class="ln"><span class="g">8</span><span class="t"><span class="cm">// Returns the number of tokens in aText, or -1 when it is malformed.</span></span></div><div class="ln"><span class="g">9</span><span class="t"><span class="k">int</span> <span class="fn">parse</span>(<span class="k">const</span> <span class="k">char</span><span class="op">*</span> <span class="va">aText</span>)</span></div><div class="ln"><span class="g">10</span><span class="t">{</span></div><div class="ln"><span class="g">11</span><span class="t">    <span class="cf">if</span> (<span class="va">aText</span> <span class="op">==</span> <span class="k">nullptr</span>) {</span></div><div class="ln"><span class="g">12</span><span class="t">        <span class="cf">return</span> <span class="op">-</span><span class="nu">1</span>;</span></div><div class="ln"><span class="g">13</span><span class="t">    }</span></div><div class="ln cur"><span class="g"><i class="nm"></i>14</span><span class="t">    <span class="cf">return</span> <span class="fn">check</span>(<span class="va">aText</span>);</span></div><div class="ln"><span class="g">15</span><span class="t">}</span></div><div class="ln"><span class="g">16</span><span class="t"> </span></div><div class="ln"><span class="g"><i class="nm"></i>17</span><span class="t"><span class="k">int</span> <span class="fn">check</span>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div><div class="ln"><span class="g">18</span><span class="t">{</span></div><div class="ln"><span class="g">19</span><span class="t">    <span class="k">auto</span> <span class="va">tokens</span> <span class="op">=</span> <span class="nu">0</span>;</span></div><div class="ln"><span class="g">20</span><span class="t">    <span class="k">auto</span> <span class="va">inWord</span> <span class="op">=</span> <span class="k">false</span>;</span></div><div class="ln"><span class="g">21</span><span class="t">    <span class="cf">for</span> (<span class="k">const</span> <span class="k">char</span> <span class="va">c</span> : <span class="va">aText</span>) {</span></div><div class="ln"><span class="g">22</span><span class="t">        <span class="k">const</span> <span class="k">bool</span> <span class="va">space</span> <span class="op">=</span> <span class="fn">std::isspace</span>(<span class="k">static_cast</span>&lt;<span class="k">unsigned</span> <span class="k">char</span>&gt;(<span class="va">c</span>)) <span class="op">!=</span> <span class="nu">0</span>;</span></div><div class="ln"><span class="g">23</span><span class="t">        <span class="cf">if</span> (<span class="op">!</span><span class="va">space</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="va">inWord</span>) {</span></div><div class="ln"><span class="g">24</span><span class="t">            <span class="op">++</span><span class="va">tokens</span>;</span></div><div class="ln"><span class="g">25</span><span class="t">        }</span></div><div class="ln"><span class="g">26</span><span class="t">        <span class="va">inWord</span> <span class="op">=</span> <span class="op">!</span><span class="va">space</span>;</span></div><div class="ln"><span class="g">27</span><span class="t">    }</span></div><div class="ln"><span class="g">28</span><span class="t">    <span class="cf">return</span> <span class="va">tokens</span>;</span></div><div class="ln"><span class="g">29</span><span class="t">}</span></div><div class="ln"><span class="g">30</span><span class="t"> </span></div><div class="ln"><span class="g">31</span><span class="t">} <span class="cm">// namespace sample</span></span></div></div></div><div class="w-tray b"><div class="tr-head"><span class="tr-tab on">Notes</span><span class="w-gap"></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="b-round"><div class="top"><b>Round 2</b><span class="pill draft">Not shared yet</span></div><div class="hint">Notes you write join this round. Share it when you want someone to act on them.</div></div><div class="b-cards"><div class="b-card sel"><div class="side"><span class="chk on"></span><span class="num">1</span><span class="grip">&#8942;&#8942;</span></div><div class="main"><div class="wh"><b>src/parser.cpp</b> &nbsp;line 14</div><div class="bd">Why call check() here? parse() has already refused null, and check() counts tokens; the name hides that.</div></div></div><div class="b-card"><div class="side"><span class="chk on"></span><span class="num">2</span><span class="grip">&#8942;&#8942;</span></div><div class="main"><div class="wh"><b>src/parser.cpp</b> &nbsp;lines 14 and 17</div><div class="bd">Rename check to count_tokens.</div><div class="diff"><div class="r del"><span class="g">14</span><span class="s">-</span><span class="t">    <span class="cf">return</span> <mark><span class="fn">check</span></mark>(<span class="va">aText</span>);</span></div><div class="r add"><span class="g">14</span><span class="s">+</span><span class="t">    <span class="cf">return</span> <mark><span class="fn">count_tokens</span></mark>(<span class="va">aText</span>);</span></div><div class="sep">line 17</div><div class="r del"><span class="g">17</span><span class="s">-</span><span class="t"><span class="k">int</span> <mark><span class="fn">check</span></mark>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div><div class="r add"><span class="g">17</span><span class="s">+</span><span class="t"><span class="k">int</span> <mark><span class="fn">count_tokens</span></mark>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div></div></div></div><div class="b-card"><div class="side"><span class="chk on"></span><span class="num">3</span><span class="grip">&#8942;&#8942;</span></div><div class="main"><div class="wh"><b>README.md</b> &nbsp;whole file</div><div class="bd">Say what parse() returns for an empty string.</div></div></div></div><div class="b-older">&#9656; Round 1 <span class="muted">shared yesterday, 2 notes</span></div><div class="b-dock"><div class="row"><span class="lbl">Ask them to</span><span class="seg"><span>Discuss</span><span>Plan</span><span class="on">Implement</span></span></div><div class="hint">Make the changes the notes describe.</div><div class="fld ph">Note for the whole round (optional)</div><span class="btn primary big wide focus"><svg class="i" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/></svg>Copy round 2</span><div class="hint c">Paste it into your agent&#8217;s chat, an issue or a message.</div><div class="row"><span class="btn"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>Save as File&#8230;</span><span class="btn link">Read the exact text</span><span class="sp"></span><span class="ib icononly" title="Save as Bundle"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg></span></div></div></div></div><div class="w-status">R2 captured at 10:42 &nbsp; 3 notes in round 2</div></div></div></figure><figure class="frame"><figcaption><b>Before sharing, dark.</b></figcaption><div class="stage"><div class="win dark"><div class="w-title"><div class="w-lights"><i></i><i></i><i></i></div><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/></svg></span><span class="w-name">parser-project</span><span class="w-badge">Local cycle</span><span class="w-gap"></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M5.2 18.8l2.1-2.1M16.7 7.3l2.1-2.1"/></svg></span></div><div class="w-bar"><span class="ib flat icononly on" style="background:transparent;border-color:transparent"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/></svg></span><span class="disc">&#9656;</span><span class="cmp"><b>Full source</b> &middot; R2</span><span class="ib">View <span class="caret">&#9660;</span></span><span class="div"></span><span class="rail"><span class="lab">File</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg></span><span class="pos">2 of 3</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg></span></span><span class="w-gap"></span><span class="ib">Capture revision <span class="caret">&#9660;</span></span><span class="ib">Mark reviewed</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></span><span class="ib">Suggest change</span><span class="ib icononly on"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/></svg><span class="badge">3</span></span></div><div class="w-tabs"><div class="w-tab on">parser.cpp<span class="x">&#10005;</span></div><span class="plus"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="w-body"><div class="w-files"><div class="f">README.md<span class="n">1</span></div><div class="f on">src/parser.cpp<span class="n">2</span></div><div class="f">src/parser.hpp</div></div><div class="w-main"><div class="code"><div class="ln"><span class="g">1</span><span class="t"><span class="pp">#include</span> <span class="st">"parser.hpp"</span></span></div><div class="ln"><span class="g">2</span><span class="t"> </span></div><div class="ln"><span class="g">3</span><span class="t"><span class="pp">#include</span> <span class="st">&lt;cctype&gt;</span></span></div><div class="ln"><span class="g">4</span><span class="t"><span class="pp">#include</span> <span class="st">&lt;string_view&gt;</span></span></div><div class="ln"><span class="g">5</span><span class="t"> </span></div><div class="ln"><span class="g">6</span><span class="t"><span class="k">namespace</span> sample {</span></div><div class="ln"><span class="g">7</span><span class="t"> </span></div><div class="ln"><span class="g">8</span><span class="t"><span class="cm">// Returns the number of tokens in aText, or -1 when it is malformed.</span></span></div><div class="ln"><span class="g">9</span><span class="t"><span class="k">int</span> <span class="fn">parse</span>(<span class="k">const</span> <span class="k">char</span><span class="op">*</span> <span class="va">aText</span>)</span></div><div class="ln"><span class="g">10</span><span class="t">{</span></div><div class="ln"><span class="g">11</span><span class="t">    <span class="cf">if</span> (<span class="va">aText</span> <span class="op">==</span> <span class="k">nullptr</span>) {</span></div><div class="ln"><span class="g">12</span><span class="t">        <span class="cf">return</span> <span class="op">-</span><span class="nu">1</span>;</span></div><div class="ln"><span class="g">13</span><span class="t">    }</span></div><div class="ln cur"><span class="g"><i class="nm"></i>14</span><span class="t">    <span class="cf">return</span> <span class="fn">check</span>(<span class="va">aText</span>);</span></div><div class="ln"><span class="g">15</span><span class="t">}</span></div><div class="ln"><span class="g">16</span><span class="t"> </span></div><div class="ln"><span class="g"><i class="nm"></i>17</span><span class="t"><span class="k">int</span> <span class="fn">check</span>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div><div class="ln"><span class="g">18</span><span class="t">{</span></div><div class="ln"><span class="g">19</span><span class="t">    <span class="k">auto</span> <span class="va">tokens</span> <span class="op">=</span> <span class="nu">0</span>;</span></div><div class="ln"><span class="g">20</span><span class="t">    <span class="k">auto</span> <span class="va">inWord</span> <span class="op">=</span> <span class="k">false</span>;</span></div><div class="ln"><span class="g">21</span><span class="t">    <span class="cf">for</span> (<span class="k">const</span> <span class="k">char</span> <span class="va">c</span> : <span class="va">aText</span>) {</span></div><div class="ln"><span class="g">22</span><span class="t">        <span class="k">const</span> <span class="k">bool</span> <span class="va">space</span> <span class="op">=</span> <span class="fn">std::isspace</span>(<span class="k">static_cast</span>&lt;<span class="k">unsigned</span> <span class="k">char</span>&gt;(<span class="va">c</span>)) <span class="op">!=</span> <span class="nu">0</span>;</span></div><div class="ln"><span class="g">23</span><span class="t">        <span class="cf">if</span> (<span class="op">!</span><span class="va">space</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="va">inWord</span>) {</span></div><div class="ln"><span class="g">24</span><span class="t">            <span class="op">++</span><span class="va">tokens</span>;</span></div><div class="ln"><span class="g">25</span><span class="t">        }</span></div><div class="ln"><span class="g">26</span><span class="t">        <span class="va">inWord</span> <span class="op">=</span> <span class="op">!</span><span class="va">space</span>;</span></div><div class="ln"><span class="g">27</span><span class="t">    }</span></div><div class="ln"><span class="g">28</span><span class="t">    <span class="cf">return</span> <span class="va">tokens</span>;</span></div><div class="ln"><span class="g">29</span><span class="t">}</span></div><div class="ln"><span class="g">30</span><span class="t"> </span></div><div class="ln"><span class="g">31</span><span class="t">} <span class="cm">// namespace sample</span></span></div></div></div><div class="w-tray b"><div class="tr-head"><span class="tr-tab on">Notes</span><span class="w-gap"></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="b-round"><div class="top"><b>Round 2</b><span class="pill draft">Not shared yet</span></div><div class="hint">Notes you write join this round. Share it when you want someone to act on them.</div></div><div class="b-cards"><div class="b-card sel"><div class="side"><span class="chk on"></span><span class="num">1</span><span class="grip">&#8942;&#8942;</span></div><div class="main"><div class="wh"><b>src/parser.cpp</b> &nbsp;line 14</div><div class="bd">Why call check() here? parse() has already refused null, and check() counts tokens; the name hides that.</div></div></div><div class="b-card"><div class="side"><span class="chk on"></span><span class="num">2</span><span class="grip">&#8942;&#8942;</span></div><div class="main"><div class="wh"><b>src/parser.cpp</b> &nbsp;lines 14 and 17</div><div class="bd">Rename check to count_tokens.</div><div class="diff"><div class="r del"><span class="g">14</span><span class="s">-</span><span class="t">    <span class="cf">return</span> <mark><span class="fn">check</span></mark>(<span class="va">aText</span>);</span></div><div class="r add"><span class="g">14</span><span class="s">+</span><span class="t">    <span class="cf">return</span> <mark><span class="fn">count_tokens</span></mark>(<span class="va">aText</span>);</span></div><div class="sep">line 17</div><div class="r del"><span class="g">17</span><span class="s">-</span><span class="t"><span class="k">int</span> <mark><span class="fn">check</span></mark>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div><div class="r add"><span class="g">17</span><span class="s">+</span><span class="t"><span class="k">int</span> <mark><span class="fn">count_tokens</span></mark>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div></div></div></div><div class="b-card"><div class="side"><span class="chk on"></span><span class="num">3</span><span class="grip">&#8942;&#8942;</span></div><div class="main"><div class="wh"><b>README.md</b> &nbsp;whole file</div><div class="bd">Say what parse() returns for an empty string.</div></div></div></div><div class="b-older">&#9656; Round 1 <span class="muted">shared yesterday, 2 notes</span></div><div class="b-dock"><div class="row"><span class="lbl">Ask them to</span><span class="seg"><span>Discuss</span><span>Plan</span><span class="on">Implement</span></span></div><div class="hint">Make the changes the notes describe.</div><div class="fld ph">Note for the whole round (optional)</div><span class="btn primary big wide focus"><svg class="i" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/></svg>Copy round 2</span><div class="hint c">Paste it into your agent&#8217;s chat, an issue or a message.</div><div class="row"><span class="btn"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>Save as File&#8230;</span><span class="btn link">Read the exact text</span><span class="sp"></span><span class="ib icononly" title="Save as Bundle"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg></span></div></div></div></div><div class="w-status">R2 captured at 10:42 &nbsp; 3 notes in round 2</div></div></div></figure><figure class="frame"><figcaption><b>After Copy round 2, light.</b> Round 2 is fixed and folded under a new round 3. The exact text was opened from the tray as a document tab.</figcaption><div class="stage"><div class="win light"><div class="w-title"><div class="w-lights"><i></i><i></i><i></i></div><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/></svg></span><span class="w-name">parser-project</span><span class="w-badge">Local cycle</span><span class="w-gap"></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M5.2 18.8l2.1-2.1M16.7 7.3l2.1-2.1"/></svg></span></div><div class="w-bar"><span class="ib flat icononly on" style="background:transparent;border-color:transparent"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/></svg></span><span class="disc">&#9656;</span><span class="cmp"><b>Full source</b> &middot; R2</span><span class="ib">View <span class="caret">&#9660;</span></span><span class="div"></span><span class="rail"><span class="lab">File</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg></span><span class="pos">2 of 3</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg></span></span><span class="w-gap"></span><span class="ib">Capture revision <span class="caret">&#9660;</span></span><span class="ib">Mark reviewed</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></span><span class="ib">Suggest change</span><span class="ib icononly on"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/></svg></span></div><div class="w-tabs"><div class="w-tab ">parser.cpp<span class="x">&#10005;</span></div><div class="w-tab on">Round 2<span class="sub"> as shared</span><span class="x">&#10005;</span></div><span class="plus"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="w-body"><div class="w-files"><div class="f">README.md<span class="n">1</span></div><div class="f on">src/parser.cpp<span class="n">2</span></div><div class="f">src/parser.hpp</div></div><div class="w-main"><div class="doc-tab-note">The exact text Copy and Save sent for round 2, 2,114 characters. It reads the same anywhere you paste it.</div><div class="md"><span class="h"># Review Cycle RC-1 &#8212; F2</span>
+
+Project: parser-project. Source: R2 (observed_stable).
+Canonical round SHA-256:
+`5c0e9a41d27f63b8e1a0c4dd92f7135ab08e6c3f9d2417e5b6a8c0f13d94e2a7`
+
+<span class="h">## Assignment</span>
+
+Action: **implement**.
+
+Name functions for what they do. Keep behaviour the same.
+
+Constraints: none were given.
+
+No write scope was requested.
+
+3 complete feedback items; 0 included source files/excerpts.
+Read the whole assignment before acting.
+
+<span class="h">## I1 &#8212; item revision 1</span>
+
+Source: `src/parser.cpp` at R2, line 14.
+
+Why call check() here? parse() has already refused null, and
+check() counts tokens; the name hides that.
+
+<span class="h">## I2 &#8212; item revision 1</span>
+
+Source: `src/parser.cpp` at R2, lines 14 and 17.
+<span class="q">&#8230;</span></div></div><div class="w-tray b"><div class="tr-head"><span class="tr-tab on">Notes</span><span class="w-gap"></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="b-round"><div class="top"><b>Round 3</b><span class="pill draft">Not shared yet</span></div><div class="b-empty" style="margin-top:6px">Notes you write now go into round 3. Press Return on a line of code to add one.</div></div><div class="b-cards" style="border-top:1px solid var(--rule)"><div class="b-round" style="border-bottom:0;padding:2px 2px 4px"><div class="top"><b>Round 2</b><span class="pill done">Copied just now</span></div><div class="hint">Fixed as you shared it. Copying or saving it again sends the same text.</div></div><div class="b-card"><div class="side"><span class="num">1</span></div><div class="main"><div class="wh"><b>src/parser.cpp</b> &nbsp;line 14</div><div class="bd">Why call check() here? parse() has already refused null, and check() counts tokens; the name hides that.</div></div></div><div class="b-card"><div class="side"><span class="num">2</span></div><div class="main"><div class="wh"><b>src/parser.cpp</b> &nbsp;lines 14 and 17</div><div class="bd">Rename check to count_tokens.</div><div class="diff"><div class="r del"><span class="g">14</span><span class="s">-</span><span class="t">    <span class="cf">return</span> <mark><span class="fn">check</span></mark>(<span class="va">aText</span>);</span></div><div class="r add"><span class="g">14</span><span class="s">+</span><span class="t">    <span class="cf">return</span> <mark><span class="fn">count_tokens</span></mark>(<span class="va">aText</span>);</span></div><div class="sep">line 17</div><div class="r del"><span class="g">17</span><span class="s">-</span><span class="t"><span class="k">int</span> <mark><span class="fn">check</span></mark>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div><div class="r add"><span class="g">17</span><span class="s">+</span><span class="t"><span class="k">int</span> <mark><span class="fn">count_tokens</span></mark>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div></div></div></div><div class="b-card"><div class="side"><span class="num">3</span></div><div class="main"><div class="wh"><b>README.md</b> &nbsp;whole file</div><div class="bd">Say what parse() returns for an empty string.</div></div></div></div><div class="b-dock"><div class="done"><span class="tick"></span><div><b>Round 2 is on your clipboard</b><div class="hint">Paste it where the work happens. When the changes come back, choose Capture revision to see them beside what you asked.</div></div></div><div><span class="lbl">Shared so far</span><ul class="b-hist"><li><span class="r">Round 2</span>Copied to the clipboard<span class="when">just now</span></li><li><span class="r">Round 1</span>Saved as RC-1-F1.md<span class="when">yesterday</span></li></ul><div class="hint">What happened to the text here, not whether anyone read it or acted on it.</div></div><div class="row"><span class="btn"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>Save as File&#8230;</span><span class="sp"></span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg></span></div></div></div></div><div class="w-status">R2 captured at 10:42 &nbsp; Round 2 copied; new notes start round 3</div></div></div></figure><figure class="frame"><figcaption><b>After Copy round 2, dark.</b></figcaption><div class="stage"><div class="win dark"><div class="w-title"><div class="w-lights"><i></i><i></i><i></i></div><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/></svg></span><span class="w-name">parser-project</span><span class="w-badge">Local cycle</span><span class="w-gap"></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M5.2 18.8l2.1-2.1M16.7 7.3l2.1-2.1"/></svg></span></div><div class="w-bar"><span class="ib flat icononly on" style="background:transparent;border-color:transparent"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/></svg></span><span class="disc">&#9656;</span><span class="cmp"><b>Full source</b> &middot; R2</span><span class="ib">View <span class="caret">&#9660;</span></span><span class="div"></span><span class="rail"><span class="lab">File</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg></span><span class="pos">2 of 3</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg></span></span><span class="w-gap"></span><span class="ib">Capture revision <span class="caret">&#9660;</span></span><span class="ib">Mark reviewed</span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></span><span class="ib">Suggest change</span><span class="ib icononly on"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/></svg></span></div><div class="w-tabs"><div class="w-tab ">parser.cpp<span class="x">&#10005;</span></div><div class="w-tab on">Round 2<span class="sub"> as shared</span><span class="x">&#10005;</span></div><span class="plus"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="w-body"><div class="w-files"><div class="f">README.md<span class="n">1</span></div><div class="f on">src/parser.cpp<span class="n">2</span></div><div class="f">src/parser.hpp</div></div><div class="w-main"><div class="doc-tab-note">The exact text Copy and Save sent for round 2, 2,114 characters. It reads the same anywhere you paste it.</div><div class="md"><span class="h"># Review Cycle RC-1 &#8212; F2</span>
+
+Project: parser-project. Source: R2 (observed_stable).
+Canonical round SHA-256:
+`5c0e9a41d27f63b8e1a0c4dd92f7135ab08e6c3f9d2417e5b6a8c0f13d94e2a7`
+
+<span class="h">## Assignment</span>
+
+Action: **implement**.
+
+Name functions for what they do. Keep behaviour the same.
+
+Constraints: none were given.
+
+No write scope was requested.
+
+3 complete feedback items; 0 included source files/excerpts.
+Read the whole assignment before acting.
+
+<span class="h">## I1 &#8212; item revision 1</span>
+
+Source: `src/parser.cpp` at R2, line 14.
+
+Why call check() here? parse() has already refused null, and
+check() counts tokens; the name hides that.
+
+<span class="h">## I2 &#8212; item revision 1</span>
+
+Source: `src/parser.cpp` at R2, lines 14 and 17.
+<span class="q">&#8230;</span></div></div><div class="w-tray b"><div class="tr-head"><span class="tr-tab on">Notes</span><span class="w-gap"></span><span class="ib flat icononly"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div><div class="b-round"><div class="top"><b>Round 3</b><span class="pill draft">Not shared yet</span></div><div class="b-empty" style="margin-top:6px">Notes you write now go into round 3. Press Return on a line of code to add one.</div></div><div class="b-cards" style="border-top:1px solid var(--rule)"><div class="b-round" style="border-bottom:0;padding:2px 2px 4px"><div class="top"><b>Round 2</b><span class="pill done">Copied just now</span></div><div class="hint">Fixed as you shared it. Copying or saving it again sends the same text.</div></div><div class="b-card"><div class="side"><span class="num">1</span></div><div class="main"><div class="wh"><b>src/parser.cpp</b> &nbsp;line 14</div><div class="bd">Why call check() here? parse() has already refused null, and check() counts tokens; the name hides that.</div></div></div><div class="b-card"><div class="side"><span class="num">2</span></div><div class="main"><div class="wh"><b>src/parser.cpp</b> &nbsp;lines 14 and 17</div><div class="bd">Rename check to count_tokens.</div><div class="diff"><div class="r del"><span class="g">14</span><span class="s">-</span><span class="t">    <span class="cf">return</span> <mark><span class="fn">check</span></mark>(<span class="va">aText</span>);</span></div><div class="r add"><span class="g">14</span><span class="s">+</span><span class="t">    <span class="cf">return</span> <mark><span class="fn">count_tokens</span></mark>(<span class="va">aText</span>);</span></div><div class="sep">line 17</div><div class="r del"><span class="g">17</span><span class="s">-</span><span class="t"><span class="k">int</span> <mark><span class="fn">check</span></mark>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div><div class="r add"><span class="g">17</span><span class="s">+</span><span class="t"><span class="k">int</span> <mark><span class="fn">count_tokens</span></mark>(<span class="ty">std::string_view</span> <span class="va">aText</span>)</span></div></div></div></div><div class="b-card"><div class="side"><span class="num">3</span></div><div class="main"><div class="wh"><b>README.md</b> &nbsp;whole file</div><div class="bd">Say what parse() returns for an empty string.</div></div></div></div><div class="b-dock"><div class="done"><span class="tick"></span><div><b>Round 2 is on your clipboard</b><div class="hint">Paste it where the work happens. When the changes come back, choose Capture revision to see them beside what you asked.</div></div></div><div><span class="lbl">Shared so far</span><ul class="b-hist"><li><span class="r">Round 2</span>Copied to the clipboard<span class="when">just now</span></li><li><span class="r">Round 1</span>Saved as RC-1-F1.md<span class="when">yesterday</span></li></ul><div class="hint">What happened to the text here, not whether anyone read it or acted on it.</div></div><div class="row"><span class="btn"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>Save as File&#8230;</span><span class="sp"></span><span class="ib icononly"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></svg></span></div></div></div></div><div class="w-status">R2 captured at 10:42 &nbsp; Round 2 copied; new notes start round 3</div></div></div></figure>
+</main>
+</body>
+</html>
