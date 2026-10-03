@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0058"]
 depends_on: ["BPR-1169"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "external-consumers", "acceptance": ["RC58-08", "RC58-10"], "pack_alias": "PACK-CYCLE-28", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC58-08","outcome":"pending","revision":"1b8fd4a5c","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Package half passes: skill_bpr_cycle_package (dev-tour-cli and the tests-disabled TourCLI install) pins a thin Agent Skills package (bpr-cycle, contracts named, no allowed-tools, no script) that teaches only the consumer commands under BPR_CYCLE_ROLE=consumer, uses the active harness, launches no model or orchestrator, names a publisher/gh/curl/SQLite/install only as prohibitions, and exists in no .claude/.codex/.agents skills tree nor .mask.json selection. Package sha256:040a559b841704b63e3e62b3dfc90d60b6a9176ff2ec9e92506010458ae83cf3. 13 broken copies fail. Pending: authorization to import into shared AgentSkills and select via MASK (attended item BPR-1170-rc58-08-distribution-v001)."}},{"criterion":"RC58-10","outcome":"pending","revision":"1b8fd4a5c","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Manual half passes: the documented consumer lines read the whole granted round through the real bpr; without a grant, under policy denial, read-only or after revocation they are refused as the refusals reference says; the reviewer's Markdown export carries every item and the same canonical digest for a person with no CLI or skill; the skill directs a missing/refused bpr to that path, and the cycle needs no callback. Pending: an observed supported harness following the package, which needs authorization to start a model session (attended item BPR-1170-rc58-10-harness-course-v001)."}}]
+acceptance: [{"criterion":"RC58-08","outcome":"pass","revision":"b10a15a86","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner accepted BPR-1170-rc58-08-distribution-v001 (session cbd48b91000b00f1e72e1ad62c7c384c, event 861). The package is in AgentSkills (399da0d, then b4a3357 after the frontmatter quoting fix 2b48d25fd that mask install needed) and selected from agentskills in .mask.json by a reviewed mask install; mask status --check is clean. The package, the AgentSkills copy and both MASK links digest to sha256:8b5946f579a0f8bf3de38bfc45113d1b3789f236dccf7dab57caa2d0828a5381. skill_bpr_cycle_package passes with the links present (14 broken copies refused; the 1b8fd4a5c package and a real-directory copy fail). The package half (active harness, no second model or orchestrator, no provider publisher) is unchanged from 1b8fd4a5c; nothing was installed silently."}},{"criterion":"RC58-10","outcome":"pending","revision":"b10a15a86","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Manual half passes (unchanged from 1b8fd4a5c). Owner accepted BPR-1170-rc58-10-harness-course-v001 (event 862). scripts/run_bpr1170_harness_course.py is that course: setup and the session's default-profile view verified without a model, analyzer checked on a synthetic transcript. The observed session has not run: standalone Claude Code is not signed in (claude auth status loggedIn false; claude -p answers 'OAuth session expired and could not be refreshed'). Needs the owner to run claude auth login once, then one run of the course."}}]
 ---
 
 Pack alias: **PACK-CYCLE-28** (live `BPR-1170`, allocated at import).
@@ -92,3 +92,38 @@ ran `/usr/bin/clang-format` 22.1.8 explicitly ("Checking 1208 file(s) with
 /usr/bin/clang-format (22.1.8)"), not the 21.1.8 earlier on this station's
 `PATH`. A direct `/usr/bin/clang-format --dry-run --Werror
 src/app/src/tour_cli.cpp` is also clean. No remote mutation.
+
+## The owner's answers: 2026-10-03
+
+Both items were accepted with no note (session
+`cbd48b91000b00f1e72e1ad62c7c384c`, events 861 and 862, hand-back 869). The
+protections were released by candidate name.
+
+**RC58-08 passes.** The package was imported unchanged into AgentSkills
+(`399da0d`) and pushed. `mask install bpr-cycle` then refused it: the
+description held an unquoted `: `, which is invalid YAML and which MASK refuses.
+`2b48d25fd` quotes the description and changes no other byte. That changes
+the digest from `040a559b…` to
+`sha256:8b5946f579a0f8bf3de38bfc45113d1b3789f236dccf7dab57caa2d0828a5381`.
+The lint now catches the problem, with a fourteenth broken copy as its control.
+AgentSkills `b4a3357` re-imported the package. A reviewed `mask install`
+selected it from `agentskills`, and `b10a15a86` commits that selection. The
+package, the AgentSkills copy and both MASK links share the new digest, and the
+row passes with the links in place. MASK also rewrote the declared repository
+from SSH to HTTPS; the lock depends on that form.
+
+**RC58-10 is still pending.**
+[`scripts/run_bpr1170_harness_course.py`](../../../scripts/run_bpr1170_harness_course.py)
+is the authorized course, ready to run. It has not run because standalone
+Claude Code has no sign-in on this Mac (`claude auth status`: `loggedIn: false`).
+This session is authenticated by its desktop host, and nothing here provisions
+credentials. The owner needs to run `claude auth login` once. Then run:
+
+```sh
+python3 /Users/jaeger/Documents/GitHub/BetterPullReview/scripts/run_bpr1170_harness_course.py /Users/jaeger/Documents/GitHub/BetterPullReview/build/tour-cli/src/app/bpr
+```
+
+Record its summary in the ledger and finish this card if the session followed
+the package. Details are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md) under "BPR-1170: the
+owner's two answers and what followed".

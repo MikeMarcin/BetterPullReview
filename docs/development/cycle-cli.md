@@ -295,20 +295,20 @@ example appended as a `local_interface` statement that changes no note or round;
 every non-consumer command the binary lists refused to the declared consumer; a
 read-only grant, a denying or unconfigured policy and a revoked grant (mid-page
 too) each refused as the refusals reference says; and the reviewer's Markdown
-export carrying every item for a person with no skill. Thirteen deliberately
-broken copies of the package must fail its lint. It cannot show that a model
-follows the text.
+export carrying every item for a person with no skill. Fourteen deliberately
+broken copies of the package must fail its lint, among them a description YAML
+cannot read as a plain scalar. It cannot show that a model follows the text.
 
-The canonical home is the shared AgentSkills repository, installed by MASK, as
-for [`pr-tour`](tour-cli.md); BPR keeps no `.claude/skills`, `.codex/skills` or
-`.agents/skills` copy, and the row fails if one appears or if `.mask.json`
-selects `bpr-cycle` from another source. Importing it is that repository's
-work, authorized by its owner: copy the package unchanged to
-`skills/bpr-cycle/` there, add `{"id": "bpr-cycle", "source": "agentskills"}`
-to this repository's `.mask.json`, and check the import with `python3
-tests/scripts/bpr_cycle_skill_tests.py PACKAGE_DIR BPR --digest`, whose digest
-must equal the one recorded for the candidate. Until then the package here is a
-candidate, not an installed skill, and no harness has been observed using it.
+The canonical home is the shared AgentSkills repository (`skills/bpr-cycle/`),
+installed by MASK, as for [`pr-tour`](tour-cli.md). This repository selects it
+from `agentskills` in `.mask.json`; its `.claude/skills/bpr-cycle` and
+`.agents/skills/bpr-cycle` are MASK links into the MASK store and are ignored.
+The row fails on a real directory there, on a selection from another source, or
+on a deployed copy whose digest differs from the package's. Change the package
+here, then import it unchanged into AgentSkills and run `mask upgrade bpr-cycle`;
+check the import with `python3 tests/scripts/bpr_cycle_skill_tests.py
+PACKAGE_DIR BPR --digest` on both copies. The owner authorized the first import
+in attended item `BPR-1170-rc58-08-distribution-v001`.
 
 ## Not in this build
 
