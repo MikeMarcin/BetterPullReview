@@ -1,6 +1,6 @@
 ---
 name: bpr-cycle
-description: Read one BetterPullReview Review Cycle round that the reviewer granted, through the local bpr cycle CLI, and act on it in this harness: discuss, plan or implement every item as the round asks, then report by item. Use when the user names a Review Cycle round (RC-n and Fn) or hands over a round's Markdown.
+description: "Read one BetterPullReview Review Cycle round that the reviewer granted, through the local bpr cycle CLI, and act on it in this harness: discuss, plan or implement every item as the round asks, then report by item. Use when the user names a Review Cycle round (RC-n and Fn) or hands over a round's Markdown."
 compatibility: Needs a bpr executable offering bpr cycle (contract 1, results bpr.cycle.cli-result.v1) that this harness may run, and the reviewer's grant for the round. Without them, the round's Markdown export works with no CLI and no skill support.
 metadata:
   cli-contract: bpr.cycle.cli-result.v1

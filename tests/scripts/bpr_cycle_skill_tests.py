@@ -61,6 +61,16 @@ def documents(package):
     return [package / "SKILL.md", *sorted((package / "references").glob("*.md"))]
 
 
+def scalar(value):
+    """A frontmatter value as YAML reads it: double-quoted JSON, or plain without ': ' or ' #' (which YAML and MASK refuse)."""
+    if value.startswith('"'):
+        try:
+            return json.loads(value)
+        except ValueError:
+            return None
+    return None if ": " in value or " #" in value else value
+
+
 def frontmatter(text):
     match = re.match(r"---\n(.*?)\n---\n", text, re.S)
     if not match:
@@ -68,10 +78,10 @@ def frontmatter(text):
     result, key = {}, None
     for line in match.group(1).splitlines():
         if line.startswith("  "):
-            result.setdefault(key, {})[line.split(":", 1)[0].strip()] = line.split(":", 1)[1].strip()
+            result.setdefault(key, {})[line.split(":", 1)[0].strip()] = scalar(line.split(":", 1)[1].strip())
         else:
             key, _, value = line.partition(":")
-            result[key.strip()] = value.strip() if value.strip() else {}
+            result[key.strip()] = scalar(value.strip()) if value.strip() else {}
     return result
 
 
@@ -101,6 +111,10 @@ def lint(package, capabilities):
     meta = frontmatter(read(skill_md))
     if meta is None:
         return ["SKILL.md has no frontmatter"]
+    unreadable = sorted(key for key, value in [*meta.items(), *(meta["metadata"].items() if isinstance(meta.get("metadata"), dict) else [])] if value is None)
+    if unreadable:
+        problems.append(f"frontmatter values YAML cannot read as plain scalars; quote them: {unreadable}")
+        return problems
     if set(meta) - FRONTMATTER_KEYS:
         problems.append(f"frontmatter keys outside the Agent Skills specification: {sorted(set(meta) - FRONTMATTER_KEYS)}")
     if meta.get("name") != NAME or package.name != NAME:
@@ -409,21 +423,37 @@ def names_are_real(package, course):
     assert named and named <= course.observed, f"refusals the course did not observe: {named - course.observed}"
 
 
+def managed_link(path):
+    """A MASK deployment is a directory link into MASK's store, never a real directory."""
+    return path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction())
+
+
 def no_divergent_copies(package):
-    """One source of maintenance: no hand-maintained copy here, and no selection from anywhere but the shared source."""
+    """One source of maintenance: no hand-maintained copy here, and no selection from anywhere but the shared source.
+
+    The owner authorized importing the package into AgentSkills and selecting it from there (BPR-1170, RC58-08), so a
+    MASK link may deploy it; that link must be the shared source's copy, byte for byte the package here."""
+    trees = (".claude/skills", ".codex/skills", ".agents/skills")
     found = []
     for candidate in REPOSITORY.rglob("SKILL.md"):
         relative = candidate.relative_to(REPOSITORY).parts
         if relative[0] in ("build", ".git") or NAME not in relative:
             continue
+        if "/".join(relative[:2]) in trees and managed_link(REPOSITORY.joinpath(*relative[:3])):
+            continue
         if candidate.resolve() != (package / "SKILL.md").resolve() and "assets" not in relative:
             found.append(str(candidate.relative_to(REPOSITORY)))
     assert not found, f"divergent copies of the {NAME} skill: {found}"
-    for tree in (".claude/skills", ".codex/skills", ".agents/skills"):
-        assert not (REPOSITORY / tree / NAME).exists(), f"{tree}/{NAME} is a hand-maintained copy"
     selected = json.loads(read(REPOSITORY / ".mask.json")) if (REPOSITORY / ".mask.json").exists() else {"skills": []}
     assert not any(entry.get("id") == NAME and entry.get("source") != "agentskills" for entry in selected.get("skills", [])), \
         f"{NAME} may only be selected from the shared agentskills source"
+    chosen = any(entry.get("id") == NAME for entry in selected.get("skills", []))
+    for tree in trees:
+        deployed = REPOSITORY / tree / NAME
+        if not deployed.exists() and not deployed.is_symlink():
+            continue
+        assert managed_link(deployed) and chosen, f"{tree}/{NAME} is a hand-maintained copy"
+        assert tree_digest(deployed.resolve()) == tree_digest(package), f"{tree}/{NAME} differs from the package; import it again"
 
 
 def broken_copies_fail(package, capabilities, scratch, course):
@@ -459,6 +489,7 @@ def broken_copies_fail(package, capabilities, scratch, course):
         "the whole-round rule dropped": replace("SKILL.md", "Never act on part of a round", "Act when ready"),
         "a renamed skill": replace("SKILL.md", "name: bpr-cycle", "name: bpr-cycles"),
         "a tool grant": replace("SKILL.md", "metadata:\n", "allowed-tools: Bash\nmetadata:\n"),
+        "an unquoted colon in the description": replace("SKILL.md", 'description: "Read', "description: Read"),
         "an unknown command": append("references/refusals.md", "Then run bpr cycle verify on it.\n"),
         "a script": lambda target: (target / "scripts").mkdir() or (target / "scripts" / "read.sh").write_text("bpr cycle round read\n"),
         "an unlinked reference": lambda target: (target / "references" / "extra.md").write_text("# Extra\n"),
