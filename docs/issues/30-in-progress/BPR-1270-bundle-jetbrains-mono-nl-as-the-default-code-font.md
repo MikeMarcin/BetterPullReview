@@ -267,3 +267,49 @@ At `dc25ffc4c` (includes `327130672`), on WSL2 with GCC 15.2, Qt 6.11.2 and
   touched.
 
 No remote mutation beyond the authorized font download.
+
+## Windows (bpr-main-win, 2026-10-03)
+
+At `dc25ffc4c`, which contains `327130672`: plain JetBrains Mono NL 2.304.
+Windows 11 Home 10.0.26200, Visual Studio 18 (MSVC 14.51), Qt 6.11.2,
+`build/windows-dev` Debug. The build fetched and verified the pinned JetBrains
+release asset. The 54 executables these rows run were deleted first, and the
+build rebuilt every one. It printed no `warning C` or `warning LNK` line.
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^(qt_bundled_code_font|application_code_font|application_installed_resources_contract|qt_conversation_cards_view|qt_github_conversation_panel|qt_theme_preview_strip|qt_appearance_profile|qt_type_preview|package_runtime_contract|release_source_assets_contract|release_package_audit_contract|release_security_audit_contract|dependency_modernization_contract|architecture_boundaries|test_network_isolation_manifest|application_review_round_trip_composition_contract)$|^qt_"
+```
+
+120 of 127 pass, in 405.74 s, every named row among them:
+
+- `qt_bundled_code_font` 0.28 s and `application_code_font` 0.17 s;
+- `qt_appearance_profile`, `qt_type_preview`, `qt_theme_preview_strip`,
+  `qt_conversation_cards_view` and `qt_github_conversation_panel`;
+- the installed-resources, package, release-asset, audit and dependency
+  contracts;
+- the round-trip contract;
+- `architecture_boundaries`;
+- `test_network_isolation_manifest`.
+
+The seven failures are parked rows, each with its earlier headline:
+
+- `qt_agent_launch_canary`: `open durable child course` ([[BPR-1229]]);
+- `qt_workbench_title_row_scale_*` and `qt_workbench_window_scale_*`: `no
+  review-bar control folds into an overflow menu at any width` ([[BPR-1255]]).
+
+No rendered row moved with the change from Consolas, so nothing was
+re-baselined and no threshold changed.
+
+**The share sheet's code.** The review-cycle view course does not register
+the bundled faces. Only `main.cpp` does, at startup, so the course runs on the
+native fallback (Consolas). A temporary probe, not committed, called
+`register_bundled_code_font()` at the course's start, as the application does.
+`qt_review_cycle_view_1_0` and `_2_0` then printed, for the opened note's
+excerpt:
+
+```
+family=JetBrains Mono NL resolved=JetBrains Mono NL fixed=1 spacing=16 leading=0 height=172 max=0
+```
+
+Both rows pass that way (7.96 and 14.24 s). The excerpt resolves to "JetBrains
+Mono NL", it is fixed pitch, and the row-height fit holds at its 16-pixel line.
