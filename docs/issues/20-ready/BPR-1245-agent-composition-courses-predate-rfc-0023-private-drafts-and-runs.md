@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1245"
 title: "Fifteen agent composition courses predate RFC-BPR-0023's right-side drafts and private runs"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-0587","BPR-1211","BPR-1139","BPR-1238"]}
-parked_on: "human-review"
 acceptance: [{"criterion":"The fifteen rows pass on macOS","outcome":"pending","revision":"b2fd518bd","evidence":{"kind":"command","detail":"14 of 15 pass on macOS arm64 dev (all chat, invocation composition and workspace diagnostic, and eight finding rows). application_agent_finding_workshop_press_contract stays red: the owner accepted BPR-1245-workshop-v001 at hand-back 869 (session cbd48b91000b00f1e72e1ad62c7c384c, decision 65482b51-2b17-4824-8cad-1d1ca17efcf4): a workshop press first records the draft as an immutable reviewer revision in Private history and asks with it as the only selected source. Not built yet; engineering pending."}},{"criterion":"The card names each course's cause","outcome":"pass","revision":"b2fd518bd","evidence":{"kind":"observation","detail":"Resolution table names f55e39e72 (right-side drafts, mutable context refusal), 8790cdc7b (28-pixel Dif), 9b71342a0/1d84e59c2/f55e39e72 (launch-path count) and the private-review promotion defect fixed on BPR-1246; the workshop press cause is named and parked."}}]
 ---
 
