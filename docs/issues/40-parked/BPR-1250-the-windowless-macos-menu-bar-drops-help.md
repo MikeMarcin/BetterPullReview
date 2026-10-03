@@ -169,3 +169,37 @@ those rows are macOS-only.
   not cause it.
 
 No remote mutation.
+
+## Windows (bpr-main-win, 2026-10-02)
+
+At `93ade9102`, which contains `a4723f817`. Windows 11 Home 10.0.26200, MSVC
+14.51, Qt 6.11.2, `build/windows-dev` Debug. The 19 executables the selection
+runs were deleted first, and the build rebuilt every one. It printed no
+`warning C` or `warning LNK` line.
+
+```powershell
+ctest --preset windows-dev -j4 --output-on-failure -R "^qt_system_tray_notification_sink$|^qt_menu_bar_status_item|^dif_status_item_template_contract$|notification|^application_profile_|^application_review_round_trip_composition_contract$|^architecture_boundaries$|^test_network_isolation_manifest$"
+```
+
+22 of 23 pass, in 306.49 s:
+
+- `qt_system_tray_notification_sink` (Windows keeps one tray per profile);
+- `dif_status_item_template_contract`;
+- `application_native_notification_attended_contract`,
+  `application_review_queue_notification` and
+  `application_notification_delivery`;
+- every `application_profile_*` row but one: activation, startup and its
+  admission, owner admission, the window layout and its drain, restart,
+  multi-window, second-window close, two-account isolation, management and
+  its host, registry and storage authority;
+- `application_review_round_trip_composition_contract`;
+- `architecture_boundaries`;
+- `test_network_isolation_manifest`.
+
+The `qt_menu_bar_status_item*` rows are not registered in the Windows graph.
+
+The one failure is the parked
+`application_profile_window_review_restoration_public_path` (242.10 s):
+`unavailable-anchor failed (1)`, `FAILED: failed reading restoration preserves
+exact recorded identities and sibling`. That is [[BPR-1236]], unchanged. Nothing
+else needed mapping.
