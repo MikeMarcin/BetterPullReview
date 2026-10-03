@@ -1082,6 +1082,7 @@ namespace bpr::qt {
 		row.Disclose->setAutoRaise(true);
 		row.Disclose->setCheckable(true);
 		row.Disclose->setArrowType(Qt::RightArrow);
+		row.Disclose->setIconSize(QSize{ 10, 10 });
 		// A click gives it focus, so Left and Right work on from there.
 		row.Disclose->setFocusPolicy(Qt::StrongFocus);
 		row.Disclose->installEventFilter(this);
@@ -1614,9 +1615,11 @@ namespace bpr::qt {
 		const auto width = std::clamp(area.width() - 96, 520, 760);
 		// The scroll area keeps its last measure until a later event, so the
 		// notes are measured here: the sheet grows with them, then scrolls.
-		const auto notes  = NotesList->sizeHint().height() + 2 * NotesArea->frameWidth();
-		const auto others = layout()->sizeHint().height() - NotesArea->sizeHint().height();
-		const auto height = std::clamp(others + notes, std::min(room, 360), room);
+		const auto notes = NotesList->sizeHint().height() + 2 * NotesArea->frameWidth();
+		// Wrapped words take the lines they need at this width, not at the hint's.
+		const auto natural = layout()->hasHeightForWidth() ? layout()->heightForWidth(width) : layout()->sizeHint().height();
+		const auto others  = natural - NotesArea->sizeHint().height();
+		const auto height  = std::clamp(others + notes, std::min(room, 240), room);
 		resize(width, height);
 		// AppKit places a sheet itself; elsewhere it hangs from the review bar.
 		const auto centre = Anchor ? Anchor->x() : area.center().x();
