@@ -99,8 +99,11 @@ namespace bpr::qt {
 	{
 		switch (aEvent->type()) {
 		case QEvent::FocusIn:
+			// A focus-in can arrive after focus has already moved on, with no
+			// focus-out to follow, as when a sheet reopens and hands focus to
+			// its default control ([[BPR-1161]]). The control's own focus decides.
 			setGeometry(parentWidget()->rect());
-			show();
+			setVisible(parentWidget()->hasFocus());
 			raise();
 			break;
 		case QEvent::FocusOut:
