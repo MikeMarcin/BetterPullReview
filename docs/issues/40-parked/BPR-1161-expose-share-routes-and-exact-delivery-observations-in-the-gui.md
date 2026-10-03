@@ -485,3 +485,45 @@ are unchanged.
 | `cmake --build --preset dev`; clang-format 22; `git diff --check`; `tidy.py --paths` on the file | 0 warnings; clean |
 
 Not run on macOS.
+
+## Windows: the share sheet (bpr-main-win, 2026-10-03)
+
+At `19829befa`, which contains `ef058e602` and the sheet (`d46d37cf7`).
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug.
+The selection's executables were deleted and rebuilt, and the build printed no
+`warning C` or `warning LNK` line. No SDK-macro identifier is in the changed
+sources.
+
+The first run had 16 of 18 passing. `qt_review_cycle_view_1_0` and `_2_0`
+failed at "every row in view, no scrolling", after the sheet's own checks (it
+hangs under the review bar here) had passed. A probe, not committed, of the
+opened note's `note_code_view` printed:
+
+```
+height=142 viewport=140 spacing=13 fmHeight=14 leading=-1 line0=14 blockSum=144 max=1
+```
+
+The face has negative leading. `QFontMetricsF::lineSpacing()` is 13, but the
+text layout gives each line its height, 14. `fitted_height()` sized ten rows
+at 13, so the tenth sat one line out of view. The fit now takes
+`max(lineSpacing(), height())` per row
+(`src/adapters/qt/src/review_cycle_share_sheet.cpp`), and macOS and Linux,
+whose leading is not negative, are unchanged.
+
+A separate observation, not changed: the excerpt's font family is
+`monospace`, which resolves to Arial on Windows (`QFontInfo`), so the note's
+code is not fixed-pitch there.
+
+After the fix, the selection passes 18/18, in 70.97 s:
+
+- `qt_review_cycle_view_1_0` 9.67 s and `_2_0` 17.40 s;
+- `qt_suggestion_editor_1_0` and `_2_0`;
+- `application_review_cycle_desktop_public_path` 16.66 s;
+- `application_review_tour_composition_public_path` and `_scale_125` and
+  `_200`;
+- `review_cycle_workbench` 44.98 s, against its 120 s bound;
+- `review_cycle_round`, `_export`, `_bundle` and `_verification`;
+- `sqlite_review_cycle_storage`;
+- `core_review_cycle_share` and `core_review_cycle_policy`;
+- `architecture_boundaries`;
+- `test_network_isolation_manifest`.

@@ -437,7 +437,11 @@ namespace bpr::qt {
 	{
 		const auto rows = std::clamp(static_cast<int>(Shown.Rows.size()), 1, aRows);
 		// Whole pixels a line: the editor scrolls when a fraction leaves the last line short.
-		const auto spacing = std::ceil(QFontMetricsF{ font() }.lineSpacing());
+		// [[BPR-1161]]. A face with negative leading has a line spacing below its
+		// height, and the text layout gives each line its height: on Windows 13
+		// against 14 pixels, which left the tenth row out of view.
+		const auto metrics = QFontMetricsF{ font() };
+		const auto spacing = std::ceil(std::max(metrics.lineSpacing(), metrics.height()));
 		auto       widest  = 0.0;
 		for (auto block = document()->firstBlock(); block.isValid(); block = block.next()) {
 			widest = std::max(widest, QFontMetricsF{ font() }.horizontalAdvance(block.text()));
