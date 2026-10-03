@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1270"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Bundle JetBrainsMonoNL Nerd Font as default code font on all platforms",
+  "created": "2026-10-03T15:42:55.047365+00:00",
+  "base": "a8fb079aa49ae6473d3760ac1f9ea786b3fd27f7"
+}
