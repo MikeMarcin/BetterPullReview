@@ -8,7 +8,7 @@ depends_on: []
 platforms: ["mac"]
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1250--BPR-1250--34ad467c0959.json","related_cards":["BPR-1035","BPR-1121","BPR-1157"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"application_profile_empty_desktop_native_menu_bar passes in the owner's Aqua session","outcome":"pending","revision":"a4723f817","evidence":{"kind":"command","detail":"Passes on macOS arm64 at a4723f817 in a clean worktree build with the screen locked (QPA key-window path), 7.15 s, now with the status item assertions; the unlocked Aqua run in the owner's session is owed."}},{"criterion":"Owner judgment of which commands windowless Help offers","outcome":"pending","revision":"a4723f817","evidence":{"kind":"freeform","detail":"help-v001 (9605cb7da) rejected at event 868 with 'It does but the to right menu bar icon is gone': the Help part was as described, the rejection is the missing status item. Asked again with the item restored as BPR-1250-help-v002, session cbd48b91000b00f1e72e1ad62c7c384c."}},{"criterion":"The menu bar status item stays from launch until Quit, through the last window's close","outcome":"pending","revision":"a4723f817","evidence":{"kind":"command","detail":"Automated part passes: application_profile_empty_desktop_native_menu_bar asserts the desktop's item is visible from startup, is the profile's notification tray and AppKit's one NSStatusBarWindow, and stays through every close and reopen; controls fail at the item and at the close. Owner's confirmation is BPR-1250-help-v002."}},{"criterion":"The status item is a monochrome Dif template image macOS tints","outcome":"pending","revision":"a4723f817","evidence":{"kind":"command","detail":"Automated part passes: qt_menu_bar_status_item(_cocoa) (mask, 18 px 1x and 36 px 2x, black with alpha; three controls fail) and dif_status_item_template_contract (byte-exact from the accepted neutral master). Owner's visual judgment is BPR-1250-menubar-dif-v001."}}]
+acceptance: [{"criterion":"application_profile_empty_desktop_native_menu_bar passes in the owner's Aqua session","outcome":"pass","revision":"4c8bcda0b","evidence":{"kind":"command","detail":"ctest -V -R ^application_profile_empty_desktop_native_menu_bar$ in /Users/jaeger/bpr1250-review-v003.pDiQ9g/source/build/cand (4c8bcda0b), owner's logged-in unlocked Aqua session on macOS arm64: Passed 4.31 s; 'AppKit activated this process and made the window key', 'key windows were native throughout'. A first non-verbose run passed in 7.00 s."}},{"criterion":"Owner judgment of which commands windowless Help offers","outcome":"pending","revision":"4c8bcda0b","evidence":{"kind":"freeform","detail":"help-v002 rejected at event 899 because the frozen build closed at launch (its fixture tree was in a removed worktree), not over Help. Asked again on the self-contained v003 build as BPR-1250-help-v003, session cbd48b91000b00f1e72e1ad62c7c384c, port 59998."}},{"criterion":"The menu bar status item stays from launch until Quit, through the last window's close","outcome":"pending","revision":"4c8bcda0b","evidence":{"kind":"observation","detail":"Automated part passes (the course above). The owner's launch command for v003 run unchanged: after the window's close button the process stays with 0 windows, menu bar 2 'status menu' 24 x 24, and Apple, File, Profiles, Pull Request, View, Help; Quit exits 0. Owner's confirmation is BPR-1250-help-v003."}},{"criterion":"The status item is a monochrome Dif template image macOS tints","outcome":"pass","revision":"a4723f817","evidence":{"kind":"observation","detail":"Owner accepted BPR-1250-menubar-dif-v001 (fingerprint cb3a79372079, decision 00e0e86f-6c5e-4453-a29a-7d77cc178ae3, 2026-10-03T18:50:24Z, session cbd48b91000b00f1e72e1ad62c7c384c). Automated part: qt_menu_bar_status_item(_cocoa) and dif_status_item_template_contract pass at a4723f817."}}]
 ---
 
 # BPR-1250: Closing the last window takes Help off the macOS menu bar
@@ -203,3 +203,69 @@ The one failure is the parked
 `unavailable-anchor failed (1)`, `FAILED: failed reading restoration preserves
 exact recorded identities and sibling`. That is [[BPR-1236]], unchanged. Nothing
 else needed mapping.
+
+## Owner hand-back at event 899 (2026-10-03)
+
+Session `cbd48b91000b00f1e72e1ad62c7c384c`:
+
+- `BPR-1250-menubar-dif-v001`: **Accept** (18:50:24 UTC). The template image
+  criterion passes.
+- `BPR-1250-help-v002`: **Reject**, "It closes instantly and nothing is in
+  the dock or menu bar so I can't tell", with a screenshot of the launcher
+  printing "BPR-1250 v002 candidate closed." straight away.
+
+Both items, and the accepted `BPR-1241-retarget-key-v002`, are released by
+candidate name.
+
+### Why v002 closed instantly: the frozen build was not self-contained
+
+Reproduced by running the owner's command unchanged: it exits in 0.4 s, and
+`owner-app.log` in the root holds seven earlier launches, each printing
+`STARTUP_FAILED`, `startup_failure=unavailable` and
+`STARTUP_FAILURE_SOURCE:profile-runtime-construction: [omitted:unclassified-exception]`.
+There was no crash report and no other BetterPullReview process, and the
+root's own home held no profile, so no single-instance handoff happened.
+Under lldb, the exception that escapes is
+`read_all` in `deterministic_git_fixture` (`github_public_path_fixture.cpp`),
+reading the `nested-folders-v1` pack. A tests-on build compiles
+`BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT` and the other fixture roots as
+absolute paths into its source tree (`src/app/CMakeLists.txt`), and the
+agent supervisor and MCP helper paths into its build tree. The v002 binary
+names `/Users/jaeger/bpr1250-wt`, the clean worktree it was built in. That
+worktree was removed after the build was frozen and checked, so every later
+launch failed before the first window. (The earlier `__cxa_throw` inside
+`SecKeychainCopyDefault`, because the redirected home has no keychain, is
+caught inside Security and is harmless; BPR-1241's frozen build takes the
+same path and works.)
+
+This is not a product defect in a4723f817 or in the status item. The
+procedure is fixed: `AGENTS.md` now requires a frozen attended build to keep
+its source and build tree inside its own root, and its launcher to check
+the fixture tree first and to report an exit within seconds rather than
+close silently.
+
+A related product gap, not caused here: a startup refusal prints to stdout
+and quits, so a person who starts the app from Finder sees nothing at all.
+That is a separate UX question and is not changed on this card.
+
+### Candidate v003: main 4c8bcda0b, self-contained
+
+`/Users/jaeger/bpr1250-review-v003.pDiQ9g`: `source/` is `git archive` of
+4c8bcda0b, built there (`cmake --preset dev -B source/build/cand`, shared
+dependency cache only), executable sha256
+`bf212edf12993adce408562317c5f3de229cb58dff97dc295e09b3864b4b82a5`. Every
+compiled absolute path names the root, apart from the Qt runtime in the
+main checkout's shared `build/.cpm-cache/bprqt`, as for BPR-1241's working
+build. Launch:
+`/opt/homebrew/bin/python3 /Users/jaeger/bpr1250-review-v003.pDiQ9g/launch.py`.
+
+| Check | Result |
+|---|---|
+| The owner's command, run unchanged, observed through System Events | Window opens with Apple, File, Profiles, Pull Request, View and Help, and menu bar 2. After its close button: process running, 0 windows, the same six menus, menu bar 2's "status menu" 24 x 24; windowless Help lists Diagnostics…, Export anonymized diagnostics…, Export with identifying details…, all disabled. Quit from the app menu: exit 0, "candidate closed" |
+| Control: launcher with the fixture tree pointed at the removed v002 worktree | Refuses: "cannot start: … is missing", nothing launched |
+| Control: launcher started on the v002 executable | Reports "exited after 0.4 s with code 1 … tell the agent" and the `STARTUP_FAILED` lines |
+| `application_profile_empty_desktop_native_menu_bar`, at 4c8bcda0b in the v003 tree, in the unlocked Aqua session | Pass, 4.31 s: "AppKit activated this process and made the window key", "key windows were native throughout" (and 7.00 s in a first run) |
+
+The Aqua course criterion passes. The owner's confirmation that the app stays
+running with Dif and Help after the window closes is attended item
+`BPR-1250-help-v003` in the same session, served on port 59998.

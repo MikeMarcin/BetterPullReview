@@ -45,6 +45,13 @@ network, or process effects.
   command absolutely. A copy label saying "in the repository" is not a working
   directory: BPR-0746's v009 probe was run from one directory above the
   checkout, so its relative `tee` opened nothing and the log was lost.
+- A frozen attended build keeps its source and build tree inside its own
+  root. A tests-on build compiles absolute paths to its source tree's
+  `tests/fixtures` and its build tree's helpers. BPR-1250's help-v002 build
+  came from a worktree that was removed after freezing, so at launch it
+  printed `STARTUP_FAILED` and closed before any window. Export the commit
+  into the root, build there, and have the launcher check the fixture tree
+  before starting and report an exit within seconds.
 - Ask one question per candidate criterion. A question riding a criterion about
   something else comes back unanswered (BPR-0744 v008 and v009).
 - Ask a keep-or-change judgment as Accept or Reject, with the change in the
