@@ -229,3 +229,25 @@ The other 19 also pass:
 - `core_review_composition`
 
 No remote mutation.
+
+## Windows (bpr-main-win, 2026-10-03)
+
+At `d922bbee8`, which contains `cd8d04fc7`. Windows 11 Home 10.0.26200, MSVC
+14.51, Qt 6.11.2, `build/windows-dev` Debug. The 9 executables the selection
+runs were deleted and rebuilt, and the build printed no `warning C` or
+`warning LNK` line. The run is serial (`-j1`). It widens the requested set to
+every `application_agent_invocation_*_contract` row for [[BPR-1138]]'s AC3.
+
+```powershell
+ctest --preset windows-dev -j1 --output-on-failure -R "^application_agent_chat_(composition|stale|continued|anchored_continuation)_contract$|^application_agent_finding_.*_contract$|^application_agent_invocation_.*_contract$|^application_private_review_|^core_review_composition$"
+```
+
+All 26 pass, in 319.84 s:
+
+- `application_agent_finding_workshop_press_contract` 10.64 s;
+- the nine other `application_agent_finding_*_contract` rows;
+- the four chat contracts;
+- the eight `application_agent_invocation_*_contract` rows, among them
+  composition 28.44 s and workspace diagnostic 9.73 s;
+- `application_private_review_host`, `_native`, `_file` and `_retry`;
+- `core_review_composition`.

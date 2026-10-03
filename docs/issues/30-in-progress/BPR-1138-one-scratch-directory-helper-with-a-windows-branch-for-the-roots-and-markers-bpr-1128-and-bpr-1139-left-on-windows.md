@@ -312,3 +312,24 @@ Run by bpr-main-linux at `1b66d0487` (main, after `8fe4eafad`). WSL2, kernel
   predate this run and are unchanged.
 
 AC5's Linux half holds at this revision.
+
+## AC3 on Windows, after BPR-1245 (bpr-main-win, 2026-10-03)
+
+AC3's two `application_agent_invocation_*` rows that failed on 2026-09-29 for
+[[BPR-1245]]'s cause were run again, with the other six. This was at
+`d922bbee8` (MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug), serial, with
+the executables deleted and rebuilt. All eight
+`application_agent_invocation_*_contract` rows pass:
+
+- composition 28.44 s;
+- construction cut 3.38 s;
+- launcher construction cut 3.33 s;
+- gesture cut 6.89 s;
+- cancellation 21.21 s, which finds its marker in the course's root;
+- staleness 21.92 s;
+- cleanup retry 21.08 s;
+- workspace diagnostic 9.73 s.
+
+The Part A rows passed in this card's earlier AC3 run, and nothing they
+exercise has changed since. AC3 is met on Windows. Part B and AC4 still wait
+on [[BPR-1229]].
