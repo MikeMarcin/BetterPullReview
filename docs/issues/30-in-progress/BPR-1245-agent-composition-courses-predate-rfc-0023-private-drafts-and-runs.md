@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1245"
 title: "Fifteen agent composition courses predate RFC-BPR-0023's right-side drafts and private runs"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-0587","BPR-1211","BPR-1139","BPR-1238"]}
