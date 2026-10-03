@@ -114,3 +114,74 @@ the project, and this station's Qt cache is under the source tree
 (`build/.cpm-cache`). So the Linux install is not self-contained here. It
 needs a Qt that is installed beside the binary, or one the system loader
 finds. The script's pseudo-terminal part was therefore not reached on Linux.
+
+## Windows (bpr-main-win, 2026-10-02)
+
+At `2a18ae104` in a `BPR_BUILD_TOUR_CLI=ON` tree, `build/windows-dev-tour-cli`
+(Visual Studio 18, MSVC 14.51, Qt 6.11.2, Debug). The 21 executables the
+selection runs were deleted and rebuilt, and the build printed no `warning C`
+or `warning LNK` line. This one run covers BPR-1167, BPR-1168 and BPR-1169's
+Windows selections together. The new named-pipe owner channel compiled clean
+under MSVC and uses the platform's `private_security` descriptor. It was not
+changed.
+
+**Windows defects found and fixed:**
+
+- Three tour-CLI-only targets include `scratch_root.hpp` without linking
+  `advapi32 BetterPullReview::Platform` on WIN32, a [[BPR-1138]] gap the
+  default graph never built: `test_tour_cli_composition`,
+  `test_tour_publication_cli` and BPR-1168's `test_tour_owner_channel`.
+- `tests/application/tour_cli_tests.cpp` named a variable `small`, a Windows
+  SDK macro. It is now `waiting`.
+- `bpr`'s standard streams were in Windows text mode, so every LF was written
+  as CR LF and CR LF on input was read as LF. That broke the exact-byte
+  contract: a JSON document's single LF, an export printed byte for byte, and
+  stored text. `src/app/src/tour_main.cpp` sets `_O_BINARY` on stdin, stdout
+  and stderr, and so does the test surrogate's `main`.
+- `tests/scripts/cycle_cli_tests.py`'s near-empty environment dropped `PATH`
+  on Windows, so the development `bpr.exe` could not load its Qt DLLs
+  (`0xC0000135`). It now keeps `PATH`.
+- `profile_cycle_handoff_contract.py` made its data root with
+  `mkdir(mode=0o700)` ([[BPR-1233]]'s trap). It now uses `make_root_private`.
+- `profile_cycle_handoff_public_path_tests.cpp` checked the owner's endpoint
+  with `std::filesystem::exists`. On a named pipe that opens a client. A
+  station probe got `1`, then error 231 ("All pipe instances are busy"), and a
+  busy pipe made the course end in `terminate`, exit 3. It now asks
+  `WaitNamedPipeW`, which connects nothing.
+- Both handoff courses wrote and read their command and log files in the
+  locale encoding. Under CTest, without `PYTHONUTF8`, `write_text` failed on
+  `中` with `UnicodeEncodeError` (cp1252). They now use UTF-8.
+
+**Containment, measured** contained through the sandbox launcher and as
+registered. Each of these passes uncontained and fails contained at its
+private root:
+
+- `tour_cli_publication`, `tour_cli_composition`, `tour_cli_process_commands`
+  and `cycle_cli_public_path`: `profile_unavailable`;
+- `application_profile_cycle_handoff_public_path`: `cycle open` →
+  `profile_unavailable`;
+- `application_profile_tour_handoff_public_path`: "owner startup succeeds";
+- `sqlite_tour_owner_channel`: "canonical: Access is denied" before its named
+  pipe. This row returns to uncontained, since it now opens a real pipe.
+
+Each is `WINDOWS_UNCONTAINED` with a measured `dos-volume-name` pin in
+`scripts/verify_test_network_isolation.py`. The manifest and structure rows
+pass in both `build/windows-dev` and the tour-CLI tree.
+
+**Result.** The union of the three selections passes, 28/28, in 63.18 s:
+
+- `cycle_cli_public_path`;
+- both handoff courses;
+- `sqlite_tour_owner_channel`;
+- every `tour_cli_*` row;
+- the `core_review_cycle_*` rows: round, feedback, workspace, share,
+  command, retrieval, policy and response;
+- `review_cycle_export`, `_workbench` and `_response`;
+- `sqlite_review_cycle_storage`;
+- `qt_review_cycle_view_*`;
+- the desktop path and the round-trip contract;
+- `architecture_boundaries` and both isolation rows.
+
+`coding-format-check` passes with clang-format 22.1.8. This station has no
+clang-format 23. The one known 22/23 difference, `tour_cli.cpp`'s
+initializer, was already removed by BPR-1268.

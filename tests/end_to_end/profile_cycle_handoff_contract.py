@@ -33,7 +33,7 @@ class Desktop:
 
     def __init__(self, application, data, workspace, index):
         self.signal = workspace / f"desktop-{index}.quit"
-        self.log = (workspace / f"desktop-{index}.log").open("w+")
+        self.log = (workspace / f"desktop-{index}.log").open("w+", encoding="utf-8")
         self.process = subprocess.Popen([application, str(data), "1", str(self.signal)], stdout=self.log, stderr=subprocess.STDOUT, text=True)
         self.seen = 0
         self.endpoint = self.await_line("OWNER_ENDPOINT ").split(" ", 1)[1]
@@ -83,7 +83,9 @@ def main():
         workspace = Path(temporary).resolve()
         make_root_private(workspace)
         data = workspace / "data"
-        data.mkdir(mode=0o700)
+        # [[BPR-1233]]. On Windows mkdir(mode=0o700) writes CPython's owner-only
+        # descriptor, which the stores refuse; this writes theirs.
+        make_root_private(data)
         project = workspace / "project"
         (project / "src").mkdir(parents=True)
         (project / "src" / "cache.cpp").write_text("int lookup(int key)\n{\n\treturn table[key];\n}\n", encoding="utf-8")

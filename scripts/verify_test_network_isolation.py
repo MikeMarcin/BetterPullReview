@@ -564,6 +564,21 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_cached_review_overview": "dos-volume-name",
     "sqlite_private_review_storage": "dos-volume-name",
     "application_private_review_host": "dos-volume-name",
+    # [[BPR-1167]], [[BPR-1168]]. Measured on JaegAW 2026-10-02 at 3e3b3fa17 in a
+    # BPR_BUILD_TOUR_CLI tree, contained through the sandbox launcher and as
+    # registered. Each passes uncontained. Contained, the tour CLI rows and
+    # `bpr cycle` stop at "profile_unavailable: The application root is
+    # unavailable or is not owner-private" ("public open" in the publication
+    # course); the tour handoff's desktop at "owner startup succeeds"; the tour
+    # owner channel at "canonical: Access is denied" on its AC\Temp root, before
+    # its named pipe. These rows exist only where BPR_BUILD_TOUR_CLI is on.
+    "tour_cli_publication": "dos-volume-name",
+    "tour_cli_composition": "dos-volume-name",
+    "tour_cli_process_commands": "dos-volume-name",
+    "cycle_cli_public_path": "dos-volume-name",
+    "application_profile_cycle_handoff_public_path": "dos-volume-name",
+    "application_profile_tour_handoff_public_path": "dos-volume-name",
+    "sqlite_tour_owner_channel": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they

@@ -141,3 +141,11 @@ passes **4 of 4**:
 The two rows contained again on Windows pass under the Linux network sandbox,
 and the Windows pin-set change leaves the Linux manifest and structure gates
 green. No remote mutation.
+
+A correction to `e517d66d0`'s commit message. It counted 11 large-review
+pins for BPR-0967 and 45 for this card. The pins are 10 and 46:
+`application_large_review_history_session_race` moved into the container
+instead of being pinned, and `application_large_review_timing_control` is
+this card's. The section above and the file's comments are right.
+`sqlite_tour_owner_channel`, moved into the container there, returns to a
+measured pin with BPR-1168's named pipe (see BPR-1168's Windows note).

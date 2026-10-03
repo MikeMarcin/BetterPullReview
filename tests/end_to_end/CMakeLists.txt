@@ -3236,7 +3236,7 @@ if(TARGET app_bpr)
     target_compile_features(test_profile_cycle_handoff_public_path PRIVATE cxx_std_23)
     bpr_enable_hardening(test_profile_cycle_handoff_public_path)
     bpr_enable_warnings(test_profile_cycle_handoff_public_path)
-    bpr_add_network_isolated_test(NAME application_profile_cycle_handoff_public_path
+    bpr_add_network_isolated_test(NAME application_profile_cycle_handoff_public_path WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_cycle_handoff_contract.py"
         --application $<TARGET_FILE:test_profile_cycle_handoff_public_path>
         --cycle-application $<TARGET_FILE:app_bpr>)

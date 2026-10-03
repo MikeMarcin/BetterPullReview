@@ -15,6 +15,13 @@
 #include <span>
 #include <sstream>
 #include <thread>
+
+#if defined(_WIN32)
+	#include <fcntl.h>
+	#include <io.h>
+
+	#include <cstdio>
+#endif
 namespace {
 	using namespace bpr;
 	using tests::expect;
@@ -530,10 +537,10 @@ namespace {
 		}
 		// Oversized: a request too large to send is refused, and it does not disturb a request already pending.
 		expect(edit("problem", std::string(20000, 'x')).Exit == 0, "a large author field");
-		auto small  = context({ "--hook", "solution", "--field", "solution" });
-		auto tooBig = context({ "--hook", "problem", "--field", "problem" });
+		auto waiting = context({ "--hook", "solution", "--field", "solution" });
+		auto tooBig  = context({ "--hook", "problem", "--field", "problem" });
 		expect(tooBig.Exit == 2 && code(tooBig) == "context_too_large", "an oversized context is refused");
-		expect(complete(ticketOf(small), rewrite("Version every entry, and log evictions.")).Exit == 0, "the pending request was not disturbed");
+		expect(complete(ticketOf(waiting), rewrite("Version every entry, and log evictions.")).Exit == 0, "the pending request was not disturbed");
 		// A host that cannot verify the agent may withhold export; manual authoring stays.
 		qputenv("BPR_TOUR_ASSIST_POLICY", "manual-only");
 		auto held = context({ "--hook", "solution", "--field", "solution", "--session", "verified-approved-claude" });
@@ -673,6 +680,15 @@ int serve_owner_process(const QStringList& aArguments)
 }
 int main(int argc, char** argv)
 {
+#if defined(_WIN32)
+	// [[BPR-1167]]. Standing in for bpr, it keeps bpr's exact-byte streams (see
+	// tour_main.cpp): Windows' text mode would read CR LF from standard input as LF.
+	for (auto* const stream : { stdin, stdout, stderr }) {
+		if (const auto descriptor = _fileno(stream); descriptor >= 0) {
+			static_cast<void>(_setmode(descriptor, _O_BINARY));
+		}
+	}
+#endif
 	QCoreApplication app{ argc, argv };
 	if (argc > 1 && std::string_view{ argv[1] } == "--serve-owner") {
 		return serve_owner_process(QCoreApplication::arguments().mid(1));

@@ -24,6 +24,11 @@
 #include <sstream>
 #include <string>
 
+#if defined(_WIN32)
+	#define WIN32_LEAN_AND_MEAN
+	#include <windows.h>
+#endif
+
 /// [[BPR-1168]]. A real desktop owner with a local cycle open, driven by another
 /// process through the shipped `bpr cycle`. This process is the desktop
 /// reviewer: on command it resumes the cycle, writes a note, composes the next
@@ -48,6 +53,21 @@ namespace {
 			QThread::msleep(1);
 		}
 		return aCondition();
+	}
+	/// \brief Whether the owner's command endpoint is bound, without taking it.
+	/// \details On Windows the endpoint is a named pipe. `std::filesystem::exists`
+	/// opens a pipe as a client: it can take the owner's only free instance, and
+	/// a busy pipe makes it throw (ERROR_PIPE_BUSY), which ended this course in
+	/// terminate. `WaitNamedPipeW` answers whether the pipe exists and connects
+	/// nothing; a pipe that exists but is busy still counts as bound.
+	auto endpoint_bound(const std::filesystem::path& aEndpoint) -> bool
+	{
+#if defined(_WIN32)
+		return ::WaitNamedPipeW(aEndpoint.c_str(), 1) != FALSE || ::GetLastError() == ERROR_SEM_TIMEOUT;
+#else
+		std::error_code code;
+		return std::filesystem::exists(aEndpoint, code);
+#endif
 	}
 	auto read_command(const std::filesystem::path& aFile) -> std::string
 	{
@@ -118,7 +138,7 @@ auto main(int aArgc, char** aArgv) -> int
 	auto* page   = window.local_cycle();
 	expect(page != nullptr, "the window composes the local cycle page");
 	const auto endpoint = adapters::sqlite::tour_owner_endpoint(root);
-	expect(endpoint.has_value() && wait_for([&] { return std::filesystem::exists(*endpoint); }), "the owner's command endpoint is bound");
+	expect(endpoint.has_value() && wait_for([&] { return endpoint_bound(*endpoint); }), "the owner's command endpoint is bound");
 	say("OWNER_ENDPOINT " + endpoint->string());
 	say("OWNER_READY");
 	QElapsedTimer course;

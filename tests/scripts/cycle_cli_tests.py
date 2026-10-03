@@ -31,7 +31,10 @@ def environment(extra=None):
     """Nothing a desktop session, an account or a provider would supply."""
     value = {"QT_QPA_PLATFORM": "bpr-no-display", "NO_COLOR": "1"}
     if os.name == "nt":
-        for name in ("SystemRoot", "SystemDrive", "TEMP", "TMP"):
+        # PATH too: Windows finds an executable's DLLs through it, and a
+        # development build's Qt libraries are on it, not beside bpr.exe.
+        # Without it the child cannot load (0xC0000135).
+        for name in ("SystemRoot", "SystemDrive", "TEMP", "TMP", "PATH"):
             if name in os.environ:
                 value[name] = os.environ[name]
     value.update(extra or {})

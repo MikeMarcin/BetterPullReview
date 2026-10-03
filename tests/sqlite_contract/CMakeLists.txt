@@ -517,12 +517,17 @@ set_tests_properties(sqlite_profile_activation PROPERTIES TIMEOUT 30)
 
 bpr_add_executable(test_tour_owner_channel tour_owner_channel_tests.cpp)
 target_link_libraries(test_tour_owner_channel PRIVATE BetterPullReview::AdapterSQLite)
+if(WIN32)
+    # [[BPR-1138]]. scratch_root's Windows branch builds the platform's owner-private descriptor.
+    target_link_libraries(test_tour_owner_channel PRIVATE advapi32 BetterPullReview::Platform)
+endif()
 bpr_enable_hardening(test_tour_owner_channel)
 bpr_enable_warnings(test_tour_owner_channel)
 # [[BPR-1061]]. Real native sockets under the same private root shape as sqlite_profile_activation.
-# [[BPR-1237]]. Contained on Windows: measured 2026-10-02, it passes inside the
-# container (tour-owner-channel-tests:pass).
-bpr_add_network_isolated_test(NAME sqlite_tour_owner_channel COMMAND test_tour_owner_channel)
+# [[BPR-1168]]. Uncontained on Windows again: since BPR-1168 it opens a real
+# named pipe under a scratch root, which the container refuses (measured
+# 2026-10-02; the pin in verify_test_network_isolation.py names it).
+bpr_add_network_isolated_test(NAME sqlite_tour_owner_channel WINDOWS_UNCONTAINED COMMAND test_tour_owner_channel)
 set_tests_properties(sqlite_tour_owner_channel PROPERTIES TIMEOUT 60)
 
 bpr_add_executable(test_better_pull_review_window_review_restoration_storage_tests window_review_restoration_storage_tests.cpp)

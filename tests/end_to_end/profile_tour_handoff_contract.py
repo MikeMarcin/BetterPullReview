@@ -24,7 +24,7 @@ def main():
         make_root_private(root)
         log_path = root / "desktop.log"
         signal = root / "desktop.quit"
-        log = log_path.open("w+")
+        log = log_path.open("w+", encoding="utf-8")
         desktop = subprocess.Popen([args.application, str(root), "1", str(signal)], stdout=log, stderr=subprocess.STDOUT, text=True)
         seen = 0
 
@@ -48,7 +48,7 @@ def main():
 
         def ask(command, prefix):
             pending = root / "desktop.quit.command.tmp"
-            pending.write_text(command)
+            pending.write_text(command, encoding="utf-8")
             os.replace(pending, root / "desktop.quit.command")
             return await_line(prefix)
 

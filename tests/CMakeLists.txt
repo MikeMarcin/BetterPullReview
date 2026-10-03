@@ -3,16 +3,24 @@ if(BPR_BUILD_TOUR_CLI)
     target_compile_definitions(test_tour_publication_cli PRIVATE BPR_BUILD_TESTING=1)
     target_include_directories(test_tour_publication_cli PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
     target_link_libraries(test_tour_publication_cli PRIVATE BetterPullReview::TourRuntime BetterPullReview::AdapterGitHub BetterPullReview::AdapterSQLite Qt6::Core)
+    if(WIN32)
+        # [[BPR-1138]]. scratch_root's Windows branch builds the platform's owner-private descriptor.
+        target_link_libraries(test_tour_publication_cli PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
     bpr_enable_hardening(test_tour_publication_cli)
     bpr_enable_warnings(test_tour_publication_cli)
-    bpr_add_network_isolated_test(NAME tour_cli_publication COMMAND test_tour_publication_cli)
+    bpr_add_network_isolated_test(NAME tour_cli_publication WINDOWS_UNCONTAINED COMMAND test_tour_publication_cli)
     bpr_add_network_isolated_test(NAME tour_cli_terminal_publication COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_publication_tests.py" "$<TARGET_FILE:test_tour_publication_cli>")
     bpr_add_executable(test_tour_cli_composition application/tour_cli_tests.cpp)
     target_link_libraries(test_tour_cli_composition PRIVATE BetterPullReview::TourRuntime BetterPullReview::AdapterSQLite Qt6::Core)
+    if(WIN32)
+        # [[BPR-1138]]. scratch_root's Windows branch builds the platform's owner-private descriptor.
+        target_link_libraries(test_tour_cli_composition PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
     bpr_enable_hardening(test_tour_cli_composition)
     bpr_enable_warnings(test_tour_cli_composition)
-    bpr_add_network_isolated_test(NAME tour_cli_composition COMMAND test_tour_cli_composition)
-    bpr_add_network_isolated_test(NAME tour_cli_process_commands
+    bpr_add_network_isolated_test(NAME tour_cli_composition WINDOWS_UNCONTAINED COMMAND test_tour_cli_composition)
+    bpr_add_network_isolated_test(NAME tour_cli_process_commands WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_commands_tests.py" "$<TARGET_FILE:test_tour_cli_composition>")
     bpr_add_network_isolated_test(NAME skill_pr_tour_package
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/pr_tour_skill_tests.py"
@@ -22,7 +30,7 @@ if(BPR_BUILD_TOUR_CLI)
     # [[BPR-1167]]. `bpr cycle` as real processes in a near-empty environment:
     # open, note, review, freeze, export, capture, compare and response import
     # on a fixture folder, with the contract's typed refusals and one writer.
-    bpr_add_network_isolated_test(NAME cycle_cli_public_path
+    bpr_add_network_isolated_test(NAME cycle_cli_public_path WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/cycle_cli_tests.py" "$<TARGET_FILE:app_bpr>")
     set_tests_properties(cycle_cli_public_path PROPERTIES TIMEOUT 300)
     # [[BPR-1170]]. The bpr-cycle skill package: its text pinned, and its documented
