@@ -570,6 +570,16 @@ endfunction()
 # the terminal and the owner alike, over the local cycle store, workspace source
 # and export destination. No grant, target, provider, mutation or publication
 # path changes; mutation pin unchanged.
+# BPR-1250 reseal: 7e5a093cc..this candidate; no intervening pinned-scope
+# commit since the BPR-1168 seal. On macOS the desktop owns one menu bar status
+# item for the life of the process (profile_desktop: native_menu_bar_status_item,
+# status_item(), start_with_factory's last argument) and passes it to each
+# runtime as github_application_config::StatusItem; github_application.cpp
+# composes the profile's system_tray_notification_sink over that item instead of
+# a tray of its own, so the item no longer leaves with the last window, and the
+# fixture desktop takes the same item. Notification presentation only: no grant,
+# target, provider, credential, mutation or publication path changes; mutation
+# pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -588,7 +598,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"85dc3e868cef0b0e1d48d32dce12dca61d818bade2d979d930bc9000809fe3f8"
+		"a86853460e02c194009dd86bea46337f43927521575b024f8aac0145e320fe2b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -786,7 +796,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5f9814c138a04be3ebb718355b526bd0941f1973e04aa26c086accc1e1a4ece4"
+        "f5d7c843587f886b712fede0c02c3ab49e9d4cae32964e1dfa6bbaaa8528ddb3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

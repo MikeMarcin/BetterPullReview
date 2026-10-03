@@ -121,6 +121,29 @@ AI tools slot" is read as the corner or a prime spot, and B5's courses that
 assert Dif is hidden elsewhere follow the amendment. [[BPR-1209]] builds it and
 carries [[BPR-0800]]. Until it lands, the product still shows the drawer slot.
 
+### Owner amendment, 2026-09-13, restored 2026-10-02: Dif in the macOS menu bar
+
+On 2026-09-13 the owner directed one static monochrome Dif in the macOS menu
+bar (mandate revision 5 of the Dif pack). It was recorded only on the
+`claude/bpr-dif-integration-v1-d932e2` lane, whose session stopped before the
+work was built, and the integrated pack never carried it. On 2026-10-02 the
+owner rejected `BPR-1250-help-v001` with: "the menubar icon needs to be a
+monochrome/greyscale Dif avatar so it can be colored by macos -- I could have
+sworn we did that already." [[BPR-1250]] restores the amendment and builds it.
+
+This amends the placement above:
+
+- **One status item, for the life of the process.** On macOS the desktop shows
+  one menu bar status item from startup until Quit, with no window as well as
+  with one. Every profile's notifications submit through it.
+- **Dif's head, as a template image.** The item shows Dif's head, black with
+  alpha at 18 points in 1x and 2x and marked as a mask, so the menu bar draws it
+  in its own colour on a light, dark or highlighted bar. It is derived offline
+  from the accepted neutral master and is not a catalog clip.
+- **Static.** No tray animation, pose change or cue.
+- **macOS only.** Linux and Windows keep a tray per profile with the
+  application icon.
+
 ## Architecture
 
 **The core decides. The host performs. Qt presents.**

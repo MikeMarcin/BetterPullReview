@@ -44,6 +44,42 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "system-tray-notification-sink-tests:pass"
 )
 
+# [[BPR-1250]]. The menu bar status item's template image and the item itself,
+# macOS only: offscreen has no tray and gets no item; cocoa shows it.
+if(APPLE)
+    bpr_add_executable(
+        test_better_pull_review_qt_menu_bar_status_item_tests
+        menu_bar_status_item_tests.cpp
+    )
+    target_link_libraries(
+        test_better_pull_review_qt_menu_bar_status_item_tests
+        PRIVATE
+            BetterPullReview::AdapterQt
+    )
+    bpr_enable_hardening(test_better_pull_review_qt_menu_bar_status_item_tests)
+    bpr_enable_warnings(test_better_pull_review_qt_menu_bar_status_item_tests)
+    bpr_add_network_isolated_test(
+        NAME qt_menu_bar_status_item
+        COMMAND test_better_pull_review_qt_menu_bar_status_item_tests
+    )
+    set_tests_properties(
+        qt_menu_bar_status_item
+        PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            PASS_REGULAR_EXPRESSION "no tray on offscreen.*menu-bar-status-item-tests:pass"
+    )
+    bpr_add_network_isolated_test(
+        NAME qt_menu_bar_status_item_cocoa
+        COMMAND test_better_pull_review_qt_menu_bar_status_item_tests
+    )
+    set_tests_properties(
+        qt_menu_bar_status_item_cocoa
+        PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=cocoa"
+            PASS_REGULAR_EXPRESSION "shown on cocoa.*menu-bar-status-item-tests:pass"
+    )
+endif()
+
 bpr_add_executable(
     test_better_pull_review_qt_github_tests
     composed_github_tests.cpp

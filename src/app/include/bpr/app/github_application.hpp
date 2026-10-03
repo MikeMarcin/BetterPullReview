@@ -24,6 +24,8 @@
 #include <string_view>
 #include <vector>
 
+class QSystemTrayIcon;
+
 namespace bpr::qt {
 	class dif_catalog_provider;
 	class motion_observer;
@@ -86,6 +88,11 @@ namespace bpr::app {
 		std::shared_ptr<qt::motion_observer> MotionObserver;
 		/// One lazily decoded production catalog shared by every profile and window.
 		std::shared_ptr<qt::dif_catalog_provider> DifCatalog;
+		/// [[BPR-1250]]. The process's one menu bar status item, when the desktop
+		/// keeps one (`native_menu_bar_status_item`). A profile's notification sink
+		/// submits through it instead of owning a tray that would leave the menu
+		/// bar with the profile's last window.
+		std::shared_ptr<QSystemTrayIcon> StatusItem;
 	};
 
 	/// \brief Initializes or deliberately resets the designated-live replay

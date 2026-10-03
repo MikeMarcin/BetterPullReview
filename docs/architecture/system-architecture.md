@@ -968,6 +968,16 @@ RFC-BPR-0030/0031 supply the current ten-clip revision and composition. Dif's
 base remains prop-free. Any raster change returns through deterministic
 regeneration and a digest-bound attended decision before runtime selection.
 
+One static Dif image lives outside the catalog: the macOS menu bar status item
+([[BPR-1250]], RFC-BPR-0031's 2026-09-13 owner amendment). Its 18 and 36 pixel
+template images are in `src/adapters/qt/assets/status-item/`, made from the
+neutral master by the offline `scripts/dif_status_item_template.py`, and
+compiled into macOS graphs only. `qt::menu_bar_status_icon` marks them a mask,
+so the menu bar tints Dif. The desktop composition owns the one status item
+(`native_menu_bar_status_item`) for the life of the process and lends it to
+each profile's notification sink, so it stays in the menu bar when the last
+window closes. Linux and Windows keep a tray per profile.
+
 ## Feature allocation
 
 | Feature family | Functional core | Application host | Qt presentation adapter |

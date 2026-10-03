@@ -62,8 +62,12 @@ namespace bpr::tests::native_menu {
 	[[nodiscard]] auto frontmost_application_name() -> std::string;
 	/// \brief Whether the process asked AppKit for a Dock tile and a menu bar.
 	[[nodiscard]] auto activation_policy_is_regular() -> bool;
-	/// \brief Count of AppKit windows currently on screen.
+	/// \brief Count of AppKit windows currently on screen, not counting the
+	/// windows AppKit draws this process's menu bar status items in.
 	[[nodiscard]] auto visible_window_count() -> std::size_t;
+	/// \brief Count of this process's status items AppKit has on the menu bar:
+	/// each is drawn in a visible `NSStatusBarWindow` of its own ([[BPR-1250]]).
+	[[nodiscard]] auto visible_status_item_count() -> std::size_t;
 	/// \brief Records every later `-[NSApplication setMainMenu:]` with a timestamp.
 	void begin_main_menu_trace();
 	/// \brief The recorded installations since the trace began, oldest first.

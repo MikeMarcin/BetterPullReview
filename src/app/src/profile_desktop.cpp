@@ -12,6 +12,7 @@
 #include "terminal_diagnostics.hpp"
 #if defined(__APPLE__)
 	#include "bpr/adapters/update/release_update_installation.hpp"
+	#include "bpr/qt/menu_bar_status_item.hpp"
 #endif
 #include <QCloseEvent>
 #include <QElapsedTimer>
@@ -19,6 +20,7 @@
 #include <QGuiApplication>
 #include <QObject>
 #include <QPointer>
+#include <QSystemTrayIcon>
 #include <QTimer>
 #include <algorithm>
 #include <exception>
@@ -78,8 +80,9 @@ namespace bpr::app {
 		};
 
 	public:
-		implementation(core::bpr_profile_id aInitial, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy)
-			: Initial{ aInitial }
+		implementation(core::bpr_profile_id aInitial, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy, std::shared_ptr<QSystemTrayIcon> aStatusItem)
+			: StatusItem{ std::move(aStatusItem) }
+			, Initial{ aInitial }
 			, Factory{ std::move(aFactory) }
 			, Completion{ std::move(aCompletion) }
 			, InitialIntent{ aIntent }
@@ -159,6 +162,7 @@ namespace bpr::app {
 		}
 		auto management_window() const noexcept -> qt::profile_management_window* { return Management.get(); }
 		auto desktop_menu() const noexcept -> qt::desktop_menu_bar* { return DesktopMenu.get(); }
+		auto status_item() const noexcept -> QSystemTrayIcon* { return StatusItem.get(); }
 		auto last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome> { return LastEmptyOutcome; }
 		void quit(int aExitCode)
 		{
@@ -1380,6 +1384,9 @@ namespace bpr::app {
 				Lifetime.reset();
 			}
 		}
+		/// [[BPR-1250]]. Released after the runtimes declared below, which share it:
+		/// Dif stays in the menu bar for as long as the desktop runs.
+		std::shared_ptr<QSystemTrayIcon>                                            StatusItem;
 		std::shared_ptr<void>                                                       Scratch;
 		core::bpr_profile_id                                                        Initial;
 		startup_factory                                                             Factory;
@@ -1437,13 +1444,22 @@ namespace bpr::app {
 #endif
 	}
 
+	auto native_menu_bar_status_item() -> std::shared_ptr<QSystemTrayIcon>
+	{
+#if defined(__APPLE__)
+		return qt::make_menu_bar_status_item();
+#else
+		return { };
+#endif
+	}
+
 	profile_desktop::profile_desktop(std::shared_ptr<implementation> aImplementation)
 		: Implementation{ std::move(aImplementation) }
 	{ }
 	profile_desktop::~profile_desktop() { Implementation->force_shutdown(0); }
-	auto profile_desktop::start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy, bool aNativeLifetime) -> std::unique_ptr<profile_desktop>
+	auto profile_desktop::start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy, bool aNativeLifetime, std::shared_ptr<QSystemTrayIcon> aStatusItem) -> std::unique_ptr<profile_desktop>
 	{
-		auto state   = std::make_shared<implementation>(aProfile, std::move(aFactory), std::move(aCompletion), aIntent, std::move(aPolicy));
+		auto state   = std::make_shared<implementation>(aProfile, std::move(aFactory), std::move(aCompletion), aIntent, std::move(aPolicy), std::move(aStatusItem));
 		auto desktop = std::unique_ptr<profile_desktop>{ new profile_desktop{ state } };
 		state->begin(aNativeLifetime);
 		return desktop;
@@ -1475,18 +1491,23 @@ namespace bpr::app {
 		if (!aConfig.DifCatalog) {
 			aConfig.DifCatalog = std::make_shared<qt::dif_catalog_provider>();
 		}
-		const auto profile = aConfig.Profile;
-		const auto intent  = aConfig.ProfileLaunchIntent;
+		if (!aConfig.StatusItem) {
+			aConfig.StatusItem = native_menu_bar_status_item();
+		}
+		const auto profile    = aConfig.Profile;
+		const auto intent     = aConfig.ProfileLaunchIntent;
+		auto       statusItem = aConfig.StatusItem;
 		return start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
             auto next = configuration_for_profile(config, aProfile, aRoot);
             next.ProfileLaunchIntent = aIntent;
-            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent, std::move(aPolicy), true);
+            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent, std::move(aPolicy), true, std::move(statusItem));
 	}
 	auto profile_desktop::runtime(core::bpr_profile_id aProfile) const noexcept -> github_application* { return Implementation->runtime(aProfile); }
 	auto profile_desktop::windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context> { return Implementation->windows(aProfile); }
 	auto profile_desktop::window(core::bpr_window_context aContext) const noexcept -> qt::workbench_window* { return Implementation->window(aContext); }
 	auto profile_desktop::management_window() const noexcept -> qt::profile_management_window* { return Implementation->management_window(); }
 	auto profile_desktop::desktop_menu() const noexcept -> qt::desktop_menu_bar* { return Implementation->desktop_menu(); }
+	auto profile_desktop::status_item() const noexcept -> QSystemTrayIcon* { return Implementation->status_item(); }
 	auto profile_desktop::last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome> { return Implementation->last_empty_desktop_outcome(); }
 	void profile_desktop::quit(int aExitCode) { Implementation->quit(aExitCode); }
 	void profile_desktop::quit_for_update(std::function<void(bool)> aPrepared) { Implementation->quit_for_update(std::move(aPrepared)); }

@@ -117,6 +117,46 @@ auto main(int argc, char** argv) -> int
 		sink.submitted_payload() == std::optional{ payloadA },
 		"the exact first metadata-only payload remains observable");
 
+	// [[BPR-1250]]. On macOS every profile's sink submits through the
+	// application's one status item. A click carries no message identity, so it
+	// is the latest submission's, and only that sink's.
+	auto shared = QSystemTrayIcon{ };
+	shared.setObjectName(QStringLiteral("menuBarStatusItem"));
+	shared.setToolTip(QStringLiteral("the owner's tip"));
+	auto earlierActivations = std::size_t{ 0U };
+	auto laterActivations   = std::size_t{ 0U };
+	auto laterTarget        = std::optional<bpr::application::queue_notification_target>{ };
+	{
+		auto earlier = bpr::qt::system_tray_notification_sink{ shared };
+		auto later   = bpr::qt::system_tray_notification_sink{ shared };
+		expect(earlier.tray_icon() == &shared && later.tray_icon() == &shared,
+			   "both sinks submit through the one caller-owned item");
+		expect(shared.objectName() == QStringLiteral("menuBarStatusItem")
+				   && shared.toolTip() == QStringLiteral("the owner's tip"),
+			   "a sink keeps the name and tip the item's owner gave it");
+		earlier.set_activation_sink([&earlierActivations](auto) { ++earlierActivations; });
+		later.set_activation_sink([&laterActivations, &laterTarget](auto aTarget) {
+			laterTarget = std::move(aTarget);
+			++laterActivations;
+		});
+		static_cast<void>(earlier.request_permission());
+		static_cast<void>(later.request_permission());
+		const auto earlierPayload = payload(21);
+		const auto laterPayload   = payload(22);
+		expect(earlier.deliver(earlierPayload) == bpr::application::notification_submission_result::submitted
+				   && later.deliver(laterPayload) == bpr::application::notification_submission_result::submitted,
+			   "each profile submits its first notification");
+		shared.messageClicked();
+		expect(laterActivations == 1U && laterTarget == std::optional{ laterPayload.Target },
+			   "the click reaches the latest submission");
+		expect(earlierActivations == 0U, "and no other sink sharing the item");
+		shared.messageClicked();
+		expect(laterActivations == 1U && earlierActivations == 0U, "a repeated click is still a no-op");
+	}
+	shared.messageClicked();
+	expect(laterActivations == 1U && earlierActivations == 0U,
+		   "a sink that is gone hears nothing from the item that outlives it");
+
 	std::cout << "system-tray-notification-sink-tests:pass\n";
 	return EXIT_SUCCESS;
 }

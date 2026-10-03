@@ -12,6 +12,7 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QMenuBar>
+#include <QSystemTrayIcon>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QWindow>
@@ -346,6 +347,19 @@ try {
 		});
 	wait_for([&] { return terminal; }, "desktop initial startup");
 	expect(initial != nullptr, "initial runtime admitted");
+	// [[BPR-1250]]. Dif is in the menu bar from startup, as a template image the
+	// bar tints, in one status item the desktop owns. The profile's notifications
+	// go through that item; a tray of the profile's own would leave the menu bar
+	// with its last window, which is what the owner saw in help-v001.
+	auto* const statusItem = desktop->status_item();
+	expect(statusItem != nullptr && statusItem->isVisible(), "the desktop shows its status item from startup");
+	expect(statusItem->icon().isMask(), "and the item's Dif is a template image");
+	expect(app::detail::github_application_fixture_access::notification_tray(*initial) == statusItem,
+		   "the profile's notifications go through the desktop's item, not a tray of their own");
+	wait_for([] { return native::visible_status_item_count() == 1U; }, "AppKit has exactly one status item for this process");
+	const auto statusItemPresent = [&] {
+		return desktop->status_item() == statusItem && statusItem->isVisible() && native::visible_status_item_count() == 1U;
+	};
 	native::begin_main_menu_trace();
 	initial->show();
 	native::activate_application();
@@ -417,6 +431,7 @@ try {
 	note("longest stretch without the resident menu bar during the close: " + std::to_string(closing.LongestGapMs) + "ms"
 		 + ", total " + std::to_string(closing.TotalGapMs) + "ms" + (closing.GapOpen ? ", still open" : ""));
 	expect(native::visible_window_count() == 0U, "no AppKit window remains on screen");
+	expect(statusItemPresent(), "closing the last window leaves Dif's status item in the menu bar");
 	expect(native::activation_policy_is_regular(), "the process still owns a Dock tile");
 	expect(native::main_menu_is(desktop->desktop_menu()->toNSMenu()),
 		   "with no window, the main menu is the desktop's own menu bar");
@@ -489,6 +504,8 @@ try {
 		focus(runtime->window(), "focus returns after the reopened update gesture");
 		expect(reopening.LongestGapMs == 0 && !reopening.GapOpen && handover.LongestGapMs == 0 && !handover.GapOpen,
 			   "with no moment in either direction where the bar was short a menu");
+		expect(statusItemPresent() && app::detail::github_application_fixture_access::notification_tray(*runtime) == statusItem,
+			   "the reopened profile submits through the same one status item");
 		return runtime;
 	};
 	const auto closedAgain = [&](app::github_application& aRuntime) {
@@ -500,6 +517,7 @@ try {
 		expect(native::main_menu_is(desktop->desktop_menu()->toNSMenu()) && resident_menu_bar_present(),
 			   "the resident menu bar returns after the close");
 		expect(report.LongestGapMs == 0 && !report.GapOpen, "with no gap");
+		expect(statusItemPresent(), "and Dif's status item is still in the menu bar");
 		if (report.BeganActive) {
 			++closes_watched_while_active;
 			if (report.StayedActive && native::application_is_active()) {

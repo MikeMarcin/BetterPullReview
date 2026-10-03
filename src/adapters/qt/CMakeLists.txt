@@ -104,7 +104,7 @@ if(WIN32)
 endif()
 if(APPLE)
     enable_language(OBJCXX)
-    target_sources(better_pull_review_adapter_qt PRIVATE src/motion_observer_mac.mm src/release_update_menu_mac.mm)
+    target_sources(better_pull_review_adapter_qt PRIVATE src/motion_observer_mac.mm src/release_update_menu_mac.mm src/menu_bar_status_item.cpp)
     set_source_files_properties(src/motion_observer_mac.mm src/release_update_menu_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     find_library(BPR_DIF_APPKIT_FRAMEWORK AppKit REQUIRED)
     target_link_libraries(better_pull_review_adapter_qt PRIVATE "${BPR_DIF_APPKIT_FRAMEWORK}")
@@ -135,3 +135,15 @@ bpr_add_qt_resources(better_pull_review_adapter_qt bpr_dif
         assets/dif/generated/dif-acknowledge.png
         assets/dif/generated/dif-blocked.png
 )
+# [[BPR-1250]]. The menu bar status item's template image, macOS only. A
+# derivative of the accepted neutral master made offline by
+# scripts/dif_status_item_template.py; not a Dif clip and not in its catalog.
+if(APPLE)
+    bpr_add_qt_resources(better_pull_review_adapter_qt bpr_status_item
+        PREFIX "/bpr/status-item"
+        BASE "assets/status-item"
+        FILES
+            assets/status-item/dif-template.png
+            assets/status-item/dif-template@2x.png
+    )
+endif()

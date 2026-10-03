@@ -57,9 +57,12 @@ namespace bpr::qt {
 		explicit system_tray_notification_sink(QObject* aParent = nullptr);
 		/// \brief Uses one caller-owned tray surface.
 		///
-		/// \details The caller must keep the tray alive longer than this sink. This
-		/// constructor supports deterministic platform-contract verification without
-		/// claiming that an operating system displayed a banner.
+		/// \details The caller must keep the tray alive longer than this sink, and
+		/// shows it. On macOS it is the application's menu bar status item, which
+		/// every profile's sink shares ([[BPR-1250]]); a click then reaches only the
+		/// sink that submitted to the tray last. It also supports deterministic
+		/// platform-contract verification without claiming that an operating system
+		/// displayed a banner.
 		explicit system_tray_notification_sink(
 			QSystemTrayIcon& aTray,
 			QObject*         aParent = nullptr);

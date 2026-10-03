@@ -7,6 +7,7 @@
 #include <QString>
 #include <QStyle>
 #include <QSystemTrayIcon>
+#include <QVariant>
 
 #include <optional>
 #include <utility>
@@ -43,8 +44,13 @@ namespace bpr::qt {
 			if (aTray.icon().isNull()) {
 				aTray.setIcon(notification_icon());
 			}
-			aTray.setObjectName(QStringLiteral("reviewQueueNotificationTray"));
-			aTray.setToolTip(QStringLiteral("BetterPullReview"));
+			// A shared status item keeps the name and tip its owner gave it.
+			if (aTray.objectName().isEmpty()) {
+				aTray.setObjectName(QStringLiteral("reviewQueueNotificationTray"));
+			}
+			if (aTray.toolTip().isEmpty()) {
+				aTray.setToolTip(QStringLiteral("BetterPullReview"));
+			}
 		}
 
 		[[nodiscard]] auto native_display_boundary()
@@ -53,6 +59,21 @@ namespace bpr::qt {
 			return [](QSystemTrayIcon& aTray, const QString& aTitle, const QString& aBody) {
 				aTray.showMessage(aTitle, aBody, QSystemTrayIcon::Information);
 			};
+		}
+
+		/// The tray property naming the sink that submitted to it last.
+		///
+		/// \details [[BPR-1250]]. On macOS every profile's sink submits through the
+		/// application's one status item. `messageClicked` carries no message
+		/// identity, so a click goes to the latest submission and to no other sink;
+		/// otherwise one click would activate every profile that ever submitted.
+		/// The value is compared, never dereferenced.
+		constexpr auto latest_submitter = "bprLatestNotificationSubmitter";
+
+		[[nodiscard]] auto submitter_identity(const system_tray_notification_sink& aSink)
+			-> QVariant
+		{
+			return QVariant::fromValue(reinterpret_cast<quintptr>(&aSink));
 		}
 
 		void connect_activation(
@@ -64,9 +85,10 @@ namespace bpr::qt {
 				&aTray,
 				&QSystemTrayIcon::messageClicked,
 				&aSink,
-				[&aImplementation] {
+				[&aSink, &aTray, &aImplementation] {
 					if (!aImplementation.FirstPayload.has_value()
-						|| aImplementation.ActivationConsumed) {
+						|| aImplementation.ActivationConsumed
+						|| aTray.property(latest_submitter) != submitter_identity(aSink)) {
 						return;
 					}
 					aImplementation.ActivationConsumed = true;
@@ -158,6 +180,7 @@ namespace bpr::qt {
 		// Title and body only. The payload's other field is where an
 		// activation goes, not something to show.
 		if (Implementation->Tray != nullptr && Implementation->Display) {
+			Implementation->Tray->setProperty(latest_submitter, submitter_identity(*this));
 			Implementation->Display(
 				*Implementation->Tray,
 				QString::fromStdString(aPayload.Title),

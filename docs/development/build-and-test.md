@@ -243,6 +243,26 @@ RFC-BPR-0031 owns their fixed Qt resource selection and runtime composition.
 Run focused acceptance and public-path checks for the changed boundary rather
 than a full build/test matrix by default.
 
+### The macOS menu bar status item
+
+The status item's template images, `src/adapters/qt/assets/status-item/`
+`dif-template.png` and `dif-template@2x.png`, are made from the accepted neutral
+master by a standard-library script that no build runs ([[BPR-1250]]). It
+refuses any other master. `check` regenerates both in memory, requires the
+committed bytes, and requires each to be black with alpha:
+
+```sh
+python3 scripts/dif_status_item_template.py check
+python3 scripts/dif_status_item_template.py generate   # only for a deliberate change
+ctest --preset dev --output-on-failure -R \
+  '^(dif_status_item_template_contract|qt_menu_bar_status_item(_cocoa)?|qt_system_tray_notification_sink|application_profile_empty_desktop_native_menu_bar)$'
+```
+
+`qt_menu_bar_status_item_cocoa` and the empty desktop course need a macOS
+console session; the course observes the item in AppKit as an
+`NSStatusBarWindow` before and after the last window closes. A changed image is
+a new visual candidate for the owner.
+
 ## Attended native notification course
 
 The deterministic `application_native_notification_attended_contract` replaces

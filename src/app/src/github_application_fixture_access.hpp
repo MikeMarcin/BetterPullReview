@@ -154,6 +154,8 @@ namespace bpr::app::detail {
 
 		std::optional<std::filesystem::path>      ApplicationDataRoot;
 		std::shared_ptr<qt::dif_catalog_provider> DifCatalog;
+		/// [[BPR-1250]]. The desktop's menu bar status item, set by `start_desktop`.
+		std::shared_ptr<QSystemTrayIcon> StatusItem;
 		/// [[BPR-0777]]. Drives the composition's empty-desktop policy from a course,
 		/// so both the resident and the quit outcome are observable on one machine.
 		/// Unset selects the running platform's own policy.

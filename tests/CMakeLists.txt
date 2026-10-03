@@ -569,6 +569,13 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME dif_status_item_template_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/dif_status_item_template_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME dif_assets_contract
     WINDOWS_UNCONTAINED
     COMMAND

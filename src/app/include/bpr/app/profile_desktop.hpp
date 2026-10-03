@@ -26,6 +26,16 @@ namespace bpr::app {
 	/// expected to be gone, so the empty desktop quits through the existing Quit
 	/// path. This function is the one place that mapping exists.
 	[[nodiscard]] auto native_empty_desktop_policy() -> empty_desktop_policy;
+	/// \brief macOS keeps one menu bar status item for the process; elsewhere none.
+	///
+	/// \details [[BPR-1250]]. A resident macOS desktop with no window still has its
+	/// Dif in the menu bar, so the item belongs to the desktop, not to a profile
+	/// that retires with its last window. It shows Dif's template image and every
+	/// profile's notification sink submits through it. Linux and Windows keep a
+	/// tray per profile, as before; their empty desktop quits anyway. Null also
+	/// where the platform offers no tray. This function is the one place that
+	/// mapping exists.
+	[[nodiscard]] auto native_menu_bar_status_item() -> std::shared_ptr<QSystemTrayIcon>;
 	/// Owns profile runtimes and exact window lifetimes independently of any one window.
 	class profile_desktop final
 	{
@@ -43,6 +53,9 @@ namespace bpr::app {
 		/// \details Absent until then, and absent entirely on a platform whose empty
 		/// desktop quits.
 		[[nodiscard]] auto desktop_menu() const noexcept -> qt::desktop_menu_bar*;
+		/// \brief The application's menu bar status item, for the desktop's whole
+		/// life, or null where `native_menu_bar_status_item` gives none.
+		[[nodiscard]] auto status_item() const noexcept -> QSystemTrayIcon*;
 		/// \brief The outcome the injected policy last gave for an empty desktop.
 		///
 		/// \details Empty until the last runtime retires, so what the composition
@@ -65,7 +78,7 @@ namespace bpr::app {
 	private:
 		[[nodiscard]] static auto configuration_for_profile(const github_application_config& aConfig, core::bpr_profile_id aProfile, const std::filesystem::path& aRoot) -> github_application_config;
 		using startup_factory = std::function<std::unique_ptr<github_application_startup>(core::bpr_profile_id, const std::filesystem::path&, core::profile_launch_intent, github_application_startup_completion)>;
-		[[nodiscard]] static auto start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent = core::profile_launch_intent::activate, empty_desktop_policy aPolicy = { }, bool aNativeLifetime = false) -> std::unique_ptr<profile_desktop>;
+		[[nodiscard]] static auto start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent = core::profile_launch_intent::activate, empty_desktop_policy aPolicy = { }, bool aNativeLifetime = false, std::shared_ptr<QSystemTrayIcon> aStatusItem = { }) -> std::unique_ptr<profile_desktop>;
 		class implementation;
 		explicit profile_desktop(std::shared_ptr<implementation> aImplementation);
 		std::shared_ptr<implementation> Implementation;

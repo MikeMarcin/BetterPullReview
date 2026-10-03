@@ -25,6 +25,12 @@ namespace bpr::tests::native_menu {
 			static trace_state state;
 			return state;
 		}
+		/// AppKit's private window class for a status item's button; matched by
+		/// name because the class is not public.
+		auto is_status_bar_window(NSWindow* aWindow) -> bool
+		{
+			return [NSStringFromClass([aWindow class]) isEqualToString:@"NSStatusBarWindow"];
+		}
 		auto text(NSString* aString) -> std::string
 		{
 			return aString == nil ? std::string{ } : std::string{ [aString UTF8String] };
@@ -195,7 +201,18 @@ namespace bpr::tests::native_menu {
 	{
 		std::size_t count = 0;
 		for (NSWindow* window in [NSApp windows]) {
-			if ([window isVisible]) {
+			if ([window isVisible] && !is_status_bar_window(window)) {
+				++count;
+			}
+		}
+		return count;
+	}
+
+	auto visible_status_item_count() -> std::size_t
+	{
+		std::size_t count = 0;
+		for (NSWindow* window in [NSApp windows]) {
+			if ([window isVisible] && is_status_bar_window(window)) {
 				++count;
 			}
 		}

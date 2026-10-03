@@ -4730,6 +4730,13 @@ namespace bpr::app {
 						nullptr);
 				}
 #endif
+				// [[BPR-1250]]. Through the desktop's status item where it keeps
+				// one, so the menu bar's Dif does not leave with this profile.
+				if (sink == nullptr && Config.StatusItem) {
+					sink = std::make_unique<qt::system_tray_notification_sink>(
+						*Config.StatusItem,
+						nullptr);
+				}
 				if (sink == nullptr) {
 					sink = std::make_unique<qt::system_tray_notification_sink>(
 						nullptr);
@@ -15672,6 +15679,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Config.ProfileLaunchIntent = Options.ProfileLaunchIntent;
 				Config.ApplicationDataRoot = Options.ApplicationDataRoot;
 				Config.DifCatalog          = Options.DifCatalog;
+				Config.StatusItem          = Options.StatusItem;
 				if (!Config.ApplicationDataRoot) {
 					auto temporary             = std::make_shared<QTemporaryDir>(QDir::temp().filePath(QStringLiteral("bpr-public-path-XXXXXX")));
 					Config.ApplicationDataRoot = temporary->isValid() ? native_filesystem_path(QFileInfo{ temporary->path() }.canonicalFilePath()) / "data" : std::filesystem::path{ };
@@ -17004,9 +17012,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto intent   = aOptions.ProfileLaunchIntent;
 		auto       policy   = std::move(aOptions.EmptyDesktopPolicy);
 		aOptions.DifCatalog = std::make_shared<qt::dif_catalog_provider>();
+		// The shipped desktop's status item: a course on the cocoa platform gets
+		// the menu bar's Dif exactly as the application does, and an offscreen
+		// course, which has no tray, gets none.
+		aOptions.StatusItem = native_menu_bar_status_item();
+		auto statusItem     = aOptions.StatusItem;
 		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
             auto next = aProfile == options.Profile || options.DistinctProfileAccounts ? options : detail::github_public_path_fixture_options{};
 			next.DifCatalog = options.DifCatalog;
+			next.StatusItem = options.StatusItem;
 			if (aProfile != options.Profile && options.DistinctProfileAccounts) {
 				next.BeforeFilesPage = {};
 				next.SharedDeviceVault.reset();
@@ -17014,7 +17028,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
             if (!aRoot.empty()) { next.ApplicationDataRoot = aRoot; next.GitExecutable = options.GitExecutable; }
             next.Profile = aProfile;
             next.ProfileLaunchIntent = aIntent;
-            return detail::github_application_fixture_access::start_profile(aFixture, std::move(next), std::move(aDone)); }, std::move(aCompletion), intent, std::move(policy));
+            return detail::github_application_fixture_access::start_profile(aFixture, std::move(next), std::move(aDone)); }, std::move(aCompletion), intent, std::move(policy), false, std::move(statusItem));
 	}
 	auto detail::github_application_fixture_access::start_desktop_public_preview_selection_available(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
 	{
