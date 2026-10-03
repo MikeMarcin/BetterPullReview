@@ -208,3 +208,24 @@ Published: `git pull --rebase` renamed the commits before the push; the
 hashes above are the published ones (`c7ba632ea` is the product commit; its
 source is identical to the tested candidate, and the pull brought only
 documentation).
+
+## Linux after `c7ba632ea` (bpr-main-linux, 2026-10-02)
+
+At `cd8d04fc7`, on WSL2 with GCC 15.2 and `build/dev` Debug, offscreen.
+`cmake --build --preset dev` exits 0 with 0 `warning:` lines. The requested
+`ctest --preset dev -j1` selection passes **20 of 20** in 58.55 s.
+
+**`application_agent_finding_workshop_press_contract` now passes on Linux in
+2.12 s.** It was red here at `db021262a` with `run-quiescent` and the
+"Choose immutable revisions…" refusal.
+
+The other 19 also pass:
+
+- the four `application_agent_chat_*` rows
+- the other eight `application_agent_finding_*` rows (`dif_context` 7.85 s)
+- `application_agent_invocation_composition_contract` (10.85 s) and
+  `application_agent_invocation_workspace_diagnostic_contract`
+- `application_private_review_{host,native,file,retry}`
+- `core_review_composition`
+
+No remote mutation.
