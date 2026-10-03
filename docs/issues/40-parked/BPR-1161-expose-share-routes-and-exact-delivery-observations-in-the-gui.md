@@ -427,3 +427,35 @@ Where a build has the tour CLI with Qt and tests, add
 window-modal dialog. On Linux it is placed under the review bar by
 `review_cycle_share_sheet::place`; on Windows the same, inside the window's
 own frame.
+
+### Linux at `ef058e602`: share sheet, direction A (bpr-main-linux, 2026-10-02)
+
+WSL2, GCC 15.2, Qt 6.11.2, `build/dev` Debug, offscreen with the Windows style.
+`cmake --build --preset dev` exits 0 with 0 `warning:` lines. The requested
+`ctest -j4` selection passes **15 of 17** in 34.49 s.
+
+**`qt_review_cycle_view_1_0` and `_2_0` fail, deterministically (4 of 4 at
+1×), at `one focus ring, on Copy: none left from before the sheet closed`**,
+in the compact-window step after the sheet reopens. A probe, not committed,
+listed every `cycleKeyboardFocus` ring under the sheet at that check:
+
+- The focus widget is `QPushButton cycleShare_copy_document` ("Copy round 1"),
+  and its ring is visible, as expected.
+- **The ring of `QLineEdit cycleShareGoal` (the goal field, 720×20) is also
+  visible**, with `isHidden() == false`, although the field does not have
+  focus.
+- All 24 other rings are hidden.
+
+So the goal field's ring, left over from before the sheet closed, is not
+cleared when the sheet reopens with focus on Copy. This is a real focus-ring
+defect on Linux, not a pixel threshold. Nothing was changed or loosened.
+macOS passes the same row, so the cause may depend on how the line edit's
+focus-out is delivered under this platform and style; that was not traced
+further here.
+
+Passing rows: `core_review_cycle_{share,policy}`, `sqlite_review_cycle_storage`,
+`review_cycle_{round,export,bundle,verification}`, `review_cycle_workbench`
+(34.47 s), `qt_suggestion_editor_1_0` and `_2_0`,
+`application_review_cycle_desktop_public_path`, the three
+`application_review_tour_composition_*` rows and `architecture_boundaries`.
+No remote mutation.
