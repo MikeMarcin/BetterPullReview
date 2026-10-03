@@ -14,7 +14,7 @@ first recorded, and each card notes its published hash.
 |---|---|---|
 | [BPR-1248](../issues/60-done/BPR-1248-rfc0016-capture-read-only-route-inventory-drifted.md) | Done. f44c95dd7 had edited the owner-attended capture's recorded probe document; the attended review binds that fixture by digest, so the recorded bytes were restored and marked as evidence, not resealed | `708426196` |
 | [BPR-1246](../issues/60-done/BPR-1246-review-submission-composition-expects-a-left-side-draft-projection.md) | Done. Product fix: a private-review promotion (note or chat reply) reported a refusal while it wrote the draft; it now completes on the draft's acceptance. Course follows BPR-0587, BPR-1211 and BPR-1242 | `68599e10c` |
-| [BPR-1245](../issues/30-in-progress/BPR-1245-agent-composition-courses-predate-rfc-0023-private-drafts-and-runs.md) | Parked. 14 of 15 rows pass; the positive invocation course now asks from Private history with one selected source. The comment workshop is refused by RFC-BPR-0023's provenance rule. On 2026-10-03 (hand-back 869) the owner accepted `BPR-1245-workshop-v001`: a workshop press records the draft as a Private history revision and asks from it alone. That is still to be built | `db162ddbd` |
+| [BPR-1245](../issues/60-done/BPR-1245-agent-composition-courses-predate-rfc-0023-private-drafts-and-runs.md) | Done 2026-10-03. 15 of 15 rows pass on macOS. The owner accepted `BPR-1245-workshop-v001` at hand-back 869, and it is built: a workshop press records the draft as an immutable reviewer revision in Private history and asks with it as the only source | `e4857a9b5` |
 | [BPR-1247](../issues/60-done/BPR-1247-large-review-accepted-metadata-render-exceeds-its-budget.md) | Done 2026-10-03: the owner accepted `BPR-1247-debug-limits-v001` at hand-back 869. Bisected: f44c95dd7 adds about 110 ms in Debug and 11 ms in Release; the limit never passed in Debug (284 ms when set) and was justified only by optimized runs. Release at main: 68–73 ms. Debug reports, and optimized builds enforce, the six Release-justified limits | `d3f05b94b` |
 | [BPR-1249](../issues/60-done/BPR-1249-tour-cli-terminal-courses-fail-on-macos.md) | Done. Product fix: `bpr tour edit` refused every edit on a Mac with the default `TMPDIR` (`/var` links to `/private/var`); the projection is now made under the canonical temporary folder. The publication course resolves its root | `c3df92bf5` |
 | [BPR-1250](../issues/40-parked/BPR-1250-the-windowless-macos-menu-bar-drops-help.md) | Parked, human-review. Candidate: the windowless bar keeps Help, Open Project… and the two tour commands, disabled. Attended item `BPR-1250-help-v001`; the unlocked Aqua run is owed | `9605cb7da` |
@@ -38,7 +38,7 @@ failed step. `ctest --test-dir build/dev -j 8 --timeout 900` runs 577 tests:
 
 | Row | Status |
 |---|---|
-| `application_agent_finding_workshop_press_contract` | Expected: parked on `BPR-1245-workshop-v001`, accepted 2026-10-03 and not yet built |
+| `application_agent_finding_workshop_press_contract` | Expected at `f79d5a97d`: parked on `BPR-1245-workshop-v001`. Built in `e4857a9b5` and passing on macOS since |
 | `application_profile_window_review_restoration_public_path` | BPR-1236's failure, shared by all three platforms (fails alone too); recorded on that card |
 | `application_setup_destination_public_path` | Timed out at 60 s under the full run; passes alone in 50.6 s. Filed as [BPR-1252](../issues/60-done/BPR-1252-setup-destination-public-path-runs-close-to-its-timeout-on-macos.md) |
 

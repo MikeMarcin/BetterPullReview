@@ -18,7 +18,7 @@ arm64 (Darwin 25.6), dev preset (Debug, `/usr/bin/c++`), Qt 6.11.2 offscreen.
 | [BPR-1232](../issues/60-done/BPR-1232-windows-markdown-body-qtemporarydir-denies-the-appcontainer.md) | Done: macOS run added to the Windows and Linux runs | `dfef04a68` |
 
 Triaged and filed, not fixed here:
-[BPR-1245](../issues/30-in-progress/BPR-1245-agent-composition-courses-predate-rfc-0023-private-drafts-and-runs.md)
+[BPR-1245](../issues/60-done/BPR-1245-agent-composition-courses-predate-rfc-0023-private-drafts-and-runs.md)
 (15 agent composition rows),
 [BPR-1246](../issues/60-done/BPR-1246-review-submission-composition-expects-a-left-side-draft-projection.md)
 (3 review submission rows),

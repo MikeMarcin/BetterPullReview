@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1245"
 title: "Fifteen agent composition courses predate RFC-BPR-0023's right-side drafts and private runs"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-0587","BPR-1211","BPR-1139","BPR-1238"]}
-acceptance: [{"criterion":"The fifteen rows pass on macOS","outcome":"pending","revision":"b2fd518bd","evidence":{"kind":"command","detail":"14 of 15 pass on macOS arm64 dev (all chat, invocation composition and workspace diagnostic, and eight finding rows). application_agent_finding_workshop_press_contract stays red: the owner accepted BPR-1245-workshop-v001 at hand-back 869 (session cbd48b91000b00f1e72e1ad62c7c384c, decision 65482b51-2b17-4824-8cad-1d1ca17efcf4): a workshop press first records the draft as an immutable reviewer revision in Private history and asks with it as the only selected source. Not built yet; engineering pending."}},{"criterion":"The card names each course's cause","outcome":"pass","revision":"b2fd518bd","evidence":{"kind":"observation","detail":"Resolution table names f55e39e72 (right-side drafts, mutable context refusal), 8790cdc7b (28-pixel Dif), 9b71342a0/1d84e59c2/f55e39e72 (launch-path count) and the private-review promotion defect fixed on BPR-1246; the workshop press cause is named and parked."}}]
+acceptance: [{"criterion":"The fifteen rows pass on macOS","outcome":"pass","revision":"e4857a9b5","evidence":{"kind":"command","detail":"macOS arm64 dev at 37c067c99 plus the candidate committed as e4857a9b5: ctest --preset dev -j1 over the four chat, nine finding and two invocation rows passed 15 of 15 in 59 s. application_agent_finding_workshop_press_contract now builds the owner-accepted BPR-1245-workshop-v001 flow: the press records the draft's text as one immutable reviewer revision in Private history and asks with it as the only selected source (canary reports count=1 kind=0 drafts=0 notes=0 and the exact text; History shows one revision per press). Negative controls: dispatching without the recorded revision fails the row at agent-run; bypassing or widening core::admit_workshop_run_sources fails core_review_composition and application_private_review_host."}},{"criterion":"The card names each course's cause","outcome":"pass","revision":"b2fd518bd","evidence":{"kind":"observation","detail":"Resolution table names f55e39e72 (right-side drafts, mutable context refusal), 8790cdc7b (28-pixel Dif), 9b71342a0/1d84e59c2/f55e39e72 (launch-path count) and the private-review promotion defect fixed on BPR-1246; the workshop press cause (RFC-BPR-0023's provenance rule) is named, decided by the owner (BPR-1245-workshop-v001) and built in e4857a9b5."}}]
 ---
 
 # BPR-1245: Fifteen agent composition courses predate RFC-BPR-0023's right-side drafts and private runs
@@ -138,3 +138,68 @@ Linux shows the same failing row. The second criterion, naming each course's
 cause, passes. The card stays Parked until the build is dispatched. No human
 question remains open on it. `BPR-1245-workshop-v001` is released by candidate
 name. Its Accept stays recorded.
+
+## Built: the workshop press as a private run (macOS arm64, 2026-10-03)
+
+Built to the accepted `BPR-1245-workshop-v001`. The core decides, the host
+performs, Qt presents:
+
+- **Qt.** Unchanged. The Compose page's six controls still emit one typed
+  `comment_workshop_request` and shut until the press settles.
+- **Composition** (`github_application.cpp`, `private_review_workflow`). The
+  press no longer sends the draft. It asks
+  `private_review_workflow::record_workshop_press` on the private store's
+  effect lane, behind any draft edit already queued there, then dispatches
+  through the one launch path with `workshop_comment`, its operation and an
+  explicit private run whose only source is the recorded revision. History
+  selects the new thread. While the press is recording it holds no session
+  (`pending_comment_workshop::Recording`), so another gesture's turn cannot
+  bind to it. If the revision cannot be saved, nothing is asked and the six
+  reopen with "the draft could not be saved in Private history".
+- **Host** (`private_review_application_host`). `record_workshop_press`
+  reads the stored draft, which must be under the same binding, drafting and
+  non-empty, and commits its text as one reviewer revision on a new thread
+  about the draft's line (`core::create_private_thread`). It returns a
+  `findings` run over that one source. At admission, a `workshop_comment` run
+  outside a composition must be `findings`, carry no chat message, name its
+  operation, and pass the core rule.
+- **Core.** `admit_workshop_run_sources` admits exactly one complete,
+  current, non-historical reviewer turn revision. It refuses no source, a
+  second source, an agent's turn, a finding, an incomplete revision and a
+  revision its thread has moved past.
+- **RFC-BPR-0012** gains "Comment workshop under RFC-BPR-0023". The UX guide
+  and the agent boundary document describe the press.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| `core_review_composition` (`workshop_sources`) | Pass. Negative control: allowing a second source fails it at "a second source is refused" |
+| `application_private_review_host` (`workshop_press`) | Pass: the press records the stored text at the press on the draft's line as the reviewer's revision; the agent reads `private.count 1`, that body, `draft.count 0`, `note.count 0` and the operation; the run's provenance names the press and its one source; a later edit leaves the revision unchanged; a second press records its own. No process starts for no source, a second source, no operation, a conversation purpose or the mutable draft beside the revision. Negative controls: bypassing the core rule fails at "a press without a recorded revision never launches"; allowing a second source fails at "a press with a second source never launches" |
+| `application_agent_finding_workshop_press_contract` | Pass through the real composition. The canary reports `count=1 kind=0 drafts=0 notes=0` and the reviewer's exact text as its only source. Private history shows one thread whose one reviewer revision holds the draft text at the press, then three threads after three presses. The launch-panel turn asks with `count=0`. The existing BPR-0533/0538 stages still hold. Negative control: dispatching the press without its recorded revision fails at `agent-run` (`Finished: failed_to_start`, process 0) |
+| Course timing | With private drafts the acceptance and the retyped text land on the completion lane. The course now waits for the accepted text, its own edit and the six reopening before the next press, instead of reading them once |
+| `application_review_round_trip_composition_contract` | Resealed after the pull: two pins move (full application, production manifest); the mutation pin is unchanged |
+
+### Result
+
+The product commit is `e4857a9b5`. Built on `37c067c99` with
+`cmake --build --preset dev`, then
+`ctest --preset dev -j1 -R '^application_agent_chat_(composition|stale|continued|anchored_continuation)_contract$|^application_agent_finding_.*_contract$|^application_agent_invocation_(composition|workspace_diagnostic)_contract$'`
+passed **15 of 15** in 59 s on macOS arm64 dev. Run beside them earlier:
+`core_review_composition`, `application_private_review_host`, the other agent
+chat, finding and invocation rows, `application_private_review_{native,file,retry}`
+(the canary they share now reports its sources), `architecture_boundaries`
+and the resealed round-trip pin all pass. Format check is clean, and
+clang-tidy passes on every changed translation unit.
+
+Both criteria pass on macOS. Linux and Windows have not run this candidate.
+Linux saw the same failing row at `db021262a`. The stations' command, after
+`git pull --rebase` to `e4857a9b5` or later:
+
+```sh
+cmake --preset dev && cmake --build --preset dev
+ctest --preset dev -j1 --output-on-failure -R '^application_agent_chat_(composition|stale|continued|anchored_continuation)_contract$|^application_agent_finding_.*_contract$|^application_agent_invocation_(composition|workspace_diagnostic)_contract$|^application_private_review_|^core_review_composition$'
+```
+
+On Windows, use `cmake --preset windows-dev`, `cmake --build --preset windows-dev`
+and `ctest --preset windows-dev` with the same `-R` expression.
