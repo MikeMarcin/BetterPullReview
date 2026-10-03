@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1269"
+  ],
+  "reserve_for": "bpr1213-collapse-all",
+  "purpose": "Overview collapse all / expand all, from the owner's note on BPR-1213-collapse-v002",
+  "created": "2026-10-03T05:28:52.951422+00:00",
+  "base": "5411ddd829ab7b8c391713d80f065da74d80ffd7"
+}
