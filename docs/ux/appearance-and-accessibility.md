@@ -187,7 +187,7 @@ The built-in dark profile uses a charcoal editor surface, muted green comments, 
 
 ## Fonts
 
-Separate settings exist for interface and code fonts. Code settings include family, point size, weight, line height, tab width, ligatures, syntax bold, and syntax italics. The default code font on every platform is the bundled JetBrainsMonoNL Nerd Font ([[BPR-1270]]); if it cannot be loaded, the fixed-width system font is. A profile that already stored its appearance keeps the code font it stored, and resetting the code font takes the default.
+Separate settings exist for interface and code fonts. Code settings include family, point size, weight, line height, tab width, ligatures, syntax bold, and syntax italics. The default code font on every platform is the bundled JetBrains Mono NL ([[BPR-1270]]); if it cannot be loaded, the fixed-width system font is. A profile that already stored its appearance keeps the code font it stored, and resetting the code font takes the default.
 
 Runtime code zoom preserves the top visible source line and does not silently overwrite saved font settings.
 

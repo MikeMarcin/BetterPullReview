@@ -266,8 +266,8 @@ function(bpr_configure_dependencies)
 
             # [[BPR-1270]]. The bundled default code font's four faces.
             bpr_acquire_code_font()
-            bpr_require_dependency_target(BetterPullReview::CodeFont "JetBrainsMonoNL Nerd Font")
-            list(APPEND records "JetBrainsMonoNLNerdFont|PINNED_ARCHIVE|BetterPullReview::CodeFont")
+            bpr_require_dependency_target(BetterPullReview::CodeFont "JetBrains Mono NL")
+            list(APPEND records "JetBrainsMonoNL|PINNED_ARCHIVE|BetterPullReview::CodeFont")
         endif()
     endif()
 

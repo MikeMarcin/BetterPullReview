@@ -53,8 +53,8 @@ endfunction()
 # bundle is built, the same files, paths and compression also go into it.
 #
 # ALWAYS_COMPRESS sets rcc's threshold to zero. rcc otherwise stores a file
-# whole unless compression saves 70% of it, and a font saves about 45%
-# ([[BPR-1270]]: 9.97 MB stored, 5.46 MB compressed for the code font's faces).
+# whole unless compression saves 70% of it, and a font saves about half
+# ([[BPR-1270]]: 845 KB stored, 413 KB compressed for the code font's faces).
 function(bpr_add_qt_resources target name)
     cmake_parse_arguments(PARSE_ARGV 2 resource "NO_COMPRESS;ALWAYS_COMPRESS" "PREFIX;BASE" "FILES")
     if(resource_NO_COMPRESS AND resource_ALWAYS_COMPRESS)

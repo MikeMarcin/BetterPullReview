@@ -137,8 +137,8 @@ bpr_add_qt_resources(better_pull_review_adapter_qt bpr_dif
         assets/dif/generated/dif-blocked.png
 )
 # [[BPR-1270]]. The bundled default code font: four verified faces from the
-# pinned provider (cmake/BprCodeFontProvider.cmake). Always compressed: 9.97 MB
-# of faces embed as 5.46 MB. A tests-disabled Windows image carries them in its
+# pinned provider (cmake/BprCodeFontProvider.cmake). Always compressed: 845 KB
+# of faces embed as 413 KB. A tests-disabled Windows image carries them in its
 # bundle.
 get_target_property(bpr_code_font_directory BetterPullReview::CodeFont BPR_CODE_FONT_DIRECTORY)
 get_target_property(bpr_code_font_files BetterPullReview::CodeFont BPR_CODE_FONT_FILES)

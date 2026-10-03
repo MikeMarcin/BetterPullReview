@@ -139,7 +139,7 @@ namespace bpr::qt {
 	/// \details The core holds no default family because it cannot know one, so
 	/// a default-constructed core record is deliberately illegal. The UI family
 	/// is the platform's own general system font. The code family is the
-	/// bundled JetBrainsMonoNL Nerd Font where this process's font database
+	/// bundled JetBrains Mono NL where this process's font database
 	/// resolves it ([[BPR-1270]]), and the platform's fixed-pitch system font
 	/// where it does not. Every numeric value is placed inside
 	/// `core::bounds_of` for its field rather than against a second copy of

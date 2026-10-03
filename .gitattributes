@@ -45,7 +45,3 @@ docs/rfcs/assets/bpr-review-cycles-v1/** -text -eol
 # [[BPR-0970]]. A fuzz seed is an exact input: its CRLF pairs, NULs and stray
 # bytes are the point. Never normalize one.
 tests/fuzz/corpora/** -text
-
-# [[BPR-1270]]. Upstream licence texts kept byte for byte, CRLF line ends and
-# BOM included, so their recorded SHA-256 values hold on every checkout.
-third_party/jetbrains-mono-nerd-font/glyph-licenses/** -text -eol

@@ -595,13 +595,18 @@ endfunction()
 # pin unchanged; no new src/app source.
 # BPR-1270 reseal: 9ff5bbbbc..this candidate; no intervening pinned-scope
 # commit (the manifest pin matched at 9ff5bbbbc). main.cpp registers the
-# bundled JetBrainsMonoNL Nerd Font faces (bpr::qt::register_bundled_code_font,
+# bundled code font's faces (bpr::qt::register_bundled_code_font,
 # Qt adapter resources) once, after QApplication and the window icon and before
 # anything composes an appearance; a failure is not fatal. Its
 # BPR_BUILD_TESTING --code-font-probe prints the fresh profile's code font and
 # exits before composition, like --application-icon-probe. Presentation only:
 # no grant, target, provider, credential, mutation or publication path changes;
 # github_application.cpp and the mutation pin unchanged; no new src/app source.
+# BPR-1270 amendment reseal: a54728d13..this candidate. The owner's amendment
+# swaps the bundled faces from the Nerd Fonts build to plain JetBrains Mono NL
+# (JetBrains Mono v2.304). The family and resource names live in the Qt
+# adapter, so main.cpp and every other pinned-scope source are unchanged and
+# all three pins stay as they were.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")

@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-1270]]. The bundled JetBrainsMonoNL Nerd Font is the default
+/// \brief [[BPR-1270]]. The bundled JetBrains Mono NL is the default
 /// code font: it loads and resolves fixed-pitch, a fresh profile codes in it, a
 /// saved code font is kept, a failed load falls back to the platform's fixed
 /// font, and the cards' excerpt follows the profile's code font.
@@ -164,8 +164,8 @@ namespace {
 			   "faces that name another family are refused");
 		expect(!qt::register_code_font_files({ qt::bundled_code_font_files().front(), QStringLiteral(":/bpr/fonts/absent.ttf") }, family),
 			   "a registration that fails part way is refused");
-		// Meaningful wherever the family is not installed system-wide (the
-		// stations); where it is, the database resolves it either way.
+		// Meaningful wherever the family is not installed system-wide; where
+		// it is, the database resolves it either way.
 		expect(qt::bundled_code_font_available() == installed,
 			   "a refused registration removes every face it added");
 

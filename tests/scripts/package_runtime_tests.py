@@ -42,7 +42,7 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})
-        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrainsMonoNL-Nerd-Font", "LibArchive", "extra-cmake-modules"})
+        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "extra-cmake-modules"})
         for item in items:
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
@@ -53,29 +53,34 @@ class PackageRuntimeTests(unittest.TestCase):
         # manifest and the provenance; every retained licence text in the
         # notices both the producer and the security check use.
         import hashlib, re
-        item = next(entry for entry in runtime.components({"platform": "Linux"}) if entry["name"] == "JetBrainsMonoNL-Nerd-Font")
-        self.assertEqual(item["url"], "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/JetBrainsMono.tar.xz")
+        item = next(entry for entry in runtime.components({"platform": "Linux"}) if entry["name"] == "JetBrains-Mono-NL")
+        self.assertEqual(item["url"], "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip")
+        self.assertEqual((item["version"], item["license"]), ("2.304", "OFL-1.1"))
         provider = (ROOT / "cmake/BprCodeFontProvider.cmake").read_text(encoding="utf-8")
         self.assertIn(f'set(digest "{item["sha256"]}")', provider)
-        self.assertIn('releases/download/v${BPR_CODE_FONT_VERSION}/JetBrainsMono.tar.xz', provider)
-        self.assertIn('set(BPR_CODE_FONT_VERSION "3.5.1")', provider)
+        self.assertIn('JetBrains/JetBrainsMono/releases/download/v${BPR_CODE_FONT_VERSION}/JetBrainsMono-${BPR_CODE_FONT_VERSION}.zip', provider)
+        self.assertIn('set(BPR_CODE_FONT_VERSION "2.304")', provider)
         self.assertIn("BPR_DEPENDENCY_OFFLINE", provider)
         for system in ("Darwin", "Windows", "Linux"):
             self.assertIn(item, runtime.components({"platform": system}))
-        retained = ROOT / "third_party/jetbrains-mono-nerd-font"
+        # The plain font replaced the Nerd Fonts build: nothing of that remains.
+        self.assertNotIn("nerd", (ROOT / "packaging/dependencies.json").read_text(encoding="utf-8").lower())
+        self.assertFalse(any("nerd" in name.lower() for name in runtime.NOTICE_FILES))
+        self.assertFalse((ROOT / "third_party/jetbrains-mono-nerd-font").exists())
+        retained = ROOT / "third_party/jetbrains-mono"
         provenance = (retained / "PROVENANCE.md").read_text(encoding="utf-8")
         self.assertIn(item["sha256"], provenance)
         files = sorted(path.relative_to(ROOT / "third_party").as_posix() for path in retained.rglob("*")
                        if path.is_file() and path.name != "PROVENANCE.md")
-        font_notices = sorted(name for name in runtime.NOTICE_FILES if name.startswith("jetbrains-mono-nerd-font/"))
+        font_notices = sorted(name for name in runtime.NOTICE_FILES if name.startswith("jetbrains-mono/"))
         self.assertEqual(files, font_notices, "every retained font licence text is a notice, and no notice is missing")
         for name in font_notices:
             data = (ROOT / "third_party" / name).read_bytes()
             self.assertIn(hashlib.sha256(data).hexdigest(), provenance, name)
-        for face in re.findall(r'"(JetBrainsMonoNLNerdFont-[A-Za-z]+\.ttf)\|([0-9a-f]{64})"', provider):
+        for face in re.findall(r'"(JetBrainsMonoNL-[A-Za-z]+\.ttf)\|([0-9a-f]{64})"', provider):
             self.assertIn(f"| {face[0]} | ", provenance)
             self.assertIn(face[1], provenance)
-        self.assertEqual(len(re.findall(r'"JetBrainsMonoNLNerdFont-[A-Za-z]+\.ttf\|', provider)), 4)
+        self.assertEqual(len(re.findall(r'"JetBrainsMonoNL-[A-Za-z]+\.ttf\|', provider)), 4)
         security = (ROOT / "scripts/verify_release_security.py").read_text(encoding="utf-8")
         self.assertIn("package.runtime.NOTICE_FILES", security)
 

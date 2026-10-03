@@ -7,16 +7,16 @@
 namespace bpr::qt {
 	auto bundled_code_font_family() -> QString
 	{
-		return QStringLiteral("JetBrainsMonoNL Nerd Font");
+		return QStringLiteral("JetBrains Mono NL");
 	}
 
 	auto bundled_code_font_files() -> QStringList
 	{
 		return {
-			QStringLiteral(":/bpr/fonts/JetBrainsMonoNLNerdFont-Regular.ttf"),
-			QStringLiteral(":/bpr/fonts/JetBrainsMonoNLNerdFont-Bold.ttf"),
-			QStringLiteral(":/bpr/fonts/JetBrainsMonoNLNerdFont-Italic.ttf"),
-			QStringLiteral(":/bpr/fonts/JetBrainsMonoNLNerdFont-BoldItalic.ttf"),
+			QStringLiteral(":/bpr/fonts/JetBrainsMonoNL-Regular.ttf"),
+			QStringLiteral(":/bpr/fonts/JetBrainsMonoNL-Bold.ttf"),
+			QStringLiteral(":/bpr/fonts/JetBrainsMonoNL-Italic.ttf"),
+			QStringLiteral(":/bpr/fonts/JetBrainsMonoNL-BoldItalic.ttf"),
 		};
 	}
 

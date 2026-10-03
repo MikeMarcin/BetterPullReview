@@ -1,19 +1,19 @@
 include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
-# [[BPR-1270]]. The bundled code font: four faces of JetBrainsMonoNL Nerd Font
-# from the official Nerd Fonts v3.5.1 release asset. The archive is pinned by
-# size and SHA-256, every extracted face by its own SHA-256, and the archive's
-# licence and attribution texts must equal the copies the installed notices
-# carry from third_party/jetbrains-mono-nerd-font. Nothing upstream executes.
-set(BPR_CODE_FONT_VERSION "3.5.1")
-set(BPR_CODE_FONT_FAMILY "JetBrainsMonoNL Nerd Font")
+# [[BPR-1270]]. The bundled code font: four faces of JetBrains Mono NL from the
+# official JetBrains Mono v2.304 release asset. The archive is pinned by size
+# and SHA-256, every extracted face by its own SHA-256, and the archive's
+# licence and authors texts must equal the copies the installed notices carry
+# from third_party/jetbrains-mono. Nothing upstream executes.
+set(BPR_CODE_FONT_VERSION "2.304")
+set(BPR_CODE_FONT_FAMILY "JetBrains Mono NL")
 set(
     BPR_CODE_FONT_FACES
-    "JetBrainsMonoNLNerdFont-Regular.ttf|f726c0fb0db90a00920e8fa9ef281ccf9f5f848785ebcaca09bade9d15d38b58"
-    "JetBrainsMonoNLNerdFont-Bold.ttf|104897b8ff7f74674c8d6d81b6dbe9138e5c249b54d6c08c8b21600f75d3c5c1"
-    "JetBrainsMonoNLNerdFont-Italic.ttf|dd76e7fe83fd2b1ae8e416efb3af8348d975b004648eb28e9a836e1fc4dd72a0"
-    "JetBrainsMonoNLNerdFont-BoldItalic.ttf|8d5892b455cc166f8aac459182aa7a0d7df6cf2d70d61047deb8783fbd2b5d67"
+    "JetBrainsMonoNL-Regular.ttf|fb3b2575d7b0657359707993288f12a7360344d39387bb26050e276d61f6bd2a"
+    "JetBrainsMonoNL-Bold.ttf|0198e841824025f8876e5c297f0b9b497ee8d6eb9969710a3328e1303f996ec3"
+    "JetBrainsMonoNL-Italic.ttf|c7392a134293e1af1d36fbf04940dd844f632afbf97f8325d1591d3af5096cb8"
+    "JetBrainsMonoNL-BoldItalic.ttf|6c2716f2e85101f4109a8c16916061eb38176b3b10342834858d6221ec2fda1b"
 )
 
 # bpr_acquire_code_font()
@@ -26,20 +26,20 @@ function(bpr_acquire_code_font)
         message(FATAL_ERROR "The code font target must be owned by the pinned provider")
     endif()
     bpr_load_cpm()
-    set(archive "${CPM_SOURCE_CACHE}/nerd-fonts-v${BPR_CODE_FONT_VERSION}-JetBrainsMono.tar.xz")
-    set(digest "04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf")
+    set(archive "${CPM_SOURCE_CACHE}/JetBrainsMono-${BPR_CODE_FONT_VERSION}.zip")
+    set(digest "6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf")
     file(LOCK "${archive}.lock" GUARD FUNCTION TIMEOUT 120)
     if(NOT EXISTS "${archive}")
         if(BPR_DEPENDENCY_OFFLINE)
             message(
                 FATAL_ERROR
-                "Offline mode requires the cached Nerd Fonts v${BPR_CODE_FONT_VERSION} "
-                "JetBrainsMono.tar.xz archive at ${archive}"
+                "Offline mode requires the cached JetBrains Mono v${BPR_CODE_FONT_VERSION} "
+                "release archive at ${archive}"
             )
         endif()
         file(
             DOWNLOAD
-            "https://github.com/ryanoasis/nerd-fonts/releases/download/v${BPR_CODE_FONT_VERSION}/JetBrainsMono.tar.xz"
+            "https://github.com/JetBrains/JetBrainsMono/releases/download/v${BPR_CODE_FONT_VERSION}/JetBrainsMono-${BPR_CODE_FONT_VERSION}.zip"
             "${archive}"
             EXPECTED_HASH "SHA256=${digest}"
             TLS_VERIFY ON
@@ -47,42 +47,48 @@ function(bpr_acquire_code_font)
     endif()
     file(SHA256 "${archive}" actual)
     file(SIZE "${archive}" bytes)
-    if(NOT actual STREQUAL digest OR NOT bytes EQUAL 7284244)
-        message(FATAL_ERROR "Nerd Fonts JetBrainsMono archive does not match pinned v${BPR_CODE_FONT_VERSION}")
+    if(NOT actual STREQUAL digest OR NOT bytes EQUAL 5622857)
+        message(FATAL_ERROR "JetBrains Mono archive does not match pinned v${BPR_CODE_FONT_VERSION}")
     endif()
 
     # Extract the verified archive into a scratch directory, never trusting an
     # editable cached tree, then copy only changed bytes into the stage so a
-    # reconfigure does not rebuild the resources that embed the faces.
+    # reconfigure does not rebuild the resources that embed the faces. A file
+    # in the stage that is no longer a pinned face is removed.
     set(scratch "${CMAKE_BINARY_DIR}/_bpr/code-font-extract")
     set(stage "${CMAKE_BINARY_DIR}/_bpr/code-font")
     file(REMOVE_RECURSE "${scratch}")
     file(MAKE_DIRECTORY "${scratch}" "${stage}")
     set(names)
+    set(members)
     foreach(face IN LISTS BPR_CODE_FONT_FACES)
         string(REPLACE "|" ";" face "${face}")
         list(GET face 0 name)
         list(APPEND names "${name}")
+        list(APPEND members "fonts/ttf/${name}")
+    endforeach()
+    file(GLOB staged LIST_DIRECTORIES true RELATIVE "${stage}" "${stage}/*")
+    foreach(entry IN LISTS staged)
+        if(NOT entry IN_LIST names)
+            file(REMOVE_RECURSE "${stage}/${entry}")
+        endif()
     endforeach()
     file(
         ARCHIVE_EXTRACT
         INPUT "${archive}"
         DESTINATION "${scratch}"
-        PATTERNS ${names} OFL.txt README.md
+        PATTERNS ${members} OFL.txt AUTHORS.txt
     )
 
-    set(notices "${PROJECT_SOURCE_DIR}/third_party/jetbrains-mono-nerd-font")
-    foreach(pair IN ITEMS "OFL.txt|OFL.txt" "README.md|NERD-FONTS-README.md")
-        string(REPLACE "|" ";" pair "${pair}")
-        list(GET pair 0 member)
-        list(GET pair 1 retained)
-        file(SHA256 "${scratch}/${member}" member_digest)
-        file(SHA256 "${notices}/${retained}" retained_digest)
+    set(notices "${PROJECT_SOURCE_DIR}/third_party/jetbrains-mono")
+    foreach(text IN ITEMS OFL.txt AUTHORS.txt)
+        file(SHA256 "${scratch}/${text}" member_digest)
+        file(SHA256 "${notices}/${text}" retained_digest)
         if(NOT member_digest STREQUAL retained_digest)
             message(
                 FATAL_ERROR
-                "The code font archive's ${member} differs from the retained "
-                "third_party/jetbrains-mono-nerd-font/${retained}"
+                "The code font archive's ${text} differs from the retained "
+                "third_party/jetbrains-mono/${text}"
             )
         endif()
     endforeach()
@@ -91,11 +97,11 @@ function(bpr_acquire_code_font)
         string(REPLACE "|" ";" face "${face}")
         list(GET face 0 name)
         list(GET face 1 face_digest)
-        file(SHA256 "${scratch}/${name}" actual_face)
+        file(SHA256 "${scratch}/fonts/ttf/${name}" actual_face)
         if(NOT actual_face STREQUAL face_digest)
             message(FATAL_ERROR "Code font face ${name} does not match its pinned digest")
         endif()
-        file(COPY_FILE "${scratch}/${name}" "${stage}/${name}" ONLY_IF_DIFFERENT)
+        file(COPY_FILE "${scratch}/fonts/ttf/${name}" "${stage}/${name}" ONLY_IF_DIFFERENT)
     endforeach()
     file(REMOVE_RECURSE "${scratch}")
 

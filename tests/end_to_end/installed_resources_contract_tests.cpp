@@ -196,7 +196,7 @@ namespace {
 			// [[BPR-1270]]. The bundled code font's four verified faces.
 			constexpr auto faces = std::array{ "Regular", "Bold", "Italic", "BoldItalic" };
 			for (const auto* const face : faces) {
-				const auto name     = QStringLiteral("JetBrainsMonoNLNerdFont-%1.ttf").arg(QLatin1StringView{ face });
+				const auto name     = QStringLiteral("JetBrainsMonoNL-%1.ttf").arg(QLatin1StringView{ face });
 				const auto resource = QResource{ QStringLiteral(":/bpr/fonts/") + name };
 				expect(resource.isValid(), "every code font face is bundled");
 				expect(resource.compressionAlgorithm() != QResource::NoCompression, "every code font face is stored compressed");

@@ -36,20 +36,11 @@ CRT = re.compile(r"(?:msvcp140(?:_1|_2|_atomic_wait|_codecvt_ids)?|vcruntime140(
 # without it; see cmake/BprQtResources.cmake.
 RUNTIME_DATA = {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []}
 # Retained third_party licence texts every installed THIRD-PARTY-NOTICES.txt
-# carries whole. [[BPR-1270]]: the bundled code font's OFL, its Nerd Fonts
-# attribution table and the licences of the glyph sets patched into it.
+# carries whole. [[BPR-1270]]: the bundled code font's OFL and the authors
+# list its copyright line names.
 NOTICE_FILES = (
     "sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE",
-    "jetbrains-mono-nerd-font/OFL.txt", "jetbrains-mono-nerd-font/NERD-FONTS-README.md",
-    "jetbrains-mono-nerd-font/glyph-licenses/font-patcher-readme.md",
-    "jetbrains-mono-nerd-font/glyph-licenses/codicons-LICENSE.txt",
-    "jetbrains-mono-nerd-font/glyph-licenses/font-awesome-LICENSE.txt",
-    "jetbrains-mono-nerd-font/glyph-licenses/materialdesign-LICENSE",
-    "jetbrains-mono-nerd-font/glyph-licenses/octicons-LICENSE",
-    "jetbrains-mono-nerd-font/glyph-licenses/pomicons-LICENSE",
-    "jetbrains-mono-nerd-font/glyph-licenses/powerline-extra-LICENSE",
-    "jetbrains-mono-nerd-font/glyph-licenses/powerline-symbols-LICENSE.txt",
-    "jetbrains-mono-nerd-font/glyph-licenses/weather-icons-OFL.txt",
+    "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt",
 )
 
 

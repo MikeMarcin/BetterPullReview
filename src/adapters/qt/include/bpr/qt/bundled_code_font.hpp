@@ -7,7 +7,7 @@
 namespace bpr::qt {
 	/// \brief [[BPR-1270]]. The family the bundled code font's faces name.
 	///
-	/// \details JetBrainsMonoNL Nerd Font, the owner's choice for the default
+	/// \details JetBrains Mono NL, the owner's choice for the default
 	/// code font on every platform. Its four faces (regular, bold, italic and
 	/// bold italic, the faces syntax emphasis asks for) are resources of this
 	/// adapter, pinned by cmake/BprCodeFontProvider.cmake.
