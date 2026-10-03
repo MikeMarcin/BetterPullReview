@@ -677,3 +677,24 @@ cmake --build --preset windows-dev; ctest --preset windows-dev -j4 --output-on-f
 
 On both, `qt_review_cycle_view_*` prints `note code X inks: …` with the
 measured columns. The rows at column 4 (and those at column 8) must be equal.
+
+### Linux at `17691bc63`: coloured, aligned excerpt and whole-file view (bpr-main-linux, 2026-10-03)
+
+Includes `3b5f405be`. WSL2, GCC 15.2, `build/dev` Debug, offscreen.
+`cmake --build --preset dev` exits 0 with 0 `warning:` lines. The requested
+`ctest -j4` selection passes **17 of 17** in 34.35 s, with
+`qt_review_cycle_view_1_0` (1.73 s) and `_2_0` (3.55 s), both
+`qt_suggestion_editor` scales, the desktop path, the three tour-composition
+rows and `review_cycle_workbench` (34.33 s) among them.
+
+`note code X inks:` lines, the X ink column of rows 0 to 7:
+
+| Scale | Inks | Column 4 (rows 1, 2, 3, 7) | Column 8 (rows 5, 6) | Stop | Tab from column 0 |
+|---|---|---|---|---|---|
+| 1.0 (`_1_0`) | `47 76 76 76 -1 105 105 76` | **76, 76, 76, 76** | **105, 105** | 28.75 | 76−47 = 29, and 105−47 = 58 (2 × 28.75 = 57.5) |
+| 2.0 (`_2_0`) | `95 153 153 153 -1 210 210 153` | **153, 153, 153, 153** | **210, 210** | 57.5 | 153−95 = 58, and 210−95 = 115 (= 2 × 57.5) |
+
+Each group is equal, and each tab is within 1 pixel of the stop. Row 4 reports
+`-1`, an X ink not found on that row, and no expectation covers it. The
+courses resolve the bundled fixed-pitch family. No pixel check failed. No
+remote mutation.
