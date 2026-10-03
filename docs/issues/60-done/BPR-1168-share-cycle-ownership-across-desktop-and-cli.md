@@ -157,3 +157,25 @@ pass in both `build/windows-dev` and the tour-CLI tree.
 `coding-format-check` passes with clang-format 22.1.8. This station has no
 clang-format 23. The one known 22/23 difference, `tour_cli.cpp`'s
 initializer, was already removed by BPR-1268.
+
+### Linux after `322b6d67e`: Windows fixes (bpr-main-linux, 2026-10-02)
+
+At `322b6d67e`, on WSL2 with GCC 15.2. `tour_main.cpp` now opens binary streams only
+under `_WIN32`, and [[BPR-1266]]'s locale-notice handler is unchanged.
+
+- `cmake --build build/dev-tour-cli` exits 0 with 0 `warning:` lines. The
+  requested `ctest -j4` selection passes **13 of 13** in 28.11 s:
+  - `cycle_cli_public_path` 13.49 s
+  - `application_profile_cycle_handoff_public_path` 8.05 s and the tour
+    handoff 2.97 s
+  - `sqlite_tour_owner_channel` 5.77 s
+  - the five `tour_cli_*` rows
+  - `test_network_isolation_{manifest,structure_contract}`
+  - `coding_format_check` (`/usr/bin/clang-format` 22.1.8) and
+    `architecture_boundaries`
+- Installed TourCLI: the `tour-cli` build exits 0 with 0 warnings, and a
+  fresh `TourCLI` install exits 0. `cycle_cli_tests.py
+  build/tour-cli-install/bin/bpr` gives `cycle-cli-public-path:pass`, its
+  pseudo-terminal part included.
+
+No remote mutation.
