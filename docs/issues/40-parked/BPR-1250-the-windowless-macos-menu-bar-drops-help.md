@@ -144,3 +144,28 @@ on the frozen build in `/Users/jaeger/bpr1250-review-v002.bthToZ` (launch:
   colour.
 
 The unlocked Aqua run of the native course is still owed.
+
+## Linux: bpr-main-linux, 2026-10-02
+
+At `93ade9102` (includes `a4723f817`), on WSL2 with GCC 15.2 and `build/dev` Debug,
+offscreen. `cmake --build --preset dev` exits 0 with 0 `warning:` lines. The
+requested `ctest --preset dev -j4` selection runs 22 rows and passes **21 of
+22** in 87.26 s. The pattern `^qt_menu_bar_status_item` matches no Linux row;
+those rows are macOS-only.
+
+- **Passes:** `qt_system_tray_notification_sink` (Linux keeps one tray per
+  profile), `dif_status_item_template_contract`,
+  `application_native_notification_attended_contract`,
+  `application_notification_delivery`,
+  `application_review_queue_notification`, every other `application_profile_*`
+  row (`multi_window` 10.70 s, `two_account_isolation` 13.05 s,
+  `window_layout` 24.44 s, `window_restart`, `activation`, `startup`,
+  `management`, `owner_admission` and the profile unit rows), the
+  round-trip contract and `architecture_boundaries`.
+- **The one failure** is [[BPR-1236]]'s
+  `application_profile_window_review_restoration_public_path`, at its known
+  check after `unavailable-anchor failed (1)`: `failed reading restoration
+  preserves exact recorded identities and sibling` (68.80 s). This change did
+  not cause it.
+
+No remote mutation.
