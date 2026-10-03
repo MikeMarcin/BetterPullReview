@@ -4,6 +4,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/bundled_code_font.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 
@@ -15,6 +16,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDir>
+#include <QFontDatabase>
 #include <QFontMetricsF>
 #include <QFrame>
 #include <QImage>
@@ -1509,6 +1511,41 @@ namespace {
 		settle();
 #endif
 	}
+	/// [[BPR-1161]]. A note's code shows every row in a face whose leading is
+	/// negative. Windows' Arial is one: its line spacing (13) is below its height
+	/// (14), and the text layout gives each line its height, so a fit by line
+	/// spacing left the tenth row out of view. The bundled code font has no
+	/// negative leading, so the courses above no longer reach this case.
+	void fit_rows_at_negative_leading()
+	{
+		auto face = std::optional<QFont>{ };
+		for (const auto* const family : { "Arial", "Segoe UI", "Tahoma", "Verdana", "Liberation Sans", "DejaVu Sans", "Helvetica" }) {
+			auto candidate = QFont{ QString::fromLatin1(family), 9 };
+			if (QFontDatabase::hasFamily(candidate.family()) && QFontMetricsF{ candidate }.leading() < 0.0) {
+				face = candidate;
+				break;
+			}
+		}
+		if (!face) {
+			std::cerr << "negative-leading row fit: no installed face has negative leading here, so not checked" << std::endl;
+			return;
+		}
+		auto excerpt = core::cycle_note_excerpt{ };
+		for (std::uint64_t line = 1U; line <= 10U; ++line) {
+			excerpt.Rows.push_back({ .Kind = core::cycle_excerpt_row_kind::context, .Line = line, .Text = "line " + std::to_string(line) });
+		}
+		excerpt.FileLines = 10U;
+		auto code         = qt::note_code_view{ };
+		code.resize(600, 100);
+		code.setFont(*face);
+		code.show_excerpt(excerpt);
+		code.fit_rows(10);
+		code.show();
+		QApplication::processEvents();
+		const auto metrics = QFontMetricsF{ code.font() };
+		expect(metrics.leading() < 0.0 && code.verticalScrollBar()->maximum() == 0,
+			   "a face with negative leading still shows all ten rows, no scrolling");
+	}
 }
 
 auto main(int aArgc, char** aArgv) -> int
@@ -1522,6 +1559,10 @@ try {
 	auto         replies   = reply_gestures{ };
 	auto         decisions = decision_gestures{ };
 	auto         shares    = share_gestures{ };
+	// [[BPR-1270]]. The bundled code font, registered as the application does at
+	// startup, so every appearance the course builds uses the font it ships.
+	expect(qt::register_bundled_code_font(), "the bundled code font registers");
+	fit_rows_at_negative_leading();
 	view.set_dispatch({
 		.OpenFile         = [&](const std::string& aPath, bool) { opened = aPath; },
 		.Tab              = [](const core::document_tab_intent&) { },

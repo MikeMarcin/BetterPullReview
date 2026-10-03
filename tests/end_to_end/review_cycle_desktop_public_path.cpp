@@ -10,6 +10,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/bundled_code_font.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -427,6 +428,9 @@ try {
 	write_file(project / "README.md", "# Parser\n");
 	write_file(project / "src" / "parser.cpp", "int parse(const char* aText)\r\n{\r\n\treturn check(aText);\r\n}\r\n");
 	const auto before = snapshot(project);
+	// [[BPR-1270]]. The bundled code font, registered as the application does at
+	// startup, before the appearance below is built from it.
+	expect(qt::register_bundled_code_font(), "the bundled code font registers");
 
 	auto lanes  = application::manual_executor{ };
 	auto window = qt::workbench_window{ };

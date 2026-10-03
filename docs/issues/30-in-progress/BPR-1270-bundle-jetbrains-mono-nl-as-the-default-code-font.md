@@ -313,3 +313,29 @@ family=JetBrains Mono NL resolved=JetBrains Mono NL fixed=1 spacing=16 leading=0
 
 Both rows pass that way (7.96 and 14.24 s). The excerpt resolves to "JetBrains
 Mono NL", it is fixed pitch, and the row-height fit holds at its 16-pixel line.
+
+### The review-cycle courses run on the bundled font (bpr-main-win, 2026-10-03)
+
+The review-cycle view course and `review_cycle_desktop_public_path` build
+their windows without `main.cpp`, so they ran on the native fallback. Both now
+call `register_bundled_code_font()` at startup, as the application does, and
+expect it to succeed. Each registers before it builds any appearance, so the
+share sheet's code is "JetBrains Mono NL" there (measured above with the same
+registration).
+
+JetBrains Mono NL has no negative leading, so the courses no longer reach the
+case BPR-1161's row-height fix answers: Windows' Arial, with line spacing 13
+against height 14. A dedicated check, `fit_rows_at_negative_leading()` in the
+view course, keeps it covered. It shows a ten-row excerpt in the first
+installed face with negative leading (Arial on Windows) and expects no
+scrolling. Where no such face is installed it says so and does not pass by
+default.
+
+Measured on Windows (MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug):
+
+- With `fitted_height()` temporarily put back to `lineSpacing()` alone, both
+  view rows failed at "a face with negative leading still shows all ten rows,
+  no scrolling". So the check reaches the defect.
+- With the fix, `qt_review_cycle_view_1_0` passes in 8.05 s, `_2_0` in
+  14.23 s, and `application_review_cycle_desktop_public_path` in 13.50 s. The
+  build printed no warning, and `clang-format` is clean.
