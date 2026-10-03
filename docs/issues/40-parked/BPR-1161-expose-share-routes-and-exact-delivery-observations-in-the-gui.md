@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0056", "RFC-BPR-0061"]
 depends_on: ["BPR-1156", "BPR-1157", "BPR-1159"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "portable-rounds", "acceptance": ["RC56-07", "RC56-10", "RC61-05", "RC61-06"], "pack_alias": "PACK-CYCLE-19", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "related_issues": ["BPR-1212"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"fail","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/design/BPR-1161-share-round-v1.html","detail":"Owner Reject of BPR-1161-compose-share-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 834, decision bf77d66c-1ec3-4cca-9ee7-6d6df2d036e4): 'There is a lot going on in this screen and it's not a very pretty experience. I have no idea how I got to this screen, why I would wnat to do any of these actions, and what is important.' The automated share still passes. Design round v1 (57293c334) audits the page and offers directions A, B and C; the choice is asked as BPR-1161-share-direction-v001 (sequence 837)."}},{"criterion":"RC61-06","outcome":"pending","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). Owner judgment asked as BPR-1161-delivery-words-v001 in session cbd48b91 (sequence 826)."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"49 of 49 changed rows incl. architecture_boundaries and test_network_isolation_manifest on macOS; core-only 22 of 22; clang-format and clang-tidy clean on changed units. Linux and Windows runs owed (commands on the card)."}}]
+acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"fail","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/design/BPR-1161-share-round-v1.html","detail":"Owner Reject of BPR-1161-compose-share-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 834, decision bf77d66c-1ec3-4cca-9ee7-6d6df2d036e4): 'There is a lot going on in this screen and it's not a very pretty experience. I have no idea how I got to this screen, why I would wnat to do any of these actions, and what is important.' The automated share still passes. Design round v1 (57293c334) audits the page and offers directions A, B and C; the choice is asked as BPR-1161-share-direction-v001 (sequence 837)."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The rebuilt share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"49 of 49 changed rows incl. architecture_boundaries and test_network_isolation_manifest on macOS; core-only 22 of 22; clang-format and clang-tidy clean on changed units. Linux and Windows runs owed (commands on the card)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-19** (live `BPR-1161`, allocated at import).
@@ -128,6 +128,34 @@ named alternatives, and it allows a note. It asks which direction the share
 page takes. It says the delivery-words question is still open. The next
 round reads `status --after 839`, builds the chosen direction, and asks
 RC61-05 again on a new frozen candidate.
+
+## Owner verdicts at hand-back 869: delivery words accepted, direction A chosen (2026-10-02)
+
+Read with `status --after 858` in session `cbd48b91000b00f1e72e1ad62c7c384c`:
+
+- `BPR-1161-delivery-words-v001` (RC61-06) was **accepted** at event 859,
+  decision `d63bf276-9711-4c39-8866-556a938dfd35`, fingerprint
+  `41f27ec2…eb6a4ba`, with an empty note, on the frozen app
+  `dc64a2c2…0f2128`. RC61-06 now passes at `7a385389c`. The delivery words
+  and the caption under them ("These say only what happened to the bytes.
+  None of them means the round was received, read, acted on or accepted.")
+  are kept verbatim by the rebuild.
+- `BPR-1161-share-direction-v001` was answered with **select "A: Share sheet
+  over the code"** at event 860, decision
+  `c8b738f5-2ec5-457f-b132-60a58dd2b2f3`, fingerprint `e177ae92…cbc6b`. The
+  owner's note, verbatim:
+
+  > I think I like A the best but it does lose quite a bit of code context compared with the others, maybe we could had a disclosure expand or lightbox or some way to get that deeper context back when we want it while keeping it short and sweet by default.
+
+This is an owner decision about how RC61-05 is presented, not an amendment
+of the criterion. The next round builds
+[direction A](../../design/BPR-1161-share-round-A-sheet-v1.html) in Qt in
+place of the rejected page, keeps the tested share and delivery core and
+[[BPR-1169]]'s route semantics, adds a short-by-default way to see each
+note's code with a deeper view on request, and asks RC61-05 again as
+`BPR-1161-compose-share-v002` on a new frozen build. The session was handed
+back at 869. Both answered items were released by candidate name after this
+record.
 
 ## Owed platform runs
 
