@@ -339,3 +339,27 @@ Measured on Windows (MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug):
 - With the fix, `qt_review_cycle_view_1_0` passes in 8.05 s, `_2_0` in
   14.23 s, and `application_review_cycle_desktop_public_path` in 13.50 s. The
   build printed no warning, and `clang-format` is clean.
+
+### Linux at `6e220f1f3`: courses register the bundled font (bpr-main-linux, 2026-10-03)
+
+Includes `6e220f1f3`. `cmake --build --preset dev` exits 0 with 0 `warning:`
+lines. `ctest --preset dev -j4 --output-on-failure -R
+"^qt_review_cycle_view_|^application_review_cycle_desktop_public_path$|^qt_bundled_code_font$|^application_code_font$"`
+passes **5 of 5**:
+
+- `qt_bundled_code_font` 0.05 s and `application_code_font` 0.05 s
+- `qt_review_cycle_view_1_0` 1.50 s and `_2_0` 3.11 s
+- `application_review_cycle_desktop_public_path` 2.85 s
+
+**The negative-leading row-height pin was unchecked on Linux.** Both view rows
+print `negative-leading row fit: no installed face has negative leading here,
+so not checked`. A probe, not committed, of the pin's own family list at 9 pt,
+offscreen:
+
+- Only **DejaVu Sans** is installed (`hasFamily=1`), and its leading is **0**
+  (height 13.95, line spacing 13.95).
+- Arial, Segoe UI, Tahoma, Verdana, Liberation Sans and Helvetica are absent
+  (`hasFamily=0`) and resolve to DejaVu Sans.
+
+So no face was used, and Linux gives the pin no case. Windows' Arial is the
+face that exercises it.
