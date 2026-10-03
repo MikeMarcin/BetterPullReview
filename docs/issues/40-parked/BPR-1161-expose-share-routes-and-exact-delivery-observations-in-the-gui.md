@@ -727,3 +727,73 @@ The course's own check that the shown code is the profile's font, resolving to
 the bundled fixed-pitch "JetBrains Mono NL", passes. So does
 `fit_rows_at_negative_leading()`: it ran on Arial, since it prints only when
 no face with negative leading exists.
+
+## Owner verdict 921: compose-share v003 rejected; Show Code in words (macOS, 2026-10-03)
+
+`BPR-1161-compose-share-v003` (RC61-05) was **rejected** at event 921,
+decision `b2c9c342-35c7-416c-99a6-f8103cbe52d7`, on fingerprint
+`f7148a03…2e2837`. The owner handed back at 922. The note, verbatim:
+
+> That disclosure arrow looks a little too similar to the checkmark right next to it. We gotta make that UX clearer.
+
+The alignment, the code font and the colours were not questioned.
+
+**The design choice.** The `frontend-design` pass weighed three options:
+
+| Option | Why kept or not |
+|---|---|
+| A distinct chevron placed away from the box | Still a glyph. The owner already took one small glyph for another, and a style draws the chevron at icon size, so it keeps the ambiguity. |
+| The whole row as the expander | The row already has a grip that drags and a box that includes; a click on the row would have three meanings, and nothing on screen says the row opens. |
+| **Words: Show Code and Hide Code** | Chosen. A word says what a click does, which no glyph next to a check box can. |
+
+What the owner sees now:
+
+- The arrow is gone. Each note's second line ends with **Show Code**, in the
+  palette's link colour, right-aligned under what the note is ("Suggested
+  change"). Opened, it reads **Hide Code**.
+- Its column is the column of **Show All Code** above the list, so one
+  vertical line holds the code controls and they use the same words. The
+  include box is alone at the row's start.
+- A note about no file that has more text says **Show More** and **Show
+  Less**, because it has no code to show.
+- A hover underlines it and the pointer is a hand. Keyboard focus shows the
+  sheet's focus ring. Right opens and Left closes, on it or on the box, as
+  before. Its accessible name begins with the words shown ("Show Code: Rename
+  this."), its checked state is the open state, and its tooltip gives the key
+  ("Show Code (Right)").
+- It paints itself from the palette at paint time: no QSS, no forced palette,
+  and a theme change needs no refresh. It is as wide as the wider of its two
+  words, so opening a note moves nothing.
+
+Nothing else changed: the code font, the alignment, the syntax colours, Show
+the Whole File and the keys.
+
+**Change.** `review_cycle_share_sheet.cpp` adds `note_code_toggle`, a text-only
+checkable `QToolButton`, and places it at row 1, column 4 of each note's grid.
+The empty column the arrow left is taken out. The checks are in
+`review_cycle_view_tests.cpp` and the desktop course.
+
+**Verification (macOS arm64, `build/dev` Debug, offscreen).**
+
+- `qt_review_cycle_view_1_0` and `_2_0` check the toggle on the rendered
+  sheet:
+  - its words, no arrow and no icon;
+  - at least half the row's width from the include box, past the heading's
+    start, on the second line, at the trailing edge under the kind label,
+    and in Show All Code's column;
+  - its pixels in the link colour and none in the text colour;
+  - a hover adds underline pixels, and leaving takes them away;
+  - the name and tooltip in both states.
+- `application_review_cycle_desktop_public_path` checks Show Code closed,
+  Hide Code open, and an excerpt through the real composition. It also
+  renders `desktop-cycle-share-closed`.
+- Four negative controls, each rebuilt and reverted, fail their check:
+  - the toggle put back beside the box fails "far from the include box";
+  - painting it in the text colour fails "painted in the link colour";
+  - no underline on hover fails "a hover underlines it";
+  - the arrow restored fails "not a glyph".
+- The 18-row BPR-1161 selection passes 18 of 18, including the alignment and
+  colour checks from `3b5f405be`, `architecture_boundaries` and
+  `test_network_isolation_manifest`. All 118 `qt_` rows pass.
+- clang-format, `tidy.py --paths` on the three changed units, and
+  `git diff --check` are clean.

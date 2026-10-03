@@ -10,6 +10,7 @@
 #include <QCheckBox>
 #include <QEvent>
 #include <QFont>
+#include <QFontMetrics>
 #include <QFontMetricsF>
 #include <QFrame>
 #include <QGridLayout>
@@ -20,6 +21,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -347,6 +349,75 @@ namespace bpr::qt {
 			}
 			return expanded;
 		}
+
+		/// \brief A note's "Show Code" control: words in the link colour, at the
+		/// trailing end of the note's second line, and no glyph.
+		/// \details The owner read v003's arrow beside the include box as a
+		/// second check mark (BPR-1161, event 921). Words say what a click does,
+		/// and the place keeps it apart from the box. It is painted from the
+		/// palette at paint time, so a palette change needs no refresh. A hover
+		/// underlines it; the sheet's focus ring shows keyboard focus.
+		class note_code_toggle final : public QToolButton
+		{
+		public:
+			explicit note_code_toggle(QWidget* aParent)
+				: QToolButton{ aParent }
+			{
+				setCheckable(true);
+				setAutoRaise(true);
+				setToolButtonStyle(Qt::ToolButtonTextOnly);
+				setCursor(Qt::PointingHandCursor);
+				setAttribute(Qt::WA_Hover);
+				connect(this, &QToolButton::toggled, this, [this](const bool aOpen) { setText(aOpen ? Open : Closed); });
+			}
+
+			/// What it says while the note is closed ("Show Code") and open ("Hide Code").
+			void set_words(const QString& aClosed, const QString& aOpen)
+			{
+				Closed = aClosed;
+				Open   = aOpen;
+				setText(isChecked() ? Open : Closed);
+				updateGeometry();
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ font() };
+				// Room for the wider of the two words, so opening moves nothing.
+				const auto width = std::max(metrics.horizontalAdvance(Closed), metrics.horizontalAdvance(Open));
+				return QSize{ width + 4, metrics.height() + 2 };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return sizeHint();
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				auto face    = font();
+				face.setUnderline(underMouse() && isEnabled());
+				painter.setFont(face);
+				const auto ink = !isEnabled() ? palette().color(QPalette::PlaceholderText) : isDown() ? palette().color(QPalette::Link).darker(130)
+																									  : palette().color(QPalette::Link);
+				painter.setPen(ink);
+				painter.drawText(rect().adjusted(2, 0, -2, 0), Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, text());
+			}
+
+			auto event(QEvent* aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::HoverEnter || aEvent->type() == QEvent::HoverLeave) {
+					update();
+				}
+				return QToolButton::event(aEvent);
+			}
+
+		private:
+			QString Closed;
+			QString Open;
+		};
 	}
 
 	note_code_view::note_code_view(QWidget* aParent)
@@ -1189,22 +1260,9 @@ namespace bpr::qt {
 		row.Include->setObjectName(QStringLiteral("cycleShareInclude"));
 		row.Include->installEventFilter(this);
 		grid->addWidget(row.Include, 0, 1);
-		row.Disclose = new QToolButton{ row.Row };
-		row.Disclose->setObjectName(QStringLiteral("cycleShareDisclose"));
-		row.Disclose->setAutoRaise(true);
-		row.Disclose->setCheckable(true);
-		row.Disclose->setArrowType(Qt::RightArrow);
-		row.Disclose->setIconSize(QSize{ 10, 10 });
-		// A click gives it focus, so Left and Right work on from there.
-		row.Disclose->setFocusPolicy(Qt::StrongFocus);
-		row.Disclose->installEventFilter(this);
-		auto keep = row.Disclose->sizePolicy();
-		keep.setRetainSizeWhenHidden(true);
-		row.Disclose->setSizePolicy(keep);
-		grid->addWidget(row.Disclose, 0, 2);
 		row.Number = new QLabel{ row.Row };
 		row.Number->setObjectName(QStringLiteral("cycleShareNumber"));
-		grid->addWidget(row.Number, 0, 3);
+		grid->addWidget(row.Number, 0, 2);
 		row.Heading = new QLabel{ row.Row };
 		row.Heading->setObjectName(QStringLiteral("cycleShareHeading"));
 		row.Heading->setTextFormat(Qt::PlainText);
@@ -1212,17 +1270,29 @@ namespace bpr::qt {
 		auto bold = row.Heading->font();
 		bold.setBold(true);
 		row.Heading->setFont(bold);
-		grid->addWidget(row.Heading, 0, 4);
+		grid->addWidget(row.Heading, 0, 3);
 		row.Kind = new QLabel{ row.Row };
 		row.Kind->setObjectName(QStringLiteral("cycleShareKind"));
 		row.Kind->setTextFormat(Qt::PlainText);
-		grid->addWidget(row.Kind, 0, 5, Qt::AlignRight | Qt::AlignTop);
+		grid->addWidget(row.Kind, 0, 4, Qt::AlignRight | Qt::AlignTop);
 		row.Where = new QLabel{ row.Row };
 		row.Where->setObjectName(QStringLiteral("cycleShareWhere"));
 		row.Where->setTextFormat(Qt::PlainText);
 		row.Where->setWordWrap(true);
 		row.Where->setForegroundRole(QPalette::PlaceholderText);
-		grid->addWidget(row.Where, 1, 4, 1, 2);
+		grid->addWidget(row.Where, 1, 3);
+		// Show Code sits at the end of the second line, under what the note is,
+		// in the column of Show All Code, and away from the include box: v003's
+		// arrow beside the box read as a second check mark (event 921).
+		row.Disclose = new note_code_toggle{ row.Row };
+		row.Disclose->setObjectName(QStringLiteral("cycleShareDisclose"));
+		// A click gives it focus, so Left and Right work on from there.
+		row.Disclose->setFocusPolicy(Qt::StrongFocus);
+		row.Disclose->installEventFilter(this);
+		auto keep = row.Disclose->sizePolicy();
+		keep.setRetainSizeWhenHidden(true);
+		row.Disclose->setSizePolicy(keep);
+		grid->addWidget(row.Disclose, 1, 4, Qt::AlignRight | Qt::AlignTop);
 		row.Detail               = new QWidget{ row.Row };
 		auto* const detailColumn = new QVBoxLayout{ row.Detail };
 		detailColumn->setContentsMargins(0, 4, 0, 6);
@@ -1256,8 +1326,8 @@ namespace bpr::qt {
 		footRow->addWidget(row.Whole, 0, Qt::AlignTop);
 		detailColumn->addLayout(footRow);
 		row.Detail->hide();
-		grid->addWidget(row.Detail, 2, 4, 1, 2);
-		grid->setColumnStretch(4, 1);
+		grid->addWidget(row.Detail, 2, 3, 1, 2);
+		grid->setColumnStretch(3, 1);
 
 		const auto item = aItem;
 		connect(row.Include, &QCheckBox::clicked, this, [this, item](const bool aChecked) {
@@ -1309,7 +1379,8 @@ namespace bpr::qt {
 		const auto file     = about_a_file(aNote.Primary);
 		const auto readable = aContext != nullptr && aContext->Status == application::review_material_status::available && !aContext->Excerpt.Rows.empty();
 		aRow.Disclose->setVisible(file || !rest.isEmpty());
-		aRow.Disclose->setAccessibleName(QStringLiteral("Show the code and the rest of: %1").arg(heading));
+		// A note about no file has only the rest of its words to show.
+		static_cast<note_code_toggle*>(aRow.Disclose)->set_words(file ? QStringLiteral("Show Code") : QStringLiteral("Show More"), file ? QStringLiteral("Hide Code") : QStringLiteral("Show Less"));
 		if (readable) {
 			aRow.Code->show_excerpt(aContext->Excerpt, aContext->Path);
 			aRow.Code->fit_rows(inline_rows);
@@ -1331,8 +1402,9 @@ namespace bpr::qt {
 			Expanded.erase(aRow.Item);
 		}
 		aRow.Disclose->setChecked(aExpanded);
-		aRow.Disclose->setArrowType(aExpanded ? Qt::DownArrow : Qt::RightArrow);
-		aRow.Disclose->setToolTip(aExpanded ? QStringLiteral("Hide the code (Left)") : QStringLiteral("Show the code (Right)"));
+		// The name begins with the words shown, then says which note.
+		aRow.Disclose->setAccessibleName(QStringLiteral("%1: %2").arg(aRow.Disclose->text(), aRow.Heading->text()));
+		aRow.Disclose->setToolTip(QStringLiteral("%1 (%2)").arg(aRow.Disclose->text(), aExpanded ? QStringLiteral("Left") : QStringLiteral("Right")));
 		aRow.Detail->setVisible(aExpanded);
 		if (aExpanded) {
 			aRow.Code->fit_rows(inline_rows);

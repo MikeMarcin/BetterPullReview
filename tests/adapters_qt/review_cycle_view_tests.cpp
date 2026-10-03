@@ -1230,6 +1230,47 @@ namespace {
 		expect(rows[1].Number->text() == QStringLiteral("2") && rows[1].Heading->text() == QStringLiteral("Rename this.") && rows[1].Where->text() == QStringLiteral("src/parser.cpp, line 14") && rows[1].Kind->text() == QStringLiteral("Suggested change"),
 			   "where, with its line, and what it is");
 		expect(rows[0].Disclose->isHidden() && !rows[1].Disclose->isHidden() && !rows[1].Detail->isVisible() && !rows[1].Code->isVisible(), "no code shown until asked; nothing to disclose for a one-line note about no file");
+		// Owner verdict 921 on v003: the arrow beside the include box read as a
+		// second check mark. Show Code is words, in the link colour, at the end
+		// of the note's second line under what the note is, and away from the box.
+		{
+			auto* const toggle = rows[1].Disclose;
+			expect(toggle->text() == QStringLiteral("Show Code") && toggle->arrowType() == Qt::NoArrow && toggle->icon().isNull() && toggle->isCheckable() && !toggle->isChecked(), "a note's code is behind the words Show Code, not a glyph");
+			expect(toggle->accessibleName() == QStringLiteral("Show Code: Rename this.") && toggle->toolTip() == QStringLiteral("Show Code (Right)"), "its name begins with the words shown, then names the note");
+			const auto box     = QRect{ rows[1].Include->mapTo(rows[1].Row, QPoint{ }), rows[1].Include->size() };
+			const auto at      = QRect{ toggle->mapTo(rows[1].Row, QPoint{ }), toggle->size() };
+			const auto where   = QRect{ rows[1].Where->mapTo(rows[1].Row, QPoint{ }), rows[1].Where->size() };
+			const auto kind    = QRect{ rows[1].Kind->mapTo(rows[1].Row, QPoint{ }), rows[1].Kind->size() };
+			const auto heading = QRect{ rows[1].Heading->mapTo(rows[1].Row, QPoint{ }), rows[1].Heading->size() };
+			expect(at.left() - box.right() >= rows[1].Row->width() / 2 && at.left() > heading.left(), "far from the include box, past the note's words");
+			expect(at.top() >= box.bottom() - 2 && at.top() <= where.bottom() && at.bottom() >= where.top(), "on the note's second line, below the box's line");
+			const auto allRight = sheet->all_code_button()->mapToGlobal(QPoint{ sheet->all_code_button()->width() - 1, 0 }).x();
+			const auto ownRight = toggle->mapToGlobal(QPoint{ toggle->width() - 1, 0 }).x();
+			expect(std::abs(at.right() - kind.right()) <= 1 && std::abs(ownRight - allRight) <= 24,
+				   "at the trailing edge, under what the note is and in Show All Code's column");
+			// Rendered: the words' ink is the link colour, never the text colour.
+			const auto link  = toggle->palette().color(QPalette::Link);
+			const auto plain = toggle->palette().color(QPalette::WindowText);
+			const auto inks  = [&](const QColor& aInk) {
+				auto       count = 0;
+				const auto image = toggle->grab().toImage();
+				for (auto y = 0; y < image.height(); ++y) {
+					for (auto x = 0; x < image.width(); ++x) {
+						count += colour_near(image.pixelColor(x, y), aInk) ? 1 : 0;
+					}
+				}
+				return count;
+			};
+			expect(!colour_near(link, plain), "the link and text colours can be told apart");
+			tests::window_system_mouse(*rows[1].Heading, QPointF{ 2.0, 2.0 }, QEvent::MouseMove, Qt::NoButton);
+			const auto resting = inks(link);
+			expect(resting > 0 && inks(plain) == 0, "Show Code is painted in the link colour and none of it in the text colour");
+			tests::window_system_mouse(*toggle, QPointF{ toggle->rect().center() }, QEvent::MouseMove, Qt::NoButton);
+			expect(toggle->underMouse() && inks(link) > resting, "a hover underlines it");
+			tests::window_system_mouse(*rows[1].Heading, QPointF{ 2.0, 2.0 }, QEvent::MouseMove, Qt::NoButton);
+			expect(inks(link) == resting, "and leaving takes the underline away");
+			expect(toggle->cursor().shape() == Qt::PointingHandCursor, "a pointing hand over it");
+		}
 		expect(sheet->notes_heading()->text() == QStringLiteral("2 of 2 notes, in the order they will be read"), "how many go");
 		for (auto* const control : sheet->findChildren<QWidget*>()) {
 			if (control->window() == sheet && control->isVisible() && control->focusPolicy() & Qt::TabFocus && control->objectName() != QStringLiteral("cycleKeyboardFocus")) {
@@ -1249,7 +1290,9 @@ namespace {
 		tests::window_system_clicks(*rows[1].Disclose, QPointF{ rows[1].Disclose->rect().center() }, 1);
 		settle();
 		auto* const code = rows[1].Code;
-		expect(rows[1].Detail->isVisible() && code->isVisible() && rows[1].Disclose->isChecked() && rows[1].Disclose->arrowType() == Qt::DownArrow, "the disclosure opens the note's code");
+		expect(rows[1].Detail->isVisible() && code->isVisible() && rows[1].Disclose->isChecked() && rows[1].Disclose->text() == QStringLiteral("Hide Code")
+				   && rows[1].Disclose->accessibleName() == QStringLiteral("Hide Code: Rename this.") && rows[1].Disclose->toolTip() == QStringLiteral("Hide Code (Left)"),
+			   "Show Code opens the note's code, and then says Hide Code");
 		expect(QApplication::focusWidget() == rows[1].Disclose, "and takes focus, so Left and Right work from there");
 		expect(row_kinds(*code)
 				   == std::vector{ core::cycle_excerpt_row_kind::context, core::cycle_excerpt_row_kind::context, core::cycle_excerpt_row_kind::removed, core::cycle_excerpt_row_kind::added, core::cycle_excerpt_row_kind::context,

@@ -858,10 +858,13 @@ try {
 	expect(!page->projection().Share->Contexts.empty() && page->projection().Share->Contexts[0].Status == application::review_material_status::available
 			   && !share->rows()[0].Where->text().isEmpty(),
 		   "the note's code is read by the host and its place shown");
-	// The note's code behind its disclosure, and its whole file over the sheet, through the composition.
+	// The note's code behind Show Code, and its whole file over the sheet, through the composition.
+	// The owner rejected v003's arrow beside the include box (event 921): it is words now.
+	expect(share->rows()[0].Disclose->text() == QStringLiteral("Show Code") && share->rows()[0].Disclose->arrowType() == Qt::NoArrow && !share->rows()[0].Code->isVisible(), "the note's code closed, behind the words Show Code");
+	capture(window, QStringLiteral("desktop-cycle-share-closed"));
 	share->rows()[0].Disclose->click();
 	settle(lanes);
-	expect(share->rows()[0].Code->isVisible() && !share->rows()[0].Code->excerpt().Rows.empty(), "the disclosure shows the note's code");
+	expect(share->rows()[0].Code->isVisible() && !share->rows()[0].Code->excerpt().Rows.empty() && share->rows()[0].Disclose->text() == QStringLiteral("Hide Code"), "Show Code shows the note's code, and then says Hide Code");
 	// [[BPR-1161]]. The owner rejected compose-share v002 (event 895): the
 	// note's code was not aligned, not coloured and not in the code font. It
 	// is in the profile's code font, the bundled family, and the real
