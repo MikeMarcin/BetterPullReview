@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1247"
 title: "Large review: accepted_metadata_render takes 382 ms against its 250 ms Mac fixture budget"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-0967","BPR-1211"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"Both rows pass on macOS, or the card records the measured cause and the owner's budget decision","outcome":"pending","revision":"a8174f743","evidence":{"kind":"command","detail":"Quiet serial Debug: 386.8 ms before; with the candidate both rows pass and report accepted_metadata_render as not enforced. Bisect names f44c95dd7 (+110 ms Debug, +11 ms Release); the limit measured 284 ms in Debug when set. Release at main 68-73 ms, all budgets enforced and passing; a lowered-limit Release control fails. Owner decision: attended item BPR-1247-debug-limits-v001, ready and protected, no server."}}]
+acceptance: [{"criterion":"Both rows pass on macOS, or the card records the measured cause and the owner's budget decision","outcome":"pass","revision":"d3f05b94b","evidence":{"kind":"observation","detail":"Measured cause recorded: bisect over 5a26d6b1b..main names f44c95dd7 (+110 ms Debug, +11 ms Release); the 250 ms limit measured 284 ms in Debug when BPR-0967 set it from optimized measurements; Release at main 68-73 ms with every budget enforced; lowered-limit Release control fails. Candidate d3f05b94b: quiet serial Debug, both rows pass and report accepted_metadata_render 386.8 ms as not enforced. Owner decision: BPR-1247-debug-limits-v001 Accept (session cbd48b91000b00f1e72e1ad62c7c384c, decision dc9c8014-1bab-4121-b684-abfab6565ac4, fingerprint 84068f25...46b0, hand-back 869), no note, so f44c95dd7's Release cost is not recovered. Scoping still present at 21f6e6461 after BPR-0967's cef11b982/f61340e17/9aa3df3bb (source read; rows not rerun in Debug for this closeout)."}}]
 ---
 
 # BPR-1247: Large review: accepted_metadata_render takes 382 ms against its 250 ms Mac fixture budget
@@ -92,3 +91,33 @@ The owner's Accept or Reject of the Debug scoping is attended item
 (no server started).
 
 Published: `git pull --rebase` renamed the candidate. `a8174f743` above is `d3f05b94b` on main; the attended item names `d3f05b94b`.
+
+## Owner verdict at hand-back 869, and closeout — 2026-10-03
+
+The owner accepted `BPR-1247-debug-limits-v001` in session
+`cbd48b91000b00f1e72e1ad62c7c384c`, handed back at event 869:
+
+| Candidate | Fingerprint | Decision | Verdict |
+|---|---|---|---|
+| `BPR-1247-debug-limits-v001` | `84068f25…46b0` | `dc9c8014-1bab-4121-b684-abfab6565ac4`, saved 2026-10-03T05:23:37Z | Accept, no note |
+
+So the six limits BPR-0967 set from optimized measurements alone stay measured
+and reported in a Debug build, marked `Enforced: false`. Every optimized build
+enforces them, and the historical Debug limits still gate every build. No limit
+value changed. The question also offered recovering f44c95dd7's 11 ms Release
+cost. The owner left no note, so it is not recovered.
+
+The acceptance criterion's second branch is met. The card records the measured
+cause (f44c95dd7, by bisect, and a limit that measured 284 ms in Debug the day
+it was set) and the owner's budget decision.
+
+The candidate is `d3f05b94b`. Since then [[BPR-0967]]'s `cef11b982`,
+`f61340e17` and `9aa3df3bb` rewrote the benchmark's platform table and kept
+this scoping. At `21f6e6461`, `tests/end_to_end/large_review_benchmark.cpp`
+still records the six limits through `optimized_record` and `phase(…, optimized)`.
+Its header comment reads "A Debug build enforces nothing it lacks a Debug
+justification for: on macOS the historical Debug limits ([[BPR-1247]])".
+`cef11b982` records all 16 large-review rows passing in Mac Release.
+The two rows were not rerun in Debug for this closeout. The accepted behaviour
+was read in the source, and no build was made, because other writers hold
+`src/`. `BPR-1247-debug-limits-v001` is released by candidate name.

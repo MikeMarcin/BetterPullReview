@@ -22,7 +22,7 @@ Triaged and filed, not fixed here:
 (15 agent composition rows),
 [BPR-1246](../issues/60-done/BPR-1246-review-submission-composition-expects-a-left-side-draft-projection.md)
 (3 review submission rows),
-[BPR-1247](../issues/40-parked/BPR-1247-large-review-accepted-metadata-render-exceeds-its-budget.md)
+[BPR-1247](../issues/60-done/BPR-1247-large-review-accepted-metadata-render-exceeds-its-budget.md)
 (2 large-review rows),
 [BPR-1248](../issues/60-done/BPR-1248-rfc0016-capture-read-only-route-inventory-drifted.md)
 (RFC-0016 capture pin),

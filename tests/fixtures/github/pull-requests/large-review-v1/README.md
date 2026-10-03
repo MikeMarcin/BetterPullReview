@@ -127,7 +127,7 @@ The report's `CompletionBudgets` holds measured values, limits and verdicts for
 (Qt startup, Home, provisional and accepted metadata, first source and
 generated source) were set from optimized measurements alone; a Debug build
 reports them with `Enforced: false`, and any optimized build enforces them
-([BPR-1247](../../../../../docs/issues/40-parked/BPR-1247-large-review-accepted-metadata-render-exceeds-its-budget.md)). The two source
+([BPR-1247](../../../../../docs/issues/60-done/BPR-1247-large-review-accepted-metadata-render-exceeds-its-budget.md)). The two source
 boundaries gate the complete first-selection and revisit intervals at the
 unchanged 100 ms target after the Qt hidden-document repair.
 `InputBudgetFailures` separately
