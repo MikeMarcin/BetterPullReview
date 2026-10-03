@@ -12,7 +12,7 @@ arm64 (Darwin 25.6), dev preset (Debug, `/usr/bin/c++`), Qt 6.11.2 offscreen.
 | [BPR-1228](../issues/60-done/BPR-1228-restore-the-application-composition-contracts-at-main.md) | Done: reviewed reseal of seven pinned-scope commits, typed testing-grant probe, release graph checked for build edges | `46e0d07b2` |
 | [BPR-1238](../issues/60-done/BPR-1238-the-defect-composition-contract-fails-to-seed-its-epoch-fixture.md) | Done: probe picks a right-side line (BPR-0587's rule); a window's own private reload correlates again | `6e1bf4ddc` |
 | [BPR-1240](../issues/60-done/BPR-1240-the-scoped-writing-agent-fixture-compiles-as-cxx98.md) | Done: `cxx_std_23` for `test_scoped_writing_agent` | `790bc57cf` |
-| [BPR-1241](../issues/40-parked/BPR-1241-compose-review-and-the-tour-retarget-both-claim-alt-r.md) | Parked, human-review: tour retarget moved to Option-Shift-U; attended item `BPR-1241-retarget-key-v001` | `ddecba284` |
+| [BPR-1241](../issues/60-done/BPR-1241-compose-review-and-the-tour-retarget-both-claim-alt-r.md) | Parked, human-review: tour retarget moved to Option-Shift-U; attended item `BPR-1241-retarget-key-v001` | `ddecba284` |
 | [BPR-1242](../issues/60-done/BPR-1242-the-notes-layout-rows-predate-the-private-history-page.md) | Done: Qt rows follow RFC-BPR-0023's Notes pages and BPR-1200's first read | `577fd7fa5` |
 | [BPR-1243](../issues/60-done/BPR-1243-three-repository-contract-rows-are-red-at-main.md) | Done: format, dependency modernization and contained temporaries | `94250ab9c` |
 | [BPR-1232](../issues/60-done/BPR-1232-windows-markdown-body-qtemporarydir-denies-the-appcontainer.md) | Done: macOS run added to the Windows and Linux runs | `dfef04a68` |

@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1241"
 title: "Compose review and the tour editor's retarget both claim Alt+R"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"origin":"recorded as pre-existing under BPR-1157 (RFC-BPR-0053-0061 ledger); filed by the main stabilization milestone on 2026-09-29","reservation":"docs/issues/_reservations/BPR-1240--BPR-1243--20fe98015ceb.json","related_cards":["BPR-1157","BPR-1129","BPR-1135"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"The six scale rows pass on macOS","outcome":"pass","revision":"e9553b26a","evidence":{"kind":"command","detail":"qt_document_tabs_scale_{100,125,200} and qt_workbench_focus_order_scale_{100,125,200} pass on macOS arm64 offscreen at e9553b26a (first passed at ddecba284)."}},{"criterion":"application_review_tour_publication_public_path still retargets through the action","outcome":"pass","revision":"e9553b26a","evidence":{"kind":"command","detail":"application_review_tour_publication_native and _compat pass at e9553b26a after the app and course were rebuilt."}},{"criterion":"Owner judgment of the proposed retarget key","outcome":"pending","revision":"e9553b26a","evidence":{"kind":"freeform","detail":"v001 (ddecba284) was rejected with the question whether the retarget is Beyond Compare's Copy to Right (session cbd48b91000b00f1e72e1ad62c7c384c, event 865). It is not; attended item BPR-1241-retarget-key-v002 asks again on the frozen e9553b26a build, served on port 59998."}},{"criterion":"Documentation gate","outcome":"pass","revision":"e9553b26a","evidence":{"kind":"command","detail":"python3 scripts/verify_documentation.py --root . -> DOCUMENTATION_OK"}}]
+acceptance: [{"criterion":"The six scale rows pass on macOS","outcome":"pass","revision":"e9553b26a","evidence":{"kind":"command","detail":"qt_document_tabs_scale_{100,125,200} and qt_workbench_focus_order_scale_{100,125,200} pass on macOS arm64 offscreen at e9553b26a (first passed at ddecba284)."}},{"criterion":"application_review_tour_publication_public_path still retargets through the action","outcome":"pass","revision":"e9553b26a","evidence":{"kind":"command","detail":"application_review_tour_publication_native and _compat pass at e9553b26a after the app and course were rebuilt."}},{"criterion":"Owner judgment of the proposed retarget key","outcome":"pass","revision":"e9553b26a","evidence":{"kind":"observation","detail":"Owner accepted BPR-1241-retarget-key-v002 (fingerprint f2033f0c3c9c, decision 19badae2-55dc-4b18-88bf-5261f270a4bf, 2026-10-03T18:48:19Z, session cbd48b91000b00f1e72e1ad62c7c384c, handed back at event 899) on the frozen e9553b26a build (executable sha256 40c9ee89...). Note: 'So this is retarget tour to selection?' Answered on the card: yes, it points the selected stop at the lines selected in the comparison; nothing is copied. Label follow-up 'Retarget stop to selection' suggested, not applied."}},{"criterion":"Documentation gate","outcome":"pass","revision":"4c8bcda0b","evidence":{"kind":"command","detail":"python3 scripts/verify_documentation.py --root . -> DOCUMENTATION_OK with the card's accepted section"}}]
 ---
 
 # BPR-1241: Compose review and the tour editor's retarget both claim Alt+R
@@ -149,3 +148,30 @@ course above, and the retarget through the composition root by the publication r
 Owner judgment is attended item `BPR-1241-retarget-key-v002` in the same
 session: Accept keeps Option-Shift-U; Reject names another key in the note.
 v001 was released by candidate name.
+
+## v002 accepted, 2026-10-03
+
+The owner accepted `BPR-1241-retarget-key-v002` (session
+`cbd48b91000b00f1e72e1ad62c7c384c`, decision saved 18:48:19 UTC, handed back
+at event 899) on the frozen e9553b26a build, with the note "So this is
+retarget tour to selection?". The retarget keeps Option-Shift-U and Compose
+review keeps Option-R. The candidate is unchanged.
+
+### The owner's question
+
+Yes. "Use selected source as replacement" retargets the selected tour stop
+to the selection: it points that stop at the lines selected in the
+comparison, on either side, and records that the author chose them. Nothing
+is copied and no file changes; only the stop's mapped range moves.
+
+### Follow-up suggestion: the label
+
+The owner had to ask what the command does, and named it in their own words
+as a retarget. The label's "replacement" reads like a text operation (the
+v001 question asked whether it was Copy to Right). "Retarget stop to
+selection" says what happens, matches the action's object name
+(`tourRetarget`) and the owner's phrasing. This is a suggestion only, for a
+separate card if wanted; the accepted key and candidate are not changed here.
+
+All four criteria pass: the six scale rows and the publication rows at
+e9553b26a, the owner's Accept of v002, and the documentation gate.
