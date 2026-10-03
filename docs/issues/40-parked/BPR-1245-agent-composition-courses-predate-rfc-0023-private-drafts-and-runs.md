@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-0587","BPR-1211","BPR-1139","BPR-1238"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"The fifteen rows pass on macOS","outcome":"pending","revision":"b2fd518bd","evidence":{"kind":"command","detail":"14 of 15 pass on macOS arm64 dev (all chat, invocation composition and workspace diagnostic, and eight finding rows). application_agent_finding_workshop_press_contract waits on the owner's decision: attended item BPR-1245-workshop-v001, session cbd48b91000b00f1e72e1ad62c7c384c, ready and protected, no server."}},{"criterion":"The card names each course's cause","outcome":"pass","revision":"b2fd518bd","evidence":{"kind":"observation","detail":"Resolution table names f55e39e72 (right-side drafts, mutable context refusal), 8790cdc7b (28-pixel Dif), 9b71342a0/1d84e59c2/f55e39e72 (launch-path count) and the private-review promotion defect fixed on BPR-1246; the workshop press cause is named and parked."}}]
+acceptance: [{"criterion":"The fifteen rows pass on macOS","outcome":"pending","revision":"b2fd518bd","evidence":{"kind":"command","detail":"14 of 15 pass on macOS arm64 dev (all chat, invocation composition and workspace diagnostic, and eight finding rows). application_agent_finding_workshop_press_contract stays red: the owner accepted BPR-1245-workshop-v001 at hand-back 869 (session cbd48b91000b00f1e72e1ad62c7c384c, decision 65482b51-2b17-4824-8cad-1d1ca17efcf4): a workshop press first records the draft as an immutable reviewer revision in Private history and asks with it as the only selected source. Not built yet; engineering pending."}},{"criterion":"The card names each course's cause","outcome":"pass","revision":"b2fd518bd","evidence":{"kind":"observation","detail":"Resolution table names f55e39e72 (right-side drafts, mutable context refusal), 8790cdc7b (28-pixel Dif), 9b71342a0/1d84e59c2/f55e39e72 (launch-path count) and the private-review promotion defect fixed on BPR-1246; the workshop press cause is named and parked."}}]
 ---
 
 # BPR-1245: Fifteen agent composition courses predate RFC-BPR-0023's right-side drafts and private runs
@@ -104,3 +104,38 @@ panel=Not started: Choose immutable revisions or findings in Private history,
 then Ask agent using sel…`. That is the parked refusal, so Linux waits on the
 same owner decision (`BPR-1245-workshop-v001`). The other fourteen rows did
 not fail in that run.
+
+## Owner verdict at hand-back 869 — 2026-10-03
+
+The owner accepted `BPR-1245-workshop-v001` in session
+`cbd48b91000b00f1e72e1ad62c7c384c`, handed back at event 869:
+
+| Candidate | Fingerprint | Decision | Verdict |
+|---|---|---|---|
+| `BPR-1245-workshop-v001` | `b794d310…73a0` | `65482b51-2b17-4824-8cad-1d1ca17efcf4`, saved 2026-10-03T05:23:04Z | Accept, no note |
+
+The accepted proposal, as the item asked it at `db162ddbd`: "pressing a
+comment-workshop control (Clarify, Shorten and the rest) on a draft first
+saves the draft's current text in Private history as an immutable reviewer
+revision, then asks the agent with that revision as the only selected source.
+The answer stays a proposal on the draft until you accept it, as before."
+The six controls, the rule of one turn per press and the proposal/accept step
+stay. Each press adds one reviewer revision to Private history, holding the
+draft's text at that moment and shown in History like any other.
+
+**This is an owner decision to build, not an acceptance of built behaviour.**
+The item said "Nothing is built for this yet". No commit since `db162ddbd`
+names the workshop, and `src/app/src/github_application.cpp` still carries the
+refusal at `21f6e6461`. The row was not rerun for this record: the press is
+refused, and `application_agent_finding_workshop_press_contract` stays red. Implementing the decision is engineering in `src/`: the press
+path through the Compose page and the application host, the private-history
+revision write, and the private-run admission with that revision as the only
+source. The course must then be brought to the accepted flow. RFC-BPR-0012's
+workshop text may need a note recording that the workshop runs as a private run
+from a recorded revision under RFC-BPR-0023.
+
+Unmet: the first criterion, "The fifteen rows pass on macOS" (14 of 15), and
+Linux shows the same failing row. The second criterion, naming each course's
+cause, passes. The card stays Parked until the build is dispatched. No human
+question remains open on it. `BPR-1245-workshop-v001` is released by candidate
+name. Its Accept stays recorded.
