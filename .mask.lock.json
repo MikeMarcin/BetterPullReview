@@ -14,6 +14,19 @@
       "source": "agentskills"
     },
     {
+      "commit": "b4a3357404e4c4f74f1e6cb55d695cf18eacd5bf",
+      "git_object_format": "sha1",
+      "id": "bpr-cycle",
+      "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "path": "skills/bpr-cycle",
+      "payload_digest": "sha256:7d0c3b57dce8988f4c975dd1ec9dfea49921546c38dcb68cf2ef3f7208b54764",
+      "repository": "https://github.com/MikeMarcin/AgentSkills.git",
+      "selector": {
+        "ref": "refs/heads/main"
+      },
+      "source": "agentskills"
+    },
+    {
       "commit": "08cde8d82f248970fe76d42896832010aee2e5c1",
       "git_object_format": "sha1",
       "id": "implement-rfc",
@@ -55,5 +68,5 @@
   ],
   "resolver": "mask-lock-v1",
   "schema_version": 1,
-  "selection_digest": "sha256:9dc493740b133f6dc37ba7ea136537a76a0028fbb1c8229bfbe59c6c2935c332"
+  "selection_digest": "sha256:85b5544bad3e1e362023d2a52c0e9c1dd2ae09918bdbe75a01c505c662ba5294"
 }

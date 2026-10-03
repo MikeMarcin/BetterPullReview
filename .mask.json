@@ -10,6 +10,10 @@
       "source": "agentskills"
     },
     {
+      "id": "bpr-cycle",
+      "source": "agentskills"
+    },
+    {
       "id": "implement-rfc",
       "source": "agentskills"
     },
@@ -26,7 +30,7 @@
     "agentskills": {
       "packages": "skills",
       "ref": "refs/heads/main",
-      "repository": "ssh://git@github.com/~/MikeMarcin/AgentSkills.git"
+      "repository": "https://github.com/MikeMarcin/AgentSkills.git"
     }
   }
 }
