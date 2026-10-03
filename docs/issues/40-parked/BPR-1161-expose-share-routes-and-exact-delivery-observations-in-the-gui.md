@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0056", "RFC-BPR-0061"]
 depends_on: ["BPR-1156", "BPR-1157", "BPR-1159"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "portable-rounds", "acceptance": ["RC56-07", "RC56-10", "RC61-05", "RC61-06"], "pack_alias": "PACK-CYCLE-19", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "related_issues": ["BPR-1212"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"fail","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/design/BPR-1161-share-round-v1.html","detail":"Owner Reject of BPR-1161-compose-share-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 834, decision bf77d66c-1ec3-4cca-9ee7-6d6df2d036e4): 'There is a lot going on in this screen and it's not a very pretty experience. I have no idea how I got to this screen, why I would wnat to do any of these actions, and what is important.' The automated share still passes. Design round v1 (57293c334) audits the page and offers directions A, B and C; the choice is asked as BPR-1161-share-direction-v001 (sequence 837)."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The rebuilt share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"49 of 49 changed rows incl. architecture_boundaries and test_network_isolation_manifest on macOS; core-only 22 of 22; clang-format and clang-tidy clean on changed units. Linux and Windows runs owed (commands on the card)."}}]
+acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"pending","revision":"324c1782648b63729d0ae1d9f5905befb4c62024","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"v001 (the Compose feedback page) was rejected at event 834; the owner chose direction A with deeper code context at event 860. Rebuilt as the Share notes sheet over the code (a426c66a0, 324c17826): one default Copy round N, Save as File beside it, each note two lines with its code behind a disclosure and the whole file in a larger view. Automated: qt_review_cycle_view_1_0/_2_0, review_cycle_workbench, application_review_cycle_desktop_public_path, application_profile_cycle_handoff_public_path and core_review_cycle_share pass with eight negative controls failing. Asked again as BPR-1161-compose-share-v002 in session cbd48b91 (sequence 885, ready at 887) on the frozen app 94724b6c...8a28a1."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The rebuilt share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"324c1782648b63729d0ae1d9f5905befb4c62024","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"At 324c17826 on macOS: the 52-row review-cycle selection incl. architecture_boundaries, architecture_boundary_contract and test_network_isolation_manifest, all 117 qt_ rows and the three tour-composition rows pass; core-only 24 of 24 core_review_cycle rows; clang-format and clang-tidy clean on every changed unit. Linux and Windows runs owed (commands on the card)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-19** (live `BPR-1161`, allocated at import).
@@ -157,6 +157,178 @@ note's code with a deeper view on request, and asks RC61-05 again as
 back at 869. Both answered items were released by candidate name after this
 record.
 
+## Direction A built: Share notes, a sheet over the code (macOS, 2026-10-02)
+
+At `a426c66a0` and `324c17826`. The rejected Compose feedback page is gone.
+The review bar's pencil is now a labelled **Share notes** button that carries
+the number of open notes. It opens a window-modal sheet. On macOS AppKit
+attaches the sheet to the window; on other platforms it hangs from the review
+bar. The file the reviewer was reading stays behind it.
+
+The sheet has these parts, in order:
+
+- **Share round N**, then one sentence that says what a round is and that
+  nothing has left the window yet.
+- **Ask them to** (Discuss, Plan, Implement), with a line saying what the
+  chosen one asks for, and an optional note for the whole round.
+- The notes, two lines each, in the order they will be read. Each has a check
+  box and a grip.
+- One default button, **Copy round N**, with **Save as File…** beside it. Each
+  has a line saying when to use it.
+- In the foot, Read the Exact Text, Save as Bundle… and any route this
+  installation reaches.
+
+After a share the title says what happened ("Round 1 is on your clipboard").
+The text under it says what comes next. Shared so far lists every
+observation in the words the owner accepted, under the same caption, and
+Done becomes the default. [[BPR-1169]]'s routes are unchanged: Use in
+External Agent appears only when the host reaches a local interface, and it
+grants the round and shows the invocation.
+
+### Code context: short by default, more on request
+
+The owner's note asked for "a disclosure expand or lightbox or some way to
+get that deeper context back when we want it while keeping it short and sweet
+by default". The `frontend-design` pass chose two steps. Both are native
+controls and both inherit the palette.
+
+1. **A disclosure per note.** Click the arrow, or press Right on it, to open
+   the note's code in place. Left closes it. The code shows the lines the
+   note is about and each suggested change in place (`-` and `+` on the
+   review panes' row fills), with two unchanged lines either side, numbered,
+   in the code font, at most 14 rows. Under it is one line of facts
+   ("src/parser.cpp at R1, lines 12–19 of 31."). **Show All Code** opens or
+   closes every note at once, which the owner asked for on BPR-1213. A note
+   stays open across refreshes.
+2. **A larger view, the lightbox.** **Show the Whole File…** opens a
+   window-modal panel over the sheet, nine tenths of the window's size. It
+   shows the note's whole file at the revision the note names, with each
+   change in place, scrolled to the note, and has Previous Note and Next
+   Note. Escape or Done closes only this view, and focus returns to the
+   button that opened it.
+
+Why this and not something else:
+
+- An always-visible excerpt per note is direction C. It would lengthen the
+  sheet that A was chosen to keep short.
+- A hover tooltip neither the keyboard nor a screen reader can reach.
+- "Show in code" closes the sheet. That is the cost direction A itself
+  listed, and the owner's note asks to avoid it.
+
+The disclosure answers "what is this note about" without leaving the list.
+The lightbox answers "what is around it" without leaving the sheet.
+
+The layering: `core::excerpt_note` cuts every excerpt. The host reads each
+listed note's file at the revision its target names, only content that
+revision pinned, one note at a time, so a share never waits behind them
+(`application::read_note_context`). The whole file is read only on request
+(`review_cycle_workbench::show_note_code`) and let go when the view closes.
+Qt presents both. A change whose bytes the file no longer holds at its
+place is counted and not shown.
+
+### Keys
+
+These follow BPR-1157's conventions:
+
+- Return presses the default button. In the round note, Return saves a
+  changed note and shares nothing.
+- Shift+Return does nothing on the sheet.
+- Escape is Cancel. On macOS Control-C is Cancel too, as in the code.
+- Option+Up and Option+Down (Alt elsewhere), or dragging a grip, reorder
+  the notes.
+- Every Tab stop shows the focus ring.
+
+Two fixes came out of the round:
+
+- Unsaved round-note text is no longer replaced by a refresh while the sheet
+  is not the active window. Before, the BPR-1168 handoff course froze over
+  the typed text.
+- A focus ring left on a control whose window was hidden no longer reappears
+  when the window opens again (`keyboard_focus_ring`).
+
+### Owned paths
+
+- `src/core/include/bpr/core/review_cycle_share.hpp` and `.cpp`:
+  `excerpt_note`.
+- `src/application/include/bpr/application/review_cycle_projection.hpp`:
+  `review_cycle_note_context`, `Contexts` and `Larger`.
+- `src/application/include/bpr/application/review_cycle_share.hpp` and `.cpp`:
+  `read_note_context`.
+- `src/application/include/bpr/application/review_cycle_runtime.hpp` and
+  `.cpp`: `note_context_selected`.
+- `src/application/include/bpr/application/review_cycle_workbench.hpp` and
+  `.cpp`: the note-code cache, `show_note_code` and `close_note_code`.
+- `src/adapters/qt/include/bpr/qt/review_cycle_share_sheet.hpp` and `.cpp`,
+  which replace `review_cycle_share_page`.
+- `review_cycle_view.hpp` and `.cpp`, and `keyboard_focus_ring.cpp`.
+- `src/app/src/review_cycle_desktop.cpp`: the dispatch, and the save dialog
+  opened over the sheet.
+- The tests named below, and `docs/architecture/domain-and-state-model.md`.
+
+No new `src/app` file, so the round-trip inventory needs no entry.
+
+### Verification (macOS arm64, dev Debug, offscreen)
+
+- `core_review_cycle_share`: excerpts, CRLF and lone CR, insertions,
+  deletions, stale and overlapping changes, the cut, and the whole file.
+- `review_cycle_workbench`: the host reads each listed note's code at its
+  revision, not the folder as edited since, and reads the whole file on
+  request.
+- `qt_review_cycle_view_1_0` and `_2_0`: real window-system key and mouse
+  events, and rendered pixels. The sheet is window-modal, and the window
+  behind it takes no click. Copy is the one default and Return copies.
+  Removed and added rows are on the panes' fills (flat-fill rule). The
+  gutter's ink is the placeholder colour over the fill and never the text
+  colour, while the code's ink is the text colour (the local role/text
+  rule). Escape closes the larger view only. The sheet fits a 900×600
+  window with every route.
+- `application_review_cycle_desktop_public_path`: through the real
+  composition, the code is read, the whole file opens, Copy and Save work,
+  and Escape closes the sheet.
+- `application_profile_cycle_handoff_public_path` (`build/dev-tour-cli`).
+
+The 52-row review-cycle selection passes, including `architecture_boundaries`
+and `test_network_isolation_manifest`, as do all 117 `qt_` rows, the three
+tour-composition rows and core-only's 24 `core_review_cycle` rows.
+clang-format and clang-tidy are clean.
+
+Eight negative controls each fail their row:
+
+- the noted line off by one;
+- Save made the default;
+- Return in the round note left to the default button;
+- the disclosure showing nothing;
+- the unfocused round note overwritten;
+- the stale focus ring;
+- Escape in the larger view also closing the sheet;
+- the host reading no note code.
+
+A native cocoa probe opened the sheet as a real sheet, expanded a note, and
+opened and closed the larger view. The other native courses stop at window
+activation, so attachment under the window's own title area is what the owner
+sees in the attended check.
+
+`application_review_round_trip_composition_contract` was red during the run.
+The cause was another writer's then-uncommitted `github_application.cpp`
+(BPR-1250), not this card, and the contract passes at `324c17826`.
+
+## Pending owner judgment: compose-share v002
+
+`BPR-1161-compose-share-v002` (RC61-05), one Accept/Reject question, in
+session `cbd48b91000b00f1e72e1ad62c7c384c`. It was added at sequence 885 and
+was ready at 887, with fingerprint `a7516bac…8f622d`. The question: does
+Share notes let you share one complete round in one gesture, with Copy and
+Save first-class, short by default and with each note's code there when you
+want it?
+
+Candidate: `/Users/jaeger/bpr-cycles-sheet-review.yiVapS/BetterPullReview-cycles-sheet.app`,
+executable SHA-256 `94724b6c64bba9aadb6eba7734163e0cfebeb9c0dfc356be256bbf43ac8a28a1`,
+built at `324c17826`. Launch it with
+`python3 /Users/jaeger/bpr-cycles-sheet-review.yiVapS/launch.py`. It has its
+own profile in `home/`, with `HOME` and `CFFIXED_USER_HOME` set. The sample
+project is `sample-project/`, and saves may go to `shared/`. RC61-05 is the
+only open criterion, so the card stays Parked on human-review.
+
 ## Owed platform runs
 
 Not gating. Linux station (`build/dev`):
@@ -230,3 +402,23 @@ slowest isolated run, Windows Debug's 38.13 s, rounded up
 18 s, sit well inside it. On Windows it passes in 34.91 s under the new
 bound. `test_network_isolation_manifest`, red above on other cards' rows, now
 passes on Windows ([[BPR-1237]]).
+
+## Owed platform runs at `324c17826` (the share sheet)
+
+Not gating. Linux station (`build/dev`):
+
+```sh
+cmake --build --preset dev && ctest --preset dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^architecture_boundaries$"
+```
+
+Windows station (`build/windows-dev`):
+
+```powershell
+cmake --build --preset windows-dev; ctest --preset windows-dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^architecture_boundaries$|^test_network_isolation_manifest$"
+```
+
+Where a build has the tour CLI with Qt and tests, add
+`^application_profile_cycle_handoff_public_path$`. The sheet is a top-level
+window-modal dialog. On Linux it is placed under the review bar by
+`review_cycle_share_sheet::place`; on Windows the same, inside the window's
+own frame.
