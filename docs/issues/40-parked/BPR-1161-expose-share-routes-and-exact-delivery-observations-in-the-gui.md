@@ -550,3 +550,20 @@ with no `warning C` or `warning LNK` line, and `clang-format` is clean. The
 BPR-1161 selection passes 18/18, in 69.41 s: `qt_review_cycle_view_1_0`
 9.10 s, `_2_0` 16.28 s, and `application_review_cycle_desktop_public_path`
 16.97 s. The macOS and Linux reruns are the coordinator's.
+
+### Linux at `07f853492`: the excerpt on the fixed-pitch code font (bpr-main-linux, 2026-10-03)
+
+Includes `d922bbee8` and `07f853492`. WSL2, GCC 15.2, `build/dev` Debug,
+offscreen. `cmake --build --preset dev` exits 0 with 0 `warning:` lines. The
+requested `ctest -j4` selection passes **12 of 12** in 34.01 s:
+
+- `core_review_cycle_share`
+- `review_cycle_{round,export,bundle,verification}`, and `review_cycle_workbench`
+  (34.00 s)
+- `qt_review_cycle_view_1_0` (1.44 s) and `_2_0` (2.99 s), with
+  `0a1053c11`'s focus-ring fix in place
+- `qt_suggestion_editor_1_0` and `_2_0`
+- `application_review_cycle_desktop_public_path` (4.04 s)
+- `architecture_boundaries`
+
+No remote mutation.
