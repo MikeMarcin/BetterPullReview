@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1270"
 title: "Bundle JetBrainsMonoNL Nerd Font as the default code font on every platform"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
