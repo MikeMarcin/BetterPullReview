@@ -698,3 +698,32 @@ Each group is equal, and each tab is within 1 pixel of the stop. Row 4 reports
 `-1`, an X ink not found on that row, and no expectation covers it. The
 courses resolve the bundled fixed-pitch family. No pixel check failed. No
 remote mutation.
+
+### Windows: the excerpt in syntax colours, aligned (bpr-main-win, 2026-10-03)
+
+At `17691bc63`, which contains `3b5f405be`. Windows 11 Home 10.0.26200, MSVC
+14.51, Qt 6.11.2, `build/windows-dev` Debug. The 12 executables the selection
+runs were deleted first and rebuilt, and the build printed no `warning C` or
+`warning LNK` line. The changed sources declare no SDK-macro identifier.
+
+The selection passes 18/18, in 68.50 s. The view rows, run again with `-V`,
+print:
+
+```
+qt_review_cycle_view_1_0: note code X inks: 46 74 74 74 -1 102 102 74 stop 28
+qt_review_cycle_view_2_0: note code X inks: 93 149 149 149 -1 205 205 149 stop 56
+```
+
+- **Column 4** (inks 1, 2, 3 and 7: the noted, removed and added rows, by a
+  tab, by spaces and by both) is one pixel at each scale: 74 at 1.0, 149 at
+  2.0.
+- **Column 8** (inks 5 and 6: two tabs and eight spaces) is one pixel: 102 at
+  1.0, 205 at 2.0.
+- A tab is the panes' stop from the first column. At 1.0, 74 − 46 = 28 and
+  102 − 46 = 56 against a stop of 28. At 2.0, 149 − 93 = 56 and
+  205 − 93 = 112 against a stop of 56.
+
+The course's own check that the shown code is the profile's font, resolving to
+the bundled fixed-pitch "JetBrains Mono NL", passes. So does
+`fit_rows_at_negative_leading()`: it ran on Arial, since it prints only when
+no face with negative leading exists.
