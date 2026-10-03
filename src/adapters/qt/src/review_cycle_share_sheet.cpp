@@ -383,22 +383,44 @@ namespace bpr::qt {
 		paint_bands();
 	}
 
-	void note_code_view::show_excerpt(const core::cycle_note_excerpt& aExcerpt)
+	void note_code_view::show_excerpt(const core::cycle_note_excerpt& aExcerpt, const std::string& aPath)
 	{
-		if (!Empty && aExcerpt == Shown) {
+		if (!Empty && aExcerpt == Shown && aPath == Path) {
 			return;
 		}
 		Shown            = aExcerpt;
+		Path             = aPath;
 		Empty            = false;
 		const auto n     = gutter_digits(Shown);
 		auto       lines = QStringList{ };
 		lines.reserve(static_cast<qsizetype>(Shown.Rows.size()));
-		for (const auto& row : Shown.Rows) {
+		// [[BPR-1161]]. The two documents the rows are classified in: each row's
+		// code as shown, so a colour lands on the column it was found at.
+		Documents  = { };
+		Classified = { };
+		Places.assign(Shown.Rows.size(), std::nullopt);
+		Requested = false;
+		for (std::size_t index = 0; index < Shown.Rows.size(); ++index) {
+			const auto& row = Shown.Rows[index];
 			if (row.Kind == core::cycle_excerpt_row_kind::omitted) {
 				lines.append(QStringLiteral("%1   ⋯ %2").arg(QString{ n, QLatin1Char(' ') }, count_words(row.Omitted, QStringLiteral("line not shown"), QStringLiteral("lines not shown"))));
+				for (auto& document : Documents) {
+					document.push_back('\n');
+				}
 				continue;
 			}
-			lines.append(QStringLiteral("%1 %2 %3").arg(row.Line ? QString::number(*row.Line) : QString{ }, n).arg(mark_of(row.Kind)).arg(expand_tabs(text_of(row.Text), TabWidth)));
+			const auto code = expand_tabs(text_of(row.Text), TabWidth);
+			lines.append(QStringLiteral("%1 %2 %3").arg(row.Line ? QString::number(*row.Line) : QString{ }, n).arg(mark_of(row.Kind)).arg(code));
+			const auto bytes = code.toStdString();
+			const auto side  = row.Kind == core::cycle_excerpt_row_kind::added ? std::size_t{ 1 } : std::size_t{ 0 };
+			Places[index]    = row_syntax{ .Side = side, .Begin = Documents[side].size(), .Length = bytes.size() };
+			for (std::size_t other = 0; other < Documents.size(); ++other) {
+				// A removed row is only before the change, an added one only after it.
+				const auto belongs = other == side || (row.Kind != core::cycle_excerpt_row_kind::removed && row.Kind != core::cycle_excerpt_row_kind::added);
+				if (belongs) {
+					Documents[other].append(bytes).push_back('\n');
+				}
+			}
 		}
 		setPlainText(lines.join(QLatin1Char('\n')));
 		auto description = QStringList{ };
@@ -413,11 +435,52 @@ namespace bpr::qt {
 		}
 		setAccessibleDescription(description.join(QStringLiteral("; ")));
 		paint_bands();
+		request_syntax();
+	}
+
+	auto note_code_view::adopt_syntax(const std::string_view aDocument, const application::shared_token_spans& aSpans) -> bool
+	{
+		auto adopted = false;
+		for (std::size_t side = 0; side < Documents.size(); ++side) {
+			if (!Empty && aSpans && Documents[side] == aDocument) {
+				Classified[side] = classify_text_lines(std::span{ reinterpret_cast<const std::uint8_t*>(Documents[side].data()), Documents[side].size() }, aSpans);
+				adopted          = true;
+			}
+		}
+		if (adopted) {
+			paint_bands();
+		}
+		return adopted;
+	}
+
+	auto note_code_view::syntax_documents() const noexcept -> const std::array<std::string, 2>&
+	{
+		return Documents;
+	}
+
+	void note_code_view::request_syntax()
+	{
+		// Only what is shown is classified: a closed note asks when it opens.
+		if (Requested || Empty || Path.empty() || !SyntaxWanted || !isVisible()) {
+			return;
+		}
+		Requested = true;
+		SyntaxWanted({ .Path = Path, .Document = Documents[0] });
+		if (Documents[1] != Documents[0]) {
+			SyntaxWanted({ .Path = Path, .Document = Documents[1] });
+		}
+	}
+
+	void note_code_view::showEvent(QShowEvent* aEvent)
+	{
+		QPlainTextEdit::showEvent(aEvent);
+		request_syntax();
 	}
 
 	void note_code_view::paint_bands()
 	{
-		// The gutter and mark in the placeholder colour; each row on its kind's fill.
+		// The gutter and mark in the placeholder colour; each row on its kind's
+		// fill; the code in the review panes' role colours once it is classified.
 		auto       bands  = QList<QTextEdit::ExtraSelection>{ };
 		const auto gutter = gutter_digits(Shown) + 2;
 		auto       quiet  = QTextCharFormat{ };
@@ -428,8 +491,18 @@ namespace bpr::qt {
 			if (const auto fill = row_fill(kind, Colours, palette()); fill.isValid()) {
 				append_line_band(bands, *this, core::line_span{ .Begin = static_cast<std::uint32_t>(index), .End = static_cast<std::uint32_t>(index + 1U) }, fill);
 			}
-			const auto length = kind == core::cycle_excerpt_row_kind::omitted ? block.length() - 1 : gutter;
-			apply_syntax_format_ranges(*document(), block, { QTextLayout::FormatRange{ .start = 0, .length = length, .format = quiet } });
+			const auto length  = kind == core::cycle_excerpt_row_kind::omitted ? block.length() - 1 : gutter;
+			auto       formats = QList<QTextLayout::FormatRange>{ QTextLayout::FormatRange{ .start = 0, .length = length, .format = quiet } };
+			if (const auto& place = Places[index]; place && Classified[place->Side].Spans) {
+				const auto& text = Documents[place->Side];
+				const auto  code = std::span{ reinterpret_cast<const std::uint8_t*>(text.data()) + place->Begin, place->Length };
+				for (auto range : code_syntax_format_ranges_at(Classified[place->Side], place->Begin, code, Colours)) {
+					// The code begins after the line number, the mark and a space.
+					range.start += gutter + 1;
+					formats.append(std::move(range));
+				}
+			}
+			apply_syntax_format_ranges(*document(), block, formats);
 		}
 		setExtraSelections(bands);
 	}
@@ -551,7 +624,7 @@ namespace bpr::qt {
 		ring_keyboard_focus(*this, QStringLiteral("cycleKeyboardFocus"));
 	}
 
-	void review_cycle_share_viewer::show_code(const QString& aHeading, const QString& aDetail, const core::cycle_note_excerpt& aExcerpt, const bool aWhole)
+	void review_cycle_share_viewer::show_code(const QString& aHeading, const QString& aDetail, const core::cycle_note_excerpt& aExcerpt, const bool aWhole, const std::string& aPath)
 	{
 		setWindowTitle(aHeading);
 		Heading->setText(aHeading);
@@ -559,7 +632,7 @@ namespace bpr::qt {
 		Text->hide();
 		Code->show();
 		const auto changed = Code->excerpt() != aExcerpt;
-		Code->show_excerpt(aExcerpt);
+		Code->show_excerpt(aExcerpt, aPath);
 		if (changed) {
 			// The note's own lines a third of the way down, as a reader lands on them.
 			auto cursor = QTextCursor{ Code->document()->findBlockByNumber(Code->anchor_row()) };
@@ -920,9 +993,10 @@ namespace bpr::qt {
 		}
 		cancel_with_control_c(*this);
 
-		Viewer         = new review_cycle_share_viewer{ this };
-		Viewer->Step   = [this](const int aDirection) { step_viewer(aDirection); };
-		Viewer->Closed = [this] {
+		Viewer                       = new review_cycle_share_viewer{ this };
+		Viewer->code()->SyntaxWanted = [this](const source_syntax_request& aRequest) { want_code_syntax(aRequest); };
+		Viewer->Step                 = [this](const int aDirection) { step_viewer(aDirection); };
+		Viewer->Closed               = [this] {
 			if (Viewing) {
 				Viewing.reset();
 				if (Dispatch.CloseCode) {
@@ -963,6 +1037,22 @@ namespace bpr::qt {
 			row.Code->set_colours(aColours);
 		}
 		Viewer->set_colours(aColours);
+	}
+
+	auto review_cycle_share_sheet::adopt_code_syntax(const std::string_view aDocument, const application::shared_token_spans& aSpans) -> bool
+	{
+		auto adopted = Viewer->code()->adopt_syntax(aDocument, aSpans);
+		for (auto& row : Rows) {
+			adopted = row.Code->adopt_syntax(aDocument, aSpans) || adopted;
+		}
+		return adopted;
+	}
+
+	void review_cycle_share_sheet::want_code_syntax(const source_syntax_request& aRequest) const
+	{
+		if (SyntaxWanted) {
+			SyntaxWanted(aRequest);
+		}
 	}
 
 	void review_cycle_share_sheet::set_anchor(const QPoint aGlobal)
@@ -1147,6 +1237,7 @@ namespace bpr::qt {
 		row.Code->setObjectName(QStringLiteral("cycleShareCode"));
 		row.Code->setFocusPolicy(Qt::ClickFocus);
 		row.Code->set_colours(Colours);
+		row.Code->SyntaxWanted = [this](const source_syntax_request& aRequest) { want_code_syntax(aRequest); };
 		if (CodeFont) {
 			row.Code->set_code_font(*CodeFont, CodeTabWidth);
 		}
@@ -1220,7 +1311,7 @@ namespace bpr::qt {
 		aRow.Disclose->setVisible(file || !rest.isEmpty());
 		aRow.Disclose->setAccessibleName(QStringLiteral("Show the code and the rest of: %1").arg(heading));
 		if (readable) {
-			aRow.Code->show_excerpt(aContext->Excerpt);
+			aRow.Code->show_excerpt(aContext->Excerpt, aContext->Path);
 			aRow.Code->fit_rows(inline_rows);
 		}
 		aRow.Code->setVisible(readable);
@@ -1431,7 +1522,7 @@ namespace bpr::qt {
 		if (shown.Status != application::review_material_status::available) {
 			detail = code_facts(shown);
 		}
-		Viewer->show_code(row->Heading->text(), detail, shown.Excerpt, whole);
+		Viewer->show_code(row->Heading->text(), detail, shown.Excerpt, whole, shown.Path);
 		const auto at       = static_cast<std::size_t>(row - Rows.begin());
 		const auto readable = [](const note_row& aRow) { return !aRow.Whole->isHidden(); };
 		Viewer->set_steps(std::any_of(Rows.begin(), Rows.begin() + static_cast<std::ptrdiff_t>(at), readable), std::any_of(Rows.begin() + static_cast<std::ptrdiff_t>(at) + 1, Rows.end(), readable));

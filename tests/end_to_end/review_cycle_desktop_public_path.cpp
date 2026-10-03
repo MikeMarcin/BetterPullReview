@@ -22,6 +22,7 @@
 #include <QClipboard>
 #include <QDialog>
 #include <QDir>
+#include <QFontInfo>
 #include <QGuiApplication>
 #include <QImage>
 #include <QKeySequence>
@@ -861,11 +862,23 @@ try {
 	share->rows()[0].Disclose->click();
 	settle(lanes);
 	expect(share->rows()[0].Code->isVisible() && !share->rows()[0].Code->excerpt().Rows.empty(), "the disclosure shows the note's code");
+	// [[BPR-1161]]. The owner rejected compose-share v002 (event 895): the
+	// note's code was not aligned, not coloured and not in the code font. It
+	// is in the profile's code font, the bundled family, and the real
+	// classifier colours it as it colours the source pane.
+	expect(share->rows()[0].Code->font().family() == appearance.code_font().family() && QFontInfo{ share->rows()[0].Code->font() }.family() == qt::bundled_code_font_family(),
+		   "the note's code in the profile's code font, the bundled family");
+	expect(word_painted(*share->rows()[0].Code, QStringLiteral("return"), flow) && word_painted(*share->rows()[0].Code, QStringLiteral("check"), function),
+		   "the note's code in the panes' syntax colours");
+	capture(window, QStringLiteral("desktop-cycle-share-code"));
 	share->rows()[0].Whole->click();
 	settle(lanes);
 	expect(page->projection().Share->Larger && page->projection().Share->Larger->Item == share->rows()[0].Item && share->viewer()->isVisible() && share->viewer()->foot()->isHidden()
 			   && share->viewer()->code()->excerpt().Rows.size() >= share->rows()[0].Code->excerpt().Rows.size(),
 		   "Show the Whole File reads the file through the host and shows it over the sheet");
+	expect(QFontInfo{ share->viewer()->code()->font() }.family() == qt::bundled_code_font_family() && word_painted(*share->viewer()->code(), QStringLiteral("return"), flow)
+			   && word_painted(*share->viewer()->code(), QStringLiteral("check"), function),
+		   "the whole file in the same font and colours");
 	capture(window, QStringLiteral("desktop-cycle-share-whole-file"));
 	tests::window_system_key(*share->viewer()->done_button(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
 	settle(lanes);

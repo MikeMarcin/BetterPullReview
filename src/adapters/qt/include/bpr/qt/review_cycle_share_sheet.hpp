@@ -16,6 +16,8 @@
 #include <functional>
 #include <optional>
 #include <set>
+#include <string>
+#include <string_view>
 #include <vector>
 
 class QButtonGroup;
@@ -44,18 +46,48 @@ namespace bpr::qt {
 		std::function<void()>                             CloseCode;
 	};
 
+	/// \brief A text of the cycle's code asked to be classified: the file the
+	/// source pane shows ([[BPR-1157]]), or the text a note's code view shows
+	/// in Share notes ([[BPR-1161]]).
+	/// \details The page runs no lexer. Whoever composed it classifies
+	/// `Document`, chosen by `Path`, and hands the spans back with the same
+	/// bytes (`review_cycle_view::adopt_source_syntax`,
+	/// `review_cycle_share_sheet::adopt_code_syntax`).
+	struct source_syntax_request
+	{
+		std::string Path;
+		std::string Document;
+	};
+
 	/// \brief A note's code, read-only: one row per excerpt row, its line
 	/// number and a mark before the text (`•` a line the note is about, `-`
 	/// a line a suggested change replaces, `+` one it puts in its place), in
 	/// the code font, each kind on the review panes' row fill.
+	///
+	/// \details Coloured as the cycle's file pane is ([[BPR-1161]]): it runs
+	/// no lexer, and asks for its text to be classified (`SyntaxWanted`) once
+	/// it is shown. The text is two documents, the file's lines as they are
+	/// (context, noted and removed rows) and as the suggested changes leave
+	/// them (context, noted and added rows), each row's code as shown, tabs
+	/// expanded to the panes' stops. An omitted row is an empty line of both.
+	/// Each row takes its colours from the document it belongs to.
 	class note_code_view final : public QPlainTextEdit
 	{
 	public:
 		explicit note_code_view(QWidget* aParent = nullptr);
 
-		/// \brief Shows `aExcerpt`; nothing changes when it is already shown.
-		void show_excerpt(const core::cycle_note_excerpt& aExcerpt);
-		void set_colours(const code_role_colors& aColours);
+		/// \brief Shows `aExcerpt` of the file at `aPath`, which chooses the
+		/// syntax; nothing changes when it is already shown.
+		void show_excerpt(const core::cycle_note_excerpt& aExcerpt, const std::string& aPath = { });
+		/// \brief Colours the rows of the document `aDocument`, when it is
+		/// one this view asked about; false when it is not.
+		auto adopt_syntax(std::string_view aDocument, const application::shared_token_spans& aSpans) -> bool;
+		/// \brief The two documents it shows, the file before and after the
+		/// suggested changes; equal when it shows none.
+		[[nodiscard]] auto syntax_documents() const noexcept -> const std::array<std::string, 2>&;
+		/// Asks for a document to be classified; once per shown text, when it is visible.
+		std::function<void(const source_syntax_request&)> SyntaxWanted;
+		void                                              set_colours(const code_role_colors& aColours);
 		/// \brief The review panes' code font, made fixed-pitch as the shared code
 		/// view makes it, and their tab width ([[BPR-1161]]).
 		void set_code_font(const QFont& aFont, std::uint32_t aTabWidth);
@@ -67,15 +99,32 @@ namespace bpr::qt {
 
 	protected:
 		void resizeEvent(QResizeEvent* aEvent) override;
+		void showEvent(QShowEvent* aEvent) override;
 
 	private:
+		/// Where one row's code lies in the document it belongs to.
+		struct row_syntax
+		{
+			std::size_t   Side   = 0;
+			std::uint64_t Begin  = 0;
+			std::uint64_t Length = 0;
+		};
+
 		void               paint_bands();
+		void               request_syntax();
 		[[nodiscard]] auto fitted_height(int aRows) const -> int;
 
 		core::cycle_note_excerpt Shown;
-		int                      FitRows = 0;
-		code_role_colors         Colours{ };
-		bool                     Empty = true;
+		std::string              Path;
+		/// The file's lines before and after the suggested changes, as shown.
+		std::array<std::string, 2>     Documents;
+		std::array<classified_text, 2> Classified;
+		/// One per row; an omitted row takes no colours.
+		std::vector<std::optional<row_syntax>> Places;
+		bool                                   Requested = false;
+		int                                    FitRows   = 0;
+		code_role_colors                       Colours{ };
+		bool                                   Empty = true;
 		/// The panes' tab width, which expands the excerpt's tabs; set by
 		/// set_code_font, the default until then.
 		std::uint32_t TabWidth = 0U;
@@ -89,9 +138,10 @@ namespace bpr::qt {
 	public:
 		explicit review_cycle_share_viewer(QWidget* aParent);
 
-		/// \brief One note's code; `aWhole` says whether `aExcerpt` is the whole
-		/// file yet or still the sheet's short excerpt while the file is read.
-		void show_code(const QString& aHeading, const QString& aDetail, const core::cycle_note_excerpt& aExcerpt, bool aWhole);
+		/// \brief One note's code, of the file at `aPath`; `aWhole` says whether
+		/// `aExcerpt` is the whole file yet or still the sheet's short excerpt
+		/// while the file is read.
+		void show_code(const QString& aHeading, const QString& aDetail, const core::cycle_note_excerpt& aExcerpt, bool aWhole, const std::string& aPath);
 		/// \brief The round's exact text, as Copy and Save send it.
 		void show_text(const QString& aHeading, const QString& aText, const QString& aFoot);
 		void set_code_font(const QFont& aFont, std::uint32_t aTabWidth);
@@ -170,6 +220,11 @@ namespace bpr::qt {
 		void present(const application::review_cycle_share_view& aShare, const std::vector<application::review_cycle_note_entry>& aNotes, bool aIdle);
 		void set_code_font(const QFont& aFont, std::uint32_t aTabWidth);
 		void set_code_colours(const code_role_colors& aColours);
+		/// \brief Colours every note's code, and the larger view's, that
+		/// shows `aDocument`; false when none does.
+		auto adopt_code_syntax(std::string_view aDocument, const application::shared_token_spans& aSpans) -> bool;
+		/// Asks for the text a note's code view shows to be classified ([[BPR-1161]]).
+		std::function<void(const source_syntax_request&)> SyntaxWanted;
 		/// \brief Where the sheet hangs: the global point under the middle of
 		/// the review bar, used where the window system does not attach it.
 		void set_anchor(QPoint aGlobal);
@@ -250,6 +305,7 @@ namespace bpr::qt {
 		void               refresh_viewer();
 		void               step_viewer(int aDirection);
 		void               open_text();
+		void               want_code_syntax(const source_syntax_request& aRequest) const;
 
 		review_cycle_share_dispatch                             Dispatch;
 		application::review_cycle_share_view                    Shown;

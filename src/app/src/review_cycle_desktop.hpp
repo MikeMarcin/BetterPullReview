@@ -11,6 +11,7 @@
 #include "bpr/core/review_cycle_command.hpp"
 
 #include <array>
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -33,6 +34,7 @@ namespace bpr::qt {
 
 namespace bpr::app {
 	class suggestion_text_source;
+	class code_syntax_relay;
 
 	/// \brief The packaged syntax definitions and the effect lane their
 	/// classifier already runs on, so Suggest change is coloured by the same
@@ -56,6 +58,9 @@ namespace bpr::app {
 	/// it also classifies the file the source pane shows ([[BPR-1157]]) and
 	/// what Suggest change shows ([[BPR-1156]]): latest text wins on each
 	/// slot, and each surface adopts only spans of the text it still shows.
+	/// Share notes' code views ([[BPR-1161]]) ask through a second host over
+	/// the same definitions and lane, one text at a time, so a sheet of open
+	/// notes never crowds out the file pane or Suggest change.
 	class review_cycle_desktop final : public application::review_cycle_workbench_port, private application::appearance_projection_port
 	{
 	public:
@@ -111,6 +116,10 @@ namespace bpr::app {
 		void want_source_syntax(const qt::source_syntax_request& aRequest);
 		void want(std::size_t aSlot, const std::string& aPath, const std::string& aDocument);
 		void submit_syntax();
+		void want_code_syntax(const qt::source_syntax_request& aRequest);
+		void submit_code_syntax();
+		/// The code host finished the text it was classifying, with `aSpans` or none.
+		void code_syntax_done(const application::token_span_publication* aSpans);
 		void publish(const application::appearance_projection& aProjection) override;
 		void fail(const application::appearance_failure_publication& aFailure) override;
 		void rejected(application::appearance_terminal_rejection aRejection) override;
@@ -126,6 +135,14 @@ namespace bpr::app {
 		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>        SyntaxClassifier;
 		std::unique_ptr<application::syntax_classification_application_host> SyntaxHost;
 		std::array<std::optional<wanted_syntax>, 3>                          Wanted;
+		/// Share notes' code views: their texts wait here, newest last and
+		/// bounded, and one is classified at a time.
+		std::unique_ptr<suggestion_text_source>                              CodeTexts;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>        CodeClassifier;
+		std::unique_ptr<code_syntax_relay>                                   CodeRelay;
+		std::unique_ptr<application::syntax_classification_application_host> CodeHost;
+		std::deque<wanted_syntax>                                            CodeWanted;
+		std::optional<wanted_syntax>                                         CodeClassifying;
 		/// The platform clipboard Copy to Clipboard writes to (BPR-1161).
 		std::unique_ptr<application::review_cycle_clipboard> Clipboard;
 		save_chooser                                         ChooseSave;

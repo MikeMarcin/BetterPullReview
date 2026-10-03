@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <QFontMetricsF>
 #include <QFrame>
 #include <QImage>
@@ -1511,6 +1512,239 @@ namespace {
 		settle();
 #endif
 	}
+	/// A note's code with a row of every kind. Each row's code is an `X` at
+	/// column 0, 4 or 8, reached by tabs, spaces or both, then `return` and a
+	/// number. Line numbers run from one digit to three.
+	auto aligned_excerpt() -> core::cycle_note_excerpt
+	{
+		using kind   = core::cycle_excerpt_row_kind;
+		auto excerpt = core::cycle_note_excerpt{ };
+		excerpt.Rows = {
+			{ .Kind = kind::context, .Line = 8U, .Text = "X0 return 0;" },
+			{ .Kind = kind::noted, .Line = 9U, .Text = "\tX1 return 1;" },
+			{ .Kind = kind::removed, .Line = 10U, .Text = "    X2 return 2;" },
+			{ .Kind = kind::added, .Line = 10U, .Text = "\tX3 return 3;" },
+			{ .Kind = kind::omitted, .Omitted = 89U },
+			{ .Kind = kind::context, .Line = 100U, .Text = "\t\tX4 return 4;" },
+			{ .Kind = kind::context, .Line = 101U, .Text = "        X5 return 5;" },
+			{ .Kind = kind::context, .Line = 102U, .Text = "  \tX6 return 6;" },
+		};
+		excerpt.FileLines = 120U;
+		excerpt.Changes   = 1U;
+		return excerpt;
+	}
+
+	/// The column of `X` on each row of `aligned_excerpt`, at a tab width of 4.
+	constexpr auto aligned_columns = std::array{ 0, 4, 4, 4, -1, 8, 8, 4 };
+
+	/// Where column `aColumn` of a row's code begins, past its line number and mark.
+	auto code_column_left(qt::note_code_view& aCode, const int aRow, const int aColumn) -> qreal
+	{
+		const auto block  = aCode.document()->findBlockByNumber(aRow);
+		auto       cursor = QTextCursor{ block };
+		// "102 • ": the widest line number, a space, the mark and a space.
+		cursor.setPosition(block.position() + 6 + aColumn);
+		return QRectF{ aCode.cursorRect(cursor) }.left();
+	}
+
+	/// \brief The first device-pixel column, at or right of `aFrom`, where row
+	/// `aRow` of the code view has ink: a pixel far from the row's own fill.
+	auto first_ink(qt::note_code_view& aCode, const QImage& aImage, const int aRow, const qreal aFrom) -> int
+	{
+		const auto ratio = aImage.devicePixelRatio();
+		const auto box   = QRectF{ aCode.cursorRect(QTextCursor{ aCode.document()->findBlockByNumber(aRow) }) };
+		const auto fill  = aImage.pixelColor(aImage.width() - static_cast<int>(6.0 * ratio), static_cast<int>(box.center().y() * ratio));
+		for (auto x = static_cast<int>(std::floor(aFrom * ratio)); x < aImage.width(); ++x) {
+			for (auto y = static_cast<int>(std::ceil(box.top() * ratio)); y < static_cast<int>(box.bottom() * ratio) && y < aImage.height(); ++y) {
+				const auto pixel = aImage.pixelColor(x, y);
+				if (std::abs(pixel.red() - fill.red()) + std::abs(pixel.green() - fill.green()) + std::abs(pixel.blue() - fill.blue()) > 120) {
+					return x;
+				}
+			}
+		}
+		return -1;
+	}
+
+	/// \brief Each row's first ink of its `X`, in device pixels; -1 on the omitted row.
+	auto x_inks(qt::note_code_view& aCode) -> std::vector<int>
+	{
+		const auto image = aCode.viewport()->grab().toImage();
+		auto       inks  = std::vector<int>{ };
+		for (auto row = 0; row < static_cast<int>(aligned_columns.size()); ++row) {
+			inks.push_back(aligned_columns[static_cast<std::size_t>(row)] < 0 ? -1 : first_ink(aCode, image, row, code_column_left(aCode, row, 0) - 1.0));
+		}
+		return inks;
+	}
+
+	/// \brief Whether columns [`aFirst`, `aEnd`) of row `aRow`'s code have
+	/// pixels near `aInk` and none near `aOther` (the local role/text rule).
+	auto columns_painted(qt::note_code_view& aCode, const int aRow, const int aFirst, const int aEnd, const QColor& aInk, const QColor& aOther) -> bool
+	{
+		const auto pixmap = aCode.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		const auto box    = QRectF{ aCode.cursorRect(QTextCursor{ aCode.document()->findBlockByNumber(aRow) }) };
+		const auto left   = code_column_left(aCode, aRow, aFirst);
+		const auto right  = code_column_left(aCode, aRow, aEnd);
+		auto       ink    = 0;
+		auto       other  = 0;
+		for (auto y = static_cast<int>(std::ceil(box.top() * ratio)); y < static_cast<int>(box.bottom() * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(std::ceil(left * ratio)); x < static_cast<int>(right * ratio) && x < image.width(); ++x) {
+				ink += colour_near(image.pixelColor(x, y), aInk) ? 1 : 0;
+				other += colour_near(image.pixelColor(x, y), aOther) ? 1 : 0;
+			}
+		}
+		return ink > 0 && other == 0;
+	}
+
+	/// What a classifier finds in one document of a note's code: each
+	/// `return` as control flow and the digit after it as a number.
+	auto return_spans(const std::string& aDocument) -> application::shared_token_spans
+	{
+		auto spans = application::token_span_list{ };
+		auto line  = std::uint32_t{ 0 };
+		auto begin = std::size_t{ 0 };
+		while (begin < aDocument.size()) {
+			const auto end = aDocument.find('\n', begin);
+			const auto row = std::string_view{ aDocument }.substr(begin, end - begin);
+			if (const auto found = row.find("return "); found != std::string_view::npos) {
+				spans.push_back({ .Line = line, .Column = static_cast<std::uint32_t>(found), .Length = 6U, .Role = core::appearance_role::syntax_control_flow });
+				spans.push_back({ .Line = line, .Column = static_cast<std::uint32_t>(found + 7U), .Length = 1U, .Role = core::appearance_role::syntax_number });
+			}
+			++line;
+			begin = end == std::string::npos ? aDocument.size() : end + 1U;
+		}
+		return std::make_shared<const application::token_span_list>(std::move(spans));
+	}
+
+	/// \brief The owner rejected compose-share v002 (event 895): "these lines
+	/// arent aligned, or syntax highlighted, is it usiing the proper monospace
+	/// font?" A note's code, inline and in the larger view, is in the
+	/// profile's code font, the bundled one by default; a column is at the
+	/// same pixel on every row whatever its kind, mark or line number, and
+	/// whether tabs or spaces reach it, and a tab reaches the panes' own tab
+	/// stop; and the code is in the panes' role colours once classified, the
+	/// gutter staying quiet. Rendered pixels throughout.
+	void aligns_and_colours_a_notes_code()
+	{
+		auto       view = qt::review_cycle_view{ };
+		const auto look = qt::appearance_profile{ };
+		view.adopt_appearance(look);
+		view.resize(1280, 760);
+		view.show();
+		settle();
+		auto requests                   = std::vector<qt::source_syntax_request>{ };
+		view.share_page()->SyntaxWanted = [&requests](const qt::source_syntax_request& aRequest) { requests.push_back(aRequest); };
+		auto shown                      = projection(1);
+		shown.Share                     = share_view();
+		auto context                    = application::review_cycle_note_context{
+			.Item     = core::cycle_feedback_item_id{ 1 },
+			.Path     = "src/parser.cpp",
+			.Revision = core::cycle_source_revision_id{ 1 },
+			.Status   = application::review_material_status::available,
+			.Excerpt  = aligned_excerpt(),
+		};
+		shown.Share->Contexts = { context, application::review_cycle_note_context{ .Item = core::cycle_feedback_item_id{ 2 } } };
+		view.present(shown);
+		settle();
+		auto* const sheet = view.share_page();
+		const auto& row   = sheet->rows()[1];
+		auto* const code  = row.Code;
+		expect(sheet->isVisible() && row.Item == core::cycle_feedback_item_id{ 1 } && !code->isVisible(), "the sheet, the note's code closed");
+		expect(requests.empty(), "a closed note's code is not classified");
+		row.Disclose->click();
+		settle();
+		expect(code->isVisible() && code->verticalScrollBar()->maximum() == 0, "the note's code, every row in view");
+
+		// The profile's code font, the bundled family by default; not a font of its own.
+		const auto profileFont = look.code_font();
+		expect(look.typography().Code.TabWidth == 4U, "the panes' default tab width");
+		for (auto* const shownCode : { code, sheet->viewer()->code() }) {
+			expect(shownCode->font().family() == profileFont.family() && shownCode->font().pointSizeF() == profileFont.pointSizeF(), "the profile's code font, at its size");
+			expect(QFontInfo{ shownCode->font() }.family() == qt::bundled_code_font_family() && QFontInfo{ shownCode->font() }.fixedPitch(), "which resolves to the bundled fixed-pitch family");
+		}
+
+		// Every column at one pixel on every row, and a tab at the panes' stop.
+		const auto inks  = x_inks(*code);
+		const auto ratio = code->viewport()->grab().devicePixelRatio();
+		const auto stop  = look.code_tab_stop_distance() * ratio;
+		std::cerr << "note code X inks:";
+		for (const auto ink : inks) {
+			std::cerr << ' ' << ink;
+		}
+		std::cerr << " stop " << stop << '\n';
+		expect(inks[0] >= 0 && inks[1] >= 0 && inks[5] >= 0, "every row has its X");
+		expect(inks[1] == inks[2] && inks[2] == inks[3] && inks[3] == inks[7], "column 4 is one pixel on the noted, removed and added rows, by a tab, by spaces and by both");
+		expect(inks[5] == inks[6], "column 8 is one pixel by two tabs and by eight spaces");
+		expect(std::abs((inks[1] - inks[0]) - stop) <= 1.0 && std::abs((inks[5] - inks[0]) - 2.0 * stop) <= 1.0, "a tab is the panes' tab stop from the code's first column");
+		capture_with_sheet(view, QStringLiteral("cycle-share-sheet-code-aligned"));
+
+		// Negative control: the same rows in a proportional face, set behind the view's back.
+		auto proportional = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+		if (!QFontInfo{ proportional }.fixedPitch()) {
+			auto loose = qt::note_code_view{ };
+			loose.resize(code->size());
+			loose.setFont(proportional);
+			loose.show_excerpt(aligned_excerpt());
+			loose.show();
+			settle();
+			const auto looseInks = x_inks(loose);
+			expect(looseInks[0] >= 0 && !(looseInks[1] == looseInks[2] && looseInks[2] == looseInks[3] && looseInks[3] == looseInks[7] && looseInks[5] == looseInks[6]),
+				   "negative control: in a proportional face the columns are found apart");
+		} else {
+			std::cerr << "note code alignment: the general font is fixed pitch here, so the proportional control is not checked\n";
+		}
+
+		// Classified once shown: the file before and after the change, each as shown.
+		const auto documents = code->syntax_documents();
+		expect(requests.size() == 2U && requests[0].Path == "src/parser.cpp" && requests[1].Path == "src/parser.cpp" && requests[0].Document == documents[0] && requests[1].Document == documents[1],
+			   "the note's code asks for its two documents once it is shown");
+		expect(documents[0].find("    X2 return 2;") != std::string::npos && documents[0].find("X3") == std::string::npos && documents[1].find("    X3 return 3;") != std::string::npos
+				   && documents[1].find("X2") == std::string::npos && documents[0].find('\t') == std::string::npos,
+			   "the removed row only before, the added only after, tabs as shown");
+		expect(!sheet->adopt_code_syntax("int other;\n", return_spans("int other;\n")), "spans of another text are refused");
+		const auto flow  = look.color(core::appearance_role::syntax_control_flow);
+		const auto text  = code->palette().color(QPalette::Text);
+		const auto quiet = code->palette().color(QPalette::PlaceholderText);
+		expect(!columns_painted(*code, 1, 7, 13, flow, text), "plain until classified");
+		for (const auto& request : requests) {
+			expect(sheet->adopt_code_syntax(request.Document, return_spans(request.Document)), "the classification of its own text is adopted");
+		}
+		settle();
+		for (auto index = 0; index < static_cast<int>(aligned_columns.size()); ++index) {
+			const auto column = aligned_columns[static_cast<std::size_t>(index)];
+			if (column < 0) {
+				continue;
+			}
+			expect(columns_painted(*code, index, column + 3, column + 9, flow, text), "return in the control-flow colour, no plain text in it, on every kind of row");
+			expect(columns_painted(*code, index, column, column + 2, text, flow), "and the X beside it in the text colour");
+		}
+		expect(!colour_near(flow, text) && !colour_near(quiet, flow), "the inks can be told apart");
+		capture_with_sheet(view, QStringLiteral("cycle-share-sheet-code-syntax"));
+
+		// The larger view: the same font and stops, coloured once it asks.
+		requests.clear();
+		row.Whole->click();
+		settle();
+		shown.Share->Larger = context;
+		view.present(shown);
+		settle();
+		auto* const whole = sheet->viewer()->code();
+		expect(sheet->viewer()->isVisible() && requests.size() == 2U && requests[0].Document == whole->syntax_documents()[0], "the larger view asks for its own text");
+		expect(x_inks(*whole)[1] == x_inks(*whole)[2] && x_inks(*whole)[5] == x_inks(*whole)[6], "its columns align as the sheet's do");
+		for (const auto& request : requests) {
+			expect(sheet->adopt_code_syntax(request.Document, return_spans(request.Document)), "and adopts its classification");
+		}
+		settle();
+		expect(columns_painted(*whole, 3, 7, 13, flow, text) && columns_painted(*whole, 5, 11, 17, flow, text), "the larger view in the role colours");
+		capture_with_sheet(view, QStringLiteral("cycle-share-sheet-whole-file-syntax"));
+		sheet->viewer()->done_button()->click();
+		settle();
+		shown.Share.reset();
+		view.present(shown);
+		settle();
+	}
+
 	/// [[BPR-1161]]. A note's code shows every row in a face whose leading is
 	/// negative. Windows' Arial is one: its line spacing (13) is below its height
 	/// (14), and the text layout gives each line its height, so a fit by line
@@ -1527,7 +1761,7 @@ namespace {
 			}
 		}
 		if (!face) {
-			std::cerr << "negative-leading row fit: no installed face has negative leading here, so not checked" << std::endl;
+			std::cerr << "negative-leading row fit: no installed face has negative leading here, so not checked\n";
 			return;
 		}
 		auto excerpt = core::cycle_note_excerpt{ };
@@ -1563,6 +1797,7 @@ try {
 	// startup, so every appearance the course builds uses the font it ships.
 	expect(qt::register_bundled_code_font(), "the bundled code font registers");
 	fit_rows_at_negative_leading();
+	aligns_and_colours_a_notes_code();
 	view.set_dispatch({
 		.OpenFile         = [&](const std::string& aPath, bool) { opened = aPath; },
 		.Tab              = [](const core::document_tab_intent&) { },

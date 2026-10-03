@@ -5,6 +5,7 @@
 #include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/core/git_objects.hpp"
+#include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -72,6 +73,38 @@ namespace bpr::app {
 		std::vector<held_text>       Texts;
 	};
 
+	/// \brief The code host's projections, handed to the desktop that owns it
+	/// (BPR-1161): a finished classification, a failure or a refusal each
+	/// end the one text it was classifying.
+	class code_syntax_relay final : public application::appearance_projection_port
+	{
+	public:
+		explicit code_syntax_relay(std::function<void(const application::token_span_publication*)> aDone)
+			: Done{ std::move(aDone) }
+		{
+		}
+
+		void publish(const application::appearance_projection& aProjection) override
+		{
+			if (aProjection.Spans) {
+				Done(&*aProjection.Spans);
+			}
+		}
+
+		void fail(const application::appearance_failure_publication& /*aFailure*/) override
+		{
+			Done(nullptr);
+		}
+
+		void rejected(const application::appearance_terminal_rejection /*aRejection*/) override
+		{
+			Done(nullptr);
+		}
+
+	private:
+		std::function<void(const application::token_span_publication*)> Done;
+	};
+
 	namespace {
 		/// \brief The platform clipboard as Copy to Clipboard sees it
 		/// (BPR-1161): plain text, confirmed only when the platform hands the
@@ -129,6 +162,13 @@ namespace bpr::app {
 				application::appearance_host_limits{ .OutstandingRequests = 4U, .TokenSpanCacheEntries = 4U });
 			View->composer()->SyntaxWanted = [this](const qt::suggestion_syntax_request& aRequest) { want_syntax(aRequest); };
 			View->SourceSyntaxWanted       = [this](const qt::source_syntax_request& aRequest) { want_source_syntax(aRequest); };
+			// [[BPR-1161]]. Share notes' code in the same colours, by its own host.
+			CodeTexts                        = std::make_unique<suggestion_text_source>();
+			CodeClassifier                   = std::make_unique<adapters::syntax::packaged_syntax_classifier>(*SyntaxDefinitions, *CodeTexts);
+			CodeRelay                        = std::make_unique<code_syntax_relay>([this](const application::token_span_publication* aSpans) { code_syntax_done(aSpans); });
+			CodeHost                         = std::make_unique<application::syntax_classification_application_host>(*CodeClassifier, *aSyntax.Effects, aDecisions, *CodeRelay, core::application_session_id{ 2U },
+																													 application::appearance_host_limits{ .OutstandingRequests = 1U, .TokenSpanCacheEntries = 4U });
+			View->share_page()->SyntaxWanted = [this](const qt::source_syntax_request& aRequest) { want_code_syntax(aRequest); };
 		}
 		View->set_dispatch({
 			.OpenFile     = [this](const std::string& aPath, const bool aNewTab) { Host->open_file(aPath, aNewTab); },
@@ -327,6 +367,52 @@ namespace bpr::app {
 		}
 	}
 
+	void review_cycle_desktop::want_code_syntax(const qt::source_syntax_request& aRequest)
+	{
+		if (Closing || !CodeHost) {
+			return;
+		}
+		auto       document = std::make_shared<const std::string>(aRequest.Document);
+		const auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(document->data()), document->size() };
+		auto       wanted   = wanted_syntax{
+			.Key      = { .Blob = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1), .Definition = SyntaxDefinitions->definition_for_path(aRequest.Path) },
+			.Document = std::move(document),
+		};
+		if ((CodeClassifying && CodeClassifying->Key == wanted.Key) || std::ranges::find(CodeWanted, wanted.Key, &wanted_syntax::Key) != CodeWanted.end()) {
+			return;
+		}
+		// The newest texts are the ones on screen; the oldest waiting gives way.
+		constexpr auto waiting = std::size_t{ 16U };
+		if (CodeWanted.size() >= waiting) {
+			CodeWanted.pop_front();
+		}
+		CodeWanted.push_back(std::move(wanted));
+		submit_code_syntax();
+	}
+
+	void review_cycle_desktop::submit_code_syntax()
+	{
+		if (Closing || !CodeHost || CodeClassifying || CodeWanted.empty()) {
+			return;
+		}
+		CodeClassifying = std::move(CodeWanted.front());
+		CodeWanted.pop_front();
+		CodeTexts->hold(CodeClassifying->Key.Blob, CodeClassifying->Document);
+		CodeHost->classify(CodeClassifying->Key);
+	}
+
+	void review_cycle_desktop::code_syntax_done(const application::token_span_publication* aSpans)
+	{
+		if (CodeClassifying) {
+			CodeTexts->release(CodeClassifying->Key.Blob);
+			if (!Closing && aSpans != nullptr && aSpans->Key == CodeClassifying->Key) {
+				View->share_page()->adopt_code_syntax(*CodeClassifying->Document, aSpans->Spans);
+			}
+		}
+		CodeClassifying.reset();
+		submit_code_syntax();
+	}
+
 	void review_cycle_desktop::publish(const application::appearance_projection& aProjection)
 	{
 		if (aProjection.Spans) {
@@ -379,10 +465,15 @@ namespace bpr::app {
 			View->SourceSyntaxWanted       = { };
 			SyntaxHost->shutdown();
 		}
+		if (CodeHost && !CodeHost->is_closing()) {
+			View->share_page()->SyntaxWanted = { };
+			CodeWanted.clear();
+			CodeHost->shutdown();
+		}
 	}
 
 	auto review_cycle_desktop::is_quiescent() const noexcept -> bool
 	{
-		return (!Host || Host->is_quiescent()) && (!SyntaxHost || SyntaxHost->is_quiescent());
+		return (!Host || Host->is_quiescent()) && (!SyntaxHost || SyntaxHost->is_quiescent()) && (!CodeHost || CodeHost->is_quiescent());
 	}
 }

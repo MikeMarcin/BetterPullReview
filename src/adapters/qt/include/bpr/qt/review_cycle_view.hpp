@@ -56,17 +56,6 @@ namespace bpr::qt {
 
 	class appearance_profile;
 
-	/// \brief The source pane asks for the file it shows to be classified
-	/// ([[BPR-1157]]).
-	/// \details The page runs no lexer. Whoever composed it classifies
-	/// `Document`, chosen by `Path`, and hands the spans back through
-	/// `review_cycle_view::adopt_source_syntax` with the same bytes.
-	struct source_syntax_request
-	{
-		std::string Path;
-		std::string Document;
-	};
-
 	/// \brief A local Review Cycle's review surface (RFC-BPR-0061, BPR-1157).
 	///
 	/// \details Built from the RFC-BPR-0052 scaffold's own parts in the same

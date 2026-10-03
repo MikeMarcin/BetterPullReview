@@ -445,7 +445,14 @@ for. The larger view is the same cut of the whole file, read on the
 reviewer's request (`review_cycle_workbench::show_note_code`) and let go when
 it closes. A change whose bytes the file no longer holds at its place is
 counted, not shown elsewhere; reading code freezes, shares and records
-nothing.
+nothing. Both views show the code in the appearance profile's code font, with
+the panes' tab width expanded from the code's first column, so a column is at
+the same place on every row. They are coloured as the cycle's file pane is.
+Qt runs no lexer. A shown note's code asks for its two documents to be
+classified: the file's rows before the suggested changes and after them, each
+as shown. The composition classifies them one at a time on a second syntax
+host, over the panes' packaged definitions and lane. A classification is
+adopted only by a view that still shows exactly that text.
 
 Iteration is manual (RFC-BPR-0057, BPR-1163). Capture revision
 (`review_cycle_workbench::capture_revision`) is the only way back after
