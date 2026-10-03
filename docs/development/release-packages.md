@@ -147,9 +147,15 @@ bundles; an ad-hoc candidate does not qualify.
 `packaging/package_runtime.py` creates a closed runtime inventory and hashes
 deployed bytes after relocation (and after final macOS sealing/stapling). It
 joins the selected Qt producer's SPDX graph with statically compiled SQLite,
-KSyntaxHighlighting, Quill/fmt, Glaze and the macOS-only LibArchive input.
+KSyntaxHighlighting, Quill/fmt, Glaze, the macOS-only LibArchive input and the
+embedded JetBrainsMonoNL Nerd Font faces ([[BPR-1270]]).
 `packaging/dependencies.json` pins their complete source archives; cached or
-downloaded mismatches are refused. ECM is identified as build-only.
+downloaded mismatches are refused. ECM is identified as build-only. The font's
+licence texts and its Nerd Fonts glyph-set licences and attributions are
+retained under `third_party/jetbrains-mono-nerd-font/` and carried whole into
+`THIRD-PARTY-NOTICES.txt` (`NOTICE_FILES` in `packaging/package_runtime.py`, which
+the security audit checks too); its SPDX package is declared `NOASSERTION`
+because it aggregates OFL-1.1, MIT, CC-BY-4.0 and Apache-2.0 material.
 
 The installed `ThirdParty` directory (macOS: `Contents/Resources/ThirdParty`)
 contains `THIRD-PARTY-NOTICES.txt`, `SOURCE-OFFERS.txt`, source provenance and

@@ -4,7 +4,6 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 
-#include <QFontDatabase>
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -147,14 +146,15 @@ namespace bpr::qt {
 				: QStringLiteral("%1 colours customised").arg(aCount);
 		}
 
-		/// \brief The fixed-pitch font the platform itself nominates.
+		/// \brief The code font a fresh installation starts from.
 		///
-		/// \details The same source `default_typography_settings` starts a fresh
-		/// installation from, so a strip nobody has handed the accepted code font
-		/// still draws code in a code font — and no family is named in this file.
-		[[nodiscard]] auto platform_code_font() -> QFont
+		/// \details `default_typography_settings`' own, so a strip nobody has
+		/// handed the accepted code font still draws code in the code font a
+		/// fresh profile would ([[BPR-1270]]) — and no family is named in this
+		/// file.
+		[[nodiscard]] auto default_code_font() -> QFont
 		{
-			auto font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+			auto font = to_presentation_font(default_typography_settings().Code);
 			font.setStyleHint(QFont::Monospace);
 			return font;
 		}
@@ -204,7 +204,7 @@ namespace bpr::qt {
 
 	theme_preview_strip::theme_preview_strip(QWidget* const aParent)
 		: QWidget{ aParent }
-		, CodeFont{ platform_code_font() }
+		, CodeFont{ default_code_font() }
 	{
 		setObjectName(QStringLiteral("appearanceThemePreviews"));
 		setAccessibleName(QStringLiteral("Theme"));

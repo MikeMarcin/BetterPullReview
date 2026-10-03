@@ -35,6 +35,22 @@ CRT = re.compile(r"(?:msvcp140(?:_1|_2|_atomic_wait|_codecvt_ids)?|vcruntime140(
 # Windows image keeps its Qt resources in one bundle and refuses to start
 # without it; see cmake/BprQtResources.cmake.
 RUNTIME_DATA = {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []}
+# Retained third_party licence texts every installed THIRD-PARTY-NOTICES.txt
+# carries whole. [[BPR-1270]]: the bundled code font's OFL, its Nerd Fonts
+# attribution table and the licences of the glyph sets patched into it.
+NOTICE_FILES = (
+    "sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE",
+    "jetbrains-mono-nerd-font/OFL.txt", "jetbrains-mono-nerd-font/NERD-FONTS-README.md",
+    "jetbrains-mono-nerd-font/glyph-licenses/font-patcher-readme.md",
+    "jetbrains-mono-nerd-font/glyph-licenses/codicons-LICENSE.txt",
+    "jetbrains-mono-nerd-font/glyph-licenses/font-awesome-LICENSE.txt",
+    "jetbrains-mono-nerd-font/glyph-licenses/materialdesign-LICENSE",
+    "jetbrains-mono-nerd-font/glyph-licenses/octicons-LICENSE",
+    "jetbrains-mono-nerd-font/glyph-licenses/pomicons-LICENSE",
+    "jetbrains-mono-nerd-font/glyph-licenses/powerline-extra-LICENSE",
+    "jetbrains-mono-nerd-font/glyph-licenses/powerline-symbols-LICENSE.txt",
+    "jetbrains-mono-nerd-font/glyph-licenses/weather-icons-OFL.txt",
+)
 
 
 def run(*arguments: str | Path, env: dict | None = None) -> str:
@@ -253,8 +269,8 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
                         f"Download: {provenance['asset']['url']}\n"
                         f"SHA-256: {provenance['asset']['sha256']}\n")
     texts.append(("Corresponding source release asset", source_reference + "See SOURCE-OFFERS.txt for recipient access, retention and replacement instructions."))
-    for relative in ("sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE"):
-        texts.append((relative, (ROOT / "third_party" / relative).read_text()))
+    for relative in NOTICE_FILES:
+        texts.append((relative, (ROOT / "third_party" / relative).read_text(encoding="utf-8")))
     for name in ("QtBase", "KSyntaxHighlighting"):
         with tarfile.open(archives[name]) as source:
             for member in source.getmembers():

@@ -137,12 +137,25 @@ namespace bpr::qt {
 	/// \brief Returns the typography a fresh installation starts from.
 	///
 	/// \details The core holds no default family because it cannot know one, so
-	/// a default-constructed core record is deliberately illegal. The families
-	/// here are the platform's own general and fixed-pitch system fonts, and
-	/// every numeric value is placed inside `core::bounds_of` for its field
-	/// rather than against a second copy of those bounds, so the composed record
-	/// cannot be one the core would reject.
+	/// a default-constructed core record is deliberately illegal. The UI family
+	/// is the platform's own general system font. The code family is the
+	/// bundled JetBrainsMonoNL Nerd Font where this process's font database
+	/// resolves it ([[BPR-1270]]), and the platform's fixed-pitch system font
+	/// where it does not. Every numeric value is placed inside
+	/// `core::bounds_of` for its field rather than against a second copy of
+	/// those bounds, so the composed record cannot be one the core would reject.
+	///
+	/// A stored record is never measured against this: the store cannot tell a
+	/// chosen family from one written beside some other change, so whatever it
+	/// holds stays the reviewer's.
 	[[nodiscard]] auto default_typography_settings() -> core::typography_settings;
+
+	/// \brief The same, with the bundled family's availability stated.
+	///
+	/// \details `false` is the fallback a failed registration leads to: the
+	/// platform's fixed-pitch system font.
+	[[nodiscard]] auto default_typography_settings(bool aBundledCodeFont)
+		-> core::typography_settings;
 
 	/// \brief Returns the appearance settings a fresh installation starts from.
 	///

@@ -5,6 +5,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/BprQuillProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprGlazeProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprReleaseArchiveProvider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprCodeFontProvider.cmake")
 
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
@@ -262,6 +263,11 @@ function(bpr_configure_dependencies)
             list(APPEND records "Quill|PINNED_ARCHIVE|quill::quill")
 
             bpr_acquire_syntax_highlighting()
+
+            # [[BPR-1270]]. The bundled default code font's four faces.
+            bpr_acquire_code_font()
+            bpr_require_dependency_target(BetterPullReview::CodeFont "JetBrainsMonoNL Nerd Font")
+            list(APPEND records "JetBrainsMonoNLNerdFont|PINNED_ARCHIVE|BetterPullReview::CodeFont")
         endif()
     endif()
 

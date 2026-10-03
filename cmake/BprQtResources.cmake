@@ -46,13 +46,20 @@ function(bpr_require_open_qt_resource_bundle)
 endfunction()
 
 # bpr_add_qt_resources(<target> <name> PREFIX <prefix> BASE <directory>
-#                      FILES <file>... [NO_COMPRESS])
+#                      FILES <file>... [NO_COMPRESS | ALWAYS_COMPRESS])
 #
 # Embeds the files in <target> through qt6_add_resources, exactly as a direct
 # call would, unless this graph ships its resources outside the image. Where a
 # bundle is built, the same files, paths and compression also go into it.
+#
+# ALWAYS_COMPRESS sets rcc's threshold to zero. rcc otherwise stores a file
+# whole unless compression saves 70% of it, and a font saves about 45%
+# ([[BPR-1270]]: 9.97 MB stored, 5.46 MB compressed for the code font's faces).
 function(bpr_add_qt_resources target name)
-    cmake_parse_arguments(PARSE_ARGV 2 resource "NO_COMPRESS" "PREFIX;BASE" "FILES")
+    cmake_parse_arguments(PARSE_ARGV 2 resource "NO_COMPRESS;ALWAYS_COMPRESS" "PREFIX;BASE" "FILES")
+    if(resource_NO_COMPRESS AND resource_ALWAYS_COMPRESS)
+        message(FATAL_ERROR "bpr_add_qt_resources(${target} ${name}) takes NO_COMPRESS or ALWAYS_COMPRESS, not both")
+    endif()
     if(resource_UNPARSED_ARGUMENTS OR NOT resource_PREFIX OR NOT resource_BASE OR NOT resource_FILES)
         message(
             FATAL_ERROR
@@ -64,6 +71,8 @@ function(bpr_add_qt_resources target name)
         set(options "")
         if(resource_NO_COMPRESS)
             set(options OPTIONS --no-compress)
+        elseif(resource_ALWAYS_COMPRESS)
+            set(options OPTIONS --threshold 0)
         endif()
         qt6_add_resources(
             "${target}"
@@ -82,6 +91,8 @@ function(bpr_add_qt_resources target name)
     set(attributes "")
     if(resource_NO_COMPRESS)
         set(attributes " compression-algorithm=\"none\"")
+    elseif(resource_ALWAYS_COMPRESS)
+        set(attributes " threshold=\"0\"")
     endif()
     set(block "<qresource prefix=\"${resource_PREFIX}\">\n")
     set(depends "")

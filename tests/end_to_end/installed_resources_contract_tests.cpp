@@ -10,8 +10,9 @@
 //   registered;
 // - the bundle beside the executable registers, and every resource the
 //   application reads is there with the bytes it was built from: nine icon
-//   sizes, ten uncompressed Dif strips, and KSyntaxHighlighting's own syntax
-//   collection, index included;
+//   sizes, ten uncompressed Dif strips, KSyntaxHighlighting's own syntax
+//   collection, index included, and the four compressed faces of the bundled
+//   code font ([[BPR-1270]]);
 // - releasing the owner unregisters it.
 //
 // This executable links Qt Core and nothing that embeds a resource, so every
@@ -191,6 +192,19 @@ namespace {
 				   "every definition KSyntaxHighlighting's collection names is bundled");
 			expect(definitions.contains(QStringLiteral("cpp.xml")) && definitions.contains(QStringLiteral("python.xml")),
 				   "the definitions include the common languages");
+
+			// [[BPR-1270]]. The bundled code font's four verified faces.
+			constexpr auto faces = std::array{ "Regular", "Bold", "Italic", "BoldItalic" };
+			for (const auto* const face : faces) {
+				const auto name     = QStringLiteral("JetBrainsMonoNLNerdFont-%1.ttf").arg(QLatin1StringView{ face });
+				const auto resource = QResource{ QStringLiteral(":/bpr/fonts/") + name };
+				expect(resource.isValid(), "every code font face is bundled");
+				expect(resource.compressionAlgorithm() != QResource::NoCompression, "every code font face is stored compressed");
+				expect(file_bytes(QStringLiteral(":/bpr/fonts/") + name) == file_bytes(QStringLiteral(BPR_TEST_CODE_FONT_DIRECTORY "/") + name),
+					   "every code font face is the provider's verified face");
+			}
+			expect(QDir{ QStringLiteral(":/bpr/fonts") }.entryList(QDir::Files).size() == static_cast<qsizetype>(faces.size()),
+				   "the bundle holds exactly the four faces");
 		}
 		expect(!QFile::exists(text(icon_resource)), "releasing the owner unregisters the bundle");
 	}

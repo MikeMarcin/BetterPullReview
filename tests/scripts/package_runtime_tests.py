@@ -42,11 +42,64 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})
-        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "LibArchive", "extra-cmake-modules"})
+        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrainsMonoNL-Nerd-Font", "LibArchive", "extra-cmake-modules"})
         for item in items:
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
         self.assertNotIn("LibArchive", {item["name"] for item in runtime.components({"platform": "Windows"})})
+
+    def test_bundled_code_font_is_pinned_noticed_and_inventoried(self):
+        # [[BPR-1270]]. One archive identity in the provider, the release
+        # manifest and the provenance; every retained licence text in the
+        # notices both the producer and the security check use.
+        import hashlib, re
+        item = next(entry for entry in runtime.components({"platform": "Linux"}) if entry["name"] == "JetBrainsMonoNL-Nerd-Font")
+        self.assertEqual(item["url"], "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/JetBrainsMono.tar.xz")
+        provider = (ROOT / "cmake/BprCodeFontProvider.cmake").read_text(encoding="utf-8")
+        self.assertIn(f'set(digest "{item["sha256"]}")', provider)
+        self.assertIn('releases/download/v${BPR_CODE_FONT_VERSION}/JetBrainsMono.tar.xz', provider)
+        self.assertIn('set(BPR_CODE_FONT_VERSION "3.5.1")', provider)
+        self.assertIn("BPR_DEPENDENCY_OFFLINE", provider)
+        for system in ("Darwin", "Windows", "Linux"):
+            self.assertIn(item, runtime.components({"platform": system}))
+        retained = ROOT / "third_party/jetbrains-mono-nerd-font"
+        provenance = (retained / "PROVENANCE.md").read_text(encoding="utf-8")
+        self.assertIn(item["sha256"], provenance)
+        files = sorted(path.relative_to(ROOT / "third_party").as_posix() for path in retained.rglob("*")
+                       if path.is_file() and path.name != "PROVENANCE.md")
+        font_notices = sorted(name for name in runtime.NOTICE_FILES if name.startswith("jetbrains-mono-nerd-font/"))
+        self.assertEqual(files, font_notices, "every retained font licence text is a notice, and no notice is missing")
+        for name in font_notices:
+            data = (ROOT / "third_party" / name).read_bytes()
+            self.assertIn(hashlib.sha256(data).hexdigest(), provenance, name)
+        for face in re.findall(r'"(JetBrainsMonoNLNerdFont-[A-Za-z]+\.ttf)\|([0-9a-f]{64})"', provider):
+            self.assertIn(f"| {face[0]} | ", provenance)
+            self.assertIn(face[1], provenance)
+        self.assertEqual(len(re.findall(r'"JetBrainsMonoNLNerdFont-[A-Za-z]+\.ttf\|', provider)), 4)
+        security = (ROOT / "scripts/verify_release_security.py").read_text(encoding="utf-8")
+        self.assertIn("package.runtime.NOTICE_FILES", security)
+
+    def test_notices_carry_every_retained_text_whole(self):
+        with ContainedTemporaryDirectory() as directory:
+            build, root = Path(directory) / "build", Path(directory) / "root"
+            build.mkdir()
+            root.mkdir()
+            info = {"platform": "Linux", "version": "1.2.3"}
+            provenance = runtime.source_provenance(info, "0" * 40, "1" * 64)
+            records = {"packages": [], "files": [], "relationships": [], "upstreamNamespace": "x", "hasExtractedLicensingInfos": []}
+            empty = io.BytesIO()
+            with tarfile.open(fileobj=empty, mode="w"):
+                pass
+            archive = Path(directory) / "empty.tar"
+            archive.write_bytes(empty.getvalue())
+            with patch.object(runtime, "source_archives", return_value={"QtBase": archive, "KSyntaxHighlighting": archive}), \
+                    patch.object(runtime, "prepare_source_asset", return_value=provenance), \
+                    patch.object(runtime, "qt_records", return_value=records):
+                runtime.notices(build, info, root)
+            notices = (root / "ThirdParty/THIRD-PARTY-NOTICES.txt").read_text(encoding="utf-8")
+        for name in runtime.NOTICE_FILES:
+            self.assertIn((ROOT / "third_party" / name).read_text(encoding="utf-8"), notices, name)
+        self.assertIn("SIL OPEN FONT LICENSE Version 1.1", notices)
 
     def test_windows_runtime_declares_its_resource_bundle(self):
         # [[BPR-0974]]. The bundle is installed before deployment, is not a PE

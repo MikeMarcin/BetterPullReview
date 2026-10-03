@@ -1,5 +1,7 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 
+#include "bpr/qt/appearance_profile.hpp"
+
 #include <QContextMenuEvent>
 #include <QFont>
 #include <QFontMetrics>
@@ -65,16 +67,6 @@ namespace bpr::qt {
 			return label;
 		}
 
-		/// \brief The code font the excerpt is set in.
-		[[nodiscard]] auto code_font(const QFont& aFont) -> QFont
-		{
-			auto code = aFont;
-			code.setFamily(QStringLiteral("JetBrainsMonoNL Nerd Font"));
-			code.setStyleHint(QFont::Monospace);
-			code.setPointSizeF(aFont.pointSizeF() * 0.9);
-			return code;
-		}
-
 		[[nodiscard]] auto text(const std::string& aValue) -> QString
 		{
 			return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size()));
@@ -137,6 +129,7 @@ namespace bpr::qt {
 
 	conversation_cards_view::conversation_cards_view(QWidget* const aParent)
 		: QAbstractScrollArea{ aParent }
+		, CodeFont{ to_presentation_font(default_typography_settings().Code) }
 	{
 		setObjectName(QStringLiteral("conversationCards"));
 		setAccessibleName(QStringLiteral("Comment cards"));
@@ -501,6 +494,21 @@ namespace bpr::qt {
 		return count;
 	}
 
+	void conversation_cards_view::set_code_font(const QFont& aFont)
+	{
+		if (CodeFont == aFont) {
+			return;
+		}
+		CodeFont = aFont;
+		clear_measurements();
+		relayout();
+	}
+
+	auto conversation_cards_view::code_font() const -> const QFont&
+	{
+		return CodeFont;
+	}
+
 	void conversation_cards_view::set_code_colours(const QColor& aBackground, const QColor& aInk)
 	{
 		CodeBackground = aBackground;
@@ -721,7 +729,7 @@ namespace bpr::qt {
 		// in the code font on the code background.
 		if (!Compact && Feed && !aCard.Excerpt.isEmpty()) {
 			const auto lines = static_cast<int>(aCard.Excerpt.count(QLatin1Char{ '\n' })) + 1;
-			y += lines * QFontMetrics{ code_font(font()) }.height() + 2 * excerpt_padding + post_gap;
+			y += lines * QFontMetrics{ CodeFont }.height() + 2 * excerpt_padding + post_gap;
 		}
 		for (auto& post : aCard.Posts) {
 			if (Compact) {
@@ -1206,15 +1214,14 @@ namespace bpr::qt {
 			// [[BPR-0649]]. The excerpt sits above the posts on the code
 			// background, in the code font; the theme's own colours.
 			if (Feed && !card.Excerpt.isEmpty()) {
-				const auto code   = code_font(font());
 				const auto lines  = static_cast<int>(card.Excerpt.count(QLatin1Char{ '\n' })) + 1;
-				const auto height = lines * QFontMetrics{ code }.height() + 2 * excerpt_padding;
+				const auto height = lines * QFontMetrics{ CodeFont }.height() + 2 * excerpt_padding;
 				const auto top    = tagY + (card.Resolved || card.Outdated || card.Draft ? header_height : 0);
 				const auto box    = QRect{ card.Rect.left() + card_padding, top, card.Rect.width() - 2 * card_padding, height };
 				painter.setPen(Qt::NoPen);
 				painter.setBrush(CodeBackground);
 				painter.drawRoundedRect(box, 4.0, 4.0);
-				painter.setFont(code);
+				painter.setFont(CodeFont);
 				painter.setPen(CodeInk);
 				painter.drawText(box.adjusted(excerpt_padding, excerpt_padding, -excerpt_padding, -excerpt_padding),
 								 Qt::AlignLeft | Qt::AlignTop, card.Excerpt);

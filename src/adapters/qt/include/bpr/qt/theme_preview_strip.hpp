@@ -120,9 +120,8 @@ namespace bpr::qt {
 		/// \brief Adopts the code font the accepted typography asks for.
 		///
 		/// \details Supplied rather than chosen. Until it is, the tiles use the
-		/// platform's own fixed-pitch font, which is the same source
-		/// `default_typography_settings` starts a fresh installation from — never a
-		/// family named in this file.
+		/// code font `default_typography_settings` starts a fresh installation
+		/// from — never a family named in this file.
 		void set_code_font(QFont aFont);
 		/// \brief [[BPR-1107]]. When the tiles draw white space: the typography's
 		/// own choice, so a tile shows what its theme's review window shows.

@@ -593,6 +593,15 @@ endfunction()
 # but a complete current reviewer revision. Agent context only: no grant,
 # target, provider, credential, mutation or publication path changes; mutation
 # pin unchanged; no new src/app source.
+# BPR-1270 reseal: 9ff5bbbbc..this candidate; no intervening pinned-scope
+# commit (the manifest pin matched at 9ff5bbbbc). main.cpp registers the
+# bundled JetBrainsMonoNL Nerd Font faces (bpr::qt::register_bundled_code_font,
+# Qt adapter resources) once, after QApplication and the window icon and before
+# anything composes an appearance; a failure is not fatal. Its
+# BPR_BUILD_TESTING --code-font-probe prints the fresh profile's code font and
+# exits before composition, like --application-icon-probe. Presentation only:
+# no grant, target, provider, credential, mutation or publication path changes;
+# github_application.cpp and the mutation pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -809,7 +818,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "10a2b5cdfba2c3189d582742f010fabd79a889229f1861800ec4cc8c4580ce0c"
+        "c57698431bf51518709d25831ce5a7f39f19021f4827eb271004b286d58f1c03"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

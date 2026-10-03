@@ -3278,6 +3278,23 @@ exposes only headers; it does not execute upstream build or install rules.
 License and provenance are under `third_party/glaze/`. Core-only builds do not
 acquire Glaze. Existing GitHub Qt JSON parsers are unchanged in this slice.
 
+## Bundled code font
+
+[[BPR-1270]]. Qt graphs embed four faces of JetBrainsMonoNL Nerd Font, the
+default code font on every platform, from the official Nerd Fonts v3.5.1
+`JetBrainsMono.tar.xz` release asset. `cmake/BprCodeFontProvider.cmake` checks
+the archive's size and SHA-256 and each face's SHA-256, and refuses an archive
+whose `OFL.txt` or `README.md` differs from the copies retained in
+`third_party/jetbrains-mono-nerd-font/`. An offline configure needs the archive
+in the source cache as `nerd-fonts-v3.5.1-JetBrainsMono.tar.xz`. Core-only
+builds do not acquire it.
+
+The composition registers the faces after `QApplication` exists. A fresh
+profile's code font is that family; where registration fails it is the
+platform's fixed font. A stored appearance record keeps its family. The focused
+checks are `qt_bundled_code_font`, `application_code_font` (the real startup,
+`--code-font-probe`) and `package_runtime_contract`.
+
 The focused verification is `github_mutation_contract`, including raw malformed
 numeric identities and Unicode responses, plus `live_review_mutation_provider`
 for the source-line publication path. The whole-review application workflow

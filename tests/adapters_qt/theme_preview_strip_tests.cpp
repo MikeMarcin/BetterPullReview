@@ -12,7 +12,6 @@
 #include "bpr/qt/theme_preview_strip.hpp"
 
 #include <QApplication>
-#include <QFontDatabase>
 #include <QImage>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -401,17 +400,17 @@ namespace {
 			"a theme's own overrides reach its tile, so the tile is that theme "
 			"rather than that theme's built-in profile");
 
-		// The family is supplied too. Setting it to the platform's own fixed font
-		// must change nothing, because that is already what an unsupplied strip
-		// draws with: the family is never named in the widget.
+		// The family is supplied too. Setting it to the default typography's code
+		// font must change nothing, because that is already what an unsupplied
+		// strip draws with: the family is never named in the widget.
 		const auto beforeFont = strip.grab().toImage();
-		auto       platform   = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-		platform.setStyleHint(QFont::Monospace);
-		strip.set_code_font(platform);
+		auto       fresh      = qt::to_presentation_font(qt::default_typography_settings().Code);
+		fresh.setStyleHint(QFont::Monospace);
+		strip.set_code_font(fresh);
 		settle();
 		expect(
 			strip.grab().toImage() == beforeFont,
-			"the default code font is the platform's own fixed-pitch font, so no "
+			"the default code font is the fresh typography's code font, so no "
 			"family is hard-coded in the strip");
 	}
 

@@ -1,6 +1,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 
 #include "bpr/core/appearance_contrast.hpp"
+#include "bpr/qt/bundled_code_font.hpp"
 
 #include <QCoreApplication>
 #include <QFontDatabase>
@@ -572,14 +573,27 @@ namespace bpr::qt {
 
 	auto default_typography_settings() -> core::typography_settings
 	{
+		return default_typography_settings(bundled_code_font_available());
+	}
+
+	auto default_typography_settings(const bool aBundledCodeFont)
+		-> core::typography_settings
+	{
+		auto code = native_font(QFontDatabase::FixedFont, fixed_fallback_family);
+		// [[BPR-1270]]. The bundled family at the platform's own code size and
+		// at the regular weight, the faces it bundles being regular and bold.
+		if (aBundledCodeFont) {
+			code.Family = bundled_code_font_family().toStdString();
+			code.Weight = within_bounds(
+				core::typography_field::weight,
+				static_cast<std::uint64_t>(QFont::Normal));
+		}
 		return core::typography_settings{
 			.Ui = native_ui_font(
 				QFontDatabase::GeneralFont,
 				general_fallback_family),
 			.Code = core::code_font_settings{
-				.Font = native_font(
-					QFontDatabase::FixedFont,
-					fixed_fallback_family),
+				.Font     = std::move(code),
 				.TabWidth = within_bounds(
 					core::typography_field::tab_width,
 					nominal_tab_width),

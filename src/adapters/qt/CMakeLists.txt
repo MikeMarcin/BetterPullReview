@@ -14,6 +14,7 @@ add_library(
         src/release_update_recovery_dialog.cpp
         src/agent_launch_panel.cpp
         src/appearance_profile.cpp
+        src/bundled_code_font.cpp
         src/appearance_settings_panel.cpp
         src/github_cli_consent.cpp
         src/github_session_panel.cpp
@@ -134,6 +135,19 @@ bpr_add_qt_resources(better_pull_review_adapter_qt bpr_dif
         assets/dif/generated/dif-attention.png
         assets/dif/generated/dif-acknowledge.png
         assets/dif/generated/dif-blocked.png
+)
+# [[BPR-1270]]. The bundled default code font: four verified faces from the
+# pinned provider (cmake/BprCodeFontProvider.cmake). Always compressed: 9.97 MB
+# of faces embed as 5.46 MB. A tests-disabled Windows image carries them in its
+# bundle.
+get_target_property(bpr_code_font_directory BetterPullReview::CodeFont BPR_CODE_FONT_DIRECTORY)
+get_target_property(bpr_code_font_files BetterPullReview::CodeFont BPR_CODE_FONT_FILES)
+list(TRANSFORM bpr_code_font_files PREPEND "${bpr_code_font_directory}/")
+bpr_add_qt_resources(better_pull_review_adapter_qt bpr_code_font
+    PREFIX "/bpr/fonts"
+    BASE "${bpr_code_font_directory}"
+    ALWAYS_COMPRESS
+    FILES ${bpr_code_font_files}
 )
 # [[BPR-1250]]. The menu bar status item's template image, macOS only. A
 # derivative of the accepted neutral master made offline by

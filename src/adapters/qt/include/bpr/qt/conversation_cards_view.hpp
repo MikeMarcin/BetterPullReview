@@ -206,6 +206,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto unresolved_count() const noexcept -> std::size_t;
 		[[nodiscard]] auto unread_thread_count() const noexcept -> std::size_t;
 		void               set_code_colours(const QColor& aBackground, const QColor& aInk);
+		/// \brief [[BPR-1270]]. The excerpt's font: the appearance profile's
+		/// code font. Until one is supplied, the default typography's.
+		void               set_code_font(const QFont& aFont);
+		[[nodiscard]] auto code_font() const -> const QFont&;
 		/// \brief Adopts the read state the ledger host decided.
 		///
 		/// \details [[BPR-0656]]. Until a state arrives every post is drawn
@@ -334,6 +338,7 @@ namespace bpr::qt {
 		QString                                         PullRequestAuthor;
 		card_excerpt_locator                            ExcerptLocator;
 		std::function<void()>                           LayoutObserver;
+		QFont                                           CodeFont;
 		QColor                                          CodeBackground{ 0xF6, 0xF8, 0xFA };
 		QColor                                          CodeInk{ 0x1F, 0x23, 0x28 };
 		cards_scope                                     Scope = cards_scope::this_file;

@@ -808,6 +808,7 @@ namespace bpr::qt {
 	void github_conversation_panel::adopt_appearance(const appearance_profile& aProfile)
 	{
 		Body->set_code_font(aProfile.code_font(), aProfile.code_tab_stop_distance());
+		Cards->set_code_font(aProfile.code_font());
 	}
 
 	void github_conversation_panel::refresh_projection()

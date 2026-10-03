@@ -2,6 +2,8 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/bundled_code_font.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -46,6 +48,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontInfo>
 #include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
@@ -7657,8 +7660,29 @@ auto main(int argc, char** argv) -> int
 	QCoreApplication::setOrganizationName(
 		QStringLiteral("BetterPullReview"));
 	QApplication::setWindowIcon(application_icon());
+	// [[BPR-1270]]. The bundled default code font, before anything composes
+	// an appearance. A failure is not fatal: the default code font is then
+	// the platform's fixed font.
+	[[maybe_unused]] const auto bundledCodeFont = bpr::qt::register_bundled_code_font();
 
 #if defined(BPR_BUILD_TESTING)
+	if (has_argument(argc, argv, "--code-font-probe")) {
+		// The fresh profile's code font as the composition would apply it,
+		// resolved by this process's font database.
+		const auto defaults = bpr::qt::default_typography_settings();
+		const auto font     = bpr::qt::to_presentation_font(defaults.Code);
+		const auto resolved = QFontInfo{ font };
+		const auto family   = QString::fromStdString(defaults.Code.Font.Family);
+		const auto valid    = bundledCodeFont
+			&& family == bpr::qt::bundled_code_font_family()
+			&& resolved.family() == family && resolved.fixedPitch();
+		QTextStream{ stdout }
+			<< "CODE_FONT_PROBE registered=" << (bundledCodeFont ? "yes" : "no")
+			<< " default=\"" << family << "\" resolved=\"" << resolved.family()
+			<< "\" fixed_pitch=" << (resolved.fixedPitch() ? "yes" : "no") << '\n'
+			<< (valid ? "CODE_FONT_OK\n" : "CODE_FONT_INVALID\n");
+		return valid ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
 	if (has_argument(argc, argv, "--application-icon-probe")) {
 		const auto icon  = QApplication::windowIcon();
 		const auto valid = !icon.isNull()

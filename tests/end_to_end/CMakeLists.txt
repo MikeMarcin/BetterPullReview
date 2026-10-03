@@ -1768,6 +1768,23 @@ set_tests_properties(
         TIMEOUT 15
 )
 
+# [[BPR-1270]]. The real startup registers the bundled code font, and a fresh
+# profile's code font is that family, resolved fixed-pitch by this process's
+# font database. Exits before composition, like the icon probe.
+bpr_add_network_isolated_test(
+    NAME application_code_font
+    COMMAND
+        app_better_pull_review
+        --code-font-probe
+)
+set_tests_properties(
+    application_code_font
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION "CODE_FONT_OK"
+        TIMEOUT 15
+)
+
 bpr_add_network_isolated_test(
     NAME application_native_appearance_probe_contract
     WINDOWS_UNCONTAINED
@@ -2985,6 +3002,7 @@ if(WIN32)
     get_target_property(bpr_resource_bundle_header better_pull_review_resource_bundle BPR_BUNDLE_HEADER_DIRECTORY)
     get_property(bpr_syntax_collection GLOBAL PROPERTY BPR_KSYNTAXHIGHLIGHTING_SYNTAX_COLLECTION)
     get_property(bpr_syntax_index GLOBAL PROPERTY BPR_KSYNTAXHIGHLIGHTING_SYNTAX_INDEX)
+    get_target_property(bpr_code_font_directory BetterPullReview::CodeFont BPR_CODE_FONT_DIRECTORY)
     bpr_add_executable(
         test_better_pull_review_installed_resources_contract
         installed_resources_contract_tests.cpp
@@ -3004,6 +3022,7 @@ if(WIN32)
             "BPR_TEST_SOURCE_ROOT=\"${PROJECT_SOURCE_DIR}\""
             "BPR_TEST_SYNTAX_COLLECTION=\"${bpr_syntax_collection}\""
             "BPR_TEST_SYNTAX_INDEX=\"${bpr_syntax_index}\""
+            "BPR_TEST_CODE_FONT_DIRECTORY=\"${bpr_code_font_directory}\""
     )
     target_compile_features(test_better_pull_review_installed_resources_contract PRIVATE cxx_std_23)
     bpr_enable_hardening(test_better_pull_review_installed_resources_contract)

@@ -484,6 +484,28 @@ namespace {
 			   "unavailable comparison removes the previous excerpt and its height");
 	}
 
+	// [[BPR-1270]]. The excerpt is measured and set in the code font the view
+	// was handed, not in a family the view names.
+	auto test_the_excerpt_follows_the_supplied_code_font() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.set_excerpt_locator([](const QString&, core::diff_side, std::uint32_t) -> std::optional<QString> {
+			return QStringLiteral("first line\nsecond line\nthird line");
+		});
+		view.set_feed(true);
+		view.adopt({ thread("t", "src/a.cpp", 2U), reply("p", "t", "author", "post") });
+		const auto before = view.cards().front().Rect.height();
+		auto       larger = view.code_font();
+		larger.setPointSizeF(larger.pointSizeF() * 2.0);
+		view.set_code_font(larger);
+		expect(view.code_font() == larger, "the view keeps the code font it was handed");
+		expect(view.cards().front().Rect.height() > before, "a larger code font lays the excerpt out taller at once");
+		const auto measured = view.measurements();
+		view.set_code_font(larger);
+		expect(view.measurements() == measured, "the same code font again measures nothing");
+	}
+
 	void test_compact_labels_keep_independent_geometry()
 	{
 		qt::conversation_cards_view view;
@@ -977,6 +999,7 @@ auto main(int argc, char** argv) -> int
 	test_compact_labels_keep_independent_geometry();
 	test_alternating_widths_keep_both_widths_measured();
 	test_feed_geometry_refresh_updates_excerpts();
+	test_the_excerpt_follows_the_supplied_code_font();
 	test_cached_geometry_matches_a_fresh_view();
 	test_a_dispatch_that_relays_out_still_names_the_pressed_card();
 	std::cout << "conversation-cards-view-tests:pass\n";

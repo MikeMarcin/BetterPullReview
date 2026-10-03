@@ -25,7 +25,7 @@ def source_and_notices(root: Path, sbom: Path, info: dict) -> dict:
     legal = package.runtime.legal_root(root, info)
     provenance = package.runtime.installed_source_provenance(root, info)
     notices = (legal / "THIRD-PARTY-NOTICES.txt").read_text(encoding="utf-8")
-    for relative in ("sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE"):
+    for relative in package.runtime.NOTICE_FILES:
         require((package.ROOT / "third_party" / relative).read_text(encoding="utf-8") in notices, "required-notice-missing")
     qt = json.loads((legal / "qt-runtime-provenance.json").read_text(encoding="utf-8"))
     upstream = package.runtime.qt_records(info, root)
