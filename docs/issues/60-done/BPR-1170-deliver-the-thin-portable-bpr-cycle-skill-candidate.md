@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1170"
 title: "Deliver the thin portable bpr-cycle skill candidate"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0058"]
 depends_on: ["BPR-1169"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "external-consumers", "acceptance": ["RC58-08", "RC58-10"], "pack_alias": "PACK-CYCLE-28", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"RC58-08","outcome":"pass","revision":"dc503b791","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner accepted BPR-1170-rc58-08-distribution-v001 (session cbd48b91000b00f1e72e1ad62c7c384c, event 861). The package is in AgentSkills (399da0d, then b4a3357 after the frontmatter quoting fix e2f9f567f that mask install needed) and selected from agentskills in .mask.json by a reviewed mask install; mask status --check is clean. The package, the AgentSkills copy and both MASK links digest to sha256:8b5946f579a0f8bf3de38bfc45113d1b3789f236dccf7dab57caa2d0828a5381. skill_bpr_cycle_package passes with the links present (14 broken copies refused; the 1b8fd4a5c package and a real-directory copy fail). The package half (active harness, no second model or orchestrator, no provider publisher) is unchanged from 1b8fd4a5c; nothing was installed silently."}},{"criterion":"RC58-10","outcome":"pending","revision":"dc503b791","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Manual half passes (unchanged from 1b8fd4a5c). Owner accepted BPR-1170-rc58-10-harness-course-v001 (event 862). scripts/run_bpr1170_harness_course.py is that course: setup and the session's default-profile view verified without a model, analyzer checked on a synthetic transcript. The observed session has not run: standalone Claude Code is not signed in (claude auth status loggedIn false; claude -p answers 'OAuth session expired and could not be refreshed'). Needs the owner to run claude auth login once, then one run of the course."}}]
+acceptance: [{"criterion":"RC58-08","outcome":"pass","revision":"dc503b791","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner accepted BPR-1170-rc58-08-distribution-v001 (session cbd48b91000b00f1e72e1ad62c7c384c, event 861). The package is in AgentSkills (399da0d, then b4a3357 after the frontmatter quoting fix e2f9f567f that mask install needed) and selected from agentskills in .mask.json by a reviewed mask install; mask status --check is clean. The package, the AgentSkills copy and both MASK links digest to sha256:8b5946f579a0f8bf3de38bfc45113d1b3789f236dccf7dab57caa2d0828a5381. skill_bpr_cycle_package passes with the links present (14 broken copies refused). Nothing was installed silently."}},{"criterion":"RC58-10","outcome":"pass","revision":"a8fb079aa","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Manual half passes (unchanged from 1b8fd4a5c). Owner-authorized course (BPR-1170-rc58-10-harness-course-v001, event 862) ran once: claude -p --safe-mode, Claude Code 2.1.278, disposable fixture profile, package read from the checkout (bytes of dc503b791), Release tour-cli bpr, no live GitHub. The session read SKILL.md and all three references, ran capabilities, read RC-1 F1 whole before its first edit, made the three fixture changes, showed RC-2's not_granted next without running it, replied by item ID naming no unrun test, and appended response 1 over stdin (appended true, I1-I3 addressed). No second agent or model. Seven Claude Code denials, all outside the course's grant; none blocked a package step, so no rerun. Transcript and course.json outside Git in ~/Library/Caches/bpr-1170-course.c300syus/."}}]
 ---
 
 Pack alias: **PACK-CYCLE-28** (live `BPR-1170`, allocated at import).
@@ -127,3 +126,30 @@ Record its summary in the ledger and finish this card if the session followed
 the package. Details are in the
 [execution ledger](../../verification/RFC-BPR-0053-0061.md) under "BPR-1170: the
 owner's two answers and what followed".
+
+## RC58-10's observed course: 2026-10-03
+
+**RC58-10 passes, and this card is done.** After the owner's `claude auth
+login`, the prepared course ran once at `a8fb079aa`, whose package bytes are
+`dc503b791`'s. It was one `claude -p --safe-mode` session (Claude Code 2.1.278)
+in a disposable fixture, with the Release `tour-cli` `bpr`. There was no live
+GitHub and no other harness. The transcript and `course.json` stay outside Git
+in `~/Library/Caches/bpr-1170-course.c300syus/`.
+
+The session read `SKILL.md` and all three references from the checkout. It ran
+`capabilities`, then read RC-1 F1 whole (one page, `next` null) before its
+first edit. It made the three changes in the fixture. When RC-2 F1 was refused
+`not_granted`, it showed `next` to the user and did not run it. It replied by
+item ID and named no test it had not run. It then appended one response over
+standard input: response `1`, `appended` true, I1 to I3 `addressed`. It started
+no second agent or model. Claude Code denied seven requests, all outside what
+the course granted: an `ls` of the course root, `shasum`/`dd`, `python3`, a
+`/tmp` Write and `rm`. None stopped a step the package asks for, so the run was
+not repeated. The `--settings` grants applied under `--safe-mode`.
+
+The driver's analyzer crashed after the session on a string-valued
+`permission_denied` message. It was fixed, and a new `--analyze-only` mode
+summarized the same transcript without a second session. The commands, grants,
+refusals, response, fixture diff and judgment are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md) under "BPR-1170:
+RC58-10's observed course".

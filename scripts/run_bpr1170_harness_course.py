@@ -15,20 +15,26 @@ What it does:
 2. Plays the reviewer by script: RC-1 over a small fixture folder with three notes, action
    `implement`, frozen as F1 and granted; RC-2 over another folder, frozen and NOT granted; the
    policy allows `external_retrieval`.
-3. Starts one `claude -p --safe-mode` session (no CLAUDE.md, skills, hooks, plugins or MCP) in
-   the fixture folder. Its Bash may run `BPR_CYCLE_ROLE=consumer bpr cycle ...` only; Edit and
-   Write are allowed inside the fixture folder; Read is allowed there and on the package. Every
-   other tool request is denied by Claude Code and listed in `permission_denials`. Web tools are
-   denied. No GitHub, credential, shared skill directory or real repository is involved.
+3. Starts one `claude -p --safe-mode` session (no CLAUDE.md, user or project skills, hooks,
+   plugins or MCP; Claude Code's bundled skills remain) in the fixture folder. Its settings allow
+   Bash `BPR_CYCLE_ROLE=consumer bpr cycle ...`; Edit and Write inside the fixture folder; Read
+   there and on the package. Claude Code itself also lets read-only commands (`pwd`, `ls`,
+   `which`, `find`) run inside the working folder and on readable paths; observed in the
+   2026-10-03 course. Every other tool request is denied and listed in `permission_denials`,
+   with its reason in a `permission_denied` event. Web tools are denied. No GitHub, credential,
+   shared skill directory or real repository is involved.
 4. Records the stream-json transcript and a summary (`course.json`): the model, every command the
    session ran and what `bpr` answered, the package files it read, whether it read the whole round
    before its first edit, the refusals it met and what it did with them, the response the store
    holds, the fixture diff, and that no second agent or model was started.
 
 It refuses to start the session when `claude auth status` reports no sign-in. The transcript stays
-in the disposable root; record its facts, not the file, in the ledger.
+in the disposable root; record its facts, not the file, in the ledger. `--analyze-only ROOT`
+summarizes a course that already ran in ROOT, from its transcript and its profile, without
+starting another session.
 
 Usage: run_bpr1170_harness_course.py BPR_EXECUTABLE [--root DIR] [--setup-only] [--max-turns N]
+       run_bpr1170_harness_course.py BPR_EXECUTABLE --analyze-only ROOT
 """
 from __future__ import annotations
 
@@ -92,9 +98,13 @@ class Reviewer:
         return value["data"]
 
 
+def profile(home):
+    return home / "Library" / "Application Support" / "BetterPullReview" / "BetterPullReview"
+
+
 def setup(root, binary):
     home = root / "home"
-    data = home / "Library" / "Application Support" / "BetterPullReview" / "BetterPullReview"
+    data = profile(home)
     project, other, bin_dir = root / "fixture", root / "other", root / "bin"
     for path in (home, project, other, bin_dir):
         path.mkdir(mode=0o700, parents=True)
@@ -166,7 +176,8 @@ def analyze(events, reviewer, project, before):
     final = next((e for e in reversed(events) if e.get("type") == "result"), {})
     results = {}
     for event in events:
-        for block in (event.get("message") or {}).get("content") or []:
+        message = event.get("message")  # a `permission_denied` system event carries a string here
+        for block in (message.get("content") or [] if isinstance(message, dict) else []):
             if isinstance(block, dict) and block.get("type") == "tool_result":
                 content = block.get("content")
                 text = content if isinstance(content, str) else "".join(c.get("text", "") for c in content or [] if isinstance(c, dict))
@@ -214,7 +225,10 @@ def analyze(events, reviewer, project, before):
         "whole_round_before_first_edit": whole and (not edits or reads[-1] < edits[0]),
         "refusals": [{"command": s["command"], **s["bpr"]["error"]} for s in steps if s.get("bpr", {}).get("outcome") == "error"],
         "agents_started": [s for s in steps if s["tool"] in ("Task", "Agent")],
-        "permission_denials": final.get("permission_denials"), "turns": final.get("num_turns"), "is_error": final.get("is_error"),
+        "permission_denials": final.get("permission_denials"),
+        "denial_reasons": [{"tool": e.get("tool_name"), "reason": e.get("decision_reason_type"), "message": str(e.get("message"))[:200]}
+                           for e in events if e.get("type") == "system" and e.get("subtype") == "permission_denied"],
+        "turns": final.get("num_turns"), "is_error": final.get("is_error"),
         "final_reply": final.get("result"), "responses": shown.get("responses"), "grants": shown.get("grants"),
         "fixture_diff": "".join("".join(difflib.unified_diff(before.get(r, "").splitlines(True), after.get(r, "").splitlines(True), r, r))
                                 for r in sorted(set(before) | set(after))),
@@ -227,8 +241,14 @@ def main():
     parser.add_argument("--root", type=Path)
     parser.add_argument("--setup-only", action="store_true")
     parser.add_argument("--max-turns", type=int, default=40)
+    parser.add_argument("--analyze-only", type=Path, metavar="ROOT")
     options = parser.parse_args()
     binary = options.bpr.resolve()
+    if options.analyze_only:
+        root = options.analyze_only.resolve()
+        events = [json.loads(line) for line in (root / "transcript.jsonl").read_text(encoding="utf-8").splitlines() if line.strip().startswith("{")]
+        report(root, binary, analyze(events, Reviewer(binary, profile(root / "home")), root / "fixture", dict(FIXTURE_FILES)))
+        return
     if not options.setup_only and not signed_in(session_environment()):
         raise SystemExit("Claude Code is not signed in for a standalone session; run `claude auth login` once, then rerun.")
     caches = Path.home() / "Library" / "Caches"
@@ -239,7 +259,10 @@ def main():
         print(json.dumps({"root": str(root), "fixture": str(project), "rc1": reviewer.ok("show", "RC-1")["grants"]}, indent=1))
         return
     events = session(root, home, project, bin_dir, options.max_turns)
-    summary = analyze(events, reviewer, project, before)
+    report(root, binary, analyze(events, reviewer, project, before))
+
+
+def report(root, binary, summary):
     summary.update({"root": str(root), "bpr": str(binary), "package": str(PACKAGE)})
     (root / "course.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     print(json.dumps({k: v for k, v in summary.items() if k != "steps"}, indent=1))
