@@ -3,6 +3,7 @@
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/suggestion_text_editing.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 
 #include <QApplication>
 #include <QButtonGroup>
@@ -330,13 +331,13 @@ namespace bpr::qt {
 
 		/// Tabs as spaces to the review panes' tab stops, counted from the code's
 		/// first column, so the line number before it moves no stop.
-		auto expand_tabs(const QString& aText) -> QString
+		auto expand_tabs(const QString& aText, const std::uint32_t aWidth) -> QString
 		{
 			if (!aText.contains(QLatin1Char('\t'))) {
 				return aText;
 			}
 			auto       expanded = QString{ };
-			const auto width    = static_cast<qsizetype>(core::default_suggestion_tab_width);
+			const auto width    = static_cast<qsizetype>(aWidth > 0U ? aWidth : core::default_suggestion_tab_width);
 			for (const auto character : aText) {
 				if (character == QLatin1Char('\t')) {
 					expanded.append(QString(width - expanded.size() % width, QLatin1Char(' ')));
@@ -356,6 +357,24 @@ namespace bpr::qt {
 		setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 		setUndoRedoEnabled(false);
+	}
+
+	void note_code_view::set_code_font(const QFont& aFont, const std::uint32_t aTabWidth)
+	{
+		// [[BPR-1161]]. The panes' font through the shared code view's helper: on
+		// Windows a generic monospace family otherwise resolves to a proportional face.
+		const auto font = fixed_pitch_code_font(aFont);
+		setFont(font);
+		const auto width = aTabWidth > 0U ? aTabWidth : core::default_suggestion_tab_width;
+		setTabStopDistance(QFontMetricsF{ font }.horizontalAdvance(QLatin1Char(' ')) * width);
+		if (width != TabWidth) {
+			TabWidth = width;
+			if (!Empty) {
+				// The excerpt's tabs are expanded at this width, so show it again.
+				Empty = true;
+				show_excerpt(core::cycle_note_excerpt{ Shown });
+			}
+		}
 	}
 
 	void note_code_view::set_colours(const code_role_colors& aColours)
@@ -379,7 +398,7 @@ namespace bpr::qt {
 				lines.append(QStringLiteral("%1   ⋯ %2").arg(QString{ n, QLatin1Char(' ') }, count_words(row.Omitted, QStringLiteral("line not shown"), QStringLiteral("lines not shown"))));
 				continue;
 			}
-			lines.append(QStringLiteral("%1 %2 %3").arg(row.Line ? QString::number(*row.Line) : QString{ }, n).arg(mark_of(row.Kind)).arg(expand_tabs(text_of(row.Text))));
+			lines.append(QStringLiteral("%1 %2 %3").arg(row.Line ? QString::number(*row.Line) : QString{ }, n).arg(mark_of(row.Kind)).arg(expand_tabs(text_of(row.Text), TabWidth)));
 		}
 		setPlainText(lines.join(QLatin1Char('\n')));
 		auto description = QStringList{ };
@@ -571,11 +590,10 @@ namespace bpr::qt {
 		Next->hide();
 	}
 
-	void review_cycle_share_viewer::set_code_font(const QFont& aFont)
+	void review_cycle_share_viewer::set_code_font(const QFont& aFont, const std::uint32_t aTabWidth)
 	{
-		Code->setFont(aFont);
-		Code->setTabStopDistance(QFontMetricsF{ aFont }.horizontalAdvance(QLatin1Char(' ')) * core::default_suggestion_tab_width);
-		Text->setFont(aFont);
+		Code->set_code_font(aFont, aTabWidth);
+		Text->setFont(Code->font());
 	}
 
 	void review_cycle_share_viewer::set_colours(const code_role_colors& aColours)
@@ -927,15 +945,15 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 	}
 
-	void review_cycle_share_sheet::set_code_font(const QFont& aFont)
+	void review_cycle_share_sheet::set_code_font(const QFont& aFont, const std::uint32_t aTabWidth)
 	{
 		for (auto& row : Rows) {
-			row.Code->setFont(aFont);
-			row.Code->setTabStopDistance(QFontMetricsF{ aFont }.horizontalAdvance(QLatin1Char(' ')) * core::default_suggestion_tab_width);
+			row.Code->set_code_font(aFont, aTabWidth);
 			row.Code->fit_rows(inline_rows);
 		}
-		Viewer->set_code_font(aFont);
-		CodeFont = aFont;
+		Viewer->set_code_font(aFont, aTabWidth);
+		CodeFont     = aFont;
+		CodeTabWidth = aTabWidth;
 	}
 
 	void review_cycle_share_sheet::set_code_colours(const code_role_colors& aColours)
@@ -1130,8 +1148,7 @@ namespace bpr::qt {
 		row.Code->setFocusPolicy(Qt::ClickFocus);
 		row.Code->set_colours(Colours);
 		if (CodeFont) {
-			row.Code->setFont(*CodeFont);
-			row.Code->setTabStopDistance(QFontMetricsF{ row.Code->font() }.horizontalAdvance(QLatin1Char(' ')) * core::default_suggestion_tab_width);
+			row.Code->set_code_font(*CodeFont, CodeTabWidth);
 		}
 		detailColumn->addWidget(row.Code);
 		auto* const footRow = new QHBoxLayout{ };

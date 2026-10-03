@@ -12,6 +12,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <set>
@@ -55,6 +56,9 @@ namespace bpr::qt {
 		/// \brief Shows `aExcerpt`; nothing changes when it is already shown.
 		void show_excerpt(const core::cycle_note_excerpt& aExcerpt);
 		void set_colours(const code_role_colors& aColours);
+		/// \brief The review panes' code font, made fixed-pitch as the shared code
+		/// view makes it, and their tab width ([[BPR-1161]]).
+		void set_code_font(const QFont& aFont, std::uint32_t aTabWidth);
 		/// \brief Fits the height to the rows, at most `aRows` of them.
 		void fit_rows(int aRows);
 		/// \brief The first row the note is about: its first noted or changed row.
@@ -72,6 +76,9 @@ namespace bpr::qt {
 		int                      FitRows = 0;
 		code_role_colors         Colours{ };
 		bool                     Empty = true;
+		/// The panes' tab width, which expands the excerpt's tabs; set by
+		/// set_code_font, the default until then.
+		std::uint32_t TabWidth = 0U;
 	};
 
 	/// \brief The larger view over the share sheet: one note's whole file, or
@@ -87,7 +94,7 @@ namespace bpr::qt {
 		void show_code(const QString& aHeading, const QString& aDetail, const core::cycle_note_excerpt& aExcerpt, bool aWhole);
 		/// \brief The round's exact text, as Copy and Save send it.
 		void show_text(const QString& aHeading, const QString& aText, const QString& aFoot);
-		void set_code_font(const QFont& aFont);
+		void set_code_font(const QFont& aFont, std::uint32_t aTabWidth);
 		void set_colours(const code_role_colors& aColours);
 		/// \brief Previous note and Next note: offered when there is one.
 		void set_steps(bool aPrevious, bool aNext);
@@ -161,7 +168,7 @@ namespace bpr::qt {
 		void set_dispatch(review_cycle_share_dispatch aDispatch);
 		/// \brief Shows the host's share view; `aNotes` names the notes.
 		void present(const application::review_cycle_share_view& aShare, const std::vector<application::review_cycle_note_entry>& aNotes, bool aIdle);
-		void set_code_font(const QFont& aFont);
+		void set_code_font(const QFont& aFont, std::uint32_t aTabWidth);
 		void set_code_colours(const code_role_colors& aColours);
 		/// \brief Where the sheet hangs: the global point under the middle of
 		/// the review bar, used where the window system does not attach it.
@@ -282,6 +289,7 @@ namespace bpr::qt {
 		code_role_colors                            Colours{ };
 		/// The review panes' code font, once the appearance gives it.
 		std::optional<QFont>  CodeFont;
+		std::uint32_t         CodeTabWidth = 0U;
 		std::optional<QPoint> Anchor;
 		/// A grip being dragged: the included row it started on and where it was pressed.
 		std::optional<std::size_t> Dragging;

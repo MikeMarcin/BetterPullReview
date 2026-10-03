@@ -527,3 +527,26 @@ After the fix, the selection passes 18/18, in 70.97 s:
 - `core_review_cycle_share` and `core_review_cycle_policy`;
 - `architecture_boundaries`;
 - `test_network_isolation_manifest`.
+
+### The sheet's code on the panes' font (bpr-main-win, 2026-10-03)
+
+The note excerpts and the whole-file panel took the appearance's code font
+raw. On Windows its generic `monospace` family resolved to Arial, so the code
+was not fixed-pitch. Now:
+
+- `note_code_view::set_code_font(font, tab width)` puts the font through
+  `fixed_pitch_code_font()`, the shared code view's helper, with no new
+  lookup. It sets the panes' tab width as the tab stop, and expands the
+  excerpt's tabs at that width.
+- The share sheet and its viewer pass both on.
+- `review_cycle_view` gives the sheet its `TabWidth` with the font.
+- The row-height fix above stays.
+
+Measured on Windows at `2cef0715d` plus this change (MSVC 14.51, Qt 6.11.2,
+`build/windows-dev` Debug). A probe of the opened excerpt, not committed,
+printed `resolved=Consolas fixed=1`, line spacing 14, leading 0, height 152,
+and scroll maximum 0. The selection's executables were deleted and rebuilt
+with no `warning C` or `warning LNK` line, and `clang-format` is clean. The
+BPR-1161 selection passes 18/18, in 69.41 s: `qt_review_cycle_view_1_0`
+9.10 s, `_2_0` 16.28 s, and `application_review_cycle_desktop_public_path`
+16.97 s. The macOS and Linux reruns are the coordinator's.

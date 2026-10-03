@@ -704,7 +704,7 @@ namespace bpr::qt {
 		Comparison->setFont(aFont);
 		Comparison->setTabStopDistance(tab);
 		Composer->set_code_font(aFont);
-		SharePage->set_code_font(aFont);
+		SharePage->set_code_font(aFont, TabWidth);
 	}
 
 	void review_cycle_view::adopt_appearance(const appearance_profile& aProfile)
