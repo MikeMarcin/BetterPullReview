@@ -459,3 +459,29 @@ Passing rows: `core_review_cycle_{share,policy}`, `sqlite_review_cycle_storage`,
 `application_review_cycle_desktop_public_path`, the three
 `application_review_tour_composition_*` rows and `architecture_boundaries`.
 No remote mutation.
+
+### The stale goal-field ring, fixed (bpr-main-linux, 2026-10-02, `0a1053c11`)
+
+**Cause.** A temporary log of the goal field's ring (`QLineEdit
+cycleShareGoal`, not committed) showed the last reopening of the sheet:
+`Show` (ring hidden, correct), then a **`FocusIn` (Tab reason) delivered
+while the field's `hasFocus()` was already false**. Focus had moved on to
+"Copy round 1" by then, and no `FocusOut` followed. `keyboard_focus_ring`'s
+`FocusIn` branch called `show()` unconditionally, so the stale event left
+the ring lit. The earlier fix covered the `Show` path (a window hidden with
+focus inside), not a late focus-in.
+
+**Fix (`src/adapters/qt/src/keyboard_focus_ring.cpp`).** On `FocusIn` the
+ring calls `setVisible(parentWidget()->hasFocus())`, so the control's current
+focus decides, not the event. Only that branch changed. The `FocusOut`
+(popup-reason exception), `Resize` and `Show` paths, and the share sheet,
+are unchanged.
+
+| Check (Linux, GCC 15.2, `build/dev`, offscreen) | Result |
+|---|---|
+| `qt_review_cycle_view_1_0` and `_2_0`, 3 runs each | 6 of 6 pass |
+| Negative control: the previous `keyboard_focus_ring.cpp`, rebuilt (not committed) | Both fail at `one focus ring, on Copy: none left from before the sheet closed` |
+| The requested selection plus every `qt_` row at -j6 | 122 of 128 pass. The 6 failures are [[BPR-1255]]'s title-row and window rows at their overflow check. |
+| `cmake --build --preset dev`; clang-format 22; `git diff --check`; `tidy.py --paths` on the file | 0 warnings; clean |
+
+Not run on macOS.
