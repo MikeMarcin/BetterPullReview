@@ -240,3 +240,30 @@ next release.
 
 Candidate 327130672 (on 67941cbea). Next action: the Linux and Windows station
 runs above; then finish the card with their evidence.
+
+## Linux: bpr-main-linux, 2026-10-03
+
+At `dc25ffc4c` (includes `327130672`), on WSL2 with GCC 15.2, Qt 6.11.2 and
+`build/dev` Debug, offscreen. This system has no JetBrains font
+(`fc-list | grep -i jetbrains` finds none), so the bundled copy is what loads.
+
+- `cmake --preset dev && cmake --build --preset dev` exits 0 with 0
+  `warning:` lines. The pinned `JetBrainsMono-2.304.zip` was fetched into the
+  dependency cache, and the cached Nerd Fonts archive from the withdrawn variant
+  was deleted.
+- **The bundled font loads and is fixed-pitch.** `application_code_font` prints
+  `CODE_FONT_PROBE registered=yes default="JetBrains Mono NL"
+  resolved="JetBrains Mono NL" fixed_pitch=yes`, and `qt_bundled_code_font`
+  passes.
+- The first requested selection passes **15 of 15** in 97.52 s, including
+  `dependency_modernization_contract` (69.31 s), the release and package
+  contracts, `test_network_isolation_manifest`, the round-trip contract and
+  `architecture_boundaries`.
+- All `^qt_` rows: **110 of 116** pass in 72.03 s. The 6 failures are
+  [[BPR-1255]]'s `qt_workbench_title_row_scale_*` and
+  `qt_workbench_window_scale_*`, each only at `no review-bar control folds into
+  an overflow menu at any width`. No rendered row moved with the new default
+  (from DejaVu Sans Mono), so nothing was re-baselined and no threshold was
+  touched.
+
+No remote mutation beyond the authorized font download.
