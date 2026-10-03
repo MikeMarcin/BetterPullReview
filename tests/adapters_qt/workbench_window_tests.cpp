@@ -1,3 +1,4 @@
+#include "../support/review_tour_fixture.hpp"
 #include "diff_publication_fixture.hpp"
 
 #include "bpr/core/diff_compute.hpp"
@@ -14,6 +15,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -7031,6 +7033,56 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1241]]. In the assembled window, with a stop selected in the
+	/// tour outline, Option-Shift-U retargets the stop and Option-R still composes
+	/// the review; away from the outline Option-Shift-U retargets nothing.
+	void test_tour_retarget_key_reaches_only_the_outline()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		window.activateWindow();
+		process_events();
+		auto* const editor = window.tour_editor();
+		auto        fired  = std::vector<qt::tour_editor_action>{ };
+		editor->set_dispatch([](core::tour_command) { }, [&fired](qt::tour_editor_action aAction) { fired.push_back(aAction); });
+		application::tour_presentation tour;
+		tour.Draft = std::make_shared<const core::review_tour>(tests::review_tour_fixture());
+		editor->present(tour);
+		window.open_review_tour();
+		editor->show_stops();
+		process_events();
+		auto* const outline  = editor->outline();
+		auto* const retarget = editor->findChild<QAction*>(QStringLiteral("tourRetarget"));
+		auto* const menu     = editor->findChild<QMenu*>(QStringLiteral("tourStopMenu"));
+		auto* const stack    = window.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
+		auto* const start    = stack->currentWidget();
+		expect(retarget != nullptr && menu != nullptr && outline->count() == 1 && outline->isVisible(),
+			   "the open tour shows its one stop and the stop menu holds the retarget");
+		const auto keys = retarget->shortcut().toString(QKeySequence::NativeText);
+		expect(retarget->shortcut() == QKeySequence{ QStringLiteral("Alt+Shift+U") } && menu->toolTipsVisible()
+				   && retarget->toolTip().contains(keys) && retarget->toolTip().contains(QStringLiteral("No code is copied")),
+			   "the retarget is Option-Shift-U, and its menu tooltip names that key and says it copies no code");
+		outline->setCurrentRow(0);
+		outline->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(outline->hasFocus() && editor->selected_stop() != nullptr, "the stop is selected and the outline has focus");
+		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
+		expect(fired == std::vector{ qt::tour_editor_action::retarget_stop } && stack->currentWidget() == start,
+			   "Option-Shift-U on the outline retargets the selected stop once and opens nothing else");
+		window_key(window, Qt::Key_R, Qt::AltModifier);
+		expect(fired.size() == 1U && stack->currentWidget()->objectName() == QStringLiteral("composeReviewPage"),
+			   "Option-R on the outline composes the review and does not retarget");
+		window_key(window, Qt::Key_Escape, Qt::NoModifier);
+		window.modality()->button(qt::review_modality::review)->setFocus(Qt::OtherFocusReason);
+		process_events();
+		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
+		expect(fired.size() == 1U, "Option-Shift-U away from the outline retargets nothing");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1129]]. Compose review's mark is the kept-draft rule applied to
 	/// what the workflow last presented: none for an empty draft, the amber mark
 	/// and its words while a summary is kept, none again once it is discarded.
@@ -10863,6 +10915,7 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--dif-workshop-placement"))) {
 		test_composition_pages_retain_editors_and_never_submit_on_navigation();
 		test_composition_keys_open_the_pages_and_esc_returns();
+		test_tour_retarget_key_reaches_only_the_outline();
 		test_dif_uses_the_corner_except_for_prime_spots();
 		std::cout << "dif-workshop-placement:pass\n";
 		return EXIT_SUCCESS;
@@ -10943,6 +10996,7 @@ auto main(int argc, char** argv) -> int
 	}
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
 	test_composition_keys_open_the_pages_and_esc_returns();
+	test_tour_retarget_key_reaches_only_the_outline();
 	test_compose_review_marks_a_kept_draft();
 	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();
 	test_settings_share_only_offered_agent_context_and_maintenance_actions();

@@ -704,8 +704,12 @@ namespace bpr::qt {
 		MergeStops     = action(tr("Merge"), QStringLiteral("tourMerge"), { }, [this] { structural(core::tour_command_kind::merge_next); });
 		MergeStops->setToolTip(tr("Select two or more adjacent stops to merge in route order."));
 		// [[BPR-1241]]. Option-R (Alt+R) is the window's Compose review; a second claim
-		// on it in the same window is ambiguous and neither action would run.
-		action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), QKeySequence{ QStringLiteral("Alt+Shift+U") }, [this] { trigger(tour_editor_action::retarget_stop); });
+		// on it in the same window is ambiguous and neither action would run. This
+		// repoints the stop at the lines selected in either pane and copies no code,
+		// so it is not a diff tool's Copy to Right and takes none of its keys.
+		auto* const retarget = action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), QKeySequence{ QStringLiteral("Alt+Shift+U") }, [this] { trigger(tour_editor_action::retarget_stop); });
+		retarget->setToolTip(tr("Point this stop at the lines selected in the comparison (%1). No code is copied or changed.").arg(retarget->shortcut().toString(QKeySequence::NativeText)));
+		menu->setToolTipsVisible(true);
 		RemoveStops = action(tr("Remove"), QStringLiteral("tourRemove"), QKeySequence{ Qt::Key_Delete }, [this] { structural(core::tour_command_kind::remove); });
 		RemoveStops->setShortcuts({ QKeySequence{ Qt::Key_Delete }, QKeySequence{ Qt::Key_Backspace } });
 		const auto shortcut = [&](const QString& aName, const QKeySequence& aKeys, QWidget* aOwner, auto aCallback) {
