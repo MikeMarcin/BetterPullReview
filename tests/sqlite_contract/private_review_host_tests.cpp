@@ -548,6 +548,84 @@ namespace {
 		expect(!compositions.agent_intent(saved->State.Id, workspace->Version), "stale invocation intent refused");
 	}
 
+	/// [[BPR-1245]], BPR-1245-workshop-v001. A comment-workshop press records the
+	/// stored draft as one immutable reviewer revision and asks with it alone.
+	void workshop_press()
+	{
+		fixture f;
+		auto    index        = private_review_fixture::index();
+		f.Binding.Comparison = index.diff().Alignment.Digest;
+		review_composition_application_host drafts(*f.Store);
+		auto                                allocated = drafts.allocate_draft(*make_composition_target(f.Binding, { *f.Binding.Comparison, diff_side::right, 1 }, index), index, "WORKSHOP_FIRST");
+		expect(allocated && allocated->records().size() == 1, "seed one durable inline draft");
+		const auto draft  = allocated->records().front().Draft;
+		auto       edited = drafts.change_draft({ { draft.Draft.Id, review_draft_command_kind::edit, "WORKSHOP_DRAFT\tat press" }, draft.Revision, false, { }, review_draft_scope_id{ 1 } });
+		expect(edited.has_value(), "reviewer edits the draft before the press");
+		const auto threadsBefore = f.Store->list_threads()->Threads.size();
+		auto       press         = f.Private.record_workshop_press(f.Binding, draft.Draft.Id, index);
+		expect(press && press->Run.Sources.size() == 1 && press->Run.Purpose == private_run_purpose::findings && !press->Run.Thread, "press yields one findings run over one source");
+		expect(f.Store->list_threads()->Threads.size() == threadsBefore + 1, "press adds one thread to Private history");
+		const auto source   = press->Run.Sources.front().Source;
+		auto       recorded = f.Store->read_revision_body({ source, 0 });
+		expect(recorded && recorded->Bytes == "WORKSHOP_DRAFT\tat press", "the revision holds the draft's stored text at the press");
+		auto header = f.Store->load_thread(press->Thread);
+		expect(header && std::get<source_line_ref>(std::get<exact_private_subject>(header->Binding).Subject) == draft.Draft.Anchor, "the thread is about the draft's line");
+		auto turns = f.Store->list_revisions(press->Thread);
+		expect(turns && turns->Revisions.size() == 1 && std::holds_alternative<private_reviewer_actor>(turns->Revisions.front().Revision.Actor), "the revision is the reviewer's");
+
+		const auto workshop = [&f](private_run_intent aRun) {
+			auto request                      = f.request("");
+			request.Context.EntryPoint        = agent_entry_point::workshop_comment;
+			request.Context.WorkshopOperation = workshop_operation::clarify;
+			request.PrivateRun                = std::move(aRun);
+			return request;
+		};
+		f.Process.OnStart = [&](const agent_launch_request& aRequest) {
+			const auto& context = aRequest.DeferredContext;
+			expect(context.find("private.count\t1\n") != std::string::npos && context.find("private.0.body\tWORKSHOP_DRAFT\\tat press\n") != std::string::npos, "the agent reads the recorded revision");
+			expect(context.find("draft.count\t0\n") != std::string::npos && context.find("note.count\t0\n") != std::string::npos && context.find("workshop_operation\tclarify\n") != std::string::npos, "no mutable draft or note crosses; the operation does");
+		};
+		f.send(workshop(press->Run));
+		expect(f.Process.Starts == 1 && f.Projection.Errors.empty(), "the press's run starts with its one source");
+		auto runs = f.Store->list_runs();
+		expect(runs && runs->Runs.size() == 1 && runs->Runs.front().EntryPoint == agent_entry_point::workshop_comment && runs->Runs.front().SelectedPrivateSources == press->Run.Sources, "the run's provenance names the press and its one source");
+		f.Process.OnStart = { };
+
+		auto later = drafts.change_draft({ { draft.Draft.Id, review_draft_command_kind::edit, "WORKSHOP_LATER" }, edited->records().front().Draft.Revision, false, { }, review_draft_scope_id{ 1 } });
+		expect(later && f.Store->read_revision_body({ source, 0 })->Bytes == "WORKSHOP_DRAFT\tat press", "a later edit leaves the recorded revision unchanged");
+
+		// Negative controls: each is refused before any process starts.
+		auto none    = press->Run;
+		none.Sources = { };
+		f.send(workshop(none));
+		expect(f.Process.Starts == 1, "a press without a recorded revision never launches");
+		auto extra = f.seeded("SECOND_SOURCE");
+		auto ref   = source_of(extra.Revision);
+		auto two   = press->Run;
+		two.Sources.push_back({ ref, ref.Key, false });
+		f.send(workshop(two));
+		expect(f.Process.Starts == 1, "a press with a second source never launches");
+		auto unnamed                      = workshop(press->Run);
+		unnamed.Context.WorkshopOperation = std::nullopt;
+		f.send(unnamed);
+		expect(f.Process.Starts == 1, "a workshop run names its operation");
+		auto conversation    = press->Run;
+		conversation.Purpose = private_run_purpose::conversation;
+		f.send(workshop(conversation));
+		expect(f.Process.Starts == 1, "a workshop run is a findings run");
+		auto withDraft                  = workshop(press->Run);
+		withDraft.Context.IncludedDraft = agent_draft_choice{ .Id = draft.Draft.Id, .Revision = 1 };
+		f.send(withDraft);
+		expect(f.Process.Starts == 1, "the mutable draft never rides beside its revision");
+
+		auto foreign                = f.Binding;
+		foreign.Revision.RightEpoch = epoch_ordinal{ 99 };
+		expect(!f.Private.record_workshop_press(foreign, draft.Draft.Id, index), "a draft of another revision is not recorded");
+		expect(!f.Private.record_workshop_press(f.Binding, review_draft_id{ 999 }, index), "an unknown draft is not recorded");
+		auto second = f.Private.record_workshop_press(f.Binding, draft.Draft.Id, index);
+		expect(second && second->Thread != press->Thread && f.Store->read_revision_body({ second->Run.Sources.front().Source, 0 })->Bytes == "WORKSHOP_LATER", "a second press records its own revision of the text then");
+	}
+
 	void composition_adversaries()
 	{
 		fixture f;
@@ -607,6 +685,7 @@ int main()
 	composition_adversaries();
 	local_compositions();
 	agent_composition();
+	workshop_press();
 	composition_and_ordering();
 	refusals_and_lifecycle();
 	source_refusals();

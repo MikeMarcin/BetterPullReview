@@ -127,6 +127,42 @@ namespace {
 		std::ranges::reverse(selected);
 		expect(ordered == private_selection_digest(selected), "canonical source digest independent of presentation order");
 	}
+	/// [[BPR-1245]]. A comment-workshop press asks about exactly the one
+	/// reviewer revision that recorded the draft at the press.
+	void workshop_sources()
+	{
+		source_fixture f;
+		expect(admit_workshop_run_sources(f.Selected, f.Observed).has_value(), "one complete current reviewer revision is the workshop's source");
+		expect(admit_workshop_run_sources({ }, { }).error() == private_review_refusal::invalid_provenance, "a press with no recorded revision is refused");
+		auto second           = f.Selected[0];
+		second.Source.Key     = private_turn_source{ private_review_thread_id{ 1 }, private_review_turn_id{ 2 }, private_review_turn_revision_id{ 2 } };
+		second.ExpectedLatest = second.Source.Key;
+		auto observedTwo      = f.Observed;
+		observedTwo.push_back(f.Observed[0]);
+		observedTwo.back().Source = second.Source;
+		observedTwo.back().Latest = second.Source.Key;
+		auto two                  = std::vector{ f.Selected[0], second };
+		expect(!admit_workshop_run_sources(two, observedTwo), "a second source is refused");
+		auto agent          = f.Observed;
+		agent.front().Actor = private_agent_actor{ agent_run_id{ 1 } };
+		expect(!admit_workshop_run_sources(f.Selected, agent), "an agent's turn is not the reviewer's draft");
+		auto incomplete               = f.Observed;
+		incomplete.front().Completion = private_revision_completion::incomplete;
+		expect(!admit_workshop_run_sources(f.Selected, incomplete), "an incomplete revision is refused");
+		auto historical               = f.Selected;
+		historical.front().Historical = true;
+		expect(!admit_workshop_run_sources(historical, f.Observed), "an explicitly historical revision is refused");
+		auto moved                                                   = f.Observed;
+		std::get<private_turn_source>(moved.front().Latest).Revision = private_review_turn_revision_id{ 2 };
+		expect(!admit_workshop_run_sources(f.Selected, moved), "a revision the thread has moved past is refused");
+		auto finding                   = f.Selected;
+		finding.front().Source.Key     = private_finding_source{ agent_run_id{ 1 }, 0 };
+		finding.front().ExpectedLatest = finding.front().Source.Key;
+		auto findingObserved           = f.Observed;
+		findingObserved.front().Source = finding.front().Source;
+		findingObserved.front().Latest = finding.front().Source.Key;
+		expect(!admit_workshop_run_sources(finding, findingObserved), "a finding is not a recorded draft");
+	}
 	void lineage()
 	{
 		source_fixture                        f;
@@ -315,6 +351,7 @@ int main()
 {
 	metadata_matrix();
 	source_admission();
+	workshop_sources();
 	lineage();
 	modes_and_local_draft();
 	partitions();

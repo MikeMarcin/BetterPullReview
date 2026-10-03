@@ -742,6 +742,35 @@ namespace bpr::app {
 		},
 			 std::move(aCompletion));
 	}
+	void private_review_workflow::record_workshop_press(core::review_draft_id aDraft, press_completion aCompletion)
+	{
+		if (Closing || !Current || !Binding || !Index) {
+			aCompletion(std::unexpected(application::private_run_error{ .Store = application::private_store_failure::unavailable }));
+			return;
+		}
+		const auto generation = Generation;
+		auto       context    = Current;
+		++Pending;
+		Effects.post([this, generation, context, binding = *Binding, index = Index, aDraft, completion = std::move(aCompletion)]() mutable {
+			auto pressed = [&] {
+				const auto lock = std::scoped_lock{ Gate };
+				return application::private_review_application_host(*context->Store).record_workshop_press(binding, aDraft, *index);
+			}();
+			Decisions.post([this, generation, context, recorded = std::move(pressed), notify = std::move(completion)]() mutable {
+				--Pending;
+				if (Closing || generation != Generation || context != Current) {
+					notify(std::unexpected(application::private_run_error{ .Policy = core::private_review_refusal::conflict }));
+					return;
+				}
+				if (recorded) {
+					changed({ .Scope = context->Scope, .Thread = recorded->Thread });
+				} else {
+					Panel.show_status(QString::fromStdString(message(recorded.error())));
+				}
+				notify(std::move(recorded));
+			});
+		});
+	}
 	auto private_review_workflow::find(const core::private_review_scope& aScope) -> std::shared_ptr<context>
 	{
 		auto found = std::ranges::find_if(Contexts, [&](const auto& aContext) { return aContext->Scope == aScope; });

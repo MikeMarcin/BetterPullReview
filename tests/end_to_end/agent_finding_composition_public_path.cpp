@@ -20,6 +20,7 @@
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -54,6 +55,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 namespace {
 	using namespace bpr;
@@ -71,6 +73,57 @@ namespace {
 	constexpr std::string_view agent_claim
 		= "BPR_FINDING_CLAIM_0504 the retry budget is not reported to the caller";
 	constexpr auto contextual_cue_cooldown_ms = 2'100UL;
+
+	/// \brief What the canary reports for a press asked about one revision.
+	///
+	/// \details [[BPR-1245]], RFC-BPR-0023. A workshop press records the
+	/// draft's text as one reviewer revision in Private history and asks with
+	/// it as the turn's only source: one private source, a reviewer turn
+	/// (kind 0), and no mutable draft or note field beside it. The body is
+	/// the wire's escaped spelling of the recorded text.
+	[[nodiscard]] auto workshop_sources(const std::string_view aText) -> std::string
+	{
+		auto escaped = std::string{ };
+		for (const auto character : aText) {
+			if (character == '\t') {
+				escaped += "\\t";
+			} else if (character == '\n') {
+				escaped += "\\n";
+			} else if (character == '\\') {
+				escaped += "\\\\";
+			} else {
+				escaped.push_back(character);
+			}
+		}
+		return "BPR_PRIVATE_SOURCES_1245 count=1 kind=0 drafts=0 notes=0 body="
+			+ escaped + " end";
+	}
+
+	/// \brief Private history as the reviewer reads it: threads, and the
+	/// selected thread's revisions.
+	struct private_history
+	{
+		std::size_t              Threads = 0U;
+		std::vector<std::string> ReviewerBodies;
+		std::size_t              Turns = 0U;
+	};
+
+	[[nodiscard]] auto read_private_history(qt::workbench_window& aWindow) -> private_history
+	{
+		auto  history = private_history{ };
+		auto* panel   = aWindow.private_review();
+		if (panel == nullptr) {
+			return history;
+		}
+		history.Threads = panel->thread_model()->rows().size();
+		history.Turns   = panel->turn_model()->rows().size();
+		for (const auto& row : panel->turn_model()->rows()) {
+			if (std::holds_alternative<core::private_reviewer_actor>(row.Revision.Actor)) {
+				history.ReviewerBodies.push_back(row.Revision.Body);
+			}
+		}
+		return history;
+	}
 
 	/// \brief Saves the real composed workshop when a review capture directory is supplied.
 	auto capture_workshop(qt::workbench_window& aWindow, const QString& aStage) -> bool
@@ -659,6 +712,21 @@ auto main(int argc, char** argv) -> int
 	const auto afterDelivery
 		= app::detail::github_application_fixture_access::agent_finding_evidence(
 			*application);
+	// [[BPR-1245]]. The press is in Private history: one thread, holding one
+	// reviewer revision with the draft's text at the press, which History
+	// selects. Read as the reviewer reads it, on the panel.
+	auto firstPressHistory = private_history{ };
+	if (course == "workshop-press") {
+		auto recorded = wait_terms{ };
+		if (!wait_until_reporting(recorded, [&window, &firstPressHistory](wait_terms& aTerms) {
+				firstPressHistory = read_private_history(window);
+				aTerms.note("threads", static_cast<std::uint64_t>(firstPressHistory.Threads));
+				return aTerms.require("one-thread", firstPressHistory.Threads == 1U)
+					&& aTerms.require("one-reviewer-revision", firstPressHistory.ReviewerBodies.size() == 1U);
+			})) {
+			return fail(*application, "workshop-private-history", recorded.render());
+		}
+	}
 	if (course == "dif-context") {
 		QThread::msleep(contextual_cue_cooldown_ms);
 		QApplication::processEvents();
@@ -763,11 +831,24 @@ auto main(int argc, char** argv) -> int
 	auto unrelatedPending   = std::string{ };
 	auto unrelatedSession   = false;
 	auto unrelatedProposals = std::size_t{ 0U };
+	auto unrelatedClaim     = std::string{ };
+	auto finalHistory       = private_history{ };
 	auto acceptedDraftBody  = std::string{ };
 	if (course == "workshop-press") {
-		acceptedDraftBody = app::detail::github_application_fixture_access::
-								agent_finding_evidence(*application)
-									.LocalDraftBody;
+		// [[BPR-1245]]. With private drafts ([[BPR-0587]]) the acceptance is
+		// answered on the completion lane; a reviewer typing before it lands
+		// meets the revisioned-draft conflict, so the course waits for the
+		// accepted text, then for its own edit, as a reviewer reads them.
+		const auto draftBody = [&application] {
+			return app::detail::github_application_fixture_access::
+				agent_finding_evidence(*application)
+					.LocalDraftBody;
+		};
+		auto accepted = wait_terms{ };
+		static_cast<void>(wait_until_reporting(accepted, [&draftBody](wait_terms& aTerms) {
+			return aTerms.require("accepted-text", draftBody() == agent_suggested);
+		}));
+		acceptedDraftBody = draftBody();
 		// The reviewer's own words again, typed on the shipped editor. The
 		// accepted revision above left the draft byte-identical to what this
 		// fixture proposes, and a workshop asked to revise text into itself
@@ -777,6 +858,12 @@ auto main(int argc, char** argv) -> int
 			reviewer_original.data(),
 			static_cast<qsizetype>(reviewer_original.size())));
 		QApplication::processEvents();
+		auto retyped = wait_terms{ };
+		if (!wait_until_reporting(retyped, [&draftBody](wait_terms& aTerms) {
+				return aTerms.require("reviewer-text", draftBody() == reviewer_original);
+			})) {
+			return fail(*application, "workshop-retyped", retyped.render());
+		}
 		const auto reopened = [&editor]() {
 			const auto six = std::array<QAction*, 6U>{
 				editor->clarify_action(),
@@ -803,6 +890,13 @@ auto main(int argc, char** argv) -> int
 		if (!awaitTurn(2U)) {
 			return fail(*application, "workshop-silent-turn");
 		}
+		// [[BPR-1245]]. The settlement reaches the editor on the completion
+		// lane after the run is quiescent, so the course waits for it.
+		auto settled = wait_terms{ };
+		static_cast<void>(wait_until_reporting(settled, [&editor, &reopened](wait_terms& aTerms) {
+			aTerms.note_identifier("clarify-tooltip", editor->clarify_action()->toolTip().toStdString());
+			return aTerms.require("six-reopened", reopened());
+		}));
 		const auto afterSilent = app::detail::
 			github_application_fixture_access::agent_finding_evidence(
 				*application);
@@ -814,7 +908,7 @@ auto main(int argc, char** argv) -> int
 		// still bound to its own turn when the next one runs.
 		auto* const clarify = editor->clarify_action();
 		if (clarify == nullptr || !clarify->isEnabled()) {
-			return fail(*application, "workshop-second-clarify-control");
+			return fail(*application, "workshop-second-clarify-control", settled.render());
 		}
 		clarify->trigger();
 		QApplication::processEvents();
@@ -840,6 +934,9 @@ auto main(int argc, char** argv) -> int
 		if (queue != nullptr && queue->finding_count() != 0U) {
 			queue->select(0U);
 			QApplication::processEvents();
+			unrelatedClaim = app::detail::github_application_fixture_access::
+								 agent_finding_evidence(*application)
+									 .QueuedClaim;
 			auto* const convert
 				= queue->action(qt::finding_queue_action::convert_to_draft_comment);
 			if (convert == nullptr) {
@@ -855,6 +952,12 @@ auto main(int argc, char** argv) -> int
 		unrelatedPending   = afterUnrelated.WorkshopPendingOperation;
 		unrelatedSession   = afterUnrelated.WorkshopPendingSessionBound;
 		unrelatedProposals = afterUnrelated.WorkshopStatistics.Proposals;
+		// Three presses, three revisions; the launch-panel turn records none.
+		auto threeRecorded = wait_terms{ };
+		static_cast<void>(wait_until_reporting(threeRecorded, [&window, &finalHistory](wait_terms& aTerms) {
+			finalHistory = read_private_history(window);
+			return aTerms.require("three-threads", finalHistory.Threads == 3U);
+		}));
 	}
 
 	const auto helperRefusal
@@ -1040,6 +1143,28 @@ auto main(int argc, char** argv) -> int
 			unrelatedPending == "clarify" && unrelatedSession);
 		contract.require("unrelated-proposal-names-nothing", unrelatedOperation.empty());
 		contract.require("unrelated-proposals-is-two", unrelatedProposals == 2U);
+		// [[BPR-1245]], BPR-1245-workshop-v001. Each press first saved the
+		// draft in Private history as a reviewer revision that cannot change,
+		// then asked with that revision as its only source: the agent read
+		// one private source holding the draft's text and no mutable draft
+		// or note. The launch-panel turn asked with none.
+		contract.require(
+			"press-asked-with-its-recorded-revision-only",
+			afterDelivery.QueuedClaim.find(workshop_sources(reviewer_original))
+				!= std::string::npos);
+		contract.require(
+			"history-holds-draft-text-at-press",
+			firstPressHistory.ReviewerBodies.size() == 1U
+				&& firstPressHistory.ReviewerBodies.front() == reviewer_original
+				&& firstPressHistory.Turns == 1U);
+		contract.require("history-has-one-revision-per-press", finalHistory.Threads == 3U);
+		contract.require(
+			"latest-press-revision-selected",
+			finalHistory.ReviewerBodies.size() == 1U
+				&& finalHistory.ReviewerBodies.front() == reviewer_original);
+		contract.require(
+			"launch-panel-turn-asked-with-no-private-source",
+			unrelatedClaim.find("BPR_PRIVATE_SOURCES_1245 count=0 ") != std::string::npos);
 		const auto pressed = report_contract("workshop-press-evidence", contract);
 		if (!pressed) {
 			std::cerr << "agent-finding-workshop-press-evidence:"
@@ -1071,6 +1196,10 @@ auto main(int argc, char** argv) -> int
 					  << (unrelatedSession ? "bound" : "unbound")
 					  << "\nunrelated-operation:" << unrelatedOperation
 					  << "\nunrelated-proposals:" << unrelatedProposals
+					  << "\npress-claim:" << afterDelivery.QueuedClaim
+					  << "\nunrelated-claim:" << unrelatedClaim
+					  << "\nhistory-threads:" << firstPressHistory.Threads << ':'
+					  << finalHistory.Threads
 					  << "\npanel-status:" << evidence.AgentPanelStatusText << '\n';
 		}
 		if (!shutdown(*application) || !pressed) {

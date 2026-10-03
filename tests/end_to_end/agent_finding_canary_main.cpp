@@ -129,6 +129,17 @@ auto main() -> int
 	// says what that had to be.
 	const auto message = field(fields, "chat_message", "");
 	const auto echoed  = std::to_string(occurrences(payload, message));
+	// [[BPR-1245]]. Which private sources the turn was handed, and the
+	// mutable draft and note fields beside them, reported the same way: the
+	// workshop course says a press's only source is the revision that
+	// recorded the draft. The body is the wire's escaped spelling, and its
+	// first 256 bytes, so the claim stays inside the finding's bound.
+	const auto sources = std::string{ " | BPR_PRIVATE_SOURCES_1245 count=" }
+		+ field(fields, "private.count", "absent")
+		+ " kind=" + field(fields, "private.0.kind", "absent")
+		+ " drafts=" + field(fields, "draft.count", "absent")
+		+ " notes=" + field(fields, "note.count", "absent")
+		+ " body=" + field(fields, "private.0.body", "absent").substr(0U, 256U) + " end";
 	// BPR-0538. One of the six is this fixture's silent operation: asked to
 	// shorten, it completes its turn and proposes nothing. A real agent does
 	// this whenever it has nothing to say about the comment, and it is the
@@ -169,7 +180,7 @@ auto main() -> int
 	findings += ",\"claim\":\"BPR_FINDING_CLAIM_0504 the retry budget is not "
 				"reported to the caller"
 				" | BPR_CHAT_ECHO_0517 count="
-		+ echoed + " text=" + json_escaped(message) + "\"";
+		+ echoed + " text=" + json_escaped(message) + json_escaped(sources) + "\"";
 	findings += ",\"evidence\":\"BPR_FINDING_EVIDENCE_0504\"";
 	findings += ",\"consequence\":\"BPR_FINDING_CONSEQUENCE_0504\"";
 	findings += ",\"suggestedComment\":\"" + std::string{ suggested } + "\"";

@@ -590,6 +590,21 @@ namespace bpr::core {
 		}
 		return result;
 	}
+	auto admit_workshop_run_sources(std::span<const private_source_selection> aSelected, std::span<const private_source_observation> aObserved) -> std::expected<void, private_review_refusal>
+	{
+		if (aSelected.size() != 1 || aObserved.size() != 1) {
+			return std::unexpected(private_review_refusal::invalid_provenance);
+		}
+		const auto& selected = aSelected.front();
+		const auto& observed = aObserved.front();
+		if (!std::holds_alternative<private_turn_source>(selected.Source.Key) || selected.Historical
+			|| observed.Source.Key != selected.Source.Key || observed.Latest != selected.Source.Key
+			|| !std::holds_alternative<private_reviewer_actor>(observed.Actor)
+			|| observed.Completion != private_revision_completion::complete) {
+			return std::unexpected(private_review_refusal::invalid_provenance);
+		}
+		return { };
+	}
 	auto valid_run_provenance(const agent_run_provenance& aRun) -> bool
 	{
 		if (!valid_private_id(aRun.Run) || !valid_private_id(aRun.Session) || !valid_private_id(aRun.Order) || !valid_private_id(aRun.Profile)

@@ -84,6 +84,11 @@ namespace bpr::core {
 		-> std::expected<private_body_digest, private_review_refusal>;
 
 	[[nodiscard]] auto admit_private_run_sources(const private_review_binding&, std::span<const private_source_selection>, std::span<const private_source_observation>) -> std::expected<private_body_digest, private_review_refusal>;
+	/// \brief RFC-BPR-0012's comment workshop as an RFC-BPR-0023 private run ([[BPR-1245]]).
+	/// A press asks about exactly one source: the complete, current reviewer revision that
+	/// recorded the draft's text at the press. No source, a second one, an agent's turn, a
+	/// finding, a composition or an explicitly historical revision is refused.
+	[[nodiscard]] auto admit_workshop_run_sources(std::span<const private_source_selection>, std::span<const private_source_observation>) -> std::expected<void, private_review_refusal>;
 
 	struct private_derivation_edge
 	{

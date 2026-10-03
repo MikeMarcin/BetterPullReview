@@ -3346,6 +3346,11 @@ namespace bpr::app {
 		/// is coming, which is the whole of what this flag decides.
 		bool Delivered = false;
 
+		/// [[BPR-1245]]. True while the press's draft is being recorded in
+		/// Private history, before any turn is dispatched for it. A session
+		/// admitted then is another gesture's and is not taken.
+		bool Recording = true;
+
 		auto operator<=>(const pending_comment_workshop&) const = default;
 	};
 
@@ -6837,6 +6842,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						// launch panel or the chat while a workshop turn is
 						// already running belongs to neither.
 						if (PendingWorkshopOperation.has_value()
+							&& !PendingWorkshopOperation->Recording
 							&& !PendingWorkshopOperation->Session.has_value()) {
 							PendingWorkshopOperation->Session = aSession.Id;
 						}
@@ -13352,10 +13358,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// already knows how to start, with `workshop_comment` named as the
 		/// gesture and the operation in the supplement.
 		///
-		/// Nothing here writes a revision. The answer arrives as this turn's
-		/// outcome and is proposed by the composed workshop host; inventing
-		/// text here would be this composition answering a question it
-		/// forwarded.
+		/// Nothing here writes a draft revision. The press records the draft's
+		/// text in Private history first ([[BPR-1245]]); the answer arrives as
+		/// this turn's outcome and is proposed by the composed workshop host;
+		/// inventing text here would be this composition answering a question
+		/// it forwarded.
 		///
 		/// One press, one turn. A second press while the first turn is still
 		/// unanswered is refused and named rather than queued: a queued press
@@ -13388,36 +13395,63 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					"comment workshop", "workshop_turn_in_flight");
 				return;
 			}
+			if (!PrivateReview) {
+				present_comment_workshop_settlement(
+					aRequest.Draft, "Private history is unavailable");
+				return;
+			}
 			PendingWorkshopOperation = pending_comment_workshop{
 				.Draft     = aRequest.Draft,
 				.Operation = *admitted,
 			};
-			// The draft's own text and anchor are this turn's context, so the
-			// question the agent is answering is about the comment on screen
-			// and not about whatever the launch panel happened to have
-			// checked. No private notes cross: the reviewer asked how to say
-			// this better, not what else is known.
-			if (!dispatch_agent_invocation(
-					core::codex_jsonl_profile_id,
-					std::vector<application::local_note_id>{ },
-					current_agent_draft_choice(),
-					false,
-					std::string_view{ },
-					std::nullopt,
-					core::agent_entry_point::workshop_comment,
-					admitted)) {
-				// The launch panel has already named why. The operation is
-				// cleared rather than left recorded, because a question no
-				// turn was started for is not waiting for an answer, and a
-				// later unrelated revision must not be labelled with it.
-				PendingWorkshopOperation.reset();
-				// BPR-0538. And said on the surface that asked. The panel
-				// names the refusal for the operator; the reviewer is looking
-				// at the six controls that just shut, and they reopen here
-				// with the reason where the answer would have been.
-				present_comment_workshop_settlement(
-					aRequest.Draft, "the turn was refused before it started");
-			}
+			// [[BPR-1245]], RFC-BPR-0023. The draft is mutable, so it is not
+			// sent. The press first records the draft's text, as the private
+			// lane holds it after every edit already queued, as one immutable
+			// reviewer revision in Private history, and asks with that
+			// revision as the turn's only selected source. No private notes
+			// cross: the reviewer asked how to say this better, not what else
+			// is known. Until the revision is written the six stay shut, so
+			// there is still one press per turn.
+			const auto press = PendingWorkshopOperation;
+			PrivateReview->record_workshop_press(
+				aRequest.Draft,
+				[this, press, admitted](
+					application::private_run_result<application::private_workshop_press> aPressed) {
+					if (Closing || PendingWorkshopOperation != press) {
+						return;
+					}
+					auto sent = false;
+					if (aPressed) {
+						PendingWorkshopOperation->Recording = false;
+						ExplicitPrivateRun                  = std::move(aPressed->Run);
+						sent                                = dispatch_agent_invocation(
+							core::codex_jsonl_profile_id,
+							std::vector<application::local_note_id>{ },
+							std::nullopt,
+							false,
+							std::string_view{ },
+							std::nullopt,
+							core::agent_entry_point::workshop_comment,
+							admitted);
+						ExplicitPrivateRun.reset();
+					}
+					if (!sent) {
+						// The launch panel or Private history has already
+						// named why. The operation is cleared rather than left
+						// recorded, because a question no turn was started for
+						// is not waiting for an answer, and a later unrelated
+						// revision must not be labelled with it.
+						PendingWorkshopOperation.reset();
+						// BPR-0538. And said on the surface that asked. The
+						// reviewer is looking at the six controls that just
+						// shut, and they reopen here with the reason where the
+						// answer would have been.
+						present_comment_workshop_settlement(
+							press->Draft,
+							aPressed ? "the turn was refused before it started"
+									 : "the draft could not be saved in Private history");
+					}
+				});
 		}
 
 		/// \brief Ends the press whose turn has just ended.

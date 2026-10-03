@@ -1012,6 +1012,22 @@ session (BPR-0500, `application_agent_invocation_host`).
   that names the operation; an unrelated outcome cannot spend the press.
   There is still one shipped path from a draft to a before/after proposal
   and one entry point (BPR-0533).
+- **A workshop press is a private run from a recorded revision (BPR-1245).**
+  RFC-BPR-0023 refuses mutable note or draft context on every run, so the
+  press does not send the draft. The composition asks
+  `private_review_workflow::record_workshop_press` on the private store's
+  effect lane, after any draft change already queued there;
+  `application::private_review_application_host::record_workshop_press`
+  reads the stored draft and commits its text as one immutable reviewer
+  revision on a new thread whose subject is the draft's line, decided by
+  `core::create_private_thread`. It returns a `findings` run intent whose
+  only source is that revision. The press dispatches through the same
+  launch path with `workshop_comment` and its operation. At admission,
+  `core::admit_workshop_run_sources` refuses a workshop run outside a
+  composition unless it has exactly one source and that source is a
+  complete, current reviewer turn revision; the host also requires the
+  `findings` purpose, no chat message and a named operation. A refused
+  recording dispatches nothing and settles the press with its reason.
 - **The Windows backend is not re-proven here.** RFC-BPR-0012 adds no platform
   code; the Windows process lifecycle remains claimed only on the strength of
   BPR-0240's 2026-08-26/27 target-native runs, exactly as the RFC-BPR-0011

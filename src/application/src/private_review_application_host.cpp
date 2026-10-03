@@ -24,6 +24,12 @@ namespace bpr::application {
 			}
 			return std::move(*aValue);
 		}
+		void decide(std::expected<void, private_review_refusal> aValue)
+		{
+			if (!aValue) {
+				throw refused{ { .Policy = aValue.error() } };
+			}
+		}
 		void require(bool aValue, private_review_refusal aReason = private_review_refusal::invalid_provenance)
 		{
 			if (!aValue) {
@@ -108,6 +114,12 @@ namespace bpr::application {
 				result.Composition = std::move(composition);
 			} else {
 				require(!aIntent.Composition && aIntent.ExpectedCompositionVersion == 0);
+			}
+			// [[BPR-1245]]. A workshop press outside a composition asks about the one
+			// reviewer revision that recorded its draft, for findings, and nothing else.
+			if (aContext.EntryPoint == core::agent_entry_point::workshop_comment && aIntent.Purpose != core::private_run_purpose::composition) {
+				require(aIntent.Purpose == core::private_run_purpose::findings && aContext.ChatMessage.empty() && aContext.WorkshopOperation.has_value());
+				decide(core::admit_workshop_run_sources(aIntent.Sources, observed));
 			}
 
 			std::size_t bytes = 0;
@@ -290,6 +302,26 @@ namespace bpr::application {
 			auto revision = decide(core::create_private_thread(core::private_review_thread_id{ next }, { runs.front().Binding, core::private_finding_reference{ key.Run, key.Ordinal, aSelected.Source.Digest } }, { core::private_review_turn_id{ next + 1 }, core::private_review_turn_revision_id{ next + 2 }, core::private_vertex_order{ next + 2 }, core::private_reviewer_actor{ frontier.Scope.Account }, std::move(aReviewerBody) }));
 			take(Store.commit({ .ExpectedNextIdentity = next, .Threads = { { revision.Thread, 0 } }, .Revisions = { revision.Revision }, .SourceGuards = { aSelected } }));
 			return private_review_delta{ .Scope = frontier.Scope, .Thread = revision.Thread.Id, .Revision = revision.Revision.Identity.Revision, .Run = key.Run, .Outcome = runs.front().Outcome };
+		});
+	}
+	auto private_review_application_host::record_workshop_press(const core::private_review_binding& aBinding, core::review_draft_id aDraft, const core::diff_semantic_index& aIndex) -> private_run_result<private_workshop_press>
+	{
+		return attempt([&] {
+			auto frontier = take(Store.frontier());
+			require(aBinding.Scope == frontier.Scope, core::private_review_refusal::invalid_binding);
+			const auto  record = take(Store.load_draft(aDraft));
+			const auto& draft  = record.Draft.Draft;
+			require(record.Binding == aBinding, core::private_review_refusal::invalid_binding);
+			require(draft.State == core::review_draft_state::drafting && !draft.Body.empty(), core::private_review_refusal::invalid_target);
+			const auto next = frontier.NextIdentity;
+			require(next > 0 && next <= core::maximum_private_identity - 2, core::private_review_refusal::bounds);
+			auto revision = decide(core::create_private_thread(core::private_review_thread_id{ next }, { aBinding, draft.Anchor }, { core::private_review_turn_id{ next + 1 }, core::private_review_turn_revision_id{ next + 2 }, core::private_vertex_order{ next + 2 }, core::private_reviewer_actor{ frontier.Scope.Account }, draft.Body }, &aIndex));
+			take(Store.commit({ .ExpectedNextIdentity = next, .Threads = { { revision.Thread, 0 } }, .Revisions = { revision.Revision } }));
+			const auto source = core::source_of(revision.Revision);
+			return private_workshop_press{
+				.Run    = { .Binding = aBinding, .Purpose = core::private_run_purpose::findings, .Sources = { { source, source.Key, false } } },
+				.Thread = revision.Thread.Id,
+			};
 		});
 	}
 	auto private_review_application_host::recover(std::optional<core::agent_run_id> aAfter) -> private_run_result<private_run_page>

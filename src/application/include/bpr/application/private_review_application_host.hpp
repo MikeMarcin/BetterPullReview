@@ -33,6 +33,14 @@ namespace bpr::application {
 		std::optional<core::private_source_reference>        Candidate;
 		core::private_run_outcome                            Outcome = core::private_run_outcome::admitted;
 	};
+	/// \brief One comment-workshop press, recorded ([[BPR-1245]]).
+	/// `Run` asks with the recorded revision as its only source; `Thread` is
+	/// where Private history shows it.
+	struct private_workshop_press
+	{
+		private_run_intent             Run;
+		core::private_review_thread_id Thread;
+	};
 	struct private_run_admission
 	{
 		agent_launch_options                         Launch;
@@ -62,6 +70,12 @@ namespace bpr::application {
 		[[nodiscard]] auto finish(const private_run_admission&, const agent_run_result&, const core::agent_finding_snapshot&) -> private_run_result<private_review_delta> override;
 		/// \brief Explicit reviewer reply retains the exact finding as the thread subject.
 		[[nodiscard]] auto reply_to_finding(const core::private_source_selection&, std::string aReviewerBody) -> private_run_result<private_review_delta>;
+		/// \brief RFC-BPR-0012's workshop press under RFC-BPR-0023 ([[BPR-1245]]).
+		/// Records the stored draft's text as one new immutable reviewer revision on a thread
+		/// about the draft's line, and returns the findings run that asks about it alone. The
+		/// draft is read from the store, so an edit committed before the press is the text
+		/// recorded. A draft of another review, not drafting, or empty is refused.
+		[[nodiscard]] auto record_workshop_press(const core::private_review_binding&, core::review_draft_id, const core::diff_semantic_index&) -> private_run_result<private_workshop_press>;
 		/// \brief Call only after old producers are quiescent. One bounded recovery page, no rerun.
 		[[nodiscard]] auto recover(std::optional<core::agent_run_id> aAfter = { }) -> private_run_result<private_run_page>;
 

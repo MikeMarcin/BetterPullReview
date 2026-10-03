@@ -53,6 +53,17 @@ The chat shows provider, host, workspace, revision, context chips, and current/s
 
 AI text remains a local proposal until the user converts it to a draft and publishes through ordinary review controls. Full-agent mode may publish through the agent's own GitHub tooling subject to its native approvals; resulting state returns through RFC-0008 synchronization.
 
+## Comment workshop under RFC-BPR-0023
+
+Owner decision `BPR-1245-workshop-v001` (accepted 2026-10-03, built on
+[[BPR-1245]]): RFC-BPR-0023 does not replace this RFC's workshop, but its
+private-run rule applies to it. No run carries a mutable draft or note. A
+workshop press therefore first saves the draft's current text in Private
+history as an immutable reviewer revision, then asks the agent with that
+revision as the only selected source. The six operations, one turn per press,
+and the proposal the reviewer accepts or rejects are unchanged. Each press adds
+one reviewer revision to Private history, and History shows it like any other.
+
 ## MCP helper
 
 The helper uses stdio, exposes only read-only frozen review tools, has no network listener, no credential, no arbitrary filesystem root, and no mutation operation.

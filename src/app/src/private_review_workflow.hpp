@@ -25,6 +25,7 @@ namespace bpr::app {
 		using draft_sink       = std::function<void(const application::durable_draft_commit&, bool)>;
 		using run_sink         = std::function<bool(core::agent_profile_id, application::private_run_intent, core::agent_setting_facts, std::string)>;
 		using draft_completion = std::function<void(application::private_run_result<application::durable_draft_commit>)>;
+		using press_completion = std::function<void(application::private_run_result<application::private_workshop_press>)>;
 		private_review_workflow(application::effect_executor&, application::decision_executor&, std::mutex& aLedgerFile, private_review_recovery_registry&, qt::private_review_panel&, QWidget*, draft_sink, run_sink);
 		~private_review_workflow();
 		void open(adapters::sqlite::private_review_configuration, std::function<void()>);
@@ -42,6 +43,9 @@ namespace bpr::app {
 		void select_draft(core::source_line_ref, draft_completion);
 		void select_reply(core::source_line_ref, std::string, draft_completion);
 		void change_draft(core::revisioned_review_draft_command, draft_completion);
+		/// [[BPR-1245]]. Records the draft as it stands on this lane, after every draft change
+		/// already queued, as one reviewer revision that History then shows; answers on the decision lane.
+		void record_workshop_press(core::review_draft_id, press_completion);
 		auto admit(const application::private_run_intent&, const core::agent_profile&, const core::agent_session&, const application::agent_context_observation&, const core::agent_setting_facts&) -> application::private_run_result<application::private_run_admission> override;
 		auto claim(const application::private_run_admission&, std::stop_token) -> application::private_run_result<std::shared_ptr<application::agent_input_claim>> override;
 		auto finish(const application::private_run_admission&, const application::agent_run_result&, const core::agent_finding_snapshot&) -> application::private_run_result<application::private_review_delta> override;

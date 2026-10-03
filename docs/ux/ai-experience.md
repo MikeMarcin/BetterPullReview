@@ -26,6 +26,8 @@ Expanding from selected lines to an entire file, PR, or repository requires an e
 
 Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. Since BPR-0533 those six are a typed set in the tree, offered as controls on the proposed-revision surface: pressing one starts one agent turn through the single `workshop_comment` entry point, and the proposal names the operation it answered. The controls close with a tooltip while the turn runs. Since BPR-0538 they reopen when it ends, including a turn that returns no revision; that outcome explains why no revision appeared. Results stay in the local editor until the user publishes through normal GitHub review controls.
 
+Since BPR-1245 a press runs as an RFC-BPR-0023 private run. It first saves the draft's current text in Private history as a reviewer revision that cannot change, on a thread about the draft's line, and History selects it. It then asks the agent with that revision as the only selected source; the draft itself is not sent. Each press adds one such revision. If the revision cannot be saved, nothing is asked and the controls reopen with the reason.
+
 ## AI findings
 
 Structured findings include severity, confidence, category, path, line range, claim, evidence, consequence, and suggested comment. BetterPullReview validates the anchor against the analyzed snapshot. Invalid anchors remain unanchored rather than being guessed.

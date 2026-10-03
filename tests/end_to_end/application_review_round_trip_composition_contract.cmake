@@ -580,6 +580,19 @@ endfunction()
 # fixture desktop takes the same item. Notification presentation only: no grant,
 # target, provider, credential, mutation or publication path changes; mutation
 # pin unchanged; no new src/app source.
+# BPR-1245 reseal: a4723f817..this candidate. The one intervening src/app
+# commit, d46d37cf7 (BPR-1161), leaves all three pins as they were (checked
+# with BPR_PRINT_PINNED_DIGESTS at 0890cf71e). Owner decision
+# BPR-1245-workshop-v001: a comment-workshop press no longer sends the mutable
+# draft. github_application.cpp asks private_review_workflow (a manifest
+# source) to record the stored draft's text as one immutable reviewer revision
+# in Private history on the private store's effect lane, then dispatches the
+# press through the same launch path with that revision as the explicit private
+# run's only source; the press holds no session while it records. The host's
+# admission refuses a workshop run with no source, a second source or anything
+# but a complete current reviewer revision. Agent context only: no grant,
+# target, provider, credential, mutation or publication path changes; mutation
+# pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -598,7 +611,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"a86853460e02c194009dd86bea46337f43927521575b024f8aac0145e320fe2b"
+		"6066c09ae7e7c3269abee43be522b74d1c0e8f85109592e7c7bca4130a60cfa2"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -796,7 +809,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f5d7c843587f886b712fede0c02c3ab49e9d4cae32964e1dfa6bbaaa8528ddb3"
+        "10a2b5cdfba2c3189d582742f010fabd79a889229f1861800ec4cc8c4580ce0c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
