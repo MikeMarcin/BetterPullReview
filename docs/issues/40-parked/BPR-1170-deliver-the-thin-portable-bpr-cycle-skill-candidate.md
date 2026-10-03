@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0058"]
 depends_on: ["BPR-1169"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "external-consumers", "acceptance": ["RC58-08", "RC58-10"], "pack_alias": "PACK-CYCLE-28", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC58-08","outcome":"pass","revision":"b10a15a86","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner accepted BPR-1170-rc58-08-distribution-v001 (session cbd48b91000b00f1e72e1ad62c7c384c, event 861). The package is in AgentSkills (399da0d, then b4a3357 after the frontmatter quoting fix 2b48d25fd that mask install needed) and selected from agentskills in .mask.json by a reviewed mask install; mask status --check is clean. The package, the AgentSkills copy and both MASK links digest to sha256:8b5946f579a0f8bf3de38bfc45113d1b3789f236dccf7dab57caa2d0828a5381. skill_bpr_cycle_package passes with the links present (14 broken copies refused; the 1b8fd4a5c package and a real-directory copy fail). The package half (active harness, no second model or orchestrator, no provider publisher) is unchanged from 1b8fd4a5c; nothing was installed silently."}},{"criterion":"RC58-10","outcome":"pending","revision":"b10a15a86","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Manual half passes (unchanged from 1b8fd4a5c). Owner accepted BPR-1170-rc58-10-harness-course-v001 (event 862). scripts/run_bpr1170_harness_course.py is that course: setup and the session's default-profile view verified without a model, analyzer checked on a synthetic transcript. The observed session has not run: standalone Claude Code is not signed in (claude auth status loggedIn false; claude -p answers 'OAuth session expired and could not be refreshed'). Needs the owner to run claude auth login once, then one run of the course."}}]
+acceptance: [{"criterion":"RC58-08","outcome":"pass","revision":"dc503b791","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner accepted BPR-1170-rc58-08-distribution-v001 (session cbd48b91000b00f1e72e1ad62c7c384c, event 861). The package is in AgentSkills (399da0d, then b4a3357 after the frontmatter quoting fix e2f9f567f that mask install needed) and selected from agentskills in .mask.json by a reviewed mask install; mask status --check is clean. The package, the AgentSkills copy and both MASK links digest to sha256:8b5946f579a0f8bf3de38bfc45113d1b3789f236dccf7dab57caa2d0828a5381. skill_bpr_cycle_package passes with the links present (14 broken copies refused; the 1b8fd4a5c package and a real-directory copy fail). The package half (active harness, no second model or orchestrator, no provider publisher) is unchanged from 1b8fd4a5c; nothing was installed silently."}},{"criterion":"RC58-10","outcome":"pending","revision":"dc503b791","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Manual half passes (unchanged from 1b8fd4a5c). Owner accepted BPR-1170-rc58-10-harness-course-v001 (event 862). scripts/run_bpr1170_harness_course.py is that course: setup and the session's default-profile view verified without a model, analyzer checked on a synthetic transcript. The observed session has not run: standalone Claude Code is not signed in (claude auth status loggedIn false; claude -p answers 'OAuth session expired and could not be refreshed'). Needs the owner to run claude auth login once, then one run of the course."}}]
 ---
 
 Pack alias: **PACK-CYCLE-28** (live `BPR-1170`, allocated at import).
@@ -102,12 +102,12 @@ protections were released by candidate name.
 **RC58-08 passes.** The package was imported unchanged into AgentSkills
 (`399da0d`) and pushed. `mask install bpr-cycle` then refused it: the
 description held an unquoted `: `, which is invalid YAML and which MASK refuses.
-`2b48d25fd` quotes the description and changes no other byte. That changes
+`e2f9f567f` quotes the description and changes no other byte. That changes
 the digest from `040a559b…` to
 `sha256:8b5946f579a0f8bf3de38bfc45113d1b3789f236dccf7dab57caa2d0828a5381`.
 The lint now catches the problem, with a fourteenth broken copy as its control.
 AgentSkills `b4a3357` re-imported the package. A reviewed `mask install`
-selected it from `agentskills`, and `b10a15a86` commits that selection. The
+selected it from `agentskills`, and `dc503b791` commits that selection. The
 package, the AgentSkills copy and both MASK links share the new digest, and the
 row passes with the links in place. MASK also rewrote the declared repository
 from SSH to HTTPS; the lock depends on that form.
