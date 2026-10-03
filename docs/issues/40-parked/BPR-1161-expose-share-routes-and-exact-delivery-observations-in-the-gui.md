@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0056", "RFC-BPR-0061"]
 depends_on: ["BPR-1156", "BPR-1157", "BPR-1159"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "portable-rounds", "acceptance": ["RC56-07", "RC56-10", "RC61-05", "RC61-06"], "pack_alias": "PACK-CYCLE-19", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "related_issues": ["BPR-1212"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"pending","revision":"00f7165cd1dd7dbd11e477dbaa5f450a2b59c848","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"v001 (the Compose feedback page) was rejected at event 834; the owner chose direction A with deeper code context at event 860. Rebuilt as the Share notes sheet over the code (a426c66a0, 324c17826): one default Copy round N, Save as File beside it, each note two lines with its code behind a disclosure and the whole file in a larger view. Automated: qt_review_cycle_view_1_0/_2_0, review_cycle_workbench, application_review_cycle_desktop_public_path, application_profile_cycle_handoff_public_path and core_review_cycle_share pass with eight negative controls failing. Asked again as BPR-1161-compose-share-v002 in session cbd48b91 (sequence 885, ready at 887) on the frozen app 94724b6c...8a28a1."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The rebuilt share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"00f7165cd1dd7dbd11e477dbaa5f450a2b59c848","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"At 324c17826 on macOS: the 52-row review-cycle selection incl. architecture_boundaries, architecture_boundary_contract and test_network_isolation_manifest, all 117 qt_ rows and the three tour-composition rows pass; core-only 24 of 24 core_review_cycle rows; clang-format and clang-tidy clean on every changed unit. Linux and Windows runs owed (commands on the card)."}}]
+acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"pending","revision":"3b5f405be","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"v001 (the Compose feedback page) rejected at event 834; direction A chosen at 860; v002 (the Share notes sheet, 324c17826) rejected at event 895 because a note's code was not aligned, not syntax coloured and not visibly in a monospace face. Since then the excerpt and the whole-file view use the profile's code font (bundled JetBrains Mono NL), tabs expand from the code's first column at the panes' width, and both are coloured by the panes' classifier and role colours (3b5f405be). Automated: qt_review_cycle_view_1_0/_2_0 (rendered column alignment on every row kind, profile font, role/text rule) and application_review_cycle_desktop_public_path (real classifier) pass with four negative controls. Asked again as BPR-1161-compose-share-v003 (session cbd48b91000b00f1e72e1ad62c7c384c, added 907, ready 915) on the self-contained frozen build in /Users/jaeger/bpr1161-share-review-v003.WQEATE (app sha256 af8f9975...6bce0c4c, --code-font-probe CODE_FONT_OK); the owner's judgment is pending."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The rebuilt share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"3b5f405be","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"At 3b5f405be on macOS: the 18-row BPR-1161 selection incl. architecture_boundaries and test_network_isolation_manifest, and all 118 qt_ rows pass; clang-format and clang-tidy clean on every changed unit. Earlier at 324c17826: the 52-row review-cycle selection and core-only's 24 core_review_cycle rows. Linux and Windows runs at 3b5f405be owed (commands on the card)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-19** (live `BPR-1161`, allocated at import).
@@ -567,3 +567,113 @@ requested `ctest -j4` selection passes **12 of 12** in 34.01 s:
 - `architecture_boundaries`
 
 No remote mutation.
+
+## Owner verdict 895: compose-share v002 rejected; the code aligned and coloured (macOS, 2026-10-03)
+
+`BPR-1161-compose-share-v002` (RC61-05) was **rejected** at event 895,
+decision `ab7105e5-2bd6-437e-870d-6f6ad54b9b1f`, on fingerprint
+`a7516bac…8f622d`. The owner's note, verbatim:
+
+> Something weird here these lines arent aligned, or syntax highlighted, is it usiing the proper monospace font?
+
+The screenshot attached to the decision is the v002 media render of the
+expanded excerpt. The frozen root's `home/` is empty and it has no
+`owner-app.log`, so the owner judged the render. That render came from the
+offscreen course at `324c17826`.
+
+**Root cause.** Measured on that render, the first code ink sat at 405 pixels
+on context rows, 408 on `-` rows and 410 on `+` rows. The tab-indented rows
+sat at 423 and 425 pixels. There were two causes:
+
+- **A proportional face.** The sheet took the appearance's code font raw, and
+  its generic `Monospace` family resolved to a proportional face. The marks
+  (`-`, `+` and the bullet) have different widths, so they pushed the code
+  sideways by 3 to 5 pixels.
+- **Tab stops counted from the row's first column.** The stops were counted
+  from the line number, so one tab indented 3 cells, not 4.
+
+Both were already fixed on main before this round. `07f853492` passes the font
+through `fixed_pitch_code_font` and expands tabs from the code's first column.
+BPR-1270 makes JetBrains Mono NL the bundled default. The same course at
+`4c8bcda0b` puts every row at 418 and both tab rows at 447. What was still
+missing was syntax colour.
+
+**Change (`3b5f405be`).**
+
+- The excerpt and the larger view are coloured as the cycle's file pane is,
+  through `code_syntax_format_ranges_at` and the panes' role colours. Qt still
+  runs no lexer.
+- A shown note's code asks for two documents to be classified: its rows before
+  the suggested changes and after them, each as shown.
+- `review_cycle_desktop` classifies them one at a time on a second syntax host,
+  over the panes' packaged definitions and lane. A view adopts only spans of
+  the exact text it still shows. The gutter stays in the placeholder colour.
+
+Details, checks and negative controls are in the
+[execution ledger](../../verification/RFC-BPR-0053-0061.md) under "BPR-1161: a
+note's code aligned, in the code font, and coloured". In short:
+
+- `qt_review_cycle_view_1_0` and `_2_0` check rendered columns: an `X` at
+  columns 0, 4 and 8 lands on the same pixel on every row kind, whether tabs,
+  spaces or both reach it. A tab equals `code_tab_stop_distance()`. They also
+  check the profile's font (JetBrains Mono NL) and the role/text rule.
+- `application_review_cycle_desktop_public_path` checks the real classifier.
+- Four negative controls fail as they should. The 18-row selection and all
+  118 `qt_` rows pass on macOS.
+
+## Pending owner judgment: compose-share v003
+
+`BPR-1161-compose-share-v003` (RC61-05) is one Accept/Reject question in
+session `cbd48b91000b00f1e72e1ad62c7c384c`. It was added at sequence 907,
+ready at 915, with fingerprint `f7148a03…2e2837`. The content says what the
+owner should now see:
+
+- a note's code in the profile's code font, JetBrains Mono NL;
+- every column aligned whatever the row's mark, line number or indentation;
+- the code coloured as the code panes colour it, with the gutter quiet;
+- the same in Show the Whole File.
+
+It then asks the v002 question again. v002 was released by name at 906, and
+three superseded BPR-1156 questions that an unscoped `prepare` re-readied were
+returned to waiting (918–920). The consumed cursor is **920**.
+
+The candidate is self-contained in `/Users/jaeger/bpr1161-share-review-v003.WQEATE`:
+
+- `source/` is `git archive` of `3b5f405be`, built in `source/build/cand`
+  (`cmake --preset dev`, sharing only the dependency cache).
+- The executable's SHA-256 is
+  `af8f9975cb9a02586402695c65dfb08486194d330684be836377747a6bce0c4c`.
+- `--code-font-probe` prints `registered=yes`, `resolved="JetBrains Mono NL"`,
+  `fixed_pitch=yes` and `CODE_FONT_OK`.
+
+Launch it with:
+
+```
+python3 /Users/jaeger/bpr1161-share-review-v003.WQEATE/launch.py
+```
+
+The launcher sets `HOME` and `CFFIXED_USER_HOME` to the root's `home/`. It
+checks the build and the sample project before starting, and it reports an
+exit within twenty seconds as a launch failure. A launch on a separate
+scratch profile opened "BetterPullReview — Default profile" and was closed.
+The sample project is `sample-project/` (tab-indented `src/parser.cpp`), and
+saves may go to `shared/`. The media are native cocoa renders of this build's
+excerpt and whole-file view, and the offscreen alignment render. RC61-05 is
+the only open criterion, so the card stays Parked on human-review.
+
+### Owed platform runs at `3b5f405be`
+
+Not gating. Linux station (`build/dev`):
+
+```sh
+cmake --build --preset dev && ctest --preset dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^architecture_boundaries$"
+```
+
+Windows station (`build/windows-dev`):
+
+```powershell
+cmake --build --preset windows-dev; ctest --preset windows-dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^architecture_boundaries$|^test_network_isolation_manifest$"
+```
+
+On both, `qt_review_cycle_view_*` prints `note code X inks: …` with the
+measured columns. The rows at column 4 (and those at column 8) must be equal.
