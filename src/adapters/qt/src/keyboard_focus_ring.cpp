@@ -110,7 +110,10 @@ namespace bpr::qt {
 			}
 			break;
 		case QEvent::Resize: setGeometry(parentWidget()->rect()); break;
-		default:             break;
+		// A window hidden with focus inside gives no focus-out; shown again, the
+		// ring shows only on the control that has focus then ([[BPR-1161]]).
+		case QEvent::Show: setVisible(parentWidget()->hasFocus()); break;
+		default:           break;
 		}
 		return QWidget::eventFilter(aWatched, aEvent);
 	}

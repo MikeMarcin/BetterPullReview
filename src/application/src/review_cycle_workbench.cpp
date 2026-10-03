@@ -125,6 +125,21 @@ namespace bpr::application {
 		review_cycle_workbench::destination_factory Destinations;
 		/// Compose edits waiting for the one in flight.
 		std::deque<core::cycle_compose_edit> Edits;
+		/// Each listed note's code for the share sheet, kept with the note
+		/// version and suggestion count it was read for; one read at a time.
+		struct note_code
+		{
+			core::cycle_feedback_item_id Item;
+			std::uint64_t                Version     = 0;
+			std::size_t                  Suggestions = 0;
+			review_cycle_note_context    Context;
+		};
+		std::vector<note_code> NoteCode;
+		/// The read in flight, by request number: its completion alone clears it.
+		std::optional<std::uint64_t> ReadingCode;
+		std::uint64_t                CodeRequests = 0;
+		/// The note the larger view was asked for.
+		std::optional<core::cycle_feedback_item_id> LargerItem;
 
 		auto operation() -> cycle_operation_id
 		{
@@ -536,6 +551,7 @@ namespace bpr::application {
 		{
 			if (aIndex >= aThreads.size()) {
 				View.Notes = std::move(aNotes);
+				want_note_code();
 				load_responses();
 				return;
 			}
@@ -836,6 +852,91 @@ namespace bpr::application {
 			});
 		}
 
+		/// The notes the share sheet lists: the round's, in its order, then
+		/// open notes left out.
+		[[nodiscard]] auto listed_notes() const -> std::vector<const review_cycle_note_entry*>
+		{
+			auto listed = std::vector<const review_cycle_note_entry*>{ };
+			if (!View.Share) {
+				return listed;
+			}
+			for (const auto& selected : View.Share->Selection.Items) {
+				const auto found = std::ranges::find(View.Notes, selected.Item, [](const review_cycle_note_entry& aNote) { return aNote.Item.Id; });
+				if (found != View.Notes.end()) {
+					listed.push_back(&*found);
+				}
+			}
+			for (const auto& note : View.Notes) {
+				if (note.Lifecycle == core::private_thread_lifecycle::open && std::ranges::find(listed, &note) == listed.end()) {
+					listed.push_back(&note);
+				}
+			}
+			return listed;
+		}
+
+		[[nodiscard]] auto code_of(const review_cycle_note_entry& aNote) const -> const note_code*
+		{
+			const auto found = std::ranges::find_if(NoteCode, [&](const note_code& aCode) {
+				return aCode.Item == aNote.Item.Id && aCode.Version == aNote.Version && aCode.Suggestions == aNote.Suggestions;
+			});
+			return found == NoteCode.end() ? nullptr : &*found;
+		}
+
+		/// The share sheet's code for each listed note read so far, in its order.
+		void apply_note_code()
+		{
+			if (!View.Share) {
+				return;
+			}
+			auto contexts = std::vector<review_cycle_note_context>{ };
+			for (const auto* note : listed_notes()) {
+				if (const auto* code = code_of(*note)) {
+					contexts.push_back(code->Context);
+				}
+			}
+			View.Share->Contexts = std::move(contexts);
+		}
+
+		/// Reads the next listed note's code that is missing or stale, one at
+		/// a time so a share is never queued behind all of them.
+		void want_note_code()
+		{
+			if (!View.Share || ReadingCode) {
+				return;
+			}
+			apply_note_code();
+			const auto listed = listed_notes();
+			const auto next   = std::ranges::find_if(listed, [&](const review_cycle_note_entry* aNote) { return code_of(*aNote) == nullptr; });
+			if (next == listed.end()) {
+				return;
+			}
+			const auto note    = **next;
+			const auto request = ++CodeRequests;
+			ReadingCode        = request;
+			const auto queued  = Runtime.note_context_selected(note.Item.Id, core::cycle_excerpt_context_lines, core::cycle_excerpt_rows,
+															   [weak = weak_from_this(), generation = Generation, note, request](cycle_store_result<review_cycle_note_context> aResult) {
+																  const auto self = weak.lock();
+																  if (!self || self->ReadingCode != request) {
+																	  return;
+																  }
+																  self->ReadingCode.reset();
+																  if (self->Closing || self->Generation != generation || !aResult) {
+																	  // A note gone since it was listed has no code to show; nothing else is said.
+																	  return;
+																  }
+																  std::erase_if(self->NoteCode, [&](const note_code& aCode) { return aCode.Item == note.Item.Id; });
+																  self->NoteCode.push_back({ .Item = note.Item.Id, .Version = note.Version, .Suggestions = note.Suggestions, .Context = std::move(*aResult) });
+																  if (self->View.Share) {
+																	  self->apply_note_code();
+																	  self->publish();
+																	  self->want_note_code();
+																  }
+															   });
+			if (!queued) {
+				ReadingCode.reset();
+			}
+		}
+
 		/// Shows a draft on Compose feedback, keeping what was said about the last share.
 		void present_draft(cycle_share_draft aDraft)
 		{
@@ -867,6 +968,7 @@ namespace bpr::application {
 			share.DocumentBytes = aDraft.DocumentBytes;
 			share.Routes        = core::share_routes(core::combine_policies(aDraft.Policy, Policy), Cycle ? core::cycle_origin(*Cycle) : core::cycle_workspace_origin{ }, Capabilities);
 			View.Share          = std::move(share);
+			want_note_code();
 		}
 
 		/// The draft again, then every observation and the rounds the
@@ -1320,10 +1422,39 @@ namespace bpr::application {
 		}));
 	}
 
+	void review_cycle_workbench::show_note_code(const core::cycle_feedback_item_id aItem)
+	{
+		auto& self = *Implementation;
+		if (!self.View.Share || !self.Cycle) {
+			return;
+		}
+		self.LargerItem = aItem;
+		self.Runtime.note_context_selected(aItem, core::cycle_excerpt_larger_rows, core::cycle_excerpt_larger_rows,
+										   self.guarded<review_cycle_note_context>([aItem](implementation& aSelf, review_cycle_note_context aContext) {
+											   // Only the view still asked for, and only while the sheet is open.
+											   if (aSelf.View.Share && aSelf.LargerItem == aItem) {
+												   aSelf.View.Share->Larger = std::move(aContext);
+												   aSelf.publish();
+											   }
+										   }));
+	}
+
+	void review_cycle_workbench::close_note_code()
+	{
+		auto& self = *Implementation;
+		self.LargerItem.reset();
+		if (self.View.Share && self.View.Share->Larger) {
+			self.View.Share->Larger.reset();
+			self.publish();
+		}
+	}
+
 	void review_cycle_workbench::close_compose()
 	{
 		auto& self = *Implementation;
 		self.Edits.clear();
+		self.LargerItem.reset();
+		self.NoteCode.clear();
 		if (self.View.Share) {
 			self.View.Share.reset();
 			self.publish();

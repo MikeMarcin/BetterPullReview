@@ -647,6 +647,20 @@ namespace bpr::application {
 														   std::move(aDone));
 	}
 
+	auto review_cycle_runtime::note_context_selected(const core::cycle_feedback_item_id aItem, const std::size_t aContext, const std::size_t aRows, completion<review_cycle_note_context> aDone)
+		-> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
+		return Implementation->submit<review_cycle_note_context>([subject, host, aItem, aContext, aRows](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<review_cycle_note_context> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return read_note_context(aStore, *host, *subject, aItem, aContext, aRows, aStop);
+		},
+																 std::move(aDone));
+	}
+
 	auto review_cycle_runtime::deliveries_selected(completion<std::vector<core::cycle_delivery_record>> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();

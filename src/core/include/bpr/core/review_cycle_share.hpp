@@ -189,6 +189,76 @@ namespace bpr::core {
 	/// \brief True for a file name with no folder: not empty, `.` or `..`,
 	/// no separator, colon or control character, within its bound.
 	[[nodiscard]] auto delivery_destination_name(std::string_view aName) noexcept -> bool;
+
+	/// \brief What one row of a note's code excerpt is.
+	enum class cycle_excerpt_row_kind : std::uint8_t {
+		/// An unchanged line near the note.
+		context,
+		/// A line the note is about.
+		noted,
+		/// A line a suggested change replaces.
+		removed,
+		/// A line a suggested change puts in its place.
+		added,
+		/// Lines between two parts of the excerpt that it leaves out.
+		omitted,
+	};
+	struct cycle_excerpt_row
+	{
+		cycle_excerpt_row_kind Kind = cycle_excerpt_row_kind::context;
+		/// The one-based display line of the file; an added row counts on
+		/// from the first line its change replaces. None on an omitted row.
+		std::optional<std::uint64_t> Line;
+		/// The line without its ending; empty on an omitted row.
+		std::string Text;
+		/// How many lines an omitted row stands for.
+		std::uint64_t Omitted                                     = 0;
+		auto          operator<=>(const cycle_excerpt_row&) const = default;
+	};
+	/// \brief One suggested change to the excerpted file: bytes [`Start`,
+	/// `End`) that held `Original` become `Replacement`.
+	struct cycle_excerpt_change
+	{
+		std::uint64_t Start = 0;
+		std::uint64_t End   = 0;
+		std::string   Original;
+		std::string   Replacement;
+		auto          operator<=>(const cycle_excerpt_change&) const = default;
+	};
+	/// \brief A note's code as Share feedback shows it ([[BPR-1161]]): its
+	/// own lines and each suggested change, with a few unchanged lines
+	/// around each, in file order.
+	struct cycle_note_excerpt
+	{
+		/// The note's own lines, when it is about a range of the file.
+		std::optional<cycle_line_span> Lines;
+		std::vector<cycle_excerpt_row> Rows;
+		/// Display lines in the whole file.
+		std::uint64_t FileLines = 0;
+		/// Changes shown, and changes whose bytes this file does not hold at
+		/// their place, which are left out rather than shown somewhere else.
+		std::uint64_t Changes  = 0;
+		std::uint64_t Unplaced = 0;
+		/// The rows stopped at their limit; the rest is in the larger view.
+		bool Cut                                          = false;
+		auto operator<=>(const cycle_note_excerpt&) const = default;
+	};
+	/// Unchanged lines shown around a note's lines in the sheet, as an
+	/// anchor's own context holds (`cycle_anchor_context_lines`).
+	inline constexpr std::size_t cycle_excerpt_context_lines = cycle_anchor_context_lines;
+	/// Rows the sheet shows of one note before the rest waits for the larger view.
+	inline constexpr std::size_t cycle_excerpt_rows = 14U;
+	/// Rows the larger view shows of one note's file.
+	inline constexpr std::size_t cycle_excerpt_larger_rows = 20'000U;
+	/// \brief The excerpt of `aFile` for a note about bytes `aNoted` (none
+	/// for a whole-file note) carrying `aChanges`. Lines are counted as
+	/// `project_lines` counts them. Each part keeps `aContext` unchanged
+	/// lines on either side; parts that meet or are one line apart join,
+	/// and an omitted row stands between the rest. A change that overlaps
+	/// one already shown is left out. Nothing when `aNoted` lies outside
+	/// the file.
+	[[nodiscard]] auto excerpt_note(std::span<const std::uint8_t> aFile, std::optional<cycle_byte_range> aNoted, std::span<const cycle_excerpt_change> aChanges, std::size_t aContext,
+									std::size_t aRowLimit) -> std::optional<cycle_note_excerpt>;
 }
 
 #endif

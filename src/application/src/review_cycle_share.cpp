@@ -3,6 +3,7 @@
 #include "bpr/application/review_cycle_retrieval.hpp"
 #include "bpr/application/review_cycle_verification.hpp"
 #include "bpr/core/review_cycle_bundle.hpp"
+#include "bpr/core/review_cycle_comparison.hpp"
 #include "bpr/core/review_cycle_round_markdown.hpp"
 #include "bpr/core/sha256.hpp"
 
@@ -125,6 +126,76 @@ namespace bpr::application {
 			result.Recorded = *recorded;
 			return result;
 		}
+	}
+
+	auto read_note_context(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_id aItem,
+						   const std::size_t aContext, const std::size_t aRows, std::stop_token aStop) -> cycle_store_result<review_cycle_note_context>
+	{
+		const auto item   = core::cycle_feedback_item_ref{ .Cycle = aSubject.Cycle, .Id = aItem };
+		auto       thread = aStore.load_feedback(aSubject, item, aStop);
+		if (!thread) {
+			return std::unexpected(thread.error());
+		}
+		if (!*thread) {
+			return failed(cycle_store_failure::not_found);
+		}
+		auto       context = review_cycle_note_context{ .Item = aItem };
+		const auto noted   = std::get_if<core::cycle_source_anchor>(&(*thread)->Primary);
+		const auto whole   = std::get_if<core::cycle_file_target>(&(*thread)->Primary);
+		if (noted == nullptr && whole == nullptr) {
+			return context;
+		}
+		context.Path            = noted != nullptr ? noted->Path : whole->Path;
+		context.Revision        = noted != nullptr ? noted->Revision : whole->Revision;
+		const auto& blob        = noted != nullptr ? noted->Blob : whole->Blob;
+		auto        suggestions = aStore.suggestions(aSubject, item, aStop);
+		if (!suggestions) {
+			return std::unexpected(suggestions.error());
+		}
+		// Only changes to these exact bytes are placed; the rest are counted.
+		auto changes = std::vector<core::cycle_excerpt_change>{ };
+		for (const auto& suggestion : *suggestions) {
+			if (suggestion.Source == *context.Revision && suggestion.Path == context.Path && suggestion.OriginalBlob == blob) {
+				changes.push_back({ .Start = suggestion.Start, .End = suggestion.End, .Original = suggestion.Original, .Replacement = suggestion.Replacement });
+			} else {
+				++context.Elsewhere;
+			}
+		}
+		// The size the revision recorded decides before any byte is read.
+		const auto manifest = aHost.manifest(aSubject, *context.Revision, aStop);
+		if (!manifest) {
+			if (manifest.error() == review_material_status::cancelled) {
+				return failed(cycle_store_failure::cancelled);
+			}
+			context.Status = manifest.error();
+			return context;
+		}
+		const auto side = core::compare_manifest_path(nullptr, **manifest, context.Path).Right;
+		if (side.State != core::cycle_path_state::present || side.Content != blob) {
+			context.Status = review_material_status::missing;
+			return context;
+		}
+		if (side.Size > maximum_note_context_file_bytes) {
+			context.Status = review_material_status::too_large;
+			return context;
+		}
+		const auto pair = core::cycle_comparison_pair{ .Left = std::nullopt, .Right = { .Cycle = aSubject.Cycle, .Id = *context.Revision } };
+		auto       file = aHost.file(aSubject, pair, context.Path, { }, aStop);
+		if (file.Status == review_material_status::cancelled) {
+			return failed(cycle_store_failure::cancelled);
+		}
+		context.Status = file.Status;
+		if (file.Status != review_material_status::available) {
+			return context;
+		}
+		const auto range   = noted != nullptr ? std::optional{ core::cycle_byte_range{ .Start = noted->Start, .End = noted->End } } : std::nullopt;
+		auto       excerpt = core::excerpt_note(file.Source, range, changes, aContext, aRows);
+		if (!excerpt) {
+			context.Status = review_material_status::corrupt;
+			return context;
+		}
+		context.Excerpt = std::move(*excerpt);
+		return context;
 	}
 
 	auto open_share_draft(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const cycle_operation_id& aBegin,

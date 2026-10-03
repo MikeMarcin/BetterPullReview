@@ -1,5 +1,6 @@
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_keys.hpp"
+#include "../support/window_system_mouse.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -14,18 +15,25 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDir>
+#include <QFontMetricsF>
+#include <QFrame>
 #include <QImage>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QPainter>
 #include <QPalette>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QShortcut>
 #include <QTabBar>
+#include <QTextBlock>
+#include <QTextCursor>
 #include <QToolButton>
 #include <QWindow>
 
@@ -34,6 +42,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -45,8 +54,9 @@
 /// revision, the view chooser, Mark reviewed, the newer-material refresh and
 /// the comparison pane, in the same review bar and pane. The source pane
 /// is coloured only from a classification of the exact bytes it shows.
-/// BPR-1161: Compose feedback and Share feedback in the centre, its routes,
-/// edits and delivery observations, each in its own words.
+/// BPR-1161: Share notes as a sheet over the code (direction A), its routes,
+/// edits, each note's code behind a disclosure and in a larger view, and the
+/// delivery observations, each in its own words.
 
 namespace {
 	using namespace bpr;
@@ -1007,11 +1017,13 @@ namespace {
 namespace {
 	struct share_gestures
 	{
-		int                                   Composed = 0;
-		int                                   Back     = 0;
-		std::vector<core::cycle_compose_edit> Edits;
-		std::vector<core::cycle_share_route>  Shared;
-		std::vector<bool>                     Replaced;
+		int                                       Composed = 0;
+		int                                       Back     = 0;
+		std::vector<core::cycle_compose_edit>     Edits;
+		std::vector<core::cycle_share_route>      Shared;
+		std::vector<bool>                         Replaced;
+		std::vector<core::cycle_feedback_item_id> Shown;
+		int                                       Closed = 0;
 	};
 
 	auto digest(const std::uint8_t aSeed) -> core::cycle_round_digest
@@ -1070,69 +1082,305 @@ namespace {
 		return lines;
 	}
 
-	/// RC61-05, RC61-06, RC56-07, RC56-10 as presented.
-	void composes_and_shares(qt::review_cycle_view& aView, share_gestures& aGestures)
+	/// The design round's parser.cpp: thirty-one lines, "check" on 14 and 17.
+	auto design_file() -> std::string
 	{
+		auto file = std::string{ };
+		for (int line = 1; line <= 31; ++line) {
+			file += line == 14 ? std::string{ "\treturn check(aText);" } : line == 17 ? std::string{ "int check(std::string_view aText)" }
+																					  : "// line " + std::to_string(line);
+			file += '\n';
+		}
+		return file;
+	}
+
+	/// Note 1's code as the host reads it: the noted call and the rename at both places.
+	auto note_code(const std::size_t aContext, const std::size_t aRows) -> application::review_cycle_note_context
+	{
+		const auto file    = design_file();
+		const auto call    = file.find("check(aText)");
+		const auto decl    = file.find("check(std::string_view");
+		const auto changes = std::array{
+			core::cycle_excerpt_change{ .Start = call, .End = call + 5U, .Original = "check", .Replacement = "count_tokens" },
+			core::cycle_excerpt_change{ .Start = decl, .End = decl + 5U, .Original = "check", .Replacement = "count_tokens" },
+		};
+		const auto span = std::span{ reinterpret_cast<const std::uint8_t*>(file.data()), file.size() };
+		return {
+			.Item     = core::cycle_feedback_item_id{ 1 },
+			.Path     = "src/parser.cpp",
+			.Revision = core::cycle_source_revision_id{ 1 },
+			.Status   = application::review_material_status::available,
+			.Excerpt  = *core::excerpt_note(span, core::cycle_byte_range{ .Start = call, .End = call + 12U }, changes, aContext, aRows),
+		};
+	}
+
+	/// The window as the reviewer sees it: the sheet, and the larger view
+	/// when open, drawn where they stand over it.
+	void capture_with_sheet(qt::review_cycle_view& aView, const QString& aName)
+	{
+		auto       image   = aView.grab().toImage();
+		const auto origin  = aView.mapToGlobal(QPoint{ });
+		auto       painter = QPainter{ &image };
+		for (QWidget* const layer : { static_cast<QWidget*>(aView.share_page()), static_cast<QWidget*>(aView.share_page()->viewer()) }) {
+			if (layer->isVisible()) {
+				painter.drawImage(layer->mapToGlobal(QPoint{ }) - origin, layer->grab().toImage());
+			}
+		}
+		painter.end();
+		const auto directory = qEnvironmentVariable("BPR_CYCLE_RENDER_DIR");
+		if (!directory.isEmpty()) {
+			QDir{ }.mkpath(directory);
+			expect(image.save(QDir{ directory }.filePath(aName + QStringLiteral(".png"))), "render saved");
+		}
+	}
+
+	/// The middle of excerpt row `aRow` in a code view's viewport, `aX` from its left.
+	auto row_point(qt::note_code_view& aCode, const int aRow, const qreal aX) -> QPoint
+	{
+		const auto box = aCode.cursorRect(QTextCursor{ aCode.document()->findBlockByNumber(aRow) });
+		return QPointF{ aX, QRectF{ box }.center().y() }.toPoint();
+	}
+
+	/// \brief The pixels of excerpt row `aRow` between `aLeft` and `aRight`:
+	/// how many are near `aInk`, and how many near `aOther`.
+	auto ink_in_row(qt::note_code_view& aCode, const int aRow, const qreal aLeft, const qreal aRight, const QColor& aInk, const QColor& aOther) -> std::pair<int, int>
+	{
+		const auto pixmap = aCode.viewport()->grab();
+		const auto image  = pixmap.toImage();
+		const auto ratio  = pixmap.devicePixelRatio();
+		const auto box    = QRectF{ aCode.cursorRect(QTextCursor{ aCode.document()->findBlockByNumber(aRow) }) };
+		auto       ink    = 0;
+		auto       other  = 0;
+		for (auto y = static_cast<int>(std::ceil(box.top() * ratio)); y < static_cast<int>(box.bottom() * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(std::ceil(aLeft * ratio)); x < static_cast<int>(aRight * ratio) && x < image.width(); ++x) {
+				ink += colour_near(image.pixelColor(x, y), aInk) ? 1 : 0;
+				other += colour_near(image.pixelColor(x, y), aOther) ? 1 : 0;
+			}
+		}
+		return { ink, other };
+	}
+
+	auto fill_of(qt::note_code_view& aCode, const int aRow) -> QColor
+	{
+		const auto pixmap = aCode.viewport()->grab();
+		const auto at     = row_point(aCode, aRow, aCode.viewport()->width() - 6.0) * pixmap.devicePixelRatio();
+		return pixmap.toImage().pixelColor(at);
+	}
+
+	auto row_kinds(const qt::note_code_view& aCode) -> std::vector<core::cycle_excerpt_row_kind>
+	{
+		auto kinds = std::vector<core::cycle_excerpt_row_kind>{ };
+		for (const auto& row : aCode.excerpt().Rows) {
+			kinds.push_back(row.Kind);
+		}
+		return kinds;
+	}
+
+	/// \brief RC61-05 and RC61-06 as direction A presents them (owner choice,
+	/// 2026-10-02): Share notes opens a window-modal sheet over the code; one
+	/// default button, Copy round N; Save beside it; each note short by
+	/// default, its code behind a disclosure and the whole file in a larger
+	/// view; every observation in its accepted words. Real key and mouse
+	/// events through the window system, and rendered pixels.
+	void shares_from_a_sheet_over_the_code(qt::review_cycle_view& aView, share_gestures& aGestures)
+	{
+		aView.adopt_appearance(qt::appearance_profile{ });
 		auto shown = projection(1);
 		aView.present(shown);
 		settle();
-		aView.compose_action()->trigger();
-		expect(aGestures.Composed == 1, "Compose feedback asks the host once");
-		shown.Share = share_view();
+		auto* const bar   = aView.review_bar();
+		auto* const entry = qobject_cast<QToolButton*>(bar->widgetForAction(aView.compose_action()));
+		expect(entry != nullptr && entry->text() == QStringLiteral("Share notes") && entry->icon().isNull(), "the review bar's Share notes is labelled, not a pencil");
+		expect(entry->accessibleDescription() == QStringLiteral("2 open notes"), "carrying the open notes");
+		tests::window_system_clicks(*entry, QPointF{ entry->rect().center() }, 1);
+		expect(aGestures.Composed == 1, "Share notes asks the host once");
+		shown.Share           = share_view();
+		shown.Share->Contexts = { note_code(core::cycle_excerpt_context_lines, core::cycle_excerpt_rows),
+								  application::review_cycle_note_context{ .Item = core::cycle_feedback_item_id{ 2 } } };
 		aView.present(shown);
 		settle();
-		auto* const page = aView.share_page();
-		expect(page->isVisible() && !aView.source()->isVisible() && !aView.compose_action()->isEnabled() && !aView.comment_action()->isEnabled(), "Compose takes the centre; the code's gestures wait");
-		expect(page->title()->text() == QStringLiteral("Feedback round F1 · not shared yet"), "the round, not yet shared");
-		auto* const copy   = page->route_button(core::cycle_share_route::copy_document);
-		auto* const save   = page->route_button(core::cycle_share_route::save_document);
-		auto* const bundle = page->route_button(core::cycle_share_route::save_bundle);
-		expect(copy->isVisible() && copy->isEnabled() && copy->text() == QStringLiteral("Copy to Clipboard") && save->isVisible() && save->isEnabled() && save->text() == QStringLiteral("Save to File…") && bundle->isVisible(),
-			   "Copy and Save are first-class buttons on the page");
-		expect(copy->x() < save->x() && save->x() < bundle->x(), "Copy, then Save, then the bundle");
-		expect(!page->route_button(core::cycle_share_route::external_agent)->isVisible() && !page->route_button(core::cycle_share_route::send_to_agent)->isVisible(),
-			   "no agent route, and no disabled one, without the capability");
-		expect(aView.window()->focusWidget() == copy, "focus waits on Copy: one key shares the previewed round");
-		expect(lines_of(*page->items()) == QStringList{ QStringLiteral("1. Whole cycle — Pasted answer."), QStringLiteral("2. src/parser.cpp — Rename this. · 1 suggested change") }, "the round's notes in its order");
-		expect(page->items()->item(0)->checkState() == Qt::Checked && page->items()->item(1)->checkState() == Qt::Checked, "each included by its check box");
-		expect(page->preview()->toPlainText() == QStringLiteral("# Review round F1\n\nImplement the following feedback.\n") && page->preview()->isReadOnly(), "the preview is the document, read-only");
-		expect(page->facts()->text().startsWith(QStringLiteral("2 notes · 1 suggested change · no source files · 53 bytes of Markdown · round digest abababababab")), "what the round holds");
-		expect(lines_of(*page->deliveries()) == QStringList{ QStringLiteral("Nothing shared yet.") } && page->findChild<QLabel*>(QStringLiteral("cycleShareMeaning"))->text().contains(QStringLiteral("None of them means")),
-			   "nothing shared yet, and what sharing never means");
-		for (auto* const control : page->findChildren<QWidget*>()) {
-			if (control->isVisible() && control->focusPolicy() & Qt::TabFocus && control->objectName() != QStringLiteral("cycleKeyboardFocus")) {
-				expect(control->findChild<QWidget*>(QStringLiteral("cycleKeyboardFocus"), Qt::FindDirectChildrenOnly) != nullptr, "every Tab stop on the page shows the focus ring");
+		auto* const sheet = aView.share_page();
+		expect(sheet->isVisible() && sheet->isWindow() && sheet->windowModality() == Qt::WindowModal && aView.source()->isVisible(), "a window-modal sheet; the code stays behind it");
+		expect(sheet->geometry().top() >= bar->mapToGlobal(QPoint{ 0, bar->height() }).y() - 1 && sheet->width() < aView.width(), "hung from the review bar, narrower than the window");
+		expect(sheet->title()->text() == QStringLiteral("Share round 1"), "what it is");
+		expect(sheet->intro()->text().startsWith(QStringLiteral("Your two notes go out together as one message to whoever is changing the code")) && sheet->intro()->text().contains(QStringLiteral("Nothing leaves this window until you copy or save it.")),
+			   "why one would, and that nothing has left");
+		auto* const copy   = sheet->route_button(core::cycle_share_route::copy_document);
+		auto* const save   = sheet->route_button(core::cycle_share_route::save_document);
+		auto* const bundle = sheet->route_button(core::cycle_share_route::save_bundle);
+		expect(copy->text() == QStringLiteral("Copy round 1") && copy->isDefault() && copy->isEnabled() && save->text() == QStringLiteral("Save as File…") && !save->isDefault() && save->isEnabled(),
+			   "one default button, Copy round 1; Save beside it");
+		expect(sheet->route_words(core::cycle_share_route::copy_document)->isVisible() && sheet->route_words(core::cycle_share_route::copy_document)->text().contains(QStringLiteral("This is the usual way"))
+				   && sheet->route_words(core::cycle_share_route::save_document)->isVisible() && sheet->route_words(core::cycle_share_route::save_document)->text().startsWith(QStringLiteral("Keep a Markdown file")),
+			   "each says when to use it");
+		expect(copy->mapTo(sheet, QPoint{ }).y() < save->mapTo(sheet, QPoint{ }).y() && bundle->isVisible() && bundle->isFlat() && sheet->exact_text_button()->isVisible(), "Copy above Save; the bundle and the exact text in the foot");
+		expect(!sheet->route_button(core::cycle_share_route::external_agent)->isVisible() && !sheet->route_button(core::cycle_share_route::send_to_agent)->isVisible(), "no agent route, and no disabled one, without the capability");
+		expect(QApplication::focusWidget() == copy, "focus waits on Copy");
+		expect(sheet->action_button(core::cycle_round_action::implement)->isChecked() && sheet->action_words()->text() == QStringLiteral("Make the changes the notes describe."), "what the round asks, in words");
+		expect(!sheet->deliveries()->isVisible() && !sheet->meaning()->isVisible(), "no shared-so-far list before anything was shared");
+
+		// Short by default: two lines a note, in the order they will be read.
+		const auto& rows = sheet->rows();
+		expect(rows.size() == 2U && rows[0].Item == core::cycle_feedback_item_id{ 2 } && rows[1].Item == core::cycle_feedback_item_id{ 1 }, "the round's order");
+		expect(rows[0].Number->text() == QStringLiteral("1") && rows[0].Heading->text() == QStringLiteral("Pasted answer.") && rows[0].Where->text() == QStringLiteral("The whole project") && rows[0].Kind->text() == QStringLiteral("Note"),
+			   "a note about the whole project");
+		expect(rows[1].Number->text() == QStringLiteral("2") && rows[1].Heading->text() == QStringLiteral("Rename this.") && rows[1].Where->text() == QStringLiteral("src/parser.cpp, line 14") && rows[1].Kind->text() == QStringLiteral("Suggested change"),
+			   "where, with its line, and what it is");
+		expect(rows[0].Disclose->isHidden() && !rows[1].Disclose->isHidden() && !rows[1].Detail->isVisible() && !rows[1].Code->isVisible(), "no code shown until asked; nothing to disclose for a one-line note about no file");
+		expect(sheet->notes_heading()->text() == QStringLiteral("2 of 2 notes, in the order they will be read"), "how many go");
+		for (auto* const control : sheet->findChildren<QWidget*>()) {
+			if (control->window() == sheet && control->isVisible() && control->focusPolicy() & Qt::TabFocus && control->objectName() != QStringLiteral("cycleKeyboardFocus")) {
+				expect(control->findChild<QWidget*>(QStringLiteral("cycleKeyboardFocus"), Qt::FindDirectChildrenOnly) != nullptr, "every Tab stop on the sheet shows the focus ring");
 			}
 		}
-		capture(aView, QStringLiteral("cycle-share-draft"));
+		capture_with_sheet(aView, QStringLiteral("cycle-share-sheet"));
 
-		// One gesture shares; no per-item confirmation and no second prompt.
-		copy->click();
-		expect(aGestures.Shared == std::vector{ core::cycle_share_route::copy_document }, "Copy is one gesture");
-		save->click();
+		// The code is blocked while the sheet is open: a click on Comment does nothing.
+		auto* const comment = qobject_cast<QToolButton*>(bar->widgetForAction(aView.comment_action()));
+		const auto  noted   = aGestures.Edits.size();
+		tests::window_system_clicks(*comment, QPointF{ comment->rect().center() }, 1);
+		expect(aView.comment_editor()->isHidden() || !aView.comment_editor()->isVisible(), "the window behind the sheet takes no input");
+		expect(aGestures.Edits.size() == noted, "and the sheet records nothing for it");
+
+		// The disclosure opens one note's code: its line and each change in place, on the panes' fills.
+		tests::window_system_clicks(*rows[1].Disclose, QPointF{ rows[1].Disclose->rect().center() }, 1);
+		settle();
+		auto* const code = rows[1].Code;
+		expect(rows[1].Detail->isVisible() && code->isVisible() && rows[1].Disclose->isChecked() && rows[1].Disclose->arrowType() == Qt::DownArrow, "the disclosure opens the note's code");
+		expect(QApplication::focusWidget() == rows[1].Disclose, "and takes focus, so Left and Right work from there");
+		expect(row_kinds(*code)
+				   == std::vector{ core::cycle_excerpt_row_kind::context, core::cycle_excerpt_row_kind::context, core::cycle_excerpt_row_kind::removed, core::cycle_excerpt_row_kind::added, core::cycle_excerpt_row_kind::context,
+								   core::cycle_excerpt_row_kind::context, core::cycle_excerpt_row_kind::removed, core::cycle_excerpt_row_kind::added, core::cycle_excerpt_row_kind::context, core::cycle_excerpt_row_kind::context },
+			   "two lines around each part, the change in place");
+		const auto codeLines = code->toPlainText().split(QLatin1Char('\n'));
+		expect(codeLines.size() == 10 && codeLines[2] == QStringLiteral("14 -     return check(aText);") && codeLines[3] == QStringLiteral("14 +     return count_tokens(aText);") && codeLines[0] == QStringLiteral("12   // line 12"),
+			   "numbered, marked and exact, a tab to the panes' stop from the code's first column");
+		expect(code->height() >= static_cast<int>(10 * QFontMetricsF{ code->font() }.lineSpacing()) && code->verticalScrollBar()->maximum() == 0, "every row in view, no scrolling");
+		expect(rows[1].Facts->text().startsWith(QStringLiteral("src/parser.cpp at R1, lines 12–19 of 31.")) && rows[1].Whole->isVisible(), "what the excerpt is, and the way to the whole file");
+		const auto colours = qt::code_role_colors_of(qt::appearance_profile{ }.palette());
+		const auto removed = qt::code_sample_row_fill(qt::code_sample_row_kind::removed, colours);
+		const auto added   = qt::code_sample_row_fill(qt::code_sample_row_kind::added, colours);
+		const auto base    = code->palette().color(QPalette::Base);
+		expect(removed.isValid() && added.isValid() && fill_is(fill_of(*code, 2), removed) && fill_is(fill_of(*code, 3), added) && fill_is(fill_of(*code, 0), base), "removed and added rows on the review panes' fills; context untinted");
+		// Local role/text rule: the gutter's ink is the placeholder colour laid
+		// over the row's fill, and none of it is the text colour; the code's is.
+		const auto digit  = QFontMetricsF{ code->font() }.horizontalAdvance(QStringLiteral("14 -"));
+		const auto margin = code->document()->documentMargin();
+		const auto text   = code->palette().color(QPalette::Text);
+		const auto quiet  = over(code->palette().color(QPalette::PlaceholderText), removed);
+		const auto gutter = ink_in_row(*code, 2, margin, margin + digit, quiet, text);
+		const auto words  = ink_in_row(*code, 2, margin + digit + 4.0, margin + digit + 60.0, text, quiet);
+		expect(!colour_near(quiet, text), "the two inks can be told apart");
+		expect(gutter.first > 0 && gutter.second == 0, "the line number and mark in the placeholder colour");
+		expect(words.first > 0, "the code in the text colour over its fill");
+		capture_with_sheet(aView, QStringLiteral("cycle-share-sheet-code"));
+
+		// Left closes it from the keyboard, Right opens it; expansion survives a refresh.
+		rows[1].Disclose->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*rows[1].Disclose, Qt::Key_Left);
+		expect(!rows[1].Detail->isVisible(), "Left closes the note's code");
+		tests::window_system_key(*rows[1].Disclose, Qt::Key_Right);
+		expect(rows[1].Detail->isVisible(), "Right opens it");
+		aView.present(shown);
+		settle();
+		expect(sheet->rows()[1].Detail->isVisible() && QApplication::focusWidget() == sheet->rows()[1].Disclose, "a refresh keeps what was open, and focus");
+
+		// The larger view: the note's whole file, over the sheet, scrolled to the note.
+		sheet->notes_area()->ensureWidgetVisible(rows[1].Whole);
+		settle();
+		tests::window_system_clicks(*rows[1].Whole, QPointF{ rows[1].Whole->rect().center() }, 1);
+		settle();
+		auto* const viewer = sheet->viewer();
+		expect(aGestures.Shown == std::vector{ core::cycle_feedback_item_id{ 1 } }, "the whole file is asked of the host for that note");
+		expect(viewer->isVisible() && viewer->windowModality() == Qt::WindowModal && viewer->showing_code() && viewer->foot()->text() == QStringLiteral("Reading the whole file…"), "the larger view opens at once with what is read");
+		expect(viewer->width() > sheet->width() && viewer->height() > sheet->height() / 2, "larger than the sheet");
+		shown.Share->Larger = note_code(core::cycle_excerpt_larger_rows, core::cycle_excerpt_larger_rows);
+		aView.present(shown);
+		settle();
+		const auto whole = viewer->code()->toPlainText().split(QLatin1Char('\n'));
+		expect(whole.size() == 33 && whole.front() == QStringLiteral(" 1   // line 1") && whole.back() == QStringLiteral("31   // line 31") && viewer->foot()->isHidden(), "the whole file, both changes in place");
+		expect(viewer->heading()->text() == QStringLiteral("Rename this.") && viewer->detail()->text() == QStringLiteral("src/parser.cpp at R1, line 14. 31 lines in the file."), "which note, and where");
+		expect(viewer->code()->textCursor().blockNumber() == 13 && viewer->code()->focusPolicy() & Qt::TabFocus, "the cursor on the note's line, which the keyboard can read");
+		expect(!viewer->previous_button()->isEnabled() && !viewer->next_button()->isEnabled(), "no other note with code to step to");
+		capture_with_sheet(aView, QStringLiteral("cycle-share-sheet-whole-file"));
+		tests::window_system_key(*viewer->done_button(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(!viewer->isVisible() && sheet->isVisible() && aGestures.Closed == 1 && aGestures.Back == 0, "Escape closes the larger view only");
+		expect(QApplication::activeWindow() == sheet && QApplication::focusWidget() == rows[1].Whole, "and focus is back on the button that opened it");
+		shown.Share->Larger.reset();
+		aView.present(shown);
+		settle();
+
+		// Show All Code, and the exact text, also over the sheet.
+		tests::window_system_clicks(*sheet->all_code_button(), QPointF{ sheet->all_code_button()->rect().center() }, 1);
+		expect(!sheet->rows()[1].Detail->isVisible() && sheet->all_code_button()->text() == QStringLiteral("Show All Code"), "all open, so it closes them all");
+		tests::window_system_clicks(*sheet->all_code_button(), QPointF{ sheet->all_code_button()->rect().center() }, 1);
+		expect(sheet->rows()[1].Detail->isVisible() && sheet->all_code_button()->text() == QStringLiteral("Hide All Code"), "and opens them all");
+		tests::window_system_clicks(*sheet->exact_text_button(), QPointF{ sheet->exact_text_button()->rect().center() }, 1);
+		expect(viewer->isVisible() && !viewer->showing_code() && viewer->text()->toPlainText() == QStringLiteral("# Review round F1\n\nImplement the following feedback.\n") && viewer->text()->isReadOnly(),
+			   "the exact text, read-only");
+		expect(viewer->foot()->text() == QStringLiteral("53 bytes of Markdown. Round digest abababababab."), "its size and digest, which the sheet no longer leads with");
+		tests::window_system_key(*viewer->done_button(), Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		expect(!viewer->isVisible() && aGestures.Closed == 1 && aGestures.Shared.empty(), "Return is the viewer's Done; nothing was shared");
+
+		// The reviewer's choices: what to ask, the round note, which notes, their order.
+		tests::window_system_clicks(*sheet->action_button(core::cycle_round_action::plan), QPointF{ sheet->action_button(core::cycle_round_action::plan)->rect().center() }, 1);
+		expect(std::get<core::set_round_action>(aGestures.Edits.back()).Action == core::cycle_round_action::plan, "Plan asked for");
+		auto* const goal = sheet->goal();
+		tests::window_system_clicks(*goal, QPointF{ goal->rect().center() }, 1);
+		for (const auto letter : QStringLiteral("Total")) {
+			tests::window_system_key(*goal, letter.unicode(), Qt::NoModifier, QString{ letter });
+		}
+		tests::window_system_key(*goal, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		expect(std::get<core::set_round_goal>(aGestures.Edits.back()).Goal == "Total" && aGestures.Shared.empty(), "Return saves the round note and shares nothing");
+		// Text in the round note that was never saved and has no focus now, as
+		// when the sheet never became the active window: a refresh keeps it
+		// for the owner to save before a terminal freeze reads the draft (BPR-1168).
+		sheet->cancel_button()->setFocus(Qt::TabFocusReason);
+		const auto saves = aGestures.Edits.size();
+		goal->setText(QStringLiteral("Not saved yet"));
+		goal->setModified(true);
+		expect(!goal->hasFocus(), "the round note has no focus");
+		aView.present(shown);
+		settle();
+		expect(goal->text() == QStringLiteral("Not saved yet") && sheet->draft_editor() == core::cycle_draft_editor::unsaved && aGestures.Edits.size() == saves, "the typed text stays, unsaved, for the owner to save");
+		goal->setModified(false);
+		aView.present(shown);
+		settle();
+		expect(goal->text() == QStringLiteral("Total") || goal->text().isEmpty(), "once settled, the draft's own note shows");
+		sheet->notes_area()->ensureWidgetVisible(sheet->rows()[1].Include);
+		settle();
+		tests::window_system_clicks(*sheet->rows()[1].Include, QPointF{ sheet->rows()[1].Include->rect().center() }, 1);
+		expect(std::get<core::include_round_item>(aGestures.Edits.back()) == core::include_round_item{ .Item = core::cycle_feedback_item_id{ 1 }, .Include = false }, "leave a note out by its check box");
+		sheet->rows()[1].Include->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*sheet->rows()[1].Include, Qt::Key_Up, Qt::AltModifier);
+		expect(std::get<core::move_round_item>(aGestures.Edits.back()) == core::move_round_item{ .Item = core::cycle_feedback_item_id{ 1 }, .Earlier = true }, "Option+Up moves the focused note earlier");
+		const auto before = aGestures.Edits.size();
+		tests::window_system_key(*sheet->rows()[1].Include, Qt::Key_Down, Qt::AltModifier);
+		expect(aGestures.Edits.size() == before, "the last note moves no later");
+		// Dragging the first note's grip below the second moves it one place later.
+		sheet->notes_area()->ensureWidgetVisible(sheet->rows()[0].Grip);
+		settle();
+		auto* const grip   = sheet->rows()[0].Grip;
+		const auto  target = sheet->rows()[1].Row->mapTo(grip, QPoint{ 4, sheet->rows()[1].Row->height() - 2 });
+		tests::window_system_mouse(*grip, QPointF{ grip->rect().center() }, QEvent::MouseButtonPress, Qt::LeftButton, 2000);
+		tests::window_system_mouse(*grip, QPointF{ grip->rect().center() } + QPointF{ 0.0, 12.0 }, QEvent::MouseMove, Qt::LeftButton);
+		tests::window_system_mouse(*grip, QPointF{ target }, QEvent::MouseMove, Qt::LeftButton);
+		expect(sheet->findChild<QFrame*>(QStringLiteral("cycleShareDropMark"))->isVisible(), "a mark shows where it will land");
+		tests::window_system_mouse(*grip, QPointF{ target }, QEvent::MouseButtonRelease, Qt::NoButton);
+		expect(std::get<core::move_round_item>(aGestures.Edits.back()) == core::move_round_item{ .Item = core::cycle_feedback_item_id{ 2 }, .Earlier = false } && aGestures.Edits.size() == before + 1U, "dragged one place later");
+
+		// One gesture shares: Return on the sheet presses Copy; Save is one click.
+		copy->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*copy, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		expect(aGestures.Shared == std::vector{ core::cycle_share_route::copy_document }, "Return copies: one gesture, no second prompt");
+		tests::window_system_clicks(*save, QPointF{ save->rect().center() }, 1);
 		expect(aGestures.Shared.size() == 2U && aGestures.Shared[1] == core::cycle_share_route::save_document, "Save asks the composition for its file");
 
-		// The reviewer's edits, one at a time.
-		page->items()->item(1)->setCheckState(Qt::Unchecked);
-		expect(aGestures.Edits.size() == 1U && std::get<core::include_round_item>(aGestures.Edits[0]) == core::include_round_item{ .Item = core::cycle_feedback_item_id{ 1 }, .Include = false }, "leave a note out");
-		page->items()->setCurrentRow(0);
-		expect(!page->move_up_button()->isEnabled() && page->move_down_button()->isEnabled(), "the first moves only later");
-		page->items()->setCurrentRow(1);
-		page->move_up_button()->click();
-		expect(std::get<core::move_round_item>(aGestures.Edits.back()) == core::move_round_item{ .Item = core::cycle_feedback_item_id{ 1 }, .Earlier = true }, "move earlier");
-		page->action_box()->setCurrentIndex(page->action_box()->findText(QStringLiteral("Plan")));
-		emit page->action_box()->activated(page->action_box()->currentIndex());
-		expect(std::get<core::set_round_action>(aGestures.Edits.back()).Action == core::cycle_round_action::plan, "the requested action");
-		page->goal()->setFocus(Qt::OtherFocusReason);
-		page->goal()->setText(QStringLiteral("Make parsing total."));
-		page->goal()->setModified(true);
-		emit page->goal()->editingFinished();
-		expect(std::get<core::set_round_goal>(aGestures.Edits.back()).Goal == "Make parsing total.", "the optional goal");
-
-		// Shared: each observation in its own words; repeats counted.
+		// Shared: what happened, what comes next, each observation in its accepted words.
 		auto frozen       = share_view();
 		frozen.Frozen     = true;
 		frozen.Status     = "Copied F1 to the clipboard (1,414 bytes).";
+		frozen.Contexts   = shown.Share->Contexts;
 		frozen.Deliveries = {
 			record(1, 1, core::cycle_delivery_state::copied, core::cycle_disclosure_channel::clipboard),
 			record(2, 1, core::cycle_delivery_state::saved, core::cycle_disclosure_channel::local_file, "RC-1-F1.md"),
@@ -1147,9 +1395,11 @@ namespace {
 		shown.Share = frozen;
 		aView.present(shown);
 		settle();
-		expect(page->title()->text() == QStringLiteral("Feedback round F1 · frozen; sharing it again sends the same round") && page->status()->isVisible() && page->status()->text() == QStringLiteral("Copied F1 to the clipboard (1,414 bytes)."),
-			   "shared: the same round again, and what the last share did");
-		const auto delivered = lines_of(*page->deliveries());
+		expect(sheet->title()->text() == QStringLiteral("Round 1 is fixed as you shared it") && sheet->intro()->text().contains(QStringLiteral("changing it now makes round 2")) && sheet->intro()->text().contains(QStringLiteral("Capture revision")),
+			   "fixed as shared, what changing it does and what comes next");
+		expect(sheet->cancel_button()->text() == QStringLiteral("Done") && sheet->cancel_button()->isDefault() && !copy->isDefault() && copy->isEnabled(), "Done is the default; copying again stays one click");
+		expect(sheet->status()->text() == QStringLiteral("Copied F1 to the clipboard (1,414 bytes)."), "what the last share did");
+		const auto delivered = lines_of(*sheet->deliveries());
 		expect(delivered == QStringList{
 				   QStringLiteral("F1 · Copied to the clipboard · 1,414 bytes"),
 				   QStringLiteral("F1 · Saved as RC-1-F1.md · 1,414 bytes · 2 times"),
@@ -1160,43 +1410,50 @@ namespace {
 				   QStringLiteral("F2 · Copy not confirmed by the clipboard · 1,414 bytes"),
 				   QStringLiteral("F2 · Copy failed: there was no clipboard"),
 			   },
-			   "copied, saved, retrieved, accepted and acknowledged each said apart");
+			   "copied, saved, retrieved, accepted and acknowledged each said apart, in the accepted words");
+		expect(sheet->meaning()->isVisible() && sheet->meaning()->text() == QStringLiteral("These say only what happened to the bytes. None of them means the round was received, read, acted on or accepted."), "and what none of them means");
 		for (const auto& line : delivered) {
 			for (const auto* word : { "complete", "verified", "addressed", "done", "delivered" }) {
 				expect(!line.contains(QString::fromLatin1(word), Qt::CaseInsensitive), "no observation reads as completion or acceptance of the review");
 			}
 		}
-		capture(aView, QStringLiteral("cycle-share-shared"));
+		shown.Share->Deliveries = { record(1, 1, core::cycle_delivery_state::copied, core::cycle_disclosure_channel::clipboard) };
+		aView.present(shown);
+		settle();
+		expect(sheet->title()->text() == QStringLiteral("Round 1 is on your clipboard"), "after Copy, the sheet says where the round is");
+		capture_with_sheet(aView, QStringLiteral("cycle-share-sheet-shared"));
 
-		// After an edit: an amendment, the shared round untouched.
+		// After an edit: the next round, the shared one untouched.
 		auto amended   = share_view();
 		amended.Round  = core::cycle_round_id{ 2 };
 		amended.Amends = core::cycle_round_id{ 1 };
 		shown.Share    = amended;
 		aView.present(shown);
 		settle();
-		expect(page->title()->text() == QStringLiteral("Feedback round F2 · amends F1, which stays as it was shared · not shared yet"), "an edit after sharing is the next round");
+		expect(sheet->title()->text() == QStringLiteral("Share round 2") && sheet->intro()->text().startsWith(QStringLiteral("You changed this round after sharing it as round 1, which stays as it was.")) && copy->text() == QStringLiteral("Copy round 2"),
+			   "an edit after sharing is the next round");
 
-		// A refused channel stays listed, refused; Save is decided on its own.
+		// A refused channel stays listed, refused, and says so; Save is decided on its own.
 		auto refused               = share_view();
 		refused.Routes[0].Decision = core::cycle_authorization::channel_denied;
 		refused.Status             = "Policy for this project's source does not allow copying to the clipboard. Nothing was frozen or shared, and no other way was used instead.";
 		shown.Share                = refused;
 		aView.present(shown);
 		settle();
-		expect(copy->isVisible() && !copy->isEnabled() && copy->toolTip().contains(QStringLiteral("no other way is used instead")) && save->isEnabled(), "Copy shown refused, never hidden; Save still its own choice");
-		expect(page->status()->text().contains(QStringLiteral("no other way was used instead")), "and said");
-		capture(aView, QStringLiteral("cycle-share-refused"));
+		expect(copy->isVisible() && !copy->isEnabled() && sheet->route_words(core::cycle_share_route::copy_document)->text().contains(QStringLiteral("no other way is used instead")) && save->isEnabled() && save->isDefault(),
+			   "Copy shown refused, in words, never hidden; Save still its own choice, and the default");
+		expect(sheet->status()->text().contains(QStringLiteral("no other way was used instead")), "and said");
+		capture_with_sheet(aView, QStringLiteral("cycle-share-sheet-refused"));
 
-		// Nothing selected: nothing can be shared, and the page says why.
+		// Nothing selected: nothing can be shared, and the sheet says why.
 		auto empty    = share_view();
 		empty.Refusal = core::cycle_round_refusal{ .Problem = core::cycle_round_problem::empty };
 		shown.Share   = empty;
 		aView.present(shown);
 		settle();
-		expect(!copy->isEnabled() && !save->isEnabled() && !bundle->isEnabled() && page->facts()->text().contains(QStringLiteral("Include at least one note to share.")), "an empty round is not shared");
+		expect(!copy->isEnabled() && !save->isEnabled() && !bundle->isEnabled() && sheet->status()->text().contains(QStringLiteral("Include at least one note to share.")), "an empty round is not shared");
 
-		// Over what the page shows: measured in full, never shown in part.
+		// Over what the sheet shows: measured in full, never shown in part.
 		auto large          = share_view();
 		large.Document      = { };
 		large.DocumentShown = false;
@@ -1205,9 +1462,10 @@ namespace {
 		shown.Share         = large;
 		aView.present(shown);
 		settle();
-		expect(page->preview()->toPlainText().contains(QStringLiteral("17,000,123 bytes, too large to show here")) && page->preview()->toPlainText().contains(QStringLiteral("Nothing is cut short")), "the size, and nothing shown in part");
-		expect(page->status()->text().contains(QStringLiteral("over the clipboard's limit")), "the limit in words");
-		capture(aView, QStringLiteral("cycle-share-oversized"));
+		sheet->exact_text_button()->click();
+		expect(viewer->text()->toPlainText().contains(QStringLiteral("17,000,123 bytes, too large to show here")) && viewer->text()->toPlainText().contains(QStringLiteral("Nothing is cut short")), "the size, and nothing shown in part");
+		viewer->done_button()->click();
+		expect(sheet->status()->text().contains(QStringLiteral("over the clipboard's limit")), "the limit in words");
 
 		// Other bytes at the chosen file: the reviewer's word first.
 		auto pending    = share_view();
@@ -1215,8 +1473,8 @@ namespace {
 		shown.Share     = pending;
 		aView.present(shown);
 		settle();
-		expect(page->replace_button()->isVisible() && page->findChild<QLabel*>(QStringLiteral("cycleShareReplaceText"))->text().startsWith(QStringLiteral("notes.md already holds other content (22 bytes).")), "asks before replacing");
-		page->keep_button()->click();
+		expect(sheet->replace_button()->isVisible() && sheet->replace_words()->text().startsWith(QStringLiteral("notes.md already holds other content (22 bytes).")), "asks before replacing");
+		sheet->keep_button()->click();
 		expect(aGestures.Replaced == std::vector{ false }, "kept");
 
 		// An optional route, when reachable and allowed: the invocation and nothing else.
@@ -1227,31 +1485,29 @@ namespace {
 		shown.Share         = external;
 		aView.present(shown);
 		settle();
-		auto* const agent = page->route_button(core::cycle_share_route::external_agent);
-		expect(agent->isVisible() && agent->isEnabled() && agent->mapTo(page, QPoint{ }).y() > bundle->mapTo(page, QPoint{ }).y() && page->invocation()->isVisible() && page->invocation()->text() == QStringLiteral("bpr cycle round read RC-1 --round F1") && page->invocation()->isReadOnly(),
+		auto* const agent = sheet->route_button(core::cycle_share_route::external_agent);
+		expect(agent->isVisible() && agent->isEnabled() && agent->mapTo(sheet, QPoint{ }).y() > save->mapTo(sheet, QPoint{ }).y() && sheet->invocation()->isVisible() && sheet->invocation()->text() == QStringLiteral("bpr cycle round read RC-1 --round F1") && sheet->invocation()->isReadOnly(),
 			   "below Copy and Save: the round's invocation, to run in your own harness");
-		capture(aView, QStringLiteral("cycle-share-external"));
 
-		// Escape leaves, as Back does, from inside the page; with focus
-		// outside it, Escape does not.
-		auto* const keys = aView.findChild<QShortcut*>(QStringLiteral("cycleComposerCancelKeys"));
-		aView.activateWindow();
-		aView.files()->setFocus(Qt::TabFocusReason);
-		settle();
-		expect(keys->isEnabled(), "the cancel keys are live while Compose is open");
-		tests::window_system_key(*aView.files(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
-		expect(aGestures.Back == 0, "Escape in the files drawer leaves Compose open");
-		page->items()->setFocus(Qt::TabFocusReason);
-		settle();
-		expect(QApplication::focusWidget() == page->items(), "focus in the notes of the round");
-		tests::window_system_key(*page->items(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
-		expect(aGestures.Back == 1, "Escape is Back");
-		page->back_button()->click();
-		expect(aGestures.Back == 2, "and so is Back");
+		// Escape is Cancel: the sheet closes and the draft stays; on macOS Control-C too.
+		sheet->goal()->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*sheet->goal(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(aGestures.Back == 1 && !sheet->isVisible(), "Escape closes the sheet");
 		shown.Share.reset();
 		aView.present(shown);
 		settle();
-		expect(!page->isVisible() && aView.source()->isVisible() && aView.compose_action()->isEnabled(), "the source again; Compose offered again");
+		expect(!sheet->isVisible() && aView.source()->isVisible() && aView.compose_action()->isEnabled(), "the code again; Share notes offered again");
+#ifdef Q_OS_MACOS
+		shown.Share = share_view();
+		aView.present(shown);
+		settle();
+		expect(sheet->isVisible(), "open again");
+		tests::window_system_key(*copy, Qt::Key_C, Qt::MetaModifier, QStringLiteral("\x03"));
+		expect(aGestures.Back == 2 && !sheet->isVisible() && aGestures.Shared.size() == 2U, "Control-C cancels on macOS, as in the code, and copies nothing");
+		shown.Share.reset();
+		aView.present(shown);
+		settle();
+#endif
 	}
 }
 
@@ -1284,10 +1540,12 @@ try {
 		.PrepareNextRound = [&] { ++decisions.Prepared; },
 		.Compose          = [&] { ++shares.Composed; },
 		.Share            = {
-			.Back    = [&] { ++shares.Back; },
-			.Edit    = [&](core::cycle_compose_edit aEdit) { shares.Edits.push_back(std::move(aEdit)); },
-			.Share   = [&](const core::cycle_share_route aRoute) { shares.Shared.push_back(aRoute); },
-			.Replace = [&](const bool aReplace) { shares.Replaced.push_back(aReplace); },
+			.Back      = [&] { ++shares.Back; },
+			.Edit      = [&](core::cycle_compose_edit aEdit) { shares.Edits.push_back(std::move(aEdit)); },
+			.Share     = [&](const core::cycle_share_route aRoute) { shares.Shared.push_back(aRoute); },
+			.Replace   = [&](const bool aReplace) { shares.Replaced.push_back(aReplace); },
+			.ShowCode  = [&](const core::cycle_feedback_item_id aItem) { shares.Shown.push_back(aItem); },
+			.CloseCode = [&] { ++shares.Closed; },
 		},
 	});
 	view.resize(1280, 760);
@@ -1307,24 +1565,31 @@ try {
 	captures_and_compares(view, gestures);
 	records_replies(view, replies);
 	decides_explicitly(view, decisions);
-	composes_and_shares(view, shares);
+	shares_from_a_sheet_over_the_code(view, shares);
 	// The narrowest window the workbench supports still shows the three regions.
 	view.resize(900, 600);
 	settle();
 	expect(view.minimumSizeHint().width() <= 900, "fits the compact window");
 	capture(view, QStringLiteral("cycle-compact-900"));
-	// And with Compose feedback open, every route reachable.
+	// And with the share sheet open, every route reachable, inside the window.
 	auto composing  = projection(1);
 	composing.Share = share_view();
 	composing.Share->Routes.push_back({ .Route = core::cycle_share_route::external_agent, .Decision = core::cycle_authorization::allowed });
+	composing.Share->Contexts = { note_code(core::cycle_excerpt_context_lines, core::cycle_excerpt_rows) };
 	view.present(composing);
 	settle();
-	expect(view.minimumSizeHint().width() <= 900 && view.share_page()->route_button(core::cycle_share_route::external_agent)->isVisible(), "Compose feedback fits the compact window with every route");
-	for (const auto route : { core::cycle_share_route::copy_document, core::cycle_share_route::save_document, core::cycle_share_route::save_bundle, core::cycle_share_route::external_agent }) {
-		auto* const button = view.share_page()->route_button(route);
-		expect(button->mapTo(&view, QPoint{ button->width(), 0 }).x() <= view.width(), "no route is cut off at 900 pixels");
+	auto* const sheet = view.share_page();
+	expect(sheet->isVisible() && sheet->width() <= view.width() && sheet->route_button(core::cycle_share_route::external_agent)->isVisible(), "the sheet fits the compact window with every route");
+	expect(sheet->geometry().bottom() <= view.mapToGlobal(QPoint{ 0, view.height() }).y(), "and ends inside it");
+	expect(QApplication::focusWidget() == sheet->route_button(core::cycle_share_route::copy_document), "opened again, focus waits on Copy again");
+	for (auto* const ring : sheet->findChildren<QWidget*>(QStringLiteral("cycleKeyboardFocus"))) {
+		expect(!ring->isVisible() || ring->parentWidget() == QApplication::focusWidget(), "one focus ring, on Copy: none left from before the sheet closed");
 	}
-	capture(view, QStringLiteral("cycle-share-compact-900"));
+	for (const auto route : { core::cycle_share_route::copy_document, core::cycle_share_route::save_document, core::cycle_share_route::save_bundle, core::cycle_share_route::external_agent }) {
+		auto* const button = sheet->route_button(route);
+		expect(button->mapTo(sheet, QPoint{ button->width(), 0 }).x() <= sheet->width(), "no route is cut off at 900 pixels");
+	}
+	capture_with_sheet(view, QStringLiteral("cycle-share-sheet-compact-900"));
 	std::cout << "review-cycle-view-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

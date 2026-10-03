@@ -3,7 +3,7 @@
 
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
-#include "bpr/qt/review_cycle_share_page.hpp"
+#include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/suggestion_composer.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
@@ -72,7 +72,7 @@ namespace bpr::qt {
 	/// \details Built from the RFC-BPR-0052 scaffold's own parts in the same
 	/// order as a pull request's review surface: the review bar (Updates
 	/// disclosure, the full-source revision, file navigation and position,
-	/// Comment, Suggest change and Compose feedback), the folding Updates line
+	/// Comment, Suggest change and Share notes), the folding Updates line
 	/// of captured revisions, the document tabs, and the files drawer, one
 	/// full-source pane and the notes tray. It adds no permanent row. The
 	/// source pane is the shared code view (`suggestion_editor`, read-only)
@@ -96,8 +96,9 @@ namespace bpr::qt {
 	/// cancels the open note or suggestion from inside it, as its Cancel
 	/// does, and so does Control-C on macOS, where Command-C is Copy (owner,
 	/// native-keyboard v002, 2026-10-02); elsewhere Ctrl+C is Copy and stays
-	/// so. Compose feedback (BPR-1161) takes the centre, as a pull request's
-	/// Compose review does, until Back or Escape. It decides nothing and
+	/// so. Share notes (BPR-1161), labelled in the review bar with the number of
+	/// open notes, opens the share sheet over the code until Cancel, Done or
+	/// Escape. It decides nothing and
 	/// performs no effect: gestures leave through `review_cycle_dispatch`.
 	class review_cycle_view final : public QWidget
 	{
@@ -163,8 +164,8 @@ namespace bpr::qt {
 		/// \brief The decisions offered for the note at `aRow` (BPR-1165).
 		[[nodiscard]] auto decision_menu(int aRow) -> QMenu*;
 		[[nodiscard]] auto next_round_button() const noexcept -> QToolButton*;
-		/// \brief Compose feedback and Share feedback (BPR-1161).
-		[[nodiscard]] auto share_page() const noexcept -> review_cycle_share_page*;
+		/// \brief Share notes: the sheet over the code (BPR-1161).
+		[[nodiscard]] auto share_page() const noexcept -> review_cycle_share_sheet*;
 		/// \brief The exact anchor for the source pane's selection, if it has one.
 		[[nodiscard]] auto selection_anchor() const -> std::optional<core::cycle_source_anchor>;
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
@@ -245,7 +246,7 @@ namespace bpr::qt {
 		QCheckBox*                                           ReplyAbout    = nullptr;
 		QPlainTextEdit*                                      ReplyEditor   = nullptr;
 		QShortcut*                                           CancelKeys    = nullptr;
-		review_cycle_share_page*                             SharePage     = nullptr;
+		review_cycle_share_sheet*                            SharePage     = nullptr;
 		std::optional<core::cycle_round_id>                  ReplyRound;
 		std::optional<std::string>                           ReplyItem;
 		bool                                                 Presenting = false;

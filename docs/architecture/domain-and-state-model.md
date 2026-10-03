@@ -434,6 +434,19 @@ or acknowledged only through a channel that can show it. No observation means
 the round was received, read, acted on or accepted, and none changes a note.
 Schema 8 migrates schemas 1 to 7 in place.
 
+The share sheet shows each listed note's code as the core cuts it
+(`core::excerpt_note`): the lines the note is about and each of its suggested
+changes to that file in place, with two unchanged lines either side, in file
+order, at most `core::cycle_excerpt_rows` rows. The host reads the file at the
+revision the note's target names, only content that revision pinned
+(`application::read_note_context`), one note at a time so a share is never
+queued behind them, and keeps each excerpt with the note version it was read
+for. The larger view is the same cut of the whole file, read on the
+reviewer's request (`review_cycle_workbench::show_note_code`) and let go when
+it closes. A change whose bytes the file no longer holds at its place is
+counted, not shown elsewhere; reading code freezes, shares and records
+nothing.
+
 Iteration is manual (RFC-BPR-0057, BPR-1163). Capture revision
 (`review_cycle_workbench::capture_revision`) is the only way back after
 someone else worked: no receipt, response, agent, commit or callback is

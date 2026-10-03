@@ -113,6 +113,13 @@ namespace bpr::application {
 		void compose();
 		/// \brief Leaves Compose feedback; the draft stays as saved.
 		void close_compose();
+		/// \brief The larger view of one listed note's code: its whole file
+		/// at the revision it names, each suggested change in place, up to
+		/// `core::cycle_excerpt_larger_rows` rows. Each listed note's short
+		/// code is read on its own as the sheet lists it.
+		void show_note_code(core::cycle_feedback_item_id aItem);
+		/// \brief Closes the larger view; the sheet stays as it was.
+		void close_note_code();
 		/// \brief Saves one edit to the draft as its next revision.
 		void edit_composition(core::cycle_compose_edit aEdit);
 		/// \brief Freezes the shown revision and shares it by one route, in one

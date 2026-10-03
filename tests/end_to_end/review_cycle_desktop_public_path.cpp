@@ -17,7 +17,9 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
+#include <QDialog>
 #include <QDir>
 #include <QGuiApplication>
 #include <QImage>
@@ -27,6 +29,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPainter>
 #include <QPalette>
 #include <QPixmap>
 #include <QPlainTextEdit>
@@ -83,8 +86,28 @@ namespace {
 	void capture(QWidget& aWidget, const QString& aName)
 	{
 		const auto directory = qEnvironmentVariable("BPR_CYCLE_DESKTOP_RENDER_DIR");
-		const auto image     = aWidget.grab().toImage();
+		auto       image     = aWidget.grab().toImage();
 		expect(!image.isNull(), "rendered window");
+		// A sheet or dialog over the window, drawn where it stands, as the reviewer sees it.
+		auto       painter = QPainter{ &image };
+		const auto over    = [&](const QWidget* aTop) {
+			for (auto* parent = aTop->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+				if (parent->window() == aWidget.window()) {
+					return true;
+				}
+			}
+			return false;
+		};
+		// The sheet first, then the larger view over it.
+		for (const auto depth : { 1, 2 }) {
+			for (auto* const top : QApplication::topLevelWidgets()) {
+				const auto nested = top->parentWidget() != nullptr && top->parentWidget()->window() != aWidget.window();
+				if (top != aWidget.window() && top->isVisible() && qobject_cast<QDialog*>(top) != nullptr && over(top) && (nested ? 2 : 1) == depth) {
+					painter.drawImage(top->mapToGlobal(QPoint{ }) - aWidget.mapToGlobal(QPoint{ }), top->grab().toImage());
+				}
+			}
+		}
+		painter.end();
 		if (!directory.isEmpty()) {
 			QDir{ }.mkpath(directory);
 			expect(image.save(QDir{ directory }.filePath(aName + QStringLiteral(".png"))), "render saved");
@@ -529,7 +552,11 @@ try {
 	// A key bound to a widget is live where that widget, or its child, has
 	// focus: it competes on the page only when that widget is the page, holds
 	// it, or lies inside it.
+	// A key of another window, such as the share sheet's, is live only there.
 	const auto overPage = [&](const Qt::ShortcutContext aContext, const QWidget* aOwner) {
+		if (aOwner != nullptr && aContext != Qt::ApplicationShortcut && aOwner->window() != page->window()) {
+			return false;
+		}
 		return aContext == Qt::WindowShortcut || aContext == Qt::ApplicationShortcut || aOwner == nullptr || aOwner == page || aOwner->isAncestorOf(page) || page->isAncestorOf(aOwner);
 	};
 	for (auto* const action : window.findChildren<QAction*>()) {
@@ -820,16 +847,37 @@ try {
 	page->compose_action()->trigger();
 	settle(lanes);
 	auto* const share = page->share_page();
-	expect(share->isVisible() && page->projection().Share && page->projection().Share->Round == core::cycle_round_id{ 2 } && page->projection().Share->Items == 1U, "Compose opens the next round's draft");
-	expect(share->title()->text() == QStringLiteral("Feedback round F2 · not shared yet") && share->items()->count() >= 1 && share->items()->item(0)->checkState() == Qt::Checked, "F2, its note included");
+	expect(share->isVisible() && share->isWindow() && page->projection().Share && page->projection().Share->Round == core::cycle_round_id{ 2 } && page->projection().Share->Items == 1U, "Share notes opens the next round's draft in a sheet");
+	expect(share->title()->text() == QStringLiteral("Share round 2") && !share->rows().empty() && share->rows()[0].Include->isChecked(), "round 2, its note included");
+	settle(lanes);
+	expect(!page->projection().Share->Contexts.empty() && page->projection().Share->Contexts[0].Status == application::review_material_status::available
+			   && !share->rows()[0].Where->text().isEmpty(),
+		   "the note's code is read by the host and its place shown");
+	// The note's code behind its disclosure, and its whole file over the sheet, through the composition.
+	share->rows()[0].Disclose->click();
+	settle(lanes);
+	expect(share->rows()[0].Code->isVisible() && !share->rows()[0].Code->excerpt().Rows.empty(), "the disclosure shows the note's code");
+	share->rows()[0].Whole->click();
+	settle(lanes);
+	expect(page->projection().Share->Larger && page->projection().Share->Larger->Item == share->rows()[0].Item && share->viewer()->isVisible() && share->viewer()->foot()->isHidden()
+			   && share->viewer()->code()->excerpt().Rows.size() >= share->rows()[0].Code->excerpt().Rows.size(),
+		   "Show the Whole File reads the file through the host and shows it over the sheet");
+	capture(window, QStringLiteral("desktop-cycle-share-whole-file"));
+	tests::window_system_key(*share->viewer()->done_button(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+	settle(lanes);
+	expect(!share->viewer()->isVisible() && share->isVisible() && !page->projection().Share->Larger, "Escape closes it; the host lets the whole file go");
 	auto* const copy = share->route_button(core::cycle_share_route::copy_document);
 	expect(copy->isVisible() && copy->isEnabled() && share->route_button(core::cycle_share_route::save_document)->isEnabled() && !share->route_button(core::cycle_share_route::external_agent)->isVisible()
 			   && !share->route_button(core::cycle_share_route::send_to_agent)->isVisible(),
 		   "Copy and Save, and no agent route in a build with none");
 	const auto bytes    = page->projection().Share->Document;
 	const auto document = QString::fromUtf8(bytes.data(), static_cast<qsizetype>(bytes.size()));
-	expect(share->preview()->toPlainText() == QString{ document }.remove(QLatin1Char('\r')) && document.startsWith(QStringLiteral("#")) && document.contains(QStringLiteral("validate(aText)")),
-		   "the preview is the readable document, the suggestion in it");
+	share->exact_text_button()->click();
+	settle(lanes);
+	expect(share->viewer()->isVisible() && share->viewer()->text()->toPlainText() == QString{ document }.remove(QLatin1Char('\r')) && document.startsWith(QStringLiteral("#")) && document.contains(QStringLiteral("validate(aText)")),
+		   "the exact text is the readable document, the suggestion in it");
+	share->viewer()->done_button()->click();
+	settle(lanes);
 	capture(window, QStringLiteral("desktop-cycle-share-draft"));
 	const auto unchanged = snapshot(project);
 	copy->click();
@@ -848,10 +896,10 @@ try {
 	expect(snapshot(project) == unchanged && page->projection().Revisions.size() == 2U, "sharing wrote no source and captured nothing");
 	capture(window, QStringLiteral("desktop-cycle-share-shared"));
 	clipboard->setText(kept);
-	share->items()->setFocus(Qt::TabFocusReason);
-	tests::window_system_key(*share->items(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+	share->goal()->setFocus(Qt::TabFocusReason);
+	tests::window_system_key(*share->goal(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
 	settle(lanes);
-	expect(!share->isVisible() && !page->projection().Share && (page->source()->isVisible() || page->comparison()->isVisible()), "Escape is Back; the reading pane again");
+	expect(!share->isVisible() && !page->projection().Share && (page->source()->isVisible() || page->comparison()->isVisible()), "Escape closes the sheet; the reading pane again");
 	desktop.shutdown();
 	settle(lanes);
 	expect(desktop.is_quiescent(), "quiescent after shutdown");

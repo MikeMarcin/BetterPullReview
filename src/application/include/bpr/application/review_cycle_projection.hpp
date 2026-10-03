@@ -127,6 +127,23 @@ namespace bpr::application {
 		auto                        operator<=>(const review_cycle_replace_request&) const = default;
 	};
 
+	/// \brief One note's code as the share sheet shows it (BPR-1161): the
+	/// file it is about, read at the revision it was written against, and
+	/// the excerpt the core cut from it.
+	struct review_cycle_note_context
+	{
+		core::cycle_feedback_item_id Item;
+		/// The file and revision; empty for a note about a folder or the whole cycle.
+		std::string                                   Path;
+		std::optional<core::cycle_source_revision_id> Revision;
+		/// Whether the file could be read; the excerpt is empty otherwise.
+		review_material_status   Status = review_material_status::missing;
+		core::cycle_note_excerpt Excerpt;
+		/// Suggested changes the note makes to other files, not in this excerpt.
+		std::uint64_t Elsewhere                                           = 0;
+		auto          operator<=>(const review_cycle_note_context&) const = default;
+	};
+
 	/// \brief Compose feedback and Share feedback (BPR-1161): the draft, the
 	/// exact document sharing it sends, the routes and every delivery
 	/// observation of the cycle.
@@ -166,7 +183,12 @@ namespace bpr::application {
 		/// A goal the reviewer entered that was not saved because the draft
 		/// changed elsewhere first (BPR-1168): kept for them to save again.
 		std::optional<std::string> UnsavedGoal;
-		auto                       operator<=>(const review_cycle_share_view&) const = default;
+		/// Each listed note's code, short, as far as it has been read.
+		std::vector<review_cycle_note_context> Contexts;
+		/// The note the larger view shows, with as much of its file as that
+		/// view holds; present while the reviewer has it open.
+		std::optional<review_cycle_note_context> Larger;
+		auto                                     operator<=>(const review_cycle_share_view&) const = default;
 	};
 
 	enum class review_cycle_activity : std::uint8_t {

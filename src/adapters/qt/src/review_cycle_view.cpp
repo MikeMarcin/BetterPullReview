@@ -330,9 +330,10 @@ namespace bpr::qt {
 		SuggestAction->setObjectName(QStringLiteral("cycleSuggestAction"));
 		SuggestAction->setToolTip(suggest_tip());
 		ReviewBar->addAction(SuggestAction);
-		ComposeAction = new QAction{ strip_icon(strip_glyph::compose_review, palette()), QStringLiteral("Compose feedback"), this };
+		// BPR-1161: labelled, with the number of open notes, where the pencil was.
+		ComposeAction = new QAction{ QStringLiteral("Share notes"), this };
 		ComposeAction->setObjectName(QStringLiteral("cycleComposeAction"));
-		ComposeAction->setToolTip(QStringLiteral("Choose the notes for one round, read exactly what is shared, then copy or save it"));
+		ComposeAction->setToolTip(QStringLiteral("Share your notes as one round: copy them for an agent or a colleague, or save them to a file"));
 		ReviewBar->addAction(ComposeAction);
 		NotesToggle = new QAction{ strip_icon(strip_glyph::comments_drawer, palette()), QStringLiteral("Notes"), this };
 		NotesToggle->setObjectName(QStringLiteral("cycleNotesToggle"));
@@ -391,12 +392,11 @@ namespace bpr::qt {
 		Comparison->setReadOnly(true);
 		Comparison->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Comparison->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		// BPR-1161: Compose feedback takes the centre until Back or Escape.
-		SharePage = new review_cycle_share_page{ Centre };
 		Centre->addWidget(Source);
 		Centre->addWidget(SourceNotice);
 		Centre->addWidget(Comparison);
-		Centre->addWidget(SharePage);
+		// BPR-1161: Share notes is a sheet over the code (direction A), not a page in its place.
+		SharePage   = new review_cycle_share_sheet{ this };
 		ReadingPage = Source;
 
 		auto* const tray       = new QWidget{ Body };
@@ -719,6 +719,7 @@ namespace bpr::qt {
 		Source->set_contrast_variant(aProfile.variant());
 		apply_source_syntax();
 		Composer->adopt_appearance(aProfile);
+		SharePage->set_code_colours(SyntaxColors);
 	}
 
 	auto review_cycle_view::adopt_source_syntax(const std::string_view aDocument, application::shared_token_spans aSpans) -> bool
@@ -973,14 +974,22 @@ namespace bpr::qt {
 		if (Projection.Share) {
 			SharePage->present(*Projection.Share, Projection.Notes, Projection.Activity == application::review_cycle_activity::idle);
 		}
-		const auto composing = Projection.Share.has_value() && !previous.Share.has_value();
+		const auto composing = Projection.Share.has_value() && !SharePage->isVisible();
 		const auto composed  = !Projection.Share.has_value() && previous.Share.has_value();
 		show_reading_page();
 		refresh_actions();
 		if (composing) {
+			// The sheet hangs from the review bar, over the file the reviewer was reading.
+			SharePage->set_anchor(ReviewBar->mapToGlobal(QPoint{ ReviewBar->width() / 2, ReviewBar->height() }));
+			SharePage->show();
+			SharePage->raise();
+			SharePage->activateWindow();
 			SharePage->focus_first();
-		} else if (composed && Centre->currentWidget() == Source) {
-			Source->setFocus(Qt::OtherFocusReason);
+		} else if (composed) {
+			SharePage->hide();
+			if (Centre->currentWidget() == Source) {
+				Source->setFocus(Qt::OtherFocusReason);
+			}
 		}
 		Presenting = false;
 	}
@@ -1245,16 +1254,13 @@ namespace bpr::qt {
 			cancel_comment();
 		} else if (suggesting() && (within(Source) || within(Composer)) && Composer->Cancelled) {
 			Composer->Cancelled();
-		} else if (Centre->currentWidget() == SharePage && within(SharePage) && Dispatch.Share.Back) {
-			// Back, as from a pull request's Compose review page; the draft stays.
-			Dispatch.Share.Back();
 		}
 	}
 
 	void review_cycle_view::refresh_cancel_keys()
 	{
 		const auto* const open = TrayComposer->currentWidget();
-		CancelKeys->setEnabled(open == CommentEditor->parentWidget() || open == Composer || Centre->currentWidget() == SharePage);
+		CancelKeys->setEnabled(open == CommentEditor->parentWidget() || open == Composer);
 	}
 
 	void review_cycle_view::begin_suggestion()
@@ -1310,8 +1316,7 @@ namespace bpr::qt {
 
 	void review_cycle_view::show_reading_page()
 	{
-		Centre->setCurrentWidget(suggesting() ? Source : Projection.Share ? SharePage
-																		  : ReadingPage);
+		Centre->setCurrentWidget(suggesting() ? Source : ReadingPage);
 	}
 
 	void review_cycle_view::read_source()
@@ -1370,7 +1375,7 @@ namespace bpr::qt {
 		const auto reading  = Centre->currentWidget() == Source && !suggesting();
 		const auto selected = Source->has_selection() && reading;
 		const auto editable = shown && Projection.Source->Bytes.size() <= core::maximum_suggestion_editor_bytes;
-		// Compose feedback holds the centre; the code's own gestures wait for Back.
+		// The share sheet is window-modal; the code's own gestures wait for it to close.
 		CommentAction->setEnabled(open && shown && !suggesting() && !Projection.Share);
 		SuggestAction->setEnabled(open && reading && editable && !suggesting());
 		SuggestAction->setToolTip(shown && !editable ? QStringLiteral("This file is too large to edit here; comment on it instead") : suggest_tip());
@@ -1387,6 +1392,11 @@ namespace bpr::qt {
 		ReplyButton->setEnabled(open);
 		NextRound->setEnabled(open && !Projection.Facts.Rounds.empty() && Projection.Activity == application::review_cycle_activity::idle);
 		ComposeAction->setEnabled(open && !Projection.Revisions.empty() && !Projection.Share && !suggesting());
+		const auto waiting = std::ranges::count(Projection.Notes, core::private_thread_lifecycle::open, &application::review_cycle_note_entry::Lifecycle);
+		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeAction))) {
+			set_strip_badge(*button, waiting == 0 ? QString{ } : QString::number(waiting));
+			button->setAccessibleDescription(waiting == 0 ? QString{ } : QStringLiteral("%1 open %2").arg(waiting).arg(waiting == 1 ? QStringLiteral("note") : QStringLiteral("notes")));
+		}
 	}
 
 	void review_cycle_view::step_file(const int aDirection)
@@ -1486,7 +1496,7 @@ namespace bpr::qt {
 	{
 		return NextRound;
 	}
-	auto review_cycle_view::share_page() const noexcept -> review_cycle_share_page*
+	auto review_cycle_view::share_page() const noexcept -> review_cycle_share_sheet*
 	{
 		return SharePage;
 	}

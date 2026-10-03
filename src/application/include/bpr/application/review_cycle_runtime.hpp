@@ -157,6 +157,9 @@ namespace bpr::application {
 		/// \brief One edit to the draft Compose feedback shows.
 		auto edit_share_selected(cycle_operation_id aSave, core::cycle_round_draft_ref aDraft, std::uint64_t aExpectedRevision, core::cycle_compose_edit aEdit,
 								 completion<cycle_share_draft> aDone) -> bool;
+		/// \brief One note's code for the share sheet, cut to `aRows` rows
+		/// with `aContext` lines either side.
+		auto note_context_selected(core::cycle_feedback_item_id aItem, std::size_t aContext, std::size_t aRows, completion<review_cycle_note_context> aDone) -> bool;
 		/// \brief Decides, freezes and renders a share whose bytes the host
 		/// hands on itself (Copy to Clipboard, Use in external agent).
 		auto prepare_share_selected(cycle_share_request aRequest, completion<cycle_share_output> aDone) -> bool;

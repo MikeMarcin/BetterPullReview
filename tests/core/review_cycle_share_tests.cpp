@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -260,6 +261,106 @@ namespace {
 		expect(admit_delivery(subject, round, longest) == cycle_delivery_problem::destination_not_a_name, "over it");
 		expect(delivery_destination_name("RC-3-F2.bpr-review.zip") && delivery_destination_name("Review – F2.md"), "ordinary and non-ASCII names");
 	}
+	auto bytes_of(const std::string_view aText) -> std::span<const std::uint8_t>
+	{
+		return { reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() };
+	}
+
+	auto range_of(const std::string_view aFile, const std::string_view aText, const std::size_t aFrom = 0) -> cycle_byte_range
+	{
+		const auto at = aFile.find(aText, aFrom);
+		expect(at != std::string_view::npos, "the test's text is in the file");
+		return { .Start = at, .End = at + aText.size() };
+	}
+
+	/// Kind and line of each row, as "c12 n14 -14 +14 ~3": what the reviewer reads.
+	auto shape(const cycle_note_excerpt& aExcerpt) -> std::string
+	{
+		auto text = std::string{ };
+		for (const auto& row : aExcerpt.Rows) {
+			if (!text.empty()) {
+				text += ' ';
+			}
+			switch (row.Kind) {
+			case cycle_excerpt_row_kind::context: text += 'c'; break;
+			case cycle_excerpt_row_kind::noted:   text += 'n'; break;
+			case cycle_excerpt_row_kind::removed: text += '-'; break;
+			case cycle_excerpt_row_kind::added:   text += '+'; break;
+			case cycle_excerpt_row_kind::omitted: text += '~'; break;
+			}
+			text += std::to_string(row.Kind == cycle_excerpt_row_kind::omitted ? row.Omitted : row.Line.value_or(0U));
+		}
+		return text;
+	}
+
+	void excerpts_a_note_with_its_changes()
+	{
+		// Thirty-one lines, as the design round's parser.cpp; line n reads "line n" except two.
+		auto file = std::string{ };
+		for (int line = 1; line <= 31; ++line) {
+			file += line == 14 ? std::string{ "\treturn check(aText);" } : line == 17 ? std::string{ "int check(std::string_view aText)" }
+																					  : "line " + std::to_string(line);
+			file += '\n';
+		}
+		const auto call = range_of(file, "check(aText)");
+
+		const auto plain = excerpt_note(bytes_of(file), call, { }, cycle_excerpt_context_lines, cycle_excerpt_rows);
+		expect(plain.has_value() && plain->FileLines == 31U, "the final line ending adds no line");
+		expect(plain->Lines == cycle_line_span{ .First = 14, .Last = 14 }, "the note's own line");
+		expect(shape(*plain) == "c12 c13 n14 c15 c16", "two unchanged lines either side of the noted line");
+		expect(plain->Rows[2].Text == "\treturn check(aText);" && plain->Rows[0].Text == "line 12", "rows hold each line's exact text, without its ending");
+		expect(!plain->Cut && plain->Changes == 0U && plain->Unplaced == 0U, "nothing cut, no change");
+
+		// The suggested rename, at both places: the parts meet, so no line is left out.
+		const auto rename = std::array{
+			cycle_excerpt_change{ .Start = range_of(file, "check", call.Start).Start, .End = range_of(file, "check", call.Start).End, .Original = "check", .Replacement = "count_tokens" },
+			cycle_excerpt_change{ .Start = range_of(file, "check(std").Start, .End = range_of(file, "check(std").Start + 5U, .Original = "check", .Replacement = "count_tokens" },
+		};
+		const auto renamed = excerpt_note(bytes_of(file), call, rename, cycle_excerpt_context_lines, cycle_excerpt_rows);
+		expect(renamed && shape(*renamed) == "c12 c13 -14 +14 c15 c16 -17 +17 c18 c19", "each change replaces its line in place, in file order");
+		expect(renamed->Rows[3].Text == "\treturn count_tokens(aText);" && renamed->Rows[7].Text == "int count_tokens(std::string_view aText)", "an added line is its whole edited line");
+		expect(renamed->Changes == 2U && !renamed->Cut, "both changes shown");
+
+		// A change far away keeps its own context; the lines between are counted, not shown.
+		const auto distant = std::array{ cycle_excerpt_change{ .Start = range_of(file, "line 28").Start, .End = range_of(file, "line 28").End, .Original = "line 28", .Replacement = "line twenty-eight" } };
+		const auto apart   = excerpt_note(bytes_of(file), call, distant, cycle_excerpt_context_lines, cycle_excerpt_rows);
+		expect(apart && shape(*apart) == "c12 c13 n14 c15 c16 ~9 c26 c27 -28 +28 c29 c30", "an omitted row stands for the nine lines between");
+
+		// A change whose bytes are not at its place is left out, never shown elsewhere.
+		const auto stale  = std::array{ cycle_excerpt_change{ .Start = call.Start, .End = call.End, .Original = "parse(aText)", .Replacement = "x" } };
+		const auto missed = excerpt_note(bytes_of(file), call, stale, cycle_excerpt_context_lines, cycle_excerpt_rows);
+		expect(missed && missed->Unplaced == 1U && missed->Changes == 0U && shape(*missed) == "c12 c13 n14 c15 c16", "a change the file does not hold is not placed");
+		const auto overlapping = std::array{ rename[0], cycle_excerpt_change{ .Start = call.Start, .End = call.End, .Original = "check(aText)", .Replacement = "x" } };
+		const auto overlap     = excerpt_note(bytes_of(file), call, overlapping, cycle_excerpt_context_lines, cycle_excerpt_rows);
+		expect(overlap && overlap->Changes == 1U && overlap->Unplaced == 1U, "a change over lines already changed is left out");
+
+		// The sheet's limit cuts the rows and says so; the larger view has room.
+		const auto cut = excerpt_note(bytes_of(file), call, rename, cycle_excerpt_context_lines, 4U);
+		expect(cut && cut->Cut && shape(*cut) == "c12 c13 -14 +14", "rows stop at the limit");
+		const auto whole = excerpt_note(bytes_of(file), call, rename, cycle_excerpt_larger_rows, cycle_excerpt_larger_rows);
+		expect(whole && !whole->Cut && whole->Rows.size() == 33U && whole->Rows.front().Line == 1U && whole->Rows.back().Line == 31U, "the larger view shows the whole file, each change in place");
+
+		// Whole lines inserted at a line start replace nothing; whole lines deleted add nothing.
+		const auto line20  = range_of(file, "line 20\n");
+		const auto inserts = std::array{ cycle_excerpt_change{ .Start = line20.Start, .End = line20.Start, .Original = "", .Replacement = "// one\n// two\n" } };
+		const auto added   = excerpt_note(bytes_of(file), std::nullopt, inserts, cycle_excerpt_context_lines, cycle_excerpt_rows);
+		expect(added && !added->Lines && shape(*added) == "c18 c19 +20 +21 c20 c21", "an insertion shows only what it adds");
+		const auto deletes = std::array{ cycle_excerpt_change{ .Start = line20.Start, .End = line20.End, .Original = "line 20\n", .Replacement = "" } };
+		const auto deleted = excerpt_note(bytes_of(file), std::nullopt, deletes, cycle_excerpt_context_lines, cycle_excerpt_rows);
+		expect(deleted && shape(*deleted) == "c18 c19 -20 c21 c22", "a deletion shows only what it removes");
+
+		// CRLF and a lone CR end lines as project_lines counts them; no ending shows.
+		const auto mixed = std::string{ "one\r\ntwo\rthree\nfour" };
+		const auto four  = excerpt_note(bytes_of(mixed), range_of(mixed, "four"), { }, 1U, cycle_excerpt_rows);
+		expect(four && four->FileLines == 4U && four->Lines == project_lines(bytes_of(mixed), range_of(mixed, "four").Start, range_of(mixed, "four").End), "lines agree with project_lines");
+		expect(shape(*four) == "c3 n4" && four->Rows[0].Text == "three", "the line before, without its ending");
+		const auto two = excerpt_note(bytes_of(mixed), range_of(mixed, "two"), { }, 1U, cycle_excerpt_rows);
+		expect(two && two->Rows[0].Text == "one" && two->Rows[1].Text == "two", "a CRLF line keeps no CR");
+
+		expect(!excerpt_note(bytes_of(file), cycle_byte_range{ .Start = 0, .End = file.size() + 1U }, { }, 2U, 14U), "a range outside the file has no excerpt");
+		const auto opening = excerpt_note(bytes_of(file), std::nullopt, { }, cycle_excerpt_context_lines, cycle_excerpt_rows);
+		expect(opening && shape(*opening) == "c1 c2 c3 c4 c5", "a whole-file note shows the file's opening");
+	}
 }
 
 int main()
@@ -269,6 +370,7 @@ int main()
 	reads_origin_from_the_bound_workspace();
 	composes_one_deliberate_edit_at_a_time();
 	admits_only_observations_their_channel_can_show();
+	excerpts_a_note_with_its_changes();
 	std::cout << "review-cycle-share:pass\n";
 	return EXIT_SUCCESS;
 }

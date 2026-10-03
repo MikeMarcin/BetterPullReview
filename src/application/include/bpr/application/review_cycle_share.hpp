@@ -3,10 +3,12 @@
 
 #include "bpr/application/review_cycle_comparison.hpp"
 #include "bpr/application/review_cycle_export.hpp"
+#include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_cycle_round.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/core/review_cycle_share.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <stop_token>
@@ -28,6 +30,20 @@ namespace bpr::application {
 	/// The largest readable document Compose feedback shows in full; a larger
 	/// one is measured and saved, not shown in part.
 	inline constexpr std::uint64_t maximum_shown_round_document_bytes = 4U * 1024U * 1024U;
+
+	/// The largest file a note's code is read from for the share sheet; a
+	/// larger one is named, not excerpted.
+	inline constexpr std::uint64_t maximum_note_context_file_bytes = 16U * 1024U * 1024U;
+	/// \brief Note `aItem`'s code for the share sheet ([[BPR-1161]]): the
+	/// file its target names, read at the revision it names (only content
+	/// that revision pinned, as the source pane reads it), cut by
+	/// `core::excerpt_note` around its lines and its suggested changes to
+	/// that file, `aContext` lines either side and at most `aRows` rows. A
+	/// note about a folder or the whole cycle has no file; one whose file is
+	/// gone, unreadable or larger than `maximum_note_context_file_bytes`
+	/// says so in `Status` with an empty excerpt.
+	[[nodiscard]] auto read_note_context(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, core::cycle_feedback_item_id aItem,
+										 std::size_t aContext, std::size_t aRows, std::stop_token aStop) -> cycle_store_result<review_cycle_note_context>;
 
 	/// \brief The draft Compose feedback shows.
 	struct cycle_share_draft

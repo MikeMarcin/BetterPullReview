@@ -154,10 +154,12 @@ namespace bpr::app {
 			.PrepareNextRound = [this] { Host->prepare_next_round(); },
 			.Compose          = [this] { Host->compose(); },
 			.Share            = {
-				.Back    = [this] { Host->close_compose(); },
-				.Edit    = [this](core::cycle_compose_edit aEdit) { Host->edit_composition(std::move(aEdit)); },
-				.Share   = [this](const core::cycle_share_route aRoute) { share(aRoute); },
-				.Replace = [this](const bool aReplace) { Host->resolve_replace(aReplace); },
+				.Back      = [this] { Host->close_compose(); },
+				.Edit      = [this](core::cycle_compose_edit aEdit) { Host->edit_composition(std::move(aEdit)); },
+				.Share     = [this](const core::cycle_share_route aRoute) { share(aRoute); },
+				.Replace   = [this](const bool aReplace) { Host->resolve_replace(aReplace); },
+				.ShowCode  = [this](const core::cycle_feedback_item_id aItem) { Host->show_note_code(aItem); },
+				.CloseCode = [this] { Host->close_note_code(); },
 			},
 		});
 		// BPR-1161: Copy writes the platform clipboard; Save writes only the
@@ -166,9 +168,11 @@ namespace bpr::app {
 		Host->set_clipboard(Clipboard.get());
 		Host->set_destination_factory([](const std::string& aPath) { return adapters::workspace::make_local_export_destination(utf8_path(aPath)); });
 		ChooseSave = [this](const std::string& aSuggested, const bool aBundle) {
-			const auto chosen = QFileDialog::getSaveFileName(&Window, aBundle ? QStringLiteral("Save as Bundle") : QStringLiteral("Save to File"), QString::fromStdString(aSuggested),
-															 aBundle ? QStringLiteral("Review bundles (*.bpr-review.zip)") : QStringLiteral("Markdown (*.md);;All files (*)"));
-			const auto bytes  = chosen.toUtf8();
+			// Over the share sheet, which is window-modal, when it is open.
+			auto* const over   = View->share_page()->isVisible() ? static_cast<QWidget*>(View->share_page()) : static_cast<QWidget*>(&Window);
+			const auto  chosen = QFileDialog::getSaveFileName(over, aBundle ? QStringLiteral("Save as Bundle") : QStringLiteral("Save as File"), QString::fromStdString(aSuggested),
+															  aBundle ? QStringLiteral("Review bundles (*.bpr-review.zip)") : QStringLiteral("Markdown (*.md);;All files (*)"));
+			const auto  bytes  = chosen.toUtf8();
 			return std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) };
 		};
 		// A chosen response file is read on the effect lane, never through a link.

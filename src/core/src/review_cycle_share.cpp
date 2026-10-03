@@ -218,3 +218,183 @@ namespace bpr::core {
 		return std::nullopt;
 	}
 }
+
+namespace bpr::core {
+	namespace {
+		/// Display lines as `project_lines` counts them: LF, CRLF and a lone
+		/// CR each end one. `Ends` excludes the ending; `Nexts` includes it.
+		struct display_lines
+		{
+			std::vector<std::uint64_t> Starts;
+			std::vector<std::uint64_t> Ends;
+			std::vector<std::uint64_t> Nexts;
+		};
+
+		auto display_lines_of(const std::span<const std::uint8_t> aText) -> display_lines
+		{
+			auto lines = display_lines{ };
+			auto start = std::uint64_t{ 0 };
+			for (std::size_t index = 0; index < aText.size(); ++index) {
+				const auto lineFeed = aText[index] == '\n';
+				const auto loneCr   = aText[index] == '\r' && (index + 1U == aText.size() || aText[index + 1U] != '\n');
+				if (!lineFeed && !loneCr) {
+					continue;
+				}
+				const auto crlf = lineFeed && index > start && aText[index - 1U] == '\r';
+				lines.Starts.push_back(start);
+				lines.Ends.push_back(crlf ? index - 1U : index);
+				lines.Nexts.push_back(index + 1U);
+				start = index + 1U;
+			}
+			lines.Starts.push_back(start);
+			lines.Ends.push_back(aText.size());
+			lines.Nexts.push_back(aText.size());
+			return lines;
+		}
+
+		auto text_between(const std::span<const std::uint8_t> aText, const std::uint64_t aBegin, const std::uint64_t aEnd) -> std::string
+		{
+			return { reinterpret_cast<const char*>(aText.data()) + aBegin, static_cast<std::size_t>(aEnd - aBegin) };
+		}
+
+		/// One suggested change placed on the file's lines: it replaces lines
+		/// [`First`, `First` + `Removed`) with `Added`.
+		struct placed_change
+		{
+			std::uint64_t            First   = 0;
+			std::uint64_t            Removed = 0;
+			std::vector<std::string> Added;
+		};
+	}
+
+	auto excerpt_note(const std::span<const std::uint8_t> aFile, const std::optional<cycle_byte_range> aNoted, const std::span<const cycle_excerpt_change> aChanges, const std::size_t aContext,
+					  const std::size_t aRowLimit) -> std::optional<cycle_note_excerpt>
+	{
+		if (aNoted && (aNoted->Start > aNoted->End || aNoted->End > aFile.size())) {
+			return std::nullopt;
+		}
+		const auto lines  = display_lines_of(aFile);
+		const auto count  = static_cast<std::uint64_t>(lines.Starts.size());
+		const auto lineAt = [&](const std::uint64_t aOffset) {
+			return static_cast<std::uint64_t>(std::ranges::upper_bound(lines.Starts, aOffset) - lines.Starts.begin()) - 1U;
+		};
+		auto result = cycle_note_excerpt{ };
+		// The empty line after a final line ending is no line of the file.
+		result.FileLines = count > 1U && lines.Starts.back() == aFile.size() ? count - 1U : count;
+
+		// Each part is a run of lines [first, last + 1) that the excerpt shows with its context.
+		auto parts = std::vector<std::pair<std::uint64_t, std::uint64_t>>{ };
+		if (aNoted) {
+			const auto first = lineAt(aNoted->Start);
+			const auto last  = aNoted->Start == aNoted->End ? first : lineAt(aNoted->End - 1U);
+			result.Lines     = cycle_line_span{ .First = first + 1U, .Last = last + 1U };
+			parts.emplace_back(first, last + 1U);
+		}
+		auto ordered = std::vector<const cycle_excerpt_change*>{ };
+		for (const auto& change : aChanges) {
+			ordered.push_back(&change);
+		}
+		std::ranges::stable_sort(ordered, [](const cycle_excerpt_change* aLeft, const cycle_excerpt_change* aRight) { return std::pair{ aLeft->Start, aLeft->End } < std::pair{ aRight->Start, aRight->End }; });
+		auto changes = std::vector<placed_change>{ };
+		auto taken   = std::uint64_t{ 0 };
+		for (const auto* change : ordered) {
+			const auto holds = change->Start <= change->End && change->End <= aFile.size() && text_between(aFile, change->Start, change->End) == change->Original;
+			if (!holds) {
+				++result.Unplaced;
+				continue;
+			}
+			const auto  first       = lineAt(change->Start);
+			const auto  last        = change->Start == change->End ? first : lineAt(change->End - 1U);
+			const auto& replacement = change->Replacement;
+			// Whole lines inserted at a line start replace nothing.
+			const auto wholeLines = change->Start == change->End && change->Start == lines.Starts[first] && !replacement.empty()
+				&& (replacement.back() == '\n' || replacement.back() == '\r');
+			const auto removed = wholeLines ? std::uint64_t{ 0 } : last - first + 1U;
+			if (!changes.empty() && first < taken) {
+				++result.Unplaced;
+				continue;
+			}
+			const auto edited      = wholeLines ? replacement
+												: text_between(aFile, lines.Starts[first], change->Start) + replacement + text_between(aFile, change->End, lines.Nexts[last]);
+			const auto editedBytes = std::span{ reinterpret_cast<const std::uint8_t*>(edited.data()), edited.size() };
+			const auto editedLines = display_lines_of(editedBytes);
+			auto       added       = std::vector<std::string>{ };
+			for (std::size_t index = 0; index < editedLines.Starts.size(); ++index) {
+				// The empty line after the edited text's final ending is not one of its lines.
+				if (index + 1U == editedLines.Starts.size() && editedLines.Starts[index] == edited.size()) {
+					break;
+				}
+				added.push_back(text_between(editedBytes, editedLines.Starts[index], editedLines.Ends[index]));
+			}
+			changes.push_back({ .First = first, .Removed = removed, .Added = std::move(added) });
+			taken = first + removed;
+			parts.emplace_back(first, first + removed);
+			++result.Changes;
+		}
+
+		// Each part with its context, joined where they meet or one line apart.
+		auto end = result.FileLines;
+		for (const auto& part : parts) {
+			end = std::max(end, part.second);
+		}
+		std::ranges::sort(parts);
+		auto windows = std::vector<std::pair<std::uint64_t, std::uint64_t>>{ };
+		for (const auto& [first, last] : parts) {
+			const auto begin = first > aContext ? first - aContext : 0U;
+			const auto stop  = std::min<std::uint64_t>(end, last + aContext);
+			if (!windows.empty() && begin <= windows.back().second + 1U) {
+				windows.back().second = std::max(windows.back().second, stop);
+			} else {
+				windows.emplace_back(begin, stop);
+			}
+		}
+		if (windows.empty() && result.FileLines > 0U) {
+			// A whole-file note with no change: the file's opening lines.
+			windows.emplace_back(0U, std::min<std::uint64_t>(result.FileLines, 2U * aContext + 1U));
+		}
+		const auto noted = [&](const std::uint64_t aLine) {
+			return result.Lines && aLine + 1U >= result.Lines->First && aLine + 1U <= result.Lines->Last;
+		};
+		const auto push = [&](cycle_excerpt_row aRow) {
+			if (result.Rows.size() >= aRowLimit) {
+				result.Cut = true;
+				return false;
+			}
+			result.Rows.push_back(std::move(aRow));
+			return true;
+		};
+		auto next = changes.begin();
+		for (std::size_t index = 0; index < windows.size(); ++index) {
+			const auto [begin, stop] = windows[index];
+			if (index > 0U && !push({ .Kind = cycle_excerpt_row_kind::omitted, .Omitted = begin - windows[index - 1U].second })) {
+				return result;
+			}
+			for (auto line = begin; line < stop;) {
+				if (next != changes.end() && next->First == line) {
+					for (std::uint64_t removed = 0; removed < next->Removed; ++removed) {
+						const auto at = line + removed;
+						if (!push({ .Kind = cycle_excerpt_row_kind::removed, .Line = at + 1U, .Text = text_between(aFile, lines.Starts[at], lines.Ends[at]) })) {
+							return result;
+						}
+					}
+					for (std::size_t added = 0; added < next->Added.size(); ++added) {
+						if (!push({ .Kind = cycle_excerpt_row_kind::added, .Line = line + 1U + added, .Text = next->Added[added] })) {
+							return result;
+						}
+					}
+					line += next->Removed;
+					++next;
+					continue;
+				}
+				if (line >= count) {
+					break;
+				}
+				if (!push({ .Kind = noted(line) ? cycle_excerpt_row_kind::noted : cycle_excerpt_row_kind::context, .Line = line + 1U, .Text = text_between(aFile, lines.Starts[line], lines.Ends[line]) })) {
+					return result;
+				}
+				++line;
+			}
+		}
+		return result;
+	}
+}

@@ -457,6 +457,47 @@ namespace {
 		const auto preview = composed.Document;
 		const auto f1      = *composed.Digest;
 
+		// Each listed note's code, read by the host at the revision the note
+		// names and cut by the core: short, with its lines; the whole file on request.
+		const auto note_of = [&](const std::string_view aBody) {
+			return std::ranges::find_if(work.view().Notes, [&](const application::review_cycle_note_entry& aNote) { return aNote.Body == aBody; })->Item.Id;
+		};
+		const auto code_of = [&](const core::cycle_feedback_item_id aItem) -> const application::review_cycle_note_context* {
+			const auto& contexts = work.view().Share->Contexts;
+			const auto  found    = std::ranges::find(contexts, aItem, &application::review_cycle_note_context::Item);
+			return found == contexts.end() ? nullptr : &*found;
+		};
+		const auto asked    = note_of("Why check here?");
+		const auto renamed  = note_of("Name it for what it does.");
+		const auto whole    = note_of("Keep the parser free of I/O.");
+		const auto shape_of = [](const core::cycle_note_excerpt& aExcerpt) {
+			auto text = std::string{ };
+			for (const auto& row : aExcerpt.Rows) {
+				text += std::string{ row.Kind == core::cycle_excerpt_row_kind::noted ? "n" : row.Kind == core::cycle_excerpt_row_kind::removed ? "-"
+										 : row.Kind == core::cycle_excerpt_row_kind::added                                                     ? "+"
+																																			   : "c" }
+					+ std::to_string(row.Line.value_or(0U)) + " ";
+			}
+			return text;
+		};
+		expect(work.view().Share->Contexts.size() == 3U, "every listed note's code is read");
+		const auto* const question = code_of(asked);
+		expect(question != nullptr && question->Status == application::review_material_status::available && question->Path == "src/parser.cpp" && question->Revision == work.view().Source->Revision,
+			   "the note's file at the revision it names");
+		expect(question->Excerpt.Lines == core::cycle_line_span{ .First = 3, .Last = 3 } && question->Excerpt.FileLines == 4U && shape_of(question->Excerpt) == "c1 c2 n3 c4 " && question->Excerpt.Rows[2].Text == "\treturn check(aText);",
+			   "its line with two either side, the exact text");
+		const auto* const rename = code_of(renamed);
+		expect(rename != nullptr && shape_of(rename->Excerpt) == "c1 c2 -3 +3 c4 " && rename->Excerpt.Rows[3].Text == "\treturn validate(aText);" && rename->Excerpt.Changes == 1U && rename->Elsewhere == 0U,
+			   "a suggestion's change in place");
+		const auto* const project_note = code_of(whole);
+		expect(project_note != nullptr && project_note->Path.empty() && project_note->Excerpt.Rows.empty(), "a note about the whole project has no file");
+		work.Host->show_note_code(asked);
+		work.Lanes.drain();
+		expect(work.view().Share->Larger && work.view().Share->Larger->Item == asked && work.view().Share->Larger->Excerpt.Rows.size() == 4U && !work.view().Share->Larger->Excerpt.Cut, "the larger view: the whole file");
+		work.Host->close_note_code();
+		expect(!work.view().Share->Larger, "closed");
+		expect(work.view().Facts.Rounds.empty() && clipboard.Written.empty(), "reading code froze and sent nothing");
+
 		// Copy: freeze and copy in one gesture; the bytes are the preview's.
 		work.Host->share(core::cycle_share_route::copy_document);
 		const auto& copied = *work.view().Share;
@@ -571,6 +612,14 @@ namespace {
 		// Over the clipboard's limit: said with the full measure; Save keeps it all.
 		work.Host->close_compose();
 		expect(!work.view().Share && snapshot(project) == before, "closing Compose keeps the draft; the project was only read");
+
+		// The code is the captured revision's, never the folder as it is now.
+		write_file(project / "src" / "parser.cpp", "int parse(const char* aText)\n{\n\treturn other(aText);\n}\n");
+		work.Host->compose();
+		work.Lanes.drain();
+		const auto* const kept = code_of(asked);
+		expect(kept != nullptr && kept->Excerpt.Rows.size() == 4U && kept->Excerpt.Rows[2].Text == "\treturn check(aText);", "the note's code as captured, not as edited since");
+		work.Host->close_compose();
 		std::cout << "NATIVE: Compose and Share through the host: copy, save, conflict, bundle, amendment, refused channel, external route\n";
 	}
 

@@ -1,13 +1,14 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/app/profile_desktop.hpp"
-#include "bpr/qt/review_cycle_share_page.hpp"
+#include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QElapsedTimer>
 #include <QInputMethodEvent>
 #include <QLineEdit>
@@ -107,9 +108,8 @@ namespace {
 		}
 		auto* const page  = aPage.share_page();
 		auto        items = std::string{ };
-		for (int row = 0; row < page->items()->count(); ++row) {
-			const auto* item = page->items()->item(row);
-			items += (items.empty() ? "" : ",") + core::cycle_wire_name(core::cycle_feedback_item_id{ item->data(Qt::UserRole + 1).toULongLong() }) + ":" + (item->checkState() == Qt::Checked ? "1" : "0");
+		for (const auto& row : page->rows()) {
+			items += (items.empty() ? "" : ",") + core::cycle_wire_name(row.Item) + ":" + (row.Include->isChecked() ? "1" : "0");
 		}
 		return "SHARE revision=" + std::to_string(share->Draft.Revision) + " goal=" + share->Selection.Goal + " field=" + utf8(page->goal()->text()) + " modified=" + (page->goal()->isModified() ? "1" : "0")
 			+ " frozen=" + (share->Frozen ? "1" : "0") + " items=" + items;
@@ -238,10 +238,10 @@ auto main(int aArgc, char** aArgv) -> int
 			say(share->draft_editor() == core::cycle_draft_editor::composing ? "STILL_COMPOSING" : "COMMITTED");
 		} else if (verb == "toggle") {
 			// The reviewer's own check box on one listed note.
-			for (int row = 0; row < share->items()->count(); ++row) {
-				auto* item = share->items()->item(row);
-				if (core::cycle_wire_name(core::cycle_feedback_item_id{ item->data(Qt::UserRole + 1).toULongLong() }) == argument) {
-					item->setCheckState(item->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
+			for (const auto& row : share->rows()) {
+				if (core::cycle_wire_name(row.Item) == argument) {
+					row.Include->click();
+					break;
 				}
 			}
 			wait_for([&] { return idle(*page); });
