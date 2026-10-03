@@ -6,7 +6,7 @@ status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1245--BPR-1249--6920ac689bb3.json","related_cards":["BPR-0587","BPR-1211","BPR-1139","BPR-1238"]}
-acceptance: [{"criterion":"The fifteen rows pass on macOS","outcome":"pass","revision":"e4857a9b5","evidence":{"kind":"command","detail":"macOS arm64 dev at 37c067c99 plus the candidate committed as e4857a9b5: ctest --preset dev -j1 over the four chat, nine finding and two invocation rows passed 15 of 15 in 59 s. application_agent_finding_workshop_press_contract now builds the owner-accepted BPR-1245-workshop-v001 flow: the press records the draft's text as one immutable reviewer revision in Private history and asks with it as the only selected source (canary reports count=1 kind=0 drafts=0 notes=0 and the exact text; History shows one revision per press). Negative controls: dispatching without the recorded revision fails the row at agent-run; bypassing or widening core::admit_workshop_run_sources fails core_review_composition and application_private_review_host."}},{"criterion":"The card names each course's cause","outcome":"pass","revision":"b2fd518bd","evidence":{"kind":"observation","detail":"Resolution table names f55e39e72 (right-side drafts, mutable context refusal), 8790cdc7b (28-pixel Dif), 9b71342a0/1d84e59c2/f55e39e72 (launch-path count) and the private-review promotion defect fixed on BPR-1246; the workshop press cause (RFC-BPR-0023's provenance rule) is named, decided by the owner (BPR-1245-workshop-v001) and built in e4857a9b5."}}]
+acceptance: [{"criterion":"The fifteen rows pass on macOS","outcome":"pass","revision":"c7ba632ea","evidence":{"kind":"command","detail":"macOS arm64 dev at 3205c17e6 plus the candidate committed as c7ba632ea: ctest --preset dev -j1 over the four chat, nine finding and two invocation rows passed 15 of 15 in 59 s. application_agent_finding_workshop_press_contract now builds the owner-accepted BPR-1245-workshop-v001 flow: the press records the draft's text as one immutable reviewer revision in Private history and asks with it as the only selected source (canary reports count=1 kind=0 drafts=0 notes=0 and the exact text; History shows one revision per press). Negative controls: dispatching without the recorded revision fails the row at agent-run; bypassing or widening core::admit_workshop_run_sources fails core_review_composition and application_private_review_host."}},{"criterion":"The card names each course's cause","outcome":"pass","revision":"b2fd518bd","evidence":{"kind":"observation","detail":"Resolution table names f55e39e72 (right-side drafts, mutable context refusal), 8790cdc7b (28-pixel Dif), 9b71342a0/1d84e59c2/f55e39e72 (launch-path count) and the private-review promotion defect fixed on BPR-1246; the workshop press cause (RFC-BPR-0023's provenance rule) is named, decided by the owner (BPR-1245-workshop-v001) and built in c7ba632ea."}}]
 ---
 
 # BPR-1245: Fifteen agent composition courses predate RFC-BPR-0023's right-side drafts and private runs
@@ -182,7 +182,7 @@ performs, Qt presents:
 
 ### Result
 
-The product commit is `e4857a9b5`. Built on `37c067c99` with
+The product commit is `c7ba632ea`. Built on `3205c17e6` with
 `cmake --build --preset dev`, then
 `ctest --preset dev -j1 -R '^application_agent_chat_(composition|stale|continued|anchored_continuation)_contract$|^application_agent_finding_.*_contract$|^application_agent_invocation_(composition|workspace_diagnostic)_contract$'`
 passed **15 of 15** in 59 s on macOS arm64 dev. Run beside them earlier:
@@ -194,7 +194,7 @@ clang-tidy passes on every changed translation unit.
 
 Both criteria pass on macOS. Linux and Windows have not run this candidate.
 Linux saw the same failing row at `db021262a`. The stations' command, after
-`git pull --rebase` to `e4857a9b5` or later:
+`git pull --rebase` to `c7ba632ea` or later:
 
 ```sh
 cmake --preset dev && cmake --build --preset dev
@@ -203,3 +203,8 @@ ctest --preset dev -j1 --output-on-failure -R '^application_agent_chat_(composit
 
 On Windows, use `cmake --preset windows-dev`, `cmake --build --preset windows-dev`
 and `ctest --preset windows-dev` with the same `-R` expression.
+
+Published: `git pull --rebase` renamed the commits before the push; the
+hashes above are the published ones (`c7ba632ea` is the product commit; its
+source is identical to the tested candidate, and the pull brought only
+documentation).
