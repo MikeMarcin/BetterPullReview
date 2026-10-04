@@ -282,3 +282,46 @@ stops for long stretches. The capture on Open Project, in the desktop on
 Windows, is the place to look. Separately, every terminal peak-memory figure
 reads 0.1 MiB on Windows, which looks like `child_peak_bytes` not measuring
 there.
+
+**Note: Windows station return (`bpr-main-win`, 2026-10-04).** Host: Intel
+i9-10900KF, 20 logical CPUs, 127.8 GB, Windows 11 Home 10.0.26200, MSVC 14.51,
+Qt 6.11.2, offscreen. The Aito lane was idle throughout (0 build processes,
+CPU about 3%). The run used the Release tree `build/bpr1184-release` at
+`c906b0e7e`, which holds `397908dec` and the Windows course fixes above
+([[BPR-1275]], [[BPR-1276]]). `application_review_cycle_large_project` passed
+1/1 in 1,629.14 s, uncontained as pinned. The report is
+[`windows-release-report.json`](../../verification/BPR-1184-large-project/windows-release-report.json),
+SHA-256 `e865a9a94518295a9c3243ad38398329542e6964f4df135ef31adb0648cd744e`,
+byte for byte. It has `run.enforced` false, `failures` empty and
+`source.revision` `c906b0e7e…` with 0 tracked changes. The earlier Debug tree
+(`windows-dev-tour-cli`) passed the 2,000-file pass at `c906b0e7e`.
+
+Since [[BPR-1275]], each corpus is read once, untimed, before it is measured.
+That first read cost 97,974.5 ms for 20,000 new files and 559,402.4 ms for
+100,001, about 5 ms a file under Defender. It is kept as
+`corpus.first_read_ms`. With it out of the timed phases, figures in ms:
+
+| Phase | 20,000 files | 100,001 files |
+|---|---:|---:|
+| Desktop open, cold, against `bpr cycle open` | 7,906.0 / 7,656.7 (ratio 1.033) | 45,750.0 / 44,563.2 (1.027) |
+| Desktop open, warm | 226.9 | 352.4 |
+| Capture unchanged, desktop / terminal p50 | 5,772.4 / 5,621.9 | 27,246.4 / 26,875.3 |
+| Next file p50 / p95 | 24.9 / 26.5 | 25.3 / 39.0 |
+| Typing while capturing p95 | 2.26 | 2.56 |
+| Navigation while capturing p95 | 22.4 | 22.0 |
+| `bpr cycle open` peak memory | 22.6 MiB | 88.8 MiB |
+
+The 250,001-entry folder was refused with its words in 49,601.7 ms (desktop)
+and 47,866.3 ms (terminal).
+
+Recorded here, not changed:
+
+- One of the twenty 20,000-file desktop compare samples took 100,077.2 ms
+  (p95 51.8 ms). The cause has not been looked at.
+- The 514-item stress round is slower than macOS. Share notes opened in
+  12,736.6 ms, holding the GUI thread for 379.5 ms in one turn. Each desktop
+  suggestion took about 16.1 s, freeze and Copy 27,144.7 ms, and each
+  `bpr cycle note` 157.4 ms at p50. This is [[BPR-1274]]'s cost, larger on
+  this host.
+- The 100,001-file cold open takes about 45 s on both paths, against 10.1 s on
+  macOS.
