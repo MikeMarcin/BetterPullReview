@@ -61,3 +61,63 @@ logging shifts the timing (0 of 80 with one more print).
 someone is writing a comment, the editor clears and the selection jumps to
 another line. It has not yet been checked whether the typed body survives in
 the private draft store.
+
+## Fix (bpr-main-win, 2026-10-04)
+
+The integrator chose to fix the product.
+
+**Where the "older" selection came from.** It was not stored anywhere. L:29 is
+the default `diff_workbench::publish` picks, the first change group, whenever a
+diff is presented to an empty surface. `begin()` cleared the surface, and the
+diff presented again then put the selection there.
+
+**Did the typed body survive?** It does today, by reading the code. Each edit
+is dispatched at once to the shared or private draft store, keyed by anchor
+(`emit_draft` → `dispatch_review_draft`), and selecting R:4 again restores it
+(`shared_draft_application_host::select`). Nothing selected it again, so the
+reviewer saw an empty editor on another line.
+
+**Change.**
+
+- `application::same_selected_diff` is a new pure predicate in
+  `workbench_runtime_ports.hpp`. Two requests name the same diff when they
+  have the same authority, comparison context and file entry; only the
+  request context, its generation, may differ.
+- `begin()` in `github_application.cpp` keeps the selection, the draft and any
+  publish in flight when that predicate holds against the shown request and
+  publication, and the surface presents that publication's key.
+- `publish()` adopts the same key under the new request without presenting it
+  again. Different bytes under a kept request still clear.
+- Another file, revision or comparison clears as before. Resume and tab
+  restoration ask for a fresh presentation only when the surface does not
+  show the publication, so they keep the full path.
+- The round-trip pins are resealed with a BPR-1277 note: the full-application
+  and manifest pins moved, and the mutation pin is unchanged.
+
+**Evidence (Windows, `windows-dev` Debug).**
+
+- **Unit.** `application_workbench_host` adds
+  `test_same_selected_diff_names_only_the_diff_asked_again`: a refresh names
+  the same diff, while another accepted comparison and another file do not.
+  Forcing the predicate to `true` fails it with "another accepted comparison is
+  a different diff".
+- **Deterministic course.** The round-trip probe now calls
+  `refresh_selected_diff()` itself while the fallback draft is written. It
+  requires the draft and its R:4 line to stay, and prints
+  `REVIEW_ROUND_TRIP_SAME_DIFF_DROPPED_DRAFT` otherwise. With the guard
+  disabled it fails 3 of 3 with the field signature
+  (`REVIEW_ROUND_TRIP_DRAFT_STALLED … phase=awaiting_fallback_body`). With it,
+  it passes.
+- **Under ctest.**
+  `application_review_round_trip_composition_contract` passes 3 of 3, and 43
+  of 43 back to back, with no stall. Before the fix it passed 34 of 40.
+- **Regression.** A 78-row selection (workbench, tabs, restoration,
+  composition, review-draft and Qt workbench rows, `architecture_boundaries`
+  and the manifest) passes 71 of 78. The seven failures fail without this
+  change too: [[BPR-1236]] (`application_profile_window_review_restoration_public_path`,
+  which also fails at the baseline build) and the six
+  `qt_workbench_title_row_*` / `qt_workbench_window_*` rows at "no review-bar
+  control folds into an overflow menu at any width", [[BPR-1255]]'s Linux check
+  now failing on Windows. Those Qt rows do not run the changed composition.
+- `coding-format-check` passes, the build has no `warning C` or `warning LNK`,
+  and `PIN_CHECK_OK`.

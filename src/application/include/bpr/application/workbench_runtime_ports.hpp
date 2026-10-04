@@ -235,6 +235,18 @@ namespace bpr::application {
 		auto operator<=>(const workbench_selected_diff_request&) const = default;
 	};
 
+	/// \brief [[BPR-1277]]. Whether `aAsked` asks for the same diff as `aShown`:
+	/// the same authority, comparison context and file entry. Only the request
+	/// context (its generation) may differ, as when a refresh asks again.
+	[[nodiscard]] inline auto same_selected_diff(
+		const workbench_selected_diff_request& aShown,
+		const workbench_selected_diff_request& aAsked) noexcept -> bool
+	{
+		return aShown.WorkbenchAuthority == aAsked.WorkbenchAuthority
+			&& aShown.Diff == aAsked.Diff
+			&& aShown.File == aAsked.File;
+	}
+
 	/// \brief Opaque provenance for one endpoint resolved by the epoch host.
 	///
 	/// \details The value repeats the complete selected-diff request, side,

@@ -634,6 +634,23 @@ endfunction()
 # write, grant, target, provider or publication path changes: the tour is
 # published only through its existing preview; mutation pin unchanged; no new
 # src/app source. Reviewed on BPR-1273.
+# BPR-1277 reseal: d5f9dfb76..this candidate, over 44e7b8a6c's BPR-1273
+# reseal (the only intervening pinned-scope commit, reviewed there). The same selected diff asked for again
+# (an epoch refresh re-requests the selected file) used to clear the selection
+# and the review draft and present the diff afresh, which landed the selection on
+# its first change; a reviewer writing a comment lost it from the editor, and the
+# round-trip course stalled at its fallback draft about one run in ten on
+# Windows. github_application.cpp's begin() now keeps the selection, the draft
+# and any publish in flight when application::same_selected_diff (a new pure
+# predicate in workbench_runtime_ports.hpp: the same authority, comparison
+# context and file entry) holds against the shown request and publication and
+# the surface presents that publication's key; publish() adopts the same key
+# under the new request without presenting it again, and different bytes under a
+# kept request still clear. Another file, revision or comparison clears as
+# before. The round-trip probe now asks for the same diff while the fallback
+# draft is written and requires the draft and its line to stay. Presentation and
+# draft retention only: no grant, target, provider, credential, mutation or
+# publication path changes; mutation pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -652,7 +669,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5a605a95670b4571d27b013934aacc70afe2cec5c469c599d0123b3880f901cd"
+		"60ef009a5aecd71e3a9372fa2671c4d5346e63bfb5aa84cdc392949db1d40dc4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -850,7 +867,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "bc7992c15458964ef0a3800ff910c63295ada7907b72cee639fad5b3a6d0562b"
+        "19a0d4dd7006ebd524c4edcd6a2b5a024f7b13b37dd47c854c0a23bb99b2c16f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -940,6 +940,48 @@ namespace {
 			   "the replay uses the exact changed comparison context");
 	}
 
+	/// [[BPR-1277]]. A refresh asks again for the same diff, and the composition
+	/// keeps the reviewer's selection and draft only for that: another comparison
+	/// or another file is a different diff.
+	void test_same_selected_diff_names_only_the_diff_asked_again()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U), file(2U) };
+		value.Host.observe(authority());
+		value.Effects.drain();
+		value.Lane.drain();
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(value.SelectedProjections.Begun.size() == 1U, "the selected file begins one diff");
+		const auto shown = value.SelectedProjections.Begun.back();
+
+		value.Host.refresh_selected_diff();
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(value.SelectedProjections.Begun.size() == 2U, "a refresh asks for the selected file again");
+		expect(application::same_selected_diff(shown, value.SelectedProjections.Begun.back()),
+			   "the refreshed request names the same diff");
+
+		auto changed                    = selected_diff_context();
+		changed.ComparisonRevision      = core::comparison_revision{ 2U };
+		changed.Comparison.Right.Commit = oid<core::git_commit_oid>(31U);
+		value.SelectedDiffs.Context     = changed;
+		value.Host.refresh_selected_diff();
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(value.SelectedProjections.Begun.size() == 3U
+				   && !application::same_selected_diff(shown, value.SelectedProjections.Begun.back()),
+			   "another accepted comparison is a different diff");
+
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(2U) });
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(value.SelectedProjections.Begun.size() == 4U
+				   && !application::same_selected_diff(shown, value.SelectedProjections.Begun.back()),
+			   "another file is a different diff");
+	}
+
 	void test_actionability_refresh_preserves_selected_diff_identity()
 	{
 		auto value               = selected_harness{ };
@@ -2156,6 +2198,7 @@ auto main() -> int
 	test_selected_diff_lifecycle_is_exactly_once_and_typed();
 	test_selected_diff_replays_after_context_arrives_and_changes();
 	test_file_navigation_keeps_the_accepted_comparison();
+	test_same_selected_diff_names_only_the_diff_asked_again();
 	test_actionability_refresh_preserves_selected_diff_identity();
 	test_failed_authority_refresh_clears_rows_and_old_selection();
 	test_exact_invalidation_clears_authority_bound_selection();

@@ -14038,12 +14038,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		/// \brief [[BPR-1277]]. Whether `aRequest` asks again for exactly the
+		/// diff on screen: the same authority, comparison context and file
+		/// entry as the shown publication, whose key the surface presents.
+		/// Only the request's context (its generation) may differ.
+		[[nodiscard]] auto shows_selected_diff(const application::workbench_selected_diff_request& aRequest) const -> bool
+		{
+			const auto* const surface = Window == nullptr ? nullptr : Window->comparison_surface();
+			return SelectedDiffRequest.has_value() && SelectedDiffPublication.has_value() && surface != nullptr
+				&& application::same_selected_diff(*SelectedDiffRequest, aRequest)
+				&& application::same_selected_diff(SelectedDiffPublication->Request, aRequest)
+				&& surface->current_result() && surface->current_context()
+				&& surface->current_context()->Key == SelectedDiffPublication->Key;
+		}
+
 		void begin(
 			const application::workbench_selected_diff_request& aRequest) override
 		{
 			if (Closing || EpochHost == nullptr
 				|| EpochHost->context(aRequest.WorkbenchAuthority)
 					!= std::optional{ aRequest.Diff }) {
+				return;
+			}
+			// [[BPR-1277]]. An epoch refresh asks again for the selected file.
+			// When that is exactly the diff on screen, the reviewer's selection,
+			// the draft they are writing and any publish in flight stay: clearing
+			// here dropped the draft, and the diff presented afresh put the
+			// selection on its first change instead.
+			if (shows_selected_diff(aRequest)) {
+				SelectedDiffRequest = aRequest;
+#if defined(BPR_BUILD_TESTING)
+				++SelectedDiffBegins;
+				++SelectedDiffBeginsKept;
+#endif
 				return;
 			}
 			clear_diff_selection();
@@ -14068,6 +14095,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| EpochHost->context(aPublication.Request.WorkbenchAuthority)
 					!= std::optional{ aPublication.Request.Diff }) {
 				return;
+			}
+			// [[BPR-1277]]. The same diff, already on screen, is adopted under
+			// its new request without presenting it again. Different bytes under
+			// a kept request are a new diff: the selection goes, as it would have.
+			if (SelectedDiffPublication.has_value() && SelectedDiffRequest == std::optional{ aPublication.Request }
+				&& application::same_selected_diff(SelectedDiffPublication->Request, aPublication.Request)) {
+				if (SelectedDiffPublication->Key == aPublication.Key) {
+					SelectedDiffPublication = aPublication;
+#if defined(BPR_BUILD_TESTING)
+					++SelectedDiffPublications;
+					LastSelectedDiff = aPublication;
+#endif
+					return;
+				}
+				const auto request = aPublication.Request;
+				clear_diff_selection();
+				SelectedDiffRequest = request;
 			}
 			SelectedDiffPublication = aPublication;
 			request_diff(
@@ -15289,9 +15333,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::size_t                                          DraftIntents       = 0;
 			phase                                                Phase              = phase::awaiting_editor;
 			/// \brief [[BPR-1037]]. The current phase's bounded wait.
-			detail::fixture_probe_wait                Wait;
-			bool                                      NativeLineChosen = false;
-			std::optional<core::source_line_ref>      OffHunkAnchor;
+			detail::fixture_probe_wait           Wait;
+			bool                                 NativeLineChosen = false;
+			std::optional<core::source_line_ref> OffHunkAnchor;
+			/// \brief [[BPR-1277]]. The same diff asked for again while the
+			/// fallback draft is written, and the counts before it was.
+			bool                                      SameDiffAskedAgain   = false;
+			std::size_t                               SameDiffBegins       = 0U;
+			std::size_t                               SameDiffPublications = 0U;
 			std::optional<core::semantic_selection>   PublishingSelection;
 			std::optional<core::semantic_selection>   DeferredSelection;
 			std::optional<core::review_comment_draft> PublishingDraft;
@@ -15356,6 +15405,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                                   WorkbenchWidthDispatches  = 0U;
 		std::size_t                                   WorkbenchInvalidations    = 0U;
 		std::size_t                                   SelectedDiffBegins        = 0U;
+		std::size_t                                   SelectedDiffBeginsKept    = 0U;
 		std::size_t                                   SelectedDiffPublications  = 0U;
 		std::size_t                                   SelectedDiffFailures      = 0U;
 		std::optional<application::workbench_selected_diff_publication>
@@ -23280,6 +23330,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (probe.Phase == state_type::phase::awaiting_fallback_body) {
 			if (implementation->ReviewDraft->Body != "BPR-0571 off-hunk publication." || !editor->publish_action()->isEnabled()) {
 				return wait("REVIEW_ROUND_TRIP_FALLBACK_BODY_STALLED", draftFacts);
+			}
+			// [[BPR-1277]]. An epoch refresh asks again for the selected file
+			// while the reviewer writes; the draft, its body and its line stay.
+			if (!probe.SameDiffAskedAgain) {
+				probe.SameDiffAskedAgain   = true;
+				probe.SameDiffBegins       = implementation->SelectedDiffBegins;
+				probe.SameDiffPublications = implementation->SelectedDiffPublications;
+				implementation->WorkbenchHost->refresh_selected_diff();
+				return wait("REVIEW_ROUND_TRIP_SAME_DIFF_STALLED", draftFacts);
+			}
+			if (implementation->SelectedDiffBegins == probe.SameDiffBegins
+				|| implementation->SelectedDiffPublications == probe.SameDiffPublications
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				return wait("REVIEW_ROUND_TRIP_SAME_DIFF_STALLED", draftFacts);
+			}
+			const auto* const kept = implementation->Window->comparison_surface();
+			if (!editor->shown_draft() || editor->shown_draft()->Anchor != probe.OffHunkAnchor
+				|| !kept->selection() || kept->selection()->PreferredLine != *probe.OffHunkAnchor) {
+				QTextStream{ stdout } << "REVIEW_ROUND_TRIP_SAME_DIFF_DROPPED_DRAFT\n";
+				return fail();
 			}
 			editor->publish_action()->trigger();
 			return advance(state_type::phase::awaiting_fallback_conversation);
