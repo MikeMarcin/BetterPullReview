@@ -64,3 +64,25 @@ selection, three product negative controls and two live detectors. Owed to
 stations, not run here: the Linux and Windows runs, whose commands are in the
 ledger. The Windows manifest will also name three earlier unpinned
 `WINDOWS_UNCONTAINED` rows from BPR-1179 and BPR-1180.
+
+**Note: Linux run at `f74c96080` (station `bpr-main-linux`, WSL2, GCC 15.2.0,
+`build/bpr1181` with `BPR_BUILD_TOUR_CLI=ON`, offscreen; no remote
+mutation).** The build succeeded with no warnings and 9 of 9 passed:
+`application_review_cycle_security_qualification` (63.3 s; 64.1 s in a verbose
+run), `core_review_cycle_round`, `cycle_cli_public_path`,
+`review_cycle_workbench`, `review_cycle_response`, `qt_review_cycle_view_1_0`,
+`application_profile_cycle_handoff_public_path`,
+`test_network_isolation_manifest` and `architecture_boundaries`.
+
+The POSIX course printed every marker:
+
+- `SECURITY_HOSTILE_CHECKOUT_OK`, `SECURITY_FORGED_RESPONSES_OK` and
+  `SECURITY_ONE_POLICY_OK`.
+- `SECURITY_OWNER_CHANNEL_OK silent_peer_dropped_after=5.0s`, the raw Unix
+  socket attacks.
+- `SECURITY_WRONG_OWNER_OK`, and the diagnostic log with 2 records.
+- `SECURITY_GIT_CANARIES_LIVE 12`: twelve live Git canaries (fsmonitor,
+  pager, filters, textconv, external diff), and none fired.
+- `REVIEW_CYCLE_SECURITY_QUALIFICATION_OK`.
+
+`build/bpr1181` was removed afterwards. Done is not reopened.
