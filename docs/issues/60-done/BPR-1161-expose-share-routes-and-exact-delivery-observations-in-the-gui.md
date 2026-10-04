@@ -960,3 +960,17 @@ On both, `qt_review_cycle_view_*` asserts "Show Change" / "Hide Change" and
 "Show All Changes" / "Hide All Changes", and still prints `note code X inks:
 …` with equal column-4 and equal column-8 inks. A result goes on this card
 as a note; Done is not reopened.
+
+**Note: Linux run at `544bd5ce0` (station `bpr-main-linux`, WSL2, `build/dev`,
+offscreen).** The owed Linux command above: the build succeeded and the
+selection passed 17 of 17. `qt_review_cycle_view_1_0` and `_2_0` pass, so they
+assert the "Show Change" / "Hide Change" and "Show All Changes" / "Hide All
+Changes" labels. Run verbose, they print:
+
+```text
+note code X inks: 47 76 76 76 -1 105 105 76 stop 28.75   (scale 1.0)
+note code X inks: 95 153 153 153 -1 210 210 153 stop 57.5   (scale 2.0)
+```
+
+At both scales column 4 equals column 8 (76 = 76 and 153 = 153). Done is not
+reopened; the Windows run is still owed.
