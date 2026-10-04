@@ -274,8 +274,10 @@ namespace bpr::qt {
 			switch (aRefusal.Problem) {
 			case core::cycle_round_problem::empty:         return QStringLiteral("Include at least one note to share.");
 			case core::cycle_round_problem::archived_item: return QStringLiteral("A note in this round is archived; leave it out to share.");
-			case core::cycle_round_problem::oversized:     return QStringLiteral("This round is over its size budget; leave notes out, or share them as rounds you choose.");
-			default:                                       return QStringLiteral("This round cannot be shared as it stands (%1).").arg(QString::fromLatin1(core::stable_name(aRefusal.Problem).data(), static_cast<qsizetype>(core::stable_name(aRefusal.Problem).size())));
+			case core::cycle_round_problem::unportable_path:
+				return QStringLiteral("A note in this round is on a file whose name a round cannot carry; leave it out to share.");
+			case core::cycle_round_problem::oversized: return QStringLiteral("This round is over its size budget; leave notes out, or share them as rounds you choose.");
+			default:                                   return QStringLiteral("This round cannot be shared as it stands (%1).").arg(QString::fromLatin1(core::stable_name(aRefusal.Problem).data(), static_cast<qsizetype>(core::stable_name(aRefusal.Problem).size())));
 			}
 		}
 

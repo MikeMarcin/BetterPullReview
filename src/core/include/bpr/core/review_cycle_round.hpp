@@ -266,6 +266,11 @@ namespace bpr::core {
 		unflushed,
 		/// The editor shows an older draft revision than the stored one.
 		stale_draft,
+		/// A note or suggestion is on a file whose name a round cannot carry,
+		/// such as one holding a control character, which a checkout may
+		/// have. The payload reader refuses such a path, so the round is
+		/// refused rather than frozen unreadable ([[BPR-1181]]).
+		unportable_path,
 	};
 	[[nodiscard]] auto stable_name(cycle_round_problem aValue) noexcept -> std::string_view;
 

@@ -206,9 +206,11 @@ namespace bpr::app {
 			const auto problem = text(core::stable_name(aRefusal.Problem));
 			const auto detail  = QJsonObject{ { "problem", problem }, { "item_index", aRefusal.Item ? QJsonValue{ decimal(*aRefusal.Item) } : QJsonValue{ } } };
 			switch (aRefusal.Problem) {
-			case core::cycle_round_problem::empty:            return { "invalid_input", "The round holds no note. Include one with bpr cycle review --include I<n>.", { }, detail };
-			case core::cycle_round_problem::oversized:        return { "requires_partition", "The round is over its size budget; split it into rounds you choose. Nothing was frozen.", { }, detail };
-			case core::cycle_round_problem::archived_item:    return { "conflict", "A note in the round is archived; leave it out first. Nothing was frozen.", { }, detail };
+			case core::cycle_round_problem::empty:         return { "invalid_input", "The round holds no note. Include one with bpr cycle review --include I<n>.", { }, detail };
+			case core::cycle_round_problem::oversized:     return { "requires_partition", "The round is over its size budget; split it into rounds you choose. Nothing was frozen.", { }, detail };
+			case core::cycle_round_problem::archived_item: return { "conflict", "A note in the round is archived; leave it out first. Nothing was frozen.", { }, detail };
+			case core::cycle_round_problem::unportable_path:
+				return { "invalid_input", "A note in the round is on a file whose name a round cannot carry, such as one holding a control character; leave it out first. Nothing was frozen.", { }, detail };
 			case core::cycle_round_problem::stale_wording:
 			case core::cycle_round_problem::stale_suggestion:
 			case core::cycle_round_problem::stale_draft:      return { "stale_revision", "The round changed since it was read; read it again. Nothing was frozen.", aRetry, detail };
@@ -1407,7 +1409,7 @@ namespace bpr::app {
 			if (!aImported.Receipt) {
 				const auto words = application::cycle_response_words(aImported);
 				if (aImported.Read) {
-					return fail("source_unavailable", words);
+					return fail(*aImported.Read == application::cycle_export_failure::too_large ? "over_limit" : "source_unavailable", words);
 				}
 				if (aImported.Refusal) {
 					using problem   = core::cycle_response_problem;

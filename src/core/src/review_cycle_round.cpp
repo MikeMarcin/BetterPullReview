@@ -1009,6 +1009,12 @@ namespace bpr::core {
 				if (auto problem = suggestions(aIndex, *found, result)) {
 					return std::unexpected(*problem);
 				}
+				// The reader admits only portable relative paths; a round it would
+				// refuse is refused here, not frozen unreadable ([[BPR-1181]]).
+				const auto carried = [](const cycle_wire_anchor& aAnchor) { return !aAnchor.Path || (portable_relative(*aAnchor.Path) && valid_cycle_utf8(*aAnchor.Path)); };
+				if (!std::ranges::all_of(result.Anchors, carried) || !std::ranges::all_of(result.Suggestions, [&](const cycle_wire_suggestion& aSuggestion) { return carried(aSuggestion.Anchor); })) {
+					return refusal(cycle_round_problem::unportable_path, aIndex);
+				}
 				if (result.Anchors.size() > maximum_round_anchors) {
 					return refusal(cycle_round_problem::invalid_selection, aIndex);
 				}
@@ -1155,6 +1161,7 @@ namespace bpr::core {
 		case cycle_round_problem::oversized:           return "oversized";
 		case cycle_round_problem::unflushed:           return "unflushed";
 		case cycle_round_problem::stale_draft:         return "stale_draft";
+		case cycle_round_problem::unportable_path:     return "unportable_path";
 		}
 		return "invalid_selection";
 	}

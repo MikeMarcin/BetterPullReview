@@ -376,6 +376,24 @@ namespace {
 		refuse(base, cycle_round_problem::archived_item, "archived note");
 		fixture.Items[1].Thread.Lineage.Lifecycle = private_thread_lifecycle::open;
 
+		// [[BPR-1181]]. A note on a file whose name the payload reader refuses is
+		// refused here: a checkout may hold such a name, and a round frozen with it
+		// could never be read, copied, saved or granted again.
+		auto item = std::uint64_t{ 6 };
+		for (const auto name : { std::string_view{ "src/esc\x1b[31mred.cpp" }, std::string_view{ "src/tab\there.cpp" }, std::string_view{ "src/delete\x7f.cpp" } }) {
+			fixture.begin({ .Primary = cycle_file_target{ .Revision = cycle_source_revision_id{ 1 }, .Path = std::string{ name }, .Blob = digest("x") }, .Body = "note: an awkward name." });
+			auto awkward = base;
+			awkward.Items.push_back({ .Item = cycle_feedback_item_id{ item++ }, .Wording = private_review_turn_revision_id{ 1 } });
+			expect(refuse(awkward, cycle_round_problem::unportable_path, "a name the reader refuses").Item == 4U, "names the note");
+		}
+		fixture.begin({ .Primary = cycle_file_target{ .Revision = cycle_source_revision_id{ 1 }, .Path = "src/a:b name é.cpp", .Blob = digest("x") }, .Body = "note: an ordinary name." });
+		auto ordinary = base;
+		ordinary.Items.push_back({ .Item = cycle_feedback_item_id{ item }, .Wording = private_review_turn_revision_id{ 1 } });
+		const auto carried = assemble(fixture, ordinary);
+		expect(carried.has_value(), "a space and a non-ASCII letter are carried");
+		const auto written = encode_round_payload(*carried);
+		expect(written && decode_round_payload(*written).has_value(), "and the round it makes reads back");
+
 		// Over the context budget: refused with the measure; admitted only when asked.
 		fixture.Files.push_back({ .Revision = cycle_source_revision_id{ 1 }, .Path = "data/big.bin", .Blob = { }, .Bytes = std::string(default_round_context_bytes, 'x') });
 		fixture.Files.back().Blob = digest(fixture.Files.back().Bytes);

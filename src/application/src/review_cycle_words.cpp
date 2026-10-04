@@ -1,6 +1,7 @@
 #include "bpr/application/review_cycle_words.hpp"
 
 #include "bpr/core/review_cycle.hpp"
+#include "bpr/core/review_cycle_response.hpp"
 
 #include <cstddef>
 #include <filesystem>
@@ -8,6 +9,7 @@
 namespace bpr::application {
 	// [[BPR-1184]]. A refusal names the limit it met.
 	static_assert(core::maximum_cycle_capture_entries == 250'000U, "the over-limit capture words name 250,000 entries");
+	static_assert(core::maximum_response_document_bytes == 16U * 1024U * 1024U, "the over-limit response words name 16 MiB");
 
 	auto cycle_store_words(const cycle_store_error& aError) -> std::string
 	{
@@ -51,7 +53,12 @@ namespace bpr::application {
 	auto cycle_response_words(const cycle_response_result& aResult) -> std::string
 	{
 		if (aResult.Read) {
-			return "The chosen file could not be read; nothing was added.";
+			// [[BPR-1181]]. A bound or a link is said as such, not as an unreadable file.
+			switch (*aResult.Read) {
+			case cycle_export_failure::too_large:   return "The chosen file is larger than a response can be (16 MiB); nothing was read or added.";
+			case cycle_export_failure::not_regular: return "The chosen file is a link, a folder or another special file, which is never followed or read; nothing was added.";
+			default:                                return "The chosen file could not be read; nothing was added.";
+			}
 		}
 		if (aResult.Decode) {
 			return "The file is not a response this build reads (" + std::string{ core::stable_name(aResult.Decode->Problem) } + "); nothing was added.";

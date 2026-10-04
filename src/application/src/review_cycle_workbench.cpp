@@ -69,6 +69,7 @@ namespace bpr::application {
 			switch (aRefusal.Problem) {
 			case core::cycle_round_problem::empty:            return "Include at least one note to share.";
 			case core::cycle_round_problem::archived_item:    return "A note in the round is archived" + item + "; leave it out to share.";
+			case core::cycle_round_problem::unportable_path:  return "A note in the round is on a file whose name a round cannot carry" + item + "; leave it out to share.";
 			case core::cycle_round_problem::stale_wording:
 			case core::cycle_round_problem::stale_suggestion:
 			case core::cycle_round_problem::stale_draft:      return "The round changed while it was shared; look at it again, then share.";
