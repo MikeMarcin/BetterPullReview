@@ -196,6 +196,10 @@ namespace bpr::core {
 		/// A structured response a harness holding a response grant appended
 		/// through the local interface ([[BPR-1169]]).
 		local_interface,
+		/// A structured response the recipient returned to the agent adapter
+		/// that sent it the round, when it names exactly that round
+		/// ([[BPR-1180]]).
+		agent_adapter,
 	};
 	[[nodiscard]] auto stable_name(cycle_response_channel aValue) noexcept -> std::string_view;
 	/// \brief Whether the statement is a structured response document, as

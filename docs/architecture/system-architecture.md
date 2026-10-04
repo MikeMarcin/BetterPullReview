@@ -366,8 +366,9 @@ The tests-disabled package binds the actual application, agent supervisor,
 stdio MCP helper and macOS updater helper to its file inventory and selected
 build graph. [[BPR-1179]] makes two component families removable at build
 time: `BPR_BUILD_AGENT_INTEGRATIONS=OFF` compiles out the agent launch adapter,
-the application's agent hosts, the provider protocol decoders and the MCP
-helper and its supervisor, and the window withdraws its agent controls;
+the application's agent hosts, the provider protocol decoders, the MCP
+helper and its supervisor and the cycle's Send to Agent adapter
+([[BPR-1180]]), and the window withdraws its agent controls;
 `BPR_BUILD_LOCAL_AUTOMATION=OFF` binds no owner command endpoint and builds no
 `bpr`. The composition decides which family it holds; stored reviews and
 cycles never depend on either. The supervisor stays in every package, because

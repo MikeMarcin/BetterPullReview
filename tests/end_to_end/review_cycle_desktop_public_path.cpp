@@ -888,9 +888,16 @@ try {
 	settle(lanes);
 	expect(!share->viewer()->isVisible() && share->isVisible() && !page->projection().Share->Larger, "Escape closes it; the host lets the whole file go");
 	auto* const copy = share->route_button(core::cycle_share_route::copy_document);
-	expect(copy->isVisible() && copy->isEnabled() && share->route_button(core::cycle_share_route::save_document)->isEnabled() && !share->route_button(core::cycle_share_route::external_agent)->isVisible()
-			   && !share->route_button(core::cycle_share_route::send_to_agent)->isVisible(),
-		   "Copy and Save, and no agent route in a build with none");
+	expect(copy->isVisible() && copy->isEnabled() && share->route_button(core::cycle_share_route::save_document)->isEnabled() && !share->route_button(core::cycle_share_route::external_agent)->isVisible(),
+		   "Copy and Save first-class, and no external interface offered");
+#if defined(BPR_AGENT_INTEGRATIONS)
+	// [[BPR-1180]]. The installed adapter's route is listed, refused until this
+	// source's channel allows it; nothing else stands in for it.
+	expect(share->route_button(core::cycle_share_route::send_to_agent)->isVisible() && !share->route_button(core::cycle_share_route::send_to_agent)->isEnabled(),
+		   "Send to Agent… listed, refused for source of unknown origin");
+#else
+	expect(!share->route_button(core::cycle_share_route::send_to_agent)->isVisible(), "no agent route in a build without agent integrations");
+#endif
 	const auto bytes    = page->projection().Share->Document;
 	const auto document = QString::fromUtf8(bytes.data(), static_cast<qsizetype>(bytes.size()));
 	share->exact_text_button()->click();

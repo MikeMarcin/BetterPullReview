@@ -60,7 +60,9 @@ namespace bpr::application {
 		std::stop_source                    Stop;
 		/// The running capture's own stop: a selection change, shutdown or
 		/// `cancel_capture` stops it.
-		std::stop_source        CaptureStop;
+		std::stop_source CaptureStop;
+		/// [[BPR-1180]]. Stops lasting calls, which only shutdown ends.
+		std::stop_source        Lifetime;
 		std::deque<queued_call> Queue;
 		std::size_t             Outstanding = 0;
 		bool                    Running     = false;
@@ -94,21 +96,23 @@ namespace bpr::application {
 
 		/// Queues one store call; its result returns to the decision lane.
 		template <typename T, typename TWork>
-		auto submit(TWork aWork, completion<T> aDone, const review_cycle_call aKind = review_cycle_call::write) -> bool
+		auto submit(TWork aWork, completion<T> aDone, const review_cycle_call aKind = review_cycle_call::write, const bool aLasting = false) -> bool
 		{
 			if (Closing) {
 				return false;
 			}
 			++Outstanding;
 			const auto laned = aKind == review_cycle_call::capture && Captures != nullptr;
-			Queue.push_back({ .Kind = aKind, .Start = [self = shared_from_this(), work = std::move(aWork), done = std::move(aDone), generation = Generation, token = Stop.get_token(), laned]() mutable {
+			// A lasting call belongs to no selection: only shutdown stops it.
+			const auto generation = aLasting ? std::nullopt : std::optional{ Generation };
+			Queue.push_back({ .Kind = aKind, .Start = [self = shared_from_this(), work = std::move(aWork), done = std::move(aDone), generation, token = aLasting ? Lifetime.get_token() : Stop.get_token(), laned]() mutable {
 								 if (!laned) {
 									 self->dispatch<T>(std::move(work), std::move(done), generation, token, self->Effects, false);
 									 return;
 								 }
 								 // Its own stop, already requested when the selection moved on while it waited.
 								 self->CaptureStop = std::stop_source{ };
-								 if (generation != self->Generation || self->Closing) {
+								 if ((generation && *generation != self->Generation) || self->Closing) {
 									 self->CaptureStop.request_stop();
 								 }
 								 self->dispatch<T>(std::move(work), std::move(done), generation, self->CaptureStop.get_token(), *self->Captures, true);
@@ -119,7 +123,7 @@ namespace bpr::application {
 
 		/// Runs the call on `aLane`.
 		template <typename T, typename TWork>
-		void dispatch(TWork aWork, completion<T> aDone, const std::uint64_t aGeneration, std::stop_token aToken, effect_executor& aLane, const bool aLaned)
+		void dispatch(TWork aWork, completion<T> aDone, const std::optional<std::uint64_t> aGeneration, std::stop_token aToken, effect_executor& aLane, const bool aLaned)
 		{
 			aLane.post([self = shared_from_this(), work = std::move(aWork), done = std::move(aDone), aGeneration, aToken, aLaned]() mutable {
 				// [[BPR-1274]]. One call's store calls share one connection, which
@@ -134,7 +138,7 @@ namespace bpr::application {
 
 		/// Returns the result to the decision lane.
 		template <typename T>
-		void complete(cycle_store_result<T> aResult, completion<T> aDone, const std::uint64_t aGeneration, const bool aLaned)
+		void complete(cycle_store_result<T> aResult, completion<T> aDone, const std::optional<std::uint64_t> aGeneration, const bool aLaned)
 		{
 			Decisions.post([self = shared_from_this(), result = std::move(aResult), done = std::move(aDone), aGeneration, aLaned]() mutable {
 				self->finish<T>(std::move(result), std::move(done), aGeneration, aLaned);
@@ -143,9 +147,9 @@ namespace bpr::application {
 
 		/// Delivers one terminal; a superseded selection's result is cancelled.
 		template <typename T>
-		void finish(cycle_store_result<T> aResult, completion<T> aDone, const std::uint64_t aGeneration, const bool aLaned)
+		void finish(cycle_store_result<T> aResult, completion<T> aDone, const std::optional<std::uint64_t> aGeneration, const bool aLaned)
 		{
-			if (aGeneration != Generation) {
+			if (aGeneration && *aGeneration != Generation) {
 				aResult = std::unexpected(cancelled());
 			}
 			--Outstanding;
@@ -752,6 +756,14 @@ namespace bpr::application {
 														   std::move(aDone));
 	}
 
+	auto review_cycle_runtime::record_send(core::local_cycle_subject aSubject, cycle_send_record aRecord, completion<cycle_send_recorded> aDone) -> bool
+	{
+		return Implementation->submit<cycle_send_recorded>([aSubject, record = std::move(aRecord)](review_cycle_store& aStore, std::stop_token aStop) {
+			return application::record_send(aStore, aSubject, record, aStop);
+		},
+														   std::move(aDone), review_cycle_call::write, true);
+	}
+
 	auto review_cycle_runtime::note_context_selected(const core::cycle_feedback_item_id aItem, const std::size_t aContext, const std::size_t aRows, completion<review_cycle_note_context> aDone)
 		-> bool
 	{
@@ -1041,6 +1053,7 @@ namespace bpr::application {
 		self.Closing = true;
 		self.Stop.request_stop();
 		self.CaptureStop.request_stop();
+		self.Lifetime.request_stop();
 	}
 
 	auto review_cycle_runtime::is_quiescent() const noexcept -> bool

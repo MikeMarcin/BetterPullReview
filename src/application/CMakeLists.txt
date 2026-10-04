@@ -25,6 +25,7 @@ add_library(
         src/review_cycle_promotion.cpp
         src/review_cycle_export.cpp
         src/review_cycle_share.cpp
+        src/review_cycle_send.cpp
         src/review_cycle_import.cpp
         src/review_cycle_workbench.cpp
         src/review_cycle_words.cpp
@@ -116,6 +117,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/agent_invocation_host.cpp
             src/agent_realignment.cpp
             src/mcp_context_helper_supervisor.cpp
+            src/review_cycle_agent_sender.cpp
     )
 endif()
 

@@ -2,14 +2,17 @@
 #define BPR_SRC_APP_SRC_REVIEW_CYCLE_DESKTOP_HPP
 
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/agent_launch.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/github_publication_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_cycle_promotion.hpp"
+#include "bpr/application/review_cycle_send.hpp"
 #include "bpr/application/review_cycle_workbench.hpp"
 #include "bpr/application/syntax_classification_application_host.hpp"
 #include "bpr/application/tour_owner_channel.hpp"
 #include "bpr/application/workspace_source_port.hpp"
+#include "bpr/core/agent_profile.hpp"
 #include "bpr/core/model.hpp"
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_command.hpp"
@@ -110,6 +113,10 @@ namespace bpr::app {
 		/// commands are run. Without one, no note can be added.
 		using tour_route = std::function<void(application::tour_channel_bytes, std::function<void(application::tour_channel_bytes)>)>;
 		void set_tour_route(tour_route aRoute);
+		/// \brief [[BPR-1180]]. Replaces the agent profiles Send to Agent offers,
+		/// keeping the installed adapter: a course points them at its own
+		/// executables. Nothing changes where no adapter is installed.
+		void set_send_profiles(std::vector<core::agent_profile> aProfiles);
 		/// \brief Replaces where the account comes from, keeping the catalog.
 		void set_publication_account(std::function<std::optional<application::github_publication_account>()> aAccount);
 		/// \brief What this window holds of cycle `aCycle`'s round draft that
@@ -168,7 +175,13 @@ namespace bpr::app {
 		/// named a lane, so the reviewer reads and moves between files while
 		/// one runs and no other workbench effect waits. Declared before the
 		/// host, which it outlives.
-		std::unique_ptr<worker_executor>                     OwnCaptures;
+		std::unique_ptr<worker_executor> OwnCaptures;
+		/// [[BPR-1180]]. Send to Agent's process adapter and the worker a send
+		/// runs on, declared before the host, which they outlive. Composed only
+		/// with the agent integrations; an agent-free build has neither.
+		std::unique_ptr<application::agent_process_port>     SendProcesses;
+		std::unique_ptr<worker_executor>                     SendLane;
+		std::shared_ptr<application::review_cycle_sender>    Sender;
 		std::unique_ptr<application::review_cycle_workbench> Host;
 		/// [[BPR-1273]]. The tour owner Add Notes to Review Tour adds through,
 		/// declared before the promoter, which it outlives.

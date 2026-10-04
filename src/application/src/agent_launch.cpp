@@ -1,5 +1,7 @@
 #include "bpr/application/agent_launch.hpp"
+
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/review_cycle_send.hpp"
 
 #include <algorithm>
 #include <array>
@@ -2264,6 +2266,72 @@ namespace bpr::application {
 		request.Metadata     = metadata;
 		request.AdmittedRun  = aOptions.AdmittedRun;
 		request.Run          = aOptions.AdmittedRun ? aOptions.AdmittedRun->Run : core::agent_run_id{ };
+		const auto admission = admit_agent_input(request);
+		if (!admission) {
+			return std::unexpected(admission.error());
+		}
+		return request;
+	}
+
+	auto build_round_launch(const core::agent_profile& aProfile, const std::string_view aDocument, const std::optional<std::string>& aContinue, std::string aWorkingDirectory,
+							const environment_reader& aParent) -> std::expected<agent_launch_request, agent_launch_failure>
+	{
+		if (!core::valid(aProfile) || core::stable_name(aProfile.Protocol).empty()) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
+		// Only a harness that can continue a session is told to, and only by a
+		// name it reported: never read as an option.
+		if (aContinue && (!core::continues_sessions(aProfile.Protocol) || !core::send_session_name(*aContinue))) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
+		const auto metadata = core::agent_runtime_metadata{ .Configured = aProfile.DefaultSettings };
+		if (!core::inspect_runtime_metadata(metadata)) {
+			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
+		}
+		const auto settings = effective_settings(metadata);
+		if (aProfile.Protocol != core::agent_protocol::codex_app_server && (settings.Model || settings.Effort)) {
+			return std::unexpected(agent_launch_failure::unsupported_runtime_settings);
+		}
+		if (aDocument.size() + input_overhead(aProfile.Protocol, metadata) > maximum_agent_input_bytes) {
+			return std::unexpected(agent_launch_failure::input_too_large);
+		}
+		auto arguments = std::vector<std::string>{ };
+		auto input     = std::string{ };
+		switch (aProfile.Protocol) {
+		case core::agent_protocol::codex_app_server:
+			arguments = { "app-server" };
+			input     = frame_agent_input(aProfile.Protocol, { });
+			break;
+		case core::agent_protocol::codex_jsonl_exec:
+			// The round is the prompt, exactly as Copy gives it.
+			arguments = { "exec", "--json", "-" };
+			input     = std::string{ aDocument };
+			break;
+		case core::agent_protocol::claude_stream_json:
+			arguments = { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
+			if (aContinue) {
+				arguments.emplace_back("--resume");
+				arguments.push_back(*aContinue);
+			}
+			input = frame_agent_input(aProfile.Protocol, aDocument);
+			break;
+		case core::agent_protocol::external_terminal:
+			input = std::string{ aDocument };
+			break;
+		}
+		auto request = agent_launch_request{
+			.Protocol         = aProfile.Protocol,
+			.Session          = core::agent_session_id{ 1U },
+			.Executable       = aProfile.Executable,
+			.Arguments        = std::move(arguments),
+			.WorkingDirectory = std::move(aWorkingDirectory),
+			.Environment      = materialize_agent_environment(aProfile, aParent),
+			.Input            = std::move(input),
+			.Metadata         = metadata,
+		};
+		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
+			request.DeferredContext = std::string{ aDocument };
+		}
 		const auto admission = admit_agent_input(request);
 		if (!admission) {
 			return std::unexpected(admission.error());

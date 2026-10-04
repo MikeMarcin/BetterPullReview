@@ -1,5 +1,7 @@
 #include "bpr/core/review_cycle_share.hpp"
 
+#include "bpr/core/review_cycle_send.hpp"
+
 #include <algorithm>
 #include <utility>
 
@@ -212,7 +214,10 @@ namespace bpr::core {
 		if (saved && !delivery_destination_name(aObservation.Destination)) {
 			return cycle_delivery_problem::destination_not_a_name;
 		}
-		if (!saved && !aObservation.Destination.empty()) {
+		// [[BPR-1180]]. An adapter's acknowledgment may name the session its
+		// harness reported, and nothing else.
+		const auto session = aObservation.State == cycle_delivery_state::recipient_acknowledged && channel == agent_adapter && parse_send_session_record(aObservation.Destination);
+		if (!saved && !session && !aObservation.Destination.empty()) {
 			return cycle_delivery_problem::unexpected_destination;
 		}
 		return std::nullopt;

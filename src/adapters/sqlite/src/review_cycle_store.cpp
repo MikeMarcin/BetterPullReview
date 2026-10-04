@@ -2210,7 +2210,7 @@ namespace bpr::adapters::sqlite {
 						const auto channel = rows.column_integer(3);
 						const auto content = digest_from<core::cycle_material_digest>(rows.column_blob(5));
 						const auto size    = rows.column_integer(6);
-						if (!id || !round || !digest || !content || size < 0 || channel < 0 || channel > static_cast<std::int64_t>(core::cycle_response_channel::local_interface)) {
+						if (!id || !round || !digest || !content || size < 0 || channel < 0 || channel > static_cast<std::int64_t>(core::cycle_response_channel::agent_adapter)) {
 							return fail(cycle_store_failure::corrupt);
 						}
 						page.Responses.push_back({

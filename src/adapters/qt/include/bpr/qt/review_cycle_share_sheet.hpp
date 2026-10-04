@@ -22,6 +22,7 @@
 
 class QButtonGroup;
 class QCheckBox;
+class QComboBox;
 class QFrame;
 class QLabel;
 class QLineEdit;
@@ -44,6 +45,11 @@ namespace bpr::qt {
 		/// The larger view of one note's code, and closing it.
 		std::function<void(core::cycle_feedback_item_id)> ShowCode;
 		std::function<void()>                             CloseCode;
+		/// Send to Agent ([[BPR-1180]]): send to the chosen profile and
+		/// session, stop the send under way, add its reply.
+		std::function<void(core::cycle_send_request)> Send;
+		std::function<void()>                         StopSend;
+		std::function<void()>                         AddReply;
 	};
 
 	/// \brief A text of the cycle's code asked to be classified: the file the
@@ -259,6 +265,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto keep_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto replace_words() const noexcept -> QLabel*;
 		[[nodiscard]] auto viewer() const noexcept -> review_cycle_share_viewer*;
+		/// \brief Send to Agent's box ([[BPR-1180]]), opened by its route:
+		/// which agent, which session, what happens, Send and Stop; then the
+		/// reply a finished send brought back, with Add as Reply.
+		[[nodiscard]] auto send_box() const noexcept -> QWidget*;
+		[[nodiscard]] auto send_profile() const noexcept -> QComboBox*;
+		[[nodiscard]] auto send_session() const noexcept -> QComboBox*;
+		[[nodiscard]] auto send_words() const noexcept -> QLabel*;
+		[[nodiscard]] auto send_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto stop_send_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto reply_box() const noexcept -> QWidget*;
+		[[nodiscard]] auto reply_text() const noexcept -> QPlainTextEdit*;
+		[[nodiscard]] auto add_reply_button() const noexcept -> QPushButton*;
 
 		/// \brief One listed note's controls, in the order shown.
 		struct note_row
@@ -313,8 +331,13 @@ namespace bpr::qt {
 		void refresh_all_code();
 		void reveal(core::cycle_feedback_item_id aItem);
 		void rebuild_deliveries(const application::review_cycle_share_view& aShare);
-		void refresh_defaults();
-		void place();
+		/// Fills Send to Agent's box from the host's offers, keeping the
+		/// reviewer's choice of agent and session while they are offered.
+		void refresh_send();
+		/// The choice the box shows: the agent and the session.
+		[[nodiscard]] auto chosen_send() const -> std::optional<core::cycle_send_request>;
+		void               refresh_defaults();
+		void               place();
 		/// Moves the included note at `aFrom` to before the included note at
 		/// `aTo` (`aTo` may be one past the last), one step at a time.
 		void move_note(std::size_t aFrom, std::size_t aTo);
@@ -361,9 +384,21 @@ namespace bpr::qt {
 		QLabel*                                                 Meaning     = nullptr;
 		std::array<QPushButton*, core::cycle_share_route_count> Routes{ };
 		std::array<QLabel*, 2>                                  RouteWords{ };
-		QPushButton*                                            ExactText = nullptr;
-		QPushButton*                                            Cancel    = nullptr;
-		review_cycle_share_viewer*                              Viewer    = nullptr;
+		QPushButton*                                            ExactText   = nullptr;
+		QPushButton*                                            Cancel      = nullptr;
+		QWidget*                                                SendBox     = nullptr;
+		QComboBox*                                              SendProfile = nullptr;
+		QComboBox*                                              SendSession = nullptr;
+		QLabel*                                                 SendWords   = nullptr;
+		QPushButton*                                            SendIt      = nullptr;
+		QPushButton*                                            StopSend    = nullptr;
+		QWidget*                                                ReplyBox    = nullptr;
+		QLabel*                                                 ReplyLabel  = nullptr;
+		QPlainTextEdit*                                         ReplyText   = nullptr;
+		QPushButton*                                            AddReply    = nullptr;
+		/// The reviewer opened the box with Send to Agent….
+		bool                       SendOpen = false;
+		review_cycle_share_viewer* Viewer   = nullptr;
 		/// What had focus when the larger view opened; it gets focus back.
 		QPointer<QWidget> ReturnFocus;
 		/// The note the larger view shows, while it is open on a note.

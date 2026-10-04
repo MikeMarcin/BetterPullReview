@@ -257,13 +257,14 @@ namespace bpr::core {
 		case cycle_response_channel::response_file:   return "response_file";
 		case cycle_response_channel::manual_entry:    return "manual_entry";
 		case cycle_response_channel::local_interface: return "local_interface";
+		case cycle_response_channel::agent_adapter:   return "agent_adapter";
 		}
 		return "unknown";
 	}
 
 	auto structured_response(const cycle_response_channel aValue) noexcept -> bool
 	{
-		return aValue == cycle_response_channel::response_file || aValue == cycle_response_channel::local_interface;
+		return aValue != cycle_response_channel::manual_entry;
 	}
 
 	auto encode_response_document(const cycle_response_document& aDocument) -> std::optional<std::string>

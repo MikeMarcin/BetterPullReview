@@ -273,6 +273,11 @@ until configured:
 bpr cycle policy --classification unclassified --channel external_retrieval --permission allowed
 ```
 
+The desktop's Send to Agent ([[BPR-1180]]) uses `agent_adapter`: allow it the
+same way before a round of a local folder can be sent to an installed agent.
+Allowing the channel does not allow every agent: the agent host policy each
+profile already answers to still refuses one a corporate host forbids.
+
 `--permission unconfigured` returns a channel to its default. The policy is
 the profile's, stored with its cycles, and every decision combines it with any
 policy the host imposes, a denial in either standing: the desktop's Compose

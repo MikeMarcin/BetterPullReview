@@ -109,6 +109,12 @@ AGENT_INTEGRATION_REQUIRED = (
         "agent protocol decoder constructor",
         "bpr::application::agent_protocol_decoder::agent_protocol_decoder",
     ),
+    # [[BPR-1180]]. The Send to Agent adapter, the review cycle's only way to
+    # hand a round to an installed agent.
+    function_anchor(
+        "Send to Agent round sender constructor",
+        "bpr::application::agent_round_sender::agent_round_sender",
+    ),
 )
 
 # [[BPR-1179]]. Local automation: the service that runs a forwarded bpr cycle

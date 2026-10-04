@@ -15,6 +15,11 @@
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "tour_owner_service.hpp"
+// [[BPR-1180]]. The Send to Agent adapter, only with the agent integrations.
+#if defined(BPR_AGENT_INTEGRATIONS)
+	#include "bpr/adapters/agent/agent_process_launcher.hpp"
+	#include "bpr/application/review_cycle_agent_sender.hpp"
+#endif
 
 #include <QAction>
 #include <QClipboard>
@@ -295,6 +300,9 @@ namespace bpr::app {
 				.Replace   = [this](const bool aReplace) { Host->resolve_replace(aReplace); },
 				.ShowCode  = [this](const core::cycle_feedback_item_id aItem) { Host->show_note_code(aItem); },
 				.CloseCode = [this] { Host->close_note_code(); },
+				.Send      = [this](const core::cycle_send_request& aRequest) { Host->send(aRequest); },
+				.StopSend  = [this] { Host->cancel_send(); },
+				.AddReply  = [this] { Host->add_send_reply(); },
 			},
 			.OpenPublication = [this] { Host->open_publication(); },
 			.Publish         = {
@@ -321,6 +329,20 @@ namespace bpr::app {
 		// file chosen, on the effect lane. No other route is reachable here.
 		Clipboard = std::make_unique<platform_clipboard>();
 		Host->set_clipboard(Clipboard.get());
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-1180]]. Send to Agent: the installed profiles through the same
+		// supervised launch every other use of them has, one send at a time on
+		// its own worker. The child gets only each profile's allowed names.
+		SendProcesses = std::make_unique<adapters::agent::agent_process_launcher>();
+		SendLane      = std::make_unique<worker_executor>();
+		Sender        = std::make_shared<application::agent_round_sender>(*SendProcesses, [](const std::string& aName) -> std::optional<std::string> {
+			if (!qEnvironmentVariableIsSet(aName.c_str())) {
+				return std::nullopt;
+			}
+			return qEnvironmentVariable(aName.c_str()).toStdString();
+		});
+		set_send_profiles(core::built_in_agent_profiles());
+#endif
 		Host->set_destination_factory([](const std::string& aPath) { return adapters::workspace::make_local_export_destination(utf8_path(aPath)); });
 		ChooseSave = [this](const std::string& aSuggested, const bool aBundle) {
 			// Over the sheet that asked, which is window-modal, when one is open.
@@ -438,6 +460,22 @@ namespace bpr::app {
 	void review_cycle_desktop::set_save_chooser(save_chooser aChooser)
 	{
 		ChooseSave = std::move(aChooser);
+	}
+
+	void review_cycle_desktop::set_send_profiles(std::vector<core::agent_profile> aProfiles)
+	{
+		if (!Sender || !SendLane) {
+			return;
+		}
+		Host->set_send_environment({
+			.Profiles    = std::move(aProfiles),
+			.Sender      = Sender,
+			.Lane        = SendLane.get(),
+			.AccountHost = [this]() -> std::optional<std::string> {
+				const auto account = Publishing.Account ? Publishing.Account() : std::nullopt;
+				return account ? std::optional{ account->Host } : std::nullopt;
+			},
+		});
 	}
 
 	void review_cycle_desktop::set_publishing(publishing aPublishing)

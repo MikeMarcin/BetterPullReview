@@ -437,14 +437,43 @@ would take, the same decision every other exporter gets; a refused route,
 a selection that cannot freeze or output over the route's budget freezes
 nothing, and no other route stands in for a refused one. Copy and Save are
 always listed; Use in external agent and Send to Agent only when the host
-reaches them (`core::cycle_share_capabilities`), and this build reaches
-neither. What happened is a delivery observation (`core::cycle_delivery_observation`,
+reaches them (`core::cycle_share_capabilities`). What happened is a delivery observation (`core::cycle_delivery_observation`,
 schema 8's `deliveries`, admitted by `core::admit_delivery`): copied only when
 the platform clipboard hands the same text back (otherwise uncertain), saved
 with the file's name and never its folder, retrieved, accepted by an adapter
 or acknowledged only through a channel that can show it. No observation means
 the round was received, read, acted on or accepted, and none changes a note.
 Schema 8 migrates schemas 1 to 7 in place.
+
+Send to Agent ([[BPR-1180]]) is a thin client of the frozen round, built only
+with the agent integrations (`application::agent_round_sender`, composed by
+the desktop). The reviewer chooses one installed agent profile and a session:
+new, said as new, or one session the same harness reported to an earlier send
+of this cycle, continued by exactly that name (Claude stream JSON's
+`--resume`; no other harness is told to continue). `core::decide_send` decides
+before anything is frozen: the round's `agent_adapter` channel decision, then
+the agent host policy the profile already answers to, which is the corporate
+host's when the source is known enterprise material or the reviewer acts under
+an account on a host other than github.com (`core::cycle_send_policy`). A
+refusal freezes and sends nothing and uses no other agent or route. The
+adapter hands the round's readable document, the bytes Copy and Save give, to
+the profile's executable through the existing supervised launch
+(`application::build_round_launch`), on a worker of its own, in the folder the
+cycle is bound to. What it saw is recorded against the round it sent, whatever
+is open when it ends (`review_cycle_runtime::record_send`, a call no selection
+change cancels): `failed` when nothing was started; otherwise
+`accepted_by_adapter` with the bytes, `recipient_acknowledged` naming the
+session the harness reported (`core::send_session_record`, in the
+observation's `Destination`), and `uncertain` when the turn did not finish.
+A finished turn adds no observation. Its reply, when it is a structured
+response, is checked against that round like any response and appended with
+the `agent_adapter` response channel; a response about another round or other
+content is refused and nothing is appended. Prose is shown for the reviewer to
+add as a reply. Nothing is sent again, captured or verified by itself. An
+agent-free build reads every such observation and response; the stored forms
+gained one response channel value and acknowledgment destinations, and no
+schema change, so a build older than this one refuses a cycle that used Send
+as corrupt rather than misreading it.
 
 The share sheet shows each listed note's code as the core cuts it
 (`core::excerpt_note`): the lines the note is about and each of its suggested

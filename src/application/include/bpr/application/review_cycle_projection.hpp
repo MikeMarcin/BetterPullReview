@@ -7,6 +7,7 @@
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_material.hpp"
 #include "bpr/core/review_cycle_response.hpp"
+#include "bpr/core/review_cycle_send.hpp"
 #include "bpr/core/review_cycle_share.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
@@ -146,6 +147,26 @@ namespace bpr::application {
 		auto          operator<=>(const review_cycle_note_context&) const = default;
 	};
 
+	/// \brief Send to Agent as the share sheet offers it ([[BPR-1180]]): every
+	/// installed profile with its host's verdict, where the harness would run,
+	/// a send under way, and the last finished send's reply when it was prose
+	/// the reviewer may add.
+	struct review_cycle_send_view
+	{
+		std::vector<core::cycle_send_offer> Offers;
+		/// The folder the harness runs in: the folder the cycle is bound to.
+		std::string Folder;
+		/// A send is under way; Stop ends it.
+		bool Sending = false;
+		/// The profile of the send under way, or of the reply below.
+		std::string Profile;
+		/// A finished turn's prose, kept for the reviewer to add as a reply
+		/// to `ReplyRound`, or leave.
+		std::string                         Reply;
+		std::optional<core::cycle_round_id> ReplyRound;
+		auto                                operator<=>(const review_cycle_send_view&) const = default;
+	};
+
 	/// \brief Compose feedback and Share feedback (BPR-1161): the draft, the
 	/// exact document sharing it sends, the routes and every delivery
 	/// observation of the cycle.
@@ -180,6 +201,8 @@ namespace bpr::application {
 		std::optional<review_cycle_replace_request> Replace;
 		/// What to ask an external agent to read, once its round is ready.
 		std::string Invocation;
+		/// Send to Agent, when an adapter is installed ([[BPR-1180]]).
+		std::optional<review_cycle_send_view> Send;
 		/// Plain words about the last share, refusal or limit.
 		std::string Status;
 		/// A goal the reviewer entered that was not saved because the draft

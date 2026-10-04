@@ -5,6 +5,7 @@
 #include "bpr/core/review_cycle_bundle.hpp"
 #include "bpr/core/review_cycle_comparison.hpp"
 #include "bpr/core/review_cycle_round_markdown.hpp"
+#include "bpr/core/review_cycle_send.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -51,8 +52,12 @@ namespace bpr::application {
 		{
 			switch (aRoute) {
 			case core::cycle_share_route::copy_document:
-			case core::cycle_share_route::save_document: {
-				const auto budget = aRoute == core::cycle_share_route::copy_document ? core::maximum_round_clipboard_bytes : core::maximum_round_document_file_bytes;
+			case core::cycle_share_route::save_document:
+			case core::cycle_share_route::send_to_agent: {
+				// [[BPR-1180]]. Send hands over the document Copy and Save give, within its own bound.
+				const auto budget = aRoute == core::cycle_share_route::copy_document ? core::maximum_round_clipboard_bytes
+					: aRoute == core::cycle_share_route::send_to_agent               ? core::maximum_round_send_bytes
+																					 : core::maximum_round_document_file_bytes;
 				auto       text   = core::render_round_markdown(aRound, budget);
 				if (!text) {
 					aOutput.Limit = text.error();
@@ -77,8 +82,7 @@ namespace bpr::application {
 				aOutput.Format = core::cycle_round_file_kind::bundle;
 				return true;
 			}
-			case core::cycle_share_route::external_agent:
-			case core::cycle_share_route::send_to_agent:  return true;
+			case core::cycle_share_route::external_agent: return true;
 			}
 			return true;
 		}

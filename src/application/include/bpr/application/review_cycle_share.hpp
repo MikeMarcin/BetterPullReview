@@ -90,6 +90,7 @@ namespace bpr::application {
 		std::optional<core::cycle_round_output_limit> Limit;
 		std::optional<cycle_frozen_round>             Round;
 		/// The readable document or the bundle; empty for Use in external agent.
+		/// Send to Agent's is the readable document ([[BPR-1180]]).
 		std::string                 Bytes;
 		core::cycle_round_file_kind Format = core::cycle_round_file_kind::markdown;
 		/// \brief [[BPR-1274]]. Once frozen: the draft as Share notes shows it

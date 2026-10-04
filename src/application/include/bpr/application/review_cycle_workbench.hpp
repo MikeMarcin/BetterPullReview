@@ -5,6 +5,7 @@
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_cycle_response.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
+#include "bpr/application/review_cycle_send.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
 
 #include <array>
@@ -111,6 +112,22 @@ namespace bpr::application {
 		/// installation can reach. Without a setting, the defaults apply and
 		/// only Copy and Save are reachable.
 		void set_share_environment(core::cycle_disclosure_policy aPolicy, core::cycle_share_capabilities aCapabilities);
+		/// \brief Send to Agent ([[BPR-1180]]), set by a composition that
+		/// installed an adapter: its profiles, the adapter and the lane it runs
+		/// on. Without one the route is not offered.
+		void set_send_environment(review_cycle_send_environment aEnvironment);
+		/// \brief Sends the shown revision to one profile in one session: the
+		/// round's channel and the profile's host policy decide first, and a
+		/// refusal freezes and sends nothing and uses nothing else instead.
+		/// Then it freezes, hands the readable document to the adapter, and
+		/// records what the adapter saw against that round, whatever is open
+		/// when it ends. It is never sent again by itself.
+		void send(const core::cycle_send_request& aRequest);
+		/// \brief Ends the send under way; whether it was read stays uncertain.
+		void cancel_send();
+		/// \brief Adds a finished send's prose reply to its round, as the
+		/// reviewer's own entry.
+		void add_send_reply();
 		/// \brief The clipboard Copy writes to; it must outlive the host.
 		void set_clipboard(review_cycle_clipboard* aClipboard);
 		/// \brief Makes the destination for a chosen file; used on the effect lane only.

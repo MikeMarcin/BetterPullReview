@@ -193,7 +193,8 @@ requires the MCP helper only with agent integrations, and refuses a package
 built without them that still carries one. It audits the application image
 with `scripts/verify_composed_hosts.py`: agent anchors are required in a full
 image and forbidden in an agent-free one. The anchors are the agent hosts, the
-launcher, the protocol decoder and the MCP supervisor. The cycle owner service
+launcher, the protocol decoder, the MCP supervisor and the Send to Agent round
+sender ([[BPR-1180]]). The cycle owner service
 is required with local automation and forbidden without it. Run the verifier
 alone with `--without-agent-integrations` and `--without-local-automation`.
 

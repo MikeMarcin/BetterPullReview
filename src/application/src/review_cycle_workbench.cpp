@@ -1,5 +1,6 @@
 #include "bpr/application/review_cycle_workbench.hpp"
 
+#include "bpr/application/review_cycle_send.hpp"
 #include "bpr/application/review_cycle_words.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 
@@ -53,8 +54,10 @@ namespace bpr::application {
 
 		auto limit_words(const core::cycle_round_output_limit& aLimit, const core::cycle_share_route aRoute) -> std::string
 		{
-			const auto what = aRoute == core::cycle_share_route::copy_document ? std::string{ "the clipboard's" } : aRoute == core::cycle_share_route::save_bundle ? std::string{ "a bundle's" }
-																																								   : std::string{ "a saved document's" };
+			const auto what = aRoute == core::cycle_share_route::copy_document ? std::string{ "the clipboard's" }
+				: aRoute == core::cycle_share_route::save_bundle               ? std::string{ "a bundle's" }
+				: aRoute == core::cycle_share_route::send_to_agent             ? std::string{ "the agent adapter's" }
+																			   : std::string{ "a saved document's" };
 			auto       text = "The round is " + grouped_count(aLimit.RequiredBytes) + " bytes (" + grouped_count(aLimit.Items) + " items, " + grouped_count(aLimit.Sources) + " sources), over " + what + " limit of "
 				+ grouped_count(aLimit.BudgetBytes) + " bytes. Nothing was cut short, frozen or shared.";
 			return aRoute == core::cycle_share_route::copy_document ? text + " Save to File keeps all of it." : text;
@@ -263,6 +266,55 @@ namespace bpr::application {
 			}
 		}
 
+		/// [[BPR-1180]]. Why a send was refused before anything was frozen.
+		auto send_refusal_words(const core::cycle_send_refusal& aRefusal, const std::string& aProfile) -> std::string
+		{
+			if (aRefusal.Problem == core::cycle_send_problem::channel_refused) {
+				return decision_words(aRefusal.Channel, core::cycle_share_route::send_to_agent);
+			}
+			if (aRefusal.Problem == core::cycle_send_problem::profile_unknown) {
+				return "That agent is not installed here. Nothing was frozen or sent.";
+			}
+			if (aRefusal.Problem == core::cycle_send_problem::profile_refused) {
+				return "The host this review answers to does not allow " + aProfile + " (" + std::string{ core::stable_name(aRefusal.Verdict.Refusal) }
+				+ "). Nothing was frozen or sent, and no other agent or way was used instead.";
+			}
+			if (aRefusal.Problem == core::cycle_send_problem::session_not_continuable) {
+				return aProfile + " cannot continue a session; send it in a new session. Nothing was frozen or sent.";
+			}
+			return "That session was not reported to a send of this cycle, so it cannot be continued. Nothing was frozen or sent.";
+		}
+
+		/// [[BPR-1180]]. What one send came to, and what was not done.
+		auto send_words(const core::cycle_send_result& aResult, const cycle_send_recorded& aRecorded, const std::string& aRound, const std::string& aProfile,
+						const std::optional<std::string>& aContinued) -> std::string
+		{
+			const auto session = aContinued && aResult.Session && *aResult.Session != *aContinued ? " It reported session " + *aResult.Session + ", not " + *aContinued + "." : std::string{ };
+			if (aResult.End == core::cycle_send_end::not_started) {
+				return aProfile + " could not be started, so " + aRound + " was not sent. Nothing else was tried.";
+			}
+			if (aResult.End == core::cycle_send_end::stopped) {
+				return aProfile + " stopped before finishing its turn; whether it read " + aRound + " is not known. It was not sent again." + session;
+			}
+			if (aResult.End == core::cycle_send_end::timed_out) {
+				return aProfile + " did not finish in time and was ended; whether it read " + aRound + " is not known. It was not sent again." + session;
+			}
+			if (aResult.End == core::cycle_send_end::cancelled) {
+				return "You stopped the send; whether " + aProfile + " read " + aRound + " is not known. It was not sent again." + session;
+			}
+			auto words = aProfile + " finished its turn on " + aRound + "." + session;
+			if (aRecorded.Response) {
+				const auto refused = cycle_response_words(*aRecorded.Response);
+				if (!refused.empty()) {
+					words += " Its reply held a response: " + refused;
+				} else {
+					words += aRecorded.Response->Receipt && !aRecorded.Response->Receipt->Changed ? " Its response was already added." : " Its response is added to " + aRound + ".";
+				}
+			} else {
+				words += aResult.Reply.empty() ? " It said nothing back." : " Its reply is below; add it as a reply to keep it.";
+			}
+			return words + " Nothing was captured or verified.";
+		}
 	}
 
 	struct review_cycle_workbench::implementation : std::enable_shared_from_this<implementation>
@@ -270,6 +322,7 @@ namespace bpr::application {
 		implementation(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
 					   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures)
 			: Runtime{ std::move(aStore), aEffects, aDecisions, aCaptures }
+			, Decisions{ aDecisions }
 			, Source{ aSource }
 			, Port{ aPort }
 			, Seed{ aSeed }
@@ -277,6 +330,7 @@ namespace bpr::application {
 		}
 
 		review_cycle_runtime                      Runtime;
+		decision_executor&                        Decisions;
 		workspace_source_port&                    Source;
 		review_cycle_workbench_port&              Port;
 		std::array<std::uint8_t, 32>              Seed;
@@ -317,6 +371,20 @@ namespace bpr::application {
 		core::cycle_share_capabilities              Capabilities;
 		review_cycle_clipboard*                     Clipboard = nullptr;
 		review_cycle_workbench::destination_factory Destinations;
+		/// Send to Agent ([[BPR-1180]]): what the composition installed, the
+		/// send under way, and a finished send's prose reply with its cycle.
+		review_cycle_send_environment     SendEnvironment;
+		bool                              SendRunning = false;
+		std::string                       SendProfile;
+		std::shared_ptr<std::stop_source> SendStop;
+		struct pending_reply
+		{
+			core::local_cycle_subject Subject;
+			core::cycle_round_id      Round;
+			std::string               From;
+			std::string               Text;
+		};
+		std::optional<pending_reply> Reply;
 		/// Compose edits waiting for the one in flight.
 		std::deque<core::cycle_compose_edit> Edits;
 		/// Each listed note's code for the share sheet, kept with the note
@@ -1375,8 +1443,11 @@ namespace bpr::application {
 			share.DocumentShown = aDraft.Document.has_value();
 			share.Document      = aDraft.Document ? std::move(*aDraft.Document) : std::string{ };
 			share.DocumentBytes = aDraft.DocumentBytes;
-			share.Routes        = core::share_routes(core::combine_policies(aDraft.Policy, Policy), Cycle ? core::cycle_origin(*Cycle) : core::cycle_workspace_origin{ }, Capabilities);
+			auto reachable      = Capabilities;
+			reachable.Adapter   = sendable();
+			share.Routes        = core::share_routes(core::combine_policies(aDraft.Policy, Policy), Cycle ? core::cycle_origin(*Cycle) : core::cycle_workspace_origin{ }, reachable);
 			View.Share          = std::move(share);
+			present_send();
 			want_note_code();
 		}
 
@@ -1401,6 +1472,7 @@ namespace bpr::application {
 			Runtime.deliveries_selected(guarded<std::vector<core::cycle_delivery_record>>([](implementation& aHost, std::vector<core::cycle_delivery_record> aRecords) {
 				if (aHost.View.Share) {
 					aHost.View.Share->Deliveries = std::move(aRecords);
+					aHost.present_send();
 				}
 				aHost.Runtime.view_facts_selected(aHost.guarded<core::cycle_view_facts>([](implementation& aLast, core::cycle_view_facts aFacts) {
 					aLast.View.Facts    = std::move(aFacts);
@@ -1531,10 +1603,215 @@ namespace bpr::application {
 				return;
 			}
 			case core::cycle_share_route::send_to_agent:
-				// No adapter ships in this build; the route is never offered by it.
-				reload_share("No agent adapter is installed here; nothing was sent.");
+				// [[BPR-1180]]. A send names its agent and its session: `send`.
+				reload_share(sendable() ? "Choose an agent and a session to send to; nothing was sent." : "No agent adapter is installed here; nothing was sent.");
 				return;
 			}
+		}
+
+		// Send to Agent ([[BPR-1180]]).
+
+		[[nodiscard]] auto sendable() const -> bool
+		{
+			return SendEnvironment.Sender && SendEnvironment.Lane != nullptr && !SendEnvironment.Profiles.empty();
+		}
+
+		[[nodiscard]] auto send_policy() const -> core::agent_host_policy
+		{
+			const auto host = SendEnvironment.AccountHost ? SendEnvironment.AccountHost() : std::nullopt;
+			return core::cycle_send_policy(Cycle ? core::cycle_origin(*Cycle) : core::cycle_workspace_origin{ }, host ? std::optional<std::string_view>{ *host } : std::nullopt);
+		}
+
+		/// The folder the cycle is bound to; a file's own folder.
+		[[nodiscard]] auto send_folder() const -> std::string
+		{
+			if (!Cycle || !Cycle->Workspace) {
+				return { };
+			}
+			const auto& root = Cycle->Workspace->Root;
+			if (root.Kind != core::workspace_root_kind::file) {
+				return root.Location;
+			}
+			const auto folder = std::filesystem::path{ std::u8string{ root.Location.begin(), root.Location.end() } }.parent_path().u8string();
+			return { folder.begin(), folder.end() };
+		}
+
+		/// The Send box: each profile against this cycle's sends, where it
+		/// runs, a send under way and a reply waiting for this cycle.
+		void present_send()
+		{
+			if (!View.Share) {
+				return;
+			}
+			if (!sendable()) {
+				View.Share->Send.reset();
+				return;
+			}
+			auto send    = View.Share->Send ? std::move(*View.Share->Send) : review_cycle_send_view{ };
+			send.Offers  = core::send_offers(SendEnvironment.Profiles, send_policy(), View.Share->Deliveries);
+			send.Folder  = send_folder();
+			send.Sending = SendRunning;
+			send.Profile = SendRunning ? SendProfile : std::string{ };
+			send.Reply.clear();
+			send.ReplyRound.reset();
+			if (!SendRunning && Reply && Subject && Reply->Subject == *Subject) {
+				send.Profile    = Reply->From;
+				send.Reply      = Reply->Text;
+				send.ReplyRound = Reply->Round;
+			}
+			View.Share->Send = std::move(send);
+		}
+
+		void send(const core::cycle_send_request& aRequest)
+		{
+			if (!View.Share || !Cycle || !Subject || !sendable()) {
+				return;
+			}
+			if (SendRunning) {
+				View.Share->Status = "A send is under way; stop it or wait for it first.";
+				publish();
+				return;
+			}
+			const auto route   = std::ranges::find(View.Share->Routes, core::cycle_share_route::send_to_agent, &core::cycle_share_route_offer::Route);
+			const auto channel = route == View.Share->Routes.end() ? core::cycle_authorization::channel_denied : route->Decision;
+			const auto found   = std::ranges::find(SendEnvironment.Profiles, aRequest.Profile, &core::agent_profile::Id);
+			const auto name    = found == SendEnvironment.Profiles.end() ? std::string{ "that agent" } : found->DisplayName;
+			if (const auto refused = core::decide_send(channel, SendEnvironment.Profiles, send_policy(), View.Share->Deliveries, aRequest)) {
+				View.Share->Status = send_refusal_words(*refused, name);
+				publish();
+				return;
+			}
+			auto request = cycle_share_request{
+				.Freeze                = operation(),
+				.Draft                 = View.Share->Draft.Id,
+				.ExpectedDraftRevision = View.Share->Draft.Revision,
+				.Route                 = core::cycle_share_route::send_to_agent,
+				.Policy                = Policy,
+			};
+			View.Share->Replace.reset();
+			View.Share->Invocation.clear();
+			View.Activity = review_cycle_activity::saving;
+			publish();
+			Runtime.prepare_share_selected(std::move(request), guarded<cycle_share_output>([profile = *found, session = aRequest.Session](implementation& aSelf, cycle_share_output aOutput) {
+											   aSelf.start_send(profile, session, std::move(aOutput));
+										   }));
+		}
+
+		/// The round is frozen and its document rendered: the adapter takes
+		/// it on its own lane, never the store's.
+		void start_send(const core::agent_profile& aProfile, const core::cycle_send_session& aSession, cycle_share_output aOutput)
+		{
+			if (const auto words = unshared_words(aOutput, core::cycle_share_route::send_to_agent); !words.empty()) {
+				reload_share(words);
+				return;
+			}
+			if (SendRunning || !sendable() || !Subject) {
+				reload_share("A send is under way; nothing more was sent.");
+				return;
+			}
+			const auto& round      = *aOutput.Round;
+			const auto  seen       = delivery_observation(round, core::cycle_delivery_state::accepted_by_adapter, core::cycle_disclosure_channel::agent_adapter, aOutput.Bytes, aOutput.Format);
+			auto        pending    = cycle_send_record{ .Round = round.Round.Round, .Output = seen.Output.value_or(core::cycle_delivery_output{ }), .Protocol = aProfile.Protocol };
+			auto        roundName  = round.Content.Payload.RoundId;
+			auto        words      = aSession.Continue ? "Sending " + roundName + " to " + aProfile.DisplayName + ", continuing session " + *aSession.Continue + "…"
+													   : "Sending " + roundName + " to " + aProfile.DisplayName + " in a new session…";
+			auto        assignment = cycle_send_assignment{ .Profile = aProfile, .Session = aSession, .Document = std::move(aOutput.Bytes), .WorkingDirectory = send_folder() };
+			SendRunning            = true;
+			SendProfile            = aProfile.DisplayName;
+			SendStop               = std::make_shared<std::stop_source>();
+			Reply.reset();
+			SendEnvironment.Lane->post([weak = weak_from_this(), sender = SendEnvironment.Sender, work = std::move(assignment), stop = SendStop->get_token(), decisions = &Decisions,
+										subject = *Subject, record = std::move(pending), name = roundName, from = aProfile.DisplayName, continued = aSession.Continue]() mutable {
+				auto result = sender->send(work, stop);
+				decisions->post([weak, subject, kept = std::move(record), outcome = std::move(result), label = std::move(name), profile = std::move(from), session = std::move(continued)]() mutable {
+					if (const auto self = weak.lock()) {
+						self->sent(subject, std::move(kept), std::move(outcome), label, profile, session);
+					}
+				});
+			});
+			after_share(std::move(aOutput.Shown), std::move(words));
+		}
+
+		/// The adapter is done: what it saw is recorded against the send's
+		/// own round, whatever is open now.
+		void sent(const core::local_cycle_subject& aSubject, cycle_send_record aRecord, core::cycle_send_result aResult, const std::string& aRound, const std::string& aFrom,
+				  const std::optional<std::string>& aContinued)
+		{
+			SendRunning = false;
+			SendStop.reset();
+			aRecord.Result    = aResult;
+			const auto writes = core::send_observations(aRecord.Round, aRecord.Output, aRecord.Protocol, aResult).size() + 1U;
+			for (std::size_t index = 0; index < writes; ++index) {
+				aRecord.Operations.push_back(operation());
+			}
+			const auto round = aRecord.Round.Id.Id;
+			Runtime.record_send(aSubject, std::move(aRecord),
+								[weak = weak_from_this(), aSubject, round, result = std::move(aResult), aRound, aFrom, aContinued](cycle_store_result<cycle_send_recorded> aRecorded) mutable {
+									const auto self = weak.lock();
+									if (self && !self->Closing) {
+										self->send_recorded(aSubject, round, std::move(result), std::move(aRecorded), aRound, aFrom, aContinued);
+									}
+								});
+			if (View.Share && Subject && *Subject == aSubject) {
+				present_send();
+				publish();
+			}
+		}
+
+		void send_recorded(const core::local_cycle_subject& aSubject, const core::cycle_round_id aRound, core::cycle_send_result aResult, const cycle_store_result<cycle_send_recorded>& aRecorded,
+						   const std::string& aName, const std::string& aFrom, const std::optional<std::string>& aContinued)
+		{
+			const auto open = Subject && *Subject == aSubject;
+			if (!aRecorded) {
+				if (open && aRecorded.error().Failure != cycle_store_failure::cancelled) {
+					fail(cycle_store_words(aRecorded.error()));
+				}
+				return;
+			}
+			auto words = send_words(aResult, *aRecorded, aName, aFrom, aContinued);
+			if (aResult.End == core::cycle_send_end::completed && !aRecorded->Response && !aResult.Reply.empty()) {
+				Reply = pending_reply{ .Subject = aSubject, .Round = aRound, .From = aFrom + " (Send to Agent)", .Text = std::move(aResult.Reply) };
+			}
+			if (!open) {
+				return;
+			}
+			if (aRecorded->Response && aRecorded->Response->Receipt) {
+				load_responses();
+			}
+			if (View.Share) {
+				reload_share(std::move(words));
+			} else {
+				View.Notice = std::move(words);
+				publish();
+			}
+		}
+
+		void cancel_send()
+		{
+			if (!SendRunning || !SendStop) {
+				return;
+			}
+			SendStop->request_stop();
+			SendEnvironment.Sender->cancel();
+			if (View.Share) {
+				View.Share->Status = "Stopping the send…";
+				publish();
+			}
+		}
+
+		/// Adds the waiting reply, as the reviewer's own entry of what the agent said.
+		void add_send_reply()
+		{
+			if (!Reply || !Subject || Reply->Subject != *Subject || !Cycle) {
+				return;
+			}
+			auto pending = std::move(*Reply);
+			Reply.reset();
+			present_send();
+			View.Activity = review_cycle_activity::saving;
+			publish();
+			Runtime.attach_reply_selected(operation(), pending.Round, core::cycle_manual_reply{ .From = std::move(pending.From), .Body = std::move(pending.Text) },
+										  guarded<cycle_response_result>([](implementation& aSelf, cycle_response_result aResult) { aSelf.response_done(aResult); }));
 		}
 
 		// Publish as Pull Request (BPR-1177).
@@ -2305,6 +2582,26 @@ namespace bpr::application {
 		Implementation->Capabilities = aCapabilities;
 	}
 
+	void review_cycle_workbench::set_send_environment(review_cycle_send_environment aEnvironment)
+	{
+		Implementation->SendEnvironment = std::move(aEnvironment);
+	}
+
+	void review_cycle_workbench::send(const core::cycle_send_request& aRequest)
+	{
+		Implementation->send(aRequest);
+	}
+
+	void review_cycle_workbench::cancel_send()
+	{
+		Implementation->cancel_send();
+	}
+
+	void review_cycle_workbench::add_send_reply()
+	{
+		Implementation->add_send_reply();
+	}
+
 	void review_cycle_workbench::set_clipboard(review_cycle_clipboard* aClipboard)
 	{
 		Implementation->Clipboard = aClipboard;
@@ -2329,6 +2626,7 @@ namespace bpr::application {
 			aSelf.Runtime.deliveries_selected(aSelf.guarded<std::vector<core::cycle_delivery_record>>([](implementation& aHost, std::vector<core::cycle_delivery_record> aRecords) {
 				if (aHost.View.Share) {
 					aHost.View.Share->Deliveries = std::move(aRecords);
+					aHost.present_send();
 				}
 				aHost.View.Activity = review_cycle_activity::idle;
 				aHost.publish();
@@ -2491,12 +2789,18 @@ namespace bpr::application {
 
 	void review_cycle_workbench::shutdown()
 	{
-		Implementation->Closing = true;
-		Implementation->Runtime.shutdown();
+		auto& self   = *Implementation;
+		self.Closing = true;
+		// A send under way is ended; what it saw is not recorded after shutdown.
+		if (self.SendRunning && self.SendStop) {
+			self.SendStop->request_stop();
+			self.SendEnvironment.Sender->cancel();
+		}
+		self.Runtime.shutdown();
 	}
 
 	auto review_cycle_workbench::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Runtime.is_quiescent();
+		return Implementation->Runtime.is_quiescent() && !Implementation->SendRunning;
 	}
 }

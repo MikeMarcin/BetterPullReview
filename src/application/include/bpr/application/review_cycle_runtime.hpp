@@ -10,6 +10,7 @@
 #include "bpr/application/review_cycle_response.hpp"
 #include "bpr/application/review_cycle_retrieval.hpp"
 #include "bpr/application/review_cycle_round.hpp"
+#include "bpr/application/review_cycle_send.hpp"
 #include "bpr/application/review_cycle_share.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_cycle_verification.hpp"
@@ -199,6 +200,11 @@ namespace bpr::application {
 										   std::optional<core::cycle_material_digest> aConfirmed, cycle_operation_id aRecord, completion<cycle_file_share> aDone) -> bool;
 		/// \brief Records one delivery observation of a frozen round of the selected cycle.
 		auto record_delivery_selected(cycle_operation_id aOperation, core::cycle_delivery_observation aObservation, completion<cycle_write_receipt> aDone) -> bool;
+		/// \brief [[BPR-1180]]. Records what one Send to Agent observed about
+		/// round `aRecord.Round` of `aSubject`, and the response its reply held,
+		/// whatever is selected when it ends: a late send is still recorded,
+		/// against its own round. Only shutdown stops it.
+		auto record_send(core::local_cycle_subject aSubject, cycle_send_record aRecord, completion<cycle_send_recorded> aDone) -> bool;
 		/// \brief Every delivery observation of the selected cycle, in order.
 		auto deliveries_selected(completion<std::vector<core::cycle_delivery_record>> aDone) -> bool;
 

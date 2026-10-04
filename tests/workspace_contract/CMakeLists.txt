@@ -276,3 +276,13 @@ if(BPR_BUILD_LIVE_PUBLICATION_COURSE AND BPR_BUILD_QT)
     endif()
     bpr_enable_warnings(tool_review_cycle_live_publication)
 endif()
+
+# [[BPR-1180]]. Send to Agent through the host and the real store, the adapter scripted.
+bpr_add_executable(test_review_cycle_send review_cycle_send_tests.cpp)
+target_link_libraries(test_review_cycle_send PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::AdapterSQLite BetterPullReview::Application)
+bpr_enable_hardening(test_review_cycle_send)
+if(WIN32)
+    target_link_libraries(test_review_cycle_send PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_send)
+bpr_add_network_isolated_test(NAME review_cycle_send WINDOWS_UNCONTAINED COMMAND test_review_cycle_send)

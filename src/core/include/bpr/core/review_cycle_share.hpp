@@ -152,7 +152,9 @@ namespace bpr::core {
 		cycle_disclosure_channel Channel = cycle_disclosure_channel::clipboard;
 		/// Required for copied, saved, retrieved and accepted.
 		std::optional<cycle_delivery_output> Output;
-		/// The saved file's name, never its folder; empty for any other state.
+		/// The saved file's name, never its folder; for an adapter's
+		/// acknowledgment, the session its harness reported
+		/// (`send_session_record`, [[BPR-1180]]); empty for any other state.
 		std::string Destination;
 		auto        operator<=>(const cycle_delivery_observation&) const = default;
 	};
@@ -176,7 +178,8 @@ namespace bpr::core {
 		output_required,
 		/// A saved file needs its name: one path segment, no folder.
 		destination_not_a_name,
-		/// Only a saved file has a destination.
+		/// Only a saved file, or an adapter's acknowledgment naming its
+		/// session, has a destination.
 		unexpected_destination,
 	};
 	[[nodiscard]] auto stable_name(cycle_delivery_problem aValue) noexcept -> std::string_view;

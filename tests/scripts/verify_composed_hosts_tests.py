@@ -50,6 +50,8 @@ SHARED_LINES = {
     "agent chat session application host constructor": "0027 T bpr::application::agent_chat_session_host::agent_chat_session_host()",
     # [[BPR-1179]]. Agent-only, with the six above: forbidden without agent integrations.
     "agent protocol decoder constructor": "0037 T bpr::application::agent_protocol_decoder::agent_protocol_decoder(bpr::core::agent_protocol)",
+    # [[BPR-1180]]. The Send to Agent adapter, an agent integration.
+    "Send to Agent round sender constructor": "0039 T bpr::application::agent_round_sender::agent_round_sender(bpr::application::agent_process_port&, std::function<std::optional<std::string> (std::string const&)>)",
     # [[BPR-1179]]. Local automation: forbidden without it.
     "cycle owner service": "0038 T bpr::app::cycle_owner_service::serve(std::span<unsigned char const>)",
     "system browser opener constructor": "0028 T bpr::app::system_browser_opener::system_browser_opener()",

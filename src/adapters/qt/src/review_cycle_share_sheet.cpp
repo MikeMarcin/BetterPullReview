@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QEvent>
 #include <QFont>
 #include <QFontMetrics>
@@ -22,6 +23,7 @@
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
@@ -109,6 +111,29 @@ namespace bpr::qt {
 			case core::cycle_authorization::channel_unconfigured: return QStringLiteral("Not allowed until it is configured for source of unknown origin.");
 			default:                                              return QStringLiteral("Not allowed (%1).").arg(QString::fromLatin1(core::name(aDecision).data(), static_cast<qsizetype>(core::name(aDecision).size())));
 			}
+		}
+
+		/// [[BPR-1180]]. Why the host refuses an agent, as its list says it.
+		auto send_refusal_text(const core::agent_invocation_verdict& aVerdict) -> QString
+		{
+			if (aVerdict.Refusal == core::agent_invocation_refusal::profile_forbidden_on_host || aVerdict.Refusal == core::agent_invocation_refusal::profile_not_required_one) {
+				return QStringLiteral("Not allowed by the host this review answers to; no other agent is used instead.");
+			}
+			const auto name = core::stable_name(aVerdict.Refusal);
+			return QStringLiteral("Not allowed (%1).").arg(QString::fromLatin1(name.data(), static_cast<qsizetype>(name.size())));
+		}
+
+		/// [[BPR-1180]]. What pressing Send does, before it is pressed.
+		auto send_disclosure(const core::cycle_send_offer& aOffer, const std::optional<std::string>& aSession, const std::string& aFolder, const core::cycle_round_id aRound) -> QString
+		{
+			const auto agent  = QString::fromStdString(aOffer.DisplayName);
+			const auto folder = aFolder.empty() ? QStringLiteral("the cycle's folder") : QString::fromStdString(aFolder);
+			const auto start  = aSession ? QStringLiteral("Continues %1 session %2 in %3").arg(agent, QString::fromStdString(*aSession), folder)
+										 : QStringLiteral("Starts a new %1 session in %2").arg(agent, folder);
+			return QStringLiteral("%1 and gives it round %2's text, exactly as Copy gives it. It runs with %3's own settings and sign-in; no credential is passed. If the send fails, nothing else is tried.")
+				.arg(start)
+				.arg(aRound.value())
+				.arg(agent);
 		}
 
 		constexpr auto all_actions = std::array{ core::cycle_round_action::discuss, core::cycle_round_action::plan, core::cycle_round_action::implement };
@@ -1011,6 +1036,92 @@ namespace bpr::qt {
 		Invocation->hide();
 		column->addWidget(Invocation);
 
+		// [[BPR-1180]]. Send to Agent: which agent, which session, what happens.
+		SendBox                = new QWidget{ this };
+		auto* const sendLayout = new QGridLayout{ SendBox };
+		sendLayout->setContentsMargins(0, 0, 0, 0);
+		sendLayout->setHorizontalSpacing(8);
+		sendLayout->setVerticalSpacing(4);
+		auto* const agentLabel = new QLabel{ QStringLiteral("Agent"), SendBox };
+		SendProfile            = new QComboBox{ SendBox };
+		SendProfile->setObjectName(QStringLiteral("cycleSendProfile"));
+		SendProfile->setAccessibleName(QStringLiteral("Agent"));
+		agentLabel->setBuddy(SendProfile);
+		auto* const sessionLabel = new QLabel{ QStringLiteral("Session"), SendBox };
+		SendSession              = new QComboBox{ SendBox };
+		SendSession->setObjectName(QStringLiteral("cycleSendSession"));
+		SendSession->setAccessibleName(QStringLiteral("Session"));
+		sessionLabel->setBuddy(SendSession);
+		SendWords = new QLabel{ SendBox };
+		SendWords->setObjectName(QStringLiteral("cycleSendWords"));
+		SendWords->setTextFormat(Qt::PlainText);
+		SendWords->setWordWrap(true);
+		SendIt = new QPushButton{ QStringLiteral("Send"), SendBox };
+		SendIt->setObjectName(QStringLiteral("cycleSendIt"));
+		SendIt->setAutoDefault(false);
+		StopSend = new QPushButton{ QStringLiteral("Stop"), SendBox };
+		StopSend->setObjectName(QStringLiteral("cycleSendStop"));
+		StopSend->setAutoDefault(false);
+		StopSend->setToolTip(QStringLiteral("End the send under way; whether the agent read the round stays unknown"));
+		sendLayout->addWidget(agentLabel, 0, 0);
+		sendLayout->addWidget(SendProfile, 0, 1);
+		sendLayout->addWidget(sessionLabel, 1, 0);
+		sendLayout->addWidget(SendSession, 1, 1);
+		sendLayout->addWidget(SendWords, 2, 0, 1, 3);
+		sendLayout->addWidget(SendIt, 0, 2);
+		sendLayout->addWidget(StopSend, 1, 2);
+		sendLayout->setColumnStretch(1, 1);
+		SendBox->hide();
+		column->addWidget(SendBox);
+		connect(SendProfile, &QComboBox::currentIndexChanged, this, [this] {
+			if (!Presenting) {
+				refresh_send();
+			}
+		});
+		connect(SendSession, &QComboBox::currentIndexChanged, this, [this] {
+			if (!Presenting) {
+				refresh_send();
+			}
+		});
+		connect(SendIt, &QPushButton::clicked, this, [this] {
+			if (const auto chosen = chosen_send(); chosen && Dispatch.Send) {
+				Dispatch.Send(*chosen);
+			}
+		});
+		connect(StopSend, &QPushButton::clicked, this, [this] {
+			if (Dispatch.StopSend) {
+				Dispatch.StopSend();
+			}
+		});
+		ReplyBox                = new QWidget{ this };
+		auto* const replyLayout = new QVBoxLayout{ ReplyBox };
+		replyLayout->setContentsMargins(0, 0, 0, 0);
+		replyLayout->setSpacing(4);
+		ReplyLabel = new QLabel{ ReplyBox };
+		ReplyLabel->setObjectName(QStringLiteral("cycleSendReplyLabel"));
+		ReplyLabel->setTextFormat(Qt::PlainText);
+		ReplyLabel->setWordWrap(true);
+		ReplyText = new QPlainTextEdit{ ReplyBox };
+		ReplyText->setObjectName(QStringLiteral("cycleSendReply"));
+		ReplyText->setAccessibleName(QStringLiteral("The agent's reply"));
+		ReplyText->setReadOnly(true);
+		ReplyText->setMaximumHeight(120);
+		ReplyLabel->setBuddy(ReplyText);
+		AddReply = new QPushButton{ QStringLiteral("Add as Reply"), ReplyBox };
+		AddReply->setObjectName(QStringLiteral("cycleSendAddReply"));
+		AddReply->setAutoDefault(false);
+		AddReply->setToolTip(QStringLiteral("Keep this reply with its round, as you would enter one by hand"));
+		replyLayout->addWidget(ReplyLabel);
+		replyLayout->addWidget(ReplyText);
+		replyLayout->addWidget(AddReply, 0, Qt::AlignLeft);
+		ReplyBox->hide();
+		column->addWidget(ReplyBox);
+		connect(AddReply, &QPushButton::clicked, this, [this] {
+			if (Dispatch.AddReply) {
+				Dispatch.AddReply();
+			}
+		});
+
 		// What has happened to the text, once anything has, and what none of it means.
 		Shared                   = new QWidget{ this };
 		auto* const sharedColumn = new QVBoxLayout{ Shared };
@@ -1069,6 +1180,15 @@ namespace bpr::qt {
 				foot->addWidget(button);
 			}
 			connect(button, &QPushButton::clicked, this, [this, route] {
+				// Send to Agent asks which agent and session first ([[BPR-1180]]).
+				if (route == core::cycle_share_route::send_to_agent) {
+					SendOpen = !SendOpen;
+					refresh_send();
+					if (SendOpen) {
+						SendProfile->setFocus(Qt::TabFocusReason);
+					}
+					return;
+				}
 				if (Dispatch.Share) {
 					Dispatch.Share(route);
 				}
@@ -1250,10 +1370,92 @@ namespace bpr::qt {
 		}
 		ExactText->setEnabled(aShare.DocumentBytes > 0U);
 		Cancel->setText(aShare.Frozen ? QStringLiteral("Done") : QStringLiteral("Cancel"));
+		refresh_send();
 		rebuild_deliveries(aShare);
 		refresh_defaults();
 		refresh_viewer();
 		Presenting = false;
+	}
+
+	void review_cycle_share_sheet::refresh_send()
+	{
+		const auto& send  = Shown.Send;
+		auto* const route = Routes.at(static_cast<std::size_t>(core::cycle_share_route::send_to_agent));
+		if (!send || route->isHidden()) {
+			SendOpen = false;
+		}
+		SendBox->setVisible(send && (SendOpen || send->Sending));
+		ReplyBox->setVisible(send && !send->Reply.empty());
+		if (!send) {
+			return;
+		}
+		const auto presenting = Presenting;
+		Presenting            = true;
+		// The agents, refused ones listed and not choosable; the choice is kept by identity.
+		const auto profile = SendProfile->currentData();
+		SendProfile->clear();
+		for (const auto& offer : send->Offers) {
+			const auto name = QString::fromStdString(offer.DisplayName);
+			SendProfile->addItem(offer.offered() ? name : QStringLiteral("%1 — not allowed here").arg(name), QVariant::fromValue(offer.Profile.value()));
+			const auto at = SendProfile->count() - 1;
+			SendProfile->setItemData(at, offer.offered() ? QString{ } : send_refusal_text(offer.Verdict), Qt::ToolTipRole);
+			if (!offer.offered()) {
+				SendProfile->setItemData(at, 0, Qt::UserRole - 1);
+			}
+		}
+		auto at = profile.isValid() ? SendProfile->findData(profile) : -1;
+		if (at < 0 || !send->Offers.at(static_cast<std::size_t>(at)).offered()) {
+			const auto first = std::ranges::find_if(send->Offers, &core::cycle_send_offer::offered);
+			at               = first == send->Offers.end() ? -1 : static_cast<int>(first - send->Offers.begin());
+		}
+		SendProfile->setCurrentIndex(at);
+		// New session first; a session this agent reported before, by name.
+		const auto session = SendSession->currentData();
+		SendSession->clear();
+		SendSession->addItem(QStringLiteral("New session"), QVariant{ });
+		const auto* offer = at >= 0 ? &send->Offers.at(static_cast<std::size_t>(at)) : nullptr;
+		if (offer != nullptr) {
+			for (const auto& name : offer->Sessions) {
+				SendSession->addItem(QStringLiteral("Continue session %1").arg(QString::fromStdString(name)), QString::fromStdString(name));
+			}
+		}
+		const auto kept = session.isValid() ? SendSession->findData(session) : -1;
+		SendSession->setCurrentIndex(kept < 0 ? 0 : kept);
+		SendSession->setEnabled(SendSession->count() > 1 && !send->Sending);
+		SendProfile->setEnabled(!send->Sending);
+		const auto chosen = chosen_send();
+		if (send->Sending) {
+			SendWords->setText(QStringLiteral("Sending to %1. Stop ends it; whether it read the round then stays unknown.").arg(QString::fromStdString(send->Profile)));
+		} else if (offer == nullptr) {
+			SendWords->setText(QStringLiteral("No installed agent is allowed for this review; nothing can be sent."));
+		} else {
+			SendWords->setText(send_disclosure(*offer, chosen ? chosen->Session.Continue : std::nullopt, send->Folder, Shown.Round));
+		}
+		SendIt->setText(QStringLiteral("Send Round %1").arg(Shown.Round.value()));
+		SendIt->setEnabled(chosen.has_value() && !send->Sending && Idle && !Shown.Refusal && !route->isHidden() && route->isEnabled());
+		StopSend->setVisible(send->Sending);
+		ReplyLabel->setText(QStringLiteral("%1 replied about round %2. It is kept only if you add it.").arg(QString::fromStdString(send->Profile)).arg(send->ReplyRound ? send->ReplyRound->value() : 0U));
+		if (ReplyText->toPlainText() != QString::fromStdString(send->Reply)) {
+			ReplyText->setPlainText(QString::fromStdString(send->Reply));
+		}
+		AddReply->setEnabled(Idle);
+		Presenting = presenting;
+	}
+
+	auto review_cycle_share_sheet::chosen_send() const -> std::optional<core::cycle_send_request>
+	{
+		if (!Shown.Send || SendProfile->currentIndex() < 0) {
+			return std::nullopt;
+		}
+		const auto& offer = Shown.Send->Offers.at(static_cast<std::size_t>(SendProfile->currentIndex()));
+		if (!offer.offered()) {
+			return std::nullopt;
+		}
+		auto request = core::cycle_send_request{ .Profile = offer.Profile };
+		if (const auto session = SendSession->currentData(); session.isValid()) {
+			request.Session.Continue = session.toString().toStdString();
+		}
+		return request;
 	}
 
 	void review_cycle_share_sheet::refresh_defaults()
@@ -1587,7 +1789,7 @@ namespace bpr::qt {
 			for (const auto& row : Rows) {
 				order.insert(order.end(), { row.Include, row.Disclose, row.Whole });
 			}
-			order.insert(order.end(), { ReplaceIt, KeepIt, Invocation, Routes[0], Routes[1], ExactText, Routes[2], Routes[3], Routes[4], Cancel });
+			order.insert(order.end(), { ReplaceIt, KeepIt, Invocation, SendProfile, SendSession, SendIt, StopSend, ReplyText, AddReply, Routes[0], Routes[1], ExactText, Routes[2], Routes[3], Routes[4], Cancel });
 			for (std::size_t index = 1; index < order.size(); ++index) {
 				QWidget::setTabOrder(order[index - 1U], order[index]);
 			}
@@ -2007,6 +2209,51 @@ namespace bpr::qt {
 	auto review_cycle_share_sheet::viewer() const noexcept -> review_cycle_share_viewer*
 	{
 		return Viewer;
+	}
+
+	auto review_cycle_share_sheet::send_box() const noexcept -> QWidget*
+	{
+		return SendBox;
+	}
+
+	auto review_cycle_share_sheet::send_profile() const noexcept -> QComboBox*
+	{
+		return SendProfile;
+	}
+
+	auto review_cycle_share_sheet::send_session() const noexcept -> QComboBox*
+	{
+		return SendSession;
+	}
+
+	auto review_cycle_share_sheet::send_words() const noexcept -> QLabel*
+	{
+		return SendWords;
+	}
+
+	auto review_cycle_share_sheet::send_button() const noexcept -> QPushButton*
+	{
+		return SendIt;
+	}
+
+	auto review_cycle_share_sheet::stop_send_button() const noexcept -> QPushButton*
+	{
+		return StopSend;
+	}
+
+	auto review_cycle_share_sheet::reply_box() const noexcept -> QWidget*
+	{
+		return ReplyBox;
+	}
+
+	auto review_cycle_share_sheet::reply_text() const noexcept -> QPlainTextEdit*
+	{
+		return ReplyText;
+	}
+
+	auto review_cycle_share_sheet::add_reply_button() const noexcept -> QPushButton*
+	{
+		return AddReply;
 	}
 	auto review_cycle_share_sheet::rows() const noexcept -> const std::vector<note_row>&
 	{

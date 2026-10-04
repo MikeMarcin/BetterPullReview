@@ -210,6 +210,16 @@ namespace bpr::application {
 			aProfile, aSupplement, aParent, agent_launch_options{ .WritingOnly = aWritingOnly });
 	}
 
+	/// \brief [[BPR-1180]]. The launch of one Send to Agent: the profile's
+	/// protocol and executable, its allowed environment, `aWorkingDirectory`,
+	/// and the round's readable document as the only input, framed as the
+	/// protocol frames a user message (Claude stream JSON, Codex App Server)
+	/// or as the prompt itself (Codex JSONL, external terminal). A named
+	/// session is continued only by a harness that can (`--resume`); nothing
+	/// else is added to what the profile already launches with.
+	[[nodiscard]] auto build_round_launch(const core::agent_profile& aProfile, std::string_view aDocument, const std::optional<std::string>& aContinue, std::string aWorkingDirectory,
+										  const environment_reader& aParent) -> std::expected<agent_launch_request, agent_launch_failure>;
+
 	/// \brief Renders every supplement field with explicit count/presence data.
 	[[nodiscard]] auto encode_agent_supplement(
 		const core::agent_context_supplement& aSupplement) -> std::string;

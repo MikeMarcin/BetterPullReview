@@ -194,6 +194,7 @@ namespace bpr::qt {
 			switch (aChannel) {
 			case core::cycle_response_channel::response_file:   return who + QStringLiteral(", response file");
 			case core::cycle_response_channel::local_interface: return who + QStringLiteral(", appended by a granted harness");
+			case core::cycle_response_channel::agent_adapter:   return who + QStringLiteral(", returned to Send to Agent");
 			case core::cycle_response_channel::manual_entry:    break;
 			}
 			return who + QStringLiteral(", entered by hand");

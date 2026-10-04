@@ -3670,3 +3670,31 @@ set_tests_properties(application_review_cycle_desktop_public_path PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_CYCLE_DESKTOP_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/cycle-desktop"
     PASS_REGULAR_EXPRESSION "review-cycle-desktop-public-path:pass"
     TIMEOUT 120)
+
+# [[BPR-1180]]. Send to Agent through the real window, composition and agent
+# adapter, starting a stand-in harness as a real process. In a graph without
+# the agent integrations the same course shows the route absent.
+bpr_add_executable(test_review_cycle_send_public_path review_cycle_send_public_path.cpp)
+target_link_libraries(test_review_cycle_send_public_path PRIVATE BetterPullReview::Composition)
+target_include_directories(test_review_cycle_send_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+target_compile_features(test_review_cycle_send_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_review_cycle_send_public_path)
+if(WIN32)
+    target_link_libraries(test_review_cycle_send_public_path PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_review_cycle_send_public_path)
+set(bpr_cycle_send_arguments "")
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    bpr_add_executable(test_better_pull_review_cycle_send_agent "${PROJECT_SOURCE_DIR}/tests/fixtures/agent/cycle_send_agent_main.cpp")
+    target_compile_features(test_better_pull_review_cycle_send_agent PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_better_pull_review_cycle_send_agent)
+    bpr_enable_warnings(test_better_pull_review_cycle_send_agent)
+    add_dependencies(test_review_cycle_send_public_path test_better_pull_review_cycle_send_agent)
+    set(bpr_cycle_send_arguments "$<TARGET_FILE:test_better_pull_review_cycle_send_agent>")
+endif()
+bpr_add_network_isolated_test(NAME application_review_cycle_send_public_path WINDOWS_UNCONTAINED
+    COMMAND test_review_cycle_send_public_path ${bpr_cycle_send_arguments})
+set_tests_properties(application_review_cycle_send_public_path PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    PASS_REGULAR_EXPRESSION "review-cycle-send-public-path:pass"
+    TIMEOUT 120)
