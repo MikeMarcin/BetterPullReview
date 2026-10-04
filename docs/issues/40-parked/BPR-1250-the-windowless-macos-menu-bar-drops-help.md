@@ -269,3 +269,24 @@ build. Launch:
 The Aqua course criterion passes. The owner's confirmation that the app stays
 running with Dif and Help after the window closes is attended item
 `BPR-1250-help-v003` in the same session, served on port 59998.
+
+### Moved to a new short session (2026-10-03)
+
+The owner asked for the next review to hold only the recent questions, so
+`BPR-1250-help-v003` moved, unchanged, from `cbd48b91000b00f1e72e1ad62c7c384c`
+to session `f18e0aba4e53e518cd4f57a4dbcfc475`:
+
+- The new session's state is
+  `/Users/jaeger/.mask/attended-review/owner-review-20261003-recent-v001`,
+  and every command on it takes `--state` with that path. `serve` printed
+  port 55410.
+- Title, revision, criterion, content, launch command, paths and resource
+  version are the same, and so is the fingerprint, `51ea8a00…725895`. The
+  item was ready at sequence 6.
+- Its frozen root `/Users/jaeger/bpr1250-review-v003.pDiQ9g` is untouched,
+  and the shared install claim is now held by the new session only.
+- In the old session the item was released by name at event 923, undecided.
+  That session's host on port 59998 is stopped.
+
+The launch command is unchanged:
+`/opt/homebrew/bin/python3 /Users/jaeger/bpr1250-review-v003.pDiQ9g/launch.py`.

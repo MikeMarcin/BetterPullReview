@@ -1293,3 +1293,23 @@ owed for it.
 The card stays parked on human-review, for the 100% capture (criteria 2
 and 4). The logs are station records under
 `build/logs/bpr-0653-main-win/c3-3da31f2a/`, and are not committed.
+
+## Not carried into the 2026-10-03 session
+
+`BPR-0653-windows-capture-v001` stayed in the closed session
+`cbd48b91000b00f1e72e1ad62c7c384c`, waiting and undecided. It is **not** in the
+new short session `f18e0aba4e53e518cd4f57a4dbcfc475`, which holds only the
+questions the owner can answer now. The reasons:
+
+- The item was never preparable. Its preparation guard exits 1 by design,
+  last at event 917, because it names no Windows build.
+- Its wording predates the owner's 150% verdict of 2026-09-25, which
+  accepted criteria 2 and 4 at 150%. What remains is the 100% capture, and
+  `v001` does not ask that question.
+- The owner asked for the next review to start with just the recent
+  questions.
+
+Nothing about criteria 2 and 4 changes. They stay `pending` and owe the same
+capture at 100% display scale. That capture needs the owner to change the
+display scale on JaegAW, then a station capture, then a new item naming its
+image digest. That new item, not `v001`, is what a later session should ask.

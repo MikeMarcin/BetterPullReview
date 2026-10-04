@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0056", "RFC-BPR-0061"]
 depends_on: ["BPR-1156", "BPR-1157", "BPR-1159"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "portable-rounds", "acceptance": ["RC56-07", "RC56-10", "RC61-05", "RC61-06"], "pack_alias": "PACK-CYCLE-19", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "related_issues": ["BPR-1212"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"pending","revision":"3b5f405be","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"v001 (the Compose feedback page) rejected at event 834; direction A chosen at 860; v002 (the Share notes sheet, 324c17826) rejected at event 895 because a note's code was not aligned, not syntax coloured and not visibly in a monospace face. Since then the excerpt and the whole-file view use the profile's code font (bundled JetBrains Mono NL), tabs expand from the code's first column at the panes' width, and both are coloured by the panes' classifier and role colours (3b5f405be). Automated: qt_review_cycle_view_1_0/_2_0 (rendered column alignment on every row kind, profile font, role/text rule) and application_review_cycle_desktop_public_path (real classifier) pass with four negative controls. Asked again as BPR-1161-compose-share-v003 (session cbd48b91000b00f1e72e1ad62c7c384c, added 907, ready 915) on the self-contained frozen build in /Users/jaeger/bpr1161-share-review-v003.WQEATE (app sha256 af8f9975...6bce0c4c, --code-font-probe CODE_FONT_OK); the owner's judgment is pending."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The rebuilt share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"3b5f405be","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"At 3b5f405be on macOS: the 18-row BPR-1161 selection incl. architecture_boundaries and test_network_isolation_manifest, and all 118 qt_ rows pass; clang-format and clang-tidy clean on every changed unit. Earlier at 324c17826: the 52-row review-cycle selection and core-only's 24 core_review_cycle rows. Linux and Windows runs at 3b5f405be owed (commands on the card)."}}]
+acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"pending","revision":"705d72a38","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"v001 (the Compose feedback page) rejected at event 834; direction A chosen at 860; v002 (the Share notes sheet, 324c17826) rejected at event 895 because a note's code was not aligned, not syntax coloured and not visibly in a monospace face; fixed at 3b5f405be. v003 (3b5f405be) rejected at event 921 (decision b2c9c342-35c7-416c-99a6-f8103cbe52d7): the per-note disclosure arrow looked too much like the include check mark beside it. Since then each note's code is behind the words Show Code / Hide Code at the trailing end of the note's second line, in Show All Code's column, in the link colour, in the labels' font, with a hover underline; the arrow is gone (74b73dabc, fd5c60cfe, 705d72a38). Automated: qt_review_cycle_view_1_0/_2_0 (placement, link-colour ink, hover underline, row font and painted size, names, keys) and application_review_cycle_desktop_public_path pass with six negative controls, and the 3b5f405be alignment and colour checks still pass. Asked again as BPR-1161-compose-share-v004 in the new session f18e0aba4e53e518cd4f57a4dbcfc475 (state /Users/jaeger/.mask/attended-review/owner-review-20261003-recent-v001), on the self-contained frozen build /Users/jaeger/bpr1161-share-review-v004.7nsinp (app sha256 9a60ac9c...dc66a6, --code-font-probe CODE_FONT_OK); the owner's judgment is pending."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The rebuilt share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"705d72a38","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"At 705d72a38 on macOS: the 18-row BPR-1161 selection incl. architecture_boundaries and test_network_isolation_manifest, and all 118 qt_ rows pass (132 rows in one run); clang-format and clang-tidy clean on every changed unit. At 3b5f405be the same on macOS, Linux 17/17 and Windows 18/18. Earlier at 324c17826: the 52-row review-cycle selection and core-only's 24 core_review_cycle rows. Linux and Windows runs at 705d72a38 owed (commands on the card)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-19** (live `BPR-1161`, allocated at import).
@@ -814,3 +814,80 @@ The empty column the arrow left is taken out. The checks are in
   one run with the selection).
 - clang-format, `tidy.py --paths` on the three changed units, and
   `git diff --check` are clean.
+
+## Pending owner judgment: compose-share v004, in a new short session
+
+The owner asked on 2026-10-03 for the next review to hold only the recent
+questions: most items in `cbd48b91000b00f1e72e1ad62c7c384c` (109 of them) were
+decided or released, so its page showed them as unanswerable. A new session
+holds only the two open items:
+
+- Session `f18e0aba4e53e518cd4f57a4dbcfc475`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261003-recent-v001`.
+  Every command on it takes `--state` with that path, and `serve` printed port
+  55410. The URL carries a token and is not written here.
+- `BPR-1161-compose-share-v004` (RC61-05), one Accept/Reject question,
+  fingerprint `5d55ba64…a230b5`, ready at sequence 6. Revision
+  `705d72a38-app-9a60ac9c`.
+- `BPR-1250-help-v003`, carried over unchanged (same fingerprint
+  `51ea8a00…725895`).
+
+The cursor at hand-over is **6**.
+
+The old session is closed out:
+
+- Its 104 verdicts and its history are kept.
+- Its 19 protections were released by candidate name at event 923.
+- Its host on port 59998 was stopped after the new one served.
+- The superseded BPR-1156 gestures v001–v003 and
+  `BPR-0653-windows-capture-v001` were not carried over.
+
+The candidate is self-contained in `/Users/jaeger/bpr1161-share-review-v004.7nsinp`:
+
+- `source/` equals `git archive` of `705d72a38`; `diff -r` against a fresh
+  archive is empty. It is built in `source/build/cand` with
+  `cmake --preset dev`, sharing only the dependency cache.
+- The executable's SHA-256 is
+  `9a60ac9c70962df196a968c5c28338ea6b2efa6a4359571177304517e2dc66a6`.
+- `--code-font-probe` prints `CODE_FONT_OK` with JetBrains Mono NL.
+- A launch on a scratch profile inside the root opened "BetterPullReview —
+  Default profile" and was stopped. The scratch profile was removed.
+
+Launch it with:
+
+```
+/opt/homebrew/bin/python3 /Users/jaeger/bpr1161-share-review-v004.7nsinp/launch.py
+```
+
+The launcher sets `HOME` and `CFFIXED_USER_HOME` to the root's `home/`. It
+checks the app, the sample project and the source tree before starting, and
+it reports an exit within twenty seconds as a launch failure. The media are
+the frozen build's desktop course rendered natively on cocoa, with Show Code
+closed and then open.
+
+That cocoa course failed once, of three runs, at "a double click in the
+window selects exactly the word", before any share step. The run before it
+and the run after it passed with the same binary. This is native
+double-click timing on a shared desktop. The offscreen row passes every
+time.
+
+RC61-05 is the only open criterion, so the card stays Parked on
+human-review.
+
+### Owed platform runs at `705d72a38`
+
+Not gating. Linux station (`build/dev`):
+
+```sh
+cmake --build --preset dev && ctest --preset dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^architecture_boundaries$"
+```
+
+Windows station (`build/windows-dev`):
+
+```powershell
+cmake --build --preset windows-dev; ctest --preset windows-dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^architecture_boundaries$|^test_network_isolation_manifest$"
+```
+
+On both, `qt_review_cycle_view_*` still prints `note code X inks: …`. The
+column-4 inks must be equal, and so must the column-8 inks. The new toggle
+checks run in the same rows.
