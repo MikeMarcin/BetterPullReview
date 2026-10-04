@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1181"
 title: "Qualify security boundaries and blocked capability behavior"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0060"]
 depends_on: ["BPR-1179", "BPR-1180", "BPR-1162"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "optional-adapters", "acceptance": ["RC60-04", "RC60-05", "RC60-06", "RC60-10"], "pack_alias": "PACK-CYCLE-39", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
