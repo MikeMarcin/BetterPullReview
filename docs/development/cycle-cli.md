@@ -193,6 +193,26 @@ get the owner's answer again. An owner of another protocol version is
 `capability_unavailable`. If the owner exits mid-command the terminal looks
 again, and runs the command itself or at the next owner.
 
+A command the terminal runs itself reads the cycle before it writes, so a
+repeat after that command wrote reads the cycle the first run moved. Its
+request is then not the first's, and the repeat is `conflict`, saying an
+earlier run with the ID may have completed; a goal or freeze naming a draft
+revision the first run moved is `stale_revision`. Neither applies anything a
+second time. This is also what a terminal killed after writing can leave its
+repeat, and what an owner killed mid-command can leave when the terminal runs the
+repeat itself ([[BPR-1183]]): read the cycle.
+
+A capture whose folder is no longer the one the cycle was bound to (moved
+away, replaced, recreated, or a link to another folder put in its place) is
+`source_unavailable` with no `Next:`, because capturing again reads the same
+folder. Moved back, it captures into the cycle again; the folder now at the
+location opens as a cycle of its own. A store SQLite cannot read, in its
+header or its pages, is `storage_unavailable` and said to be damaged, never
+another version's; it is left as it is and nothing is created in its place.
+Retained bytes a revision lists but the store no longer holds are
+`source_unavailable` ("are missing"), never "no file"; `not_found` is kept for
+a path the revisions do not list.
+
 A message to the owner is at most 5 MiB: a response on standard input reaches a
 running desktop up to 4 MiB (give `--file PATH` beyond that), and an answer
 larger than the channel carries is `over_limit`, with anything already written

@@ -2791,6 +2791,21 @@ namespace bpr::adapters::sqlite {
 				return { };
 			}
 
+			/// [[BPR-1183]]. Why a store matches no schema this build knows. A
+			/// file SQLite cannot read as a database, or whose pages fail its own
+			/// check, is damaged; one it could not read for being busy is
+			/// unavailable; only a sound database is another version's store.
+			/// Runs only when no schema matched, so an ordinary open reads no page
+			/// more than before.
+			static auto unrecognized(sqlite3* aDatabase) -> cycle_store_failure
+			{
+				const auto check = detail::scalar_text(aDatabase, "PRAGMA quick_check(1)");
+				if (!check) {
+					return check.error() == detail::failure::integrity_failure ? cycle_store_failure::store_damaged : cycle_store_failure::unavailable;
+				}
+				return *check == "ok" ? cycle_store_failure::schema_mismatch : cycle_store_failure::store_damaged;
+			}
+
 			auto establish(sqlite3* aDatabase, std::stop_token aStop) -> cycle_store_result<void>
 			{
 				const auto empty = detail::scalar_integer(aDatabase, "PRAGMA user_version") == 0 && detail::scalar_integer(aDatabase, "PRAGMA application_id") == 0
@@ -2800,7 +2815,7 @@ namespace bpr::adapters::sqlite {
 					legacy = schema_valid(aDatabase, version) ? version : 0;
 				}
 				if (!empty && legacy == 0 && !schema_valid(aDatabase)) {
-					return fail(cycle_store_failure::schema_mismatch);
+					return fail(unrecognized(aDatabase));
 				}
 				if (!detail::configure_connection(aDatabase)) {
 					return fail(cycle_store_failure::unavailable);

@@ -3343,6 +3343,23 @@ if(TARGET app_bpr)
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_SECURITY_QUALIFICATION_OK"
         TIMEOUT 600)
+    # [[BPR-1183]]. The hostile-input, data-loss and mixed-cycle recovery
+    # corpus through the shipped `bpr` and the reviewer's desktop: kill points
+    # in capture, notes, goals, freezes, responses and saves; the owner killed
+    # mid-command; a full disk; damaged and missing retained material; a
+    # damaged and a lost store; stale drafts and replaced and moved roots;
+    # duplicates; case collisions where a case-sensitive folder can be made.
+    # Older and agent-free builds join when the course is given them. Registered
+    # contained: Windows has not measured it yet; a measured refusal is pinned,
+    # not guessed.
+    bpr_add_network_isolated_test(NAME application_review_cycle_recovery_corpus
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_recovery_corpus.py"
+        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
+        --cycle-application $<TARGET_FILE:app_bpr>)
+    set_tests_properties(application_review_cycle_recovery_corpus PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_RECOVERY_CORPUS_OK"
+        TIMEOUT 900)
     bpr_add_network_isolated_test(NAME application_review_cycle_two_round_public_path WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_two_round_contract.py"
         --application $<TARGET_FILE:test_review_cycle_two_round_public_path>

@@ -99,13 +99,20 @@ namespace bpr::app {
 
 		// ---- Words for the terminal: what the desktop says, and stable names for scripts.
 
+		/// [[BPR-1183]]. A run stopped after it wrote is repeated under the cycle
+		/// that run moved, so the repeat's request differs from the first: the ID
+		/// may already have been applied, not only used for something else.
+		constexpr auto operation_reused_words = std::string_view{
+			"That operation ID was already used, so nothing was applied again: an earlier run with it may have completed, or it named another request. Read the cycle before repeating it."
+		};
+
 		auto store_failure(const application::cycle_store_error& aError) -> failure
 		{
 			using application::cycle_store_failure;
 			const auto words = application::cycle_store_words(aError);
 			switch (aError.Failure) {
 			case cycle_store_failure::conflict:         return { "stale_revision", words + " Read it again before repeating the change.", { }, { } };
-			case cycle_store_failure::operation_reused: return { "conflict", "That operation ID was already used for another request; nothing was applied again. Read the cycle before repeating it.", { }, { } };
+			case cycle_store_failure::operation_reused: return { "conflict", std::string{ operation_reused_words }, { }, { } };
 			case cycle_store_failure::not_found:        return { "not_found", "That is not part of this cycle.", { }, { } };
 			case cycle_store_failure::refused:
 				if (aError.Refusal == core::cycle_refusal::conflict || aError.Refusal == core::cycle_refusal::stale_workspace) {
@@ -413,15 +420,31 @@ namespace bpr::app {
 				return std::unexpected(outcome.error());
 			}
 			const auto retry = "bpr cycle capture " + core::cycle_wire_name(aCycle.Subject.Cycle);
+			// [[BPR-1183]]. Another root at the bound location is refused again on
+			// every retry, so it is not offered one.
 			switch (outcome->Status) {
 			case application::cycle_capture_status::captured:         return capture_report{ .Recorded = !outcome->Receipt || outcome->Receipt->Changed };
-			case application::cycle_capture_status::unstable:
-			case application::cycle_capture_status::root_changed:     return fail("capture_unstable", application::cycle_capture_words(*outcome), retry);
+			case application::cycle_capture_status::unstable:         return fail("capture_unstable", application::cycle_capture_words(*outcome), retry);
+			case application::cycle_capture_status::root_changed:     return fail("source_unavailable", application::cycle_capture_words(*outcome));
 			case application::cycle_capture_status::too_many_entries: return fail("over_limit", application::cycle_capture_words(*outcome));
 			case application::cycle_capture_status::store:            return std::unexpected(outcome->Store ? store_failure(*outcome->Store) : failure{ "storage_unavailable", application::cycle_capture_words(*outcome), { }, { } });
 			case application::cycle_capture_status::cancelled:        return fail("cancelled", "Cancelled; nothing was recorded.");
 			default:                                                  return fail("source_unavailable", application::cycle_capture_words(*outcome));
 			}
+		}
+
+		/// [[BPR-1183]]. Whether a compared revision lists the path as present.
+		/// A path it holds whose retained bytes are gone is unavailable, never
+		/// "no file".
+		auto held(const application::cycle_file_observation& aFile) -> bool
+		{
+			const auto present = [](const core::cycle_path_side& aSide) { return aSide.State == core::cycle_path_state::present; };
+			return aFile.Path && (present(aFile.Path->Right) || (aFile.Path->Left && present(*aFile.Path->Left)));
+		}
+		auto unreadable(const application::cycle_file_observation& aFile, const std::string& aPath) -> failure
+		{
+			const auto words = aFile.Status == application::review_material_status::missing ? " are missing" : " could not be read";
+			return { "source_unavailable", "The retained bytes of " + aPath + words + "; nothing was substituted.", { }, { } };
 		}
 
 		/// One file of a revision, exactly as retained.
@@ -434,9 +457,13 @@ namespace bpr::app {
 			}
 			switch (file->Status) {
 			case application::review_material_status::available: break;
-			case application::review_material_status::missing:   return fail("not_found", wire(aRevision).toStdString() + " holds no file " + aPath + ".");
+			case application::review_material_status::missing:
+				if (held(*file)) {
+					return std::unexpected(unreadable(*file, aPath));
+				}
+				return fail("not_found", wire(aRevision).toStdString() + " holds no file " + aPath + ".");
 			case application::review_material_status::too_large: return fail("over_limit", aPath + " is too large to read here.");
-			default:                                             return fail("source_unavailable", "The retained bytes of " + aPath + " could not be read; nothing was substituted.");
+			default:                                             return std::unexpected(unreadable(*file, aPath));
 			}
 			if (file->Path && file->Path->Right.State != core::cycle_path_state::present) {
 				return fail("not_found", wire(aRevision).toStdString() + " holds no file " + aPath + ".");
@@ -1191,8 +1218,12 @@ namespace bpr::app {
 				if (!file) {
 					return std::unexpected(file.error());
 				}
+				if (file->Status == application::review_material_status::missing && !held(*file)) {
+					const auto named = *from ? wire(**from).toStdString() + " nor " + wire(right).toStdString() : wire(right).toStdString();
+					return fail("not_found", (*from ? "Neither " : "") + named + (*from ? " holds " : " holds no file ") + path + ".");
+				}
 				if (file->Status != application::review_material_status::available) {
-					return fail(file->Status == application::review_material_status::missing ? "not_found" : "source_unavailable", "The retained bytes of " + path + " could not be read; nothing was substituted.");
+					return std::unexpected(unreadable(*file, path));
 				}
 				auto rows = std::vector<core::cycle_diff_row>{ };
 				if (file->Diff) {

@@ -302,6 +302,49 @@ namespace {
 		expect(store->catalog({ }).error().Failure == cycle_store_failure::schema_mismatch, "unexpected schema refused");
 	}
 
+	/// [[BPR-1183]]. A damaged store is said to be damaged, never another
+	/// version's, and is left byte for byte as it was.
+	void refuses_damaged_stores_as_damaged()
+	{
+		const auto rewrite = [](const std::filesystem::path& aPath, const std::string& aBytes) {
+			std::ofstream output{ aPath, std::ios::binary | std::ios::trunc };
+			output.write(aBytes.data(), static_cast<std::streamsize>(aBytes.size()));
+			expect(output.good(), "damage written");
+		};
+		tests::sqlite_contract::scratch_root scratch{ "cycle-damaged" };
+		{
+			auto store = open(scratch.path());
+			static_cast<void>(store.create(1));
+		}
+		const auto path = database_path(scratch.path());
+		sql(path, "PRAGMA wal_checkpoint(TRUNCATE)");
+		const auto sound    = file_bytes(path);
+		const auto pageSize = static_cast<std::size_t>(sql_count(path, "PRAGMA page_size"));
+		expect(pageSize > 0 && sound.size() > 2 * pageSize, "a store of several pages");
+
+		auto header = sound;
+		header.replace(0, 16, "not a database!!");
+		rewrite(path, header);
+		auto store = adapters::sqlite::make_review_cycle_store(scratch.path(), profile);
+		expect(store->catalog({ }).error().Failure == cycle_store_failure::store_damaged, "a header SQLite cannot read is damaged");
+		store.reset();
+		expect(file_bytes(path) == header, "a damaged header is left as it is");
+
+		auto pages = sound;
+		for (auto at = pageSize; at < pages.size(); at += pageSize) {
+			pages.replace(at, 64, std::string(64, '\xa5'));
+		}
+		rewrite(path, pages);
+		store = adapters::sqlite::make_review_cycle_store(scratch.path(), profile);
+		expect(store->catalog({ }).error().Failure == cycle_store_failure::store_damaged, "damaged pages are damaged");
+		store.reset();
+		expect(file_bytes(path) == pages, "damaged pages are left as they are");
+
+		rewrite(path, sound);
+		store = adapters::sqlite::make_review_cycle_store(scratch.path(), profile);
+		expect(store->catalog({ }).has_value(), "the restored bytes open");
+	}
+
 	void persists_workspace_bindings()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "cycle-binding" };
@@ -1031,6 +1074,7 @@ int main()
 	keeps_pinned_material_under_quota();
 	previews_and_removes_a_cycle();
 	leaves_other_stores_and_refuses_foreign_schemas();
+	refuses_damaged_stores_as_damaged();
 	persists_workspace_bindings();
 	migrates_the_first_schema();
 	migrates_the_second_schema();

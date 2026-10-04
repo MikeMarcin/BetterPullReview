@@ -592,6 +592,14 @@ namespace {
 				require(wait_for([&] { return idle(Page) && (Page.projection().Revisions.size() > before || Page.updates_line()->text().contains(QStringLiteral("No change"))); }), "a capture is recorded or said to be unchanged");
 				return state(Window, Page);
 			}
+			if (verb == QStringLiteral("capture-refused")) {
+				// [[BPR-1183]]. Capture revision on a cycle whose folder cannot be captured: what the page says, and that nothing was recorded.
+				const auto before = Page.projection().Revisions.size();
+				click(*Page.review_bar()->widgetForAction(Page.capture_action()));
+				require(wait_for([&] { return idle(Page) && !Page.projection().Message.empty(); }), "the page says why nothing was captured");
+				require(Page.projection().Revisions.size() == before, "a refused capture records no revision");
+				return state(Window, Page);
+			}
 			if (verb == QStringLiteral("view")) {
 				return view(aCommand[QStringLiteral("path")].toString(), aCommand[QStringLiteral("menu")].toVariant().toStringList());
 			}

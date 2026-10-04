@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <optional>
 
 namespace bpr::application {
 	// [[BPR-1184]]. A refusal names the limit it met.
@@ -20,6 +21,7 @@ namespace bpr::application {
 		case cycle_store_failure::corrupt:            return "Retained material is damaged; nothing was substituted.";
 		case cycle_store_failure::refused:            return "The cycle refused this change.";
 		case cycle_store_failure::schema_mismatch:    return "This profile's Review Cycles were saved by a different version of BetterPullReview; they were left as they are.";
+		case cycle_store_failure::store_damaged:      return "This profile's Review Cycles store is damaged and cannot be read; it was left as it is. Restore it from a backup of the profile.";
 		case cycle_store_failure::cancelled:          return { };
 		default:                                      return "The local cycle store is unavailable.";
 		}
@@ -35,12 +37,31 @@ namespace bpr::application {
 		}
 	}
 
+	namespace {
+		/// [[BPR-1183]]. The cycle's location answers with another root than the
+		/// one it was bound to, found before reading or while reading. Capturing
+		/// again reads the same location and is refused again, so the words say
+		/// what can change that rather than to retry.
+		auto cycle_root_changed_words(const std::optional<core::workspace_verification> aVerification) -> std::string
+		{
+			switch (aVerification.value_or(core::workspace_verification::replaced)) {
+			case core::workspace_verification::repository_changed:
+				return "The folder is the one this cycle captured, but its Git repository or worktree is not; nothing was recorded. This cycle captures only the checkout it was opened on.";
+			case core::workspace_verification::kind_changed:
+				return "What this cycle captured changed kind: a file became a folder or the reverse, or the checkout lost its repository; nothing was recorded.";
+			default:
+				return "Another folder now answers at this cycle's location: the one it captured was moved, replaced or recreated. Nothing was recorded, and capturing "
+					   "again reads the same folder. Move the original back to capture into this cycle; open the folder now there to review it as a cycle of its own.";
+			}
+		}
+	}
+
 	auto cycle_capture_words(const cycle_capture_outcome& aOutcome) -> std::string
 	{
 		switch (aOutcome.Status) {
 		case cycle_capture_status::captured:         return { };
 		case cycle_capture_status::unstable:         return "Files kept changing while they were read; nothing was recorded. Capture again when the folder is quiet.";
-		case cycle_capture_status::root_changed:     return "The chosen folder was replaced while it was read; nothing was recorded.";
+		case cycle_capture_status::root_changed:     return cycle_root_changed_words(aOutcome.Verification);
 		case cycle_capture_status::too_many_entries: return "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.";
 		case cycle_capture_status::store:            return aOutcome.Store ? cycle_store_words(*aOutcome.Store) : "The local cycle store is unavailable.";
 		case cycle_capture_status::workspace:        return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The chosen folder could not be read.";

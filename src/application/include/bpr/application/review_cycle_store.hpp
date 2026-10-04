@@ -75,6 +75,9 @@ namespace bpr::application {
 		/// The removal preview no longer matches the cycle.
 		preview_stale,
 		cancelled,
+		/// [[BPR-1183]]. The store's file is not a database SQLite can read:
+		/// damaged, not another version's. It is left as it is.
+		store_damaged,
 	};
 
 	/// \brief What retained material occupies.
