@@ -305,7 +305,10 @@ namespace bpr::application {
 		/// Open the window's first or last file once it is listed.
 		std::optional<int> OpenEdge;
 		/// The tabs changed while a capture ran; saved when it ends.
-		bool                                TabsUnsaved = false;
+		bool TabsUnsaved = false;
+		/// \brief [[BPR-1278]]. Advances with every save of this window's tabs:
+		/// a tab record read before a later save is older than the tabs here.
+		std::uint64_t                       TabSaves = 0;
 		review_cycle_workbench::file_reader Reader;
 		/// Recipient statements, kept to describe notes as they reload.
 		cycle_response_entries Responses;
@@ -737,7 +740,13 @@ namespace bpr::application {
 
 		void load_tabs()
 		{
-			Runtime.load_tabs_selected(guarded<std::optional<core::cycle_tabs_record>>([](implementation& aSelf, std::optional<core::cycle_tabs_record> aRecord) {
+			Runtime.load_tabs_selected(guarded<std::optional<core::cycle_tabs_record>>([saves = TabSaves](implementation& aSelf, std::optional<core::cycle_tabs_record> aRecord) {
+				// [[BPR-1278]]. A tab gesture since the read (Next file pressed
+				// while a capture's reload runs) saved after it: the record
+				// read is the one before the gesture, and these tabs are newer.
+				if (aSelf.TabSaves != saves) {
+					aRecord = core::persisted(aSelf.Tabs);
+				}
 				auto restored = false;
 				if (aRecord) {
 					restored = core::restore(aSelf.Tabs, *aSelf.Cycle, *aRecord).Reason == core::document_tab_reason::none;
@@ -783,6 +792,7 @@ namespace bpr::application {
 
 		void save_tabs()
 		{
+			++TabSaves;
 			// [[BPR-1184]]. While a capture writes, the tab record waits for it:
 			// saved now, it would wait on the capture's write lock in front of
 			// the next file the reviewer reads.

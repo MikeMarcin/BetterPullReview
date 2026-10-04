@@ -995,6 +995,98 @@ namespace {
 		settle();
 		std::cout << "NATIVE: a 4,101-path capture listed in two windows, a too-large file named, reading beside a capture, Cancel capture\n";
 	}
+
+	/// \brief [[BPR-1278]]. Next file pressed at every step of the reload a
+	/// capture's end starts: each press reads the file after the one shown,
+	/// on the revision the tab was reading, and never the new capture.
+	///
+	/// \details The press is the review bar's: from the file the page last
+	/// showed, the next one it lists. The reload reads the tab record back;
+	/// a record read before the press's own save must not put the tab back.
+	void next_file_advances_through_a_capture_reload(const std::filesystem::path& aScratch)
+	{
+		tests::sqlite_contract::scratch_root profileScratch{ "cycle-workbench-next-file" };
+		const auto                           project = aScratch / "next-file-project";
+		constexpr auto                       files   = std::size_t{ 48 };
+		const auto                           name    = [](const std::size_t aIndex) {
+			auto digits = std::to_string(aIndex);
+			return "f" + std::string(3U - digits.size(), '0') + digits + ".txt";
+		};
+		for (std::size_t index = 0; index < files; ++index) {
+			write_file(project / name(index), "file " + std::to_string(index) + "\n");
+		}
+		auto captures     = application::manual_executor{ };
+		auto lanes        = application::manual_executor{ };
+		auto port         = recording_port{ };
+		auto source       = adapters::workspace::make_local_workspace_source();
+		auto seed         = std::array<std::uint8_t, 32>{ };
+		seed[0]           = 51;
+		auto       host   = application::review_cycle_workbench{ adapters::sqlite::make_review_cycle_store(profileScratch.path(), profile), *source, lanes, lanes, port, seed, &captures };
+		const auto settle = [&] {
+			while (lanes.pending() != 0U || captures.pending() != 0U) {
+				lanes.drain();
+				captures.drain();
+			}
+			return host.projection();
+		};
+		// The review bar's Next file, from what the page was last shown.
+		const auto pressNext = [&]() -> std::string {
+			const auto& shown = port.Last;
+			expect(shown.Source.has_value(), "a file is shown when Next file is pressed");
+			const auto active = std::ranges::find(shown.Files, shown.Source->Path, &application::review_cycle_file_entry::Path);
+			expect(active != shown.Files.end() && active + 1 != shown.Files.end(), "Next file is offered after " + shown.Source->Path);
+			const auto next = (active + 1)->Path;
+			host.open_file(next, false);
+			return next;
+		};
+		host.open_project(project.string());
+		auto shown = settle();
+		expect(shown.Revisions.size() == 1U && shown.Source && shown.Source->Path == name(0), "the folder opens as R1 on its first file");
+		const auto reading = shown.Source->Revision;
+
+		auto pressedMidReload = std::size_t{ 0 };
+		for (std::size_t step = 0;; ++step) {
+			// The folder changes, and Capture revision records it.
+			write_file(project / name(files - 1U), "edit " + std::to_string(step) + "\n");
+			host.capture_revision(true);
+			lanes.drain();
+			expect(host.projection().Capturing.has_value() && captures.pending() == 1U, "the capture waits on its lane");
+			captures.drain();
+			// The capture's end and the reload it starts, `step` lane turns in.
+			for (std::size_t turn = 0; turn < step && lanes.pending() != 0U; ++turn) {
+				lanes.run_next();
+			}
+			const auto midReload = lanes.pending() != 0U;
+			const auto from      = port.Last.Source ? port.Last.Source->Path : std::string{ };
+			const auto expected  = pressNext();
+			shown                = settle();
+			expect(shown.Revisions.size() == step + 2U, "the capture recorded a new revision");
+			expect(shown.Source && shown.Source->Path == expected,
+				   "Next file pressed " + std::to_string(step) + " turns into the capture's reload reads " + expected + " after " + from + ", not "
+					   + (shown.Source ? shown.Source->Path : std::string{ "nothing" }));
+			expect(shown.Source->Revision == reading && shown.NewerAvailable, "the tab stays on the revision it read and says newer material exists");
+			const auto active = std::ranges::find_if(shown.Tabs, [&](const core::cycle_tab& aTab) { return shown.ActiveTab == aTab.Id; });
+			expect(active != shown.Tabs.end() && active->View.Path == expected && active->View.Revision == reading, "the active tab names the file Next file read");
+			if (!midReload) {
+				break;
+			}
+			++pressedMidReload;
+			// Back to the first file for the next press.
+			host.open_file(name(0), false);
+			settle();
+		}
+		expect(pressedMidReload > 4U, "Next file was pressed at every turn of the reload (" + std::to_string(pressedMidReload) + ")");
+
+		// The window's own press is saved: a new window reads it back.
+		const auto last = settle().Source->Path;
+		host.shutdown();
+		settle();
+		auto again = desk{ profileScratch.path(), 52 };
+		again.Host->open_project(project.string());
+		const auto& restored = again.view();
+		expect(restored.Source && restored.Source->Path == last && restored.Source->Revision == reading, "the tab record holds the file Next file read last");
+		std::cout << "NATIVE: Next file pressed at each of " << pressedMidReload << " turns of a capture's reload reads the next file on the tab's revision\n";
+	}
 }
 
 auto main(const int aArgc, char** aArgv) -> int
@@ -1008,6 +1100,7 @@ try {
 	keeps_work_beside_another_interface(scratch.path());
 	changes_one_note_without_reading_the_round(scratch.path());
 	lists_and_captures_a_large_project(scratch.path());
+	next_file_advances_through_a_capture_reload(scratch.path());
 	std::cout << "review-cycle-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {
