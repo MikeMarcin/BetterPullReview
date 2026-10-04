@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1278"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Next file stops advancing when a capture completes mid-navigation (BPR-1274 Windows Debug)",
+  "created": "2026-10-04T18:49:04.312387+00:00",
+  "base": "795d387cf96bdf6fcde3647440d2b848d106e78a"
+}
