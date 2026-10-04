@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1179"
 title: "Package genuinely removable agent and automation components"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0060"]
 depends_on: ["BPR-1146", "BPR-1167", "BPR-1171"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "optional-adapters", "acceptance": ["RC60-01", "RC60-02", "RC60-03"], "pack_alias": "PACK-CYCLE-37", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
