@@ -60,6 +60,12 @@ namespace bpr::application {
 		bool          Replayed = false;
 	};
 
+	/// \brief After a restart: every open publication's unobserved attempts
+	/// become uncertain and its authorization is spent. Nothing remote is read
+	/// or written, and no catalog or workspace is needed.
+	[[nodiscard]] auto recover_publications_after_restart(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, std::stop_token aStop)
+		-> cycle_store_result<std::vector<stored_cycle_publication>>;
+
 	/// \brief Runs on the effect lane; the outgoing host and store must outlive it.
 	class review_cycle_publication_host
 	{

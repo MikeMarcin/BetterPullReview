@@ -214,6 +214,21 @@ if(TARGET Git::Git)
     bpr_add_network_isolated_test(NAME review_cycle_publisher WINDOWS_UNCONTAINED COMMAND test_review_cycle_publisher ${bpr_workspace_git_arguments})
 endif()
 
+# [[BPR-1177]]. Publish as Pull Request through the desktop's cycle host:
+# the preview's baselines, the finite plan, the association, privacy, an
+# externally published link and history after the squash.
+if(TARGET Git::Git)
+    bpr_add_executable(test_review_cycle_publish_desk review_cycle_publish_desk_tests.cpp)
+    target_link_libraries(test_review_cycle_publish_desk PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::AdapterSQLite BetterPullReview::AdapterGit BetterPullReview::Application)
+    bpr_enable_hardening(test_review_cycle_publish_desk)
+    if(WIN32)
+        target_link_libraries(test_review_cycle_publish_desk PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_review_cycle_publish_desk)
+    bpr_add_network_isolated_test(NAME review_cycle_publish_desk WINDOWS_UNCONTAINED COMMAND test_review_cycle_publish_desk ${bpr_workspace_git_arguments})
+    set_tests_properties(review_cycle_publish_desk PROPERTIES TIMEOUT 180)
+endif()
+
 # [[BPR-1176]]. RC59-10's live publication course against the one owner-
 # designated disposable repository. Not a test row and not built by default:
 # it reaches GitHub.com, so only an explicit configure builds it, and only a

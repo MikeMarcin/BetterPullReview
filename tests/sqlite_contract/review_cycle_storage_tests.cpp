@@ -370,7 +370,7 @@ namespace {
 		}
 		// Rewrite the file into exactly the first published shape.
 		sql(database_path(scratch.path()),
-			"DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+			"DROP TABLE associations; DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 			"DROP TABLE feedback;"
 			"DROP TABLE feedback_revisions;"
 			"DROP TABLE suggestions;"
@@ -400,7 +400,7 @@ namespace {
 			expect(store.capture(2, subject, "v2 manifest", 1).has_value(), "capture before downgrade");
 		}
 		// The second published shape had everything but feedback and suggestions.
-		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+		sql(database_path(scratch.path()), "DROP TABLE associations; DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 										   "DROP TABLE feedback; DROP TABLE feedback_revisions; DROP TABLE suggestions; DROP TABLE views; PRAGMA user_version=2;");
 		auto       store  = open(scratch.path());
 		const auto loaded = store.state(subject);
@@ -428,7 +428,7 @@ namespace {
 			expect(note.has_value(), "feedback before downgrade");
 		}
 		// The third published shape had everything but the tab views.
-		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
+		sql(database_path(scratch.path()), "DROP TABLE associations; DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks;"
 										   "DROP TABLE views; PRAGMA user_version=3;");
 		auto       store = open(scratch.path());
 		const auto page  = store.Store->feedback(subject, std::nullopt, { });
@@ -547,7 +547,7 @@ namespace {
 			subject    = store.create(1);
 			expect(store.capture(2, subject, "v4 manifest", 1).has_value(), "capture before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
+		sql(database_path(scratch.path()), "DROP TABLE associations; DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; DROP TABLE imports; DROP TABLE import_objects; DROP TABLE import_forks; PRAGMA user_version=4;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v4 cycle reads unchanged");
 
@@ -596,7 +596,7 @@ namespace {
 			expect(store.capture(2, subject, "v5 manifest", 1).has_value(), "capture before downgrade");
 			expect(store.Store->save_tabs(subject, plain, { }).has_value(), "a full-source record before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; PRAGMA user_version=5;");
+		sql(database_path(scratch.path()), "DROP TABLE associations; DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; DROP TABLE checkpoints; DROP TABLE verifications; DROP TABLE responses; PRAGMA user_version=5;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v5 cycle reads unchanged");
 		const auto old = store.Store->load_tabs(subject, { });
@@ -699,7 +699,7 @@ namespace {
 			subject    = store.create(1);
 			expect(store.capture(2, subject, "v6 manifest", 1).has_value(), "R1 before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; PRAGMA user_version=6;");
+		sql(database_path(scratch.path()), "DROP TABLE associations; DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; DROP TABLE publications; PRAGMA user_version=6;");
 		auto store = open(scratch.path());
 		expect(store.state(subject).Latest.has_value(), "v6 cycle reads unchanged");
 		expect(store.Store->publications(subject, std::nullopt, { })->Publications.empty(), "no publication after migration");
@@ -783,7 +783,7 @@ namespace {
 			const auto payload = store.Store->install(bytes_of("{\"round\":1}"), { });
 			expect(saved && payload && store.Store->freeze(operation(4), { .Subject = subject, .Draft = draft, .ExpectedDraftRevision = 2, .Payload = *payload }, { }).has_value(), "F1 before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; PRAGMA user_version=7;");
+		sql(database_path(scratch.path()), "DROP TABLE associations; DROP TABLE grants; DROP TABLE channel_policy; DROP TABLE deliveries; PRAGMA user_version=7;");
 		auto       store  = open(scratch.path());
 		const auto rounds = store.Store->rounds(subject, std::nullopt, { });
 		expect(rounds && rounds->Rounds.size() == 1U, "v7 round reads unchanged");
@@ -850,7 +850,7 @@ namespace {
 			const auto payload = store.Store->install(bytes_of("{\"round\":1}"), { });
 			expect(saved && payload && store.Store->freeze(operation(4), { .Subject = subject, .Draft = draft, .ExpectedDraftRevision = 2, .Payload = *payload }, { }).has_value(), "F1 before downgrade");
 		}
-		sql(database_path(scratch.path()), "DROP TABLE grants; DROP TABLE channel_policy; PRAGMA user_version=8;");
+		sql(database_path(scratch.path()), "DROP TABLE associations; DROP TABLE grants; DROP TABLE channel_policy; PRAGMA user_version=8;");
 		auto       store  = open(scratch.path());
 		const auto rounds = store.Store->rounds(subject, std::nullopt, { });
 		expect(rounds && rounds->Rounds.size() == 1U, "v8 round reads unchanged");
@@ -901,6 +901,67 @@ namespace {
 		expect(sql_count(database_path(scratch.path()), "SELECT count(*) FROM grants") == 0, "its grants leave with it");
 		expect(sql_count(database_path(scratch.path()), "SELECT count(*) FROM channel_policy") == 1, "the profile's policy stays");
 	}
+
+	/// [[BPR-1177]]. Schema 10: a pull request published with the reviewer's
+	/// own tools, associated exactly as a read observed it.
+	void migrates_the_ninth_schema_and_associates_external_pull_requests()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-migrate-v9" };
+		auto                                 subject = core::local_cycle_subject{ };
+		{
+			auto store = open(scratch.path());
+			subject    = store.create(1);
+			expect(store.capture(2, subject, "{\"r\":1}", 1).has_value(), "R1 before downgrade");
+		}
+		sql(database_path(scratch.path()), "DROP TABLE associations; PRAGMA user_version=9;");
+		auto store = open(scratch.path());
+		expect(store.state(subject).Latest.has_value() && store.Store->associations(subject, { })->empty(), "v9 cycle reads unchanged, with no association");
+		const auto revision = store.state(subject).Revision;
+
+		auto head           = std::array<std::uint8_t, 32>{ };
+		head[0]             = 0xA1;
+		const auto observed = core::cycle_pull_observation{
+			.Address = { .Host = "github.com", .Owner = "octo-org", .Repository = "review-repository", .Number = 17 },
+			.NodeId  = "PR_kwDOexternal",
+			.Url     = "https://github.com/octo-org/review-repository/pull/17",
+			.State   = "open",
+			.HeadRef = "harden-parser",
+			.Head    = core::git_commit_oid{ core::git_hash_algorithm::sha1, head },
+			.BaseRef = "main",
+			.Account = core::github_account_id{ 1001 },
+			.Login   = "octo-reviewer",
+		};
+		const auto linked = core::decide_external_link(observed.Address, observed, { }, store.state(subject).Latest->Id.Id);
+		expect(linked.has_value(), "the core admits the observation");
+		const auto first = store.Store->record_association(operation(10), subject, *linked, { });
+		expect(first && first->Changed && first->Allocated == 1U && first->Revision == revision, "associated; the cycle's revision does not move");
+		expect(store.Store->record_association(operation(10), subject, *linked, { })->Replayed, "a retried association replays");
+		const auto again = store.Store->record_association(operation(11), subject, *linked, { });
+		expect(again && !again->Changed && again->Allocated == 1U, "the same pull request again changes nothing");
+		auto published        = *linked;
+		published.Origin      = core::cycle_pull_origin::published;
+		published.Publication = core::cycle_publication_id{ 1 };
+		expect(store.Store->record_association(operation(12), subject, published, { }).error().Refusal == core::cycle_refusal::invalid_target,
+			   "a published association is the journal's, never recorded here");
+		auto future           = *linked;
+		future.Address.Number = 18;
+		future.Url            = "https://github.com/octo-org/review-repository/pull/18";
+		future.Revision       = core::cycle_source_revision_id{ 9 };
+		expect(store.Store->record_association(operation(13), subject, future, { }).error().Refusal == core::cycle_refusal::invalid_target, "a revision this cycle never captured");
+
+		store.Store.reset();
+		auto       reopened = open(scratch.path());
+		const auto kept     = reopened.Store->associations(subject, { });
+		expect(kept && kept->size() == 1U && kept->front() == *linked, "the association reads back exactly");
+		expect(reopened.state(subject).Revision == revision && reopened.state(subject).Latest.has_value(), "nothing else changed");
+		sql(database_path(scratch.path()), "UPDATE associations SET number=99");
+		expect(reopened.Store->associations(subject, { }).error().Failure == cycle_store_failure::corrupt, "an indexed column that disagrees with its record is corrupt");
+		sql(database_path(scratch.path()), "UPDATE associations SET number=17");
+
+		const auto preview = reopened.Store->removal_preview(subject, { });
+		expect(preview && reopened.Store->remove(operation(14), *preview, { }).has_value(), "explicit removal");
+		expect(sql_count(database_path(scratch.path()), "SELECT count(*) FROM associations") == 0, "its associations leave with it");
+	}
 }
 
 int main()
@@ -921,6 +982,7 @@ int main()
 	migrates_the_sixth_schema_and_journals_publications();
 	migrates_the_seventh_schema_and_records_deliveries();
 	migrates_the_eighth_schema_and_keeps_grants_and_policy();
+	migrates_the_ninth_schema_and_associates_external_pull_requests();
 #if !defined(_WIN32)
 	survives_kills_at_every_commit();
 #endif

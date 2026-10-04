@@ -261,6 +261,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_publication": "dos-volume-name",
     # [[BPR-1175]]. The same course shape; the provider is simulated in memory.
     "review_cycle_publisher": "dos-volume-name",
+    # [[BPR-1177]]. The same course shape as review_cycle_publisher, through the
+    # desktop's cycle host; pinned by that shape, not yet measured contained.
+    "review_cycle_publish_desk": "dos-volume-name",
     "review_cycle_workbench": "dos-volume-name",
     "application_review_cycle_desktop_public_path": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",

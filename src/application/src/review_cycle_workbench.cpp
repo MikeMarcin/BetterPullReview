@@ -86,6 +86,147 @@ namespace bpr::application {
 			return "R" + std::to_string(aRevision.value());
 		}
 
+		// Publish as Pull Request (BPR-1177): what each outcome says, in the
+		// reviewer's words. None of them claims more than was observed.
+
+		auto lower_hex(const std::array<std::uint8_t, 32>& aBytes) -> std::string
+		{
+			constexpr auto digits = std::string_view{ "0123456789abcdef" };
+			auto           text   = std::string{ };
+			for (const auto byte : aBytes) {
+				text += digits[byte >> 4U];
+				text += digits[byte & 0x0FU];
+			}
+			return text;
+		}
+
+		auto path_list(const std::vector<std::string>& aPaths) -> std::string
+		{
+			auto text = std::string{ };
+			for (std::size_t index = 0; index < aPaths.size() && index < 3U; ++index) {
+				text += (index == 0U ? "" : ", ") + aPaths[index];
+			}
+			return aPaths.size() > 3U ? text + " and " + std::to_string(aPaths.size() - 3U) + " more" : text;
+		}
+
+		auto candidate_words(const core::candidate_refusal& aRefusal) -> std::string
+		{
+			const auto paths = path_list(aRefusal.Paths);
+			switch (aRefusal.Limit) {
+			case core::candidate_limit::no_change:        return "Nothing differs from the base commit, so there is nothing to publish.";
+			case core::candidate_limit::undecided:        return "Choose whether to include " + paths + ": each improvement there depends on starting work you left out.";
+			case core::candidate_limit::filter_managed:   return "A Git filter such as LFS manages " + paths + ", which BetterPullReview cannot build. Save a patch and commit it with your own Git tools.";
+			case core::candidate_limit::gitlink:          return "A submodule changed (" + paths + "), which BetterPullReview cannot publish. Save a patch and commit it with your own Git tools.";
+			case core::candidate_limit::path_conflict:    return "A file and a folder would share a path (" + paths + "). Leave one of them out.";
+			case core::candidate_limit::signing_required: return "This repository requires signed commits, which BetterPullReview does not make. Save a patch and commit it with your own Git tools.";
+			case core::candidate_limit::normalization:    return "Line endings can be changed only for selected text files with CRLF endings.";
+			case core::candidate_limit::metadata:         return "Give the commit a one-line title and an author name and email.";
+			}
+			return "The commit cannot be built as chosen.";
+		}
+
+		auto outgoing_words(const cycle_outgoing_outcome& aOutcome, const std::string& aBase) -> std::string
+		{
+			switch (aOutcome.Status) {
+			case cycle_outgoing_status::planned:               return { };
+			case cycle_outgoing_status::not_bound:             return "This cycle has no project folder. Publishing needs a Git checkout.";
+			case cycle_outgoing_status::not_captured:          return "Capture the project before publishing.";
+			case cycle_outgoing_status::root_changed:          return "The project folder is not the one this cycle captured. Open it again to publish from it.";
+			case cycle_outgoing_status::workspace:             return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The project folder could not be read.";
+			case cycle_outgoing_status::reference_unavailable: return "\"" + aBase + "\" does not name a commit in this checkout. Name a branch, HEAD or a commit.";
+			case cycle_outgoing_status::repository:            return "Git could not read the repository" + (aOutcome.Git && !aOutcome.Git->Detail.empty() ? " (" + aOutcome.Git->Detail + ")." : std::string{ "." });
+			case cycle_outgoing_status::material:              return "Retained material for this cycle is missing or damaged; nothing was substituted.";
+			case cycle_outgoing_status::refused:
+				if (aOutcome.Refusal == core::outgoing_refusal::repository_required) {
+					return "This project is not a Git checkout. A pull request starts from a commit, so publish from a checkout of the repository.";
+				}
+				return "The outgoing content cannot be planned (" + std::string{ aOutcome.Refusal ? core::name(*aOutcome.Refusal) : "refused" } + ").";
+			case cycle_outgoing_status::limited:   return "Nothing differs from the base commit, so there is nothing to publish.";
+			case cycle_outgoing_status::cancelled: return { };
+			}
+			return { };
+		}
+
+		auto publish_limit_words(const cycle_publish_limit aLimit, const core::publication_plan& aPlan) -> std::string
+		{
+			const auto& destination = aPlan.Destination;
+			const auto  repository  = destination.Owner + "/" + destination.Repository;
+			switch (aLimit) {
+			case cycle_publish_limit::unsupported_host:     return "Native publication is admitted for GitHub.com only. Save a patch, publish it with your own Git tools, then link the pull request. Nothing was sent.";
+			case cycle_publish_limit::object_format:        return "GitHub takes SHA-1 repositories only; this one is not. Save a patch instead. Nothing was sent.";
+			case cycle_publish_limit::no_push_permission:   return destination.Login + " cannot push to " + repository + ". Nothing was sent.";
+			case cycle_publish_limit::archived:             return repository + " is archived. Nothing was sent.";
+			case cycle_publish_limit::protected_path:       return "The change touches workflow files, which need a permission this build cannot check. Save a patch instead. Nothing was sent.";
+			case cycle_publish_limit::parent_not_on_remote: return "The base commit is not on GitHub yet. Push it, or choose a base that is there. Nothing was sent.";
+			case cycle_publish_limit::target_moved:         return destination.BaseBranch + " is missing on GitHub or moved since the plan was made. Review the plan again. Nothing was sent.";
+			case cycle_publish_limit::branch_exists:        return "A branch named " + destination.NewBranch + " already exists on GitHub. Choose another name. Nothing was sent or overwritten.";
+			case cycle_publish_limit::blob_too_large:       return "A file is over the 128 KiB upload bound. Save a patch instead. Nothing was sent.";
+			case cycle_publish_limit::material:             return "Retained material for this plan is missing or damaged. Nothing was sent.";
+			case cycle_publish_limit::pull_request_exists:  return "A pull request for " + destination.NewBranch + " already exists. If it is yours, link it. Nothing more was sent.";
+			}
+			return "Nothing was sent.";
+		}
+
+		auto stage_of(const core::publication_journal& aJournal) -> review_cycle_publication_stage
+		{
+			switch (aJournal.Phase) {
+			case core::publication_phase::prepared:            return review_cycle_publication_stage::planned;
+			case core::publication_phase::authorized:
+			case core::publication_phase::uploading_objects:
+			case core::publication_phase::branch_created:
+			case core::publication_phase::pr_creation_pending: return review_cycle_publication_stage::publishing;
+			case core::publication_phase::linked:              return review_cycle_publication_stage::linked;
+			case core::publication_phase::failed:
+			case core::publication_phase::uncertain:
+			case core::publication_phase::target_drift:
+			case core::publication_phase::cancelled:           return review_cycle_publication_stage::stopped;
+			case core::publication_phase::superseded:          return review_cycle_publication_stage::choosing;
+			}
+			return review_cycle_publication_stage::choosing;
+		}
+
+		/// What the journal says now, when it is not simply a plan waiting.
+		auto journal_words(const core::publication_plan& aPlan, const core::publication_journal& aJournal) -> std::string
+		{
+			const auto confirmed = std::ranges::count_if(aJournal.Effects, [](const core::publication_effect& aEffect) { return aEffect.State == core::publication_effect_state::confirmed; });
+			const auto held      = confirmed == 0 ? std::string{ } : " GitHub holds the " + std::to_string(confirmed) + (confirmed == 1 ? " step" : " steps") + " already confirmed; nothing is undone.";
+			switch (aJournal.Phase) {
+			case core::publication_phase::linked:
+				if (aJournal.Link && aJournal.Link->Drifted) {
+					return "Pull request #" + std::to_string(aJournal.Link->Number) + " is open, but its head or base is not what the plan named: someone pushed or the target moved. GitHub now shows what is shared.";
+				}
+				return aJournal.Link ? "Pull request #" + std::to_string(aJournal.Link->Number) + " is open on " + aPlan.Destination.Owner + "/" + aPlan.Destination.Repository + "." : std::string{ };
+			case core::publication_phase::uncertain:    return "GitHub did not answer whether a step took effect. Check GitHub before anything else is sent." + held;
+			case core::publication_phase::target_drift: return "Something else took the branch name, or the target moved. Nothing was overwritten." + held;
+			case core::publication_phase::failed:       return "GitHub refused a step, so nothing more was sent." + held;
+			case core::publication_phase::cancelled:    return "Publishing was cancelled." + held;
+			default:                                    return { };
+			}
+		}
+
+		auto link_words(const core::cycle_link_refusal aRefusal, const std::string& aHost) -> std::string
+		{
+			switch (aRefusal) {
+			case core::cycle_link_refusal::address:        return "That is not a pull request address. Paste one like https://github.com/owner/repository/pull/12.";
+			case core::cycle_link_refusal::host:           return "That pull request is not on " + aHost + ", the host you are signed in to.";
+			case core::cycle_link_refusal::mismatch:       return "GitHub answered with something other than that pull request; nothing was linked.";
+			case core::cycle_link_refusal::not_found:      return "No such pull request, or your account cannot read it; nothing was linked.";
+			case core::cycle_link_refusal::already_linked: return "This cycle is already linked to that pull request.";
+			case core::cycle_link_refusal::bounds:         return "This cycle has as many linked pull requests as it keeps.";
+			}
+			return "Nothing was linked.";
+		}
+
+		auto provider_words(const github_publication_error& aError) -> std::string
+		{
+			switch (aError.Failure) {
+			case github_publication_failure::unsupported_host: return "Pull requests can be read here on GitHub.com only.";
+			case github_publication_failure::rate_limited:     return "GitHub is rate limiting this account; try again later.";
+			case github_publication_failure::refused:          return "GitHub refused the read.";
+			default:                                           return "GitHub could not be reached.";
+			}
+		}
+
 	}
 
 	struct review_cycle_workbench::implementation : std::enable_shared_from_this<implementation>
@@ -140,6 +281,12 @@ namespace bpr::application {
 		std::uint64_t                CodeRequests = 0;
 		/// The note the larger view was asked for.
 		std::optional<core::cycle_feedback_item_id> LargerItem;
+		/// Publish as Pull Request (BPR-1177): what the composition allows,
+		/// the local catalog made at first use on the effect lane, and the
+		/// cycles whose journals were recovered after this run started.
+		review_cycle_publication_environment            Publishing;
+		std::shared_ptr<review_cycle_candidate_catalog> Candidates;
+		std::vector<core::review_cycle_id>              Recovered;
 
 		auto operation() -> cycle_operation_id
 		{
@@ -304,6 +451,20 @@ namespace bpr::application {
 			View.Activity = review_cycle_activity::capturing;
 			View.Notice.clear();
 			publish();
+			// A round frozen or a draft begun since the cycle was read moved its
+			// revision; the capture names the revision the store holds now.
+			Runtime.load_selected(guarded<std::optional<core::review_cycle_state>>([aDeliberate](implementation& aSelf, std::optional<core::review_cycle_state> aState) {
+				if (!aState) {
+					aSelf.fail("The cycle no longer exists.");
+					return;
+				}
+				aSelf.Cycle = std::move(*aState);
+				aSelf.capture_current(aDeliberate);
+			}));
+		}
+
+		void capture_current(const bool aDeliberate)
+		{
 			auto request = cycle_capture_request{ .Operation = operation(), .ExpectedRevision = Cycle->Revision, .Deliberate = aDeliberate };
 			Runtime.capture_workspace(Source, std::move(request), guarded<cycle_capture_outcome>([](implementation& aSelf, cycle_capture_outcome aOutcome) {
 										  if (aOutcome.Status != cycle_capture_status::captured) {
@@ -394,7 +555,7 @@ namespace bpr::application {
 		{
 			Runtime.view_facts_selected(guarded<core::cycle_view_facts>([](implementation& aSelf, core::cycle_view_facts aFacts) {
 				aSelf.View.Facts = std::move(aFacts);
-				aSelf.load_history(std::nullopt, { });
+				aSelf.load_links();
 			}));
 		}
 
@@ -1109,6 +1270,470 @@ namespace bpr::application {
 				return;
 			}
 		}
+
+		// Publish as Pull Request (BPR-1177).
+
+		/// A completion for one publication step: like `guarded`, but a store
+		/// refusal is said in the publication view, not over the page.
+		template <typename TThen>
+		auto publication_guarded(TThen aThen) -> review_cycle_runtime::completion<review_cycle_publication_step>
+		{
+			return [weak = weak_from_this(), generation = Generation, then = std::move(aThen)](cycle_store_result<review_cycle_publication_step> aResult) mutable {
+				const auto self = weak.lock();
+				if (!self || self->Closing || self->Generation != generation) {
+					return;
+				}
+				if (!aResult) {
+					if (aResult.error().Failure == cycle_store_failure::cancelled) {
+						return;
+					}
+					if (self->View.Publication) {
+						self->View.Publication->Busy   = false;
+						self->View.Publication->Status = aResult.error().Publication
+							? "This plan cannot go ahead (" + std::string{ core::name(*aResult.error().Publication) } + "). Nothing was sent."
+							: cycle_store_words(aResult.error());
+						self->publish();
+					} else {
+						self->fail(cycle_store_words(aResult.error()));
+					}
+					return;
+				}
+				self->View.Links = aResult->Links;
+				then(*self, std::move(*aResult));
+			};
+		}
+
+		auto candidates() -> std::shared_ptr<review_cycle_candidate_catalog>
+		{
+			if (!Candidates) {
+				Candidates = std::make_shared<review_cycle_candidate_catalog>(Publishing.Candidates);
+			}
+			return Candidates;
+		}
+
+		[[nodiscard]] auto account() const -> std::optional<review_cycle_publication_account>
+		{
+			return Publishing.Account ? Publishing.Account() : std::nullopt;
+		}
+
+		static auto record_of(const stored_cycle_publication& aStored) -> review_cycle_publication_record
+		{
+			return { .Id = aStored.Id.Id, .Revision = aStored.Revision, .Plan = aStored.Plan, .Journal = aStored.Journal };
+		}
+
+		static auto outgoing_request(const review_cycle_publication_form& aForm) -> cycle_outgoing_request
+		{
+			return {
+				.Base      = aForm.Base,
+				.Target    = aForm.Target.empty() ? std::nullopt : std::optional{ aForm.Target },
+				.Mode      = aForm.Mode,
+				.Overrides = aForm.Overrides,
+			};
+		}
+
+		/// The links and, the first time this run reads them, the journals
+		/// recovered after a restart; then the page's history.
+		void load_links()
+		{
+			const auto cycle   = Subject ? Subject->Cycle : core::review_cycle_id{ };
+			const auto recover = std::ranges::find(Recovered, cycle) == Recovered.end();
+			if (recover) {
+				Recovered.push_back(cycle);
+			}
+			Runtime.publication_selected([recover](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) { return read_publications(aStore, aCycle, recover, std::move(aStop)); },
+										 publication_guarded([](implementation& aSelf, review_cycle_publication_step) { aSelf.load_history(std::nullopt, { }); }));
+		}
+
+		/// Shows a recorded publication as the view's current one.
+		void adopt(const stored_cycle_publication& aStored)
+		{
+			auto& view   = *View.Publication;
+			view.Current = record_of(aStored);
+			view.Stage   = stage_of(aStored.Journal);
+			view.Digest  = lower_hex(aStored.Journal.PlanDigest.bytes());
+			view.Preview = core::render_publication_preview(aStored.Plan);
+			if (const auto words = journal_words(aStored.Plan, aStored.Journal); !words.empty()) {
+				view.Status = words;
+			}
+		}
+
+		/// Plans what the form would send: the baselines and the paths.
+		void plan_outgoing()
+		{
+			if (!View.Publication) {
+				return;
+			}
+			View.Publication->Busy = true;
+			publish();
+			auto request = outgoing_request(View.Publication->Form);
+			Runtime.publication_selected(
+				[catalog = candidates(), source = &Source, request](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) {
+					return plan_publication(aStore, *source, *catalog, aCycle, request, std::move(aStop));
+				},
+				publication_guarded([form = View.Publication->Form](implementation& aSelf, review_cycle_publication_step aStep) {
+					if (!aSelf.View.Publication || aSelf.View.Publication->Form.Base != form.Base || aSelf.View.Publication->Form.Target != form.Target
+						|| aSelf.View.Publication->Form.Mode != form.Mode || aSelf.View.Publication->Form.Overrides != form.Overrides) {
+						return;
+					}
+					auto& shown = *aSelf.View.Publication;
+					shown.Busy  = false;
+					shown.Outgoing.reset();
+					shown.OutgoingProblem.clear();
+					if (aStep.Catalog) {
+						shown.OutgoingProblem = "Installed Git is not available, so the outgoing commit cannot be planned" + (aStep.Catalog->Detail.empty() ? std::string{ "." } : " (" + aStep.Catalog->Detail + ").");
+					} else if (aStep.Planned) {
+						shown.Outgoing        = aStep.Planned->Plan;
+						shown.OutgoingProblem = outgoing_words(*aStep.Planned, form.Base);
+					}
+					aSelf.publish();
+				}));
+		}
+
+		void open_publication()
+		{
+			if (!Cycle || !Cycle->Latest) {
+				return;
+			}
+			auto       view     = review_cycle_publication_view{ };
+			const auto latest   = Cycle->Latest->Id.Id;
+			view.Form.Title     = Cycle->Title;
+			view.Form.NewBranch = core::suggested_publication_branch(Cycle->Subject.Cycle, latest);
+			view.PatchName      = "cycle-" + std::to_string(Cycle->Subject.Cycle.value()) + "-" + revision_name(latest) + ".patch";
+			if (const auto acting = account()) {
+				view.Account          = review_cycle_publication_account_view{ .Host = acting->Host, .Login = acting->Login, .Account = acting->Account };
+				view.Form.AuthorName  = acting->Login;
+				view.Form.AuthorEmail = acting->Login + "@users.noreply." + acting->Host;
+			} else {
+				view.Status = "Sign in to GitHub to publish from here. You can still save a patch for your own Git tools.";
+			}
+			View.Publication       = std::move(view);
+			View.Publication->Busy = true;
+			publish();
+			Runtime.publication_selected([](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) { return read_publications(aStore, aCycle, false, std::move(aStop)); },
+										 publication_guarded([](implementation& aSelf, review_cycle_publication_step aStep) {
+											 if (!aSelf.View.Publication) {
+												 return;
+											 }
+											 auto& form = aSelf.View.Publication->Form;
+											 // The newest publication still standing is the one shown; a
+											 // superseded or cancelled one only lends its destination.
+											 for (auto stored = aStep.Publications.rbegin(); stored != aStep.Publications.rend(); ++stored) {
+												 const auto& destination = stored->Plan.Destination;
+												 if (form.Owner.empty()) {
+													 form.Owner      = destination.Owner;
+													 form.Repository = destination.Repository;
+													 form.BaseBranch = destination.BaseBranch;
+												 }
+												 const auto phase = stored->Journal.Phase;
+												 if (phase != core::publication_phase::superseded && phase != core::publication_phase::cancelled) {
+													 form.NewBranch = destination.NewBranch;
+													 form.Title     = stored->Plan.PullTitle;
+													 form.Draft     = stored->Plan.Draft;
+													 aSelf.adopt(*stored);
+													 break;
+												 }
+											 }
+											 aSelf.plan_outgoing();
+										 }));
+		}
+
+		void edit_publication(review_cycle_publication_form aForm)
+		{
+			if (!View.Publication || View.Publication->Stage == review_cycle_publication_stage::publishing) {
+				return;
+			}
+			auto&      view    = *View.Publication;
+			const auto replan  = aForm.Base != view.Form.Base || aForm.Target != view.Form.Target || aForm.Mode != view.Form.Mode || aForm.Overrides != view.Form.Overrides;
+			const auto changed = aForm != view.Form;
+			view.Form          = std::move(aForm);
+			if (changed && view.Stage == review_cycle_publication_stage::planned) {
+				// Any edit is another plan: the old digest authorizes nothing.
+				view.Current.reset();
+				view.Digest.clear();
+				view.Preview.clear();
+				view.Stage  = review_cycle_publication_stage::choosing;
+				view.Status = "Changed. Review the plan again before publishing.";
+			}
+			if (replan) {
+				plan_outgoing();
+			} else {
+				publish();
+			}
+		}
+
+		void prepare_publication()
+		{
+			if (!View.Publication || !Cycle || View.Publication->Busy) {
+				return;
+			}
+			auto&      view   = *View.Publication;
+			const auto acting = account();
+			if (!acting) {
+				view.Status = "Sign in to GitHub to publish from here. You can still save a patch for your own Git tools.";
+				publish();
+				return;
+			}
+			const auto& form = view.Form;
+			auto        body = std::optional<std::string>{ std::string{ } };
+			if (!form.Problem.empty() || !form.Solution.empty()) {
+				body = core::publication_body(form.Problem, form.Solution);
+			}
+			if (!body) {
+				view.Status = "The description is longer than a pull request takes; shorten it.";
+				publish();
+				return;
+			}
+			auto now        = Publishing.Now ? Publishing.Now() : core::git_signature{ };
+			now.Name        = form.AuthorName;
+			now.Email       = form.AuthorEmail;
+			auto commitBody = form.Problem;
+			if (!form.Solution.empty()) {
+				commitBody += (commitBody.empty() ? "" : "\n\n") + form.Solution;
+			}
+			auto request = cycle_publication_request{
+				.Candidate   = { .Outgoing  = outgoing_request(form),
+								 .Candidate = { .NormalizeLineEndings = form.NormalizeLineEndings, .Metadata = { .Author = now, .Committer = now, .Title = form.Title, .Body = commitBody } } },
+				.Destination = { .Host = acting->Host, .Account = acting->Account, .Login = acting->Login, .Owner = form.Owner, .Repository = form.Repository, .BaseBranch = form.BaseBranch, .NewBranch = form.NewBranch },
+				.PullTitle   = form.Title,
+				.PullBody    = std::move(*body),
+				.Draft       = form.Draft,
+			};
+			if (!core::valid(request.Destination)) {
+				view.Status = "Name the repository as owner and name, an existing base branch and a new branch that differs from it.";
+				publish();
+				return;
+			}
+			view.Busy = true;
+			view.Status.clear();
+			view.Limit.reset();
+			publish();
+			Runtime.publication_selected(
+				[catalog = candidates(), source = &Source, op = operation(), prepared = std::move(request)](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) {
+					return application::prepare_publication(aStore, *source, *catalog, aCycle, op, prepared, std::move(aStop));
+				},
+				publication_guarded([base = form.Base](implementation& aSelf, review_cycle_publication_step aStep) {
+					if (!aSelf.View.Publication) {
+						return;
+					}
+					auto& shown = *aSelf.View.Publication;
+					shown.Busy  = false;
+					if (aStep.Catalog) {
+						shown.Status = "Installed Git is not available, so the commit cannot be built.";
+					} else if (aStep.Prepared && aStep.Prepared->Publication) {
+						shown.Outgoing = aStep.Prepared->Built.Outcome.Plan;
+						aSelf.adopt(*aStep.Prepared->Publication);
+						shown.Status = "Nothing has been sent. Read the plan, then publish exactly it.";
+					} else if (aStep.Prepared) {
+						const auto& built = aStep.Prepared->Built;
+						shown.Limit       = built.Limit;
+						shown.Status      = built.Limit ? candidate_words(*built.Limit)
+							: aStep.Prepared->Refusal   ? "The plan is not valid (" + std::string{ core::name(*aStep.Prepared->Refusal) } + ")."
+							: aStep.Prepared->Store     ? cycle_store_words(*aStep.Prepared->Store)
+														: outgoing_words(built.Outcome, base);
+					}
+					aSelf.publish();
+				}));
+		}
+
+		void publish_publication()
+		{
+			if (!View.Publication || View.Publication->Busy || View.Publication->Stage != review_cycle_publication_stage::planned || !View.Publication->Current) {
+				return;
+			}
+			auto&      view   = *View.Publication;
+			const auto acting = account();
+			if (!acting || acting->Account != view.Current->Plan.Destination.Account) {
+				view.Status = "The account signed in now is not the one this plan names. Review the plan again.";
+				publish();
+				return;
+			}
+			const auto request = review_cycle_publish_request{
+				.Publication      = view.Current->Id,
+				.ExpectedRevision = view.Current->Revision,
+				.Digest           = view.Current->Journal.PlanDigest,
+				.Operation        = operation(),
+			};
+			view.Busy   = true;
+			view.Stage  = review_cycle_publication_stage::publishing;
+			view.Status = "Publishing: sending the objects, then the branch, then the pull request.";
+			publish();
+			Runtime.publication_selected(
+				[catalog = candidates(), source = &Source, actor = *acting, request](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) {
+					return application::publish_publication(aStore, *source, *catalog, aCycle, actor, request, std::move(aStop));
+				},
+				publication_guarded([](implementation& aSelf, review_cycle_publication_step aStep) { aSelf.published(std::move(aStep)); }));
+		}
+
+		/// What a publish or recovery observed.
+		void published(review_cycle_publication_step aStep)
+		{
+			if (!View.Publication) {
+				return;
+			}
+			auto& view = *View.Publication;
+			view.Busy  = false;
+			if (aStep.Catalog) {
+				view.Stage  = view.Current ? stage_of(view.Current->Journal) : review_cycle_publication_stage::choosing;
+				view.Status = "Installed Git is not available. Nothing was sent.";
+				publish();
+				return;
+			}
+			if (!aStep.Published) {
+				publish();
+				return;
+			}
+			const auto& outcome = *aStep.Published;
+			if (outcome.Publication) {
+				adopt(*outcome.Publication);
+			}
+			if (outcome.Status == cycle_publish_status::limited && outcome.Limit && view.Current) {
+				// Nothing was attempted: the plan still waits for the reviewer.
+				view.Stage  = review_cycle_publication_stage::planned;
+				view.Status = publish_limit_words(*outcome.Limit, view.Current->Plan);
+			} else if (outcome.Status == cycle_publish_status::provider && outcome.Provider) {
+				view.Status = provider_words(*outcome.Provider) + " Nothing more was sent.";
+			} else if (outcome.Status == cycle_publish_status::store && outcome.Store) {
+				view.Status = cycle_store_words(*outcome.Store);
+			} else if (outcome.Status == cycle_publish_status::unauthorized) {
+				view.Stage  = view.Current && view.Current->Journal.Phase == core::publication_phase::linked ? review_cycle_publication_stage::linked : review_cycle_publication_stage::planned;
+				view.Status = "This plan has no current confirmation. Review it again to publish.";
+			} else if (outcome.Status == cycle_publish_status::recovered && view.Current && view.Current->Journal.Phase == core::publication_phase::branch_created) {
+				view.Status = "GitHub holds the branch. Review the plan again to create the pull request.";
+			}
+			publish();
+		}
+
+		void recover_publication()
+		{
+			if (!View.Publication || View.Publication->Busy || !View.Publication->Current) {
+				return;
+			}
+			auto&      view   = *View.Publication;
+			const auto acting = account();
+			if (!acting) {
+				view.Status = "Sign in to GitHub to check what it holds.";
+				publish();
+				return;
+			}
+			view.Busy   = true;
+			view.Status = "Reading GitHub; nothing is sent.";
+			publish();
+			Runtime.publication_selected(
+				[catalog = candidates(), source = &Source, actor = *acting, publication = view.Current->Id](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) {
+					return application::recover_publication(aStore, *source, *catalog, aCycle, actor, publication, std::move(aStop));
+				},
+				publication_guarded([](implementation& aSelf, review_cycle_publication_step aStep) { aSelf.published(std::move(aStep)); }));
+		}
+
+		void cancel_publication()
+		{
+			if (!View.Publication || View.Publication->Busy || !View.Publication->Current) {
+				return;
+			}
+			auto& view = *View.Publication;
+			view.Busy  = true;
+			publish();
+			Runtime.publication_selected(
+				[op = operation(), publication = view.Current->Id, revision = view.Current->Revision](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) {
+					return application::cancel_publication(aStore, aCycle, op, publication, revision, std::move(aStop));
+				},
+				publication_guarded([](implementation& aSelf, review_cycle_publication_step aStep) {
+					if (!aSelf.View.Publication || !aSelf.View.Publication->Current) {
+						return;
+					}
+					auto& shown = *aSelf.View.Publication;
+					shown.Busy  = false;
+					const auto found
+						= std::ranges::find_if(aStep.Publications, [&](const stored_cycle_publication& aStored) { return aStored.Id.Id == shown.Current->Id; });
+					if (found != aStep.Publications.end()) {
+						aSelf.adopt(*found);
+					}
+					aSelf.publish();
+				}));
+		}
+
+		void save_patch(std::string aPath)
+		{
+			if (!View.Publication || View.Publication->Busy) {
+				return;
+			}
+			auto& view        = *View.Publication;
+			auto  destination = Destinations && !aPath.empty() ? std::shared_ptr<cycle_export_destination>{ Destinations(aPath) } : nullptr;
+			if (!destination) {
+				view.Status = "Saving needs a file to save to; nothing was saved.";
+				publish();
+				return;
+			}
+			view.Busy = true;
+			publish();
+			Runtime.publication_selected(
+				[catalog = candidates(), source = &Source, request = outgoing_request(view.Form), destination, name = file_name(aPath)](review_cycle_store& aStore, const core::review_cycle_state& aCycle,
+																																		std::stop_token aStop) {
+					return application::save_publication_patch(aStore, *source, *catalog, aCycle, request, *destination, name, std::move(aStop));
+				},
+				publication_guarded([name = file_name(aPath), base = view.Form.Base](implementation& aSelf, review_cycle_publication_step aStep) {
+					if (!aSelf.View.Publication) {
+						return;
+					}
+					auto& shown = *aSelf.View.Publication;
+					shown.Busy  = false;
+					if (aStep.Catalog) {
+						shown.Status = "Installed Git is not available, so no patch was made.";
+					} else if (aStep.External && aStep.External->Preparation && aStep.PatchSave && aStep.PatchSave->Action != core::cycle_round_save_action::conflict) {
+						shown.Instructions = aStep.External->Preparation->Instructions;
+						shown.Status       = name + " is saved. It is not published: apply it with your own Git tools, push, open the pull request, then link it here.";
+					} else if (aStep.PatchSave) {
+						shown.Status = "A file named " + name + " is already there; it was kept. Choose another name.";
+					} else if (aStep.PatchFailure) {
+						shown.Status = cycle_export_words(*aStep.PatchFailure);
+					} else if (aStep.External) {
+						shown.Status = aStep.External->Limit ? candidate_words(*aStep.External->Limit) : outgoing_words(aStep.External->Outcome, base);
+					}
+					aSelf.publish();
+				}));
+		}
+
+		void link(const std::string& aText)
+		{
+			if (!View.Publication || View.Publication->Busy) {
+				return;
+			}
+			auto&      view    = *View.Publication;
+			const auto address = core::parse_pull_address(aText);
+			if (!address) {
+				view.Status = link_words(core::cycle_link_refusal::address, { });
+				publish();
+				return;
+			}
+			const auto acting = account();
+			if (!acting) {
+				view.Status = "Sign in to GitHub so the pull request can be read before it is linked.";
+				publish();
+				return;
+			}
+			view.Busy   = true;
+			view.Status = "Reading the pull request; nothing is sent.";
+			publish();
+			Runtime.publication_selected(
+				[actor = *acting, op = operation(), asked = *address](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) {
+					return application::link_pull_request(aStore, aCycle, actor, op, asked, std::move(aStop));
+				},
+				publication_guarded([host = acting->Host](implementation& aSelf, review_cycle_publication_step aStep) {
+					if (!aSelf.View.Publication) {
+						return;
+					}
+					auto& shown = *aSelf.View.Publication;
+					shown.Busy  = false;
+					if (aStep.Provider) {
+						shown.Status = provider_words(*aStep.Provider) + " Nothing was linked.";
+					} else if (aStep.LinkRefusal) {
+						shown.Status = link_words(*aStep.LinkRefusal, host);
+					} else if (aStep.Linked) {
+						shown.Status = "Linked pull request #" + std::to_string(aStep.Linked->Address.Number) + " as externally published. BetterPullReview did not publish it.";
+					}
+					aSelf.publish();
+				}));
+		}
 	};
 
 	review_cycle_workbench::review_cycle_workbench(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
@@ -1493,6 +2118,61 @@ namespace bpr::application {
 			return;
 		}
 		self.share(pending.Route, pending.Path, pending.Existing);
+	}
+
+	void review_cycle_workbench::set_publication_environment(review_cycle_publication_environment aEnvironment)
+	{
+		Implementation->Publishing = std::move(aEnvironment);
+		Implementation->Candidates.reset();
+	}
+
+	void review_cycle_workbench::open_publication()
+	{
+		Implementation->open_publication();
+	}
+
+	void review_cycle_workbench::close_publication()
+	{
+		auto& self = *Implementation;
+		if (self.View.Publication) {
+			self.View.Publication.reset();
+			self.publish();
+		}
+	}
+
+	void review_cycle_workbench::edit_publication(review_cycle_publication_form aForm)
+	{
+		Implementation->edit_publication(std::move(aForm));
+	}
+
+	void review_cycle_workbench::prepare_publication()
+	{
+		Implementation->prepare_publication();
+	}
+
+	void review_cycle_workbench::publish_publication()
+	{
+		Implementation->publish_publication();
+	}
+
+	void review_cycle_workbench::recover_publication()
+	{
+		Implementation->recover_publication();
+	}
+
+	void review_cycle_workbench::cancel_publication()
+	{
+		Implementation->cancel_publication();
+	}
+
+	void review_cycle_workbench::save_publication_patch(std::string aPath)
+	{
+		Implementation->save_patch(std::move(aPath));
+	}
+
+	void review_cycle_workbench::link_pull_request(std::string aAddress)
+	{
+		Implementation->link(aAddress);
 	}
 
 	auto review_cycle_workbench::projection() const noexcept -> const review_cycle_workbench_projection&

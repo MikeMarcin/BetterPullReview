@@ -673,6 +673,25 @@ namespace bpr::application {
 																				std::move(aDone));
 	}
 
+	auto review_cycle_runtime::publication_selected(publication_work aWork, completion<review_cycle_publication_step> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<review_cycle_publication_step>([subject, work = std::move(aWork)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<review_cycle_publication_step> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			const auto loaded = aStore.load(*subject, aStop);
+			if (!loaded) {
+				return std::unexpected(loaded.error());
+			}
+			if (!*loaded) {
+				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::not_found });
+			}
+			return work(aStore, **loaded, std::move(aStop));
+		},
+																	 std::move(aDone));
+	}
+
 	auto review_cycle_runtime::grant_round_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, const bool aReadOnly, core::cycle_disclosure_policy aImposed,
 													completion<cycle_grant_result> aDone) -> bool
 	{

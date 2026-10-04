@@ -110,10 +110,16 @@ namespace bpr::application {
 	auto review_cycle_publication_host::recover_after_restart(const core::local_cycle_subject& aSubject, std::stop_token aStop)
 		-> cycle_store_result<std::vector<stored_cycle_publication>>
 	{
+		return recover_publications_after_restart(Store, aSubject, std::move(aStop));
+	}
+
+	auto recover_publications_after_restart(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, std::stop_token aStop)
+		-> cycle_store_result<std::vector<stored_cycle_publication>>
+	{
 		auto recovered = std::vector<stored_cycle_publication>{ };
 		auto after     = std::optional<core::cycle_publication_id>{ };
 		do {
-			auto page = Store.publications(aSubject, after, aStop);
+			auto page = aStore.publications(aSubject, after, aStop);
 			if (!page) {
 				return std::unexpected(page.error());
 			}
@@ -121,15 +127,18 @@ namespace bpr::application {
 				const auto restarted = core::apply_publication(publication.Plan, publication.Journal, core::restart_publication{ });
 				if (restarted && restarted->Journal != publication.Journal) {
 					const auto receipt
-						= Store.change_publication(restart_operation(aSubject, publication.Id.Id, publication.Revision), aSubject, publication.Id.Id, publication.Revision, core::restart_publication{ }, aStop);
+						= aStore.change_publication(restart_operation(aSubject, publication.Id.Id, publication.Revision), aSubject, publication.Id.Id, publication.Revision, core::restart_publication{ }, aStop);
 					if (!receipt) {
 						return std::unexpected(receipt.error());
 					}
-					auto reloaded = load(aSubject, publication.Id.Id, aStop);
+					auto reloaded = aStore.load_publication(aSubject, publication.Id.Id, aStop);
 					if (!reloaded) {
 						return std::unexpected(reloaded.error());
 					}
-					publication = std::move(*reloaded);
+					if (!*reloaded) {
+						return failed(cycle_store_failure::not_found);
+					}
+					publication = std::move(**reloaded);
 				}
 				recovered.push_back(std::move(publication));
 			}

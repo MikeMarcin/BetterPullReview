@@ -6,6 +6,7 @@
 #include "bpr/application/review_cycle_comparison.hpp"
 #include "bpr/application/review_cycle_feedback.hpp"
 #include "bpr/application/review_cycle_import.hpp"
+#include "bpr/application/review_cycle_publishing.hpp"
 #include "bpr/application/review_cycle_response.hpp"
 #include "bpr/application/review_cycle_retrieval.hpp"
 #include "bpr/application/review_cycle_round.hpp"
@@ -198,6 +199,12 @@ namespace bpr::application {
 		/// \brief Sets one channel's permission for one classification.
 		auto set_channel_permission(cycle_operation_id aOperation, core::cycle_data_classification aClassification, core::cycle_disclosure_channel aChannel,
 									core::cycle_channel_permission aPermission, completion<cycle_write_receipt> aDone) -> bool;
+
+		/// \brief One Publish as Pull Request step (BPR-1177) on the effect lane,
+		/// given the store and the selected cycle as it is now; superseded by
+		/// a new selection like every other call.
+		using publication_work = std::function<cycle_store_result<review_cycle_publication_step>(review_cycle_store&, const core::review_cycle_state&, std::stop_token)>;
+		auto publication_selected(publication_work aWork, completion<review_cycle_publication_step> aDone) -> bool;
 
 		/// \brief Opens a portable bundle into this profile's quarantine,
 		/// whatever is selected (BPR-1160). Needs no account, provider or agent.

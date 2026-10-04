@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_PROJECTION_HPP
 
 #include "bpr/application/review_material_bridge.hpp"
+#include "bpr/core/review_cycle_association.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_material.hpp"
 #include "bpr/core/review_cycle_response.hpp"
@@ -191,6 +192,94 @@ namespace bpr::application {
 		auto                                     operator<=>(const review_cycle_share_view&) const = default;
 	};
 
+	/// \brief What the reviewer chose in Publish as Pull Request (BPR-1177).
+	struct review_cycle_publication_form
+	{
+		core::outgoing_selection_mode Mode = core::outgoing_selection_mode::starting_work_and_improvements;
+		/// P: `HEAD`, a `refs/` name or an exact commit, read in the checkout.
+		std::string Base = "HEAD";
+		/// T: a `refs/` name in the checkout, or empty for none.
+		std::string Target;
+		std::string Owner;
+		std::string Repository;
+		/// The existing branch the pull request targets.
+		std::string BaseBranch = "main";
+		/// The branch to create; it must not exist.
+		std::string NewBranch;
+		std::string Title;
+		/// The description's two fields, as a Review Tour maps them.
+		std::string Problem;
+		std::string Solution;
+		bool        Draft = false;
+		/// The commit's author and committer, as the reviewer confirms them.
+		std::string                          AuthorName;
+		std::string                          AuthorEmail;
+		std::vector<core::outgoing_override> Overrides;
+		std::vector<std::string>             NormalizeLineEndings;
+		auto                                 operator<=>(const review_cycle_publication_form&) const = default;
+	};
+
+	/// \brief The account native publication would act as.
+	struct review_cycle_publication_account_view
+	{
+		std::string             Host;
+		std::string             Login;
+		core::github_account_id Account;
+		auto                    operator<=>(const review_cycle_publication_account_view&) const = default;
+	};
+
+	/// \brief One recorded publication: its finite plan and its journal.
+	struct review_cycle_publication_record
+	{
+		core::cycle_publication_id Id;
+		std::uint64_t              Revision = 0;
+		core::publication_plan     Plan;
+		core::publication_journal  Journal;
+		auto                       operator<=>(const review_cycle_publication_record&) const = default;
+	};
+
+	enum class review_cycle_publication_stage : std::uint8_t {
+		/// Choosing what goes out and where; nothing is recorded as a plan.
+		choosing,
+		/// A plan is recorded and waits for the reviewer's confirmation.
+		planned,
+		/// Confirmed; the steps are being sent.
+		publishing,
+		/// The pull request exists and is associated.
+		linked,
+		/// A step was not confirmed: uncertain, refused, drift or cancelled.
+		stopped,
+	};
+
+	/// \brief Publish as Pull Request (BPR-1177): the three baselines and what
+	/// goes out, where and as whom, the exact plan a confirmation authorizes,
+	/// and the journal of what was sent.
+	struct review_cycle_publication_view
+	{
+		review_cycle_publication_form                        Form;
+		std::optional<review_cycle_publication_account_view> Account;
+		/// What the form would send: R0, Rn, P and T and every changed path.
+		std::optional<core::outgoing_plan> Outgoing;
+		/// Why no outgoing plan could be made, in plain words.
+		std::string                            OutgoingProblem;
+		std::optional<core::candidate_refusal> Limit;
+		/// The publication recorded for this form, while there is one.
+		std::optional<review_cycle_publication_record> Current;
+		/// The plan's digest a confirmation names, in hexadecimal.
+		std::string Digest;
+		/// Everything a confirmation authorizes, as text.
+		std::string                    Preview;
+		review_cycle_publication_stage Stage = review_cycle_publication_stage::choosing;
+		bool                           Busy  = false;
+		/// Plain words about the last step.
+		std::string Status;
+		/// After Save Patch: what the reviewer's own Git tools must do.
+		std::string Instructions;
+		/// The file name Save Patch suggests: an identity, never a path.
+		std::string PatchName;
+		auto        operator<=>(const review_cycle_publication_view&) const = default;
+	};
+
 	enum class review_cycle_activity : std::uint8_t {
 		idle,
 		opening,
@@ -228,7 +317,13 @@ namespace bpr::application {
 		std::optional<review_cycle_next_round> NextRound;
 		/// Present while Compose feedback is open.
 		std::optional<review_cycle_share_view> Share;
-		review_cycle_activity                  Activity = review_cycle_activity::idle;
+		/// Present while Publish as Pull Request is open (BPR-1177).
+		std::optional<review_cycle_publication_view> Publication;
+		/// Every pull request this cycle is associated with: published here,
+		/// then linked after an external publication. GitHub holds their
+		/// shared facts; this cycle keeps its own history.
+		std::vector<core::cycle_pull_association> Links;
+		review_cycle_activity                     Activity = review_cycle_activity::idle;
 		/// Plain words about the last refusal or failure; empty otherwise.
 		std::string Message;
 		/// Plain words about the last capture when it recorded nothing new.

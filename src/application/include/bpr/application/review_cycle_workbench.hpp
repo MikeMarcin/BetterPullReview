@@ -130,6 +130,37 @@ namespace bpr::application {
 		/// \brief Answers a pending replace: replace exactly the bytes named, or keep them.
 		void resolve_replace(bool aReplace);
 
+		/// \brief What Publish as Pull Request may use (BPR-1177), set by the
+		/// composition: the local Git catalog, the account native publication
+		/// acts as, and the clock for the commit's times. Without an account,
+		/// planning and Save Patch still work and nothing can be sent.
+		void set_publication_environment(review_cycle_publication_environment aEnvironment);
+		/// \brief Opens Publish as Pull Request: the newest publication still
+		/// standing, or a new form, and what it would send. Nothing is recorded.
+		void open_publication();
+		/// \brief Leaves it; a recorded plan or journal stays as it is.
+		void close_publication();
+		/// \brief Changes the form. Any change after a plan was recorded makes
+		/// another plan necessary: the old digest authorizes nothing.
+		void edit_publication(review_cycle_publication_form aForm);
+		/// \brief Review Plan: builds the candidate in the private store and
+		/// records the finite plan. Nothing is sent.
+		void prepare_publication();
+		/// \brief Publish Pull Request: the reviewer's confirmation of the
+		/// recorded plan's digest, under the account signed in now, then every
+		/// remaining step of exactly that plan.
+		void publish_publication();
+		/// \brief Check GitHub: reads what an uncertain step left. Sends nothing.
+		void recover_publication();
+		/// \brief Cancels the publication; confirmed remote effects remain.
+		void cancel_publication();
+		/// \brief Save Patch: the selection as a binary patch from the base
+		/// commit, for the reviewer's own Git tools. Never replaces a file.
+		void save_publication_patch(std::string aPath);
+		/// \brief Links a pull request published with the reviewer's own tools,
+		/// after reading exactly it; it is externally published.
+		void link_pull_request(std::string aAddress);
+
 		/// \brief Another interface wrote cycle `aCycle` (BPR-1168): when it is
 		/// the open cycle, read it again, and Compose feedback's draft with it.
 		/// Nothing the reviewer is typing is touched.

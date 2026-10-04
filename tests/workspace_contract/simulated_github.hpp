@@ -65,6 +65,10 @@ namespace bpr::tests::workspace_contract {
 		std::map<std::string, simulated_fault>                    Faults;
 		std::map<std::string, int>                                Writes;
 		std::uint64_t                                             NextPull = 17U;
+		/// The login pull requests this account opens are authored by.
+		std::string Login = "fixture-reviewer";
+		/// [[BPR-1177]]. Every pull request draft the server received, exactly.
+		std::vector<application::github_pull_request_draft> Drafts;
 		/// Where another actor points a branch it creates first.
 		core::git_commit_oid Foreign;
 		/// Runs after a pull request is stored, before the answer: another
@@ -203,10 +207,11 @@ namespace bpr::tests::workspace_contract {
 				return failure(application::github_publication_failure::refused, application::github_publication_transmission::indeterminate, 403U);
 			}
 			++Writes["pull"];
+			Drafts.push_back(aDraft);
 			if (std::ranges::any_of(Pulls, [&](const auto& aPull) { return aPull.HeadRef == aDraft.Head && aPull.BaseRef == aDraft.Base && aPull.State == "open"; })) {
 				return failure(application::github_publication_failure::refused, application::github_publication_transmission::indeterminate, 422U);
 			}
-			Pulls.push_back(pull(aDraft, Branches.at(aDraft.Head), "fixture-reviewer"));
+			Pulls.push_back(pull(aDraft, Branches.at(aDraft.Head), Login));
 			auto answer = Pulls.back();
 			if (AfterPull) {
 				AfterPull(Pulls.back());

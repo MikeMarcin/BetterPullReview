@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_STORE_HPP
 
 #include "bpr/core/review_cycle.hpp"
+#include "bpr/core/review_cycle_association.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
 #include "bpr/core/review_cycle_import.hpp"
 #include "bpr/core/review_cycle_policy.hpp"
@@ -458,6 +459,17 @@ namespace bpr::application {
 		virtual auto load_publication(const core::local_cycle_subject& aSubject, core::cycle_publication_id aPublication, std::stop_token aStop)
 			-> cycle_store_result<std::optional<stored_cycle_publication>>                                                                                                                          = 0;
 		virtual auto publications(const core::local_cycle_subject& aSubject, std::optional<core::cycle_publication_id> aAfter, std::stop_token aStop) -> cycle_store_result<cycle_publication_page> = 0;
+
+		/// \brief Associates the cycle with a pull request published with the
+		/// reviewer's own tools (BPR-1177), exactly as a provider read observed
+		/// it; the core decided it first. The same pull request again changes
+		/// nothing. `Allocated` is the association's ordinal. A natively
+		/// published pull request is associated through its publication's
+		/// journal, never here.
+		virtual auto record_association(const cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_pull_association& aAssociation,
+										std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> = 0;
+		/// \brief The cycle's externally published associations, in the order recorded.
+		virtual auto associations(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_pull_association>> = 0;
 
 		virtual auto inventory(std::stop_token aStop) -> cycle_store_result<cycle_retention_inventory> = 0;
 		/// \brief Removes unreferenced objects only.

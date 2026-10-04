@@ -23,7 +23,7 @@ namespace bpr::adapters::sqlite {
 		using application::cycle_write_receipt;
 
 		constexpr std::int64_t application_id   = 0x42505243;
-		constexpr std::int64_t schema_version   = 9;
+		constexpr std::int64_t schema_version   = 10;
 		constexpr std::size_t  chunk_bytes      = 512U * 1024U;
 		constexpr std::int64_t maximum_receipts = 4096;
 		/// One grant per frozen round; a cycle keeps at most this many.
@@ -60,6 +60,7 @@ namespace bpr::adapters::sqlite {
 			table{ "deliveries", "CREATE TABLE deliveries(cycle INTEGER NOT NULL,ordinal INTEGER NOT NULL,round INTEGER NOT NULL,round_digest BLOB NOT NULL CHECK(length(round_digest)=32),state INTEGER NOT NULL,channel INTEGER NOT NULL,format INTEGER,output BLOB CHECK(output IS NULL OR length(output)=32),size INTEGER,destination TEXT NOT NULL,PRIMARY KEY(cycle,ordinal)) STRICT" },
 			table{ "grants", "CREATE TABLE grants(cycle INTEGER NOT NULL,round INTEGER NOT NULL,round_digest BLOB NOT NULL CHECK(length(round_digest)=32),read INTEGER NOT NULL CHECK(read IN (0,1)),append INTEGER NOT NULL CHECK(append IN (0,1)),revoked INTEGER NOT NULL CHECK(revoked IN (0,1)),PRIMARY KEY(cycle,round)) STRICT" },
 			table{ "channel_policy", "CREATE TABLE channel_policy(classification INTEGER NOT NULL,channel INTEGER NOT NULL,permission INTEGER NOT NULL CHECK(permission IN (1,2)),PRIMARY KEY(classification,channel)) STRICT" },
+			table{ "associations", "CREATE TABLE associations(cycle INTEGER NOT NULL,ordinal INTEGER NOT NULL,host TEXT NOT NULL,owner TEXT NOT NULL,repository TEXT NOT NULL,number INTEGER NOT NULL,record BLOB NOT NULL,PRIMARY KEY(cycle,ordinal)) STRICT" },
 		};
 		/// Tables each earlier schema lacks: the first had no bindings or
 		/// content pins, and neither the first nor the second had feedback or
@@ -79,6 +80,8 @@ namespace bpr::adapters::sqlite {
 		constexpr auto added_in_v8 = std::array<std::string_view, 1>{ "deliveries" };
 		/// The ninth added round grants and the profile's channel policy (BPR-1169).
 		constexpr auto added_in_v9 = std::array<std::string_view, 2>{ "grants", "channel_policy" };
+		/// The tenth added externally published pull request associations (BPR-1177).
+		constexpr auto added_in_v10 = std::array<std::string_view, 1>{ "associations" };
 		/// The first published schema differs only in `revisions`, which had no
 		/// workspace version, and in having no `bindings` or `revision_objects`
 		/// table.
@@ -2371,6 +2374,81 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 
+			auto record_association(const application::cycle_operation_id& aOperation, const core::local_cycle_subject& aSubject, const core::cycle_pull_association& aAssociation,
+									std::stop_token aStop) -> cycle_store_result<cycle_write_receipt> override
+			{
+				const auto record  = core::encode_association(aAssociation);
+				auto       request = request_writer{ };
+				request.u8(24).subject(aSubject).bytes(record);
+				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+					auto current = current_cycle(aDatabase, aSubject);
+					if (!current) {
+						return std::unexpected(current.error());
+					}
+					// Only an externally published association that decodes back
+					// to itself, naming a revision this cycle captured.
+					if (aAssociation.Origin != core::cycle_pull_origin::external || core::decode_association(record) != aAssociation
+						|| (aAssociation.Revision && (!current->Latest || aAssociation.Revision->value() > current->Latest->Id.Id.value()))) {
+						return refuse(core::cycle_refusal::invalid_target);
+					}
+					auto known = query{ aDatabase, "SELECT ordinal,record FROM associations WHERE cycle=?1 ORDER BY ordinal" };
+					known.id(1, aSubject.Cycle.value());
+					auto last   = std::uint64_t{ 0 };
+					auto status = known.step();
+					for (; status == SQLITE_ROW; status = known.step()) {
+						const auto ordinal = stored_id(known.column_integer(0));
+						const auto stored  = core::decode_association(known.column_blob(1));
+						if (!ordinal || !stored) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						if (core::same_pull_request(stored->Address, aAssociation.Address)) {
+							return cycle_write_receipt{ .Cycle = aSubject.Cycle, .Revision = current->Revision, .Allocated = *ordinal, .Changed = false };
+						}
+						last = *ordinal;
+					}
+					if (status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					if (last >= core::maximum_cycle_associations) {
+						return fail(cycle_store_failure::bounds);
+					}
+					const auto& address = aAssociation.Address;
+					auto        row     = query{ aDatabase, "INSERT INTO associations(cycle,ordinal,host,owner,repository,number,record) VALUES(?1,?2,?3,?4,?5,?6,?7)" };
+					row.id(1, aSubject.Cycle.value()).id(2, last + 1U).text(3, address.Host).text(4, address.Owner).text(5, address.Repository).id(6, address.Number).blob(7, record);
+					if (!row.done()) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return cycle_write_receipt{ .Cycle = aSubject.Cycle, .Revision = current->Revision, .Allocated = last + 1U, .Changed = true };
+				});
+			}
+
+			auto associations(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_pull_association>> override
+			{
+				return read_only(aStop, [&](sqlite3* aDatabase) -> cycle_store_result<std::vector<core::cycle_pull_association>> {
+					if (auto current = current_cycle(aDatabase, aSubject); !current) {
+						return std::unexpected(current.error());
+					}
+					auto rows = query{ aDatabase, "SELECT host,owner,repository,number,record FROM associations WHERE cycle=?1 ORDER BY ordinal LIMIT ?2" };
+					rows.id(1, aSubject.Cycle.value()).integer(2, static_cast<std::int64_t>(core::maximum_cycle_associations) + 1);
+					auto result = std::vector<core::cycle_pull_association>{ };
+					auto status = rows.step();
+					for (; status == SQLITE_ROW; status = rows.step()) {
+						auto stored = core::decode_association(rows.column_blob(4));
+						// The indexed columns must say what the record says.
+						if (!stored || stored->Origin != core::cycle_pull_origin::external || result.size() == core::maximum_cycle_associations || rows.column_text(0) != stored->Address.Host
+							|| rows.column_text(1) != stored->Address.Owner || rows.column_text(2) != stored->Address.Repository
+							|| rows.column_integer(3) != static_cast<std::int64_t>(stored->Address.Number)) {
+							return fail(cycle_store_failure::corrupt);
+						}
+						result.push_back(std::move(*stored));
+					}
+					if (status != SQLITE_DONE) {
+						return fail(cycle_store_failure::unavailable);
+					}
+					return result;
+				});
+			}
+
 			auto removal_preview(const core::local_cycle_subject& aSubject, std::stop_token aStop) -> cycle_store_result<application::cycle_removal_preview> override
 			{
 				return read_only(aStop, [&](sqlite3* aDatabase) { return preview(aDatabase, aSubject); });
@@ -2395,7 +2473,7 @@ namespace bpr::adapters::sqlite {
 					for (const auto sql : { "DELETE FROM revisions WHERE cycle=?1", "DELETE FROM revision_objects WHERE cycle=?1", "DELETE FROM drafts WHERE cycle=?1", "DELETE FROM rounds WHERE cycle=?1", "DELETE FROM bindings WHERE cycle=?1",
 											"DELETE FROM feedback WHERE cycle=?1", "DELETE FROM feedback_revisions WHERE cycle=?1", "DELETE FROM suggestions WHERE cycle=?1", "DELETE FROM views WHERE cycle=?1",
 											"DELETE FROM import_forks WHERE cycle=?1", "DELETE FROM checkpoints WHERE cycle=?1", "DELETE FROM responses WHERE cycle=?1", "DELETE FROM verifications WHERE cycle=?1",
-											"DELETE FROM publications WHERE cycle=?1", "DELETE FROM deliveries WHERE cycle=?1", "DELETE FROM grants WHERE cycle=?1",
+											"DELETE FROM publications WHERE cycle=?1", "DELETE FROM deliveries WHERE cycle=?1", "DELETE FROM grants WHERE cycle=?1", "DELETE FROM associations WHERE cycle=?1",
 											"DELETE FROM cycles WHERE cycle=?1" }) {
 						auto erase = query{ aDatabase, sql };
 						if (!erase.id(1, aPreview.Subject.Cycle.value()).done()) {
@@ -2519,7 +2597,8 @@ namespace bpr::adapters::sqlite {
 				for (const auto& definition : schema) {
 					if ((aVersion < 2 && named(added_in_v2, definition.Name)) || (aVersion < 3 && named(added_in_v3, definition.Name)) || (aVersion < 4 && named(added_in_v4, definition.Name))
 						|| (aVersion < 5 && named(added_in_v5, definition.Name)) || (aVersion < 6 && named(added_in_v6, definition.Name))
-						|| (aVersion < 7 && named(added_in_v7, definition.Name)) || (aVersion < 8 && named(added_in_v8, definition.Name)) || (aVersion < 9 && named(added_in_v9, definition.Name))) {
+						|| (aVersion < 7 && named(added_in_v7, definition.Name)) || (aVersion < 8 && named(added_in_v8, definition.Name)) || (aVersion < 9 && named(added_in_v9, definition.Name))
+						|| (aVersion < 10 && named(added_in_v10, definition.Name))) {
 						continue;
 					}
 					tables.push_back(aVersion == 1 && definition.Name == "revisions" ? table{ definition.Name, revisions_v1 } : definition);
@@ -2585,8 +2664,11 @@ namespace bpr::adapters::sqlite {
 				if (aFrom < 8) {
 					std::ranges::transform(added_in_v8, std::back_inserter(steps), definition);
 				}
-				std::ranges::transform(added_in_v9, std::back_inserter(steps), definition);
-				steps.emplace_back("PRAGMA user_version=9");
+				if (aFrom < 9) {
+					std::ranges::transform(added_in_v9, std::back_inserter(steps), definition);
+				}
+				std::ranges::transform(added_in_v10, std::back_inserter(steps), definition);
+				steps.emplace_back("PRAGMA user_version=10");
 				for (const auto& step : steps) {
 					if (!detail::execute(aDatabase, step, aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
@@ -2627,7 +2709,7 @@ namespace bpr::adapters::sqlite {
 					}
 					auto catalog = query{ aDatabase, "INSERT INTO catalog(singleton,profile,incarnation,next_cycle) VALUES(1,?1,randomblob(32),1)" };
 					if (!catalog.id(1, Profile.value()).done() || !detail::execute(aDatabase, "PRAGMA application_id=1112560195", aStop)
-						|| !detail::execute(aDatabase, "PRAGMA user_version=9", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
+						|| !detail::execute(aDatabase, "PRAGMA user_version=10", aStop) || !schema_valid(aDatabase) || !guard.commit(aStop)) {
 						return fail(cancelled_or(aStop, cycle_store_failure::unavailable));
 					}
 				}
