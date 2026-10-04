@@ -68,8 +68,8 @@ namespace bpr::core {
 	auto publication_observation(const tour_code_destination& aSource, const git_commit_oid& aHead, const git_commit_oid& aBase, const std::string_view aBody, const bool aCompatibility, const bool aQualified) noexcept
 		-> tour_destination_observation
 	{
-		const auto current = aSource.Commit == (aSource.Side == diff_side::right ? aHead : aBase);
-		auto observed      = tour_destination_observation{ .Source = aSource, .Subject = current ? tour_subject::current_diff : tour_subject::historical, .SourceAvailable = aSource.Blob.has_value(), .Body = classify_review_body(aBody), .CompatibilityRequested = aCompatibility };
+		const auto current  = aSource.Commit == (aSource.Side == diff_side::right ? aHead : aBase);
+		auto       observed = tour_destination_observation{ .Source = aSource, .Subject = current ? tour_subject::current_diff : tour_subject::historical, .SourceAvailable = aSource.Blob.has_value(), .Body = classify_review_body(aBody), .CompatibilityRequested = aCompatibility };
 		if (aQualified) {
 			observed.PendingLineBatch = tour_operation_support::supported;
 			observed.Conversation     = tour_operation_support::supported;

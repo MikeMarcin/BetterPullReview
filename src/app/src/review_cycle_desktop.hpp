@@ -168,12 +168,12 @@ namespace bpr::app {
 		/// named a lane, so the reviewer reads and moves between files while
 		/// one runs and no other workbench effect waits. Declared before the
 		/// host, which it outlives.
-		std::unique_ptr<worker_executor>                                     OwnCaptures;
-		std::unique_ptr<application::review_cycle_workbench>                 Host;
+		std::unique_ptr<worker_executor>                     OwnCaptures;
+		std::unique_ptr<application::review_cycle_workbench> Host;
 		/// [[BPR-1273]]. The tour owner Add Notes to Review Tour adds through,
 		/// declared before the promoter, which it outlives.
-		std::unique_ptr<desktop_tour_port>                  Tours;
-		std::unique_ptr<application::review_cycle_promoter> Promoter;
+		std::unique_ptr<desktop_tour_port>                                   Tours;
+		std::unique_ptr<application::review_cycle_promoter>                  Promoter;
 		core::local_cycle_subject                                            LastSubject;
 		bool                                                                 Closing           = false;
 		const adapters::syntax::packaged_definition_catalog*                 SyntaxDefinitions = nullptr;

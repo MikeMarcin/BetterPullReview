@@ -69,15 +69,15 @@ namespace bpr::qt {
 
 		review_cycle_promote_dispatch            Dispatch;
 		application::review_cycle_promotion_view Shown;
-		QLabel*                                  Title     = nullptr;
-		QLabel*                                  Intro     = nullptr;
-		QListWidget*                             Notes     = nullptr;
-		QLabel*                                  Outgoing  = nullptr;
-		QLabel*                                  Private   = nullptr;
-		QLabel*                                  Status    = nullptr;
-		QPushButton*                             Add       = nullptr;
-		QPushButton*                             OpenPull  = nullptr;
-		QPushButton*                             Close     = nullptr;
+		QLabel*                                  Title    = nullptr;
+		QLabel*                                  Intro    = nullptr;
+		QListWidget*                             Notes    = nullptr;
+		QLabel*                                  Outgoing = nullptr;
+		QLabel*                                  Private  = nullptr;
+		QLabel*                                  Status   = nullptr;
+		QPushButton*                             Add      = nullptr;
+		QPushButton*                             OpenPull = nullptr;
+		QPushButton*                             Close    = nullptr;
 		std::optional<QPoint>                    Anchor;
 		/// Rows are being filled from a projection: their signals are not gestures.
 		bool Presenting = false;

@@ -3,8 +3,8 @@
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
-#include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
@@ -188,7 +188,7 @@ namespace bpr::app {
 
 		void load(const application::tour_saved_target& aTarget, std::string aRequest, reply aReply) override
 		{
-			auto request = application::tour_owner_request{ .Operation = aRequest.empty() ? application::tour_owner_operation::load : application::tour_owner_operation::request_status, .Draft = tour_draft_token(aTarget) };
+			auto request           = application::tour_owner_request{ .Operation = aRequest.empty() ? application::tour_owner_operation::load : application::tour_owner_operation::request_status, .Draft = tour_draft_token(aTarget) };
 			request.Edit.RequestId = std::move(aRequest);
 			send(std::move(request), std::move(aReply));
 		}
@@ -211,9 +211,9 @@ namespace bpr::app {
 				if (!decoded || !decoded->Error.empty() || !decoded->Draft) {
 					// A refusal is final; anything else leaves the request unanswered, to be read again.
 					const auto error = decoded ? decoded->Error : std::string{ };
-					reply(std::unexpected(error == "revision_conflict" ? application::review_cycle_tour_failure::conflict
-										  : error == "command_refused" ? application::review_cycle_tour_failure::refused
-																	   : application::review_cycle_tour_failure::unanswered));
+					reply(std::unexpected(error == "revision_conflict"     ? application::review_cycle_tour_failure::conflict
+											  : error == "command_refused" ? application::review_cycle_tour_failure::refused
+																		   : application::review_cycle_tour_failure::unanswered));
 					return;
 				}
 				reply(application::review_cycle_tour_answer{ .Draft = *decoded->Draft, .Receipt = decoded->Receipt });

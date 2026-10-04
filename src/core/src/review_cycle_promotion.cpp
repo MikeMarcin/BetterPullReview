@@ -245,7 +245,7 @@ namespace bpr::core {
 						promotion.Source = cycle_promotion_source::unread;
 						return;
 					}
-					promotion.Source            = cycle_promotion_source::exact_lines;
+					promotion.Source           = cycle_promotion_source::exact_lines;
 					promotion.Stop.Destination = std::move(lines);
 				}
 			},

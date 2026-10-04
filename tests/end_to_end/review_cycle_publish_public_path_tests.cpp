@@ -12,8 +12,8 @@
 #include "bpr/core/review_cycle_association.hpp"
 #include "bpr/qt/review_cycle_promote_sheet.hpp"
 #include "bpr/qt/review_cycle_publish_sheet.hpp"
-#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAbstractButton>

@@ -202,8 +202,9 @@ namespace bpr::application {
 			case core::publication_phase::failed:
 			case core::publication_phase::uncertain:
 			case core::publication_phase::target_drift:
-			case core::publication_phase::cancelled:           return review_cycle_publication_stage::stopped;
-			case core::publication_phase::superseded:          return review_cycle_publication_stage::choosing;
+			case core::publication_phase::cancelled:
+				return review_cycle_publication_stage::stopped;
+			case core::publication_phase::superseded: return review_cycle_publication_stage::choosing;
 			}
 			return review_cycle_publication_stage::choosing;
 		}
@@ -218,10 +219,14 @@ namespace bpr::application {
 					return "Pull request #" + std::to_string(aJournal.Link->Number) + " is open, but its head or base is not what the plan named: someone pushed or the target moved. GitHub now shows what is shared.";
 				}
 				return aJournal.Link ? "Pull request #" + std::to_string(aJournal.Link->Number) + " is open on " + aPlan.Destination.Owner + "/" + aPlan.Destination.Repository + "." : std::string{ };
-			case core::publication_phase::uncertain:         return "GitHub did not answer whether a step took effect. Check GitHub before anything else is sent." + held;
-			case core::publication_phase::target_drift:      return "Something else took the branch name, or the target moved. Nothing was overwritten." + held;
-			case core::publication_phase::failed:            return "GitHub refused a step, so nothing more was sent." + held;
-			case core::publication_phase::cancelled:         return "Publishing was cancelled." + held;
+			case core::publication_phase::uncertain:
+				return "GitHub did not answer whether a step took effect. Check GitHub before anything else is sent." + held;
+			case core::publication_phase::target_drift:
+				return "Something else took the branch name, or the target moved. Nothing was overwritten." + held;
+			case core::publication_phase::failed:
+				return "GitHub refused a step, so nothing more was sent." + held;
+			case core::publication_phase::cancelled:
+				return "Publishing was cancelled." + held;
 			case core::publication_phase::prepared:
 			case core::publication_phase::authorized:
 			case core::publication_phase::uploading_objects:

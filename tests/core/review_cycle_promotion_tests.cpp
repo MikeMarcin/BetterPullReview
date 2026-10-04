@@ -131,15 +131,15 @@ namespace {
 
 	void no_current_source()
 	{
-		const auto value  = plan();
-		const auto check  = [&](const cycle_promotion_note& aNote, const cycle_promotion_source aExpected, const std::string_view aWhat, const cycle_pull_association& aLink = link()) {
-            const auto promoted = promote_note(subject(), aLink, aLink.Origin == cycle_pull_origin::published ? &value : nullptr, aNote, std::nullopt);
-            expect(promoted.has_value() && promoted->Source == aExpected, aWhat);
-            expect(!promoted->Stop.Destination && !promoted->Stop.Original && !promoted->Stop.Mapped, std::string{ aWhat } + ": no line is chosen for it");
-            expect(promoted->Stop.Body == aNote.Body, std::string{ aWhat } + ": its words unchanged");
-            expect(!promotion_needs_file(aLink, aLink.Origin == cycle_pull_origin::published ? &value : nullptr, aNote), std::string{ aWhat } + ": nothing to read");
-            const auto planned = promoted_destination(promoted->Stop, commit(9), commit(1));
-            expect(planned.Representation == tour_representation::unresolved && planned.NeedsQualification, std::string{ aWhat } + ": the policy decides once the reviewer chooses its lines");
+		const auto value = plan();
+		const auto check = [&](const cycle_promotion_note& aNote, const cycle_promotion_source aExpected, const std::string_view aWhat, const cycle_pull_association& aLink = link()) {
+			const auto promoted = promote_note(subject(), aLink, aLink.Origin == cycle_pull_origin::published ? &value : nullptr, aNote, std::nullopt);
+			expect(promoted.has_value() && promoted->Source == aExpected, aWhat);
+			expect(!promoted->Stop.Destination && !promoted->Stop.Original && !promoted->Stop.Mapped, std::string{ aWhat } + ": no line is chosen for it");
+			expect(promoted->Stop.Body == aNote.Body, std::string{ aWhat } + ": its words unchanged");
+			expect(!promotion_needs_file(aLink, aLink.Origin == cycle_pull_origin::published ? &value : nullptr, aNote), std::string{ aWhat } + ": nothing to read");
+			const auto planned = promoted_destination(promoted->Stop, commit(9), commit(1));
+			expect(planned.Representation == tour_representation::unresolved && planned.NeedsQualification, std::string{ aWhat } + ": the policy decides once the reviewer chooses its lines");
 		};
 		const auto historical = make_anchor(cycle_source_revision_id{ 1 }, "src/parse.cpp", bytes(earlier), 4, 9);
 		check(note(3, *historical), cycle_promotion_source::earlier_revision, "a historical note");

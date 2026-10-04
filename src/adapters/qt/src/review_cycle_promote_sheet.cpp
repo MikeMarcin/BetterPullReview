@@ -11,8 +11,8 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
-#include <utility>
 #include <type_traits>
+#include <utility>
 #include <variant>
 
 namespace bpr::qt {
@@ -82,7 +82,7 @@ namespace bpr::qt {
 			if (aRow.Refusal) {
 				return *aRow.Refusal == core::cycle_promotion_refusal::empty ? QStringLiteral("Cannot be added: the note has no words.")
 					: *aRow.Refusal == core::cycle_promotion_refusal::bounds ? QStringLiteral("Cannot be added: the note is longer than a tour stop holds.")
-																			  : QStringLiteral("Cannot be added: the pull request's publication could not be read.");
+																			 : QStringLiteral("Cannot be added: the pull request's publication could not be read.");
 			}
 			const auto later = QStringLiteral(" You choose its lines when you complete it in the pull request.");
 			switch (aRow.Source.value_or(core::cycle_promotion_source::whole_change)) {
@@ -244,8 +244,8 @@ namespace bpr::qt {
 
 	void review_cycle_promote_sheet::present(const application::review_cycle_promotion_view& aView)
 	{
-		Presenting = true;
-		Shown      = aView;
+		Presenting        = true;
+		Shown             = aView;
 		const auto number = static_cast<qulonglong>(aView.Link.Address.Number);
 		Title->setText(QStringLiteral("Add notes to the Review Tour of #%1").arg(number));
 		Intro->setText(QStringLiteral("%1/%2 #%3. Each note you check becomes one stop, in its own words. A stop waits for you to complete it in the pull request.")
@@ -271,7 +271,8 @@ namespace bpr::qt {
 		}
 
 		const auto chosen = static_cast<std::size_t>(std::ranges::count_if(aView.Rows, [](const auto& aRow) { return aRow.Chosen && aRow.Source; }));
-		Add->setText(chosen == 1U ? QStringLiteral("Add 1 Note") : chosen == 0U ? QStringLiteral("Add Notes") : QStringLiteral("Add %1 Notes").arg(chosen));
+		Add->setText(chosen == 1U ? QStringLiteral("Add 1 Note") : chosen == 0U ? QStringLiteral("Add Notes")
+																				: QStringLiteral("Add %1 Notes").arg(chosen));
 		Add->setVisible(ready || aView.Target == application::review_cycle_promotion_target::looking);
 		Add->setEnabled(ready && !aView.Busy && chosen > 0U);
 		OpenPull->setEnabled(!aView.Busy);
