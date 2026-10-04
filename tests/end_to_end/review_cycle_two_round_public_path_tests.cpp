@@ -152,6 +152,39 @@ namespace {
 		return aPage.projection().Activity == application::review_cycle_activity::idle;
 	}
 
+	/// \brief Gives `aWindow` back the keyboard after a dialog over it closed,
+	/// as the window system does for a hand; offscreen leaves no window active.
+	///
+	/// \details On macOS a session that keeps another application in front
+	/// (someone using it, or the terminal that started the course) never makes
+	/// this window key, however long the course waits. The course then
+	/// delivers the key-window change through the QPA entry point the cocoa
+	/// plugin itself calls, and says so once; the person's own keys stay with
+	/// their application.
+	void reactivate(QWidget& aWindow)
+	{
+		if (aWindow.isActiveWindow()) {
+			return;
+		}
+#if defined(Q_OS_MACOS)
+		static auto delivered = false;
+		if (!delivered) {
+			aWindow.activateWindow();
+			if (wait_for([&] { return aWindow.isActiveWindow(); }, 3000)) {
+				return;
+			}
+			say("NOTE key-window changes are delivered through QPA: the session keeps another application in front");
+			delivered = true;
+		}
+		// Someone using another application can take activation away mid-course too.
+		QWindowSystemInterface::handleFocusWindowChanged(aWindow.windowHandle(), Qt::ActiveWindowFocusReason);
+		wait_for([&] { return aWindow.isActiveWindow(); }, 3000);
+#else
+		aWindow.activateWindow();
+		wait_for([&] { return aWindow.isActiveWindow(); }, 3000);
+#endif
+	}
+
 	/// One click at the middle of a visible control, through the window system.
 	void click(QWidget& aControl)
 	{
@@ -164,6 +197,7 @@ namespace {
 	/// the window system reports a hand's keys.
 	void type(QWidget& aWindow, const QString& aText)
 	{
+		reactivate(*aWindow.window());
 		for (const auto character : aText) {
 			const auto upper = character.toUpper().unicode();
 			const auto key   = character == QLatin1Char(' ') ? int{ Qt::Key_Space } : int{ upper };
@@ -173,32 +207,6 @@ namespace {
 		}
 	}
 
-	/// \brief Gives `aWindow` back the keyboard after a dialog over it closed,
-	/// as the window system does for a hand; offscreen leaves no window active.
-	///
-	/// \details On macOS a session that keeps another application in front
-	/// (someone using it, or the terminal that started the course) never makes
-	/// this window key, however long the course waits. The course then
-	/// delivers the key-window change through the QPA entry point the cocoa
-	/// plugin itself calls, and says so once; the person's own keys stay with
-	/// their application.
-	void reactivate(QWidget& aWindow)
-	{
-		aWindow.activateWindow();
-		if (wait_for([&] { return aWindow.isActiveWindow(); }, 3000)) {
-			return;
-		}
-#if defined(Q_OS_MACOS)
-		static auto said = false;
-		if (!said) {
-			say("NOTE key-window changes are delivered through QPA: the session keeps another application in front");
-			said = true;
-		}
-		QWindowSystemInterface::handleFocusWindowChanged(aWindow.windowHandle(), Qt::ActiveWindowFocusReason);
-		wait_for([&] { return aWindow.isActiveWindow(); }, 3000);
-#endif
-	}
-
 	/// \brief Answers the application's next file dialog with `aPath`, as the
 	/// reviewer would type it in, and accepts it.
 	void answer_next_file_dialog(const QString& aPath, bool& aAnswered)
@@ -206,7 +214,12 @@ namespace {
 		auto* const timer = new QTimer{ };
 		timer->setInterval(20);
 		QObject::connect(timer, &QTimer::timeout, [timer, aPath, &aAnswered] {
-			auto* const dialog = qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+			auto* dialog = qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+			for (auto* const top : QApplication::topLevelWidgets()) {
+				if (dialog == nullptr && top->isVisible()) {
+					dialog = qobject_cast<QFileDialog*>(top);
+				}
+			}
 			if (dialog == nullptr || !dialog->isVisible()) {
 				return;
 			}
@@ -396,6 +409,8 @@ namespace {
 		auto run(const QJsonObject& aCommand) -> QJsonObject
 		{
 			const auto verb = aCommand[QStringLiteral("verb")].toString();
+			// Keys reach only the active window: the sheet while it is open, else the window.
+			reactivate(Page.share_page()->isVisible() ? static_cast<QWidget&>(*Page.share_page()) : static_cast<QWidget&>(Window));
 			if (verb == QStringLiteral("state")) {
 				return state(Window, Page);
 			}
@@ -499,8 +514,14 @@ namespace {
 			auto* list = Window.home_cycles_list();
 			for (auto row = 0; row < list->count(); ++row) {
 				if (list->item(row)->text().contains(aTitle)) {
+					const auto resumed = [&] { return Window.showing_local_cycle() && Page.projection().Cycle && idle(Page) && !Page.projection().Files.empty(); };
 					activate(*list, *list->item(row));
-					require(wait_for([&] { return Window.showing_local_cycle() && Page.projection().Cycle && idle(Page) && !Page.projection().Files.empty(); }), "the cycle resumes from Home");
+					if (!wait_for(resumed, 5000)) {
+						say("NOTE a double click on Home's " + utf8(aTitle) + " opened nothing; given once more");
+						reactivate(Window);
+						activate(*list, *list->item(row));
+					}
+					require(wait_for(resumed), "the cycle resumes from Home");
 					wait_for([&] { return idle(Page) && Page.projection().Notes.size() >= aNotes && Page.notes()->count() == static_cast<int>(Page.projection().Notes.size()); }, 10000);
 					return state(Window, Page);
 				}
@@ -513,14 +534,21 @@ namespace {
 			auto* const files = Page.files();
 			for (auto row = 0; row < files->count(); ++row) {
 				if (files->item(row)->data(Qt::UserRole).toString() == aPath) {
+					const auto opened = [&] {
+						const auto& shown = Page.projection();
+						return idle(Page) && ((shown.Source && text_of(shown.Source->Path) == aPath && Page.source()->isVisible()) || (shown.Comparison && text_of(shown.Comparison->Path) == aPath));
+					};
 					activate(*files, *files->item(row));
+					// On a shared native desktop a person's own pointer can come
+					// between the two clicks; a double click that opened nothing
+					// is given once more, and said.
+					if (!wait_for(opened, 5000)) {
+						say("NOTE a double click on " + utf8(aPath) + " opened nothing; given once more");
+						reactivate(Window);
+						activate(*files, *files->item(row));
+					}
 					// In full source, or in the view the reading pane is in.
-					require(wait_for([&] {
-								const auto& shown = Page.projection();
-								return idle(Page)
-									&& ((shown.Source && text_of(shown.Source->Path) == aPath && Page.source()->isVisible()) || (shown.Comparison && text_of(shown.Comparison->Path) == aPath));
-							}),
-							"the file opens in the reading pane: " + utf8(aPath));
+					require(wait_for(opened), "the file opens in the reading pane: " + utf8(aPath));
 					return;
 				}
 			}
@@ -547,6 +575,7 @@ namespace {
 			select(static_cast<std::uint64_t>(aCommand[QStringLiteral("start")].toInteger()), static_cast<std::uint64_t>(aCommand[QStringLiteral("end")].toInteger()));
 			const auto before = Page.projection().Notes.size();
 			// Return in the read-only code notes the selection ([[BPR-1157]]).
+			reactivate(Window);
 			tests::window_system_key(*Page.source(), Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
 			require(Page.comment_editor()->isVisible() && QApplication::focusWidget() == Page.comment_editor(), "Return opens a note on the selection; focus is on " + focus_name());
 			type(*Page.comment_editor(), aCommand[QStringLiteral("body")].toString());
@@ -563,6 +592,7 @@ namespace {
 			select(static_cast<std::uint64_t>(aCommand[QStringLiteral("start")].toInteger()), static_cast<std::uint64_t>(aCommand[QStringLiteral("end")].toInteger()));
 			const auto before = Page.projection().Notes.size();
 			// Shift+Return in the code begins Suggest change on the selection.
+			reactivate(Window);
 			tests::window_system_key(*Page.source(), Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
 			require(Page.suggesting() && !Page.source()->read_only() && QApplication::focusWidget() == Page.source(), "Shift+Return begins Suggest change in the code");
 			// Typing replaces the selection.
