@@ -582,6 +582,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_profile_cycle_handoff_public_path": "dos-volume-name",
     "application_profile_tour_handoff_public_path": "dos-volume-name",
     "sqlite_tour_owner_channel": "dos-volume-name",
+    # [[BPR-1166]]. Measured on JaegAW 2026-10-03 at 544bd5ce0 in a
+    # BPR_BUILD_TOUR_CLI tree, contained as registered. The course's first
+    # `git init` in its AC\Temp project exits 128 with "fatal: unable to get
+    # current working directory: Permission denied" (Git's getcwd) before any
+    # desktop step. It passes uncontained.
+    "application_review_cycle_two_round_public_path": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they

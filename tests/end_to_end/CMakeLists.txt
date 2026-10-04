@@ -3267,7 +3267,10 @@ if(TARGET app_bpr)
     # `bpr cycle` export and a granted harness's read, edits made outside, a
     # restart, Capture revision, comparisons, verification, Save next round and
     # another capture. No agent component is reachable and no callback is read.
-    # Registered contained: Windows measures it before any pin.
+    # Uncontained on Windows (dos-volume-name): contained, the course's first
+    # `git init` in its AC\Temp project exits 128 with "unable to get current
+    # working directory: Permission denied", Git's getcwd, before any desktop
+    # step. Measured on JaegAW 2026-10-03.
     bpr_add_executable(test_review_cycle_two_round_public_path review_cycle_two_round_public_path_tests.cpp)
     target_link_libraries(test_review_cycle_two_round_public_path PRIVATE BetterPullReview::Composition)
     target_compile_definitions(test_review_cycle_two_round_public_path PRIVATE BPR_BUILD_TESTING=1)
@@ -3288,7 +3291,7 @@ if(TARGET app_bpr)
         target_include_directories(test_review_cycle_two_round_public_path SYSTEM PRIVATE
             "${bpr_two_round_qtgui_private}" "${bpr_two_round_qtgui_private}/QtGui")
     endif()
-    bpr_add_network_isolated_test(NAME application_review_cycle_two_round_public_path
+    bpr_add_network_isolated_test(NAME application_review_cycle_two_round_public_path WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_two_round_contract.py"
         --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
         --cycle-application $<TARGET_FILE:app_bpr>)

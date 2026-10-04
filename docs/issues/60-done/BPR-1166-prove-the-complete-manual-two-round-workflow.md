@@ -98,3 +98,34 @@ above: configure and build succeeded and all 6 tests passed:
 `test_network_isolation_manifest` and `architecture_boundaries`. The new row
 ran contained with nothing pinned. Done is not reopened; the Windows run is
 still owed.
+
+### Windows at `544bd5ce0` (bpr-main-win, 2026-10-04)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev-tour-cli`
+Debug (`BPR_BUILD_TOUR_CLI=ON`), configured and built fresh; the build printed
+no `warning C` or `warning LNK` line.
+
+**First run, as registered:** 5 of 6 passed. The new course failed contained in
+0.27 s. Measured with git's stderr printed: its first `git init`, in the
+project under `…\Packages\bprautomatedtest\AC\Temp\…`, exits 128 with
+`fatal: unable to get current working directory: Permission denied`. That is
+Git's `getcwd` asking for the DOS path, so the cause is `dos-volume-name`. The
+row is now `WINDOWS_UNCONTAINED` in `tests/end_to_end/CMakeLists.txt` and pinned
+with that line in `scripts/verify_test_network_isolation.py`.
+
+**Uncontained, a second stop:** the first desktop exited `0xC0000409` before
+`DESKTOP_READY`, printing `Could not find platform config file C`. Qt splits
+`QT_QPA_PLATFORM` at every `:`, so `offscreen:configfile=C:\…\offscreen-screen.json`
+handed it the path `C`. The course now passes the screen file relative to the
+working directory the desktop inherits whenever the path holds a `:`. POSIX
+paths are unchanged. This is a test-only change; no product source changed.
+
+**After the pin and the fix:** the six rows pass 6/6 in 46.21 s.
+`application_review_cycle_two_round_public_path` passes uncontained in 46.06 s,
+with all three desktops `offscreen active=1 size=1280x820 screen=1920x1200` and
+`REVIEW_CYCLE_TWO_ROUND_OK`. `test_network_isolation_manifest` passes with the
+new pin, and so does `coding-format-check` (1215 files).
+
+Not changed, for the record: when a desktop fails before it is ready, the
+course leaves its own `desktop-N.log` descriptor open, so the temporary root's
+removal then reports `WinError 32` on that log behind the real assertion.

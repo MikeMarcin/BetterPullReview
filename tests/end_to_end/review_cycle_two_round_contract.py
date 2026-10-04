@@ -215,7 +215,11 @@ def main():
             # restored window at its 900-pixel minimum width.
             screen = workspace / "offscreen-screen.json"
             screen.write_text(json.dumps({"screens": [{"name": "Course", "x": 0, "y": 0, "width": 1920, "height": 1200, "logicalDpi": 96, "logicalBaseDpi": 96, "dpr": 1}]}), encoding="utf-8")
-            environment["QT_QPA_PLATFORM"] = f"offscreen:configfile={screen}"
+            # Qt splits the platform argument at every ':', so a Windows drive
+            # letter would end the path at "C". The desktop inherits the course's
+            # working directory, so a relative path names the same file.
+            spec = os.path.relpath(screen) if ":" in str(screen) else str(screen)
+            environment["QT_QPA_PLATFORM"] = f"offscreen:configfile={spec}"
 
         # The project: a Git checkout with work not yet committed, four files, one CRLF with tabs.
         project = workspace / "config-parser"
