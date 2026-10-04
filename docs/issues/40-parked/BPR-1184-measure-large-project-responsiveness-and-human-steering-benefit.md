@@ -170,3 +170,24 @@ Reject question in a new attended session (not f18e0aba or cbd48b91):
 - Next action: on hand-back, read the verdict and the counts in its note and
   record them here as RC61-10's steering evidence; on station returns, commit
   their reports and set their targets. Finish when both are in.
+
+**Note: Linux station return (`bpr-main-linux`, 2026-10-04).** Host: Intel
+i9-10900KF, 20 logical CPUs, 62.7 GiB, WSL2 kernel 6.18.33.2, Qt 6.11.2,
+offscreen. The station was otherwise idle (load 0.11 before the run). Both
+trees were run as the station request writes them:
+
+- Release, `build/bpr1184-release` at `397908dec`:
+  `application_review_cycle_large_project` passed 1/1 in 133.38 s. The report
+  is [`linux-release-report.json`](../../verification/BPR-1184-large-project/linux-release-report.json),
+  SHA-256 `8d084f35af9f0c70899c40a3dde308a7ead7a521bffdbae28842b5a7e9cae656`,
+  byte for byte. It has `run.enforced` false, `failures` empty and
+  `source.revision` `397908dec…` with 0 tracked changes.
+- Debug, `build/dev-tour-cli` at `f8ce4cd3c`: 7/7 passed (123.53 s).
+
+Typing p95 while capturing was 0.58 and 0.71 ms, and navigation p95 5.68 and
+6.04 ms (20,000 and 100,001 files). Cold opens took 1,737.4 and 7,639.7 ms,
+warm opens 92.9 and 207.5 ms, and unchanged captures 1,121.1 and 3,832.2 ms.
+Share notes opening with 514 rows held the GUI thread for one turn of
+**270.9 ms**, matching the macOS 234.8 ms finding. The 250,001-entry limit
+was refused with its words in 4,779.1 ms (desktop) and 4,765.4 ms
+(terminal). The course removed its corpora.
