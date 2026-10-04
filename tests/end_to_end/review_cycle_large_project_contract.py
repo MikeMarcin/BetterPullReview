@@ -35,7 +35,12 @@ limits are stated) fails the run everywhere.
 
 This course does not purge the operating system's file cache: "cold" is a
 first open into a new profile with no retained material, "warm" a reopen of an
-existing cycle after a restart. It measures one machine; it is not a
+existing cycle after a restart. Each corpus is read once, untimed, right after
+it is written ([[BPR-1275]]): a host may scan a file the first time it is opened
+(about 5 ms a file under Windows Defender), and whichever path read first would
+otherwise carry that scan alone. The report keeps that first read as
+`corpus.first_read_ms`, and in an optimized build the desktop's cold open must
+stay within `COLD_OPEN_RATIO_LIMIT` of `bpr cycle open` on the same folder. It measures one machine; it is not a
 frame-rate guarantee and claims no token or model saving.
 """
 import argparse
@@ -63,6 +68,9 @@ MIB = 1024 * 1024
 TYPING_TARGET_MS = 100.0
 NAVIGATION_TARGET_MS = 100.0
 PROGRESS_THRESHOLD_MS = 250.0
+# [[BPR-1275]]. The desktop's cold Open Project against `bpr cycle open` on the
+# same warm folder; macOS Release measured 1.16 and 1.03 at 397908dec.
+COLD_OPEN_RATIO_LIMIT = 3.0
 CAPTURED_FILE_LIMIT = 128 * MIB
 
 CORPORA = {
@@ -203,6 +211,14 @@ class Course:
             path.write_bytes(content)
             total += len(content)
             digest.update(content)
+        # [[BPR-1275]]. One untimed read of every file, so a host's first-open scan
+        # is the corpus's cost, kept here, and not the first path's to measure.
+        first_read_ms = None
+        if not self.args.no_warm_up:
+            reading = time.perf_counter()
+            for index in range(spec["files"]):
+                (root / corpus_path(index)).read_bytes()
+            first_read_ms = round((time.perf_counter() - reading) * 1000.0, 1)
         oversized = None
         if spec["oversized"]:
             oversized = "aaa-limits/oversized.bin"
@@ -211,7 +227,7 @@ class Course:
                 handle.truncate(CAPTURED_FILE_LIMIT + MIB)
         facts = {"files": spec["files"] + (1 if oversized else 0), "text_files": spec["files"], "lines": spec["files"] * spec["lines"], "text_bytes": total,
                  "text_sha256": digest.hexdigest(), "oversized_file_bytes": CAPTURED_FILE_LIMIT + MIB if oversized else None,
-                 "generated_s": round(time.perf_counter() - started, 3)}
+                 "generated_s": round(time.perf_counter() - started, 3), "first_read_ms": first_read_ms}
         return root, facts, oversized
 
     def edit(self, root, spec, tag):
@@ -541,6 +557,20 @@ class Course:
                                                "progress_shown": "Capturing: " in cancel.get("progress", ""), "cancel_offered": cancel.get("offered") == "Cancel capture",
                                                "nothing_recorded_on_cancel": bool(cancel.get("unrecorded"))})
 
+    def cold_open_ratio(self, name, entry):
+        """[[BPR-1275]]. The desktop's cold open within a factor of the terminal's, pinned in optimized builds."""
+        desktop = entry["desktop"].get("open_cold", {}).get("p50")
+        terminal = entry["terminal"].get("open_cold", {}).get("p50")
+        if desktop is None or not terminal:
+            return
+        pinned = self.args.build_type.lower() not in ("debug", "unknown")
+        ratio = round(desktop / terminal, 3)
+        met = ratio <= COLD_OPEN_RATIO_LIMIT
+        self.report["targets"].append({"corpus": name, "phase": "open_cold_ratio", "desktop_ms": desktop, "terminal_ms": terminal, "ratio": ratio,
+                                       "limit": COLD_OPEN_RATIO_LIMIT, "met": met, "enforced": pinned, "warmed": not self.args.no_warm_up})
+        if pinned and not met:
+            self.report["failures"].append(f"{name} desktop cold open {desktop} ms is {ratio} times bpr cycle open's {terminal} ms, over {COLD_OPEN_RATIO_LIMIT}")
+
     def run(self):
         selected = self.args.corpus or list(CORPORA)
         for name in selected:
@@ -564,6 +594,7 @@ class Course:
                 stress_phases, stress_facts = self.stress_round(name, spec, root, desktop_data)
                 self.report["stress_round"] = {"corpus": name, "phases": {phase: summary(values) for phase, values in sorted(stress_phases.items())}, "facts": stress_facts}
             self.report["corpora"][name] = entry
+            self.cold_open_ratio(name, entry)
             print(f"MEASURED {name} {json.dumps(entry, sort_keys=True)}", flush=True)
         if self.args.limit_probe:
             self.report["limit_probe"] = self.limit_probe()
@@ -584,6 +615,7 @@ def main():
     parser.add_argument("--enforce", type=int, default=0)
     parser.add_argument("--wait-scale", type=int, default=20)
     parser.add_argument("--no-stress", action="store_true", help="leave out the stress round")
+    parser.add_argument("--no-warm-up", action="store_true", help="[[BPR-1275]] negative control: measure with no untimed first read of the corpus")
     parser.add_argument("--limit-probe", action="store_true", help="also refuse a 250,001-entry folder")
     parser.add_argument("--quick", type=int, default=0, help="1: a correctness run on 2,000 files, no stress round or limit probe, no measurement claim")
     args = parser.parse_args()
