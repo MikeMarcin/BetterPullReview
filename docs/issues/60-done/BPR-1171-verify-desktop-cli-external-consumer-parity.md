@@ -87,3 +87,12 @@ These do not gate the card. The commands are in the ledger section, for
 contained. If Windows stops it inside the container, as it stops the sibling
 handoff course, pin it `WINDOWS_UNCONTAINED` with the measured line and record
 it here as a note.
+
+**Note: Linux run at `816b68f3b` (station `bpr-main-linux`, WSL2,
+`build/dev-tour-cli` with `BPR_BUILD_TOUR_CLI=ON`).** Configure and build
+succeeded and all 7 tests passed: `application_review_cycle_parity_public_path`
+(40.7 s), `application_review_cycle_two_round_public_path`,
+`application_review_cycle_desktop_public_path`,
+`application_profile_cycle_handoff_public_path`, `cycle_cli_public_path`,
+`test_network_isolation_manifest` and `architecture_boundaries`. Everything ran
+contained with nothing pinned. Done is not reopened.
