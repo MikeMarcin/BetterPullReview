@@ -3327,6 +3327,22 @@ if(TARGET app_bpr)
         --cycle-application $<TARGET_FILE:app_bpr>)
     set_tests_properties(application_profile_cycle_handoff_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300)
+    # [[BPR-1181]]. Review Cycles' security boundaries attacked through real
+    # processes, the shipped `bpr` and the reviewer's desktop: a hostile
+    # checkout whose Git canaries never fire, hostile note text, forged
+    # responses, one policy for every channel with and without the desktop, a
+    # same-user peer and impostor owners at the owner's endpoint, and credential
+    # and content canaries kept out of every file, log and refusal. Registered
+    # contained: Windows has not measured it yet; a measured refusal is pinned,
+    # not guessed.
+    bpr_add_network_isolated_test(NAME application_review_cycle_security_qualification
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_security_qualification.py"
+        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
+        --cycle-application $<TARGET_FILE:app_bpr>)
+    set_tests_properties(application_review_cycle_security_qualification PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_SECURITY_QUALIFICATION_OK"
+        TIMEOUT 600)
     bpr_add_network_isolated_test(NAME application_review_cycle_two_round_public_path WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_two_round_contract.py"
         --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
