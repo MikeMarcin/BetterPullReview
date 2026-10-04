@@ -518,6 +518,14 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "agent-launch-tests:pass"
 )
 
+# [[BPR-1180]]. The Send to Agent launch per protocol, and how a run's end is read.
+bpr_add_executable(test_better_pull_review_review_cycle_round_launch_tests review_cycle_round_launch_tests.cpp)
+target_link_libraries(test_better_pull_review_review_cycle_round_launch_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_review_cycle_round_launch_tests)
+bpr_enable_warnings(test_better_pull_review_review_cycle_round_launch_tests)
+bpr_add_network_isolated_test(NAME application_review_cycle_round_launch COMMAND test_better_pull_review_review_cycle_round_launch_tests)
+set_tests_properties(application_review_cycle_round_launch PROPERTIES PASS_REGULAR_EXPRESSION "review-cycle-round-launch-tests:pass")
+
 bpr_add_executable(
     test_better_pull_review_agent_protocol_loop_tests
     agent_protocol_loop_tests.cpp
