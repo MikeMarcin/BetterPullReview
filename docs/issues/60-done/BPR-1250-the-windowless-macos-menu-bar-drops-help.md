@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1250"
 title: "Closing the last window takes Help off the macOS menu bar"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 platforms: ["mac"]
 metadata: {"origin":"triaged by the main stabilization milestone, macOS arm64, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1250--BPR-1250--34ad467c0959.json","related_cards":["BPR-1035","BPR-1121","BPR-1157"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"application_profile_empty_desktop_native_menu_bar passes in the owner's Aqua session","outcome":"pass","revision":"4c8bcda0b","evidence":{"kind":"command","detail":"ctest -V -R ^application_profile_empty_desktop_native_menu_bar$ in /Users/jaeger/bpr1250-review-v003.pDiQ9g/source/build/cand (4c8bcda0b), owner's logged-in unlocked Aqua session on macOS arm64: Passed 4.31 s; 'AppKit activated this process and made the window key', 'key windows were native throughout'. A first non-verbose run passed in 7.00 s."}},{"criterion":"Owner judgment of which commands windowless Help offers","outcome":"pending","revision":"4c8bcda0b","evidence":{"kind":"freeform","detail":"help-v002 rejected at event 899 because the frozen build closed at launch (its fixture tree was in a removed worktree), not over Help. Asked again on the self-contained v003 build as BPR-1250-help-v003, session cbd48b91000b00f1e72e1ad62c7c384c, port 59998."}},{"criterion":"The menu bar status item stays from launch until Quit, through the last window's close","outcome":"pending","revision":"4c8bcda0b","evidence":{"kind":"observation","detail":"Automated part passes (the course above). The owner's launch command for v003 run unchanged: after the window's close button the process stays with 0 windows, menu bar 2 'status menu' 24 x 24, and Apple, File, Profiles, Pull Request, View, Help; Quit exits 0. Owner's confirmation is BPR-1250-help-v003."}},{"criterion":"The status item is a monochrome Dif template image macOS tints","outcome":"pass","revision":"a4723f817","evidence":{"kind":"observation","detail":"Owner accepted BPR-1250-menubar-dif-v001 (fingerprint cb3a79372079, decision 00e0e86f-6c5e-4453-a29a-7d77cc178ae3, 2026-10-03T18:50:24Z, session cbd48b91000b00f1e72e1ad62c7c384c). Automated part: qt_menu_bar_status_item(_cocoa) and dif_status_item_template_contract pass at a4723f817."}}]
+acceptance: [{"criterion":"application_profile_empty_desktop_native_menu_bar passes in the owner's Aqua session","outcome":"pass","revision":"4c8bcda0b","evidence":{"kind":"command","detail":"ctest -V -R ^application_profile_empty_desktop_native_menu_bar$ in /Users/jaeger/bpr1250-review-v003.pDiQ9g/source/build/cand (4c8bcda0b), owner's logged-in unlocked Aqua session on macOS arm64: Passed 4.31 s; 'AppKit activated this process and made the window key', 'key windows were native throughout'. A first non-verbose run passed in 7.00 s."}},{"criterion":"Owner judgment of which commands windowless Help offers","outcome":"pass","revision":"4c8bcda0b","evidence":{"kind":"observation","detail":"Owner Accept of BPR-1250-help-v003 on the frozen build of 4c8bcda0b (sha256 bf212edf...4b82a5), session f18e0aba4e53e518cd4f57a4dbcfc475, event 8, decision a2b6a4dd-6865-4c03-bc4b-c87b3f5c2012, fingerprint 51ea8a00...725895, note: 'It works, I'm not sure why but dif doesn't look great to me once it's actually there in the menu bar.' Windowless Help lists Diagnostics..., Export anonymized diagnostics..., Export with identifying details..., disabled without a window. The glyph's look is follow-up BPR-1271. Released by name at event 11."}},{"criterion":"The menu bar status item stays from launch until Quit, through the last window's close","outcome":"pass","revision":"4c8bcda0b","evidence":{"kind":"observation","detail":"Automated part passes (the Aqua course). The owner's launch command for v003 run unchanged: after the window's close button the process stays with 0 windows, menu bar 2 'status menu' 24 x 24, and Apple, File, Profiles, Pull Request, View, Help; Quit exits 0. Owner Accept of BPR-1250-help-v003, event 8 ('It works')."}},{"criterion":"The status item is a monochrome Dif template image macOS tints","outcome":"pass","revision":"a4723f817","evidence":{"kind":"observation","detail":"Owner accepted BPR-1250-menubar-dif-v001 (fingerprint cb3a79372079, decision 00e0e86f-6c5e-4453-a29a-7d77cc178ae3, 2026-10-03T18:50:24Z, session cbd48b91000b00f1e72e1ad62c7c384c). Automated part: qt_menu_bar_status_item(_cocoa) and dif_status_item_template_contract pass at a4723f817. The owner's later note on the look (help-v003) is follow-up BPR-1271, not a rejection of this criterion."}}]
 ---
 
 # BPR-1250: Closing the last window takes Help off the macOS menu bar
@@ -290,3 +289,38 @@ to session `f18e0aba4e53e518cd4f57a4dbcfc475`:
 
 The launch command is unchanged:
 `/opt/homebrew/bin/python3 /Users/jaeger/bpr1250-review-v003.pDiQ9g/launch.py`.
+
+## Owner verdict at hand-back 9: help-v003 accepted (2026-10-04)
+
+Read with `status --after 6` in session `f18e0aba4e53e518cd4f57a4dbcfc475`.
+`BPR-1250-help-v003` was **accepted** at event 8, decision
+`a2b6a4dd-6865-4c03-bc4b-c87b3f5c2012`, fingerprint `51ea8a00…725895`, on the
+frozen build of `4c8bcda0b` (executable sha256 `bf212edf…4b82a5`). The
+owner handed back at 9. The note, verbatim:
+
+> It works, I'm not sure why but dif doesn't look great to me once it's actually there in the menu bar.
+
+The decision carries a screenshot of the owner's dark menu bar with Dif at
+the left of the status items. It stays in the session's event log and is
+not committed, because it shows other applications' items.
+
+"It works" answers both pending criteria: after the window closes the app
+stays running with Dif in the menu bar until Quit, and windowless Help
+offers Diagnostics…, Export anonymized diagnostics… and Export with
+identifying details…, disabled without a window. The second sentence is
+about the glyph's look. The template-image criterion passed at
+`BPR-1250-menubar-dif-v001` and is not reopened; the look is the Backlog
+follow-up [[BPR-1271]], which quotes the note and points at
+`scripts/dif_status_item_template.py` and the committed pair in
+`src/adapters/qt/assets/status-item/`.
+
+| Criterion | Outcome | Evidence |
+|---|---|---|
+| `application_profile_empty_desktop_native_menu_bar` passes in the owner's Aqua session | Pass | 4.31 s at `4c8bcda0b` in the v003 tree (above) |
+| Owner judgment of which commands windowless Help offers | Pass | Owner Accept, event 8 |
+| The status item stays from launch until Quit, through the last window's close | Pass | Owner Accept, event 8, with the System Events observation above |
+| The status item is a monochrome Dif template image macOS tints | Pass | Owner Accept of `BPR-1250-menubar-dif-v001`, at `a4723f817` |
+
+The item was released by candidate name at event 11; the consumed cursor is
+11. Linux and Windows ran their rows at `93ade9102` and on bpr-main-win
+(above). The card is Done.
