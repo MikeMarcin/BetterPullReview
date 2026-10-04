@@ -382,7 +382,7 @@ namespace bpr::qt {
 
 			[[nodiscard]] auto sizeHint() const -> QSize override
 			{
-				const auto metrics = QFontMetrics{ font() };
+				const auto metrics = QFontMetrics{ words_font() };
 				// Room for the wider of the two words, so opening moves nothing.
 				const auto width = std::max(metrics.horizontalAdvance(Closed), metrics.horizontalAdvance(Open));
 				return QSize{ width + 4, metrics.height() + 2 };
@@ -397,7 +397,7 @@ namespace bpr::qt {
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
 				auto painter = QPainter{ this };
-				auto face    = font();
+				auto face    = words_font();
 				face.setUnderline(underMouse() && isEnabled());
 				painter.setFont(face);
 				const auto ink = !isEnabled() ? palette().color(QPalette::PlaceholderText) : isDown() ? palette().color(QPalette::Link).darker(130)
@@ -410,11 +410,21 @@ namespace bpr::qt {
 			{
 				if (aEvent->type() == QEvent::HoverEnter || aEvent->type() == QEvent::HoverLeave) {
 					update();
+				} else if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::ParentChange) {
+					updateGeometry();
+					update();
 				}
 				return QToolButton::event(aEvent);
 			}
 
 		private:
+			/// The row's font, as its labels have: macOS gives tool buttons a
+			/// smaller font, which would set the words apart from the line they end.
+			[[nodiscard]] auto words_font() const -> QFont
+			{
+				return parentWidget() != nullptr ? parentWidget()->font() : font();
+			}
+
 			QString Closed;
 			QString Open;
 		};
@@ -1262,6 +1272,8 @@ namespace bpr::qt {
 		grid->addWidget(row.Include, 0, 1);
 		row.Number = new QLabel{ row.Row };
 		row.Number->setObjectName(QStringLiteral("cycleShareNumber"));
+		// Clear of the include box, which the arrow used to stand between.
+		row.Number->setContentsMargins(4, 0, 0, 0);
 		grid->addWidget(row.Number, 0, 2);
 		row.Heading = new QLabel{ row.Row };
 		row.Heading->setObjectName(QStringLiteral("cycleShareHeading"));

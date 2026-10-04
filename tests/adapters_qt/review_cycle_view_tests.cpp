@@ -18,6 +18,7 @@
 #include <QDir>
 #include <QFontDatabase>
 #include <QFontInfo>
+#include <QFontMetrics>
 #include <QFontMetricsF>
 #include <QFrame>
 #include <QImage>
@@ -1270,6 +1271,16 @@ namespace {
 			tests::window_system_mouse(*rows[1].Heading, QPointF{ 2.0, 2.0 }, QEvent::MouseMove, Qt::NoButton);
 			expect(inks(link) == resting, "and leaving takes the underline away");
 			expect(toggle->cursor().shape() == Qt::PointingHandCursor, "a pointing hand over it");
+			// macOS gives tool buttons a smaller font of their own; the words keep the row's.
+			const auto kept    = QApplication::font("QToolButton");
+			auto       smaller = kept;
+			smaller.setPointSizeF(kept.pointSizeF() * 0.6);
+			QApplication::setFont(smaller, "QToolButton");
+			settle();
+			const auto rowHeight = QFontMetrics{ rows[1].Where->font() }.height();
+			expect(QFontMetrics{ toggle->font() }.height() < rowHeight && toggle->sizeHint().height() == rowHeight + 2, "Show Code in the row's font, not a tool button's smaller one");
+			QApplication::setFont(kept, "QToolButton");
+			settle();
 		}
 		expect(sheet->notes_heading()->text() == QStringLiteral("2 of 2 notes, in the order they will be read"), "how many go");
 		for (auto* const control : sheet->findChildren<QWidget*>()) {

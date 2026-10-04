@@ -764,6 +764,11 @@ What the owner sees now:
 - It paints itself from the palette at paint time: no QSS, no forced palette,
   and a theme change needs no refresh. It is as wide as the wider of its two
   words, so opening a note moves nothing.
+- It is drawn in the row's font. The first native render of `74b73dabc` drew
+  it in the smaller font macOS gives tool buttons, which set it apart from
+  the line it ends. The same render showed the note number touching the
+  include box once the arrow no longer stood between them, so the number now
+  has a small inset. Both are fixed in the follow-up commit.
 
 Nothing else changed: the code font, the alignment, the syntax colours, Show
 the Whole File and the keys.
@@ -787,13 +792,17 @@ The empty column the arrow left is taken out. The checks are in
 - `application_review_cycle_desktop_public_path` checks Show Code closed,
   Hide Code open, and an excerpt through the real composition. It also
   renders `desktop-cycle-share-closed`.
-- Four negative controls, each rebuilt and reverted, fail their check:
+- With a smaller tool-button font set for the class, as macOS has, the
+  toggle keeps the row's font.
+- Five negative controls, each rebuilt and reverted, fail their check:
   - the toggle put back beside the box fails "far from the include box";
   - painting it in the text colour fails "painted in the link colour";
   - no underline on hover fails "a hover underlines it";
-  - the arrow restored fails "not a glyph".
+  - the arrow restored fails "not a glyph";
+  - drawing in the button's own font fails "Show Code in the row's font".
 - The 18-row BPR-1161 selection passes 18 of 18, including the alignment and
   colour checks from `3b5f405be`, `architecture_boundaries` and
-  `test_network_isolation_manifest`. All 118 `qt_` rows pass.
+  `test_network_isolation_manifest`. All 118 `qt_` rows pass (132 rows in
+  one run with the selection).
 - clang-format, `tidy.py --paths` on the three changed units, and
   `git diff --check` are clean.
