@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1274"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "BPR-1184 finding: 514-item round costs (3 s per note change, 4.3 s freeze, 234.8 ms Share notes open)",
+  "created": "2026-10-04T07:47:09.610216+00:00",
+  "base": "8e1773fab6517ccb9fc818514255512a9d0f0b7c"
+}
