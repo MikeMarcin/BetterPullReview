@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1277"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "Windows round-trip composition contract draft stall at 5 s cap",
+  "created": "2026-10-04T11:51:37.955574+00:00",
+  "base": "becd406a726857016851ec8352b476a55fc3240a"
+}
