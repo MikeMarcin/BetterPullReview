@@ -63,3 +63,24 @@ the terminal or the window (the core has one, BPR-1148). A moved project keeps
 its cycle only by moving back. The follow-up card is for the main integrator
 to allocate. Linux and Windows station runs are owed; their commands are in
 the ledger.
+
+**Note: Linux run at `018cb3c89` (holds `1e897f52a`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, `build/bpr1183`, offscreen; no remote mutation).** The
+listed targets built with no warnings and 3 of 3 passed:
+`application_review_cycle_recovery_corpus` (58.6 s), `sqlite_review_cycle_storage`
+and `cycle_cli_public_path`. No case failed. The corpus printed:
+
+- `RECOVERY_KILL_POINTS_OK`, covering capture, note, goal, freeze, response
+  and save, with `temporary_left=0`.
+- `RECOVERY_OWNER_KILLED_OK` (`terminal_exit=6`, `owner_was_writing=1`).
+- `RECOVERY_DISK_FULL_OK capture response freeze save`, under POSIX's
+  per-process file-size limit.
+- `RECOVERY_DAMAGED_MATERIAL_OK`, `RECOVERY_DAMAGED_STORE_OK`,
+  `RECOVERY_STALE_AND_ROOTS_OK`, `RECOVERY_DUPLICATES_OK` and
+  `RECOVERY_CASE_COLLISIONS_OK`.
+- `REVIEW_CYCLE_RECOVERY_CORPUS_OK`.
+
+Not covered by this command: `RECOVERY_CORPUS_SKIPPED mixed builds: no
+--older-cycle-application or --agent-free-cycle-application was given`. The
+mixed-build case did not run on Linux. `build/bpr1183` was removed. Done is
+not reopened.
