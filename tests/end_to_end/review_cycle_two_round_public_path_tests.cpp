@@ -1239,12 +1239,25 @@ auto main(int aArgc, char** aArgv) -> int
 	auto          gestures = reviewer{ window, *page };
 	QElapsedTimer course;
 	course.start();
-	const auto command = std::filesystem::path{ signal.string() + ".command" };
+	const auto    command = std::filesystem::path{ signal.string() + ".command" };
+	QElapsedTimer unreadable;
 	while (!std::filesystem::exists(signal) && course.elapsed() < qint64{ 540000 } * wait_scale()) {
-		if (std::filesystem::exists(command)) {
-			const auto text = read_file(command);
+		const auto text     = std::filesystem::exists(command) ? read_file(command) : std::string{ };
+		const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(text));
+		if (std::filesystem::exists(command) && !document.isObject()) {
+			// [[BPR-1184]]. On Windows a command renamed into place a moment ago
+			// can refuse the open while a scan holds it, and the read comes back
+			// empty. It stays where it is and is read again, within a bound.
+			if (!unreadable.isValid()) {
+				unreadable.start();
+			} else if (unreadable.elapsed() > 2000) {
+				std::cerr << "FAILED: the course's command stays unreadable: [" << text << "]\n";
+				return EXIT_FAILURE;
+			}
+		} else if (document.isObject()) {
+			unreadable.invalidate();
 			std::filesystem::remove(command);
-			const auto request = QJsonDocument::fromJson(QByteArray::fromStdString(text)).object();
+			const auto request = document.object();
 			const auto id      = request[QStringLiteral("id")].toInteger();
 			auto       reply   = QJsonObject{ };
 			// [[BPR-1184]]. How long the gesture took, measured here rather

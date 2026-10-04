@@ -143,12 +143,24 @@ auto main(int aArgc, char** aArgv) -> int
 	say("OWNER_READY");
 	QElapsedTimer course;
 	course.start();
-	const auto step = [&] {
+	QElapsedTimer unreadable;
+	const auto    step = [&] {
 		const auto command = signal.string() + ".command";
 		if (!std::filesystem::exists(command)) {
 			return std::filesystem::exists(signal);
 		}
 		const auto text = read_command(command);
+		if (text.empty()) {
+			// On Windows a command renamed into place a moment ago can refuse the
+			// open while a scan holds it, and the read comes back empty. It stays
+			// where it is and is read again, within a bound ([[BPR-1184]]).
+			if (!unreadable.isValid()) {
+				unreadable.start();
+			}
+			expect(unreadable.elapsed() <= 2000, "the course's command is readable");
+			return false;
+		}
+		unreadable.invalidate();
 		std::filesystem::remove(command);
 		std::istringstream words{ text };
 		std::string        verb;

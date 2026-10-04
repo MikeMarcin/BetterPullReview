@@ -101,7 +101,7 @@ def changed_indices(files):
 class LargeDesktop(Desktop):
     """The [[BPR-1166]] reviewer, with clocks long enough for a large project."""
 
-    def ask(self, verb, timeout=1800, **arguments):
+    def ask(self, verb, timeout=600, **arguments):
         identity = self.next_id
         self.next_id += 1
         pending = Path(str(self.signal) + ".command.tmp")
