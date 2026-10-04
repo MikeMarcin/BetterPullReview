@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1177"
 title: "Integrate publication preview, local continuity and PR handoff"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0059", "RFC-BPR-0061"]
 depends_on: ["BPR-1161", "BPR-1176"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-08", "RC59-09", "RC61-08"], "pack_alias": "PACK-CYCLE-35", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
