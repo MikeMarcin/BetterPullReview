@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1271"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-1250 follow-up: redesign the menu-bar Dif template image (owner note, help-v003)",
+  "created": "2026-10-04T04:18:40.484379+00:00",
+  "base": "9cc3087d20e198681841d81dc8a4c8c5ef95a86a"
+}
