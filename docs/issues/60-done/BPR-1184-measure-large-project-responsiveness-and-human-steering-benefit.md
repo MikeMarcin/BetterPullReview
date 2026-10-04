@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1184"
 title: "Measure large-project responsiveness and human steering benefit"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0054", "RFC-BPR-0061"]
 depends_on: ["BPR-1166", "BPR-1171"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "qualification", "acceptance": ["RC54-08", "RC61-10"], "pack_alias": "PACK-CYCLE-42", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"RC54-08","outcome":"pending","revision":"397908dec918d2a78cb112ef5c1fc4b5a3060262","evidence":{"kind":"artifact","path":"docs/verification/BPR-1184-large-project-2026-10-04.md","detail":"macOS arm64 Release, application_review_cycle_large_project 1/1 in 181.83 s at 397908dec (0 tracked changes): drawer and compare page every listing (25 windows of 4,096 at 100,001 files, last file opened; changed-only pages exactly the 1,000 edited files plus the over-budget file as unknown); Cancel capture stops within 7.47 ms and records nothing; hashing on the capture lane (GUI longest turn during a capture 0.43 ms, during any listing 38.5 ms); core and host state hold one window. Report docs/verification/BPR-1184-large-project/mac-release-report.json sha256 4a649b44...947291c. Pending: Windows and Linux reports (station requests on the card)."}},{"criterion":"RC61-10","outcome":"pending","revision":"397908dec918d2a78cb112ef5c1fc4b5a3060262","evidence":{"kind":"artifact","path":"docs/verification/BPR-1184-large-project-2026-10-04.md","detail":"Latency and memory, macOS Release at 397908dec: typing while capturing p95 0.51/0.53 ms and navigation p95 4.93/6.32 ms (20,000/100,001 files), enforced against 100 ms; cold open 2.1/10.1 s, unchanged capture 1.5/6.0 s, warm open 97.7/162.8 ms, desktop footprint at most 96.6/165.8 MiB, terminal peak 36.6/92.5 MiB; 514-item round about 3 s per note change, 4.3 s to freeze, sheet opens with a 234.8 ms GUI turn (negative finding, not changed); limit probe names 250,000 entries. Pending: the human steering comparison (attended item BPR-1184-steering-benefit-v001) and the Windows and Linux reports."}},{"criterion":"BPR-1184:fixes","outcome":"pass","revision":"397908dec918d2a78cb112ef5c1fc4b5a3060262","evidence":{"kind":"command","path":"docs/verification/BPR-1184-large-project-2026-10-04.md","detail":"Capture lane (navigation during a 100,000-file capture 9,836.8 ms before, p95 6.32 ms after), progress and Cancel capture, windowed drawer reaching every file, over-budget file named, over-limit words name 250,000, tab saves deferred during a capture. review_cycle_capture and review_cycle_workbench contracts fail with the lane removed and with the deferred save removed; integration pass 64/64 plus the large-project row, round-trip pin, coding-format-check, DOCUMENTATION_OK."}}]
+acceptance: [{"criterion":"RC54-08","outcome":"pass","revision":"397908dec918d2a78cb112ef5c1fc4b5a3060262","evidence":{"kind":"artifact","path":"docs/verification/BPR-1184-large-project/","detail":"application_review_cycle_large_project Release reports, failures empty, 0 tracked changes: macOS arm64 at 397908dec (1/1 181.83 s, sha256 4a649b44...947291c), Linux WSL2 at 397908dec (1/1 133.38 s, sha256 8d084f35...cae656), Windows 11 at c906b0e7e (no src change from 397908dec; 1/1 1,629.14 s uncontained as pinned, sha256 e865a9a9...cd744e). On all three: drawer and compare page every listing (5/25 windows of 4,096 at 20,000/100,001 files, last file opened); progress shown and Cancel capture stops within 11 ms recording nothing; GUI longest turn during a capture at most 0.43/1.01/1.23 ms (no UI-thread hashing); core and host state hold one window (review_cycle_capture, review_cycle_workbench, negative controls). Windows: one 20,000-file compare sample 100,077.2 ms with the GUI free (busy 7.7 ms), recorded, not diagnosed."}},{"criterion":"RC61-10","outcome":"pass","revision":"397908dec918d2a78cb112ef5c1fc4b5a3060262","evidence":{"kind":"observation","path":"docs/verification/BPR-1184-large-project-2026-10-04.md","detail":"Latency and memory on named corpora, three platform Release reports (typing while capturing p95 0.53/0.71/2.56 ms, navigation p95 6.32/6.04/22.0 ms at 100,001 files on macOS/Linux/Windows; cold, warm, capture, compare, freeze and peak memory in the reports) with mixed and negative findings recorded (514-item round costs, BPR-1274; file-system-bound capture; Windows 45 s cold open at 100,001 files and Defender first read; the Windows compare outlier). Human steering: owner Accept of BPR-1184-steering-benefit-v001 on the frozen build of 397908dec (app sha256 0b7ba3e1...39b4ed), session db739d0eeb54eb201a5973d7c15629af, event 5 at 2026-10-04T14:25:35Z, decision e4ae81e9-860e-48c0-8f3a-1394fa0a0dfa, fingerprint d6f24a56...3bd482b, handed back at event 6, released by name at event 7. EMPTY NOTE: recorded as the owner's acceptance of the steering criterion without measured counts; no turn, reconstruction, omission, correction or rework counts and no steering, token, cost or quality saving claimed."}},{"criterion":"BPR-1184:fixes","outcome":"pass","revision":"397908dec918d2a78cb112ef5c1fc4b5a3060262","evidence":{"kind":"command","path":"docs/verification/BPR-1184-large-project-2026-10-04.md","detail":"Capture lane (navigation during a 100,000-file capture 9,836.8 ms before, p95 6.32 ms after), progress and Cancel capture, windowed drawer reaching every file, over-budget file named, over-limit words name 250,000, tab saves deferred during a capture. review_cycle_capture and review_cycle_workbench contracts fail with the lane removed and with the deferred save removed; integration pass 64/64 plus the large-project row, round-trip pin, coding-format-check, DOCUMENTATION_OK. Linux Debug 7/7 at f8ce4cd3c; Windows Debug 2,000-file pass at c906b0e7e."}}]
 ---
 
 Pack alias: **PACK-CYCLE-42** (live `BPR-1184`, allocated at import).
@@ -325,3 +324,68 @@ Recorded here, not changed:
   this host.
 - The 100,001-file cold open takes about 45 s on both paths, against 10.1 s on
   macOS.
+
+## Owner verdict, all three reports, and finish (2026-10-04)
+
+**Steering verdict.** The owner handed back session
+`db739d0eeb54eb201a5973d7c15629af` at 14:25:40Z (event 6), with the one item
+decided and none pending. `BPR-1184-steering-benefit-v001` (RC61-10, scenario
+S34) is Accept: decision `e4ae81e9-860e-48c0-8f3a-1394fa0a0dfa`, event 5,
+14:25:35Z, fingerprint `d6f24a56…3bd482b`, on the frozen build of `397908dec`
+(`BetterPullReview` SHA-256 `0b7ba3e1…39b4ed`). **The note is empty.** The
+item asked for the counts in the note, so this is recorded as the owner's
+verdict only, not as a measurement. The owner judged that the BPR round
+needed no more steering turns, reconstruction steps and corrections than the
+message typed by hand. No steering turns, reconstruction steps, omissions,
+corrections or rework were counted, and nothing here claims how much steering
+BPR saves, or any token, cost or quality saving. The item was released by
+candidate name at event 7 (14:35:24Z), and the session's host was stopped.
+
+**Station reports.** All three Release reports are committed under
+`docs/verification/BPR-1184-large-project/`. Each has `failures` empty and 0
+tracked changes. Windows ran at `c906b0e7e`, which changes no `src/` file
+from `397908dec`, so all three measured the same product.
+
+| | macOS arm64 | Linux (WSL2) | Windows 11 |
+|---|---:|---:|---:|
+| Report SHA-256 | `4a649b44…947291c` | `8d084f35…cae656` | `e865a9a9…cd744e` |
+| ctest, Release | 181.83 s | 133.38 s | 1,629.14 s |
+| Drawer windows, 20,000 / 100,001 files | 5 / 25 | 5 / 25 | 5 / 25 |
+| Cancel capture, 20,000 / 100,001 (ms) | 1.9 / 7.5 | 4.4 / 11.0 | 4.1 / 3.6 |
+| GUI longest turn during a capture (ms) | 0.43 | 1.01 | 1.23 |
+| Typing while capturing p95 (ms) | 0.51 / 0.53 | 0.58 / 0.71 | 2.26 / 2.56 |
+| Navigation while capturing p95 (ms) | 4.93 / 6.32 | 5.68 / 6.04 | 22.4 / 22.0 |
+
+Every capture case recorded nothing on cancel. The 100 ms targets are
+enforced only on macOS; Linux and Windows meet them unenforced.
+
+Criteria against the evidence:
+
+- **RC54-08, pass.** On all three platforms the drawer and `compare` page
+  every listing (25 windows at 100,001 files, the last file opened), a
+  capture shows progress and cancels within 11 ms having recorded nothing,
+  and hashing stays off the GUI thread (longest turn during a capture at most
+  1.23 ms). Core and host state hold one window (`review_cycle_capture`,
+  `review_cycle_workbench`, with negative controls). On Windows one of the
+  twenty 20,000-file desktop compare samples took 100,077.2 ms with the GUI
+  free (its longest turn 7.7 ms). That is a latency outlier, recorded and not
+  diagnosed. It is not UI-thread hashing.
+- **RC61-10, pass, with the limit above.** Latency and memory are measured on
+  named corpora on three platforms, and the mixed and negative findings are
+  recorded: the 514-item round's costs ([[BPR-1274]]), file-system-bound
+  capture, the Windows cold open of about 45 s at 100,001 files, the first
+  read under Defender, and the compare outlier. The human-steering half rests
+  on the owner's Accept without counts, so the criterion's "measure benefit"
+  is met as an owner judgment, not as a counted comparison. No unverified
+  savings claim is made.
+- **BPR-1184:fixes, pass** (unchanged).
+
+Not gating, left for later work:
+
+- Linux and Windows typing and navigation targets are not enforced.
+- The Windows row's 2,400 s timeout is still provisional; the measured run
+  took 1,629.14 s.
+- The Windows compare outlier has not been diagnosed.
+
+This supersedes the checkpoint above: nothing it lists as pending blocks the
+card.

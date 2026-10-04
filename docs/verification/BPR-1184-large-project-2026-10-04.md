@@ -265,3 +265,26 @@ and a harness, so nothing here claims it. It is asked as one Accept or Reject
 question, `BPR-1184-steering-benefit-v001`, on a frozen build, with the counts
 to be written in the note; [[BPR-1184]] records the session and its outcome.
 No token, cost or quality saving is claimed from batching.
+
+**Outcome (2026-10-04).** The owner accepted
+`BPR-1184-steering-benefit-v001` in session `db739d0e…` (event 5, decision
+`e4ae81e9-860e-48c0-8f3a-1394fa0a0dfa`, handed back at event 6) with an
+**empty note**. It is recorded as the owner's verdict that the BPR round
+needed no more steering than the message typed by hand. It is not a
+measurement: no turn, reconstruction, omission, correction or rework counts
+were recorded, and no steering, token, cost or quality saving is claimed.
+
+## Station returns
+
+All three Release reports are in this folder. Linux ran at `397908dec` (1/1
+in 133.38 s). Windows ran at `c906b0e7e`, which holds `397908dec` and only
+course fixes, no `src/` change (1/1 in 1,629.14 s, uncontained as pinned).
+Their figures, hosts and findings are on [[BPR-1184]]. In short:
+
+- The paging, cancel and GUI-thread results hold on every platform. The
+  longest GUI turn during a capture was at most 1.23 ms, and cancel recorded
+  nothing.
+- Windows is slower: navigation while capturing p95 about 22 ms; a 100,001-file
+  cold open of about 45 s on both the desktop and terminal paths; a first read
+  under Defender of about 5 ms a file, kept out of the timed phases; and one
+  100 s compare outlier with the GUI free.
