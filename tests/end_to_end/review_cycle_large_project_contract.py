@@ -133,9 +133,13 @@ def child_peak_bytes(process):
         return usage.ru_maxrss if sys.platform == "darwin" else usage.ru_maxrss * 1024
     process.wait()
 
+    # PROCESS_MEMORY_COUNTERS: two DWORDs, then SIZE_Ts. Declared all SIZE_T, the
+    # structure grew to PROCESS_MEMORY_COUNTERS_EX's size and the field read as
+    # the peak was the exited child's PrivateUsage, 0.1 MiB ([[BPR-1276]]).
     class Counters(ctypes.Structure):
-        _fields_ = [(name, ctypes.c_size_t) for name in ("cb", "PageFaultCount", "PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage", "QuotaPagedPoolUsage",
-                                                          "QuotaPeakNonPagedPoolUsage", "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage")]
+        _fields_ = [("cb", ctypes.c_uint32), ("PageFaultCount", ctypes.c_uint32)] + [
+            (name, ctypes.c_size_t) for name in ("PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage", "QuotaPagedPoolUsage",
+                                                 "QuotaPeakNonPagedPoolUsage", "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage")]
     counters = Counters()
     counters.cb = ctypes.sizeof(Counters)
     if ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.c_void_p(int(process._handle)), ctypes.byref(counters), counters.cb):
@@ -269,6 +273,8 @@ class Course:
             return value["data"], value
 
         opened, _ = timed("open_cold", "open", str(root))
+        # [[BPR-1276]]. A process that captured a whole corpus held more than a MiB.
+        assert peaks.get("open_cold") is None or peaks["open_cold"] > MIB, f"{name}: bpr cycle open's peak memory is measured ({peaks.get('open_cold')} bytes)"
         cycle = opened["cycle"]
         assert int(opened["latest_entries"]) >= spec["files"], f"{name}: the first capture holds every file ({opened['latest_entries']})"
         for _ in range(3):
