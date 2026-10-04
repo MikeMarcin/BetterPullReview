@@ -449,9 +449,14 @@ auto main(int aArgc, char** aArgv) -> int
 		auto       options          = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot = data;
 		options.Profile             = profile;
-		auto started                = false;
-		auto startedOk              = false;
-		auto desktop                = access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) {
+		// Open Pull Request opens #17 signed out, in public preview. Only
+		// macOS ships it, so the course forces it against the fixture, as the
+		// other composed public-preview courses do; otherwise Linux and
+		// Windows stop at "Sign in to continue to github.com".
+		options.PublicPreviewEnabledCourse = true;
+		auto started                       = false;
+		auto startedOk                     = false;
+		auto desktop                       = access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) {
 			started   = true;
 			startedOk = static_cast<bool>(aResult);
 		});

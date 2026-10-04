@@ -101,3 +101,36 @@ read-only."), with "Sign in to continue to github.com" on the Open field. A
 request never opened. On the same build,
 `application_profile_multi_window_public_path`, which also starts
 `profile_window_restoration_v1` signed out, passes. Not changed here.
+
+**Note: the Linux failure fixed in the course (station `bpr-main-linux`).** The
+cause was course setup that only worked on macOS, not a product bug. Open Pull
+Request hands the address to Home while the course is signed out, so
+`resolve_setup_destination` opens it only when the github.com profile has
+`PreviewAvailable`. That comes from `PublicPreviewComposed`, which is
+`shipped_public_preview_capability()`: `Available = true` on `__APPLE__` and
+false on Linux and Windows, by design. The course never forced it, so macOS
+opened #17 in public preview through the recorded fixture, while Linux (and
+Windows) got the `sign_in` stage: "Sign in to continue to github.com" and the
+shared sign-in dialog. `application_profile_multi_window_public_path` passed
+because it opens its review with an account, not in preview.
+
+The fix is the course setting `options.PublicPreviewEnabledCourse = true`, as
+the other composed public-preview courses do (the [[BPR-1042]] precedent in
+`personal_discovery_public_path_tests.cpp`). The product and
+`github_application.cpp` are unchanged, so the round-trip pin needs no reseal.
+The review candidate is unchanged.
+
+Evidence on Linux (`build/dev`, offscreen):
+
+- The course passes 3 of 3 alone (1.68, 1.69, 1.72 s), with `COURSE_NOTE the
+  pull request opened: octo-org/review-repository #17 Keep review snapshots
+  deterministic`.
+- Negative control: the flag set to `false` fails again at "the window opens
+  pull request #17 in the existing workflow" (61.2 s). It passes again after
+  the revert.
+- The BPR-1177 selection passes 9 of 9, including
+  `application_review_round_trip_composition_contract` and
+  `architecture_boundaries`.
+- clang-format 22 and `git diff --check` are clean.
+
+The Mac rerun is owed.
