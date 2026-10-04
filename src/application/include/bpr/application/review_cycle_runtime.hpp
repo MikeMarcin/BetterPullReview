@@ -46,13 +46,21 @@ namespace bpr::application {
 	/// Selecting another review subject cancels work issued for the previous
 	/// selection, whose completions then report `cancelled`. Executors and
 	/// completion targets must stay alive until `is_quiescent()`.
+	///
+	/// [[BPR-1184]]: with a capture executor, a workspace capture runs there
+	/// instead, and while it runs the effect lane keeps serving reads and the
+	/// tab record, so a reviewer can read and move between files. The first
+	/// call that could move the cycle on waits for the capture, and every call
+	/// queued after it waits too, so request order holds for everything that
+	/// could observe the difference. Without one, a capture is an ordinary
+	/// call on the effect lane.
 	class review_cycle_runtime final
 	{
 	public:
 		template <typename T>
 		using completion = std::function<void(cycle_store_result<T>)>;
 
-		review_cycle_runtime(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions);
+		review_cycle_runtime(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures = nullptr);
 		~review_cycle_runtime();
 		review_cycle_runtime(const review_cycle_runtime&)                    = delete;
 		auto operator=(const review_cycle_runtime&) -> review_cycle_runtime& = delete;
@@ -78,6 +86,12 @@ namespace bpr::application {
 		/// on the effect lane: read, verify, install and record, or nothing.
 		/// \details `aSource` must stay alive until the completion runs.
 		auto capture_workspace(workspace_source_port& aSource, cycle_capture_request aRequest, completion<cycle_capture_outcome> aDone) -> bool;
+		/// \brief [[BPR-1184]]. Stops the capture running on the capture lane,
+		/// within the file it is reading; it completes `cancelled` and records
+		/// nothing. A capture still waiting to start is not affected.
+		void cancel_capture();
+		/// Whether a capture is running on the capture lane.
+		[[nodiscard]] auto capturing() const noexcept -> bool;
 
 		/// \brief One bounded page of a resolved pair of the selected cycle,
 		/// from retained material only. Superseded by a new selection.

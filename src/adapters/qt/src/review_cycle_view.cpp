@@ -48,9 +48,45 @@ namespace bpr::qt {
 			return QStringLiteral("R%1").arg(aRevision.value());
 		}
 
+		/// [[BPR-1184]]. A drawer row that lists the previous (-1) or next (1) files.
+		constexpr int file_window_role = Qt::UserRole + 1;
+
 		auto readable(const core::material_text_kind aKind) -> bool
 		{
 			return aKind == core::material_text_kind::utf8 || aKind == core::material_text_kind::utf8_bom || aKind == core::material_text_kind::empty;
+		}
+
+		/// [[BPR-1184]]. A count as a reader reads it: 100,001.
+		auto count_text(const std::uint64_t aCount) -> QString
+		{
+			auto text = QString::number(aCount);
+			for (auto at = text.size() - 3; at > 0; at -= 3) {
+				text.insert(at, QLatin1Char(','));
+			}
+			return text;
+		}
+
+		/// [[BPR-1184]]. How far the running capture has got.
+		auto capturing_text(const application::cycle_capture_progress& aProgress) -> QString
+		{
+			const auto again = aProgress.Attempt > 1 ? QStringLiteral(" (attempt %1: files changed while they were read)").arg(aProgress.Attempt) : QString{ };
+			switch (aProgress.Phase) {
+			case application::cycle_capture_progress::phase::reading:   return QStringLiteral("Capturing: %1 files read%2").arg(count_text(aProgress.Files), again);
+			case application::cycle_capture_progress::phase::checking:  return QStringLiteral("Capturing: %1 files checked again%2").arg(count_text(aProgress.Files), again);
+			case application::cycle_capture_progress::phase::recording: return QStringLiteral("Capturing: recording %1 files%2").arg(count_text(aProgress.Files), again);
+			}
+			return QStringLiteral("Capturing");
+		}
+
+		/// [[BPR-1184]]. Bytes a capture did not keep, and why.
+		auto not_kept_text(const QString& aPath, const QString& aWhere, const application::review_material_status aStatus) -> QString
+		{
+			static_assert(core::maximum_captured_file_bytes == 128U * 1024U * 1024U, "the words name 128 MiB");
+			if (aStatus == application::review_material_status::too_large) {
+				return QStringLiteral("%1 was not captured in %2: it is larger than the 128 MiB one capture keeps of a file, so there are no bytes to show. A note can still be made on the whole file.")
+					.arg(aPath, aWhere);
+			}
+			return QStringLiteral("The captured bytes of %1 in %2 are not available; nothing else is shown in their place.").arg(aPath, aWhere);
 		}
 
 		auto provenance_text(const core::authored_provenance aProvenance) -> QString
@@ -574,7 +610,12 @@ namespace bpr::qt {
 		connect(PreviousFile, &QAction::triggered, this, [this] { step_file(-1); });
 		connect(NextFile, &QAction::triggered, this, [this] { step_file(1); });
 		connect(CaptureAction, &QAction::triggered, this, [this] {
-			if (Dispatch.Capture) {
+			// [[BPR-1184]]. While a capture runs the same button cancels it.
+			if (Projection.Capturing) {
+				if (Dispatch.CancelCapture) {
+					Dispatch.CancelCapture();
+				}
+			} else if (Dispatch.Capture) {
 				Dispatch.Capture(false);
 			}
 		});
@@ -655,6 +696,13 @@ namespace bpr::qt {
 			}
 		});
 		connect(Files, &QListWidget::itemActivated, this, [this](QListWidgetItem* aItem) {
+			// [[BPR-1184]]. The drawer's rows for the previous and next files.
+			if (aItem != nullptr && aItem->data(file_window_role).isValid()) {
+				if (Dispatch.ListFiles) {
+					Dispatch.ListFiles(aItem->data(file_window_role).toInt(), false);
+				}
+				return;
+			}
 			if (aItem != nullptr && Dispatch.OpenFile) {
 				const auto newTab = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
 				Dispatch.OpenFile(utf8(aItem->data(Qt::UserRole).toString()), newTab);
@@ -805,9 +853,15 @@ namespace bpr::qt {
 			}
 		}
 		auto line = updates.isEmpty() ? QStringLiteral("No revision captured") : QStringLiteral("Captured: %1").arg(updates.join(QStringLiteral(", ")));
-		line += QStringLiteral(" · %1 files").arg(Projection.Files.size());
-		if (Projection.FilesTruncated) {
-			line += QStringLiteral(" (list shortened)");
+		if (Projection.FilesTruncated || Projection.FilesEarlier) {
+			// [[BPR-1184]]. A large capture is listed a window at a time, and says so.
+			const auto last = Projection.FilesFirst + Projection.Files.size() - 1U;
+			line += QStringLiteral(" · files %1–%2 listed of %3 captured entries").arg(count_text(Projection.FilesFirst), count_text(last), count_text(Projection.CapturedEntries));
+		} else {
+			line += QStringLiteral(" · %1 files").arg(Projection.Files.size());
+		}
+		if (Projection.Capturing) {
+			line += QStringLiteral(" · ") + capturing_text(*Projection.Capturing);
 		}
 		if (Projection.Quality && Projection.Quality->Attention) {
 			line += QStringLiteral(" · captured with %1 retries, %2 unavailable").arg(Projection.Quality->Retries).arg(Projection.Quality->Unavailable);
@@ -842,11 +896,23 @@ namespace bpr::qt {
 		RefreshAction->setVisible(Projection.NewerAvailable && !(Projection.Comparison && Projection.Comparison->Pinned));
 
 		// The files drawer, rebuilt only when the list changed.
-		if (previous.Files != Projection.Files) {
+		if (previous.Files != Projection.Files || previous.FilesFirst != Projection.FilesFirst || previous.FilesTruncated != Projection.FilesTruncated
+			|| previous.FilesEarlier != Projection.FilesEarlier) {
 			Files->clear();
+			if (Projection.FilesEarlier) {
+				auto* const earlier = new QListWidgetItem{ QStringLiteral("Previous files (before %1)").arg(count_text(Projection.FilesFirst)), Files };
+				earlier->setData(file_window_role, -1);
+			}
 			for (const auto& file : Projection.Files) {
-				auto* const item = new QListWidgetItem{ text_of(file.Path) + (readable(file.Text) ? QString{ } : QStringLiteral("  (binary or unsupported)")), Files };
+				const auto  kept = file.State != core::cycle_path_state::unavailable;
+				auto* const item = new QListWidgetItem{ text_of(file.Path) + (!kept ? QStringLiteral("  (not captured)") : readable(file.Text) ? QString{ }
+																																			   : QStringLiteral("  (binary or unsupported)")),
+														Files };
 				item->setData(Qt::UserRole, text_of(file.Path));
+			}
+			if (Projection.FilesTruncated) {
+				auto* const later = new QListWidgetItem{ QStringLiteral("Next files (from %1 of %2 captured entries)").arg(count_text(Projection.FilesFirst + Projection.Files.size()), count_text(Projection.CapturedEntries)), Files };
+				later->setData(file_window_role, 1);
 			}
 		}
 
@@ -891,7 +957,7 @@ namespace bpr::qt {
 			}
 			ReadingPage = SourceNotice;
 		} else if (source->Status != application::review_material_status::available) {
-			SourceNotice->setText(QStringLiteral("The captured bytes of %1 in %2 are not available; nothing else is shown in their place.").arg(text_of(source->Path), revision_text(source->Revision)));
+			SourceNotice->setText(not_kept_text(text_of(source->Path), revision_text(source->Revision), source->Status));
 			ReadingPage = SourceNotice;
 		} else if (!readable(source->Text)) {
 			SourceNotice->setText(QStringLiteral("%1 is binary or not UTF-8 (%2 bytes). Notes can still be made on the whole file.").arg(text_of(source->Path)).arg(source->Bytes.size()));
@@ -1045,7 +1111,7 @@ namespace bpr::qt {
 	{
 		const auto path = text_of(aComparison.Path);
 		if (aComparison.Status != application::review_material_status::available && aComparison.Rows.empty()) {
-			SourceNotice->setText(QStringLiteral("The captured bytes of %1 in %2 are not available; nothing else is shown in their place.").arg(path, pair_text(aComparison.Pair)));
+			SourceNotice->setText(not_kept_text(path, pair_text(aComparison.Pair), aComparison.Status));
 			ReadingPage = SourceNotice;
 			return;
 		}
@@ -1427,13 +1493,19 @@ namespace bpr::qt {
 		SuggestAction->setEnabled(open && reading && editable && !suggesting());
 		SuggestAction->setToolTip(shown && !editable ? QStringLiteral("This file is too large to edit here; comment on it instead") : suggest_tip());
 		const auto active = Projection.Source ? std::ranges::find(Projection.Files, Projection.Source->Path, &application::review_cycle_file_entry::Path) : Projection.Files.end();
-		PreviousFile->setEnabled(active != Projection.Files.end() && active != Projection.Files.begin());
-		NextFile->setEnabled(active != Projection.Files.end() && active + 1 != Projection.Files.end());
+		// [[BPR-1184]]. At a window's edge they go on into the next or previous window.
+		PreviousFile->setEnabled(active != Projection.Files.end() && (active != Projection.Files.begin() || Projection.FilesEarlier));
+		NextFile->setEnabled(active != Projection.Files.end() && (active + 1 != Projection.Files.end() || Projection.FilesTruncated));
 		const auto row = Notes->currentRow();
 		RelateButton->setEnabled(open && shown && selected && row >= 0 && static_cast<std::size_t>(row) < Projection.Notes.size());
 		const auto bound = open && Projection.Activity == application::review_cycle_activity::idle;
-		CaptureAction->setEnabled(bound);
-		CaptureAgain->setEnabled(bound && !Projection.Revisions.empty());
+		// [[BPR-1184]]. While a capture runs, Capture revision becomes Cancel capture.
+		const auto capturing = open && Projection.Capturing.has_value();
+		CaptureAction->setText(capturing ? QStringLiteral("Cancel capture") : QStringLiteral("Capture revision"));
+		CaptureAction->setToolTip(capturing ? QStringLiteral("Stop reading the project folder; nothing is recorded and the latest revision stays as it is")
+											: QStringLiteral("Read the project folder now and keep its bytes as the next revision"));
+		CaptureAction->setEnabled(bound || capturing);
+		CaptureAgain->setEnabled(bound && !capturing && !Projection.Revisions.empty());
 		MarkReviewed->setEnabled(open && !Projection.Revisions.empty());
 		ViewButton->setEnabled(open && !Projection.Revisions.empty());
 		ReplyButton->setEnabled(open);
@@ -1461,6 +1533,9 @@ namespace bpr::qt {
 			// A copy: the dispatch can present a new projection before it returns.
 			const auto path = Projection.Files[static_cast<std::size_t>(index)].Path;
 			Dispatch.OpenFile(path, false);
+		} else if (Dispatch.ListFiles && ((index < 0 && Projection.FilesEarlier) || (index >= 0 && Projection.FilesTruncated))) {
+			// [[BPR-1184]]. Past the window's edge: the next window, and its first file.
+			Dispatch.ListFiles(aDirection, true);
 		}
 	}
 

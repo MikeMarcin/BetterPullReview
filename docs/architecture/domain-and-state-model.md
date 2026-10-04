@@ -106,8 +106,20 @@ owns the file.
 `application::review_cycle_runtime` composes that store with a decision lane
 and an effect lane and nothing else: no account enrollment, provider, vault,
 agent adapter or executable lookup. Store calls run one at a time in request
-order. Selecting another review subject cancels work issued for the previous
-selection, and a pull-request selection is refused rather than answered from
+order. The desktop also gives it a capture lane of its own ([[BPR-1184]]): a
+workspace capture runs there, and meanwhile the effect lane keeps serving
+reads and the tab record, so the reviewer reads and moves between files while
+a large folder is captured. The first call that could move the cycle on (a
+note, a decision, a round) waits for the capture, which records against the
+cycle revision it was asked under, and every call queued after it waits too.
+A running capture reports how far it has got and can be cancelled within the
+file it is reading; a cancelled capture records nothing. The terminal composes
+no capture lane, so there a capture is an ordinary call. The drawer lists a
+large capture a window of about 4,096 files at a time, in path order, with
+the position of the window and the count of every captured path; its paging
+rows and Next file and Previous file reach every file. Selecting another
+review subject cancels work issued for the previous selection, and a
+pull-request selection is refused rather than answered from
 the cycle store. `application::review_material_bridge` routes a tagged
 material request to its own authority: pull-request blobs go unchanged to the
 existing `diff_blob_port`, cycle objects come only from this profile's catalog,

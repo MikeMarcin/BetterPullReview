@@ -10,6 +10,7 @@
 #include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "large_review_observers.hpp"
 
 #include <QAbstractButton>
 #include <QAction>
@@ -88,12 +89,39 @@ namespace {
 				  << std::flush;
 	}
 
+	/// \brief [[BPR-1184]]. The longest single turn of the event loop the
+	/// course drives since the last reset: how long the GUI thread was busy
+	/// with work it was handed, which an input event arriving meanwhile would
+	/// have waited behind. One turn can deliver several events, so this is
+	/// an upper bound on any one event's wait.
+	auto longest_turn_ns() -> qint64&
+	{
+		static auto longest = qint64{ 0 };
+		return longest;
+	}
+
+	void turn()
+	{
+		QElapsedTimer busy;
+		busy.start();
+		QApplication::processEvents();
+		longest_turn_ns() = std::max(longest_turn_ns(), busy.nsecsElapsed());
+	}
+
+	/// The course's own clock for one wait; [[BPR-1184]]'s large projects ask for longer.
+	auto wait_scale() -> int&
+	{
+		static auto scale = 1;
+		return scale;
+	}
+
 	auto wait_for(const std::function<bool()>& aCondition, const int aMilliseconds = 30000) -> bool
 	{
 		QElapsedTimer elapsed;
 		elapsed.start();
-		while (!aCondition() && elapsed.elapsed() < aMilliseconds) {
-			QApplication::processEvents();
+		const auto limit = static_cast<qint64>(aMilliseconds) * wait_scale();
+		while (!aCondition() && elapsed.elapsed() < limit) {
+			turn();
 			QThread::msleep(1);
 		}
 		return aCondition();
@@ -155,6 +183,17 @@ namespace {
 	auto idle(const qt::review_cycle_view& aPage) -> bool
 	{
 		return aPage.projection().Activity == application::review_cycle_activity::idle;
+	}
+
+	/// [[BPR-1184]]. Nothing loading: idle, or only a capture running beside the reading.
+	auto settled(const qt::review_cycle_view& aPage) -> bool
+	{
+		return idle(aPage) || aPage.projection().Activity == application::review_cycle_activity::capturing;
+	}
+
+	auto capturing(const qt::review_cycle_view& aPage) -> bool
+	{
+		return aPage.projection().Capturing.has_value();
 	}
 
 	/// \brief Gives `aWindow` back the keyboard after a dialog over it closed,
@@ -300,6 +339,9 @@ namespace {
 		object[QStringLiteral("newer")]     = shown.NewerAvailable;
 		auto* const label                   = aPage.findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"));
 		object[QStringLiteral("label")]     = label != nullptr ? label->text() : QString{ };
+		// [[BPR-1184]]. What the reading pane says in place of bytes it does not show.
+		auto* const notice               = aPage.findChild<QLabel*>(QStringLiteral("cycleSourceNotice"));
+		object[QStringLiteral("notice")] = notice != nullptr && notice->isVisible() ? notice->text() : QString{ };
 		return object;
 	}
 
@@ -547,6 +589,37 @@ namespace {
 				object[QStringLiteral("archived")] = static_cast<qint64>(next.Archived);
 				return object;
 			}
+			if (verb == QStringLiteral("memory")) {
+				return memory();
+			}
+			if (verb == QStringLiteral("next-file")) {
+				return next_file();
+			}
+			if (verb == QStringLiteral("type-during-capture")) {
+				return type_during_capture(aCommand);
+			}
+			if (verb == QStringLiteral("navigate-during-capture")) {
+				return navigate_during_capture(aCommand);
+			}
+			if (verb == QStringLiteral("cancel-capture")) {
+				return cancel_capture(aCommand);
+			}
+			if (verb == QStringLiteral("drawer")) {
+				return drawer();
+			}
+			if (verb == QStringLiteral("open-project-refusal")) {
+				// [[BPR-1184]]. File > Open Project on a folder no capture can keep: what the page says.
+				auto answered = false;
+				answer_next_file_dialog(aCommand[QStringLiteral("path")].toString(), answered);
+				Window.open_project_action()->trigger();
+				require(answered, "File > Open Project… asked for a folder");
+				reactivate(Window);
+				require(wait_for([&] { return !Page.projection().Message.empty() && settled(Page) && !capturing(Page); }, 600000), "Open Project says why nothing was captured");
+				return state(Window, Page);
+			}
+			if (verb == QStringLiteral("drawer-page")) {
+				return drawer_page(static_cast<int>(aCommand[QStringLiteral("direction")].toInteger()));
+			}
 			throw refused{ "unknown verb " + utf8(verb) };
 		}
 
@@ -600,9 +673,12 @@ namespace {
 			auto* const files = Page.files();
 			for (auto row = 0; row < files->count(); ++row) {
 				if (files->item(row)->data(Qt::UserRole).toString() == aPath) {
-					const auto opened = [&] {
+					// [[BPR-1184]]. Bytes a capture did not keep open as the notice that says so.
+					auto* const notice = Page.findChild<QLabel*>(QStringLiteral("cycleSourceNotice"));
+					const auto  opened = [&] {
 						const auto& shown = Page.projection();
-						return idle(Page) && ((shown.Source && text_of(shown.Source->Path) == aPath && Page.source()->isVisible()) || (shown.Comparison && text_of(shown.Comparison->Path) == aPath));
+						const auto  read  = shown.Source && text_of(shown.Source->Path) == aPath && (Page.source()->isVisible() || (notice != nullptr && notice->isVisible()));
+						return settled(Page) && (read || (shown.Comparison && text_of(shown.Comparison->Path) == aPath));
 					};
 					activate(*files, *files->item(row));
 					// On a shared native desktop a person's own pointer can come
@@ -898,6 +974,211 @@ namespace {
 			return state(Window, Page);
 		}
 
+		/// [[BPR-1184]]. This process's memory now and its lifetime peak, by the platform's own counters.
+		static auto memory() -> QJsonObject
+		{
+			const auto sample = e2e::large_review::native_process_memory_sample();
+			return QJsonObject{
+				{ QStringLiteral("resident_bytes"), static_cast<qint64>(sample.ResidentBytes) },
+				{ QStringLiteral("footprint_bytes"), static_cast<qint64>(sample.FootprintBytes) },
+				{ QStringLiteral("peak_footprint_bytes"), static_cast<qint64>(sample.LifetimePeakFootprintBytes) },
+				{ QStringLiteral("method"), QString::fromUtf8(e2e::large_review::native_memory_method()) },
+			};
+		}
+
+		auto shown_path() const -> QString
+		{
+			const auto& shown = Page.projection();
+			return shown.Source ? text_of(shown.Source->Path) : shown.Comparison ? text_of(shown.Comparison->Path)
+																				 : QString{ };
+		}
+
+		/// [[BPR-1184]]. The review bar's Next file, clicked, until the next file is read.
+		auto next_file() -> QJsonObject
+		{
+			auto* const action = Page.findChild<QAction*>(QStringLiteral("cycleNextFile"));
+			require(action != nullptr && action->isEnabled(), "Next file is offered");
+			const auto before = shown_path();
+			click(*Page.review_bar()->widgetForAction(action));
+			require(wait_for([&] { return settled(Page) && !shown_path().isEmpty() && shown_path() != before; }), "Next file reads the next file after " + utf8(before));
+			auto object                     = state(Window, Page);
+			object[QStringLiteral("shown")] = shown_path();
+			return object;
+		}
+
+		/// Clicks Capture revision and waits until the page says it is capturing.
+		void start_capture()
+		{
+			click(*Page.review_bar()->widgetForAction(Page.capture_action()));
+			require(wait_for([&] { return capturing(Page); }, 5000), "Capture revision starts a capture");
+		}
+
+		/// Until the capture ends: a new revision, or the page says nothing changed.
+		void finish_capture(const std::size_t aBefore)
+		{
+			require(wait_for([&] { return idle(Page) && (Page.projection().Revisions.size() > aBefore || Page.updates_line()->text().contains(QStringLiteral("No change"))); }, 600000),
+					"the capture is recorded or said to be unchanged");
+		}
+
+		/// \brief [[BPR-1184]]. A note typed key by key while a capture runs.
+		///
+		/// \details Return on a selection opens the note; Capture revision is
+		/// clicked and then the note, to type in it again; then one key is due
+		/// every `interval_ms`, cycling through `text`, until the capture ends
+		/// or `max_keys` are typed. A key's latency is from when it was due to
+		/// when the window had handled it: time spent waiting behind other work
+		/// on the GUI thread plus its own handling. The note must hold exactly
+		/// the keys typed, and is then cancelled.
+		auto type_during_capture(const QJsonObject& aCommand) -> QJsonObject
+		{
+			open_file(aCommand[QStringLiteral("path")].toString());
+			select(static_cast<std::uint64_t>(aCommand[QStringLiteral("start")].toInteger()), static_cast<std::uint64_t>(aCommand[QStringLiteral("end")].toInteger()));
+			reactivate(Window);
+			tests::window_system_key(*Page.source(), Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+			auto* const editor = Page.comment_editor();
+			require(editor->isVisible() && QApplication::focusWidget() == editor, "Return opens a note on the selection; focus is on " + focus_name());
+			const auto    before = Page.projection().Revisions.size();
+			QElapsedTimer capture;
+			capture.start();
+			start_capture();
+			// The button takes the keyboard (every Tab stop does); the reviewer clicks back into the note.
+			click(*editor);
+			require(QApplication::focusWidget() == editor, "a click in the note gives it the keyboard; focus is on " + focus_name());
+			const auto    text     = aCommand[QStringLiteral("text")].toString();
+			const auto    interval = aCommand[QStringLiteral("interval_ms")].toInteger(40) * 1000000;
+			const auto    limit    = aCommand[QStringLiteral("max_keys")].toInteger(2000);
+			auto          typed    = QString{ };
+			auto          during   = QJsonArray{ };
+			auto          after    = QJsonArray{ };
+			QElapsedTimer clock;
+			clock.start();
+			for (qint64 key = 0; key < limit && capturing(Page) && !text.isEmpty(); ++key) {
+				const auto due = key * interval;
+				while (clock.nsecsElapsed() < due) {
+					turn();
+					QThread::usleep(200);
+				}
+				const auto character = text[static_cast<qsizetype>(key % text.size())];
+				const auto running   = capturing(Page);
+				const auto upper     = character.toUpper().unicode();
+				tests::window_system_key(*editor, character == QLatin1Char(' ') ? int{ Qt::Key_Space } : int{ upper }, character.isUpper() ? Qt::ShiftModifier : Qt::NoModifier, QString{ character });
+				typed.append(character);
+				(running ? during : after).append(static_cast<double>(clock.nsecsElapsed() - due) / 1e6);
+			}
+			finish_capture(before);
+			const auto captured = static_cast<double>(capture.nsecsElapsed()) / 1e6;
+			require(wait_for([&] { return editor->toPlainText() == typed; }, 5000), "the note holds exactly the " + std::to_string(typed.size()) + " keys typed");
+			auto* const cancel = Page.findChild<QPushButton*>(QStringLiteral("cycleCommentCancel"));
+			click(*cancel);
+			require(wait_for([&] { return !editor->isVisible(); }), "Cancel closes the note");
+			auto object                          = state(Window, Page);
+			object[QStringLiteral("during")]     = during;
+			object[QStringLiteral("after")]      = after;
+			object[QStringLiteral("typed")]      = static_cast<qint64>(typed.size());
+			object[QStringLiteral("capture_ms")] = captured;
+			return object;
+		}
+
+		/// \brief [[BPR-1184]]. Next file, clicked once every `interval_ms`
+		/// while a capture runs, `count` times or until the capture ends. Each
+		/// step's latency is from the click to the next file being read.
+		auto navigate_during_capture(const QJsonObject& aCommand) -> QJsonObject
+		{
+			open_file(aCommand[QStringLiteral("path")].toString());
+			auto* const   action = Page.findChild<QAction*>(QStringLiteral("cycleNextFile"));
+			const auto    before = Page.projection().Revisions.size();
+			QElapsedTimer capture;
+			capture.start();
+			start_capture();
+			const auto interval = aCommand[QStringLiteral("interval_ms")].toInteger(250);
+			const auto count    = aCommand[QStringLiteral("count")].toInteger(20);
+			auto       during   = QJsonArray{ };
+			auto       after    = QJsonArray{ };
+			auto       refused  = QJsonArray{ };
+			for (qint64 step = 0; step < count && capturing(Page); ++step) {
+				QElapsedTimer pause;
+				pause.start();
+				while (pause.elapsed() < interval) {
+					turn();
+					QThread::msleep(1);
+				}
+				const auto running = capturing(Page);
+				const auto from    = shown_path();
+				if (!action->isEnabled()) {
+					refused.append(from);
+					continue;
+				}
+				QElapsedTimer step_clock;
+				step_clock.start();
+				click(*Page.review_bar()->widgetForAction(action));
+				require(wait_for([&] { return !shown_path().isEmpty() && shown_path() != from && Page.projection().Source.has_value(); }, 600000), "Next file reads the file after " + utf8(from));
+				(running ? during : after).append(static_cast<double>(step_clock.nsecsElapsed()) / 1e6);
+			}
+			finish_capture(before);
+			auto object                          = state(Window, Page);
+			object[QStringLiteral("during")]     = during;
+			object[QStringLiteral("after")]      = after;
+			object[QStringLiteral("disabled")]   = refused;
+			object[QStringLiteral("capture_ms")] = static_cast<double>(capture.nsecsElapsed()) / 1e6;
+			return object;
+		}
+
+		/// \brief [[BPR-1184]]. Capture revision, then Cancel capture in its
+		/// place `after_ms` later: how long the cancel took to take effect,
+		/// what the page then says, and that nothing was recorded.
+		auto cancel_capture(const QJsonObject& aCommand) -> QJsonObject
+		{
+			const auto before = Page.projection().Revisions;
+			start_capture();
+			auto* const   button = Page.review_bar()->widgetForAction(Page.capture_action());
+			QElapsedTimer pause;
+			pause.start();
+			while (pause.elapsed() < aCommand[QStringLiteral("after_ms")].toInteger(1000)) {
+				turn();
+				QThread::msleep(1);
+			}
+			require(capturing(Page), "the capture is still running when Cancel capture is clicked");
+			const auto    offered = Page.capture_action()->text();
+			const auto    line    = Page.updates_line()->text();
+			QElapsedTimer cancelled;
+			cancelled.start();
+			click(*button);
+			require(wait_for([&] { return !capturing(Page) && settled(Page); }, 600000), "Cancel capture stops the capture");
+			auto object                            = state(Window, Page);
+			object[QStringLiteral("cancel_ms")]    = static_cast<double>(cancelled.nsecsElapsed()) / 1e6;
+			object[QStringLiteral("offered")]      = offered;
+			object[QStringLiteral("progress")]     = line;
+			object[QStringLiteral("unrecorded")]   = Page.projection().Revisions == before;
+			object[QStringLiteral("button_after")] = Page.capture_action()->text();
+			return object;
+		}
+
+		/// [[BPR-1184]]. Every row the files drawer shows, and the Updates line.
+		auto drawer() -> QJsonObject
+		{
+			auto rows = QJsonArray{ };
+			for (auto row = 0; row < Page.files()->count(); ++row) {
+				rows.append(Page.files()->item(row)->text());
+			}
+			auto object                     = state(Window, Page);
+			object[QStringLiteral("rows")]  = rows;
+			object[QStringLiteral("first")] = static_cast<qint64>(Page.projection().FilesFirst);
+			return object;
+		}
+
+		/// [[BPR-1184]]. The drawer's Next files (1) or Previous files (-1)
+		/// row, double clicked, until the drawer lists that window.
+		auto drawer_page(const int aDirection) -> QJsonObject
+		{
+			auto* const files  = Page.files();
+			const auto  before = Page.projection().FilesFirst;
+			auto* const row    = files->item(aDirection > 0 ? files->count() - 1 : 0);
+			require(row != nullptr && row->data(Qt::UserRole + 1).toInt() == aDirection, "the drawer offers " + std::string{ aDirection > 0 ? "Next files" : "Previous files" });
+			activate(*files, *row);
+			require(wait_for([&] { return settled(Page) && Page.projection().FilesFirst != before; }), "the drawer lists the " + std::string{ aDirection > 0 ? "next" : "previous" } + " files");
+			return drawer();
+		}
+
 		qt::workbench_window&  Window;
 		qt::review_cycle_view& Page;
 	};
@@ -912,6 +1193,10 @@ auto main(int aArgc, char** aArgv) -> int
 	if (aArgc != 4) {
 		std::cerr << "usage: root profile signal\n";
 		return EXIT_FAILURE;
+	}
+	// [[BPR-1184]]. A large project's course scales every wait and the course clock.
+	if (const auto scale = qEnvironmentVariableIntValue("BPR_CYCLE_COURSE_WAIT_SCALE"); scale > 1) {
+		wait_scale() = scale;
 	}
 	const auto root             = std::filesystem::path{ aArgv[1] };
 	const auto profile          = core::bpr_profile_id{ std::stoull(aArgv[2]) };
@@ -944,25 +1229,32 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	// The clipboard as it was before the course, put back on the way out.
 	const auto kept = QGuiApplication::clipboard()->text();
-	say("DESKTOP_READY " + std::string{ QGuiApplication::platformName().toUtf8().constData() } + " active=" + (window.isActiveWindow() ? "1" : "0") + " size=" + std::to_string(window.width()) + "x"
+	say("DESKTOP_READY " + std::string{ QGuiApplication::platformName().toUtf8().constData() } + " qt=" + qVersion() + " active=" + (window.isActiveWindow() ? "1" : "0") + " size=" + std::to_string(window.width()) + "x"
 		+ std::to_string(window.height()) + " screen=" + std::to_string(window.screen()->availableGeometry().width()) + "x" + std::to_string(window.screen()->availableGeometry().height()));
 	auto          gestures = reviewer{ window, *page };
 	QElapsedTimer course;
 	course.start();
 	const auto command = std::filesystem::path{ signal.string() + ".command" };
-	while (!std::filesystem::exists(signal) && course.elapsed() < 540000) {
+	while (!std::filesystem::exists(signal) && course.elapsed() < qint64{ 540000 } * wait_scale()) {
 		if (std::filesystem::exists(command)) {
 			const auto text = read_file(command);
 			std::filesystem::remove(command);
 			const auto request = QJsonDocument::fromJson(QByteArray::fromStdString(text)).object();
 			const auto id      = request[QStringLiteral("id")].toInteger();
 			auto       reply   = QJsonObject{ };
+			// [[BPR-1184]]. How long the gesture took, measured here rather
+			// than across the command file, and the GUI thread's longest turn.
+			longest_turn_ns() = 0;
+			QElapsedTimer gesture;
+			gesture.start();
 			try {
 				reply = gestures.run(request);
 			} catch (const refused& aRefused) {
 				// What the window shows beside the refusal, so a failure names its state.
 				reply = QJsonObject{ { QStringLiteral("error"), text_of(aRefused.What) }, { QStringLiteral("state"), state(window, *page) } };
 			}
+			reply[QStringLiteral("elapsed_ms")] = static_cast<double>(gesture.nsecsElapsed()) / 1e6;
+			reply[QStringLiteral("busy_ms")]    = static_cast<double>(longest_turn_ns()) / 1e6;
 			say("REPLY " + std::to_string(id) + " " + json_line(reply));
 		}
 		QApplication::processEvents();

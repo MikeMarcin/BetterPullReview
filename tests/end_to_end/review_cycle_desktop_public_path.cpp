@@ -439,7 +439,8 @@ try {
 	window.show();
 	// BPR-1156: the packaged definitions the review panes classify with.
 	const auto definitions = adapters::syntax::packaged_definition_catalog{ };
-	auto       desktop     = app::review_cycle_desktop{ window, profile.path(), core::bpr_profile_id{ 1 }, lanes, lanes, { .Definitions = &definitions, .Effects = &lanes } };
+	// Captures on the same manual lane, so each step settles deterministically ([[BPR-1184]]).
+	auto desktop = app::review_cycle_desktop{ window, profile.path(), core::bpr_profile_id{ 1 }, lanes, lanes, { .Definitions = &definitions, .Effects = &lanes }, &lanes };
 	// The platform's own scheme, as the application observes it, so a native
 	// render paints dark-scheme role colours on a dark window.
 	const auto scheme     = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? core::os_color_scheme::dark : core::os_color_scheme::light;
@@ -928,7 +929,7 @@ try {
 		auto other = qt::workbench_window{ };
 		other.resize(1280, 800);
 		other.show();
-		auto again = app::review_cycle_desktop{ other, profile.path(), core::bpr_profile_id{ 1 }, lanes, lanes };
+		auto again = app::review_cycle_desktop{ other, profile.path(), core::bpr_profile_id{ 1 }, lanes, lanes, { }, &lanes };
 		again.open_project(project.string());
 		settle(lanes);
 		auto* const restarted = other.local_cycle();
@@ -955,7 +956,7 @@ try {
 		auto other = qt::workbench_window{ };
 		other.resize(1280, 800);
 		other.show();
-		auto refused = app::review_cycle_desktop{ other, newer.path(), core::bpr_profile_id{ 1 }, lanes, lanes };
+		auto refused = app::review_cycle_desktop{ other, newer.path(), core::bpr_profile_id{ 1 }, lanes, lanes, { }, &lanes };
 		settle(lanes);
 		expect(other.showing_home() && !other.showing_local_cycle(), "Home stays in place at start");
 		refused.open_project(project.string());

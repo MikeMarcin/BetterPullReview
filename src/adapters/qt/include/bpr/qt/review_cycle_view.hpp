@@ -39,7 +39,12 @@ namespace bpr::qt {
 		std::function<void(application::review_cycle_suggestion_request)>                                       Suggest;
 		std::function<void(const core::cycle_feedback_item_ref&, std::uint64_t, core::cycle_related_reference)> Relate;
 		/// BPR-1163: Capture revision, deliberately when the bytes may be unchanged.
-		std::function<void(bool)>                            Capture;
+		std::function<void(bool)> Capture;
+		/// [[BPR-1184]]: Cancel capture, offered in Capture revision's place while one runs.
+		std::function<void()> CancelCapture;
+		/// [[BPR-1184]]: the drawer's next (> 0) or previous window of files;
+		/// true to open its first or last file, as Next and Previous file do.
+		std::function<void(int, bool)>                       ListFiles;
 		std::function<void(const core::cycle_view_request&)> Compare;
 		std::function<void()>                                FullSource;
 		std::function<void()>                                Refresh;

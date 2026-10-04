@@ -842,6 +842,97 @@ namespace {
 	}
 }
 
+namespace {
+	/// \brief [[BPR-1184]]. A large capture through the desktop host: the
+	/// drawer lists it a window at a time and says how many paths there are,
+	/// Next file goes on across a window's edge, a file over the capture's
+	/// budget reads as too large, and with a capture lane the reviewer reads
+	/// other files while a capture runs, sees how far it has got and can
+	/// cancel it, which records nothing.
+	void lists_and_captures_a_large_project(const std::filesystem::path& aScratch)
+	{
+		tests::sqlite_contract::scratch_root profileScratch{ "cycle-workbench-large" };
+		const auto                           project = aScratch / "windowed-project";
+		constexpr auto                       files   = std::size_t{ 4100 };
+		const auto                           name    = [](const std::size_t aIndex) {
+			auto digits = std::to_string(aIndex);
+			return "f" + std::string(5U - digits.size(), '0') + digits + ".txt";
+		};
+		for (std::size_t index = 0; index < files; ++index) {
+			write_file(project / name(index), "file " + std::to_string(index) + "\n");
+		}
+		{
+			// 129 MiB of nothing: over the 128 MiB a capture keeps, and listed first.
+			write_file(project / "aaa" / "oversized.bin", "");
+			std::filesystem::resize_file(project / "aaa" / "oversized.bin", core::maximum_captured_file_bytes + 1024U * 1024U);
+		}
+		auto captures     = application::manual_executor{ };
+		auto lanes        = application::manual_executor{ };
+		auto port         = recording_port{ };
+		auto source       = adapters::workspace::make_local_workspace_source();
+		auto seed         = std::array<std::uint8_t, 32>{ };
+		seed[0]           = 9;
+		auto       host   = application::review_cycle_workbench{ adapters::sqlite::make_review_cycle_store(profileScratch.path(), profile), *source, lanes, lanes, port, seed, &captures };
+		const auto settle = [&] {
+			while (lanes.pending() != 0U || captures.pending() != 0U) {
+				lanes.drain();
+				captures.drain();
+			}
+			return host.projection();
+		};
+		host.open_project(project.string());
+		auto shown = settle();
+		expect(shown.Message.empty() && shown.Revisions.size() == 1U, "the large folder opens as R1");
+		expect(shown.Files.size() == 4096U && shown.FilesTruncated && !shown.FilesEarlier && shown.FilesFirst == 1U && shown.CapturedEntries == files + 1U,
+			   "the first window, with the count of every path captured");
+		expect(shown.Files.front().Path == "aaa/oversized.bin" && shown.Files.front().State == core::cycle_path_state::unavailable, "the file over the budget is listed, unavailable");
+		host.open_file("aaa/oversized.bin", false);
+		expect(settle().Source && settle().Source->Status == application::review_material_status::too_large && settle().Source->Bytes.empty(), "it reads as too large, with no bytes");
+
+		host.list_files(1, false);
+		shown = settle();
+		expect(shown.FilesFirst == 4097U && shown.Files.size() == 5U && !shown.FilesTruncated && shown.FilesEarlier && shown.Files.back().Path == name(files - 1U), "the next window ends with the last file");
+		host.list_files(1, false);
+		expect(settle().FilesFirst == 4097U, "there is no window after the last");
+		host.list_files(-1, false);
+		shown = settle();
+		expect(shown.FilesFirst == 1U && shown.FilesTruncated && !shown.FilesEarlier, "back to the first window");
+		const auto lastListed = shown.Files.back().Path;
+		host.open_file(lastListed, false);
+		settle();
+		host.list_files(1, true);
+		shown = settle();
+		expect(shown.FilesFirst == 4097U && shown.Source && shown.Source->Path == shown.Files.front().Path && shown.Files.front().Path > lastListed, "Next file at a window's edge opens the next window's first file");
+
+		// A capture on its own lane: reading goes on beside it, with progress.
+		host.capture_revision(true);
+		lanes.drain();
+		expect(host.projection().Capturing.has_value() && host.projection().Activity == application::review_cycle_activity::capturing && captures.pending() == 1U, "the capture runs on its lane");
+		host.open_file(name(3), false);
+		lanes.drain();
+		expect(host.projection().Source && host.projection().Source->Path == name(3) && host.projection().Capturing.has_value(), "another file is read while the capture waits on its lane");
+		host.capture_revision(true);
+		lanes.drain();
+		expect(captures.pending() == 1U, "a second capture is not started beside the first");
+		captures.run_next();
+		lanes.drain();
+		const auto& progressed = host.projection();
+		expect(!progressed.Capturing && progressed.Revisions.size() == 2U, "the deliberate capture recorded R2");
+		expect(progressed.Source && progressed.Source->Path == name(3), "the tab moved during the capture is saved when it ends, and kept by the reload");
+
+		// Cancel capture: nothing recorded, and the page says so.
+		host.capture_revision(true);
+		lanes.drain();
+		expect(host.projection().Capturing.has_value(), "capturing again");
+		host.cancel_capture();
+		shown = settle();
+		expect(!shown.Capturing && shown.Revisions.size() == 2U && shown.Notice == "Capture cancelled; nothing was recorded.", "a cancelled capture records nothing");
+		host.shutdown();
+		settle();
+		std::cout << "NATIVE: a 4,101-path capture listed in two windows, a too-large file named, reading beside a capture, Cancel capture\n";
+	}
+}
+
 auto main(const int aArgc, char** aArgv) -> int
 try {
 	tests::sqlite_contract::scratch_root scratch{ "cycle-workbench" };
@@ -851,6 +942,7 @@ try {
 	refuses_a_copy_over_the_clipboard_limit(scratch.path());
 	exposes_a_round_under_the_stored_policy(scratch.path());
 	keeps_work_beside_another_interface(scratch.path());
+	lists_and_captures_a_large_project(scratch.path());
 	std::cout << "review-cycle-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

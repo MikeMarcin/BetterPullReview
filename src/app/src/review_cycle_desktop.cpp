@@ -148,12 +148,14 @@ namespace bpr::app {
 	}
 
 	review_cycle_desktop::review_cycle_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, const core::bpr_profile_id aProfile,
-											   application::effect_executor& aEffects, application::decision_executor& aDecisions, const review_cycle_syntax aSyntax)
+											   application::effect_executor& aEffects, application::decision_executor& aDecisions, const review_cycle_syntax aSyntax,
+											   application::effect_executor* aCaptures)
 		: Window{ aWindow }
 		, Source{ adapters::workspace::make_local_workspace_source() }
 		, ProfileRoot{ aProfileRoot }
 	{
-		Host = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, aProfile), *Source, aEffects, aDecisions, *this, random_seed());
+		Host = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, aProfile), *Source, aEffects, aDecisions, *this, random_seed(),
+																	 aCaptures != nullptr ? aCaptures : (OwnCaptures = std::make_unique<worker_executor>()).get());
 		View = new qt::review_cycle_view{ };
 		Window.adopt_local_cycle(View);
 		if (aSyntax.Definitions != nullptr && aSyntax.Effects != nullptr) {
@@ -177,17 +179,19 @@ namespace bpr::app {
 			View->share_page()->SyntaxWanted = [this](const qt::source_syntax_request& aRequest) { want_code_syntax(aRequest); };
 		}
 		View->set_dispatch({
-			.OpenFile     = [this](const std::string& aPath, const bool aNewTab) { Host->open_file(aPath, aNewTab); },
-			.Tab          = [this](const core::document_tab_intent& aIntent) { Host->tab(aIntent); },
-			.ObserveLine  = [this](const core::document_tab_id aTab, const std::uint64_t aLine) { Host->observe_line(aTab, aLine); },
-			.Comment      = [this](core::begin_cycle_feedback aNote) { Host->comment(std::move(aNote)); },
-			.Suggest      = [this](application::review_cycle_suggestion_request aRequest) { Host->suggest(std::move(aRequest)); },
-			.Relate       = [this](const core::cycle_feedback_item_ref& aItem, const std::uint64_t aVersion, core::cycle_related_reference aReference) { Host->relate(aItem, aVersion, std::move(aReference)); },
-			.Capture      = [this](const bool aDeliberate) { Host->capture_revision(aDeliberate); },
-			.Compare      = [this](const core::cycle_view_request& aRequest) { Host->compare(aRequest); },
-			.FullSource   = [this] { Host->full_source(); },
-			.Refresh      = [this] { Host->refresh_view(); },
-			.MarkReviewed = [this] { Host->mark_reviewed(); },
+			.OpenFile      = [this](const std::string& aPath, const bool aNewTab) { Host->open_file(aPath, aNewTab); },
+			.Tab           = [this](const core::document_tab_intent& aIntent) { Host->tab(aIntent); },
+			.ObserveLine   = [this](const core::document_tab_id aTab, const std::uint64_t aLine) { Host->observe_line(aTab, aLine); },
+			.Comment       = [this](core::begin_cycle_feedback aNote) { Host->comment(std::move(aNote)); },
+			.Suggest       = [this](application::review_cycle_suggestion_request aRequest) { Host->suggest(std::move(aRequest)); },
+			.Relate        = [this](const core::cycle_feedback_item_ref& aItem, const std::uint64_t aVersion, core::cycle_related_reference aReference) { Host->relate(aItem, aVersion, std::move(aReference)); },
+			.Capture       = [this](const bool aDeliberate) { Host->capture_revision(aDeliberate); },
+			.CancelCapture = [this] { Host->cancel_capture(); },
+			.ListFiles     = [this](const int aDirection, const bool aOpenEdge) { Host->list_files(aDirection, aOpenEdge); },
+			.Compare       = [this](const core::cycle_view_request& aRequest) { Host->compare(aRequest); },
+			.FullSource    = [this] { Host->full_source(); },
+			.Refresh       = [this] { Host->refresh_view(); },
+			.MarkReviewed  = [this] { Host->mark_reviewed(); },
 			.ChooseResponse =
 				[this](const core::cycle_round_id aRound) {
 					const auto chosen = QFileDialog::getOpenFileName(&Window, QStringLiteral("Open a response file"), { }, QStringLiteral("Review responses (*.json);;All files (*)"));

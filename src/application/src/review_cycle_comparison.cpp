@@ -100,15 +100,21 @@ namespace bpr::application {
 		const auto comparable = [](const core::cycle_path_side& aSide) {
 			return aSide.State == core::cycle_path_state::present || aSide.State == core::cycle_path_state::absent || aSide.State == core::cycle_path_state::deleted;
 		};
+		// [[BPR-1184]]. Bytes over the capture's file budget were never kept:
+		// said as too large, not as missing.
+		const auto overBudget = [&](const core::cycle_manifest* aManifest) {
+			const auto* entry = aManifest != nullptr ? core::find_entry(*aManifest, aPath) : nullptr;
+			return entry != nullptr && entry->Availability == core::manifest_availability::too_large;
+		};
 		if (!aPair.Left) {
 			// Full source: one retained side, read on its own.
 			auto bytes         = content(aSubject, aPair.Right, path.Right, maximum_cycle_object_bytes, aStop);
-			observation.Status = bytes.Status;
+			observation.Status = bytes.Status == review_material_status::missing && overBudget(right->get()) ? review_material_status::too_large : bytes.Status;
 			observation.Source = std::move(bytes.Bytes);
 			return observation;
 		}
 		if (!comparable(path.Right) || !path.Left || !comparable(*path.Left)) {
-			observation.Status = review_material_status::missing;
+			observation.Status = overBudget(right->get()) || overBudget(left.get()) ? review_material_status::too_large : review_material_status::missing;
 			return observation;
 		}
 		const auto limits = core::diff_compute_limits{ };

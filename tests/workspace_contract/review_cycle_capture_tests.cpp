@@ -468,6 +468,92 @@ namespace {
 	}
 }
 
+namespace {
+	/// \brief [[BPR-1184]]. With a capture lane the runtime keeps serving
+	/// reads while a capture runs; the first call that could move the cycle
+	/// on waits for it, and so does everything queued after that call;
+	/// progress arrives on the decision lane; a cancelled capture records
+	/// nothing. Without one (every other test here) a capture is an ordinary
+	/// call on the effect lane.
+	void captures_beside_reads(const std::filesystem::path& aScratch)
+	{
+		for (std::size_t index = 0; index < 2100U; ++index) {
+			write_file(aScratch / "beside" / ("f" + std::to_string(index) + ".txt"), "file " + std::to_string(index));
+		}
+		auto source = adapters::workspace::make_local_workspace_source();
+		auto bound  = course{ *source, aScratch / "beside" };
+		expect(bound.capture(*source).Status == cycle_capture_status::captured, "R1");
+		const auto subject = bound.Subject;
+		const auto first   = bound.state();
+		bound.Store.reset();
+		auto effects   = application::manual_executor{ };
+		auto decisions = application::manual_executor{ };
+		auto captures  = application::manual_executor{ };
+		auto runtime   = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(bound.StoreRoot.path(), profile), effects, decisions, &captures };
+		runtime.select(subject);
+		const auto settle = [&] {
+			while (effects.pending() != 0U || decisions.pending() != 0U || captures.pending() != 0U) {
+				effects.drain();
+				decisions.drain();
+				captures.drain();
+			}
+		};
+
+		auto progress    = std::vector<application::cycle_capture_progress>{ };
+		auto request     = application::cycle_capture_request{ .Operation = operation(92), .ExpectedRevision = first.Revision, .Deliberate = true };
+		request.Progress = [&progress](const application::cycle_capture_progress& aProgress) { progress.push_back(aProgress); };
+		auto captured    = std::optional<application::cycle_store_result<application::cycle_capture_outcome>>{ };
+		expect(runtime.capture_workspace(*source, std::move(request), [&](auto aValue) { captured = std::move(aValue); }), "admitted");
+		expect(runtime.capturing() && captures.pending() == 1U && effects.pending() == 0U, "the capture went to its own lane");
+
+		auto loaded = std::optional<application::cycle_store_result<std::optional<core::review_cycle_state>>>{ };
+		expect(runtime.load_selected([&](auto aValue) { loaded = std::move(aValue); }), "admitted");
+		expect(effects.pending() == 1U, "a read starts beside the capture");
+		effects.drain();
+		decisions.drain();
+		expect(loaded && *loaded && **loaded && (**loaded)->Revision == first.Revision && !captured, "the read completed while the capture waits on its lane");
+
+		auto marked = std::optional<application::cycle_store_result<application::cycle_write_receipt>>{ };
+		auto listed = std::optional<application::cycle_store_result<application::cycle_revision_page>>{ };
+		expect(runtime.mark_reviewed_selected(operation(93), first.Latest->Id.Id, [&](auto aValue) { marked = std::move(aValue); }), "admitted");
+		expect(runtime.revisions_selected(std::nullopt, [&](auto aValue) { listed = std::move(aValue); }), "admitted");
+		expect(effects.pending() == 0U, "a write waits for the capture, and the read queued behind it");
+
+		captures.drain();
+		expect(effects.pending() == 0U && !captured, "the capture's result returns on the decision lane");
+		decisions.drain();
+		expect(captured && *captured && (*captured)->Status == cycle_capture_status::captured && (*captured)->Receipt && (*captured)->Receipt->Changed, "the deliberate capture recorded R2");
+		expect(!runtime.capturing() && effects.pending() == 1U, "the waiting write starts once the capture completes");
+		settle();
+		expect(marked && *marked && listed && *listed && (*listed)->Revisions.size() == 2U, "the write and the read behind it complete, in order");
+		const auto reading = std::ranges::count(progress, application::cycle_capture_progress::phase::reading, &application::cycle_capture_progress::Phase);
+		expect(reading >= 3 && std::ranges::any_of(progress, [](const auto& aProgress) { return aProgress.Phase == application::cycle_capture_progress::phase::reading && aProgress.Files == 2048U; }),
+			   "reading progress at the start and every 1,024 files");
+		expect(std::ranges::any_of(progress, [](const auto& aProgress) { return aProgress.Phase == application::cycle_capture_progress::phase::checking; })
+				   && progress.back().Phase == application::cycle_capture_progress::phase::recording && progress.back().Files == 2100U,
+			   "then checking, then recording every path");
+
+		// Cancelled while it reads: nothing recorded.
+		auto again = std::optional<application::cycle_store_result<application::cycle_capture_outcome>>{ };
+		auto now   = std::optional<application::cycle_store_result<std::optional<core::review_cycle_state>>>{ };
+		expect(runtime.load_selected([&](auto aValue) { now = std::move(aValue); }), "admitted");
+		settle();
+		expect(runtime.capture_workspace(*source, { .Operation = operation(94), .ExpectedRevision = (**now)->Revision, .Deliberate = true }, [&](auto aValue) { again = std::move(aValue); }), "admitted");
+		runtime.cancel_capture();
+		settle();
+		// Cancelled while it loads the cycle or while it reads: either way, cancelled.
+		expect(again && ((*again && (*again)->Status == cycle_capture_status::cancelled && !(*again)->Receipt) || (!*again && again->error().Failure == application::cycle_store_failure::cancelled)),
+			   "a cancelled capture records nothing");
+		listed.reset();
+		expect(runtime.revisions_selected(std::nullopt, [&](auto aValue) { listed = std::move(aValue); }), "admitted");
+		settle();
+		expect(listed && *listed && (*listed)->Revisions.size() == 2U, "still two revisions");
+		runtime.shutdown();
+		settle();
+		expect(runtime.is_quiescent(), "quiescent");
+	}
+}
+
 auto main(const int aArgc, char** aArgv) -> int
 try {
 	tests::sqlite_contract::scratch_root scratch{ "cycle-capture" };
@@ -482,6 +568,7 @@ try {
 	preserves_bytes_modes_and_special_files(scratch.path(), git);
 	checks_material_before_rebind(scratch.path());
 	captures_through_the_runtime(scratch.path());
+	captures_beside_reads(scratch.path());
 	std::cout << "review-cycle-capture-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

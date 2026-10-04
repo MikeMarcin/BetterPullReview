@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APP_SRC_REVIEW_CYCLE_DESKTOP_HPP
 #define BPR_SRC_APP_SRC_REVIEW_CYCLE_DESKTOP_HPP
 
+#include "bpr/app/worker_executor.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/github_publication_port.hpp"
 #include "bpr/application/port.hpp"
@@ -65,8 +66,11 @@ namespace bpr::app {
 	class review_cycle_desktop final : public application::review_cycle_workbench_port, private application::appearance_projection_port
 	{
 	public:
+		/// \param aCaptures Where captures run ([[BPR-1184]]); absent, the
+		/// desktop runs them on a worker thread of its own. A course on
+		/// manual lanes names its lane here.
 		review_cycle_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, core::bpr_profile_id aProfile, application::effect_executor& aEffects,
-							 application::decision_executor& aDecisions, review_cycle_syntax aSyntax = { });
+							 application::decision_executor& aDecisions, review_cycle_syntax aSyntax = { }, application::effect_executor* aCaptures = nullptr);
 		~review_cycle_desktop() override;
 		review_cycle_desktop(const review_cycle_desktop&)                    = delete;
 		auto operator=(const review_cycle_desktop&) -> review_cycle_desktop& = delete;
@@ -143,9 +147,14 @@ namespace bpr::app {
 		void fail(const application::appearance_failure_publication& aFailure) override;
 		void rejected(application::appearance_terminal_rejection aRejection) override;
 
-		qt::workbench_window&                                                Window;
-		qt::review_cycle_view*                                               View = nullptr;
-		std::unique_ptr<application::workspace_source_port>                  Source;
+		qt::workbench_window&                               Window;
+		qt::review_cycle_view*                              View = nullptr;
+		std::unique_ptr<application::workspace_source_port> Source;
+		/// [[BPR-1184]]. Captures run on this worker unless the composition
+		/// named a lane, so the reviewer reads and moves between files while
+		/// one runs and no other workbench effect waits. Declared before the
+		/// host, which it outlives.
+		std::unique_ptr<worker_executor>                                     OwnCaptures;
 		std::unique_ptr<application::review_cycle_workbench>                 Host;
 		core::local_cycle_subject                                            LastSubject;
 		bool                                                                 Closing           = false;

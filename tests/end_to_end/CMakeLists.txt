@@ -3271,8 +3271,13 @@ if(TARGET app_bpr)
     # `git init` in its AC\Temp project exits 128 with "unable to get current
     # working directory: Permission denied", Git's getcwd, before any desktop
     # step. Measured on JaegAW 2026-10-03.
-    bpr_add_executable(test_review_cycle_two_round_public_path review_cycle_two_round_public_path_tests.cpp)
+    # [[BPR-1184]] measures large projects through the same reviewer, with
+    # [[BPR-0967]]'s native process-memory counters.
+    bpr_add_executable(test_review_cycle_two_round_public_path review_cycle_two_round_public_path_tests.cpp large_review_native_memory.cpp)
     target_link_libraries(test_review_cycle_two_round_public_path PRIVATE BetterPullReview::Composition)
+    if(WIN32)
+        target_link_libraries(test_review_cycle_two_round_public_path PRIVATE psapi)
+    endif()
     target_compile_definitions(test_review_cycle_two_round_public_path PRIVATE BPR_BUILD_TESTING=1)
     target_compile_features(test_review_cycle_two_round_public_path PRIVATE cxx_std_23)
     bpr_enable_hardening(test_review_cycle_two_round_public_path)
@@ -3314,6 +3319,39 @@ if(TARGET app_bpr)
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_PARITY_OK"
         TIMEOUT 600)
+    # [[BPR-1184]]. Large-project responsiveness through the same reviewer and
+    # the shipped `bpr cycle`: named corpora of 20,000 and 100,000 files of
+    # 1,000,000 lines each, a 514-item stress round and a 250,001-entry
+    # refusal, reported as p50/p95 with peak memory in the report file. The
+    # 100 ms typing and navigation targets while a capture runs are enforced in
+    # optimized macOS builds, whose measurements justify them; elsewhere they
+    # are reported until the stations' measurements do. A Debug build runs a
+    # 2,000-file correctness pass and claims no measurement. Registered
+    # contained: it runs no Git in its scratch root, the two-round course's
+    # reason for running uncontained; Windows measures it before any pin.
+    # Timeout: macOS Release ran the row in 225.31 s (M4 Pro, 2026-10-04); three
+    # times that, rounded up. Windows and Linux are provisional at 2,400 s
+    # until the stations measure them (build-and-test.md, run budgets).
+    if(APPLE)
+        set(bpr_large_project_timeout 720)
+    else()
+        set(bpr_large_project_timeout 2400)
+    endif()
+    bpr_add_network_isolated_test(NAME application_review_cycle_large_project
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_large_project_contract.py"
+        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
+        --cycle-application $<TARGET_FILE:app_bpr>
+        --build-type $<CONFIG>
+        --source-root "${PROJECT_SOURCE_DIR}"
+        --report "${CMAKE_CURRENT_BINARY_DIR}/bpr1184-large-project-report.json"
+        "--enforce=$<IF:$<AND:$<PLATFORM_ID:Darwin>,$<NOT:$<CONFIG:Debug>>>,1,0>"
+        "--quick=$<IF:$<CONFIG:Debug>,1,0>"
+        --limit-probe)
+    set_tests_properties(application_review_cycle_large_project PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_LARGE_PROJECT_OK"
+        RUN_SERIAL TRUE
+        TIMEOUT ${bpr_large_project_timeout})
 endif()
 
 if(BPR_BUILD_QT AND TARGET Git::Git)

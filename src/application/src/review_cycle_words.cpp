@@ -6,6 +6,9 @@
 #include <filesystem>
 
 namespace bpr::application {
+	// [[BPR-1184]]. A refusal names the limit it met.
+	static_assert(core::maximum_cycle_capture_entries == 250'000U, "the over-limit capture words name 250,000 entries");
+
 	auto cycle_store_words(const cycle_store_error& aError) -> std::string
 	{
 		switch (aError.Failure) {
@@ -36,7 +39,7 @@ namespace bpr::application {
 		case cycle_capture_status::captured:         return { };
 		case cycle_capture_status::unstable:         return "Files kept changing while they were read; nothing was recorded. Capture again when the folder is quiet.";
 		case cycle_capture_status::root_changed:     return "The chosen folder was replaced while it was read; nothing was recorded.";
-		case cycle_capture_status::too_many_entries: return "The folder holds more entries than one capture keeps; narrow the scope.";
+		case cycle_capture_status::too_many_entries: return "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.";
 		case cycle_capture_status::store:            return aOutcome.Store ? cycle_store_words(*aOutcome.Store) : "The local cycle store is unavailable.";
 		case cycle_capture_status::workspace:        return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The chosen folder could not be read.";
 		case cycle_capture_status::not_bound:        return "The cycle has no folder to capture.";

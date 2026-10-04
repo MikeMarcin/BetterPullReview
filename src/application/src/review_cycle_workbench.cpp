@@ -233,8 +233,8 @@ namespace bpr::application {
 	struct review_cycle_workbench::implementation : std::enable_shared_from_this<implementation>
 	{
 		implementation(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
-					   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed)
-			: Runtime{ std::move(aStore), aEffects, aDecisions }
+					   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures)
+			: Runtime{ std::move(aStore), aEffects, aDecisions, aCaptures }
 			, Source{ aSource }
 			, Port{ aPort }
 			, Seed{ aSeed }
@@ -256,7 +256,21 @@ namespace bpr::application {
 		std::uint64_t SourceLoad = 0;
 		bool          Closing    = false;
 		/// After a capture, new tabs take the new revision once the reload completes.
-		bool                                AdvanceNewTabs = false;
+		bool AdvanceNewTabs = false;
+		/// [[BPR-1184]]. The drawer's window of files: where it starts, where
+		/// the next one would, and where each earlier one started.
+		struct file_window
+		{
+			std::optional<std::string> After;
+			std::uint64_t              First = 1;
+		};
+		file_window                Window;
+		std::optional<std::string> NextWindow;
+		std::vector<file_window>   EarlierWindows;
+		/// Open the window's first or last file once it is listed.
+		std::optional<int> OpenEdge;
+		/// The tabs changed while a capture ran; saved when it ends.
+		bool                                TabsUnsaved = false;
 		review_cycle_workbench::file_reader Reader;
 		/// Recipient statements, kept to describe notes as they reload.
 		cycle_response_entries Responses;
@@ -301,6 +315,10 @@ namespace bpr::application {
 
 		void publish()
 		{
+			// [[BPR-1184]]. Reads finish while a capture runs; the page still says it is capturing.
+			if (View.Capturing && View.Activity == review_cycle_activity::idle) {
+				View.Activity = review_cycle_activity::capturing;
+			}
 			Port.publish(View);
 		}
 
@@ -467,27 +485,79 @@ namespace bpr::application {
 		void capture_current(const bool aDeliberate)
 		{
 			auto request = cycle_capture_request{ .Operation = operation(), .ExpectedRevision = Cycle->Revision, .Deliberate = aDeliberate };
-			Runtime.capture_workspace(Source, std::move(request), guarded<cycle_capture_outcome>([](implementation& aSelf, cycle_capture_outcome aOutcome) {
-										  if (aOutcome.Status != cycle_capture_status::captured) {
-											  aSelf.fail(cycle_capture_words(aOutcome));
-											  return;
-										  }
-										  aSelf.View.Message.clear();
-										  if (aOutcome.Receipt && !aOutcome.Receipt->Changed && aSelf.Cycle && aSelf.Cycle->Latest) {
-											  // Identical bytes: no revision, and the reviewer is told so.
-											  aSelf.View.Notice = "No change since " + revision_name(aSelf.Cycle->Latest->Id.Id) + "; nothing new was recorded.";
-										  } else {
-											  aSelf.View.Quality   = aOutcome.Diagnostics.Explanation;
-											  aSelf.AdvanceNewTabs = true;
-										  }
-										  aSelf.load(false);
-									  }));
+			// [[BPR-1184]]. Capturing from here until the capture's end, however it ends.
+			View.Capturing = cycle_capture_progress{ };
+			publish();
+			// How far it has got, for the Updates line; the runtime delivers it on this lane.
+			request.Progress = [weak = weak_from_this(), generation = Generation](const cycle_capture_progress& aProgress) {
+				const auto self = weak.lock();
+				if (self && !self->Closing && self->Generation == generation && self->View.Capturing) {
+					self->View.Capturing = aProgress;
+					self->publish();
+				}
+			};
+			// Not `guarded`: a capture's end clears its progress however it ends.
+			Runtime.capture_workspace(Source, std::move(request), [weak = weak_from_this(), generation = Generation](cycle_store_result<cycle_capture_outcome> aResult) {
+				const auto self = weak.lock();
+				if (!self || self->Closing || self->Generation != generation) {
+					return;
+				}
+				self->View.Capturing.reset();
+				// Before any reload reads the tab record back.
+				if (std::exchange(self->TabsUnsaved, false)) {
+					self->save_tabs();
+				}
+				if (!aResult) {
+					if (aResult.error().Failure == cycle_store_failure::cancelled) {
+						self->capture_cancelled();
+					} else {
+						self->fail(cycle_store_words(aResult.error()));
+					}
+					return;
+				}
+				self->captured(std::move(*aResult));
+			});
+		}
+
+		/// Asked for: nothing recorded, the latest revision as it was.
+		void capture_cancelled()
+		{
+			if (View.Activity == review_cycle_activity::capturing) {
+				View.Activity = review_cycle_activity::idle;
+			}
+			View.Notice = "Capture cancelled; nothing was recorded.";
+			publish();
+		}
+
+		void captured(const cycle_capture_outcome& aOutcome)
+		{
+			if (aOutcome.Status == cycle_capture_status::cancelled) {
+				capture_cancelled();
+				return;
+			}
+			if (aOutcome.Status != cycle_capture_status::captured) {
+				fail(cycle_capture_words(aOutcome));
+				return;
+			}
+			View.Message.clear();
+			if (aOutcome.Receipt && !aOutcome.Receipt->Changed && Cycle && Cycle->Latest) {
+				// Identical bytes: no revision, and the reviewer is told so.
+				View.Notice = "No change since " + revision_name(Cycle->Latest->Id.Id) + "; nothing new was recorded.";
+			} else {
+				View.Quality   = aOutcome.Diagnostics.Explanation;
+				AdvanceNewTabs = true;
+			}
+			load(false);
 		}
 
 		/// Loads the open cycle: state, revisions, files, tabs, notes and the active source.
 		void load(const bool aCaptureWhenEmpty)
 		{
 			View.Activity = review_cycle_activity::loading;
+			// A reload lists from the first file again: a capture may have moved every position.
+			Window = { };
+			NextWindow.reset();
+			EarlierWindows.clear();
 			publish();
 			Runtime.load_selected(guarded<std::optional<core::review_cycle_state>>([aCaptureWhenEmpty](implementation& aSelf, std::optional<core::review_cycle_state> aState) {
 				if (!aState) {
@@ -523,14 +593,17 @@ namespace bpr::application {
 											   return;
 										   }
 										   aSelf.View.Revisions = std::move(found);
-										   aSelf.load_files(std::nullopt, { });
+										   aSelf.load_files(aSelf.Window.After, { }, false);
 									   }));
 		}
 
-		void load_files(const std::optional<std::string>& aAfter, std::vector<review_cycle_file_entry> aFound)
+		/// \brief Lists one window of the latest capture's files, from `aAfter`,
+		/// a bounded page at a time; then the rest of the reload, or with
+		/// `aListingOnly` just the drawer.
+		void load_files(const std::optional<std::string>& aAfter, std::vector<review_cycle_file_entry> aFound, const bool aListingOnly)
 		{
 			const auto pair = core::cycle_comparison_pair{ .Left = std::nullopt, .Right = Cycle->Latest->Id };
-			Runtime.compare_selected(pair, aAfter, core::maximum_cycle_comparison_page, false, guarded<cycle_comparison_page_observation>([found = std::move(aFound)](implementation& aSelf, cycle_comparison_page_observation aPage) mutable {
+			Runtime.compare_selected(pair, aAfter, core::maximum_cycle_comparison_page, false, guarded<cycle_comparison_page_observation>([found = std::move(aFound), aListingOnly](implementation& aSelf, cycle_comparison_page_observation aPage) mutable {
 										 if (!aPage.Page) {
 											 aSelf.fail("The captured file list could not be read.");
 											 return;
@@ -542,13 +615,55 @@ namespace bpr::application {
 										 }
 										 const auto full = found.size() >= maximum_listed_files;
 										 if (aPage.Page->Next && !full) {
-											 aSelf.load_files(aPage.Page->Next, std::move(found));
+											 aSelf.load_files(aPage.Page->Next, std::move(found), aListingOnly);
 											 return;
 										 }
-										 aSelf.View.FilesTruncated = full && aPage.Page->Next.has_value();
-										 aSelf.View.Files          = std::move(found);
-										 aSelf.load_facts();
+										 aSelf.View.FilesTruncated  = full && aPage.Page->Next.has_value();
+										 aSelf.NextWindow           = aSelf.View.FilesTruncated ? aPage.Page->Next : std::nullopt;
+										 aSelf.View.FilesFirst      = aSelf.Window.First;
+										 aSelf.View.FilesEarlier    = !aSelf.EarlierWindows.empty();
+										 aSelf.View.CapturedEntries = aSelf.Cycle->Latest->Capture.Entries;
+										 aSelf.View.Files           = std::move(found);
+										 if (!aListingOnly) {
+											 aSelf.load_facts();
+											 return;
+										 }
+										 aSelf.View.Activity = review_cycle_activity::idle;
+										 aSelf.publish();
+										 if (const auto edge = std::exchange(aSelf.OpenEdge, std::nullopt); edge && !aSelf.View.Files.empty()) {
+											 const auto& file = *edge > 0 ? aSelf.View.Files.front() : aSelf.View.Files.back();
+											 aSelf.tab_changed(core::open_path(aSelf.Tabs, file.Path, false));
+										 }
 									 }));
+		}
+
+		/// \brief [[BPR-1184]]. The drawer's next (`aDirection` > 0) or
+		/// previous window of files; with `aOpenEdge`, then opens its first
+		/// or last file, as Next file and Previous file do at a window's edge.
+		void list_files(const int aDirection, const bool aOpenEdge)
+		{
+			// While a capture runs the drawer still pages: only another load waits.
+			if (!Cycle || !Cycle->Latest || (View.Activity != review_cycle_activity::idle && View.Activity != review_cycle_activity::capturing)) {
+				return;
+			}
+			if (aDirection > 0) {
+				if (!NextWindow) {
+					return;
+				}
+				EarlierWindows.push_back(Window);
+				Window = { .After = NextWindow, .First = Window.First + View.Files.size() };
+			} else {
+				if (EarlierWindows.empty()) {
+					return;
+				}
+				Window = EarlierWindows.back();
+				EarlierWindows.pop_back();
+			}
+			NextWindow.reset();
+			OpenEdge      = aOpenEdge ? std::optional{ aDirection } : std::nullopt;
+			View.Activity = review_cycle_activity::loading;
+			publish();
+			load_files(Window.After, { }, true);
 		}
 
 		/// The reviewer's checkpoint and the rounds' bound revisions, then the history.
@@ -624,6 +739,13 @@ namespace bpr::application {
 
 		void save_tabs()
 		{
+			// [[BPR-1184]]. While a capture writes, the tab record waits for it:
+			// saved now, it would wait on the capture's write lock in front of
+			// the next file the reviewer reads.
+			if (View.Capturing) {
+				TabsUnsaved = true;
+				return;
+			}
 			Runtime.save_tabs_selected(core::persisted(Tabs), guarded<void>([](implementation&) { }));
 		}
 
@@ -1742,8 +1864,8 @@ namespace bpr::application {
 	};
 
 	review_cycle_workbench::review_cycle_workbench(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
-												   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed)
-		: Implementation{ std::make_shared<implementation>(std::move(aStore), aSource, aEffects, aDecisions, aPort, aSeed) }
+												   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures)
+		: Implementation{ std::make_shared<implementation>(std::move(aStore), aSource, aEffects, aDecisions, aPort, aSeed, aCaptures) }
 	{
 	}
 
@@ -1814,6 +1936,18 @@ namespace bpr::application {
 		self.tab_changed(core::transition(self.Tabs, *self.Subject, aIntent, paths));
 	}
 
+	void review_cycle_workbench::cancel_capture()
+	{
+		if (Implementation->View.Capturing) {
+			Implementation->Runtime.cancel_capture();
+		}
+	}
+
+	void review_cycle_workbench::list_files(const int aDirection, const bool aOpenEdge)
+	{
+		Implementation->list_files(aDirection, aOpenEdge);
+	}
+
 	void review_cycle_workbench::open_file(const std::string& aPath, const bool aNewTab)
 	{
 		auto& self = *Implementation;
@@ -1861,7 +1995,8 @@ namespace bpr::application {
 	void review_cycle_workbench::capture_revision(const bool aDeliberate)
 	{
 		auto& self = *Implementation;
-		if (!self.Cycle) {
+		// One capture at a time: a running one is cancelled, not repeated.
+		if (!self.Cycle || self.View.Capturing || self.View.Activity == review_cycle_activity::capturing) {
 			return;
 		}
 		if (!self.Cycle->Workspace) {

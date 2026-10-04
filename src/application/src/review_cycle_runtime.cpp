@@ -18,14 +18,34 @@ namespace bpr::application {
 		}
 	}
 
+	/// \brief [[BPR-1184]]. What a store call may change, which decides
+	/// whether it runs beside a workspace capture.
+	enum class review_cycle_call : std::uint8_t {
+		/// May move the cycle on: waits for an outstanding capture, which
+		/// records against the cycle revision it was asked under.
+		write,
+		/// Reads, or writes only what no capture's expected revision covers
+		/// (the tab record): runs beside a capture.
+		beside_capture,
+		/// A workspace capture: on the capture lane when one is composed.
+		capture,
+	};
+
 	struct review_cycle_runtime::implementation : std::enable_shared_from_this<implementation>
 	{
-		implementation(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions)
+		implementation(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures)
 			: Store{ std::move(aStore) }
 			, Effects{ aEffects }
 			, Decisions{ aDecisions }
+			, Captures{ aCaptures }
 		{
 		}
+
+		struct queued_call
+		{
+			review_cycle_call     Kind = review_cycle_call::write;
+			std::function<void()> Start;
+		};
 
 		std::unique_ptr<review_cycle_store> Store;
 		/// Created on first use; used only by work on the effect lane, which
@@ -33,68 +53,97 @@ namespace bpr::application {
 		std::shared_ptr<review_cycle_comparison_host> Comparisons;
 		effect_executor&                              Effects;
 		decision_executor&                            Decisions;
-		std::optional<core::review_subject>           Selected;
-		std::uint64_t                                 Generation = 0;
-		std::stop_source                              Stop;
-		std::deque<std::function<void()>>             Queue;
-		std::size_t                                   Outstanding = 0;
-		bool                                          Running     = false;
-		bool                                          Closing     = false;
+		/// [[BPR-1184]]. Optional: a capture runs here, beside the effect lane.
+		effect_executor*                    Captures = nullptr;
+		std::optional<core::review_subject> Selected;
+		std::uint64_t                       Generation = 0;
+		std::stop_source                    Stop;
+		/// The running capture's own stop: a selection change, shutdown or
+		/// `cancel_capture` stops it.
+		std::stop_source        CaptureStop;
+		std::deque<queued_call> Queue;
+		std::size_t             Outstanding = 0;
+		bool                    Running     = false;
+		bool                    Capturing   = false;
+		bool                    Closing     = false;
 
-		/// Starts the next queued store call when none is running.
+		/// \brief Starts queued store calls in request order: one at a time on
+		/// the effect lane, and a capture on its own lane beside them.
+		/// \details While a capture runs only calls that run beside it start;
+		/// the first other call waits, and everything behind it, so order is
+		/// kept. A capture starts only when the effect lane is free.
 		void pump()
 		{
-			if (Running || Queue.empty()) {
-				return;
+			while (!Running && !Queue.empty()) {
+				const auto kind = Queue.front().Kind;
+				if (kind == review_cycle_call::capture && Captures != nullptr) {
+					if (Capturing) {
+						return;
+					}
+					Capturing = true;
+				} else if (Capturing && kind != review_cycle_call::beside_capture) {
+					return;
+				} else {
+					Running = true;
+				}
+				auto next = std::move(Queue.front().Start);
+				Queue.pop_front();
+				next();
 			}
-			Running   = true;
-			auto next = std::move(Queue.front());
-			Queue.pop_front();
-			next();
 		}
 
 		/// Queues one store call; its result returns to the decision lane.
 		template <typename T, typename TWork>
-		auto submit(TWork aWork, completion<T> aDone) -> bool
+		auto submit(TWork aWork, completion<T> aDone, const review_cycle_call aKind = review_cycle_call::write) -> bool
 		{
 			if (Closing) {
 				return false;
 			}
 			++Outstanding;
-			Queue.push_back([self = shared_from_this(), work = std::move(aWork), done = std::move(aDone), generation = Generation, token = Stop.get_token()]() mutable {
-				self->dispatch<T>(std::move(work), std::move(done), generation, token);
-			});
+			const auto laned = aKind == review_cycle_call::capture && Captures != nullptr;
+			Queue.push_back({ .Kind = aKind, .Start = [self = shared_from_this(), work = std::move(aWork), done = std::move(aDone), generation = Generation, token = Stop.get_token(), laned]() mutable {
+								 if (!laned) {
+									 self->dispatch<T>(std::move(work), std::move(done), generation, token, self->Effects, false);
+									 return;
+								 }
+								 // Its own stop, already requested when the selection moved on while it waited.
+								 self->CaptureStop = std::stop_source{ };
+								 if (generation != self->Generation || self->Closing) {
+									 self->CaptureStop.request_stop();
+								 }
+								 self->dispatch<T>(std::move(work), std::move(done), generation, self->CaptureStop.get_token(), *self->Captures, true);
+							 } });
 			pump();
 			return true;
 		}
 
-		/// Runs the call on the effect lane.
+		/// Runs the call on `aLane`.
 		template <typename T, typename TWork>
-		void dispatch(TWork aWork, completion<T> aDone, const std::uint64_t aGeneration, std::stop_token aToken)
+		void dispatch(TWork aWork, completion<T> aDone, const std::uint64_t aGeneration, std::stop_token aToken, effect_executor& aLane, const bool aLaned)
 		{
-			Effects.post([self = shared_from_this(), work = std::move(aWork), done = std::move(aDone), aGeneration, aToken]() mutable {
-				self->complete<T>(work(*self->Store, aToken), std::move(done), aGeneration);
+			aLane.post([self = shared_from_this(), work = std::move(aWork), done = std::move(aDone), aGeneration, aToken, aLaned]() mutable {
+				self->complete<T>(work(*self->Store, aToken), std::move(done), aGeneration, aLaned);
 			});
 		}
 
 		/// Returns the result to the decision lane.
 		template <typename T>
-		void complete(cycle_store_result<T> aResult, completion<T> aDone, const std::uint64_t aGeneration)
+		void complete(cycle_store_result<T> aResult, completion<T> aDone, const std::uint64_t aGeneration, const bool aLaned)
 		{
-			Decisions.post([self = shared_from_this(), result = std::move(aResult), done = std::move(aDone), aGeneration]() mutable {
-				self->finish<T>(std::move(result), std::move(done), aGeneration);
+			Decisions.post([self = shared_from_this(), result = std::move(aResult), done = std::move(aDone), aGeneration, aLaned]() mutable {
+				self->finish<T>(std::move(result), std::move(done), aGeneration, aLaned);
 			});
 		}
 
 		/// Delivers one terminal; a superseded selection's result is cancelled.
 		template <typename T>
-		void finish(cycle_store_result<T> aResult, completion<T> aDone, const std::uint64_t aGeneration)
+		void finish(cycle_store_result<T> aResult, completion<T> aDone, const std::uint64_t aGeneration, const bool aLaned)
 		{
 			if (aGeneration != Generation) {
 				aResult = std::unexpected(cancelled());
 			}
 			--Outstanding;
-			Running = false;
+			(aLaned ? Capturing : Running) = false;
 			aDone(std::move(aResult));
 			pump();
 		}
@@ -117,8 +166,8 @@ namespace bpr::application {
 		}
 	};
 
-	review_cycle_runtime::review_cycle_runtime(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions)
-		: Implementation{ std::make_shared<implementation>(std::move(aStore), aEffects, aDecisions) }
+	review_cycle_runtime::review_cycle_runtime(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures)
+		: Implementation{ std::make_shared<implementation>(std::move(aStore), aEffects, aDecisions, aCaptures) }
 	{
 	}
 
@@ -131,9 +180,22 @@ namespace bpr::application {
 	{
 		auto& self = *Implementation;
 		self.Stop.request_stop();
+		self.CaptureStop.request_stop();
 		self.Stop     = std::stop_source{ };
 		self.Selected = std::move(aSubject);
 		return ++self.Generation;
+	}
+
+	void review_cycle_runtime::cancel_capture()
+	{
+		if (Implementation->Capturing) {
+			Implementation->CaptureStop.request_stop();
+		}
+	}
+
+	auto review_cycle_runtime::capturing() const noexcept -> bool
+	{
+		return Implementation->Capturing;
 	}
 
 	auto review_cycle_runtime::selected() const noexcept -> const std::optional<core::review_subject>&
@@ -163,7 +225,7 @@ namespace bpr::application {
 			}
 			return aStore.load(*subject, aStop);
 		},
-																			   std::move(aDone));
+																			   std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::capture_selected(cycle_operation_id aOperation, std::uint64_t aExpectedRevision, core::cycle_capture_observation aCapture,
@@ -187,6 +249,18 @@ namespace bpr::application {
 	auto review_cycle_runtime::capture_workspace(workspace_source_port& aSource, cycle_capture_request aRequest, completion<cycle_capture_outcome> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
+		if (aRequest.Progress) {
+			// Told on the capture's thread, delivered on the decision lane while the selection holds.
+			aRequest.Progress = [weak = std::weak_ptr<implementation>{ Implementation }, sink = std::move(aRequest.Progress), generation = Implementation->Generation](const cycle_capture_progress& aProgress) {
+				if (const auto self = weak.lock()) {
+					self->Decisions.post([weak, sink, generation, aProgress] {
+						if (const auto current = weak.lock(); current && !current->Closing && current->Generation == generation) {
+							sink(aProgress);
+						}
+					});
+				}
+			};
+		}
 		return Implementation->submit<cycle_capture_outcome>([subject, source = &aSource, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_capture_outcome> {
 			if (!subject) {
 				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::refused, .Refusal = core::cycle_refusal::invalid_identity });
@@ -201,7 +275,7 @@ namespace bpr::application {
 			auto host = review_cycle_capture_host{ *source, aStore };
 			return host.capture(**loaded, request, std::move(aStop));
 		},
-															 std::move(aDone));
+															 std::move(aDone), review_cycle_call::capture);
 	}
 
 	auto review_cycle_runtime::compare_selected(core::cycle_comparison_pair aPair, std::optional<std::string> aAfter, const std::size_t aLimit, const bool aChangedOnly,
@@ -215,7 +289,7 @@ namespace bpr::application {
 			}
 			return host->page(*subject, aPair, after, aLimit, aChangedOnly, std::move(aStop));
 		},
-																		 std::move(aDone));
+																		 std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::compare_file_selected(core::cycle_comparison_pair aPair, std::string aPath, core::diff_options aOptions, completion<cycle_file_observation> aDone) -> bool
@@ -228,7 +302,7 @@ namespace bpr::application {
 			}
 			return host->file(*subject, aPair, path, aOptions, std::move(aStop));
 		},
-															  std::move(aDone));
+															  std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::begin_feedback_selected(cycle_operation_id aOperation, const std::uint64_t aExpectedRevision, core::begin_cycle_feedback aCommand,
@@ -281,7 +355,7 @@ namespace bpr::application {
 			}
 			return aStore.feedback(*subject, aAfter, aStop);
 		},
-														   std::move(aDone));
+														   std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::feedback_revisions_selected(core::cycle_feedback_item_ref aItem, std::optional<core::private_review_turn_revision_id> aAfter,
@@ -294,7 +368,7 @@ namespace bpr::application {
 			}
 			return aStore.feedback_revisions(*subject, aItem, aAfter, aStop);
 		},
-																	std::move(aDone));
+																	std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::observe_feedback_selected(core::cycle_feedback_target aTarget, const core::cycle_source_revision_id aAgainst, completion<cycle_correspondence_observation> aDone) -> bool
@@ -307,7 +381,7 @@ namespace bpr::application {
 			}
 			return observe_feedback_target(*host, *subject, target, aAgainst, std::move(aStop));
 		},
-																		std::move(aDone));
+																		std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::add_suggestion_selected(cycle_operation_id aOperation, core::cycle_feedback_item_ref aItem, const std::uint64_t aExpectedVersion, core::suggest_change aChange,
@@ -372,7 +446,7 @@ namespace bpr::application {
 			}
 			return aStore.suggestions(*subject, aItem, aStop);
 		},
-																		   std::move(aDone));
+																		   std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::begin_round_selected(cycle_operation_id aOperation, const std::uint64_t aExpectedRevision, completion<cycle_write_receipt> aDone) -> bool
@@ -458,7 +532,7 @@ namespace bpr::application {
 			}
 			return load_view_facts(aStore, *subject, aStop);
 		},
-															  std::move(aDone));
+															  std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::history_selected(const std::optional<core::cycle_source_revision_id> aAfter, const std::size_t aLimit, completion<cycle_history_page> aDone) -> bool
@@ -471,7 +545,7 @@ namespace bpr::application {
 			}
 			return load_cycle_history(aStore, *host, *subject, aAfter, aLimit, aStop);
 		},
-														  std::move(aDone));
+														  std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::import_response_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, cycle_response_file_reader aRead, completion<cycle_response_result> aDone) -> bool
@@ -514,7 +588,7 @@ namespace bpr::application {
 			}
 			return read_cycle_responses(aStore, *subject, aStop);
 		},
-															  std::move(aDone));
+															  std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::decide_selected(cycle_operation_id aOperation, cycle_decision_request aRequest, completion<cycle_decision_result> aDone) -> bool
@@ -903,7 +977,7 @@ namespace bpr::application {
 			}
 			return aStore.revisions(*subject, aAfter, aStop);
 		},
-														   std::move(aDone));
+														   std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::save_tabs_selected(core::cycle_tabs_record aRecord, completion<void> aDone) -> bool
@@ -915,7 +989,7 @@ namespace bpr::application {
 			}
 			return aStore.save_tabs(*subject, record, aStop);
 		},
-											std::move(aDone));
+											std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::load_tabs_selected(completion<std::optional<core::cycle_tabs_record>> aDone) -> bool
@@ -927,7 +1001,7 @@ namespace bpr::application {
 			}
 			return aStore.load_tabs(*subject, aStop);
 		},
-																			  std::move(aDone));
+																			  std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	void review_cycle_runtime::shutdown()
@@ -935,6 +1009,7 @@ namespace bpr::application {
 		auto& self   = *Implementation;
 		self.Closing = true;
 		self.Stop.request_stop();
+		self.CaptureStop.request_stop();
 	}
 
 	auto review_cycle_runtime::is_quiescent() const noexcept -> bool

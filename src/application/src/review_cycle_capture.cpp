@@ -216,7 +216,8 @@ namespace bpr::application {
 		{
 		public:
 			scope_pass(workspace_root_session& aSession, review_cycle_store* aStore, const pass_mode aMode, const core::review_cycle_state& aCycle,
-					   const std::vector<std::string>& aExclusions, const git_metadata* aGit, const std::uint64_t aMaximumFileBytes, std::stop_token aStop)
+					   const std::vector<std::string>& aExclusions, const git_metadata* aGit, const std::uint64_t aMaximumFileBytes, std::stop_token aStop,
+					   std::function<void(std::uint64_t)> aCounted = { })
 				: Session{ aSession }
 				, Store{ aStore }
 				, Mode{ aMode }
@@ -225,6 +226,7 @@ namespace bpr::application {
 				, Git{ aGit }
 				, MaximumFileBytes{ aMaximumFileBytes }
 				, Stop{ std::move(aStop) }
+				, Counted{ std::move(aCounted) }
 			{
 			}
 
@@ -330,6 +332,9 @@ namespace bpr::application {
 				Result.Stamps.push_back(aStamp);
 				if (Mode != pass_mode::stamp) {
 					Result.Entries.push_back(std::move(aEntry));
+				}
+				if (Counted && Result.Stamps.size() % cycle_capture_progress_files == 0U) {
+					Counted(Result.Stamps.size());
 				}
 			}
 
@@ -755,14 +760,16 @@ namespace bpr::application {
 					   { .Path = aPath.Path, .Kind = kind });
 			}
 
-			workspace_root_session&                                                        Session;
-			review_cycle_store*                                                            Store;
-			pass_mode                                                                      Mode;
-			const core::review_cycle_state&                                                Cycle;
-			const std::vector<std::string>&                                                Requested;
-			const git_metadata*                                                            Git;
-			std::uint64_t                                                                  MaximumFileBytes;
-			std::stop_token                                                                Stop;
+			workspace_root_session&         Session;
+			review_cycle_store*             Store;
+			pass_mode                       Mode;
+			const core::review_cycle_state& Cycle;
+			const std::vector<std::string>& Requested;
+			const git_metadata*             Git;
+			std::uint64_t                   MaximumFileBytes;
+			std::stop_token                 Stop;
+			/// [[BPR-1184]]. Told the paths observed so far, every so many.
+			std::function<void(std::uint64_t)>                                             Counted;
 			core::workspace_ignore_rules                                                   Ignore;
 			core::workspace_attribute_rules                                                Attributes;
 			core::workspace_attribute_rules                                                InfoAttributes;
@@ -889,6 +896,13 @@ namespace bpr::application {
 			return outcome;
 		}
 		const auto& binding = *aCycle.Workspace;
+		// [[BPR-1184]]. Progress for a line that needs no dialog, when asked for.
+		const auto report = [&aRequest](const cycle_capture_progress::phase aPhase, const std::uint32_t aAttempt) -> std::function<void(std::uint64_t)> {
+			if (!aRequest.Progress) {
+				return { };
+			}
+			return [&aRequest, aPhase, aAttempt](const std::uint64_t aFiles) { aRequest.Progress({ .Phase = aPhase, .Files = aFiles, .Attempt = aAttempt }); };
+		};
 		for (std::uint32_t attempt = 0; attempt <= core::maximum_capture_retries; ++attempt) {
 			outcome.Diagnostics.Attempts = attempt + 1;
 			auto root                    = open_root(Source, binding.Root.Location, aStop);
@@ -903,8 +917,11 @@ namespace bpr::application {
 				outcome.Verification = verification;
 				return outcome;
 			}
-			const auto* git   = root->Git ? &*root->Git : nullptr;
-			auto        first = scope_pass{ *root->Session, &Store, pass_mode::install, aCycle, aRequest.Exclusions, git, aRequest.MaximumFileBytes, aStop }.run();
+			const auto* git = root->Git ? &*root->Git : nullptr;
+			if (const auto starting = report(cycle_capture_progress::phase::reading, attempt + 1)) {
+				starting(0);
+			}
+			auto first = scope_pass{ *root->Session, &Store, pass_mode::install, aCycle, aRequest.Exclusions, git, aRequest.MaximumFileBytes, aStop, report(cycle_capture_progress::phase::reading, attempt + 1) }.run();
 			outcome.Diagnostics.FilesRead += first.FilesRead;
 			outcome.Diagnostics.BytesRead += first.BytesRead;
 			if (first.Stopped == interruption::unstable) {
@@ -919,7 +936,10 @@ namespace bpr::application {
 
 			// The second observation: the same scope, stamps only, then the
 			// index and the root itself again.
-			auto second = scope_pass{ *root->Session, nullptr, pass_mode::stamp, aCycle, aRequest.Exclusions, git, aRequest.MaximumFileBytes, aStop }.run();
+			if (const auto checking = report(cycle_capture_progress::phase::checking, attempt + 1)) {
+				checking(0);
+			}
+			auto second = scope_pass{ *root->Session, nullptr, pass_mode::stamp, aCycle, aRequest.Exclusions, git, aRequest.MaximumFileBytes, aStop, report(cycle_capture_progress::phase::checking, attempt + 1) }.run();
 			if (second.Stopped == interruption::cancelled) {
 				outcome.Status = cycle_capture_status::cancelled;
 				return outcome;
@@ -954,6 +974,9 @@ namespace bpr::application {
 
 			outcome.Diagnostics.Changed = 0;
 			outcome.Diagnostics.ChangedExamples.clear();
+			if (const auto recording = report(cycle_capture_progress::phase::recording, attempt + 1)) {
+				recording(first.Stamps.size());
+			}
 			auto       content  = distinct_content(std::move(first.Content));
 			const auto manifest = build_manifest(aCycle, root->Session->observation(), root->Git, first);
 			if (core::validate_manifest(manifest)) {

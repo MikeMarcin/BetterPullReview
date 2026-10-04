@@ -31,13 +31,16 @@ namespace bpr::application {
 	class review_cycle_workbench final
 	{
 	public:
-		/// Files listed at most, from bounded comparison pages.
+		/// Files listed at a time, from bounded comparison pages; a larger
+		/// capture is listed a window at a time ([[BPR-1184]]).
 		static constexpr std::size_t maximum_listed_files = 4096U;
 		static constexpr std::size_t maximum_recents      = 32U;
 
 		/// \param aSeed A random seed for operation identities, chosen by the composition.
+		/// \param aCaptures Optional: where a capture runs, so reading and moving
+		/// between files continue while it does ([[BPR-1184]]).
 		review_cycle_workbench(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
-							   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed);
+							   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures = nullptr);
 		~review_cycle_workbench();
 		review_cycle_workbench(const review_cycle_workbench&)                    = delete;
 		auto operator=(const review_cycle_workbench&) -> review_cycle_workbench& = delete;
@@ -68,6 +71,13 @@ namespace bpr::application {
 		/// `aDeliberate` asks for another observation. Open tabs keep their
 		/// revisions; new tabs take the new capture.
 		void capture_revision(bool aDeliberate = false);
+		/// \brief [[BPR-1184]]. Cancels the running capture: nothing is
+		/// recorded and the latest revision stays as it was.
+		void cancel_capture();
+		/// \brief [[BPR-1184]]. Lists the next (`aDirection` > 0) or previous
+		/// window of the latest capture's files in the drawer; with
+		/// `aOpenEdge`, then opens the window's first or last file.
+		void list_files(int aDirection, bool aOpenEdge);
 		/// \brief Shows a named comparison of the active tab's file.
 		void compare(const core::cycle_view_request& aRequest);
 		/// \brief Returns the active tab to full source.

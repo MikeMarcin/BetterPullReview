@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_PROJECTION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_PROJECTION_HPP
 
+#include "bpr/application/review_cycle_capture.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 #include "bpr/core/review_cycle_association.hpp"
 #include "bpr/core/review_cycle_feedback.hpp"
@@ -296,8 +297,17 @@ namespace bpr::application {
 		std::vector<core::cycle_source_revision_id>    Revisions;
 		std::optional<core::cycle_capture_explanation> Quality;
 		std::vector<review_cycle_file_entry>           Files;
-		/// More files exist than the list holds.
-		bool                                    FilesTruncated = false;
+		/// More files follow the ones listed: the drawer offers the next ones.
+		bool FilesTruncated = false;
+		/// [[BPR-1184]]. A large capture is listed a window of files at a time,
+		/// in path order: the 1-based position of the first file listed, and
+		/// whether earlier files exist before this window.
+		std::uint64_t FilesFirst   = 1;
+		bool          FilesEarlier = false;
+		/// Every path the latest capture holds, listed or not.
+		std::uint64_t CapturedEntries = 0;
+		/// [[BPR-1184]]. Present while a capture runs: how far it has got.
+		std::optional<cycle_capture_progress>   Capturing;
 		std::vector<core::cycle_tab>            Tabs;
 		std::optional<core::document_tab_id>    ActiveTab;
 		std::optional<review_cycle_source_view> Source;

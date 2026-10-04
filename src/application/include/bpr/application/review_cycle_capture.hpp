@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -29,6 +30,27 @@
 /// `observed_stable`: a quiescent handoff observation, not an atomic
 /// snapshot.
 namespace bpr::application {
+	/// \brief How far a capture has got, for a progress line ([[BPR-1184]]).
+	struct cycle_capture_progress
+	{
+		enum class phase : std::uint8_t {
+			/// The first observation: each file's bytes read and kept.
+			reading,
+			/// The second observation: every path looked at again.
+			checking,
+			/// The manifest and the revision, in one store transaction.
+			recording,
+		};
+		phase         Phase                                            = phase::reading;
+		std::uint64_t Files                                            = 0;
+		std::uint32_t Attempt                                          = 1;
+		auto          operator<=>(const cycle_capture_progress&) const = default;
+	};
+	/// Called on the capture's own thread, at most once per
+	/// `cycle_capture_progress_files` files and at each phase.
+	using cycle_capture_progress_sink                           = std::function<void(const cycle_capture_progress&)>;
+	inline constexpr std::uint64_t cycle_capture_progress_files = 1024U;
+
 	struct cycle_capture_request
 	{
 		cycle_operation_id Operation;
@@ -39,6 +61,8 @@ namespace bpr::application {
 		/// Record another observation even when the bytes are unchanged.
 		bool          Deliberate       = false;
 		std::uint64_t MaximumFileBytes = core::maximum_captured_file_bytes;
+		/// Optional; receives progress while the capture runs.
+		cycle_capture_progress_sink Progress;
 	};
 
 	enum class cycle_capture_status : std::uint8_t {
