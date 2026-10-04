@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1182"
 title: "Run the native workbench and agent-free acceptance courses"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0055", "RFC-BPR-0060", "RFC-BPR-0061"]
 depends_on: ["BPR-1166", "BPR-1171", "BPR-1177", "BPR-1181"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "qualification", "acceptance": ["RC55-07", "RC60-02", "RC60-10", "RC61-09"], "pack_alias": "PACK-CYCLE-40", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
