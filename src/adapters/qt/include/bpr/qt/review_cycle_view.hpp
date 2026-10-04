@@ -24,6 +24,7 @@ class QListWidget;
 class QMenu;
 class QPlainTextEdit;
 class QPushButton;
+class QResizeEvent;
 class QShortcut;
 class QSplitter;
 class QStackedWidget;
@@ -73,7 +74,7 @@ namespace bpr::qt {
 	///
 	/// \details Built from the RFC-BPR-0052 scaffold's own parts in the same
 	/// order as a pull request's review surface: the review bar (Updates
-	/// disclosure, the full-source revision, file navigation and position,
+	/// disclosure, the view shown, file navigation and position,
 	/// Comment, Suggest change and Share notes), the folding Updates line
 	/// of captured revisions, the document tabs, and the files drawer, one
 	/// full-source pane and the notes tray. It adds no permanent row. The
@@ -182,7 +183,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto selection_anchor() const -> std::optional<core::cycle_source_anchor>;
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
 
+	protected:
+		void resizeEvent(QResizeEvent* aEvent) override;
+
 	private:
+		/// \brief [[BPR-1182]]. Fits the review bar to the view's width with
+		/// RFC-BPR-0052's yields, in its order: the shown revisions, then the
+		/// position's words, then its numbers. Each width starts whole.
+		void apply_review_bar_width();
 		void begin_comment();
 		/// A note where the caret is: the selection, else the caret's line.
 		void comment_here();
@@ -215,7 +223,6 @@ namespace bpr::qt {
 		std::optional<core::cycle_feedback_target> PendingTarget;
 		workbench_strip*                           ReviewBar     = nullptr;
 		updates_disclosure*                        UpdatesToggle = nullptr;
-		QLabel*                                    RevisionLabel = nullptr;
 		QLabel*                                    FilePosition  = nullptr;
 		QLabel*                                    UpdatesLine   = nullptr;
 		document_tab_strip*                        Tabs          = nullptr;
@@ -268,6 +275,12 @@ namespace bpr::qt {
 		std::optional<core::cycle_round_id>                  ReplyRound;
 		std::optional<std::string>                           ReplyItem;
 		bool                                                 Presenting = false;
+		/// [[BPR-1182]]. The shown view whole, and its name alone.
+		QString RevisionWhole = QStringLiteral("Full source");
+		QString RevisionName  = QStringLiteral("Full source");
+		/// [[BPR-1182]]. The file position in words, and compact.
+		QString FileWords   = QStringLiteral("File");
+		QString FileCompact = QStringLiteral("File");
 
 		/// The shown file's classification, and the colours it is painted in.
 		classified_text  SourceSyntax;

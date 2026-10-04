@@ -126,6 +126,86 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1182]]. What the review bar holds, by width, for a failure line.
+	auto bar_widths(const qt::review_cycle_view& aView) -> std::string
+	{
+		auto text = QStringLiteral("bar %1 hint %2:").arg(aView.review_bar()->width()).arg(aView.review_bar()->sizeHint().width());
+		for (auto* const action : aView.review_bar()->actions()) {
+			if (auto* const widget = aView.review_bar()->widgetForAction(action); widget != nullptr && widget->isVisible()) {
+				const auto* const button = qobject_cast<const QToolButton*>(widget);
+				const auto*       label  = qobject_cast<const QLabel*>(widget);
+				const auto        name   = button != nullptr ? button->text() : label != nullptr ? label->text()
+																								 : widget->objectName();
+				text += QStringLiteral(" | %1 %2").arg(name).arg(widget->width());
+			}
+		}
+		return text.toStdString();
+	}
+
+	/// \brief [[BPR-1182]]. The review bar keeps every control on the bar at
+	/// the workbench's 900-pixel floor in the default font, in its widest
+	/// states: a second capture (Capture revision's menu), newer material
+	/// (Show newer), a named comparison and open notes on Share notes.
+	void keeps_every_control_on_the_bar_at_the_floor(qt::review_cycle_view& aView)
+	{
+		const auto restore = aView.size();
+		aView.resize(900, 600);
+		auto widest           = projection(3);
+		widest.Facts.Rounds   = { { .Round = core::cycle_round_id{ 1 }, .Start = core::cycle_source_revision_id{ 1 } } };
+		widest.NewerAvailable = true;
+		aView.present(widest);
+		settle();
+		const auto folded = [&aView] {
+			const auto* const extension = aView.review_bar()->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+			return extension != nullptr && extension->isVisible();
+		};
+		expect(aView.refresh_action()->isVisible() && !folded(), "full source with newer material: no control folds at 900 pixels; " + bar_widths(aView));
+		widest.Facts.LastReview = core::cycle_review_checkpoint{ .Ordinal = 1, .Revision = core::cycle_source_revision_id{ 1 } };
+		widest.Tabs[0].View     = { .Revision = core::cycle_source_revision_id{ 2 }, .Path = "src/parser.cpp", .Comparison = core::cycle_tab_comparison{ .Request = core::since_last_review_request{ }, .Left = core::cycle_source_revision_id{ 1 } } };
+		widest.Source.reset();
+		widest.Comparison = application::review_cycle_comparison_view{
+			.Tab     = core::document_tab_id{ 1 },
+			.Request = core::since_last_review_request{ },
+			.Pair    = { .Left = core::cycle_source_revision_ref{ .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_source_revision_id{ 1 } }, .Right = { .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_source_revision_id{ 2 } } },
+			.Path    = "src/parser.cpp",
+			.Status  = application::review_material_status::available,
+			.File    = core::cycle_path_comparison{ .Path = "src/parser.cpp", .Change = core::cycle_path_change::modified },
+			.Rows    = { { .Kind = core::cycle_diff_row_kind::context, .LeftLine = 1U, .RightLine = 1U, .Text = "int f()" } },
+		};
+		aView.present(widest);
+		settle();
+		expect(aView.refresh_action()->isVisible() && !folded(), "a named comparison with newer material: no control folds at 900 pixels; " + bar_widths(aView));
+		capture(aView, QStringLiteral("cycle-review-bar-floor-900"));
+		// Wide, everything is named whole. On the way down to the floor the
+		// revisions yield before the position's words, and the words before
+		// its numbers; nothing returns at a narrower width, nothing folds,
+		// and the tooltips keep the whole text throughout.
+		const auto whole    = QStringLiteral("Since my last review · R1 → R2");
+		const auto view     = aView.view_button();
+		const auto position = aView.findChild<QLabel*>(QStringLiteral("cycleFilePosition"));
+		aView.resize(1'600, 600);
+		settle();
+		expect(view->text() == whole && position->text() == QStringLiteral("File 2 of 2"), "a wide bar names the view's revisions and the position in words");
+		auto pairGone  = false;
+		auto wordsGone = false;
+		for (auto width = 1'600; width >= 900; width -= width > 1'000 ? 20 : 1) {
+			aView.resize(width, 600);
+			settle();
+			const auto paired = view->text() == whole;
+			const auto worded = position->text() == QStringLiteral("File 2 of 2");
+			expect(!folded(), "no control folds at " + std::to_string(width) + " pixels; " + bar_widths(aView));
+			expect(!(pairGone && paired) && !(wordsGone && worded), "what yielded does not return at a narrower width");
+			expect(!paired || worded, "the revisions yield before the position's words");
+			expect(view->text().startsWith(QStringLiteral("Since my last review")) && position->text().startsWith(QStringLiteral("File")), "the view and the position keep their names");
+			expect(view->accessibleDescription() == whole && view->toolTip().startsWith(whole) && position->toolTip() == QStringLiteral("File 2 of 2"), "the tooltips keep the whole text");
+			pairGone  = pairGone || !paired;
+			wordsGone = wordsGone || !worded;
+		}
+		aView.resize(restore);
+		settle();
+		expect(view->text() == whole && position->text() == QStringLiteral("File 2 of 2"), "widened again, the whole text returns");
+	}
+
 	/// Selects bytes [aFrom, aTo) of the shown file in the source pane, as a drag would.
 	void select(qt::review_cycle_view& aView, const std::uint64_t aFrom, const std::uint64_t aTo)
 	{
@@ -139,7 +219,7 @@ namespace {
 		settle();
 		expect(aView.review_bar() != nullptr && aView.review_bar()->role() == qt::strip_role::review_bar, "the scaffold's review bar");
 		expect(aView.source()->text() == parser && aView.source()->model().state().Lines.size() == 5U && aView.source()->read_only(), "the exact bytes, one line per line whatever the ending, read-only");
-		expect(aView.findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"))->text() == QStringLiteral("Full source · R1"), "full source names its revision");
+		expect(aView.view_button()->text() == QStringLiteral("Full source · R1"), "full source names its revision");
 		expect(aView.findChild<QLabel*>(QStringLiteral("cycleFilePosition"))->text() == QStringLiteral("File 2 of 2"), "file position");
 		expect(aView.tabs()->tabs().size() == 1U && aView.tabs()->tabs()[0].Active && aView.tabs()->tabs()[0].OwnPair.isEmpty(), "one tab on the latest revision");
 		expect(aView.notes()->count() == 2 && aView.notes()->item(0)->text().contains(QStringLiteral("line 3")) && aView.notes()->item(0)->text().contains(QStringLiteral("Suggested change")), "anchored note with its line");
@@ -150,6 +230,16 @@ namespace {
 		expect(aView.updates_line()->isVisible() && aView.updates_line()->text().contains(QStringLiteral("Captured: R1")), "Updates line unfolds");
 		capture(aView, QStringLiteral("cycle-full-source"));
 		aView.updates_toggle()->click();
+		// [[BPR-1182]]. A note on a whole CRLF line shows that line as written,
+		// without the CR its ending carries.
+		auto whole  = projection(1);
+		whole.Notes = { { .Item = { .Cycle = core::review_cycle_id{ 1 }, .Id = core::cycle_feedback_item_id{ 3 } }, .Primary = *core::make_anchor(core::cycle_source_revision_id{ 1 }, "src/parser.cpp", bytes(parser), 12, 31), .Body = "Name the value." } };
+		aView.present(whole);
+		settle();
+		const auto original = aView.notes()->item(0)->text();
+		expect(original.split(QLatin1Char('\n')).contains(QStringLiteral("Original: \treturn caf\u00e9(1);")) && !original.contains(QLatin1Char('\r')), "the original line as written, without its CR");
+		aView.present(projection(1));
+		settle();
 	}
 
 	/// Within a small distance of `aColour`. Not `near`: the Windows SDK
@@ -578,7 +668,7 @@ namespace {
 		settle();
 		expect(aView.comparison()->isVisible() && aView.comparison()->toPlainText() == QStringLiteral("    1     1   int f()\n    3       - \treturn café(1);\n          3 + \treturn coffee(1);"), "rows with both line numbers and signs");
 		expect(aView.comparison()->extraSelections().size() == 2, "added and removed rows marked");
-		expect(aView.findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"))->text() == QStringLiteral("Chosen revisions · R1 → R2 (pinned)"), "the pinned pair named");
+		expect(aView.view_button()->text() == QStringLiteral("Chosen revisions · R1 → R2 (pinned)"), "the pinned pair named");
 		expect(!aView.refresh_action()->isVisible(), "a pinned pair offers no refresh");
 		expect(aView.tabs()->tabs()[0].OwnPair == QStringLiteral("R1→R2"), "the tab names its pair");
 		expect(!aView.comment_action()->isEnabled(), "notes are made in full source");
@@ -1964,6 +2054,7 @@ try {
 	records_replies(view, replies);
 	decides_explicitly(view, decisions);
 	shares_from_a_sheet_over_the_code(view, shares);
+	keeps_every_control_on_the_bar_at_the_floor(view);
 	// The narrowest window the workbench supports still shows the three regions.
 	view.resize(900, 600);
 	settle();

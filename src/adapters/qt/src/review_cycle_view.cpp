@@ -12,11 +12,13 @@
 #include <QHBoxLayout>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSplitter>
@@ -225,6 +227,18 @@ namespace bpr::qt {
 			return text_of(aBody).section(QLatin1Char('\n'), 0, 0).trimmed().left(160);
 		}
 
+		/// \brief [[BPR-1182]]. The first line of anchored code as it is
+		/// written, without its line ending: in a CRLF file the CR belongs to
+		/// the ending, not to the code.
+		auto first_code_line(const std::string& aCode) -> QString
+		{
+			auto line = text_of(aCode).section(QLatin1Char('\n'), 0, 0);
+			if (line.endsWith(QLatin1Char('\r'))) {
+				line.chop(1);
+			}
+			return line.left(120);
+		}
+
 		/// \brief [[BPR-1157]]. The key that notes the caret's line in the code
 		/// view, with Shift the one that begins Suggest change there: Return as
 		/// macOS names it, Enter as Windows and Linux do. The code view takes
@@ -307,26 +321,24 @@ namespace bpr::qt {
 		FilesToggle->setCheckable(true);
 		FilesToggle->setChecked(true);
 		ReviewBar->addAction(FilesToggle);
-		RevisionLabel = new QLabel{ QStringLiteral("Full source"), ReviewBar };
-		RevisionLabel->setObjectName(QStringLiteral("cycleRevisionLabel"));
-		RevisionLabel->setAccessibleName(QStringLiteral("Shown revision"));
-		RevisionLabel->setContentsMargins(6, 0, 6, 0);
-		ReviewBar->addWidget(RevisionLabel);
 		// BPR-1163: which material the active tab shows, chosen here.
+		// [[BPR-1182]]. One button names the view shown and opens the chooser,
+		// as the pull request's comparison does in the same slot (RFC-BPR-0052).
 		ViewButton = new QToolButton{ ReviewBar };
 		ViewButton->setObjectName(QStringLiteral("cycleViewButton"));
-		ViewButton->setText(QStringLiteral("View"));
-		ViewButton->setAccessibleName(QStringLiteral("Choose what to compare"));
-		ViewButton->setToolTip(QStringLiteral("Full source, this round, since my last review, all cycle changes or chosen revisions"));
+		ViewButton->setText(RevisionWhole);
+		ViewButton->setAccessibleName(QStringLiteral("View"));
+		ViewButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
 		ViewButton->setPopupMode(QToolButton::InstantPopup);
 		ViewButton->setAutoRaise(true);
 		ViewMenu = new QMenu{ ViewButton };
 		ViewMenu->setObjectName(QStringLiteral("cycleViewMenu"));
 		ViewButton->setMenu(ViewMenu);
 		ReviewBar->addWidget(ViewButton);
-		RefreshAction = new QAction{ QStringLiteral("Show newer"), this };
+		// [[BPR-1182]]. The pull request's refresh glyph, named in its tooltip.
+		RefreshAction = new QAction{ strip_icon(strip_glyph::refresh, palette()), QStringLiteral("Show newer"), this };
 		RefreshAction->setObjectName(QStringLiteral("cycleRefreshAction"));
-		RefreshAction->setToolTip(QStringLiteral("A newer capture exists; move this view to it"));
+		RefreshAction->setToolTip(QStringLiteral("Show newer: a newer capture exists; move this view to it"));
 		ReviewBar->addAction(RefreshAction);
 		ReviewBar->addWidget(new strip_divider{ ReviewBar });
 		PreviousFile = new QAction{ strip_icon(strip_glyph::previous_file, palette()), QStringLiteral("Previous file"), this };
@@ -355,9 +367,10 @@ namespace bpr::qt {
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CaptureAction))) {
 			button->setPopupMode(QToolButton::MenuButtonPopup);
 		}
-		MarkReviewed = new QAction{ QStringLiteral("Mark reviewed"), this };
+		// [[BPR-1182]]. The pull request's private-progress tick, named in its tooltip.
+		MarkReviewed = new QAction{ strip_icon(strip_glyph::private_progress, palette()), QStringLiteral("Mark reviewed"), this };
 		MarkReviewed->setObjectName(QStringLiteral("cycleMarkReviewed"));
-		MarkReviewed->setToolTip(QStringLiteral("Record that you reviewed through the revision shown; \"Since my last review\" starts here"));
+		MarkReviewed->setToolTip(QStringLiteral("Mark reviewed: record that you reviewed through the revision shown; \"Since my last review\" starts here"));
 		ReviewBar->addAction(MarkReviewed);
 		CommentAction = new QAction{ strip_icon(strip_glyph::comment, palette()), QStringLiteral("Comment"), this };
 		CommentAction->setObjectName(QStringLiteral("cycleCommentAction"));
@@ -870,7 +883,7 @@ namespace bpr::qt {
 			lines.append(!note.Body.empty() ? text_of(note.Body) : note.Suggestions > 0U ? QStringLiteral("(suggestion only)")
 																						 : QStringLiteral("(no text)"));
 			if (const auto* anchor = std::get_if<core::cycle_source_anchor>(&note.Primary); anchor != nullptr && !anchor->Original.empty()) {
-				lines.append(QStringLiteral("Original: %1").arg(text_of(anchor->Original).section(QLatin1Char('\n'), 0, 0).left(120)));
+				lines.append(QStringLiteral("Original: %1").arg(first_code_line(anchor->Original)));
 			}
 			if (note.Correspondence) {
 				lines.append(correspondence_text(*note.Correspondence));
@@ -955,14 +968,21 @@ namespace bpr::qt {
 
 		// The review bar and the Updates line.
 		const auto latest = Projection.Revisions.empty() ? std::nullopt : std::optional{ Projection.Revisions.back() };
+		// [[BPR-1182]]. Named whole; the revisions yield first at a narrow width.
 		if (Projection.Comparison) {
 			const auto& shown = *Projection.Comparison;
-			RevisionLabel->setText(QStringLiteral("%1 · %2%3").arg(request_text(shown.Request), pair_text(shown.Pair), shown.Pinned ? QStringLiteral(" (pinned)") : QString{ }));
-		} else if (Projection.Source) {
-			RevisionLabel->setText(QStringLiteral("Full source · %1").arg(revision_text(Projection.Source->Revision)));
+			const auto  state = shown.Pinned ? QStringLiteral(" (pinned)") : QString{ };
+			RevisionWhole     = QStringLiteral("%1 · %2%3").arg(request_text(shown.Request), pair_text(shown.Pair), state);
+			RevisionName      = request_text(shown.Request) + state;
+		} else if (Projection.Source || latest) {
+			RevisionWhole = QStringLiteral("Full source · %1").arg(revision_text(Projection.Source ? Projection.Source->Revision : *latest));
+			RevisionName  = QStringLiteral("Full source");
 		} else {
-			RevisionLabel->setText(latest ? QStringLiteral("Full source · %1").arg(revision_text(*latest)) : QStringLiteral("Not captured yet"));
+			RevisionWhole = QStringLiteral("Not captured yet");
+			RevisionName  = RevisionWhole;
 		}
+		ViewButton->setAccessibleDescription(RevisionWhole);
+		ViewButton->setToolTip(QStringLiteral("%1\nChoose full source, this round, since my last review, all cycle changes or chosen revisions").arg(RevisionWhole));
 		auto updates = QStringList{ };
 		if (Projection.History && !Projection.History->Entries.empty()) {
 			for (const auto& entry : Projection.History->Entries) {
@@ -1100,7 +1120,10 @@ namespace bpr::qt {
 		const auto shownPath = source ? std::optional{ source->Path } : Projection.Comparison ? std::optional{ Projection.Comparison->Path }
 																							  : std::nullopt;
 		const auto active    = shownPath ? std::ranges::find(Projection.Files, *shownPath, &application::review_cycle_file_entry::Path) : Projection.Files.end();
-		FilePosition->setText(active != Projection.Files.end() ? QStringLiteral("File %1 of %2").arg(active - Projection.Files.begin() + 1).arg(Projection.Files.size()) : QStringLiteral("File"));
+		const auto ordinal   = active - Projection.Files.begin() + 1;
+		FileWords            = active != Projection.Files.end() ? QStringLiteral("File %1 of %2").arg(ordinal).arg(Projection.Files.size()) : QStringLiteral("File");
+		FileCompact          = active != Projection.Files.end() ? QStringLiteral("File %1/%2").arg(ordinal).arg(Projection.Files.size()) : QStringLiteral("File");
+		FilePosition->setToolTip(FileWords);
 
 		// Notes: current wording, where each attaches and what newer material says.
 		// [[BPR-1274]]. Rebuilt only when what it lists changed: each item's
@@ -1125,6 +1148,8 @@ namespace bpr::qt {
 		const auto composed   = !Projection.Share.has_value() && previous.Share.has_value();
 		show_reading_page();
 		refresh_actions();
+		// [[BPR-1182]]. What the bar holds changes only here and with the width.
+		apply_review_bar_width();
 		if (composing) {
 			// The sheet hangs from the review bar, over the file the reviewer was reading.
 			SharePage->set_anchor(ReviewBar->mapToGlobal(QPoint{ ReviewBar->width() / 2, ReviewBar->height() }));
@@ -1564,6 +1589,44 @@ namespace bpr::qt {
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeAction))) {
 			set_strip_badge(*button, waiting == 0 ? QString{ } : QString::number(waiting));
 			button->setAccessibleDescription(waiting == 0 ? QString{ } : QStringLiteral("%1 open %2").arg(waiting).arg(waiting == 1 ? QStringLiteral("note") : QStringLiteral("notes")));
+		}
+	}
+
+	void review_cycle_view::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		apply_review_bar_width();
+	}
+
+	void review_cycle_view::apply_review_bar_width()
+	{
+		// [[BPR-1182]]. Every control stays on the bar down to the window's
+		// floor (RFC-BPR-0052): as the view narrows the shown revisions go
+		// first ("Full source" for "Full source · R2"), then the position's
+		// words ("File 2/4"), then its numbers. The view's name and File
+		// remain, and the tooltips keep the whole text. Each width starts
+		// whole and measures, so nothing returns at a narrower width.
+		const auto available = width();
+		const auto remeasure = [this] {
+			if (auto* const layout = ReviewBar->layout(); layout != nullptr) {
+				layout->invalidate();
+			}
+		};
+		const auto over = [&] { return ReviewBar->sizeHint().width() > available; };
+		ViewButton->setText(RevisionWhole);
+		FilePosition->setText(FileWords);
+		remeasure();
+		if (over()) {
+			ViewButton->setText(RevisionName);
+			remeasure();
+		}
+		if (over()) {
+			FilePosition->setText(FileCompact);
+			remeasure();
+		}
+		if (over()) {
+			FilePosition->setText(QStringLiteral("File"));
+			remeasure();
 		}
 	}
 

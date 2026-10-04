@@ -368,8 +368,7 @@ namespace {
 		object[QStringLiteral("message")]   = text_of(shown.Message);
 		object[QStringLiteral("source")]    = shown.Source ? text_of(shown.Source->Path) + QStringLiteral(" @ ") + text_of(core::cycle_wire_name(shown.Source->Revision)) : QString{ };
 		object[QStringLiteral("newer")]     = shown.NewerAvailable;
-		auto* const label                   = aPage.findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"));
-		object[QStringLiteral("label")]     = label != nullptr ? label->text() : QString{ };
+		object[QStringLiteral("label")]     = aPage.view_button()->text();
 		// [[BPR-1184]]. What the reading pane says in place of bytes it does not show.
 		auto* const notice               = aPage.findChild<QLabel*>(QStringLiteral("cycleSourceNotice"));
 		object[QStringLiteral("notice")] = notice != nullptr && notice->isVisible() ? notice->text() : QString{ };
@@ -424,8 +423,7 @@ namespace {
 	{
 		const auto& shown                 = aPage.projection().Comparison;
 		auto        object                = QJsonObject{ };
-		auto* const label                 = aPage.findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"));
-		object[QStringLiteral("label")]   = label != nullptr ? label->text() : QString{ };
+		object[QStringLiteral("label")]   = aPage.view_button()->text();
 		object[QStringLiteral("visible")] = aPage.comparison()->isVisible();
 		if (!shown) {
 			return object;

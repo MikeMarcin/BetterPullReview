@@ -521,6 +521,17 @@ the review bar drops the comparison's dates and then the positions' words
 owner and then the modality's shortcuts, keeping the name's number. No control
 folds into an overflow menu at any width down to the platform's floor.
 
+A local Review Cycle's review bar (RFC-BPR-0061) keeps the same rule at the
+default font ([[BPR-1182]]). One button names the view shown and opens the view
+chooser, as the comparison does in the pull request's slot. Show newer is the
+refresh glyph and Mark reviewed the private-progress tick, each named in its
+tooltip and accessible name. Capture revision, Suggest change and Share notes
+keep their words. As the window narrows the view's revisions go first ("Full
+source" for "Full source · R2"), then the position's words ("File 2/4"), then
+its numbers; the tooltips keep the whole text. At 900 pixels the widest bar,
+a named comparison with newer material and open notes, needs 875 pixels on
+macOS with nothing yielded. The owner's verdict on this bar is pending.
+
 The four navigation arrows use the native style's silhouettes with foreground
 pixels derived from the row's live active and disabled `ButtonText` roles.
 Palette, font, style, and theme changes rebuild those modes. This presentation

@@ -778,7 +778,7 @@ try {
 	settle(lanes);
 	expect(page->projection().Comparison && page->comparison()->isVisible() && page->comparison()->toPlainText().contains(QStringLiteral("+ \treturn aText ? check(aText) : 0;")),
 		   "the comparison pane shows the shared engine's rows");
-	expect(page->findChild<QLabel*>(QStringLiteral("cycleRevisionLabel"))->text() == QStringLiteral("All cycle changes · R1 → R2"), "the review bar names the view and its pair");
+	expect(page->view_button()->text() == QStringLiteral("All cycle changes · R1 → R2"), "the review bar names the view and its pair");
 	page->mark_reviewed_action()->trigger();
 	settle(lanes);
 	expect(page->projection().Facts.LastReview && page->projection().Facts.LastReview->Revision == core::cycle_source_revision_id{ 2 }, "reviewed through R1");
