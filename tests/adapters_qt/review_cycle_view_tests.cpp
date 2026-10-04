@@ -1279,6 +1279,23 @@ namespace {
 			settle();
 			const auto rowHeight = QFontMetrics{ rows[1].Where->font() }.height();
 			expect(QFontMetrics{ toggle->font() }.height() < rowHeight && toggle->sizeHint().height() == rowHeight + 2, "Show Code in the row's font, not a tool button's smaller one");
+			// Rendered: the words' ink is as tall as the row's font draws them.
+			{
+				const auto pixmap = toggle->grab();
+				const auto image  = pixmap.toImage();
+				auto       top    = image.height();
+				auto       bottom = -1;
+				for (auto y = 0; y < image.height(); ++y) {
+					for (auto x = 0; x < image.width(); ++x) {
+						if (colour_near(image.pixelColor(x, y), link)) {
+							top    = std::min(top, y);
+							bottom = std::max(bottom, y);
+						}
+					}
+				}
+				const auto expected = QFontMetrics{ rows[1].Where->font() }.tightBoundingRect(QStringLiteral("Show Code")).height() * pixmap.devicePixelRatio();
+				expect(bottom >= top && (bottom - top + 1) >= 0.85 * expected, "and painted at the row's size");
+			}
 			QApplication::setFont(kept, "QToolButton");
 			settle();
 		}

@@ -764,11 +764,16 @@ What the owner sees now:
 - It paints itself from the palette at paint time: no QSS, no forced palette,
   and a theme change needs no refresh. It is as wide as the wider of its two
   words, so opening a note moves nothing.
-- It is drawn in the row's font. The first native render of `74b73dabc` drew
-  it in the smaller font macOS gives tool buttons, which set it apart from
-  the line it ends. The same render showed the note number touching the
-  include box once the arrow no longer stood between them, so the number now
-  has a small inset. Both are fixed in the follow-up commit.
+- It is drawn in the font of the line it ends. The first native render of
+  `74b73dabc` drew it in the smaller font macOS gives tool buttons (10 pt
+  against the labels' 13 pt). The same render showed the note number touching
+  the include box once the arrow no longer stood between them, so the number
+  now has a small inset (`fd5c60cfe`). `fd5c60cfe` still painted 10 pt
+  natively: it took the parent's font, but `QPainter::setFont` fills every
+  property the font does not set explicitly from the button's own font, the
+  point size included. The toggle now takes the location label's font with
+  every property resolved, and the native render matches the labels (the
+  follow-up commit).
 
 Nothing else changed: the code font, the alignment, the syntax colours, Show
 the Whole File and the keys.
@@ -793,13 +798,16 @@ The empty column the arrow left is taken out. The checks are in
   Hide Code open, and an excerpt through the real composition. It also
   renders `desktop-cycle-share-closed`.
 - With a smaller tool-button font set for the class, as macOS has, the
-  toggle keeps the row's font.
-- Five negative controls, each rebuilt and reverted, fail their check:
+  toggle keeps the row's font, and its painted ink is as tall as that font
+  draws "Show Code".
+- Six negative controls, each rebuilt and reverted, fail their check:
   - the toggle put back beside the box fails "far from the include box";
   - painting it in the text colour fails "painted in the link colour";
   - no underline on hover fails "a hover underlines it";
   - the arrow restored fails "not a glyph";
-  - drawing in the button's own font fails "Show Code in the row's font".
+  - drawing in the button's own font fails "Show Code in the row's font";
+  - the font's resolve mask left as it was fails "painted at the row's
+    size", which is the `fd5c60cfe` defect.
 - The 18-row BPR-1161 selection passes 18 of 18, including the alignment and
   colour checks from `3b5f405be`, `architecture_boundaries` and
   `test_network_isolation_manifest`. All 118 `qt_` rows pass (132 rows in

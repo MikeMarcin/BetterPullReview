@@ -22,6 +22,7 @@
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -371,6 +372,13 @@ namespace bpr::qt {
 				connect(this, &QToolButton::toggled, this, [this](const bool aOpen) { setText(aOpen ? Open : Closed); });
 			}
 
+			/// Draws the words in the font of `aLine`, the label whose line they end.
+			void set_line(QWidget* const aLine)
+			{
+				Line = aLine;
+				updateGeometry();
+			}
+
 			/// What it says while the note is closed ("Show Code") and open ("Hide Code").
 			void set_words(const QString& aClosed, const QString& aOpen)
 			{
@@ -418,15 +426,19 @@ namespace bpr::qt {
 			}
 
 		private:
-			/// The row's font, as its labels have: macOS gives tool buttons a
-			/// smaller font, which would set the words apart from the line they end.
+			/// The font of the line the words end: macOS gives tool buttons, and
+			/// plain widgets, a smaller font than its labels.
 			[[nodiscard]] auto words_font() const -> QFont
 			{
-				return parentWidget() != nullptr ? parentWidget()->font() : font();
+				auto face = Line != nullptr ? Line->font() : font();
+				// Every property explicit, or the painter fills them from the button's own font.
+				face.setResolveMask(QFont::AllPropertiesResolved);
+				return face;
 			}
 
-			QString Closed;
-			QString Open;
+			QPointer<QWidget> Line;
+			QString           Closed;
+			QString           Open;
 		};
 	}
 
@@ -1296,7 +1308,9 @@ namespace bpr::qt {
 		// Show Code sits at the end of the second line, under what the note is,
 		// in the column of Show All Code, and away from the include box: v003's
 		// arrow beside the box read as a second check mark (event 921).
-		row.Disclose = new note_code_toggle{ row.Row };
+		auto* const toggle = new note_code_toggle{ row.Row };
+		toggle->set_line(row.Where);
+		row.Disclose = toggle;
 		row.Disclose->setObjectName(QStringLiteral("cycleShareDisclose"));
 		// A click gives it focus, so Left and Right work on from there.
 		row.Disclose->setFocusPolicy(Qt::StrongFocus);
