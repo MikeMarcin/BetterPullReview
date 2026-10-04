@@ -81,3 +81,15 @@ needed the owner; no attended session was opened.
 
 RC59-09 passes for this card's share; with BPR-1177's, RFC-BPR-0059's RC59-09
 row has its evidence for closeout ([[BPR-1192]]).
+
+**Note: Linux run at `f389470f2` (station `bpr-main-linux`, WSL2, `build/dev`,
+GCC 15.2, offscreen).** The build succeeded and 16 of 16 passed:
+`core_review_cycle_promotion`, `review_cycle_publication_matrix` (26.4 s),
+`application_review_cycle_publish_public_path`,
+`application_review_round_trip_composition_contract`,
+`qt_review_cycle_view_1_0` and `_2_0`, the nine
+`application_review_tour_publication_*` rows and `architecture_boundaries`.
+GCC compiled `tests/core/review_cycle_promotion_tests.cpp` under `-Werror`
+with no diagnostic at line 179 or elsewhere, so the possibly ignored
+`[[nodiscard]]` result Clang flagged is not rejected here and nothing changed.
+Done is not reopened.
