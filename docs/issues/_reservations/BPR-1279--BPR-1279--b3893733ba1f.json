@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1279"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Explicit rebind of a moved or replaced cycle folder in terminal and window (BPR-1183 follow-up)",
+  "created": "2026-10-04T21:28:05.864619+00:00",
+  "base": "1e897f52ab15c1f204c7e77276702ae404ad9433"
+}
