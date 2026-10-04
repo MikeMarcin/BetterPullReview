@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1184"
 title: "Measure large-project responsiveness and human steering benefit"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0054", "RFC-BPR-0061"]
 depends_on: ["BPR-1166", "BPR-1171"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "qualification", "acceptance": ["RC54-08", "RC61-10"], "pack_alias": "PACK-CYCLE-42", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
