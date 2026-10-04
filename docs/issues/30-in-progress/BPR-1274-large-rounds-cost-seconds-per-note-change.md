@@ -73,3 +73,28 @@ at `80e72fd70`.
   only; the scaling check is enforced there too, and its first station
   measurements decide whether 7.0 holds.
 - Next: commit the station reports with their figures here, then finish.
+
+**Note: Linux station run at `91a9265b9` (station `bpr-main-linux`, WSL2, GCC
+15.2.0; the station was idle, load 0.03). The Release tree does not build, so
+there is no Linux report yet.** `cmake --build build/bpr1274-release` (the
+`app-release` preset, `-O3 -Werror`) stops at:
+
+```text
+src/application/src/review_cycle_promotion.cpp:342:52: error: '*(bpr::application::review_cycle_tour_failure*)((char*)&<unnamed> + offsetof(std::review_cycle_tour_result, ...))' may be used uninitialized [-Werror=maybe-uninitialized]
+  342 |                                 switch (aDone.error()) {
+review_cycle_promotion.cpp:133:45: note: '<anonymous>' declared here
+  133 |                                         task(*host, std::move(value));
+```
+
+The flagged object is the `review_cycle_tour_result` temporary that
+`guarded` move-constructs for the by-value parameter of the `Tours.execute`
+lambda ([[BPR-1273]] code). This is GCC's `-O3` `std::expected` false
+positive; the Debug `dev` tree compiles it. Reading the error into a local
+first does not silence it. Taking that lambda's parameter as
+`const review_cycle_tour_result&` (line 332) does: the object then compiles
+at `-O3 -Werror`. That change is not committed here, and the Release row was
+not run.
+
+The Debug tree (`build/dev-tour-cli`) passed 11/11 in 117.07 s, including
+`application_review_cycle_large_project` (26.2 s, its 2,000-file correctness
+pass) and `review_cycle_large_project_targets`.
