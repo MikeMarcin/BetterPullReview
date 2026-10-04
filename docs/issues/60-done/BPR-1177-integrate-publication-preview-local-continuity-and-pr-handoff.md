@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1177"
 title: "Integrate publication preview, local continuity and PR handoff"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0059", "RFC-BPR-0061"]
 depends_on: ["BPR-1161", "BPR-1176"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-08", "RC59-09", "RC61-08"], "pack_alias": "PACK-CYCLE-35", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"RC59-08","outcome":"pass","revision":"875192071","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 review_cycle_publish_desk: after a squashed publication to a simulated GitHub and a reclaim, across a restart, R1-R3 and every captured byte, the frozen round, reply, decision, note and delivery remain and both links; only explicit removal removes them. application_review_cycle_publish_public_path resumes the cycle from Home with its note and links after Open Pull Request. No live GitHub."}},{"criterion":"RC59-09","outcome":"pending","revision":"875192071","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes: association from the journal link (#17); description is the Problem/Solution brief a Review Tour maps; only blob/tree/commit/branch/pull writes; no note, reply or unselected file uploaded; no review or comment written; external link read first and marked externally published; Open Pull Request enters the existing workflow. Pending owner: BPR-1177-promotion-scope-v001 (no note promotion in this build; BPR-1273) in session aed7c9e86b31c6f80225924cf9908d59."}},{"criterion":"RC61-08","outcome":"pending","revision":"875192071","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share passes through the profile desktop (application_review_cycle_publish_public_path) and the host course: P, T and R1-Rn named apart, each path in its own words, the ledger of what goes and what stays, linked pull request named. Pending owner: BPR-1177-publish-sheet-v001 in session aed7c9e86b31c6f80225924cf9908d59 on frozen build d292d8ca (875192071)."}}]
+acceptance: [{"criterion":"RC59-08","outcome":"pass","revision":"875192071d5ca9714c3d0dd2f7d0101575d3ff2c","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"review_cycle_publish_desk on macOS arm64 at 875192071, Linux at 8fab05419 and Windows at d8fa5bfc2: after a squashed publication to a simulated GitHub and a reclaim, across a restart, R1-R3 and every captured byte, the frozen round, reply, decision, note and delivery remain, and both links; only explicit removal removes them. application_review_cycle_publish_public_path resumes the cycle from Home with its note and links after Open Pull Request (macOS, Linux 9/9 after c8bd01c86, Windows uncontained 8.93 s; macOS rerun 1/1 in 3.15 s at d5f9dfb76). No live GitHub."}},{"criterion":"RC59-09","outcome":"pass","revision":"875192071d5ca9714c3d0dd2f7d0101575d3ff2c","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"BPR-1177's share. Automated: association from the journal link (#17); the description is the Problem/Solution brief a Review Tour maps; only blob/tree/commit/branch/pull writes; no note, reply or unselected file uploaded; no review or comment written; external link read first and marked externally published; Open Pull Request enters the existing workflow. Owner Accept of BPR-1177-promotion-scope-v001 (this build promotes no local note; promotion is BPR-1273's) on the frozen build of 875192071 (app sha256 d292d8ca...62bc96a), session aed7c9e86b31c6f80225924cf9908d59, event 7 at 2026-10-04T14:22:38Z, decision b1a0e989-25fc-48eb-9f61-d013e69c2e9c, fingerprint 11c37462...a2fa6581, empty note; handed back at event 9; released by name at event 11. Owner scope decision, criterion text unchanged; RFC-BPR-0059's RC59-09 row stays open for BPR-1273's promotion share."}},{"criterion":"RC61-08","outcome":"pass","revision":"875192071d5ca9714c3d0dd2f7d0101575d3ff2c","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Automated share through the profile desktop (application_review_cycle_publish_public_path) and review_cycle_publish_desk on macOS, Linux and Windows: P, T and R1-Rn named apart, each path in its own words, the ledger of what goes and what stays, linked pull request named. Owner Accept of BPR-1177-publish-sheet-v001 on the frozen build of 875192071 (app sha256 d292d8ca...62bc96a), session aed7c9e86b31c6f80225924cf9908d59, event 8 at 2026-10-04T14:22:53Z, decision 5380ce3e-0d16-498d-a96d-47326ce71118, fingerprint 5e910106...431678, empty note; handed back at event 9; released by name at event 10. GitHub simulated or recorded; the window's native gesture against GitHub.com not run."}}]
 ---
 
 Pack alias: **PACK-CYCLE-35** (live `BPR-1177`, allocated at import).
@@ -176,3 +175,56 @@ After that fix it passes uncontained in 7.45 s.
   `review_cycle_publish_desk` and `review_cycle_publisher`, and
   `test_network_isolation_manifest` with the new pin.
 - clang-format is clean on the changed test.
+
+## Owner verdicts and finish (2026-10-04)
+
+The owner handed back session `aed7c9e86b31c6f80225924cf9908d59` at
+14:22:57Z (event 9) with both items decided and none pending. Both verdicts
+are Accept, both notes empty, both on the frozen build of `875192071`
+(executable SHA-256 `d292d8ca…62bc96a`):
+
+| Item | Criterion | Decision | Event, time (UTC) | Fingerprint |
+|---|---|---|---|---|
+| `BPR-1177-promotion-scope-v001` | RC59-09 | Accept, `b1a0e989-25fc-48eb-9f61-d013e69c2e9c` | 7, 14:22:38 | `11c37462…a2fa6581` |
+| `BPR-1177-publish-sheet-v001` | RC61-08 | Accept, `5380ce3e-0d16-498d-a96d-47326ce71118` | 8, 14:22:53 | `5e910106…431678` |
+
+Both were released by candidate name (`resume-development --candidate`):
+the sheet at event 10 and the promotion scope at event 11, at 14:35:24Z. The
+session's host was then stopped. Nothing else held the frozen build.
+
+Criteria against the evidence:
+
+- **RC59-08, pass** (unchanged). A squashed publication and a reclaim keep
+  every pinned revision, round, reply, decision, note and delivery, and both
+  links, across a restart, until explicit removal (`review_cycle_publish_desk`
+  on macOS at `875192071`, Linux at `8fab05419` and Windows at `d8fa5bfc2`).
+  The course resumes the cycle from Home with its note and links.
+- **RC59-09, pass for this card's share.** The automated share was already
+  in: the actual association comes from the journal's link; the existing pull
+  request workflow and Problem/Solution brief are reused; no note, reply or
+  unselected file is uploaded; no review or comment is written; an external
+  link is read first and marked externally published. The owner accepted the
+  split: this build promotes no local note, and deliberate promotion under
+  the inherited placement policy is [[BPR-1273]]'s. That is an owner scope
+  decision. It does not change the criterion's text. RFC-BPR-0059's RC59-09
+  row stays open until BPR-1273 lands its share.
+- **RC61-08, pass.** The automated share passes on macOS, on Linux after the
+  course fix at `c8bd01c86` (9 of 9), and on Windows at `d8fa5bfc2`, which
+  holds that fix: the course passes uncontained in 8.93 s. The owner accepted
+  the sheet. It keeps P, T and R1 to Rn apart, says what goes to GitHub and
+  what stays, and reads clearly enough to publish from.
+
+Limits carried, none of them gating:
+
+- GitHub is simulated or recorded throughout. The window's own native
+  gesture against GitHub.com was not run; live publication is BPR-1176's
+  evidence.
+- The Mac rerun owed after `c8bd01c86` is done. At `d5f9dfb76` (macOS arm64,
+  `build/dev` Debug, offscreen), `application_review_cycle_publish_public_path`
+  passed 1/1 in 3.15 s after an incremental build of its target. The change
+  only forces public preview, which macOS ships enabled anyway.
+- On Windows, `application_review_round_trip_composition_contract` stalled
+  once under `-j4` (`REVIEW_ROUND_TRIP_DRAFT_STALLED`). That is now
+  [[BPR-1277]], a product ordering race in the review round trip, not in
+  publication. `github_provider` has about 2–5 s of margin against its 30 s
+  timeout in Windows Debug.
