@@ -127,3 +127,12 @@ window state it prints.
 - Pending: the Windows Debug confirmation, where the race was seen, and the
   Linux Debug run (station requests above).
 - Next: record the station returns here, then finish.
+
+**Note: Linux run at `b874334c2` (holds fix `b668900d4`; station
+`bpr-main-linux`, WSL2, `build/dev-tour-cli`, offscreen).** The build
+succeeded and 6 of 6 passed: `review_cycle_workbench` (36.0 s),
+`qt_review_cycle_view_1_0`, `qt_review_cycle_view_2_0`,
+`application_review_cycle_two_round_public_path`,
+`review_cycle_large_project_targets` and `test_network_isolation_manifest`.
+`application_review_cycle_large_project` with `--repeat until-fail:3` passed
+all three runs (25.69, 25.42 and 25.85 s).
