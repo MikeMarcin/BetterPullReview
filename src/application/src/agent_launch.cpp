@@ -145,6 +145,7 @@ namespace bpr::application {
 		/// with it the message — rides the deferred context
 		/// `build_agent_protocol_followup` sends once the thread is identified.
 		///
+#if defined(BPR_AGENT_INTEGRATIONS)
 		/// Nothing is appended to a frame here. A message added beside the
 		/// payload would be the same question asked twice on three protocols
 		/// and lost on the fourth, and the decode side would have to learn a
@@ -170,6 +171,7 @@ namespace bpr::application {
 			}
 			return { };
 		}
+#endif
 
 		enum class json_kind : std::uint8_t {
 			object_value,
@@ -645,6 +647,7 @@ namespace bpr::application {
 				: nullptr;
 		}
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto object_member(
 			const json_value& aObject, const std::string_view aName) noexcept
 			-> const json_value*
@@ -1502,6 +1505,7 @@ namespace bpr::application {
 			}
 			return events;
 		}
+#endif
 	} // namespace
 
 	auto build_writing_prompt(const core::writing_hook_settings& aSettings, const core::writing_request& aRequest, std::span<const writing_source> aSources) -> std::optional<std::string>
@@ -1634,6 +1638,7 @@ namespace bpr::application {
 		return aRequiresEvidence && !evidence ? std::nullopt : std::optional{ std::move(result) };
 	}
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 	auto build_agent_context_supplement(
 		const agent_context_observation& aObservation,
 		const core::agent_session&       aSession)
@@ -2314,6 +2319,7 @@ namespace bpr::application {
 		}
 		return payload;
 	}
+#endif
 
 	auto serialize_private_finding(const core::retained_agent_finding& aRetained) -> std::string
 	{
@@ -2355,6 +2361,7 @@ namespace bpr::application {
 		return result;
 	}
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 	auto admit_agent_input(const agent_launch_request& aRequest) -> std::expected<std::size_t, agent_launch_failure>
 	{
 		if (!core::inspect_runtime_metadata(aRequest.Metadata) || !aRequest.Metadata.ProtocolReported.empty()
@@ -2609,6 +2616,7 @@ namespace bpr::application {
 		Phase = followsInitialization ? 2U : 4U;
 		return { };
 	}
+#endif
 
 	auto name(const agent_run_outcome aOutcome) noexcept -> std::string_view
 	{
@@ -2634,6 +2642,7 @@ namespace bpr::application {
 		return "unknown";
 	}
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 	auto finalize_agent_run(
 		agent_run_result                    aResult,
 		const core::agent_session&          aSession,
@@ -2656,4 +2665,5 @@ namespace bpr::application {
 		}
 		return aResult;
 	}
+#endif
 } // namespace bpr::application

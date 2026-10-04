@@ -59,6 +59,7 @@
       "cacheVariables": {
         "BPR_BUILD_QT": "OFF",
         "BPR_BUILD_TOUR_CLI": "ON",
+        "BPR_BUILD_AGENT_INTEGRATIONS": "OFF",
         "BUILD_TESTING": "OFF",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_TEST_BUILD_DEPENDS": "OFF"
@@ -110,6 +111,22 @@
       }
     },
     {
+      "name": "macos-release-agent-free",
+      "displayName": "Universal macOS release application without agent integrations",
+      "description": "[[BPR-1179]]. macos-release without agent integrations; see docs/development/release-packages.md.",
+      "inherits": "macos-release",
+      "binaryDir": "${sourceDir}/build/macos-release-agent-free",
+      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF"}
+    },
+    {
+      "name": "macos-release-agent-free-automation-off",
+      "displayName": "Universal macOS release application without agent integrations or local automation",
+      "description": "[[BPR-1179]]. macos-release without agent integrations or local automation; see docs/development/release-packages.md.",
+      "inherits": "macos-release",
+      "binaryDir": "${sourceDir}/build/macos-release-agent-free-automation-off",
+      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF", "BPR_BUILD_LOCAL_AUTOMATION": "OFF"}
+    },
+    {
       "name": "windows-dev",
       "displayName": "Windows developer build",
       "inherits": "_common",
@@ -147,12 +164,44 @@
       }
     },
     {
+      "name": "windows-app-release-agent-free",
+      "displayName": "Windows Release application without agent integrations",
+      "description": "[[BPR-1179]]. windows-app-release without agent integrations; see docs/development/release-packages.md.",
+      "inherits": "windows-app-release",
+      "binaryDir": "${sourceDir}/build/windows-app-release-agent-free",
+      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF"}
+    },
+    {
+      "name": "windows-app-release-agent-free-automation-off",
+      "displayName": "Windows Release application without agent integrations or local automation",
+      "description": "[[BPR-1179]]. windows-app-release without agent integrations or local automation; see docs/development/release-packages.md.",
+      "inherits": "windows-app-release",
+      "binaryDir": "${sourceDir}/build/windows-app-release-agent-free-automation-off",
+      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF", "BPR_BUILD_LOCAL_AUTOMATION": "OFF"}
+    },
+    {
       "name": "linux-package",
       "displayName": "Linux baseline tests-disabled package",
       "inherits": "app-release",
       "binaryDir": "${sourceDir}/build/linux-package",
       "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"},
       "cacheVariables": {"BPR_DISTRIBUTION_BUILD": "ON", "CMAKE_INSTALL_PREFIX": "/usr"}
+    },
+    {
+      "name": "linux-package-agent-free",
+      "displayName": "Linux baseline package without agent integrations",
+      "description": "[[BPR-1179]]. linux-package without agent integrations; see docs/development/release-packages.md.",
+      "inherits": "linux-package",
+      "binaryDir": "${sourceDir}/build/linux-package-agent-free",
+      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF"}
+    },
+    {
+      "name": "linux-package-agent-free-automation-off",
+      "displayName": "Linux baseline package without agent integrations or local automation",
+      "description": "[[BPR-1179]]. linux-package without agent integrations or local automation; see docs/development/release-packages.md.",
+      "inherits": "linux-package",
+      "binaryDir": "${sourceDir}/build/linux-package-agent-free-automation-off",
+      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF", "BPR_BUILD_LOCAL_AUTOMATION": "OFF"}
     }
   ],
   "buildPresets": [
@@ -193,6 +242,22 @@
       ]
     },
     {
+      "name": "macos-release-agent-free",
+      "inherits": "_build-common",
+      "configurePreset": "macos-release-agent-free",
+      "targets": [
+        "app_better_pull_review"
+      ]
+    },
+    {
+      "name": "macos-release-agent-free-automation-off",
+      "inherits": "_build-common",
+      "configurePreset": "macos-release-agent-free-automation-off",
+      "targets": [
+        "app_better_pull_review"
+      ]
+    },
+    {
       "name": "windows-dev",
       "inherits": "_build-common",
       "configurePreset": "windows-dev",
@@ -202,6 +267,22 @@
       "name": "windows-app-release",
       "inherits": "_build-common",
       "configurePreset": "windows-app-release",
+      "targets": [
+        "app_better_pull_review"
+      ]
+    },
+    {
+      "name": "windows-app-release-agent-free",
+      "inherits": "_build-common",
+      "configurePreset": "windows-app-release-agent-free",
+      "targets": [
+        "app_better_pull_review"
+      ]
+    },
+    {
+      "name": "windows-app-release-agent-free-automation-off",
+      "inherits": "_build-common",
+      "configurePreset": "windows-app-release-agent-free-automation-off",
       "targets": [
         "app_better_pull_review"
       ]

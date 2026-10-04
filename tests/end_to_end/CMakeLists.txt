@@ -1395,6 +1395,7 @@ set_target_properties(
 bpr_enable_hardening(test_better_pull_review_git_diagnostic_wrapper)
 bpr_enable_warnings(test_better_pull_review_git_diagnostic_wrapper)
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(
     test_better_pull_review_agent_invocation_composition_public_path
     agent_invocation_composition_public_path.cpp
@@ -1661,6 +1662,7 @@ foreach(
 		)
 	endif()
 endforeach()
+endif()
 
 bpr_add_network_isolated_test(
     NAME application_queue_composition_contract
@@ -2702,6 +2704,14 @@ set_tests_properties(
         TIMEOUT 15
 )
 
+# [[BPR-1179]]. A graph without a removable family must carry none of its anchors.
+set(bpr_composed_hosts_agent_option "")
+if(NOT BPR_BUILD_AGENT_INTEGRATIONS)
+    list(APPEND bpr_composed_hosts_agent_option --without-agent-integrations)
+endif()
+if(NOT BPR_BUILD_LOCAL_AUTOMATION)
+    list(APPEND bpr_composed_hosts_agent_option --without-local-automation)
+endif()
 bpr_add_network_isolated_test(
     NAME composed_application_hosts
     COMMAND
@@ -2709,6 +2719,7 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/scripts/verify_composed_hosts.py"
         --profile
         development-fixture
+        ${bpr_composed_hosts_agent_option}
         $<TARGET_FILE:app_better_pull_review>
 )
 set_tests_properties(
@@ -3230,37 +3241,10 @@ bpr_add_network_isolated_test(NAME application_profile_owner_admission_public_pa
 set_tests_properties(application_profile_owner_admission_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240)
 
-# [[BPR-1062]]. A real desktop author and the shipped CLI share one live draft.
-if(TARGET app_bpr)
-    bpr_add_executable(test_profile_tour_handoff_public_path profile_tour_handoff_public_path_tests.cpp)
-    target_link_libraries(test_profile_tour_handoff_public_path PRIVATE BetterPullReview::Composition)
-    target_compile_definitions(test_profile_tour_handoff_public_path PRIVATE BPR_BUILD_TESTING=1)
-    target_compile_features(test_profile_tour_handoff_public_path PRIVATE cxx_std_23)
-    bpr_enable_hardening(test_profile_tour_handoff_public_path)
-    bpr_enable_warnings(test_profile_tour_handoff_public_path)
-    bpr_add_network_isolated_test(NAME application_profile_tour_handoff_public_path WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_tour_handoff_contract.py"
-        --application $<TARGET_FILE:test_profile_tour_handoff_public_path>
-        --tour-application $<TARGET_FILE:app_bpr>)
-    set_tests_properties(application_profile_tour_handoff_public_path PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240)
-    # [[BPR-1168]]. A real desktop owner with a local cycle open and the shipped
-    # `bpr cycle`, in both directions: forwarded commands, the reviewer's unsaved
-    # and composing text, duplicates, concurrent callers, owner death and
-    # replacement, and an owner of another protocol version. Registered contained:
-    # Windows has not measured it yet; a measured refusal is pinned, not guessed.
-    bpr_add_executable(test_profile_cycle_handoff_public_path profile_cycle_handoff_public_path_tests.cpp)
-    target_link_libraries(test_profile_cycle_handoff_public_path PRIVATE BetterPullReview::Composition)
-    target_compile_definitions(test_profile_cycle_handoff_public_path PRIVATE BPR_BUILD_TESTING=1)
-    target_compile_features(test_profile_cycle_handoff_public_path PRIVATE cxx_std_23)
-    bpr_enable_hardening(test_profile_cycle_handoff_public_path)
-    bpr_enable_warnings(test_profile_cycle_handoff_public_path)
-    bpr_add_network_isolated_test(NAME application_profile_cycle_handoff_public_path WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_cycle_handoff_contract.py"
-        --application $<TARGET_FILE:test_profile_cycle_handoff_public_path>
-        --cycle-application $<TARGET_FILE:app_bpr>)
-    set_tests_properties(application_profile_cycle_handoff_public_path PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300)
+# [[BPR-1179]]. The reviewer the two-round, parity and large-project courses
+# drive is built wherever one of them runs: beside the shipped bpr, or in a
+# graph without local automation, whose course reaches no bpr at all.
+if(TARGET app_bpr OR NOT BPR_BUILD_LOCAL_AUTOMATION)
     # [[BPR-1166]]. The complete manual two-round course in the application's
     # own profile desktop, restarted twice on one profile: Open Project, eight
     # notes with two suggestions, Copy, Save and the bundle, the shipped
@@ -3296,6 +3280,53 @@ if(TARGET app_bpr)
         target_include_directories(test_review_cycle_two_round_public_path SYSTEM PRIVATE
             "${bpr_two_round_qtgui_private}" "${bpr_two_round_qtgui_private}/QtGui")
     endif()
+endif()
+if(NOT BPR_BUILD_LOCAL_AUTOMATION)
+    # [[BPR-1179]]. The same complete manual course in a desktop built without
+    # local automation: no bpr exists, the window's own Copy, Save and bundle
+    # agree with the canonical payload, a fourth launch reads the cycle back,
+    # and on POSIX no owner command endpoint is bound beside the activation one.
+    bpr_add_network_isolated_test(NAME application_review_cycle_automation_off_two_round WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_two_round_contract.py"
+        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
+        --without-local-automation)
+    set_tests_properties(application_review_cycle_automation_off_two_round PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_TWO_ROUND_OK"
+        TIMEOUT 600)
+endif()
+
+# [[BPR-1062]]. A real desktop author and the shipped CLI share one live draft.
+if(TARGET app_bpr)
+    bpr_add_executable(test_profile_tour_handoff_public_path profile_tour_handoff_public_path_tests.cpp)
+    target_link_libraries(test_profile_tour_handoff_public_path PRIVATE BetterPullReview::Composition)
+    target_compile_definitions(test_profile_tour_handoff_public_path PRIVATE BPR_BUILD_TESTING=1)
+    target_compile_features(test_profile_tour_handoff_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_profile_tour_handoff_public_path)
+    bpr_enable_warnings(test_profile_tour_handoff_public_path)
+    bpr_add_network_isolated_test(NAME application_profile_tour_handoff_public_path WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_tour_handoff_contract.py"
+        --application $<TARGET_FILE:test_profile_tour_handoff_public_path>
+        --tour-application $<TARGET_FILE:app_bpr>)
+    set_tests_properties(application_profile_tour_handoff_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240)
+    # [[BPR-1168]]. A real desktop owner with a local cycle open and the shipped
+    # `bpr cycle`, in both directions: forwarded commands, the reviewer's unsaved
+    # and composing text, duplicates, concurrent callers, owner death and
+    # replacement, and an owner of another protocol version. Registered contained:
+    # Windows has not measured it yet; a measured refusal is pinned, not guessed.
+    bpr_add_executable(test_profile_cycle_handoff_public_path profile_cycle_handoff_public_path_tests.cpp)
+    target_link_libraries(test_profile_cycle_handoff_public_path PRIVATE BetterPullReview::Composition)
+    target_compile_definitions(test_profile_cycle_handoff_public_path PRIVATE BPR_BUILD_TESTING=1)
+    target_compile_features(test_profile_cycle_handoff_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_profile_cycle_handoff_public_path)
+    bpr_enable_warnings(test_profile_cycle_handoff_public_path)
+    bpr_add_network_isolated_test(NAME application_profile_cycle_handoff_public_path WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_cycle_handoff_contract.py"
+        --application $<TARGET_FILE:test_profile_cycle_handoff_public_path>
+        --cycle-application $<TARGET_FILE:app_bpr>)
+    set_tests_properties(application_profile_cycle_handoff_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300)
     bpr_add_network_isolated_test(NAME application_review_cycle_two_round_public_path WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_two_round_contract.py"
         --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
@@ -3529,6 +3560,7 @@ if(UNIX)
             "$<TARGET_FILE:test_terminal_diagnostics>" "$<TARGET_FILE:app_better_pull_review>" "$<TARGET_FILE:test_application_logging>")
     set_tests_properties(application_terminal_diagnostics PROPERTIES TIMEOUT 60)
 endif()
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_network_isolated_test(NAME application_diagnostic_subsystems
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/diagnostic_subsystem_contract.py"
         "$<TARGET_FILE:test_better_pull_review_application_diff_host_tests>"
@@ -3536,6 +3568,7 @@ bpr_add_network_isolated_test(NAME application_diagnostic_subsystems
         "$<TARGET_FILE:test_better_pull_review_review_queue_enrollment_tests>"
         "$<TARGET_FILE:test_better_pull_review_agent_protocol_loop_tests>")
 set_tests_properties(application_diagnostic_subsystems PROPERTIES TIMEOUT 180)
+endif()
 
 # BPR-0972 reports structural counterexamples; the marker is not blanket AC2 acceptance.
 bpr_add_executable(test_application_scaling application_scaling_tests.cpp)
@@ -3576,6 +3609,7 @@ foreach(course native compat stop description conflict unsupported maintenance r
 endforeach()
 
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_scoped_writing_agent scoped_writing_agent.cpp)
 target_compile_features(test_scoped_writing_agent PRIVATE cxx_std_23)
 bpr_enable_hardening(test_scoped_writing_agent)
@@ -3616,6 +3650,7 @@ set_tests_properties(application_private_review_retry PROPERTIES
     RESOURCE_LOCK bpr_private_review_course)
 bpr_bound_automated_run(application_private_review_retry
     TIMEOUT 400 BUDGET_MS 90000 RUNS 3 RESERVE_MS 20000)
+endif()
 
 # [[BPR-1157]]. The real workbench window with the real local-cycle
 # composition: no-account Open Project to a first note and a suggestion,

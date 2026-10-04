@@ -181,12 +181,25 @@ namespace bpr::qt {
 		aPanel->show();
 	}
 
+	void settings_window::withdraw_page(const settings_page aPage)
+	{
+		auto* const item = Sidebar->item(page_index(aPage));
+		if (item == nullptr) {
+			return;
+		}
+		item->setHidden(true);
+		if (Sidebar->currentRow() == page_index(aPage)) {
+			Sidebar->setCurrentRow(page_index(settings_page::general));
+		}
+	}
+
 	void settings_window::present(const settings_page aPage)
 	{
 		if (!isVisible()) {
 			ReturnFocus = QApplication::focusWidget();
 		}
-		Sidebar->setCurrentRow(page_index(aPage));
+		const auto* const item = Sidebar->item(page_index(aPage));
+		Sidebar->setCurrentRow(page_index(item != nullptr && item->isHidden() ? settings_page::general : aPage));
 		show();
 		raise();
 		activateWindow();

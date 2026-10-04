@@ -48,6 +48,10 @@ SHARED_LINES = {
     "Qt side chat panel constructor": "0025 T bpr::qt::side_chat_panel::side_chat_panel()",
     "Qt finding queue view constructor": "0026 T bpr::qt::finding_queue_view::finding_queue_view()",
     "agent chat session application host constructor": "0027 T bpr::application::agent_chat_session_host::agent_chat_session_host()",
+    # [[BPR-1179]]. Agent-only, with the six above: forbidden without agent integrations.
+    "agent protocol decoder constructor": "0037 T bpr::application::agent_protocol_decoder::agent_protocol_decoder(bpr::core::agent_protocol)",
+    # [[BPR-1179]]. Local automation: forbidden without it.
+    "cycle owner service": "0038 T bpr::app::cycle_owner_service::serve(std::span<unsigned char const>)",
     "system browser opener constructor": "0028 T bpr::app::system_browser_opener::system_browser_opener()",
     "Qt device authorization panel constructor": "0029 T bpr::qt::device_authorization_panel::device_authorization_panel()",
     "anonymous read transport factory": "0030 T bpr::adapters::github::detail::make_native_https_anonymous_read_transport(bpr::adapters::github::validated_github_host_profile const&, bpr::core::github_session_request_context)",
@@ -251,6 +255,47 @@ class ComposedHostVerifierTests(unittest.TestCase):
             present = audit_nm(base + rendered(CLI_LINES), VERIFIER.PRODUCTION_PROFILE)
             self.assertEqual(len(present), len(CLI_LINES))
             self.assertTrue(all("GitHub CLI" in failure for failure in present))
+
+    def test_agent_free_image_passes_without_any_agent_anchor(self) -> None:
+        """[[BPR-1179]]. An agent-free image is whole without the agent anchors."""
+        agent_names = {anchor.name for anchor in VERIFIER.AGENT_INTEGRATION_REQUIRED}
+        self.assertTrue(agent_names)
+        self.assertTrue(agent_names <= SHARED_LINES.keys())
+        common = {name: line for name, line in SHARED_LINES.items() if name not in agent_names}
+        for profile, profile_lines in (
+            (VERIFIER.DEVELOPMENT_FIXTURE_PROFILE, FIXTURE_LINES),
+            (VERIFIER.PRODUCTION_PROFILE, PRODUCTION_LINES),
+        ):
+            with self.subTest(profile=profile):
+                symbols = VERIFIER.parse_nm_defined_symbols(rendered(common | profile_lines))
+                self.assertEqual(VERIFIER.audit_symbols(symbols, profile, agent_integrations=False), [])
+                # The same image fails the full audit, once per absent agent anchor.
+                missing = VERIFIER.audit_symbols(symbols, profile)
+                self.assertEqual(len(missing), len(agent_names), missing)
+
+    def test_agent_free_image_refuses_each_agent_anchor(self) -> None:
+        """[[BPR-1179]]. One agent anchor left in an agent-free image fails it, by name."""
+        agent_names = {anchor.name for anchor in VERIFIER.AGENT_INTEGRATION_REQUIRED}
+        common = {name: line for name, line in SHARED_LINES.items() if name not in agent_names}
+        for present in sorted(agent_names):
+            with self.subTest(present=present):
+                symbols = VERIFIER.parse_nm_defined_symbols(rendered(common | PRODUCTION_LINES | {present: SHARED_LINES[present]}))
+                failures = VERIFIER.audit_symbols(symbols, VERIFIER.PRODUCTION_PROFILE, agent_integrations=False)
+                self.assertEqual(failures, [f"forbidden exact demangled anchor is present: {present}"])
+
+    def test_automation_off_image_refuses_the_automation_anchor(self) -> None:
+        """[[BPR-1179]]. Local automation is a family of its own, independent of agents."""
+        automation = {anchor.name for anchor in VERIFIER.LOCAL_AUTOMATION_REQUIRED}
+        self.assertTrue(automation and automation <= SHARED_LINES.keys())
+        without = {name: line for name, line in SHARED_LINES.items() if name not in automation}
+        symbols = VERIFIER.parse_nm_defined_symbols(rendered(without | PRODUCTION_LINES))
+        self.assertEqual(VERIFIER.audit_symbols(symbols, VERIFIER.PRODUCTION_PROFILE, local_automation=False), [])
+        self.assertEqual(len(VERIFIER.audit_symbols(symbols, VERIFIER.PRODUCTION_PROFILE)), len(automation))
+        present = VERIFIER.parse_nm_defined_symbols(rendered(SHARED_LINES | PRODUCTION_LINES))
+        self.assertEqual(
+            VERIFIER.audit_symbols(present, VERIFIER.PRODUCTION_PROFILE, local_automation=False),
+            [f"forbidden exact demangled anchor is present: {name}" for name in sorted(automation)],
+        )
 
     def test_reconciliation_is_shared_while_fixture_authorities_stay_forbidden(self) -> None:
         without_reconciliation = dict(SHARED_LINES)

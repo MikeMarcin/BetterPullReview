@@ -74,6 +74,7 @@
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QStandardItemModel>
 #include <QStatusBar>
 #include <QStringList>
 #include <QStyle>
@@ -8501,6 +8502,70 @@ namespace bpr::qt {
 	}
 
 	auto workbench_window::private_notes() const noexcept -> private_notes_panel* { return PrivateNotes; }
+
+	void workbench_window::withdraw_agent_surfaces()
+	{
+		for (auto* const widget : std::initializer_list<QWidget*>{ AgentPanel, SideChat, FindingQueue }) {
+			if (widget != nullptr) {
+				widget->hide();
+			}
+		}
+		// A button whose default action is invisible hides itself, so the
+		// drawer's chat and finding buttons and the workshop's controls follow
+		// their actions wherever they are placed.
+		auto actions = std::vector<QAction*>{ };
+		if (SideChat != nullptr) {
+			actions.insert(actions.end(), { SideChat->send_action(), SideChat->add_context_action(), SideChat->new_session_action(), SideChat->continue_old_revision_action() });
+		}
+		if (FindingQueue != nullptr) {
+			for (auto index = std::size_t{ 0U }; index < finding_queue_action_count; ++index) {
+				actions.push_back(FindingQueue->action(static_cast<finding_queue_action>(index)));
+			}
+		}
+		if (ReviewEditor != nullptr) {
+			actions.insert(actions.end(), { ReviewEditor->accept_revision_action(), ReviewEditor->reject_revision_action() });
+			for (auto index = std::size_t{ 0U }; index < core::workshop_operation_count; ++index) {
+				actions.push_back(ReviewEditor->workshop_action(static_cast<core::workshop_operation>(index)));
+			}
+		}
+		for (auto* const action : actions) {
+			if (action != nullptr) {
+				action->setVisible(false);
+			}
+		}
+		for (const auto* name : { "reviewWorkshopOriginal", "reviewWorkshopProposal", "reviewWorkshopOperation",
+								  "tourProblemMagic", "tourSolutionMagic", "tourStopMagic", "tourSuggestOutline", "tourSuggestedOutline", "tourInsertOutline",
+								  "privateAgentProfile", "privateRequestedModel", "privateRequestedEffort", "privateAskAgent", "privateCompositionAsk" }) {
+			for (auto* const widget : findChildren<QWidget*>(QString::fromLatin1(name))) {
+				widget->hide();
+			}
+		}
+		// The composition editor's profile is a labelled form row; the row goes
+		// with it, and the agent-assisted mode can no longer be chosen.
+		for (auto* const profile : findChildren<QWidget*>(QStringLiteral("privateCompositionProfile"))) {
+			for (auto* const form : profile->parentWidget()->findChildren<QFormLayout*>()) {
+				if (form->indexOf(profile) >= 0) {
+					form->setRowVisible(profile, false);
+				}
+			}
+		}
+		for (auto* const mode : findChildren<QComboBox*>(QStringLiteral("privateCompositionMode"))) {
+			if (auto* const items = qobject_cast<QStandardItemModel*>(mode->model()); items != nullptr && items->rowCount() > 2) {
+				items->item(2)->setEnabled(false);
+			}
+		}
+		if (auto* const tabs = findChild<QTabWidget*>(QStringLiteral("privateConversationTabs")); tabs != nullptr && ConversationScroll != nullptr) {
+			tabs->setTabText(tabs->indexOf(ConversationScroll), tr("Private notes"));
+			tabs->setAccessibleName(tr("Private history and notes"));
+		}
+		if (auto* const purpose = findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose")); purpose != nullptr) {
+			purpose->setText(tr("Private to you and never published. Write a note about this pull request, then promote what you want to say to a draft in Comments."));
+			purpose->setAccessibleDescription(purpose->text());
+		}
+		if (SettingsWindow != nullptr) {
+			SettingsWindow->withdraw_page(settings_page::agents_and_context);
+		}
+	}
 
 	auto workbench_window::side_chat() const noexcept -> side_chat_panel*
 	{

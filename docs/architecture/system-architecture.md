@@ -364,7 +364,14 @@ intents, prepared/commit/terminal events, deltas, limits and direct tests.
 
 The tests-disabled package binds the actual application, agent supervisor,
 stdio MCP helper and macOS updater helper to its file inventory and selected
-build graph. Core remains independently buildable without Qt/providers; no
+build graph. [[BPR-1179]] makes two component families removable at build
+time: `BPR_BUILD_AGENT_INTEGRATIONS=OFF` compiles out the agent launch adapter,
+the application's agent hosts, the provider protocol decoders and the MCP
+helper and its supervisor, and the window withdraws its agent controls;
+`BPR_BUILD_LOCAL_AUTOMATION=OFF` binds no owner command endpoint and builds no
+`bpr`. The composition decides which family it holds; stored reviews and
+cycles never depend on either. The supervisor stays in every package, because
+guarded Git launches run inside it. Core remains independently buildable without Qt/providers; no
 standalone SDK is implied. The [package guide](../development/release-packages.md)
 and [corporate packet](../security/corporate-security-overview.md) distinguish
 these mechanisms from pending native, trust, vulnerability and crash acceptance.

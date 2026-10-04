@@ -5,8 +5,9 @@ APP_NAME="BetterPullReview"
 BUNDLE_ID="com.gamecoretech.betterpullreview"
 TEAM_ID="YTQKP2V2A8"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="${ROOT_DIR}/build/macos-release"
-APP_PATH="${BUILD_DIR}/src/app/${APP_NAME}.app"
+# [[BPR-1179]]. --variant selects a package without a removable component family;
+# the preset, build directory and artifact names follow it.
+VARIANT=""
 DEFAULT_CODESIGN_IDENTITY="Developer ID Application: Michael Marcin (${TEAM_ID})"
 DEFAULT_NOTARY_PROFILE="BetterPullReview-notary"
 
@@ -35,6 +36,9 @@ Options:
   --prepare-only        Local deployment, notices/source, audit and ZIP only;
                         ad-hoc seal, no Keychain lookup or Apple submissions.
   --allow-dirty          Permit uncommitted source changes.
+  --variant NAME         agent-free (no agent integrations) or
+                         agent-free-automation-off (no local automation either);
+                         artifacts are named for it. Default: the full package.
   -h, --help             Show this help.
 
 Environment:
@@ -332,6 +336,11 @@ while [[ $# -gt 0 ]]; do
             ALLOW_DIRTY=1
             shift
             ;;
+        --variant)
+            [[ $# -ge 2 ]] || fail "--variant requires a value"
+            VARIANT="$2"
+            shift 2
+            ;;
         -h|--help)
             usage
             exit 0
@@ -343,6 +352,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "macOS release packaging requires macOS"
+case "${VARIANT}" in
+    "" | agent-free | agent-free-automation-off) ;;
+    *) fail "--variant must be agent-free or agent-free-automation-off" ;;
+esac
+PRESET="macos-release${VARIANT:+-${VARIANT}}"
+VARIANT_SUFFIX="${VARIANT:+-${VARIANT}}"
+BUILD_DIR="${ROOT_DIR}/build/${PRESET}"
+APP_PATH="${BUILD_DIR}/src/app/${APP_NAME}.app"
 [[ "${REQUESTED_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || \
     fail "--version must be a SemVer value"
 [[ "$(project_version)" == "${REQUESTED_VERSION}" ]] || \
@@ -385,9 +402,9 @@ else
     log "Skipping tests"
 fi
 
-log "Building the universal tests-disabled application"
-cmake --preset macos-release
-cmake --build --preset macos-release
+log "Building the universal tests-disabled application (${PRESET})"
+cmake --preset "${PRESET}"
+cmake --build --preset "${PRESET}"
 [[ -d "${APP_PATH}" ]] || fail "Expected application bundle is absent: ${APP_PATH}"
 
 INFO_PLIST="${APP_PATH}/Contents/Info.plist"
@@ -433,7 +450,7 @@ SOURCE_PATH="${OUTPUT_DIR}/${SOURCE_ASSET}"
 python3 "${ROOT_DIR}/packaging/package_runtime.py" notices --build "${BUILD_DIR}" --root "${STAGED_APP}" --source-archive "${SOURCE_PATH}"
 
 if [[ "${PREPARE_ONLY}" == "1" ]]; then
-    ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal-local"
+    ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal${VARIANT_SUFFIX}-local"
     LOCAL_APP="${OUTPUT_DIR}/${APP_NAME}.app"
     LOCAL_ZIP="${OUTPUT_DIR}/${ASSET_BASE}.zip"
     [[ ! -e "${LOCAL_APP}" && ! -e "${LOCAL_ZIP}" ]] || fail "Use a fresh output directory for local preparation"
@@ -454,7 +471,7 @@ sign_nested_code "${STAGED_APP}"
 verify_signature_policy "${STAGED_APP}"
 verify_relocated_launch "${STAGED_APP}" "${STAGING_ROOT}/smoke-profile"
 
-ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal"
+ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal${VARIANT_SUFFIX}"
 DMG_PATH="${OUTPUT_DIR}/${ASSET_BASE}.dmg"
 ZIP_PATH="${OUTPUT_DIR}/${ASSET_BASE}.zip"
 DMG_CHECKSUM_PATH="${DMG_PATH}.sha256"

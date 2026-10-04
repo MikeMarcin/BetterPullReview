@@ -63,18 +63,12 @@ add_library(
         src/profile_storage_authority.cpp
         src/profile_startup_admission.cpp
         src/profile_management_host.cpp
-        src/agent_chat_session_host.cpp
-        src/agent_comment_workshop_host.cpp
         src/agent_finding_delivery.cpp
-        src/agent_finding_host.cpp
         src/agent_launch.cpp
-		src/agent_invocation_host.cpp
         src/private_review_application_host.cpp
     src/review_composition_application_host.cpp
     src/private_publication_application_host.cpp
-        src/agent_realignment.cpp
         src/agent_workspace.cpp
-        src/mcp_context_helper_supervisor.cpp
         src/notification_delivery.cpp
         src/review_queue_notification.cpp
         src/workbench_snapshot_observation.cpp
@@ -103,6 +97,27 @@ add_library(
         src/workbench_preferences_host.cpp
 )
 add_library(BetterPullReview::Application ALIAS better_pull_review_application)
+# [[BPR-1179]]. The hosts that run an agent and supervise the MCP context
+# helper are agent integrations. An agent-free graph does not compile them, so
+# nothing it links can reach them; the types they share with stored reviews
+# (agent launch records, workspaces, finding deliveries) stay above.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    # agent_launch.cpp keeps the records a stored review reads (writing
+    # prompts and results, private findings, run outcome names) in every graph;
+    # the agent launch, its wire framing and the provider protocol decoders
+    # compile only here.
+    target_compile_definitions(better_pull_review_application PRIVATE BPR_AGENT_INTEGRATIONS=1)
+    target_sources(
+        better_pull_review_application
+        PRIVATE
+            src/agent_chat_session_host.cpp
+            src/agent_comment_workshop_host.cpp
+            src/agent_finding_host.cpp
+            src/agent_invocation_host.cpp
+            src/agent_realignment.cpp
+            src/mcp_context_helper_supervisor.cpp
+    )
+endif()
 
 target_link_libraries(
     better_pull_review_application

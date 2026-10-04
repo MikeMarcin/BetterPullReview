@@ -177,6 +177,7 @@ if(APPLE)
     set_tests_properties(git_pristine_remount_recovery PROPERTIES TIMEOUT 180)
 endif()
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_better_pull_review_migrated_binding_agent migrated_binding_agent_fixture.cpp)
 target_link_libraries(test_better_pull_review_migrated_binding_agent PRIVATE BetterPullReview::AdapterMcp)
 bpr_enable_hardening(test_better_pull_review_migrated_binding_agent)
@@ -229,6 +230,7 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 90
 )
+endif()
 
 # [[BPR-0846]]. The live path's update fetch over a local upload-pack that
 # honours haves, through the real host, protocol, cache and catalog, plus the
@@ -275,6 +277,7 @@ foreach(bpr_haves_course IN ITEMS update missing-object unconnected tour-source)
     set_tests_properties("git_haves_trimmed_pack_${bpr_haves_course}" PROPERTIES TIMEOUT 120)
 endforeach()
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_network_isolated_test(
     NAME epoch_kill_recovery
     WINDOWS_UNCONTAINED
@@ -296,6 +299,7 @@ bpr_add_network_isolated_test(
         --git "$<TARGET_FILE:Git::Git>"
 )
 set_tests_properties(epoch_transaction_kill_recovery PROPERTIES TIMEOUT 300)
+endif()
 
 
 if(WIN32)

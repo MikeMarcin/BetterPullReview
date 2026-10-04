@@ -12,6 +12,15 @@ cmake --install build/tour-cli --component TourCLI --prefix /absolute/install/ro
 /absolute/install/root/bin/bpr cycle capabilities
 ```
 
+The preset builds without agent integrations ([[BPR-1179]]): the installed
+`TourCLI` component is `bin/bpr`, the process supervisor its Git launches run
+inside, and their private Qt, with no agent adapter or MCP helper. `bpr` is
+local automation. A graph built with `BPR_BUILD_LOCAL_AUTOMATION=OFF` cannot
+build it, and that desktop binds no owner command endpoint. To remove `bpr`,
+delete the files listed in `build/tour-cli/install_manifest_TourCLI.txt`. The
+desktop and its stored cycles are untouched; see
+[release packages](release-packages.md#packages-without-agent-integrations-or-local-automation).
+
 A dev graph gets the executable and its course with `-DBPR_BUILD_TOUR_CLI=ON`
 (the `dev` preset leaves it off): `cmake --preset dev -B build/dev-tour-cli
 -DBPR_BUILD_TOUR_CLI=ON`, then `ctest --test-dir build/dev-tour-cli -R

@@ -44,6 +44,18 @@ endif()
 
 option(BPR_BUILD_QT "Build the Qt presentation adapter" ON)
 option(BPR_BUILD_TOUR_CLI "Build the non-GUI bpr tour terminal frontend" OFF)
+# [[BPR-1179]]. Two removable component families (RFC-BPR-0060). Agent
+# integrations are the agent launch adapter, the application's agent hosts, the
+# MCP context helper and the desktop surfaces that drive them; without them the
+# desktop composes no agent and ships no agent helper. Local automation is the
+# bpr command line and the desktop's owner command channel it reaches; without
+# it the desktop opens no command channel and the graph builds no bpr. Each is
+# independent of the other, and neither touches stored reviews or cycles.
+option(BPR_BUILD_AGENT_INTEGRATIONS "Build the agent launch adapter, agent hosts and MCP context helper" ON)
+option(BPR_BUILD_LOCAL_AUTOMATION "Build the bpr command line and the desktop's owner command channel" ON)
+if(BPR_BUILD_TOUR_CLI AND NOT BPR_BUILD_LOCAL_AUTOMATION)
+    message(FATAL_ERROR "BPR_BUILD_TOUR_CLI builds bpr, which is local automation: it needs BPR_BUILD_LOCAL_AUTOMATION=ON")
+endif()
 option(
     BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE
     "Build the narrow tests-disabled macOS attended-review execution capsule"

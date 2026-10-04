@@ -1260,10 +1260,18 @@ auto main(int aArgc, char** aArgv) -> int
 	window.raise();
 	reactivate(window);
 	const auto endpoint = adapters::sqlite::tour_owner_endpoint(root);
+#if defined(BPR_LOCAL_AUTOMATION)
 	if (!endpoint || !wait_for([&] { return endpoint_bound(*endpoint); })) {
 		std::cerr << "FAILED: the owner's command endpoint is bound\n";
 		return EXIT_FAILURE;
 	}
+#else
+	// [[BPR-1179]]. Built without local automation, the desktop binds none.
+	if (!endpoint || endpoint_bound(*endpoint)) {
+		std::cerr << "FAILED: no owner command endpoint is bound without local automation\n";
+		return EXIT_FAILURE;
+	}
+#endif
 	// The clipboard as it was before the course, put back on the way out.
 	const auto kept = QGuiApplication::clipboard()->text();
 	say("DESKTOP_READY " + std::string{ QGuiApplication::platformName().toUtf8().constData() } + " qt=" + qVersion() + " active=" + (window.isActiveWindow() ? "1" : "0") + " size=" + std::to_string(window.width()) + "x"

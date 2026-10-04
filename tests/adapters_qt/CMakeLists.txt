@@ -899,6 +899,7 @@ endif()
 bpr_enable_hardening(test_better_pull_review_agent_canary)
 bpr_enable_warnings(test_better_pull_review_agent_canary)
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(
     test_better_pull_review_qt_agent_launch_canary_tests
     agent_launch_canary_tests.cpp
@@ -952,6 +953,7 @@ if(UNIX OR WIN32)
     )
     # Two separately bounded owner-PID and owner-process-group kill courses.
     set_tests_properties(agent_parent_death PROPERTIES TIMEOUT 120)
+endif()
 endif()
 
 # Linked against both adapters on purpose. Each is proven on its own elsewhere;
@@ -1364,6 +1366,7 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
 )
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(
     test_better_pull_review_qt_review_draft_editor_tests
     review_draft_editor_tests.cpp
@@ -1387,6 +1390,7 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "review-draft-editor-tests:pass"
 )
+endif()
 
 # The finding queue sits beside the draft editor and is proven the same way:
 # it holds no provider, no endpoint, and no store, so an intent naming one

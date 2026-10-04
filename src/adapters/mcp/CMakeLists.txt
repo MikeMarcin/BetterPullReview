@@ -11,6 +11,12 @@
 # not Qt, not the GitHub, Git, or SQLite adapters: a helper whose whole claim is
 # that it reaches no credential and no network is best served by a link line a
 # reviewer can read in one line.
+#
+# [[BPR-1179]]. It serves somebody else's agent, so it is an agent
+# integration: an agent-free graph builds neither the library nor the helper.
+if(NOT BPR_BUILD_AGENT_INTEGRATIONS)
+    return()
+endif()
 
 add_library(
     better_pull_review_adapter_mcp

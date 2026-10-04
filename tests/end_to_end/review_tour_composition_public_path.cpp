@@ -670,7 +670,14 @@ auto main(int argc, char** argv) -> int
 		const auto problem = QStringLiteral("## Before\n\nLiteral <details><summary>why</summary>\n\n```cpp\nreturn 1;\n```\n</details>\n\n| A | B |\n| - | - |\n| x | y |\n");
 		tab_leaves(editor.problem_editor());
 		key(editor.problem_editor(), QKeyCombination{ Qt::Key_Tab });
+#if defined(BPR_AGENT_INTEGRATIONS)
 		expect(QApplication::focusWidget() == editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic")), "Problem Tab reaches the visible assistance control");
+#else
+		// [[BPR-1179]]. Built without agent integrations, the window withdraws
+		// the assistance control: Tab passes it, and Shift+Tab still returns.
+		const auto* const assistance = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+		expect(assistance != nullptr && !assistance->isVisible() && QApplication::focusWidget() != assistance, "Problem Tab passes the withdrawn assistance control");
+#endif
 		visible_focus(editor);
 		key(QApplication::focusWidget(), QKeyCombination{ Qt::ShiftModifier, Qt::Key_Backtab });
 		expect(editor.problem_editor()->hasFocus(), "reverse Tab returns from assistance to Problem");

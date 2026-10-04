@@ -5,8 +5,37 @@ endif()
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
 get_filename_component(bpr_package_qt_root "${Qt6_DIR}/../../.." ABSOLUTE)
 set(bpr_package_qt_version "${BPR_PRODUCT_QT_VERSION}")
+# [[BPR-1179]]. The helpers a package ships follow its component families: the
+# supervisor in every package (Git's guarded launches run inside it), the MCP
+# context helper only with agent integrations. The record names both families,
+# so a release check reads which package it holds rather than inferring it.
+set(bpr_package_helpers tool_better_pull_review_agent_supervisor)
+set(bpr_package_agent_integrations false)
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    list(APPEND bpr_package_helpers tool_better_pull_review_mcp_context_helper)
+    set(bpr_package_agent_integrations true)
+endif()
+set(bpr_package_local_automation false)
+if(BPR_BUILD_LOCAL_AUTOMATION)
+    set(bpr_package_local_automation true)
+endif()
+# The artifact's name says which families it omits. Its package identity (name,
+# Windows upgrade code, macOS bundle) is the same for every variant, so
+# installing one over another replaces the program files and nothing else.
+set(bpr_package_variant "")
+if(NOT BPR_BUILD_AGENT_INTEGRATIONS)
+    string(APPEND bpr_package_variant "-agent-free")
+endif()
+if(NOT BPR_BUILD_LOCAL_AUTOMATION)
+    string(APPEND bpr_package_variant "-automation-off")
+endif()
+set(bpr_package_helper_files "")
+foreach(bpr_package_helper IN LISTS bpr_package_helpers)
+    list(APPEND bpr_package_helper_files "\"$<TARGET_FILE:${bpr_package_helper}>\"")
+endforeach()
+list(JOIN bpr_package_helper_files "," bpr_package_helper_files)
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/_bpr/package-inputs.json" CONTENT
-    "{\"schema\":\"bpr.package-inputs.v1\",\"platform\":\"${CMAKE_SYSTEM_NAME}\",\"version\":\"${PROJECT_VERSION}\",\"qt_version\":\"${bpr_package_qt_version}\",\"qt_root\":\"${bpr_package_qt_root}\",\"source\":\"${PROJECT_SOURCE_DIR}\",\"cache\":\"${CPM_SOURCE_CACHE}\",\"app\":\"$<TARGET_FILE:app_better_pull_review>\",\"helpers\":[\"$<TARGET_FILE:tool_better_pull_review_agent_supervisor>\",\"$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>\"]}\n")
+    "{\"schema\":\"bpr.package-inputs.v1\",\"platform\":\"${CMAKE_SYSTEM_NAME}\",\"version\":\"${PROJECT_VERSION}\",\"qt_version\":\"${bpr_package_qt_version}\",\"qt_root\":\"${bpr_package_qt_root}\",\"source\":\"${PROJECT_SOURCE_DIR}\",\"cache\":\"${CPM_SOURCE_CACHE}\",\"app\":\"$<TARGET_FILE:app_better_pull_review>\",\"helpers\":[${bpr_package_helper_files}],\"families\":{\"agent_integrations\":${bpr_package_agent_integrations},\"local_automation\":${bpr_package_local_automation}},\"variant\":\"${bpr_package_variant}\"}\n")
 if(APPLE)
     # tools/release.sh remains the sole macOS deployment/DMG/ZIP pipeline.
     return()
@@ -24,8 +53,7 @@ else()
         message(FATAL_ERROR "Managed Linux packages install beneath /usr")
     endif()
     set(bpr_runtime_destination "lib/betterpullreview")
-    set_target_properties(app_better_pull_review tool_better_pull_review_agent_supervisor
-        tool_better_pull_review_mcp_context_helper PROPERTIES INSTALL_RPATH "$ORIGIN")
+    set_target_properties(app_better_pull_review ${bpr_package_helpers} PROPERTIES INSTALL_RPATH "$ORIGIN")
     install(PROGRAMS "${PROJECT_SOURCE_DIR}/packaging/linux/better_pull_review"
         DESTINATION bin COMPONENT Runtime)
     install(FILES "${PROJECT_SOURCE_DIR}/packaging/icons/linux/io.github.MikeMarcin.BetterPullReview.desktop"
@@ -33,8 +61,7 @@ else()
     install(FILES "${PROJECT_SOURCE_DIR}/packaging/icons/better_pull_review.svg"
         DESTINATION share/icons/hicolor/scalable/apps RENAME io.github.MikeMarcin.BetterPullReview.svg COMPONENT Runtime)
 endif()
-install(TARGETS app_better_pull_review tool_better_pull_review_agent_supervisor
-    tool_better_pull_review_mcp_context_helper
+install(TARGETS app_better_pull_review ${bpr_package_helpers}
     RUNTIME DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime)
 if(BPR_EXTERNAL_QT_RESOURCES)
     # [[BPR-0974]]. The image's Qt resources ship beside it, and it refuses to
@@ -68,7 +95,7 @@ if(WIN32)
     set(CPACK_WIX_PROPERTY_ARPURLINFOABOUT "${PROJECT_HOMEPAGE_URL}")
     set(CPACK_WIX_PRODUCT_ICON "${PROJECT_SOURCE_DIR}/packaging/icons/windows/better_pull_review.ico")
     set(CPACK_PACKAGE_EXECUTABLES "better_pull_review" "BetterPullReview")
-    set(CPACK_PACKAGE_FILE_NAME "BetterPullReview-${PROJECT_VERSION}-windows-x64")
+    set(CPACK_PACKAGE_FILE_NAME "BetterPullReview-${PROJECT_VERSION}-windows-x64${bpr_package_variant}")
 else()
     set(CPACK_GENERATOR "DEB;RPM")
     set(CPACK_PACKAGING_INSTALL_PREFIX /usr)
@@ -84,6 +111,6 @@ else()
     set(CPACK_RPM_PACKAGE_LICENSE "NOASSERTION")
     set(CPACK_RPM_PACKAGE_REQUIRES "git >= 2.39, libsecret >= 0.20, openssl-libs, xorg-x11-server-Xwayland")
     set(CPACK_RPM_PACKAGE_AUTOREQPROV ON)
-    set(CPACK_PACKAGE_FILE_NAME "BetterPullReview-${PROJECT_VERSION}-linux-x64")
+    set(CPACK_PACKAGE_FILE_NAME "BetterPullReview-${PROJECT_VERSION}-linux-x64${bpr_package_variant}")
 endif()
 include(CPack)

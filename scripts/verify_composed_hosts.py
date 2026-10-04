@@ -75,7 +75,53 @@ def type_anchor(name: str, qualified_name: str) -> symbol_anchor:
     return symbol_anchor(name, qualified_name, is_type=True)
 
 
-SHARED_REQUIRED = (
+# [[BPR-1179]]. The agent integrations a full graph composes and an agent-free
+# graph (BPR_BUILD_AGENT_INTEGRATIONS=OFF) must not contain: the hosts that run
+# an agent, the process launcher that starts one, the decoder that reads a
+# provider's protocol and the MCP helper's supervisor. Required in a full image, forbidden in an agent-free one. The Qt
+# panels stay shared: an agent-free window builds them and withdraws them.
+AGENT_INTEGRATION_REQUIRED = (
+    function_anchor(
+        "agent invocation application host constructor",
+        "bpr::application::agent_invocation_host::agent_invocation_host",
+    ),
+    function_anchor(
+        "agent process launcher constructor",
+        "bpr::adapters::agent::agent_process_launcher::agent_process_launcher",
+    ),
+    function_anchor(
+        "agent finding application host constructor",
+        "bpr::application::agent_finding_host::agent_finding_host",
+    ),
+    function_anchor(
+        "agent chat session application host constructor",
+        "bpr::application::agent_chat_session_host::agent_chat_session_host",
+    ),
+    function_anchor(
+        "agent comment workshop application host constructor",
+        "bpr::application::agent_comment_workshop_host::agent_comment_workshop_host",
+    ),
+    function_anchor(
+        "MCP context helper supervisor constructor",
+        "bpr::application::mcp_context_helper_supervisor::mcp_context_helper_supervisor",
+    ),
+    function_anchor(
+        "agent protocol decoder constructor",
+        "bpr::application::agent_protocol_decoder::agent_protocol_decoder",
+    ),
+)
+
+# [[BPR-1179]]. Local automation: the service that runs a forwarded bpr cycle
+# command in the desktop. A graph built with BPR_BUILD_LOCAL_AUTOMATION=OFF
+# binds no owner command endpoint and compiles no such service.
+LOCAL_AUTOMATION_REQUIRED = (
+    function_anchor(
+        "cycle owner service",
+        "bpr::app::cycle_owner_service::serve",
+    ),
+)
+
+COMMON_REQUIRED = (
     function_anchor(
         "GitHub application host constructor",
         "bpr::application::github_application_host::github_application_host",
@@ -129,32 +175,8 @@ SHARED_REQUIRED = (
         "bpr::application::review_queue_notifier::review_queue_notifier",
     ),
     function_anchor(
-        "agent invocation application host constructor",
-        "bpr::application::agent_invocation_host::agent_invocation_host",
-    ),
-    function_anchor(
-        "agent process launcher constructor",
-        "bpr::adapters::agent::agent_process_launcher::agent_process_launcher",
-    ),
-    function_anchor(
         "Qt agent launch panel constructor",
         "bpr::qt::agent_launch_panel::agent_launch_panel",
-    ),
-    function_anchor(
-        "agent finding application host constructor",
-        "bpr::application::agent_finding_host::agent_finding_host",
-    ),
-    function_anchor(
-        "agent chat session application host constructor",
-        "bpr::application::agent_chat_session_host::agent_chat_session_host",
-    ),
-    function_anchor(
-        "agent comment workshop application host constructor",
-        "bpr::application::agent_comment_workshop_host::agent_comment_workshop_host",
-    ),
-    function_anchor(
-        "MCP context helper supervisor constructor",
-        "bpr::application::mcp_context_helper_supervisor::mcp_context_helper_supervisor",
     ),
     function_anchor(
         "Qt side chat panel constructor",
@@ -210,6 +232,9 @@ SHARED_REQUIRED = (
         "bpr::application::device_authorization_application_host::bind_refresh_authority",
     ),
 )
+
+# A full graph, built with both removable families, requires all three.
+SHARED_REQUIRED = COMMON_REQUIRED + AGENT_INTEGRATION_REQUIRED + LOCAL_AUTOMATION_REQUIRED
 
 FIXTURE_REQUIRED = (
     function_anchor(
@@ -842,22 +867,38 @@ def inspect_symbols(
     )
 
 
-def audit_symbols(symbols: Sequence[str], profile: str) -> list[str]:
+def required_anchors(profile: str, *, agent_integrations: bool = True, local_automation: bool = True) -> tuple[symbol_anchor, ...]:
+    required = COMMON_REQUIRED
+    required += AGENT_INTEGRATION_REQUIRED if agent_integrations else ()
+    required += LOCAL_AUTOMATION_REQUIRED if local_automation else ()
+    if profile == DEVELOPMENT_FIXTURE_PROFILE:
+        return required + FIXTURE_REQUIRED
+    required += PRODUCTION_REQUIRED
+    if sys.platform == "darwin":
+        required += MAC_PRODUCTION_CLI_REQUIRED
+    return required
+
+
+def forbidden_anchors(profile: str, *, agent_integrations: bool = True, local_automation: bool = True) -> tuple[symbol_anchor, ...]:
+    forbidden = () if agent_integrations else AGENT_INTEGRATION_REQUIRED
+    forbidden += () if local_automation else LOCAL_AUTOMATION_REQUIRED
+    if profile == DEVELOPMENT_FIXTURE_PROFILE:
+        return forbidden + FIXTURE_FORBIDDEN
+    forbidden += PRODUCTION_FORBIDDEN
+    if sys.platform != "darwin":
+        forbidden += MAC_PRODUCTION_CLI_REQUIRED
+    return forbidden
+
+
+def audit_symbols(
+    symbols: Sequence[str], profile: str, *, agent_integrations: bool = True, local_automation: bool = True
+) -> list[str]:
     if profile not in PROFILES:
         raise ValueError(f"unknown composition profile: {profile}")
 
-    required = SHARED_REQUIRED
-    forbidden: tuple[symbol_anchor, ...]
-    if profile == DEVELOPMENT_FIXTURE_PROFILE:
-        required += FIXTURE_REQUIRED
-        forbidden = FIXTURE_FORBIDDEN
-    else:
-        required += PRODUCTION_REQUIRED
-        forbidden = PRODUCTION_FORBIDDEN
-        if sys.platform == "darwin":
-            required += MAC_PRODUCTION_CLI_REQUIRED
-        else:
-            forbidden += MAC_PRODUCTION_CLI_REQUIRED
+    families = {"agent_integrations": agent_integrations, "local_automation": local_automation}
+    required = required_anchors(profile, **families)
+    forbidden = forbidden_anchors(profile, **families)
 
     failures = [
         f"required exact demangled anchor is absent: {anchor.name}"
@@ -875,8 +916,22 @@ def audit_symbols(symbols: Sequence[str], profile: str) -> list[str]:
 def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", choices=PROFILES, required=True)
+    parser.add_argument(
+        "--without-agent-integrations",
+        action="store_true",
+        help="the binary comes from a BPR_BUILD_AGENT_INTEGRATIONS=OFF graph: agent anchors are forbidden",
+    )
+    parser.add_argument(
+        "--without-local-automation",
+        action="store_true",
+        help="the binary comes from a BPR_BUILD_LOCAL_AUTOMATION=OFF graph: automation anchors are forbidden",
+    )
     parser.add_argument("binary", type=Path)
     parsed = parser.parse_args(arguments)
+    families = {
+        "agent_integrations": not parsed.without_agent_integrations,
+        "local_automation": not parsed.without_local_automation,
+    }
 
     try:
         table = inspect_symbols(parsed.binary)
@@ -884,27 +939,19 @@ def main(arguments: Sequence[str] | None = None) -> int:
         print(f"COMPOSED_HOSTS_FAILED: {error}", flush=True)
         return 1
 
-    failures = audit_symbols(table.symbols, parsed.profile)
+    failures = audit_symbols(table.symbols, parsed.profile, **families)
     if failures:
         for failure in failures:
             print(f"COMPOSED_HOSTS_FAILED: {failure}", flush=True)
         return 1
 
-    required_count = len(SHARED_REQUIRED) + (
-        len(FIXTURE_REQUIRED)
-        if parsed.profile == DEVELOPMENT_FIXTURE_PROFILE
-        else len(PRODUCTION_REQUIRED)
-        + (len(MAC_PRODUCTION_CLI_REQUIRED) if sys.platform == "darwin" else 0)
-    )
-    forbidden_count = (
-        len(FIXTURE_FORBIDDEN)
-        if parsed.profile == DEVELOPMENT_FIXTURE_PROFILE
-        else len(PRODUCTION_FORBIDDEN)
-        + (len(MAC_PRODUCTION_CLI_REQUIRED) if sys.platform != "darwin" else 0)
-    )
+    required_count = len(required_anchors(parsed.profile, **families))
+    forbidden_count = len(forbidden_anchors(parsed.profile, **families))
     print(
         "COMPOSED_HOSTS_OK: "
         f"profile={parsed.profile} "
+        f"agent_integrations={'present' if families['agent_integrations'] else 'absent'} "
+        f"local_automation={'present' if families['local_automation'] else 'absent'} "
         f"required={required_count} "
         f"forbidden={forbidden_count} "
         f"inspector={table.inspector}",

@@ -66,11 +66,18 @@
 	#include <glaze/json.hpp>
 #endif
 
-#include "bpr/adapters/agent/agent_process_launcher.hpp"
+// [[BPR-1179]]. BPR_AGENT_INTEGRATIONS and BPR_LOCAL_AUTOMATION are defined
+// only in a graph that builds those component families. Every block they
+// guard here composes, drives or reports one of them; without it the window
+// withdraws the agent controls and no owner command endpoint is bound, and
+// nothing else in this composition changes.
+#if defined(BPR_AGENT_INTEGRATIONS)
+	#include "bpr/adapters/agent/agent_process_launcher.hpp"
+	#include "bpr/adapters/mcp/mcp_context_helper.hpp"
+#endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
-#include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
@@ -90,15 +97,20 @@
 #include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/setup_destination.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
-#include "cycle_owner_service.hpp"
+#if defined(BPR_LOCAL_AUTOMATION)
+	#include "cycle_owner_service.hpp"
+#endif
 #include "tour_owner_service.hpp"
 
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
-#include "bpr/application/agent_chat_session_host.hpp"
-#include "bpr/application/agent_comment_workshop_host.hpp"
-#include "bpr/application/agent_finding_host.hpp"
-#include "bpr/application/agent_invocation_host.hpp"
-#include "bpr/application/agent_realignment.hpp"
+#if defined(BPR_AGENT_INTEGRATIONS)
+	#include "bpr/application/agent_chat_session_host.hpp"
+	#include "bpr/application/agent_comment_workshop_host.hpp"
+	#include "bpr/application/agent_finding_host.hpp"
+	#include "bpr/application/agent_invocation_host.hpp"
+	#include "bpr/application/agent_realignment.hpp"
+	#include "bpr/application/mcp_context_helper_supervisor.hpp"
+#endif
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/defect_correlation.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
@@ -108,7 +120,6 @@
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
-#include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/observing_review_ledger_store.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
@@ -296,7 +307,7 @@ namespace bpr::app {
 		inline constexpr auto designated_review_owner    = std::string_view{ "MikeMarcin" };
 		inline constexpr auto designated_review_name     = std::string_view{ "BPR-Test" };
 
-#if defined(BPR_BUILD_TESTING)
+#if defined(BPR_BUILD_TESTING) && defined(BPR_AGENT_INTEGRATIONS)
 		/// \brief Observes the real composed launcher without replacing its effect.
 		class composition_agent_process_launcher_probe final
 			: public application::agent_process_port
@@ -333,6 +344,8 @@ namespace bpr::app {
 			adapters::agent::agent_process_launcher& Launcher;
 			std::atomic_size_t                       Invocations = 0U;
 		};
+#endif
+#if defined(BPR_BUILD_TESTING)
 
 		/// Holds only review-mutation terminals for deterministic fixture races.
 		class gated_review_mutation_decision_executor final
@@ -2983,6 +2996,7 @@ namespace bpr::app {
 		return "unknown";
 	}
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 	/// \brief The Qt action a composed finding gesture asks the host for.
 	[[nodiscard]] constexpr auto composed_finding_action(
 		const qt::finding_queue_action aAction) noexcept
@@ -3008,7 +3022,9 @@ namespace bpr::app {
 	static_assert(
 		qt::finding_queue_action_count == application::agent_finding_action_count,
 		"the composed finding vocabulary and the queue's must stay one list");
+#endif
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 	/// \brief Writes one frozen review projection the MCP helper may serve.
 	///
 	/// \details The same values the invocation request freezes for anchor
@@ -3056,6 +3072,7 @@ namespace bpr::app {
 		}
 		return binding.good() && alignment.good();
 	}
+#endif
 
 	/// \brief Carries every invocation projection onward, findings included.
 	///
@@ -3217,6 +3234,7 @@ namespace bpr::app {
 		std::function<void(std::string_view)>                         Refused;
 	};
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 	/// \brief Forwards chat state and chat outcomes to their surfaces.
 	///
 	/// \details The same shape `composition_agent_finding_projection` already
@@ -3313,6 +3331,7 @@ namespace bpr::app {
 		outcome_sink  Answered;
 		clear_sink    Cleared;
 	};
+#endif
 
 	/// \brief One comment-workshop press, and the turn it started.
 	///
@@ -3354,6 +3373,7 @@ namespace bpr::app {
 		auto operator<=>(const pending_comment_workshop&) const = default;
 	};
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 	/// \brief Forwards one proposed revision, or the reason there is none.
 	class composition_comment_workshop_projection final
 		: public application::agent_comment_workshop_projection_port
@@ -3391,6 +3411,7 @@ namespace bpr::app {
 		proposal_sink Proposed;
 		refusal_sink  Refused;
 	};
+#endif
 
 	/// \brief Forwards selected diff terminals and observes accepted availability.
 	class composition_diff_projection final
@@ -3690,9 +3711,11 @@ namespace bpr::app {
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
 		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
 		std::shared_ptr<const tour_owner_service>               TourOwnerService;
+#if defined(BPR_LOCAL_AUTOMATION)
 		/// [[BPR-1168]]. Forwarded cycle commands, run one at a time on their own lane.
 		std::shared_ptr<cycle_owner_service> CycleOwnerService;
 		std::stop_source                     CycleOwnerStop;
+#endif
 		/// A routed command whose live draft is not yet durable; answered by the decision-lane tick.
 		struct waiting_tour_request
 		{
@@ -3709,15 +3732,19 @@ namespace bpr::app {
 		worker_executor                  DeviceTransportEffects;
 		worker_executor                  EpochEffects;
 		worker_executor                  DiffEffects;
-		worker_executor                  AgentEffects;
-		worker_executor                  McpEffects;
-		worker_executor                  WorkbenchEffects;
-		worker_executor                  AppearanceEffects;
-		worker_executor                  QueueEffects;
-		worker_executor                  ReviewMutationEffects;
+#if defined(BPR_AGENT_INTEGRATIONS)
+		worker_executor AgentEffects;
+		worker_executor McpEffects;
+#endif
+		worker_executor WorkbenchEffects;
+		worker_executor AppearanceEffects;
+		worker_executor QueueEffects;
+		worker_executor ReviewMutationEffects;
+#if defined(BPR_LOCAL_AUTOMATION)
 		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
 		/// session, never on a lane a window's work runs on.
 		worker_executor CycleOwnerEffects;
+#endif
 		/// [[BPR-1254]]. Held by whatever touches the profile's review-ledger
 		/// file: a ledger store task, or a private review store operation.
 		/// Declared before the lane so it outlives the lane's last task.
@@ -4068,8 +4095,10 @@ namespace bpr::app {
 		void begin_shutdown()
 		{
 			Closing = true;
+#if defined(BPR_LOCAL_AUTOMATION)
 			// A forwarded cycle command stops waiting and cancels its store work.
 			CycleOwnerStop.request_stop();
+#endif
 			if (Diagnostics) {
 				Diagnostics->shutdown();
 			}
@@ -4127,11 +4156,21 @@ namespace bpr::app {
 				return;
 			}
 			if (!ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
-				|| !EpochEffects.idle() || !DiffEffects.idle() || !AgentEffects.idle() || !McpEffects.idle()
+				|| !EpochEffects.idle() || !DiffEffects.idle()
 				|| !WorkbenchEffects.idle() || !AppearanceEffects.idle() || !QueueEffects.idle()
-				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle() || !CycleOwnerEffects.idle()) {
+				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle()) {
 				return;
 			}
+#if defined(BPR_AGENT_INTEGRATIONS)
+			if (!AgentEffects.idle() || !McpEffects.idle()) {
+				return;
+			}
+#endif
+#if defined(BPR_LOCAL_AUTOMATION)
+			if (!CycleOwnerEffects.idle()) {
+				return;
+			}
+#endif
 			if (!AgentWorkspaceCleanupAttempted) {
 				AgentWorkspaceCleanupAttempted = true;
 				if (AgentWorkspaceParent
@@ -4179,8 +4218,10 @@ namespace bpr::app {
 			ProfileCatalog->shutdown();
 			DiffEffects.close_and_drain();
 			EpochEffects.close_and_drain();
+#if defined(BPR_AGENT_INTEGRATIONS)
 			AgentEffects.close_and_drain();
 			McpEffects.close_and_drain();
+#endif
 			WorkbenchEffects.close_and_drain();
 			AppearanceEffects.close_and_drain();
 			QueueEffects.close_and_drain();
@@ -6660,6 +6701,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const std::string& aIdentity) { begin_review_reply(aIdentity); });
 			Window->set_thread_resolution_dispatch(
 				[this](const qt::thread_resolution_gesture& aGesture) { resolve_review_thread(aGesture); });
+#if defined(BPR_AGENT_INTEGRATIONS)
 			// BPR-0533. The six comment-workshop controls reach the composed
 			// workshop host and nothing else: the editor asks for an operation
 			// on one exact draft, and this composition is what decides whether
@@ -6671,6 +6713,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						ask_comment_workshop(aRequest);
 					});
 			}
+#endif
 			Window->comparison_surface()->set_selection_sink(
 				[this](const std::optional<core::semantic_selection>& aSelection) {
 					observe_review_selection(aSelection);
@@ -6778,18 +6821,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
 			PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, ReviewLedgerFile, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
-					if (Closing || !AgentHost || !AgentHost->is_quiescent()) {
-						return false;
-					}
-					const auto composing = aIntent.Purpose == core::private_run_purpose::composition;
-					ExplicitPrivateRun = std::move(aIntent);
-					PrivateRequested = std::move(aRequested);
-					const auto sent = dispatch_agent_invocation(aAgentProfile, {}, std::nullopt, false, aPrompt, std::nullopt,
-						composing ? core::agent_entry_point::workshop_comment : core::agent_entry_point::ask_about_selection,
-						composing ? std::optional{core::workshop_operation::clarify} : std::nullopt);
-					ExplicitPrivateRun.reset();
-					PrivateRequested = {};
-					return sent; });
+#if defined(BPR_AGENT_INTEGRATIONS)
+				if (Closing || !AgentHost || !AgentHost->is_quiescent()) {
+					return false;
+				}
+				const auto composing = aIntent.Purpose == core::private_run_purpose::composition;
+				ExplicitPrivateRun   = std::move(aIntent);
+				PrivateRequested     = std::move(aRequested);
+				const auto sent      = dispatch_agent_invocation(aAgentProfile, { }, std::nullopt, false, aPrompt, std::nullopt,
+																 composing ? core::agent_entry_point::workshop_comment : core::agent_entry_point::ask_about_selection,
+																 composing ? std::optional{ core::workshop_operation::clarify } : std::nullopt);
+				ExplicitPrivateRun.reset();
+				PrivateRequested = { };
+				return sent;
+#else
+				// [[BPR-1179]]. An agent-free desktop has no agent to run: private
+				// history stays readable, and a request for a new run is refused.
+				static_cast<void>(this);
+				static_cast<void>(aAgentProfile);
+				static_cast<void>(aIntent);
+				static_cast<void>(aRequested);
+				static_cast<void>(aPrompt);
+				return false;
+#endif
+			});
+#if defined(BPR_AGENT_INTEGRATIONS)
 			// The one new edge out of the agent host. The launch panel still
 			// receives every projection it already did; this adds the typed
 			// finding delivery, and nothing else. There is deliberately no
@@ -6922,7 +6978,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					core::git_host_id{ 2U },
 					core::built_in_agent_host_kind::explicit_ghes),
 			};
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			if (ExternalAgentExecutable.has_value()) {
 				const auto external = std::ranges::find(
 					agentProfiles,
@@ -6947,13 +7003,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					codex->Executable = CodexAgentExecutable->string();
 				}
 			}
-#endif
-#if defined(BPR_BUILD_TESTING)
+	#endif
+	#if defined(BPR_BUILD_TESTING)
 			if (!DisableAgentProcessLauncherComposition) {
-#endif
+	#endif
 				AgentProcess
 					= std::make_unique<adapters::agent::agent_process_launcher>();
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			}
 			if (AgentProcess != nullptr) {
 				AgentProcessProbe
@@ -6961,7 +7017,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						*AgentProcess);
 			}
 			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
-#endif
+	#endif
 			{
 				// BPR-0532. The re-alignment a continued turn asks for, served
 				// by the same two ports a fresh alignment resolves and
@@ -6977,11 +7033,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					AgentWorkspaceNeighbourhood,
 					*this,
 					*EpochHost,
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 					*AgentProcessProbe,
-#else
+	#else
 					*AgentProcess,
-#endif
+	#endif
 					[](const std::string& aName) -> std::optional<std::string> {
 						if (!qEnvironmentVariableIsSet(aName.c_str())) {
 							return std::nullopt;
@@ -6993,14 +7049,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					*AgentProjections, PrivateReview.get());
 			}
 			PrivateReview->profiles(agentProfiles);
+#else
+			// [[BPR-1179]]. No agent profile is offered, discovered or resolved,
+			// and the window offers no control that would need one.
+			PrivateReview->profiles({ });
+			Window->withdraw_agent_surfaces();
+#endif
+#if defined(BPR_AGENT_INTEGRATIONS)
 			AgentProjections->set_private_sink([this](const auto& aDelta) {if(!Closing && PrivateReview){PrivateReview->changed(aDelta);} }, [this](const auto&) {if(!Closing && Window){Window->private_review()->show_status(QStringLiteral("Private run admission or retention refused; no missing provenance is inferred."));} });
 			Window->set_agent_dispatch(
 				[this](qt::agent_intent aIntent) {
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 					if (DisableAgentGestureWire) {
 						return;
 					}
-#endif
+	#endif
 					dispatch_agent_intent(std::move(aIntent));
 				});
 			// RFC-BPR-0012 composition, here rather than anywhere else and
@@ -7008,19 +7071,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// the review-mutation host already use. A surface built in one of
 			// the two graphs is a claim about the other one nobody checks.
 			auto mcpHelper = std::filesystem::path{ };
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			mcpHelper = std::filesystem::path{ BPR_MCP_HELPER_EXECUTABLE };
-#else
+	#else
 			mcpHelper = native_filesystem_path(QCoreApplication::applicationDirPath()) / BPR_MCP_HELPER_FILE_NAME;
-#endif
+	#endif
 			// Its own launcher rather than the agent's. `cancel` is a launcher
 			// operation, and one shared between an agent run and a helper
 			// lifetime would stop whichever the reviewer did not mean.
 			McpProcess      = std::make_unique<adapters::agent::agent_process_launcher>();
 			McpSnapshotRoot = ApplicationDataRoot / "mcp-snapshot" / ("window-" + std::to_string(DraftWindow.Window.value()) + "-generation-" + std::to_string(DraftWindow.Generation.value()));
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			if (!DisableMcpHelperComposition)
-#endif
+	#endif
 			{
 				McpHelper = std::make_unique<
 					application::mcp_context_helper_supervisor>(
@@ -7029,9 +7092,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					McpEffects,
 					DecisionLane);
 			}
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			if (!DisableSideChatPanelComposition)
-#endif
+	#endif
 			{
 				// BPR-0513: the window places both panels in its conversations
 				// drawer, so the composition here is the one edge that matters
@@ -7043,9 +7106,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					dispatch_side_chat_intent(std::move(aIntent));
 				});
 			}
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			if (!DisableFindingQueueComposition)
-#endif
+	#endif
 			{
 				FindingQueue = Window->finding_queue();
 				FindingQueue->set_dispatch(
@@ -7053,6 +7116,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						dispatch_finding_intent(std::move(aIntent));
 					});
 			}
+#endif
 #if defined(BPR_BUILD_TESTING)
 			if (!DisableDeviceAuthorizationPanelComposition)
 #endif
@@ -7070,6 +7134,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						dispatch_device_authorization_gesture(aGesture);
 					});
 			}
+#if defined(BPR_AGENT_INTEGRATIONS)
 			FindingProjections
 				= std::make_unique<composition_agent_finding_projection>(
 					[this](const application::agent_finding_delivery& aDelivery) {
@@ -7110,17 +7175,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						present_agent_refusal(
 							"comment workshop", application::name(aRefusal));
 					});
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			if (!DisableCommentWorkshopComposition)
-#endif
+	#endif
 			{
 				WorkshopHost = std::make_unique<
 					application::agent_comment_workshop_host>(
 					*WorkshopProjections);
 			}
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			if (!DisableAgentFindingHostComposition)
-#endif
+	#endif
 			{
 				// [[BPR-1211]]. A promoted note is written through the review's
 				// ledger, off the decision lane; its answer reaches the finding
@@ -7163,9 +7228,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							Window->clear_dif_context();
 						}
 					});
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 			if (!DisableChatSessionHostComposition)
-#endif
+	#endif
 			{
 				ChatHost
 					= std::make_unique<application::agent_chat_session_host>(
@@ -7174,9 +7239,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						core::codex_jsonl_profile_id,
 						[this](const application::agent_chat_turn_request&
 								   aTurn) -> bool {
-#if defined(BPR_BUILD_TESTING)
+	#if defined(BPR_BUILD_TESTING)
 							LastChatTurn = aTurn;
-#endif
+	#endif
 							// The reviewer's own words, from the send intent
 							// the chat host validated, handed to the same
 							// launch path a start gesture uses. This is the
@@ -7199,6 +7264,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						},
 						*ChatProjections);
 			}
+#endif
 			Window->epoch_selectors()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
 			DiffProjections = std::make_unique<composition_diff_projection>(
@@ -9002,7 +9068,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<tour_outline_proposal> OutlineProposal;
 		core::scoped_writing_state           WritingState;
 		std::optional<writing_operation>     PendingWriting;
-		void                                 cancel_writing()
+		/// [[BPR-1179]]. Whether an agent can take a request now: never, in a
+		/// graph built without agent integrations.
+		[[nodiscard]] auto agent_idle() const -> bool
+		{
+#if defined(BPR_AGENT_INTEGRATIONS)
+			return AgentHost && AgentHost->is_quiescent();
+#else
+			return false;
+#endif
+		}
+		void cancel_writing()
 		{
 			WritingState.cancel();
 			if (OutlineProposal) {
@@ -9013,9 +9089,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingWriting.reset();
+#if defined(BPR_AGENT_INTEGRATIONS)
 			if (AgentHost) {
 				AgentHost->cancel();
 			}
+#endif
 			if (Window) {
 				Window->tour_editor()->show_writing_notice(QStringLiteral("Assistance cancelled. Your text is unchanged."));
 			}
@@ -9147,7 +9225,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			const auto target = writing_target(aHook, aCapture);
-			if (!target || !AgentHost || !AgentHost->is_quiescent()) {
+			if (!target || !agent_idle()) {
 				Window->tour_editor()->show_writing_notice(QStringLiteral("Choose an available agent and wait for its current request. Manual editing is available."));
 				return;
 			}
@@ -9196,9 +9274,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			PendingWriting = writing_operation{ *request, std::move(sources), { }, false };
 			Window->tour_editor()->show_writing_notice(QStringLiteral("Writing assistance running… Your text remains editable."));
+#if defined(BPR_AGENT_INTEGRATIONS)
 			if (!dispatch_agent_invocation(target->Agent, { }, { }, false, *prompt, { }, core::agent_entry_point::ask_about_selection, { }, true)) {
 				cancel_writing();
 			}
+#else
+			cancel_writing();
+#endif
 		}
 		auto outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>
 		{
@@ -9341,7 +9423,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			cancel_writing();
 			const auto& prefs    = Profile->WorkbenchPreferences->accepted();
 			const auto  selected = Window->agent_panel()->selected_profile();
-			if (!prefs || !selected || *selected != core::claude_stream_json_profile_id || !AgentHost || !AgentHost->is_quiescent()) {
+			if (!prefs || !selected || *selected != core::claude_stream_json_profile_id || !agent_idle()) {
 				Window->writing_hooks()->show_notice("Select Approved Claude stream JSON for tool-free writing tests; wait for any running request.");
 				return;
 			}
@@ -9359,10 +9441,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			PendingWriting = writing_operation{ request, std::move(sources), { }, true };
 			Window->writing_hooks()->show_notice("Testing saved hook… Nothing will be inserted or published.");
+#if defined(BPR_AGENT_INTEGRATIONS)
 			if (!dispatch_agent_invocation(*selected, { }, { }, false, *prompt, { }, core::agent_entry_point::ask_about_selection, { }, true)) {
 				PendingWriting.reset();
 				Window->writing_hooks()->show_notice("An available agent and exact approved review context are required.");
 			}
+#else
+			PendingWriting.reset();
+#endif
 		}
 
 		void dispatch_tour_action(qt::tour_editor_action aAction)
@@ -11627,9 +11713,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			ReadingDestination.reset();
 			AcceptedReadingPosition.reset();
 			AgentReview.reset();
+#if defined(BPR_AGENT_INTEGRATIONS)
 			if (AgentHost != nullptr) {
 				AgentHost->clear();
 			}
+#endif
 			if (Window != nullptr) {
 				Window->clear_dif_context();
 			}
@@ -12685,6 +12773,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					: std::nullopt);
 		}
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 		/// \brief What the reviewer is pointing at, in RFC-BPR-0004 identities.
 		///
 		/// \details Read from the alignment on screen, and only when the
@@ -13608,6 +13697,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return application::local_note_id{ next };
 		}
 
+#else
+		/// [[BPR-1179]]. What an agent-free review keeps of the authority
+		/// refresh: private history follows the review. There is no agent host
+		/// to observe it, and no chat or launch surface to scope.
+		void refresh_agent_authority()
+		{
+			observe_private_review();
+		}
+#endif
 		[[nodiscard]] auto current_note_attachment() const
 			-> std::optional<application::local_note_attachment>
 		{
@@ -13620,6 +13718,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
+#if defined(BPR_AGENT_INTEGRATIONS)
 		/// \brief The durable defect anchored exactly where the finding is.
 		///
 		/// \details Nothing is moved onto a nearby defect. `promote_agent_finding`
@@ -13926,6 +14025,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			return { };
 		}
+#endif
 
 		void publish(
 			const application::epoch_presentation_update& aUpdate) override
@@ -14756,16 +14856,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				WindowRead->shutdown();
 				Host->detach_window(DraftWindow);
 			}
+#if defined(BPR_AGENT_INTEGRATIONS)
 			if (McpHelper) {
 				McpHelper->stop();
 				McpHelper->unpin();
 			}
+#endif
 			retire_setup_effects();
 			if (SetupDestination) {
 				SetupDestination->cancel();
 			}
 			Closing = true;
 			RetryableReviewDraft.reset();
+#if defined(BPR_AGENT_INTEGRATIONS)
 			// The one outstanding re-alignment is told to stop here rather
 			// than waited on: its ports are closing, and a request that kept
 			// resolving through them would be the hang the poll below reports
@@ -14779,6 +14882,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!AgentHost || AgentHost->is_quiescent()) {
 				begin_other_shutdown();
 			}
+#else
+			begin_other_shutdown();
+#endif
 			schedule_shutdown_poll();
 		}
 
@@ -14860,18 +14966,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!Closing || ShutdownComplete) {
 				return;
 			}
+#if defined(BPR_AGENT_INTEGRATIONS)
 			if (AgentHost && !AgentHost->is_quiescent()) {
 				AgentHost->retry_cleanup();
 				schedule_shutdown_poll();
 				return;
 			}
+			if ((McpHelper && McpHelper->running())
+				|| ContinuationRealignmentsInFlight.load(std::memory_order_acquire) != 0U) {
+				begin_other_shutdown();
+				schedule_shutdown_poll();
+				return;
+			}
+#endif
 			begin_other_shutdown();
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent() || ReadingAdvanceQueued
-				|| (WindowRead && !WindowRead->is_quiescent()) || (McpHelper && McpHelper->running())
-				|| ContinuationRealignmentsInFlight.load(
-					   std::memory_order_acquire)
-					!= 0U
+				|| (WindowRead && !WindowRead->is_quiescent())
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
@@ -14972,6 +15083,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TourPublication.reset();
 			ReviewMutationHost.reset();
 			RetiredReviewMutationHosts.clear();
+#if defined(BPR_AGENT_INTEGRATIONS)
 			if (!McpSnapshotRoot.empty()) {
 				std::error_code error;
 				std::filesystem::remove_all(McpSnapshotRoot, error);
@@ -14985,6 +15097,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					ShutdownCleanupFailed = true;
 				}
 			}
+#endif
 			ShutdownComplete = true;
 			if (OnClosed) {
 				DecisionLane.post(std::exchange(OnClosed, { }));
@@ -15533,25 +15646,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// Built once and shared. The catalog is immutable after construction
 		// and the classifier holds no theme, palette, or font, so neither has
 		// to be rebuilt when appearance changes.
-		decltype(github_profile_runtime::SyntaxDefinitions)&                SyntaxDefinitions = Profile->SyntaxDefinitions;
-		std::unique_ptr<composition_blob_source>                            SyntaxBlobs;
-		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>       SyntaxClassification;
-		composition_appearance_projections                                  AppearanceProjections;
-		std::unique_ptr<qt::appearance_profile>                             AppearanceProfile;
-		std::string                                                         AppliedSelectionColor;
-		std::string                                                         AppliedBaseColor;
-		bool                                                                AppliedFromProfile             = false;
-		decltype(github_profile_runtime::WorkbenchPersistenceAvailable)&    WorkbenchPersistenceAvailable  = Profile->WorkbenchPersistenceAvailable;
-		decltype(github_profile_runtime::AppearancePersistenceAvailable)&   AppearancePersistenceAvailable = Profile->AppearancePersistenceAvailable;
-		decltype(github_profile_runtime::EpochEntropy)&                     EpochEntropy                   = Profile->EpochEntropy;
-		decltype(github_profile_runtime::EpochClock)&                       EpochClock                     = Profile->EpochClock;
-		decltype(github_profile_runtime::EpochEffects)&                     EpochEffects                   = Profile->EpochEffects;
-		decltype(github_profile_runtime::DiffEffects)&                      DiffEffects                    = Profile->DiffEffects;
-		decltype(github_profile_runtime::AgentEffects)&                     AgentEffects                   = Profile->AgentEffects;
-		decltype(github_profile_runtime::McpEffects)&                       McpEffects                     = Profile->McpEffects;
-		decltype(github_profile_runtime::WorkbenchEffects)&                 WorkbenchEffects               = Profile->WorkbenchEffects;
-		decltype(github_profile_runtime::AppearanceEffects)&                AppearanceEffects              = Profile->AppearanceEffects;
-		decltype(github_profile_runtime::QueueEffects)&                     QueueEffects                   = Profile->QueueEffects;
+		decltype(github_profile_runtime::SyntaxDefinitions)&              SyntaxDefinitions = Profile->SyntaxDefinitions;
+		std::unique_ptr<composition_blob_source>                          SyntaxBlobs;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>     SyntaxClassification;
+		composition_appearance_projections                                AppearanceProjections;
+		std::unique_ptr<qt::appearance_profile>                           AppearanceProfile;
+		std::string                                                       AppliedSelectionColor;
+		std::string                                                       AppliedBaseColor;
+		bool                                                              AppliedFromProfile             = false;
+		decltype(github_profile_runtime::WorkbenchPersistenceAvailable)&  WorkbenchPersistenceAvailable  = Profile->WorkbenchPersistenceAvailable;
+		decltype(github_profile_runtime::AppearancePersistenceAvailable)& AppearancePersistenceAvailable = Profile->AppearancePersistenceAvailable;
+		decltype(github_profile_runtime::EpochEntropy)&                   EpochEntropy                   = Profile->EpochEntropy;
+		decltype(github_profile_runtime::EpochClock)&                     EpochClock                     = Profile->EpochClock;
+		decltype(github_profile_runtime::EpochEffects)&                   EpochEffects                   = Profile->EpochEffects;
+		decltype(github_profile_runtime::DiffEffects)&                    DiffEffects                    = Profile->DiffEffects;
+#if defined(BPR_AGENT_INTEGRATIONS)
+		decltype(github_profile_runtime::AgentEffects)& AgentEffects = Profile->AgentEffects;
+		decltype(github_profile_runtime::McpEffects)&   McpEffects   = Profile->McpEffects;
+#endif
+		decltype(github_profile_runtime::WorkbenchEffects)&                 WorkbenchEffects  = Profile->WorkbenchEffects;
+		decltype(github_profile_runtime::AppearanceEffects)&                AppearanceEffects = Profile->AppearanceEffects;
+		decltype(github_profile_runtime::QueueEffects)&                     QueueEffects      = Profile->QueueEffects;
 		std::unique_ptr<application::epoch_application_host>                EpochHost;
 		decltype(github_profile_runtime::AgentWorkspaceRoot)&               AgentWorkspaceRoot          = Profile->AgentWorkspaceRoot;
 		decltype(github_profile_runtime::AgentWorkspaceNeighbourhood)&      AgentWorkspaceNeighbourhood = Profile->AgentWorkspaceNeighbourhood;
@@ -15559,10 +15674,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::AgentWorkspaceRecoveryPending)&    AgentWorkspaceRecoveryPending    = Profile->AgentWorkspaceRecoveryPending;
 		decltype(github_profile_runtime::AgentWorkspaceRecoveryPostFailed)& AgentWorkspaceRecoveryPostFailed = Profile->AgentWorkspaceRecoveryPostFailed;
 		decltype(github_profile_runtime::AgentWorkspaceParent)&             AgentWorkspaceParent             = Profile->AgentWorkspaceParent;
-		std::unique_ptr<adapters::agent::agent_process_launcher>            AgentProcess;
-#if defined(BPR_BUILD_TESTING)
+#if defined(BPR_AGENT_INTEGRATIONS)
+		std::unique_ptr<adapters::agent::agent_process_launcher> AgentProcess;
+	#if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<composition_agent_process_launcher_probe> AgentProcessProbe;
-#endif
+	#endif
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
 		std::unique_ptr<application::agent_invocation_host>      AgentHost;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
@@ -15604,7 +15720,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<adapters::agent::agent_process_launcher>    McpProcess;
 		std::unique_ptr<application::mcp_context_helper_supervisor> McpHelper;
 		std::filesystem::path                                       McpSnapshotRoot;
-		std::size_t                                                 CommentWorkshopProposals = 0U;
+#endif
+		std::size_t CommentWorkshopProposals = 0U;
 		/// The operation the reviewer last asked the workshop for, and the
 		/// turn started to answer it, spent by that turn's outcome and by no
 		/// other. Absent is the ordinary state, and it is what makes a
@@ -15887,6 +16004,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// The owner command endpoint (tour and, since BPR-1168, cycle commands) is separate:
 				// without it the owner keeps working and a CLI caller is told the owner has no
 				// channel, never given a second writer. Windows binds a named pipe (BPR-1168).
+#if defined(BPR_LOCAL_AUTOMATION)
 				const auto tour = adapters::sqlite::make_tour_owner_server(*root, Config.Profile, RuntimeLease);
 				if (tour) {
 					TourOwnerServer   = *tour;
@@ -15895,6 +16013,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				} else {
 					bpr::app::detail::terminal_text_stream{ } << "tour-owner-endpoint-unavailable\n";
 				}
+#else
+				// [[BPR-1179]]. Without local automation no endpoint is bound and
+				// no cycle command is served. The tour service stays: the desktop
+				// routes its own tour edits (a note promoted into a pull request's
+				// tour) through it in process, with no channel involved.
+				TourOwnerService = std::make_shared<const tour_owner_service>(*root, Config.Profile);
+#endif
 			}
 			auto store  = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
 			auto loaded = store ? store->load(aStop) : std::unexpected(application::queue_store_failure::unavailable);
@@ -15942,12 +16067,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																		Fixture, std::move(Options)
 #endif
 				);
-				profile->ActivationServer  = std::move(ActivationServer);
-				profile->TourOwnerServer   = std::move(TourOwnerServer);
-				profile->TourOwnerService  = std::move(TourOwnerService);
+				profile->ActivationServer = std::move(ActivationServer);
+				profile->TourOwnerServer  = std::move(TourOwnerServer);
+				profile->TourOwnerService = std::move(TourOwnerService);
+#if defined(BPR_LOCAL_AUTOMATION)
 				profile->CycleOwnerService = std::move(CycleOwnerService);
-				auto runtime               = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
-				step                       = "profile-services-start";
+#endif
+				auto runtime = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
+				step         = "profile-services-start";
 				runtime->Profile->start_services();
 				if (!OwnerOnly) {
 					step               = "compatibility-window-open";
@@ -15987,12 +16114,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
 		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
 		std::shared_ptr<const tour_owner_service>               TourOwnerService;
-		std::shared_ptr<cycle_owner_service>                    CycleOwnerService;
-		std::optional<github_application_startup_failure>       Handoff;
-		github_application_startup_completion                   Completion;
-		std::filesystem::path                                   RegistryRoot;
-		std::shared_ptr<void>                                   Scratch;
-		std::optional<application::durable_queue_state>         SavedQueue;
+#if defined(BPR_LOCAL_AUTOMATION)
+		std::shared_ptr<cycle_owner_service> CycleOwnerService;
+#endif
+		std::optional<github_application_startup_failure> Handoff;
+		github_application_startup_completion             Completion;
+		std::filesystem::path                             RegistryRoot;
+		std::shared_ptr<void>                             Scratch;
+		std::optional<application::durable_queue_state>   SavedQueue;
 #if defined(BPR_BUILD_TESTING)
 		std::optional<detail::github_public_path_fixture> Fixture;
 		detail::github_public_path_fixture_options        Options;
@@ -16229,6 +16358,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	}
 	void github_application::desktop_cycle_owner_route(application::tour_channel_bytes aRequest, application::cycle_owner_request aCycle, std::function<void(application::tour_channel_bytes)> aRespond)
 	{
+#if defined(BPR_LOCAL_AUTOMATION)
 		auto& profile = *Profile;
 		if (Profile->Closing || !profile.CycleOwnerService) {
 			aRespond(tour_owner_error("owner_unavailable"));
@@ -16282,6 +16412,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			}
 		});
+#else
+		// [[BPR-1179]]. No command channel is bound without local automation, so
+		// nothing reaches here; a forwarded request is still answered, never served.
+		static_cast<void>(aRequest);
+		static_cast<void>(aCycle);
+		aRespond(tour_owner_error("owner_unavailable"));
+#endif
 	}
 	auto github_application::cycle_draft_editors(const core::review_cycle_id aCycle, const bool aSave) -> core::cycle_draft_editor
 	{
@@ -16664,17 +16801,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return spans ? spans->size() : 0U;
 		};
 		return {
-			.Closing                        = this->Closing,
-			.ShutdownComplete               = this->ShutdownComplete,
-			.ShutdownCleanupFailed          = this->ShutdownCleanupFailed,
-			.AgentWorkspaceCleanupFailed    = this->AgentWorkspaceCleanupFailed,
-			.AgentWorkspaceRecoveryRefused  = this->Profile->AgentWorkspaceRecoveryRefused,
-			.NativePlatformVaultSelected    = this->NativePlatformVaultSelected,
-			.EpochProjectionDeliveryFailed  = this->EpochProjectionDeliveryFailed,
-			.EpochHandoffDeliveryFailed     = this->WindowRead && this->WindowRead->epoch_handoff_delivery_failed(),
-			.WorkbenchHostComposed          = this->WorkbenchHost != nullptr,
-			.AppearanceHostComposed         = this->AppearanceHost != nullptr,
-			.AgentHostComposed              = this->AgentHost != nullptr,
+			.Closing                       = this->Closing,
+			.ShutdownComplete              = this->ShutdownComplete,
+			.ShutdownCleanupFailed         = this->ShutdownCleanupFailed,
+			.AgentWorkspaceCleanupFailed   = this->AgentWorkspaceCleanupFailed,
+			.AgentWorkspaceRecoveryRefused = this->Profile->AgentWorkspaceRecoveryRefused,
+			.NativePlatformVaultSelected   = this->NativePlatformVaultSelected,
+			.EpochProjectionDeliveryFailed = this->EpochProjectionDeliveryFailed,
+			.EpochHandoffDeliveryFailed    = this->WindowRead && this->WindowRead->epoch_handoff_delivery_failed(),
+			.WorkbenchHostComposed         = this->WorkbenchHost != nullptr,
+			.AppearanceHostComposed        = this->AppearanceHost != nullptr,
+#if defined(BPR_AGENT_INTEGRATIONS)
+			.AgentHostComposed = this->AgentHost != nullptr,
+#else
+			.AgentHostComposed = false,
+#endif
 			.AppearancePersistenceAvailable = this->AppearancePersistenceAvailable,
 			.AppearanceDurableWrites        = this->AppearanceHost != nullptr
 				? this->AppearanceHost->persisted_settings()
@@ -24943,7 +25084,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto expectedHead = aUseSecondHead ? evidence.HeadTwoOid : evidence.HeadOneOid;
 		const auto objectFor    = [&evidence](const core::git_commit_oid aCommit)
 			-> std::optional<core::git_blob_oid> {
-			const auto rendered = core::canonical_hex(aCommit).view();
+			const auto hex      = core::canonical_hex(aCommit);
+			const auto rendered = hex.view();
 			if (rendered == evidence.BaseOid) {
 				return core::parse_git_blob_oid(evidence.BaseBlobOid);
 			}
@@ -25237,6 +25379,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 	}
 
+	#if defined(BPR_AGENT_INTEGRATIONS)
 	auto detail::github_application_fixture_access::finding_queue(
 		const github_application& aApplication) noexcept -> qt::finding_queue_view*
 	{
@@ -25435,6 +25578,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return evidence;
 	}
 
+	#endif
 	auto detail::github_application_fixture_access::agent_invocation_evidence(
 		const github_application& aApplication) noexcept
 		-> detail::agent_invocation_composition_evidence
@@ -25443,6 +25587,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (implementation == nullptr) {
 			return { };
 		}
+	#if defined(BPR_AGENT_INTEGRATIONS)
 		return {
 			.AgentProcessLauncherComposed = implementation->AgentProcess != nullptr,
 			.AgentProcessLauncherInvocations
@@ -25457,6 +25602,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				: application::agent_invocation_host_statistics{ },
 			.WorkspaceRoot = std::filesystem::path{ implementation->LastAgentWorkspacePath }.parent_path(),
 		};
+	#else
+		// [[BPR-1179]]. Nothing to observe: no launcher and no host are composed.
+		return {
+			.Quiescent     = true,
+			.WorkspaceRoot = std::filesystem::path{ implementation->LastAgentWorkspacePath }.parent_path(),
+		};
+	#endif
 	}
 #endif
 }

@@ -58,6 +58,46 @@ class ReleasePackageTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "invalid-package-identity"):
                         audit.package_paths(root, info)
 
+    def test_agent_free_package_omits_the_mcp_helper_and_says_so(self):
+        """[[BPR-1179]]. The helper set and the product record follow the families built."""
+        free = {"agent_integrations": False, "local_automation": True}
+        for system in ("Darwin", "Windows", "Linux"):
+            with self.subTest(system=system), ContainedTemporaryDirectory() as directory:
+                root = Path(directory).resolve()
+                info = {"platform": system, "version": "1.2.3", "families": free}
+                binaries = root / "Contents/MacOS" if system == "Darwin" else root
+                binaries.mkdir(parents=True, exist_ok=True)
+                suffix = ".exe" if system == "Windows" else ""
+                app = binaries / ("BetterPullReview" if system == "Darwin" else "better_pull_review" + suffix)
+                helpers = [binaries / ("better_pull_review_agent_supervisor" + suffix)]
+                if system == "Darwin":
+                    helpers.append(binaries / "bpr_update_helper")
+                    (root / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "com.gamecoretech.betterpullreview", "CFBundleExecutable": app.name, "CFBundleShortVersionString": "1.2.3"}))
+                for path in (app, *helpers, *(binaries / name for name in audit.runtime.RUNTIME_DATA[system])):
+                    path.touch()
+                plugins = root / "Contents/PlugIns" if system == "Darwin" else root / "plugins"
+                for name in audit.runtime.PLUGINS[system]:
+                    (plugins / name).parent.mkdir(parents=True, exist_ok=True)
+                    (plugins / name).touch()
+                self.assertEqual(audit.package_paths(root, info), (app, helpers))
+                # The same layout is incomplete for a full package...
+                with self.assertRaisesRegex(ValueError, "capability-missing:better_pull_review_mcp_context_helper"):
+                    audit.package_paths(root, {"platform": system, "version": "1.2.3"})
+                # ...and an agent-free package that still carries the helper is refused.
+                (binaries / ("better_pull_review_mcp_context_helper" + suffix)).touch()
+                with self.assertRaisesRegex(ValueError, "omitted-family-file-present:better_pull_review_mcp_context_helper"):
+                    audit.package_paths(root, info)
+        revision = "c" * 40
+        full = audit.runtime.product_source_info({"platform": "Linux"}, revision, True)
+        self.assertEqual(full, f"git:{revision}; clean=True; tests-disabled Release; Linux")
+        self.assertEqual(audit.runtime.product_source_info({"platform": "Linux", "families": free}, revision, True), full + "; agent integrations absent")
+        neither = {"agent_integrations": False, "local_automation": False}
+        self.assertEqual(audit.runtime.product_source_info({"platform": "Linux", "families": neither}, revision, True),
+                         full + "; agent integrations absent; local automation absent")
+        for hostile in ({"agent_integrations": False}, {"agent_integrations": "no", "local_automation": True}, {**free, "telemetry": True}):
+            with self.assertRaisesRegex(ValueError, "unknown component family"):
+                audit.runtime.families({"families": hostile})
+
     def test_inventory_detects_revision_file_hash_omission_and_path_escape(self):
         with ContainedTemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -97,6 +137,16 @@ class ReleasePackageTests(unittest.TestCase):
             write()
             with self.assertRaisesRegex(ValueError, "file-set-mismatch"):
                 check()
+            # [[BPR-1179]]. A full package's record does not pass as an agent-free one.
+            free = {"platform": "Linux", "version": "1", "families": {"agent_integrations": False, "local_automation": True}}
+            record["files"] = [{"fileName": "./ThirdParty/SOURCE-OFFERS.txt", "checksums": [{"algorithm": "SHA256", "checksumValue": audit.runtime.digest(source)}]}]
+            write()
+            with self.assertRaisesRegex(ValueError, "source-identity-mismatch"):
+                audit.check_file_inventory(root, sbom, revision, free)
+            record["packages"][0]["sourceInfo"] += "; agent integrations absent"
+            write()
+            self.assertEqual(audit.check_file_inventory(root, sbom, revision, free)["file_count"], 1)
+            record["files"] = []
             record["packages"][0]["sourceInfo"] = "git:" + "b" * 40
             write()
             with self.assertRaisesRegex(ValueError, "source-identity-mismatch"):

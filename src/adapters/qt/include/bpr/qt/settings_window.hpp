@@ -54,6 +54,13 @@ namespace bpr::qt {
 		/// \brief Places a live settings surface on a page, replacing its notice.
 		void adopt_panel(settings_page aPage, QWidget* aPanel);
 
+		/// \brief [[BPR-1179]]. Removes a page from the sidebar for this window's life.
+		///
+		/// \details For a page whose capability the composition does not
+		/// contain: a page that cannot be reached is not a page that says
+		/// nothing. Presenting a withdrawn page presents General instead.
+		void withdraw_page(settings_page aPage);
+
 		/// \brief Shows the window, raises it, and selects a page.
 		void present(settings_page aPage);
 		void set_close_handler(std::function<void()> aHandler);

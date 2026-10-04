@@ -633,6 +633,7 @@ bpr_add_network_isolated_test(
         "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_dependency_closure.cmake"
 )
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_private_review_storage private_review_storage_tests.cpp)
 target_link_libraries(test_private_review_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3 BetterPullReview::Application)
 if(WIN32)
@@ -654,3 +655,4 @@ endif()
 bpr_enable_warnings(test_private_review_host)
 bpr_add_network_isolated_test(NAME application_private_review_host WINDOWS_UNCONTAINED COMMAND test_private_review_host)
 set_tests_properties(application_private_review_host PROPERTIES TIMEOUT 120 PASS_REGULAR_EXPRESSION "private-review-host-tests:pass")
+endif()

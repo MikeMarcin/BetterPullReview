@@ -82,9 +82,6 @@ if(BPR_BUILD_QT)
             src/tour_assist.cpp
             src/private_review_workflow.cpp
             src/review_cycle_desktop.cpp
-            src/cycle_commands.cpp
-            src/cycle_owner_service.cpp
-            src/cycle_session.cpp
             src/profile_admission.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp
@@ -117,13 +114,36 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterExport
             BetterPullReview::AdapterLogging
             BetterPullReview::AdapterSyntax
-            BetterPullReview::AdapterAI
-			BetterPullReview::AdapterAgent
-            BetterPullReview::AdapterMcp
             BetterPullReview::AdapterQt
             BetterPullReview::AdapterUpdate
             Threads::Threads
     )
+    # [[BPR-1179]]. The agent launch adapter, the MCP context helper and the
+    # agent hosts are composed only in a graph that builds them; an agent-free
+    # composition names none of them, so its link closure cannot contain them.
+    if(BPR_BUILD_AGENT_INTEGRATIONS)
+        target_link_libraries(
+            better_pull_review_composition
+            PUBLIC
+                BetterPullReview::AdapterAI
+                BetterPullReview::AdapterAgent
+                BetterPullReview::AdapterMcp
+        )
+        target_compile_definitions(better_pull_review_composition PUBLIC BPR_AGENT_INTEGRATIONS=1)
+    endif()
+    # Local automation is the owner command channel the bpr command line
+    # reaches and the cycle commands it serves. Without it the desktop binds no
+    # command endpoint; Copy, Save and the window's own iteration remain.
+    if(BPR_BUILD_LOCAL_AUTOMATION)
+        target_sources(
+            better_pull_review_composition
+            PRIVATE
+                src/cycle_commands.cpp
+                src/cycle_owner_service.cpp
+                src/cycle_session.cpp
+        )
+        target_compile_definitions(better_pull_review_composition PUBLIC BPR_LOCAL_AUTOMATION=1)
+    endif()
     target_include_directories(
         better_pull_review_composition
         PUBLIC
@@ -134,8 +154,10 @@ if(BPR_BUILD_QT)
             "${PROJECT_SOURCE_DIR}/src/application/src"
     )
     target_compile_features(better_pull_review_composition PUBLIC cxx_std_23)
-    target_compile_definitions(better_pull_review_composition PRIVATE
-        "BPR_MCP_HELPER_FILE_NAME=\"$<TARGET_FILE_NAME:tool_better_pull_review_mcp_context_helper>\"")
+    if(BPR_BUILD_AGENT_INTEGRATIONS)
+        target_compile_definitions(better_pull_review_composition PRIVATE
+            "BPR_MCP_HELPER_FILE_NAME=\"$<TARGET_FILE_NAME:tool_better_pull_review_mcp_context_helper>\"")
+    endif()
     bpr_enable_hardening(better_pull_review_composition)
     bpr_enable_warnings(better_pull_review_composition)
     if(MSVC)
@@ -200,16 +222,22 @@ if(BPR_BUILD_QT)
                 # separate root so the refresh course cannot read a documented
                 # projection as a captured one.
                 "BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/documented-v1\""
-                # RFC-BPR-0012. The tests-enabled composition supervises the
-                # shipped helper out of the build tree; the shipped one resolves
-                # it beside its own executable. The construction is the same in
-                # both graphs, and only the path differs.
-                "BPR_MCP_HELPER_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>\""
         )
-        add_dependencies(
-            better_pull_review_composition
-            tool_better_pull_review_mcp_context_helper
-        )
+        if(BPR_BUILD_AGENT_INTEGRATIONS)
+            target_compile_definitions(
+                better_pull_review_composition
+                PRIVATE
+                    # RFC-BPR-0012. The tests-enabled composition supervises the
+                    # shipped helper out of the build tree; the shipped one resolves
+                    # it beside its own executable. The construction is the same in
+                    # both graphs, and only the path differs.
+                    "BPR_MCP_HELPER_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>\""
+            )
+            add_dependencies(
+                better_pull_review_composition
+                tool_better_pull_review_mcp_context_helper
+            )
+        endif()
     endif()
 
     bpr_add_executable(
@@ -222,14 +250,18 @@ if(BPR_BUILD_QT)
     if(BPR_DISTRIBUTION_BUILD)
         target_compile_definitions(app_better_pull_review PRIVATE BPR_DISTRIBUTION_BUILD=1)
     endif()
-    add_dependencies(app_better_pull_review tool_better_pull_review_mcp_context_helper)
-    set_property(TARGET app_better_pull_review APPEND PROPERTY LINK_DEPENDS
-        "$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>")
-    add_custom_command(TARGET app_better_pull_review POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>"
-            "$<TARGET_FILE_DIR:app_better_pull_review>/$<TARGET_FILE_NAME:tool_better_pull_review_mcp_context_helper>"
-        VERBATIM)
+    # [[BPR-1179]]. The MCP context helper sits beside the application only
+    # where agent integrations are built; an agent-free image has none to find.
+    if(BPR_BUILD_AGENT_INTEGRATIONS)
+        add_dependencies(app_better_pull_review tool_better_pull_review_mcp_context_helper)
+        set_property(TARGET app_better_pull_review APPEND PROPERTY LINK_DEPENDS
+            "$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>")
+        add_custom_command(TARGET app_better_pull_review POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>"
+                "$<TARGET_FILE_DIR:app_better_pull_review>/$<TARGET_FILE_NAME:tool_better_pull_review_mcp_context_helper>"
+            VERBATIM)
+    endif()
     if(APPLE)
         bpr_add_executable(tool_bpr_update_helper update_helper_main.cpp)
         set_target_properties(tool_bpr_update_helper PROPERTIES OUTPUT_NAME bpr_update_helper)
@@ -244,7 +276,8 @@ if(BPR_BUILD_QT)
             VERBATIM)
     endif()
     # The bundled agent supervisor sits beside the application image on every
-    # platform that has one ([[BPR-0622]] added Windows).
+    # platform that has one ([[BPR-0622]] added Windows). [[BPR-1179]]. Every
+    # graph keeps it, agent-free included: a guarded Git launch runs inside it.
     if(UNIX OR WIN32)
         add_dependencies(app_better_pull_review tool_better_pull_review_agent_supervisor)
         set_property(TARGET app_better_pull_review APPEND PROPERTY LINK_DEPENDS
@@ -751,6 +784,5 @@ else()
             BetterPullReview::AdapterGitHub
             BetterPullReview::AdapterGit
             BetterPullReview::AdapterSQLite
-            BetterPullReview::AdapterAI
     )
 endif()

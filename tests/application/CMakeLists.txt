@@ -289,6 +289,7 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_application_epoch_host_tests
 )
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(
     test_better_pull_review_application_diff_host_tests
     diff_application_host_tests.cpp
@@ -305,6 +306,7 @@ bpr_add_network_isolated_test(
     NAME application_diff_host
     COMMAND test_better_pull_review_application_diff_host_tests
 )
+endif()
 
 bpr_add_executable(
     test_better_pull_review_application_appearance_host_tests
@@ -485,6 +487,7 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "agent-workspace-tests:pass"
 )
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(
     test_better_pull_review_agent_launch_tests
     agent_launch_tests.cpp
@@ -629,6 +632,7 @@ set_tests_properties(
     PROPERTIES
         PASS_REGULAR_EXPRESSION "agent-invocation-host-tests:pass"
 )
+endif()
 
 bpr_add_executable(
     test_better_pull_review_notification_delivery_tests
@@ -750,6 +754,7 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 # The MCP context helper's evidence is what a separate process reaches, so the
 # canary drives the shipped executable over real stdio rather than calling the
 # library in-process. It links the adapter as well, because the advertised tool
@@ -807,6 +812,7 @@ if(UNIX)
             --helper "$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>"
     )
     set_tests_properties(application_mcp_terminal_diagnostics PROPERTIES TIMEOUT 30)
+endif()
 endif()
 
 bpr_add_executable(
@@ -924,12 +930,14 @@ bpr_enable_warnings(test_release_maintenance_host)
 bpr_add_network_isolated_test(NAME application_release_maintenance COMMAND test_release_maintenance_host)
 set_tests_properties(application_release_maintenance PROPERTIES TIMEOUT 30)
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_better_pull_review_agent_chat_reply_tests agent_chat_reply_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_chat_reply_tests PRIVATE BetterPullReview::Application)
 bpr_enable_hardening(test_better_pull_review_agent_chat_reply_tests)
 bpr_enable_warnings(test_better_pull_review_agent_chat_reply_tests)
 bpr_add_network_isolated_test(NAME application_agent_chat_replies COMMAND test_better_pull_review_agent_chat_reply_tests)
 set_tests_properties(application_agent_chat_replies PROPERTIES PASS_REGULAR_EXPRESSION "agent-chat-reply-tests:pass" TIMEOUT 30)
+endif()
 
 bpr_add_executable(test_review_tour_host review_tour_host_tests.cpp)
 target_link_libraries(test_review_tour_host PRIVATE BetterPullReview::Application)
@@ -943,8 +951,11 @@ bpr_enable_hardening(test_review_publication_capability_cache)
 bpr_enable_warnings(test_review_publication_capability_cache)
 bpr_add_network_isolated_test(NAME application_review_publication_capability_cache COMMAND test_review_publication_capability_cache)
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_writing_delivery writing_delivery_tests.cpp)
 target_link_libraries(test_writing_delivery PRIVATE BetterPullReview::Application)
 bpr_enable_hardening(test_writing_delivery)
 bpr_enable_warnings(test_writing_delivery)
 bpr_add_network_isolated_test(NAME application_writing_delivery COMMAND test_writing_delivery)
+
+endif()

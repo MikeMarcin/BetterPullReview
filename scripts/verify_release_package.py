@@ -46,7 +46,16 @@ def package_paths(root: Path, info: dict) -> tuple[Path, list[Path]]:
                         "Linux": "better_pull_review"}
     app = directory / executable_names[info["platform"]]
     suffix = ".exe" if info["platform"] == "Windows" else ""
-    helpers = [directory / (name + suffix) for name in ("better_pull_review_agent_supervisor", "better_pull_review_mcp_context_helper")]
+    # [[BPR-1179]]. Every package carries the supervisor Git's guarded launches
+    # run inside; only a package built with agent integrations carries the MCP
+    # context helper, and one built without them must not.
+    families = runtime.families(info)
+    helpers = [directory / ("better_pull_review_agent_supervisor" + suffix)]
+    mcp_helper = directory / ("better_pull_review_mcp_context_helper" + suffix)
+    if families["agent_integrations"]:
+        helpers.append(mcp_helper)
+    else:
+        require(not mcp_helper.exists() and not mcp_helper.is_symlink(), f"omitted-family-file-present:{mcp_helper.name}")
     if info["platform"] == "Darwin":
         helpers.append(directory / "bpr_update_helper")
         identity = plistlib.loads((root / "Contents/Info.plist").read_bytes())
@@ -73,7 +82,7 @@ def check_file_inventory(root: Path, sbom: Path, revision: str, info: dict) -> d
                 and runtime.digest(installed_inventory) == runtime.digest(sbom), "installed-inventory-mismatch")
     product = [item for item in record["packages"] if item["SPDXID"] == "SPDXRef-BetterPullReview"]
     require(len(product) == 1 and product[0]["versionInfo"] == info["version"], "invalid-product-inventory")
-    require(product[0]["sourceInfo"] == f"git:{revision}; clean=True; tests-disabled Release; {info['platform']}", "package-source-identity-mismatch")
+    require(product[0]["sourceInfo"] == runtime.product_source_info(info, revision, True), "package-source-identity-mismatch")
     expected = {}
     for item in record["files"]:
         name = item["fileName"]
@@ -209,7 +218,8 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
         check_payload(path.read_bytes(), table.symbols)
         check_dependencies(path, root, info["platform"])
         if path == app:
-            require(not composition.audit_symbols(table.symbols, composition.PRODUCTION_PROFILE), "production-composition-anchor-missing")
+            require(not composition.audit_symbols(table.symbols, composition.PRODUCTION_PROFILE, **runtime.families(info)),
+                    "production-composition-anchor-mismatch")
         binaries.append(path.relative_to(root).as_posix())
         symbol_evidence[path.relative_to(root).as_posix()] = table.inspector
     require(all(path.relative_to(root).as_posix() in binaries for path in (app, *helpers)), "required-capability-not-a-binary")
@@ -220,7 +230,7 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
         require(not payload.startswith(BINARY_MAGICS), "declared-runtime-data-is-a-binary")
         check_data_payload(payload)
         data[path.relative_to(root).as_posix()] = runtime.digest(path)
-    return {**evidence, "source_revision": revision, "executable_sha256": runtime.digest(app),
+    return {**evidence, "source_revision": revision, "families": runtime.families(info), "executable_sha256": runtime.digest(app),
             "binaries": binaries, "runtime_data": data, "symbol_evidence": symbol_evidence,
             "trust": "not-assessed", "license_approval": "pending"}
 

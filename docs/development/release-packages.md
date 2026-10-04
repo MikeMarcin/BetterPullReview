@@ -99,7 +99,8 @@ the launcher, desktop entry and scalable hicolor icon, plus the private runtime
 under `/usr/lib/betterpullreview`.
 
 The installed app locates its MCP helper and agent supervisor beside its actual
-executable, with the platform-emitted filenames. macOS additionally carries
+executable, with the platform-emitted filenames (a package built without agent
+integrations has no MCP helper; see below). macOS additionally carries
 `bpr_update_helper`. Plugin paths are restricted before QApplication, ambient
 plugin-path overrides are removed, and arbitrary plugin-loading CLI options are
 refused. The app never uses developer Qt paths as a fallback.
@@ -141,6 +142,76 @@ controls, migration/recovery, credentials and exact residuals, and the
 Windows/Linux and managed installations retain manual updates. Only the existing
 qualified, user-confirmed macOS updater exception applies to eligible trusted
 bundles; an ad-hoc candidate does not qualify.
+
+## Packages without agent integrations or local automation
+
+[[BPR-1179]] (RFC-BPR-0060) adds two independent CMake switches, both ON by
+default. Each removes code from the build, not just a control from the window.
+
+| Switch | `OFF` removes | Still present |
+|---|---|---|
+| `BPR_BUILD_AGENT_INTEGRATIONS` | The agent launch adapter and its protocol loop (`src/adapters/agent`), the application's invocation, chat, finding, comment-workshop and re-alignment hosts, the agent launch builder and provider protocol decoders in `agent_launch.cpp`, the MCP context helper executable and its supervisor, and their composition. The window withdraws the launch panel, side chat, finding queue, comment workshop, tour writing assistance, the private Ask agent and agent-assisted composition, and the Agents & context settings page. No agent profile is offered or resolved. | Review, local cycles, notes and suggestions, Copy, Save and the bundle, capture, comparisons, responses, verification, publication, private notes and private history, and every stored record, including those an agent wrote earlier |
+| `BPR_BUILD_LOCAL_AUTOMATION` | The desktop's owner command endpoint (no listener is bound) and the forwarded cycle commands it serves. `BPR_BUILD_TOUR_CLI` requires it, so the graph cannot build `bpr`. | Everything above, the single-instance activation endpoint, and the desktop's own in-process tour routing |
+
+The configure presets are `macos-release-agent-free`,
+`windows-app-release-agent-free` and `linux-package-agent-free`, and the same
+names ending `-agent-free-automation-off`, which turn both families off. Each
+inherits its full preset and has its own build directory. The `tour-cli` preset
+builds without agent integrations: the `TourCLI` install component (`bpr`, the
+supervisor and its private Qt) is the agent-free command-line package.
+
+```sh
+# macOS, unpublished local preparation of either variant
+tools/release.sh --version 0.1.3 --prepare-only --skip-tests \
+  --variant agent-free --output-dir build/releases/agent-free-candidate
+tools/release.sh --version 0.1.3 --prepare-only --skip-tests \
+  --variant agent-free-automation-off --output-dir build/releases/manual-candidate
+
+# Windows (native x64 tools environment) and Linux (exact baseline)
+cmake --preset windows-app-release-agent-free
+python packaging/package.py --build build/windows-app-release-agent-free \
+  --generator WIX --output build/releases/windows-agent-free-candidate
+cmake --preset linux-package-agent-free
+python3 packaging/package.py --build build/linux-package-agent-free \
+  --generator DEB --output build/releases/ubuntu-agent-free-candidate
+```
+
+What the release records say:
+
+- `_bpr/package-inputs.json` names the families built (`families`) and the
+  artifact suffix (`variant`), and lists only the helpers that ship.
+- Artifact names end `-agent-free` or `-agent-free-automation-off`.
+- The product package's SPDX `sourceInfo` ends `; agent integrations absent`
+  and, without automation, `; local automation absent`. A full package's
+  text is unchanged.
+- `runtime-closure.json` and the native provenance record `families`.
+- The SPDX file list is computed from the installed bytes, so it never names
+  a helper that is not there.
+
+`scripts/verify_release_package.py` reads the families from the build. It
+requires the MCP helper only with agent integrations, and refuses a package
+built without them that still carries one. It audits the application image
+with `scripts/verify_composed_hosts.py`: agent anchors are required in a full
+image and forbidden in an agent-free one. The anchors are the agent hosts, the
+launcher, the protocol decoder and the MCP supervisor. The cycle owner service
+is required with local automation and forbidden without it. Run the verifier
+alone with `--without-agent-integrations` and `--without-local-automation`.
+
+Compatibility decision: `better_pull_review_agent_supervisor` ships in every
+package, the agent-free ones included. [[BPR-0622]] made it the process owner
+that guarded Git launches run inside, on macOS, Linux and Windows. It holds no
+agent protocol, provider knowledge or credential. Its file name is kept so that
+the Git path, the installers and the earlier evidence all name the same file.
+
+Removal keeps data. Every variant has the same package identity: the macOS
+bundle identifier, the Linux package name and the Windows upgrade code. So
+installing one variant over another replaces program files only; on Windows
+and Linux that replacement is a native qualification that is still owed. Profiles,
+cycles, rounds, suggestions, responses, verification records, private history
+and credentials stay where they were, and an agent-free build reopens them. A
+disposable agent workspace left by a full install is still cleaned up by the
+Git workspace recovery. To uninstall `bpr`, delete the files CMake recorded in
+`build/tour-cli/install_manifest_TourCLI.txt`. The desktop is unaffected.
 
 ## Exact dependency and license evidence
 

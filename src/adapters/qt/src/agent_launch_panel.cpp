@@ -311,12 +311,17 @@ namespace bpr::qt {
 			return;
 		}
 		const auto& session = *aProjection.Latest;
-		const auto  base    = core::canonical_hex(session.Binding.BaseOid).view();
-		const auto  head    = core::canonical_hex(session.Binding.HeadOid).view();
-		const auto  state   = aProjection.LatestStatus.has_value()
+		// The views below read these values' own storage, so they are kept for
+		// the whole presentation (a view of a temporary dangled: [[BPR-1179]]'s
+		// Release run read freed bytes here).
+		const auto baseHex = core::canonical_hex(session.Binding.BaseOid);
+		const auto headHex = core::canonical_hex(session.Binding.HeadOid);
+		const auto base    = baseHex.view();
+		const auto head    = headHex.view();
+		const auto state   = aProjection.LatestStatus.has_value()
 			? core::stable_name(aProjection.LatestStatus->Staleness)
 			: std::string_view{ "unclassified" };
-		const auto  next    = aProjection.Next.has_value()
+		const auto next    = aProjection.Next.has_value()
 			? QStringLiteral(" · next #%1").arg(aProjection.Next->value())
 			: QString{ };
 		SessionCatalog->setText(

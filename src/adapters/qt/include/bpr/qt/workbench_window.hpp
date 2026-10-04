@@ -452,6 +452,16 @@ namespace bpr::qt {
 		void set_thread_resolution_provider(bool aResolves);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
 		void set_agent_dispatch(agent_intent_dispatch aAgentDispatch);
+		/// \brief [[BPR-1179]]. Takes every agent control off this window for its life.
+		///
+		/// \details For a composition built without agent integrations, which
+		/// has nothing to answer them with. The launch panel, side chat and
+		/// finding queue and their buttons, the comment workshop, tour writing
+		/// assistance, the private Ask agent and agent-assisted composition,
+		/// and the Agents & context settings page are withdrawn; private notes,
+		/// private history and every stored record stay. Presentation only:
+		/// the window starts nothing either way.
+		void withdraw_agent_surfaces();
 		/// \brief Adopts the sink the mounted device-sign-in panel dispatches to.
 		///
 		/// \details On the same terms as `set_agent_dispatch`: the window

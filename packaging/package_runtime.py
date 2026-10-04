@@ -78,6 +78,27 @@ def inputs(build: Path) -> dict:
     return value
 
 
+# [[BPR-1179]]. The two removable component families a package was built with.
+# A package-inputs record from before BPR-1179 names none, and was built with both.
+FAMILIES = ("agent_integrations", "local_automation")
+FAMILY_WORDS = {"agent_integrations": "agent integrations", "local_automation": "local automation"}
+
+
+def families(info: dict) -> dict[str, bool]:
+    value = info.get("families", {name: True for name in FAMILIES})
+    if set(value) != set(FAMILIES) or not all(isinstance(value[name], bool) for name in FAMILIES):
+        raise ValueError("package inputs name an unknown component family")
+    return {name: value[name] for name in FAMILIES}
+
+
+def product_source_info(info: dict, revision: str, clean: bool) -> str:
+    """The product package's SPDX sourceInfo: its source, its graph and, when
+    it omits a family, which one. A full package's text is unchanged."""
+    text = f"git:{revision}; clean={clean}; tests-disabled Release; {info['platform']}"
+    absent = [FAMILY_WORDS[name] for name, present in families(info).items() if not present]
+    return text + "".join(f"; {name} absent" for name in absent)
+
+
 def components(info: dict) -> list[dict]:
     entries = json.loads((ROOT / "packaging/dependencies.json").read_text(encoding="utf-8"))["components"]
     return [item for item in entries if info["platform"] in item.get("platforms", [info["platform"]])]
@@ -422,7 +443,7 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
                 raise ValueError(f"ELF exceeds the glibc 2.39 floor: {binary}")
         baseline["requiredGLIBCXX"] = sorted({value for binary in processed for value in re.findall(r"\bGLIBCXX_([0-9.]+)", run("readelf", "--version-info", binary))}, key=lambda value: tuple(map(int, value.split("."))))
     (root / "qt.conf").write_text("[Paths]\nPlugins=plugins\n", encoding="utf-8")
-    closure = {"schema": "bpr.runtime-closure.v1", "baseline": baseline,
+    closure = {"schema": "bpr.runtime-closure.v1", "baseline": baseline, "families": families(info),
                "systemDependencies": sorted(system), "files": sorted(str(path.relative_to(root)) for path in processed), "plugins": PLUGINS[target]}
     if RUNTIME_DATA[target]:
         closure["data"] = RUNTIME_DATA[target]
@@ -439,7 +460,7 @@ def audit(build: Path, info: dict, root: Path, output: Path, source_archive: Pat
     records = qt_records(info, root)
     package = {"SPDXID": "SPDXRef-BetterPullReview", "name": "BetterPullReview", "versionInfo": info["version"],
                "downloadLocation": "NOASSERTION", "filesAnalyzed": False, "licenseConcluded": "NOASSERTION", "licenseDeclared": "NOASSERTION",
-               "copyrightText": "NOASSERTION", "sourceInfo": f"git:{revision}; clean={source_clean}; tests-disabled Release; {info['platform']}"}
+               "copyrightText": "NOASSERTION", "sourceInfo": product_source_info(info, revision, source_clean)}
     packages = [package]
     for item in records["packages"]:
         # Producer verification codes cover upstream files, not our relocated

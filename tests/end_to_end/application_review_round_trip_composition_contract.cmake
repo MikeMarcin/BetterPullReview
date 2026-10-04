@@ -651,6 +651,21 @@ endfunction()
 # draft is written and requires the draft and its line to stay. Presentation and
 # draft retention only: no grant, target, provider, credential, mutation or
 # publication path changes; mutation pin unchanged; no new src/app source.
+# BPR-1179 reseal: 91c01540e..this candidate, over c4579bd08's BPR-1277
+# reseal; no intervening pinned-scope commit. Agent integrations and local
+# automation become removable component families. Every agent-only block of
+# github_application.cpp (the launcher, invocation, chat, finding, workshop and
+# re-alignment hosts, the MCP helper and its snapshot, their projections, effect
+# lanes, dispatch, writing assistance's launch and the matching fixture access)
+# is compiled only under BPR_AGENT_INTEGRATIONS; without it the private-run
+# request is refused, no agent profile is offered and the window withdraws its
+# agent controls. The owner command endpoint and the cycle owner service are
+# compiled only under BPR_LOCAL_AUTOMATION; without it the tour service is still
+# made for the desktop's in-process tour route. Both macros are defined in every
+# graph that builds the family, so a full graph composes exactly as before. One
+# fixture lambda keeps its canonical_hex value alive for the view it compares.
+# No grant, target, provider, credential, mutation or publication path changes;
+# mutation pin unchanged; no new src/app source. Reviewed on BPR-1179.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -669,7 +684,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"60ef009a5aecd71e3a9372fa2671c4d5346e63bfb5aa84cdc392949db1d40dc4"
+		"792bc7c4a5885564b29e974913cad59aaca728ca598f386a6eb597edb52d6ff7"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -867,7 +882,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "19a0d4dd7006ebd524c4edcd6a2b5a024f7b13b37dd47c854c0a23bb99b2c16f"
+        "c73f1bc0e3237ad9ccd990cb07ee0b05477d80390f79fd570255fdee058921aa"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

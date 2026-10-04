@@ -44,8 +44,9 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
         # [[BPR-0622]]. The ownership journal applies the same header-only
         # Windows guard and private-object rules as the agent supervisor.
         # [[BPR-1115]]. An unguarded Git takes the platform target's launch
-        # restriction.
-        target_link_libraries(better_pull_review_adapter_git PRIVATE BetterPullReview::AdapterAgent BetterPullReview::Platform Advapi32)
+        # restriction. [[BPR-1179]]. The guard is its own header-only target,
+        # so an agent-free graph keeps it without the agent launch adapter.
+        target_link_libraries(better_pull_review_adapter_git PRIVATE BetterPullReview::WorkspaceGuard BetterPullReview::Platform Advapi32)
     endif()
     # [[BPR-0622]]. A guarded Git launch runs inside the bundled supervisor on
     # Windows too.

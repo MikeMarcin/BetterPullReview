@@ -8,16 +8,11 @@ add_subdirectory(agent)
 add_subdirectory(mcp)
 add_subdirectory(update)
 
-add_library(better_pull_review_adapter_ai INTERFACE)
-add_library(BetterPullReview::AdapterAI ALIAS better_pull_review_adapter_ai)
-
-foreach(
-    adapter
-    IN ITEMS
-        better_pull_review_adapter_ai
-)
-    target_link_libraries("${adapter}" INTERFACE BetterPullReview::Application)
-endforeach()
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    add_library(better_pull_review_adapter_ai INTERFACE)
+    add_library(BetterPullReview::AdapterAI ALIAS better_pull_review_adapter_ai)
+    target_link_libraries(better_pull_review_adapter_ai INTERFACE BetterPullReview::Application)
+endif()
 
 if(BPR_BUILD_QT)
     add_subdirectory(qt)

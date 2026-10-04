@@ -55,14 +55,15 @@ def main() -> None:
     if info["platform"] == "Linux":
         # DEB/RPM remain corporate-managed system packages. The same restricted
         # runtime also supplies the default no-administrator per-user route.
-        directory = f"BetterPullReview-{info['version']}-linux-x64"
+        directory = f"BetterPullReview-{info['version']}-linux-x64{info.get('variant', '')}"
         archive = output / (directory + "-user.tar.gz")
         with tarfile.open(archive, "w:gz") as stream:
             stream.add(inventories[0].parent, arcname=directory)
         products.append(archive)
     (output / (artifact.name + ".sha256")).write_text("".join(f"{runtime.digest(path)}  {path.name}\n" for path in products), encoding="utf-8")
     runtime.write_json(output / (artifact.name + ".provenance.json"), {"schema": "bpr.package-provenance.v1", "sourceCommit": revision,
-                       "platform": info["platform"], "generator": args.generator, "artifactSHA256": runtime.digest(artifact), "sbomSHA256": runtime.digest(sbom),
+                       "platform": info["platform"], "generator": args.generator, "families": runtime.families(info),
+                       "artifactSHA256": runtime.digest(artifact), "sbomSHA256": runtime.digest(sbom),
                        "products": {path.name: runtime.digest(path) for path in products},
                        "signed": False, "published": False, "nativeAcceptance": "pending"})
     print(f"Unpublished package: {artifact}; signing and native install/upgrade/uninstall qualification are separate gates.")

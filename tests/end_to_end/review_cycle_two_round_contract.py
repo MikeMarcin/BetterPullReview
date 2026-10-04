@@ -36,6 +36,18 @@ route, executables named like agent CLIs placed first on PATH are never run,
 the desktop starts no child process (sampled where the platform lets the
 course list children), and nothing but the course's own edits changes the
 folder.
+
+[[BPR-1179]]. With `--without-local-automation` the course runs against a
+desktop built with BPR_BUILD_LOCAL_AUTOMATION=OFF, where there is no `bpr`
+to call: every channel is the window's own (Copy, Save, the bundle), each is
+checked against the others and against the bundle's canonical payload, and a
+fourth launch reopens the cycle to read back what the third left. Where the
+course can see the per-user runtime directory (POSIX), it checks that the
+desktop bound its activation endpoint and bound the owner command endpoint
+`bpr` would use exactly when local automation was built. With
+`--reopen-application` a reviewer from another build, one without agent
+integrations or local automation, reopens the cycle the full desktop left and
+reads back its rounds, notes, verifications and reply.
 """
 import argparse
 import difflib
@@ -55,7 +67,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bpr_narrow_owner_private import make_root_private  # noqa: E402
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
-from profile_activation_contract import private_fixture_parent  # noqa: E402
+from profile_activation_contract import activation_endpoint, private_fixture_parent  # noqa: E402
 
 
 POSIX = os.name != "nt"
@@ -193,11 +205,25 @@ def check_comparison(comparison, left_name, right_name, path, left, right):
     return len(want)
 
 
+def owner_command_endpoint(data):
+    """[[BPR-1179]]. The activation endpoint the desktop binds for `data`, and
+    the owner command endpoint beside it, named as `profile_activation.cpp`
+    names them. POSIX only: Windows binds named pipes the course does not list."""
+    activation = activation_endpoint(data)
+    return activation, activation.with_name(activation.name.replace("bpr-activate-", "bpr-tourcmd--", 1))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
-    parser.add_argument("--cycle-application", required=True)
+    automation = parser.add_mutually_exclusive_group(required=True)
+    automation.add_argument("--cycle-application")
+    automation.add_argument("--without-local-automation", action="store_true",
+                            help="the desktop was built without local automation: there is no bpr, and no owner command endpoint may be bound")
+    parser.add_argument("--reopen-application",
+                        help="[[BPR-1179]] a reviewer from another build (one without agent integrations or local automation) that reopens the cycle this course leaves")
     args = parser.parse_args()
+    automated = args.cycle_application is not None
     with private_fixture_parent() as parent, contained_temporary_directory(prefix="two-round-", parent=parent) as temporary:
         workspace = Path(temporary).resolve()
         make_root_private(workspace)
@@ -298,17 +324,25 @@ def main():
             return first, items
 
         def check_channels(round_name, clipboard, saved, bundle_path, read, items, notes):
-            """RC56-03: one canonical round, whatever the channel."""
+            """RC56-03: one canonical round, whatever the channel.
+
+            Without local automation `read` and `items` are None: the window's
+            channels are checked against each other and the bundle's canonical
+            payload, which then supplies the items."""
             assert clipboard == saved, f"{round_name}: the clipboard holds exactly the saved file's bytes"
             with zipfile.ZipFile(bundle_path) as bundle:
                 assert sorted(bundle.namelist()) == ["manifest.json", "review.md", "round.json"], bundle.namelist()
                 assert bundle.read("review.md") == saved, f"{round_name}: the bundle's document is the same bytes"
                 payload = bundle.read("round.json")
-            cli = exported(round_name)
-            assert cli == saved, f"{round_name}: `bpr cycle export` writes the same bytes"
-            digest = next(entry["digest"] for entry in ok("show", "RC-1")["rounds"] if entry["round"] == round_name)
-            assert read["payload_sha256"] == digest, "the harness reads the round the reviewer froze"
             envelope = json.loads(payload)
+            if automated:
+                cli = exported(round_name)
+                assert cli == saved, f"{round_name}: `bpr cycle export` writes the same bytes"
+                digest = next(entry["digest"] for entry in ok("show", "RC-1")["rounds"] if entry["round"] == round_name)
+                assert read["payload_sha256"] == digest, "the harness reads the round the reviewer froze"
+            else:
+                digest = envelope["payload_sha256"]
+                items = envelope["payload"]["items"]
             canonical_bytes = json.dumps(envelope["payload"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
             assert envelope["payload_sha256"] == digest and sha256(canonical_bytes) == digest, f"{round_name}: the bundle carries the canonical payload ({sha256(canonical_bytes)} vs {digest})"
             text = saved.decode("utf-8")
@@ -333,10 +367,24 @@ def main():
                 shown = desktop.ask("render", path=str(Path(renders) / f"{name}.png"))
                 print("RENDER", name, f"{shown['width']}x{shown['height']}")
 
+        def check_owner_channel():
+            """[[BPR-1179]]. Bound with local automation, and only then."""
+            if not POSIX:
+                print("OWNER_COMMAND_ENDPOINT not observed on this platform")
+                return
+            activation, command = owner_command_endpoint(data)
+            deadline = time.monotonic() + 30
+            while not activation.exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert activation.exists(), f"the desktop's activation endpoint is at {activation}: {sorted(path.name for path in activation.parent.glob('bpr-*.sock'))}"
+            assert command.exists() == automated, f"owner command endpoint {command}: expected {'bound' if automated else 'absent'}"
+            print("OWNER_COMMAND_ENDPOINT", "bound" if automated else "absent")
+
         desktop = None
         try:
             # ------------------------------------------------------------ launch 1
             desktop = Desktop(args.application, data, workspace, 1, environment)
+            check_owner_channel()
             opened = desktop.ask("open-project", path=str(project))
             assert opened["cycle"] == "RC-1" and opened["revisions"] == ["R1"], opened
             revisions["R1"] = snapshot()
@@ -402,17 +450,23 @@ def main():
             desktop = None
 
             # ------------------------------------------- the channels, desktop closed
-            shown = ok("show", "RC-1")
-            assert len(shown["notes"]) == 9 and [entry["round"] for entry in shown["rounds"]] == ["F1"], "nothing was lost when the desktop quit"
-            refused = bpr("round", "read", "RC-1", "--round", "F1", consumer=True)
-            assert refused.returncode == 5 and json.loads(refused.stdout)["error"]["code"] == "policy_denied", "naming a round is not permission"
-            ok("policy", "--classification", "unclassified", "--channel", "external_retrieval", "--permission", "allowed")
-            ok("round", "grant", "RC-1", "--round", "F1")
-            read_f1, items_f1 = harness_read("F1", cwd=project)
+            if automated:
+                shown = ok("show", "RC-1")
+                assert len(shown["notes"]) == 9 and [entry["round"] for entry in shown["rounds"]] == ["F1"], "nothing was lost when the desktop quit"
+                refused = bpr("round", "read", "RC-1", "--round", "F1", consumer=True)
+                assert refused.returncode == 5 and json.loads(refused.stdout)["error"]["code"] == "policy_denied", "naming a round is not permission"
+                ok("policy", "--classification", "unclassified", "--channel", "external_retrieval", "--permission", "allowed")
+                ok("round", "grant", "RC-1", "--round", "F1")
+                read_f1, items_f1 = harness_read("F1", cwd=project)
+                assert int(read_f1["suggestions_total"]) == 2, read_f1
+            else:
+                read_f1 = None
+                with zipfile.ZipFile(handoff / "RC-1-F1.bpr-review.zip") as bundle:
+                    items_f1 = json.loads(bundle.read("round.json"))["payload"]["items"]
+                assert sum(len(item["suggestions"]) for item in items_f1) == 2, "two suggestions in the canonical round"
             assert [item["id"] for item in items_f1] == [f"I{index}" for index in range(1, 9)], "eight items, the scratch note not among them"
             digest_f1 = check_channels("F1", clipboard_f1, (handoff / "RC-1-F1.md").read_bytes(), handoff / "RC-1-F1.bpr-review.zip", read_f1, items_f1, notes_by_item)
-            assert int(read_f1["suggestions_total"]) == 2, read_f1
-            for channel in (clipboard_f1, (handoff / "RC-1-F1.md").read_bytes(), exported("F1")):
+            for channel in (clipboard_f1, (handoff / "RC-1-F1.md").read_bytes(), *((exported("F1"),) if automated else ())):
                 assert b"Scratch" not in channel and str(project).encode() not in channel and str(data).encode() not in channel, "no scratch note and no local path in any channel"
             print("F1", digest_f1, "bytes", len(clipboard_f1), "items", len(items_f1))
 
@@ -427,6 +481,7 @@ def main():
 
             # ------------------------------------------------------------ launch 2
             desktop = Desktop(args.application, data, workspace, 2, environment)
+            check_owner_channel()
             resumed = desktop.ask("resume", title="config-parser", notes=9)
             assert resumed["revisions"] == ["R1"] and resumed["rounds"] == [{"round": "F1", "start": "R1"}], f"nothing captured on reopening: {resumed}"
             assert [note["item"] for note in resumed["notes"]] == [f"I{index}" for index in range(1, 10)], f"every note after the restart: {resumed['notes']}"
@@ -495,9 +550,14 @@ def main():
             of_f2 = [entry for entry in copied["deliveries"] if entry.startswith("F2 · ")]
             assert len(of_f2) == 2 and of_f2[1].startswith("F2 · Copied to the clipboard"), copied["deliveries"]
 
-            # `bpr cycle` while the desktop owns the profile: forwarded to its store.
-            ok("round", "grant", "RC-1", "--round", "F2")
-            read_f2, items_f2 = harness_read("F2")
+            if automated:
+                # `bpr cycle` while the desktop owns the profile: forwarded to its store.
+                ok("round", "grant", "RC-1", "--round", "F2")
+                read_f2, items_f2 = harness_read("F2")
+            else:
+                read_f2 = None
+                with zipfile.ZipFile(handoff / "RC-1-F2.bpr-review.zip") as bundle:
+                    items_f2 = json.loads(bundle.read("round.json"))["payload"]["items"]
             assert [item["id"] for item in items_f2] == ["I5", "I6", "I10"], [item["id"] for item in items_f2]
             notes_by_item.update({note["item"]: note for note in renoted["notes"]})
             digest_f2 = check_channels("F2", clipboard_f2, (handoff / "RC-1-F2.md").read_bytes(), handoff / "RC-1-F2.bpr-review.zip", read_f2, items_f2, notes_by_item)
@@ -524,6 +584,7 @@ def main():
 
             # ------------------------------------------------------------ launch 3
             desktop = Desktop(args.application, data, workspace, 3, environment)
+            check_owner_channel()
             resumed = desktop.ask("resume", title="config-parser", notes=10)
             assert resumed["revisions"] == ["R1", "R2"] and [entry["round"] for entry in resumed["rounds"]] == ["F1", "F2"], resumed
             assert len(resumed["notes"]) == 10, "ten notes after the second restart"
@@ -565,14 +626,40 @@ def main():
             assert not desktop.children, f"the desktop started no process: {desktop.children}"
             desktop.close()
             desktop = None
+
+            if not automated or args.reopen_application:
+                # ---------------------------------------- launch 4, nothing to call
+                # With no `bpr`, the window itself reads back what launch 3 left;
+                # with --reopen-application, a desktop built without the removed
+                # components reads back what the full one left ([[BPR-1179]]).
+                # That desktop checks its own command endpoint against its build.
+                desktop = Desktop(args.reopen_application or args.application, data, workspace, 4, environment)
+                if not args.reopen_application:
+                    check_owner_channel()
+                reopened = desktop.ask("resume", title="config-parser", notes=10)
+                assert reopened["revisions"] == ["R1", "R2", "R3"] and [entry["round"] for entry in reopened["rounds"]] == ["F1", "F2"], reopened
+                kept = {note["item"]: note["shown"] for note in reopened["notes"]}
+                for item in ("I1", "I2", "I3", "I4", "I8"):
+                    assert "Verified by you in R2" in kept[item], f"{item}: {kept[item]}"
+                for item in ("I5", "I6", "I10"):
+                    assert "Verified by you in R3" in kept[item], f"{item}: {kept[item]}"
+                assert reopened["responses"] == 1, "the one reply, entered by hand"
+                assert snapshot() == revisions["R3"], "reopening wrote nothing into the folder"
+                print("REOPENED", "by another build" if args.reopen_application else "by the same build",
+                      "rounds", [entry["round"] for entry in reopened["rounds"]], "notes", len(reopened["notes"]), "responses", reopened["responses"])
+                desktop.quit()
+                assert not desktop.children, f"the desktop started no process: {desktop.children}"
+                desktop.close()
+                desktop = None
         finally:
             if desktop is not None:
                 print("\n".join(desktop.lines()[-60:]))
                 desktop.close()
 
-        history = ok("show", "RC-1")
-        assert [entry["round"] for entry in history["rounds"]] == ["F1", "F2"] and len(history["notes"]) == 10, history["rounds"]
-        assert len(history["responses"]) == 1 and history["responses"][0]["channel"] == "manual_entry", "the one reply was entered by hand; no report was needed"
+        if automated:
+            history = ok("show", "RC-1")
+            assert [entry["round"] for entry in history["rounds"]] == ["F1", "F2"] and len(history["notes"]) == 10, history["rounds"]
+            assert len(history["responses"]) == 1 and history["responses"][0]["channel"] == "manual_entry", "the one reply was entered by hand; no report was needed"
         assert not marks.exists(), f"an agent executable ran: {marks.read_text() if marks.exists() else ''}"
         print("PATH_CANARIES not run:", ", ".join(AGENT_NAMES))
     print("REVIEW_CYCLE_TWO_ROUND_OK")
