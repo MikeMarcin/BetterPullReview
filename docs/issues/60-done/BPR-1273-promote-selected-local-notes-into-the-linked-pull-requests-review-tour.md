@@ -116,3 +116,24 @@ Evidence:
 
 No reseal: the round-trip pins cover `src/app`, not `src/application`, and the
 contract passes. Done is not reopened.
+
+### Windows at `6a118a565` (bpr-main-win, 2026-10-04)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug.
+`6a118a565` holds `f389470f2` and 12b7faa1c's formatting. The build printed no
+`warning C` or `warning LNK` line. `coding-format-check` passes.
+
+The selection passes **16 of 16** in 72.15 s:
+
+- `core_review_cycle_promotion`
+- `review_cycle_publication_matrix` (58.64 s, with the promotion kill points)
+- `application_review_cycle_publish_public_path`
+- `application_review_round_trip_composition_contract`
+- `qt_review_cycle_view_1_0` and `_2_0`
+- the nine `application_review_tour_publication_*` rows
+- `test_network_isolation_manifest`
+
+`review_cycle_promotion_tests.cpp:179` uses `promote_note(...)`'s result
+(`->RequestId`), so MSVC with warnings as errors reports no ignored
+`[[nodiscard]]`. As for [[BPR-1178]], the matrix's Windows kill takes
+`git.exe` with it through the installed-Git job object.
