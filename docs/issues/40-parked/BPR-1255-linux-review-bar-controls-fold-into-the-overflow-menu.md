@@ -6,7 +6,7 @@ status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
-platforms: ["linux"]
+platforms: ["linux", "win"]
 metadata: {"found_by":"bpr-main-linux triage of the BPR-0905 Linux full suite, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1255--BPR-1258--f86522aa8587.json","related_cards":["BPR-1251","BPR-1256","BPR-0905"]}
 parked_on: "human-review"
 acceptance: [{"criterion":"The six rows pass on Linux","outcome":"pending","revision":"2ac99c816","evidence":{"kind":"observation","detail":"Waits on the owner's choice among the card's three options. With only the overflow check bypassed (not committed), all six rows pass on Linux at this revision."}},{"criterion":"The card names the cause","outcome":"pass","revision":"2ac99c816","evidence":{"kind":"observation","detail":"Card 'Cause': at the course's doubled font, 18 pt Sans Serif (DejaVu Sans), the fully yielded review bar needs 983 px against the 900 px floor. Every yield (dates, words, numbers) has already fired, and the last control, Comment, folds at 982 px. At the default font the bar is 843 px and fits."}}]
@@ -107,3 +107,13 @@ than the platform's default. Each way out changes something the owner chose:
    change. The cost is a weaker statement for larger fonts.
 
 Until the owner chooses, the six Linux rows stay red at this check only.
+
+**Note: Windows fails the same check (bpr-main-win, 2026-10-04).** Windows 11
+Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug, at
+`36b71c56b` (`main` with BPR-1277's change; the rows run no composition code).
+All six rows fail at the same check in a `-j4` run:
+`qt_workbench_title_row_scale_{100,125,200}` and
+`qt_workbench_window_scale_{100,125,200}`, each at
+`FAILED: no review-bar control folds into an overflow menu at any width`
+(`tests/adapters_qt/workbench_window_tests.cpp`, about line 5516). Recorded
+only; the card stays parked for the owner.
