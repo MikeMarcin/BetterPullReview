@@ -31,9 +31,10 @@ Product evidence is **Not run** at authoring. Follow [PRODUCT-VERIFICATION.md](.
 
 ## Result (2026-10-04)
 
-Promoted at `6acb5b25a`, claimed at `b1d95b24c`, implemented at `2dad1dbbc`,
-with its launch test at `afe26732a`. Owned paths, decisions, every command
-and its result are in the
+Promoted at `6acb5b25a`, claimed at `b1d95b24c`, implemented at `e72b7f972`
+with its launch test at `70606b8c3` (verified as `2dad1dbbc` and `afe26732a`;
+the rebase changed no owned path). Owned paths, decisions, every command and
+its result are in the
 [ledger](../../verification/RFC-BPR-0053-0061.md#bpr-1180-send-to-agent-a-thin-client-of-the-frozen-round-2026-10-04).
 
 - Share notes' Send to Agent… opens a box: which installed agent, which
