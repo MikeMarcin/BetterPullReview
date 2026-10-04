@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1274"
 title: "A 514-item round costs about 3 s per note change, 4.3 s to freeze and 235 ms to open Share notes"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"BPR-1184 large-project course, macOS arm64 Release at 397908dec","reservation":"docs/issues/_reservations/ BPR-1274--BPR-1274--d78638593452.json","related_cards":["BPR-1184","BPR-1161"]}
+acceptance: [{"criterion":"BPR-1274:profile","outcome":"pass","revision":"80e72fd70","evidence":{"kind":"observation","path":"docs/verification/BPR-1274-large-project-2026-10-04.md","detail":"Profiled with sample(1) on the macOS Release 514-item stress round before changing anything: 68% of the effect lane was each store call opening and schema-checking its own SQLite connection; a note change re-read every note through two round trips a note and reconciled every note; a share assembled the round three times; Share notes built and laid out 514 rows in one turn and relaid them as each note's code arrived."}},{"criterion":"BPR-1274:note-change-scales","outcome":"pass","revision":"80e72fd70","evidence":{"kind":"artifact","path":"docs/verification/BPR-1274-large-project/","detail":"Release reports on all three platforms, run.enforced false off macOS, failures empty, 0 tracked changes: a suggestion in the 514-item round 67.3 ms macOS (80e72fd70), 66.7 ms Linux (4cd65344e), 106.0 ms Windows (8d838c696), against 3,026 / 2,931 / 16,129 ms in BPR-1184. Enforced note_change_ratio met everywhere: 2.32, 1.94, 1.433 (limit 7.0; was about 66). --check-report re-judged the Linux and Windows reports: REVIEW_CYCLE_LARGE_PROJECT_TARGETS_OK."}},{"criterion":"BPR-1274:freeze-scales","outcome":"pass","revision":"80e72fd70","evidence":{"kind":"artifact","path":"docs/verification/BPR-1274-large-project/","detail":"A freeze assembles, encodes and digests the round once, with one store connection. Copy (freezes F1) 91.9 / 161.0 / 273.4 ms on macOS / Linux / Windows against 4,268 / 5,003 / 27,145 ms before; Save 114.8 / 194.3 / 369.4 ms. Windows Copy and Save miss the 250 ms LIMITS target, which is reported, not enforced, off macOS by the course's design; recorded on the card and record."}},{"criterion":"BPR-1274:share-notes-under-100ms","outcome":"pass","revision":"80e72fd70","evidence":{"kind":"artifact","path":"docs/verification/BPR-1274-large-project/","detail":"Share notes opening with 514 rows holds the GUI thread at most 34.2 ms (macOS), 49.95 ms (Linux), 74.6 ms (Windows), against 234.8 / 270.9 / 379.5 ms before; it lists rows 64 a turn. Its whole open (340 / 488 / 796 ms) is over 250 ms with no progress while the draft is read; named in the record's 'What still grows' and reported, not enforced."}},{"criterion":"BPR-1274:enforced-in-course","outcome":"pass","revision":"80e72fd70","evidence":{"kind":"command","path":"tests/end_to_end/review_cycle_large_project_contract.py","detail":"The large-project course enforces the 100 ms stress window turns and the 250 ms note change, Copy and Save in optimized macOS builds and the 7.0 note-change ratio in every optimized build; review_cycle_large_project_targets shows the BPR-1184 report failing exactly the four timed targets and this report meeting all 17. macOS Release row 1/1 (172.65 s) with targets enforced; the three new contracts (shared connection, one-note change, a pass a turn) each fail with their change removed."}},{"criterion":"BPR-1274:station-debug-rows","outcome":"pass","revision":"b668900d4","evidence":{"kind":"command","path":"docs/verification/BPR-1274-large-project-2026-10-04.md","detail":"Linux Debug 11/11 at 4cd65344e; macOS Debug application_review_cycle_large_project 1/1 (26.55 s) and review_cycle_large_project_targets 1/1 at b668900d4; Windows Debug 10/11 at 8d838c696. The Windows failure (navigate-during-capture: Next file reads the file after d000/s0/f000008.txt) is classified to BPR-1278, not this card: the lost press comes from review_cycle_workbench::load_tabs restoring a tab record read before the press, code from 2026-09-29 that 80e72fd70 did not touch, and BPR-1184 met the same stall at e9c7eaa98, before this card. BPR-1278 reproduces it deterministically and fixes it at b668900d4; its Windows confirmation is requested there."}}]
 ---
 
 # BPR-1274: A 514-item round costs about 3 s per note change, 4.3 s to freeze and 235 ms to open Share notes
@@ -169,3 +170,30 @@ desktop applications held the CPU at 8–9% when it started.
   `newer: true`. The capture ended while Next file was being pressed, and the
   next press never moved off the file. This is the race the earlier Windows
   Debug run met silently at request 69. Recorded, not changed.
+
+## Closeout (2026-10-04)
+
+All three Release reports are in, and `--check-report` judges them again
+([the record](../../verification/BPR-1274-large-project-2026-10-04.md),
+"Results — Linux and Windows Release"):
+
+- **Note change scales with the change** on every platform: the enforced
+  `note_change_ratio` is 2.32 (macOS), 1.94 (Linux) and 1.433 (Windows),
+  under 7.0; it was about 66. The bound stands.
+- **Freezing** assembles the round once: Copy 91.9, 161.0 and 273.4 ms
+  (4,268, 5,003 and 27,145 ms before).
+- **Share notes' open holds the window under 100 ms** at 514 rows on every
+  platform: 34.2, 49.95 and 74.6 ms turns (234.8, 270.9 and 379.5 before).
+- **Enforced** in optimized builds by the course and
+  `review_cycle_large_project_targets`. Linux meets all 17 targets; on
+  Windows Copy (273.4 ms) and Save (369.4 ms) miss the 250 ms target, which
+  is reported, not enforced, off macOS as designed, and is recorded here
+  rather than hidden.
+- **Debug rows:** Linux 11/11; macOS `application_review_cycle_large_project`
+  and `review_cycle_large_project_targets` 1/1 each at `b668900d4`; Windows
+  10/11. The Windows failure is not a regression of this card: it is a lost
+  Next file press when a capture's reload restores a tab record read before
+  the press. That code dates from 2026-09-29 and `80e72fd70` did not touch
+  it, and [[BPR-1184]] met the same stall at `e9c7eaa98`, before this card.
+  It is [[BPR-1278]]'s, fixed at `b668900d4`; its Windows Debug confirmation
+  is requested there.

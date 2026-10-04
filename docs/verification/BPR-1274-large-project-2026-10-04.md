@@ -120,6 +120,36 @@ Linux (i9-10900KF, WSL2) 2,931 ms a suggestion, 5,003 ms Copy, 270.9 ms
 held by Share notes; Windows 11 16,129 ms, 27,145 ms and 379.5 ms. Neither
 has run this change yet (station requests below).
 
+## Results — Linux and Windows Release
+
+Both stations ran the Release row uncontained, as pinned, and returned their
+reports byte for byte (host, load and Debug results are in the notes on
+[[BPR-1274]]). `--check-report` judges them again here: every target is met
+on Linux; on Windows Copy and Save miss the 250 ms target, which is reported,
+not enforced, off macOS.
+
+| 514-item round | macOS (`80e72fd70`) | Linux (`4cd65344e`) | Windows (`8d838c696`) |
+|---|---:|---:|---:|
+| A suggestion | 67.3 | 66.7 | 106.0 |
+| The cycle's first suggestion | 29.0 | 34.4 | 73.9 |
+| `note_change_ratio` (limit 7.0, enforced) | 2.32 | 1.94 | 1.433 |
+| Copy (freezes F1) | 91.9 | 161.0 | 273.4 |
+| Save to File | 114.8 | 194.3 | 369.4 |
+| Share notes: the longest window turn | 34.2 | 49.95 | 74.6 |
+| Share notes opens, in all | 340.1 | 488.0 | 796.3 |
+| Resume with 512 notes | 211.9 | 274.0 | 533.4 |
+
+Against [[BPR-1184]], a suggestion went from 2,931 ms to 66.7 on Linux and
+from 16,129 ms to 106.0 on Windows; Copy from 5,003 to 161.0 and from 27,145
+to 273.4; Share notes' held window from 270.9 to 49.95 and from 379.5 to
+74.6. The scaling check holds on every platform, so 7.0 stands. Every
+platform's Share notes open holds the window under the 100 ms input target.
+
+The Windows Debug row stopped on a lost Next file press when a capture ended
+mid-navigation. That race predates this change ([[BPR-1184]] met it silently
+at `e9c7eaa98`, and the code that loses the press dates from 2026-09-29); it
+is [[BPR-1278]]'s.
+
 ## What still grows with the round
 
 - **Resume** reads every note (a call per 64) and reconciles every note in
