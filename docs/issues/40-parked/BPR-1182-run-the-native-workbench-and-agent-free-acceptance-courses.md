@@ -43,8 +43,9 @@ by BPR-1166.
 
 ## Result (2026-10-04): unattended work done; three owner looks pending
 
-Promoted at `df3f93a78`, claimed at `de675cce9`, landed as `a6e2229f9` and
-`7a25821b1`. The full record, with commands and hashes, is the ledger's
+Promoted and claimed (landed as `b7b2b9bdb` and `d7678c9de`), verified as
+`a6e2229f9` and `7a25821b1`, landed as `3ac3d0f1f` and `f57c828ac` after a
+rebase that changed no path under `src/`. The full record, with commands and hashes, is the ledger's
 "BPR-1182" section in
 [RFC-BPR-0053-0061.md](../../verification/RFC-BPR-0053-0061.md).
 
