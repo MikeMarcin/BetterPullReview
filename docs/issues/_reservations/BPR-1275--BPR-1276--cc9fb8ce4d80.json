@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1275",
+    "BPR-1276"
+  ],
+  "reserve_for": "bpr-main-win",
+  "purpose": "BPR-1184 Windows findings: desktop Open Project first capture ~14x slower than CLI; Windows child peak memory unmeasured",
+  "created": "2026-10-04T10:43:36.924775+00:00",
+  "base": "0663f434c0e3a2012580324252fbdf12eddce67a"
+}
