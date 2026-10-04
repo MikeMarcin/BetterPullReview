@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1273"
+  ],
+  "reserve_for": "bpr1177promotion",
+  "purpose": "Promote selected local notes into the linked pull request's Review Tour (BPR-1177 follow-up)",
+  "created": "2026-10-04T06:47:32.160710+00:00",
+  "base": "75523222ffb46ca75c0db56f21cebec7de4e2c28"
+}
