@@ -3328,7 +3328,11 @@ if(TARGET app_bpr)
     # refusal, reported as p50/p95 with peak memory in the report file. The
     # 100 ms typing and navigation targets while a capture runs are enforced in
     # optimized macOS builds, whose measurements justify them; elsewhere they
-    # are reported until the stations' measurements do. A Debug build runs a
+    # are reported until the stations' measurements do. [[BPR-1274]]: so are the
+    # stress round's, no gesture holding the window past 100 ms and a note
+    # change, Copy and Save each inside the 250 ms past which progress and
+    # cancel are owed; a note change in the round within seven times the
+    # cycle's first is enforced in every optimized build. A Debug build runs a
     # 2,000-file correctness pass and claims no measurement. Uncontained on
     # Windows (dos-volume-name): contained, the first desktop exits 1 with
     # "FAILED: the desktop starts with a window" before any `bpr cycle` step.
@@ -3356,6 +3360,14 @@ if(TARGET app_bpr)
         PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_LARGE_PROJECT_OK"
         RUN_SERIAL TRUE
         TIMEOUT ${bpr_large_project_timeout})
+    # [[BPR-1274]]. The row's targets judged on reports it wrote, launching
+    # nothing: the macOS Release report measured before the fix misses the
+    # stress round's four timed targets, the one measured after it meets
+    # them all, and a note change made to cost what the old build's did fails
+    # the scaling check in an optimized build and is only reported in Debug.
+    bpr_add_network_isolated_test(NAME review_cycle_large_project_targets
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_large_project_targets_tests.py")
+    set_tests_properties(review_cycle_large_project_targets PROPERTIES TIMEOUT 60)
 endif()
 
 if(BPR_BUILD_QT AND TARGET Git::Git)

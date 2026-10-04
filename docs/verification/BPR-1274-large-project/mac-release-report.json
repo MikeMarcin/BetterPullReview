@@ -1,0 +1,862 @@
+{
+ "corpora": {
+  "small-files-1m-lines-v1": {
+   "corpus": {
+    "files": 20000,
+    "first_read_ms": 365.0,
+    "generated_s": 1.856,
+    "lines": 1000000,
+    "oversized_file_bytes": null,
+    "text_bytes": 26244500,
+    "text_files": 20000,
+    "text_sha256": "35721c70f72d3c816862a79849d70704d17c475461ec962e4046c0fedf209e38"
+   },
+   "desktop": {
+    "cancel_capture": {
+     "count": 1,
+     "max": 2.8,
+     "p50": 2.8,
+     "p95": 2.8
+    },
+    "capture_changed_while_navigating": {
+     "count": 1,
+     "max": 1604.992,
+     "p50": 1604.992,
+     "p95": 1604.992
+    },
+    "capture_unchanged": {
+     "count": 1,
+     "max": 1473.411,
+     "p50": 1473.411,
+     "p95": 1473.411
+    },
+    "capture_unchanged_busy": {
+     "count": 1,
+     "max": 0.364,
+     "p50": 0.364,
+     "p95": 0.364
+    },
+    "capture_unchanged_while_typing": {
+     "count": 1,
+     "max": 1443.662,
+     "p50": 1443.662,
+     "p95": 1443.662
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 18.071,
+     "p50": 14.31,
+     "p95": 15.215
+    },
+    "compare_file_busy": {
+     "count": 20,
+     "max": 4.406,
+     "p50": 4.047,
+     "p95": 4.211
+    },
+    "drawer_next": {
+     "count": 4,
+     "max": 56.823,
+     "p50": 54.949,
+     "p95": 56.823
+    },
+    "drawer_next_busy": {
+     "count": 4,
+     "max": 33.012,
+     "p50": 32.354,
+     "p95": 33.012
+    },
+    "drawer_previous": {
+     "count": 1,
+     "max": 57.728,
+     "p50": 57.728,
+     "p95": 57.728
+    },
+    "drawer_previous_busy": {
+     "count": 1,
+     "max": 32.491,
+     "p50": 32.491,
+     "p95": 32.491
+    },
+    "launch_to_ready": {
+     "count": 1,
+     "max": 909.915,
+     "p50": 909.915,
+     "p95": 909.915
+    },
+    "launch_to_ready_warm": {
+     "count": 1,
+     "max": 364.973,
+     "p50": 364.973,
+     "p95": 364.973
+    },
+    "navigation_during_capture": {
+     "count": 5,
+     "max": 4.077,
+     "p50": 2.927,
+     "p95": 4.077
+    },
+    "next_file": {
+     "count": 30,
+     "max": 8.406,
+     "p50": 4.218,
+     "p95": 6.795
+    },
+    "next_file_across_window": {
+     "count": 1,
+     "max": 60.664,
+     "p50": 60.664,
+     "p95": 60.664
+    },
+    "next_file_across_window_busy": {
+     "count": 1,
+     "max": 33.871,
+     "p50": 33.871,
+     "p95": 33.871
+    },
+    "next_file_busy": {
+     "count": 30,
+     "max": 0.27,
+     "p50": 0.205,
+     "p95": 0.254
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 2131.451,
+     "p50": 2131.451,
+     "p95": 2131.451
+    },
+    "open_cold_busy": {
+     "count": 1,
+     "max": 33.207,
+     "p50": 33.207,
+     "p95": 33.207
+    },
+    "open_file": {
+     "count": 30,
+     "max": 9.772,
+     "p50": 7.908,
+     "p95": 8.687
+    },
+    "open_file_busy": {
+     "count": 30,
+     "max": 0.336,
+     "p50": 0.2,
+     "p95": 0.28
+    },
+    "open_file_last_window": {
+     "count": 1,
+     "max": 6.325,
+     "p50": 6.325,
+     "p95": 6.325
+    },
+    "open_file_last_window_busy": {
+     "count": 1,
+     "max": 1.938,
+     "p50": 1.938,
+     "p95": 1.938
+    },
+    "open_warm": {
+     "count": 1,
+     "max": 88.253,
+     "p50": 88.253,
+     "p95": 88.253
+    },
+    "open_warm_busy": {
+     "count": 1,
+     "max": 35.746,
+     "p50": 35.746,
+     "p95": 35.746
+    },
+    "quit": {
+     "count": 1,
+     "max": 60.75,
+     "p50": 60.75,
+     "p95": 60.75
+    },
+    "typing_during_capture": {
+     "count": 36,
+     "max": 0.517,
+     "p50": 0.337,
+     "p95": 0.477
+    }
+   },
+   "desktop_facts": {
+    "cancel": {
+     "button_after": "Capture revision",
+     "offered": "Cancel capture",
+     "progress": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 20,000 captured entries \u00b7 Capturing: 5,120 files read",
+     "unrecorded": true,
+     "updates": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 20,000 captured entries \u00b7 Capture cancelled; nothing was recorded."
+    },
+    "compared_files": 20,
+    "drawer_window_files": 4096,
+    "drawer_windows": 5,
+    "memory_after_course": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.018292,
+     "footprint_bytes": 107807632,
+     "method": "macOS TASK_VM_INFO phys_footprint with ledger_phys_footprint_peak and resident_size; live heap is malloc_zone_statistics size_in_use over every zone",
+     "peak_footprint_bytes": 107807632,
+     "resident_bytes": 166920192
+    },
+    "memory_after_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.029792,
+     "footprint_bytes": 96994168,
+     "method": "macOS TASK_VM_INFO phys_footprint with ledger_phys_footprint_peak and resident_size; live heap is malloc_zone_statistics size_in_use over every zone",
+     "peak_footprint_bytes": 96994168,
+     "resident_bytes": 155828224
+    },
+    "memory_after_warm_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.014709,
+     "footprint_bytes": 86852376,
+     "method": "macOS TASK_VM_INFO phys_footprint with ledger_phys_footprint_peak and resident_size; live heap is malloc_zone_statistics size_in_use over every zone",
+     "peak_footprint_bytes": 86852376,
+     "resident_bytes": 141574144
+    },
+    "navigation_refused": [],
+    "typing_keys": 37,
+    "updates_after_open": "Captured: R1 \u00b7 files 1\u20134,096 listed of 20,000 captured entries"
+   },
+   "terminal": {
+    "capture_changed": {
+     "count": 1,
+     "max": 1464.819,
+     "p50": 1464.819,
+     "p95": 1464.819
+    },
+    "capture_unchanged": {
+     "count": 3,
+     "max": 1409.749,
+     "p50": 1397.792,
+     "p95": 1409.749
+    },
+    "compare_changed_page": {
+     "count": 2,
+     "max": 38.46,
+     "p50": 34.837,
+     "p95": 38.46
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 40.492,
+     "p50": 37.19,
+     "p95": 39.672
+    },
+    "compare_full_page": {
+     "count": 20,
+     "max": 27.137,
+     "p50": 26.006,
+     "p95": 26.944
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 2315.796,
+     "p50": 2315.796,
+     "p95": 2315.796
+    },
+    "show": {
+     "count": 10,
+     "max": 25.783,
+     "p50": 22.835,
+     "p95": 25.783
+    }
+   },
+   "terminal_peak_bytes": {
+    "capture_changed": 38223872,
+    "capture_unchanged": 42336256,
+    "compare_changed_page": 30883840,
+    "compare_file": 32915456,
+    "compare_full_page": 25903104,
+    "open_cold": 41533440,
+    "show": 17760256
+   }
+  },
+  "tree-100k-files-v1": {
+   "corpus": {
+    "files": 100001,
+    "first_read_ms": 2010.8,
+    "generated_s": 8.771,
+    "lines": 1000000,
+    "oversized_file_bytes": 135266304,
+    "text_bytes": 25888900,
+    "text_files": 100000,
+    "text_sha256": "3c30c046aaca2d6353b1e92c8c2c34ef6f0516062893621fd4f9d6409beec8b7"
+   },
+   "desktop": {
+    "cancel_capture": {
+     "count": 1,
+     "max": 2.914,
+     "p50": 2.914,
+     "p95": 2.914
+    },
+    "capture_changed_while_navigating": {
+     "count": 1,
+     "max": 7155.791,
+     "p50": 7155.791,
+     "p95": 7155.791
+    },
+    "capture_unchanged": {
+     "count": 1,
+     "max": 6006.885,
+     "p50": 6006.885,
+     "p95": 6006.885
+    },
+    "capture_unchanged_busy": {
+     "count": 1,
+     "max": 0.442,
+     "p50": 0.442,
+     "p95": 0.442
+    },
+    "capture_unchanged_while_typing": {
+     "count": 1,
+     "max": 6046.867,
+     "p50": 6046.867,
+     "p95": 6046.867
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 13.477,
+     "p50": 8.669,
+     "p95": 10.712
+    },
+    "compare_file_busy": {
+     "count": 20,
+     "max": 1.518,
+     "p50": 1.052,
+     "p95": 1.259
+    },
+    "drawer_next": {
+     "count": 24,
+     "max": 62.702,
+     "p50": 55.377,
+     "p95": 58.716
+    },
+    "drawer_next_busy": {
+     "count": 24,
+     "max": 38.847,
+     "p50": 33.518,
+     "p95": 37.291
+    },
+    "drawer_previous": {
+     "count": 1,
+     "max": 59.235,
+     "p50": 59.235,
+     "p95": 59.235
+    },
+    "drawer_previous_busy": {
+     "count": 1,
+     "max": 32.432,
+     "p50": 32.432,
+     "p95": 32.432
+    },
+    "launch_to_ready": {
+     "count": 1,
+     "max": 389.614,
+     "p50": 389.614,
+     "p95": 389.614
+    },
+    "launch_to_ready_warm": {
+     "count": 1,
+     "max": 397.77,
+     "p50": 397.77,
+     "p95": 397.77
+    },
+    "navigation_during_capture": {
+     "count": 27,
+     "max": 5.606,
+     "p50": 2.877,
+     "p95": 4.326
+    },
+    "next_file": {
+     "count": 30,
+     "max": 11.098,
+     "p50": 4.063,
+     "p95": 6.574
+    },
+    "next_file_across_window": {
+     "count": 1,
+     "max": 60.908,
+     "p50": 60.908,
+     "p95": 60.908
+    },
+    "next_file_across_window_busy": {
+     "count": 1,
+     "max": 32.381,
+     "p50": 32.381,
+     "p95": 32.381
+    },
+    "next_file_busy": {
+     "count": 30,
+     "max": 0.231,
+     "p50": 0.157,
+     "p95": 0.223
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 10459.359,
+     "p50": 10459.359,
+     "p95": 10459.359
+    },
+    "open_cold_busy": {
+     "count": 1,
+     "max": 33.057,
+     "p50": 33.057,
+     "p95": 33.057
+    },
+    "open_file": {
+     "count": 30,
+     "max": 7.406,
+     "p50": 6.453,
+     "p95": 6.83
+    },
+    "open_file_busy": {
+     "count": 30,
+     "max": 0.167,
+     "p50": 0.146,
+     "p95": 0.167
+    },
+    "open_file_last_window": {
+     "count": 1,
+     "max": 6.066,
+     "p50": 6.066,
+     "p95": 6.066
+    },
+    "open_file_last_window_busy": {
+     "count": 1,
+     "max": 0.64,
+     "p50": 0.64,
+     "p95": 0.64
+    },
+    "open_warm": {
+     "count": 1,
+     "max": 155.751,
+     "p50": 155.751,
+     "p95": 155.751
+    },
+    "open_warm_busy": {
+     "count": 1,
+     "max": 37.34,
+     "p50": 37.34,
+     "p95": 37.34
+    },
+    "quit": {
+     "count": 1,
+     "max": 41.476,
+     "p50": 41.476,
+     "p95": 41.476
+    },
+    "typing_during_capture": {
+     "count": 151,
+     "max": 1.046,
+     "p50": 0.435,
+     "p95": 0.582
+    }
+   },
+   "desktop_facts": {
+    "cancel": {
+     "button_after": "Capture revision",
+     "offered": "Cancel capture",
+     "progress": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 Capturing: 17,408 files read \u00b7 captured with 0 retries, 1 unavailable",
+     "unrecorded": true,
+     "updates": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 captured with 0 retries, 1 unavailable \u00b7 Capture cancelled; nothing was recorded."
+    },
+    "compared_files": 20,
+    "drawer_window_files": 4096,
+    "drawer_windows": 25,
+    "memory_after_course": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.017375,
+     "footprint_bytes": 176931752,
+     "method": "macOS TASK_VM_INFO phys_footprint with ledger_phys_footprint_peak and resident_size; live heap is malloc_zone_statistics size_in_use over every zone",
+     "peak_footprint_bytes": 176931752,
+     "resident_bytes": 235962368
+    },
+    "memory_after_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.013541,
+     "footprint_bytes": 160498576,
+     "method": "macOS TASK_VM_INFO phys_footprint with ledger_phys_footprint_peak and resident_size; live heap is malloc_zone_statistics size_in_use over every zone",
+     "peak_footprint_bytes": 160498576,
+     "resident_bytes": 219283456
+    },
+    "memory_after_warm_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.019125,
+     "footprint_bytes": 133022608,
+     "method": "macOS TASK_VM_INFO phys_footprint with ledger_phys_footprint_peak and resident_size; live heap is malloc_zone_statistics size_in_use over every zone",
+     "peak_footprint_bytes": 133022608,
+     "resident_bytes": 187678720
+    },
+    "navigation_refused": [],
+    "oversized_reading_pane": "aaa-limits/oversized.bin was not captured in R1: it is larger than the 128 MiB one capture keeps of a file, so there are no bytes to show. A note can still be made on the whole file.",
+    "typing_keys": 152,
+    "updates_after_open": "Captured: R1 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 captured with 0 retries, 1 unavailable"
+   },
+   "terminal": {
+    "capture_changed": {
+     "count": 1,
+     "max": 6846.317,
+     "p50": 6846.317,
+     "p95": 6846.317
+    },
+    "capture_unchanged": {
+     "count": 3,
+     "max": 6068.808,
+     "p50": 6009.296,
+     "p95": 6068.808
+    },
+    "compare_changed_page": {
+     "count": 6,
+     "max": 105.984,
+     "p50": 104.602,
+     "p95": 105.984
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 105.528,
+     "p50": 101.286,
+     "p95": 103.59
+    },
+    "compare_full_page": {
+     "count": 20,
+     "max": 62.903,
+     "p50": 60.596,
+     "p95": 62.402
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 10423.245,
+     "p50": 10423.245,
+     "p95": 10423.245
+    },
+    "show": {
+     "count": 10,
+     "max": 26.825,
+     "p50": 23.53,
+     "p95": 26.825
+    }
+   },
+   "terminal_peak_bytes": {
+    "capture_changed": 97632256,
+    "capture_unchanged": 97189888,
+    "compare_changed_page": 75399168,
+    "compare_file": 75415552,
+    "compare_full_page": 58130432,
+    "open_cold": 96944128,
+    "show": 17711104
+   }
+  }
+ },
+ "environment": {
+  "build_type": "Release",
+  "cpu": "Apple M4 Pro",
+  "logical_cpus": 14,
+  "machine": "arm64",
+  "memory_bytes": 51539607552,
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7",
+  "qpa": "offscreen",
+  "qt": "6.11.2"
+ },
+ "failures": [],
+ "limit_probe": {
+  "desktop_message": "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.",
+  "desktop_ms": 10962.441,
+  "entries": 250001,
+  "terminal_error": {
+   "code": "over_limit",
+   "detail": {
+    "cycle": "RC-1"
+   },
+   "message": "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.",
+   "next": "bpr cycle capture RC-1"
+  },
+  "terminal_exit": 5,
+  "terminal_ms": 10841.805
+ },
+ "run": {
+  "enforced": true,
+  "files_override": null,
+  "limit_probe": true,
+  "named_corpora": true,
+  "stress_round": true
+ },
+ "schema": "bpr.cycle.large-project-report.v1",
+ "source": {
+  "revision": "80e72fd70ba019a55ce93847ffcea6c0d4f91a46",
+  "tracked_changes": 0
+ },
+ "stress_round": {
+  "corpus": "small-files-1m-lines-v1",
+  "facts": {
+   "document_bytes": 70078,
+   "items_read": 514,
+   "memory_after_freeze": {
+    "busy_ms": 0,
+    "elapsed_ms": 0.016875,
+    "footprint_bytes": 127714192,
+    "method": "macOS TASK_VM_INFO phys_footprint with ledger_phys_footprint_peak and resident_size; live heap is malloc_zone_statistics size_in_use over every zone",
+    "peak_footprint_bytes": 127714192,
+    "resident_bytes": 187236352
+   },
+   "notes": 512,
+   "round_pages": 1,
+   "suggestions": 2
+  },
+  "phases": {
+   "compose_open": {
+    "count": 1,
+    "max": 340.069,
+    "p50": 340.069,
+    "p95": 340.069
+   },
+   "compose_open_busy": {
+    "count": 1,
+    "max": 34.235,
+    "p50": 34.235,
+    "p95": 34.235
+   },
+   "desktop_suggest": {
+    "count": 1,
+    "max": 67.264,
+    "p50": 67.264,
+    "p95": 67.264
+   },
+   "desktop_suggest_busy": {
+    "count": 1,
+    "max": 2.96,
+    "p50": 2.96,
+    "p95": 2.96
+   },
+   "desktop_suggest_first": {
+    "count": 1,
+    "max": 28.976,
+    "p50": 28.976,
+    "p95": 28.976
+   },
+   "desktop_suggest_first_busy": {
+    "count": 1,
+    "max": 0.204,
+    "p50": 0.204,
+    "p95": 0.204
+   },
+   "freeze_and_copy": {
+    "count": 1,
+    "max": 91.926,
+    "p50": 91.926,
+    "p95": 91.926
+   },
+   "freeze_and_copy_busy": {
+    "count": 1,
+    "max": 6.984,
+    "p50": 6.984,
+    "p95": 6.984
+   },
+   "open_warm_with_notes": {
+    "count": 1,
+    "max": 211.857,
+    "p50": 211.857,
+    "p95": 211.857
+   },
+   "open_warm_with_notes_busy": {
+    "count": 1,
+    "max": 32.884,
+    "p50": 32.884,
+    "p95": 32.884
+   },
+   "save_document": {
+    "count": 1,
+    "max": 114.783,
+    "p50": 114.783,
+    "p95": 114.783
+   },
+   "save_document_busy": {
+    "count": 1,
+    "max": 8.433,
+    "p50": 8.433,
+    "p95": 8.433
+   },
+   "terminal_export": {
+    "count": 10,
+    "max": 40.291,
+    "p50": 35.054,
+    "p95": 40.291
+   },
+   "terminal_note": {
+    "count": 512,
+    "max": 40.129,
+    "p50": 29.141,
+    "p95": 31.41
+   },
+   "terminal_round_read": {
+    "count": 1,
+    "max": 26.076,
+    "p50": 26.076,
+    "p95": 26.076
+   }
+  }
+ },
+ "targets": [
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "desktop_ms": 2131.451,
+   "enforced": true,
+   "limit": 3.0,
+   "met": true,
+   "phase": "open_cold_ratio",
+   "ratio": 0.92,
+   "terminal_ms": 2315.796,
+   "warmed": true
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "desktop_ms": 10459.359,
+   "enforced": true,
+   "limit": 3.0,
+   "met": true,
+   "phase": "open_cold_ratio",
+   "ratio": 1.003,
+   "terminal_ms": 10423.245,
+   "warmed": true
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 36,
+   "enforced": true,
+   "met": true,
+   "p95_ms": 0.477,
+   "phase": "typing_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 5,
+   "enforced": true,
+   "met": true,
+   "p95_ms": 4.077,
+   "phase": "navigation_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "cancel_offered": true,
+   "capture_ms": 1473.411,
+   "corpus": "small-files-1m-lines-v1",
+   "nothing_recorded_on_cancel": true,
+   "phase": "capture_progress_and_cancel",
+   "progress_shown": true,
+   "threshold_ms": 250.0
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "count": 151,
+   "enforced": true,
+   "met": true,
+   "p95_ms": 0.582,
+   "phase": "typing_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "count": 27,
+   "enforced": true,
+   "met": true,
+   "p95_ms": 4.326,
+   "phase": "navigation_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "cancel_offered": true,
+   "capture_ms": 6006.885,
+   "corpus": "tree-100k-files-v1",
+   "nothing_recorded_on_cancel": true,
+   "phase": "capture_progress_and_cancel",
+   "progress_shown": true,
+   "threshold_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": true,
+   "max_ms": 32.884,
+   "met": true,
+   "phase": "open_warm_with_notes_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": true,
+   "max_ms": 2.96,
+   "met": true,
+   "phase": "desktop_suggest_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": true,
+   "max_ms": 34.235,
+   "met": true,
+   "phase": "compose_open_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": true,
+   "max_ms": 6.984,
+   "met": true,
+   "phase": "freeze_and_copy_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": true,
+   "max_ms": 8.433,
+   "met": true,
+   "phase": "save_document_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": true,
+   "met": true,
+   "p95_ms": 67.264,
+   "phase": "desktop_suggest",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": true,
+   "met": true,
+   "p95_ms": 91.926,
+   "phase": "freeze_and_copy",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": true,
+   "met": true,
+   "p95_ms": 114.783,
+   "phase": "save_document",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "enforced": true,
+   "first_ms": 28.976,
+   "limit": 7.0,
+   "met": true,
+   "phase": "note_change_ratio",
+   "ratio": 2.321,
+   "round_ms": 67.264
+  }
+ ]
+}
