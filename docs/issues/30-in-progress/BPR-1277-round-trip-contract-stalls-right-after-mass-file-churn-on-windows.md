@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1277"
 title: "On Windows the round-trip composition contract stalls at its 5 s draft wait right after mass file churn"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
