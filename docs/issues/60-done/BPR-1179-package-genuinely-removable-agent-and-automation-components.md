@@ -64,3 +64,30 @@ macOS arm64 evidence:
 Owed to stations, not run here: Windows and Linux agent-free builds and
 packages, the full-graph regression on MSVC and GCC, and Windows replacement
 of one MSI variant by another. The commands are in the ledger.
+
+**Note: Linux run at `1d8b92642` (station `bpr-main-linux`, Ubuntu 26.04
+under WSL2, GCC 15.2.0, offscreen).**
+
+1. The reduced tree `build/bpr1179-off` (`dev` preset with
+   `BPR_BUILD_AGENT_INTEGRATIONS=OFF` and `BPR_BUILD_LOCAL_AUTOMATION=OFF`)
+   configured and built with no warnings, and 6 of 6 passed:
+   `application_review_cycle_automation_off_two_round`,
+   `application_review_cycle_publish_public_path`,
+   `application_review_cycle_desktop_public_path`,
+   `composed_application_hosts`, `architecture_boundaries` and
+   `review_cycle_dependency_closure`. `dev` is a Debug preset, so this tree
+   does not exercise `-O3`, and no warning needed a fix.
+2. The full `dev` build succeeded. `ctest --preset dev` passed 573 of 580 in
+   3,533 s. The 7 failures are the known ones:
+   - [[BPR-1255]]: the six `qt_workbench_title_row_scale_{100,125,200}` and
+     `qt_workbench_window_scale_{100,125,200}` rows, each failing on "no
+     review-bar control folds into an overflow menu at any width".
+   - [[BPR-1236]]: `application_profile_window_review_restoration_public_path`,
+     failing on "failed reading restoration preserves exact recorded
+     identities and sibling".
+
+   Nothing new failed.
+3. Not run: this station is Ubuntu 26.04, not the 24.04 package baseline, so
+   the `linux-package-agent-free` DEB is owed by a 24.04 station.
+
+Done is not reopened.
