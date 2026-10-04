@@ -150,6 +150,11 @@ namespace bpr::app {
 		/// Whether the reviewer has asked for a cycle, so a refusal is said on
 		/// the page rather than taking Home over at start.
 		bool Asked = false;
+		/// \brief [[BPR-1171]]. Whether the reviewer's own Open Project or resume
+		/// is still to be answered: only that answer brings the cycle page
+		/// forward. A projection after another interface wrote the cycle, or
+		/// after any background step, leaves Home or a pull request in front.
+		bool BringForward = false;
 	};
 }
 

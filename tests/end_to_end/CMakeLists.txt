@@ -3296,6 +3296,21 @@ if(TARGET app_bpr)
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_TWO_ROUND_OK"
         TIMEOUT 600)
+    # [[BPR-1171]]. One cycle through the desktop, the human terminal, a declared
+    # harness and a recipient who cannot reach bpr, and back, with the reviewer
+    # the two-round course drives: one golden payload in every interface; what
+    # the terminal and the harness are told with the desktop open equal to what
+    # they are told with it closed; the window's unsaved note and Home kept while
+    # other interfaces write; a draft the terminal changed restored on the next
+    # launch. Registered contained: Windows measures it before any pin.
+    bpr_add_network_isolated_test(NAME application_review_cycle_parity_public_path
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_parity_contract.py"
+        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
+        --cycle-application $<TARGET_FILE:app_bpr>)
+    set_tests_properties(application_review_cycle_parity_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_PARITY_OK"
+        TIMEOUT 600)
 endif()
 
 bpr_add_executable(test_profile_window_restart_public_path profile_window_restart_public_path_tests.cpp)

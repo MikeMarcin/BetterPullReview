@@ -227,7 +227,8 @@ namespace bpr::app {
 				}
 			},
 			[this](const core::local_cycle_subject& aSubject) {
-				Asked = true;
+				Asked        = true;
+				BringForward = true;
 				Host->resume(aSubject);
 			});
 		Host->refresh_recents();
@@ -274,10 +275,16 @@ namespace bpr::app {
 		}
 		View->present(aProjection);
 		if (aProjection.Cycle) {
-			Window.show_local_cycle(QString::fromUtf8(aProjection.Cycle->Title.data(), static_cast<qsizetype>(aProjection.Cycle->Title.size())));
+			const auto title = QString::fromUtf8(aProjection.Cycle->Title.data(), static_cast<qsizetype>(aProjection.Cycle->Title.size()));
+			if (std::exchange(BringForward, false)) {
+				Window.show_local_cycle(title);
+			} else {
+				Window.retitle_local_cycle(title);
+			}
 		} else if (!aProjection.Message.empty() && Asked) {
 			// A refusal before any cycle opened is said on the page it was
 			// asked from; one at start, from listing recents, leaves Home in place.
+			BringForward = false;
 			Window.show_local_cycle(QStringLiteral("Open Project"));
 		}
 		// Recents change when a cycle is created or first opened, not on every reading step.
@@ -296,7 +303,8 @@ namespace bpr::app {
 
 	void review_cycle_desktop::open_project(const std::string& aLocation)
 	{
-		Asked = true;
+		Asked        = true;
+		BringForward = true;
 		Host->open_project(aLocation);
 	}
 

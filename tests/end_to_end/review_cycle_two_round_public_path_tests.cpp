@@ -73,6 +73,11 @@
 /// dialogs are its own Qt dialogs (no native panel can be answered by a
 /// course), and the course names the path in them. Menus are chosen by their
 /// words. Each reply is one line, `REPLY <id> <json>`, of what the window shows.
+///
+/// [[BPR-1171]]'s parity course (`review_cycle_parity_contract.py`) drives the
+/// same reviewer beside the shipped `bpr cycle` and a declared harness: it adds
+/// a note left unsaved, a goal typed and not entered, and waits for what other
+/// interfaces wrote to reach the window.
 namespace {
 	using namespace bpr;
 	using access = app::detail::github_application_fixture_access;
@@ -278,7 +283,16 @@ namespace {
 				{ QStringLiteral("shown"), aPage.notes()->item(row)->text() },
 			});
 		}
-		object[QStringLiteral("notes")]     = notes;
+		object[QStringLiteral("notes")] = notes;
+		// [[BPR-1171]]. Every row the list shows, response rows after the notes included.
+		auto listed = QJsonArray{ };
+		for (auto row = 0; row < aPage.notes()->count(); ++row) {
+			listed.append(aPage.notes()->item(row)->text());
+		}
+		object[QStringLiteral("listed")] = listed;
+		// The note being written and not yet saved, and where the keyboard is.
+		auto* const editor                  = aPage.comment_editor();
+		object[QStringLiteral("editor")]    = QJsonObject{ { QStringLiteral("visible"), editor->isVisible() }, { QStringLiteral("text"), editor->toPlainText() }, { QStringLiteral("focused"), QApplication::focusWidget() == editor } };
 		object[QStringLiteral("responses")] = static_cast<qint64>(shown.Responses.size());
 		object[QStringLiteral("updates")]   = aPage.updates_line()->text();
 		object[QStringLiteral("message")]   = text_of(shown.Message);
@@ -299,12 +313,15 @@ namespace {
 		if (!shown) {
 			return object;
 		}
-		object[QStringLiteral("title")]  = sheet->title()->text();
-		object[QStringLiteral("round")]  = text_of(core::cycle_wire_name(shown->Round));
-		object[QStringLiteral("frozen")] = shown->Frozen;
-		object[QStringLiteral("goal")]   = text_of(shown->Selection.Goal);
-		object[QStringLiteral("status")] = sheet->status()->text();
-		auto rows                        = QJsonArray{ };
+		object[QStringLiteral("title")]    = sheet->title()->text();
+		object[QStringLiteral("round")]    = text_of(core::cycle_wire_name(shown->Round));
+		object[QStringLiteral("frozen")]   = shown->Frozen;
+		object[QStringLiteral("revision")] = static_cast<qint64>(shown->Draft.Revision);
+		object[QStringLiteral("field")]    = sheet->goal()->text();
+		object[QStringLiteral("modified")] = sheet->goal()->isModified();
+		object[QStringLiteral("goal")]     = text_of(shown->Selection.Goal);
+		object[QStringLiteral("status")]   = sheet->status()->text();
+		auto rows                          = QJsonArray{ };
 		for (const auto& row : sheet->rows()) {
 			rows.append(QJsonObject{ { QStringLiteral("item"), text_of(core::cycle_wire_name(row.Item)) }, { QStringLiteral("included"), row.Include->isChecked() } });
 		}
@@ -427,6 +444,46 @@ namespace {
 			if (verb == QStringLiteral("note")) {
 				return note(aCommand);
 			}
+			if (verb == QStringLiteral("draft-note")) {
+				return draft_note(aCommand);
+			}
+			if (verb == QStringLiteral("save-note")) {
+				const auto before = Page.projection().Notes.size();
+				click(*Page.findChild<QPushButton*>(QStringLiteral("cycleCommentSave")));
+				require(wait_for([&] { return idle(Page) && Page.projection().Notes.size() == before + 1U; }), "the note being written is saved and listed");
+				auto object                     = state(Window, Page);
+				object[QStringLiteral("added")] = item_name(Page.projection().Notes.back().Item);
+				return object;
+			}
+			if (verb == QStringLiteral("home")) {
+				// [[BPR-1171]]. Home, by its shortcut, over the open cycle.
+				reactivate(Window);
+				tests::window_system_key(Window, Qt::Key_0, Qt::ControlModifier);
+				require(wait_for([&] { return Window.showing_home(); }), "Home shows over the open cycle");
+				return state(Window, Page);
+			}
+			if (verb == QStringLiteral("wait-notes")) {
+				// [[BPR-1171]]. Until the window shows notes another interface wrote.
+				const auto count = static_cast<std::size_t>(aCommand[QStringLiteral("count")].toInteger());
+				require(wait_for([&] { return idle(Page) && Page.projection().Notes.size() >= count && Page.notes()->count() >= static_cast<int>(count); }), "the window shows " + std::to_string(count) + " notes");
+				return state(Window, Page);
+			}
+			if (verb == QStringLiteral("wait-responses")) {
+				const auto count = static_cast<std::size_t>(aCommand[QStringLiteral("count")].toInteger());
+				require(wait_for([&] { return idle(Page) && Page.projection().Responses.size() >= count; }), "the window shows " + std::to_string(count) + " responses");
+				return state(Window, Page);
+			}
+			if (verb == QStringLiteral("share-state")) {
+				// Until the open sheet shows a draft revision, or the round frozen, another interface made.
+				const auto revision = static_cast<std::uint64_t>(aCommand[QStringLiteral("revision")].toInteger());
+				const auto frozen   = aCommand[QStringLiteral("frozen")].toBool();
+				require(wait_for([&] {
+							const auto& shown = Page.projection().Share;
+							return idle(Page) && shown.has_value() && shown->Draft.Revision >= revision && (!frozen || shown->Frozen);
+						}),
+						"the sheet shows draft revision " + std::to_string(revision) + (frozen ? ", frozen" : ""));
+				return share_state(Page);
+			}
 			if (verb == QStringLiteral("suggest")) {
 				return suggest(aCommand);
 			}
@@ -442,7 +499,7 @@ namespace {
 				return include(aCommand[QStringLiteral("item")].toString(), aCommand[QStringLiteral("on")].toBool());
 			}
 			if (verb == QStringLiteral("goal")) {
-				return goal(aCommand[QStringLiteral("text")].toString());
+				return goal(aCommand[QStringLiteral("text")].toString(), !aCommand.contains(QStringLiteral("enter")) || aCommand[QStringLiteral("enter")].toBool(), aCommand[QStringLiteral("replace")].toBool());
 			}
 			if (verb == QStringLiteral("share")) {
 				return share(aCommand);
@@ -510,8 +567,17 @@ namespace {
 		auto resume(const QString& aTitle, const std::size_t aNotes) -> QJsonObject
 		{
 			Window.choose_home(true);
-			require(wait_for([&] { return Window.showing_home() && Window.home_cycles_list()->count() >= 1; }), "Home lists the recent cycle");
 			auto* list = Window.home_cycles_list();
+			// A cycle another interface opened a moment ago is listed once Home reads the store again.
+			const auto listed = [&] {
+				for (auto row = 0; row < list->count(); ++row) {
+					if (list->item(row)->text().contains(aTitle)) {
+						return true;
+					}
+				}
+				return false;
+			};
+			require(wait_for([&] { return Window.showing_home() && listed(); }), "Home lists the cycle " + utf8(aTitle));
 			for (auto row = 0; row < list->count(); ++row) {
 				if (list->item(row)->text().contains(aTitle)) {
 					const auto resumed = [&] { return Window.showing_local_cycle() && Page.projection().Cycle && idle(Page) && !Page.projection().Files.empty(); };
@@ -586,6 +652,19 @@ namespace {
 			return object;
 		}
 
+		/// \brief [[BPR-1171]]. A note typed on a selection and not saved: the
+		/// keyboard stays in it while other interfaces write the cycle.
+		auto draft_note(const QJsonObject& aCommand) -> QJsonObject
+		{
+			open_file(aCommand[QStringLiteral("path")].toString());
+			select(static_cast<std::uint64_t>(aCommand[QStringLiteral("start")].toInteger()), static_cast<std::uint64_t>(aCommand[QStringLiteral("end")].toInteger()));
+			reactivate(Window);
+			tests::window_system_key(*Page.source(), Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+			require(Page.comment_editor()->isVisible() && QApplication::focusWidget() == Page.comment_editor(), "Return opens a note on the selection; focus is on " + focus_name());
+			type(*Page.comment_editor(), aCommand[QStringLiteral("body")].toString());
+			return state(Window, Page);
+		}
+
 		auto suggest(const QJsonObject& aCommand) -> QJsonObject
 		{
 			open_file(aCommand[QStringLiteral("path")].toString());
@@ -656,11 +735,30 @@ namespace {
 			return share_state(Page);
 		}
 
-		auto goal(const QString& aText) -> QJsonObject
+		/// The goal typed into its field; with `aEnter` false it is left typed and
+		/// not entered; with `aReplace` it replaces the field's text.
+		auto goal(const QString& aText, const bool aEnter, const bool aReplace) -> QJsonObject
 		{
 			auto* const field = Page.share_page()->goal();
 			click(*field);
+			if (aReplace) {
+				// The key reaches the field once its window has the keyboard and the click gave it focus.
+				reactivate(*field->window());
+				require(wait_for([&] { return field->hasFocus(); }, 5000), "the click puts the keyboard in the goal; focus is on " + focus_name());
+				// End, then one Backspace per character: the first edit marks the field
+				// modified, so a sheet presented again meanwhile keeps what is typed (a
+				// selection alone is not an edit and does not survive that).
+				tests::window_system_key(*field, Qt::Key_End);
+				for (auto left = field->text().size(); left > 0; --left) {
+					tests::window_system_key(*field, Qt::Key_Backspace);
+				}
+				require(wait_for([&] { return field->text().isEmpty(); }, 5000), "the goal is emptied, one Backspace at a time");
+			}
 			type(*field, aText);
+			if (!aEnter) {
+				require(field->isModified(), "the goal field holds typed text");
+				return share_state(Page);
+			}
 			// Tab leaves the field, which saves it; Return would press the default route.
 			tests::window_system_key(*field, Qt::Key_Tab);
 			require(wait_for([&] { return idle(Page) && text_of(Page.projection().Share->Selection.Goal) == aText; }), "the goal is saved to the draft");

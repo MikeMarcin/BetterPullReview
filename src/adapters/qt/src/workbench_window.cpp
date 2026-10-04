@@ -6869,6 +6869,16 @@ namespace bpr::qt {
 		apply_strip_width();
 	}
 
+	void workbench_window::retitle_local_cycle(const QString& aTitle)
+	{
+		if (!LocalCycleShown || LocalCycleTitle == aTitle) {
+			return;
+		}
+		LocalCycleTitle = aTitle;
+		update_strip_identity();
+		apply_strip_width();
+	}
+
 	void workbench_window::leave_local_cycle()
 	{
 		if (!LocalCycleShown) {

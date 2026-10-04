@@ -1029,7 +1029,7 @@ namespace bpr::app {
 				}
 			}
 			if ((*edit || context) && !expected && !aCommand.Interactive) {
-				return fail("interaction_required", "A scripted change to the draft names the revision it read: --expected-revision N.", "bpr cycle review" + aCommand.named() + " --json");
+				return fail("interaction_required", "A scripted change to the draft names the revision it read: --expected-revision N.", "bpr cycle review" + aCommand.named());
 			}
 			auto session = open_session(aHost);
 			if (!session) {
@@ -1063,7 +1063,7 @@ namespace bpr::app {
 				const auto shown = draft->Preview.Draft.Revision;
 				if (expected && *expected != shown) {
 					return fail("stale_revision", "The draft is at revision " + std::to_string(shown) + ", not " + std::to_string(*expected) + "; read it again. Nothing was changed.",
-								"bpr cycle review " + name + " --json", QJsonObject{ { "draft_revision", decimal(shown) } });
+								"bpr cycle review " + name, QJsonObject{ { "draft_revision", decimal(shown) } });
 				}
 				auto edited = checked(owned.await<application::cycle_share_draft>([&](auto aDone) { return owned.runtime().edit_share_selected(owned.operation(), draft->Preview.Draft.Id, shown, **edit, std::move(aDone)); }));
 				if (!edited) {
@@ -1115,7 +1115,7 @@ namespace bpr::app {
 				return fail("interaction_required", "Freezing names the draft revision you read: --expected-revision " + std::to_string(shown) + ".",
 							"bpr cycle freeze " + name + " --expected-revision " + std::to_string(shown), QJsonObject{ { "draft_revision", decimal(shown) }, { "round", wire(draft->Preview.Round) } });
 			}
-			const auto retry = "bpr cycle review " + name + " --json";
+			const auto retry = "bpr cycle review " + name;
 			if (draft->Preview.Draft.Revision != *expected) {
 				return fail("stale_revision", "The draft is at revision " + std::to_string(draft->Preview.Draft.Revision) + ", not " + std::to_string(*expected) + "; read it again. Nothing was frozen.", retry,
 							QJsonObject{ { "draft_revision", decimal(draft->Preview.Draft.Revision) } });

@@ -145,8 +145,14 @@ shown; `export --output -` receives the bytes, writes them, then sends what
 happened (`export record`). Files named by `export --output` and `response
 import --file` are written and read by the owner, as the same user.
 
-Windows showing the cycle read it again after a command writes it. While the
-desktop shows the next round's draft:
+Windows showing the cycle read it again after a command writes it. Reading
+again moves no window ([[BPR-1171]]): Home, a pull request or another cycle in
+front stays in front, a note being written keeps its text and the keyboard,
+and only the reviewer's own Open Project or resume brings a cycle's page
+forward. What the terminal and a harness are told does not depend on whether
+the desktop is open: the same words, data, pages, source bytes and refusals
+either way, because the owner runs the same command code. While the desktop
+shows the next round's draft:
 
 - a goal typed and not yet entered is saved first, so `review` reads it and a
   `freeze` against the revision before it is `stale_revision`, never a round

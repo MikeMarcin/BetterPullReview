@@ -691,6 +691,9 @@ namespace bpr::qt {
 		/// \brief Shows the local cycle page, titled in the title row with its
 		/// Local cycle badge. A pull request stays open behind it.
 		void show_local_cycle(const QString& aTitle);
+		/// \brief [[BPR-1171]]. Keeps the local cycle's title current without
+		/// moving the window: Home or a pull request in front stays in front.
+		void retitle_local_cycle(const QString& aTitle);
 		/// \brief Returns to Home or to the open pull request.
 		void               leave_local_cycle();
 		[[nodiscard]] auto showing_local_cycle() const noexcept -> bool;
