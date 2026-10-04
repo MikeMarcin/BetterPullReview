@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1275"
 title: "The large-project course charged a Windows host's first scan of freshly written files to the desktop's cold open"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"origin":"BPR-1184 large-project course, Windows Release at 61c96b9a3 (bpr-main-win)","reservation":"docs/issues/_reservations/BPR-1275--BPR-1276--cc9fb8ce4d80.json","related_cards":["BPR-1184","BPR-1276"]}
+acceptance: [{"criterion":"BPR-1275:cause","outcome":"pass","revision":"0fc1c1246","evidence":{"kind":"observation","path":"tests/end_to_end/review_cycle_large_project_contract.py","detail":"Not the desktop path: the host's first open of freshly written files (about 5 ms a file, Defender real-time and on-access on), charged to the desktop because the course drove it first on each new corpus. Probes: the desktop's first capture was slow throughout (4.3-7.2 s per 1,024 entries against 0.33 s), install_all 6.6 s in all, BEGIN IMMEDIATE never waited, and its second capture ran at the terminal's pace. Fresh 20k folder, no desktop: bpr cycle open 102,009 ms first, 7,680 ms again; plain Python read 99,044 ms first, 1,732 ms second; bpr cycle open after it 7,605 ms."}},{"criterion":"BPR-1275:pin-and-negative-control","outcome":"pass","revision":"0fc1c1246","evidence":{"kind":"command","path":"tests/end_to_end/review_cycle_large_project_contract.py","detail":"Untimed first read of each corpus, kept as corpus.first_read_ms. In optimized builds the desktop's cold open must stay within COLD_OPEN_RATIO_LIMIT 3.0 of bpr cycle open. Windows Release, 20k: warmed, 7,758.4 / 7,735.2 ms, ratio 1.003, pass. With --no-warm-up, 108,280.0 / 8,124.0 ms, ratio 13.328, and the course fails with the pin's message."}},{"criterion":"BPR-1275:windows-report","outcome":"pass","revision":"da6e49e9f","evidence":{"kind":"command","path":"docs/verification/BPR-1184-large-project/windows-release-report.json","detail":"application_review_cycle_large_project passed 1/1 in 1,629.14 s at c906b0e7e, Windows Release, uncontained as pinned. Report byte for byte, SHA-256 e865a9a94518295a9c3243ad38398329542e6964f4df135ef31adb0648cd744e; failures empty; cold-open ratios 1.033 (20k) and 1.027 (100k)."}},{"criterion":"BPR-1275:boundary","outcome":"pass","revision":"da6e49e9f","evidence":{"kind":"command","path":"scripts/verify_test_network_isolation.py","detail":"Test-only change. architecture_boundaries and test_network_isolation_manifest pass in windows-dev at da6e49e9f; the round-trip composition pin check (source-only) prints PIN_CHECK_OK. The contract's runtime run stalls at its 5 s draft cap on this host (REVIEW_ROUND_TRIP_DRAFT_STALLED) with product source unchanged since it last passed at d8fa5bfc2; reported separately."}}]
 ---
 
 # BPR-1275: The large-project course charged a Windows host's first scan of freshly written files to the desktop's cold open
