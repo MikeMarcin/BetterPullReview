@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1183"
 title: "Run hostile input, data-loss and mixed-cycle recovery corpus"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0054", "RFC-BPR-0056", "RFC-BPR-0060"]
 depends_on: ["BPR-1152", "BPR-1160", "BPR-1165", "BPR-1178", "BPR-1181"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "qualification", "acceptance": ["RC54-03", "RC56-05", "RC60-05", "RC60-06"], "pack_alias": "PACK-CYCLE-41", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
