@@ -351,7 +351,7 @@ namespace bpr::qt {
 			return expanded;
 		}
 
-		/// \brief A note's "Show Code" control: words in the link colour, at the
+		/// \brief A note's "Show Change" control: words in the link colour, at the
 		/// trailing end of the note's second line, and no glyph.
 		/// \details The owner read v003's arrow beside the include box as a
 		/// second check mark (BPR-1161, event 921). Words say what a click does,
@@ -379,7 +379,7 @@ namespace bpr::qt {
 				updateGeometry();
 			}
 
-			/// What it says while the note is closed ("Show Code") and open ("Hide Code").
+			/// What it says while the note is closed ("Show Change") and open ("Hide Change").
 			void set_words(const QString& aClosed, const QString& aOpen)
 			{
 				Closed = aClosed;
@@ -919,10 +919,10 @@ namespace bpr::qt {
 		notesHeader->addWidget(NotesHeading, 1);
 		AllCode = new QToolButton{ this };
 		AllCode->setObjectName(QStringLiteral("cycleShareAllCode"));
-		AllCode->setText(QStringLiteral("Show All Code"));
+		AllCode->setText(QStringLiteral("Show All Changes"));
 		AllCode->setAutoRaise(true);
 		AllCode->setCheckable(true);
-		AllCode->setToolTip(QStringLiteral("Open or close every note's code at once"));
+		AllCode->setToolTip(QStringLiteral("Open or close every note's change at once"));
 		notesHeader->addWidget(AllCode);
 		column->addLayout(notesHeader);
 		connect(AllCode, &QToolButton::clicked, this, [this](const bool aOpen) {
@@ -1305,8 +1305,8 @@ namespace bpr::qt {
 		row.Where->setWordWrap(true);
 		row.Where->setForegroundRole(QPalette::PlaceholderText);
 		grid->addWidget(row.Where, 1, 3);
-		// Show Code sits at the end of the second line, under what the note is,
-		// in the column of Show All Code, and away from the include box: v003's
+		// Show Change sits at the end of the second line, under what the note is,
+		// in the column of Show All Changes, and away from the include box: v003's
 		// arrow beside the box read as a second check mark (event 921).
 		auto* const toggle = new note_code_toggle{ row.Row };
 		toggle->set_line(row.Where);
@@ -1406,7 +1406,7 @@ namespace bpr::qt {
 		const auto readable = aContext != nullptr && aContext->Status == application::review_material_status::available && !aContext->Excerpt.Rows.empty();
 		aRow.Disclose->setVisible(file || !rest.isEmpty());
 		// A note about no file has only the rest of its words to show.
-		static_cast<note_code_toggle*>(aRow.Disclose)->set_words(file ? QStringLiteral("Show Code") : QStringLiteral("Show More"), file ? QStringLiteral("Hide Code") : QStringLiteral("Show Less"));
+		static_cast<note_code_toggle*>(aRow.Disclose)->set_words(file ? QStringLiteral("Show Change") : QStringLiteral("Show More"), file ? QStringLiteral("Hide Change") : QStringLiteral("Show Less"));
 		if (readable) {
 			aRow.Code->show_excerpt(aContext->Excerpt, aContext->Path);
 			aRow.Code->fit_rows(inline_rows);
@@ -1454,7 +1454,7 @@ namespace bpr::qt {
 		const auto open     = std::ranges::count_if(Rows, [](const note_row& aRow) { return !aRow.Disclose->isHidden() && aRow.Disclose->isChecked(); });
 		const auto all      = openable > 0 && open == openable;
 		AllCode->setChecked(all);
-		AllCode->setText(all ? QStringLiteral("Hide All Code") : QStringLiteral("Show All Code"));
+		AllCode->setText(all ? QStringLiteral("Hide All Changes") : QStringLiteral("Show All Changes"));
 		AllCode->setEnabled(openable > 0);
 		place();
 	}

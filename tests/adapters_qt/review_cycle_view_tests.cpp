@@ -1232,12 +1232,12 @@ namespace {
 			   "where, with its line, and what it is");
 		expect(rows[0].Disclose->isHidden() && !rows[1].Disclose->isHidden() && !rows[1].Detail->isVisible() && !rows[1].Code->isVisible(), "no code shown until asked; nothing to disclose for a one-line note about no file");
 		// Owner verdict 921 on v003: the arrow beside the include box read as a
-		// second check mark. Show Code is words, in the link colour, at the end
+		// second check mark. Show Change is words, in the link colour, at the end
 		// of the note's second line under what the note is, and away from the box.
 		{
 			auto* const toggle = rows[1].Disclose;
-			expect(toggle->text() == QStringLiteral("Show Code") && toggle->arrowType() == Qt::NoArrow && toggle->icon().isNull() && toggle->isCheckable() && !toggle->isChecked(), "a note's code is behind the words Show Code, not a glyph");
-			expect(toggle->accessibleName() == QStringLiteral("Show Code: Rename this.") && toggle->toolTip() == QStringLiteral("Show Code (Right)"), "its name begins with the words shown, then names the note");
+			expect(toggle->text() == QStringLiteral("Show Change") && toggle->arrowType() == Qt::NoArrow && toggle->icon().isNull() && toggle->isCheckable() && !toggle->isChecked(), "a note's change is behind the words Show Change, not a glyph");
+			expect(toggle->accessibleName() == QStringLiteral("Show Change: Rename this.") && toggle->toolTip() == QStringLiteral("Show Change (Right)"), "its name begins with the words shown, then names the note");
 			const auto box     = QRect{ rows[1].Include->mapTo(rows[1].Row, QPoint{ }), rows[1].Include->size() };
 			const auto at      = QRect{ toggle->mapTo(rows[1].Row, QPoint{ }), toggle->size() };
 			const auto where   = QRect{ rows[1].Where->mapTo(rows[1].Row, QPoint{ }), rows[1].Where->size() };
@@ -1248,7 +1248,7 @@ namespace {
 			const auto allRight = sheet->all_code_button()->mapToGlobal(QPoint{ sheet->all_code_button()->width() - 1, 0 }).x();
 			const auto ownRight = toggle->mapToGlobal(QPoint{ toggle->width() - 1, 0 }).x();
 			expect(std::abs(at.right() - kind.right()) <= 1 && std::abs(ownRight - allRight) <= 24,
-				   "at the trailing edge, under what the note is and in Show All Code's column");
+				   "at the trailing edge, under what the note is and in Show All Changes' column");
 			// Rendered: the words' ink is the link colour, never the text colour.
 			const auto link  = toggle->palette().color(QPalette::Link);
 			const auto plain = toggle->palette().color(QPalette::WindowText);
@@ -1265,7 +1265,7 @@ namespace {
 			expect(!colour_near(link, plain), "the link and text colours can be told apart");
 			tests::window_system_mouse(*rows[1].Heading, QPointF{ 2.0, 2.0 }, QEvent::MouseMove, Qt::NoButton);
 			const auto resting = inks(link);
-			expect(resting > 0 && inks(plain) == 0, "Show Code is painted in the link colour and none of it in the text colour");
+			expect(resting > 0 && inks(plain) == 0, "Show Change is painted in the link colour and none of it in the text colour");
 			tests::window_system_mouse(*toggle, QPointF{ toggle->rect().center() }, QEvent::MouseMove, Qt::NoButton);
 			expect(toggle->underMouse() && inks(link) > resting, "a hover underlines it");
 			tests::window_system_mouse(*rows[1].Heading, QPointF{ 2.0, 2.0 }, QEvent::MouseMove, Qt::NoButton);
@@ -1278,7 +1278,7 @@ namespace {
 			QApplication::setFont(smaller, "QToolButton");
 			settle();
 			const auto rowHeight = QFontMetrics{ rows[1].Where->font() }.height();
-			expect(QFontMetrics{ toggle->font() }.height() < rowHeight && toggle->sizeHint().height() == rowHeight + 2, "Show Code in the row's font, not a tool button's smaller one");
+			expect(QFontMetrics{ toggle->font() }.height() < rowHeight && toggle->sizeHint().height() == rowHeight + 2, "Show Change in the row's font, not a tool button's smaller one");
 			// Rendered: the words' ink is as tall as the row's font draws them.
 			{
 				const auto pixmap = toggle->grab();
@@ -1293,7 +1293,7 @@ namespace {
 						}
 					}
 				}
-				const auto expected = QFontMetrics{ rows[1].Where->font() }.tightBoundingRect(QStringLiteral("Show Code")).height() * pixmap.devicePixelRatio();
+				const auto expected = QFontMetrics{ rows[1].Where->font() }.tightBoundingRect(QStringLiteral("Show Change")).height() * pixmap.devicePixelRatio();
 				expect(bottom >= top && (bottom - top + 1) >= 0.85 * expected, "and painted at the row's size");
 			}
 			QApplication::setFont(kept, "QToolButton");
@@ -1318,9 +1318,9 @@ namespace {
 		tests::window_system_clicks(*rows[1].Disclose, QPointF{ rows[1].Disclose->rect().center() }, 1);
 		settle();
 		auto* const code = rows[1].Code;
-		expect(rows[1].Detail->isVisible() && code->isVisible() && rows[1].Disclose->isChecked() && rows[1].Disclose->text() == QStringLiteral("Hide Code")
-				   && rows[1].Disclose->accessibleName() == QStringLiteral("Hide Code: Rename this.") && rows[1].Disclose->toolTip() == QStringLiteral("Hide Code (Left)"),
-			   "Show Code opens the note's code, and then says Hide Code");
+		expect(rows[1].Detail->isVisible() && code->isVisible() && rows[1].Disclose->isChecked() && rows[1].Disclose->text() == QStringLiteral("Hide Change")
+				   && rows[1].Disclose->accessibleName() == QStringLiteral("Hide Change: Rename this.") && rows[1].Disclose->toolTip() == QStringLiteral("Hide Change (Left)"),
+			   "Show Change opens the note's change, and then says Hide Change");
 		expect(QApplication::focusWidget() == rows[1].Disclose, "and takes focus, so Left and Right work from there");
 		expect(row_kinds(*code)
 				   == std::vector{ core::cycle_excerpt_row_kind::context, core::cycle_excerpt_row_kind::context, core::cycle_excerpt_row_kind::removed, core::cycle_excerpt_row_kind::added, core::cycle_excerpt_row_kind::context,
@@ -1384,11 +1384,11 @@ namespace {
 		aView.present(shown);
 		settle();
 
-		// Show All Code, and the exact text, also over the sheet.
+		// Show All Changes, and the exact text, also over the sheet.
 		tests::window_system_clicks(*sheet->all_code_button(), QPointF{ sheet->all_code_button()->rect().center() }, 1);
-		expect(!sheet->rows()[1].Detail->isVisible() && sheet->all_code_button()->text() == QStringLiteral("Show All Code"), "all open, so it closes them all");
+		expect(!sheet->rows()[1].Detail->isVisible() && sheet->all_code_button()->text() == QStringLiteral("Show All Changes"), "all open, so it closes them all");
 		tests::window_system_clicks(*sheet->all_code_button(), QPointF{ sheet->all_code_button()->rect().center() }, 1);
-		expect(sheet->rows()[1].Detail->isVisible() && sheet->all_code_button()->text() == QStringLiteral("Hide All Code"), "and opens them all");
+		expect(sheet->rows()[1].Detail->isVisible() && sheet->all_code_button()->text() == QStringLiteral("Hide All Changes"), "and opens them all");
 		tests::window_system_clicks(*sheet->exact_text_button(), QPointF{ sheet->exact_text_button()->rect().center() }, 1);
 		expect(viewer->isVisible() && !viewer->showing_code() && viewer->text()->toPlainText() == QStringLiteral("# Review round F1\n\nImplement the following feedback.\n") && viewer->text()->isReadOnly(),
 			   "the exact text, read-only");
