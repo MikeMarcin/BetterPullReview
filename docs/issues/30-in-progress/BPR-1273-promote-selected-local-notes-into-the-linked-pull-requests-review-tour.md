@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1273"
 title: "Promote selected local notes into the linked pull request's Review Tour"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0059", "RFC-BPR-0061"]
 depends_on: ["BPR-1177"]
 priority: "P3"
