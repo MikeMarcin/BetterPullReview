@@ -229,7 +229,7 @@ namespace bpr::application {
 				publish();
 				return;
 			}
-			Tours.load(*Target, { }, guarded([](implementation& aSelf, review_cycle_tour_result aLoaded) {
+			Tours.load(*Target, { }, guarded([](implementation& aSelf, const review_cycle_tour_result& aLoaded) {
 				auto& shown = *aSelf.View;
 				shown.Busy  = false;
 				if (!aLoaded) {
@@ -302,7 +302,7 @@ namespace bpr::application {
 			}
 			// The tour's receipts are read first: a request it already answered
 			// (its answer lost, or its process killed) is never sent again.
-			Tours.load(*Target, Promotions[Pending.front()]->RequestId, guarded([](implementation& aSelf, review_cycle_tour_result aLoaded) {
+			Tours.load(*Target, Promotions[Pending.front()]->RequestId, guarded([](implementation& aSelf, const review_cycle_tour_result& aLoaded) {
 				if (!aLoaded) {
 					aSelf.unanswered();
 					return;
@@ -329,7 +329,7 @@ namespace bpr::application {
 			request.Origin        = tour_presentation_origin::desktop;
 			request.RequestId     = promotion.RequestId;
 			request.Digest        = promotion.Digest;
-			Tours.execute(*Target, std::move(request), guarded([read = aDraft.Revision](implementation& aSelf, review_cycle_tour_result aDone) {
+			Tours.execute(*Target, std::move(request), guarded([read = aDraft.Revision](implementation& aSelf, const review_cycle_tour_result& aDone) {
 				auto& row = aSelf.View->Rows[aSelf.Pending.front()];
 				if (aDone) {
 					// A receipt from before this read answers an earlier request: the stop was there already.

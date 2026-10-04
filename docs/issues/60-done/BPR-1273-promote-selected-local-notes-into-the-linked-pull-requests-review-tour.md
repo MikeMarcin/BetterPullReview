@@ -93,3 +93,26 @@ GCC compiled `tests/core/review_cycle_promotion_tests.cpp` under `-Werror`
 with no diagnostic at line 179 or elsewhere, so the possibly ignored
 `[[nodiscard]]` result Clang flagged is not rejected here and nothing changed.
 Done is not reopened.
+
+**Note: a GCC `-O3` false positive, fixed (station `bpr-main-linux`).** The
+Linux Release tree (`app-release`, GCC 15.2.0, `-O3 -Werror`) refused
+`src/application/src/review_cycle_promotion.cpp:342` with
+`-Werror=maybe-uninitialized` on `aDone.error()`. The flagged object was the
+`review_cycle_tour_result` temporary that `guarded` move-constructs (`:133`)
+for a lambda's by-value parameter. The Debug tree never warned. The three
+read-only completion lambdas (`Tours.load` twice, `Tours.execute`) now take
+`const review_cycle_tour_result&`. The reference names the posted closure's
+own `value`, which lives for the call, and `observe` and `request` take
+`const core::review_tour&`; behavior is unchanged.
+
+Evidence:
+
+- The Release target set builds at `-O3 -Werror`.
+- The `dev` tree passes the 16-row BPR-1273 selection again, including
+  `review_cycle_publication_matrix` (which drives the promoter),
+  `application_review_round_trip_composition_contract` and
+  `architecture_boundaries`.
+- clang-format 22 is clean.
+
+No reseal: the round-trip pins cover `src/app`, not `src/application`, and the
+contract passes. Done is not reopened.
