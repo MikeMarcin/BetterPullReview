@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1278"
 title: "Next file stops advancing when a capture completes mid-navigation"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
