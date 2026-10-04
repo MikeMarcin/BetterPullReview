@@ -60,3 +60,15 @@ are in the [execution ledger](../../verification/RFC-BPR-0053-0061.md), under
 Not gating; the commands are in the ledger section above. The new row is
 pinned `dos-volume-name` on Windows by its shape and is owed a contained
 measurement there.
+
+**Note: Linux run at `4f8d24185` (station `bpr-main-linux`, WSL2, `build/dev`,
+offscreen).** The build succeeded and 7 of 7 passed:
+`review_cycle_publication_matrix` (18.4 s), `review_cycle_publisher`,
+`review_cycle_publish_desk`, `application_review_cycle_publish_public_path`,
+`application_review_cycle_desktop_public_path` and `qt_review_cycle_view_1_0`
+and `_2_0`. Run verbose, the matrix printed `pass (22 cases)`, with no case
+failing. The cases are `authorized`; `before-`/`after-` each of blob, tree,
+commit, branch and pull; `after-pull-reread`; `recovery-killed`;
+`lost-pull-answer`; `not-sent-branch`; `base-moved`; `branch-taken`;
+`branch-moved`; `pull-raced`; `pull-ambiguous`; `head-pushed`; and
+`cancel-after-tree`. Done is not reopened.
