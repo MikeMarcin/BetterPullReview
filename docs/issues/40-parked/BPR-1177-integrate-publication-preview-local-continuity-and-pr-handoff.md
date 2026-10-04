@@ -77,3 +77,27 @@ media are that build's course rendered natively on cocoa.
 ## Owed platform runs
 
 Not gating; the commands are in the ledger section above.
+
+**Note: Linux run at `8fab05419` (station `bpr-main-linux`, WSL2, `build/dev`,
+offscreen): 8 of 9 pass; `application_review_cycle_publish_public_path`
+fails.** The build succeeded. These pass: `core_review_cycle_association`,
+`sqlite_review_cycle_storage`, `review_cycle_publish_desk`,
+`review_cycle_publisher`, `application_github_host`, `github_provider`,
+`application_review_round_trip_composition_contract` and
+`architecture_boundaries`. The course fails the same way three times, in the
+selection and twice alone, at about 61 s each:
+
+```text
+FAILED: the window opens pull request #17 in the existing workflow: 
+```
+
+Every step before it passes: plan, publish, link as #17, link #21 by hand, and
+Open Pull Request leaving the local cycle. After that the strip identity stays
+empty for 60 s. A temporary, uncommitted diagnostic dumped the window's labels
+at that point. The window was on Home, signed out (`serverCardState` "Signed
+out", `workbenchStatus` "Not signed in. Public pull requests open
+read-only."), with "Sign in to continue to github.com" on the Open field. A
+`sharedSignInDialog` titled "Sign in to github.com" was open, so the pull
+request never opened. On the same build,
+`application_profile_multi_window_public_path`, which also starts
+`profile_window_restoration_v1` signed out, passes. Not changed here.
