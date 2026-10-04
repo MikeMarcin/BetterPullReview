@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1161"
 title: "Expose share routes and exact delivery observations in the GUI"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0056", "RFC-BPR-0061"]
 depends_on: ["BPR-1156", "BPR-1157", "BPR-1159"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "portable-rounds", "acceptance": ["RC56-07", "RC56-10", "RC61-05", "RC61-06"], "pack_alias": "PACK-CYCLE-19", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "related_issues": ["BPR-1212"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view)."}},{"criterion":"RC61-05","outcome":"pending","revision":"705d72a38","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"v001 (the Compose feedback page) rejected at event 834; direction A chosen at 860; v002 (the Share notes sheet, 324c17826) rejected at event 895 because a note's code was not aligned, not syntax coloured and not visibly in a monospace face; fixed at 3b5f405be. v003 (3b5f405be) rejected at event 921 (decision b2c9c342-35c7-416c-99a6-f8103cbe52d7): the per-note disclosure arrow looked too much like the include check mark beside it. Since then each note's code is behind the words Show Code / Hide Code at the trailing end of the note's second line, in Show All Code's column, in the link colour, in the labels' font, with a hover underline; the arrow is gone (74b73dabc, fd5c60cfe, 705d72a38). Automated: qt_review_cycle_view_1_0/_2_0 (placement, link-colour ink, hover underline, row font and painted size, names, keys) and application_review_cycle_desktop_public_path pass with six negative controls, and the 3b5f405be alignment and colour checks still pass. Asked again as BPR-1161-compose-share-v004 in the new session f18e0aba4e53e518cd4f57a4dbcfc475 (state /Users/jaeger/.mask/attended-review/owner-review-20261003-recent-v001), on the self-contained frozen build /Users/jaeger/bpr1161-share-review-v004.7nsinp (app sha256 9a60ac9c...dc66a6, --code-font-probe CODE_FONT_OK); the owner's judgment is pending."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The rebuilt share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"705d72a38","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"At 705d72a38 on macOS: the 18-row BPR-1161 selection incl. architecture_boundaries and test_network_isolation_manifest, and all 118 qt_ rows pass (132 rows in one run); clang-format and clang-tidy clean on every changed unit. At 3b5f405be the same on macOS, Linux 17/17 and Windows 18/18. Earlier at 324c17826: the 52-row review-cycle selection and core-only's 24 core_review_cycle rows. Linux and Windows runs at 705d72a38 owed (commands on the card)."}}]
+acceptance: [{"criterion":"RC56-07","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"macOS arm64 core_review_cycle_share, sqlite_review_cycle_storage, review_cycle_workbench, qt_review_cycle_view_* and the desktop course: copied/saved/retrieved/accepted/acknowledged admitted only from channels that can show them, for this round and digest; copied only when the platform clipboard returns the same text (else uncertain); saved under the file name only; each listed in its own words with 'none means received, read, acted on or accepted'; no note status changes; persisted across restart. Negative controls fail. Kept by the share sheet: macOS 132/132 at 9cc3087d2, Linux 17/17 and Windows 18/18 at 17691bc63."}},{"criterion":"RC56-10","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every route equals authorize's reviewer export over 225 classification/channel/setting rows, and a granted harness's retrieval gets the same answer; a clipboard denied for an unclassified plain folder copies, records and freezes nothing, says so, writes no file instead, and Save keeps its own decision (core_review_cycle_share, review_cycle_workbench, qt_review_cycle_view). Same platform runs as RC56-07."}},{"criterion":"RC61-05","outcome":"pass","revision":"9cc3087d2","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-compose-share-v004 on the frozen build of 705d72a38 (app sha256 9a60ac9c...dc66a6), session f18e0aba4e53e518cd4f57a4dbcfc475, event 7, decision 3112850a-79bd-40d4-8ecd-323d7e2776d1, fingerprint 5d55ba64...a230b5, handed back at 9, note: 'Should probably be show change instead of show code... there can be non-code in these PRs. Otherwise I accept with that minor change.' Recorded as an Accept conditioned on that wording and as an owner amendment to the labels (criterion text unchanged). Applied at 9cc3087d2: Show Change / Hide Change, Show All Changes / Hide All Changes, names and tooltips follow. macOS arm64: 18-row BPR-1161 selection plus all qt_ rows 132/132; restoring 'Show Code' fails qt_review_cycle_view_1_0 and application_review_cycle_desktop_public_path. Released by name at event 10."}},{"criterion":"RC61-06","outcome":"pass","revision":"7a385389cdf0f544cec5724d28104de8d106dfe9","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner Accept of BPR-1161-delivery-words-v001 on the frozen app dc64a2c2...0f2128 (session cbd48b91, event 859, decision d63bf276-9711-4c39-8866-556a938dfd35, empty note): each delivery observation said apart in its own words, none claiming more. Automated share passes (each observation kind worded apart; external route only when reachable, shows the exact invocation, records and starts nothing). The share sheet keeps these words and the caption verbatim."}},{"criterion":"BPR-1161:boundary","outcome":"pass","revision":"9cc3087d2","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"At 9cc3087d2 on macOS arm64 dev: the 18-row BPR-1161 selection incl. architecture_boundaries and test_network_isolation_manifest and all 118 qt_ rows pass (132 rows in one run); clang-format and git diff --check clean. At 705d72a38 the same plus clang-tidy on the changed units. Linux 17/17 and Windows 18/18 at 17691bc63 (contains 3b5f405be). Linux and Windows reruns at 9cc3087d2 are recorded on the card as owed and not gating (widget text only)."}}]
 ---
 
 Pack alias: **PACK-CYCLE-19** (live `BPR-1161`, allocated at import).
@@ -891,3 +890,73 @@ cmake --build --preset windows-dev; ctest --preset windows-dev -j4 --output-on-f
 On both, `qt_review_cycle_view_*` still prints `note code X inks: …`. The
 column-4 inks must be equal, and so must the column-8 inks. The new toggle
 checks run in the same rows.
+
+## Owner verdict at hand-back 9: v004 accepted, with "Show Change" (2026-10-04)
+
+Read with `status --after 6` in session `f18e0aba4e53e518cd4f57a4dbcfc475`
+(state `/Users/jaeger/.mask/attended-review/owner-review-20261003-recent-v001`).
+`BPR-1161-compose-share-v004` (RC61-05) was **accepted** at event 7, decision
+`3112850a-79bd-40d4-8ecd-323d7e2776d1`, fingerprint `5d55ba64…a230b5`, on the
+frozen build of `705d72a38` (app SHA-256 `9a60ac9c…dc66a6`). The owner handed
+back at 9. The note, verbatim:
+
+> Should probably be show change instead of show code... there can be non-code in these PRs. Otherwise I accept with that minor change.
+
+**Owner amendment.** The Accept is conditioned on that wording, and the
+wording is an owner amendment to the sheet's labels, recorded apart from the
+observation. RC61-05's text is unchanged. The owner already accepted the
+change, so it is not asked again.
+
+**Change, `9cc3087d2`.**
+
+| Before | After |
+|---|---|
+| Show Code / Hide Code (a note's toggle) | Show Change / Hide Change |
+| Show All Code / Hide All Code (the sheet's button) | Show All Changes / Hide All Changes |
+| "Open or close every note's code at once" (its tooltip) | "Open or close every note's change at once" |
+
+The accessible names and tooltips follow the shown words ("Show Change:
+Rename this.", "Show Change (Right)", "Hide Change (Left)"). Show More and
+Show Less, for a note about no file, do not conflict and stay. Placement,
+colour, font, keys, the excerpt and Show the Whole File are unchanged.
+
+**Verification (macOS arm64, `build/dev` Debug, offscreen, at `9cc3087d2`).**
+
+- The 18-row BPR-1161 selection with all `qt_` rows: 132 of 132 pass.
+- Negative control: the toggle's closed words put back to "Show Code" fail
+  `qt_review_cycle_view_1_0` and `application_review_cycle_desktop_public_path`;
+  both pass again after the revert.
+- clang-format on the three changed files and `git diff --check` are clean.
+
+**Reconciliation.**
+
+| Criterion | Outcome | Evidence |
+|---|---|---|
+| RC56-07 | Pass | Automated share at `7a385389c` (macOS), kept by the share sheet; Linux at `ef058e602` and `17691bc63`, Windows at `17691bc63` |
+| RC56-10 | Pass | 225 classification/channel/setting rows equal authorize's export; a denied clipboard records and freezes nothing; same platforms |
+| RC61-05 | Pass | Owner Accept of v004 (event 7) with the amended wording applied at `9cc3087d2` |
+| RC61-06 | Pass | Owner Accept of `BPR-1161-delivery-words-v001` (session `cbd48b91…`, event 859); the words and caption kept verbatim |
+| Boundary | Pass | macOS at `9cc3087d2` above; Linux 17/17 and Windows 18/18 at `17691bc63` |
+
+Both items were released by candidate name at events 10 and 11; the
+consumed cursor is 11. The card is Done. It was the dependency [[BPR-1166]] and [[BPR-1177]] waited on.
+
+### Owed platform runs at `9cc3087d2`
+
+Not gating: Qt widget text only, on code Linux and Windows last ran at
+`17691bc63`. Linux station (`build/dev`):
+
+```sh
+git pull --rebase --autostash && cmake --build --preset dev && ctest --preset dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^architecture_boundaries$"
+```
+
+Windows station (`build/windows-dev`):
+
+```powershell
+git pull --rebase --autostash; cmake --build --preset windows-dev; ctest --preset windows-dev -j4 --output-on-failure -R "^core_review_cycle_share$|^core_review_cycle_policy$|^sqlite_review_cycle_storage$|^review_cycle_(workbench|round|export|bundle|verification)$|^qt_review_cycle_view_|^qt_suggestion_editor_|^application_review_cycle_desktop_public_path$|^application_review_tour_composition_|^architecture_boundaries$|^test_network_isolation_manifest$"
+```
+
+On both, `qt_review_cycle_view_*` asserts "Show Change" / "Hide Change" and
+"Show All Changes" / "Hide All Changes", and still prints `note code X inks:
+…` with equal column-4 and equal column-8 inks. A result goes on this card
+as a note; Done is not reopened.
