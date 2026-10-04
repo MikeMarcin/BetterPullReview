@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1166"
 title: "Prove the complete manual two-round workflow"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0056", "RFC-BPR-0057", "RFC-BPR-0061"]
 depends_on: ["BPR-1161", "BPR-1163", "BPR-1165"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "manual-iteration", "acceptance": ["RC56-03", "RC57-01", "RC61-07"], "pack_alias": "PACK-CYCLE-24", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
