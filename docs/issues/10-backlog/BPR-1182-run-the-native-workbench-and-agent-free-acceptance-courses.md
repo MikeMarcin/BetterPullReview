@@ -27,3 +27,14 @@ Criteria: RC55-07, RC60-02, RC60-10, RC61-09.
 Use the owning RFC and [integration map](../../rfcs/assets/bpr-review-cycles-v1/supporting/INTEGRATION-MAP.md) to resolve live paths; proposed names are not a claim files already exist. Preserve the core/host/Qt allocation. Record the actual owned paths before editing. Reuse shared components and unchanged evidence; no second implementation or global cleanup.
 
 Product evidence is **Not run** at authoring. Follow [PRODUCT-VERIFICATION.md](../../rfcs/assets/bpr-review-cycles-v1/verification/PRODUCT-VERIFICATION.md). No live GitHub/GHES mutation, model invocation, shared-skill installation, credential access or unrelated repository write is authorized merely by importing this card. Record result, revision, environment and limitations; a fixture result is not native/user/service acceptance.
+
+## Input from BPR-1166 (2026-10-03): Share notes at the width floor
+
+At the workbench window's 900-pixel minimum width, once a local cycle has a
+second capture, Capture revision gains its menu arrow and the review bar folds
+Share notes behind its » overflow. It is still reachable there, but the round's
+primary action is no longer on the bar. [[BPR-1166]]'s course first met it on
+the offscreen platform, whose 800-pixel screen holds the restored window at its
+minimum; at the default 1280 pixels everything fits. Whether that is acceptable
+at the floor is this card's width-floor judgment (RC61-09), not a change made
+by BPR-1166.

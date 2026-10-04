@@ -3261,6 +3261,41 @@ if(TARGET app_bpr)
         --cycle-application $<TARGET_FILE:app_bpr>)
     set_tests_properties(application_profile_cycle_handoff_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300)
+    # [[BPR-1166]]. The complete manual two-round course in the application's
+    # own profile desktop, restarted twice on one profile: Open Project, eight
+    # notes with two suggestions, Copy, Save and the bundle, the shipped
+    # `bpr cycle` export and a granted harness's read, edits made outside, a
+    # restart, Capture revision, comparisons, verification, Save next round and
+    # another capture. No agent component is reachable and no callback is read.
+    # Registered contained: Windows measures it before any pin.
+    bpr_add_executable(test_review_cycle_two_round_public_path review_cycle_two_round_public_path_tests.cpp)
+    target_link_libraries(test_review_cycle_two_round_public_path PRIVATE BetterPullReview::Composition)
+    target_compile_definitions(test_review_cycle_two_round_public_path PRIVATE BPR_BUILD_TESTING=1)
+    target_compile_features(test_review_cycle_two_round_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_review_cycle_two_round_public_path)
+    bpr_enable_warnings(test_review_cycle_two_round_public_path)
+    if(APPLE)
+        # QtGui's QPA focus-window entry, which the cocoa plugin itself calls when
+        # AppKit makes a window key: a native run from a terminal while someone
+        # uses another application gets no key window otherwise (as
+        # test_profile_empty_desktop_native_menu_bar does).
+        file(GLOB bpr_two_round_qtgui_private LIST_DIRECTORIES true
+            "${Qt6Gui_DIR}/../../QtGui.framework/Headers/[0-9]*.[0-9]*.[0-9]*")
+        list(LENGTH bpr_two_round_qtgui_private bpr_two_round_qtgui_private_count)
+        if(NOT bpr_two_round_qtgui_private_count EQUAL 1)
+            message(FATAL_ERROR "Expected one versioned QtGui private header directory, found: ${bpr_two_round_qtgui_private}")
+        endif()
+        target_include_directories(test_review_cycle_two_round_public_path SYSTEM PRIVATE
+            "${bpr_two_round_qtgui_private}" "${bpr_two_round_qtgui_private}/QtGui")
+    endif()
+    bpr_add_network_isolated_test(NAME application_review_cycle_two_round_public_path
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_two_round_contract.py"
+        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
+        --cycle-application $<TARGET_FILE:app_bpr>)
+    set_tests_properties(application_review_cycle_two_round_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_TWO_ROUND_OK"
+        TIMEOUT 600)
 endif()
 
 bpr_add_executable(test_profile_window_restart_public_path profile_window_restart_public_path_tests.cpp)

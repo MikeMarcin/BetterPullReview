@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1272"
+  ],
+  "reserve_for": "bpr1166discovery",
+  "purpose": "Delivery wording found by the BPR-1166 two-round course",
+  "created": "2026-10-04T05:00:45.010200+00:00",
+  "base": "edbf93d46f4f23763478eda4ae110d5e0e65c24a"
+}
