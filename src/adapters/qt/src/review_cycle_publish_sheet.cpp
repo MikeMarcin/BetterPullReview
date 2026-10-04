@@ -427,7 +427,6 @@ namespace bpr::qt {
 		ExactPlan = new QPushButton{ QStringLiteral("Read the Exact Plan"), this };
 		ExactPlan->setObjectName(QStringLiteral("cyclePublishExactPlan"));
 		ExactPlan->setAutoDefault(false);
-		ExactPlan->setCheckable(true);
 		ExactPlan->setToolTip(QStringLiteral("Everything publishing sends, with the digest your confirmation names"));
 		actions->addWidget(ExactPlan);
 		Change = new QPushButton{ QStringLiteral("Change…"), this };
@@ -484,9 +483,12 @@ namespace bpr::qt {
 			}
 		});
 		connect(Primary, &QPushButton::clicked, this, [this] { primary(); });
-		connect(ExactPlan, &QPushButton::toggled, this, [this](const bool aOpen) {
-			PlanText->setVisible(aOpen);
-			if (aOpen) {
+		// Not a toggle button: a checked one paints like the default on macOS.
+		connect(ExactPlan, &QPushButton::clicked, this, [this] {
+			const auto open = PlanText->isHidden();
+			PlanText->setVisible(open);
+			ExactPlan->setText(open ? QStringLiteral("Hide the Exact Plan") : QStringLiteral("Read the Exact Plan"));
+			if (open) {
 				Body->ensureWidgetVisible(PlanText);
 			}
 		});
@@ -820,15 +822,13 @@ namespace bpr::qt {
 		if (auto* const heading = findChild<QLabel*>(QStringLiteral("cyclePublishOutgoingWordsHeading"))) {
 			heading->setText(linked ? QStringLiteral("Sent to GitHub") : QStringLiteral("Goes to GitHub"));
 		}
-		if (previous.Stage != stage) {
+		if (previous.Stage != stage || aView.Preview.empty()) {
 			// A new stage starts short: the exact plan is there on request.
-			ExactPlan->setChecked(false);
+			PlanText->hide();
+			ExactPlan->setText(QStringLiteral("Read the Exact Plan"));
 		}
 		PlanText->setPlainText(text_of(aView.Preview));
 		ExactPlan->setVisible(!aView.Preview.empty());
-		if (aView.Preview.empty()) {
-			ExactPlan->setChecked(false);
-		}
 		Status->setVisible(!aView.Status.empty() || !aView.Instructions.empty());
 		Status->setText(text_of(aView.Status) + (aView.Instructions.empty() ? QString{ } : QStringLiteral("\n") + text_of(aView.Instructions)));
 
