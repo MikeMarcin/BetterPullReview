@@ -603,6 +603,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # std::filesystem::canonical of its scratch root aborts, the BPR-0622
     # agent_parent_death shape. It passes uncontained.
     "application_review_cycle_publish_public_path": "dos-volume-name",
+    # [[BPR-1184]]. Measured on JaegAW 2026-10-04 at baef515d8 in the
+    # windows-app-release tree with BUILD_TESTING and BPR_BUILD_TOUR_CLI on,
+    # contained as registered. After generating its first corpus, the first
+    # desktop exits 1 with "FAILED: the desktop starts with a window" (the
+    # profile desktop's data root, as the application rows above), before
+    # the expected `bpr cycle open`. It is measured uncontained.
+    "application_review_cycle_large_project": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they

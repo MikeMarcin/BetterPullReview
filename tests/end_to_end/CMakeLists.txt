@@ -3329,10 +3329,10 @@ if(TARGET app_bpr)
     # 100 ms typing and navigation targets while a capture runs are enforced in
     # optimized macOS builds, whose measurements justify them; elsewhere they
     # are reported until the stations' measurements do. A Debug build runs a
-    # 2,000-file correctness pass and claims no measurement. Registered
-    # contained until Windows measures it: its `bpr cycle` steps are likely to
-    # meet the container as the parity course's do (profile_unavailable), and
-    # the station pins it with the line it measures.
+    # 2,000-file correctness pass and claims no measurement. Uncontained on
+    # Windows (dos-volume-name): contained, the first desktop exits 1 with
+    # "FAILED: the desktop starts with a window" before any `bpr cycle` step.
+    # Measured on JaegAW 2026-10-04 in the Release tree.
     # Timeout: macOS Release ran the row in 225.31 s (M4 Pro, 2026-10-04); three
     # times that, rounded up. Windows and Linux are provisional at 2,400 s
     # until the stations measure them (build-and-test.md, run budgets).
@@ -3341,7 +3341,7 @@ if(TARGET app_bpr)
     else()
         set(bpr_large_project_timeout 2400)
     endif()
-    bpr_add_network_isolated_test(NAME application_review_cycle_large_project
+    bpr_add_network_isolated_test(NAME application_review_cycle_large_project WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_large_project_contract.py"
         --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
         --cycle-application $<TARGET_FILE:app_bpr>
