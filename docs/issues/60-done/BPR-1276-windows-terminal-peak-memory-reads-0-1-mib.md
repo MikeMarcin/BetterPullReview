@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1276"
 title: "On Windows the large-project course reads every terminal command's peak memory as 0.1 MiB"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
 metadata: {"origin":"BPR-1184 large-project course, Windows Release at 61c96b9a3 (bpr-main-win)","reservation":"docs/issues/_reservations/BPR-1275--BPR-1276--cc9fb8ce4d80.json","related_cards":["BPR-1184","BPR-1275"]}
+acceptance: [{"criterion":"BPR-1276:measured","outcome":"pass","revision":"c906b0e7e","evidence":{"kind":"command","path":"tests/end_to_end/review_cycle_large_project_contract.py","detail":"PROCESS_MEMORY_COUNTERS' cb and PageFaultCount are c_uint32, so the 80-byte _EX layout no longer shifts the fields. A 200 MiB child reads 206.1 MiB; the old structure reads 0.1 MiB (negative control). The Windows Release report at c906b0e7e carries real terminal peaks: bpr cycle open 22.6 MiB (20k) and 88.8 MiB (100k)."}},{"criterion":"BPR-1276:check","outcome":"pass","revision":"c906b0e7e","evidence":{"kind":"command","path":"tests/end_to_end/review_cycle_large_project_contract.py","detail":"The course asserts that bpr cycle open's peak is over 1 MiB. The Debug large-project row passes in 96.50 s and the Release row 1/1 in 1,629.14 s."}}]
 ---
 
 # BPR-1276: On Windows the large-project course reads every terminal command's peak memory as 0.1 MiB
