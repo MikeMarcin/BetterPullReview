@@ -1,0 +1,863 @@
+{
+ "corpora": {
+  "small-files-1m-lines-v1": {
+   "corpus": {
+    "files": 20000,
+    "first_read_ms": 269.0,
+    "generated_s": 1.092,
+    "lines": 1000000,
+    "oversized_file_bytes": null,
+    "text_bytes": 26244500,
+    "text_files": 20000,
+    "text_sha256": "35721c70f72d3c816862a79849d70704d17c475461ec962e4046c0fedf209e38"
+   },
+   "desktop": {
+    "cancel_capture": {
+     "count": 1,
+     "max": 4.287,
+     "p50": 4.287,
+     "p95": 4.287
+    },
+    "capture_changed_while_navigating": {
+     "count": 1,
+     "max": 1281.484,
+     "p50": 1281.484,
+     "p95": 1281.484
+    },
+    "capture_unchanged": {
+     "count": 1,
+     "max": 1124.222,
+     "p50": 1124.222,
+     "p95": 1124.222
+    },
+    "capture_unchanged_busy": {
+     "count": 1,
+     "max": 0.797,
+     "p50": 0.797,
+     "p95": 0.797
+    },
+    "capture_unchanged_while_typing": {
+     "count": 1,
+     "max": 1045.481,
+     "p50": 1045.481,
+     "p95": 1045.481
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 16.82,
+     "p50": 13.207,
+     "p95": 14.413
+    },
+    "compare_file_busy": {
+     "count": 20,
+     "max": 3.923,
+     "p50": 3.679,
+     "p95": 3.911
+    },
+    "drawer_next": {
+     "count": 4,
+     "max": 56.329,
+     "p50": 29.4,
+     "p95": 56.329
+    },
+    "drawer_next_busy": {
+     "count": 4,
+     "max": 34.22,
+     "p50": 5.987,
+     "p95": 34.22
+    },
+    "drawer_previous": {
+     "count": 1,
+     "max": 30.335,
+     "p50": 30.335,
+     "p95": 30.335
+    },
+    "drawer_previous_busy": {
+     "count": 1,
+     "max": 5.61,
+     "p50": 5.61,
+     "p95": 5.61
+    },
+    "launch_to_ready": {
+     "count": 1,
+     "max": 303.498,
+     "p50": 303.498,
+     "p95": 303.498
+    },
+    "launch_to_ready_warm": {
+     "count": 1,
+     "max": 303.402,
+     "p50": 303.402,
+     "p95": 303.402
+    },
+    "navigation_during_capture": {
+     "count": 4,
+     "max": 4.998,
+     "p50": 4.564,
+     "p95": 4.998
+    },
+    "next_file": {
+     "count": 30,
+     "max": 8.077,
+     "p50": 4.41,
+     "p95": 7.013
+    },
+    "next_file_across_window": {
+     "count": 1,
+     "max": 52.762,
+     "p50": 52.762,
+     "p95": 52.762
+    },
+    "next_file_across_window_busy": {
+     "count": 1,
+     "max": 18.641,
+     "p50": 18.641,
+     "p95": 18.641
+    },
+    "next_file_busy": {
+     "count": 30,
+     "max": 1.849,
+     "p50": 0.737,
+     "p95": 0.99
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 1666.453,
+     "p50": 1666.453,
+     "p95": 1666.453
+    },
+    "open_cold_busy": {
+     "count": 1,
+     "max": 5.088,
+     "p50": 5.088,
+     "p95": 5.088
+    },
+    "open_file": {
+     "count": 30,
+     "max": 8.439,
+     "p50": 6.752,
+     "p95": 8.411
+    },
+    "open_file_busy": {
+     "count": 30,
+     "max": 0.997,
+     "p50": 0.719,
+     "p95": 0.849
+    },
+    "open_file_last_window": {
+     "count": 1,
+     "max": 6.311,
+     "p50": 6.311,
+     "p95": 6.311
+    },
+    "open_file_last_window_busy": {
+     "count": 1,
+     "max": 2.064,
+     "p50": 2.064,
+     "p95": 2.064
+    },
+    "open_warm": {
+     "count": 1,
+     "max": 83.12,
+     "p50": 83.12,
+     "p95": 83.12
+    },
+    "open_warm_busy": {
+     "count": 1,
+     "max": 25.559,
+     "p50": 25.559,
+     "p95": 25.559
+    },
+    "quit": {
+     "count": 1,
+     "max": 46.969,
+     "p50": 46.969,
+     "p95": 46.969
+    },
+    "typing_during_capture": {
+     "count": 26,
+     "max": 0.538,
+     "p50": 0.4,
+     "p95": 0.526
+    }
+   },
+   "desktop_facts": {
+    "cancel": {
+     "button_after": "Capture revision",
+     "offered": "Cancel capture",
+     "progress": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 20,000 captured entries \u00b7 Capturing: 6,144 files read",
+     "unrecorded": true,
+     "updates": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 20,000 captured entries \u00b7 Capture cancelled; nothing was recorded."
+    },
+    "compared_files": 20,
+    "drawer_window_files": 4096,
+    "drawer_windows": 5,
+    "memory_after_course": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0361,
+     "footprint_bytes": 135348224,
+     "method": "Linux /proc/self/status VmRSS with VmHWM (process-lifetime peak resident set); live heap is glibc mallinfo2 uordblks plus hblkhd",
+     "peak_footprint_bytes": 140664832,
+     "resident_bytes": 135348224
+    },
+    "memory_after_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0409,
+     "footprint_bytes": 126562304,
+     "method": "Linux /proc/self/status VmRSS with VmHWM (process-lifetime peak resident set); live heap is glibc mallinfo2 uordblks plus hblkhd",
+     "peak_footprint_bytes": 129896448,
+     "resident_bytes": 126562304
+    },
+    "memory_after_warm_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0547,
+     "footprint_bytes": 125673472,
+     "method": "Linux /proc/self/status VmRSS with VmHWM (process-lifetime peak resident set); live heap is glibc mallinfo2 uordblks plus hblkhd",
+     "peak_footprint_bytes": 125673472,
+     "resident_bytes": 125673472
+    },
+    "navigation_refused": [],
+    "typing_keys": 27,
+    "updates_after_open": "Captured: R1 \u00b7 files 1\u20134,096 listed of 20,000 captured entries"
+   },
+   "terminal": {
+    "capture_changed": {
+     "count": 1,
+     "max": 1147.583,
+     "p50": 1147.583,
+     "p95": 1147.583
+    },
+    "capture_unchanged": {
+     "count": 3,
+     "max": 1135.222,
+     "p50": 1047.915,
+     "p95": 1135.222
+    },
+    "compare_changed_page": {
+     "count": 2,
+     "max": 43.169,
+     "p50": 37.095,
+     "p95": 43.169
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 43.124,
+     "p50": 41.199,
+     "p95": 42.248
+    },
+    "compare_full_page": {
+     "count": 20,
+     "max": 27.697,
+     "p50": 25.282,
+     "p95": 27.51
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 1595.361,
+     "p50": 1595.361,
+     "p95": 1595.361
+    },
+    "show": {
+     "count": 10,
+     "max": 15.928,
+     "p50": 15.394,
+     "p95": 15.928
+    }
+   },
+   "terminal_peak_bytes": {
+    "capture_changed": 35815424,
+    "capture_unchanged": 36519936,
+    "compare_changed_page": 35475456,
+    "compare_file": 35475456,
+    "compare_full_page": 35475456,
+    "open_cold": 36249600,
+    "show": 35475456
+   }
+  },
+  "tree-100k-files-v1": {
+   "corpus": {
+    "files": 100001,
+    "first_read_ms": 1388.3,
+    "generated_s": 4.13,
+    "lines": 1000000,
+    "oversized_file_bytes": 135266304,
+    "text_bytes": 25888900,
+    "text_files": 100000,
+    "text_sha256": "3c30c046aaca2d6353b1e92c8c2c34ef6f0516062893621fd4f9d6409beec8b7"
+   },
+   "desktop": {
+    "cancel_capture": {
+     "count": 1,
+     "max": 16.079,
+     "p50": 16.079,
+     "p95": 16.079
+    },
+    "capture_changed_while_navigating": {
+     "count": 1,
+     "max": 4843.524,
+     "p50": 4843.524,
+     "p95": 4843.524
+    },
+    "capture_unchanged": {
+     "count": 1,
+     "max": 3814.071,
+     "p50": 3814.071,
+     "p95": 3814.071
+    },
+    "capture_unchanged_busy": {
+     "count": 1,
+     "max": 0.848,
+     "p50": 0.848,
+     "p95": 0.848
+    },
+    "capture_unchanged_while_typing": {
+     "count": 1,
+     "max": 3778.583,
+     "p50": 3778.583,
+     "p95": 3778.583
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 13.296,
+     "p50": 8.076,
+     "p95": 8.432
+    },
+    "compare_file_busy": {
+     "count": 20,
+     "max": 1.32,
+     "p50": 1.2,
+     "p95": 1.261
+    },
+    "drawer_next": {
+     "count": 24,
+     "max": 62.111,
+     "p50": 44.473,
+     "p95": 61.262
+    },
+    "drawer_next_busy": {
+     "count": 24,
+     "max": 23.709,
+     "p50": 5.672,
+     "p95": 23.591
+    },
+    "drawer_previous": {
+     "count": 1,
+     "max": 47.503,
+     "p50": 47.503,
+     "p95": 47.503
+    },
+    "drawer_previous_busy": {
+     "count": 1,
+     "max": 5.439,
+     "p50": 5.439,
+     "p95": 5.439
+    },
+    "launch_to_ready": {
+     "count": 1,
+     "max": 303.477,
+     "p50": 303.477,
+     "p95": 303.477
+    },
+    "launch_to_ready_warm": {
+     "count": 1,
+     "max": 283.424,
+     "p50": 283.424,
+     "p95": 283.424
+    },
+    "navigation_during_capture": {
+     "count": 18,
+     "max": 4.375,
+     "p50": 4.249,
+     "p95": 4.375
+    },
+    "next_file": {
+     "count": 30,
+     "max": 6.938,
+     "p50": 4.288,
+     "p95": 4.423
+    },
+    "next_file_across_window": {
+     "count": 1,
+     "max": 67.921,
+     "p50": 67.921,
+     "p95": 67.921
+    },
+    "next_file_across_window_busy": {
+     "count": 1,
+     "max": 23.428,
+     "p50": 23.428,
+     "p95": 23.428
+    },
+    "next_file_busy": {
+     "count": 30,
+     "max": 0.757,
+     "p50": 0.693,
+     "p95": 0.745
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 7166.921,
+     "p50": 7166.921,
+     "p95": 7166.921
+    },
+    "open_cold_busy": {
+     "count": 1,
+     "max": 4.905,
+     "p50": 4.905,
+     "p95": 4.905
+    },
+    "open_file": {
+     "count": 30,
+     "max": 6.709,
+     "p50": 6.555,
+     "p95": 6.704
+    },
+    "open_file_busy": {
+     "count": 30,
+     "max": 0.759,
+     "p50": 0.671,
+     "p95": 0.707
+    },
+    "open_file_last_window": {
+     "count": 1,
+     "max": 5.915,
+     "p50": 5.915,
+     "p95": 5.915
+    },
+    "open_file_last_window_busy": {
+     "count": 1,
+     "max": 0.794,
+     "p50": 0.794,
+     "p95": 0.794
+    },
+    "open_warm": {
+     "count": 1,
+     "max": 203.304,
+     "p50": 203.304,
+     "p95": 203.304
+    },
+    "open_warm_busy": {
+     "count": 1,
+     "max": 24.9,
+     "p50": 24.9,
+     "p95": 24.9
+    },
+    "quit": {
+     "count": 1,
+     "max": 72.146,
+     "p50": 72.146,
+     "p95": 72.146
+    },
+    "typing_during_capture": {
+     "count": 94,
+     "max": 1.08,
+     "p50": 0.464,
+     "p95": 0.662
+    }
+   },
+   "desktop_facts": {
+    "cancel": {
+     "button_after": "Capture revision",
+     "offered": "Cancel capture",
+     "progress": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 Capturing: 33,792 files read \u00b7 captured with 0 retries, 1 unavailable",
+     "unrecorded": true,
+     "updates": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 captured with 0 retries, 1 unavailable \u00b7 Capture cancelled; nothing was recorded."
+    },
+    "compared_files": 20,
+    "drawer_window_files": 4096,
+    "drawer_windows": 25,
+    "memory_after_course": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0408,
+     "footprint_bytes": 261005312,
+     "method": "Linux /proc/self/status VmRSS with VmHWM (process-lifetime peak resident set); live heap is glibc mallinfo2 uordblks plus hblkhd",
+     "peak_footprint_bytes": 266563584,
+     "resident_bytes": 261005312
+    },
+    "memory_after_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0361,
+     "footprint_bytes": 185671680,
+     "method": "Linux /proc/self/status VmRSS with VmHWM (process-lifetime peak resident set); live heap is glibc mallinfo2 uordblks plus hblkhd",
+     "peak_footprint_bytes": 185671680,
+     "resident_bytes": 185671680
+    },
+    "memory_after_warm_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0442,
+     "footprint_bytes": 175882240,
+     "method": "Linux /proc/self/status VmRSS with VmHWM (process-lifetime peak resident set); live heap is glibc mallinfo2 uordblks plus hblkhd",
+     "peak_footprint_bytes": 175882240,
+     "resident_bytes": 175882240
+    },
+    "navigation_refused": [],
+    "oversized_reading_pane": "aaa-limits/oversized.bin was not captured in R1: it is larger than the 128 MiB one capture keeps of a file, so there are no bytes to show. A note can still be made on the whole file.",
+    "typing_keys": 95,
+    "updates_after_open": "Captured: R1 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 captured with 0 retries, 1 unavailable"
+   },
+   "terminal": {
+    "capture_changed": {
+     "count": 1,
+     "max": 4801.15,
+     "p50": 4801.15,
+     "p95": 4801.15
+    },
+    "capture_unchanged": {
+     "count": 3,
+     "max": 3720.379,
+     "p50": 3611.995,
+     "p95": 3720.379
+    },
+    "compare_changed_page": {
+     "count": 6,
+     "max": 167.528,
+     "p50": 155.502,
+     "p95": 167.528
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 187.13,
+     "p50": 144.477,
+     "p95": 183.949
+    },
+    "compare_full_page": {
+     "count": 20,
+     "max": 100.081,
+     "p50": 80.513,
+     "p95": 95.554
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 6973.268,
+     "p50": 6973.268,
+     "p95": 6973.268
+    },
+    "show": {
+     "count": 10,
+     "max": 16.501,
+     "p50": 15.343,
+     "p95": 16.501
+    }
+   },
+   "terminal_peak_bytes": {
+    "capture_changed": 86777856,
+    "capture_unchanged": 86642688,
+    "compare_changed_page": 83685376,
+    "compare_file": 84197376,
+    "compare_full_page": 72396800,
+    "open_cold": 87183360,
+    "show": 72396800
+   }
+  }
+ },
+ "environment": {
+  "build_type": "Release",
+  "cpu": "Intel(R) Core(TM) i9-10900KF CPU @ 3.70GHz",
+  "logical_cpus": 20,
+  "machine": "x86_64",
+  "memory_bytes": 67321319424,
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "python": "3.13.15",
+  "qpa": "offscreen",
+  "qt": "6.11.2",
+  "wsl": true
+ },
+ "failures": [],
+ "limit_probe": {
+  "desktop_message": "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.",
+  "desktop_ms": 4296.12,
+  "entries": 250001,
+  "terminal_error": {
+   "code": "over_limit",
+   "detail": {
+    "cycle": "RC-1"
+   },
+   "message": "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.",
+   "next": "bpr cycle capture RC-1"
+  },
+  "terminal_exit": 5,
+  "terminal_ms": 4072.263
+ },
+ "run": {
+  "enforced": false,
+  "files_override": null,
+  "limit_probe": true,
+  "named_corpora": true,
+  "stress_round": true
+ },
+ "schema": "bpr.cycle.large-project-report.v1",
+ "source": {
+  "revision": "4cd65344ec362af08ba8afd9acb20012490830c7",
+  "tracked_changes": 0
+ },
+ "stress_round": {
+  "corpus": "small-files-1m-lines-v1",
+  "facts": {
+   "document_bytes": 70078,
+   "items_read": 514,
+   "memory_after_freeze": {
+    "busy_ms": 0,
+    "elapsed_ms": 0.0509,
+    "footprint_bytes": 160505856,
+    "method": "Linux /proc/self/status VmRSS with VmHWM (process-lifetime peak resident set); live heap is glibc mallinfo2 uordblks plus hblkhd",
+    "peak_footprint_bytes": 160505856,
+    "resident_bytes": 160505856
+   },
+   "notes": 512,
+   "round_pages": 1,
+   "suggestions": 2
+  },
+  "phases": {
+   "compose_open": {
+    "count": 1,
+    "max": 488.034,
+    "p50": 488.034,
+    "p95": 488.034
+   },
+   "compose_open_busy": {
+    "count": 1,
+    "max": 49.951,
+    "p50": 49.951,
+    "p95": 49.951
+   },
+   "desktop_suggest": {
+    "count": 1,
+    "max": 66.659,
+    "p50": 66.659,
+    "p95": 66.659
+   },
+   "desktop_suggest_busy": {
+    "count": 1,
+    "max": 1.523,
+    "p50": 1.523,
+    "p95": 1.523
+   },
+   "desktop_suggest_first": {
+    "count": 1,
+    "max": 34.352,
+    "p50": 34.352,
+    "p95": 34.352
+   },
+   "desktop_suggest_first_busy": {
+    "count": 1,
+    "max": 0.42,
+    "p50": 0.42,
+    "p95": 0.42
+   },
+   "freeze_and_copy": {
+    "count": 1,
+    "max": 161.037,
+    "p50": 161.037,
+    "p95": 161.037
+   },
+   "freeze_and_copy_busy": {
+    "count": 1,
+    "max": 10.748,
+    "p50": 10.748,
+    "p95": 10.748
+   },
+   "open_warm_with_notes": {
+    "count": 1,
+    "max": 274.014,
+    "p50": 274.014,
+    "p95": 274.014
+   },
+   "open_warm_with_notes_busy": {
+    "count": 1,
+    "max": 24.311,
+    "p50": 24.311,
+    "p95": 24.311
+   },
+   "save_document": {
+    "count": 1,
+    "max": 194.295,
+    "p50": 194.295,
+    "p95": 194.295
+   },
+   "save_document_busy": {
+    "count": 1,
+    "max": 10.841,
+    "p50": 10.841,
+    "p95": 10.841
+   },
+   "terminal_export": {
+    "count": 10,
+    "max": 41.458,
+    "p50": 33.273,
+    "p95": 41.458
+   },
+   "terminal_note": {
+    "count": 512,
+    "max": 43.567,
+    "p50": 27.493,
+    "p95": 34.197
+   },
+   "terminal_round_read": {
+    "count": 1,
+    "max": 25.527,
+    "p50": 25.527,
+    "p95": 25.527
+   }
+  }
+ },
+ "targets": [
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "desktop_ms": 1666.453,
+   "enforced": true,
+   "limit": 3.0,
+   "met": true,
+   "phase": "open_cold_ratio",
+   "ratio": 1.045,
+   "terminal_ms": 1595.361,
+   "warmed": true
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "desktop_ms": 7166.921,
+   "enforced": true,
+   "limit": 3.0,
+   "met": true,
+   "phase": "open_cold_ratio",
+   "ratio": 1.028,
+   "terminal_ms": 6973.268,
+   "warmed": true
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 26,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 0.526,
+   "phase": "typing_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 4,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 4.998,
+   "phase": "navigation_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "cancel_offered": true,
+   "capture_ms": 1124.222,
+   "corpus": "small-files-1m-lines-v1",
+   "nothing_recorded_on_cancel": true,
+   "phase": "capture_progress_and_cancel",
+   "progress_shown": true,
+   "threshold_ms": 250.0
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "count": 94,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 0.662,
+   "phase": "typing_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "count": 18,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 4.375,
+   "phase": "navigation_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "cancel_offered": true,
+   "capture_ms": 3814.071,
+   "corpus": "tree-100k-files-v1",
+   "nothing_recorded_on_cancel": true,
+   "phase": "capture_progress_and_cancel",
+   "progress_shown": true,
+   "threshold_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 24.311,
+   "met": true,
+   "phase": "open_warm_with_notes_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 1.523,
+   "met": true,
+   "phase": "desktop_suggest_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 49.951,
+   "met": true,
+   "phase": "compose_open_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 10.748,
+   "met": true,
+   "phase": "freeze_and_copy_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 10.841,
+   "met": true,
+   "phase": "save_document_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 66.659,
+   "phase": "desktop_suggest",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 161.037,
+   "phase": "freeze_and_copy",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 194.295,
+   "phase": "save_document",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "enforced": true,
+   "first_ms": 34.352,
+   "limit": 7.0,
+   "met": true,
+   "phase": "note_change_ratio",
+   "ratio": 1.94,
+   "round_ms": 66.659
+  }
+ ]
+}

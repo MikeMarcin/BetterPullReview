@@ -98,3 +98,37 @@ not run.
 The Debug tree (`build/dev-tour-cli`) passed 11/11 in 117.07 s, including
 `application_review_cycle_large_project` (26.2 s, its 2,000-file correctness
 pass) and `review_cycle_large_project_targets`.
+
+**Note: Linux Release return at `4cd65344e` (station `bpr-main-linux`).** The
+build failure noted above was fixed at its source in `4cd65344e` ([[BPR-1273]]
+note). The Release row `application_review_cycle_large_project` then passed
+1/1 in 107.14 s. No other jobs were running, but the 1-minute load average
+was 6.9 when it started, decaying from this station's own build, which had
+just finished. Host: i9-10900KF, 20 logical CPUs, 62.7 GiB, WSL2 6.18.33.2,
+GCC 15.2.0, Qt 6.11.2, offscreen.
+
+The report is [`linux-release-report.json`](../../verification/BPR-1274-large-project/linux-release-report.json),
+byte for byte, SHA-256
+`772d23e17b773dd5802edfad50ebd202c7917f80680ac46f12b6e7790304d83a`. It has
+`run.enforced` false, `failures` empty and `source.revision` `4cd65344e…` with
+0 tracked changes.
+
+The 514-item stress round:
+
+| Measure | Result |
+|---|---|
+| A note change (suggestion saved and listed) | 66.7 ms (busy 1.5) |
+| The first suggestion | 34.4 ms |
+| `note_change_ratio` (enforced, met) | 1.94, limit 7.0 |
+| Copy (freezes F1) | 161.0 ms (busy 10.7) |
+| Save to File | 194.3 ms (busy 10.8) |
+| Share notes opens | 488.0 ms; the GUI thread held at most 49.95 ms |
+| Resume with 512 notes | 274.0 ms |
+
+The enforced `open_cold_ratio` targets were met (1.045 and 1.028, limit 3.0).
+Typing p95 while capturing was 0.53 and 0.66 ms, and navigation p95 5.00 and
+4.38 ms.
+
+The Debug tree (`build/dev-tour-cli`) at `4cd65344e` passed 11/11 in
+116.15 s; at `91a9265b9`, before the fix, it was 11/11 in 117.07 s. The
+course removed its corpora.
