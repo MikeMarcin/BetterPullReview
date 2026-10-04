@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1274"
 title: "A 514-item round costs about 3 s per note change, 4.3 s to freeze and 235 ms to open Share notes"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
