@@ -247,3 +247,38 @@ on a capture (Debug navigate during capture, Release cold open), sit beside a
 first Release run that captured and navigated for 90 replies. They are
 intermittent. A Windows capture-lane stall is the leading suspicion, but it is
 not shown: the next stall will name its own FAILED line and state.
+
+**Note: Windows Release run 3, at `61c96b9a3` (bpr-main-win, 2026-10-04).**
+The tree was clean, the Aito lane idle and every root removed afterwards. The
+run failed after 991.03 s and wrote no report. With the per-command budget,
+the stalled gesture now replied:
+
+```
+open-project {'path': '…\large-project-7c12d1d938712105\tree-100k-files-v1'}: the folder opens as a cycle with its first capture {"cycle": "RC-1", "editor": {"focused": false, "text": "", "visible": false}, "home": false, "label": "Not captured yet", "listed": [], "message": "", "newer": false, "notes": [], "notice": "Choose a file to read its captured source.", "responses": 0, "revisions": [], "rounds": [], "source": "", "title": "tree-100k-files-v1", "updates": "No revision captured · 0 files · Capturing: 86,016 files read"}
+```
+
+The 20,000-file corpus passed whole this time: both desktops, the stress round
+and the terminal steps. Its result line (not a committed report) gives these
+figures, as n / p50 / p95 ms:
+
+| Phase | Desktop | Terminal (`bpr cycle`) |
+|---|---:|---:|
+| Open, cold | 1 / **110,983.6** | 1 / 7,865.1 |
+| Capture, unchanged | 1 / 6,235.1 | 3 / 5,849.2 / 5,875.7 |
+| Open, warm | 1 / 225.0 | - |
+| Next file | 30 / 24.8 / 27.2 | - |
+| Typing while capturing | 147 / 1.45 / 2.37 | - |
+| Navigation while capturing | 30 / 15.5 / 25.8 | - |
+| Compare one file | 20 / 49.4 / 58.9 | 20 / 173.5 / 177.5 |
+
+The desktop's cold Open Project took 14 times as long as `bpr cycle open` on
+the same folder (macOS desktop: 2.1 s). Its later captures do not: unchanged
+captures run at 6.2 s desktop against 5.8 s terminal. At that rate the
+100,001-file cold open outruns the gesture's 540 s, which fits "Capturing:
+86,016 files read" being slow progress rather than a deadlock. It fits the
+earlier silent stalls too: run 2's 20,000-file cold open got no reply in
+600 s. Not yet shown: whether the cold desktop open is slow throughout or
+stops for long stretches. The capture on Open Project, in the desktop on
+Windows, is the place to look. Separately, every terminal peak-memory figure
+reads 0.1 MiB on Windows, which looks like `child_peak_bytes` not measuring
+there.
