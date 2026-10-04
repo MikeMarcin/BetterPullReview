@@ -378,6 +378,11 @@ namespace bpr::qt {
 		auto* const shareMenu = new QMenu{ this };
 		shareMenu->setObjectName(QStringLiteral("cycleShareMenu"));
 		shareMenu->addAction(PublishAction);
+		// BPR-1273: once the cycle has a pull request, its notes can join that pull request's tour.
+		PromoteAction = new QAction{ QStringLiteral("Add Notes to Review Tour…"), this };
+		PromoteAction->setObjectName(QStringLiteral("cyclePromoteAction"));
+		PromoteAction->setToolTip(QStringLiteral("Add chosen notes, in their own words, as stops of the linked pull request's Review Tour; nothing is sent to GitHub"));
+		shareMenu->addAction(PromoteAction);
 		ComposeAction->setMenu(shareMenu);
 		ReviewBar->addAction(ComposeAction);
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeAction))) {
@@ -446,6 +451,7 @@ namespace bpr::qt {
 		// BPR-1161: Share notes is a sheet over the code (direction A), not a page in its place.
 		SharePage    = new review_cycle_share_sheet{ this };
 		PublishSheet = new review_cycle_publish_sheet{ this };
+		PromoteSheet = new review_cycle_promote_sheet{ this };
 		ReadingPage  = Source;
 
 		auto* const tray       = new QWidget{ Body };
@@ -641,6 +647,11 @@ namespace bpr::qt {
 				Dispatch.OpenPublication();
 			}
 		});
+		connect(PromoteAction, &QAction::triggered, this, [this] {
+			if (Dispatch.OpenPromotion && !Promoting) {
+				Dispatch.OpenPromotion();
+			}
+		});
 		connect(ComposeAction, &QAction::triggered, this, [this] {
 			if (Dispatch.Compose && !Projection.Share) {
 				Dispatch.Compose();
@@ -763,6 +774,7 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 		SharePage->set_dispatch(Dispatch.Share);
 		PublishSheet->set_dispatch(Dispatch.Publish);
+		PromoteSheet->set_dispatch(Dispatch.Promote);
 	}
 
 	void review_cycle_view::set_code_font(const QFont& aFont)
@@ -1512,6 +1524,7 @@ namespace bpr::qt {
 		NextRound->setEnabled(open && !Projection.Facts.Rounds.empty() && Projection.Activity == application::review_cycle_activity::idle);
 		ComposeAction->setEnabled(open && !Projection.Revisions.empty() && !Projection.Share && !suggesting());
 		PublishAction->setEnabled(open && !Projection.Revisions.empty() && !Projection.Publication && !suggesting());
+		PromoteAction->setEnabled(open && !Projection.Links.empty() && !Projection.Notes.empty() && !Projection.Publication && !Promoting && !suggesting());
 		const auto waiting = std::ranges::count(Projection.Notes, core::private_thread_lifecycle::open, &application::review_cycle_note_entry::Lifecycle);
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeAction))) {
 			set_strip_badge(*button, waiting == 0 ? QString{ } : QString::number(waiting));
@@ -1547,6 +1560,39 @@ namespace bpr::qt {
 	auto review_cycle_view::publish_action() const noexcept -> QAction*
 	{
 		return PublishAction;
+	}
+
+	auto review_cycle_view::promote_sheet() const noexcept -> review_cycle_promote_sheet*
+	{
+		return PromoteSheet;
+	}
+
+	auto review_cycle_view::promote_action() const noexcept -> QAction*
+	{
+		return PromoteAction;
+	}
+
+	void review_cycle_view::present_promotion(const std::optional<application::review_cycle_promotion_view>& aView)
+	{
+		const auto opening = aView.has_value() && !Promoting;
+		Promoting          = aView.has_value();
+		if (aView) {
+			PromoteSheet->present(*aView);
+		}
+		refresh_actions();
+		if (opening) {
+			// Over the file the reviewer was reading, as Publish as Pull Request is.
+			PromoteSheet->set_anchor(ReviewBar->mapToGlobal(QPoint{ ReviewBar->width() / 2, ReviewBar->height() }));
+			PromoteSheet->show();
+			PromoteSheet->raise();
+			PromoteSheet->activateWindow();
+			PromoteSheet->focus_first();
+		} else if (!aView && PromoteSheet->isVisible()) {
+			PromoteSheet->hide();
+			if (Centre->currentWidget() == Source) {
+				Source->setFocus(Qt::OtherFocusReason);
+			}
+		}
 	}
 
 	auto review_cycle_view::review_bar() const noexcept -> workbench_strip*

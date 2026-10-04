@@ -12,17 +12,12 @@ namespace bpr::app {
 		std::vector<core::tour_destination_plan>   decisions;
 		std::vector<application::staged_tour_stop> stops;
 		for (const auto& stop : draft.Stops) {
-			auto source = (stop.Mapping == core::tour_mapping::author_selected && stop.Mapped) ? std::optional{ core::destination_of(*stop.Mapped) } : (stop.Original ? std::optional{ core::destination_of(*stop.Original) } : stop.Destination);
+			const auto source = core::publication_source(stop);
 			if (!source) {
 				decisions.push_back({ });
 				continue;
 			}
-			core::tour_destination_observation observed{ .Source = *source, .Subject = source->Commit == (source->Side == core::diff_side::right ? draft.ObservedHead.value_or(draft.Head) : draft.Base) ? core::tour_subject::current_diff : core::tour_subject::historical, .SourceAvailable = source->Blob.has_value(), .Body = core::classify_review_body(stop.Body), .CompatibilityRequested = compatibility };
-			if (aQualified) {
-				observed.PendingLineBatch = core::tour_operation_support::supported;
-				observed.Conversation     = core::tour_operation_support::supported;
-			}
-			decisions.push_back(core::plan_tour_destination(observed));
+			decisions.push_back(core::plan_tour_destination(core::publication_observation(*source, draft.ObservedHead.value_or(draft.Head), draft.Base, stop.Body, compatibility, aQualified)));
 			const auto link = adapters::github::detail::compile_tour_permalink({ std::string{ aBinding.Target.Hostname.value() }, aBinding.Target.Repository }, *source);
 			stops.push_back({ stop.Id, *source, stop.Title, stop.Body, link.value_or(std::string{ }) });
 		}

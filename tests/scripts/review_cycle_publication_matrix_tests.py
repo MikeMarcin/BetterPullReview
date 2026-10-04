@@ -9,6 +9,12 @@ boundary. A restart reads before it writes, and sends what remains only after
 the reviewer confirms the plan again; another process then reopens the outcome
 and sends nothing. The store a killed process left is checked by SQLite before
 the next process opens it. No live GitHub is contacted.
+
+[[BPR-1273]] adds the promotion courses: after one clean publication, Add
+Notes to Review Tour adds the cycle's five notes to the pull request's tour,
+and its process is killed before or after a note's stop is durable (or loses
+an answer). A restart asks again; a last process reopens and finds every stop
+exactly once. The tour store a killed process left is checked by SQLite too.
 """
 
 from __future__ import annotations
@@ -74,11 +80,42 @@ def check_store(root: Path, case: str) -> None:
             raise RuntimeError(f"{case}: one recorded publication expected after the kill")
 
 
-def cases(executable: Path) -> list[tuple[str, str]]:
+def check_tours(root: Path, case: str) -> None:
+    """The tour store a killed promotion left opens read-only and is consistent."""
+    databases = sorted((root / "profile").rglob("review-tours.sqlite3"))
+    if len(databases) != 1:
+        raise RuntimeError(f"{case}: expected one tour store, found {databases}")
+    with closing(sqlite3.connect(databases[0].as_uri() + "?mode=ro", uri=True)) as connection:
+        if connection.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
+            raise RuntimeError(f"{case}: tour store integrity failed after the kill")
+        if connection.execute("SELECT count(*) FROM targets").fetchone() != (1,):
+            raise RuntimeError(f"{case}: one recorded tour expected after the kill")
+        if connection.execute("SELECT count(*) FROM tours").fetchone()[0] > 1:
+            raise RuntimeError(f"{case}: at most one tour draft expected after the kill")
+
+
+def cases(executable: Path, listing: str = "--cases") -> list[tuple[str, str]]:
     listed = subprocess.run(
-        [str(executable), "--cases"], check=True, capture_output=True, text=True, timeout=30
+        [str(executable), listing], check=True, capture_output=True, text=True, timeout=30
     ).stdout.split("\n")
     return [tuple(line.split(" ", 1)) for line in listed if line]
+
+
+def run_promotion(executable: Path, git: Path, root: Path, case: str, point: str) -> None:
+    course = root / case
+    for directory in (course, course / "profile", course / "git-isolation"):
+        make_root_private(directory)
+    common = ("--git", str(git), "--case", case)
+    run(executable, "--publish", course, common)
+    if point == "-":
+        run(executable, "--promote", course, common)
+    else:
+        kill(executable, "--promote", course, (*common, "--kill", point))
+        check_store(course, case)
+        check_tours(course, case)
+        run(executable, "--promote-again", course, common)
+    run(executable, "--promote-verify", course, common)
+    print(f"review-cycle-publication-matrix:{case}:pass", flush=True)
 
 
 def run_case(executable: Path, git: Path, root: Path, case: str, point: str) -> None:
@@ -112,7 +149,12 @@ def main() -> int:
         for case, point in cases(arguments.executable)
         if not arguments.only or case in arguments.only
     ]
-    if not selected:
+    promotions = [
+        (case, point)
+        for case, point in cases(arguments.executable, "--promotion-cases")
+        if not arguments.only or case in arguments.only
+    ]
+    if not selected and not promotions:
         raise RuntimeError("no matrix case selected")
     with contained_temporary_directory(prefix="bpr-publication-matrix-") as raw:
         # The stores refuse a path through a link, and macOS reaches the
@@ -121,7 +163,12 @@ def main() -> int:
         make_root_private(root)
         for case, point in selected:
             run_case(arguments.executable, arguments.git, root, case, point)
-    print(f"review-cycle-publication-matrix-tests:pass ({len(selected)} cases)")
+        for case, point in promotions:
+            run_promotion(arguments.executable, arguments.git, root, case, point)
+    print(
+        "review-cycle-publication-matrix-tests:pass "
+        f"({len(selected)} cases, {len(promotions)} promotion cases)"
+    )
     return 0
 
 

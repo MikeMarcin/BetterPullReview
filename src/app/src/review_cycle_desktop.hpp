@@ -5,8 +5,10 @@
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/github_publication_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/review_cycle_promotion.hpp"
 #include "bpr/application/review_cycle_workbench.hpp"
 #include "bpr/application/syntax_classification_application_host.hpp"
+#include "bpr/application/tour_owner_channel.hpp"
 #include "bpr/application/workspace_source_port.hpp"
 #include "bpr/core/model.hpp"
 #include "bpr/core/review_cycle.hpp"
@@ -35,6 +37,7 @@ namespace bpr::qt {
 }
 
 namespace bpr::app {
+	class desktop_tour_port;
 	class suggestion_text_source;
 	class code_syntax_relay;
 
@@ -101,6 +104,12 @@ namespace bpr::app {
 			std::function<std::optional<application::github_publication_account>()> Account;
 		};
 		void set_publishing(publishing aPublishing);
+		/// \brief [[BPR-1273]]. Where Add Notes to Review Tour edits a pull
+		/// request's tour: the profile's tour owner, which runs a request on the
+		/// window holding that draft, or on the stored draft, as `bpr tour`
+		/// commands are run. Without one, no note can be added.
+		using tour_route = std::function<void(application::tour_channel_bytes, std::function<void(application::tour_channel_bytes)>)>;
+		void set_tour_route(tour_route aRoute);
 		/// \brief Replaces where the account comes from, keeping the catalog.
 		void set_publication_account(std::function<std::optional<application::github_publication_account>()> aAccount);
 		/// \brief What this window holds of cycle `aCycle`'s round draft that
@@ -135,6 +144,11 @@ namespace bpr::app {
 		void save_patch();
 		/// Open Pull Request: the Home bar opens the linked pull request, as a pasted link does.
 		void open_pull_request();
+		/// The Home bar opens `aAddress` in the existing pull request workflow.
+		void open_address(const std::string& aAddress);
+		/// Add Notes to Review Tour for the cycle's latest link ([[BPR-1273]]).
+		void open_promotion();
+		void open_promotion_pull_request();
 		void want_syntax(const qt::suggestion_syntax_request& aRequest);
 		void want_source_syntax(const qt::source_syntax_request& aRequest);
 		void want(std::size_t aSlot, const std::string& aPath, const std::string& aDocument);
@@ -156,6 +170,10 @@ namespace bpr::app {
 		/// host, which it outlives.
 		std::unique_ptr<worker_executor>                                     OwnCaptures;
 		std::unique_ptr<application::review_cycle_workbench>                 Host;
+		/// [[BPR-1273]]. The tour owner Add Notes to Review Tour adds through,
+		/// declared before the promoter, which it outlives.
+		std::unique_ptr<desktop_tour_port>                  Tours;
+		std::unique_ptr<application::review_cycle_promoter> Promoter;
 		core::local_cycle_subject                                            LastSubject;
 		bool                                                                 Closing           = false;
 		const adapters::syntax::packaged_definition_catalog*                 SyntaxDefinitions = nullptr;

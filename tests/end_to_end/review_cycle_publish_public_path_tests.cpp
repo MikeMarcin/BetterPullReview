@@ -6,10 +6,13 @@
 #include "../workspace_contract/simulated_github.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/core/review_cycle_association.hpp"
+#include "bpr/qt/review_cycle_promote_sheet.hpp"
 #include "bpr/qt/review_cycle_publish_sheet.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -68,12 +71,22 @@
 /// existing workflow; the cycle resumes from Home with its history and both
 /// links. Nothing private reached the server, and only the catalog's finite
 /// writes were made. The sheet is rendered at each stage for review.
+///
+/// [[BPR-1273]]. A note on a published line joins the private note. Once
+/// pull request #17 was opened (which starts its Review Tour on this
+/// profile), Share notes' menu offers Add Notes to Review Tour…: the sheet
+/// lists both notes and says where each stop would point, the line note is
+/// added through the profile's tour owner with its exact line at the
+/// published commit, adding it again changes nothing, and GitHub receives
+/// nothing.
 namespace {
 	using namespace bpr;
 	using access = app::detail::github_application_fixture_access;
 	using tests::workspace_contract::simulated_github;
 
 	constexpr auto private_note = "PRIVATE-NOTE-c41d keep the parser pure";
+	constexpr auto line_note    = "LINE-NOTE-7b2e return early on a null pointer";
+	constexpr auto r2_parse     = std::string_view{ "#include \"validate.hpp\"\nint parse(const char* aText) { return aText && validate(aText) ? 0 : 1; }\n" };
 
 	void say(const std::string& aLine)
 	{
@@ -192,6 +205,47 @@ namespace {
 		timer->start();
 	}
 
+	/// Opens a file from the drawer, by a double click on its row.
+	void open_file(qt::workbench_window& aWindow, qt::review_cycle_view& aPage, const QString& aPath)
+	{
+		auto* const files = aPage.files();
+		for (auto row = 0; row < files->count(); ++row) {
+			auto* const item = files->item(row);
+			if (item->data(Qt::UserRole).toString() != aPath) {
+				continue;
+			}
+			const auto opened = [&] { return aPage.projection().Source && QString::fromStdString(aPage.projection().Source->Path) == aPath && aPage.source()->isVisible(); };
+			for (auto attempt = 0; attempt < 2 && !opened(); ++attempt) {
+				reactivate(aWindow);
+				files->scrollToItem(item);
+				QApplication::processEvents();
+				tests::window_system_clicks(*files->viewport(), QRectF{ files->visualItemRect(item) }.center(), 2);
+				wait_for(opened, 5000);
+			}
+			require(opened(), "the drawer opens " + utf8(aPath));
+			return;
+		}
+		throw refused{ "the drawer does not list " + utf8(aPath) };
+	}
+
+	/// A drag across bytes [aStart, aEnd) of the code, as a hand selects.
+	void select(qt::review_cycle_view& aPage, const std::uint64_t aStart, const std::uint64_t aEnd)
+	{
+		auto* const code = aPage.source();
+		code->setFocus(Qt::MouseFocusReason);
+		const auto from = code->cell_rectangle(code->model().point_of(aStart));
+		const auto to   = code->cell_rectangle(code->model().point_of(aEnd));
+		tests::window_system_mouse(*code->viewport(), QPointF{ from.left() + 1.0, from.center().y() }, QEvent::MouseButtonPress, Qt::LeftButton, 2000);
+		tests::window_system_mouse(*code->viewport(), QPointF{ to.left() + 1.0, to.center().y() }, QEvent::MouseMove, Qt::LeftButton);
+		tests::window_system_mouse(*code->viewport(), QPointF{ to.left() + 1.0, to.center().y() }, QEvent::MouseButtonRelease, Qt::NoButton);
+		require(code->selected_bytes() == std::pair{ aStart, aEnd }, "a drag selects the bytes");
+	}
+
+	auto promotion_settled(const qt::review_cycle_view& aPage) -> bool
+	{
+		return aPage.promote_sheet()->isVisible() && aPage.promote_sheet()->add_button()->isVisible() && !aPage.promote_sheet()->status()->text().endsWith(QStringLiteral("…"));
+	}
+
 	auto idle(const qt::review_cycle_view& aPage) -> bool
 	{
 		return aPage.projection().Activity == application::review_cycle_activity::idle;
@@ -282,6 +336,17 @@ namespace {
 		click(*capture);
 		require(wait_for([&] { return idle(page) && page.projection().Revisions.size() == 2U && page.projection().Message.empty(); }), "R2 captured");
 
+		// [[BPR-1273]]. A note on a line the publication will carry: Return in the code notes the selection.
+		open_file(window, page, QStringLiteral("src/parse.cpp"));
+		const auto noted = r2_parse.find("validate(aText)");
+		select(page, noted, noted + 15U);
+		reactivate(window);
+		tests::window_system_key(*page.source(), Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		require(page.comment_editor()->isVisible(), "Return opens a note on the selection");
+		type(*page.comment_editor(), QString::fromUtf8(line_note));
+		click(*page.findChild<QPushButton*>(QStringLiteral("cycleCommentSave")));
+		require(wait_for([&] { return idle(page) && page.projection().Notes.size() == 2U; }), "the line note is saved");
+
 		// Share notes' menu: Publish as Pull Request…
 		require(page.publish_action()->isEnabled(), "Publish as Pull Request is offered");
 		page.publish_action()->trigger();
@@ -293,7 +358,7 @@ namespace {
 				"the cycle's captures are not the pull request's change: " + utf8(sheet->cycle_words()->text()));
 		require(sheet->base_words()->text().startsWith(QStringLiteral("The new commit's only parent: ")) && sheet->base_words()->text().contains(QStringLiteral("where HEAD points")),
 				"the base commit named: " + utf8(sheet->base_words()->text()));
-		require(sheet->private_words()->text().contains(QStringLiteral("R1 to R2, 1 note, 0 rounds, 0 replies and your decisions. None of it is uploaded.")), "what stays on this computer: " + utf8(sheet->private_words()->text()));
+		require(sheet->private_words()->text().contains(QStringLiteral("R1 to R2, 2 notes, 0 rounds, 0 replies and your decisions. None of it is uploaded.")), "what stays on this computer: " + utf8(sheet->private_words()->text()));
 		require(remote->writes() == 0 && !page.projection().Publication->Current, "opening it recorded and sent nothing");
 
 		// The reviewer names where it goes and what the pull request says.
@@ -388,7 +453,7 @@ namespace {
 		for (const auto& draft : remote->Drafts) {
 			sent += draft.Title + draft.Body;
 		}
-		require(remote->Drafts.size() == 1U && remote->Drafts[0].Draft && !contains(sent, "PRIVATE-NOTE") && !contains(sent, "unrelated"), "nothing private or unselected reached GitHub");
+		require(remote->Drafts.size() == 1U && remote->Drafts[0].Draft && !contains(sent, "PRIVATE-NOTE") && !contains(sent, "LINE-NOTE") && !contains(sent, "unrelated"), "nothing private or unselected reached GitHub");
 
 		// A pull request published by hand is linked after a read of exactly it.
 		auto theirs    = remote->Pulls.front();
@@ -406,6 +471,10 @@ namespace {
 		require(page.projection().Links[1].Origin == core::cycle_pull_origin::external && sheet->status()->text().contains(QStringLiteral("as externally published. BetterPullReview did not publish it.")),
 				"as externally published");
 		require(page.updates_line()->text().contains(QStringLiteral("linked to externally published pull request #21")) && remote->writes() == writes, "the page says so, and nothing was written");
+		// [[BPR-1273]]. Signed in, the pull request opened next starts its
+		// Review Tour on this profile; a signed-out preview has none.
+		window.github_connect_action()->trigger();
+		require(wait_for([&] { return window.github_status_text() == "GitHub account connected."; }), "the fixture's account connects: " + window.github_status_text());
 		reactivate(*sheet);
 		click(*sheet->primary_button());
 		require(wait_for([&] { return !window.showing_local_cycle(); }, 30000), "Open Pull Request hands the address to the Home bar");
@@ -429,13 +498,82 @@ namespace {
 		require(wait_for([&] { return window.showing_local_cycle() && page.projection().Cycle && idle(page) && page.projection().Links.size() == 2U; }),
 				"the cycle resumes with both links (cycle shown " + std::to_string(window.showing_local_cycle()) + ", links " + std::to_string(page.projection().Links.size()) + ", message " + page.projection().Message + ")");
 		// The notes are read after the cycle itself is shown.
-		require(wait_for([&] { return idle(page) && page.projection().Revisions.size() == 2U && page.projection().Notes.size() == 1U && page.projection().Notes[0].Body == private_note; }),
-				"R1, R2 and the private note are still there");
+		require(wait_for([&] { return idle(page) && page.projection().Revisions.size() == 2U && page.projection().Notes.size() == 2U && page.projection().Notes[0].Body == private_note; }),
+				"R1, R2 and the notes are still there");
 		page.publish_action()->trigger();
 		require(wait_for([&] { return sheet->isVisible() && sheet_settled(page) && page.projection().Publication->Stage == application::review_cycle_publication_stage::linked; }), "the linked publication shows again");
 		require(!sheet->save_patch_button()->isVisible() && sheet->primary_button()->text() == QStringLiteral("Open Pull Request"), "a linked sheet offers the pull request, not a patch");
 		click(*sheet->close_button());
 		require(wait_for([&] { return !page.projection().Publication; }), "closed");
+
+		// [[BPR-1273]]. Share notes' menu: Add Notes to Review Tour… The pull
+		// request #17 was opened above, so its tour exists on this profile.
+		const auto before = remote->writes();
+		const auto calls  = remote->Writes;
+		reactivate(window);
+		require(page.promote_action()->isEnabled(), "Add Notes to Review Tour is offered for a linked cycle");
+		page.promote_action()->trigger();
+		auto* const promote = page.promote_sheet();
+		require(wait_for([&] { return promotion_settled(page); }), "the sheet opens and finds the tour: " + utf8(promote->status()->text()));
+		require(promote->title()->text() == QStringLiteral("Add notes to the Review Tour of #17") && promote->notes()->count() == 2, "titled for pull request #17, with both notes: " + utf8(promote->title()->text()));
+		const auto rows = [&] {
+			auto text = std::string{ };
+			for (auto row = 0; row < promote->notes()->count(); ++row) {
+				text += utf8(promote->notes()->item(row)->data(Qt::UserRole + 2).toString()) + "\n";
+			}
+			return text;
+		};
+		say("COURSE_NOTE promotion rows:\n" + rows());
+		require(contains(rows(), "The whole change: PRIVATE-NOTE-c41d keep the parser pure\nNo lines: the note is about the whole change.") && contains(rows(), "src/parse.cpp: LINE-NOTE-7b2e return early on a null pointer\nLine 2, exactly as the pull request's commit holds them."),
+				"each note says where its stop would point:\n" + rows());
+		require(promote->outgoing_words()->text().startsWith(QStringLiteral("Nothing now.")), "the ledger says nothing goes to GitHub now");
+		render(*promote, "promote-choosing");
+		// The line note is checked by its box, as a hand does.
+		auto* const lineItem = promote->notes()->item(1);
+		const auto  box      = promote->notes()->visualItemRect(lineItem);
+		reactivate(*promote);
+		tests::window_system_clicks(*promote->notes()->viewport(), QPointF{ box.left() + 10.0, box.top() + box.height() / 4.0 }, 1);
+		if (!wait_for([&] { return lineItem->checkState() == Qt::Checked; }, 2000)) {
+			say("COURSE_NOTE a click on the line note's box did not check it; given by the keyboard");
+			promote->notes()->setCurrentItem(lineItem);
+			tests::window_system_key(*promote->notes(), Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+		}
+		require(wait_for([&] { return promote->add_button()->isEnabled() && promote->add_button()->text() == QStringLiteral("Add 1 Note"); }), "one note chosen: " + utf8(promote->add_button()->text()));
+		click(*promote->add_button());
+		require(wait_for([&] { return promote->status()->text().startsWith(QStringLiteral("Added 1 note to the Review Tour of #17.")); }), "the note is added: " + utf8(promote->status()->text()));
+		require(promote->status()->text().contains(QStringLiteral("nothing was sent to GitHub")) && remote->writes() == before && remote->Writes == calls, "and GitHub received nothing");
+		render(*promote, "promote-added");
+		// The tour as its owner stored it: the note's words, its exact line at the published commit, waiting.
+		{
+			auto       tours   = adapters::sqlite::make_review_tour_store(aScratch / "data", aProfile);
+			const auto targets = tours->targets({ });
+			require(targets && targets->size() == 1U && targets->front().Number.value() == 17U, "the tour of #17");
+			const auto state = tours->load_state(targets->front().Owner, targets->front().Draft, { });
+			require(state && *state && (*state)->Draft.Stops.size() == 1U, "one stop in the tour");
+			const auto& stop = (*state)->Draft.Stops.front();
+			require(stop.Body == line_note && stop.Destination && stop.Destination->Commit == commit && stop.Destination->Path == "src/parse.cpp" && stop.Destination->FirstLine == 1U && stop.Destination->LastLine == 1U
+						&& stop.Preparation == core::tour_preparation::editing && !core::ready(stop),
+					"the stop keeps the note's words and its exact line at the published commit, and waits for the reviewer");
+		}
+		// Adding it again changes nothing.
+		reactivate(*promote);
+		tests::window_system_clicks(*promote->notes()->viewport(), QPointF{ box.left() + 10.0, box.top() + box.height() / 4.0 }, 1);
+		if (!wait_for([&] { return lineItem->checkState() == Qt::Checked; }, 2000)) {
+			promote->notes()->setCurrentItem(lineItem);
+			tests::window_system_key(*promote->notes(), Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+		}
+		require(wait_for([&] { return promote->add_button()->isEnabled(); }), "chosen again");
+		click(*promote->add_button());
+		require(wait_for([&] { return promote->status()->text().contains(QStringLiteral("1 note was already in the tour; nothing changed for it.")); }), "added again, nothing changes: " + utf8(promote->status()->text()));
+		{
+			auto       tours   = adapters::sqlite::make_review_tour_store(aScratch / "data", aProfile);
+			const auto targets = tours->targets({ });
+			const auto state   = tours->load_state(targets->front().Owner, targets->front().Draft, { });
+			require(state && *state && (*state)->Draft.Stops.size() == 1U, "still one stop");
+		}
+		click(*promote->close_button());
+		require(wait_for([&] { return !promote->isVisible() && page.promote_action()->isEnabled(); }), "Done closes it");
+		require(remote->writes() == before, "promotion sent nothing to GitHub");
 		say("REVIEW_CYCLE_PUBLISH_OK");
 	}
 }

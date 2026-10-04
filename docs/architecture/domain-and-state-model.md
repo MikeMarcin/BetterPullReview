@@ -671,6 +671,36 @@ no step uploads any of them or writes a GitHub comment or review. The page's
 Updates line names each linked pull request; Open Pull Request hands its
 address to the Home bar, which opens it in the existing pull request workflow.
 
+A linked cycle's notes join that pull request's Review Tour only when the
+reviewer adds them (BPR-1273, `bpr/core/review_cycle_promotion.hpp`). Share
+notes' menu holds Add Notes to Review Tour…, a sheet over the code that lists
+every note and says where its stop would point. A chosen note becomes one
+stop with the note's current wording as its body, unchanged; replies,
+decisions, suggestions, rounds and earlier wordings stay in the cycle. The
+stop keeps exact lines only when they are proved: the note was written on
+the revision a native publication published, the plan writes the note's path
+with exactly the note's bytes (`candidate_blob::Content`, no line-ending
+transformation), and the bytes read back from the cycle's store hash to the
+object the plan names. Those lines become the stop's remote address
+(`tour_stop::Destination`) at the published commit. Every other note (an
+earlier capture, other bytes in the commit, a file outside its changes, a
+whole file, a folder, the whole change, or a pull request linked by hand)
+carries no source: the reviewer chooses its lines when completing it, and no
+current line is chosen for it. What each stop becomes on GitHub is the tour's
+own policy (`core::plan_tour_destination`, observed exactly as tour
+publication observes it through `core::publication_observation`), and a
+promoted stop waits in the editing state until the reviewer completes it in
+the pull request's tour. Adding is a local tour edit run where the draft
+lives, through the profile's tour owner (`desktop_tour_owner_route`, as
+`bpr tour` commands are): the window holding that draft, or the stored draft.
+Each note is one request whose identity is the cycle, the note and the pull
+request (`cycle-note-…`); the tour's receipts are read before a request is
+sent, so a note whose answer was lost, or whose process died, is never added
+twice. A pull request becomes promotable once it has been opened on the
+profile signed in, which starts its tour; nothing is sent to GitHub by adding,
+and the tour is published only from the pull request, through its own
+preview and confirmation.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

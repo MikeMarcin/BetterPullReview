@@ -3,11 +3,13 @@
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/review_cycle_promotion.hpp"
 #include "bpr/application/review_cycle_publication.hpp"
 #include "bpr/application/review_cycle_publisher.hpp"
 #include "bpr/application/review_cycle_workbench.hpp"
 #include "publication_course.hpp"
 #include "simulated_github.hpp"
+#include "stored_tour_port.hpp"
 #include "workspace_fixture.hpp"
 
 #include <algorithm>
@@ -43,6 +45,14 @@
 /// another actor changed on GitHub while nothing ran, reads before it writes,
 /// and sends a remaining step only after the reviewer confirms the plan again.
 /// No live GitHub is contacted.
+///
+/// [[BPR-1273]] adds the promotion cases: once the pull request is linked,
+/// Add Notes to Review Tour adds five notes of the cycle to the pull
+/// request's tour through the tour's real store, and dies before or after a
+/// note's stop is durable, or loses an answer. A restart asks again under the
+/// same request identities: every note's stop is in the tour exactly once,
+/// with its words unchanged and exact lines only where they are proved, none
+/// is ready to publish, and GitHub receives nothing at all.
 
 namespace {
 	using namespace bpr;
@@ -128,6 +138,26 @@ namespace {
 		course_case{ .Name = "pull-ambiguous", .Kill = "after-pull", .While = drift::pull_ambiguous, .End = ending::ambiguous },
 		course_case{ .Name = "head-pushed", .Kill = "after-pull", .While = drift::head_pushed, .End = ending::linked_drifted },
 		course_case{ .Name = "cancel-after-tree", .Kill = "after-tree", .End = ending::cancelled },
+	};
+
+	/// [[BPR-1273]]. A promotion course: the plan published and linked, then
+	/// the cycle's five notes added to the pull request's tour.
+	struct promotion_case
+	{
+		std::string_view Name;
+		/// `before-stop-N` or `after-stop-N`: the Nth request to the tour.
+		std::string_view Kill;
+		/// `lose-stop-N`: the Nth request takes effect and its answer is lost.
+		std::string_view Fault;
+	};
+
+	constexpr auto promotion_cases = std::array{
+		promotion_case{ .Name = "promote-clean" },
+		promotion_case{ .Name = "promote-before-first", .Kill = "before-stop-1" },
+		promotion_case{ .Name = "promote-after-first", .Kill = "after-stop-1" },
+		promotion_case{ .Name = "promote-after-third", .Kill = "after-stop-3" },
+		promotion_case{ .Name = "promote-after-last", .Kill = "after-stop-5" },
+		promotion_case{ .Name = "promote-lost-answer", .Fault = "lose-stop-2" },
 	};
 
 	/// The order the plan's steps are written in: two blobs, the tree, the
@@ -498,11 +528,43 @@ namespace {
 		}
 	}
 
-	auto find_case(const std::string_view aName) -> const course_case&
+	auto find_case(const std::string_view aName) -> course_case
 	{
 		const auto found = std::ranges::find(cases, aName, &course_case::Name);
-		expect(found != cases.end(), "a known course case: " + std::string{ aName });
+		if (found == cases.end()) {
+			// A promotion course publishes once, without a death or a fault.
+			const auto promoting = std::ranges::find(promotion_cases, aName, &promotion_case::Name);
+			expect(promoting != promotion_cases.end(), "a known course case: " + std::string{ aName });
+			return course_case{ .Name = promoting->Name };
+		}
 		return *found;
+	}
+
+	constexpr auto r1_parse = std::string_view{ "// Parser entry point.\nint parse(const char* aText) { return check(aText); }\n" };
+	constexpr auto r2_parse = std::string_view{ "// Parser entry point.\n#include \"validate.hpp\"\nint parse(const char* aText) { return aText && validate(aText) ? 0 : 1; }\n" };
+
+	/// [[BPR-1273]]. The five notes, in the order the cycle lists them: on R1,
+	/// on the published lines, on a line the change did not touch, on the
+	/// whole change and on a folder.
+	constexpr auto promotion_bodies = std::array<std::pair<std::string_view, std::string_view>, 5>{ {
+		{ "historical", "check() is the wrong call here." },
+		{ "exact", "Return early on a null pointer instead." },
+		{ "off-hunk", "Say what the entry point accepts." },
+		{ "whole", "Split validation into its own change." },
+		{ "folder", "This folder needs a README." },
+	} };
+
+	auto text_bytes(const std::string_view aText) -> std::span<const std::uint8_t>
+	{
+		return { reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() };
+	}
+
+	void note(desk& aWork, core::cycle_feedback_target aTarget, const std::string_view aTag)
+	{
+		const auto body = std::ranges::find(promotion_bodies, aTag, &std::pair<std::string_view, std::string_view>::first)->second;
+		aWork.Host->comment({ .Primary = std::move(aTarget), .Body = std::string{ body } });
+		aWork.Lanes.drain();
+		expect(aWork.view().Message.empty(), "the " + std::string{ aTag } + " note is saved: " + aWork.view().Message);
 	}
 
 	/// The first process: a checkout, a cycle with R1 and R2, a plan, then
@@ -510,11 +572,12 @@ namespace {
 	/// fault and stops.
 	void publish_phase(const course& aCourse, const course_case& aCase, const git_runner& aGit, const std::filesystem::path& aExecutable)
 	{
-		const auto project = aCourse.project();
+		const auto promoting = aCase.Name.starts_with("promote-");
+		const auto project   = aCourse.project();
 		std::filesystem::create_directories(project);
 		aGit(project, { "init", "-q", "-b", "main" });
 		write_file(project / "README.md", "# Parser\n");
-		write_file(project / "src" / "parse.cpp", "int parse(const char* aText) { return check(aText); }\n");
+		write_file(project / "src" / "parse.cpp", "// Parser entry point.\nint parse(const char* aText) { return check(aText); }\n");
 		write_file(project / "src" / "old.cpp", "int old() { return 0; }\n");
 		aGit(project, { "add", "." });
 		aGit(project, { "commit", "-q", "-m", "base" });
@@ -528,12 +591,26 @@ namespace {
 		work.Lanes.drain();
 		save_subject(aCourse, *work.Host->selected());
 
-		write_file(project / "src" / "parse.cpp", "#include \"validate.hpp\"\nint parse(const char* aText) { return aText && validate(aText) ? 0 : 1; }\n");
+		if (promoting) {
+			// Written on R1, which the pull request never holds.
+			note(work, *core::make_anchor(work.view().Revisions.front(), "src/parse.cpp", text_bytes(r1_parse), r1_parse.find("check"), r1_parse.find("check") + 5U), "historical");
+		}
+		write_file(project / "src" / "parse.cpp", r2_parse);
 		write_file(project / "src" / "validate.cpp", "bool validate(const char* aText) { return *aText != '\\0'; }\n");
 		std::filesystem::remove(project / "src" / "old.cpp");
 		work.Host->capture_revision();
 		work.Lanes.drain();
 		expect(work.view().Revisions.size() == 2U && work.view().Message.empty(), "R1 and R2: " + std::to_string(work.view().Revisions.size()) + " " + work.view().Message);
+		if (promoting) {
+			const auto latest = work.view().Revisions.back();
+			const auto lines  = r2_parse.find("int parse");
+			// The changed lines, and a line the change did not touch, in the published file.
+			note(work, *core::make_anchor(latest, "src/parse.cpp", text_bytes(r2_parse), lines, r2_parse.size() - 1U), "exact");
+			note(work, *core::make_anchor(latest, "src/parse.cpp", text_bytes(r2_parse), 3U, 21U), "off-hunk");
+			note(work, core::cycle_whole_target{ }, "whole");
+			note(work, core::cycle_module_target{ .Path = "src" }, "folder");
+			expect(work.view().Notes.size() == 5U, "five notes: " + std::to_string(work.view().Notes.size()));
+		}
 
 		work.Host->open_publication();
 		auto form       = work.sheet().Form;
@@ -564,7 +641,9 @@ namespace {
 		work.Lanes.drain();
 		// Only a case without a kill point comes back here.
 		expect(aCase.Kill.empty(), std::string{ aCase.Name } + ": the process survived its kill point");
-		if (aCase.Fault == "pull") {
+		if (aCase.Fault.empty()) {
+			expect(work.sheet().Stage == review_cycle_publication_stage::linked && server.Writes == full_writes(), std::string{ aCase.Name } + ": published and linked once");
+		} else if (aCase.Fault == "pull") {
 			// A lost answer without a death: uncertain, and nothing more is sent.
 			expect(work.sheet().Stage == review_cycle_publication_stage::stopped && work.journal().Phase == core::publication_phase::uncertain && work.journal().Generation == 0U,
 				   "a lost pull request answer is uncertain, with no authorization left");
@@ -801,6 +880,249 @@ namespace {
 		expect_no_duplicates(server, aCase.Name);
 	}
 
+	/// [[BPR-1273]]. The tour's real store in front of Add Notes to Review
+	/// Tour: it dies at the course's boundary of the Nth request, before it
+	/// reaches the store or after its stop and receipt are durable, or loses
+	/// that request's answer once.
+	class checkpoint_tour_port final : public tests::workspace_contract::stored_tour_port
+	{
+	public:
+		checkpoint_tour_port(const course& aCourse, std::string aFault)
+			: stored_tour_port{ aCourse.profile_root(), profile }
+			, Course{ aCourse }
+			, Fault{ std::move(aFault) }
+		{
+		}
+
+		void execute(const application::tour_saved_target& aTarget, application::tour_service_request aRequest, reply aReply) override
+		{
+			const auto ordinal = std::to_string(++Requests);
+			boundary("before-stop-" + ordinal);
+			auto result = run(aTarget, aRequest);
+			boundary("after-stop-" + ordinal);
+			if (Fault == "lose-stop-" + ordinal && !Lost) {
+				// The stop and its receipt are durable; only the answer is lost.
+				Lost = true;
+				expect(result.has_value(), "the request whose answer is lost took effect");
+				aReply(std::unexpected(application::review_cycle_tour_failure::unanswered));
+				return;
+			}
+			aReply(std::move(result));
+		}
+
+		int Requests = 0;
+
+	private:
+		void boundary(const std::string& aPoint)
+		{
+			if (aPoint != Course.Kill) {
+				return;
+			}
+			std::ofstream{ Course.Root / "kill-ready", std::ios::binary | std::ios::trunc } << Course.Phase;
+			static_cast<void>(std::cin.get());
+			expect(false, "the process was killed at " + aPoint);
+		}
+
+		const course& Course;
+		std::string   Fault;
+		bool          Lost = false;
+	};
+
+	/// The tour the pull request's first opening on this profile records.
+	auto tour_target(const core::cycle_pull_association& aLink, const core::git_commit_oid& aBase) -> application::tour_saved_target
+	{
+		auto authority     = std::array<std::uint8_t, 32>{ };
+		authority[0]       = 0x51;
+		auto target        = application::tour_saved_target{ };
+		target.Owner       = { profile, core::git_host_id{ 1 }, core::host_authority_fingerprint{ authority }, reviewer, core::repository_id{ 2 }, core::pull_request_id{ aLink.Address.Number } };
+		target.Draft       = core::tour_draft_id{ 1 };
+		target.HostProfile = core::host_profile_id{ 1 };
+		target.Hostname    = aLink.Address.Host;
+		target.Repository  = { aLink.Address.Owner, aLink.Address.Repository };
+		target.Number      = core::pull_request_number{ static_cast<std::uint32_t>(aLink.Address.Number) };
+		target.Base        = aBase;
+		target.Head        = aLink.Head;
+		return target;
+	}
+
+	auto stored_tour(const course& aCourse, const application::tour_saved_target& aTarget) -> std::optional<core::review_tour>
+	{
+		const auto state = adapters::sqlite::make_review_tour_store(aCourse.profile_root(), profile)->load_state(aTarget.Owner, aTarget.Draft, { });
+		expect(state.has_value(), "the tour store reads");
+		return *state ? std::optional{ (*state)->Draft } : std::nullopt;
+	}
+
+	/// What every promotion phase leaves: each note's stop in the tour at
+	/// most once (exactly once when `aComplete`), its words unchanged, exact
+	/// lines only for the two notes on the published bytes, nothing ready to
+	/// publish, and GitHub untouched.
+	void expect_tour(const course& aCourse, const application::tour_saved_target& aTarget, const core::publication_plan& aPlan, const bool aComplete, const std::string_view aCase)
+	{
+		const auto tour  = stored_tour(aCourse, aTarget);
+		const auto stops = tour ? tour->Stops : std::vector<core::tour_stop>{ };
+		for (std::size_t index = 0; index < promotion_bodies.size(); ++index) {
+			const auto& [tag, body] = promotion_bodies[index];
+			const auto count        = std::ranges::count(stops, std::string{ body }, &core::tour_stop::Body);
+			expect(count <= 1 && (!aComplete || count == 1), std::string{ aCase } + ": the " + std::string{ tag } + " note's stop is in the tour " + (aComplete ? "exactly" : "at most") + " once (" + std::to_string(count) + ")");
+			const auto found = std::ranges::find(stops, std::string{ body }, &core::tour_stop::Body);
+			if (found == stops.end()) {
+				continue;
+			}
+			expect(!found->Original && !found->Mapped && found->Preparation == core::tour_preparation::editing && !core::ready(*found), std::string{ aCase } + ": the " + std::string{ tag } + " stop waits for the reviewer");
+			if (tag == "exact" || tag == "off-hunk") {
+				const auto& source = found->Destination;
+				expect(source && source->Commit == aPlan.Commit && source->Path == "src/parse.cpp" && source->Side == core::diff_side::right, std::string{ aCase } + ": the " + std::string{ tag } + " stop keeps its lines at the published commit");
+				expect(tag == "exact" ? (source->FirstLine == 2U && source->LastLine == 2U) : (source->FirstLine == 0U && source->LastLine == 0U), std::string{ aCase } + ": on exactly the note's line");
+			} else {
+				expect(!found->Destination, std::string{ aCase } + ": the " + std::string{ tag } + " stop carries no current line");
+			}
+		}
+		expect(stops.size() <= promotion_bodies.size(), std::string{ aCase } + ": no other stop");
+		if (tour && !stops.empty()) {
+			auto planned = std::vector<core::tour_destination_plan>{ };
+			for (const auto& stop : stops) {
+				planned.push_back(core::promoted_destination(stop, tour->Head, tour->Base));
+			}
+			expect(core::assess_tour_publication(*tour, planned, false) == core::tour_publication_readiness::incomplete, std::string{ aCase } + ": nothing is publishable until the reviewer completes it");
+		}
+	}
+
+	auto find_promotion(const std::string_view aName) -> const promotion_case&
+	{
+		const auto found = std::ranges::find(promotion_cases, aName, &promotion_case::Name);
+		expect(found != promotion_cases.end(), "a known promotion case: " + std::string{ aName });
+		return *found;
+	}
+
+	/// Add Notes to Review Tour after the pull request was linked: the first
+	/// process (which may die at its kill point), the restart (`aRound` 1)
+	/// and a last reopening (`aRound` 2) that also offers a reworded note.
+	void promote_phase(const course& aCourse, const promotion_case& aCase, const std::filesystem::path& aExecutable, const int aRound)
+	{
+		auto server = simulated_github{ };
+		server.load(aCourse.server());
+		expect(server.Writes == full_writes(), std::string{ aCase.Name } + ": the pull request was published once");
+		const auto published = server.Pulls;
+		auto       catalog   = std::make_shared<checkpoint_port>(server, aCourse);
+		auto       work      = desk{ aCourse, aExecutable, catalog };
+		work.Host->open_project(aCourse.project().string());
+		work.Lanes.drain();
+		const auto subject = *work.Host->selected();
+		const auto view    = work.view();
+		expect(view.Links.size() == 1U && view.Links.front().Origin == core::cycle_pull_origin::published && view.Notes.size() == promotion_bodies.size(), std::string{ aCase.Name } + ": the linked cycle and its five notes");
+		const auto link = view.Links.front();
+		auto       plan = core::publication_plan{ };
+		{
+			const auto stored = adapters::sqlite::make_review_cycle_store(aCourse.profile_root(), profile)->load_publication(subject, *link.Publication, { });
+			expect(stored && *stored, "the linked publication's plan");
+			plan = (*stored)->Plan;
+		}
+		const auto target = tour_target(link, plan.Parent);
+
+		auto       tours    = checkpoint_tour_port{ aCourse, aRound == 0 ? std::string{ aCase.Fault } : std::string{ } };
+		auto       shown    = std::optional<application::review_cycle_promotion_view>{ };
+		auto       promoter = application::review_cycle_promoter{ adapters::sqlite::make_review_cycle_store(aCourse.profile_root(), profile), tours, work.Lanes, work.Lanes,
+																  [&](const std::optional<application::review_cycle_promotion_view>& aView) { shown = aView; } };
+		const auto opened   = [&] {
+			promoter.open(subject, view.Links, view.Notes);
+			work.Lanes.drain();
+			expect(shown.has_value() && !shown->Busy, std::string{ aCase.Name } + ": the sheet is open");
+		};
+		const auto toursStore = adapters::sqlite::make_review_tour_store(aCourse.profile_root(), profile);
+		const auto known      = toursStore->targets({ });
+		expect(known.has_value(), "the tours read");
+		if (known->empty()) {
+			expect(aRound == 0, std::string{ aCase.Name } + ": the first process records the tour");
+			if (aCase.Name == "promote-clean") {
+				// Never opened here: there is no tour to add to, and nothing is written.
+				opened();
+				expect(shown->Target == application::review_cycle_promotion_target::not_opened && contains(shown->Status, "has no Review Tour on this profile yet"),
+					   "a pull request never opened has no tour yet: " + shown->Status);
+				promoter.add();
+				work.Lanes.drain();
+				expect(tours.Requests == 0 && !stored_tour(aCourse, target), "and nothing is added");
+			}
+			// Open Pull Request records the tour, as the pull request's window does.
+			expect(toursStore->remember_target(target, { }).has_value(), "the pull request's tour is recorded");
+			promoter.refresh();
+			work.Lanes.drain();
+		}
+		opened();
+		expect(shown->Target == application::review_cycle_promotion_target::ready, std::string{ aCase.Name } + ": the tour is found: " + shown->Status);
+		using source       = core::cycle_promotion_source;
+		const auto sources = std::array{ source::earlier_revision, source::exact_lines, source::exact_lines, source::whole_change, source::folder };
+		for (std::size_t index = 0; index < sources.size(); ++index) {
+			const auto& row = shown->Rows[index];
+			expect(row.Source == sources[index] && row.Body == promotion_bodies[index].second, std::string{ aCase.Name } + ": the " + std::string{ promotion_bodies[index].first } + " note as the policy places it");
+			const auto exact = sources[index] == source::exact_lines;
+			expect(row.Planned && (exact ? row.Planned->Representation == core::tour_representation::native_line : row.Planned->Representation == core::tour_representation::unresolved),
+				   std::string{ aCase.Name } + ": what the tour's policy makes of the " + std::string{ promotion_bodies[index].first } + " note");
+		}
+
+		auto rows = shown->Rows;
+		if (aRound == 2) {
+			// The note was reworded after it was added: the tour already holds
+			// its stop, so nothing is sent and no second stop appears.
+			auto notes = view.Notes;
+			notes[3].Body += " Reworded.";
+			promoter.open(subject, view.Links, notes);
+			work.Lanes.drain();
+			promoter.choose(notes[3].Item.Id, true);
+			const auto before = tours.Requests;
+			promoter.add();
+			work.Lanes.drain();
+			expect(shown->Rows[3].Outcome == application::review_cycle_promotion_outcome::already && contains(shown->Status, "already in the tour") && tours.Requests == before,
+				   std::string{ aCase.Name } + ": a reworded note already added is not sent again: " + shown->Status);
+			expect_tour(aCourse, target, plan, true, aCase.Name);
+			promoter.open(subject, view.Links, view.Notes);
+			work.Lanes.drain();
+		}
+		for (const auto& row : rows) {
+			promoter.choose(row.Item.Id, true);
+		}
+		promoter.add();
+		work.Lanes.drain();
+		// Only a process without a kill point comes back here.
+		expect(aRound > 0 || aCase.Kill.empty(), std::string{ aCase.Name } + ": the process survived its kill point");
+		const auto outcomes = [&] {
+			auto added = 0, already = 0, open = 0;
+			for (const auto& row : shown->Rows) {
+				added += row.Outcome == application::review_cycle_promotion_outcome::added ? 1 : 0;
+				already += row.Outcome == application::review_cycle_promotion_outcome::already ? 1 : 0;
+				open += row.Outcome == application::review_cycle_promotion_outcome::unanswered ? 1 : 0;
+			}
+			return std::array{ added, already, open };
+		};
+		if (aRound == 0 && aCase.Fault.empty()) {
+			expect(outcomes() == std::array{ 5, 0, 0 } && contains(shown->Status, "Added 5 notes to the Review Tour of #") && contains(shown->Status, "nothing was sent to GitHub"),
+				   std::string{ aCase.Name } + ": every note added once: " + shown->Status);
+		} else if (aRound == 0) {
+			// The second answer was lost: the first stop is in, the rest wait.
+			expect(outcomes() == std::array{ 1, 0, 4 } && contains(shown->Status, "did not hear") && contains(shown->Status, "never added twice"), std::string{ aCase.Name } + ": the lost answer is said: " + shown->Status);
+			expect_tour(aCourse, target, plan, false, aCase.Name);
+			for (const auto& row : rows) {
+				promoter.choose(row.Item.Id, true);
+			}
+			promoter.add();
+			work.Lanes.drain();
+			expect(outcomes() == std::array{ 3, 2, 0 }, std::string{ aCase.Name } + ": and the rest are added once: " + shown->Status);
+		} else {
+			// After a kill at `after-stop-N` the first N are in already; a
+			// kill before the first left nothing. A last reopening finds all.
+			auto in = 5;
+			if (aRound == 1) {
+				in = aCase.Kill.starts_with("after-stop-") ? std::stoi(std::string{ aCase.Kill.substr(11) }) : 0;
+			}
+			expect(outcomes() == std::array{ 5 - in, in, 0 }, std::string{ aCase.Name } + ": the stops already in are not added again (" + std::to_string(outcomes()[0]) + " added, " + std::to_string(outcomes()[1]) + " already): " + shown->Status);
+		}
+		expect_tour(aCourse, target, plan, true, aCase.Name);
+		expect(catalog->Calls.empty() && server.Writes == full_writes() && server.Pulls.size() == published.size(), std::string{ aCase.Name } + ": GitHub receives nothing, not even a read");
+		promoter.close();
+		promoter.shutdown();
+		work.Lanes.drain();
+		expect(promoter.is_quiescent(), "the promoter is quiescent");
+	}
+
 	auto argument(const int aArgc, char** aArgv, const std::string_view aName) -> std::string
 	{
 		for (int index = 1; index + 1 < aArgc; ++index) {
@@ -825,11 +1147,17 @@ try {
 		}
 		return EXIT_SUCCESS;
 	}
+	if (phase == "--promotion-cases") {
+		for (const auto& entry : promotion_cases) {
+			std::cout << entry.Name << ' ' << (entry.Kill.empty() ? "-" : entry.Kill) << '\n';
+		}
+		return EXIT_SUCCESS;
+	}
 	const auto executable = tests::workspace_contract::git_executable(aArgc, aArgv);
 	const auto fixtures   = tests::workspace_contract::git_from(aArgc, aArgv);
 	expect(executable.has_value() && fixtures.has_value(), "publication needs the build's Git (--git)");
-	const auto& chosen = find_case(argument(aArgc, aArgv, "--case"));
-	const auto  root   = course{ .Root = std::filesystem::path{ arguments.back() }, .Phase = phase, .Kill = argument(aArgc, aArgv, "--kill") };
+	const auto chosen = find_case(argument(aArgc, aArgv, "--case"));
+	const auto root   = course{ .Root = std::filesystem::path{ arguments.back() }, .Phase = phase, .Kill = argument(aArgc, aArgv, "--kill") };
 	expect(std::filesystem::is_directory(root.Root) && std::filesystem::is_directory(root.profile_root()) && std::filesystem::is_directory(root.isolation()), "the driver's course root");
 	if (phase == "--publish") {
 		publish_phase(root, chosen, *fixtures, *executable);
@@ -839,6 +1167,12 @@ try {
 		restart_phase(root, chosen, *executable, false);
 	} else if (phase == "--verify") {
 		verify_phase(root, chosen, *executable);
+	} else if (phase == "--promote") {
+		promote_phase(root, find_promotion(chosen.Name), *executable, 0);
+	} else if (phase == "--promote-again") {
+		promote_phase(root, find_promotion(chosen.Name), *executable, 1);
+	} else if (phase == "--promote-verify") {
+		promote_phase(root, find_promotion(chosen.Name), *executable, 2);
 	} else {
 		expect(false, "a known phase: " + phase);
 	}

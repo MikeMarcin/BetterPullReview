@@ -622,6 +622,18 @@ endfunction()
 # tree, one commit, a new branch and one pull request, authorized only by the
 # reviewer's confirmation of a recorded plan's digest; no review-mutation grant,
 # target or provider changes; mutation pin unchanged; no new src/app source.
+# BPR-1273 reseal: 1dbd72e48..this candidate; no intervening pinned-scope
+# commit since the BPR-1177 seal. Add Notes to Review Tour from a linked
+# cycle: open_window hands each window's review_cycle_desktop a route to this
+# profile's existing tour owner (desktop_tour_owner_route), the one `bpr tour`
+# commands reach, so a promoted note is a local tour edit run on the window
+# holding that draft or on the stored draft, with a request identity and the
+# tour's own receipts. review_cycle_desktop reads the tour list and sends only
+# load, request_status and insert edits; tour_publication_plan takes its
+# observation from the shared core helper with unchanged behaviour. No GitHub
+# write, grant, target, provider or publication path changes: the tour is
+# published only through its existing preview; mutation pin unchanged; no new
+# src/app source. Reviewed on BPR-1273.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -640,7 +652,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3c9db9e039eb65b7de07047bf92241c70409a865a9811d3b104c1a5eb09f5096"
+		"5a605a95670b4571d27b013934aacc70afe2cec5c469c599d0123b3880f901cd"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -838,7 +850,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7c2575023356dd7cb944d2d3d465094b9a40a1afbed597ec50442edba23b5102"
+        "bc7992c15458964ef0a3800ff910c63295ada7907b72cee639fad5b3a6d0562b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

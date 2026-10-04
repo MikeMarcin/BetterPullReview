@@ -1528,3 +1528,13 @@ that pull request and writes nothing remotely; it is recorded as externally
 published. The page never uploads private notes, rounds, replies or
 decisions, and the local catalog's isolation root is the profile's own
 owner-private `publication-git-v1`.
+
+Add Notes to Review Tour (BPR-1273) holds no GitHub authority at all. Its
+only effects are local tour edits sent to the profile's existing tour owner,
+the same finite load, request-status and edit operations `bpr tour` sends, and
+the tour is published only through the existing tour preview, its exact plan
+and the reviewer's confirmation. A promoted stop carries exactly the note's
+current wording: no reply, decision, round, suggestion, earlier wording or
+unchosen note crosses into the tour. Exact lines are claimed only when the
+published plan and the note's bytes prove them, so promotion never points a
+historical or off-commit note at whatever line a later commit holds.

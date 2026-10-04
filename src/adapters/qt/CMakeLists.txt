@@ -8,6 +8,7 @@ add_library(
         src/review_cycle_view.cpp
         src/review_cycle_share_sheet.cpp
         src/review_cycle_publish_sheet.cpp
+        src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
         src/writing_hooks_panel.cpp
         src/release_maintenance_panel.cpp

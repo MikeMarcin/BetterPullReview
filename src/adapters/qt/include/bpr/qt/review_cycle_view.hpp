@@ -3,6 +3,7 @@
 
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/review_cycle_promote_sheet.hpp"
 #include "bpr/qt/review_cycle_publish_sheet.hpp"
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/suggestion_composer.hpp"
@@ -61,6 +62,9 @@ namespace bpr::qt {
 		/// BPR-1177: Publish as Pull Request opens; its sheet's own gestures.
 		std::function<void()>         OpenPublication;
 		review_cycle_publish_dispatch Publish;
+		/// [[BPR-1273]]: Add Notes to Review Tour opens for a linked cycle; its sheet's own gestures.
+		std::function<void()>         OpenPromotion;
+		review_cycle_promote_dispatch Promote;
 	};
 
 	class appearance_profile;
@@ -168,6 +172,12 @@ namespace bpr::qt {
 		/// notes' menu that opens it (BPR-1177).
 		[[nodiscard]] auto publish_sheet() const noexcept -> review_cycle_publish_sheet*;
 		[[nodiscard]] auto publish_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1273]]. Add Notes to Review Tour: its sheet, and the
+		/// action in Share notes' menu, offered once the cycle has a pull request.
+		[[nodiscard]] auto promote_sheet() const noexcept -> review_cycle_promote_sheet*;
+		[[nodiscard]] auto promote_action() const noexcept -> QAction*;
+		/// \brief Shows Add Notes to Review Tour as its host has it; absent closes it.
+		void present_promotion(const std::optional<application::review_cycle_promotion_view>& aView);
 		/// \brief The exact anchor for the source pane's selection, if it has one.
 		[[nodiscard]] auto selection_anchor() const -> std::optional<core::cycle_source_anchor>;
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
@@ -251,6 +261,9 @@ namespace bpr::qt {
 		review_cycle_share_sheet*                            SharePage     = nullptr;
 		review_cycle_publish_sheet*                          PublishSheet  = nullptr;
 		QAction*                                             PublishAction = nullptr;
+		review_cycle_promote_sheet*                          PromoteSheet  = nullptr;
+		QAction*                                             PromoteAction = nullptr;
+		bool                                                 Promoting     = false;
 		std::optional<core::cycle_round_id>                  ReplyRound;
 		std::optional<std::string>                           ReplyItem;
 		bool                                                 Presenting = false;

@@ -22,6 +22,7 @@ add_library(
         src/review_cycle_publication.cpp
         src/review_cycle_publisher.cpp
         src/review_cycle_publishing.cpp
+        src/review_cycle_promotion.cpp
         src/review_cycle_export.cpp
         src/review_cycle_share.cpp
         src/review_cycle_import.cpp

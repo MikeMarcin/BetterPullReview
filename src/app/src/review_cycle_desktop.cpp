@@ -2,15 +2,19 @@
 
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
+#include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/core/git_objects.hpp"
+#include "bpr/qt/review_cycle_promote_sheet.hpp"
 #include "bpr/qt/review_cycle_publish_sheet.hpp"
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "tour_owner_service.hpp"
 
 #include <QAction>
 #include <QClipboard>
@@ -147,6 +151,80 @@ namespace bpr::app {
 		}
 	}
 
+	/// \brief [[BPR-1273]]. A pull request's Review Tour, as Add Notes to
+	/// Review Tour reaches it: the profile's tour list read from its store,
+	/// and every read and edit of a draft sent to the profile's tour owner,
+	/// which runs it on the window that holds that draft or on the stored
+	/// draft. Nothing here reaches GitHub.
+	class desktop_tour_port final : public application::review_cycle_tour_port
+	{
+	public:
+		desktop_tour_port(std::filesystem::path aRoot, const core::bpr_profile_id aProfile, application::effect_executor& aEffects)
+			: Root{ std::move(aRoot) }
+			, Profile{ aProfile }
+			, Effects{ aEffects }
+		{
+		}
+
+		review_cycle_desktop::tour_route Route;
+
+		void targets(targets_reply aReply) override
+		{
+			try {
+				Effects.post([root = Root, profile = Profile, reply = aReply] {
+					auto listed = std::expected<std::vector<application::tour_saved_target>, application::review_cycle_tour_failure>{ std::unexpected(application::review_cycle_tour_failure::unanswered) };
+					try {
+						if (auto read = adapters::sqlite::make_review_tour_store(root, profile)->targets({ }); read) {
+							listed = std::move(*read);
+						}
+					} catch (...) {
+					}
+					reply(std::move(listed));
+				});
+			} catch (...) {
+				aReply(std::unexpected(application::review_cycle_tour_failure::unanswered));
+			}
+		}
+
+		void load(const application::tour_saved_target& aTarget, std::string aRequest, reply aReply) override
+		{
+			auto request = application::tour_owner_request{ .Operation = aRequest.empty() ? application::tour_owner_operation::load : application::tour_owner_operation::request_status, .Draft = tour_draft_token(aTarget) };
+			request.Edit.RequestId = std::move(aRequest);
+			send(std::move(request), std::move(aReply));
+		}
+
+		void execute(const application::tour_saved_target& aTarget, application::tour_service_request aRequest, reply aReply) override
+		{
+			send({ .Operation = application::tour_owner_operation::mutate, .Draft = tour_draft_token(aTarget), .Edit = std::move(aRequest) }, std::move(aReply));
+		}
+
+	private:
+		void send(application::tour_owner_request aRequest, reply aReply) const
+		{
+			auto bytes = adapters::sqlite::encode_tour_request(std::move(aRequest));
+			if (!Route || bytes.empty()) {
+				aReply(std::unexpected(application::review_cycle_tour_failure::unanswered));
+				return;
+			}
+			Route(std::move(bytes), [reply = std::move(aReply)](const application::tour_channel_bytes& aAnswer) {
+				const auto decoded = adapters::sqlite::decode_tour_response(aAnswer);
+				if (!decoded || !decoded->Error.empty() || !decoded->Draft) {
+					// A refusal is final; anything else leaves the request unanswered, to be read again.
+					const auto error = decoded ? decoded->Error : std::string{ };
+					reply(std::unexpected(error == "revision_conflict" ? application::review_cycle_tour_failure::conflict
+										  : error == "command_refused" ? application::review_cycle_tour_failure::refused
+																	   : application::review_cycle_tour_failure::unanswered));
+					return;
+				}
+				reply(application::review_cycle_tour_answer{ .Draft = *decoded->Draft, .Receipt = decoded->Receipt });
+			});
+		}
+
+		std::filesystem::path         Root;
+		core::bpr_profile_id          Profile;
+		application::effect_executor& Effects;
+	};
+
 	review_cycle_desktop::review_cycle_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, const core::bpr_profile_id aProfile,
 											   application::effect_executor& aEffects, application::decision_executor& aDecisions, const review_cycle_syntax aSyntax,
 											   application::effect_executor* aCaptures)
@@ -158,6 +236,13 @@ namespace bpr::app {
 																	 aCaptures != nullptr ? aCaptures : (OwnCaptures = std::make_unique<worker_executor>()).get());
 		View = new qt::review_cycle_view{ };
 		Window.adopt_local_cycle(View);
+		Tours    = std::make_unique<desktop_tour_port>(aProfileRoot, aProfile, aEffects);
+		Promoter = std::make_unique<application::review_cycle_promoter>(adapters::sqlite::make_review_cycle_store(aProfileRoot, aProfile), *Tours, aEffects, aDecisions,
+																		[this](const std::optional<application::review_cycle_promotion_view>& aView) {
+																			if (!Closing) {
+																				View->present_promotion(aView);
+																			}
+																		});
 		if (aSyntax.Definitions != nullptr && aSyntax.Effects != nullptr) {
 			// The review panes' classifier over the same packaged definitions,
 			// with its own small cache: a proposal is a few whole-file texts,
@@ -223,6 +308,13 @@ namespace bpr::app {
 				.SavePatch         = [this] { save_patch(); },
 				.Link              = [this](const std::string& aAddress) { Host->link_pull_request(aAddress); },
 				.OpenPullRequest   = [this] { open_pull_request(); },
+			},
+			.OpenPromotion = [this] { open_promotion(); },
+			.Promote       = {
+				.Back            = [this] { Promoter->close(); },
+				.Choose          = [this](const core::cycle_feedback_item_id aItem, const bool aChosen) { Promoter->choose(aItem, aChosen); },
+				.Add             = [this] { Promoter->add(); },
+				.OpenPullRequest = [this] { open_promotion_pull_request(); },
 			},
 		});
 		// BPR-1161: Copy writes the platform clipboard; Save writes only the
@@ -403,11 +495,45 @@ namespace bpr::app {
 			return;
 		}
 		const auto address = shown->Current->Journal.Link->Url;
+		Host->close_publication();
+		open_address(address);
+	}
+
+	void review_cycle_desktop::open_address(const std::string& aAddress)
+	{
+		if (Closing || aAddress.empty() || Window.home_open_bar() == nullptr || Window.home_open_action() == nullptr) {
+			return;
+		}
 		// The existing pull request workflow takes it from here: the Home bar
 		// opens the address as a pasted link does, on Overview.
-		Host->close_publication();
-		Window.home_open_bar()->setText(QString::fromUtf8(address.data(), static_cast<qsizetype>(address.size())));
+		Window.home_open_bar()->setText(QString::fromUtf8(aAddress.data(), static_cast<qsizetype>(aAddress.size())));
 		Window.home_open_action()->trigger();
+	}
+
+	void review_cycle_desktop::set_tour_route(tour_route aRoute)
+	{
+		Tours->Route = std::move(aRoute);
+	}
+
+	void review_cycle_desktop::open_promotion()
+	{
+		const auto& shown    = Host->projection();
+		const auto  selected = Host->selected();
+		if (Closing || !selected || shown.Links.empty()) {
+			return;
+		}
+		Promoter->open(*selected, shown.Links, shown.Notes);
+	}
+
+	void review_cycle_desktop::open_promotion_pull_request()
+	{
+		const auto& shown = Promoter->view();
+		if (Closing || !shown) {
+			return;
+		}
+		const auto address = shown->Link.Url;
+		Promoter->close();
+		open_address(address);
 	}
 
 	void review_cycle_desktop::share(const core::cycle_share_route aRoute)
@@ -545,6 +671,7 @@ namespace bpr::app {
 
 	void review_cycle_desktop::leave()
 	{
+		Promoter->close();
 		Window.leave_local_cycle();
 	}
 
@@ -558,6 +685,9 @@ namespace bpr::app {
 		Closing = true;
 		if (Host) {
 			Host->shutdown();
+		}
+		if (Promoter) {
+			Promoter->shutdown();
 		}
 		// Once: a destructor's repeat may run after the window has gone.
 		if (SyntaxHost && !SyntaxHost->is_closing()) {
@@ -574,6 +704,6 @@ namespace bpr::app {
 
 	auto review_cycle_desktop::is_quiescent() const noexcept -> bool
 	{
-		return (!Host || Host->is_quiescent()) && (!SyntaxHost || SyntaxHost->is_quiescent()) && (!CodeHost || CodeHost->is_quiescent());
+		return (!Host || Host->is_quiescent()) && (!Promoter || Promoter->is_quiescent()) && (!SyntaxHost || SyntaxHost->is_quiescent()) && (!CodeHost || CodeHost->is_quiescent());
 	}
 }

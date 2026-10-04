@@ -58,6 +58,24 @@ namespace bpr::core {
 		}
 		return fresh.Stops.empty() ? (aCompatibility ? state::compatibility_comments : state::single_review) : assess_tour_publication(fresh, destinations, aCompatibility);
 	}
+	auto publication_source(const tour_stop& aStop) -> std::optional<tour_code_destination>
+	{
+		if (aStop.Mapping == tour_mapping::author_selected && aStop.Mapped) {
+			return destination_of(*aStop.Mapped);
+		}
+		return aStop.Original ? std::optional{ destination_of(*aStop.Original) } : aStop.Destination;
+	}
+	auto publication_observation(const tour_code_destination& aSource, const git_commit_oid& aHead, const git_commit_oid& aBase, const std::string_view aBody, const bool aCompatibility, const bool aQualified) noexcept
+		-> tour_destination_observation
+	{
+		const auto current = aSource.Commit == (aSource.Side == diff_side::right ? aHead : aBase);
+		auto observed      = tour_destination_observation{ .Source = aSource, .Subject = current ? tour_subject::current_diff : tour_subject::historical, .SourceAvailable = aSource.Blob.has_value(), .Body = classify_review_body(aBody), .CompatibilityRequested = aCompatibility };
+		if (aQualified) {
+			observed.PendingLineBatch = tour_operation_support::supported;
+			observed.Conversation     = tour_operation_support::supported;
+		}
+		return observed;
+	}
 	auto plan_tour_destination(const tour_destination_observation& aObservation) noexcept -> tour_destination_plan
 	{
 		using support        = tour_operation_support;
