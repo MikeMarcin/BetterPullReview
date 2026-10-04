@@ -96,3 +96,40 @@ succeeded and all 7 tests passed: `application_review_cycle_parity_public_path`
 `application_profile_cycle_handoff_public_path`, `cycle_cli_public_path`,
 `test_network_isolation_manifest` and `architecture_boundaries`. Everything ran
 contained with nothing pinned. Done is not reopened.
+
+### Windows at `8fab05419` (bpr-main-win, 2026-10-04)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev-tour-cli`
+Debug (`BPR_BUILD_TOUR_CLI=ON`). The tree first failed to build: BPR-1177's
+`review_cycle_publish_public_path_tests.cpp` called `std::getenv`, which MSVC
+fails as C4996. It was fixed in its own BPR-1177 commit, after which the build
+printed no `warning C` or `warning LNK` line.
+
+**As registered, 5 of 7.**
+
+- `application_review_cycle_parity_public_path` failed contained in 0.31 s.
+  Its first `bpr cycle list` exits 7 with "The application root is unavailable
+  or is not owner-private." That is the `profile_unavailable` refusal
+  `cycle_cli_public_path` measures (`dos-volume-name`). The row is now
+  `WINDOWS_UNCONTAINED` and pinned with that line in
+  `scripts/verify_test_network_isolation.py`.
+- Like the two-round course ([[BPR-1166]]), it passed Qt
+  `offscreen:configfile=C:\…`, which Qt splits at the drive letter's `:`. It
+  now passes the file relative to the working directory the desktop inherits.
+  The tests tree has no other `configfile`.
+- `application_profile_cycle_handoff_public_path` ([[BPR-1168]]'s course),
+  which passed three times earlier that night, failed after 123 s: "missing
+  NOTES". The course handed the desktop the same `w+` file object it seeks and
+  reads. On Windows the inherited handle shares one file pointer, so a desktop
+  write landing between the course's `seek(0)` and `read()` went to offset 0.
+  The log shows this: `NOTES 2|…` sits over the start of
+  `OWNER_ENDPOINT \.\pipe\…`, with `\pipe\bpr-tourcmd--…` left behind it,
+  below a reader already past that line. The desktop now appends through its
+  own descriptor, and the course reads complete lines from the path, as the
+  two-round course does.
+
+**After the pin and the two test fixes: 7/7 in 82.49 s.** The parity course
+passes uncontained in 82.43 s and the handoff course in 29.49 s.
+`test_network_isolation_manifest`, `architecture_boundaries` and
+`coding-format-check` (1215 files) pass. Only test files changed. Done is not
+reopened.

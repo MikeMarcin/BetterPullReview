@@ -33,15 +33,20 @@ class Desktop:
 
     def __init__(self, application, data, workspace, index):
         self.signal = workspace / f"desktop-{index}.quit"
-        self.log = (workspace / f"desktop-{index}.log").open("w+", encoding="utf-8")
+        self.log_path = workspace / f"desktop-{index}.log"
+        # The child appends through its own descriptor; the course reads through
+        # another. On Windows a shared descriptor shares one file pointer, so a
+        # write landing between the course's seek and read went to offset 0.
+        self.log = self.log_path.open("ab")
         self.process = subprocess.Popen([application, str(data), "1", str(self.signal)], stdout=self.log, stderr=subprocess.STDOUT, text=True)
         self.seen = 0
         self.endpoint = self.await_line("OWNER_ENDPOINT ").split(" ", 1)[1]
         self.await_line("OWNER_READY")
 
     def lines(self):
-        self.log.seek(0)
-        return self.log.read().splitlines()
+        """Complete lines only: a line still being written is not read yet."""
+        text = self.log_path.read_bytes().decode("utf-8", errors="replace")
+        return [line.removesuffix("\r") for line in text.split("\n")[:-1]]
 
     def await_line(self, prefix, timeout=120):
         deadline = time.monotonic() + timeout

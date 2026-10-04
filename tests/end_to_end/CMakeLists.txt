@@ -3310,8 +3310,11 @@ if(TARGET app_bpr)
     # the terminal and the harness are told with the desktop open equal to what
     # they are told with it closed; the window's unsaved note and Home kept while
     # other interfaces write; a draft the terminal changed restored on the next
-    # launch. Registered contained: Windows measures it before any pin.
-    bpr_add_network_isolated_test(NAME application_review_cycle_parity_public_path
+    # launch. Uncontained on Windows (dos-volume-name): contained, the course's
+    # first `bpr cycle list` exits 7 with "The application root is unavailable
+    # or is not owner-private.", as cycle_cli_public_path does. Measured on
+    # JaegAW 2026-10-04.
+    bpr_add_network_isolated_test(NAME application_review_cycle_parity_public_path WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_parity_contract.py"
         --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
         --cycle-application $<TARGET_FILE:app_bpr>)
