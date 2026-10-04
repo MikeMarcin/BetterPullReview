@@ -974,3 +974,25 @@ note code X inks: 95 153 153 153 -1 210 210 153 stop 57.5   (scale 2.0)
 
 At both scales column 4 equals column 8 (76 = 76 and 153 = 153). Done is not
 reopened; the Windows run is still owed.
+
+### Windows at `9cc3087d2`: Show Change (bpr-main-win, 2026-10-03)
+
+At `544bd5ce0`, which contains `9cc3087d2`; no `src/` file differs between
+them. Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev`
+Debug. The 12 executables the selection runs and the application's own were
+deleted first and rebuilt, and the build printed no `warning C` or
+`warning LNK` line.
+
+The selection passes 18/18, in 67.95 s, so `qt_review_cycle_view_1_0`,
+`qt_review_cycle_view_2_0` and `application_review_cycle_desktop_public_path`
+find "Show Change" / "Hide Change" and "Show All Changes" / "Hide All Changes".
+The view rows, run again with `-V`, print:
+
+```
+qt_review_cycle_view_1_0: note code X inks: 46 74 74 74 -1 102 102 74 stop 28
+qt_review_cycle_view_2_0: note code X inks: 93 149 149 149 -1 205 205 149 stop 56
+```
+
+Column 4 (inks 1, 2, 3 and 7) is one pixel at each scale, 74 at 1.0 and 149 at
+2.0. Column 8 (inks 5 and 6) is one pixel, 102 at 1.0 and 205 at 2.0. These
+are the numbers measured at `17691bc63`: the renamed words moved no code.
