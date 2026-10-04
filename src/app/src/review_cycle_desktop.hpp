@@ -2,6 +2,7 @@
 #define BPR_SRC_APP_SRC_REVIEW_CYCLE_DESKTOP_HPP
 
 #include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/application/github_publication_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_cycle_workbench.hpp"
 #include "bpr/application/syntax_classification_application_host.hpp"
@@ -84,6 +85,20 @@ namespace bpr::app {
 		using save_chooser = std::function<std::string(const std::string& aSuggested, bool aBundle)>;
 		/// \brief Replaces the native save dialog, for a course that cannot answer one.
 		void set_save_chooser(save_chooser aChooser);
+		/// \brief What Publish as Pull Request uses ([[BPR-1177]]): the installed
+		/// Git the local catalog runs, in its own owner-private isolation root
+		/// under the profile, and the account native publication acts as, asked
+		/// each time it is needed. Without an account, planning and Save Patch
+		/// still work and nothing can be sent.
+		struct publishing
+		{
+			std::filesystem::path                                                   GitExecutable;
+			std::optional<std::filesystem::path>                                    WindowsSystemRoot;
+			std::function<std::optional<application::github_publication_account>()> Account;
+		};
+		void set_publishing(publishing aPublishing);
+		/// \brief Replaces where the account comes from, keeping the catalog.
+		void set_publication_account(std::function<std::optional<application::github_publication_account>()> aAccount);
 		/// \brief What this window holds of cycle `aCycle`'s round draft that
 		/// the store does not (BPR-1168), for a forwarded terminal command.
 		[[nodiscard]] auto draft_editor(core::review_cycle_id aCycle) const -> core::cycle_draft_editor;
@@ -112,6 +127,10 @@ namespace bpr::app {
 
 		/// Share feedback by one route; Save asks for the file first.
 		void share(core::cycle_share_route aRoute);
+		/// Save Patch asks for the file first ([[BPR-1177]]).
+		void save_patch();
+		/// Open Pull Request: the Home bar opens the linked pull request, as a pasted link does.
+		void open_pull_request();
 		void want_syntax(const qt::suggestion_syntax_request& aRequest);
 		void want_source_syntax(const qt::source_syntax_request& aRequest);
 		void want(std::size_t aSlot, const std::string& aPath, const std::string& aDocument);
@@ -146,6 +165,9 @@ namespace bpr::app {
 		/// The platform clipboard Copy to Clipboard writes to (BPR-1161).
 		std::unique_ptr<application::review_cycle_clipboard> Clipboard;
 		save_chooser                                         ChooseSave;
+		/// Where Publish as Pull Request's catalog runs, and whose account it acts as.
+		std::filesystem::path ProfileRoot;
+		publishing            Publishing;
 
 		/// Whether the reviewer has asked for a cycle, so a refusal is said on
 		/// the page rather than taking Home over at start.

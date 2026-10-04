@@ -51,12 +51,6 @@ namespace bpr::core {
 		auto          operator<=>(const cycle_pull_address&) const = default;
 	};
 
-	/// \brief Reads `https://HOST/OWNER/REPOSITORY/pull/NUMBER`, with an
-	/// optional trailing path, query or fragment; nothing else is guessed.
-	[[nodiscard]] auto parse_pull_address(std::string_view aText) -> std::optional<cycle_pull_address>;
-	/// \brief The address's canonical web form.
-	[[nodiscard]] auto pull_address_url(const cycle_pull_address& aAddress) -> std::string;
-
 	/// \brief One association, exactly as observed.
 	struct cycle_pull_association
 	{
@@ -86,18 +80,21 @@ namespace bpr::core {
 	/// \brief What a provider read of one pull request returned, before it is admitted.
 	struct cycle_pull_observation
 	{
-		cycle_pull_address            Address;
-		std::string                   NodeId;
-		std::string                   Url;
-		std::string                   State;
-		bool                          Draft = false;
-		std::string                   HeadRef;
-		git_commit_oid                Head;
-		std::string                   BaseRef;
-		std::optional<git_commit_oid> BaseHead;
-		github_account_id             Account;
-		std::string                   Login;
-		auto                          operator<=>(const cycle_pull_observation&) const = default;
+		cycle_pull_address Address;
+		std::string        NodeId;
+		std::string        Url;
+		/// The pull request the observation's own address names, as the host
+		/// read it; absent when that address names no pull request.
+		std::optional<cycle_pull_address> UrlAddress;
+		std::string                       State;
+		bool                              Draft = false;
+		std::string                       HeadRef;
+		git_commit_oid                    Head;
+		std::string                       BaseRef;
+		std::optional<git_commit_oid>     BaseHead;
+		github_account_id                 Account;
+		std::string                       Login;
+		auto                              operator<=>(const cycle_pull_observation&) const = default;
 	};
 
 	enum class cycle_link_refusal : std::uint8_t {
@@ -118,7 +115,8 @@ namespace bpr::core {
 
 	/// \brief Admits a pull request the reviewer published with their own
 	/// tools: only when the provider read returned exactly the pull request
-	/// asked for, with a node identity, its own address and a head commit.
+	/// asked for, with a node identity, an address that names that same pull
+	/// request and a head commit.
 	/// Every field comes from the observation; nothing is filled in.
 	[[nodiscard]] auto decide_external_link(const cycle_pull_address& aAsked, const cycle_pull_observation& aObserved, std::span<const cycle_pull_association> aExisting,
 											std::optional<cycle_source_revision_id> aRevision) -> std::expected<cycle_pull_association, cycle_link_refusal>;

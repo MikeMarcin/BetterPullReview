@@ -3313,6 +3313,37 @@ if(TARGET app_bpr)
         TIMEOUT 600)
 endif()
 
+if(BPR_BUILD_QT AND TARGET Git::Git)
+    # [[BPR-1177]]. Publish as Pull Request in the application's own profile
+    # desktop: Open Project on a Git checkout, a private note, Capture revision,
+    # the publication sheet's baselines, Review Plan, Publish Pull Request to an
+    # in-memory GitHub behind the publication catalog's port, a link made by
+    # hand, Open Pull Request into the existing workflow, and the cycle resumed
+    # with its history. No live GitHub. Registered contained: Windows measures
+    # it before any pin.
+    bpr_add_executable(test_review_cycle_publish_public_path review_cycle_publish_public_path_tests.cpp)
+    target_link_libraries(test_review_cycle_publish_public_path PRIVATE BetterPullReview::Composition)
+    target_compile_definitions(test_review_cycle_publish_public_path PRIVATE BPR_BUILD_TESTING=1)
+    target_compile_features(test_review_cycle_publish_public_path PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_review_cycle_publish_public_path)
+    if(WIN32)
+        target_link_libraries(test_review_cycle_publish_public_path PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_review_cycle_publish_public_path)
+    if(APPLE)
+        file(GLOB bpr_publish_qtgui_private LIST_DIRECTORIES true
+            "${Qt6Gui_DIR}/../../QtGui.framework/Headers/[0-9]*.[0-9]*.[0-9]*")
+        target_include_directories(test_review_cycle_publish_public_path SYSTEM PRIVATE
+            "${bpr_publish_qtgui_private}" "${bpr_publish_qtgui_private}/QtGui")
+    endif()
+    bpr_add_network_isolated_test(NAME application_review_cycle_publish_public_path
+        COMMAND test_review_cycle_publish_public_path --git "$<TARGET_FILE:Git::Git>")
+    set_tests_properties(application_review_cycle_publish_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CYCLE_PUBLISH_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/cycle-publish"
+        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_PUBLISH_OK"
+        TIMEOUT 300)
+endif()
+
 bpr_add_executable(test_profile_window_restart_public_path profile_window_restart_public_path_tests.cpp)
 target_link_libraries(test_profile_window_restart_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_compile_definitions(test_profile_window_restart_public_path PRIVATE BPR_BUILD_TESTING=1)

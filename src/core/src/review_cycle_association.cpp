@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <utility>
 
 namespace bpr::core {
@@ -162,46 +161,6 @@ namespace bpr::core {
 		return "unknown";
 	}
 
-	auto parse_pull_address(std::string_view aText) -> std::optional<cycle_pull_address>
-	{
-		while (!aText.empty() && (aText.front() == ' ' || aText.front() == '\t')) {
-			aText.remove_prefix(1U);
-		}
-		while (!aText.empty() && (aText.back() == ' ' || aText.back() == '\t' || aText.back() == '\n' || aText.back() == '\r')) {
-			aText.remove_suffix(1U);
-		}
-		constexpr auto scheme = std::string_view{ "https://" };
-		if (aText.size() > maximum_pull_address_bytes || !lower(aText.substr(0U, scheme.size())).starts_with(scheme)) {
-			return std::nullopt;
-		}
-		aText.remove_prefix(scheme.size());
-		if (const auto stop = aText.find_first_of("?#"); stop != std::string_view::npos) {
-			aText = aText.substr(0U, stop);
-		}
-		auto parts = std::vector<std::string_view>{ };
-		while (!aText.empty()) {
-			const auto slash = aText.find('/');
-			parts.push_back(aText.substr(0U, slash));
-			aText = slash == std::string_view::npos ? std::string_view{ } : aText.substr(slash + 1U);
-		}
-		if (parts.size() < 5U || parts[3] != "pull") {
-			return std::nullopt;
-		}
-		auto       address = cycle_pull_address{ .Host = lower(parts[0]), .Owner = std::string{ parts[1] }, .Repository = std::string{ parts[2] } };
-		const auto number  = parts[4];
-		const auto parsed  = std::from_chars(number.data(), number.data() + number.size(), address.Number);
-		if (parsed.ec != std::errc{ } || parsed.ptr != number.data() + number.size() || number.empty() || number.front() == '0' || address.Number == 0U || !valid_host(address.Host)
-			|| !valid_publication_owner(address.Owner) || !valid_publication_repository(address.Repository)) {
-			return std::nullopt;
-		}
-		return address;
-	}
-
-	auto pull_address_url(const cycle_pull_address& aAddress) -> std::string
-	{
-		return "https://" + aAddress.Host + "/" + aAddress.Owner + "/" + aAddress.Repository + "/pull/" + std::to_string(aAddress.Number);
-	}
-
 	auto same_pull_request(const cycle_pull_address& aLeft, const cycle_pull_address& aRight) noexcept -> bool
 	{
 		return aLeft.Number == aRight.Number && lower(aLeft.Host) == lower(aRight.Host) && lower(aLeft.Owner) == lower(aRight.Owner) && lower(aLeft.Repository) == lower(aRight.Repository);
@@ -220,8 +179,7 @@ namespace bpr::core {
 			return std::unexpected(cycle_link_refusal::bounds);
 		}
 		// The read must be of exactly that pull request, and must say so itself.
-		const auto observedUrl = parse_pull_address(aObserved.Url);
-		if (!same_pull_request(aObserved.Address, aAsked) || !observedUrl || !same_pull_request(*observedUrl, aAsked)) {
+		if (!same_pull_request(aObserved.Address, aAsked) || !aObserved.UrlAddress || !same_pull_request(*aObserved.UrlAddress, aAsked)) {
 			return std::unexpected(cycle_link_refusal::mismatch);
 		}
 		auto association = cycle_pull_association{

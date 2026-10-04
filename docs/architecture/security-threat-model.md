@@ -1510,3 +1510,16 @@ be the identity computed locally, a branch is created with `POST git/refs`,
 which never updates an existing reference, and no update, delete, force, fork,
 merge or close request exists. Installed Git gains no push: the publication
 catalog's Git runs with no credential helper and every protocol disabled.
+
+The desktop reaches that catalog only through the accepted account (BPR-1177):
+the account transport mints a `github_publication_session` over its own native
+HTTPS wire and credential context, the window asks for it each time it needs
+it, and it is absent signed out, under public preview, after an identity
+change and for a `gh` CLI connection. Nothing on the cycle page writes until
+the reviewer confirms the digest of a plan recorded from exactly the fields
+shown; an edit, Change or another account signed in makes the plan authorize
+nothing. Linking a pull request published elsewhere is one read of exactly
+that pull request and writes nothing remotely; it is recorded as externally
+published. The page never uploads private notes, rounds, replies or
+decisions, and the local catalog's isolation root is the profile's own
+owner-private `publication-git-v1`.

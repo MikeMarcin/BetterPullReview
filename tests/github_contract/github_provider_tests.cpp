@@ -2,6 +2,7 @@
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "github_mutation_contract.hpp"
 #include "github_provider.hpp"
+#include "github_publication_contract.hpp"
 #include "github_wire_request_validation.hpp"
 
 #include <glaze/json.hpp>
@@ -142,10 +143,21 @@ namespace {
 		std::optional<application::git_smart_exact_blob_request>        BlobRequest;
 		application::git_smart_transport_result<std::vector<std::byte>> BlobResult = std::vector{ std::byte{ 'x' } };
 	};
-	class fake_wire_transport final : public github_wire_transport_port, public github_mutation_wire_transport, public application::git_smart_transport_factory_port
+	class fake_wire_transport final : public github_wire_transport_port,
+									  public github_mutation_wire_transport,
+									  public github_publication_wire_transport,
+									  public application::git_smart_transport_factory_port
 	{
 	public:
-		auto acquire(const application::git_smart_request_context& aContext) -> application::git_smart_transport_result<application::git_smart_transport> override
+		/// [[BPR-1177]]. A publication exchange: its credential context is
+		/// recorded and nothing is answered.
+		auto perform_publication(const github_publication_wire_call& aCall, std::stop_token) -> github_publication_wire_completion override
+		{
+			PublicationContexts.push_back(aCall.Context);
+			return github_publication_wire_error{ };
+		}
+		std::vector<application::github_credential_operation_context> PublicationContexts;
+		auto                                                          acquire(const application::git_smart_request_context& aContext) -> application::git_smart_transport_result<application::git_smart_transport> override
 		{
 			GitContext = aContext;
 			return Git;
@@ -2178,6 +2190,36 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1177]]. A native account lease mints the publication catalog over
+	/// its own wire, under exactly its own credential context, and that
+	/// catalog refuses another account before a request exists.
+	void test_account_lease_mints_publication_catalog()
+	{
+		provider_fixture fixture{ application::github_authentication_transport::native_https };
+		const auto       lease   = account_lease(fixture);
+		auto* const      factory = dynamic_cast<application::github_publication_session_factory_port*>(lease.get());
+		expect(factory != nullptr, "the account lease can mint a publication catalog");
+		const auto session = factory->acquire_publication_session();
+		expect(session != nullptr, "a native wire carries publication");
+		auto* const mutation = dynamic_cast<application::review_mutation_transport_factory_port*>(lease.get());
+		const auto  bound    = std::dynamic_pointer_cast<github_review_mutation_transport_lease>(mutation->acquire_review_mutation_transport());
+		expect(bound != nullptr, "the lease's own credential context");
+		const auto& context = bound->credential_context();
+		const auto  target  = application::github_publication_target{ .Host       = std::string{ context.Authority.Hostname.value() },
+																	  .Server     = context.Authority.ServerContract,
+																	  .Account    = context.Authority.Account,
+																	  .Login      = "viewer",
+																	  .Owner      = "octo-org",
+																	  .Repository = "review-repository" };
+		static_cast<void>(session->observe_repository(target, { }));
+		expect(fixture.Transport->PublicationContexts.size() == 1U && fixture.Transport->PublicationContexts.front() == context,
+			   "the catalog speaks under exactly the account's credential context");
+		auto other    = target;
+		other.Account = core::github_account_id{ context.Authority.Account.value() + 1U };
+		static_cast<void>(session->observe_repository(other, { }));
+		expect(fixture.Transport->PublicationContexts.size() == 1U, "another account is refused before a request exists");
+	}
+
 	void test_cli_is_categorically_unavailable()
 	{
 		provider_fixture fixture{
@@ -2375,6 +2417,7 @@ int main(int aArgc, char** aArgv)
 	test_cancellation_finality();
 	test_exception_containment_is_exactly_once();
 	test_cli_is_categorically_unavailable();
+	test_account_lease_mints_publication_catalog();
 	test_cli_observed_account_lease();
 	test_cli_git_lease_forwarding();
 	test_cli_exact_blob_cancellation();

@@ -1,18 +1,23 @@
 #include "review_cycle_desktop.hpp"
 
+#include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/core/git_objects.hpp"
+#include "bpr/qt/review_cycle_publish_sheet.hpp"
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAction>
 #include <QClipboard>
+#include <QDateTime>
 #include <QFileDialog>
 #include <QGuiApplication>
+#include <QLineEdit>
 #include <QRandomGenerator>
 
 #include <algorithm>
@@ -146,6 +151,7 @@ namespace bpr::app {
 											   application::effect_executor& aEffects, application::decision_executor& aDecisions, const review_cycle_syntax aSyntax)
 		: Window{ aWindow }
 		, Source{ adapters::workspace::make_local_workspace_source() }
+		, ProfileRoot{ aProfileRoot }
 	{
 		Host = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, aProfile), *Source, aEffects, aDecisions, *this, random_seed());
 		View = new qt::review_cycle_view{ };
@@ -201,6 +207,19 @@ namespace bpr::app {
 				.ShowCode  = [this](const core::cycle_feedback_item_id aItem) { Host->show_note_code(aItem); },
 				.CloseCode = [this] { Host->close_note_code(); },
 			},
+			.OpenPublication = [this] { Host->open_publication(); },
+			.Publish         = {
+				.Back              = [this] { Host->close_publication(); },
+				.Edit              = [this](application::review_cycle_publication_form aForm) { Host->edit_publication(std::move(aForm)); },
+				.Prepare           = [this] { Host->prepare_publication(); },
+				.Revise            = [this] { Host->revise_publication(); },
+				.Publish           = [this] { Host->publish_publication(); },
+				.Recover           = [this] { Host->recover_publication(); },
+				.CancelPublication = [this] { Host->cancel_publication(); },
+				.SavePatch         = [this] { save_patch(); },
+				.Link              = [this](const std::string& aAddress) { Host->link_pull_request(aAddress); },
+				.OpenPullRequest   = [this] { open_pull_request(); },
+			},
 		});
 		// BPR-1161: Copy writes the platform clipboard; Save writes only the
 		// file chosen, on the effect lane. No other route is reachable here.
@@ -208,10 +227,17 @@ namespace bpr::app {
 		Host->set_clipboard(Clipboard.get());
 		Host->set_destination_factory([](const std::string& aPath) { return adapters::workspace::make_local_export_destination(utf8_path(aPath)); });
 		ChooseSave = [this](const std::string& aSuggested, const bool aBundle) {
-			// Over the share sheet, which is window-modal, when it is open.
-			auto* const over   = View->share_page()->isVisible() ? static_cast<QWidget*>(View->share_page()) : static_cast<QWidget*>(&Window);
-			const auto  chosen = QFileDialog::getSaveFileName(over, aBundle ? QStringLiteral("Save as Bundle") : QStringLiteral("Save as File"), QString::fromStdString(aSuggested),
-															  aBundle ? QStringLiteral("Review bundles (*.bpr-review.zip)") : QStringLiteral("Markdown (*.md);;All files (*)"));
+			// Over the sheet that asked, which is window-modal, when one is open.
+			auto* const over   = View->publish_sheet()->isVisible() ? static_cast<QWidget*>(View->publish_sheet())
+				: View->share_page()->isVisible()                   ? static_cast<QWidget*>(View->share_page())
+																	: static_cast<QWidget*>(&Window);
+			const auto  patch  = aSuggested.ends_with(".patch");
+			const auto  chosen = QFileDialog::getSaveFileName(over, aBundle ? QStringLiteral("Save as Bundle") : patch ? QStringLiteral("Save Patch")
+																													   : QStringLiteral("Save as File"),
+															  QString::fromStdString(aSuggested),
+															  aBundle     ? QStringLiteral("Review bundles (*.bpr-review.zip)")
+																  : patch ? QStringLiteral("Patches (*.patch);;All files (*)")
+																		  : QStringLiteral("Markdown (*.md);;All files (*)"));
 			const auto  bytes  = chosen.toUtf8();
 			return std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) };
 		};
@@ -316,6 +342,68 @@ namespace bpr::app {
 	void review_cycle_desktop::set_save_chooser(save_chooser aChooser)
 	{
 		ChooseSave = std::move(aChooser);
+	}
+
+	void review_cycle_desktop::set_publishing(publishing aPublishing)
+	{
+		Publishing       = std::move(aPublishing);
+		auto environment = application::review_cycle_publication_environment{ };
+		if (!Publishing.GitExecutable.empty()) {
+			// The catalog's isolation root is the profile's own, owner-private,
+			// made on the effect lane at first use; it shares nothing with the cache.
+			environment.Candidates = [git = Publishing.GitExecutable, system = Publishing.WindowsSystemRoot,
+									  isolation = ProfileRoot / "publication-git-v1"](std::stop_token aStop)
+				-> application::publication_git_result<std::unique_ptr<application::publication_candidate_port>> {
+				if (!adapters::sqlite::create_storage_root_owner_private(isolation)) {
+					return std::unexpected(application::publication_git_error{ .Failure = application::publication_git_failure::unavailable, .Detail = "the catalog's private folder could not be made" });
+				}
+				auto made = adapters::git::make_installed_git_publication({ .GitExecutable = git, .IsolationRoot = isolation, .WindowsSystemRoot = system }, std::move(aStop));
+				if (!made) {
+					return std::unexpected(application::publication_git_error{ .Failure = application::publication_git_failure::unavailable, .Detail = "installed Git could not be prepared" });
+				}
+				return std::move(*made);
+			};
+		}
+		environment.Account = [this]() -> std::optional<application::github_publication_account> {
+			return !Closing && Publishing.Account ? Publishing.Account() : std::nullopt;
+		};
+		environment.Now = [] {
+			// The commit's times: now, in this computer's offset from UTC.
+			const auto now = QDateTime::currentDateTime();
+			return core::git_signature{ .Seconds = now.toSecsSinceEpoch(), .OffsetMinutes = now.offsetFromUtc() / 60 };
+		};
+		Host->set_publication_environment(std::move(environment));
+	}
+
+	void review_cycle_desktop::set_publication_account(std::function<std::optional<application::github_publication_account>()> aAccount)
+	{
+		Publishing.Account = std::move(aAccount);
+	}
+
+	void review_cycle_desktop::save_patch()
+	{
+		const auto& shown = Host->projection().Publication;
+		if (!shown) {
+			return;
+		}
+		auto path = ChooseSave ? ChooseSave(shown->PatchName, false) : std::string{ };
+		if (!path.empty()) {
+			Host->save_publication_patch(std::move(path));
+		}
+	}
+
+	void review_cycle_desktop::open_pull_request()
+	{
+		const auto& shown = Host->projection().Publication;
+		if (Closing || !shown || !shown->Current || !shown->Current->Journal.Link || Window.home_open_bar() == nullptr || Window.home_open_action() == nullptr) {
+			return;
+		}
+		const auto address = shown->Current->Journal.Link->Url;
+		// The existing pull request workflow takes it from here: the Home bar
+		// opens the address as a pasted link does, on Overview.
+		Host->close_publication();
+		Window.home_open_bar()->setText(QString::fromUtf8(address.data(), static_cast<qsizetype>(address.size())));
+		Window.home_open_action()->trigger();
 	}
 
 	void review_cycle_desktop::share(const core::cycle_share_route aRoute)

@@ -921,15 +921,16 @@ namespace {
 		auto head           = std::array<std::uint8_t, 32>{ };
 		head[0]             = 0xA1;
 		const auto observed = core::cycle_pull_observation{
-			.Address = { .Host = "github.com", .Owner = "octo-org", .Repository = "review-repository", .Number = 17 },
-			.NodeId  = "PR_kwDOexternal",
-			.Url     = "https://github.com/octo-org/review-repository/pull/17",
-			.State   = "open",
-			.HeadRef = "harden-parser",
-			.Head    = core::git_commit_oid{ core::git_hash_algorithm::sha1, head },
-			.BaseRef = "main",
-			.Account = core::github_account_id{ 1001 },
-			.Login   = "octo-reviewer",
+			.Address    = { .Host = "github.com", .Owner = "octo-org", .Repository = "review-repository", .Number = 17 },
+			.NodeId     = "PR_kwDOexternal",
+			.Url        = "https://github.com/octo-org/review-repository/pull/17",
+			.UrlAddress = core::cycle_pull_address{ .Host = "github.com", .Owner = "octo-org", .Repository = "review-repository", .Number = 17 },
+			.State      = "open",
+			.HeadRef    = "harden-parser",
+			.Head       = core::git_commit_oid{ core::git_hash_algorithm::sha1, head },
+			.BaseRef    = "main",
+			.Account    = core::github_account_id{ 1001 },
+			.Login      = "octo-reviewer",
 		};
 		const auto linked = core::decide_external_link(observed.Address, observed, { }, store.state(subject).Latest->Id.Id);
 		expect(linked.has_value(), "the core admits the observation");

@@ -1,6 +1,7 @@
 #include "bpr/application/review_cycle_workbench.hpp"
 
 #include "bpr/application/review_cycle_words.hpp"
+#include "bpr/application/setup_destination_projection.hpp"
 
 #include "bpr/core/sha256.hpp"
 
@@ -207,7 +208,7 @@ namespace bpr::application {
 		auto link_words(const core::cycle_link_refusal aRefusal, const std::string& aHost) -> std::string
 		{
 			switch (aRefusal) {
-			case core::cycle_link_refusal::address:        return "That is not a pull request address. Paste one like https://github.com/owner/repository/pull/12.";
+			case core::cycle_link_refusal::address:        return "That is not a pull request address. Paste its address from your browser.";
 			case core::cycle_link_refusal::host:           return "That pull request is not on " + aHost + ", the host you are signed in to.";
 			case core::cycle_link_refusal::mismatch:       return "GitHub answered with something other than that pull request; nothing was linked.";
 			case core::cycle_link_refusal::not_found:      return "No such pull request, or your account cannot read it; nothing was linked.";
@@ -1698,9 +1699,10 @@ namespace bpr::application {
 			if (!View.Publication || View.Publication->Busy) {
 				return;
 			}
-			auto&      view    = *View.Publication;
-			const auto address = core::parse_pull_address(aText);
-			if (!address) {
+			auto& view = *View.Publication;
+			// The address as the Home bar reads it: a pasted link, or owner/name#number on the account's host.
+			const auto named = parse_setup_destination(aText);
+			if (!named) {
 				view.Status = link_words(core::cycle_link_refusal::address, { });
 				publish();
 				return;
@@ -1711,11 +1713,14 @@ namespace bpr::application {
 				publish();
 				return;
 			}
+			const auto address = core::cycle_pull_address{
+				.Host = named->Hostname.empty() ? acting->Host : named->Hostname, .Owner = named->Repository.Owner, .Repository = named->Repository.Name, .Number = named->Number.value()
+			};
 			view.Busy   = true;
 			view.Status = "Reading the pull request; nothing is sent.";
 			publish();
 			Runtime.publication_selected(
-				[actor = *acting, op = operation(), asked = *address](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) {
+				[actor = *acting, op = operation(), asked = address](review_cycle_store& aStore, const core::review_cycle_state& aCycle, std::stop_token aStop) {
 					return application::link_pull_request(aStore, aCycle, actor, op, asked, std::move(aStop));
 				},
 				publication_guarded([host = acting->Host](implementation& aSelf, review_cycle_publication_step aStep) {
@@ -2148,6 +2153,21 @@ namespace bpr::application {
 	void review_cycle_workbench::prepare_publication()
 	{
 		Implementation->prepare_publication();
+	}
+
+	void review_cycle_workbench::revise_publication()
+	{
+		auto& self = *Implementation;
+		if (!self.View.Publication || self.View.Publication->Busy || self.View.Publication->Stage != review_cycle_publication_stage::planned) {
+			return;
+		}
+		auto& view = *self.View.Publication;
+		view.Current.reset();
+		view.Digest.clear();
+		view.Preview.clear();
+		view.Stage  = review_cycle_publication_stage::choosing;
+		view.Status = "Change what you need, then review the plan again. The plan you read authorizes nothing now.";
+		self.publish();
 	}
 
 	void review_cycle_workbench::publish_publication()

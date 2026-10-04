@@ -4873,6 +4873,34 @@ namespace bpr::application {
 		return host.ReviewMutationTransport;
 	}
 
+	auto github_application_host::accepted_publication_account() const
+		-> std::optional<github_publication_account>
+	{
+		const auto& host = *Implementation;
+		if (host.signed_out_mode() || host.Closing || !host.AcceptedSession.has_value()
+			|| !host.AcceptedProfileAuthority.has_value()) {
+			return std::nullopt;
+		}
+		const auto& session   = *host.AcceptedSession;
+		const auto& authority = *host.AcceptedProfileAuthority;
+		auto* const factory   = dynamic_cast<github_publication_session_factory_port*>(host.AccountTransport.get());
+		if (factory == nullptr || session.Profile != authority.Profile || session.Host != authority.Host
+			|| session.Viewer.Login.empty()) {
+			return std::nullopt;
+		}
+		auto provider = factory->acquire_publication_session();
+		if (provider == nullptr) {
+			return std::nullopt;
+		}
+		return github_publication_account{
+			.Provider = std::move(provider),
+			.Server   = authority.ServerContract,
+			.Account  = session.Viewer.Account,
+			.Login    = session.Viewer.Login,
+			.Host     = std::string{ authority.Hostname.value() },
+		};
+	}
+
 	auto github_application_host::rate_limits() const noexcept
 		-> const github_rate_limit_state&
 	{

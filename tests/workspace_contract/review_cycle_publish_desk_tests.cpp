@@ -299,6 +299,13 @@ namespace {
 			expect(remote->writes() == 0 && work.sheet().Stage == review_cycle_publication_stage::choosing, "publishing without a current plan sends nothing");
 			work.Host->prepare_publication();
 			expect(work.sheet().Current && work.sheet().Current->Id != first, "a new plan");
+			const auto second = work.sheet().Current->Id;
+			work.Host->revise_publication();
+			expect(work.sheet().Stage == review_cycle_publication_stage::choosing && !work.sheet().Current, "Change drops the plan");
+			work.Host->publish_publication();
+			expect(remote->writes() == 0, "a dropped plan publishes nothing");
+			work.Host->prepare_publication();
+			expect(work.sheet().Current && work.sheet().Current->Id != second, "and another plan is made");
 
 			// Publish: blobs, tree, commit, branch and pull request on the simulated server.
 			auto       lister = publication_git{ aExecutable };
@@ -347,7 +354,8 @@ namespace {
 			work.Host->link_pull_request("https://github.com/octo-org/review-repository/pull/21");
 			expect(contains(work.sheet().Status, "Sign in") && work.view().Links.size() == 1U, "signed out, nothing is read or linked");
 			work.Account = signedIn;
-			work.Host->link_pull_request("https://github.com/octo-org/review-repository/pull/21");
+			// The Home bar's shorthand names a pull request on the account's host.
+			work.Host->link_pull_request("octo-org/review-repository#21");
 			expect(work.view().Links.size() == 2U && work.view().Links[1].Origin == core::cycle_pull_origin::external && !work.view().Links[1].Publication
 					   && work.view().Links[1].HeadRef == "harden-by-hand" && contains(work.sheet().Status, "externally published"),
 				   "linked after a read of exactly it, as externally published");

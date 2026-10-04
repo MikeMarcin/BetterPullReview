@@ -43,33 +43,25 @@ namespace {
 	auto observed() -> cycle_pull_observation
 	{
 		return {
-			.Address  = asked(),
-			.NodeId   = "PR_kwDOexternal",
-			.Url      = "https://github.com/octo-org/review-repository/pull/17",
-			.State    = "open",
-			.HeadRef  = "harden-parser",
-			.Head     = commit(1),
-			.BaseRef  = "main",
-			.BaseHead = commit(2),
-			.Account  = github_account_id{ 1001 },
-			.Login    = "octo-reviewer",
+			.Address    = asked(),
+			.NodeId     = "PR_kwDOexternal",
+			.Url        = "https://github.com/octo-org/review-repository/pull/17",
+			.UrlAddress = asked(),
+			.State      = "open",
+			.HeadRef    = "harden-parser",
+			.Head       = commit(1),
+			.BaseRef    = "main",
+			.BaseHead   = commit(2),
+			.Account    = github_account_id{ 1001 },
+			.Login      = "octo-reviewer",
 		};
 	}
 
 	void addresses()
 	{
-		const auto parsed = parse_pull_address("  https://GitHub.com/octo-org/review-repository/pull/17/files?w=1#diff  ");
-		expect(parsed && parsed->Host == "github.com" && parsed->Owner == "octo-org" && parsed->Repository == "review-repository" && parsed->Number == 17U,
-			   "an address with a trailing path, query and fragment, and a host in capitals");
-		expect(pull_address_url(*parsed) == "https://github.com/octo-org/review-repository/pull/17", "the canonical web form");
-		expect(parse_pull_address("https://ghe.example.com/team/tool/pull/3").has_value(), "an Enterprise host");
-		for (const auto* const text : { "http://github.com/o/r/pull/1", "github.com/o/r/pull/1", "https://github.com/o/r/issues/1", "https://github.com/o/r/pull/0",
-										"https://github.com/o/r/pull/01", "https://github.com/o/r/pull/x", "https://github.com/o/r/pull/", "https://github.com/o/r", "https://bad_host/o/r/pull/1",
-										"https://github.com/-bad/r/pull/1", "https://github.com/o/../pull/1", "" }) {
-			expect(!parse_pull_address(text).has_value(), text);
-		}
 		expect(same_pull_request(asked(), { .Host = "GITHUB.COM", .Owner = "Octo-Org", .Repository = "Review-Repository", .Number = 17 }), "owner and repository compare without case");
 		expect(!same_pull_request(asked(), { .Host = "github.com", .Owner = "octo-org", .Repository = "review-repository", .Number = 18 }), "another number is another pull request");
+		expect(!same_pull_request(asked(), { .Host = "ghe.example.com", .Owner = "octo-org", .Repository = "review-repository", .Number = 17 }), "another host is another pull request");
 	}
 
 	void external_link()
@@ -84,9 +76,12 @@ namespace {
 		auto other    = observed();
 		other.Address = { .Host = "github.com", .Owner = "octo-org", .Repository = "review-repository", .Number = 18 };
 		expect(decide_external_link(asked(), other, { }, std::nullopt).error() == cycle_link_refusal::mismatch, "a read that returned another pull request");
-		auto url = observed();
-		url.Url  = "https://github.com/octo-org/elsewhere/pull/17";
+		auto url       = observed();
+		url.UrlAddress = cycle_pull_address{ .Host = "github.com", .Owner = "octo-org", .Repository = "elsewhere", .Number = 17 };
 		expect(decide_external_link(asked(), url, { }, std::nullopt).error() == cycle_link_refusal::mismatch, "an observation whose own address names another repository");
+		auto unnamed       = observed();
+		unnamed.UrlAddress = std::nullopt;
+		expect(decide_external_link(asked(), unnamed, { }, std::nullopt).error() == cycle_link_refusal::mismatch, "an observation whose address names no pull request");
 		auto node   = observed();
 		node.NodeId = "";
 		expect(decide_external_link(asked(), node, { }, std::nullopt).error() == cycle_link_refusal::mismatch, "no node identity is filled in");

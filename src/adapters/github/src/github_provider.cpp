@@ -1,6 +1,7 @@
 #include "github_provider.hpp"
 #include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
+#include "github_publication_contract.hpp"
 #include "native_https_transport.hpp"
 
 #include <algorithm>
@@ -273,10 +274,26 @@ namespace bpr::adapters::github::detail {
 			std::shared_ptr<github_wire_transport_port>      Transport;
 		};
 
+		/// [[BPR-1177]]. The publication catalog over one account's wire,
+		/// keeping that wire alive for as long as the catalog is held.
+		struct github_owned_publication_session
+		{
+			github_owned_publication_session(std::shared_ptr<github_wire_transport_port> aOwner, github_publication_wire_transport& aWire,
+											 const application::github_credential_operation_context& aContext) noexcept
+				: Owner{ std::move(aOwner) }
+				, Session{ aWire, aContext }
+			{
+			}
+
+			std::shared_ptr<github_wire_transport_port> Owner;
+			github_publication_session                  Session;
+		};
+
 		class github_wire_account_transport final
 			: public application::github_account_transport_lease,
 			  public application::git_smart_transport_factory_port,
-			  public application::review_mutation_transport_factory_port
+			  public application::review_mutation_transport_factory_port,
+			  public application::github_publication_session_factory_port
 		{
 		public:
 			github_wire_account_transport(
@@ -325,6 +342,23 @@ namespace bpr::adapters::github::detail {
 				try {
 					return std::make_shared<github_review_mutation_transport>(
 						Profile, CredentialContext, Transport);
+				} catch (...) {
+					return { };
+				}
+			}
+
+			/// The catalog over this account's own authority, when its wire is
+			/// the native HTTPS transport; the session refuses any other host,
+			/// account or server contract before a request exists.
+			[[nodiscard]] auto acquire_publication_session() noexcept -> std::shared_ptr<application::github_publication_port> override
+			{
+				auto* const wire = dynamic_cast<github_publication_wire_transport*>(Transport.get());
+				if (wire == nullptr) {
+					return { };
+				}
+				try {
+					auto owned = std::make_shared<github_owned_publication_session>(Transport, *wire, CredentialContext);
+					return std::shared_ptr<application::github_publication_port>{ owned, &owned->Session };
 				} catch (...) {
 					return { };
 				}

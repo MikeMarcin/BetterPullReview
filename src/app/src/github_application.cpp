@@ -4465,6 +4465,7 @@ namespace bpr::app {
 				};
 			}
 			ApplicationDataRoot = applicationDataRoot;
+			InstalledGit        = gitExecutable;
 			DiagnosticLog       = aConfig.DiagnosticLog;
 			if (!DiagnosticLog) {
 				try {
@@ -5458,6 +5459,7 @@ namespace bpr::app {
 		std::unique_ptr<application::git_cache_port>                      GitCaches;
 		std::unique_ptr<application::epoch_catalog_port>                  EpochCatalogs;
 		std::filesystem::path                                             ApplicationDataRoot;
+		std::filesystem::path                                             InstalledGit; // [[BPR-1177]] What Publish as Pull Request's catalog runs.
 		std::unique_ptr<application::workbench_settings_port>             WorkbenchSettings;
 		bool                                                              WorkbenchPersistenceAvailable = false;
 		std::unique_ptr<application::appearance_settings_port>            AppearanceSettings;
@@ -6587,6 +6589,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// definitions, on the lane every classifier over them runs on.
 			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
 																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects });
+			// [[BPR-1177]]. Publish as Pull Request acts as the account this
+			// profile's session accepted, through its own publication catalog.
+			CycleDesktop->set_publishing({
+				.GitExecutable     = Profile->InstalledGit,
+				.WindowsSystemRoot = windows_system_root(),
+				.Account           = [this]() -> std::optional<application::github_publication_account> {
+					return Closing || !Host ? std::nullopt : Host->accepted_publication_account();
+				},
+			});
 			Window->set_profile_label(QString::fromStdString(aAdmission.Label));
 			Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));
 			Window->set_receipt_dispatch(
@@ -17157,6 +17168,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	{
 		if (aApplication.Implementation->Fixture) {
 			aApplication.Implementation->Fixture->stage_server_conversation(std::move(aThread), aAddedAndResolved);
+		}
+	}
+	void detail::github_application_fixture_access::set_cycle_publication_account(github_application& aApplication, const core::bpr_window_context aContext,
+																				  std::function<std::optional<application::github_publication_account>()> aAccount)
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		if (found != aApplication.Sessions.end() && found->second->CycleDesktop) {
+			found->second->CycleDesktop->set_publication_account(std::move(aAccount));
 		}
 	}
 	auto detail::github_application_fixture_access::held_window_read_terminals(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> std::size_t

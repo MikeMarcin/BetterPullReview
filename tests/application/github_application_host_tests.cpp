@@ -197,11 +197,84 @@ namespace {
 	{
 	};
 
+	/// [[BPR-1177]]. A publication catalog that answers nothing: the host only
+	/// hands it on, and a test only compares which one it handed on.
+	struct stub_publication_port final : application::github_publication_port
+	{
+		template <typename T>
+		static auto none() -> application::github_publication_result<T>
+		{
+			return std::unexpected(application::github_publication_error{ });
+		}
+		auto observe_repository(const application::github_publication_target&, std::stop_token) -> application::github_publication_result<application::github_publication_capability> override
+		{
+			return none<application::github_publication_capability>();
+		}
+		auto observe_branch(const application::github_publication_target&, const std::string&, std::stop_token) -> application::github_publication_result<std::optional<core::git_commit_oid>> override
+		{
+			return none<std::optional<core::git_commit_oid>>();
+		}
+		auto observe_commit(const application::github_publication_target&, const core::git_commit_oid&, std::stop_token)
+			-> application::github_publication_result<std::optional<application::github_publication_commit>> override
+		{
+			return none<std::optional<application::github_publication_commit>>();
+		}
+		auto observe_tree(const application::github_publication_target&, const core::git_tree_oid&, std::stop_token) -> application::github_publication_result<bool> override
+		{
+			return none<bool>();
+		}
+		auto observe_blob(const application::github_publication_target&, const core::git_entry_oid&, std::stop_token) -> application::github_publication_result<bool> override
+		{
+			return none<bool>();
+		}
+		auto create_blob(const application::github_publication_target&, std::span<const std::uint8_t>, const core::git_entry_oid&, std::stop_token) -> application::github_publication_result<void> override
+		{
+			return none<void>();
+		}
+		auto create_tree(const application::github_publication_target&, const core::git_tree_oid&, const std::vector<core::git_tree_entry>&, const std::vector<std::string>&, const core::git_tree_oid&,
+						 std::stop_token) -> application::github_publication_result<void> override
+		{
+			return none<void>();
+		}
+		auto create_commit(const application::github_publication_target&, const core::git_commit_content&, const core::git_commit_oid&, std::stop_token) -> application::github_publication_result<void> override
+		{
+			return none<void>();
+		}
+		auto create_branch(const application::github_publication_target&, const std::string&, const core::git_commit_oid&, std::stop_token)
+			-> application::github_publication_result<application::github_branch_creation> override
+		{
+			return none<application::github_branch_creation>();
+		}
+		auto create_pull_request(const application::github_publication_target&, const application::github_pull_request_draft&, std::stop_token)
+			-> application::github_publication_result<application::github_pull_request_observation> override
+		{
+			return none<application::github_pull_request_observation>();
+		}
+		auto find_pull_requests(const application::github_publication_target&, const std::string&, const std::string&, std::stop_token)
+			-> application::github_publication_result<std::vector<application::github_pull_request_observation>> override
+		{
+			return none<std::vector<application::github_pull_request_observation>>();
+		}
+		auto observe_pull_request(const application::github_publication_target&, std::uint64_t, std::stop_token)
+			-> application::github_publication_result<std::optional<application::github_pull_request_observation>> override
+		{
+			return none<std::optional<application::github_pull_request_observation>>();
+		}
+	};
+
 	struct fake_lease final
 		: application::github_account_transport_lease,
 		  application::git_smart_transport_factory_port,
-		  application::review_mutation_transport_factory_port
+		  application::review_mutation_transport_factory_port,
+		  application::github_publication_session_factory_port
 	{
+		[[nodiscard]] auto acquire_publication_session() noexcept -> std::shared_ptr<application::github_publication_port> override
+		{
+			return Publication;
+		}
+		/// The catalog this account's wire mints; null for a wire that cannot carry publication.
+		std::shared_ptr<application::github_publication_port> Publication = std::make_shared<stub_publication_port>();
+
 		[[nodiscard]] auto acquire(
 			const application::git_smart_request_context& aContext)
 			-> application::git_smart_transport_result<
@@ -1919,6 +1992,27 @@ namespace {
 		expect(!retained->active()
 				   && fixture.Host.accepted_review_mutation_transport() == nullptr,
 			   "shutdown revokes every retained mutation lease synchronously");
+	}
+
+	/// [[BPR-1177]]. The accepted account's publication catalog: present with
+	/// no pull request snapshot, under exactly that account's identity, absent
+	/// for a wire that cannot carry publication, and withdrawn with the identity.
+	auto test_accepted_publication_account() -> void
+	{
+		host_fixture fixture;
+		expect(!fixture.Host.accepted_publication_account(), "signed out there is no publication account");
+		const auto lease   = establish_native_session(fixture);
+		const auto account = fixture.Host.accepted_publication_account();
+		expect(account && account->Provider == lease->Publication && account->Account == core::github_account_id{ 51U } && account->Login == "reviewer" && account->Host == "github.com"
+				   && account->Server == application::github_server_contract::github_com_2022_11_28,
+			   "the accepted account mints its own publication catalog, with no pull request snapshot");
+		expect(fixture.Host.accepted_review_mutation_transport() == nullptr, "and no review-mutation authority comes with it");
+		const auto kept    = lease->Publication;
+		lease->Publication = nullptr;
+		expect(!fixture.Host.accepted_publication_account(), "a wire that cannot carry publication gives no account");
+		lease->Publication = kept;
+		fixture.Host.dispatch(core::activate_host_profile_intent{ .Profile = core::host_profile_id{ 12U } });
+		expect(!fixture.Host.accepted_publication_account(), "identity replacement withdraws it at once");
 	}
 
 	auto test_accepted_snapshot_handoff_and_exact_invalidation() -> void
@@ -7373,6 +7467,7 @@ auto main() -> int
 	test_setup_acceptance_reuses_validated_bootstrap();
 	test_setup_restage_same_destination_has_fresh_attempt();
 	test_enrollment_acceptance_snapshot_and_exact_delete();
+	test_accepted_publication_account();
 	test_retained_mutation_lease_is_revoked_on_shutdown();
 	test_accepted_snapshot_handoff_and_exact_invalidation();
 	test_success_projection_is_safe_atomic_and_conversation_complete();

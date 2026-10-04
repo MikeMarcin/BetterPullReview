@@ -607,6 +607,21 @@ endfunction()
 # (JetBrains Mono v2.304). The family and resource names live in the Qt
 # adapter, so main.cpp and every other pinned-scope source are unchanged and
 # all three pins stay as they were.
+# BPR-1177 reseal: 327130672..this candidate; no intervening pinned-scope
+# commit since the BPR-1270 seal. Publish as Pull Request from a local cycle:
+# github_application.cpp remembers the installed Git it already resolved
+# (github_profile_runtime::InstalledGit) and hands review_cycle_desktop that
+# Git and, asked each time, github_application_host::accepted_publication_account:
+# the BPR-1175/1176 publication catalog minted by the accepted account's own
+# native HTTPS transport (github_publication_session_factory_port), bound to
+# exactly that host, account and server contract, with no pull request snapshot
+# needed and nothing for a gh CLI connection. The desktop's catalog runs in the
+# profile's own owner-private isolation root. The fixture access gains
+# set_cycle_publication_account, which only a BPR_BUILD_TESTING course reaches.
+# This is a publication path, reviewed on BPR-1177: the finite catalog of blobs,
+# tree, one commit, a new branch and one pull request, authorized only by the
+# reviewer's confirmation of a recorded plan's digest; no review-mutation grant,
+# target or provider changes; mutation pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -625,7 +640,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6066c09ae7e7c3269abee43be522b74d1c0e8f85109592e7c7bca4130a60cfa2"
+		"3c9db9e039eb65b7de07047bf92241c70409a865a9811d3b104c1a5eb09f5096"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -823,7 +838,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c57698431bf51518709d25831ce5a7f39f19021f4827eb271004b286d58f1c03"
+        "7c2575023356dd7cb944d2d3d465094b9a40a1afbed597ec50442edba23b5102"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

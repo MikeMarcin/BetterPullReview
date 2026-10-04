@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stop_token>
@@ -175,6 +176,37 @@ namespace bpr::application {
 			-> github_publication_result<std::vector<github_pull_request_observation>> = 0;
 		virtual auto observe_pull_request(const github_publication_target& aTarget, std::uint64_t aNumber, std::stop_token aStop)
 			-> github_publication_result<std::optional<github_pull_request_observation>> = 0;
+	};
+
+	/// \brief An account's transport that can carry the publication catalog
+	/// over its own authority ([[BPR-1177]]). The GitHub adapter implements it
+	/// on an account transport whose wire admits publication; nothing else can
+	/// mint a session, and no credential byte crosses this boundary.
+	class github_publication_session_factory_port
+	{
+	public:
+		github_publication_session_factory_port()                                                                  = default;
+		virtual ~github_publication_session_factory_port()                                                         = default;
+		github_publication_session_factory_port(const github_publication_session_factory_port&)                    = delete;
+		auto operator=(const github_publication_session_factory_port&) -> github_publication_session_factory_port& = delete;
+		github_publication_session_factory_port(github_publication_session_factory_port&&)                         = delete;
+		auto operator=(github_publication_session_factory_port&&) -> github_publication_session_factory_port&      = delete;
+
+		/// \brief The catalog bound to this account, or nothing when its wire
+		/// cannot carry publication (a `gh` CLI connection, for example).
+		[[nodiscard]] virtual auto acquire_publication_session() noexcept -> std::shared_ptr<github_publication_port> = 0;
+	};
+
+	/// \brief The account native publication acts as: its catalog, its
+	/// server contract and its identity, as one accepted session names them.
+	struct github_publication_account
+	{
+		std::shared_ptr<github_publication_port> Provider;
+		github_server_contract                   Server = github_server_contract::github_com_2022_11_28;
+		core::github_account_id                  Account;
+		std::string                              Login;
+		/// The canonical host the account's authority names.
+		std::string Host;
 	};
 }
 

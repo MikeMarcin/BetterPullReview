@@ -617,6 +617,38 @@ another client pushed, and a branch and a pull request taken between the read
 and the write all behave as described above. GHES is still refused as
 `unsupported_host` and has no live evidence.
 
+The desktop publishes from the cycle page (BPR-1177): Share notes' menu holds
+Publish as Pull Request…, which opens a sheet over the code, as Share notes
+does. `application::review_cycle_workbench` composes the hosts above into
+steps, each one effect-lane call over the cycle's store
+(`bpr/application/review_cycle_publishing.hpp`): plan what would go out,
+Review Plan (the candidate in the private store and a recorded plan), Publish
+Pull Request (the reviewer's confirmation of exactly that digest under the
+account signed in now, then the publisher), Check GitHub, Cancel, Save Patch
+for one's own Git tools, and Link Existing Pull Request. Any edit after a plan,
+and Change, makes another plan necessary. The pull request's description is
+the reviewer's Problem and Solution in the form a Review Tour maps
+(`core::publication_body`), so a tour prepared later on the pull request finds
+them; a tour is never prepared or published by publishing. The account is the
+one the profile's session accepted: `github_application_host::accepted_publication_account`
+asks the accepted account's own transport for its publication catalog
+(`github_publication_session_factory_port`), with no pull request snapshot,
+and a `gh` CLI connection has none.
+
+A cycle's pull requests are associations, not a terminal state
+(`bpr/core/review_cycle_association.hpp`). A linked native publication is
+associated through its journal's link. A pull request published with one's
+own tools is associated only after a read of exactly that pull request under
+the reviewer's account, admitted by `core::decide_external_link` when the
+answer names the same pull request, carries a node identity and a head
+commit, and is kept in schema 10's `associations` table marked externally
+published; it is never evidence that native publication ran. Every revision,
+note, round, response, verification and delivery stays in the cycle after
+publication and after a reclaim, until the cycle is removed explicitly, and
+no step uploads any of them or writes a GitHub comment or review. The page's
+Updates line names each linked pull request; Open Pull Request hands its
+address to the Home bar, which opens it in the existing pull request workflow.
+
 ## Authority by state category
 
 | Category | Authority | Core representation | Qt representation |

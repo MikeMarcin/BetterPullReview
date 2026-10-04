@@ -36,17 +36,8 @@
 /// No step uploads a note, round, response or verification, and none writes
 /// a GitHub comment or review.
 namespace bpr::application {
-	/// \brief The account native publication acts as, as the composition sees
-	/// it now: its catalog, its server and its identity.
-	struct review_cycle_publication_account
-	{
-		std::shared_ptr<github_publication_port> Provider;
-		github_server_contract                   Server = github_server_contract::github_com_2022_11_28;
-		core::github_account_id                  Account;
-		std::string                              Login;
-		/// The canonical host the account's authority names.
-		std::string Host;
-	};
+	/// \brief The account native publication acts as, as the composition sees it now.
+	using review_cycle_publication_account = github_publication_account;
 
 	/// \brief What Publish as Pull Request may use, set by the composition.
 	struct review_cycle_publication_environment

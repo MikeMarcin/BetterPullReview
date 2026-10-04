@@ -146,6 +146,9 @@ namespace bpr::application {
 		/// \brief Review Plan: builds the candidate in the private store and
 		/// records the finite plan. Nothing is sent.
 		void prepare_publication();
+		/// \brief Change: back to the choices from a recorded plan, which then
+		/// authorizes nothing; the next Review Plan supersedes it.
+		void revise_publication();
 		/// \brief Publish Pull Request: the reviewer's confirmation of the
 		/// recorded plan's digest, under the account signed in now, then every
 		/// remaining step of exactly that plan.

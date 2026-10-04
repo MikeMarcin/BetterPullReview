@@ -1,5 +1,7 @@
 #include "bpr/application/review_cycle_publishing.hpp"
 
+#include "bpr/application/setup_destination_projection.hpp"
+
 #include <algorithm>
 #include <iterator>
 #include <utility>
@@ -234,19 +236,24 @@ namespace bpr::application {
 			step.LinkRefusal = core::cycle_link_refusal::not_found;
 			return finish(aStore, aCycle, std::move(step), aStop);
 		}
-		const auto& pull     = **read;
-		const auto  observed = core::cycle_pull_observation{
-			.Address  = { .Host = aAccount.Host, .Owner = aAddress.Owner, .Repository = aAddress.Repository, .Number = pull.Number },
-			.NodeId   = pull.NodeId,
-			.Url      = pull.Url,
-			.State    = pull.State,
-			.Draft    = pull.Draft,
-			.HeadRef  = pull.HeadRef,
-			.Head     = pull.HeadCommit,
-			.BaseRef  = pull.BaseRef,
-			.BaseHead = pull.BaseCommit.valid() ? std::optional{ pull.BaseCommit } : std::nullopt,
-			.Account  = aAccount.Account,
-			.Login    = aAccount.Login,
+		const auto& pull = **read;
+		// The answer's own address, read as the Home bar reads a pasted link.
+		const auto named    = parse_setup_destination(pull.Url);
+		const auto observed = core::cycle_pull_observation{
+			.Address    = { .Host = aAccount.Host, .Owner = aAddress.Owner, .Repository = aAddress.Repository, .Number = pull.Number },
+			.NodeId     = pull.NodeId,
+			.Url        = pull.Url,
+			.UrlAddress = named && !named->Hostname.empty()
+				? std::optional{ core::cycle_pull_address{ .Host = named->Hostname, .Owner = named->Repository.Owner, .Repository = named->Repository.Name, .Number = named->Number.value() } }
+				: std::nullopt,
+			.State      = pull.State,
+			.Draft      = pull.Draft,
+			.HeadRef    = pull.HeadRef,
+			.Head       = pull.HeadCommit,
+			.BaseRef    = pull.BaseRef,
+			.BaseHead   = pull.BaseCommit.valid() ? std::optional{ pull.BaseCommit } : std::nullopt,
+			.Account    = aAccount.Account,
+			.Login      = aAccount.Login,
 		};
 		auto decided = core::decide_external_link(aAddress, observed, *known, aCycle.Latest ? std::optional{ aCycle.Latest->Id.Id } : std::nullopt);
 		if (!decided) {

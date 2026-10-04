@@ -3,6 +3,7 @@
 
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/review_cycle_publish_sheet.hpp"
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/suggestion_composer.hpp"
 #include "bpr/qt/workbench_strip.hpp"
@@ -52,6 +53,9 @@ namespace bpr::qt {
 		/// BPR-1161: Compose feedback opens and leaves; its page's own gestures.
 		std::function<void()>       Compose;
 		review_cycle_share_dispatch Share;
+		/// BPR-1177: Publish as Pull Request opens; its sheet's own gestures.
+		std::function<void()>         OpenPublication;
+		review_cycle_publish_dispatch Publish;
 	};
 
 	class appearance_profile;
@@ -155,6 +159,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto next_round_button() const noexcept -> QToolButton*;
 		/// \brief Share notes: the sheet over the code (BPR-1161).
 		[[nodiscard]] auto share_page() const noexcept -> review_cycle_share_sheet*;
+		/// \brief Publish as Pull Request: its sheet, and the action in Share
+		/// notes' menu that opens it (BPR-1177).
+		[[nodiscard]] auto publish_sheet() const noexcept -> review_cycle_publish_sheet*;
+		[[nodiscard]] auto publish_action() const noexcept -> QAction*;
 		/// \brief The exact anchor for the source pane's selection, if it has one.
 		[[nodiscard]] auto selection_anchor() const -> std::optional<core::cycle_source_anchor>;
 		[[nodiscard]] auto projection() const noexcept -> const application::review_cycle_workbench_projection&;
@@ -236,6 +244,8 @@ namespace bpr::qt {
 		QPlainTextEdit*                                      ReplyEditor   = nullptr;
 		QShortcut*                                           CancelKeys    = nullptr;
 		review_cycle_share_sheet*                            SharePage     = nullptr;
+		review_cycle_publish_sheet*                          PublishSheet  = nullptr;
+		QAction*                                             PublishAction = nullptr;
 		std::optional<core::cycle_round_id>                  ReplyRound;
 		std::optional<std::string>                           ReplyItem;
 		bool                                                 Presenting = false;

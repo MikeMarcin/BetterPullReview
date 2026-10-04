@@ -11,6 +11,7 @@
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/application/github_publication_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_mutation_port.hpp"
@@ -341,6 +342,16 @@ namespace bpr::application {
 		/// Credential bytes and concrete adapter types remain inaccessible.
 		[[nodiscard]] auto accepted_review_mutation_transport() const noexcept
 			-> review_mutation_transport;
+		/// \brief Returns the publication catalog for the accepted account ([[BPR-1177]]).
+		///
+		/// \details Absent signed out, under public preview, while closing,
+		/// and when the accepted account's transport cannot carry publication.
+		/// Unlike the review-mutation transport it needs no pull request
+		/// snapshot: a local cycle publishes into a repository it names. The
+		/// catalog is bound to exactly this account's authority and refuses any
+		/// other host, account or server contract itself.
+		[[nodiscard]] auto accepted_publication_account() const
+			-> std::optional<github_publication_account>;
 		[[nodiscard]] auto rate_limits() const noexcept
 			-> const github_rate_limit_state&;
 		[[nodiscard]] auto capability_cache_size() const noexcept -> std::size_t;

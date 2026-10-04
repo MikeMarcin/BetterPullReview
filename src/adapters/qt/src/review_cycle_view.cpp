@@ -334,7 +334,19 @@ namespace bpr::qt {
 		ComposeAction = new QAction{ QStringLiteral("Share notes"), this };
 		ComposeAction->setObjectName(QStringLiteral("cycleComposeAction"));
 		ComposeAction->setToolTip(QStringLiteral("Share your notes as one round: copy them for an agent or a colleague, or save them to a file"));
+		// BPR-1177: the finished result goes out as a pull request from the same
+		// place, in its menu, so the bar gains no row and no button.
+		PublishAction = new QAction{ QStringLiteral("Publish as Pull Request…"), this };
+		PublishAction->setObjectName(QStringLiteral("cyclePublishAction"));
+		PublishAction->setToolTip(QStringLiteral("Publish the latest capture as one new commit on a new branch, and open a pull request"));
+		auto* const shareMenu = new QMenu{ this };
+		shareMenu->setObjectName(QStringLiteral("cycleShareMenu"));
+		shareMenu->addAction(PublishAction);
+		ComposeAction->setMenu(shareMenu);
 		ReviewBar->addAction(ComposeAction);
+		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeAction))) {
+			button->setPopupMode(QToolButton::MenuButtonPopup);
+		}
 		NotesToggle = new QAction{ strip_icon(strip_glyph::comments_drawer, palette()), QStringLiteral("Notes"), this };
 		NotesToggle->setObjectName(QStringLiteral("cycleNotesToggle"));
 		NotesToggle->setCheckable(true);
@@ -396,8 +408,9 @@ namespace bpr::qt {
 		Centre->addWidget(SourceNotice);
 		Centre->addWidget(Comparison);
 		// BPR-1161: Share notes is a sheet over the code (direction A), not a page in its place.
-		SharePage   = new review_cycle_share_sheet{ this };
-		ReadingPage = Source;
+		SharePage    = new review_cycle_share_sheet{ this };
+		PublishSheet = new review_cycle_publish_sheet{ this };
+		ReadingPage  = Source;
 
 		auto* const tray       = new QWidget{ Body };
 		auto* const trayColumn = new QVBoxLayout{ tray };
@@ -582,6 +595,11 @@ namespace bpr::qt {
 		});
 		connect(ViewMenu, &QMenu::aboutToShow, this, [this] { rebuild_view_menu(); });
 		connect(CommentAction, &QAction::triggered, this, [this] { begin_comment(); });
+		connect(PublishAction, &QAction::triggered, this, [this] {
+			if (Dispatch.OpenPublication && !Projection.Publication) {
+				Dispatch.OpenPublication();
+			}
+		});
 		connect(ComposeAction, &QAction::triggered, this, [this] {
 			if (Dispatch.Compose && !Projection.Share) {
 				Dispatch.Compose();
@@ -696,6 +714,7 @@ namespace bpr::qt {
 	{
 		Dispatch = std::move(aDispatch);
 		SharePage->set_dispatch(Dispatch.Share);
+		PublishSheet->set_dispatch(Dispatch.Publish);
 	}
 
 	void review_cycle_view::set_code_font(const QFont& aFont)
@@ -805,6 +824,16 @@ namespace bpr::qt {
 		if (Projection.NextRound) {
 			const auto& next = *Projection.NextRound;
 			line += QStringLiteral(" · next round draft saved from F%1: %2 carried, %3 new, %4 resolved left out").arg(next.From.value()).arg(next.Carried).arg(next.Added).arg(next.Resolved);
+		}
+		// BPR-1177: the pull request the cycle became, as GitHub last said; the history stays here.
+		for (const auto& link : Projection.Links) {
+			line += QStringLiteral(" · %1 pull request #%2 (%3/%4)")
+						.arg(link.Origin == core::cycle_pull_origin::published ? QStringLiteral("published as") : QStringLiteral("linked to externally published"))
+						.arg(link.Address.Number)
+						.arg(text_of(link.Address.Owner), text_of(link.Address.Repository));
+			if (link.Drifted) {
+				line += QStringLiteral(", changed on GitHub since");
+			}
 		}
 		if (!Projection.Message.empty()) {
 			line += QStringLiteral(" · ") + text_of(Projection.Message);
@@ -974,8 +1003,13 @@ namespace bpr::qt {
 		if (Projection.Share) {
 			SharePage->present(*Projection.Share, Projection.Notes, Projection.Activity == application::review_cycle_activity::idle);
 		}
-		const auto composing = Projection.Share.has_value() && !SharePage->isVisible();
-		const auto composed  = !Projection.Share.has_value() && previous.Share.has_value();
+		if (Projection.Publication) {
+			PublishSheet->present(*Projection.Publication, Projection);
+		}
+		const auto publishing = Projection.Publication.has_value() && !PublishSheet->isVisible();
+		const auto published  = !Projection.Publication.has_value() && previous.Publication.has_value();
+		const auto composing  = Projection.Share.has_value() && !SharePage->isVisible();
+		const auto composed   = !Projection.Share.has_value() && previous.Share.has_value();
 		show_reading_page();
 		refresh_actions();
 		if (composing) {
@@ -987,6 +1021,19 @@ namespace bpr::qt {
 			SharePage->focus_first();
 		} else if (composed) {
 			SharePage->hide();
+			if (Centre->currentWidget() == Source) {
+				Source->setFocus(Qt::OtherFocusReason);
+			}
+		}
+		if (publishing) {
+			// Over the file the reviewer was reading, as Share notes is.
+			PublishSheet->set_anchor(ReviewBar->mapToGlobal(QPoint{ ReviewBar->width() / 2, ReviewBar->height() }));
+			PublishSheet->show();
+			PublishSheet->raise();
+			PublishSheet->activateWindow();
+			PublishSheet->focus_first();
+		} else if (published) {
+			PublishSheet->hide();
 			if (Centre->currentWidget() == Source) {
 				Source->setFocus(Qt::OtherFocusReason);
 			}
@@ -1392,6 +1439,7 @@ namespace bpr::qt {
 		ReplyButton->setEnabled(open);
 		NextRound->setEnabled(open && !Projection.Facts.Rounds.empty() && Projection.Activity == application::review_cycle_activity::idle);
 		ComposeAction->setEnabled(open && !Projection.Revisions.empty() && !Projection.Share && !suggesting());
+		PublishAction->setEnabled(open && !Projection.Revisions.empty() && !Projection.Publication && !suggesting());
 		const auto waiting = std::ranges::count(Projection.Notes, core::private_thread_lifecycle::open, &application::review_cycle_note_entry::Lifecycle);
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeAction))) {
 			set_strip_badge(*button, waiting == 0 ? QString{ } : QString::number(waiting));
@@ -1414,6 +1462,16 @@ namespace bpr::qt {
 			const auto path = Projection.Files[static_cast<std::size_t>(index)].Path;
 			Dispatch.OpenFile(path, false);
 		}
+	}
+
+	auto review_cycle_view::publish_sheet() const noexcept -> review_cycle_publish_sheet*
+	{
+		return PublishSheet;
+	}
+
+	auto review_cycle_view::publish_action() const noexcept -> QAction*
+	{
+		return PublishAction;
 	}
 
 	auto review_cycle_view::review_bar() const noexcept -> workbench_strip*

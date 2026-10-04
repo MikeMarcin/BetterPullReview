@@ -10,6 +10,7 @@
 #include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
+#include "bpr/application/github_publication_port.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
@@ -915,7 +916,12 @@ namespace bpr::app::detail {
 			-> std::optional<application::github_pull_request_snapshot>;
 		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication, core::bpr_window_context aContext) -> std::optional<application::github_pull_request_snapshot>;
 		/// Change fake remote records; the course must still issue a public Refresh.
-		static void               stage_server_conversation(github_application& aApplication, std::string aThread, bool aAddedAndResolved);
+		static void stage_server_conversation(github_application& aApplication, std::string aThread, bool aAddedAndResolved);
+		/// \brief [[BPR-1177]]. A course's account for Publish as Pull Request in
+		/// one window, in place of the session's: a simulated GitHub behind the
+		/// publication catalog's port. Nothing else of the composition changes.
+		static void               set_cycle_publication_account(github_application& aApplication, core::bpr_window_context aContext,
+																std::function<std::optional<application::github_publication_account>()> aAccount);
 		static void               hold_window_read_terminal(github_application& aApplication, core::bpr_window_context aContext, bool aHold);
 		[[nodiscard]] static auto held_window_read_terminals(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> std::size_t;
 		[[nodiscard]] static auto diff_work_evidence(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> diff_work_fixture_evidence;
