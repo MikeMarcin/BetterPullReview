@@ -91,3 +91,51 @@ under WSL2, GCC 15.2.0, offscreen).**
    the `linux-package-agent-free` DEB is owed by a 24.04 station.
 
 Done is not reopened.
+
+### Windows at `795d387cf` (bpr-main-win, 2026-10-04)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2. This is MSVC's first
+compile of the switched-off code.
+
+- **`windows-dev` with both switches off** (`build/bpr1179-off`,
+  `BPR_BUILD_AGENT_INTEGRATIONS=OFF`, `BPR_BUILD_LOCAL_AUTOMATION=OFF`). The
+  build printed no `warning C` or `warning LNK` line. The station request's
+  selection passes **6 of 6**: `review_cycle_dependency_closure`,
+  `application_review_cycle_publish_public_path`,
+  `application_review_cycle_automation_off_two_round`,
+  `composed_application_hosts`, `application_review_cycle_desktop_public_path`
+  and `architecture_boundaries`. The tree has no `bpr.exe` and no MCP context
+  helper. It keeps `better_pull_review_agent_supervisor.exe`, which Git's
+  guarded launches need.
+- **A new pin.** `test_network_isolation_manifest` in that tree flagged
+  `application_review_cycle_automation_off_two_round`: it is
+  `WINDOWS_UNCONTAINED` but was not in the pinned set. Measured contained
+  through the sandbox launcher, its first `git init` exits 128 before any
+  desktop step, the [[BPR-1166]] two-round shape (`dos-volume-name`). It is now
+  pinned with that line, and the manifest passes in both the off tree and the
+  full tree.
+- **Full `windows-dev` graph: 553 of 574** in 5,840.78 s (`-j6`). None of the
+  21 failures comes from this card:
+  - 13 are tracked or were in [[BPR-0905]]'s Windows record: the six Qt
+    overflow rows ([[BPR-1255]]), [[BPR-1236]], `application_windows_title_row`
+    ([[BPR-0653]]), `rfc0017_release_absence_negative_control`,
+    `application_device_authorization_refresh_course`,
+    `qt_agent_launch_canary` (it also fails serially),
+    `application_large_review_cache_bytes` ([[BPR-1265]], also fails serially)
+    and `application_agent_finding_dif_context_contract`.
+  - 7 timed out under `-j6` and pass serially:
+    `application_large_review_cache_entries`, `_loaded_close` and
+    `_resources`, `application_private_review_native`,
+    `composed_application_hosts`, `github_provider` and
+    `application_diagnostic_subsystems`.
+  - `documentation_structure` refused a local `NEXT_ID` behind origin's high
+    water. That is checkout state, not a product failure.
+- **Agent-free Release.** `cmake --preset windows-app-release-agent-free`
+  configures, and `app_better_pull_review` builds with no `warning C` or
+  `warning LNK` line. The tree holds `better_pull_review.exe` and the
+  supervisor, and no MCP helper.
+- **Owed.** `packaging/package.py --generator WIX` was not run: CPack is set
+  to WiX 4 (`CPACK_WIX_VERSION 4`), and this station has no WiX toolset
+  installed. Installing it is the owner's call, so the agent-free MSI,
+  `scripts/verify_release_package.py` on it, and installing it over a full MSI
+  and back are still owed on Windows.

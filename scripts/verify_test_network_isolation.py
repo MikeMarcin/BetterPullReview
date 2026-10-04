@@ -617,6 +617,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # profile desktop's data root, as the application rows above), before
     # the expected `bpr cycle open`. It is measured uncontained.
     "application_review_cycle_large_project": "dos-volume-name",
+    # [[BPR-1179]]. Registered only where BPR_BUILD_LOCAL_AUTOMATION is off.
+    # Measured on JaegAW 2026-10-04 at 795d387cf in windows-dev with both
+    # switches OFF, contained through the sandbox launcher: the course's
+    # first `git init` exits 128 before any desktop step, as the two-round
+    # course it shares does (Git's getcwd under AC\Temp). It passes
+    # uncontained.
+    "application_review_cycle_automation_off_two_round": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they
