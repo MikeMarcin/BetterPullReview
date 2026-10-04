@@ -120,11 +120,30 @@ namespace {
 		return scale;
 	}
 
+	/// [[BPR-1184]]. How long one course command may take, from the course, and
+	/// the clock of the command now running: every wait inside a command ends
+	/// before the course stops waiting for its reply, so a stalled gesture
+	/// replies with what the window shows instead of going silent.
+	auto gesture_budget_ms() -> qint64&
+	{
+		static auto budget = qint64{ 0 };
+		return budget;
+	}
+
+	auto gesture_clock() -> QElapsedTimer&
+	{
+		static auto clock = QElapsedTimer{ };
+		return clock;
+	}
+
 	auto wait_for(const std::function<bool()>& aCondition, const int aMilliseconds = 30000) -> bool
 	{
 		QElapsedTimer elapsed;
 		elapsed.start();
-		const auto limit = static_cast<qint64>(aMilliseconds) * wait_scale();
+		auto limit = static_cast<qint64>(aMilliseconds) * wait_scale();
+		if (gesture_budget_ms() > 0 && gesture_clock().isValid()) {
+			limit = std::min(limit, std::max(qint64{ 0 }, gesture_budget_ms() - gesture_clock().elapsed()));
+		}
 		while (!aCondition() && elapsed.elapsed() < limit) {
 			turn();
 			QThread::msleep(1);
@@ -1203,6 +1222,9 @@ auto main(int aArgc, char** aArgv) -> int
 	if (const auto scale = qEnvironmentVariableIntValue("BPR_CYCLE_COURSE_WAIT_SCALE"); scale > 1) {
 		wait_scale() = scale;
 	}
+	if (const auto budget = qEnvironmentVariableIntValue("BPR_CYCLE_COURSE_GESTURE_BUDGET_MS"); budget > 0) {
+		gesture_budget_ms() = budget;
+	}
 	const auto root             = std::filesystem::path{ aArgv[1] };
 	const auto profile          = core::bpr_profile_id{ std::stoull(aArgv[2]) };
 	const auto signal           = std::filesystem::path{ aArgv[3] };
@@ -1265,12 +1287,14 @@ auto main(int aArgc, char** aArgv) -> int
 			longest_turn_ns() = 0;
 			QElapsedTimer gesture;
 			gesture.start();
+			gesture_clock().start();
 			try {
 				reply = gestures.run(request);
 			} catch (const refused& aRefused) {
 				// What the window shows beside the refusal, so a failure names its state.
 				reply = QJsonObject{ { QStringLiteral("error"), text_of(aRefused.What) }, { QStringLiteral("state"), state(window, *page) } };
 			}
+			gesture_clock().invalidate();
 			reply[QStringLiteral("elapsed_ms")] = static_cast<double>(gesture.nsecsElapsed()) / 1e6;
 			reply[QStringLiteral("busy_ms")]    = static_cast<double>(longest_turn_ns()) / 1e6;
 			say("REPLY " + std::to_string(id) + " " + json_line(reply));

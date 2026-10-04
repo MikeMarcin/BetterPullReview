@@ -69,12 +69,20 @@ def sha256(data):
 class Desktop:
     """One launch of the reviewer's desktop, driven one gesture at a time."""
 
+    # How long the course waits for one reply, and how much of that the desktop
+    # keeps back to answer: every wait inside a gesture ends within the rest, so
+    # a stalled gesture replies with what the window shows ([[BPR-1184]]).
+    ASK_SECONDS = 180
+    REPLY_MARGIN_SECONDS = 30
+
     def __init__(self, application, data, workspace, index, environment):
         self.signal = workspace / f"desktop-{index}.quit"
         self.log_path = workspace / f"desktop-{index}.log"
         # The child appends through its own descriptor; the course reads through
         # another, so reading never moves the offset the child writes at.
         self.log = self.log_path.open("ab")
+        budget = (self.ASK_SECONDS - self.REPLY_MARGIN_SECONDS) * 1000
+        environment = dict(environment, BPR_CYCLE_COURSE_GESTURE_BUDGET_MS=str(budget))
         self.process = subprocess.Popen([application, str(data), "1", str(self.signal)], stdout=self.log, stderr=subprocess.STDOUT, env=environment)
         self.seen = 0
         self.next_id = 1
@@ -122,7 +130,7 @@ class Desktop:
         pending = Path(str(self.signal) + ".command.tmp")
         pending.write_text(json.dumps(dict(arguments, id=identity, verb=verb)), encoding="utf-8")
         os.replace(pending, str(self.signal) + ".command")
-        line = self.await_line(f"REPLY {identity} ", 180)
+        line = self.await_line(f"REPLY {identity} ", self.ASK_SECONDS)
         reply = json.loads(line.split(" ", 2)[2])
         assert "error" not in reply, f"{verb} {arguments}: {reply['error']} {json.dumps(reply.get('state'))}"
         return reply

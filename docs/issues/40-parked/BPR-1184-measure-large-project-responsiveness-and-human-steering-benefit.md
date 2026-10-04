@@ -191,3 +191,59 @@ Share notes opening with 514 rows held the GUI thread for one turn of
 **270.9 ms**, matching the macOS 234.8 ms finding. The 250,001-entry limit
 was refused with its words in 4,779.1 ms (desktop) and 4,765.4 ms
 (terminal). The course removed its corpora.
+
+**Note: Windows station return (`bpr-main-win`, 2026-10-04). No Release report
+yet.** Host: Intel i9-10900KF, 20 logical CPUs, 127.8 GB, Windows 11 Home
+10.0.26200, MSVC 14.51, Qt 6.11.2, offscreen. There was 1.3 TB free, and every
+corpus root was removed afterwards. The host also runs the Aito lane: it was
+building when the request arrived and was idle (0 build processes, CPU about
+3%) through every measured run below. The Release tree is
+`build/bpr1184-release` (`windows-app-release`, Ninja, Release,
+`BUILD_TESTING=ON`, `BPR_BUILD_TOUR_CLI=ON`, `BPR_DISTRIBUTION_BUILD=OFF`),
+run on `main` holding `397908dec`.
+
+- **Release build.** It first failed. `review_cycle_two_round_public_path_tests.cpp`
+  includes `<windows.h>` without `NOMINMAX`, so `std::max` met the SDK's macro
+  (C2589). The Debug tree compiled it only because an earlier header had
+  defined `NOMINMAX`. Fixed at `e9c7eaa98`.
+- **Contained, as registered** (11.96 s). After the first corpus, the first
+  desktop exits 1 with `FAILED: the desktop starts with a window`, before any
+  `bpr cycle open`. Pinned `WINDOWS_UNCONTAINED` (`dos-volume-name`) at
+  `e9c7eaa98`.
+- **Uncontained run 1, at `e9c7eaa98`: failed after 1,942.69 s.** Replies 1–90
+  were sound: the 20,000-file course through capture, typing, navigation,
+  cancel and the first All cycle changes view. Request 91, the next view, was
+  lost. The desktop answered `REPLY 0 {"error":"unknown verb "…}` because its
+  bare `std::ifstream` read the just-renamed `.command` as empty while a scan
+  held it, and it deleted the file anyway. The course then waited out its
+  1,800 s. Fixed at `dbd11196f`: a command that does not parse stays and is
+  read again, failing loudly after 2 s, in the two-round and both handoff
+  desktops. The large-project ask now waits 600 s.
+- **Uncontained run 2, at `dbd11196f`: failed after 1,041.26 s** with
+  `missing REPLY 1`, the cold Open Project on the 20,000-file corpus. The
+  desktop printed `DESKTOP_READY` and nothing more within 600 s. 600 s is
+  exactly `open_project`'s own scaled wait (30 s × wait scale 20), so it was
+  most likely still waiting for "the folder opens as a cycle with its first
+  capture".
+- **Debug, `build/windows-dev-tour-cli` at `e9c7eaa98`: 6/7 passed** (capture,
+  workbench, two-round, parity, desktop, manifest).
+  `application_review_cycle_large_project`, in its 2,000-file quick pass on the
+  tree corpus, got no reply to request 69 (navigate during capture), not even
+  an error. It then did not release on quit. Thirty minutes later the stray
+  desktop was still polling at about 16% of one core; it was stopped and its
+  root removed. No debugger is installed, so there is no stack.
+
+**Why the stalls said nothing.** The desktop's waits are scaled by 20 (up to
+600,000 ms × 20 for "Next file reads the file after …"), so they outlasted the
+course's ask, and the course gave up before the desktop's own refusal could
+reach it. Every course command now has a budget, the ask limit minus a reply
+margin (180 − 30 s, and 600 − 60 s for this course). The desktop caps every
+scaled wait at what is left of it, so a stalled gesture replies with its
+refusal and the window's state.
+
+With that change the Debug large-project row passed, once, in 105.76 s; the
+two-round and parity courses pass with it too. Two silent stalls, both waiting
+on a capture (Debug navigate during capture, Release cold open), sit beside a
+first Release run that captured and navigated for 90 replies. They are
+intermittent. A Windows capture-lane stall is the leading suspicion, but it is
+not shown: the next stall will name its own FAILED line and state.
