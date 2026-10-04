@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1178"
 title: "Exercise publication crash, drift and recovery matrix"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0059"]
 depends_on: ["BPR-1177"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "publication", "acceptance": ["RC59-07", "RC59-10"], "pack_alias": "PACK-CYCLE-36", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
