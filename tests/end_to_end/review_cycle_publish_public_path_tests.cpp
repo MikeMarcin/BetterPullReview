@@ -16,6 +16,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QImage>
@@ -209,18 +210,18 @@ namespace {
 	/// The sheet as rendered now, for the review artifacts; nothing depends on it.
 	void render(QWidget& aSheet, const std::string& aName)
 	{
-		const auto* const directory = std::getenv("BPR_CYCLE_PUBLISH_RENDER_DIR");
-		if (directory == nullptr || *directory == '\0') {
+		const auto directory = qEnvironmentVariable("BPR_CYCLE_PUBLISH_RENDER_DIR");
+		if (directory.isEmpty()) {
 			return;
 		}
-		std::filesystem::create_directories(directory);
+		QDir{ }.mkpath(directory);
 		// From its top, as it opens.
 		if (auto* const body = aSheet.findChild<QScrollArea*>(QStringLiteral("cyclePublishBody"))) {
 			body->verticalScrollBar()->setValue(0);
 			QApplication::processEvents();
 		}
 		const auto image = aSheet.grab().toImage();
-		image.save(QString::fromStdString((std::filesystem::path{ directory } / (aName + ".png")).string()));
+		image.save(QDir{ directory }.filePath(QString::fromStdString(aName) + QStringLiteral(".png")));
 	}
 
 	auto contains(const std::string& aHaystack, const std::string_view aNeedle) -> bool
