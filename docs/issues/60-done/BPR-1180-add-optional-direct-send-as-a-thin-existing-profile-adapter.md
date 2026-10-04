@@ -64,3 +64,34 @@ full graph, the agent-free graph's courses, a full build's sent cycle reopened
 by an agent-free build, the image audits both ways, three negative controls
 and the integration suite. Owed to stations, not run here: the Linux and
 Windows runs of the same selections; the commands are in the ledger.
+
+**Note: Linux station run at `a1f7a9fa7` (station `bpr-main-linux`, WSL2,
+GCC 15.2.0, offscreen; stand-in agent only, no remote mutation).**
+
+1. Full `dev` build: the 13-row selection passed 13/13, including
+   `application_review_cycle_send_public_path` (1.3 s),
+   `application_review_cycle_round_launch`, `composed_application_hosts`,
+   `composed_host_verifier_contract`,
+   `application_review_round_trip_composition_contract` and
+   `architecture_boundaries`.
+2. `build/bpr1180-off` (`BPR_BUILD_AGENT_INTEGRATIONS=OFF`) built its
+   listed targets with no warnings. Run exactly as written, all 5 rows were
+   "Not Run": the listed targets do not include
+   `tool_better_pull_review_network_sandbox`, the runner every
+   network-isolated row needs, so ctest could not find
+   `build/bpr1180-off/better_pull_review_network_sandbox`. With that one
+   target added, 5/5 passed: `core_review_cycle_send`, `review_cycle_send`,
+   `composed_application_hosts`,
+   `application_review_cycle_desktop_public_path` and
+   `application_review_cycle_send_public_path`. The Linux and Windows station
+   request should add the sandbox target, as [[BPR-1184]]'s does.
+3. Removal across builds: in an owner-private `mktemp -d` directory (mode
+   700), the full build's course with `--profile-root D` printed "NATIVE: real
+   adapter, real processes: parity, sessions, corporate refusal, uncertain,
+   missing harness, removal" and `review-cycle-send-public-path:pass`. The
+   agent-free build's course with `--reopen D` printed "NATIVE: agent-free
+   graph reopened a full build's sent cycle" and
+   `review-cycle-send-public-path:pass`. `D` and `build/bpr1180-off` were
+   removed.
+
+Done is not reopened.
