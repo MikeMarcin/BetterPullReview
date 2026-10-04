@@ -1,0 +1,862 @@
+{
+ "corpora": {
+  "small-files-1m-lines-v1": {
+   "corpus": {
+    "files": 20000,
+    "first_read_ms": 109380.7,
+    "generated_s": 118.072,
+    "lines": 1000000,
+    "oversized_file_bytes": null,
+    "text_bytes": 26244500,
+    "text_files": 20000,
+    "text_sha256": "35721c70f72d3c816862a79849d70704d17c475461ec962e4046c0fedf209e38"
+   },
+   "desktop": {
+    "cancel_capture": {
+     "count": 1,
+     "max": 4.204,
+     "p50": 4.204,
+     "p95": 4.204
+    },
+    "capture_changed_while_navigating": {
+     "count": 1,
+     "max": 7324.55,
+     "p50": 7324.55,
+     "p95": 7324.55
+    },
+    "capture_unchanged": {
+     "count": 1,
+     "max": 5679.963,
+     "p50": 5679.963,
+     "p95": 5679.963
+    },
+    "capture_unchanged_busy": {
+     "count": 1,
+     "max": 4.775,
+     "p50": 4.775,
+     "p95": 4.775
+    },
+    "capture_unchanged_while_typing": {
+     "count": 1,
+     "max": 5591.706,
+     "p50": 5591.706,
+     "p95": 5591.706
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 71.272,
+     "p50": 33.449,
+     "p95": 53.538
+    },
+    "compare_file_busy": {
+     "count": 20,
+     "max": 7.313,
+     "p50": 4.529,
+     "p95": 6.924
+    },
+    "drawer_next": {
+     "count": 4,
+     "max": 49.112,
+     "p50": 41.476,
+     "p95": 49.112
+    },
+    "drawer_next_busy": {
+     "count": 4,
+     "max": 9.395,
+     "p50": 6.817,
+     "p95": 9.395
+    },
+    "drawer_previous": {
+     "count": 1,
+     "max": 55.992,
+     "p50": 55.992,
+     "p95": 55.992
+    },
+    "drawer_previous_busy": {
+     "count": 1,
+     "max": 10.393,
+     "p50": 10.393,
+     "p95": 10.393
+    },
+    "launch_to_ready": {
+     "count": 1,
+     "max": 650.266,
+     "p50": 650.266,
+     "p95": 650.266
+    },
+    "launch_to_ready_warm": {
+     "count": 1,
+     "max": 457.429,
+     "p50": 457.429,
+     "p95": 457.429
+    },
+    "navigation_during_capture": {
+     "count": 27,
+     "max": 25.559,
+     "p50": 13.993,
+     "p95": 22.242
+    },
+    "next_file": {
+     "count": 30,
+     "max": 25.647,
+     "p50": 20.025,
+     "p95": 22.113
+    },
+    "next_file_across_window": {
+     "count": 1,
+     "max": 92.612,
+     "p50": 92.612,
+     "p95": 92.612
+    },
+    "next_file_across_window_busy": {
+     "count": 1,
+     "max": 37.676,
+     "p50": 37.676,
+     "p95": 37.676
+    },
+    "next_file_busy": {
+     "count": 30,
+     "max": 1.139,
+     "p50": 0.795,
+     "p95": 1.089
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 7466.958,
+     "p50": 7466.958,
+     "p95": 7466.958
+    },
+    "open_cold_busy": {
+     "count": 1,
+     "max": 6.565,
+     "p50": 6.565,
+     "p95": 6.565
+    },
+    "open_file": {
+     "count": 30,
+     "max": 27.877,
+     "p50": 23.568,
+     "p95": 27.409
+    },
+    "open_file_busy": {
+     "count": 30,
+     "max": 1.131,
+     "p50": 0.763,
+     "p95": 1.103
+    },
+    "open_file_last_window": {
+     "count": 1,
+     "max": 20.759,
+     "p50": 20.759,
+     "p95": 20.759
+    },
+    "open_file_last_window_busy": {
+     "count": 1,
+     "max": 2.312,
+     "p50": 2.312,
+     "p95": 2.312
+    },
+    "open_warm": {
+     "count": 1,
+     "max": 165.673,
+     "p50": 165.673,
+     "p95": 165.673
+    },
+    "open_warm_busy": {
+     "count": 1,
+     "max": 42.486,
+     "p50": 42.486,
+     "p95": 42.486
+    },
+    "quit": {
+     "count": 1,
+     "max": 87.816,
+     "p50": 87.816,
+     "p95": 87.816
+    },
+    "typing_during_capture": {
+     "count": 138,
+     "max": 2.832,
+     "p50": 1.29,
+     "p95": 2.283
+    }
+   },
+   "desktop_facts": {
+    "cancel": {
+     "button_after": "Capture revision",
+     "offered": "Cancel capture",
+     "progress": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 20,000 captured entries \u00b7 Capturing: 3,072 files read",
+     "unrecorded": true,
+     "updates": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 20,000 captured entries \u00b7 Capture cancelled; nothing was recorded."
+    },
+    "compared_files": 20,
+    "drawer_window_files": 4096,
+    "drawer_windows": 5,
+    "memory_after_course": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0162,
+     "footprint_bytes": 92028928,
+     "method": "Windows GetProcessMemoryInfo PrivateUsage (commit charge) with PeakPagefileUsage (process-lifetime peak commit) and WorkingSetSize; live heap is HeapSummary(GetProcessHeap()).cbAllocated, the heap the UCRT allocates from",
+     "peak_footprint_bytes": 105664512,
+     "resident_bytes": 127082496
+    },
+    "memory_after_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0364,
+     "footprint_bytes": 82997248,
+     "method": "Windows GetProcessMemoryInfo PrivateUsage (commit charge) with PeakPagefileUsage (process-lifetime peak commit) and WorkingSetSize; live heap is HeapSummary(GetProcessHeap()).cbAllocated, the heap the UCRT allocates from",
+     "peak_footprint_bytes": 97165312,
+     "resident_bytes": 118378496
+    },
+    "memory_after_warm_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0188,
+     "footprint_bytes": 83329024,
+     "method": "Windows GetProcessMemoryInfo PrivateUsage (commit charge) with PeakPagefileUsage (process-lifetime peak commit) and WorkingSetSize; live heap is HeapSummary(GetProcessHeap()).cbAllocated, the heap the UCRT allocates from",
+     "peak_footprint_bytes": 86482944,
+     "resident_bytes": 111587328
+    },
+    "navigation_refused": [],
+    "typing_keys": 139,
+    "updates_after_open": "Captured: R1 \u00b7 files 1\u20134,096 listed of 20,000 captured entries"
+   },
+   "terminal": {
+    "capture_changed": {
+     "count": 1,
+     "max": 6995.602,
+     "p50": 6995.602,
+     "p95": 6995.602
+    },
+    "capture_unchanged": {
+     "count": 3,
+     "max": 5515.719,
+     "p50": 5489.608,
+     "p95": 5515.719
+    },
+    "compare_changed_page": {
+     "count": 2,
+     "max": 127.239,
+     "p50": 123.607,
+     "p95": 127.239
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 138.885,
+     "p50": 125.977,
+     "p95": 126.763
+    },
+    "compare_full_page": {
+     "count": 20,
+     "max": 111.551,
+     "p50": 110.153,
+     "p95": 111.484
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 7542.365,
+     "p50": 7542.365,
+     "p95": 7542.365
+    },
+    "show": {
+     "count": 10,
+     "max": 158.216,
+     "p50": 156.909,
+     "p95": 158.216
+    }
+   },
+   "terminal_peak_bytes": {
+    "capture_changed": 24203264,
+    "capture_unchanged": 25317376,
+    "compare_changed_page": 18132992,
+    "compare_file": 19099648,
+    "compare_full_page": 14995456,
+    "open_cold": 24403968,
+    "show": 3657728
+   }
+  },
+  "tree-100k-files-v1": {
+   "corpus": {
+    "files": 100001,
+    "first_read_ms": 589384.7,
+    "generated_s": 629.973,
+    "lines": 1000000,
+    "oversized_file_bytes": 135266304,
+    "text_bytes": 25888900,
+    "text_files": 100000,
+    "text_sha256": "3c30c046aaca2d6353b1e92c8c2c34ef6f0516062893621fd4f9d6409beec8b7"
+   },
+   "desktop": {
+    "cancel_capture": {
+     "count": 1,
+     "max": 22.873,
+     "p50": 22.873,
+     "p95": 22.873
+    },
+    "capture_changed_while_navigating": {
+     "count": 1,
+     "max": 34102.849,
+     "p50": 34102.849,
+     "p95": 34102.849
+    },
+    "capture_unchanged": {
+     "count": 1,
+     "max": 26484.454,
+     "p50": 26484.454,
+     "p95": 26484.454
+    },
+    "capture_unchanged_busy": {
+     "count": 1,
+     "max": 1.009,
+     "p50": 1.009,
+     "p95": 1.009
+    },
+    "capture_unchanged_while_typing": {
+     "count": 1,
+     "max": 26310.039,
+     "p50": 26310.039,
+     "p95": 26310.039
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 47.323,
+     "p50": 25.566,
+     "p95": 29.761
+    },
+    "compare_file_busy": {
+     "count": 20,
+     "max": 2.242,
+     "p50": 1.416,
+     "p95": 2.149
+    },
+    "drawer_next": {
+     "count": 24,
+     "max": 68.278,
+     "p50": 54.079,
+     "p95": 62.947
+    },
+    "drawer_next_busy": {
+     "count": 24,
+     "max": 9.715,
+     "p50": 6.693,
+     "p95": 8.664
+    },
+    "drawer_previous": {
+     "count": 1,
+     "max": 62.026,
+     "p50": 62.026,
+     "p95": 62.026
+    },
+    "drawer_previous_busy": {
+     "count": 1,
+     "max": 6.978,
+     "p50": 6.978,
+     "p95": 6.978
+    },
+    "launch_to_ready": {
+     "count": 1,
+     "max": 565.357,
+     "p50": 565.357,
+     "p95": 565.357
+    },
+    "launch_to_ready_warm": {
+     "count": 1,
+     "max": 461.293,
+     "p50": 461.293,
+     "p95": 461.293
+    },
+    "navigation_during_capture": {
+     "count": 40,
+     "max": 19.579,
+     "p50": 14.013,
+     "p95": 17.075
+    },
+    "next_file": {
+     "count": 30,
+     "max": 21.23,
+     "p50": 19.599,
+     "p95": 21.2
+    },
+    "next_file_across_window": {
+     "count": 1,
+     "max": 157.928,
+     "p50": 157.928,
+     "p95": 157.928
+    },
+    "next_file_across_window_busy": {
+     "count": 1,
+     "max": 33.203,
+     "p50": 33.203,
+     "p95": 33.203
+    },
+    "next_file_busy": {
+     "count": 30,
+     "max": 0.999,
+     "p50": 0.695,
+     "p95": 0.9
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 42140.75,
+     "p50": 42140.75,
+     "p95": 42140.75
+    },
+    "open_cold_busy": {
+     "count": 1,
+     "max": 94.182,
+     "p50": 94.182,
+     "p95": 94.182
+    },
+    "open_file": {
+     "count": 30,
+     "max": 25.339,
+     "p50": 23.949,
+     "p95": 25.18
+    },
+    "open_file_busy": {
+     "count": 30,
+     "max": 2.168,
+     "p50": 0.726,
+     "p95": 1.028
+    },
+    "open_file_last_window": {
+     "count": 1,
+     "max": 22.438,
+     "p50": 22.438,
+     "p95": 22.438
+    },
+    "open_file_last_window_busy": {
+     "count": 1,
+     "max": 0.833,
+     "p50": 0.833,
+     "p95": 0.833
+    },
+    "open_warm": {
+     "count": 1,
+     "max": 289.461,
+     "p50": 289.461,
+     "p95": 289.461
+    },
+    "open_warm_busy": {
+     "count": 1,
+     "max": 40.6,
+     "p50": 40.6,
+     "p95": 40.6
+    },
+    "quit": {
+     "count": 1,
+     "max": 140.493,
+     "p50": 140.493,
+     "p95": 140.493
+    },
+    "typing_during_capture": {
+     "count": 656,
+     "max": 3.472,
+     "p50": 1.668,
+     "p95": 2.604
+    }
+   },
+   "desktop_facts": {
+    "cancel": {
+     "button_after": "Capture revision",
+     "offered": "Cancel capture",
+     "progress": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 Capturing: 3,072 files read \u00b7 captured with 0 retries, 1 unavailable",
+     "unrecorded": true,
+     "updates": "Captured: R1, R2 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 captured with 0 retries, 1 unavailable \u00b7 Capture cancelled; nothing was recorded."
+    },
+    "compared_files": 20,
+    "drawer_window_files": 4096,
+    "drawer_windows": 25,
+    "memory_after_course": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0546,
+     "footprint_bytes": 124616704,
+     "method": "Windows GetProcessMemoryInfo PrivateUsage (commit charge) with PeakPagefileUsage (process-lifetime peak commit) and WorkingSetSize; live heap is HeapSummary(GetProcessHeap()).cbAllocated, the heap the UCRT allocates from",
+     "peak_footprint_bytes": 192774144,
+     "resident_bytes": 158121984
+    },
+    "memory_after_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0184,
+     "footprint_bytes": 99221504,
+     "method": "Windows GetProcessMemoryInfo PrivateUsage (commit charge) with PeakPagefileUsage (process-lifetime peak commit) and WorkingSetSize; live heap is HeapSummary(GetProcessHeap()).cbAllocated, the heap the UCRT allocates from",
+     "peak_footprint_bytes": 168411136,
+     "resident_bytes": 133861376
+    },
+    "memory_after_warm_open": {
+     "busy_ms": 0,
+     "elapsed_ms": 0.0187,
+     "footprint_bytes": 115179520,
+     "method": "Windows GetProcessMemoryInfo PrivateUsage (commit charge) with PeakPagefileUsage (process-lifetime peak commit) and WorkingSetSize; live heap is HeapSummary(GetProcessHeap()).cbAllocated, the heap the UCRT allocates from",
+     "peak_footprint_bytes": 140238848,
+     "resident_bytes": 143028224
+    },
+    "navigation_refused": [],
+    "oversized_reading_pane": "aaa-limits/oversized.bin was not captured in R1: it is larger than the 128 MiB one capture keeps of a file, so there are no bytes to show. A note can still be made on the whole file.",
+    "typing_keys": 657,
+    "updates_after_open": "Captured: R1 \u00b7 files 1\u20134,096 listed of 100,001 captured entries \u00b7 captured with 0 retries, 1 unavailable"
+   },
+   "terminal": {
+    "capture_changed": {
+     "count": 1,
+     "max": 33565.804,
+     "p50": 33565.804,
+     "p95": 33565.804
+    },
+    "capture_unchanged": {
+     "count": 3,
+     "max": 25976.579,
+     "p50": 25939.007,
+     "p95": 25976.579
+    },
+    "compare_changed_page": {
+     "count": 6,
+     "max": 265.642,
+     "p50": 251.868,
+     "p95": 265.642
+    },
+    "compare_file": {
+     "count": 20,
+     "max": 292.417,
+     "p50": 246.322,
+     "p95": 282.441
+    },
+    "compare_full_page": {
+     "count": 20,
+     "max": 234.366,
+     "p50": 170.485,
+     "p95": 222.236
+    },
+    "open_cold": {
+     "count": 1,
+     "max": 40483.558,
+     "p50": 40483.558,
+     "p95": 40483.558
+    },
+    "show": {
+     "count": 10,
+     "max": 219.014,
+     "p50": 155.996,
+     "p95": 219.014
+    }
+   },
+   "terminal_peak_bytes": {
+    "capture_changed": 94126080,
+    "capture_unchanged": 94494720,
+    "compare_changed_page": 71606272,
+    "compare_file": 71680000,
+    "compare_full_page": 51249152,
+    "open_cold": 94015488,
+    "show": 3678208
+   }
+  }
+ },
+ "environment": {
+  "build_type": "Release",
+  "cpu": "Intel64 Family 6 Model 165 Stepping 5, GenuineIntel",
+  "logical_cpus": 20,
+  "machine": "AMD64",
+  "memory_bytes": 137229926400,
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.7",
+  "qpa": "offscreen",
+  "qt": "6.11.2"
+ },
+ "failures": [],
+ "limit_probe": {
+  "desktop_message": "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.",
+  "desktop_ms": 47250.659,
+  "entries": 250001,
+  "terminal_error": {
+   "code": "over_limit",
+   "detail": {
+    "cycle": "RC-1"
+   },
+   "message": "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.",
+   "next": "bpr cycle capture RC-1"
+  },
+  "terminal_exit": 5,
+  "terminal_ms": 46599.737
+ },
+ "run": {
+  "enforced": false,
+  "files_override": null,
+  "limit_probe": true,
+  "named_corpora": true,
+  "stress_round": true
+ },
+ "schema": "bpr.cycle.large-project-report.v1",
+ "source": {
+  "revision": "8d838c696d4b77ec4b7c419a3c3361335be66d39",
+  "tracked_changes": 0
+ },
+ "stress_round": {
+  "corpus": "small-files-1m-lines-v1",
+  "facts": {
+   "document_bytes": 70078,
+   "items_read": 514,
+   "memory_after_freeze": {
+    "busy_ms": 0,
+    "elapsed_ms": 0.0146,
+    "footprint_bytes": 125472768,
+    "method": "Windows GetProcessMemoryInfo PrivateUsage (commit charge) with PeakPagefileUsage (process-lifetime peak commit) and WorkingSetSize; live heap is HeapSummary(GetProcessHeap()).cbAllocated, the heap the UCRT allocates from",
+    "peak_footprint_bytes": 125472768,
+    "resident_bytes": 160026624
+   },
+   "notes": 512,
+   "round_pages": 1,
+   "suggestions": 2
+  },
+  "phases": {
+   "compose_open": {
+    "count": 1,
+    "max": 796.311,
+    "p50": 796.311,
+    "p95": 796.311
+   },
+   "compose_open_busy": {
+    "count": 1,
+    "max": 74.622,
+    "p50": 74.622,
+    "p95": 74.622
+   },
+   "desktop_suggest": {
+    "count": 1,
+    "max": 105.964,
+    "p50": 105.964,
+    "p95": 105.964
+   },
+   "desktop_suggest_busy": {
+    "count": 1,
+    "max": 2.132,
+    "p50": 2.132,
+    "p95": 2.132
+   },
+   "desktop_suggest_first": {
+    "count": 1,
+    "max": 73.942,
+    "p50": 73.942,
+    "p95": 73.942
+   },
+   "desktop_suggest_first_busy": {
+    "count": 1,
+    "max": 0.521,
+    "p50": 0.521,
+    "p95": 0.521
+   },
+   "freeze_and_copy": {
+    "count": 1,
+    "max": 273.424,
+    "p50": 273.424,
+    "p95": 273.424
+   },
+   "freeze_and_copy_busy": {
+    "count": 1,
+    "max": 11.768,
+    "p50": 11.768,
+    "p95": 11.768
+   },
+   "open_warm_with_notes": {
+    "count": 1,
+    "max": 533.357,
+    "p50": 533.357,
+    "p95": 533.357
+   },
+   "open_warm_with_notes_busy": {
+    "count": 1,
+    "max": 41.804,
+    "p50": 41.804,
+    "p95": 41.804
+   },
+   "save_document": {
+    "count": 1,
+    "max": 369.405,
+    "p50": 369.405,
+    "p95": 369.405
+   },
+   "save_document_busy": {
+    "count": 1,
+    "max": 11.901,
+    "p50": 11.901,
+    "p95": 11.901
+   },
+   "terminal_export": {
+    "count": 10,
+    "max": 181.473,
+    "p50": 172.345,
+    "p95": 181.473
+   },
+   "terminal_note": {
+    "count": 512,
+    "max": 283.097,
+    "p50": 126.033,
+    "p95": 172.94
+   },
+   "terminal_round_read": {
+    "count": 1,
+    "max": 104.046,
+    "p50": 104.046,
+    "p95": 104.046
+   }
+  }
+ },
+ "targets": [
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "desktop_ms": 7466.958,
+   "enforced": true,
+   "limit": 3.0,
+   "met": true,
+   "phase": "open_cold_ratio",
+   "ratio": 0.99,
+   "terminal_ms": 7542.365,
+   "warmed": true
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "desktop_ms": 42140.75,
+   "enforced": true,
+   "limit": 3.0,
+   "met": true,
+   "phase": "open_cold_ratio",
+   "ratio": 1.041,
+   "terminal_ms": 40483.558,
+   "warmed": true
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 138,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 2.283,
+   "phase": "typing_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 27,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 22.242,
+   "phase": "navigation_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "cancel_offered": true,
+   "capture_ms": 5679.963,
+   "corpus": "small-files-1m-lines-v1",
+   "nothing_recorded_on_cancel": true,
+   "phase": "capture_progress_and_cancel",
+   "progress_shown": true,
+   "threshold_ms": 250.0
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "count": 656,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 2.604,
+   "phase": "typing_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "corpus": "tree-100k-files-v1",
+   "count": 40,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 17.075,
+   "phase": "navigation_during_capture",
+   "target_p95_ms": 100.0
+  },
+  {
+   "cancel_offered": true,
+   "capture_ms": 26484.454,
+   "corpus": "tree-100k-files-v1",
+   "nothing_recorded_on_cancel": true,
+   "phase": "capture_progress_and_cancel",
+   "progress_shown": true,
+   "threshold_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 41.804,
+   "met": true,
+   "phase": "open_warm_with_notes_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 2.132,
+   "met": true,
+   "phase": "desktop_suggest_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 74.622,
+   "met": true,
+   "phase": "compose_open_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 11.768,
+   "met": true,
+   "phase": "freeze_and_copy_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "max_ms": 11.901,
+   "met": true,
+   "phase": "save_document_busy",
+   "target_max_ms": 100.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "met": true,
+   "p95_ms": 105.964,
+   "phase": "desktop_suggest",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "met": false,
+   "p95_ms": 273.424,
+   "phase": "freeze_and_copy",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "count": 1,
+   "enforced": false,
+   "met": false,
+   "p95_ms": 369.405,
+   "phase": "save_document",
+   "target_p95_ms": 250.0
+  },
+  {
+   "corpus": "small-files-1m-lines-v1",
+   "enforced": true,
+   "first_ms": 73.942,
+   "limit": 7.0,
+   "met": true,
+   "phase": "note_change_ratio",
+   "ratio": 1.433,
+   "round_ms": 105.964
+  }
+ ]
+}
