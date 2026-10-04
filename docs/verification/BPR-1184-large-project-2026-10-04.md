@@ -231,7 +231,9 @@ enforced off macOS; the next round sets each platform's targets from its own
 report. If the contained row stops before measuring, record its first
 failing line, pin it the way [[BPR-1166]]'s row is pinned
 (`scripts/verify_test_network_isolation.py`), rerun it uncontained and
-record both.
+record both. On Windows that is expected at the first `bpr cycle open`, as
+the parity course's `bpr cycle list` stops contained (exit 7,
+profile_unavailable, measured at `8fab05419`).
 
 Linux (`bpr-main-linux`):
 

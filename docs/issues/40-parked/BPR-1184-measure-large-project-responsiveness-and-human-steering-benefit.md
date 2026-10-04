@@ -100,7 +100,10 @@ with host, load and both ctest times, as a note here. Nothing is enforced off
 macOS yet; the next round sets each platform's targets and timeout from its
 report. If the contained row stops before measuring, record the first failing
 line, pin it in `scripts/verify_test_network_isolation.py` as BPR-1166's row
-is, rerun uncontained and record both.
+is, rerun uncontained and record both. On Windows expect that: the course's
+first `bpr cycle open` should meet the container as the parity course's
+`bpr cycle list` does (exit 7, "The application root is unavailable or is
+not owner-private.", measured at `8fab05419`), after the desktop phases.
 
 Linux (`bpr-main-linux`):
 

@@ -3330,8 +3330,9 @@ if(TARGET app_bpr)
     # optimized macOS builds, whose measurements justify them; elsewhere they
     # are reported until the stations' measurements do. A Debug build runs a
     # 2,000-file correctness pass and claims no measurement. Registered
-    # contained: it runs no Git in its scratch root, the two-round course's
-    # reason for running uncontained; Windows measures it before any pin.
+    # contained until Windows measures it: its `bpr cycle` steps are likely to
+    # meet the container as the parity course's do (profile_unavailable), and
+    # the station pins it with the line it measures.
     # Timeout: macOS Release ran the row in 225.31 s (M4 Pro, 2026-10-04); three
     # times that, rounded up. Windows and Linux are provisional at 2,400 s
     # until the stations measure them (build-and-test.md, run budgets).
