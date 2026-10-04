@@ -1360,9 +1360,10 @@ these application behaviors, not installed provider enforcement or model quality
 ## Review Cycles registration (proposed)
 
 [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md)
-propose local review cycles over captured workspace source. Until those RFCs
-earn acceptance, no cycle surface ships and every boundary above is
-unchanged; only the core decisions described at the end of this section exist. The proposal adds two narrow surfaces. Locally, a root-bound
+propose local review cycles over captured workspace source. Those RFCs are
+not yet accepted, but the surfaces this section describes are built into the
+desktop and `bpr` and qualified as their cards record; they change no boundary
+above. The proposal adds two narrow surfaces. Locally, a root-bound
 read-only capture host reads only the source the reviewer selects into the
 profile-private store; it never writes, resets or cleans the reviewer's
 checkout, and local cycle history does not leave the machine unless the
@@ -1538,3 +1539,77 @@ current wording: no reply, decision, round, suggestion, earlier wording or
 unchosen note crosses into the tour. Exact lines are claimed only when the
 published plan and the note's bytes prove them, so promotion never points a
 historical or off-commit note at whatever line a later commit holds.
+
+### Qualified boundaries and residual risks (BPR-1181)
+
+`application_review_cycle_security_qualification` attacks these surfaces
+through real processes: the shipped `bpr`, the reviewer's composed desktop and
+a same-user process of the course's own. It shows, on macOS at the revision
+its card records:
+
+- A hostile checkout runs nothing. Its `core.fsmonitor`, filter, `textconv`,
+  external diff, pager and hook canaries stay silent through open, note,
+  compose, freeze and capture, and the checkout and its `.git` hash the same
+  before and after. Git itself then fires them, so the silence is evidence.
+  A link is carried as its own text; its target is never read.
+- Note and response text is data. HTML, script, Markdown links and images
+  naming a FIFO, `$(…)` and backticks, and terminal escapes are stored and
+  shown as typed. The terminal neutralizes controls, the window lists plain
+  text, and nothing opens the FIFO.
+- A recipient's response cannot verify, approve, grant or trust. Such a
+  field, duplicate keys, deep nesting, bytes that are not UTF-8, a file over
+  16 MiB or a link is refused, and the store is unchanged. A well-formed
+  response claiming to be from a certified reviewer is kept as a claim, and
+  its evidence is never opened.
+- One stored policy answers for every channel. A denial holds for the
+  terminal, a file, a bundle, a harness's read and the window's routes, and
+  it holds whether the desktop owns the profile or not. `BPR_CYCLE_ROLE`,
+  provider variables and a copy of `bpr` named after an agent widen nothing.
+  Another profile or root reads nothing.
+- The data root and the owner's endpoint are owner-private, and a loosened
+  root or store is refused. The owner drops a peer that sends a genuine
+  request after a wrong or foreign greeting, a frame that is oversized,
+  longer or shorter than it says, garbage, or nothing for five seconds. It
+  keeps serving after each. `bpr` sends nothing to an owner that greets for
+  another root or profile.
+- No credential variable reaches any file, log or output, and no note, goal,
+  response or outside text reaches anything but the store and the exports the
+  reviewer made. The profile's session log holds fixed diagnostic fields only.
+
+These are the limits, and none is a defect this card fixed:
+
+- **Same user.** The same-user owner channel and owner-private storage are
+  defenses against mistakes and other users, not against a program running as
+  the reviewer. Such a program can read the store and exports, connect to
+  the owner, read its greeting and send any command in the registry: the
+  course's own replay is served. `BPR_CYCLE_ROLE=consumer` and grants confine
+  a cooperating harness only. Containing a hostile local program needs the
+  operating system's or the harness's policy.
+- **Another OS user.** The peer check (`getpeereid`, `SO_PEERCRED`, the
+  pipe client's token) refuses another user. No course runs as a second
+  user, so that refusal is a reading of the code, not an observation.
+- **No encryption.** The cycle store, its logs, saved rounds and
+  `.bpr-review.zip` bundles are not encrypted by BetterPullReview. Disk
+  encryption, backups and sync of the folder the reviewer saves into are the
+  machine's.
+- **What leaves through the reviewer.** Copy puts the round on the system
+  clipboard, which clipboard history and managers may keep. Terminal
+  scrollback keeps what `export --output -` printed. A harness that read a
+  round keeps it in its own transcripts, logs and provider requests. Memory,
+  swap and crash dumps may hold any of it. BetterPullReview cannot retract any
+  of these.
+- **The reviewer's own Git.** BetterPullReview never runs Git in a checkout
+  it captures. The reviewer's Git in that checkout still runs whatever the
+  checkout configures.
+- **Supported refusals, not features.** A note on a file whose name holds a
+  control character cannot be carried in a round (`unportable_path`): it is
+  refused before freezing. No local folder or checkout is classified
+  `public_source` or `enterprise_restricted` today, so every cycle's source
+  decides as `unclassified`. Send to Agent alone answers to a known enterprise
+  fact: the account its profile acts as. Publication admits only github.com,
+  so no cycle can be linked to an enterprise pull request. A bundle is
+  validated by the core and the host contracts, but no shipped surface
+  imports one yet.
+- **Windows.** The course's Git canaries, FIFO, raw socket attacks and mode
+  checks are POSIX. On Windows it runs the rest, and the pipe's authority,
+  framing and owner death are `sqlite_tour_owner_channel`'s.

@@ -115,6 +115,12 @@ for it, and end of input is never an answer:
 - A scripted `review` change and every `freeze` name the draft revision they
   read with `--expected-revision`; a changed draft is `stale_revision`. In a
   terminal, `freeze` shows the round and asks for the word `freeze`.
+- A round cannot carry a note on a file whose name holds a control character.
+  `review` shows the refusal `unportable_path`, and `freeze` is
+  `invalid_input` until that note is left out ([[BPR-1181]]).
+- `response import --file` reads one regular file of at most 16 MiB and never
+  follows a link. A larger file is `over_limit`; a link or special file is
+  `source_unavailable`.
 - `export` never replaces other bytes at the destination without
   `--replace` naming exactly their SHA-256, as the `conflict` reported it; in
   a terminal it asks for the word `replace`. A file that already holds the
@@ -267,7 +273,9 @@ of source (`unclassified`, `public_source`, `enterprise_restricted`), and
 whether that is configured or the default. A folder or checkout is
 `unclassified` until its classification is observed, and channels that reach
 another program (`external_retrieval`, `agent_adapter`) are not allowed for it
-until configured:
+until configured. This build observes no classification for a local folder or
+checkout, so every cycle decides as `unclassified` and the other two rows
+apply to none yet ([[BPR-1181]]):
 
 ```sh
 bpr cycle policy --classification unclassified --channel external_retrieval --permission allowed
