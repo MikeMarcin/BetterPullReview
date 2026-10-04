@@ -261,8 +261,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_publication": "dos-volume-name",
     # [[BPR-1175]]. The same course shape; the provider is simulated in memory.
     "review_cycle_publisher": "dos-volume-name",
-    # [[BPR-1177]]. The same course shape as review_cycle_publisher, through the
-    # desktop's cycle host; pinned by that shape, not yet measured contained.
+    # [[BPR-1177]]. Measured on JaegAW 2026-10-04 at d8fa5bfc2, contained
+    # through the sandbox launcher: it stops at "FAILED: fixture git command",
+    # before it reaches review_cycle_publisher's canonical of git.exe. Git
+    # starts there, and a probe in the same container shows `git init` under
+    # AC\Temp exiting 128 with "fatal: Invalid path 'C:/Users': Permission
+    # denied". It passes uncontained.
     "review_cycle_publish_desk": "dos-volume-name",
     "review_cycle_workbench": "dos-volume-name",
     "application_review_cycle_desktop_public_path": "dos-volume-name",
@@ -594,6 +598,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # is not owner-private.", the profile_unavailable refusal
     # cycle_cli_public_path measures. It passes uncontained.
     "application_review_cycle_parity_public_path": "dos-volume-name",
+    # [[BPR-1177]]. Measured on JaegAW 2026-10-04 at d8fa5bfc2, contained as
+    # registered. It exits 3 with no output in 0.08 s: the course's unchecked
+    # std::filesystem::canonical of its scratch root aborts, the BPR-0622
+    # agent_parent_death shape. It passes uncontained.
+    "application_review_cycle_publish_public_path": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they

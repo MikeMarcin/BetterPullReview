@@ -3364,8 +3364,10 @@ if(BPR_BUILD_QT AND TARGET Git::Git)
     # the publication sheet's baselines, Review Plan, Publish Pull Request to an
     # in-memory GitHub behind the publication catalog's port, a link made by
     # hand, Open Pull Request into the existing workflow, and the cycle resumed
-    # with its history. No live GitHub. Registered contained: Windows measures
-    # it before any pin.
+    # with its history. No live GitHub. Uncontained on Windows
+    # (dos-volume-name): contained, it exits 3 with no output in 0.08 s, the
+    # unchecked std::filesystem::canonical of its scratch root aborting.
+    # Measured on JaegAW 2026-10-04.
     bpr_add_executable(test_review_cycle_publish_public_path review_cycle_publish_public_path_tests.cpp)
     target_link_libraries(test_review_cycle_publish_public_path PRIVATE BetterPullReview::Composition)
     target_compile_definitions(test_review_cycle_publish_public_path PRIVATE BPR_BUILD_TESTING=1)
@@ -3381,7 +3383,7 @@ if(BPR_BUILD_QT AND TARGET Git::Git)
         target_include_directories(test_review_cycle_publish_public_path SYSTEM PRIVATE
             "${bpr_publish_qtgui_private}" "${bpr_publish_qtgui_private}/QtGui")
     endif()
-    bpr_add_network_isolated_test(NAME application_review_cycle_publish_public_path
+    bpr_add_network_isolated_test(NAME application_review_cycle_publish_public_path WINDOWS_UNCONTAINED
         COMMAND test_review_cycle_publish_public_path --git "$<TARGET_FILE:Git::Git>")
     set_tests_properties(application_review_cycle_publish_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CYCLE_PUBLISH_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/cycle-publish"

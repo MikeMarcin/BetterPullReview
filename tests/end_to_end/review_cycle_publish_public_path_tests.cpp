@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../git_contract/windows_system_root.hpp"
 #include "../support/scratch_directory.hpp"
 #include "../support/window_system_keys.hpp"
 #include "../support/window_system_mouse.hpp"
@@ -346,7 +347,7 @@ namespace {
 		{
 			// The base exists on the simulated server, as a pushed main would.
 			const auto listed = [&] {
-				auto made = adapters::git::make_installed_git_publication({ .GitExecutable = std::filesystem::canonical(aGitPath), .IsolationRoot = std::filesystem::canonical(aScratch / "lister") });
+				auto made = adapters::git::make_installed_git_publication({ .GitExecutable = std::filesystem::canonical(aGitPath), .IsolationRoot = std::filesystem::canonical(aScratch / "lister"), .WindowsSystemRoot = tests::git_contract::windows_system_root() });
 				require(made.has_value(), "a lister catalog");
 				return (*made)->list_commit({ .Checkout = project.string(), .Algorithm = core::git_hash_algorithm::sha1 }, parent, { });
 			}();

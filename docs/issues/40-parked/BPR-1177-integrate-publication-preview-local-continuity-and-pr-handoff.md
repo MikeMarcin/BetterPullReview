@@ -134,3 +134,45 @@ Evidence on Linux (`build/dev`, offscreen):
 - clang-format 22 and `git diff --check` are clean.
 
 The Mac rerun is owed.
+
+### Windows at `d8fa5bfc2` (bpr-main-win, 2026-10-04)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug.
+`d8fa5bfc2` contains `8fab05419` and the getenv fix `eb775dff4`. The build
+printed no `warning C` or `warning LNK` line.
+
+**As registered, 8 of 9.** `application_review_cycle_publish_public_path`
+failed contained: exit 3, no output, 0.08 s. Its first filesystem step, an
+unchecked `std::filesystem::canonical` of its scratch root, aborts (the
+`agent_parent_death` shape). It is now `WINDOWS_UNCONTAINED` and pinned
+`dos-volume-name` with that line.
+
+**`review_cycle_publish_desk`, measured contained.** It had been pinned by
+shape. Run through the sandbox launcher, it stops at
+`FAILED: fixture git command`, before `review_cycle_publisher`'s
+`canonical: Access is denied` on `git.exe`. A probe in the same container
+shows that cmd and Git both start, and that `git init` under `AC\Temp` exits
+128 with `fatal: Invalid path 'C:/Users': Permission denied`. The cause stays
+`dos-volume-name`; the pin's comment now gives this measured line.
+
+**Uncontained, a second stop:** `FAILED: a lister catalog`. The course built
+its installed-Git publication without `.WindowsSystemRoot`, which the adapter
+needs on Windows. Its siblings (`publication_course.hpp`,
+`review_cycle_publish_desk`) pass
+`tests::git_contract::windows_system_root()`, and the course now does too.
+After that fix it passes uncontained in 7.45 s.
+
+**After the pins and the fix, 8 of 9 under `-j4`.**
+
+- `application_review_round_trip_composition_contract` stopped with
+  `REVIEW_ROUND_TRIP_DRAFT_STALLED waited_ms=5008 wait_cap_ms=5000`. Alone it
+  passes in 11.41 s, as it did twice earlier that night (11.28 s and 12.24 s).
+  Only test files changed, so the product binary was the one that passed. This
+  is recorded as load against a 5 s cap, not changed.
+- `github_provider` timed out once at 30.03 s under `-j4`. It passed at
+  28.17 s and 28.14 s in the other `-j4` runs, and in 25.29 s alone, against a
+  30 s timeout. Its Windows Debug margin is about 2–5 s.
+- The other seven pass: the publish course uncontained in 8.93 s,
+  `review_cycle_publish_desk` and `review_cycle_publisher`, and
+  `test_network_isolation_manifest` with the new pin.
+- clang-format is clean on the changed test.
