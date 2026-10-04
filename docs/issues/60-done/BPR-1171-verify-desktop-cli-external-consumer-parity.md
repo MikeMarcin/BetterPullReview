@@ -133,3 +133,11 @@ passes uncontained in 82.43 s and the handoff course in 29.49 s.
 `test_network_isolation_manifest`, `architecture_boundaries` and
 `coding-format-check` (1215 files) pass. Only test files changed. Done is not
 reopened.
+
+**Note: Linux run at `d8fa5bfc2` (station `bpr-main-linux`, WSL2,
+`build/dev-tour-cli`), after the handoff course's log handling and the parity
+course's configfile path changed.** The build succeeded and 4 of 4 passed:
+`application_review_cycle_publish_public_path` (1.8 s),
+`application_profile_cycle_handoff_public_path` (8.6 s),
+`application_review_cycle_two_round_public_path` (10.6 s) and
+`application_review_cycle_parity_public_path` (41.6 s). Done is not reopened.
