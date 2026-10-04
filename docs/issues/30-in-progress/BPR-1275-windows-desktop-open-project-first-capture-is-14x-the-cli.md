@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1275"
 title: "On Windows the desktop's first capture from Open Project takes 14 times as long as bpr cycle open"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
