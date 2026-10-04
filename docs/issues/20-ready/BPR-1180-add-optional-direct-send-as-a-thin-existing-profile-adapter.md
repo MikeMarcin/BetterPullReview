@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1180"
 title: "Add optional direct Send as a thin existing-profile adapter"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0060"]
 depends_on: ["BPR-1179", "BPR-1169", "BPR-1164"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "optional-adapters", "acceptance": ["RC60-07", "RC60-08", "RC60-09"], "pack_alias": "PACK-CYCLE-38", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
