@@ -88,3 +88,13 @@ as it stops its sibling handoff course ("owner startup succeeds"), pin it
 `WINDOWS_UNCONTAINED` with the measured line in
 `scripts/verify_test_network_isolation.py`, rerun it uncontained and record
 both here as a note; Done is not reopened.
+
+**Note: Linux run at `544bd5ce0` (station `bpr-main-linux`, WSL2,
+`build/dev-tour-cli` with `BPR_BUILD_TOUR_CLI=ON`).** The owed Linux command
+above: configure and build succeeded and all 6 tests passed:
+`application_review_cycle_two_round_public_path` (10.6 s),
+`application_review_cycle_desktop_public_path`,
+`application_profile_cycle_handoff_public_path`, `cycle_cli_public_path`,
+`test_network_isolation_manifest` and `architecture_boundaries`. The new row
+ran contained with nothing pinned. Done is not reopened; the Windows run is
+still owed.
