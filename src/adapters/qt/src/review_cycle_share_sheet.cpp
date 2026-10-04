@@ -1073,6 +1073,11 @@ namespace bpr::qt {
 		sendLayout->addWidget(SendIt, 0, 2);
 		sendLayout->addWidget(StopSend, 1, 2);
 		sendLayout->setColumnStretch(1, 1);
+		// [[BPR-1182]]. The box keeps the height its wrapped words need; when
+		// the window leaves the sheet short, the notes above scroll instead.
+		auto sendPolicy = QSizePolicy{ QSizePolicy::Preferred, QSizePolicy::Fixed };
+		sendPolicy.setHeightForWidth(true);
+		SendBox->setSizePolicy(sendPolicy);
 		SendBox->hide();
 		column->addWidget(SendBox);
 		connect(SendProfile, &QComboBox::currentIndexChanged, this, [this] {

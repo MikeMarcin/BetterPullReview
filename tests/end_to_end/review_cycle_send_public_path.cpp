@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
+#include <QDir>
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -118,6 +119,18 @@ namespace {
 	}
 
 #if defined(BPR_AGENT_INTEGRATIONS)
+	/// \brief [[BPR-1182]]. Keeps a render of the sheet as the reviewer sees
+	/// it, for the owner's look at the Send box, when BPR_CYCLE_RENDER_DIR is set.
+	void render(QWidget& aSheet, const QString& aName)
+	{
+		const auto directory = qEnvironmentVariable("BPR_CYCLE_RENDER_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		QDir{ }.mkpath(directory);
+		expect(aSheet.grab().save(QDir{ directory }.filePath(aName + QStringLiteral(".png"))), "render saved");
+	}
+
 	auto contains(const QString& aText, const QString& aPart) -> bool
 	{
 		return aText.contains(aPart);
@@ -238,6 +251,11 @@ namespace {
 				   && contains(sheet->send_words()->text(), QStringLiteral("exactly as Copy gives it")) && contains(sheet->send_words()->text(), QStringLiteral("nothing else is tried")),
 			   "a new session in the cycle's folder, the round's exact text, no fallback: said before sending");
 		expect(sheet->send_button()->isEnabled() && sheet->send_button()->text() == QStringLiteral("Send Round 1"), "Send Round 1");
+		// [[BPR-1182]]. What a send will do is said whole: the words keep the
+		// height their wrapped lines need, however tall the window leaves the sheet.
+		auto* const words = sheet->send_words();
+		expect(words->height() >= words->heightForWidth(words->width()), "the Send box's words are not cut: " + std::to_string(words->height()) + " of " + std::to_string(words->heightForWidth(words->width())) + " pixels");
+		render(*sheet, QStringLiteral("send-box-before-sending"));
 		const auto document = desktop.host().projection().Share->Document;
 		sheet->send_button()->click();
 		wait_for_send(desktop, lanes);
@@ -246,6 +264,8 @@ namespace {
 		expect(contains(sheet->status()->text(), QStringLiteral("finished its turn on F1")) && contains(sheet->status()->text(), QStringLiteral("Its response is added to F1"))
 				   && contains(sheet->status()->text(), QStringLiteral("Nothing was captured or verified")),
 			   "finished, its structured response added, nothing more");
+		expect(words->height() >= words->heightForWidth(words->width()), "after the send, the Send box's words are still whole");
+		render(*sheet, QStringLiteral("send-box-finished"));
 		const auto received = framed_text(read_file(claude / "send-1.stdin"));
 		expect(received == QString::fromStdString(document), "the harness got the round's readable document");
 		auto* const clipboard = QGuiApplication::clipboard();
@@ -277,6 +297,7 @@ namespace {
 		wait_for_send(desktop, lanes);
 		expect(sends_in(claude) == 2U && read_file(claude / "send-2.args").ends_with("--verbose\n--resume\nfixture-session-1"), "bound to exactly that session");
 		expect(sheet->reply_box()->isVisible() && sheet->reply_text()->toPlainText() == QStringLiteral("I changed it as asked; the tests pass."), "the prose reply, shown");
+		render(*sheet, QStringLiteral("send-box-prose-reply"));
 		expect(responses(aProfileRoot, subject).size() == 1U, "not appended by itself");
 		sheet->add_reply_button()->click();
 		settle(lanes);
