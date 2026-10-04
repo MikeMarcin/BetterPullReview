@@ -227,6 +227,28 @@ if(TARGET Git::Git)
     bpr_enable_warnings(test_review_cycle_publish_desk)
     bpr_add_network_isolated_test(NAME review_cycle_publish_desk WINDOWS_UNCONTAINED COMMAND test_review_cycle_publish_desk ${bpr_workspace_git_arguments})
     set_tests_properties(review_cycle_publish_desk PROPERTIES TIMEOUT 180)
+
+    # [[BPR-1178]]. RC59-07's crash, drift and recovery matrix as real
+    # processes: the desktop's cycle host publishing to a simulated GitHub
+    # whose state is a file, killed at every object, branch and pull request
+    # boundary and restarted, with another actor's changes while nothing ran.
+    bpr_add_executable(test_review_cycle_publication_matrix review_cycle_publication_matrix.cpp)
+    target_link_libraries(test_review_cycle_publication_matrix PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::AdapterGit BetterPullReview::Application)
+    bpr_enable_hardening(test_review_cycle_publication_matrix)
+    if(WIN32)
+        target_link_libraries(test_review_cycle_publication_matrix PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_review_cycle_publication_matrix)
+    bpr_add_network_isolated_test(
+        NAME review_cycle_publication_matrix
+        WINDOWS_UNCONTAINED
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/review_cycle_publication_matrix_tests.py"
+            --executable "$<TARGET_FILE:test_review_cycle_publication_matrix>"
+            ${bpr_workspace_git_arguments}
+    )
+    set_tests_properties(review_cycle_publication_matrix PROPERTIES TIMEOUT 600 PASS_REGULAR_EXPRESSION "review-cycle-publication-matrix-tests:pass")
 endif()
 
 # [[BPR-1176]]. RC59-10's live publication course against the one owner-

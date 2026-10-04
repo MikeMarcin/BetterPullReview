@@ -185,7 +185,9 @@ namespace bpr::qt {
 			if (!aView.Form.Solution.empty()) {
 				lines.append(QStringLiteral("Solution: %1").arg(text_of(aView.Form.Solution)));
 			}
-			if (aView.Stage == application::review_cycle_publication_stage::stopped || aView.Stage == application::review_cycle_publication_stage::publishing) {
+			// A plan read back between sends says what GitHub already holds ([[BPR-1178]]).
+			if (aView.Stage == application::review_cycle_publication_stage::stopped || aView.Stage == application::review_cycle_publication_stage::publishing
+				|| !aView.Current->Journal.Effects.empty()) {
 				lines.append(effect_words(aView.Current->Journal));
 			}
 			return lines.join(QLatin1Char('\n'));
@@ -844,7 +846,9 @@ namespace bpr::qt {
 		Primary->setEnabled(!aView.Busy && stage != application::review_cycle_publication_stage::publishing
 							&& !(stage == application::review_cycle_publication_stage::choosing && (!aView.Account || (plan != nullptr && plan->NoChange))));
 		Primary->setToolTip(planned ? QStringLiteral("Confirms plan %1 and sends exactly it").arg(text_of(aView.Digest.substr(0, std::min<std::size_t>(12U, aView.Digest.size())))) : QString{ });
-		CancelPublishing->setVisible(stopped && aView.Current && aView.Current->Journal.Phase != core::publication_phase::cancelled);
+		// A plan stopped between sends can be cancelled as well as confirmed again.
+		const auto between = planned && aView.Current && !aView.Current->Journal.Effects.empty();
+		CancelPublishing->setVisible((stopped || between) && aView.Current && aView.Current->Journal.Phase != core::publication_phase::cancelled);
 		Change->setVisible(planned);
 		Change->setEnabled(!aView.Busy);
 		SavePatch->setVisible(!linked);

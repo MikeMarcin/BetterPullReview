@@ -7,7 +7,9 @@
 /// identity the way Git does, never overwrites a reference, and can lose an
 /// answer after taking effect, refuse, rewrite an identity or let another
 /// actor move a branch. It is a fake transport, not GitHub: live behaviour
-/// is qualified separately on a designated target.
+/// is qualified separately on a designated target. Its whole state can be
+/// written to one file and read back ([[BPR-1178]]), so a course can kill the
+/// process that holds it and start another against the same server.
 
 #include "../support/test_expectation.hpp"
 #include "bpr/application/github_publication_port.hpp"
@@ -16,13 +18,17 @@
 #include <algorithm>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iterator>
 #include <map>
 #include <optional>
 #include <span>
+#include <sstream>
 #include <stop_token>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -91,6 +97,160 @@ namespace bpr::tests::workspace_contract {
 				total += count;
 			}
 			return total;
+		}
+
+		/// [[BPR-1178]]. Writes every object, reference, pull request, draft
+		/// and write count to `aFile`, replacing it whole (a sibling is written
+		/// and renamed over it), so a process killed after this holds a server
+		/// another process can read. Faults and hooks are this process's own.
+		void save(const std::filesystem::path& aFile) const
+		{
+			auto out = std::ostringstream{ };
+			out << "simulated-github v1\n";
+			out << "next " << NextPull << '\n';
+			out << "login " << word(Login) << '\n';
+			out << "foreign " << maybe(Foreign) << '\n';
+			for (const auto& [id, bytes] : Blobs) {
+				out << "blob " << id << ' ' << word(std::string{ bytes.begin(), bytes.end() }) << '\n';
+			}
+			for (const auto& [id, entries] : Trees) {
+				out << "tree " << id << ' ' << entries.size() << '\n';
+				for (const auto& entry : entries) {
+					out << "entry " << word(entry.Path) << ' ' << entry.Mode << ' ' << hex(entry.Object) << '\n';
+				}
+			}
+			for (const auto& [id, commit] : Commits) {
+				out << "commit " << id << ' ' << hex(commit.Tree) << ' ' << commit.Parents.size();
+				for (const auto& parent : commit.Parents) {
+					out << ' ' << hex(parent);
+				}
+				out << '\n';
+			}
+			for (const auto& [name, head] : Branches) {
+				out << "branch " << word(name) << ' ' << maybe(head) << '\n';
+			}
+			for (const auto& pull : Pulls) {
+				out << "pull " << pull.Number << ' ' << word(pull.NodeId) << ' ' << word(pull.Url) << ' ' << word(pull.State) << ' ' << (pull.Draft ? 1 : 0) << ' ' << word(pull.Title) << ' '
+					<< word(pull.HeadRef) << ' ' << word(pull.HeadOwner) << ' ' << word(pull.HeadRepository) << ' ' << maybe(pull.HeadCommit) << ' ' << word(pull.BaseRef) << ' '
+					<< maybe(pull.BaseCommit) << ' ' << word(pull.Author) << '\n';
+			}
+			for (const auto& draft : Drafts) {
+				out << "draft " << word(draft.Title) << ' ' << word(draft.Body) << ' ' << word(draft.Head) << ' ' << word(draft.Base) << ' ' << (draft.Draft ? 1 : 0) << '\n';
+			}
+			for (const auto& [operation, count] : Writes) {
+				out << "write " << word(operation) << ' ' << count << '\n';
+			}
+			const auto next = std::filesystem::path{ aFile }.concat(".next");
+			{
+				auto file = std::ofstream{ next, std::ios::binary | std::ios::trunc };
+				file << out.str();
+				file.flush();
+				expect(file.good(), "the simulated server's state is written");
+			}
+			std::filesystem::rename(next, aFile);
+		}
+
+		/// [[BPR-1178]]. Replaces this server's objects, references, pull
+		/// requests, drafts and write counts with what `save` wrote.
+		void load(const std::filesystem::path& aFile)
+		{
+			auto file = std::ifstream{ aFile, std::ios::binary };
+			expect(file.good(), "the simulated server's state is there to read");
+			auto line = std::string{ };
+			expect(std::getline(file, line) && line == "simulated-github v1", "the simulated server's state format");
+			Blobs.clear();
+			Trees.clear();
+			Commits.clear();
+			Branches.clear();
+			Pulls.clear();
+			Drafts.clear();
+			Writes.clear();
+			while (std::getline(file, line)) {
+				auto in   = std::istringstream{ line };
+				auto kind = std::string{ };
+				in >> kind;
+				if (kind == "next") {
+					in >> NextPull;
+				} else if (kind == "login") {
+					Login = unword(in);
+				} else if (kind == "foreign") {
+					Foreign = commit_of(in);
+				} else if (kind == "blob") {
+					auto id = std::string{ };
+					in >> id;
+					const auto bytes = unword(in);
+					Blobs[id]        = { bytes.begin(), bytes.end() };
+				} else if (kind == "tree") {
+					auto id    = std::string{ };
+					auto count = std::size_t{ };
+					in >> id >> count;
+					auto& entries = Trees[id];
+					for (auto index = std::size_t{ }; index < count; ++index) {
+						expect(static_cast<bool>(std::getline(file, line)), "a tree's entries");
+						auto entry = std::istringstream{ line };
+						auto tag   = std::string{ };
+						entry >> tag;
+						expect(tag == "entry", "a tree entry");
+						auto read = core::git_tree_entry{ .Path = unword(entry) };
+						auto oid  = std::string{ };
+						entry >> read.Mode >> oid;
+						const auto object = core::parse_git_entry_oid(oid);
+						expect(object.has_value(), "a tree entry's object");
+						read.Object = *object;
+						entries.push_back(std::move(read));
+					}
+				} else if (kind == "commit") {
+					auto id    = std::string{ };
+					auto tree  = std::string{ };
+					auto count = std::size_t{ };
+					in >> id >> tree;
+					const auto root = core::parse_git_tree_oid(tree);
+					expect(root.has_value(), "a commit's tree");
+					auto stored = stored_commit{ .Tree = *root };
+					in >> count;
+					for (auto index = std::size_t{ }; index < count; ++index) {
+						stored.Parents.push_back(commit_of(in));
+					}
+					Commits[id] = std::move(stored);
+				} else if (kind == "branch") {
+					auto name      = unword(in);
+					Branches[name] = commit_of(in);
+				} else if (kind == "pull") {
+					auto pull  = application::github_pull_request_observation{ };
+					auto draft = 0;
+					in >> pull.Number;
+					pull.NodeId = unword(in);
+					pull.Url    = unword(in);
+					pull.State  = unword(in);
+					in >> draft;
+					pull.Draft          = draft != 0;
+					pull.Title          = unword(in);
+					pull.HeadRef        = unword(in);
+					pull.HeadOwner      = unword(in);
+					pull.HeadRepository = unword(in);
+					pull.HeadCommit     = commit_of(in);
+					pull.BaseRef        = unword(in);
+					pull.BaseCommit     = commit_of(in);
+					pull.Author         = unword(in);
+					Pulls.push_back(std::move(pull));
+				} else if (kind == "draft") {
+					auto draft  = application::github_pull_request_draft{ };
+					auto flag   = 0;
+					draft.Title = unword(in);
+					draft.Body  = unword(in);
+					draft.Head  = unword(in);
+					draft.Base  = unword(in);
+					in >> flag;
+					draft.Draft = flag != 0;
+					Drafts.push_back(std::move(draft));
+				} else if (kind == "write") {
+					auto operation = unword(in);
+					in >> Writes[operation];
+				} else {
+					expect(false, "a known record in the simulated server's state");
+				}
+				expect(!in.fail(), "a well-formed record in the simulated server's state");
+			}
 		}
 
 		auto observe_repository(const application::github_publication_target& aTarget, std::stop_token) -> application::github_publication_result<application::github_publication_capability> override
@@ -241,6 +401,54 @@ namespace bpr::tests::workspace_contract {
 		}
 
 	private:
+		/// Any text as one token: `x` and its bytes in hex, so an empty or
+		/// spaced value survives a whitespace-separated record.
+		[[nodiscard]] static auto word(const std::string_view aText) -> std::string
+		{
+			constexpr auto digits = std::string_view{ "0123456789abcdef" };
+			auto           out    = std::string{ "x" };
+			for (const auto character : aText) {
+				const auto byte = static_cast<unsigned char>(character);
+				out += digits[byte >> 4U];
+				out += digits[byte & 0x0FU];
+			}
+			return out;
+		}
+
+		[[nodiscard]] static auto unword(std::istream& aIn) -> std::string
+		{
+			auto token = std::string{ };
+			aIn >> token;
+			expect(!token.empty() && token.front() == 'x' && token.size() % 2U == 1U, "a text token");
+			const auto nibble = [](const char aDigit) -> unsigned {
+				expect((aDigit >= '0' && aDigit <= '9') || (aDigit >= 'a' && aDigit <= 'f'), "a hex digit");
+				return aDigit <= '9' ? static_cast<unsigned>(aDigit - '0') : static_cast<unsigned>(aDigit - 'a' + 10);
+			};
+			auto out = std::string{ };
+			for (auto index = std::size_t{ 1 }; index < token.size(); index += 2U) {
+				out += static_cast<char>((nibble(token[index]) << 4U) | nibble(token[index + 1U]));
+			}
+			return out;
+		}
+
+		/// A commit identity, or `-` for none.
+		[[nodiscard]] static auto maybe(const core::git_commit_oid& aOid) -> std::string
+		{
+			return aOid.valid() ? hex(aOid) : std::string{ "-" };
+		}
+
+		[[nodiscard]] static auto commit_of(std::istream& aIn) -> core::git_commit_oid
+		{
+			auto text = std::string{ };
+			aIn >> text;
+			if (text == "-") {
+				return { };
+			}
+			const auto parsed = core::parse_git_commit_oid(text);
+			expect(parsed.has_value(), "a commit identity");
+			return *parsed;
+		}
+
 		[[nodiscard]] static auto failure(const application::github_publication_failure      aFailure,
 										  const application::github_publication_transmission aTransmission = application::github_publication_transmission::definitely_not_sent, const std::uint16_t aStatus = 0U)
 			-> std::unexpected<application::github_publication_error>

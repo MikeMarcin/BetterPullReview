@@ -148,22 +148,40 @@ namespace bpr::application {
 			return { };
 		}
 
-		auto publish_limit_words(const cycle_publish_limit aLimit, const core::publication_plan& aPlan) -> std::string
+		/// How many of the journal's effects GitHub confirmed.
+		auto confirmed_steps(const core::publication_journal& aJournal) -> std::ptrdiff_t
+		{
+			return std::ranges::count_if(aJournal.Effects, [](const core::publication_effect& aEffect) { return aEffect.State == core::publication_effect_state::confirmed; });
+		}
+
+		/// What GitHub already holds of this plan, when it holds anything:
+		/// confirmed steps stay there, and nothing claims they were undone.
+		auto held_words(const core::publication_journal& aJournal) -> std::string
+		{
+			const auto confirmed = confirmed_steps(aJournal);
+			return confirmed == 0 ? std::string{ } : " GitHub holds the " + std::to_string(confirmed) + (confirmed == 1 ? " step" : " steps") + " already confirmed; nothing is undone.";
+		}
+
+		/// Why nothing was attempted, and what was sent before: a limit met
+		/// after a recovery says nothing more was sent, never that nothing was
+		/// ([[BPR-1178]]).
+		auto publish_limit_words(const cycle_publish_limit aLimit, const core::publication_plan& aPlan, const core::publication_journal& aJournal) -> std::string
 		{
 			const auto& destination = aPlan.Destination;
 			const auto  repository  = destination.Owner + "/" + destination.Repository;
+			const auto  nothing     = confirmed_steps(aJournal) == 0 ? std::string{ " Nothing was sent." } : " Nothing more was sent." + held_words(aJournal);
 			switch (aLimit) {
-			case cycle_publish_limit::unsupported_host:     return "Native publication is admitted for GitHub.com only. Save a patch, publish it with your own Git tools, then link the pull request. Nothing was sent.";
-			case cycle_publish_limit::object_format:        return "GitHub takes SHA-1 repositories only; this one is not. Save a patch instead. Nothing was sent.";
-			case cycle_publish_limit::no_push_permission:   return destination.Login + " cannot push to " + repository + ". Nothing was sent.";
-			case cycle_publish_limit::archived:             return repository + " is archived. Nothing was sent.";
-			case cycle_publish_limit::protected_path:       return "The change touches workflow files, which need a permission this build cannot check. Save a patch instead. Nothing was sent.";
-			case cycle_publish_limit::parent_not_on_remote: return "The base commit is not on GitHub yet. Push it, or choose a base that is there. Nothing was sent.";
-			case cycle_publish_limit::target_moved:         return destination.BaseBranch + " is missing on GitHub or moved since the plan was made. Review the plan again. Nothing was sent.";
-			case cycle_publish_limit::branch_exists:        return "A branch named " + destination.NewBranch + " already exists on GitHub. Choose another name. Nothing was sent or overwritten.";
-			case cycle_publish_limit::blob_too_large:       return "A file is over the 128 KiB upload bound. Save a patch instead. Nothing was sent.";
-			case cycle_publish_limit::material:             return "Retained material for this plan is missing or damaged. Nothing was sent.";
-			case cycle_publish_limit::pull_request_exists:  return "A pull request for " + destination.NewBranch + " already exists. If it is yours, link it. Nothing more was sent.";
+			case cycle_publish_limit::unsupported_host:     return "Native publication is admitted for GitHub.com only. Save a patch, publish it with your own Git tools, then link the pull request." + nothing;
+			case cycle_publish_limit::object_format:        return "GitHub takes SHA-1 repositories only; this one is not. Save a patch instead." + nothing;
+			case cycle_publish_limit::no_push_permission:   return destination.Login + " cannot push to " + repository + "." + nothing;
+			case cycle_publish_limit::archived:             return repository + " is archived." + nothing;
+			case cycle_publish_limit::protected_path:       return "The change touches workflow files, which need a permission this build cannot check. Save a patch instead." + nothing;
+			case cycle_publish_limit::parent_not_on_remote: return "The base commit is not on GitHub yet. Push it, or choose a base that is there." + nothing;
+			case cycle_publish_limit::target_moved:         return destination.BaseBranch + " is missing on GitHub or moved since the plan was made. Review the plan again." + nothing;
+			case cycle_publish_limit::branch_exists:        return "A branch named " + destination.NewBranch + " already exists on GitHub. Choose another name. Nothing was overwritten." + nothing;
+			case cycle_publish_limit::blob_too_large:       return "A file is over the 128 KiB upload bound. Save a patch instead." + nothing;
+			case cycle_publish_limit::material:             return "Retained material for this plan is missing or damaged." + nothing;
+			case cycle_publish_limit::pull_request_exists:  return "A pull request for " + destination.NewBranch + " already exists. If it is yours, link it. Nothing more was sent." + held_words(aJournal);
 			}
 			return "Nothing was sent.";
 		}
@@ -171,11 +189,15 @@ namespace bpr::application {
 		auto stage_of(const core::publication_journal& aJournal) -> review_cycle_publication_stage
 		{
 			switch (aJournal.Phase) {
-			case core::publication_phase::prepared:            return review_cycle_publication_stage::planned;
+			// A journal read back between sends waits for the reviewer: after a
+			// restart, a recovery or a step that never left, the remaining steps
+			// need the plan confirmed again ([[BPR-1178]]). Publishing is only
+			// ever the stage while a confirmed send is in flight.
+			case core::publication_phase::prepared:
 			case core::publication_phase::authorized:
 			case core::publication_phase::uploading_objects:
 			case core::publication_phase::branch_created:
-			case core::publication_phase::pr_creation_pending: return review_cycle_publication_stage::publishing;
+			case core::publication_phase::pr_creation_pending: return review_cycle_publication_stage::planned;
 			case core::publication_phase::linked:              return review_cycle_publication_stage::linked;
 			case core::publication_phase::failed:
 			case core::publication_phase::uncertain:
@@ -189,20 +211,28 @@ namespace bpr::application {
 		/// What the journal says now, when it is not simply a plan waiting.
 		auto journal_words(const core::publication_plan& aPlan, const core::publication_journal& aJournal) -> std::string
 		{
-			const auto confirmed = std::ranges::count_if(aJournal.Effects, [](const core::publication_effect& aEffect) { return aEffect.State == core::publication_effect_state::confirmed; });
-			const auto held      = confirmed == 0 ? std::string{ } : " GitHub holds the " + std::to_string(confirmed) + (confirmed == 1 ? " step" : " steps") + " already confirmed; nothing is undone.";
+			const auto held = held_words(aJournal);
 			switch (aJournal.Phase) {
 			case core::publication_phase::linked:
 				if (aJournal.Link && aJournal.Link->Drifted) {
 					return "Pull request #" + std::to_string(aJournal.Link->Number) + " is open, but its head or base is not what the plan named: someone pushed or the target moved. GitHub now shows what is shared.";
 				}
 				return aJournal.Link ? "Pull request #" + std::to_string(aJournal.Link->Number) + " is open on " + aPlan.Destination.Owner + "/" + aPlan.Destination.Repository + "." : std::string{ };
-			case core::publication_phase::uncertain:    return "GitHub did not answer whether a step took effect. Check GitHub before anything else is sent." + held;
-			case core::publication_phase::target_drift: return "Something else took the branch name, or the target moved. Nothing was overwritten." + held;
-			case core::publication_phase::failed:       return "GitHub refused a step, so nothing more was sent." + held;
-			case core::publication_phase::cancelled:    return "Publishing was cancelled." + held;
-			default:                                    return { };
+			case core::publication_phase::uncertain:         return "GitHub did not answer whether a step took effect. Check GitHub before anything else is sent." + held;
+			case core::publication_phase::target_drift:      return "Something else took the branch name, or the target moved. Nothing was overwritten." + held;
+			case core::publication_phase::failed:            return "GitHub refused a step, so nothing more was sent." + held;
+			case core::publication_phase::cancelled:         return "Publishing was cancelled." + held;
+			case core::publication_phase::prepared:
+			case core::publication_phase::authorized:
+			case core::publication_phase::uploading_objects:
+			case core::publication_phase::branch_created:
+			case core::publication_phase::pr_creation_pending:
+				// Effects but no pull request yet: a stop between sends, read back.
+				return aJournal.Effects.empty() ? std::string{ }
+												: "Publishing stopped before the pull request. Publish Pull Request confirms this plan again and sends only what GitHub does not hold." + held;
+			case core::publication_phase::superseded: return { };
 			}
+			return { };
 		}
 
 		auto link_words(const core::cycle_link_refusal aRefusal, const std::string& aHost) -> std::string
@@ -1411,10 +1441,18 @@ namespace bpr::application {
 						return;
 					}
 					if (self->View.Publication) {
-						self->View.Publication->Busy   = false;
-						self->View.Publication->Status = aResult.error().Publication
-							? "This plan cannot go ahead (" + std::string{ core::name(*aResult.error().Publication) } + "). Nothing was sent."
-							: cycle_store_words(aResult.error());
+						auto& shown = *self->View.Publication;
+						shown.Busy  = false;
+						if (shown.Stage == review_cycle_publication_stage::publishing && shown.Current) {
+							// A refused send leaves the sheet where its journal is, not
+							// stuck publishing ([[BPR-1178]]).
+							shown.Stage = stage_of(shown.Current->Journal);
+						}
+						// Nothing was sent by this step; what earlier steps sent stays said.
+						const auto sent = shown.Current && confirmed_steps(shown.Current->Journal) != 0 ? " Nothing more was sent." + held_words(shown.Current->Journal)
+																										: std::string{ " Nothing was sent." };
+						shown.Status    = aResult.error().Publication ? "This plan cannot go ahead (" + std::string{ core::name(*aResult.error().Publication) } + ")." + sent
+																	  : cycle_store_words(aResult.error());
 						self->publish();
 					} else {
 						self->fail(cycle_store_words(aResult.error()));
@@ -1712,7 +1750,7 @@ namespace bpr::application {
 			if (outcome.Status == cycle_publish_status::limited && outcome.Limit && view.Current) {
 				// Nothing was attempted: the plan still waits for the reviewer.
 				view.Stage  = review_cycle_publication_stage::planned;
-				view.Status = publish_limit_words(*outcome.Limit, view.Current->Plan);
+				view.Status = publish_limit_words(*outcome.Limit, view.Current->Plan, view.Current->Journal);
 			} else if (outcome.Status == cycle_publish_status::provider && outcome.Provider) {
 				view.Status = provider_words(*outcome.Provider) + " Nothing more was sent.";
 			} else if (outcome.Status == cycle_publish_status::store && outcome.Store) {
@@ -1720,8 +1758,6 @@ namespace bpr::application {
 			} else if (outcome.Status == cycle_publish_status::unauthorized) {
 				view.Stage  = view.Current && view.Current->Journal.Phase == core::publication_phase::linked ? review_cycle_publication_stage::linked : review_cycle_publication_stage::planned;
 				view.Status = "This plan has no current confirmation. Review it again to publish.";
-			} else if (outcome.Status == cycle_publish_status::recovered && view.Current && view.Current->Journal.Phase == core::publication_phase::branch_created) {
-				view.Status = "GitHub holds the branch. Review the plan again to create the pull request.";
 			}
 			publish();
 		}

@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -24,6 +25,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -38,8 +40,9 @@
 /// points it at the designated repository only; the owner and repository are
 /// constants, not arguments. The credential is read from standard input and
 /// never printed. The one seam is a port decorator that, when a case asks,
-/// makes a real write and then reports its answer lost, or lets "another
-/// actor" (the same account through the same catalog) take a name first.
+/// makes a real write and then reports its answer lost, lets "another
+/// actor" (the same account through the same catalog) take a name first, or
+/// ([[BPR-1178]]) cancels a real write while it is in flight.
 ///
 /// The driver prepares the checkout: a clone of BPR-Test at a base branch it
 /// pushed, and a branch named `--foreign` that another client pushed.
@@ -108,6 +111,10 @@ namespace {
 		race_branch,
 		/// Another actor opens a pull request for the head just before ours.
 		race_pull,
+		/// [[BPR-1178]]. Cancel the branch's request while it is in flight.
+		cancel_branch,
+		/// [[BPR-1178]]. Cancel the pull request's request while it is in flight.
+		cancel_pull,
 	};
 
 	/// \brief The production session, with one fault at a time and a count of writes.
@@ -119,10 +126,16 @@ namespace {
 		{
 		}
 
-		live_fault                            Fault = live_fault::none;
-		core::git_commit_oid                  RaceAt;
-		std::size_t                           Writes = 0;
-		std::optional<std::uint64_t>          RacedPull;
+		live_fault                   Fault = live_fault::none;
+		core::git_commit_oid         RaceAt;
+		std::size_t                  Writes = 0;
+		std::optional<std::uint64_t> RacedPull;
+		/// How long after a cancelled write starts its stop is requested.
+		std::chrono::milliseconds CancelAfter{ 40 };
+		/// How long the last uncancelled branch and pull request writes took,
+		/// so a cancellation can aim inside a request's flight.
+		std::chrono::milliseconds             BranchTook{ 0 };
+		std::chrono::milliseconds             PullTook{ 0 };
 		application::github_publication_error Lost{ .Failure = application::github_publication_failure::unavailable, .Transmission = application::github_publication_transmission::indeterminate };
 
 		auto observe_repository(const application::github_publication_target& aTarget, std::stop_token aStop)
@@ -170,12 +183,18 @@ namespace {
 			-> application::github_publication_result<application::github_branch_creation> override
 		{
 			++Writes;
+			if (Fault == live_fault::cancel_branch) {
+				Fault = live_fault::none;
+				return midway([&](std::stop_token aMidway) { return Inner.create_branch(aTarget, aBranch, aCommit, std::move(aMidway)); });
+			}
 			const auto fault = take(live_fault::race_branch, live_fault::lose_branch_answer);
 			if (fault == live_fault::race_branch) {
 				const auto theirs = Inner.create_branch(aTarget, aBranch, RaceAt, aStop);
 				expect(theirs && *theirs == application::github_branch_creation::created, "another actor's branch is created at P first");
 			}
-			auto created = Inner.create_branch(aTarget, aBranch, aCommit, aStop);
+			const auto started = std::chrono::steady_clock::now();
+			auto       created = Inner.create_branch(aTarget, aBranch, aCommit, aStop);
+			BranchTook         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
 			if (fault == live_fault::lose_branch_answer) {
 				expect(created && *created == application::github_branch_creation::created, "the branch was really created before its answer is lost");
 				return std::unexpected{ Lost };
@@ -186,6 +205,10 @@ namespace {
 			-> application::github_publication_result<application::github_pull_request_observation> override
 		{
 			++Writes;
+			if (Fault == live_fault::cancel_pull) {
+				Fault = live_fault::none;
+				return midway([&](std::stop_token aMidway) { return Inner.create_pull_request(aTarget, aDraft, std::move(aMidway)); });
+			}
 			const auto fault = take(live_fault::race_pull, live_fault::lose_pull_answer);
 			if (fault == live_fault::race_pull) {
 				auto theirs       = aDraft;
@@ -195,7 +218,9 @@ namespace {
 				expect(opened.has_value(), "another actor's pull request is opened first");
 				RacedPull = opened->Number;
 			}
-			auto created = Inner.create_pull_request(aTarget, aDraft, aStop);
+			const auto started = std::chrono::steady_clock::now();
+			auto       created = Inner.create_pull_request(aTarget, aDraft, aStop);
+			PullTook           = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
 			if (fault == live_fault::lose_pull_answer) {
 				expect(created.has_value(), "the pull request was really created before its answer is lost");
 				return std::unexpected{ Lost };
@@ -214,6 +239,20 @@ namespace {
 		}
 
 	private:
+		/// One real write whose stop is requested `CancelAfter` after it
+		/// starts, from another thread, as a reviewer's Cancel would be.
+		auto midway(const auto& aWrite) -> decltype(aWrite(std::stop_token{ }))
+		{
+			auto source = std::stop_source{ };
+			auto timer  = std::jthread{ [&source, delay = CancelAfter] {
+				std::this_thread::sleep_for(delay);
+				source.request_stop();
+			} };
+			auto result = aWrite(source.get_token());
+			timer.join();
+			return result;
+		}
+
 		/// The pending fault, if it is one of this operation's; a branch
 		/// write never consumes a fault meant for the pull request.
 		auto take(const live_fault aFirst, const live_fault aSecond) -> live_fault
@@ -466,6 +505,58 @@ namespace {
 		expect(theirs.Status == cycle_publish_status::stopped && theirs.Publication->Journal.Phase == core::publication_phase::target_drift && open.size() == 1U
 				   && open.front().Number == remote.RacedPull.value_or(0U),
 			   "a foreign pull request is never duplicated or adopted");
+
+		// 8 and 9. [[BPR-1178]]. A write cancelled while it is in flight. Its
+		// outcome is GitHub's timing: done before the stop (confirmed), sent
+		// but unanswered (uncertain), or stopped before it left (not sent).
+		// Whatever it was, a request that left is never called not sent,
+		// nothing is retried blindly, and one pull request results.
+		const auto cancelled = [&](const std::string_view aCase, const live_fault aFault, const core::publication_effect_kind aKind) {
+			auto plan = live.authorized(cycle, branch(aCase), false);
+			// Three quarters of the same write's last round trip: after the
+			// request has most likely left, before its answer has come back.
+			const auto took    = aKind == core::publication_effect_kind::branch ? remote.BranchTook : remote.PullTook;
+			remote.CancelAfter = took * 3 / 4;
+			std::cout << "LIVE " << aCase << ": the last uncancelled write took " << took.count() << " ms; the stop is requested after " << remote.CancelAfter.count() << " ms\n";
+			remote.Fault       = aFault;
+			const auto stopped = publisher.publish(cycle.Subject, plan.Id.Id, { });
+			report(std::string{ aCase } + " (cancelled)", *stopped.Publication);
+			const auto& effects = stopped.Publication->Journal.Effects;
+			const auto  effect  = std::ranges::find(effects, aKind, &core::publication_effect::Kind);
+			expect(effect != effects.end(), "the cancelled write was journaled before it was attempted");
+			const auto state  = effect->State;
+			const auto held   = session.observe_branch(target, branch(aCase), { });
+			const auto opened = pulls(branch(aCase));
+			expect(held.has_value(), "the branch read after the cancellation");
+			const auto present = aKind == core::publication_effect_kind::branch ? held->has_value() : !opened.empty();
+			std::cout << "LIVE " << aCase << ": the cancelled " << core::name(aKind) << " is " << core::name(state) << "; GitHub " << (present ? "holds it" : "does not hold it") << '\n';
+			expect(state == core::publication_effect_state::confirmed || state == core::publication_effect_state::uncertain || state == core::publication_effect_state::not_sent,
+				   "a cancelled write is confirmed, uncertain or not sent, never refused or foreign");
+			expect(state != core::publication_effect_state::not_sent || !present, "a write GitHub took is never reported as not sent");
+			expect(state != core::publication_effect_state::confirmed || present, "a confirmed write is there");
+			if (state == core::publication_effect_state::uncertain) {
+				expect(publisher.publish(cycle.Subject, plan.Id.Id, { }).Status == cycle_publish_status::unauthorized, "no blind retry after a cancelled write");
+				const auto read = publisher.recover(cycle.Subject, plan.Id.Id, { });
+				report(std::string{ aCase } + " (recovered)", *read.Publication);
+				expect(read.Status == cycle_publish_status::recovered, "recovery reads what the cancelled write left");
+				if (read.Publication->Journal.Phase != core::publication_phase::linked) {
+					live.reauthorize(cycle, *read.Publication);
+				}
+			} else if (state == core::publication_effect_state::not_sent) {
+				live.reauthorize(cycle, *stopped.Publication);
+			}
+			auto finished = publisher.publish(cycle.Subject, plan.Id.Id, { });
+			if (finished.Status == cycle_publish_status::unauthorized) {
+				// Linked by recovery or by the first run: nothing more to send.
+				expect(finished.Publication->Journal.Phase == core::publication_phase::linked, "already linked");
+			}
+			report(std::string{ aCase } + " (finished)", *finished.Publication);
+			const auto after = session.observe_branch(target, branch(aCase), { });
+			expect(finished.Publication->Journal.Phase == core::publication_phase::linked && pulls(branch(aCase)).size() == 1U && after && *after && **after == plan.Plan.Commit,
+				   "one branch at the planned commit and one pull request, whatever the cancellation did");
+		};
+		cancelled("cancelled-branch", live_fault::cancel_branch, core::publication_effect_kind::branch);
+		cancelled("cancelled-pull", live_fault::cancel_pull, core::publication_effect_kind::pull_request);
 
 		std::cout << "LIVE commit " << hex(ready.Plan.Commit) << " parent " << hex(ready.Plan.Parent) << " author offset +05:30, committer offset -07:00\n";
 	}

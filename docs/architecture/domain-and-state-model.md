@@ -616,9 +616,12 @@ the same way and recorded as foreign when another pull request now holds the
 head. A lost answer is uncertain until `recover` finds exactly one candidate
 at the planned commit by the plan's login (associated), none (absent; created
 again only after a fresh confirmation), only others' (foreign) or several
-(still uncertain, for the reviewer to choose). A created pull request is read
-again by number, and a head, base branch or base head other than the plan's
-is recorded on the link as drift.
+(still uncertain, for the reviewer to choose). The sole candidate by the
+plan's login whose head someone pushed to since is still this plan's pull
+request: it is associated with that drift on the link, as the read after a
+live answer records it, never called foreign (BPR-1178). A created pull
+request is read again by number, and a head, base branch or base head other
+than the plan's is recorded on the link as drift.
 
 GitHub.com has run this sequence live on the owner-designated disposable
 repository (RC59-10, BPR-1176): the commit endpoint keeps non-zero author and
@@ -638,7 +641,14 @@ Review Plan (the candidate in the private store and a recorded plan), Publish
 Pull Request (the reviewer's confirmation of exactly that digest under the
 account signed in now, then the publisher), Check GitHub, Cancel, Save Patch
 for one's own Git tools, and Link Existing Pull Request. Any edit after a plan,
-and Change, makes another plan necessary. The pull request's description is
+and Change, makes another plan necessary. A journal read back between sends
+(after a restart, a recovery, a request that never left or a refused
+confirmation) shows the plan waiting for the reviewer again, with what GitHub
+already holds; Publish Pull Request then confirms the same digest and sends
+only what is missing, and Cancel Publishing stops it with those steps kept.
+The sheet is Publishing only while a confirmed send is in flight, and a limit
+met after earlier steps says nothing more was sent, never that nothing was
+(BPR-1178). The pull request's description is
 the reviewer's Problem and Solution in the form a Review Tour maps
 (`core::publication_body`), so a tour prepared later on the pull request finds
 them; a tour is never prepared or published by publishing. The account is the

@@ -306,7 +306,9 @@ repository, pushes a base branch and a "foreign" branch under
 input. The tool composes the shipped store, installed-Git catalog, publisher,
 `github_publication_session` and production native HTTPS transport; the
 owner and repository are constants in it. The driver then checks the result
-through `git fetch` and `gh api`. Branches and pull requests are left on
+through `git fetch` and `gh api`. Since [[BPR-1178]] it also cancels a branch
+and a pull request write in flight, at three quarters of the same write's last
+round trip, and reports whether GitHub took it. Branches and pull requests are left on
 BPR-Test as evidence; nothing is deleted, closed or force-updated. GHES has no
 designated target and no course.
 

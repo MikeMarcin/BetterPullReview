@@ -1494,7 +1494,12 @@ an imported round, response or plan file is data. Every remote effect is
 journaled before it is attempted; a lost answer or a restart makes it
 uncertain, spends the authorization and blocks further writes until a read
 has observed what happened, so a crash cannot turn into a blind retry or a
-duplicate pull request.
+duplicate pull request. BPR-1178 exercises this with real processes killed at
+every object, branch and pull request boundary, before a request leaves and
+after GitHub took the effect but before the journal recorded it, with another
+actor's changes while nothing ran; and live, on the designated repository,
+with a write cancelled in flight, which GitHub took and the journal recorded
+as uncertain until a read found it.
 
 The GitHub publication catalog (BPR-1175) is a new provider-write capability,
 separate from review-comment publication. `github_publication_session` admits

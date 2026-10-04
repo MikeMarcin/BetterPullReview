@@ -268,6 +268,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # AC\Temp exiting 128 with "fatal: Invalid path 'C:/Users': Permission
     # denied". It passes uncontained.
     "review_cycle_publish_desk": "dos-volume-name",
+    # [[BPR-1178]]. The publish desk's course, run as several processes by a
+    # Python driver; pinned by that shape, not yet measured contained.
+    "review_cycle_publication_matrix": "dos-volume-name",
     "review_cycle_workbench": "dos-volume-name",
     "application_review_cycle_desktop_public_path": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",

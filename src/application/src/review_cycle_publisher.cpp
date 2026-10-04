@@ -97,6 +97,15 @@ namespace bpr::application {
 			};
 		}
 
+		/// GitHub compares owners, repositories and logins without case.
+		auto same_name(const std::string_view aLeft, const std::string_view aRight) -> bool
+		{
+			return aLeft.size() == aRight.size() && std::ranges::equal(aLeft, aRight, [](const char aA, const char aB) {
+					   const auto lower = [](const char aValue) { return aValue >= 'A' && aValue <= 'Z' ? static_cast<char>(aValue + ('a' - 'A')) : aValue; };
+					   return lower(aA) == lower(aB);
+				   });
+		}
+
 		/// Every pull request whose head is the plan's branch in the plan's
 		/// repository and whose base is the plan's base.
 		auto candidates(const core::publication_plan& aPlan, const std::vector<github_pull_request_observation>& aPulls) -> std::vector<github_pull_request_observation>
@@ -110,15 +119,9 @@ namespace bpr::application {
 	auto match_pull_request(const core::publication_plan& aPlan, const github_pull_request_observation& aPull) -> cycle_pull_request_match
 	{
 		const auto& destination = aPlan.Destination;
-		const auto  fold        = [](const std::string_view aLeft, const std::string_view aRight) {
-			return aLeft.size() == aRight.size() && std::ranges::equal(aLeft, aRight, [](const char aA, const char aB) {
-					   const auto lower = [](const char aValue) { return aValue >= 'A' && aValue <= 'Z' ? static_cast<char>(aValue + ('a' - 'A')) : aValue; };
-					   return lower(aA) == lower(aB);
-				   });
-		};
-		const auto candidate = aPull.HeadRef == destination.NewBranch && aPull.BaseRef == destination.BaseBranch && fold(aPull.HeadOwner, destination.Owner)
-			&& fold(aPull.HeadRepository, destination.Repository);
-		return { .Candidate = candidate, .Ours = candidate && aPull.HeadCommit == aPlan.Commit && fold(aPull.Author, destination.Login) };
+		const auto  candidate   = aPull.HeadRef == destination.NewBranch && aPull.BaseRef == destination.BaseBranch && same_name(aPull.HeadOwner, destination.Owner)
+			&& same_name(aPull.HeadRepository, destination.Repository);
+		return { .Candidate = candidate, .Ours = candidate && aPull.HeadCommit == aPlan.Commit && same_name(aPull.Author, destination.Login) };
 	}
 
 	auto name(const cycle_publish_limit aLimit) noexcept -> std::string_view
@@ -376,10 +379,23 @@ namespace bpr::application {
 				const auto found = candidates(plan, *pulls);
 				auto       ours  = std::vector<github_pull_request_observation>{ };
 				std::ranges::copy_if(found, std::back_inserter(ours), [&plan](const github_pull_request_observation& aPull) { return match_pull_request(plan, aPull).Ours; });
+				// [[BPR-1178]]. The sole candidate, opened under the plan's login
+				// from the branch this journal confirmed creating, is this plan's
+				// pull request even when someone pushed to its head since: it is
+				// associated with that drift recorded, as a live answer and the
+				// read after it would have recorded it, never called foreign.
+				const auto branchOurs = std::ranges::any_of(publication.Journal.Effects, [](const core::publication_effect& aEffect) {
+					return aEffect.Kind == core::publication_effect_kind::branch && aEffect.State == core::publication_effect_state::confirmed;
+				});
+				const auto moved      = ours.empty() && found.size() == 1U && branchOurs && same_name(found.front().Author, plan.Destination.Login);
 				if (ours.size() == 1U && found.size() == 1U) {
 					observed = core::publication_effect_state::confirmed;
 					link     = link_of(plan, ours.front());
 					remote   = ours.front().Url;
+				} else if (moved) {
+					observed = core::publication_effect_state::confirmed;
+					link     = link_of(plan, found.front());
+					remote   = found.front().Url;
 				} else if (found.empty()) {
 					observed = core::publication_effect_state::absent;
 				} else if (ours.empty()) {

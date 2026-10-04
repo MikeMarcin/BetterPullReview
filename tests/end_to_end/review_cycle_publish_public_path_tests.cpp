@@ -354,6 +354,23 @@ namespace {
 			require(listed.has_value(), "P listed for the simulated server");
 			remote->seed(parent, listed->Tree, listed->Entries, "main");
 		}
+		// [[BPR-1178]]. The branch request never leaves this computer: the
+		// sheet stops between sends with the plan waiting, says what GitHub
+		// holds, and offers Publish Pull Request again or Cancel Publishing.
+		remote->Faults["branch"] = tests::workspace_contract::simulated_fault::not_sent;
+		click(*sheet->primary_button());
+		require(wait_for([&] {
+					return sheet_settled(page) && page.projection().Publication->Stage == application::review_cycle_publication_stage::planned && page.projection().Publication->Current
+						&& !page.projection().Publication->Current->Journal.Effects.empty();
+				}),
+				"a send that never left stops between sends: " + utf8(sheet->status()->text()));
+		require(sheet->title()->text() == QStringLiteral("Publish this plan?") && sheet->primary_button()->text() == QStringLiteral("Publish Pull Request") && sheet->primary_button()->isEnabled()
+					&& sheet->cancel_publication_button()->isVisible(),
+				"the stopped plan can be confirmed again or cancelled");
+		require(sheet->status()->text().contains(QStringLiteral("GitHub holds the 4 steps already confirmed; nothing is undone."))
+					&& sheet->summary()->text().contains(QStringLiteral("GitHub holds: blob, tree, commit.")) && !remote->Writes.contains("branch"),
+				"it says what GitHub holds: " + utf8(sheet->status()->text()) + " / " + utf8(sheet->summary()->text()));
+		render(*sheet, "publish-stopped-between-sends");
 		click(*sheet->primary_button());
 		require(wait_for([&] { return sheet_settled(page) && page.projection().Publication->Stage == application::review_cycle_publication_stage::linked; }),
 				"published and linked: " + utf8(sheet->status()->text()));
