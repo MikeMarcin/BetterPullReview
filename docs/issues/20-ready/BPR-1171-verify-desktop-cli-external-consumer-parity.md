@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1171"
 title: "Verify desktop/CLI/external-consumer parity"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0058"]
 depends_on: ["BPR-1166", "BPR-1170"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "external-consumers", "acceptance": ["RC58-03", "RC58-05", "RC58-06", "RC58-07", "RC58-10"], "pack_alias": "PACK-CYCLE-29", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
