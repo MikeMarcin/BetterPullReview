@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1276"
 title: "On Windows the large-project course reads every terminal command's peak memory as 0.1 MiB"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
