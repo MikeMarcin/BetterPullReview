@@ -72,3 +72,30 @@ commit, branch and pull; `after-pull-reread`; `recovery-killed`;
 `lost-pull-answer`; `not-sent-branch`; `base-moved`; `branch-taken`;
 `branch-moved`; `pull-raced`; `pull-ambiguous`; `head-pushed`; and
 `cancel-after-tree`. Done is not reopened.
+
+### Windows at `91c01540e` (bpr-main-win, 2026-10-04)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-dev` Debug.
+`91c01540e` holds `4f8d24185`. The build printed no `warning C` or
+`warning LNK` line. The selection passes **7 of 7** in 79.94 s:
+`review_cycle_publication_matrix` (64.37 s), `review_cycle_publisher`,
+`review_cycle_publish_desk`, `application_review_cycle_publish_public_path`,
+`qt_review_cycle_view_1_0`, `qt_review_cycle_view_2_0` and
+`test_network_isolation_manifest`.
+
+- **The kill takes the whole tree.** On Windows the driver's `process.kill()`
+  is `TerminateProcess` on the course process alone. The installed-Git adapter
+  puts every `git.exe` it starts in a job object with
+  `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (`installed_git_process.cpp`, about line
+  1332), so the children die when the killed process's job handle closes.
+  Checked during the run: a watcher sampled every 200 ms for any `git.exe`
+  whose parent had gone, and found none from the matrix. Its only hit was
+  another tool's `rev-parse` in an unrelated repository.
+- **The pin is now measured.** Contained, through the sandbox launcher, the
+  matrix's first process (`--publish`) exits before the first checkpoint with
+  `FAILED: fixture git command`. That is `review_cycle_publish_desk`'s refusal:
+  Git under `AC\Temp` cannot resolve the root's ancestors. The cause stays
+  `dos-volume-name`, and the comment in `scripts/verify_test_network_isolation.py`
+  now gives the measured line instead of "pinned by that shape".
+- **Nothing to fix for MSVC.** There is no `getenv`, no SDK-macro identifier
+  and no offscreen `configfile` in the matrix sources.

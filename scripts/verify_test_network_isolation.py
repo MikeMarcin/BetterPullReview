@@ -269,7 +269,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # denied". It passes uncontained.
     "review_cycle_publish_desk": "dos-volume-name",
     # [[BPR-1178]]. The publish desk's course, run as several processes by a
-    # Python driver; pinned by that shape, not yet measured contained.
+    # Python driver. Measured on JaegAW 2026-10-04 at 91c01540e, contained
+    # through the sandbox launcher: its first process (--publish) exits before
+    # the first checkpoint with "FAILED: fixture git command", the
+    # review_cycle_publish_desk refusal (Git under AC\Temp). It passes
+    # uncontained.
     "review_cycle_publication_matrix": "dos-volume-name",
     "review_cycle_workbench": "dos-volume-name",
     "application_review_cycle_desktop_public_path": "dos-volume-name",
