@@ -20,7 +20,9 @@ makes and removes (`tests/AGENTS.md`):
 - `tree-100k-files-v1`: 100,000 files of 10 lines in 100 x 10 directories,
   1,000,000 lines, with one 129 MiB file over the 128 MiB a capture keeps.
 - `stress-round-v1`: a round of 512 notes and 2 suggestions on the first
-  corpus, frozen, exported and read, inside every round limit.
+  corpus, frozen, exported and read, inside every round limit. The first
+  suggestion is made before the terminal's notes, the second after them
+  ([[BPR-1274]]).
 
 Percentiles are nearest-rank over the samples taken; a phase with few samples
 says so by its count. The report is a JSON document, written to `--report`,
@@ -29,9 +31,15 @@ byte. Timing targets are the LIMITS acceptance targets: p95 under 100 ms for
 note typing and navigation while a capture runs; an operation over 250 ms needs
 progress and cancellation. They are checked only where `--enforce 1` (an
 optimized build on a platform whose measurements justify them); elsewhere they
-are reported with `enforced: false`. Correctness (every key typed reaches the
-note, comparisons show the exact changed rows, every page covers every path,
-limits are stated) fails the run everywhere.
+are reported with `enforced: false`. The stress round is held to the same two
+([[BPR-1274]]): none of its gestures may hold the window past 100 ms, and a
+note change, Copy and Save, which show no progress and offer no cancel, must
+each end inside 250 ms. In an optimized build its note change must also stay
+within `NOTE_CHANGE_RATIO_LIMIT` of the cycle's first, so a change that grows
+with the round fails on any machine. `--check-report` judges every target
+again on a report this course wrote, running nothing. Correctness (every key
+typed reaches the note, comparisons show the exact changed rows, every page
+covers every path, limits are stated) fails the run everywhere.
 
 This course does not purge the operating system's file cache: "cold" is a
 first open into a new profile with no retained material, "warm" a reopen of an
@@ -68,6 +76,21 @@ MIB = 1024 * 1024
 TYPING_TARGET_MS = 100.0
 NAVIGATION_TARGET_MS = 100.0
 PROGRESS_THRESHOLD_MS = 250.0
+# [[BPR-1274]]. The stress round against the same LIMITS targets. No gesture
+# may hold the window past the 100 ms input target; a note change and a freeze
+# show no progress and offer no cancel, so each must end inside the 250 ms past
+# which LIMITS owes both. Enforced where the typing target is (`--enforce 1`).
+INPUT_TARGET_MS = 100.0
+STRESS_WINDOW_PHASES = ("open_warm_with_notes", "desktop_suggest", "compose_open", "freeze_and_copy", "save_document")
+STRESS_UNPROGRESSED_PHASES = ("desktop_suggest", "freeze_and_copy", "save_document")
+# A note change in the 514-item round against the cycle's first note change,
+# made the same way before the 512 terminal notes: a change that scales with
+# the round fails it whatever the machine. macOS Release measured 2.34 at
+# 20,000 files (68.9 against 29.4 ms); the build before the fix measured 66.1
+# in the same course (2,932 against 44.4 ms, 2,000 files). Three times the
+# measured ratio, rounded up. Enforced in every optimized build, as the
+# cold-open ratio is.
+NOTE_CHANGE_RATIO_LIMIT = 7.0
 # [[BPR-1275]]. The desktop's cold Open Project against `bpr cycle open` on the
 # same warm folder; macOS Release measured 1.16 and 1.03 at 397908dec.
 COLD_OPEN_RATIO_LIMIT = 3.0
@@ -439,7 +462,7 @@ class Course:
         return phases, facts
 
     def stress_round(self, name, spec, root, data):
-        """512 notes from the terminal and two suggestions in the desktop, frozen, exported and read."""
+        """512 notes from the terminal and two suggestions in the desktop, one before them and one after, frozen, exported and read."""
         phases = {}
         facts = {}
 
@@ -450,24 +473,38 @@ class Course:
 
         cycle = "RC-1"
         notes = min(STRESS_NOTES, spec["files"])
+        edited = set(changed_indices(spec["files"]))
+        untouched = [index for index in range(notes, spec["files"]) if index not in edited][:2]
+        suggestions = list(zip(untouched, ((b"line 4 of file", "line four of file"), (b"line 5 of file", "line five of file"))))
+
+        def suggest(desktop, chosen, phase):
+            index, (needle, replacement) = chosen
+            path = corpus_path(index)
+            content = corpus_text(index, spec["lines"], "base")
+            # Full source at the latest capture: the restored tab may show a comparison.
+            desktop.ask("latest", path=path)
+            record(phase, desktop.ask("suggest", path=path, replacement=replacement, illustrative=False, rationale="Spell the number.", **span(content, needle)))
+
+        # [[BPR-1274]]. The cycle's first note change, before the terminal's
+        # 512: what a change costs when the round is small.
+        desktop, _ = self.launch(data, f"{name}-stress-first")
+        try:
+            desktop.ask("resume", title=root.name, notes=0)
+            suggest(desktop, suggestions[0], "desktop_suggest_first")
+            desktop.quit()
+        finally:
+            desktop.close()
         for index in range(notes):
             value, elapsed, peak = self.ok(data, "note", cycle, "--file", corpus_path(index), "--lines", "2:3", "--body-file", "-",
                                            stdin=f"Stress note {index}: rename the helper on these lines.".encode("utf-8"))
             phases.setdefault("terminal_note", []).append(elapsed)
         desktop, launched = self.launch(data, f"{name}-stress")
         try:
-            resumed = desktop.ask("resume", title=root.name, notes=notes)
+            # The first suggestion's note and the terminal's.
+            resumed = desktop.ask("resume", title=root.name, notes=notes + 1)
             record("open_warm_with_notes", resumed)
-            assert len(resumed["notes"]) == notes, f"every note is listed after the restart: {len(resumed['notes'])}"
-            edited = set(changed_indices(spec["files"]))
-            untouched = [index for index in range(notes, spec["files"]) if index not in edited][:2]
-            for index, (needle, replacement) in zip(untouched, ((b"line 4 of file", "line four of file"), (b"line 5 of file", "line five of file"))):
-                path = corpus_path(index)
-                content = corpus_text(index, spec["lines"], "base")
-                # Full source at the latest capture: the restored tab may show a comparison.
-                desktop.ask("latest", path=path)
-                reply = desktop.ask("suggest", path=path, replacement=replacement, illustrative=False, rationale="Spell the number.", **span(content, needle))
-                record("desktop_suggest", reply)
+            assert len(resumed["notes"]) == notes + 1, f"every note is listed after the restart: {len(resumed['notes'])}"
+            suggest(desktop, suggestions[1], "desktop_suggest")
             share = desktop.ask("compose")
             record("compose_open", share)
             assert len(share["rows"]) == notes + 2 and all(row["included"] for row in share["rows"]), f"the sheet lists every note: {len(share['rows'])}"
@@ -563,13 +600,51 @@ class Course:
                                                "progress_shown": "Capturing: " in cancel.get("progress", ""), "cancel_offered": cancel.get("offered") == "Cancel capture",
                                                "nothing_recorded_on_cancel": bool(cancel.get("unrecorded"))})
 
+    def optimized(self):
+        return self.args.build_type.lower() not in ("debug", "unknown")
+
+    def stress_targets(self):
+        """[[BPR-1274]]. The stress round against LIMITS, and a note change against the cycle's first."""
+        stress = self.report.get("stress_round")
+        if not stress:
+            return
+        phases, corpus, enforced = stress["phases"], stress["corpus"], bool(self.args.enforce)
+        for phase in STRESS_WINDOW_PHASES:
+            measured = phases.get(phase + "_busy")
+            if not measured or not measured["count"]:
+                continue
+            met = measured["max"] < INPUT_TARGET_MS
+            self.report["targets"].append({"corpus": corpus, "phase": phase + "_busy", "target_max_ms": INPUT_TARGET_MS, "max_ms": measured["max"], "count": measured["count"],
+                                           "met": met, "enforced": enforced})
+            if enforced and not met:
+                self.report["failures"].append(f"stress {phase} held the window {measured['max']} ms, over the {INPUT_TARGET_MS} ms input target")
+        for phase in STRESS_UNPROGRESSED_PHASES:
+            measured = phases.get(phase)
+            if not measured or not measured["count"]:
+                continue
+            met = measured["p95"] < PROGRESS_THRESHOLD_MS
+            self.report["targets"].append({"corpus": corpus, "phase": phase, "target_p95_ms": PROGRESS_THRESHOLD_MS, "p95_ms": measured["p95"], "count": measured["count"],
+                                           "met": met, "enforced": enforced})
+            if enforced and not met:
+                self.report["failures"].append(f"stress {phase} p95 {measured['p95']} ms is over {PROGRESS_THRESHOLD_MS} ms, past which progress and cancel are owed, and it shows neither")
+        first, later = phases.get("desktop_suggest_first"), phases.get("desktop_suggest")
+        if not first or not later or not first["p50"]:
+            return
+        pinned = self.optimized()
+        ratio = round(later["p50"] / first["p50"], 3)
+        met = ratio <= NOTE_CHANGE_RATIO_LIMIT
+        self.report["targets"].append({"corpus": corpus, "phase": "note_change_ratio", "first_ms": first["p50"], "round_ms": later["p50"], "ratio": ratio,
+                                       "limit": NOTE_CHANGE_RATIO_LIMIT, "met": met, "enforced": pinned})
+        if pinned and not met:
+            self.report["failures"].append(f"a note change in the stress round took {later['p50']} ms, {ratio} times the cycle's first note change ({first['p50']} ms), over {NOTE_CHANGE_RATIO_LIMIT}")
+
     def cold_open_ratio(self, name, entry):
         """[[BPR-1275]]. The desktop's cold open within a factor of the terminal's, pinned in optimized builds."""
         desktop = entry["desktop"].get("open_cold", {}).get("p50")
         terminal = entry["terminal"].get("open_cold", {}).get("p50")
         if desktop is None or not terminal:
             return
-        pinned = self.args.build_type.lower() not in ("debug", "unknown")
+        pinned = self.optimized()
         ratio = round(desktop / terminal, 3)
         met = ratio <= COLD_OPEN_RATIO_LIMIT
         self.report["targets"].append({"corpus": name, "phase": "open_cold_ratio", "desktop_ms": desktop, "terminal_ms": terminal, "ratio": ratio,
@@ -605,14 +680,30 @@ class Course:
         if self.args.limit_probe:
             self.report["limit_probe"] = self.limit_probe()
         self.targets()
+        self.stress_targets()
         self.report["environment"] = environment_facts(self.args, self.qt, self.qpa)
         return self.report
 
 
+def check_report(args):
+    """[[BPR-1274]]. Every target this course sets, judged again on a report it
+    wrote: a station's return, or one measured before a fix, checked without
+    running anything. What the report itself concluded is set aside."""
+    course = Course(args, None, None)
+    report = json.loads(Path(args.check_report).read_text(encoding="utf-8"))
+    course.report = dict(report, targets=[], failures=[])
+    for name, entry in course.report["corpora"].items():
+        course.cold_open_ratio(name, entry)
+    course.targets()
+    course.stress_targets()
+    return course.report
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--application", required=True)
-    parser.add_argument("--cycle-application", required=True)
+    parser.add_argument("--application")
+    parser.add_argument("--cycle-application")
+    parser.add_argument("--check-report", help="judge this course's targets on a report it wrote, running nothing ([[BPR-1274]])")
     parser.add_argument("--report")
     parser.add_argument("--corpus", action="append", choices=sorted(CORPORA))
     parser.add_argument("--files", type=int, help="override every corpus's file count (a quick run, not a named corpus)")
@@ -625,6 +716,15 @@ def main():
     parser.add_argument("--limit-probe", action="store_true", help="also refuse a 250,001-entry folder")
     parser.add_argument("--quick", type=int, default=0, help="1: a correctness run on 2,000 files, no stress round or limit probe, no measurement claim")
     args = parser.parse_args()
+    if args.check_report:
+        report = check_report(args)
+        print(json.dumps({"targets": report["targets"], "failures": report["failures"]}, indent=1, sort_keys=True))
+        if report["failures"]:
+            raise SystemExit("large-project targets missed: " + "; ".join(report["failures"]))
+        print("REVIEW_CYCLE_LARGE_PROJECT_TARGETS_OK")
+        return
+    if not args.application or not args.cycle_application:
+        parser.error("--application and --cycle-application are required unless --check-report is given")
     if args.quick:
         args.files, args.no_stress, args.limit_probe = args.files or 2000, True, False
     with private_fixture_parent() as parent, contained_temporary_directory(prefix="large-project-", parent=parent) as temporary:

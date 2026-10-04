@@ -303,7 +303,11 @@ namespace bpr::application {
 			.ExpectedDraftRevision = aRequest.ExpectedDraftRevision,
 			.Editor                = { .ShownRevision = aRequest.ExpectedDraftRevision },
 		};
-		auto frozen = freeze_cycle_round(aStore, aHost, aSubject, freeze, std::move(aStop));
+		// [[BPR-1274]]. The effect lane runs one call at a time, so the round
+		// is frozen from the content just previewed and rendered: assembled,
+		// encoded and digested once.
+		auto shown  = cycle_round_preview{ .Draft = preview->Draft, .Selection = preview->Selection };
+		auto frozen = freeze_cycle_round(aStore, aSubject, freeze, std::move(*preview), aStop);
 		if (!frozen) {
 			return std::unexpected(frozen.error());
 		}
@@ -312,12 +316,21 @@ namespace bpr::application {
 			output.Refusal = frozen->Refusal;
 			return output;
 		}
-		// The effect lane runs one call at a time, so the frozen content is
-		// the previewed content; a digest that differs is rendered again.
-		if (frozen->Frozen->Content.Digest != content.Digest && !render(frozen->Frozen->Content, aRequest.Route, output)) {
-			return output;
-		}
 		output.Round = std::move(*frozen->Frozen);
+		// The sheet then shows the round as frozen, as reading the draft back would.
+		auto stored = aStore.disclosure_policy(std::move(aStop));
+		if (!stored) {
+			return std::unexpected(stored.error());
+		}
+		shown.Round   = output.Round->Round.Round.Id.Id;
+		shown.Content = output.Round->Content;
+		shown.Frozen  = output.Round->Round;
+		shown.Prior   = output.Round->Round;
+		auto text     = core::render_round_markdown(output.Round->Content);
+		output.Shown  = cycle_share_draft{ .Preview = std::move(shown), .DocumentBytes = text.size(), .Policy = *stored };
+		if (text.size() <= maximum_shown_round_document_bytes) {
+			output.Shown->Document = std::move(text);
+		}
 		return output;
 	}
 

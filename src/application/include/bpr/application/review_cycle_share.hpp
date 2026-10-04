@@ -92,6 +92,10 @@ namespace bpr::application {
 		/// The readable document or the bundle; empty for Use in external agent.
 		std::string                 Bytes;
 		core::cycle_round_file_kind Format = core::cycle_round_file_kind::markdown;
+		/// \brief [[BPR-1274]]. Once frozen: the draft as Share notes shows it
+		/// now, from the content just frozen, so the sheet need not read the
+		/// round back. Its `Notes` are not read and stay empty.
+		std::optional<cycle_share_draft> Shown;
 	};
 	/// \brief Decides the route for the round the draft's revision freezes as,
 	/// freezes it and renders what leaves. Repeating it for the same revision

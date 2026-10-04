@@ -376,24 +376,33 @@ namespace bpr::qt {
 			void set_line(QWidget* const aLine)
 			{
 				Line = aLine;
-				updateGeometry();
+				remeasure();
 			}
 
 			/// What it says while the note is closed ("Show Change") and open ("Hide Change").
 			void set_words(const QString& aClosed, const QString& aOpen)
 			{
+				// [[BPR-1274]]. The same words again change nothing: every row is
+				// filled again on each refresh, and a new measure lays out the list.
+				if (aClosed == Closed && aOpen == Open) {
+					return;
+				}
 				Closed = aClosed;
 				Open   = aOpen;
 				setText(isChecked() ? Open : Closed);
-				updateGeometry();
+				remeasure();
 			}
 
 			[[nodiscard]] auto sizeHint() const -> QSize override
 			{
-				const auto metrics = QFontMetrics{ words_font() };
-				// Room for the wider of the two words, so opening moves nothing.
-				const auto width = std::max(metrics.horizontalAdvance(Closed), metrics.horizontalAdvance(Open));
-				return QSize{ width + 4, metrics.height() + 2 };
+				// Measured once per font and words: the layout asks for it often.
+				if (!Measured) {
+					const auto metrics = QFontMetrics{ words_font() };
+					// Room for the wider of the two words, so opening moves nothing.
+					const auto width = std::max(metrics.horizontalAdvance(Closed), metrics.horizontalAdvance(Open));
+					Measured         = QSize{ width + 4, metrics.height() + 2 };
+				}
+				return *Measured;
 			}
 
 			[[nodiscard]] auto minimumSizeHint() const -> QSize override
@@ -419,13 +428,19 @@ namespace bpr::qt {
 				if (aEvent->type() == QEvent::HoverEnter || aEvent->type() == QEvent::HoverLeave) {
 					update();
 				} else if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::ParentChange) {
-					updateGeometry();
+					remeasure();
 					update();
 				}
 				return QToolButton::event(aEvent);
 			}
 
 		private:
+			void remeasure()
+			{
+				Measured.reset();
+				updateGeometry();
+			}
+
 			/// The font of the line the words end: macOS gives tool buttons, and
 			/// plain widgets, a smaller font than its labels.
 			[[nodiscard]] auto words_font() const -> QFont
@@ -436,9 +451,10 @@ namespace bpr::qt {
 				return face;
 			}
 
-			QPointer<QWidget> Line;
-			QString           Closed;
-			QString           Open;
+			QPointer<QWidget>            Line;
+			QString                      Closed;
+			QString                      Open;
+			mutable std::optional<QSize> Measured;
 		};
 	}
 
@@ -1376,6 +1392,18 @@ namespace bpr::qt {
 
 	void review_cycle_share_sheet::fill_row(note_row& aRow, const std::size_t aNumber, const application::review_cycle_note_entry& aNote, const application::review_cycle_note_context* aContext)
 	{
+		const auto same = aRow.Filled && aRow.Filled->Number == aNumber && aRow.Filled->Included == aRow.Included && aRow.Filled->Idle == Idle && aRow.Filled->Note == aNote
+			&& (aContext == nullptr ? !aRow.Filled->Context : aRow.Filled->Context == *aContext);
+		if (same) {
+			return;
+		}
+		aRow.Filled = note_row::filling{
+			.Number   = aNumber,
+			.Included = aRow.Included,
+			.Idle     = Idle,
+			.Note     = aNote,
+			.Context  = aContext != nullptr ? std::optional{ *aContext } : std::nullopt,
+		};
 		auto heading = first_line(aNote.Body);
 		if (heading.isEmpty()) {
 			// A change with no words is named by what it changes.
@@ -1475,17 +1503,37 @@ namespace bpr::qt {
 				listed.emplace_back(&note, false);
 			}
 		}
-		// Rows keep their widgets, and so focus and expansion, while their note is listed.
-		auto next = std::vector<note_row>{ };
-		for (const auto& [note, included] : listed) {
-			const auto found = std::ranges::find(Rows, note->Item.Id, &note_row::Item);
+		// Rows keep their widgets, and so focus and expansion, while their note
+		// is listed. [[BPR-1274]]: one pass makes at most `rows_per_pass` new
+		// rows, the first listed that have none; the rest follow, a pass a
+		// turn, so a long round opens without holding the window. The rows
+		// made so far stand in the listed order, each numbered as it is read.
+		auto next    = std::vector<note_row>{ };
+		auto numbers = std::vector<std::size_t>{ };
+		auto notes   = std::vector<const application::review_cycle_note_entry*>{ };
+		auto made    = std::size_t{ 0 };
+		// One pass of new rows a turn: a refresh in a turn whose pass is queued
+		// makes none.
+		const auto budget   = PassQueued ? std::size_t{ 0 } : rows_per_pass;
+		auto       included = std::size_t{ 0 };
+		next.reserve(listed.size());
+		for (const auto& [note, chosen] : listed) {
+			const auto number = chosen ? ++included : 0U;
+			// Rows already in this order are found where they stand.
+			const auto here  = next.size() < Rows.size() && Rows[next.size()].Item == note->Item.Id;
+			const auto found = here ? Rows.begin() + static_cast<std::ptrdiff_t>(next.size()) : std::ranges::find(Rows, note->Item.Id, &note_row::Item);
 			if (found != Rows.end()) {
-				next.push_back(*found);
+				next.push_back(std::move(*found));
 				found->Row = nullptr;
-			} else {
+			} else if (made < budget) {
 				next.push_back(make_row(note->Item.Id));
+				++made;
+			} else {
+				continue;
 			}
-			next.back().Included = included;
+			next.back().Included = chosen;
+			numbers.push_back(number);
+			notes.push_back(note);
 		}
 		for (auto& row : Rows) {
 			if (row.Row != nullptr) {
@@ -1494,29 +1542,68 @@ namespace bpr::qt {
 				row.Row->hide();
 			}
 		}
-		Rows = std::move(next);
-		for (auto& row : Rows) {
-			NotesLayout->removeWidget(row.Row);
+		// The rows that stand as they stood, in the same places: only rows
+		// after them are put in. Taking every row out and putting it back
+		// lays all of them out again.
+		auto kept = std::size_t{ 0 };
+		while (kept < next.size() && kept < Placed.size() && next[kept].Row == Placed[kept]) {
+			++kept;
 		}
-		auto number = std::size_t{ 0 };
+		for (auto index = kept; index < Placed.size(); ++index) {
+			NotesLayout->removeWidget(Placed[index]);
+		}
+		Rows = std::move(next);
+		Placed.resize(kept);
+		Unlisted = listed.size() - Rows.size();
 		for (std::size_t index = 0; index < Rows.size(); ++index) {
 			auto&      row     = Rows[index];
 			const auto context = std::ranges::find(aShare.Contexts, row.Item, &application::review_cycle_note_context::Item);
-			NotesLayout->insertWidget(static_cast<int>(index), row.Row);
-			fill_row(row, row.Included ? ++number : 0U, *listed[index].first, context == aShare.Contexts.end() ? nullptr : &*context);
+			if (index >= kept) {
+				NotesLayout->insertWidget(static_cast<int>(index), row.Row);
+				Placed.push_back(row.Row);
+			}
+			fill_row(row, numbers[index], *notes[index], context == aShare.Contexts.end() ? nullptr : &*context);
+		}
+		// Rows put in while the sheet shows are shown in this pass, filled, not
+		// in the next turn beside the next pass's; the list is laid out once,
+		// after them, not once for each.
+		if (NotesList->isVisible() && kept < Rows.size()) {
+			NotesLayout->setEnabled(false);
+			for (auto index = kept; index < Rows.size(); ++index) {
+				auto* const widget = Rows[index].Row;
+				if (widget->isHidden() && !widget->testAttribute(Qt::WA_WState_ExplicitShowHide)) {
+					widget->show();
+				}
+			}
+			NotesLayout->setEnabled(true);
 		}
 		NotesHeading->setText(QStringLiteral("%1 of %2 %3, in the order they will be read")
-								  .arg(number)
-								  .arg(Rows.size())
-								  .arg(Rows.size() == 1U ? QStringLiteral("note") : QStringLiteral("notes")));
+								  .arg(included)
+								  .arg(listed.size())
+								  .arg(listed.size() == 1U ? QStringLiteral("note") : QStringLiteral("notes")));
 		// Tab follows what is shown: the round's choices, each note, then the buttons.
-		auto order = std::vector<QWidget*>{ Actions[0], Actions[1], Actions[2], Goal, AllCode };
-		for (const auto& row : Rows) {
-			order.insert(order.end(), { row.Include, row.Disclose, row.Whole });
+		if (kept < Rows.size() || kept < TabOrdered || Rows.empty()) {
+			auto order = std::vector<QWidget*>{ Actions[0], Actions[1], Actions[2], Goal, AllCode };
+			for (const auto& row : Rows) {
+				order.insert(order.end(), { row.Include, row.Disclose, row.Whole });
+			}
+			order.insert(order.end(), { ReplaceIt, KeepIt, Invocation, Routes[0], Routes[1], ExactText, Routes[2], Routes[3], Routes[4], Cancel });
+			for (std::size_t index = 1; index < order.size(); ++index) {
+				QWidget::setTabOrder(order[index - 1U], order[index]);
+			}
 		}
-		order.insert(order.end(), { ReplaceIt, KeepIt, Invocation, Routes[0], Routes[1], ExactText, Routes[2], Routes[3], Routes[4], Cancel });
-		for (std::size_t index = 1; index < order.size(); ++index) {
-			QWidget::setTabOrder(order[index - 1U], order[index]);
+		TabOrdered = Rows.size();
+		// The next pass, once this turn is over, with whatever the sheet shows then.
+		if (Unlisted > 0U && !PassQueued) {
+			PassQueued = true;
+			QTimer::singleShot(0, this, [this] {
+				PassQueued = false;
+				if (Unlisted > 0U) {
+					Presenting = true;
+					rebuild_rows(Shown, ShownNotes);
+					Presenting = false;
+				}
+			});
 		}
 		refresh_all_code();
 	}
@@ -1924,5 +2011,10 @@ namespace bpr::qt {
 	auto review_cycle_share_sheet::rows() const noexcept -> const std::vector<note_row>&
 	{
 		return Rows;
+	}
+
+	auto review_cycle_share_sheet::listing() const noexcept -> bool
+	{
+		return Unlisted > 0U;
 	}
 }

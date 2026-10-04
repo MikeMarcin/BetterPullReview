@@ -840,6 +840,70 @@ namespace {
 		expect(window.view().Notes.size() == 4U && window.view().Share && window.view().Share->Selection.Goal == "Mine", "read again, Compose feedback with it");
 		std::cout << "NATIVE: a window keeps its note and its goal beside another interface's writes\n";
 	}
+
+	/// \brief [[BPR-1274]]. A note change reads that note, not the round: it
+	/// takes as many host steps in a cycle of 150 notes as in one of 10, and
+	/// leaves the notes exactly as a fresh read of the cycle shows them. Read
+	/// a note at a time, as before, 140 more notes cost 560 more steps.
+	void changes_one_note_without_reading_the_round(const std::filesystem::path& aScratch)
+	{
+		tests::sqlite_contract::scratch_root profileScratch{ "cycle-one-note-profile" };
+		const auto&                          profileRoot = profileScratch.path();
+		const auto                           project     = aScratch / "one-note-project";
+		write_file(project / "README.md", "# One note\n");
+		write_file(project / "src" / "lexer.cpp", "int lex()\n{\n\treturn 0;\n}\n");
+
+		auto window = desk{ profileRoot, 41 };
+		window.Host->open_project(project.string());
+		window.Lanes.drain();
+		// Host steps a gesture takes until nothing is left to run.
+		const auto steps = [&](auto aGesture) {
+			aGesture();
+			auto count = std::size_t{ 0 };
+			for (; window.Lanes.pending() > 0U; ++count) {
+				window.Lanes.run_next();
+			}
+			return count;
+		};
+		const auto note = [&](const std::string& aBody) { return steps([&] { window.Host->comment({ .Primary = core::cycle_whole_target{ }, .Body = aBody }); }); };
+		for (auto index = 0; index < 10; ++index) {
+			note("Early note " + std::to_string(index) + ".");
+		}
+		const auto few = note("The eleventh note.");
+		for (auto index = 11; index < 150; ++index) {
+			note("Later note " + std::to_string(index) + ".");
+		}
+		const auto many = note("The 151st note.");
+		expect(window.view().Notes.size() == 151U && window.view().Message.empty(), "151 notes");
+		expect(few == many, "a note change takes " + std::to_string(many) + " steps with 150 notes and " + std::to_string(few) + " with 10");
+
+		// A suggestion, a related location and a decision, each on one note.
+		window.Host->open_file("src/lexer.cpp", false);
+		const auto source  = window.view().Source->Bytes;
+		const auto start   = text(source).find("return 0;");
+		const auto anchor  = core::make_anchor(window.view().Source->Revision, "src/lexer.cpp", source, start, start + 9U);
+		auto       request = application::review_cycle_suggestion_request{ .Rationale = "Say what it lexed." };
+		request.Edits.push_back({ .Selection = *anchor, .Replacement = "return 1;" });
+		steps([&] { window.Host->suggest(std::move(request)); });
+		expect(window.view().Notes.size() == 152U && window.view().Notes.back().Suggestions == 1U, "the suggestion is listed");
+		window.Host->open_file("README.md", false);
+		window.Lanes.drain();
+		const auto readme  = window.view().Source->Bytes;
+		const auto heading = core::make_anchor(window.view().Source->Revision, "README.md", readme, 2, 10);
+		const auto first   = window.view().Notes.front();
+		steps([&] { window.Host->relate(first.Item, first.Version, { .Target = *heading }); });
+		expect(window.view().Notes.front().Related.size() == 1U, "the related location is listed");
+		steps([&] { window.Host->decide(first.Item, core::cycle_reviewer_decision::verified); });
+		expect(window.view().Message.empty() && window.view().Notes.front().Reconciliation.has_value(), "the decision is reconciled");
+
+		// What one change at a time left is what reading the whole cycle shows.
+		auto fresh = desk{ profileRoot, 42 };
+		fresh.Host->open_project(project.string());
+		fresh.Lanes.drain();
+		fresh.Host->open_file("README.md", false);
+		expect(fresh.view().Notes == window.view().Notes, "the notes as a fresh read of the cycle shows them");
+		std::cout << "NATIVE: a note change in a 151-note cycle reads one note (" << many << " steps, as with 10)\n";
+	}
 }
 
 namespace {
@@ -942,6 +1006,7 @@ try {
 	refuses_a_copy_over_the_clipboard_limit(scratch.path());
 	exposes_a_round_under_the_stored_policy(scratch.path());
 	keeps_work_beside_another_interface(scratch.path());
+	changes_one_note_without_reading_the_round(scratch.path());
 	lists_and_captures_a_large_project(scratch.path());
 	std::cout << "review-cycle-workbench-tests:pass\n";
 	return EXIT_SUCCESS;

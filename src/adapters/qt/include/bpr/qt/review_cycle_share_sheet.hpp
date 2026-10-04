@@ -278,8 +278,27 @@ namespace bpr::qt {
 			note_code_view*              Code     = nullptr;
 			QLabel*                      Facts    = nullptr;
 			QPushButton*                 Whole    = nullptr;
+
+			/// \brief [[BPR-1274]]. What the row was last filled from: a refresh
+			/// that brings the same leaves it alone, so one note's change
+			/// fills and lays out one row, not the list.
+			struct filling
+			{
+				std::size_t                                           Number   = 0;
+				bool                                                  Included = false;
+				bool                                                  Idle     = false;
+				application::review_cycle_note_entry                  Note;
+				std::optional<application::review_cycle_note_context> Context;
+				auto                                                  operator==(const filling&) const -> bool = default;
+			};
+			std::optional<filling> Filled;
 		};
 		[[nodiscard]] auto rows() const noexcept -> const std::vector<note_row>&;
+		/// \brief [[BPR-1274]]. Whether listed notes still wait for their rows:
+		/// a long round's rows are added a pass a turn, `rows_per_pass` at a
+		/// time, so opening it never holds the window for all of them.
+		[[nodiscard]] auto           listing() const noexcept -> bool;
+		static constexpr std::size_t rows_per_pass = 64U;
 
 	protected:
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
@@ -307,22 +326,29 @@ namespace bpr::qt {
 		void               open_text();
 		void               want_code_syntax(const source_syntax_request& aRequest) const;
 
-		review_cycle_share_dispatch                             Dispatch;
-		application::review_cycle_share_view                    Shown;
-		std::vector<application::review_cycle_note_entry>       ShownNotes;
-		QLabel*                                                 Title = nullptr;
-		QLabel*                                                 Intro = nullptr;
-		std::array<QPushButton*, 3>                             Actions{ };
-		QButtonGroup*                                           ActionGroup  = nullptr;
-		QLabel*                                                 ActionWords  = nullptr;
-		QLineEdit*                                              Goal         = nullptr;
-		QLabel*                                                 NotesHeading = nullptr;
-		QToolButton*                                            AllCode      = nullptr;
-		QScrollArea*                                            NotesArea    = nullptr;
-		QWidget*                                                NotesList    = nullptr;
-		QVBoxLayout*                                            NotesLayout  = nullptr;
-		QFrame*                                                 DropMark     = nullptr;
-		std::vector<note_row>                                   Rows;
+		review_cycle_share_dispatch                       Dispatch;
+		application::review_cycle_share_view              Shown;
+		std::vector<application::review_cycle_note_entry> ShownNotes;
+		QLabel*                                           Title = nullptr;
+		QLabel*                                           Intro = nullptr;
+		std::array<QPushButton*, 3>                       Actions{ };
+		QButtonGroup*                                     ActionGroup  = nullptr;
+		QLabel*                                           ActionWords  = nullptr;
+		QLineEdit*                                        Goal         = nullptr;
+		QLabel*                                           NotesHeading = nullptr;
+		QToolButton*                                      AllCode      = nullptr;
+		QScrollArea*                                      NotesArea    = nullptr;
+		QWidget*                                          NotesList    = nullptr;
+		QVBoxLayout*                                      NotesLayout  = nullptr;
+		QFrame*                                           DropMark     = nullptr;
+		std::vector<note_row>                             Rows;
+		/// [[BPR-1274]]. The rows' widgets in the notes layout, in its order;
+		/// listed notes with no row yet; the rows the tab order last ran
+		/// through; and whether the next pass is queued.
+		std::vector<QWidget*>                                   Placed;
+		std::size_t                                             Unlisted   = 0;
+		std::size_t                                             TabOrdered = 0;
+		bool                                                    PassQueued = false;
 		std::set<core::cycle_feedback_item_id>                  Expanded;
 		QLabel*                                                 Status      = nullptr;
 		QWidget*                                                ReplaceRow  = nullptr;

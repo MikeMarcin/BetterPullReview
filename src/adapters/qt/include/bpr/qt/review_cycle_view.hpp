@@ -207,6 +207,7 @@ namespace bpr::qt {
 		void save_reply();
 		void apply_source_syntax();
 		void present_comparison(const application::review_cycle_comparison_view& aComparison, bool aChanged);
+		void present_notes(const std::optional<application::review_cycle_source_view>& aSource);
 
 		review_cycle_dispatch                          Dispatch;
 		application::review_cycle_workbench_projection Projection;

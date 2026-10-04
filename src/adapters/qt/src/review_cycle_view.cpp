@@ -494,6 +494,10 @@ namespace bpr::qt {
 		Notes->setObjectName(QStringLiteral("cycleNotes"));
 		Notes->setAccessibleName(QStringLiteral("Notes"));
 		Notes->setWordWrap(true);
+		// [[BPR-1274]]. A long round's notes are laid out a batch a turn, so a
+		// change to one never holds the window for all of them.
+		Notes->setLayoutMode(QListView::Batched);
+		Notes->setBatchSize(64);
 		Notes->setTextElideMode(Qt::ElideNone);
 		Notes->setSpacing(4);
 		Notes->setAlternatingRowColors(true);
@@ -838,6 +842,110 @@ namespace bpr::qt {
 		Source->scroll_to_line(top);
 	}
 
+	/// \brief The notes list: each note's current wording, where it attaches
+	/// and what newer material and recipients say, then the replies about a
+	/// round as a whole.
+	void review_cycle_view::present_notes(const std::optional<application::review_cycle_source_view>& aSource)
+	{
+		// Each item's lines, and whether it can be chosen.
+		auto shown = std::vector<std::pair<QStringList, bool>>{ };
+		for (const auto& note : Projection.Notes) {
+			auto lines = QStringList{ };
+			if (const auto* anchor = std::get_if<core::cycle_source_anchor>(&note.Primary)) {
+				auto where = QStringLiteral("%1 · %2").arg(text_of(anchor->Path), revision_text(anchor->Revision));
+				if (aSource && aSource->Revision == anchor->Revision && aSource->Path == anchor->Path) {
+					if (const auto span = core::project_lines(aSource->Bytes, anchor->Start, anchor->End)) {
+						where = QStringLiteral("%1 · %2 · %3").arg(text_of(anchor->Path), lines_text(*span), revision_text(anchor->Revision));
+					}
+				}
+				lines.append(where);
+			} else if (const auto* file = std::get_if<core::cycle_file_target>(&note.Primary)) {
+				lines.append(QStringLiteral("%1 (whole file) · %2").arg(text_of(file->Path), revision_text(file->Revision)));
+			} else if (const auto* module = std::get_if<core::cycle_module_target>(&note.Primary)) {
+				lines.append(QStringLiteral("Folder %1/").arg(text_of(module->Path)));
+			} else {
+				lines.append(QStringLiteral("Whole cycle"));
+			}
+			lines.append(!note.Body.empty() ? text_of(note.Body) : note.Suggestions > 0U ? QStringLiteral("(suggestion only)")
+																						 : QStringLiteral("(no text)"));
+			if (const auto* anchor = std::get_if<core::cycle_source_anchor>(&note.Primary); anchor != nullptr && !anchor->Original.empty()) {
+				lines.append(QStringLiteral("Original: %1").arg(text_of(anchor->Original).section(QLatin1Char('\n'), 0, 0).left(120)));
+			}
+			if (note.Correspondence) {
+				lines.append(correspondence_text(*note.Correspondence));
+			}
+			if (note.Suggestions > 0U) {
+				lines.append(QStringLiteral("Suggested change · %1").arg(note.Suggestions));
+			}
+			if (const auto author = provenance_text(note.Provenance); !author.isEmpty()) {
+				lines.append(author);
+			}
+			if (!note.Related.empty()) {
+				lines.append(QStringLiteral("Related locations · %1").arg(note.Related.size()));
+			}
+			if (note.Reconciliation) {
+				const auto& item = *note.Reconciliation;
+				if (!note.Correspondence && item.Primary && item.Primary->Kind != core::cycle_correspondence::exact_material) {
+					lines.append(QStringLiteral("Original code: %1").arg(correspondence_text(*item.Primary)));
+				}
+				for (const auto& suggestion : item.Suggestions) {
+					if (suggestion.Observation == core::cycle_application_observation::already_applied) {
+						lines.append(QStringLiteral("Suggested result present in %1 (not a verification)").arg(revision_text(item.Against)));
+					}
+				}
+				if (const auto words = status_text(item); !words.isEmpty()) {
+					lines.append(words);
+				}
+			}
+			// What recipients said: claims, never a verification.
+			for (const auto& statement : note.Statements) {
+				const auto said = statement.Disposition ? disposition_text(*statement.Disposition) : QStringLiteral("replied");
+				lines.append(QStringLiteral("F%1 reply · %2 %3: %4").arg(statement.Round.value()).arg(sender_text(statement.From, statement.ClaimedAuthor, statement.Channel), said, first_line(statement.Body)));
+				if (!statement.Evidence.empty()) {
+					lines.append(QStringLiteral("Evidence reported, not run by BPR · %1").arg(statement.Evidence.size()));
+				}
+			}
+			shown.emplace_back(std::move(lines), true);
+		}
+		// Statements about a round as a whole, and structured responses, after the notes.
+		for (const auto& response : Projection.Responses) {
+			auto lines = QStringList{ };
+			if (core::structured_response(response.Channel)) {
+				lines.append(QStringLiteral("Response %1 to F%2 · %3").arg(text_of(response.ForeignId)).arg(response.Round.value()).arg(sender_text(response.From, response.ClaimedAuthor, response.Channel)));
+				lines.append(QStringLiteral("Speaks to %1 item(s); items it does not name have no response").arg(response.Items));
+				if (response.ClaimedResult) {
+					lines.append(response.CapturedResult ? QStringLiteral("Says the result is %1 (captured)").arg(revision_text(*response.CapturedResult))
+														 : QStringLiteral("Says the result is %1 (not captured here)").arg(text_of(*response.ClaimedResult)));
+				}
+			} else if (response.Items == 0U) {
+				lines.append(QStringLiteral("F%1 reply · %2").arg(response.Round.value()).arg(sender_text(response.From, std::nullopt, response.Channel)));
+				lines.append(text_of(response.Body));
+			} else {
+				continue;
+			}
+			shown.emplace_back(std::move(lines), false);
+		}
+		// [[BPR-1274]]. The same words leave the list as it is, with its
+		// selection and scroll: rebuilding it lays every item out again.
+		auto same = static_cast<qsizetype>(shown.size()) == Notes->count();
+		for (auto row = 0; same && row < Notes->count(); ++row) {
+			const auto* const item  = Notes->item(row);
+			const auto&       entry = shown[static_cast<std::size_t>(row)];
+			same                    = item->text() == entry.first.join(QLatin1Char('\n')) && item->flags().testFlag(Qt::ItemIsSelectable) == entry.second;
+		}
+		if (same) {
+			return;
+		}
+		Notes->clear();
+		for (const auto& [lines, selectable] : shown) {
+			auto* const item = new QListWidgetItem{ lines.join(QLatin1Char('\n')), Notes };
+			item->setData(Qt::AccessibleTextRole, lines.join(QStringLiteral(". ")));
+			if (!selectable) {
+				item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+			}
+		}
+	}
+
 	void review_cycle_view::present(const application::review_cycle_workbench_projection& aProjection)
 	{
 		Presenting          = true;
@@ -994,85 +1102,11 @@ namespace bpr::qt {
 		FilePosition->setText(active != Projection.Files.end() ? QStringLiteral("File %1 of %2").arg(active - Projection.Files.begin() + 1).arg(Projection.Files.size()) : QStringLiteral("File"));
 
 		// Notes: current wording, where each attaches and what newer material says.
-		Notes->clear();
-		for (const auto& note : Projection.Notes) {
-			auto lines = QStringList{ };
-			if (const auto* anchor = std::get_if<core::cycle_source_anchor>(&note.Primary)) {
-				auto where = QStringLiteral("%1 · %2").arg(text_of(anchor->Path), revision_text(anchor->Revision));
-				if (source && source->Revision == anchor->Revision && source->Path == anchor->Path) {
-					if (const auto span = core::project_lines(source->Bytes, anchor->Start, anchor->End)) {
-						where = QStringLiteral("%1 · %2 · %3").arg(text_of(anchor->Path), lines_text(*span), revision_text(anchor->Revision));
-					}
-				}
-				lines.append(where);
-			} else if (const auto* file = std::get_if<core::cycle_file_target>(&note.Primary)) {
-				lines.append(QStringLiteral("%1 (whole file) · %2").arg(text_of(file->Path), revision_text(file->Revision)));
-			} else if (const auto* module = std::get_if<core::cycle_module_target>(&note.Primary)) {
-				lines.append(QStringLiteral("Folder %1/").arg(text_of(module->Path)));
-			} else {
-				lines.append(QStringLiteral("Whole cycle"));
-			}
-			lines.append(!note.Body.empty() ? text_of(note.Body) : note.Suggestions > 0U ? QStringLiteral("(suggestion only)")
-																						 : QStringLiteral("(no text)"));
-			if (const auto* anchor = std::get_if<core::cycle_source_anchor>(&note.Primary); anchor != nullptr && !anchor->Original.empty()) {
-				lines.append(QStringLiteral("Original: %1").arg(text_of(anchor->Original).section(QLatin1Char('\n'), 0, 0).left(120)));
-			}
-			if (note.Correspondence) {
-				lines.append(correspondence_text(*note.Correspondence));
-			}
-			if (note.Suggestions > 0U) {
-				lines.append(QStringLiteral("Suggested change · %1").arg(note.Suggestions));
-			}
-			if (const auto author = provenance_text(note.Provenance); !author.isEmpty()) {
-				lines.append(author);
-			}
-			if (!note.Related.empty()) {
-				lines.append(QStringLiteral("Related locations · %1").arg(note.Related.size()));
-			}
-			if (note.Reconciliation) {
-				const auto& item = *note.Reconciliation;
-				if (!note.Correspondence && item.Primary && item.Primary->Kind != core::cycle_correspondence::exact_material) {
-					lines.append(QStringLiteral("Original code: %1").arg(correspondence_text(*item.Primary)));
-				}
-				for (const auto& suggestion : item.Suggestions) {
-					if (suggestion.Observation == core::cycle_application_observation::already_applied) {
-						lines.append(QStringLiteral("Suggested result present in %1 (not a verification)").arg(revision_text(item.Against)));
-					}
-				}
-				if (const auto words = status_text(item); !words.isEmpty()) {
-					lines.append(words);
-				}
-			}
-			// What recipients said: claims, never a verification.
-			for (const auto& statement : note.Statements) {
-				const auto said = statement.Disposition ? disposition_text(*statement.Disposition) : QStringLiteral("replied");
-				lines.append(QStringLiteral("F%1 reply · %2 %3: %4").arg(statement.Round.value()).arg(sender_text(statement.From, statement.ClaimedAuthor, statement.Channel), said, first_line(statement.Body)));
-				if (!statement.Evidence.empty()) {
-					lines.append(QStringLiteral("Evidence reported, not run by BPR · %1").arg(statement.Evidence.size()));
-				}
-			}
-			auto* const item = new QListWidgetItem{ lines.join(QLatin1Char('\n')), Notes };
-			item->setData(Qt::AccessibleTextRole, lines.join(QStringLiteral(". ")));
-		}
-		// Statements about a round as a whole, and structured responses, after the notes.
-		for (const auto& response : Projection.Responses) {
-			auto lines = QStringList{ };
-			if (core::structured_response(response.Channel)) {
-				lines.append(QStringLiteral("Response %1 to F%2 · %3").arg(text_of(response.ForeignId)).arg(response.Round.value()).arg(sender_text(response.From, response.ClaimedAuthor, response.Channel)));
-				lines.append(QStringLiteral("Speaks to %1 item(s); items it does not name have no response").arg(response.Items));
-				if (response.ClaimedResult) {
-					lines.append(response.CapturedResult ? QStringLiteral("Says the result is %1 (captured)").arg(revision_text(*response.CapturedResult))
-														 : QStringLiteral("Says the result is %1 (not captured here)").arg(text_of(*response.ClaimedResult)));
-				}
-			} else if (response.Items == 0U) {
-				lines.append(QStringLiteral("F%1 reply · %2").arg(response.Round.value()).arg(sender_text(response.From, std::nullopt, response.Channel)));
-				lines.append(text_of(response.Body));
-			} else {
-				continue;
-			}
-			auto* const item = new QListWidgetItem{ lines.join(QLatin1Char('\n')), Notes };
-			item->setData(Qt::AccessibleTextRole, lines.join(QStringLiteral(". ")));
-			item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+		// [[BPR-1274]]. Rebuilt only when what it lists changed: each item's
+		// words depend on the notes, the replies and the source shown, and
+		// rebuilding lays every item out again.
+		if (changed || previous.Notes != Projection.Notes || previous.Responses != Projection.Responses) {
+			present_notes(source);
 		}
 		// A later capture never moves an open composer: it states newer material.
 		if (suggesting() && latest && SuggestionSource && SuggestionSource->Revision != *latest) {

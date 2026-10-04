@@ -251,26 +251,32 @@ namespace bpr::application {
 		if (!preview) {
 			return std::unexpected(preview.error());
 		}
-		if (const auto problem = core::freeze_readiness(aRequest.Editor, preview->Draft.Revision)) {
+		return freeze_cycle_round(aStore, aSubject, aRequest, std::move(*preview), std::move(aStop));
+	}
+
+	auto freeze_cycle_round(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const cycle_round_freeze_request& aRequest, cycle_round_preview aPreview,
+							std::stop_token aStop) -> cycle_store_result<cycle_round_freeze_result>
+	{
+		if (const auto problem = core::freeze_readiness(aRequest.Editor, aPreview.Draft.Revision)) {
 			return refused(*problem);
 		}
-		if (aRequest.ExpectedDraftRevision != preview->Draft.Revision) {
+		if (aRequest.ExpectedDraftRevision != aPreview.Draft.Revision) {
 			return refused(core::cycle_round_problem::stale_draft);
 		}
-		if (preview->Refusal) {
-			return cycle_round_freeze_result{ .Refusal = preview->Refusal };
+		if (aPreview.Refusal) {
+			return cycle_round_freeze_result{ .Refusal = aPreview.Refusal };
 		}
-		auto& content = *preview->Content;
+		auto& content = *aPreview.Content;
 		auto  payload = aStore.install(bytes_of(content.Canonical), aStop);
 		if (!payload) {
 			return std::unexpected(payload.error());
 		}
-		auto receipt = aStore.freeze(aRequest.Operation, { .Subject = aSubject, .Draft = aRequest.Draft, .ExpectedDraftRevision = aRequest.ExpectedDraftRevision, .Payload = *payload, .Round = preview->Round }, aStop);
+		auto receipt = aStore.freeze(aRequest.Operation, { .Subject = aSubject, .Draft = aRequest.Draft, .ExpectedDraftRevision = aRequest.ExpectedDraftRevision, .Payload = *payload, .Round = aPreview.Round }, aStop);
 		if (!receipt) {
 			return std::unexpected(receipt.error());
 		}
 		auto frozen = cycle_frozen_round{
-			.Round    = { .Round = { .Id = { .Cycle = aSubject.Cycle, .Id = preview->Round }, .Draft = aRequest.Draft, .DraftRevision = preview->Draft.Revision, .Digest = content.Digest }, .Payload = *payload },
+			.Round    = { .Round = { .Id = { .Cycle = aSubject.Cycle, .Id = aPreview.Round }, .Draft = aRequest.Draft, .DraftRevision = aPreview.Draft.Revision, .Digest = content.Digest }, .Payload = *payload },
 			.Content  = std::move(content),
 			.Reused   = !receipt->Changed,
 			.Replayed = receipt->Replayed,

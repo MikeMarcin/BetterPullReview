@@ -85,6 +85,11 @@ namespace bpr::application {
 	/// \details `aHost` must serve the same store and authority.
 	[[nodiscard]] auto freeze_cycle_round(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject,
 										  const cycle_round_freeze_request& aRequest, std::stop_token aStop) -> cycle_store_result<cycle_round_freeze_result>;
+	/// \brief [[BPR-1274]]. Freezes from `aPreview`, the draft's preview this
+	/// same effect-lane call already assembled: the round is assembled,
+	/// encoded and digested once, not again.
+	[[nodiscard]] auto freeze_cycle_round(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const cycle_round_freeze_request& aRequest, cycle_round_preview aPreview,
+										  std::stop_token aStop) -> cycle_store_result<cycle_round_freeze_result>;
 
 	/// \brief Reads a frozen round and verifies its stored payload against
 	/// the recorded digest. A payload that differs is reported corrupt.

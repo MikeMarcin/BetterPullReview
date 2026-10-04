@@ -1851,6 +1851,56 @@ namespace {
 		expect(metrics.leading() < 0.0 && code.verticalScrollBar()->maximum() == 0,
 			   "a face with negative leading still shows all ten rows, no scrolling");
 	}
+
+	/// \brief [[BPR-1274]]. A 514-note round's sheet opens with its first
+	/// `rows_per_pass` rows and lists the rest a pass a turn, each in the
+	/// round's order and numbered as it is read; built all at once it held
+	/// the window 235 ms. A refresh fills only rows whose note changed: every
+	/// other row keeps its widgets and what they show.
+	void lists_a_long_round_a_pass_a_turn()
+	{
+		auto window = QWidget{ };
+		window.resize(1280, 760);
+		window.show();
+		auto           sheet = qt::review_cycle_share_sheet{ &window };
+		constexpr auto total = std::size_t{ 514 };
+		auto           share = share_view();
+		auto           notes = std::vector<application::review_cycle_note_entry>{ };
+		share.Selection.Items.clear();
+		for (std::uint64_t index = 1; index <= total; ++index) {
+			const auto item = core::cycle_feedback_item_id{ index };
+			share.Selection.Items.push_back({ .Item = item, .Wording = core::private_review_turn_revision_id{ 1 } });
+			notes.push_back({ .Item = { .Cycle = core::review_cycle_id{ 1 }, .Id = item }, .Primary = core::cycle_whole_target{ }, .Body = "Note " + std::to_string(index) + "." });
+		}
+		sheet.present(share, notes, true);
+		sheet.show();
+		expect(sheet.listing() && sheet.rows().size() == qt::review_cycle_share_sheet::rows_per_pass, "the sheet opens with its first pass of rows");
+		expect(sheet.notes_heading()->text() == QStringLiteral("514 of 514 notes, in the order they will be read"), "and counts every note from the start");
+		for (auto turn = 0; sheet.listing() && turn < 64; ++turn) {
+			QApplication::processEvents();
+		}
+		const auto& rows = sheet.rows();
+		expect(!sheet.listing() && rows.size() == total, "the rest arrive a pass a turn");
+		auto ordered = true;
+		for (std::size_t index = 0; index < total; ++index) {
+			ordered = ordered && rows[index].Item.value() == index + 1U && rows[index].Number->text() == QString::number(index + 1U)
+				&& rows[index].Heading->text() == QStringLiteral("Note %1.").arg(index + 1U) && rows[index].Row->isVisible();
+		}
+		expect(ordered, "every row shown, in the round's order, numbered as it is read");
+
+		// One note changes: its row alone is filled again.
+		auto* const kept    = rows[10].Row;
+		auto* const changed = rows[300].Row;
+		rows[10].Heading->setText(QStringLiteral("Left alone"));
+		notes[300].Body = "Changed note.";
+		sheet.present(share, notes, true);
+		expect(sheet.rows()[300].Row == changed && sheet.rows()[300].Heading->text() == QStringLiteral("Changed note."), "the changed note's row shows its words");
+		expect(sheet.rows()[10].Row == kept && sheet.rows()[10].Heading->text() == QStringLiteral("Left alone"), "a row whose note did not change is not filled again");
+		notes[10].Body = "Changed too.";
+		sheet.present(share, notes, true);
+		expect(sheet.rows()[10].Heading->text() == QStringLiteral("Changed too."), "until its note changes");
+		std::cout << "NATIVE: a 514-note sheet lists a pass a turn and refills only what changed\n";
+	}
 }
 
 auto main(int aArgc, char** aArgv) -> int
@@ -1869,6 +1919,7 @@ try {
 	expect(qt::register_bundled_code_font(), "the bundled code font registers");
 	fit_rows_at_negative_leading();
 	aligns_and_colours_a_notes_code();
+	lists_a_long_round_a_pass_a_turn();
 	view.set_dispatch({
 		.OpenFile         = [&](const std::string& aPath, bool) { opened = aPath; },
 		.Tab              = [](const core::document_tab_intent&) { },

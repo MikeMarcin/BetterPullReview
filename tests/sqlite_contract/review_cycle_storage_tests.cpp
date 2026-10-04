@@ -6,12 +6,15 @@
 #include <sqlite3.h>
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <fstream>
 #include <iterator>
 #include <memory>
 #include <span>
+#include <stop_token>
 #include <string>
+#include <thread>
 #include <variant>
 #include <vector>
 
@@ -963,6 +966,60 @@ namespace {
 		expect(preview && reopened.Store->remove(operation(14), *preview, { }).has_value(), "explicit removal");
 		expect(sql_count(database_path(scratch.path()), "SELECT count(*) FROM associations") == 0, "its associations leave with it");
 	}
+
+	/// [[BPR-1274]]. Every connection SQLite opens in this process, counted by
+	/// an extension it runs on each.
+	std::atomic<int> Opened{ 0 };
+	auto             count_open(sqlite3*, char**, const sqlite3_api_routines*) -> int
+	{
+		++Opened;
+		return SQLITE_OK;
+	}
+
+	/// [[BPR-1274]]. The calls one thread makes inside a scope share one
+	/// connection, opened by the first and closed when the scope ends; outside
+	/// one each call opens and checks its own, which is what made a 514-item
+	/// round cost seconds. A second scope on the same thread adds nothing, and
+	/// another thread's scope has a connection of its own.
+	void shares_one_connection_within_a_scope()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-scope" };
+		auto                                 store   = open(scratch.path());
+		const auto                           subject = store.create(1);
+		const auto                           reads   = [&] {
+			for (auto index = 0; index < 5; ++index) {
+				expect(store.Store->load(subject, { }).has_value(), "a read");
+			}
+		};
+		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(count_open)) == SQLITE_OK, "count connections");
+		Opened = 0;
+		reads();
+		expect(Opened == 5, "outside a scope each call opens its own connection");
+		Opened = 0;
+		{
+			const auto held = store.Store->hold();
+			expect(held != nullptr, "a scope on this thread");
+			expect(store.Store->hold() == nullptr, "a second scope on the same thread adds nothing");
+			reads();
+			const auto renamed = store.Store->apply(operation(2), { .Subject = subject, .ExpectedRevision = 1, .Change = core::rename_review_cycle{ "Renamed" } }, { });
+			expect(renamed && renamed->Revision == 2, "a write inside the scope commits on its own");
+			expect(store.state(subject).Title == "Renamed", "and the next read sees it");
+			auto stop = std::stop_source{ };
+			stop.request_stop();
+			expect(store.Store->load(subject, stop.get_token()).error().Failure == cycle_store_failure::cancelled, "a cancelled call is still refused");
+			auto other = std::thread{ [&] {
+				const auto theirs = store.Store->hold();
+				expect(theirs != nullptr, "another thread's scope");
+				reads();
+			} };
+			other.join();
+		}
+		expect(Opened == 2, "one connection for each thread's scope");
+		Opened = 0;
+		reads();
+		expect(Opened == 5, "after the scope each call opens its own again");
+		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(count_open)) == 1, "stop counting");
+	}
 }
 
 int main()
@@ -984,6 +1041,7 @@ int main()
 	migrates_the_seventh_schema_and_records_deliveries();
 	migrates_the_eighth_schema_and_keeps_grants_and_policy();
 	migrates_the_ninth_schema_and_associates_external_pull_requests();
+	shares_one_connection_within_a_scope();
 #if !defined(_WIN32)
 	survives_kills_at_every_commit();
 #endif

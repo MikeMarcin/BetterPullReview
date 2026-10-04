@@ -298,6 +298,13 @@ namespace {
 				dialog->setDirectory(aPath);
 				dialog->selectFile(QString{ });
 			} else {
+				// QFileDialog::selectFile leaves the name field alone while it has
+				// focus, and the dialog gives it focus once it is active: a dialog
+				// answered after that would save under the suggested name
+				// ([[BPR-1274]]: a quicker window reached it first).
+				if (auto* const focused = dialog->focusWidget()) {
+					focused->clearFocus();
+				}
 				dialog->selectFile(aPath);
 			}
 			// QDialog's public accept, which QFileDialog overrides to check the name.
@@ -558,7 +565,10 @@ namespace {
 			}
 			if (verb == QStringLiteral("compose")) {
 				click(*Page.review_bar()->widgetForAction(Page.compose_action()));
-				require(wait_for([&] { return Page.projection().Share && Page.share_page()->isVisible() && idle(Page) && !Page.projection().Share->Document.empty(); }), "the share sheet opens with its document");
+				// [[BPR-1274]]: and every listed note has its row; a long round's
+				// rows arrive a pass a turn.
+				require(wait_for([&] { return Page.projection().Share && Page.share_page()->isVisible() && idle(Page) && !Page.projection().Share->Document.empty() && !Page.share_page()->listing(); }),
+						"the share sheet opens with its document and every note listed");
 				return share_state(Page);
 			}
 			if (verb == QStringLiteral("include")) {

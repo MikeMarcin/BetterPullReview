@@ -324,6 +324,13 @@ namespace bpr::application {
 		/// The read in flight, by request number: its completion alone clears it.
 		std::optional<std::uint64_t> ReadingCode;
 		std::uint64_t                CodeRequests = 0;
+		/// [[BPR-1274]]. Another interface wrote the cycle since the notes were
+		/// read (a note was tried again on the cycle as it is now): the next
+		/// change reads every note again, not only its own.
+		bool NotesStale = false;
+		/// [[BPR-1274]]. A full read of the notes waiting for its replies and
+		/// reconciliation, shown with them in one change (`commit_notes`).
+		std::optional<std::vector<review_cycle_note_entry>> PendingNotes;
 		/// The note the larger view was asked for.
 		std::optional<core::cycle_feedback_item_id> LargerItem;
 		/// Publish as Pull Request (BPR-1177): what the composition allows,
@@ -584,6 +591,8 @@ namespace bpr::application {
 		void load(const bool aCaptureWhenEmpty)
 		{
 			View.Activity = review_cycle_activity::loading;
+			// A read of the notes still waiting is read again below.
+			PendingNotes.reset();
 			// A reload lists from the first file again: a capture may have moved every position.
 			Window = { };
 			NextWindow.reset();
@@ -846,68 +855,117 @@ namespace bpr::application {
 
 		void load_notes()
 		{
-			collect_threads(std::nullopt, { });
+			NotesStale = false;
+			collect_notes(std::nullopt, { });
 		}
 
-		void collect_threads(const std::optional<core::cycle_feedback_item_id> aAfter, std::vector<core::cycle_feedback_thread> aFound)
+		/// \brief [[BPR-1274]]. This window changed one note: that note is read
+		/// again, or every note when another interface wrote meanwhile.
+		void note_changed(const core::cycle_feedback_item_ref& aItem)
 		{
-			Runtime.feedback_selected(aAfter, guarded<cycle_feedback_page>([found = std::move(aFound)](implementation& aSelf, cycle_feedback_page aPage) mutable {
-										  std::ranges::move(aPage.Threads, std::back_inserter(found));
-										  if (aPage.Next) {
-											  aSelf.collect_threads(aPage.Next, std::move(found));
-											  return;
-										  }
-										  aSelf.describe_threads(std::move(found), 0U, { });
-									  }));
-		}
-
-		void describe_threads(std::vector<core::cycle_feedback_thread> aThreads, const std::size_t aIndex, std::vector<review_cycle_note_entry> aNotes)
-		{
-			if (aIndex >= aThreads.size()) {
-				View.Notes = std::move(aNotes);
-				want_note_code();
-				load_responses();
+			if (NotesStale) {
+				load_notes();
 				return;
 			}
-			const auto item = aThreads[aIndex].Id;
-			describe_revisions(std::move(aThreads), aIndex, std::move(aNotes), item, std::nullopt, { });
+			refresh_note(aItem);
 		}
 
-		void describe_revisions(std::vector<core::cycle_feedback_thread> aThreads, const std::size_t aIndex, std::vector<review_cycle_note_entry> aNotes,
-								const core::cycle_feedback_item_ref aItem, const std::optional<core::private_review_turn_revision_id> aAfter,
-								std::vector<core::cycle_feedback_revision> aRevisions)
+		/// \brief Every note, a feedback page of them per call, each read whole
+		/// in that call ([[BPR-1274]]: not three calls a note).
+		void collect_notes(const std::optional<core::cycle_feedback_item_id> aAfter, std::vector<review_cycle_note_entry> aFound)
 		{
-			Runtime.feedback_revisions_selected(aItem, aAfter, guarded<cycle_feedback_revision_page>([threads = std::move(aThreads), aIndex, notes = std::move(aNotes), aItem, revisions = std::move(aRevisions)](implementation& aSelf, cycle_feedback_revision_page aPage) mutable {
-													std::ranges::move(aPage.Revisions, std::back_inserter(revisions));
-													if (aPage.Next) {
-														aSelf.describe_revisions(std::move(threads), aIndex, std::move(notes), aItem, aPage.Next, std::move(revisions));
-														return;
-													}
-													aSelf.Runtime.suggestions_selected(aItem, aSelf.guarded<std::vector<core::cycle_suggestion>>([pending = std::move(threads), aIndex, listed = std::move(notes), history = std::move(revisions)](implementation& aHost, std::vector<core::cycle_suggestion> aSuggestions) mutable {
-														const auto& thread  = pending[aIndex];
-														auto        wording = std::find_if(history.rbegin(), history.rend(), [](const core::cycle_feedback_revision& aRevision) {
-															return aRevision.Identity.Position.Turn == core::private_review_turn_id{ 1 };
-														});
-														auto        turns   = std::vector<core::private_review_turn_id>{ };
-														for (const auto& revision : history) {
-															if (std::ranges::find(turns, revision.Identity.Position.Turn) == turns.end()) {
-																turns.push_back(revision.Identity.Position.Turn);
-															}
-														}
-														listed.push_back({
-															.Item        = thread.Id,
-															.Primary     = thread.Primary,
-															.Related     = thread.Related,
-															.Body        = wording != history.rend() ? wording->Body : std::string{ },
-															.Provenance  = wording != history.rend() ? wording->Author.Provenance : core::authored_provenance::unknown,
-															.Turns       = turns.size(),
-															.Suggestions = aSuggestions.size(),
-															.Lifecycle   = thread.Lineage.Lifecycle,
-															.Version     = thread.Lineage.Version,
-														});
-														aHost.describe_threads(std::move(pending), aIndex + 1U, std::move(listed));
-													}));
-												}));
+			Runtime.note_records_selected(aAfter, guarded<cycle_note_record_page>([found = std::move(aFound)](implementation& aSelf, cycle_note_record_page aPage) mutable {
+											  for (const auto& record : aPage.Notes) {
+												  found.push_back(describe(record));
+											  }
+											  if (aPage.Next) {
+												  aSelf.collect_notes(aPage.Next, std::move(found));
+												  return;
+											  }
+											  // Shown with their replies and reconciliation, as one change.
+											  aSelf.PendingNotes = std::move(found);
+											  aSelf.load_responses();
+										  }));
+		}
+
+		/// \brief One note as the list shows it: the latest wording of its first
+		/// turn, how many turns it has and how many suggestions.
+		static auto describe(const cycle_note_record& aRecord) -> review_cycle_note_entry
+		{
+			const auto& history = aRecord.Revisions;
+			const auto  wording = std::find_if(history.rbegin(), history.rend(), [](const core::cycle_feedback_revision& aRevision) {
+				return aRevision.Identity.Position.Turn == core::private_review_turn_id{ 1 };
+			});
+			auto        turns   = std::vector<core::private_review_turn_id>{ };
+			for (const auto& revision : history) {
+				if (std::ranges::find(turns, revision.Identity.Position.Turn) == turns.end()) {
+					turns.push_back(revision.Identity.Position.Turn);
+				}
+			}
+			const auto& thread = aRecord.Thread;
+			return {
+				.Item        = thread.Id,
+				.Primary     = thread.Primary,
+				.Related     = thread.Related,
+				.Body        = wording != history.rend() ? wording->Body : std::string{ },
+				.Provenance  = wording != history.rend() ? wording->Author.Provenance : core::authored_provenance::unknown,
+				.Turns       = turns.size(),
+				.Suggestions = aRecord.Suggestions.size(),
+				.Lifecycle   = thread.Lineage.Lifecycle,
+				.Version     = thread.Lineage.Version,
+			};
+		}
+
+		/// \brief [[BPR-1274]]. After this window changed one note: that note
+		/// read again, listed in item order with what recipients said of it,
+		/// and reconciled alone. Every other note is as it was; a change made
+		/// elsewhere reloads them all (`observe_external_change`).
+		void refresh_note(const core::cycle_feedback_item_ref aItem)
+		{
+			Runtime.note_record_selected(aItem, guarded<std::optional<cycle_note_record>>([aItem](implementation& aSelf, std::optional<cycle_note_record> aRecord) {
+											 auto&      notes = aSelf.notes();
+											 const auto place = std::ranges::lower_bound(notes, aItem.Id, std::less{ }, [](const review_cycle_note_entry& aNote) { return aNote.Item.Id; });
+											 const auto known = place != notes.end() && place->Item.Id == aItem.Id;
+											 if (!aRecord) {
+												 if (known) {
+													 notes.erase(place);
+												 }
+												 aSelf.want_note_code();
+												 aSelf.publish();
+												 return;
+											 }
+											 auto entry       = describe(*aRecord);
+											 entry.Statements = core::item_statements(aSelf.Responses, core::cycle_wire_name(entry.Item.Id));
+											 if (known) {
+												 *place = std::move(entry);
+											 } else {
+												 notes.insert(place, std::move(entry));
+											 }
+											 aSelf.want_note_code();
+											 aSelf.reconcile_note(aItem.Id);
+										 }));
+		}
+
+		/// \brief [[BPR-1274]]. One note against the latest capture, as
+		/// `load_reconciliation` does for every note.
+		void reconcile_note(const core::cycle_feedback_item_id aItem)
+		{
+			if (!Cycle || !Cycle->Latest) {
+				observe_notes();
+				publish();
+				return;
+			}
+			Runtime.reconcile_selected(
+				Cycle->Latest->Id.Id, guarded<std::vector<core::cycle_item_reconciliation>>([aItem](implementation& aSelf, std::vector<core::cycle_item_reconciliation> aItems) {
+					const auto note = std::ranges::find(aSelf.notes(), aItem, [](const review_cycle_note_entry& aNote) { return aNote.Item.Id; });
+					if (note != aSelf.notes().end()) {
+						const auto found     = std::ranges::find(aItems, aItem, &core::cycle_item_reconciliation::Item);
+						note->Reconciliation = found != aItems.end() ? std::optional{ *found } : std::nullopt;
+					}
+					aSelf.observe_notes();
+					aSelf.publish();
+				}),
+				aItem);
 		}
 
 		/// What recipients said, beside each note and in the list of replies.
@@ -925,23 +983,44 @@ namespace bpr::application {
 		void load_reconciliation()
 		{
 			if (!Cycle || !Cycle->Latest) {
+				commit_notes();
 				observe_notes();
 				publish();
 				return;
 			}
 			Runtime.reconcile_selected(Cycle->Latest->Id.Id, guarded<std::vector<core::cycle_item_reconciliation>>([](implementation& aSelf, std::vector<core::cycle_item_reconciliation> aItems) {
-										   for (auto& note : aSelf.View.Notes) {
+										   for (auto& note : aSelf.notes()) {
 											   const auto found    = std::ranges::find(aItems, note.Item.Id, &core::cycle_item_reconciliation::Item);
 											   note.Reconciliation = found != aItems.end() ? std::optional{ *found } : std::nullopt;
 										   }
+										   aSelf.commit_notes();
 										   aSelf.observe_notes();
 										   aSelf.publish();
 									   }));
 		}
 
+		/// \brief [[BPR-1274]]. The notes a change made in this window updates:
+		/// those a full read is assembling until it is shown, else those shown.
+		auto notes() -> std::vector<review_cycle_note_entry>&
+		{
+			return PendingNotes ? *PendingNotes : View.Notes;
+		}
+
+		/// \brief Shows a full read of the notes, now that their replies and
+		/// reconciliation are read with them: never a list of notes the page
+		/// has not yet reconciled.
+		void commit_notes()
+		{
+			if (PendingNotes) {
+				View.Notes = std::move(*PendingNotes);
+				PendingNotes.reset();
+				want_note_code();
+			}
+		}
+
 		void describe_responses()
 		{
-			for (auto& note : View.Notes) {
+			for (auto& note : notes()) {
 				note.Statements = core::item_statements(Responses, core::cycle_wire_name(note.Item.Id));
 			}
 			View.Responses.clear();
@@ -1056,6 +1135,7 @@ namespace bpr::application {
 					}
 					aHost.Cycle      = std::move(*aState);
 					aHost.View.Cycle = core::project(*aHost.Cycle);
+					aHost.NotesStale = true;
 					aHost.Runtime.begin_feedback_selected(identity, aHost.Cycle->Revision, std::move(retried), aHost.guarded<cycle_write_receipt>(std::move(afterwards)));
 				}));
 			});
@@ -1073,7 +1153,7 @@ namespace bpr::application {
 				++aSelf.Cycle->Next.FeedbackItem;
 				aSelf.View.Activity = review_cycle_activity::idle;
 				aSelf.View.Message.clear();
-				aSelf.load_notes();
+				aSelf.note_changed({ .Cycle = aSelf.Subject->Cycle, .Id = core::cycle_feedback_item_id{ aReceipt.Allocated } });
 			});
 		}
 
@@ -1100,7 +1180,7 @@ namespace bpr::application {
 			if (aNext >= aRequest.Edits.size()) {
 				View.Activity = review_cycle_activity::idle;
 				View.Message.clear();
-				load_notes();
+				note_changed(aItem);
 				return;
 			}
 			auto& edit   = aRequest.Edits[aNext];
@@ -1290,21 +1370,39 @@ namespace bpr::application {
 		void reload_share(std::string aStatus)
 		{
 			Runtime.open_share_selected(operation(), operation(), guarded<cycle_share_draft>([status = std::move(aStatus)](implementation& aSelf, cycle_share_draft aDraft) mutable {
-											if (aSelf.View.Share) {
-												aSelf.present_draft(std::move(aDraft));
-												aSelf.View.Share->Status = std::move(status);
-											}
-											aSelf.Runtime.deliveries_selected(aSelf.guarded<std::vector<core::cycle_delivery_record>>([](implementation& aHost, std::vector<core::cycle_delivery_record> aRecords) {
-												if (aHost.View.Share) {
-													aHost.View.Share->Deliveries = std::move(aRecords);
-												}
-												aHost.Runtime.view_facts_selected(aHost.guarded<core::cycle_view_facts>([](implementation& aLast, core::cycle_view_facts aFacts) {
-													aLast.View.Facts    = std::move(aFacts);
-													aLast.View.Activity = review_cycle_activity::idle;
-													aLast.publish();
-												}));
-											}));
+											aSelf.show_share(std::move(aDraft), std::move(status));
 										}));
+		}
+
+		/// \brief Shows a draft already read, then every observation and the
+		/// rounds the surface lists. [[BPR-1274]]: a share hands back the
+		/// draft as frozen, so the round is not read back after it.
+		void show_share(cycle_share_draft aDraft, std::string aStatus)
+		{
+			if (View.Share) {
+				present_draft(std::move(aDraft));
+				View.Share->Status = std::move(aStatus);
+			}
+			Runtime.deliveries_selected(guarded<std::vector<core::cycle_delivery_record>>([](implementation& aHost, std::vector<core::cycle_delivery_record> aRecords) {
+				if (aHost.View.Share) {
+					aHost.View.Share->Deliveries = std::move(aRecords);
+				}
+				aHost.Runtime.view_facts_selected(aHost.guarded<core::cycle_view_facts>([](implementation& aLast, core::cycle_view_facts aFacts) {
+					aLast.View.Facts    = std::move(aFacts);
+					aLast.View.Activity = review_cycle_activity::idle;
+					aLast.publish();
+				}));
+			}));
+		}
+
+		/// After a share: the draft it handed back, or read again without one.
+		void after_share(std::optional<cycle_share_draft> aShown, std::string aStatus)
+		{
+			if (aShown) {
+				show_share(std::move(*aShown), std::move(aStatus));
+			} else {
+				reload_share(std::move(aStatus));
+			}
 		}
 
 		/// Why nothing left, in plain words; empty when the share produced a round.
@@ -1357,7 +1455,7 @@ namespace bpr::application {
 				: state == core::cycle_delivery_state::uncertain                 ? "The clipboard did not confirm it holds " + name + "; paste to check before relying on it."
 																				 : "There is no clipboard to copy " + name + " to; nothing was copied.";
 			auto       observation = delivery_observation(round, state, core::cycle_disclosure_channel::clipboard, aOutput.Bytes, aOutput.Format);
-			Runtime.record_delivery_selected(operation(), std::move(observation), guarded<cycle_write_receipt>([words](implementation& aSelf, cycle_write_receipt) { aSelf.reload_share(words); }));
+			Runtime.record_delivery_selected(operation(), std::move(observation), guarded<cycle_write_receipt>([words, shown = std::move(aOutput.Shown)](implementation& aSelf, cycle_write_receipt) mutable { aSelf.after_share(std::move(shown), words); }));
 		}
 
 		/// Save to File or Save as Bundle: a conflict asks before replacing anything.
@@ -1382,7 +1480,7 @@ namespace bpr::application {
 			const auto round = aResult.Output.Round->Content.Payload.RoundId;
 			const auto bytes = grouped_count(aResult.Output.Bytes.size());
 			const auto same  = aResult.Save && aResult.Save->Action == core::cycle_round_save_action::already_saved;
-			reload_share(same ? name + " already holds " + round + " exactly (" + bytes + " bytes); nothing was written." : "Saved " + round + " as " + name + " (" + bytes + " bytes).");
+			after_share(std::move(aResult.Output.Shown), same ? name + " already holds " + round + " exactly (" + bytes + " bytes); nothing was written." : "Saved " + round + " as " + name + " (" + bytes + " bytes).");
 		}
 
 		void share(const core::cycle_share_route aRoute, std::string aPath, const std::optional<core::cycle_material_digest>& aConfirmed)
@@ -2021,10 +2119,10 @@ namespace bpr::application {
 		self.View.Activity = review_cycle_activity::saving;
 		self.publish();
 		self.Runtime.change_feedback_selected(self.operation(), item, aVersion, core::add_feedback_reference{ std::move(aReference) },
-											  self.guarded<cycle_write_receipt>([](implementation& aSelf, cycle_write_receipt) {
+											  self.guarded<cycle_write_receipt>([item](implementation& aSelf, cycle_write_receipt) {
 												  aSelf.View.Activity = review_cycle_activity::idle;
 												  aSelf.View.Message.clear();
-												  aSelf.load_notes();
+												  aSelf.note_changed(item);
 											  }));
 	}
 
@@ -2146,14 +2244,14 @@ namespace bpr::application {
 		const auto  checked = tab != nullptr ? tab->View.Revision : self.Cycle->Latest->Id.Id;
 		self.View.Activity  = review_cycle_activity::saving;
 		self.publish();
-		self.Runtime.decide_selected(self.operation(), { .Item = aItem, .Decision = aDecision, .Checked = checked }, self.guarded<cycle_decision_result>([](implementation& aSelf, cycle_decision_result aResult) {
+		self.Runtime.decide_selected(self.operation(), { .Item = aItem, .Decision = aDecision, .Checked = checked }, self.guarded<cycle_decision_result>([item = aItem.Id](implementation& aSelf, cycle_decision_result aResult) {
 			if (aResult.Refusal) {
 				aSelf.fail("That decision could not be recorded: the note or the revision is not what is shown.");
 				return;
 			}
 			aSelf.View.Activity = review_cycle_activity::idle;
 			aSelf.View.Message.clear();
-			aSelf.load_reconciliation();
+			aSelf.reconcile_note(item);
 		}));
 	}
 

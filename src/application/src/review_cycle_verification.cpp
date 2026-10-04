@@ -55,6 +55,43 @@ namespace bpr::application {
 			return threads;
 		}
 
+		/// A thread with its whole revision history and its suggestions.
+		auto whole_note(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, core::cycle_feedback_thread aThread, const std::stop_token& aStop)
+			-> cycle_store_result<cycle_note_record>
+		{
+			auto record = cycle_note_record{ .Thread = std::move(aThread) };
+			auto after  = std::optional<core::private_review_turn_revision_id>{ };
+			do {
+				auto page = aStore.feedback_revisions(aSubject, record.Thread.Id, after, aStop);
+				if (!page) {
+					return std::unexpected(page.error());
+				}
+				std::ranges::move(page->Revisions, std::back_inserter(record.Revisions));
+				after = page->Next;
+			} while (after);
+			auto suggestions = aStore.suggestions(aSubject, record.Thread.Id, aStop);
+			if (!suggestions) {
+				return std::unexpected(suggestions.error());
+			}
+			record.Suggestions = std::move(*suggestions);
+			return record;
+		}
+
+		/// One note's thread, or none when the cycle holds no such note.
+		auto one_thread(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_id aItem, const std::stop_token& aStop)
+			-> cycle_store_result<std::vector<core::cycle_feedback_thread>>
+		{
+			auto thread = aStore.load_feedback(aSubject, { .Cycle = aSubject.Cycle, .Id = aItem }, aStop);
+			if (!thread) {
+				return std::unexpected(thread.error());
+			}
+			auto threads = std::vector<core::cycle_feedback_thread>{ };
+			if (*thread) {
+				threads.push_back(std::move(**thread));
+			}
+			return threads;
+		}
+
 		/// The latest revision of the note's first turn: the wording a round carries.
 		auto current_wording(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, const std::stop_token& aStop)
 			-> cycle_store_result<core::private_review_turn_revision_id>
@@ -198,13 +235,13 @@ namespace bpr::application {
 	}
 
 	auto reconcile_cycle_items(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const core::cycle_source_revision_id aAgainst,
-							   std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_item_reconciliation>>
+							   std::stop_token aStop, const std::optional<core::cycle_feedback_item_id> aOnly) -> cycle_store_result<std::vector<core::cycle_item_reconciliation>>
 	{
 		auto against = revision_material(aStore, aHost, aSubject, aAgainst, aStop);
 		if (!against) {
 			return std::unexpected(against.error());
 		}
-		auto threads = all_threads(aStore, aSubject, aStop);
+		auto threads = aOnly ? one_thread(aStore, aSubject, *aOnly, aStop) : all_threads(aStore, aSubject, aStop);
 		if (!threads) {
 			return std::unexpected(threads.error());
 		}
@@ -243,6 +280,42 @@ namespace bpr::application {
 				.Statements  = statements,
 				.Decisions   = mine,
 			}));
+		}
+		return result;
+	}
+
+	auto read_note_record(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::stop_token aStop)
+		-> cycle_store_result<std::optional<cycle_note_record>>
+	{
+		auto thread = aStore.load_feedback(aSubject, aItem, aStop);
+		if (!thread) {
+			return std::unexpected(thread.error());
+		}
+		if (!*thread) {
+			return std::optional<cycle_note_record>{ };
+		}
+		auto record = whole_note(aStore, aSubject, std::move(**thread), aStop);
+		if (!record) {
+			return std::unexpected(record.error());
+		}
+		return std::optional{ std::move(*record) };
+	}
+
+	auto read_note_records(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const std::optional<core::cycle_feedback_item_id> aAfter, std::stop_token aStop)
+		-> cycle_store_result<cycle_note_record_page>
+	{
+		auto page = aStore.feedback(aSubject, aAfter, aStop);
+		if (!page) {
+			return std::unexpected(page.error());
+		}
+		auto result = cycle_note_record_page{ .Next = page->Next };
+		result.Notes.reserve(page->Threads.size());
+		for (auto& thread : page->Threads) {
+			auto record = whole_note(aStore, aSubject, std::move(thread), aStop);
+			if (!record) {
+				return std::unexpected(record.error());
+			}
+			result.Notes.push_back(std::move(*record));
 		}
 		return result;
 	}

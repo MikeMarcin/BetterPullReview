@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stop_token>
@@ -283,6 +284,21 @@ namespace bpr::application {
 		auto                        operator<=>(const cycle_removal_preview&) const = default;
 	};
 
+	/// \brief [[BPR-1274]]. While it lives, the store calls made on the
+	/// thread that took it may share what each would otherwise set up alone.
+	/// \details Ends on the thread that took it. Each call still stands on its
+	/// own: a write is one transaction, a read sees what is committed.
+	class cycle_store_scope
+	{
+	public:
+		cycle_store_scope()                                            = default;
+		cycle_store_scope(const cycle_store_scope&)                    = delete;
+		auto operator=(const cycle_store_scope&) -> cycle_store_scope& = delete;
+		cycle_store_scope(cycle_store_scope&&)                         = delete;
+		auto operator=(cycle_store_scope&&) -> cycle_store_scope&      = delete;
+		virtual ~cycle_store_scope()                                   = default;
+	};
+
 	/// \brief Profile-private Review Cycles storage.
 	/// \details All calls run on the profile owner's serialized effect lane.
 	/// Objects are installed and verified in their own transaction before any
@@ -293,6 +309,11 @@ namespace bpr::application {
 	{
 	public:
 		virtual ~review_cycle_store() = default;
+
+		/// \brief [[BPR-1274]]. One runtime call's calls, made on this thread,
+		/// share one connection until the scope ends; null when the store has
+		/// nothing to share, or when this thread already holds one.
+		[[nodiscard]] virtual auto hold() -> std::unique_ptr<cycle_store_scope> { return nullptr; }
 
 		/// \brief This profile's catalog; created with a fresh incarnation on first use.
 		virtual auto catalog(std::stop_token aStop) -> cycle_store_result<core::review_cycle_catalog>                                                                          = 0;

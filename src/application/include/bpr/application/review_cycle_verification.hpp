@@ -38,9 +38,34 @@ namespace bpr::application {
 	[[nodiscard]] auto record_item_decision(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, const cycle_decision_request& aRequest,
 											const cycle_operation_id& aOperation, std::stop_token aStop) -> cycle_store_result<cycle_decision_result>;
 
-	/// \brief Every note reconciled against `aAgainst`, in item order.
+	/// \brief Every note reconciled against `aAgainst`, in item order; with
+	/// `aOnly`, only that note ([[BPR-1274]]: a change to one note reconciles
+	/// that note, not the round).
 	[[nodiscard]] auto reconcile_cycle_items(review_cycle_store& aStore, review_cycle_comparison_host& aHost, const core::local_cycle_subject& aSubject, core::cycle_source_revision_id aAgainst,
-											 std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_item_reconciliation>>;
+											 std::stop_token aStop, std::optional<core::cycle_feedback_item_id> aOnly = std::nullopt)
+		-> cycle_store_result<std::vector<core::cycle_item_reconciliation>>;
+
+	/// \brief [[BPR-1274]]. One note as a list of notes shows it: its thread,
+	/// its whole revision history in order and its suggestions.
+	struct cycle_note_record
+	{
+		core::cycle_feedback_thread                Thread;
+		std::vector<core::cycle_feedback_revision> Revisions;
+		std::vector<core::cycle_suggestion>        Suggestions;
+	};
+	/// \brief One feedback page of a cycle's notes, each read whole.
+	struct cycle_note_record_page
+	{
+		std::vector<cycle_note_record>              Notes;
+		std::optional<core::cycle_feedback_item_id> Next;
+	};
+	/// \brief [[BPR-1274]]. The notes of one feedback page after `aAfter`,
+	/// each with its history and suggestions, in one call.
+	[[nodiscard]] auto read_note_records(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, std::optional<core::cycle_feedback_item_id> aAfter,
+										 std::stop_token aStop) -> cycle_store_result<cycle_note_record_page>;
+	/// \brief [[BPR-1274]]. One note read whole; none when the cycle holds no such note.
+	[[nodiscard]] auto read_note_record(review_cycle_store& aStore, const core::local_cycle_subject& aSubject, const core::cycle_feedback_item_ref& aItem, std::stop_token aStop)
+		-> cycle_store_result<std::optional<cycle_note_record>>;
 
 	/// \brief Every note of the cycle, in item order, as a round would carry
 	/// it now: its current wording, the suggestions it still offers and its

@@ -8,9 +8,12 @@
 #include <algorithm>
 #include <array>
 #include <iterator>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <sqlite3.h>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -98,11 +101,30 @@ namespace bpr::adapters::sqlite {
 			return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::refused, .Refusal = aRefusal });
 		}
 
+		/// [[BPR-1274]]. The connection one thread's scope keeps for the store
+		/// calls it makes, opened by the first and lent to each in turn.
+		struct held_connection
+		{
+			std::thread::id Thread;
+			sqlite3*        Database = nullptr;
+			/// A call is using it; a call nested inside opens its own.
+			bool Lent = false;
+		};
+
+		/// An open connection, and the scope it is lent from, if any.
+		struct opened_connection
+		{
+			sqlite3*         Database = nullptr;
+			held_connection* Held     = nullptr;
+		};
+
 		struct connection
 		{
-			sqlite3* Database = nullptr;
-			explicit connection(sqlite3* aDatabase) noexcept
-				: Database{ aDatabase }
+			sqlite3*         Database = nullptr;
+			held_connection* Held     = nullptr;
+			explicit connection(const opened_connection aOpened) noexcept
+				: Database{ aOpened.Database }
+				, Held{ aOpened.Held }
 			{
 			}
 			connection(const connection&)                    = delete;
@@ -111,7 +133,10 @@ namespace bpr::adapters::sqlite {
 			auto operator=(connection&&) -> connection&      = delete;
 			~connection()
 			{
-				if (Database != nullptr) {
+				// A lent connection goes back to its scope, which closes it.
+				if (Held != nullptr) {
+					Held->Lent = false;
+				} else if (Database != nullptr) {
 					sqlite3_close_v2(Database);
 				}
 			}
@@ -704,6 +729,31 @@ namespace bpr::adapters::sqlite {
 				, Profile{ aProfile }
 				, Options{ aOptions }
 			{
+			}
+
+			cycle_store(const cycle_store&)                    = delete;
+			auto operator=(const cycle_store&) -> cycle_store& = delete;
+			cycle_store(cycle_store&&)                         = delete;
+			auto operator=(cycle_store&&) -> cycle_store&      = delete;
+			~cycle_store() override
+			{
+				// Every scope ends on its own thread before the store goes.
+				for (const auto& held : Held) {
+					if (held->Database != nullptr) {
+						sqlite3_close_v2(held->Database);
+					}
+				}
+			}
+
+			auto hold() -> std::unique_ptr<application::cycle_store_scope> override
+			{
+				const auto lock   = std::scoped_lock{ HeldGuard };
+				const auto thread = std::this_thread::get_id();
+				if (std::ranges::any_of(Held, [&](const std::unique_ptr<held_connection>& aHeld) { return aHeld->Thread == thread; })) {
+					return nullptr;
+				}
+				Held.push_back(std::make_unique<held_connection>(held_connection{ .Thread = thread }));
+				return std::make_unique<held_scope>(*this);
 			}
 
 			auto catalog(std::stop_token aStop) -> cycle_store_result<core::review_cycle_catalog> override
@@ -2565,11 +2615,72 @@ namespace bpr::adapters::sqlite {
 				return cycle_store_error{ .Failure = cycle_store_failure::refused, .Refusal = aRefusal };
 			}
 
-			auto open(std::stop_token aStop) -> cycle_store_result<sqlite3*>
+			/// [[BPR-1274]]. Ends this thread's scope and closes its connection.
+			class held_scope final : public application::cycle_store_scope
+			{
+			public:
+				explicit held_scope(cycle_store& aStore) noexcept
+					: Store{ aStore }
+				{
+				}
+				held_scope(const held_scope&)                    = delete;
+				auto operator=(const held_scope&) -> held_scope& = delete;
+				held_scope(held_scope&&)                         = delete;
+				auto operator=(held_scope&&) -> held_scope&      = delete;
+				~held_scope() override
+				{
+					const auto lock   = std::scoped_lock{ Store.HeldGuard };
+					const auto thread = std::this_thread::get_id();
+					const auto found  = std::ranges::find_if(Store.Held, [&](const std::unique_ptr<held_connection>& aHeld) { return aHeld->Thread == thread; });
+					if (found == Store.Held.end()) {
+						return;
+					}
+					if ((*found)->Database != nullptr) {
+						sqlite3_close_v2((*found)->Database);
+					}
+					Store.Held.erase(found);
+				}
+
+			private:
+				cycle_store& Store;
+			};
+
+			/// This thread's scope, when it holds one.
+			auto held_here() -> held_connection*
+			{
+				const auto lock   = std::scoped_lock{ HeldGuard };
+				const auto thread = std::this_thread::get_id();
+				const auto found  = std::ranges::find_if(Held, [&](const std::unique_ptr<held_connection>& aHeld) { return aHeld->Thread == thread; });
+				return found == Held.end() ? nullptr : found->get();
+			}
+
+			/// A connection for one call: the scope's when this thread holds one
+			/// that no enclosing call is using, opened and checked by its first
+			/// call; otherwise one of the call's own.
+			auto open(std::stop_token aStop) -> cycle_store_result<opened_connection>
 			{
 				if (aStop.stop_requested()) {
 					return fail(cycle_store_failure::cancelled);
 				}
+				auto* const held = held_here();
+				if (held != nullptr && !held->Lent && held->Database != nullptr) {
+					held->Lent = true;
+					return opened_connection{ .Database = held->Database, .Held = held };
+				}
+				auto opened = open_checked(aStop);
+				if (!opened) {
+					return std::unexpected(opened.error());
+				}
+				if (held != nullptr && !held->Lent) {
+					held->Database = *opened;
+					held->Lent     = true;
+					return opened_connection{ .Database = *opened, .Held = held };
+				}
+				return opened_connection{ .Database = *opened };
+			}
+
+			auto open_checked(std::stop_token aStop) -> cycle_store_result<sqlite3*>
+			{
 				auto directory = detail::open_state_directory(Root);
 				if (!directory || !detail::sqlite_runtime_ready()) {
 					return fail(cycle_store_failure::unavailable);
@@ -3515,6 +3626,9 @@ namespace bpr::adapters::sqlite {
 			std::filesystem::path      Root;
 			core::bpr_profile_id       Profile;
 			review_cycle_store_options Options;
+			/// [[BPR-1274]]. One per thread holding a scope.
+			std::mutex                                    HeldGuard;
+			std::vector<std::unique_ptr<held_connection>> Held;
 		};
 	}
 

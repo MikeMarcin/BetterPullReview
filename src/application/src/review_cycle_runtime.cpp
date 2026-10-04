@@ -122,7 +122,13 @@ namespace bpr::application {
 		void dispatch(TWork aWork, completion<T> aDone, const std::uint64_t aGeneration, std::stop_token aToken, effect_executor& aLane, const bool aLaned)
 		{
 			aLane.post([self = shared_from_this(), work = std::move(aWork), done = std::move(aDone), aGeneration, aToken, aLaned]() mutable {
-				self->complete<T>(work(*self->Store, aToken), std::move(done), aGeneration, aLaned);
+				// [[BPR-1274]]. One call's store calls share one connection, which
+				// closes before the result leaves the lane.
+				auto result = [&] {
+					const auto held = self->Store->hold();
+					return work(*self->Store, aToken);
+				}();
+				self->complete<T>(std::move(result), std::move(done), aGeneration, aLaned);
 			});
 		}
 
@@ -356,6 +362,30 @@ namespace bpr::application {
 			return aStore.feedback(*subject, aAfter, aStop);
 		},
 														   std::move(aDone), review_cycle_call::beside_capture);
+	}
+
+	auto review_cycle_runtime::note_records_selected(std::optional<core::cycle_feedback_item_id> aAfter, completion<cycle_note_record_page> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_note_record_page>([subject, aAfter](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_note_record_page> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return read_note_records(aStore, *subject, aAfter, aStop);
+		},
+															  std::move(aDone), review_cycle_call::beside_capture);
+	}
+
+	auto review_cycle_runtime::note_record_selected(core::cycle_feedback_item_ref aItem, completion<std::optional<cycle_note_record>> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<std::optional<cycle_note_record>>([subject, aItem](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<std::optional<cycle_note_record>> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			return read_note_record(aStore, *subject, aItem, aStop);
+		},
+																		std::move(aDone), review_cycle_call::beside_capture);
 	}
 
 	auto review_cycle_runtime::feedback_revisions_selected(core::cycle_feedback_item_ref aItem, std::optional<core::private_review_turn_revision_id> aAfter,
@@ -604,15 +634,16 @@ namespace bpr::application {
 															 std::move(aDone));
 	}
 
-	auto review_cycle_runtime::reconcile_selected(const core::cycle_source_revision_id aAgainst, completion<std::vector<core::cycle_item_reconciliation>> aDone) -> bool
+	auto review_cycle_runtime::reconcile_selected(const core::cycle_source_revision_id aAgainst, completion<std::vector<core::cycle_item_reconciliation>> aDone,
+												  const std::optional<core::cycle_feedback_item_id> aOnly) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
 		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
-		return Implementation->submit<std::vector<core::cycle_item_reconciliation>>([subject, host, aAgainst](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_item_reconciliation>> {
+		return Implementation->submit<std::vector<core::cycle_item_reconciliation>>([subject, host, aAgainst, aOnly](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<std::vector<core::cycle_item_reconciliation>> {
 			if (!subject) {
 				return std::unexpected(refused_selection());
 			}
-			return reconcile_cycle_items(aStore, *host, *subject, aAgainst, aStop);
+			return reconcile_cycle_items(aStore, *host, *subject, aAgainst, aStop, aOnly);
 		},
 																					std::move(aDone));
 	}

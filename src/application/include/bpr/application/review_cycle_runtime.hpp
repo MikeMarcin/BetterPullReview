@@ -121,8 +121,10 @@ namespace bpr::application {
 		/// \brief Records the reviewer's decision about a note of the selected
 		/// cycle against the checked revision's retained material (BPR-1165).
 		auto decide_selected(cycle_operation_id aOperation, cycle_decision_request aRequest, completion<cycle_decision_result> aDone) -> bool;
-		/// \brief Every note of the selected cycle reconciled against `aAgainst`.
-		auto reconcile_selected(core::cycle_source_revision_id aAgainst, completion<std::vector<core::cycle_item_reconciliation>> aDone) -> bool;
+		/// \brief Every note of the selected cycle reconciled against `aAgainst`;
+		/// with `aOnly`, that note alone ([[BPR-1274]]).
+		auto reconcile_selected(core::cycle_source_revision_id aAgainst, completion<std::vector<core::cycle_item_reconciliation>> aDone,
+								std::optional<core::cycle_feedback_item_id> aOnly = std::nullopt) -> bool;
 		/// \brief Saves the next round's draft, planned from the latest frozen round.
 		auto prepare_next_round_selected(cycle_operation_id aBegin, cycle_operation_id aSave, completion<cycle_next_round_result> aDone) -> bool;
 
@@ -134,6 +136,12 @@ namespace bpr::application {
 		auto change_feedback_selected(cycle_operation_id aOperation, core::cycle_feedback_item_ref aItem, std::uint64_t aExpectedVersion, core::cycle_feedback_change aChange,
 									  completion<cycle_write_receipt> aDone) -> bool;
 		auto feedback_selected(std::optional<core::cycle_feedback_item_id> aAfter, completion<cycle_feedback_page> aDone) -> bool;
+		/// \brief [[BPR-1274]]. One feedback page of the selected cycle's notes,
+		/// each with its history and suggestions, in one call.
+		auto note_records_selected(std::optional<core::cycle_feedback_item_id> aAfter, completion<cycle_note_record_page> aDone) -> bool;
+		/// \brief [[BPR-1274]]. One note of the selected cycle read whole; none
+		/// when the cycle holds no such note.
+		auto note_record_selected(core::cycle_feedback_item_ref aItem, completion<std::optional<cycle_note_record>> aDone) -> bool;
 		auto feedback_revisions_selected(core::cycle_feedback_item_ref aItem, std::optional<core::private_review_turn_revision_id> aAfter, completion<cycle_feedback_revision_page> aDone) -> bool;
 		/// \brief Where a note's target stands in one revision of the selected cycle.
 		auto observe_feedback_selected(core::cycle_feedback_target aTarget, core::cycle_source_revision_id aAgainst, completion<cycle_correspondence_observation> aDone) -> bool;
