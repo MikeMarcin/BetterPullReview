@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1281"
 title: "Syntax colour in the cycle's comparison views (All cycle changes and the rest)"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0061"]
 depends_on: []
 priority: "P1"
