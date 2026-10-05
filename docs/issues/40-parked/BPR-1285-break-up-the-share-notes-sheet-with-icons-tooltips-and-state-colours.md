@@ -89,3 +89,13 @@ sequence 3). Frozen root `/Users/jaeger/bpr1285-share-marks-review-v001.CqAqeZ`.
 The full record and the Linux and Windows station requests are in the
 ledger's BPR-1285 section of
 [RFC-BPR-0053-0061.md](../../verification/RFC-BPR-0053-0061.md).
+
+**Note: Linux run at `9cf670937` (holds `e4477a98c`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, Qt 6.11.2, offscreen; no remote mutation).** The `dev`
+build succeeded with no warnings and 6 of 6 passed: `qt_review_cycle_view_1_0`
+(2.3 s), `qt_review_cycle_view_2_0` (4.7 s),
+`application_review_cycle_send_public_path`,
+`application_review_cycle_desktop_public_path`,
+`application_review_round_trip_composition_contract` and
+`architecture_boundaries`. The rendered-pixel checks of glyph and chip role
+colours passed at 1x and 2x, so there are no counts to report.
