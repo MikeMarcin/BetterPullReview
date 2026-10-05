@@ -579,6 +579,13 @@ bpr_enable_hardening(test_feedback_header_edit)
 bpr_enable_warnings(test_feedback_header_edit)
 bpr_add_network_isolated_test(NAME core_feedback_header_edit COMMAND test_feedback_header_edit "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1082]]. Header edits as commands of the existing revisioned comment draft and tour-stop owners.
+bpr_add_executable(test_feedback_draft_edit feedback_draft_edit_tests.cpp)
+target_link_libraries(test_feedback_draft_edit PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_draft_edit)
+bpr_enable_warnings(test_feedback_draft_edit)
+bpr_add_network_isolated_test(NAME core_feedback_draft_edit COMMAND test_feedback_draft_edit)
+
 # [[BPR-1077]]. Root-post classification and the scoped derived annotation set, against the pack's counter units.
 bpr_add_executable(test_feedback_conversation feedback_conversation_tests.cpp)
 target_link_libraries(test_feedback_conversation PRIVATE BetterPullReview::Core)

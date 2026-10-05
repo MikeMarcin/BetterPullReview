@@ -2,6 +2,7 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 
 #include "../../src/application/src/review_mutation_execution_authority.hpp"
+#include "bpr/core/feedback_draft_edit.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1296,6 +1297,76 @@ namespace {
 		expect(exactEffects.pending() == 1U,
 			   "invalid target and later actor bind attempts do not revoke the exact sealed authority");
 	}
+	/// [[BPR-1082]]. RFC-BPR-0048 R42. A label chosen through the draft owner is
+	/// part of the exact prepared request. While the draft is publishing the
+	/// label cannot change, so a retry after a lost answer repeats the same
+	/// body and key; after a definite failure a new label is a new request
+	/// that the earlier grant cannot carry.
+	void test_a_label_changed_after_preparation_needs_a_new_gesture()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider), live_target(), acting_identity(), core::application_session_id{ 3U }, core::request_generation{ 8U }, { }, effects, decisions, projection, &projection
+		};
+		const auto issue = [](const application::review_mutation_publication_request& aRequest) {
+			return application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), acting_identity(), aRequest);
+		};
+		const auto step = [](const core::revisioned_review_draft& aDraft, core::review_draft_command_kind aKind) {
+			const auto outcome = core::apply(aDraft, { .Command = { .Id = aDraft.Draft.Id, .Kind = aKind }, .ExpectedRevision = aDraft.Revision, .Scope = aDraft.Scope });
+			expect(outcome.Changed, "the draft owner accepts the step");
+			return outcome.Accepted;
+		};
+		const auto label = [](const core::revisioned_review_draft& aDraft, core::feedback_label aLabel) {
+			const auto plan = core::plan_feedback_draft_edit(aDraft, core::feedback_draft_basis_of(aDraft), { .Change = core::feedback_label_change::set, .Label = aLabel });
+			expect(plan.Command.has_value(), "the label is planned");
+			const auto outcome = core::apply(aDraft, *plan.Command);
+			expect(outcome.Changed, "the draft owner accepts the label");
+			return outcome.Accepted;
+		};
+		const auto prepare = [](const core::revisioned_review_draft& aDraft) {
+			auto request      = publication_request();
+			auto proposal     = core::propose_publication(aDraft.Draft, core::review_disposition::comment);
+			proposal->Durable = core::durable_review_publication_identity{ .Incarnation = opaque<core::private_ledger_incarnation>(9U).bytes(), .DraftRevision = aDraft.Revision };
+			request.Proposal  = *proposal;
+			return request;
+		};
+
+		auto draft       = core::revisioned_review_draft{ .Draft = { .Id = core::review_draft_id{ 7U }, .Anchor = publication_request().Proposal.Anchor, .Body = "Please rename this." }, .Revision = 1U, .Scope = core::review_draft_scope_id{ 1U } };
+		draft            = step(label(draft, core::feedback_label::issue), core::review_draft_command_kind::begin_publish);
+		const auto first = prepare(draft);
+		expect(first.Proposal.Body == "issue: Please rename this.", "the prepared request carries the labelled body");
+
+		observed->NextSubmission = application::review_mutation_submission{ .Result = std::unexpected(application::review_mutation_failure::unavailable), .MutationAttempted = true };
+		static_cast<void>(host.publish(first, issue(first)));
+		effects.drain();
+		decisions.drain();
+		expect(observed->Submitted.size() == 1U && !projection.Published.back().Result.has_value() && projection.Published.back().MutationAttempted, "the answer is lost after transmission");
+		const auto held = core::plan_feedback_draft_edit(draft, core::feedback_draft_basis_of(draft), { .Change = core::feedback_label_change::set, .Label = core::feedback_label::question });
+		expect(held.Refusal == core::feedback_draft_edit_refusal::not_editable && !held.Command, "the label cannot change while the outcome is unknown");
+		const auto retry = prepare(draft);
+		expect(retry == first, "recovery prepares the identical request");
+		static_cast<void>(host.publish(retry, issue(retry)));
+		effects.drain();
+		decisions.drain();
+		expect(observed->Submitted.size() == 2U && observed->Submitted[1].IdempotencyKey == observed->Submitted[0].IdempotencyKey && observed->Submitted[1].Proposal.Body == observed->Submitted[0].Proposal.Body, "the retry carries the same body and idempotency key");
+
+		// A definite failure returns the draft; a new label is a new action.
+		draft             = step(draft, core::review_draft_command_kind::fail_publish);
+		draft             = step(label(draft, core::feedback_label::question), core::review_draft_command_kind::begin_publish);
+		const auto second = prepare(draft);
+		expect(second.Proposal.Body == "question: Please rename this." && second.Proposal.Durable != first.Proposal.Durable, "the relabelled request is bound to a newer draft revision");
+		static_cast<void>(host.publish(second, issue(first)));
+		expect(effects.pending() == 0U, "the grant for the earlier request cannot carry the relabelled body");
+		decisions.drain();
+		static_cast<void>(host.publish(second, issue(second)));
+		effects.drain();
+		decisions.drain();
+		expect(observed->Submitted.size() == 3U && observed->Submitted[2].Proposal.Body == "question: Please rename this." && observed->Submitted[2].IdempotencyKey != observed->Submitted[0].IdempotencyKey, "a new gesture publishes the new body under a new key");
+	}
 } // namespace
 
 auto main() -> int
@@ -1312,6 +1383,7 @@ auto main() -> int
 	test_one_shot_authority_rejects_same_core_different_full_identity();
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
 	test_a_reply_may_be_drafted_from_a_left_side_selection();
+	test_a_label_changed_after_preparation_needs_a_new_gesture();
 	std::cout << "review-mutation-application-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

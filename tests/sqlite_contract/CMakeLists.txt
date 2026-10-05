@@ -656,3 +656,16 @@ bpr_enable_warnings(test_private_review_host)
 bpr_add_network_isolated_test(NAME application_private_review_host WINDOWS_UNCONTAINED COMMAND test_private_review_host)
 set_tests_properties(application_private_review_host PROPERTIES TIMEOUT 120 PASS_REGULAR_EXPRESSION "private-review-host-tests:pass")
 endif()
+
+# [[BPR-1082]]. Conventional Comments header edits through the durable comment-draft and tour owners.
+bpr_add_executable(test_feedback_draft_store feedback_draft_store_tests.cpp)
+target_link_libraries(test_feedback_draft_store PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3 BetterPullReview::Application)
+bpr_enable_hardening(test_feedback_draft_store)
+if(WIN32)
+    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
+    # target's owner-private descriptor.
+    target_link_libraries(test_feedback_draft_store PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_feedback_draft_store)
+bpr_add_network_isolated_test(NAME application_feedback_draft_store WINDOWS_UNCONTAINED COMMAND test_feedback_draft_store)
+set_tests_properties(application_feedback_draft_store PROPERTIES PASS_REGULAR_EXPRESSION "FEEDBACK_DRAFT_STORE_OK")

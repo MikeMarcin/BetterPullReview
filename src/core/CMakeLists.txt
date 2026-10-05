@@ -74,6 +74,7 @@ add_library(
         src/review_tour_destination.cpp
         src/review_tour_markdown.cpp
         src/feedback_convention.cpp
+        src/feedback_draft_edit.cpp
         src/feedback_header_edit.cpp
         src/feedback_conversation.cpp
         src/feedback_partition.cpp
