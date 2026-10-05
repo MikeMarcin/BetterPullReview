@@ -91,9 +91,11 @@ namespace bpr::e2e::large_review {
 	inline constexpr std::uint64_t    PlatformFootprintGrowthLimitBytes          = 160U * MiB;
 	inline constexpr std::uint64_t    PlatformCacheByteFootprintGrowthLimitBytes = 184U * MiB;
 	inline constexpr double           PlatformActiveCloseQuiescenceLimitMs       = 100.0;
-	// Observed: approximate_file_selection 96.3-111.1, the work-limited
-	// approximate alignment course.
-	inline constexpr std::array<std::string_view, 1> PlatformKnownInputMisses{ "approximate_file_selection" };
+	// [[BPR-1264]]. approximate_file_selection (96.3-111.1, the work-limited
+	// approximate alignment course) was the publication that replaced both
+	// panes' text in one GUI turn. Filled over bounded turns it measures
+	// 18.6-18.9, and every macOS phase gates the target.
+	inline constexpr std::array<std::string_view, 0> PlatformKnownInputMisses{ };
 	inline constexpr int                             RunBudgetScale = 1;
 #elif defined(_WIN32)
 	inline constexpr bool             PlatformBudgetsEnforced = OptimizedBuild;

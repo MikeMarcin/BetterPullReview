@@ -139,10 +139,7 @@ this change and failed before it, so it is intermittent, not this change.
 
 **Owed:**
 
-- **macOS:** not measured here. The change is portable and removes work from
-  the same turn, so `approximate_file_selection` (96.3–111.1) should drop
-  well below 100 ms. A Mac Release run should confirm that, then remove the
-  phase from macOS's list.
+- **macOS:** confirmed and gated on 2026-10-05; see the next section.
 - **Windows (the other half of this card):** the eight Windows phases are
   unmeasured after this change. `large_file_selection`,
   `large_source_revisit_render`, `approximate_file_selection` and
@@ -150,3 +147,37 @@ this change and failed before it, so it is intermittent, not this change.
   `active_window_close` and `paged_review_and_git_load` were not attributed
   here, and Windows timer granularity ([[BPR-1259]]) is context for them. The
   card stays In Progress for them.
+
+## macOS: confirmed and gated — 2026-10-05 (M4 Pro)
+
+**Tree.** `ac0d9d1d4` in an optimized tree (`app-release` with tests on,
+Apple clang 21 `-O3`, Qt 6.11.2, macOS 26.6.2, M4 Pro 48 GiB, otherwise
+idle). Values are the largest event-loop gap in the phase, in ms, over the
+responsiveness, launch, approximate and first-tab reports.
+
+**Before** (the same tree with `diff_workbench` from `21cec606d` and the
+macOS list empty; three runs of those four rows): `large_file_selection`
+64.7, 62.8, 62.3; `large_source_revisit_render` 68.2, 67.3, 64.7;
+`approximate_file_selection` 93.1, 95.3, 93.3; `first_tab_file` 65.2, 65.7,
+64.4. The approximate phase stayed under 100 ms in these three runs, so it
+did not fail them; the BPR-0967 runs measured it at 96.3–111.1.
+
+**After** (`ac0d9d1d4`, three runs of the 18 rows): `large_file_selection`
+18.9, 18.6, 18.6; `large_source_revisit_render` 14.0, 13.4, 12.2;
+`approximate_file_selection` 18.7, 18.6, 18.9; `first_tab_file` 9.8, 10.9,
+12.8. Across every report, including the resource courses,
+`large_file_selection` reaches 22.0. The whole approximate phase went from
+507–519 ms to 489–496 ms.
+
+**Gate.** macOS's `PlatformKnownInputMisses` is now empty, so every macOS
+phase gates the target. The 18 large-review rows (the 16, the fixture
+contract and the replay contract) pass 18/18 in each of the three runs
+(130.0, 130.3 and 131.6 s). Every report has `BudgetsEnforced` true, an
+empty `KnownInputMisses` and no input or limit failure. The largest gap
+outside the resource courses is 36.4–38.0 ms (`first_tab_base`, which was
+not on the list).
+
+**Workbench.** `qt_diff_workbench_scale_{100,125,200}`, including
+`test_large_publication_fills_over_bounded_turns`, pass in the same tree.
+
+Only the Windows half remains.

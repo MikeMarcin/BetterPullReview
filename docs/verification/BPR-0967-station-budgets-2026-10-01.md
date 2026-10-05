@@ -202,5 +202,24 @@ The four Linux phases were one cause: a publication replaced both panes' text
 in one GUI turn. Filling the documents over bounded turns brings them to
 23.4–36.6 ms on the same station, and Linux's `PlatformKnownInputMisses` is
 now empty. With every phase gated, the 18 large-review rows pass in the
-optimized tree. The macOS and Windows lists are unchanged until their own
-optimized runs; [[BPR-1264]] has the numbers and the owed runs.
+optimized tree. The Windows list is unchanged until its own optimized run;
+[[BPR-1264]] has the numbers and the owed run.
+
+## macOS named phase removed — [[BPR-1264]], 2026-10-05
+
+The same change on the M4 Pro (`ac0d9d1d4`, Apple clang 21 `-O3`, Qt 6.11.2),
+largest gap in ms over three runs each, before (the previous
+`diff_workbench`) and after:
+
+| Phase | Before | After |
+|---|---|---|
+| `approximate_file_selection` | 93.1–95.3 | 18.6–18.9 |
+| `large_file_selection` | 62.3–64.7 | 18.6–18.9 |
+| `large_source_revisit_render` | 64.7–68.2 | 12.2–14.0 |
+| `first_tab_file` | 64.4–65.7 | 9.8–12.8 |
+
+macOS's `PlatformKnownInputMisses` is now empty. The 18 large-review rows pass
+in each of the three runs with every phase gated, `BudgetsEnforced` true and no
+input or limit failure. The largest gap outside the resource courses is
+36.4–38.0 ms (`first_tab_base`). The BPR-0967 runs had measured
+`approximate_file_selection` at 96.3–111.1.
