@@ -1,5 +1,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 
+#include "bpr/qt/feedback_label_marks.hpp"
+
 #include <QByteArray>
 #include <QHash>
 #include <QList>
@@ -182,6 +184,10 @@ namespace bpr::qt {
 				github_conversation_model::kind_role,
 				github_conversation_model::author_login_role,
 				github_conversation_model::body_role,
+				github_conversation_model::feedback_label_role,
+				github_conversation_model::feedback_blocking_role,
+				github_conversation_model::feedback_name_role,
+				github_conversation_model::feedback_subject_role,
 				github_conversation_model::path_role,
 				github_conversation_model::line_role,
 				github_conversation_model::original_line_role,
@@ -216,8 +222,10 @@ namespace bpr::qt {
 	{
 		application::github_conversation_projection Value;
 		node*                                       Parent = nullptr;
-		std::size_t                                 Row    = 0;
-		std::vector<std::unique_ptr<node>>          Children;
+		/// [[BPR-1083]]. The body's label mark, read once per accepted body.
+		mutable std::optional<feedback_body_mark> Mark;
+		std::size_t                               Row = 0;
+		std::vector<std::unique_ptr<node>>        Children;
 	};
 
 	github_conversation_model::github_conversation_model(QObject* const aParent)
@@ -289,8 +297,25 @@ namespace bpr::qt {
 
 		switch (aRequestedRole) {
 		case Qt::DisplayRole:
-		case Qt::AccessibleTextRole:
 			return display_text(conversation);
+		case Qt::AccessibleTextRole: {
+			auto shown = display_text(conversation);
+			if (!value->Mark.has_value()) {
+				value->Mark = conversation.Deleted ? feedback_body_mark{ } : feedback_body_mark_of(conversation.ReviewerProse.value_or(conversation.Body));
+			}
+			// [[BPR-1083]]. A post is named with its author and then its mark,
+			// as in "Review comment by @tbutler, issue (blocking)", and its text
+			// starts at the subject the mark stands in front of.
+			if (const auto& mark = *value->Mark; !mark.Name.isEmpty()) {
+				const auto body = text(conversation.ReviewerProse.value_or(conversation.Body));
+				if (const auto at = shown.indexOf(body); at >= 0) {
+					shown.remove(at, mark.SubjectOffset);
+				}
+				const auto line = shown.indexOf(QLatin1Char{ '\n' });
+				shown.insert(line < 0 ? shown.size() : line, QStringLiteral(", %1").arg(mark.Name));
+			}
+			return shown;
+		}
 		case Qt::AccessibleDescriptionRole:
 			return description_text(conversation);
 		case identity_role:
@@ -305,6 +330,25 @@ namespace bpr::qt {
 			return text(conversation.AuthorLogin);
 		case body_role:
 			return conversation.Deleted ? QString{ } : text(conversation.ReviewerProse.value_or(conversation.Body));
+		case feedback_label_role:
+		case feedback_blocking_role:
+		case feedback_name_role:
+		case feedback_subject_role:  {
+			if (!value->Mark.has_value()) {
+				value->Mark = conversation.Deleted ? feedback_body_mark{ } : feedback_body_mark_of(conversation.ReviewerProse.value_or(conversation.Body));
+			}
+			const auto& mark = *value->Mark;
+			if (aRequestedRole == feedback_label_role) {
+				return mark.Label.has_value() ? QVariant{ static_cast<int>(*mark.Label) } : QVariant{ };
+			}
+			if (aRequestedRole == feedback_blocking_role) {
+				return mark.Blocking;
+			}
+			if (aRequestedRole == feedback_name_role) {
+				return mark.Name;
+			}
+			return QVariant{ static_cast<qlonglong>(mark.SubjectOffset) };
+		}
 		case path_role:
 			return text(conversation.Path);
 		case line_role:
@@ -643,8 +687,9 @@ namespace bpr::qt {
 				for (std::size_t row = 0; row < aDesired.size(); ++row) {
 					auto* const current = aValues[row].get();
 					if (current->Value != *aDesired[row]) {
-						auto replacement        = *aDesired[row];
-						current->Value          = std::move(replacement);
+						auto replacement = *aDesired[row];
+						current->Value   = std::move(replacement);
+						current->Mark.reset();
 						const auto changedIndex = index_for_node(current);
 						emit       dataChanged(changedIndex, changedIndex, roles);
 						++Statistics.RowsChanged;

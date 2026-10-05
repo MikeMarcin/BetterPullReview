@@ -118,7 +118,7 @@ namespace {
 			application::workbench_window_layout window;
 			window.UpdatesLine = core::workbench_updates_line::open;
 			expect(db->store_window(core::bpr_window_id{ 1 }, window, { }).has_value(), "version10 window seed");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN writing_stop; ALTER TABLE workbench_preferences DROP COLUMN writing_outline; ALTER TABLE workbench_preferences DROP COLUMN writing_solution; ALTER TABLE workbench_preferences DROP COLUMN writing_problem; ALTER TABLE workbench_preferences DROP COLUMN writing_revision; UPDATE workbench_meta SET schema_format=10; PRAGMA user_version=10", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version10 source");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop; ALTER TABLE workbench_preferences DROP COLUMN writing_outline; ALTER TABLE workbench_preferences DROP COLUMN writing_solution; ALTER TABLE workbench_preferences DROP COLUMN writing_problem; ALTER TABLE workbench_preferences DROP COLUMN writing_revision; UPDATE workbench_meta SET schema_format=10; PRAGMA user_version=10", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version10 source");
 		}
 		{
 			auto db = workbench_settings_database::open(path, { });
@@ -131,6 +131,42 @@ namespace {
 		}
 		expect(!workbench_settings_database::open(path, { }), "malformed UTF8 hook config fails closed");
 	}
+	/// \brief [[BPR-1083]]. How label marks are drawn: icons by default, kept
+	/// as chosen, a version-eleven file migrates with its writing hooks, and a
+	/// value outside the vocabulary fails closed.
+	void test_feedback_marks_round_trip_and_migrate_from_eleven()
+	{
+		const auto scratch               = scratch_directory{ };
+		const auto path                  = scratch.file("marks.sqlite3");
+		auto       chosen                = distinct_layout();
+		chosen.WritingHooks.Revision     = 3U;
+		chosen.WritingHooks.Overrides[1] = "Say what changed.";
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value() && db->load({ })->Behaviour.FeedbackMarks == application::review_feedback_marks::icons, "a fresh profile draws icons");
+			chosen.Behaviour.FeedbackMarks = application::review_feedback_marks::letters;
+			expect(db->store(chosen, { }).has_value(), "letters store");
+		}
+		{
+			auto       db     = workbench_settings_database::open(path, { });
+			const auto loaded = db->load({ });
+			expect(loaded.has_value() && loaded->Behaviour == chosen.Behaviour, "letters survive a reopen");
+			expect(loaded->WritingHooks == chosen.WritingHooks, "with the writing hooks");
+			expect(*loaded == chosen, "and every other field");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; UPDATE workbench_meta SET schema_format=11; PRAGMA user_version=11", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "canonical version11 source");
+		}
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value(), "version11 migration opens");
+			auto expected                    = chosen;
+			expected.Behaviour.FeedbackMarks = application::review_feedback_marks::icons;
+			expect(*db->load({ }) == expected, "a migrated row draws icons and keeps its writing hooks and every other field");
+			expect(sqlite3_exec(db->handle(), "PRAGMA ignore_check_constraints=ON; UPDATE workbench_preferences SET feedback_marks=2", nullptr, nullptr, nullptr) == SQLITE_OK, "an out-of-range style is injected");
+		}
+		expect(!workbench_settings_database::open(path, { }), "a mark style outside the vocabulary fails closed");
+	}
+
 	auto test_the_layout_is_a_singleton() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -1220,7 +1256,7 @@ namespace {
 		// [[BPR-0721]]. Version four predates the drawer-controls column, and
 		// DROP COLUMN rewrites the stored definition back to the text a
 		// version-four build wrote.
-		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
+		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
 		sqlite3_close(raw);
 	}
 	auto logical_snapshot(const std::filesystem::path& aPath, const bool aLegacy) -> std::vector<std::string>
@@ -1453,7 +1489,7 @@ namespace {
 								"ALTER TABLE window_layout DROP COLUMN geometry_width;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_y;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_x;"
-								"ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
+								"ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "canonical version-eight window fixture");
@@ -1512,7 +1548,7 @@ namespace {
 			// The exact version-nine definition, as a version-nine build wrote it.
 			expect(sqlite3_exec(database->handle(),
 								"ALTER TABLE window_layout DROP COLUMN updates_line;"
-								"ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
+								"ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "canonical version-nine window fixture");
@@ -1560,6 +1596,7 @@ auto main() -> int
 try {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
 	test_authoritative_window_retention();
+	test_feedback_marks_round_trip_and_migrate_from_eleven();
 	test_native_geometry_is_window_local_and_migrates_from_eight();
 	test_the_updates_line_is_window_local_and_migrates_from_nine();
 	test_invalid_one_pane_window_is_refused();

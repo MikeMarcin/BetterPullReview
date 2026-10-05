@@ -5,6 +5,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/feedback_label_marks.hpp"
 
 #include <map>
 #include <optional>
@@ -149,6 +150,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
 		void               set_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch);
 		void               adopt_appearance(const appearance_profile& aProfile);
+		/// \brief [[BPR-1083]]. The label tints and mark style for the cards,
+		/// the post list and the selected body.
+		void set_label_marks(const feedback_mark_theme& aTheme);
 
 		[[nodiscard]] auto view() const noexcept -> QTreeView*;
 		[[nodiscard]] auto thread_map() const noexcept -> github_thread_map*;

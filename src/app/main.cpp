@@ -7931,6 +7931,7 @@ auto main(int argc, char** argv) -> int
 			= has_argument(argc, argv, "--public-preview-empty-timeline-course");
 		fixtureOptions.UnfetchableFirstHistoricalHead
 			= has_argument(argc, argv, "--public-preview-unfetchable-first-head-course");
+		fixtureOptions.LabelHelper           = has_argument(argc, argv, "--label-helper");
 		fixtureOptions.SuppressDeviceBrowser = has_argument(
 			argc,
 			argv,
@@ -7987,6 +7988,21 @@ auto main(int argc, char** argv) -> int
 					.ExpectedTitle            = "Move renderer, shaders and widgets into nested folders",
 					.ExpectedAccountText      = "fixture-author (@fixture-author)",
 					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
+			} else if (*fixture == "conventional-comments-v1") {
+				// [[BPR-1083]]. The nested-folders pull request with labelled
+				// review threads; see `scripts/build_conventional_comments_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::conventional_comments_v1;
+				fixtureName            = "conventional-comments-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move renderer, shaders and widgets into nested folders",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 6,
 					.ExpectedThreadId         = std::nullopt,
 				};
 			} else {

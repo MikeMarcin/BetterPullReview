@@ -12,6 +12,7 @@
 #include <QString>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -89,6 +90,28 @@ namespace bpr::qt {
 	/// \brief The tints of one palette.
 	[[nodiscard]] auto feedback_label_tints_of(const core::appearance_palette& aPalette) -> feedback_label_tints;
 
+	/// \brief What a mark carries in its middle (owner, 2026-10-05: "i think
+	/// settings should also have a toggle to switch between the icons and the
+	/// shortcode icons, because i liked both of them.").
+	enum class feedback_mark_style : std::uint8_t {
+		/// BPR-1080's twelve accepted glyphs. The default.
+		icons,
+		/// The label's two-letter shortcode (`pr`, `ni`, ... `qb`), in the same
+		/// mark: the same tints, blocking fill, size and names.
+		letters,
+	};
+
+	/// \brief Everything a surface needs to draw marks for the theme on
+	/// screen: the twelve tints and the mark style.
+	struct feedback_mark_theme
+	{
+		feedback_label_tints Tints;
+		feedback_mark_style  Style = feedback_mark_style::icons;
+	};
+	/// \brief The built-in tints of the variant a palette's base colour implies,
+	/// in icons: what a surface draws before the composition supplies a theme.
+	[[nodiscard]] auto default_feedback_mark_theme(const QPalette& aPalette) -> feedback_mark_theme;
+
 	/// \brief The colours one mark is painted with.
 	struct feedback_mark_colours
 	{
@@ -97,9 +120,13 @@ namespace bpr::qt {
 		QColor Panel;
 		/// The glyph's ink on a soft mark.
 		QColor Ink;
+		/// Icons or letters.
+		feedback_mark_style Style = feedback_mark_style::icons;
 	};
 	/// \brief The colours for one label on a widget's palette.
-	[[nodiscard]] auto feedback_mark_colours_for(const QColor& aTint, const QPalette& aPalette) -> feedback_mark_colours;
+	[[nodiscard]] auto feedback_mark_colours_for(const QColor& aTint, const QPalette& aPalette, feedback_mark_style aStyle = feedback_mark_style::icons) -> feedback_mark_colours;
+	/// \brief The colours for one label of a theme on a widget's palette.
+	[[nodiscard]] auto feedback_mark_colours_for(const feedback_mark_theme& aTheme, core::feedback_label aLabel, const QPalette& aPalette) -> feedback_mark_colours;
 	/// \brief The soft fill: the tint at 22% over a light panel, 30% over a dark one.
 	[[nodiscard]] auto feedback_mark_soft_fill(const QColor& aTint, const QColor& aPanel) -> QColor;
 	/// \brief The blocking glyph's ink: white or `#111418`, whichever contrasts
@@ -108,7 +135,10 @@ namespace bpr::qt {
 
 	/// \brief Draws one glyph into a box in the painter's current ink.
 	void paint_feedback_glyph(QPainter& aPainter, const QRectF& aBox, core::feedback_label aLabel, const QColor& aInk);
-	/// \brief Draws one 16 px mark: soft, or filled when blocking.
+	/// \brief Draws a label's two-letter code into a box in one ink.
+	void paint_feedback_letters(QPainter& aPainter, const QRectF& aBox, core::feedback_label aLabel, const QColor& aInk);
+	/// \brief Draws one 16 px mark: soft, or filled when blocking, with the
+	/// glyph or the letters `aColours.Style` names.
 	void paint_feedback_mark(QPainter& aPainter, const QRectF& aMark, core::feedback_label aLabel, bool aBlocking, const feedback_mark_colours& aColours);
 	/// \brief One mark as a pixmap for a control's icon, at a device pixel ratio.
 	[[nodiscard]] auto feedback_mark_pixmap(core::feedback_label aLabel, bool aBlocking, const feedback_mark_colours& aColours, qreal aDevicePixelRatio) -> QPixmap;
@@ -133,6 +163,8 @@ namespace bpr::qt {
 		/// Where the subject begins, as a `QString` index into the body: the
 		/// body a reader shows after the mark that stands in for the prefix.
 		qsizetype SubjectOffset = 0;
+		/// The same place as a UTF-8 byte offset into the body.
+		std::size_t SubjectByte = 0U;
 	};
 	/// \brief The mark an ordinary body carries.
 	[[nodiscard]] auto feedback_body_mark_of(std::string_view aBody) -> feedback_body_mark;

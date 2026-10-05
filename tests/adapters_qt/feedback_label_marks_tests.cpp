@@ -319,6 +319,22 @@ namespace {
 				expect(renders[first] != renders[second], "in one tint and greyscale the twelve shapes still differ");
 			}
 		}
+		// [[BPR-1083]]. The owner's second style: the two-letter codes in the
+		// same mark, with the same tint, border and blocking fill.
+		auto lettered = std::vector<QImage>{ };
+		for (const auto label : labels) {
+			const auto colours = qt::feedback_mark_colours{ .Tint = QColor{ 0x80, 0x80, 0x80 }, .Panel = QColor{ 0xFF, 0xFF, 0xFF }, .Ink = QColor{ 0x1F, 0x23, 0x28 }, .Style = qt::feedback_mark_style::letters };
+			lettered.push_back(render(label, false, colours, 4));
+			const auto blocking = render(label, true, { .Tint = QColor{ 0xD1, 0x24, 0x2F }, .Panel = QColor{ 0xFF, 0xFF, 0xFF }, .Ink = QColor{ 0x1F, 0x23, 0x28 }, .Style = qt::feedback_mark_style::letters }, 4);
+			expect(QColor{ blocking.pixel(7, 32) } == QColor{ 0xD1, 0x24, 0x2F } && QColor{ lettered.back().pixel(32, 1) } == QColor{ 0x80, 0x80, 0x80 },
+				   "a letters mark keeps the tinted border and the blocking fill");
+		}
+		for (std::size_t first = 0U; first < lettered.size(); ++first) {
+			expect(lettered[first] != renders[first], "letters differ from the icon");
+			for (std::size_t second = first + 1U; second < lettered.size(); ++second) {
+				expect(lettered[first] != lettered[second], "and each label's letters differ");
+			}
+		}
 		expect(qt::feedback_mark_blocking_ink(QColor{ 0xFF, 0x7B, 0x72 }) == QColor{ 0x11, 0x14, 0x18 } && qt::feedback_mark_blocking_ink(QColor{ 0xA5, 0x00, 0x00 }) == QColor{ 0xFF, 0xFF, 0xFF },
 			   "the blocking glyph is white or #111418, whichever contrasts more");
 	}

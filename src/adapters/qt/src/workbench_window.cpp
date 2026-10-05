@@ -1611,6 +1611,9 @@ namespace bpr::qt {
 		};
 		ReviewEditor->setObjectName(QStringLiteral("workbenchReviewDraftEditor"));
 		ReviewEditor->set_presentation_observer([this] { update_comment_target(); });
+		// [[BPR-1083]]. Marks are drawn from the start, in the built-in tints
+		// until the composition supplies the theme's.
+		apply_label_marks();
 		DefectDialog = new QDialog{ this };
 		DefectDialog->setObjectName(QStringLiteral("threadDefectDialog"));
 		DefectDialog->setWindowTitle(tr("Thread defect"));
@@ -4433,6 +4436,7 @@ namespace bpr::qt {
 			Behaviour          = *aProjection.Behaviour;
 			BehaviourPublished = true;
 			apply_behaviour_controls();
+			apply_label_marks();
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
 			// them now, once each.
@@ -6400,8 +6404,49 @@ namespace bpr::qt {
 			[](application::review_behaviour_settings& aNext) {
 				aNext.DrawerControls = application::review_behaviour_settings{ }.DrawerControls;
 			});
+		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
+		// have a toggle to switch between the icons and the shortcode icons,
+		// because i liked both of them." Icons are the default. The Comment
+		// labels section's other rows are BPR-1088's.
+		addGroup(
+			QStringLiteral("Comment labels"),
+			QStringLiteral("resetCommentLabels"),
+			{
+				row{ 6U,
+					 QStringLiteral("Label marks"),
+					 QStringLiteral("feedbackMarks"),
+					 { { QStringLiteral("Icons"), QStringLiteral("feedbackMarksIcons") },
+					   { QStringLiteral("Letters"), QStringLiteral("feedbackMarksLetters") } } },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.FeedbackMarks = application::review_behaviour_settings{ }.FeedbackMarks;
+			});
 		aColumn->addWidget(BehaviourEditor);
 		apply_behaviour_controls();
+	}
+
+	void workbench_window::set_label_tints(const feedback_label_tints& aTints)
+	{
+		LabelTints = aTints;
+		apply_label_marks();
+	}
+
+	auto workbench_window::label_marks() const -> feedback_mark_theme
+	{
+		auto theme  = LabelTints.has_value() ? feedback_mark_theme{ .Tints = *LabelTints } : default_feedback_mark_theme(palette());
+		theme.Style = Behaviour.FeedbackMarks == application::review_feedback_marks::letters ? feedback_mark_style::letters : feedback_mark_style::icons;
+		return theme;
+	}
+
+	void workbench_window::apply_label_marks()
+	{
+		const auto theme = label_marks();
+		if (ReviewEditor != nullptr) {
+			ReviewEditor->set_label_marks(theme);
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->set_label_marks(theme);
+		}
 	}
 
 	void workbench_window::apply_behaviour_controls()
@@ -6422,6 +6467,7 @@ namespace bpr::qt {
 		check(3U, static_cast<std::size_t>(Behaviour.ReturnComparison));
 		check(4U, static_cast<std::size_t>(Behaviour.CommentsFilter));
 		check(5U, static_cast<std::size_t>(Behaviour.DrawerControls));
+		check(6U, static_cast<std::size_t>(Behaviour.FeedbackMarks));
 		ApplyingBehaviour = false;
 	}
 
@@ -6443,6 +6489,7 @@ namespace bpr::qt {
 			.ReturnComparison = static_cast<application::review_return_comparison>(chosen(3U)),
 			.CommentsFilter   = static_cast<application::review_comments_filter>(chosen(4U)),
 			.DrawerControls   = static_cast<application::review_drawer_controls>(chosen(5U)),
+			.FeedbackMarks    = static_cast<application::review_feedback_marks>(chosen(6U)),
 		};
 	}
 

@@ -74,8 +74,9 @@ namespace bpr::qt {
 		explicit feedback_label_controls(QPlainTextEdit* aBody, QWidget* aParent = nullptr);
 		~feedback_label_controls() override;
 
-		/// \brief The tints of the theme on screen, in catalog order.
-		void set_tints(const feedback_label_tints& aTints);
+		/// \brief The tints of the theme on screen and the mark style.
+		void               set_theme(const feedback_mark_theme& aTheme);
+		[[nodiscard]] auto theme() const noexcept -> const feedback_mark_theme&;
 		/// \brief The label helper: completion and shortcode replacement. Off
 		/// by default (owner, Settings v1); a label typed in full counts
 		/// either way.
@@ -128,7 +129,7 @@ namespace bpr::qt {
 		QToolButton*                               IfMinor     = nullptr;
 		feedback_label_menu*                       Menu        = nullptr;
 		QListWidget*                               Completion  = nullptr;
-		feedback_label_tints                       Tints;
+		feedback_mark_theme                        Theme;
 		bool                                       Helper    = false;
 		bool                                       Editing   = false;
 		bool                                       Typed     = false;
@@ -150,7 +151,7 @@ namespace bpr::qt {
 	public:
 		explicit feedback_label_menu(feedback_label_controls& aControls);
 
-		void               present(const feedback_composition_state& aState, const feedback_label_tints& aTints);
+		void               present(const feedback_composition_state& aState, const feedback_mark_theme& aTheme);
 		[[nodiscard]] auto plain_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto label_button(core::feedback_label aLabel) const noexcept -> QToolButton*;
 		[[nodiscard]] auto blocking_button() const noexcept -> QToolButton*;

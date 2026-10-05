@@ -5,6 +5,7 @@
 #include <QContextMenuEvent>
 #include <QFont>
 #include <QFontMetrics>
+#include <QHelpEvent>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMouseEvent>
@@ -15,6 +16,7 @@
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QToolButton>
+#include <QToolTip>
 
 #include <algorithm>
 #include <cstddef>
@@ -41,6 +43,16 @@ namespace bpr::qt {
 		constexpr int header_height   = 18;
 		constexpr int path_row_height = 20;
 		constexpr int excerpt_padding = 6;
+		/// [[BPR-1083]]. A marked post is at least the avatar, the 3 px gap and
+		/// the 16 px mark tall.
+		constexpr int mark_gap         = 3;
+		constexpr int marked_post_size = avatar_size + mark_gap + 16;
+		constexpr int rail_gap         = 3;
+
+		[[nodiscard]] auto mark_code(const card_post& aPost) -> int
+		{
+			return aPost.Label.has_value() ? static_cast<int>(*aPost.Label) * 2 + (aPost.Blocking ? 1 : 0) : -1;
+		}
 
 		[[nodiscard]] auto has_code_anchor(const thread_card& aCard) -> bool
 		{
@@ -132,6 +144,7 @@ namespace bpr::qt {
 		, CodeFont{ to_presentation_font(default_typography_settings().Code) }
 	{
 		setObjectName(QStringLiteral("conversationCards"));
+		MarkTheme = default_feedback_mark_theme(palette());
 		setAccessibleName(QStringLiteral("Comment cards"));
 		setAccessibleDescription(QStringLiteral(
 			"This file's threads as cards at their lines; Up and Down move "
@@ -301,10 +314,15 @@ namespace bpr::qt {
 		RetainedRoot.clear();
 		RetainedDepth.clear();
 		RetainedByFile.clear();
+		RetainedMarks.clear();
+		RetainedMarks.reserve(Retained.size());
 		RetainedFiles.reserve(Retained.size());
 		RetainedById.reserve(Retained.size());
 		for (std::size_t index = 0U; index < Retained.size(); ++index) {
 			RetainedFiles.push_back(core::file_identity_of(Retained[index].Path));
+			// [[BPR-1083]]. Marks follow the accepted body; an unchanged forest
+			// is not read again by a relayout.
+			RetainedMarks.push_back(feedback_body_mark_of(Retained[index].ReviewerProse.value_or(Retained[index].Body)));
 			// The first node with an identity answers for it.
 			RetainedById.emplace(Retained[index].Id, index);
 		}
@@ -742,7 +760,7 @@ namespace bpr::qt {
 			const auto bodyHeight   = post.Body.isEmpty()
 				? 0
 				: metrics.boundingRect(QRect{ 0, 0, bodyWidth, 100'000 }, Qt::TextWordWrap, post.Body).height();
-			const auto height       = std::max(avatar_size, authorHeight + bodyHeight + 2);
+			const auto height       = std::max(post.Label.has_value() ? marked_post_size : avatar_size, authorHeight + bodyHeight + 2);
 			post.Rect               = QRect{ card_padding, y, aWidth - 2 * card_padding, height };
 			y += height + post_gap;
 		}
@@ -837,7 +855,8 @@ namespace bpr::qt {
 			&& cached->second.AnchorAvailable == has_code_anchor(aCard)
 			&& cached->second.Header == header && cached->second.Draft == aCard.Draft
 			&& cached->second.Resolved == aCard.Resolved && cached->second.Unread == (aCard.UnreadCount > 0U)
-			&& std::ranges::equal(cached->second.Bodies, aCard.Posts, { }, std::identity{ }, &card_post::Body)) {
+			&& std::ranges::equal(cached->second.Bodies, aCard.Posts, { }, std::identity{ }, &card_post::Body)
+			&& std::ranges::equal(cached->second.Marks, aCard.Posts, { }, std::identity{ }, mark_code)) {
 			aCard.Rect.setHeight(cached->second.Height);
 			for (std::size_t index = 0U; index < aCard.Posts.size(); ++index) {
 				aCard.Posts[index].Rect = cached->second.Posts[index];
@@ -879,6 +898,7 @@ namespace bpr::qt {
 		};
 		for (const auto& post : aCard.Posts) {
 			measured.Bodies.push_back(post.Body);
+			measured.Marks.push_back(mark_code(post));
 			measured.Posts.push_back(post.Rect);
 		}
 		Measurements.Cards.insert_or_assign(aCard.Id, std::move(measured));
@@ -979,10 +999,11 @@ namespace bpr::qt {
 					replyingTo = text(Retained[parent->second].AuthorLogin);
 				}
 			}
+			const auto& mark = RetainedMarks[index];
 			target.Posts.push_back(card_post{
 				.Id         = node.Id,
 				.Author     = author,
-				.Body       = text(node.ReviewerProse.value_or(node.Body)),
+				.Body       = text(node.ReviewerProse.value_or(node.Body)).mid(mark.SubjectOffset),
 				.Depth      = depth,
 				.Mine       = !Viewer.isEmpty() && author == Viewer,
 				.Unread     = unread,
@@ -991,6 +1012,9 @@ namespace bpr::qt {
 					? QStringLiteral("author")
 					: QStringLiteral("reviewer"),
 				.ReplyingTo = replyingTo,
+				.Label      = mark.Label,
+				.Blocking   = mark.Blocking,
+				.Name       = feedback_post_name(author, mark),
 			});
 		}
 		// [[BPR-0649]]. Discuss's filters: only threads with unread posts,
@@ -1012,14 +1036,18 @@ namespace bpr::qt {
 		// My draft, at its line, while it is on this comparison.
 		if (Scope == cards_scope::this_file && Draft.has_value() && CurrentComparison.has_value()
 			&& Draft->Anchor.Comparison == *CurrentComparison && !Draft->shared()) {
-			auto card  = thread_card{ };
-			card.Draft = true;
-			card.Side  = Draft->Anchor.Side;
-			card.Line  = Draft->Anchor.Line + 1U;
+			auto card       = thread_card{ };
+			card.Draft      = true;
+			card.Side       = Draft->Anchor.Side;
+			card.Line       = Draft->Anchor.Line + 1U;
+			const auto mark = feedback_body_mark_of(Draft->Body);
 			card.Posts.push_back(card_post{
-				.Author = QStringLiteral("Your note, not published"),
-				.Body   = text(Draft->Body),
-				.Mine   = true,
+				.Author   = QStringLiteral("Your note, not published"),
+				.Body     = text(Draft->Body).mid(mark.SubjectOffset),
+				.Mine     = true,
+				.Label    = mark.Label,
+				.Blocking = mark.Blocking,
+				.Name     = feedback_post_name(QStringLiteral("Your note, not published"), mark),
 			});
 			Cards.push_back(std::move(card));
 		}
@@ -1184,6 +1212,16 @@ namespace bpr::qt {
 			painter.setPen(pen);
 			painter.setBrush(surface);
 			painter.drawRoundedRect(QRectF{ card.Rect }.adjusted(0.5, 0.5, -0.5, -0.5), 7.0, 7.0);
+			// [[BPR-1083]]. The rail in the root's tint, or grey for a plain
+			// root, inside the card's own padding: it adds no width.
+			if (!card.Posts.empty()) {
+				const auto& root = card.Posts.front();
+				painter.save();
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(root.Label.has_value() ? MarkTheme.Tints[static_cast<std::size_t>(*root.Label)] : rule);
+				painter.drawRoundedRect(rail_rect(card, root), 1.0, 1.0);
+				painter.restore();
+			}
 			if (Compact) {
 				painter.setFont(font());
 				painter.setPen(ink);
@@ -1236,12 +1274,24 @@ namespace bpr::qt {
 			for (const auto& post : card.Posts) {
 				const auto avatar = QRectF{ static_cast<qreal>(post.Rect.left()), static_cast<qreal>(post.Rect.top()),
 											static_cast<qreal>(avatar_size), static_cast<qreal>(avatar_size) };
+				// [[BPR-1083]]. Every post after the root carries its own rail;
+				// the root's is the card's, drawn above. A reply's mark may
+				// differ from its root's.
+				if (&post != &card.Posts.front()) {
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(post.Label.has_value() ? MarkTheme.Tints[static_cast<std::size_t>(*post.Label)] : rule);
+					painter.drawRoundedRect(rail_rect(card, post), 1.0, 1.0);
+				}
 				painter.setPen(Qt::NoPen);
 				painter.setBrush(post.Mine ? Accent : rule);
 				painter.drawEllipse(avatar);
 				painter.setFont(small);
 				painter.setPen(post.Mine ? surface : ink);
 				painter.drawText(avatar, Qt::AlignCenter, post.Author.left(1).toUpper());
+				if (post.Label.has_value()) {
+					paint_feedback_mark(painter, QRectF{ mark_rect(post) }, *post.Label, post.Blocking,
+										feedback_mark_colours{ .Tint = MarkTheme.Tints[static_cast<std::size_t>(*post.Label)], .Panel = surface, .Ink = ink, .Style = MarkTheme.Style });
+				}
 				const auto textLeft  = post.Rect.left() + avatar_column;
 				const auto textWidth = post.Rect.width() - avatar_column;
 				// [[BPR-0656]]. An unread post: a blue dot before a full-ink
@@ -1295,6 +1345,64 @@ namespace bpr::qt {
 								 ? QStringLiteral("No threads on this file.")
 								 : QStringLiteral("No threads on this pull request."));
 		}
+	}
+
+	void conversation_cards_view::set_label_marks(const feedback_mark_theme& aTheme)
+	{
+		MarkTheme = aTheme;
+		viewport()->update();
+	}
+
+	auto conversation_cards_view::label_marks() const noexcept -> const feedback_mark_theme&
+	{
+		return MarkTheme;
+	}
+
+	auto conversation_cards_view::mark_rect(const card_post& aPost) const -> QRect
+	{
+		if (!aPost.Label.has_value() || Compact || aPost.Rect.isEmpty()) {
+			return { };
+		}
+		// Centred under the 18 px avatar: one pixel either side at any whole scale.
+		return QRect{ aPost.Rect.left() + (avatar_size - 16) / 2, aPost.Rect.top() + avatar_size + mark_gap, 16, 16 };
+	}
+
+	auto conversation_cards_view::rail_rect(const thread_card& aCard, const card_post& aPost) const -> QRectF
+	{
+		const auto width = aPost.Blocking ? 4.0 : 2.0;
+		if (Compact || aPost.Rect.isEmpty()) {
+			const auto right = static_cast<qreal>(aCard.Rect.left() + card_padding - rail_gap);
+			return QRectF{ right - width, static_cast<qreal>(aCard.Rect.top()) + card_padding / 2.0, width, static_cast<qreal>(std::max(0, aCard.Rect.height() - card_padding)) };
+		}
+		// The rail's right edge stays 3 px left of the avatar, so blocking
+		// grows it outward and the text does not move.
+		const auto right = static_cast<qreal>(aPost.Rect.left() - rail_gap);
+		return QRectF{ right - width, static_cast<qreal>(aPost.Rect.top()), width, static_cast<qreal>(aPost.Rect.height()) };
+	}
+
+	auto conversation_cards_view::viewportEvent(QEvent* const aEvent) -> bool
+	{
+		if (aEvent->type() == QEvent::ToolTip) {
+			const auto* const help  = static_cast<QHelpEvent*>(aEvent);
+			const auto        point = to_content(help->pos());
+			for (const auto& card : Cards) {
+				if (!card.Rect.contains(point) || card.Posts.empty()) {
+					continue;
+				}
+				for (const auto& post : card.Posts) {
+					if (mark_rect(post).contains(point) || rail_rect(card, post).adjusted(-3.0, 0.0, 3.0, 0.0).contains(QPointF{ point })) {
+						// The word appears only in the tooltip and the
+						// accessible name, as in "issue (blocking)".
+						QToolTip::showText(help->globalPos(), post.Name, viewport());
+						return true;
+					}
+				}
+			}
+			QToolTip::hideText();
+			aEvent->ignore();
+			return true;
+		}
+		return QAbstractScrollArea::viewportEvent(aEvent);
 	}
 
 	void conversation_cards_view::resizeEvent(QResizeEvent* const aEvent)

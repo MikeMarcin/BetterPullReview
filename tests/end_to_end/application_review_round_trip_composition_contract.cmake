@@ -666,6 +666,17 @@ endfunction()
 # fixture lambda keeps its canonical_hex value alive for the view it compares.
 # No grant, target, provider, credential, mutation or publication path changes;
 # mutation pin unchanged; no new src/app source. Reviewed on BPR-1179.
+# BPR-1083 reseal: over 192ffb56b's BPR-1179 reseal; no intervening
+# pinned-scope commit. github_application.cpp gives the window the label tints
+# of the theme on screen (set_label_tints, beside the conversation panel's
+# appearance) and, in a tests-on fixture launch only, turns the comment
+# editor's label helper on for --label-helper. main.cpp adds the constructed
+# conventional-comments-v1 fixture (the nested-folders pull request and pack
+# with labelled review threads) and the --label-helper switch;
+# github_public_path_fixture.cpp and github_application_fixture_access.hpp
+# name it. Presentation and fixture selection only: no grant, target,
+# provider, credential, mutation or publication path changes; mutation pin
+# unchanged; no new src/app source. Reviewed on BPR-1083.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -684,7 +695,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"792bc7c4a5885564b29e974913cad59aaca728ca598f386a6eb597edb52d6ff7"
+		"4b4054f4a6561ea94ecff95546bf8a51588264266428eb12eb0a79898b7641e8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -882,7 +893,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c73f1bc0e3237ad9ccd990cb07ee0b05477d80390f79fd570255fdee058921aa"
+        "4960dd83fc3fb6035adc8a2f71deef4255c485da0def3a0fb7e0f2821f22e225"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

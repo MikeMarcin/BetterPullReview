@@ -93,6 +93,14 @@ namespace {
 		[[nodiscard]] auto menu() const -> qt::feedback_label_menu* { return controls()->menu(); }
 	};
 
+	void save_render(QWidget& aWidget, const char* const aName)
+	{
+		const auto folder = qEnvironmentVariable("BPR_FEEDBACK_RENDER_DIR");
+		if (!folder.isEmpty()) {
+			static_cast<void>(aWidget.grab().save(folder + QLatin1Char{ '/' } + QString::fromLatin1(aName) + QStringLiteral(".png")));
+		}
+	}
+
 	void key(QWidget* const aTarget, const int aKey, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier, const QString& aText = { })
 	{
 		auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers, aText };
@@ -140,6 +148,7 @@ namespace {
 
 		chip->click();
 		settle();
+		save_render(*f.menu(), "menu");
 		expect(f.menu()->isVisible() && f.controls()->statistics().MenuOpens == 1U, "clicking the chip opens the label menu");
 		expect(f.menu()->plain_button()->isChecked() && f.menu()->plain_button()->accessibleName() == QStringLiteral("Plain comment"),
 			   "Plain comment comes first and is the current choice");
@@ -279,6 +288,7 @@ namespace {
 		settle();
 		chosen.controls()->blocking_toggle()->click();
 		settle();
+		save_render(chosen.Window, "editor");
 		auto typed = fixture{ "Read the light scale from the view." };
 		typed.body()->setPlainText(QStringLiteral("suggestion (blocking): Read the light scale from the view."));
 		settle();
@@ -349,6 +359,7 @@ namespace {
 		type(f.body(), QStringLiteral(":q"));
 		settle();
 		auto* const completion = f.controls()->completion();
+		save_render(*completion, "completion");
 		expect(completion->isVisible() && f.controls()->completion_labels() == std::vector{ core::feedback_label::question, core::feedback_label::quibble },
 			   "a colon and one letter open completion, codes first");
 		key(f.body(), Qt::Key_Down);

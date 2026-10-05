@@ -1,0 +1,421 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_nested-folders",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "README.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/reference.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/v2/endpoints.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/guide.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.vert",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/bloom.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/tonemap.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/main.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/slider.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/engine/renderer_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/ui/widgets/button_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tools/build/scripts/package.py",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/nested-folders:21:files",
+						"hasNextPage": false
+					},
+					"totalCount": 17
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_21",
+				"reviewThreads": {
+					"nodes": [
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue (blocking): draw_scene() runs before the clear finishes on the second view.",
+										"id": "PRRC_cc_1_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "question: Does the second view share the depth buffer?",
+										"id": "PRRC_cc_1_2",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_1_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "praise: Good catch, this explains the flicker.",
+										"id": "PRRC_cc_1_3",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_1_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Thanks, resolving after CI.",
+										"id": "PRRC_cc_1_4",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_1_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMV80",
+									"hasNextPage": false
+								},
+								"totalCount": 4
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_1",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "suggestion (non-blocking): Clamp the width to at least one pixel.",
+										"id": "PRRC_cc_2_1",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "todo: I will add the clamp in the next push.",
+										"id": "PRRC_cc_2_2",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_2_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMl8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_2",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 12,
+							"originalLine": 12,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "nitpick (if-minor): 1280 by 720 could be a named constant.",
+										"id": "PRRC_cc_3_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/main.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "thought: A config file may want to own this later.",
+										"id": "PRRC_cc_3_2",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/main.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_3_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfM18y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_3",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/main.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "chore: Rename Handler to OnClick while you are here.",
+										"id": "PRRC_cc_4_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/ui/widgets/button.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "note: The old name is still used by the plugin API.",
+										"id": "PRRC_cc_4_2",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/ui/widgets/button.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_4_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfNF8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_4",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/ui/widgets/button.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "typo: tests/ should be tests/engine/.",
+										"id": "PRRC_cc_5_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "README.md",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "polish: Add a sentence about the release flag.",
+										"id": "PRRC_cc_5_2",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "README.md",
+										"replyTo": {
+											"id": "PRRC_cc_5_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfNV8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_5",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "README.md",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "quibble: 1.2 reads as a magic number.",
+										"id": "PRRC_cc_6_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/engine/shaders/post/bloom.frag",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "security: the shader trusts uScene.",
+										"id": "PRRC_cc_6_2",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/engine/shaders/post/bloom.frag",
+										"replyTo": {
+											"id": "PRRC_cc_6_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfNl8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_6",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/engine/shaders/post/bloom.frag",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						}
+					],
+					"pageInfo": {
+						"endCursor": "Y3Vyc29yOlBSUlRfY2NfNg==",
+						"hasNextPage": false
+					},
+					"totalCount": 6
+				}
+			}
+		}
+	}
+}

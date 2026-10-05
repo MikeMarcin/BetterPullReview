@@ -257,9 +257,9 @@ namespace bpr::qt {
 		return Members.Labels;
 	}
 
-	void review_draft_editor::set_label_tints(const feedback_label_tints& aTints)
+	void review_draft_editor::set_label_marks(const feedback_mark_theme& aTheme)
 	{
-		Members.Labels->set_tints(aTints);
+		Members.Labels->set_theme(aTheme);
 	}
 
 	void review_draft_editor::set_label_helper(const bool aEnabled)

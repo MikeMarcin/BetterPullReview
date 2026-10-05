@@ -49,7 +49,13 @@ namespace bpr::adapters::sqlite::detail {
 	/// Ten since [[BPR-1130]]: each window's Updates line, folded or open, in
 	/// the per-window table only. Every new window starts folded, so the
 	/// profile row answers no fold, and a migrated row reads folded.
-	inline constexpr std::int64_t workbench_settings_schema_version = 11;
+	///
+	/// Eleven added the writing hooks' overrides to the profile row.
+	///
+	/// Twelve since [[BPR-1083]]: how label marks are drawn, icons or the
+	/// two-letter shortcode marks, in the profile row. A migrated row reads
+	/// icons, the default.
+	inline constexpr std::int64_t workbench_settings_schema_version = 12;
 
 	/// \brief Owns the durable workbench layout database.
 	///

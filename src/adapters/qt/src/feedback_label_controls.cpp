@@ -134,8 +134,7 @@ namespace bpr::qt {
 		, Body{ aBody }
 	{
 		setObjectName(QStringLiteral("feedbackLabelControls"));
-		Tints           = feedback_label_tints_of(builtin_appearance_palette(
-			palette().color(QPalette::Base).lightnessF() < 0.5 ? core::appearance_variant::dark : core::appearance_variant::light));
+		Theme           = default_feedback_mark_theme(palette());
 		auto* const row = new QHBoxLayout{ this };
 		row->setContentsMargins(0, 0, 0, 0);
 		row->setSpacing(4);
@@ -186,9 +185,9 @@ namespace bpr::qt {
 		delete Menu;
 	}
 
-	void feedback_label_controls::set_tints(const feedback_label_tints& aTints)
+	void feedback_label_controls::set_theme(const feedback_mark_theme& aTheme)
 	{
-		Tints = aTints;
+		Theme = aTheme;
 		refresh();
 	}
 
@@ -300,7 +299,7 @@ namespace bpr::qt {
 			selection.cursor = QTextCursor{ Body->document() };
 			selection.cursor.setPosition(0);
 			selection.cursor.setPosition(static_cast<int>(std::min<qsizetype>(State.PrefixLength, Body->document()->characterCount() - 1)), QTextCursor::KeepAnchor);
-			const auto tint = Tints[static_cast<std::size_t>(*State.Label)];
+			const auto tint = Theme.Tints[static_cast<std::size_t>(*State.Label)];
 			selection.format.setBackground(feedback_mark_soft_fill(tint, Body->palette().color(QPalette::Base)));
 			selections.push_back(selection);
 		}
@@ -311,7 +310,7 @@ namespace bpr::qt {
 	{
 		const auto ratio = devicePixelRatioF();
 		if (State.Label.has_value()) {
-			const auto colours = feedback_mark_colours_for(Tints[static_cast<std::size_t>(*State.Label)], palette());
+			const auto colours = feedback_mark_colours_for(Theme, *State.Label, palette());
 			Chip->setIcon(QIcon{ feedback_mark_pixmap(*State.Label, State.Expectation == core::feedback_expectation::blocking, colours, ratio) });
 		} else {
 			Chip->setIcon(QIcon{ feedback_plain_mark_pixmap(palette(), ratio) });
@@ -325,7 +324,7 @@ namespace bpr::qt {
 		}
 		hide_completion();
 		++Statistics.MenuOpens;
-		Menu->present(State, Tints);
+		Menu->present(State, Theme);
 		Menu->adjustSize();
 		auto place = Chip->mapToGlobal(QPoint{ 0, Chip->height() + 4 });
 		if (const auto* const screen = Chip->screen(); screen != nullptr) {
@@ -347,6 +346,7 @@ namespace bpr::qt {
 		place_caret_after_prefix();
 	}
 
+	auto feedback_label_controls::theme() const noexcept -> const feedback_mark_theme& { return Theme; }
 	auto feedback_label_controls::state() const noexcept -> const feedback_composition_state& { return State; }
 	auto feedback_label_controls::chip() const noexcept -> QToolButton* { return Chip; }
 	auto feedback_label_controls::blocking_toggle() const noexcept -> QToolButton* { return Blocking; }
@@ -485,7 +485,7 @@ namespace bpr::qt {
 		for (const auto label : aLabels) {
 			const auto code    = feedback_shortcode(label);
 			auto*      item    = new QListWidgetItem{ Completion };
-			const auto colours = feedback_mark_colours_for(Tints[static_cast<std::size_t>(label)], Completion->palette());
+			const auto colours = feedback_mark_colours_for(Theme, label, Completion->palette());
 			item->setIcon(QIcon{ feedback_mark_pixmap(label, false, colours, devicePixelRatioF()) });
 			item->setText(QStringLiteral(":%1:  %2").arg(QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size())), feedback_label_text(label)));
 			item->setToolTip(feedback_label_description(label));
@@ -648,7 +648,7 @@ namespace bpr::qt {
 			connect(Decorations[index], &QToolButton::clicked, this, [this, index, kind] {
 				const auto written = !Decorations[index]->isChecked();
 				static_cast<void>(Controls.apply({ .Change = core::feedback_label_change::keep, .Expectation = written ? core::feedback_expectation::unspecified : kind }));
-				present(Controls.state(), { });
+				present(Controls.state(), Controls.theme());
 			});
 		}
 		adds->addStretch();
@@ -661,18 +661,15 @@ namespace bpr::qt {
 		setTabOrder(Plain, Labels.front());
 	}
 
-	void feedback_label_menu::present(const feedback_composition_state& aState, const feedback_label_tints& aTints)
+	void feedback_label_menu::present(const feedback_composition_state& aState, const feedback_mark_theme& aTheme)
 	{
 		const auto ratio = devicePixelRatioF();
-		const auto tints = aTints[0].isValid() ? aTints : feedback_label_tints_of(builtin_appearance_palette(palette().color(QPalette::Base).lightnessF() < 0.5 ? core::appearance_variant::dark : core::appearance_variant::light));
 		Plain->setChecked(!aState.Label.has_value());
 		Plain->setIcon(QIcon{ feedback_plain_mark_pixmap(palette(), ratio) });
 		for (std::size_t index = 0U; index < Labels.size(); ++index) {
 			const auto label = label_at(index);
 			Labels[index]->setChecked(aState.Label == label);
-			if (aTints[0].isValid() || Labels[index]->icon().isNull()) {
-				Labels[index]->setIcon(QIcon{ feedback_mark_pixmap(label, false, feedback_mark_colours_for(tints[index], palette()), ratio) });
-			}
+			Labels[index]->setIcon(QIcon{ feedback_mark_pixmap(label, false, feedback_mark_colours_for(aTheme, label, palette()), ratio) });
 		}
 		const auto written = std::array{ aState.Blocking, aState.NonBlocking, aState.IfMinor };
 		for (std::size_t index = 0U; index < Decorations.size(); ++index) {
@@ -753,7 +750,8 @@ namespace bpr::qt {
 				return Plain;
 			}
 			if (aRow <= 4) {
-				return Labels[static_cast<std::size_t>((aRow - 1) * 3 + std::clamp(aColumn, 0, 2))];
+				const auto index = (aRow - 1) * 3 + std::clamp(aColumn, 0, 2);
+				return Labels[static_cast<std::size_t>(index)];
 			}
 			return Decorations[static_cast<std::size_t>(std::clamp(aColumn, 0, 2))];
 		};

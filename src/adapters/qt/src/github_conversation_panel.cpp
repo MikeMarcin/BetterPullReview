@@ -805,6 +805,16 @@ namespace bpr::qt {
 	{
 		LinkDispatch = std::move(aDispatch);
 	}
+	void github_conversation_panel::set_label_marks(const feedback_mark_theme& aTheme)
+	{
+		Cards->set_label_marks(aTheme);
+		if (auto* const delegate = dynamic_cast<github_conversation_delegate*>(View->itemDelegate()); delegate != nullptr) {
+			delegate->set_label_marks(aTheme);
+			View->viewport()->update();
+		}
+		Body->set_feedback_marks(aTheme);
+	}
+
 	void github_conversation_panel::adopt_appearance(const appearance_profile& aProfile)
 	{
 		Body->set_code_font(aProfile.code_font(), aProfile.code_tab_stop_distance());

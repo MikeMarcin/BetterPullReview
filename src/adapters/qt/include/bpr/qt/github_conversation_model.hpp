@@ -47,6 +47,15 @@ namespace bpr::qt {
 			resolved_role,
 			outdated_role,
 			deleted_role,
+			/// [[BPR-1083]]. The body's recognized label as `core::feedback_label`,
+			/// or no value for a plain, unknown, malformed or limited body.
+			feedback_label_role,
+			/// Whether that label is explicitly `(blocking)`.
+			feedback_blocking_role,
+			/// The mark's name, as in "issue (blocking)"; empty with no mark.
+			feedback_name_role,
+			/// Where the subject starts in `body_role`'s text.
+			feedback_subject_role,
 		};
 
 		explicit github_conversation_model(QObject* aParent = nullptr);

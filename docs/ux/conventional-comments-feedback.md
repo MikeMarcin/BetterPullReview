@@ -5,8 +5,10 @@ labels, and binds it to the code that will build it. It serves RFC-BPR-0050
 (R30 to R33) and the surfaces of RFC-BPR-0048 and RFC-BPR-0049. The authoring
 and Overview cards, BPR-1082 to BPR-1089, build against this page.
 
-Nothing here is implemented. A static frame is not runtime evidence: each
-surface earns R33 in the real application on the card that builds it.
+BPR-1083 built the marks, the tints, the authoring controls and the thread
+marks; the Overview, preflight and Settings surfaces are their own cards. A
+static frame is not runtime evidence: each surface earns R33 in the real
+application on the card that builds it.
 
 ## Sources and authority
 
@@ -81,6 +83,17 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
 - **Painting** (existing, Qt adapter rules). The marks are painted with
   `QPainter`, with no QSS and no forced palette. They are redrawn when Qt
   reports a palette, style or theme change.
+- **Style: icons or letters** (owner, 2026-10-05, in chat, verbatim: "i
+  think settings should also have a toggle to switch between the icons and
+  the shortcode icons, because i liked both of them."). Icons, the default,
+  are the twelve glyphs below. Letters put the label's two-letter code (`pr`,
+  `ni`, `su`, `is`, `td`, `qu`, `th`, `ch`, `no`, `ty`, `po`, `qb`) in the
+  same mark, with the same tints, blocking fill, size and accessible names.
+  The choice is the Label marks row of Reviews & queue › Comment labels, kept
+  with the profile's review behaviour (workbench settings store, schema 12),
+  and it applies everywhere a mark is drawn: threads, the chip and its menu,
+  completion, and the Overview chips and Label key when BPR-1087 and BPR-1089
+  draw them through `feedback_mark_theme`.
 
 ### Tints
 
@@ -142,7 +155,9 @@ the green of resolved.
 - **Proof of fidelity** (derived). The implementing card adds a Qt test that
   compares the compiled element list, entry by entry, with a checked-in
   transcription of the selected page's path data. Changing a glyph needs a new
-  owner verdict.
+  owner verdict. Built by BPR-1083: `qt_feedback_label_marks` compares all 29
+  elements with `tests/fixtures/feedback/bpr-1080-selected-glyphs.txt`, and
+  that transcription with the selected page itself.
 
 ## Surfaces
 
@@ -183,8 +198,11 @@ Consumers: the inline composition page and reply drafts
   decorations can still change or remove that label. The editor plans these
   edits with `core::decide_feedback_composition_edit`, the header decision
   above with this one case added. Until a subject follows, the recognizer
-  reads the body as `malformed` (`empty_subject`); how the chip shows that
-  state is BPR-1083's to settle.
+  reads the body as `malformed` (`empty_subject`). BPR-1083 settles how the
+  chip shows it (derived): the chip shows the label and its mark, the
+  decoration toggles stay live, and its accessible description and tooltip
+  say the label is waiting for its subject. No mark is drawn on a thread for
+  such a body, because only a recognized prefix gets one.
 - **Helper off by default** (owner, Settings v1). With the label helper off,
   there is no completion or replacement, and `:qu:` is plain text. A label
   typed out in full counts either way. The last `(blocking)` used is never
@@ -203,7 +221,18 @@ Consumers: the inline composition page and reply drafts
 - **Open.** The workbench specification reserves the Comment ▾ menu on the
   review bar for labels. The owner selected the chip, not that menu.
   BPR-1083 delivers the chip. If it proposes listing labels in Comment ▾ as
-  well, that is asked of the owner first.
+  well, that is asked of the owner first. BPR-1083 asks it, as one Accept or
+  Reject, in its attended session; the card records the answer.
+- **As built** (BPR-1083). `feedback_label_controls` is the editor's tool row,
+  directly above the field and the next tab stop after it. The menu is a popup:
+  Plain comment, the grid with each label's mark, name, code and catalog
+  description, and the three decorations under Adds; arrow keys move through
+  it, Return or Space chooses, Esc closes. Every change is one edit block of
+  the field's text, so one undo step, and the editor's ordinary typed path
+  sends it to the draft owner as one whole-body edit, the command
+  `plan_feedback_draft_edit` plans for the same label. Completion is a list
+  under the caret that never takes focus. The helper's Settings row is
+  BPR-1088's; a tests-on fixture launch turns it on with `--label-helper`.
 
 ### Thread cards and detail (BPR-1083; RFC-BPR-0050)
 
@@ -233,6 +262,18 @@ selected thread's detail (`markdown_body_view`).
 - **Refresh** (existing). Marks follow the accepted body revision. A refresh
   keeps the selection, expansion and caret, and an unchanged body is not
   reparsed (BPR-1087).
+- **As built** (BPR-1083). The full cards (`conversation_cards_view`) draw the
+  mark under the avatar and the rail exactly as above. The application's
+  Discuss and Read drawers show compact entries, the selected conversation's
+  post list and its body, so: a compact entry carries its root's rail in its
+  own padding and no mark; each row of the post list
+  (`github_conversation_delegate`) has its rail in the row's padding and its
+  16 px mark leading the heading, with the body from the subject; the body
+  reader (`markdown_body_view`, in the conversation panel only) renders from
+  the subject with the named mark before View source and Copy source, which
+  keep the prefix. The model reads each body's mark once per accepted body,
+  and the post's accessible name is "Review comment by @tbutler, issue
+  (blocking)".
 
 ### Overview Comments column (BPR-1087, BPR-1088, BPR-1089; RFC-BPR-0049)
 
@@ -307,6 +348,8 @@ Consumer: `settings_window`, page Reviews & queue, section Comment labels
 (owner, Settings v1, adjusted to Overview B in v2). The section holds:
 
 - the label helper, off by default;
+- Label marks, Icons or Letters (owner, 2026-10-05; BPR-1083 adds this row and
+  the Comment labels group, beside Drawers, on the review-behaviour record);
 - the default count, Open;
 - the Overview chips, ticked and dragged into order (⌥↑ and ⌥↓ also move
   them);

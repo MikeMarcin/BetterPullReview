@@ -67,6 +67,7 @@ subscriptions. Saved preferences belong to the current BPR profile.
 | Modality rules | Open on Overview; Continue enters Read | These two choices |
 | Reading | Mark read by hand; return comparison Whole PR; comments All | These three choices |
 | Drawers | Drawer controls Hidden | Drawer-control preference |
+| Comment labels | Label marks Icons (or Letters, the two-letter shortcodes; [[BPR-1083]]) | Label-mark preference |
 | Queue defaults | Any role, observer reason, attention bucket and repository; any quiet/current state; core priority order | Queue filters and sort only |
 
 Observer rules match local repository, author or path facts. Add/remove changes

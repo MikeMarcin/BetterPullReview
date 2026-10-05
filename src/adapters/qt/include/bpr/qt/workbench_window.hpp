@@ -19,6 +19,7 @@
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
@@ -783,6 +784,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto finding_queue() const noexcept -> finding_queue_view*;
 		[[nodiscard]] auto review_submission_editor_view() const noexcept -> review_submission_editor*;
 		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
+		/// \brief [[BPR-1083]]. The label tints of the theme on screen. With the
+		/// mark style the reviewer chose on Reviews & queue, they reach every
+		/// surface in this window that draws a label mark.
+		void set_label_tints(const feedback_label_tints& aTints);
+		/// \brief The tints and mark style this window draws marks with.
+		[[nodiscard]] auto label_marks() const -> feedback_mark_theme;
 		/// \brief Opens a retained editor page without changing or publishing its draft.
 		void open_review_composition(bool aInline = false);
 		/// \brief Returns to the invoking surface and focus without submitting.
@@ -1238,6 +1245,7 @@ namespace bpr::qt {
 		// [[BPR-0661]]. The preference rows and what honours them.
 		void               build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
 		void               apply_behaviour_controls();
+		void               apply_label_marks();
 		void               dispatch_behaviour_from_controls();
 		[[nodiscard]] auto behaviour_from_controls() const -> application::review_behaviour_settings;
 		[[nodiscard]] auto opening_modality() const -> review_modality;
@@ -1658,10 +1666,13 @@ namespace bpr::qt {
 		review_behaviour_dispatch                BehaviourDispatch;
 		application::review_behaviour_settings   Behaviour;
 		QWidget*                                 BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 6> BehaviourOptions{ };
-		bool                                     ApplyingBehaviour = false;
-		std::optional<review_modality>           LastUsedModality;
-		bool                                     ReturnComparisonPending = false;
+		std::array<std::vector<QToolButton*>, 7> BehaviourOptions{ };
+		/// [[BPR-1083]]. The label tints of the theme on screen, once the
+		/// composition supplies them; the mark style is `Behaviour`'s.
+		std::optional<feedback_label_tints> LabelTints;
+		bool                                ApplyingBehaviour = false;
+		std::optional<review_modality>      LastUsedModality;
+		bool                                ReturnComparisonPending = false;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
 		bool                                      BehaviourPublished    = false;

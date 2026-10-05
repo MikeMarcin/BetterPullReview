@@ -4,6 +4,7 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QAbstractScrollArea>
 #include <QColor>
@@ -98,6 +99,13 @@ namespace bpr::qt {
 		/// answers another reply rather than the thread.
 		QString Role;
 		QString ReplyingTo;
+		/// [[BPR-1083]]. The post's label mark, when its body begins with a
+		/// recognized Conventional Comments prefix. `Body` then starts at the
+		/// subject: the mark stands in for the prefix (owner, v1 and v4).
+		std::optional<core::feedback_label> Label;
+		bool                                Blocking = false;
+		/// "tbutler, issue (blocking)": the author, then the mark's name.
+		QString Name;
 		/// Where the post was drawn, in content coordinates.
 		QRect Rect;
 	};
@@ -253,6 +261,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto marked_lines(core::diff_side aSide) const -> std::vector<std::uint32_t>;
 		[[nodiscard]] auto post_count() const noexcept -> std::size_t;
 		void               set_colours(const QColor& aAccent, const QColor& aMarker);
+		/// \brief [[BPR-1083]]. The label tints of the theme on screen and the
+		/// mark style.
+		void               set_label_marks(const feedback_mark_theme& aTheme);
+		[[nodiscard]] auto label_marks() const noexcept -> const feedback_mark_theme&;
+		/// \brief Where one post's 16 px mark is drawn, in content coordinates:
+		/// centred under its 18 px avatar, 3 px below it. Empty for a plain post
+		/// and in compact entries.
+		[[nodiscard]] auto mark_rect(const card_post& aPost) const -> QRect;
+		/// \brief Where one post's rail is drawn, in content coordinates: down its
+		/// left edge, 3 px left of the avatar, 2 px wide or 4 px when blocking,
+		/// growing outward. A compact entry's rail runs down the card's own
+		/// left padding in its root's tint.
+		[[nodiscard]] auto rail_rect(const thread_card& aCard, const card_post& aPost) const -> QRectF;
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
@@ -261,14 +282,18 @@ namespace bpr::qt {
 		void mousePressEvent(QMouseEvent* aEvent) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
 		void contextMenuEvent(QContextMenuEvent* aEvent) override;
+		auto viewportEvent(QEvent* aEvent) -> bool override;
 
 	private:
 		void sync_badge_buttons();
 		struct measured_card
 		{
-			QString                                    Label;
-			QString                                    Excerpt;
-			std::vector<QString>                       Bodies;
+			QString              Label;
+			QString              Excerpt;
+			std::vector<QString> Bodies;
+			/// [[BPR-1083]]. Each post's mark (label and blocking), which sets
+			/// its minimum height beneath the avatar.
+			std::vector<int>                           Marks;
 			bool                                       Header          = false;
 			bool                                       Draft           = false;
 			bool                                       Resolved        = false;
@@ -313,6 +338,10 @@ namespace bpr::qt {
 		std::vector<std::size_t>                                 RetainedRoot;
 		std::vector<std::size_t>                                 RetainedDepth;
 		std::vector<std::pair<core::file_identity, std::size_t>> RetainedByFile;
+		/// [[BPR-1083]]. Each retained node's mark, read once per adopted
+		/// forest from the accepted body.
+		std::vector<feedback_body_mark> RetainedMarks;
+		feedback_mark_theme             MarkTheme;
 		/// [[BPR-0972]]. The first read state of each thread.
 		std::unordered_map<std::string, std::size_t>    ReadStateByThread;
 		mutable std::optional<std::vector<std::string>> UnreadThreads;

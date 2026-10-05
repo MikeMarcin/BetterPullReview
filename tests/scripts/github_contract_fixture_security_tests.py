@@ -156,6 +156,16 @@ FIXTURES = {
         "identity": Identity("bpr-fixtures", "nested-folders", 21),
         "mirrors": None,
     },
+    # [[BPR-1083]]. The nested-folders contract with six labelled review
+    # threads, written by scripts/build_conventional_comments_fixture.py.
+    "conventional-comments-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        # Its threads carry posts, so the GraphQL response is held to the
+        # synthetic pair's full thread field set rather than the empty one.
+        "response_fields": {"ListReviewThreads": "synthetic"},
+    },
 }
 
 # The real commits the recording names. They must appear nowhere in a served
@@ -1130,10 +1140,12 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                 path = FIXTURE_ROOT / fixture_name / "responses" / response_name
                 with self.subTest(fixture=fixture_name, operation=operation):
                     response = self.load_json(path)
-                    self.assertEqual(
-                        json_fields(response),
-                        RECORDED_RESPONSE_FIELDS[operation],
+                    expected = (
+                        EXPECTED_RESPONSE_FIELDS[operation]
+                        if fixture.get("response_fields", {}).get(operation) == "synthetic"
+                        else RECORDED_RESPONSE_FIELDS[operation]
                     )
+                    self.assertEqual(json_fields(response), expected)
                     self.assertEqual(
                         artifact_field_violations(response, frozenset()),
                         [],

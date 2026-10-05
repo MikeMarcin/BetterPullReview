@@ -391,6 +391,10 @@ namespace bpr::qt {
 		auto* copy = new QPushButton{ QStringLiteral("Copy source"), this };
 		copy->setAccessibleName(QStringLiteral("Copy original Markdown source"));
 		copy->setObjectName(QStringLiteral("markdownCopySource"));
+		Mark = new QLabel{ this };
+		Mark->setObjectName(QStringLiteral("markdownFeedbackMark"));
+		Mark->hide();
+		controls->addWidget(Mark);
 		controls->addWidget(Toggle);
 		controls->addWidget(copy);
 		controls->addStretch();
@@ -465,15 +469,50 @@ namespace bpr::qt {
 		show_source(false);
 	}
 
+	void markdown_body_view::set_feedback_marks(const feedback_mark_theme& aTheme)
+	{
+		const auto enabled = MarkTheme.has_value();
+		MarkTheme          = aTheme;
+		const auto mark    = feedback_body_mark_of(Body);
+		// A new tint or style redraws the mark alone. The document, its
+		// position and its selection change only when what it renders does.
+		if ((enabled && mark.Label == BodyMark.Label && mark.SubjectByte == BodyMark.SubjectByte) || (!enabled && !mark.Label.has_value())) {
+			BodyMark = mark;
+			refresh_mark();
+			return;
+		}
+		prepare_rendered();
+	}
+
+	void markdown_body_view::refresh_mark()
+	{
+		if (BodyMark.Label.has_value() && MarkTheme.has_value()) {
+			const auto colours = feedback_mark_colours_for(*MarkTheme, *BodyMark.Label, palette());
+			Mark->setPixmap(feedback_mark_pixmap(*BodyMark.Label, BodyMark.Blocking, colours, devicePixelRatioF()));
+			Mark->setAccessibleName(BodyMark.Name);
+			Mark->setToolTip(BodyMark.Name);
+		}
+		Mark->setVisible(BodyMark.Label.has_value());
+	}
+
+	auto markdown_body_view::feedback_mark_label() const noexcept -> QLabel*
+	{
+		return Mark;
+	}
+
 	void markdown_body_view::prepare_rendered()
 	{
-		Fallback          = rendering_limit(Body);
+		// [[BPR-1083]]. The mark stands in for the prefix in the reading view.
+		BodyMark = MarkTheme.has_value() ? feedback_body_mark_of(Body) : feedback_body_mark{ };
+		refresh_mark();
+		const auto shown  = std::string_view{ Body }.substr(std::min(BodyMark.SubjectByte, Body.size()));
+		Fallback          = rendering_limit(shown);
 		RenderedAvailable = Fallback.isEmpty();
 		auto* document    = Rendered->document();
 		document->setLayoutEnabled(false);
 		document->clear();
 		if (RenderedAvailable) {
-			const auto source = QString::fromUtf8(Body.data(), static_cast<qsizetype>(Body.size()));
+			const auto source = QString::fromUtf8(shown.data(), static_cast<qsizetype>(shown.size()));
 			document->setMarkdown(source, QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML);
 			if (restore_code_tabs(*document, source)) {
 				replace_images(*document);

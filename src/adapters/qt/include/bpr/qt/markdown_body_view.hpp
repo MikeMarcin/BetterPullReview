@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_MARKDOWN_BODY_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_MARKDOWN_BODY_VIEW_HPP
 
+#include "bpr/qt/feedback_label_marks.hpp"
+
 #include <QFont>
 #include <QWidget>
 
@@ -42,6 +44,13 @@ namespace bpr::qt {
 		void show_source(bool aSource);
 		/// \brief Copies original bytes, without reconstructing rendered text.
 		void copy_source() const;
+		/// \brief [[BPR-1083]]. Reads a recognized Conventional Comments prefix
+		/// as a mark: the rendered body starts at the subject and the mark,
+		/// named "issue (blocking)", leads the controls. Source and Copy source
+		/// keep the prefix byte for byte. Off by default, so a description or
+		/// a tour preview reads as written.
+		void               set_feedback_marks(const feedback_mark_theme& aTheme);
+		[[nodiscard]] auto feedback_mark_label() const noexcept -> QLabel*;
 
 		[[nodiscard]] auto original_body() const noexcept -> const std::string&;
 		[[nodiscard]] auto source_visible() const noexcept -> bool;
@@ -58,6 +67,7 @@ namespace bpr::qt {
 
 	private:
 		void prepare_rendered();
+		void refresh_mark();
 		void refresh_formats();
 
 		std::string                             Body;
@@ -69,6 +79,9 @@ namespace bpr::qt {
 		QPushButton*                            Toggle      = nullptr;
 		QLabel*                                 Notice      = nullptr;
 		QLabel*                                 Destination = nullptr;
+		QLabel*                                 Mark        = nullptr;
+		std::optional<feedback_mark_theme>      MarkTheme;
+		feedback_body_mark                      BodyMark;
 		QFont                                   CodeFont;
 		qreal                                   TabStopDistance   = 0;
 		bool                                    RenderedAvailable = false;

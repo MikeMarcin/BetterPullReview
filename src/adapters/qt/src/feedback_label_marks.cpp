@@ -2,11 +2,13 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 
+#include <QFont>
 #include <QImage>
 #include <QPainter>
 #include <QPalette>
 #include <QPen>
 #include <QStringList>
+#include <QUtf8StringView>
 
 #include <algorithm>
 #include <cmath>
@@ -432,10 +434,10 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto ratio(const QColor& aFirst, const QColor& aSecond) -> double
 		{
-			const auto to_core = [](const QColor& aColour) {
+			const auto toCore = [](const QColor& aColour) {
 				return core::appearance_color{ .Red = static_cast<std::uint8_t>(aColour.red()), .Green = static_cast<std::uint8_t>(aColour.green()), .Blue = static_cast<std::uint8_t>(aColour.blue()), .Alpha = 255U };
 			};
-			return contrast_ratio(to_core(aFirst), to_core(aSecond));
+			return contrast_ratio(toCore(aFirst), toCore(aSecond));
 		}
 	} // namespace
 
@@ -516,9 +518,37 @@ namespace bpr::qt {
 		return ratio(white, aTint) >= ratio(near, aTint) ? white : near;
 	}
 
-	auto feedback_mark_colours_for(const QColor& aTint, const QPalette& aPalette) -> feedback_mark_colours
+	auto feedback_mark_colours_for(const QColor& aTint, const QPalette& aPalette, const feedback_mark_style aStyle) -> feedback_mark_colours
 	{
-		return { .Tint = aTint, .Panel = aPalette.color(QPalette::Base), .Ink = aPalette.color(QPalette::Text) };
+		return { .Tint = aTint, .Panel = aPalette.color(QPalette::Base), .Ink = aPalette.color(QPalette::Text), .Style = aStyle };
+	}
+
+	auto feedback_mark_colours_for(const feedback_mark_theme& aTheme, const core::feedback_label aLabel, const QPalette& aPalette) -> feedback_mark_colours
+	{
+		const auto index = std::min(index_of(aLabel), aTheme.Tints.size() - 1U);
+		return feedback_mark_colours_for(aTheme.Tints[index], aPalette, aTheme.Style);
+	}
+
+	auto default_feedback_mark_theme(const QPalette& aPalette) -> feedback_mark_theme
+	{
+		return { .Tints = feedback_label_tints_of(builtin_appearance_palette(
+					 aPalette.color(QPalette::Base).lightnessF() < 0.5 ? core::appearance_variant::dark : core::appearance_variant::light)) };
+	}
+
+	void paint_feedback_letters(QPainter& aPainter, const QRectF& aBox, const core::feedback_label aLabel, const QColor& aInk)
+	{
+		const auto code = feedback_shortcode(aLabel);
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::TextAntialiasing, true);
+		auto font = aPainter.font();
+		font.setWeight(QFont::Bold);
+		font.setPixelSize(std::max(1, static_cast<int>(std::lround(aBox.height() * 0.72))));
+		font.setLetterSpacing(QFont::PercentageSpacing, 92.0);
+		aPainter.setFont(font);
+		aPainter.setPen(aInk);
+		// A little wider than the glyph box, so two letters never clip.
+		aPainter.drawText(aBox.adjusted(-aBox.width() * 0.1, 0.0, aBox.width() * 0.1, 0.0), Qt::AlignCenter, QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size())));
+		aPainter.restore();
 	}
 
 	void paint_feedback_glyph(QPainter& aPainter, const QRectF& aBox, const core::feedback_label aLabel, const QColor& aInk)
@@ -552,7 +582,12 @@ namespace bpr::qt {
 		const auto scale = aMark.width() / feedback_mark_size;
 		const auto side  = feedback_mark_glyph_size * scale;
 		const auto box   = QRectF{ aMark.center().x() - side / 2.0, aMark.center().y() - side / 2.0, side, side };
-		paint_feedback_glyph(aPainter, box, aLabel, aBlocking ? feedback_mark_blocking_ink(aColours.Tint) : aColours.Ink);
+		const auto ink   = aBlocking ? feedback_mark_blocking_ink(aColours.Tint) : aColours.Ink;
+		if (aColours.Style == feedback_mark_style::letters) {
+			paint_feedback_letters(aPainter, box, aLabel, ink);
+		} else {
+			paint_feedback_glyph(aPainter, box, aLabel, ink);
+		}
 		aPainter.restore();
 	}
 
@@ -629,6 +664,7 @@ namespace bpr::qt {
 			.Blocking      = annotation.Expectation == core::feedback_expectation::blocking,
 			.Name          = feedback_mark_name(annotation),
 			.SubjectOffset = feedback_text_index(aBody, annotation.Subject->Begin),
+			.SubjectByte   = annotation.Subject->Begin,
 		};
 	}
 
@@ -653,6 +689,6 @@ namespace bpr::qt {
 	auto feedback_text_index(const std::string_view aBody, const std::size_t aByteOffset) -> qsizetype
 	{
 		const auto bytes = std::min(aByteOffset, aBody.size());
-		return QString::fromUtf8(aBody.data(), static_cast<qsizetype>(bytes)).size();
+		return QUtf8StringView{ aBody.substr(0, bytes) }.toString().size();
 	}
 } // namespace bpr::qt

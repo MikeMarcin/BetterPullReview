@@ -306,8 +306,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto body_editor() const noexcept -> QPlainTextEdit*;
 		/// \brief [[BPR-1083]]. The label chip, menu, toggles and shortcodes.
 		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
-		/// \brief The label tints of the theme on screen.
-		void set_label_tints(const feedback_label_tints& aTints);
+		/// \brief The label tints of the theme on screen and the mark style.
+		void set_label_marks(const feedback_mark_theme& aTheme);
 		/// \brief The label helper (completion and shortcode replacement), off
 		/// by default; the Settings section that owns it is BPR-1088.
 		void               set_label_helper(bool aEnabled);

@@ -1728,3 +1728,26 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "feedback-label-controls-tests:pass"
 )
+
+# [[BPR-1083]]. Thread marks, rails and the reading body in both mark styles.
+bpr_add_executable(
+    test_better_pull_review_qt_feedback_label_threads_tests
+    feedback_label_threads_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_feedback_label_threads_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_feedback_label_threads_tests)
+bpr_enable_warnings(test_better_pull_review_qt_feedback_label_threads_tests)
+bpr_add_network_isolated_test(
+    NAME qt_feedback_label_threads
+    COMMAND test_better_pull_review_qt_feedback_label_threads_tests
+)
+set_tests_properties(
+    qt_feedback_label_threads
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "feedback-label-threads-tests:pass"
+)

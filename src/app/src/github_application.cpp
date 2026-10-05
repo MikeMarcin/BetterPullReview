@@ -943,6 +943,15 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed nested folders",
 				};
+			case detail::github_public_path_fixture::conventional_comments_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed Conventional Comments",
+				};
 			}
 			return { };
 		}
@@ -4398,6 +4407,7 @@ namespace bpr::app {
 				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
 				DeviceWallOffsetSeconds = aFixtureOptions.DeviceWallOffsetSeconds;
 				SuppressDeviceBrowser   = aFixtureOptions.SuppressDeviceBrowser;
+				LabelHelper             = aFixtureOptions.LabelHelper;
 				DisableDeviceAuthorizationPanelComposition
 					= aFixtureOptions
 						  .DisableDeviceAuthorizationPanelComposition;
@@ -5525,6 +5535,9 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool SuppressDeviceBrowser = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool LabelHelper = false;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool DisableDeviceAuthorizationPanelComposition = false;
@@ -6748,6 +6761,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
+#if defined(BPR_BUILD_TESTING)
+			// [[BPR-1083]]. An attended look at the shortcodes turns the helper
+			// on; the product's own switch is BPR-1088's Settings row.
+			if (Profile->LabelHelper && Window->review_editor() != nullptr) {
+				Window->review_editor()->set_label_helper(true);
+			}
+#endif
 			Window->set_behaviour_dispatch(
 				[this](const application::review_behaviour_settings& aSettings) {
 					if (!Closing && WorkbenchHost != nullptr) {
@@ -14765,6 +14785,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (auto* const home = Window->home_list(); home != nullptr) {
 				home->set_state_colours(qt::home_state_colours_for(*AppearanceProfile));
 			}
+			// [[BPR-1083]]. The label tints of the theme on screen, for every
+			// surface that draws a Conventional Comments mark.
+			Window->set_label_tints(qt::feedback_label_tints_of(AppearanceProfile->palette()));
 			if (auto* const conversations = Window->conversation_panel();
 				conversations != nullptr && conversations->cards() != nullptr) {
 				conversations->adopt_appearance(*AppearanceProfile);

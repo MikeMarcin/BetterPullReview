@@ -57,6 +57,10 @@ namespace bpr::app::detail {
 		/// [[BPR-1213]]. Constructed 17-file pull request with several folders,
 		/// nested subfolders and a root file, served on github.com with one head.
 		nested_folders_v1,
+		/// [[BPR-1083]]. The nested-folders pull request with review threads
+		/// whose posts carry every Conventional Comments label, for judging the
+		/// thread marks, the label chip and the shortcodes in the application.
+		conventional_comments_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -284,6 +288,10 @@ namespace bpr::app::detail {
 		// and the flow stays reachable through the self-test, so a graph that
 		// silently stopped composing the panel cannot pass for one that did.
 		bool DisableDeviceAuthorizationPanelComposition = false;
+		/// [[BPR-1083]]. Turns the label helper on in the comment editor for an
+		/// attended look at the shortcodes. Off by default, as the product is;
+		/// the Settings row that owns it is BPR-1088's.
+		bool LabelHelper = false;
 		// RFC-BPR-0017. Forces the shipped public-preview selection available
 		// against the recorded fixture, so the composed credential-free
 		// authority can be driven through the real host and the real

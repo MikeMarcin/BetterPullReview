@@ -30,7 +30,13 @@ namespace bpr::qt {
 			QString Heading;
 			QString Body;
 			QString Facts;
+			/// [[BPR-1083]]. The post's label, or -1; and whether it blocks.
+			int  Label    = -1;
+			bool Blocking = false;
 		};
+
+		/// \brief The room a mark takes at the start of the heading line.
+		constexpr qreal mark_lead = 16.0 + 5.0;
 
 		struct delegate_metrics
 		{
@@ -115,6 +121,13 @@ namespace bpr::qt {
 				.Body    = aIndex.data(github_conversation_model::body_role).toString(),
 				.Facts   = { },
 			};
+			// [[BPR-1083]]. The mark stands in for a recognized prefix, so the
+			// body starts at the subject; Copy source keeps the prefix.
+			if (const auto label = aIndex.data(github_conversation_model::feedback_label_role); label.isValid()) {
+				result.Label    = label.toInt();
+				result.Blocking = aIndex.data(github_conversation_model::feedback_blocking_role).toBool();
+				result.Body     = result.Body.mid(aIndex.data(github_conversation_model::feedback_subject_role).toLongLong());
+			}
 
 			if (aCompact) {
 				result.Body = result.Body.simplified();
@@ -231,7 +244,10 @@ namespace bpr::qt {
 			const QPaintDevice* const        aDevice) -> qreal
 		{
 			auto height = wrapped_text_height(
-				aPresentation.Heading, aMetrics.HeadingFont, aWidth, aDevice);
+				aPresentation.Heading, aMetrics.HeadingFont, aPresentation.Label >= 0 ? std::max(1.0, aWidth - mark_lead) : aWidth, aDevice);
+			if (aPresentation.Label >= 0) {
+				height = std::max(height, 16.0);
+			}
 			if (!aPresentation.Body.isEmpty()) {
 				height += static_cast<qreal>(aMetrics.SectionSpacing);
 				height += wrapped_text_height(
@@ -313,6 +329,7 @@ namespace bpr::qt {
 			QString       Body;
 			QString       Facts;
 			QString       DisplayText;
+			int           Mark = -1;
 			QFont         Font;
 			int           Width    = 0;
 			bool          Reply    = false;
@@ -329,7 +346,7 @@ namespace bpr::qt {
 		{
 			auto operator()(const key& aKey) const noexcept -> std::size_t
 			{
-				return qHashMulti(0U, aKey.Heading, aKey.Body, aKey.Facts, aKey.DisplayText, aKey.Font, aKey.Width, aKey.Reply,
+				return qHashMulti(0U, aKey.Heading, aKey.Body, aKey.Facts, aKey.DisplayText, aKey.Mark, aKey.Font, aKey.Width, aKey.Reply,
 								  aKey.Features, aKey.DecorationSize.width(), aKey.DecorationSize.height(),
 								  reinterpret_cast<quintptr>(aKey.Style), aKey.DevicePixelRatio, aKey.LogicalDpi);
 			}
@@ -351,6 +368,11 @@ namespace bpr::qt {
 	}
 
 	github_conversation_delegate::~github_conversation_delegate() = default;
+
+	void github_conversation_delegate::set_label_marks(const feedback_mark_theme& aTheme)
+	{
+		Theme = aTheme;
+	}
 
 	void github_conversation_delegate::paint(
 		QPainter* const             aPainter,
@@ -388,14 +410,25 @@ namespace bpr::qt {
 
 		aPainter->save();
 		aPainter->setClipRect(aOption.rect);
+		// [[BPR-1083]]. A rail down the post's left edge in its label's tint,
+		// grey for a plain post, 2 px or 4 px when blocking, in the padding
+		// the row already had; and the 16 px mark leading the heading.
+		const auto marked = presentation.Label >= 0 && static_cast<std::size_t>(presentation.Label) < core::feedback_label_count;
+		const auto label  = static_cast<core::feedback_label>(static_cast<std::uint8_t>(std::max(0, presentation.Label)));
+		const auto rail   = marked ? Theme.Tints[static_cast<std::size_t>(presentation.Label)] : nativeOption.palette.color(QPalette::Mid);
+		const auto post   = static_cast<application::github_conversation_kind>(aIndex.data(github_conversation_model::kind_role).toInt())
+			!= application::github_conversation_kind::review_thread;
+		if (post) {
+			paint_feedback_rail(*aPainter, contentRect.left() - 2.0, static_cast<qreal>(aOption.rect.top()) + 2.0, static_cast<qreal>(aOption.rect.bottom()) - 1.0, rail, marked && presentation.Blocking);
+		}
 		set_text_pen(aPainter, nativeOption, primaryRole);
-		y += wrapped_text_height(
-			presentation.Heading,
-			metrics.HeadingFont,
-			width,
-			nativeOption.widget,
-			aPainter,
-			QPointF{ contentRect.left(), y });
+		if (marked) {
+			paint_feedback_mark(*aPainter, QRectF{ contentRect.left(), y, 16.0, 16.0 }, label, presentation.Blocking,
+								feedback_mark_colours{ .Tint = Theme.Tints[static_cast<std::size_t>(presentation.Label)], .Panel = nativeOption.palette.color(QPalette::Base), .Ink = nativeOption.palette.color(QPalette::Text), .Style = Theme.Style });
+			set_text_pen(aPainter, nativeOption, primaryRole);
+		}
+		const auto headingLead = marked ? mark_lead : 0.0;
+		y += std::max(marked ? 16.0 : 0.0, wrapped_text_height(presentation.Heading, metrics.HeadingFont, std::max(1.0, width - headingLead), nativeOption.widget, aPainter, QPointF{ contentRect.left() + headingLead, y }));
 
 		if (!presentation.Body.isEmpty()) {
 			y += static_cast<qreal>(metrics.SectionSpacing);
@@ -446,6 +479,7 @@ namespace bpr::qt {
 			.Body             = presentation.Body,
 			.Facts            = presentation.Facts,
 			.DisplayText      = nativeOption.text,
+			.Mark             = presentation.Label * 2 + (presentation.Blocking ? 1 : 0),
 			.Font             = nativeOption.font,
 			.Width            = nativeOption.rect.width(),
 			.Reply            = aIndex.parent().isValid(),

@@ -111,7 +111,11 @@ namespace bpr::adapters::sqlite::detail {
 				  "writing_problem TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_problem AS BLOB)) <= 8192),"
 				  "writing_solution TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_solution AS BLOB)) <= 8192),"
 				  "writing_outline TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_outline AS BLOB)) <= 8192),"
-				  "writing_stop TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_stop AS BLOB)) <= 8192)) STRICT";
+				  "writing_stop TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_stop AS BLOB)) <= 8192),"
+				  // [[BPR-1083]]. How label marks are drawn, schema version
+				  // 12: zero is the pictorial icons, the default (owner,
+				  // 2026-10-05), one the two-letter shortcode marks.
+				  "feedback_marks INTEGER NOT NULL DEFAULT 0 CHECK(feedback_marks BETWEEN 0 AND 1)) STRICT";
 		}
 
 		void remove_one_pane_column(std::string& aSql)
@@ -220,6 +224,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion == 3                        ? ",open_modality"
 				: aVersion <= 5                        ? ",drawer_controls"
 				: aVersion <= 10                       ? ",writing_revision"
+				: aVersion <= 11                       ? ",feedback_marks"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -247,7 +252,8 @@ namespace bpr::adapters::sqlite::detail {
 			const auto columns = std::string{ "singleton,files_state,conversations_state,files_width,conversations_width" }
 				+ (aVersion >= 2 ? ",line_numbers" : "") + (aVersion >= 3 ? ",repositories_state,repositories_width" : "")
 				+ (aVersion >= 4 ? ",open_modality,continue_modality,mark_read,return_comparison,drawer_filter" : "")
-				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "");
+				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
+				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -571,7 +577,7 @@ namespace bpr::adapters::sqlite::detail {
 			// written out rather than derived from the constant, so a version
 			// this build has no step for is refused rather than handed to the
 			// wrong one.
-			if (*current < 0 || *current > 10) {
+			if (*current < 0 || *current > 11) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -917,8 +923,8 @@ namespace bpr::adapters::sqlite::detail {
 			"singleton, files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
-			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19) "
+			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -933,7 +939,7 @@ namespace bpr::adapters::sqlite::detail {
 			"return_comparison = excluded.return_comparison,"
 			"drawer_filter = excluded.drawer_filter,"
 			"drawer_controls = excluded.drawer_controls,"
-			"one_pane = excluded.one_pane, writing_revision = excluded.writing_revision, writing_problem = excluded.writing_problem, writing_solution = excluded.writing_solution, writing_outline = excluded.writing_outline, writing_stop = excluded.writing_stop");
+			"one_pane = excluded.one_pane, writing_revision = excluded.writing_revision, writing_problem = excluded.writing_problem, writing_solution = excluded.writing_solution, writing_outline = excluded.writing_outline, writing_stop = excluded.writing_stop, feedback_marks = excluded.feedback_marks");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -947,7 +953,8 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(failure::integrity_failure);
 			}
 		}
-		if (::sqlite3_bind_int64(statement->Value, 14, static_cast<std::int64_t>(aSettings.OnePane)) != SQLITE_OK
+		if (::sqlite3_bind_int64(statement->Value, 20, static_cast<std::int64_t>(aSettings.Behaviour.FeedbackMarks)) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 14, static_cast<std::int64_t>(aSettings.OnePane)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(
 				   statement->Value, 1, static_cast<std::int64_t>(aSettings.Files))
 				!= SQLITE_OK
@@ -1229,7 +1236,7 @@ namespace bpr::adapters::sqlite::detail {
 			"SELECT files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
-			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop "
+			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1288,9 +1295,12 @@ namespace bpr::adapters::sqlite::detail {
 		const auto drawerControls = preference_of(
 			::sqlite3_column_int64(statement->Value, 12),
 			application::review_drawer_controls::shown);
-		const auto onePane = preference_of(sqlite3_column_int64(statement->Value, 13), core::workbench_one_pane::enabled);
+		const auto onePane       = preference_of(sqlite3_column_int64(statement->Value, 13), core::workbench_one_pane::enabled);
+		const auto feedbackMarks = preference_of(
+			::sqlite3_column_int64(statement->Value, 19),
+			application::review_feedback_marks::letters);
 		if (!onePane || !openModality || !continueModality || !markRead || !returnComparison
-			|| !commentsFilter || !drawerControls) {
+			|| !commentsFilter || !drawerControls || !feedbackMarks) {
 			return std::unexpected(failure::integrity_failure);
 		}
 
@@ -1327,6 +1337,7 @@ namespace bpr::adapters::sqlite::detail {
 				.ReturnComparison = *returnComparison,
 				.CommentsFilter   = *commentsFilter,
 				.DrawerControls   = *drawerControls,
+				.FeedbackMarks    = *feedbackMarks,
 			},
 			.WritingHooks = std::move(hooks),
 		};

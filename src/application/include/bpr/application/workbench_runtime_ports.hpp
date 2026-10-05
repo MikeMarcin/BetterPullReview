@@ -510,6 +510,18 @@ namespace bpr::application {
 		shown,
 	};
 
+	/// \brief How Conventional Comments label marks are drawn ([[BPR-1083]]).
+	///
+	/// \details The owner, 2026-10-05: "i think settings should also have a
+	/// toggle to switch between the icons and the shortcode icons, because i
+	/// liked both of them." Icons, the default, are BPR-1080's twelve glyphs;
+	/// letters are the label's two-letter shortcode in the same mark, with the
+	/// same tints, blocking fill, size and names. Presentation only.
+	enum class review_feedback_marks : std::uint8_t {
+		icons,
+		letters,
+	};
+
 	/// \brief The reviewer's durable review-behaviour preferences.
 	///
 	/// \details [[BPR-0661]]. RFC-BPR-0028's Reviews & queue rows. Stored
@@ -528,6 +540,8 @@ namespace bpr::application {
 		review_return_comparison   ReturnComparison = review_return_comparison::whole_pr;
 		review_comments_filter     CommentsFilter   = review_comments_filter::all;
 		review_drawer_controls     DrawerControls   = review_drawer_controls::hidden;
+		/// [[BPR-1083]]. Icons by default.
+		review_feedback_marks FeedbackMarks = review_feedback_marks::icons;
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
@@ -546,7 +560,9 @@ namespace bpr::application {
 			&& static_cast<std::uint8_t>(aSettings.CommentsFilter)
 			<= static_cast<std::uint8_t>(review_comments_filter::unresolved)
 			&& static_cast<std::uint8_t>(aSettings.DrawerControls)
-			<= static_cast<std::uint8_t>(review_drawer_controls::shown);
+			<= static_cast<std::uint8_t>(review_drawer_controls::shown)
+			&& static_cast<std::uint8_t>(aSettings.FeedbackMarks)
+			<= static_cast<std::uint8_t>(review_feedback_marks::letters);
 	}
 
 	/// Window-local normal geometry in logical display coordinates. Zero size
