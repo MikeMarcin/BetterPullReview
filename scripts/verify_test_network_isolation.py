@@ -629,6 +629,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # course it shares does (Git's getcwd under AC\Temp). It passes
     # uncontained.
     "application_review_cycle_automation_off_two_round": "dos-volume-name",
+    # [[BPR-1180]]. Measured on JaegAW 2026-10-04 at f198d4e09 in windows-dev,
+    # contained through the sandbox launcher; each passes uncontained.
+    # review_cycle_send exits 3 at its first store step ("FAILED: two
+    # notes"), as the other review_cycle_* store rows do. The send course
+    # exits 0xC0000409 on a Debug "operator*() called on empty optional":
+    # a refused contained step whose result the course dereferences.
+    "review_cycle_send": "dos-volume-name",
+    "application_review_cycle_send_public_path": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they

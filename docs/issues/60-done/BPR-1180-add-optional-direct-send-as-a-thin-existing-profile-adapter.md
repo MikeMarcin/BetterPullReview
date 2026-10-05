@@ -95,3 +95,48 @@ GCC 15.2.0, offscreen; stand-in agent only, no remote mutation).**
    removed.
 
 Done is not reopened.
+
+### Windows at `f198d4e09` (bpr-main-win, 2026-10-04)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, Debug. The stand-in
+fixture `cycle_send_agent_main.cpp` did not compile under MSVC (`std::fopen`,
+C4996). It was fixed at `d146264da` (`_wfopen_s`, the same exclusive `"wbx"`
+mode).
+
+- **`windows-dev`.** The build printed no `warning C` or `warning LNK` line.
+  The station selection passes **13 of 13**: `core_review_cycle_send`, `_share`
+  and `_response`, `review_cycle_send`, `review_cycle_workbench`,
+  `application_review_cycle_round_launch`, the send and desktop courses,
+  `sqlite_review_cycle_storage`, `composed_application_hosts`,
+  `composed_host_verifier_contract`, `architecture_boundaries` and the
+  round-trip contract.
+  - `review_cycle_send` prints its four `NATIVE` lines, among them "late
+    wrong-round reply refused, uncertain kept uncertain, no resend or fallback".
+  - The send course prints "real adapter, real processes: parity, sessions,
+    corporate refusal, uncertain, missing harness, removal". It asserts the
+    stopped send reads "stopped before finishing its turn" and is never sent
+    again.
+- **How the stand-in is launched on Windows.** A Toolhelp watcher sampling
+  every 5 ms during a lone run saw the stand-in `claude.exe` started by the
+  course's own process (`review_cycle_send_public_path.exe`). It was not
+  started by `better_pull_review_agent_supervisor.exe`, which did not run.
+  That is the design: `run_windows_agent_process` takes the supervisor path
+  only for a `WorkspaceLifetimeGuard`, which only `agent_invocation_host` sets
+  for an agent in a materialized workspace. Every other launch, Send included,
+  is the documented suspended native launch in a kill-on-close job object,
+  assigned before its first resume (`agent_process_launcher.hpp`).
+- **Pins measured.** Contained, through the sandbox launcher,
+  `review_cycle_send` exits 3 at its first store step ("FAILED: two notes"). The
+  send course exits `0xC0000409` on a Debug "operator*() called on empty
+  optional", a refused contained step whose result the course dereferences.
+  Both pass uncontained, and both are now pinned `dos-volume-name` with these
+  lines. `test_network_isolation_manifest` passes.
+- **Agent integrations off** (`build/windows-bpr1180-off`, with
+  `tool_better_pull_review_network_sandbox` added to the target list, as Linux
+  found). It builds clean and passes **5 of 5**. The send course prints
+  "agent-free graph: no Send to Agent route", and `review_cycle_send` prints
+  its four lines.
+
+Seen, not changed: the send course dereferences an empty optional when a step
+is refused. It only happens contained, and an expectation there would name
+the step.
