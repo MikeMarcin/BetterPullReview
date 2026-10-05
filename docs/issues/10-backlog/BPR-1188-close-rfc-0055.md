@@ -36,13 +36,46 @@ All owned acceptance criteria remain **Not run** at intake.
 
 | Criterion | Planned direct check | Result | Producing commit |
 |---|---|---|---|
-| **RC55-01:** Author range/file/module/cycle notes and one multi-location discussion from full source or a diff without mandatory per-item metadata. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
-| **RC55-02:** Original source and ranges remain immutable; current exact/ambiguous/deleted/unavailable correspondence is separately represented. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
-| **RC55-03:** Plain and all twelve shared labels preserve authored Markdown and do not imply patches, severity, permissions or verification. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
-| **RC55-04:** Suggestion authoring preserves original/replacement bytes, insertion/deletion, explicit intent, byte ranges and before/after preview; an in-place edit of a file becomes one exact suggestion per separate changed run of lines (owner amendment, 2026-10-01). | Focused production-path checks and applicable native or service course at closeout | Card shares pass. BPR-1155: exact bytes, insertion and deletion, intent, byte ranges, preview. BPR-1156: the 2026-10-01 amendment, one exact suggestion per separate changed run (`core_review_cycle_suggestion`, `qt_suggestion_editor_*`, desktop course), on macOS, Linux and Windows. Closeout reconciliation not run | `29c8262dc` (BPR-1155); `da459c4e1` (BPR-1156) |
-| **RC55-05:** Exact application refuses stale whole-blob preconditions and overlapping/same-boundary edits; nonoverlapping edits use original coordinates. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
-| **RC55-06:** Editing a suggestion does not write the checkout; actually applied edits are observed/labeled instead of dispatched for double application. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
-| **RC55-07:** Native IME, undo, multi-caret/virtual-space and clipboard workflows preserve exact text and selections in the suggestion composer. | Focused production-path checks and applicable native or service course at closeout | BPR-1156 share passes: the 15-row selection on macOS, Linux and Windows, and the owner accepted `BPR-1156-editor-gestures-v004` (session `cbd48b91…`, event 790). BPR-1157's cancel keys (`fa9f42381`) keep this: Copy stays Copy and Escape still collapses a selection or extra carets before it cancels (`qt_review_cycle_view_*`). BPR-1182's native workbench course not run | `fd5ca4412` (product), `caae4cc9e` (tests) |
-| **RC55-08:** Human, adapter-observed, self-reported and unknown provenance remain distinct and private unless selected for disclosure. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
-| **RC55-09:** Whole-round preparation preserves the reviewer wording and suggestions without a required model call, summarizer or second combined prompt. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
-| **RC55-10:** Cycle threads reuse the shared narrow private-thread/lineage seam and do not fork or falsely complete deferred RFC0023. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
+| **RC55-01:** Author range/file/module/cycle notes and one multi-location discussion from full source or a diff without mandatory per-item metadata. | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass: range, file, module and cycle notes and one discussion with a related range, from retained full source, with only a body; the native authoring surface through the window; macOS, Linux, Windows | BPR-1153 `e5688006c`, BPR-1156, BPR-1157 |
+| **RC55-02:** Original source and ranges remain immutable; current exact/ambiguous/deleted/unavailable correspondence is separately represented. | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass: the original attachment never rewritten; `exact_material`, `exact_mapped`, `ambiguous`, `deleted` and `unavailable` kept apart; forged or live-only bytes refused; all three | BPR-1153 `e5688006c` |
+| **RC55-03:** Plain and all twelve shared labels preserve authored Markdown and do not imply patches, severity, permissions or verification. | Focused production-path checks and applicable native or service course at closeout | **Open.** The cycle share passes: all twelve label words and Plain stored, reopened and rendered byte-exact, no label implies a suggestion, severity, permission or state; all three. The shared twelve-label recognizer does not exist: it is BPR-1076 of RFC-BPR-0047, held by the owner's start hold, and BPR-1154 deferred the whole judgment to it | BPR-1154 `f269f88c3`; BPR-1076 owed |
+| **RC55-04:** Suggestion authoring preserves original/replacement bytes, insertion/deletion, explicit intent, byte ranges and before/after preview; an in-place edit of a file becomes one exact suggestion per separate changed run of lines (owner amendment, 2026-10-01). | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass: exact bytes, insertion and deletion, intent, byte ranges, in-memory preview; the 2026-10-01 amendment, one suggestion per separate changed run; all three | BPR-1155 `29c8262dc`; BPR-1156 `da459c4e1` |
+| **RC55-05:** Exact application refuses stale whole-blob preconditions and overlapping/same-boundary edits; nonoverlapping edits use original coordinates. | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass: original-coordinate application of out-of-order edits; overlapping, contained, identical and same-boundary edits conflict and apply nothing; `stale_blob`; all three | BPR-1155 `29c8262dc` |
+| **RC55-06:** Editing a suggestion does not write the checkout; actually applied edits are observed/labeled instead of dispatched for double application. | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass: suggesting, previewing and preflighting leave every workspace byte unchanged; an exact later result is `observed_already_applied` and preflight reports `already_applied`. No workspace application exists; all three | BPR-1155 `29c8262dc` |
+| **RC55-07:** Native IME, undo, multi-caret/virtual-space and clipboard workflows preserve exact text and selections in the suggestion composer. | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass with a judgment for the owner: the owner accepted `BPR-1156-editor-gestures-v004` (event 790, IME included) and `native-keyboard-v002` on macOS; the 15-row selection passes on all three, offscreen on Linux and Windows. Windows' native IME and `MSDEVColumnSelect` clipboard were not exercised on a desktop | BPR-1156 `fd5ca4412`, `caae4cc9e`; BPR-1157 `fa9f42381`; BPR-1182 |
+| **RC55-08:** Human, adapter-observed, self-reported and unknown provenance remain distinct and private unless selected for disclosure. | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass: human, adapter-observed, self-reported and unknown revisions distinct; only current wording disclosed by default, the rest only when named; all three | BPR-1154 `f269f88c3` |
+| **RC55-09:** Whole-round preparation preserves the reviewer wording and suggestions without a required model call, summarizer or second combined prompt. | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass: the composer hands exact bytes, intent and rationale with no model, summarizer or second prompt; rounds freeze the selected wording and suggestion bytes deterministically (BPR-1158) | BPR-1156, BPR-1158 |
+| **RC55-10:** Cycle threads reuse the shared narrow private-thread/lineage seam and do not fork or falsely complete deferred RFC0023. | Focused production-path checks and applicable native or service course at closeout | Reconciled, pass: cycle threads use the shared `private_thread_lineage`; `core_private_review` unchanged; relabel and undo are successor revisions; RFC-BPR-0023's pull-request scope untouched; all three | BPR-1153 `e5688006c`, BPR-1154 `f269f88c3` |
+
+## Closeout reconciliation (2026-10-04): not closable
+
+BPR-1187 closed RFC-BPR-0054, so this card's only card dependency is met and
+the reconciliation ran before promotion. The card was not promoted: it cannot
+close, and it stays in Backlog.
+
+**RFC dependencies.** RFC-BPR-0055 depends on RFC-BPR-0053 and 0054
+(Auto-Verified) and on RFC-BPR-0036 (native Markdown), RFC-BPR-0047
+(Conventional Comments semantics) and RFC-BPR-0048 (feedback authoring), which
+are all Proposed. RFC-BPR-0047 and 0048 are under the owner's 2026-09-24
+start hold for RFC-BPR-0044 to 0051 (session `cbd48b91…`, decision
+`1d9104f8`), which the 2026-09-26 and 2026-09-27 amendments left in force.
+RFCs close when their explicit dependencies are satisfied, so this RFC cannot
+close until those three close or the owner amends the dependency, as the r2
+closeout amendment did for RFC-BPR-0039 to 0043.
+
+**Criteria.** Eight rows pass on their cards' recorded evidence, with runs on
+macOS arm64, `bpr-main-linux` and `bpr-main-win`; the
+[ledger](../../verification/RFC-BPR-0053-0061.md#bpr-1188-rfc-bpr-0055-reconciled-not-closed-2026-10-04)
+judges each. RC55-03 is open: it names "all twelve shared labels", and the
+shared recognizer is [[BPR-1076]] of RFC-BPR-0047, in Backlog under the same
+hold; BPR-1154 kept the raw body authoritative so that recognizer reads the
+same bytes, and deferred the whole judgment to it. RC55-07 passes on the
+owner's macOS acceptance and offscreen rows elsewhere, which is a judgment
+the coordinator should put to the owner.
+
+To close: the owner releases or amends the hold so RFC-BPR-0036, 0047 and
+0048 close (or amends RFC-BPR-0055's dependency on them), BPR-1076 lands so
+RC55-03 can be judged whole, then promote this card, rerun the documentation
+gate and close the RFC. The other rows need no rerun unless their inputs
+change.
+
