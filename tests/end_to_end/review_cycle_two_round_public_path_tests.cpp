@@ -596,7 +596,14 @@ namespace {
 				click(*Page.review_bar()->widgetForAction(Page.capture_action()));
 				require(wait_for([&] { return idle(Page) && !Page.projection().Message.empty(); }), "the page says why nothing was captured");
 				require(Page.projection().Revisions.size() == before, "a refused capture records no revision");
-				return state(Window, Page);
+				auto object = state(Window, Page);
+				// [[BPR-1279]]. Whether the review bar now offers Rebind Folder, and where the cycle reads.
+				object[QStringLiteral("rebind_offered")] = Page.rebind_action()->isVisible() && Page.rebind_action()->isEnabled();
+				object[QStringLiteral("location")]       = text_of(Page.projection().Location);
+				return object;
+			}
+			if (verb == QStringLiteral("rebind")) {
+				return rebind(aCommand[QStringLiteral("path")].toString(), aCommand[QStringLiteral("confirm")].toBool());
 			}
 			if (verb == QStringLiteral("view")) {
 				return view(aCommand[QStringLiteral("path")].toString(), aCommand[QStringLiteral("menu")].toVariant().toStringList());
@@ -673,6 +680,44 @@ namespace {
 			reactivate(Window);
 			require(wait_for([&] { return Window.showing_local_cycle() && Page.projection().Cycle && !Page.projection().Revisions.empty() && idle(Page) && !Page.projection().Files.empty(); }), "the folder opens as a cycle with its first capture");
 			return state(Window, Page);
+		}
+
+		/// [[BPR-1279]]. Rebind Folder from the review bar, the folder named in
+		/// the application's own dialog, then the confirmation's words and
+		/// whether it offers Rebind; Rebind clicked when `aConfirm` and offered,
+		/// else Cancel. Nothing else binds.
+		auto rebind(const QString& aPath, const bool aConfirm) -> QJsonObject
+		{
+			auto* const action = Page.rebind_action();
+			require(action->isVisible() && action->isEnabled(), "a refused capture puts Rebind Folder on the review bar");
+			const auto location = Page.projection().Location;
+			auto       answered = false;
+			answer_next_file_dialog(aPath, answered);
+			click(*Page.review_bar()->widgetForAction(action));
+			require(wait_for([&] { return answered; }), "Rebind Folder asked for a folder");
+			auto* const dialog  = Page.rebind_dialog();
+			auto* const confirm = dialog->findChild<QPushButton*>(QStringLiteral("cycleRebindConfirm"));
+			auto* const cancel  = dialog->findChild<QPushButton*>(QStringLiteral("cycleRebindCancel"));
+			auto* const words   = dialog->findChild<QLabel*>(QStringLiteral("cycleRebindWords"));
+			require(wait_for([&] { return dialog->isVisible() && Page.projection().Rebind && !Page.projection().Rebind->Checking; }), "the confirmation shows how the folder compares");
+			const auto shownWords  = words->text();
+			const auto confirmable = confirm->isVisible() && confirm->isEnabled();
+			if (aConfirm && confirmable) {
+				click(*confirm);
+				require(wait_for([&] { return !dialog->isVisible() && !Page.projection().Rebind && idle(Page) && Page.projection().Location != location; }), "Rebind binds the folder shown and closes");
+			} else {
+				click(*cancel);
+				require(wait_for([&] { return !dialog->isVisible() && !Page.projection().Rebind && idle(Page); }),
+						"Cancel closes it, binding nothing (dialog " + std::string{ dialog->isVisible() ? "shown" : "hidden" } + ", rebind " + (Page.projection().Rebind ? "open" : "closed") + ", idle "
+							+ (idle(Page) ? "1" : "0") + ", modal " + (QApplication::activeModalWidget() != nullptr ? utf8(QApplication::activeModalWidget()->objectName()) : std::string{ "none" }) + ")");
+			}
+			reactivate(Window);
+			auto object                              = state(Window, Page);
+			object[QStringLiteral("words")]          = shownWords;
+			object[QStringLiteral("confirmable")]    = confirmable;
+			object[QStringLiteral("location")]       = text_of(Page.projection().Location);
+			object[QStringLiteral("rebind_offered")] = action->isVisible();
+			return object;
 		}
 
 		/// Resumes the cycle from Home and waits for its `aNotes` notes, which

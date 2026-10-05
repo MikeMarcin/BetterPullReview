@@ -1,4 +1,4 @@
-"""[[BPR-1167]], [[BPR-1169]]. `bpr cycle` through the built executable, as real processes.
+"""[[BPR-1167]], [[BPR-1169]], [[BPR-1279]]. `bpr cycle` through the built executable, as real processes.
 
 Each command runs in a near-empty environment: no HOME, no desktop, no display
 (a platform plugin that cannot exist is named, so any GUI start would fail), no
@@ -397,6 +397,60 @@ def hold_lease(profile_root):
         os.close(holder)
 
 
+def rebinding(course, temporary, other):
+    """[[BPR-1279]]. A moved folder rejoins its cycle by a rebind the reviewer
+    confirms against the check shown, and by nothing else: not without a
+    confirmation, not with another one, not to another cycle's folder, not to a
+    file, and not once the folder changed after the check."""
+    first = temporary / "rebound"
+    (first / "src").mkdir(parents=True)
+    (first / "src" / "main.c").write_bytes(b"int main(void) { return 0; }\n")
+    cycle = course.json("open", str(first))["data"]["cycle"]
+    moved = temporary / "rebound-moved"
+    os.rename(first, moved)
+    refusal = course.refused("source_unavailable", 5, "capture", cycle)
+    assert "Rebind the cycle" in refusal["message"] and refusal["next"] == f"bpr cycle rebind {cycle} --to PATH", f"the capture refusal points at rebind: {refusal}"
+    before = course.json("show", cycle)["data"]
+    assert before["location"] == str(first)
+
+    # Asked without a confirmation, from the moved folder: the check is shown and nothing is bound.
+    asked = course.refused("interaction_required", 3, "rebind", "--to", ".", cwd=moved)
+    detail = asked["detail"]
+    assert detail["cycle"] == cycle and detail["location"] == str(moved), "the working folder's cycle, by its root object; the relative path made absolute"
+    assert detail["check"] == {"compared": "1", "matching": "1", "differing": "0", "missing": "0", "added": "0"} and detail["captured"] is True, detail
+    assert len(detail["confirm"]) == 16 and asked["next"] == f"bpr cycle rebind {cycle} --to {moved} --confirm {detail['confirm']}", asked
+    assert "1 the same" in asked["message"] and "Nothing was changed" in asked["message"], asked
+    _, err = course.human("rebind", cycle, "--to", str(moved), code=3)
+    assert f"Next: bpr cycle rebind {cycle} --to {moved} --confirm {detail['confirm']}" in err, err
+    assert course.json("show", cycle)["data"] == before, "nothing rebinds without a confirmation"
+
+    # Negative controls: none of these binds anything.
+    course.refused("stale_revision", 4, "rebind", cycle, "--to", str(moved), "--confirm", "0" * 16)
+    course.refused("unsupported_option", 2, "rebind", cycle, "--to", str(moved), "--yes")
+    course.refused("unsupported_option", 2, "rebind", cycle, "--to", str(moved), "--force")
+    course.refused("invalid_input", 2, "rebind", cycle)
+    other_cycle = course.json("open", str(other))["data"]["cycle"]
+    taken = course.refused("conflict", 4, "rebind", cycle, "--to", str(other))
+    assert taken["detail"] == {"problem": "bound_elsewhere", "cycle": other_cycle} and f"project of {other_cycle}" in taken["message"], taken
+    kind = course.refused("invalid_input", 2, "rebind", cycle, "--to", str(moved / "src" / "main.c"))
+    assert kind["detail"]["problem"] == "kind_changed", kind
+    course.refused("source_unavailable", 5, "rebind", cycle, "--to", str(temporary / "nowhere"))
+    # The folder changed after the check: that confirmation is refused, with the new check to confirm.
+    (moved / "src" / "extra.c").write_bytes(b"int extra;\n")
+    changed = course.refused("stale_revision", 4, "rebind", cycle, "--to", str(moved), "--confirm", detail["confirm"])
+    assert changed["detail"]["check"]["added"] == "1" and changed["detail"]["confirm"] != detail["confirm"], changed
+    assert course.json("show", cycle)["data"] == before, "no refused rebind changed the cycle"
+
+    # Confirmed exactly: bound to the new location, and the next capture reads it.
+    rebound = course.json("rebind", cycle, "--to", str(moved), "--confirm", changed["detail"]["confirm"])["data"]
+    assert rebound["rebound"] is True and rebound["location"] == str(moved) and rebound["binding"] == "2" and rebound["captures"] == before["captures"], rebound
+    again = course.json("rebind", cycle, "--to", str(moved))["data"]
+    assert again["rebound"] is False, "already bound there: nothing to confirm or change"
+    captured = course.json("capture", cycle)["data"]
+    assert captured["recorded"] is True and captured["latest_entries"] == "2" and captured["location"] == str(moved), captured
+    return cycle, moved, first
+
+
 def one_writer(course):
     """A profile one process owns is refused, never opened a second time."""
     course.refused("over_limit", 5, "note", "RC-1", "--body-file", "-", stdin=b"y" * 17000)
@@ -416,8 +470,8 @@ def one_writer(course):
     assert "second writer" not in bodies, "no second writer was opened"
 
 
-def interactive(course, project, temporary):
-    """A terminal may answer: the trusted editor and an exact freeze confirmation."""
+def interactive(course, project, temporary, rebound):
+    """A terminal may answer: the trusted editor, an exact freeze confirmation and a rebind."""
     if os.name != "posix":
         print("cycle-cli-interactive:skipped (no pty on this platform)")
         return
@@ -434,7 +488,7 @@ def interactive(course, project, temporary):
         answered = answer is None
         try:
             while time.monotonic() < deadline:
-                if not answered and b"Type freeze" in output:
+                if not answered and (b"Type freeze" in output or b"Type rebind" in output):
                     os.write(master, answer)
                     answered = True
                 if readiness.select([master], [], [], 0.05)[0]:
@@ -476,6 +530,19 @@ def interactive(course, project, temporary):
     assert status == 0 and f"Froze {revision['round']}" in output, output
     assert len(course.json("show", "RC-1")["data"]["rounds"]) == rounds + 1
 
+    # [[BPR-1279]]. A terminal shows the check and asks for the word rebind; anything else binds nothing.
+    cycle, moved, home = rebound
+    os.rename(moved, home)
+    before = course.json("show", cycle)["data"]
+    status, output = in_terminal(["rebind", cycle, "--to", str(home)], answer=b"\n")
+    assert status == 130 and "Type rebind to rebind" in output and "2 the same" in output and "Nothing was rebound." in output, output
+    assert course.json("show", cycle)["data"] == before
+    status, output = in_terminal(["rebind", cycle, "--to", str(home)], answer=b"yes\n")
+    assert status == 130 and course.json("show", cycle)["data"] == before, output
+    status, output = in_terminal(["rebind", cycle, "--to", str(home)], answer=b"rebind\n")
+    assert status == 0 and f"Rebound {cycle} to {home}" in output, output
+    assert course.json("show", cycle)["data"]["location"] == str(home)
+
 
 def links_no_gui(binary):
     """The executable loads no GUI, widget or display library."""
@@ -512,8 +579,9 @@ def main():
         other.mkdir()
         (other / "notes.txt").write_bytes(b"another project\n")
         retrieval(course, project, other)
+        rebound = rebinding(course, temporary, other)
         one_writer(course)
-        interactive(course, project, temporary)
+        interactive(course, project, temporary, rebound)
     print("cycle-cli-public-path:pass")
 
 

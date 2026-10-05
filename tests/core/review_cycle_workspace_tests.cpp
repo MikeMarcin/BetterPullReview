@@ -266,6 +266,55 @@ namespace {
 			   "confirmed bind over material");
 	}
 
+	/// [[BPR-1279]]. What the terminal and the window offer before any rebind
+	/// is asked for, and what a confirmation names.
+	void offers_rebinds_by_the_binding_rules()
+	{
+		const auto bound    = run(make_cycle(), bind_cycle_workspace{ .Root = folder("/work/a/project", 10) }).Accepted;
+		const auto captured = run(bound, capture(1, 1)).Accepted;
+		const auto moved    = folder("/moved/project", 10);
+		expect(admit_workspace_rebind(captured, moved, false) == workspace_rebind_problem::none, "the moved root may be offered");
+		expect(admit_workspace_rebind(captured, folder("/work/b/project", 20), false) == workspace_rebind_problem::none, "and so may a replacement");
+		expect(admit_workspace_rebind(captured, folder("/work/a/project", 10), false) == workspace_rebind_problem::unchanged, "the bound root at its location is nothing to do");
+		expect(admit_workspace_rebind(captured, folder("/work/b/project", 20), true) == workspace_rebind_problem::bound_elsewhere, "another cycle's root is never taken over");
+		auto file = folder("/work/a/project/main.cpp", 11);
+		file.Kind = workspace_root_kind::file;
+		expect(admit_workspace_rebind(captured, file, false) == workspace_rebind_problem::kind_changed, "a folder cycle is not offered a file");
+		expect(admit_workspace_rebind(make_cycle(), moved, false) == workspace_rebind_problem::unbound, "an unbound cycle is opened, not rebound");
+		auto archived      = captured;
+		archived.Lifecycle = cycle_lifecycle::archived;
+		expect(admit_workspace_rebind(archived, moved, false) == workspace_rebind_problem::archived, "an archived cycle is not rebound");
+		auto fileBound = folder("/work/notes.md", 40);
+		fileBound.Kind = workspace_root_kind::file;
+		auto scoped    = run(make_cycle(), bind_cycle_workspace{ .Root = fileBound }).Accepted;
+		scoped.Scope   = { .Version = 2, .Paths = { "src" } };
+		expect(admit_workspace_rebind(scoped, fileBound, false) == workspace_rebind_problem::file_scope, "a file cannot hold a path scope");
+		expect(stable_name(workspace_rebind_problem::bound_elsewhere) == "bound_elsewhere", "stable names");
+
+		// Every offered rebind is one the binding rules accept once confirmed with its check.
+		const auto check = workspace_material_check{ .Compared = 1, .Matching = 1 };
+		expect(run(captured, bind_cycle_workspace{ .Root = moved, .Check = check, .Confirmed = true }).Refusal == cycle_refusal::none, "the offered rebind applies");
+		expect(run(captured, bind_cycle_workspace{ .Root = moved, .Check = check }).Refusal == cycle_refusal::unconfirmed, "and never without confirmation");
+
+		// A confirmation names the cycle, its binding, the candidate and the check shown.
+		const auto token = workspace_rebind_confirmation(captured, moved, check);
+		expect(token.size() == workspace_rebind_confirmation_characters && token.find_first_not_of("0123456789abcdef") == std::string::npos, "short lowercase hex");
+		expect(token == workspace_rebind_confirmation(captured, moved, check), "deterministic");
+		expect(token != workspace_rebind_confirmation(captured, moved, workspace_material_check{ .Compared = 1, .Differing = 1 }), "another check is another confirmation");
+		expect(token != workspace_rebind_confirmation(captured, folder("/moved/project", 11), check), "another root object at the same place");
+		expect(token != workspace_rebind_confirmation(captured, folder("/elsewhere/project", 10), check), "the same object at another place");
+		auto later     = captured;
+		later.Revision = captured.Revision + 1U;
+		expect(token != workspace_rebind_confirmation(later, moved, check), "a cycle changed since");
+		auto rebound = captured;
+		rebound.Workspace->Version += 1U;
+		expect(token != workspace_rebind_confirmation(rebound, moved, check), "a binding replaced since");
+		auto other          = captured;
+		other.Subject.Cycle = review_cycle_id{ 2 };
+		expect(token != workspace_rebind_confirmation(other, moved, check), "another cycle");
+		expect(token != workspace_rebind_confirmation(captured, moved, std::nullopt), "a check or none");
+	}
+
 	void derives_projects_per_cycle()
 	{
 		const auto cycle = make_cycle();
@@ -286,6 +335,7 @@ int main()
 	resolves_imports_only_through_explicit_mappings();
 	binds_and_rebinds_explicitly();
 	binds_single_files_to_the_whole_scope();
+	offers_rebinds_by_the_binding_rules();
 	derives_projects_per_cycle();
 	return EXIT_SUCCESS;
 }

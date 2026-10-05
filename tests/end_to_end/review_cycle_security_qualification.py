@@ -477,7 +477,7 @@ def main():
 
         def greeting_for(root, profile=1):
             """What an owner of `root` says first: magic, version, profile, the root's digest and its own nonce."""
-            return b"BPRT\x04\0\0\0" + profile.to_bytes(8, "little") + hashlib.sha256(os.path.realpath(root).encode()).digest() + secrets.token_bytes(16)
+            return b"BPRT\x05\0\0\0" + profile.to_bytes(8, "little") + hashlib.sha256(os.path.realpath(root).encode()).digest() + secrets.token_bytes(16)
 
         replayed = None
         if POSIX:
@@ -532,7 +532,7 @@ def main():
                         part = client.recv(64 - len(hello))
                         assert part, f"{name}: the owner greets first"
                         hello += part
-                    assert hello[:5] == b"BPRT\x04", f"{name}: protocol 4 greeting: {hello[:5]!r}"
+                    assert hello[:5] == b"BPRT\x05", f"{name}: protocol 5 greeting: {hello[:5]!r}"
                     started = time.monotonic()
                     try:
                         send(client, hello)

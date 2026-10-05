@@ -442,6 +442,61 @@ namespace {
 		expect(check.Check->Compared == 2 && check.Check->Matching == 1 && check.Check->Differing == 1 && check.Check->Added == 1 && check.Check->Missing == 0, "counts");
 		const auto inventory = cycle.Store->inventory({ });
 		expect(inventory && inventory->UnreferencedObjects == 0, "the check installs nothing");
+		// [[BPR-1279]]. The root the check read is the one a rebind confirmed against it binds.
+		const auto observed = host.observe((aScratch / "two" / "project").string(), { });
+		expect(observed && check.Root && check.Root->Root == observed->Root && check.Root->Kind == observed->Kind && check.Root->Location == observed->Location, "the check names the root it read");
+	}
+
+	/// [[BPR-1279]]. The runtime's rebind check: the selected cycle as it
+	/// stands, the moved root's bytes against its latest capture, and any other
+	/// cycle bound to the candidate. It installs and changes nothing.
+	void checks_rebinds_through_the_runtime(const std::filesystem::path& aScratch)
+	{
+		write_file(aScratch / "rebind" / "project" / "a.txt", "alpha");
+		write_file(aScratch / "rebind" / "other" / "b.txt", "beta");
+		auto source = adapters::workspace::make_local_workspace_source();
+		auto bound  = course{ *source, aScratch / "rebind" / "project" };
+		expect(bound.capture(*source).Status == cycle_capture_status::captured, "capture the project");
+		// A second cycle of the same profile, bound to the other folder.
+		const auto created = bound.Store->create(operation(bound.NextOperation++), { .Authority = bound.Catalog.Authority, .Title = "Other", .Scope = { } }, { });
+		expect(created.has_value(), "create the other cycle");
+		const auto otherSubject = core::local_cycle_subject{ .Authority = bound.Catalog.Authority, .Cycle = created->Cycle, .Generation = 1 };
+		auto       host         = application::review_cycle_capture_host{ *source, *bound.Store };
+		const auto otherRoot    = host.observe((aScratch / "rebind" / "other").string(), { });
+		expect(otherRoot && bound.Store->apply(operation(bound.NextOperation++), { .Subject = otherSubject, .ExpectedRevision = 1, .Change = core::bind_cycle_workspace{ .Root = *otherRoot } }, { }), "bind the other cycle");
+		const auto before = bound.state();
+		std::filesystem::rename(aScratch / "rebind" / "project", aScratch / "rebind" / "moved");
+		const auto subject = bound.Subject;
+		bound.Store.reset();
+
+		auto lanes   = application::manual_executor{ };
+		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(bound.StoreRoot.path(), profile), lanes, lanes };
+		runtime.select(subject);
+		auto checked = std::optional<application::cycle_store_result<application::cycle_rebind_check>>{ };
+		expect(runtime.check_rebind_selected(*source, (aScratch / "rebind" / "moved").string(), [&](auto aValue) { checked = std::move(aValue); }), "admitted");
+		lanes.drain();
+		expect(checked && *checked, "checked");
+		const auto& moved = **checked;
+		expect(moved.Cycle == before && moved.Material.Status == cycle_capture_status::captured && moved.Material.Check, "the cycle as it stands, and a check");
+		expect(moved.Material.Check->Compared == 1 && moved.Material.Check->Matching == 1, "the moved bytes match");
+		expect(moved.Material.Root && moved.Material.Root->Root == before.Workspace->Root.Root, "the moved folder is the same root object");
+		expect(moved.BoundElsewhere.empty() && core::admit_workspace_rebind(moved.Cycle, *moved.Material.Root, false) == core::workspace_rebind_problem::none, "and may be offered");
+
+		checked.reset();
+		expect(runtime.check_rebind_selected(*source, (aScratch / "rebind" / "other").string(), [&](auto aValue) { checked = std::move(aValue); }), "admitted");
+		lanes.drain();
+		expect(checked && *checked && (*checked)->BoundElsewhere == std::vector{ otherSubject.Cycle }, "another cycle's folder is named as that cycle's");
+
+		checked.reset();
+		expect(runtime.check_rebind_selected(*source, (aScratch / "rebind" / "nowhere").string(), [&](auto aValue) { checked = std::move(aValue); }), "admitted");
+		lanes.drain();
+		expect(checked && *checked && (*checked)->Material.Status == cycle_capture_status::workspace && !(*checked)->Material.Root, "a missing candidate is said as such");
+
+		auto loaded = std::optional<application::cycle_store_result<std::optional<core::review_cycle_state>>>{ };
+		expect(runtime.load_selected([&](auto aValue) { loaded = std::move(aValue); }), "admitted");
+		lanes.drain();
+		expect(loaded && *loaded && **loaded && ***loaded == before, "checking changed nothing");
+		runtime.shutdown();
 	}
 
 	void captures_through_the_runtime(const std::filesystem::path& aScratch)
@@ -600,6 +655,7 @@ try {
 #endif
 	checks_material_before_rebind(scratch.path());
 	captures_through_the_runtime(scratch.path());
+	checks_rebinds_through_the_runtime(scratch.path());
 	captures_beside_reads(scratch.path());
 	std::cout << "review-cycle-capture-tests:pass\n";
 	return EXIT_SUCCESS;

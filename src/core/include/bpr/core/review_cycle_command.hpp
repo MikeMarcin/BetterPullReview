@@ -41,9 +41,12 @@ namespace bpr::core {
 		response_append,
 		/// The profile's disclosure policy: shown, or one channel set.
 		policy,
+		/// [[BPR-1279]]. Binds the cycle to its folder's new location, or to a
+		/// replacement, once the reviewer confirms the material check shown.
+		rebind,
 	};
 	/// The last command in the registry, for codecs that check a range.
-	inline constexpr auto last_cycle_command = cycle_command::policy;
+	inline constexpr auto last_cycle_command = cycle_command::rebind;
 
 	/// \brief On whose authority a command acts ([[BPR-1169]]).
 	enum class cycle_command_authority : std::uint8_t {

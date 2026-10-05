@@ -279,6 +279,20 @@ namespace bpr::app {
 			.Relate        = [this](const core::cycle_feedback_item_ref& aItem, const std::uint64_t aVersion, core::cycle_related_reference aReference) { Host->relate(aItem, aVersion, std::move(aReference)); },
 			.Capture       = [this](const bool aDeliberate) { Host->capture_revision(aDeliberate); },
 			.CancelCapture = [this] { Host->cancel_capture(); },
+			.ChooseRebind =
+				[this] {
+					// [[BPR-1279]]. A folder for a folder cycle, a file for a file cycle; the host checks it before anything is asked.
+					const auto& shown  = Host->projection();
+					const auto  file   = shown.Cycle && shown.Cycle->WorkspaceKind == core::workspace_root_kind::file;
+					const auto  title  = QStringLiteral("Rebind Folder");
+					const auto  chosen = file ? QFileDialog::getOpenFileName(&Window, title) : QFileDialog::getExistingDirectory(&Window, title);
+					if (!chosen.isEmpty()) {
+						const auto bytes = chosen.toUtf8();
+						Host->check_rebind(std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) });
+					}
+				},
+			.ConfirmRebind = [this] { Host->confirm_rebind(); },
+			.CancelRebind  = [this] { Host->cancel_rebind(); },
 			.ListFiles     = [this](const int aDirection, const bool aOpenEdge) { Host->list_files(aDirection, aOpenEdge); },
 			.Compare       = [this](const core::cycle_view_request& aRequest) { Host->compare(aRequest); },
 			.FullSource    = [this] { Host->full_source(); },

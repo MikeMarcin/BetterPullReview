@@ -421,7 +421,11 @@ namespace bpr::app {
 			}
 			const auto retry = "bpr cycle capture " + core::cycle_wire_name(aCycle.Subject.Cycle);
 			// [[BPR-1183]]. Another root at the bound location is refused again on
-			// every retry, so it is not offered one.
+			// every retry, so it is not offered one; [[BPR-1279]] offers a
+			// confirmed rebind instead.
+			if (application::cycle_capture_offers_rebind(*outcome)) {
+				return fail("source_unavailable", application::cycle_capture_words(*outcome), "bpr cycle rebind " + core::cycle_wire_name(aCycle.Subject.Cycle) + " --to PATH");
+			}
 			switch (outcome->Status) {
 			case application::cycle_capture_status::captured:         return capture_report{ .Recorded = !outcome->Receipt || outcome->Receipt->Changed };
 			case application::cycle_capture_status::unstable:         return fail("capture_unstable", application::cycle_capture_words(*outcome), retry);
@@ -772,6 +776,98 @@ namespace bpr::app {
 						   captured->Recorded ? "Captured " + latest + " (" + decimal(state->Latest ? state->Latest->Capture.Entries : 0U) + " entries).\n"
 											  : "No change since " + latest + "; nothing new was recorded. Use --again to record another observation of the same bytes.\n",
 						   true };
+		}
+
+		auto check_json(const core::workspace_material_check& aCheck) -> QJsonObject
+		{
+			return { { "compared", decimal(aCheck.Compared) }, { "matching", decimal(aCheck.Matching) }, { "differing", decimal(aCheck.Differing) }, { "missing", decimal(aCheck.Missing) }, { "added", decimal(aCheck.Added) } };
+		}
+
+		/// [[BPR-1279]]. Binds the cycle to its folder's new location, or to a
+		/// replacement, through the core's binding rules: the candidate is
+		/// checked against the latest capture, and nothing is bound until the
+		/// confirmation names exactly that check. There is no other way to say yes.
+		auto run_rebind(const command& aCommand, const cycle_host& aHost) -> result<output>
+		{
+			if (!aCommand.has("--to")) {
+				return fail("invalid_input", "Name where the cycle's folder is now: bpr cycle rebind" + aCommand.named() + " --to PATH.");
+			}
+			const auto location = absolute_path(aCommand.value("--to"), "The folder or file to rebind to");
+			if (!location) {
+				return std::unexpected(location.error());
+			}
+			auto session = open_session(aHost);
+			if (!session) {
+				return std::unexpected(session.error());
+			}
+			auto& owned = **session;
+			auto  cycle = resolve(owned, aCommand);
+			if (!cycle) {
+				return std::unexpected(cycle.error());
+			}
+			const auto name      = core::cycle_wire_name(cycle->Subject.Cycle);
+			auto       inspected = checked(owned.await<application::cycle_rebind_check>([&](auto aDone) { return owned.runtime().check_rebind_selected(owned.workspace(), *location, std::move(aDone)); }));
+			if (!inspected) {
+				return std::unexpected(inspected.error());
+			}
+			const auto& material = inspected->Material;
+			if (material.Status == application::cycle_capture_status::cancelled) {
+				return fail("cancelled", "Cancelled; nothing was changed.");
+			}
+			if (material.Status == application::cycle_capture_status::store) {
+				return std::unexpected(material.Store ? store_failure(*material.Store) : failure{ "storage_unavailable", application::cycle_rebind_check_words(material), { }, { } });
+			}
+			if (material.Status != application::cycle_capture_status::captured || !material.Root || !material.Check) {
+				return fail(material.Status == application::cycle_capture_status::too_many_entries ? "over_limit" : "source_unavailable", application::cycle_rebind_check_words(material));
+			}
+			const auto& state   = inspected->Cycle;
+			const auto& root    = *material.Root;
+			const auto  other   = inspected->BoundElsewhere.empty() ? std::string{ } : core::cycle_wire_name(inspected->BoundElsewhere.front());
+			const auto  problem = core::admit_workspace_rebind(state, root, !inspected->BoundElsewhere.empty());
+			const auto  shown   = text(*location);
+			switch (problem) {
+			case core::workspace_rebind_problem::none:      break;
+			case core::workspace_rebind_problem::unchanged: {
+				auto data       = cycle_json(state);
+				data["rebound"] = false;
+				return output{ data, text(application::cycle_rebind_words(problem)) + "\n", true };
+			}
+			case core::workspace_rebind_problem::bound_elsewhere:
+				return fail("conflict", application::cycle_rebind_words(problem, other), "bpr cycle show " + other, QJsonObject{ { "problem", text(core::stable_name(problem)) }, { "cycle", text(other) } });
+			case core::workspace_rebind_problem::archived: return fail("conflict", application::cycle_rebind_words(problem), { }, QJsonObject{ { "problem", text(core::stable_name(problem)) } });
+			default:                                       return fail("invalid_input", application::cycle_rebind_words(problem), { }, QJsonObject{ { "problem", text(core::stable_name(problem)) } });
+			}
+			const auto captured     = state.Latest.has_value();
+			const auto check        = captured ? material.Check : std::nullopt;
+			const auto confirmation = core::workspace_rebind_confirmation(state, root, check);
+			const auto words        = application::cycle_material_check_words(*material.Check, captured);
+			const auto next         = "bpr cycle rebind " + name + " --to " + *location + " --confirm " + confirmation;
+			auto       detail       = QJsonObject{ { "cycle", text(name) }, { "location", shown }, { "kind", kind_name(root.Kind) }, { "captured", captured }, { "check", check_json(*material.Check) }, { "confirm", text(confirmation) } };
+			if (!aCommand.has("--confirm")) {
+				return fail("interaction_required",
+							"Rebinding " + name + " to " + *location + " makes its next capture read that folder; its captures, notes and rounds stay as they are. " + words
+								+ " Nothing was changed: to rebind, confirm exactly this check with --confirm.",
+							next, detail);
+			}
+			if (aCommand.value("--confirm") != text(confirmation)) {
+				return fail("stale_revision", "The cycle or the folder changed since that check, or the confirmation is not the one shown; nothing was changed. " + words + " Confirm this check to rebind.",
+							next, detail);
+			}
+			auto bind  = core::review_cycle_change{ core::bind_cycle_workspace{ .Root = root, .Check = check, .Confirmed = true } };
+			auto bound = checked(owned.await<application::cycle_write_receipt>([&](auto aDone) { return owned.runtime().apply_selected(owned.operation(), state.Revision, std::move(bind), std::move(aDone)); }));
+			if (!bound) {
+				return std::unexpected(bound.error());
+			}
+			auto now = load_selected(owned);
+			if (!now) {
+				return std::unexpected(now.error());
+			}
+			auto data       = cycle_json(*now);
+			data["rebound"] = true;
+			data["binding"] = decimal(now->Workspace ? now->Workspace->Version : 0U);
+			data["check"]   = check_json(*material.Check);
+			return output{ data,
+						   "Rebound " + text(name) + " to " + shown + ". " + text(words) + " Nothing was captured; the next capture reads this folder: bpr cycle capture " + text(name) + "\n", true };
 		}
 
 		/// Whether another write moved the cycle on since it was read.
@@ -2082,6 +2178,7 @@ namespace bpr::app {
 			case core::cycle_command::round_source:    return run_round_source(aInvocation, aHost);
 			case core::cycle_command::response_append: return run_response_append(aInvocation, aHost);
 			case core::cycle_command::policy:          return run_policy(aInvocation, aHost);
+			case core::cycle_command::rebind:          return run_rebind(aInvocation, aHost);
 			}
 			return fail("unsupported_command", "bpr cycle has no such command.", "bpr cycle capabilities");
 		}();

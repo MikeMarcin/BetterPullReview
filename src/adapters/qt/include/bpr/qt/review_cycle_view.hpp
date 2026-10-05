@@ -21,6 +21,7 @@
 
 class QAction;
 class QCheckBox;
+class QDialog;
 class QLineEdit;
 class QLabel;
 class QListWidget;
@@ -47,6 +48,11 @@ namespace bpr::qt {
 		std::function<void(bool)> Capture;
 		/// [[BPR-1184]]: Cancel capture, offered in Capture revision's place while one runs.
 		std::function<void()> CancelCapture;
+		/// [[BPR-1279]]: Rebind Folder: choose where the folder is now; confirm
+		/// the check shown, or leave it.
+		std::function<void()> ChooseRebind;
+		std::function<void()> ConfirmRebind;
+		std::function<void()> CancelRebind;
 		/// [[BPR-1184]]: the drawer's next (> 0) or previous window of files;
 		/// true to open its first or last file, as Next and Previous file do.
 		std::function<void(int, bool)>                       ListFiles;
@@ -167,6 +173,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto capture_action() const noexcept -> QAction*;
 		/// \brief Records another observation even when the bytes are unchanged.
 		[[nodiscard]] auto capture_again_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1279]]. Rebind Folder: on the review bar while a refused
+		/// capture offers it, and always in Capture revision's menu.
+		[[nodiscard]] auto rebind_action() const noexcept -> QAction*;
+		[[nodiscard]] auto rebind_menu_action() const noexcept -> QAction*;
+		/// \brief The window-modal confirmation of a rebind: the folder chosen,
+		/// how it compares, and Rebind (`cycleRebindConfirm`) or Cancel.
+		[[nodiscard]] auto rebind_dialog() const noexcept -> QDialog*;
 		[[nodiscard]] auto view_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto mark_reviewed_action() const noexcept -> QAction*;
 		[[nodiscard]] auto refresh_action() const noexcept -> QAction*;
@@ -239,6 +252,8 @@ namespace bpr::qt {
 		void paint_comparison();
 		void paint_comparison_syntax();
 		void present_notes(const std::optional<application::review_cycle_source_view>& aSource);
+		/// [[BPR-1279]]. Shows, updates or closes the rebind confirmation.
+		void present_rebind();
 
 		review_cycle_dispatch                          Dispatch;
 		application::review_cycle_workbench_projection Projection;
@@ -275,6 +290,11 @@ namespace bpr::qt {
 		QPushButton*                                         RelateButton  = nullptr;
 		QAction*                                             CaptureAction = nullptr;
 		QAction*                                             CaptureAgain  = nullptr;
+		QAction*                                             RebindAction  = nullptr;
+		QAction*                                             RebindMenu    = nullptr;
+		QDialog*                                             RebindDialog  = nullptr;
+		QLabel*                                              RebindWords   = nullptr;
+		QPushButton*                                         RebindConfirm = nullptr;
 		QToolButton*                                         ViewButton    = nullptr;
 		QMenu*                                               ViewMenu      = nullptr;
 		QAction*                                             MarkReviewed  = nullptr;

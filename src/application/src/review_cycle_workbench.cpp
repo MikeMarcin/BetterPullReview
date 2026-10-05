@@ -418,6 +418,21 @@ namespace bpr::application {
 		review_cycle_publication_environment            Publishing;
 		std::shared_ptr<review_cycle_candidate_catalog> Candidates;
 		std::vector<core::review_cycle_id>              Recovered;
+		/// [[BPR-1279]]. The candidate Rebind Folder checked and shows, kept so
+		/// the rebind binds exactly it, under the check and record revision shown.
+		struct rebind_candidate
+		{
+			std::string                                   Location;
+			core::workspace_root_observation              Root;
+			std::optional<core::workspace_material_check> Check;
+			std::uint64_t                                 Revision = 0;
+			std::string                                   Confirmation;
+		};
+		std::optional<rebind_candidate> Rebinding;
+		/// Advances with every check asked for or left: a later one supersedes it.
+		std::uint64_t RebindRequests = 0;
+		/// The binding version a refused capture offered a rebind under.
+		std::uint64_t RebindVersion = 0;
 
 		auto operation() -> cycle_operation_id
 		{
@@ -635,6 +650,100 @@ namespace bpr::application {
 			});
 		}
 
+		/// [[BPR-1279]]. Reads a rebind candidate against the latest capture;
+		/// `aConfirming` binds it if it is exactly the candidate shown.
+		void check_rebind(std::string aLocation, const bool aConfirming)
+		{
+			View.Rebind = review_cycle_rebind_view{ .Location = aLocation, .Checking = true };
+			publish();
+			const auto request = ++RebindRequests;
+			Runtime.check_rebind_selected(Source, aLocation, [weak = weak_from_this(), generation = Generation, request, location = aLocation, aConfirming](cycle_store_result<cycle_rebind_check> aResult) {
+				const auto self = weak.lock();
+				if (!self || self->Closing || self->Generation != generation || self->RebindRequests != request || !self->View.Rebind) {
+					return;
+				}
+				if (!aResult) {
+					self->rebind_refused(aResult.error().Failure == cycle_store_failure::cancelled ? std::string{ } : cycle_store_words(aResult.error()));
+					return;
+				}
+				self->rebind_checked(location, std::move(*aResult), aConfirming);
+			});
+		}
+
+		void rebind_refused(const std::string& aWords)
+		{
+			Rebinding.reset();
+			if (aWords.empty()) {
+				View.Rebind.reset();
+			} else if (View.Rebind) {
+				View.Rebind->Checking    = false;
+				View.Rebind->Confirmable = false;
+				View.Rebind->Words       = aWords;
+			}
+			publish();
+		}
+
+		void rebind_checked(const std::string& aLocation, cycle_rebind_check aCheck, const bool aConfirming)
+		{
+			const auto& material = aCheck.Material;
+			if (material.Status == cycle_capture_status::cancelled) {
+				rebind_refused({ });
+				return;
+			}
+			if (material.Status != cycle_capture_status::captured || !material.Root || !material.Check) {
+				rebind_refused(cycle_rebind_check_words(material));
+				return;
+			}
+			const auto other   = aCheck.BoundElsewhere.empty() ? std::string{ } : core::cycle_wire_name(aCheck.BoundElsewhere.front());
+			const auto problem = core::admit_workspace_rebind(aCheck.Cycle, *material.Root, !aCheck.BoundElsewhere.empty());
+			if (problem != core::workspace_rebind_problem::none) {
+				rebind_refused(cycle_rebind_words(problem, other));
+				return;
+			}
+			const auto captured     = aCheck.Cycle.Latest.has_value();
+			const auto check        = captured ? material.Check : std::nullopt;
+			const auto confirmation = core::workspace_rebind_confirmation(aCheck.Cycle, *material.Root, check);
+			if (aConfirming && Rebinding && Rebinding->Confirmation == confirmation) {
+				bind_rebind();
+				return;
+			}
+			const auto changed = aConfirming && Rebinding.has_value();
+			Rebinding          = rebind_candidate{ .Location = aLocation, .Root = *material.Root, .Check = check, .Revision = aCheck.Cycle.Revision, .Confirmation = confirmation };
+			View.Rebind        = review_cycle_rebind_view{
+				.Location    = aLocation,
+				.Checking    = false,
+				.Words       = (changed ? std::string{ "The folder or the cycle changed since it was checked; this is what is there now. " } : std::string{ }) + cycle_material_check_words(*material.Check, captured),
+				.Confirmable = true,
+			};
+			publish();
+		}
+
+		void bind_rebind()
+		{
+			if (View.Rebind) {
+				View.Rebind->Checking = true;
+			}
+			publish();
+			auto change = core::bind_cycle_workspace{ .Root = Rebinding->Root, .Check = Rebinding->Check, .Confirmed = true };
+			// Not superseded by Cancel: once asked for, a recorded rebind is shown.
+			Runtime.apply_selected(operation(), Rebinding->Revision, std::move(change), [weak = weak_from_this(), generation = Generation, location = Rebinding->Location](cycle_store_result<cycle_write_receipt> aResult) {
+				const auto self = weak.lock();
+				if (!self || self->Closing || self->Generation != generation) {
+					return;
+				}
+				if (!aResult) {
+					self->rebind_refused(aResult.error().Failure == cycle_store_failure::cancelled ? std::string{ } : cycle_store_words(aResult.error()));
+					return;
+				}
+				self->Rebinding.reset();
+				self->View.Rebind.reset();
+				self->View.RebindOffered = false;
+				self->View.Message.clear();
+				self->View.Notice = "Rebound to " + location + "; nothing was captured. Capture revision reads it now.";
+				self->load(false);
+			});
+		}
+
 		/// Asked for: nothing recorded, the latest revision as it was.
 		void capture_cancelled()
 		{
@@ -652,9 +761,13 @@ namespace bpr::application {
 				return;
 			}
 			if (aOutcome.Status != cycle_capture_status::captured) {
+				// [[BPR-1279]]. Capturing again reads the same location; a rebind is the way forward.
+				View.RebindOffered = cycle_capture_offers_rebind(aOutcome) && Cycle && Cycle->Workspace;
+				RebindVersion      = View.RebindOffered ? Cycle->Workspace->Version : 0U;
 				fail(cycle_capture_words(aOutcome));
 				return;
 			}
+			View.RebindOffered = false;
 			View.Message.clear();
 			if (aOutcome.Receipt && !aOutcome.Receipt->Changed && Cycle && Cycle->Latest) {
 				// Identical bytes: no revision, and the reviewer is told so.
@@ -686,6 +799,11 @@ namespace bpr::application {
 				aSelf.View.Cycle = core::project(*aSelf.Cycle);
 				if (aSelf.Cycle->Workspace) {
 					aSelf.View.Location = aSelf.Cycle->Workspace->Root.Location;
+				}
+				if (aSelf.View.RebindOffered && (!aSelf.Cycle->Workspace || aSelf.Cycle->Workspace->Version != aSelf.RebindVersion)) {
+					// [[BPR-1279]]. Rebound since the refusal, here or by another interface.
+					aSelf.View.RebindOffered = false;
+					aSelf.View.Message.clear();
 				}
 				if (!aSelf.Cycle->Latest) {
 					if (aCaptureWhenEmpty && aSelf.Cycle->Workspace) {
@@ -2436,6 +2554,37 @@ namespace bpr::application {
 			return;
 		}
 		self.capture(aDeliberate);
+	}
+
+	void review_cycle_workbench::check_rebind(std::string aLocation)
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle || self.View.Capturing) {
+			return;
+		}
+		self.Rebinding.reset();
+		self.check_rebind(std::move(aLocation), false);
+	}
+
+	void review_cycle_workbench::confirm_rebind()
+	{
+		auto& self = *Implementation;
+		if (!self.Cycle || !self.Rebinding || !self.View.Rebind || !self.View.Rebind->Confirmable || self.View.Rebind->Checking) {
+			return;
+		}
+		// Checked again: what is bound is exactly what is there and was shown.
+		self.check_rebind(self.Rebinding->Location, true);
+	}
+
+	void review_cycle_workbench::cancel_rebind()
+	{
+		auto& self = *Implementation;
+		++self.RebindRequests;
+		self.Rebinding.reset();
+		if (self.View.Rebind) {
+			self.View.Rebind.reset();
+			self.publish();
+		}
 	}
 
 	void review_cycle_workbench::compare(const core::cycle_view_request& aRequest)

@@ -1089,6 +1089,66 @@ namespace {
 	}
 }
 
+namespace {
+	/// [[BPR-1279]]. Rebind Folder in the window's host: offered from a refused
+	/// capture, checked before anything is asked, refused for another cycle's
+	/// folder, never bound by a check or a cancel, checked again on Rebind, and
+	/// only then bound, after which Capture revision reads the new location.
+	void rebinds_a_moved_folder_explicitly(const std::filesystem::path& aScratch)
+	{
+		tests::sqlite_contract::scratch_root profileScratch{ "cycle-workbench-rebind" };
+		const auto                           project = aScratch / "rebind-project";
+		const auto                           other   = aScratch / "rebind-other";
+		const auto                           moved   = aScratch / "rebind-moved";
+		write_file(project / "src" / "main.c", "int main(void) { return 0; }\n");
+		write_file(other / "notes.txt", "another project\n");
+		auto work = desk{ profileScratch.path(), 61 };
+		work.Host->open_project(other.string());
+		expect(work.view().Cycle && work.view().Cycle->Subject.Cycle == core::review_cycle_id{ 1 }, "the other folder is RC-1");
+		work.Host->open_project(project.string());
+		expect(work.view().Cycle && work.view().Cycle->Subject.Cycle == core::review_cycle_id{ 2 } && work.view().Revisions.size() == 1U, "the project is RC-2, captured");
+		expect(!work.view().RebindOffered, "nothing is offered while captures succeed");
+
+		std::filesystem::rename(project, moved);
+		work.Host->capture_revision();
+		const auto& refused = work.view();
+		expect(refused.RebindOffered && refused.Message.find("Rebind the cycle") != std::string::npos && refused.Revisions.size() == 1U, "a refused capture offers Rebind Folder, in words that point at it");
+		const auto revision = work.view().Cycle->Revision;
+
+		work.Host->check_rebind(other.string());
+		const auto& taken = work.view();
+		expect(taken.Rebind && !taken.Rebind->Checking && !taken.Rebind->Confirmable && taken.Rebind->Words.find("project of RC-1") != std::string::npos, "another cycle's folder is refused before anything is asked");
+		work.Host->confirm_rebind();
+		expect(work.view().Cycle->Revision == revision && work.view().Location == project.string(), "and Rebind does nothing for it");
+		work.Host->cancel_rebind();
+		expect(!work.view().Rebind && work.view().RebindOffered, "cancel leaves the offer");
+
+		work.Host->check_rebind(moved.string());
+		const auto& shown = work.view();
+		expect(shown.Rebind && shown.Rebind->Confirmable && shown.Rebind->Words == "Compared with the latest capture's 1 file: 1 the same, 0 changed, 0 missing and 0 new.", "the check is shown: " + (shown.Rebind ? shown.Rebind->Words : std::string{ }));
+		expect(work.view().Cycle->Revision == revision && work.view().Location == project.string(), "a check binds nothing");
+		work.Host->cancel_rebind();
+		expect(!work.view().Rebind && work.view().Cycle->Revision == revision, "nor does Cancel");
+
+		// Changed between the check and Rebind: the new check is shown to confirm instead.
+		work.Host->check_rebind(moved.string());
+		expect(work.view().Rebind && work.view().Rebind->Confirmable, "checked again");
+		write_file(moved / "src" / "extra.c", "int extra;\n");
+		work.Host->confirm_rebind();
+		const auto& changed = work.view();
+		expect(changed.Rebind && changed.Rebind->Confirmable && changed.Rebind->Words.starts_with("The folder or the cycle changed since it was checked") && changed.Rebind->Words.find("1 new") != std::string::npos,
+			   "a folder changed since the check is shown again, not bound: " + (changed.Rebind ? changed.Rebind->Words : std::string{ "no rebind" }));
+		expect(work.view().Cycle->Revision == revision && work.view().Location == project.string(), "still nothing bound");
+		work.Host->confirm_rebind();
+		const auto& rebound = work.view();
+		expect(!rebound.Rebind && !rebound.RebindOffered && rebound.Message.empty() && rebound.Location == moved.string() && rebound.Notice.starts_with("Rebound to "), "Rebind on the check shown binds it");
+		expect(rebound.Cycle->WorkspaceVersion == 2U && rebound.Revisions.size() == 1U, "a new binding, nothing captured");
+		work.Host->capture_revision();
+		expect(work.view().Revisions.size() == 2U && work.view().Message.empty(), "Capture revision reads the new location");
+		std::cout << "NATIVE: Rebind Folder offered from a refused capture, another cycle's folder refused, a changed folder shown again, then bound and captured\n";
+	}
+}
+
 auto main(const int aArgc, char** aArgv) -> int
 try {
 	tests::sqlite_contract::scratch_root scratch{ "cycle-workbench" };
@@ -1101,6 +1161,7 @@ try {
 	changes_one_note_without_reading_the_round(scratch.path());
 	lists_and_captures_a_large_project(scratch.path());
 	next_file_advances_through_a_capture_reload(scratch.path());
+	rebinds_a_moved_folder_explicitly(scratch.path());
 	std::cout << "review-cycle-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

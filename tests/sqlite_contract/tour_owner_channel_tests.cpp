@@ -238,6 +238,15 @@ namespace {
 		auto granting          = cycle_request(core::cycle_command::round_grant);
 		granting.Cycle.Options = { { "--round", "F1" }, { "--read-only", "true" } };
 		expect(static_cast<bool>(decode_tour_request(encode_tour_request(granting))), "a grant round-trips");
+		// [[BPR-1279]]. Protocol 5 carries rebind, with its location and confirmation only.
+		auto rebinding           = cycle_request(core::cycle_command::rebind);
+		rebinding.Cycle.Options  = { { "--to", "/work/moved" }, { "--confirm", "0123456789abcdef" } };
+		rebinding.Cycle.Text     = std::nullopt;
+		const auto rebindDecoded = decode_tour_request(encode_tour_request(rebinding));
+		expect(rebindDecoded && rebindDecoded->Cycle.Command == core::cycle_command::rebind && rebindDecoded->Cycle.Options == rebinding.Cycle.Options, "a rebind round-trips");
+		changed = rebinding;
+		changed.Cycle.Options.push_back({ "--force", "true" });
+		refused(changed, "a rebind carries nothing that stands in for its confirmation");
 		auto bytes = encode_tour_request(request);
 		bytes[17]  = static_cast<std::uint8_t>(static_cast<std::uint8_t>(core::last_cycle_command) + 1U); // after the operation and two empty texts
 		expect(!decode_tour_request(bytes), "an unknown cycle command does not decode");
@@ -547,9 +556,9 @@ namespace {
 		client    caller{ root.Path, profile, load_request() };
 		const int accepted = ::accept(listen, nullptr, nullptr);
 		expect(accepted >= 0, "the caller connects");
-		// Version 3 is the owner before the round commands (BPR-1169).
-		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', 3 };
-		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version 3");
+		// Version 4 is the owner before rebind (BPR-1279).
+		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', 4 };
+		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version 4");
 		const auto& result = caller.wait();
 		expect(!result && result.error() == tour_channel_failure::version_mismatch, "another protocol version is named as such, before a payload is sent");
 		std::array<std::uint8_t, 1> probe{ };

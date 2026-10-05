@@ -49,6 +49,7 @@ connection; `QCoreApplication` is its only Qt object.
 | `open PATH` | Opens a folder or file as a cycle: the cycle already bound to that root object, or a new one bound and captured as `R1`. |
 | `show [RC-n]` | The cycle, its notes, frozen rounds, delivery observations and responses. |
 | `capture [RC-n] [--again]` | Reads the bound folder now. Identical bytes record nothing unless `--again`. |
+| `rebind [RC-n] --to PATH [--confirm CODE]` | Binds the cycle to its folder's new location, or to a replacement, once you confirm the check it shows; see [Moving a project](#moving-a-project). |
 | `note [RC-n] [--file PATH [--lines A:B]] [--body-file PATH\|-]` | A note on a line range, a whole file of the latest capture, or the whole cycle. |
 | `review [RC-n] [one of --include/--exclude/--earlier/--later In, --action A, --goal-file PATH\|-, --context PATH [--context-lines A:B], --drop-context PATH] [--expected-revision N]` | The next round's draft and the exact document it freezes as; one change per command. `--context` includes a file, or some of its lines, of the revision under review for the recipient to read. |
 | `freeze [RC-n] [--expected-revision N]` | Freezes the draft revision you read into an immutable round. |
@@ -142,6 +143,10 @@ for it, and end of input is never an answer:
   `--replace` naming exactly their SHA-256, as the `conflict` reported it; in
   a terminal it asks for the word `replace`. A file that already holds the
   round is left as it is.
+- `rebind` binds nothing without `--confirm` naming exactly the code its
+  check gave (`interaction_required`, exit 3, with the check and the code);
+  in a terminal it shows the check and asks for the word `rebind`
+  ([[BPR-1279]]).
 
 There is no `--yes` or `--force`.
 
@@ -163,7 +168,7 @@ The profile has one writer: whichever process holds its runtime lease
 releases it while a person answers. When another BetterPullReview process
 holds it, the command is sent to that owner over its same-user command channel
 (a local socket beside the desktop's activation endpoint on macOS and Linux, an
-owner-private named pipe on Windows; protocol 4) and the owner runs it on its own store, in
+owner-private named pipe on Windows; protocol 5) and the owner runs it on its own store, in
 a session of its own beside its windows. The terminal never opens the store a
 second time, takes the lease or starts the desktop.
 
@@ -221,9 +226,10 @@ repeat itself ([[BPR-1183]]): read the cycle.
 
 A capture whose folder is no longer the one the cycle was bound to (moved
 away, replaced, recreated, or a link to another folder put in its place) is
-`source_unavailable` with no `Next:`, because capturing again reads the same
-folder. Moved back, it captures into the cycle again; the folder now at the
-location opens as a cycle of its own. A store SQLite cannot read, in its
+`source_unavailable`. Capturing again reads the same folder, so its `Next:` is
+`bpr cycle rebind RC-n --to PATH`, not a retry (see
+[Moving a project](#moving-a-project)). Moved back, it captures into the cycle
+again; the folder now at the location opens as a cycle of its own. A store SQLite cannot read, in its
 header or its pages, is `storage_unavailable` and said to be damaged, never
 another version's; it is left as it is and nothing is created in its place.
 Retained bytes a revision lists but the store no longer holds are
@@ -234,6 +240,38 @@ A message to the owner is at most 5 MiB: a response on standard input reaches a
 running desktop up to 4 MiB (give `--file PATH` beyond that), and an answer
 larger than the channel carries is `over_limit`, with anything already written
 kept.
+
+## Moving a project
+
+A cycle reads its folder where it was opened. Moved, renamed or replaced by
+another checkout, the folder is refused by `capture`, and `bpr cycle open` on
+it still names the cycle it belongs to without reading it from there. A rebind
+moves the cycle's binding to the folder's new location, or to a replacement
+checkout, through the same binding rules the desktop's **Rebind Folder…** uses
+([[BPR-1279]]):
+
+```sh
+bpr cycle rebind RC-n --to /new/location/of/the/project
+```
+
+Without `--confirm` nothing is bound. The command reads the folder under the
+cycle's scope and compares it with the latest capture: how many of its files
+are the same, changed, missing and new. It refuses with `interaction_required`
+(exit 3), giving the check and a 16-character confirmation code in `detail`
+and the full command in `Next:`. The code names the cycle as it stood, the
+binding it replaces, the folder as observed and the check, so it confirms
+exactly what was shown. If the cycle or the folder changes before the
+confirmation, the old code is `stale_revision` (exit 4), with the new check and
+code. In a terminal the command shows the check and asks for the word `rebind`.
+
+A rebind never takes another cycle's folder: a folder already bound to another
+active cycle is `conflict` (`bound_elsewhere`). A folder cycle is never rebound
+to a file, or a file cycle to a folder (`invalid_input`). A folder that cannot
+be read is `source_unavailable`. If the cycle is already bound to that folder
+at that location, nothing changes and nothing is asked. A rebind keeps every
+capture, note and round and captures nothing; the next `capture` reads the new
+location. Rebinding to a checkout with other bytes is allowed once confirmed:
+the check says how they differ, and the binding records it.
 
 ## A harness reading one round
 

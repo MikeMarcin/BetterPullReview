@@ -987,6 +987,52 @@ namespace bpr::application {
 																		 std::move(aDone));
 	}
 
+	auto review_cycle_runtime::check_rebind_selected(workspace_source_port& aSource, std::string aLocation, completion<cycle_rebind_check> aDone) -> bool
+	{
+		const auto subject = Implementation->selected_cycle();
+		return Implementation->submit<cycle_rebind_check>([subject, source = &aSource, location = std::move(aLocation)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_rebind_check> {
+			if (!subject) {
+				return std::unexpected(refused_selection());
+			}
+			auto loaded = aStore.load(*subject, aStop);
+			if (!loaded) {
+				return std::unexpected(loaded.error());
+			}
+			if (!*loaded) {
+				return std::unexpected(cycle_store_error{ .Failure = cycle_store_failure::not_found });
+			}
+			auto result     = cycle_rebind_check{ .Cycle = std::move(**loaded) };
+			auto host       = review_cycle_capture_host{ *source, aStore };
+			result.Material = host.check_material(result.Cycle, location, aStop);
+			if (!result.Material.Root) {
+				return result;
+			}
+			// The same rule Open Project resolves a folder by: an active cycle bound to this root object.
+			auto after = std::optional<core::review_cycle_id>{ };
+			do {
+				auto page = aStore.list(after, aStop);
+				if (!page) {
+					return std::unexpected(page.error());
+				}
+				for (const auto& cycle : page->Cycles) {
+					if (cycle.Subject == *subject || cycle.WorkspaceKind != result.Material.Root->Kind || cycle.Lifecycle != core::cycle_lifecycle::active) {
+						continue;
+					}
+					auto other = aStore.load(cycle.Subject, aStop);
+					if (!other) {
+						return std::unexpected(other.error());
+					}
+					if (*other && core::bound_to(**other, *result.Material.Root)) {
+						result.BoundElsewhere.push_back(cycle.Subject.Cycle);
+					}
+				}
+				after = page->Next;
+			} while (after);
+			return result;
+		},
+														  std::move(aDone));
+	}
+
 	auto review_cycle_runtime::list(std::optional<core::review_cycle_id> aAfter, completion<cycle_page> aDone) -> bool
 	{
 		return Implementation->submit<cycle_page>([aAfter](review_cycle_store& aStore, std::stop_token aStop) { return aStore.list(aAfter, aStop); }, std::move(aDone));

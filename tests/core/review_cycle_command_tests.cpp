@@ -42,6 +42,12 @@ namespace {
 		expect(takes(cycle_command::review, "--goal-file") && !takes(cycle_command::review, "--force"), "review edits are explicit");
 		expect(cycle_command_options(cycle_command::show).empty() && cycle_command_options(cycle_command::open).empty(), "show and open take only the common options");
 		expect(takes(cycle_command::export_record, "--digest") && takes(cycle_command::export_record, "--state"), "a record names the bytes and what happened to them");
+		// [[BPR-1279]]. A rebind names where to and the check it confirms; nothing else stands in for that.
+		expect(takes(cycle_command::rebind, "--to") && takes(cycle_command::rebind, "--confirm") && cycle_command_options(cycle_command::rebind).size() == 2U, "rebind names a location and a confirmation");
+		expect(!takes(cycle_command::rebind, "--yes") && !takes(cycle_command::rebind, "--force") && !cycle_option_is_flag("--confirm"), "and a confirmation is a value, never a flag");
+		expect(parse_cycle_command("rebind") == cycle_command::rebind && last_cycle_command == cycle_command::rebind, "rebind is typed and the registry's last");
+		expect(may_write(cycle_command::rebind) && authority_of(cycle_command::rebind) == cycle_command_authority::reviewer, "a rebind writes, on the reviewer's authority");
+		expect(admit_owner_command(cycle_command::rebind, cycle_draft_editor::composing) == cycle_owner_admission::serve, "and is not held by a draft");
 		const auto common = common_cycle_options();
 		expect(std::ranges::find(common, std::string_view{ "--operation-id" }) != common.end(), "every command takes an operation identity");
 		expect(cycle_option_is_flag("--json") && cycle_option_is_flag("--again") && !cycle_option_is_flag("--round"), "flags take no value");

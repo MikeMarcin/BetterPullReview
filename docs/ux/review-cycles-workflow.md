@@ -122,6 +122,20 @@ again in the background, while you keep reading, and records the next revision;
 unless you choose **Record another observation of the same bytes** from its
 menu. No callback, receipt or Git commit is needed.
 
+If the project's folder was moved, renamed or replaced by another checkout,
+**Capture revision** is refused, because capturing again would read the same
+place, and **Rebind Folder…** appears beside it (it is always in Capture
+revision's menu too). Choose where the folder is now, or the checkout that
+replaces it. The cycle compares it with the latest capture and shows how many
+files are the same, changed, missing and new: **Rebind** binds the cycle there,
+and **Cancel** leaves it as it was. A folder that is already another cycle's
+project is refused, and nothing is bound until you choose **Rebind**. If the
+folder changes between the check and **Rebind**, the new comparison is shown
+for you to confirm instead. Captures, notes and rounds stay as they are; the
+next **Capture revision** reads the new location. From a terminal it is
+`bpr cycle rebind` (see
+[Moving a project](../development/cycle-cli.md#moving-a-project)).
+
 Record what the recipient said with **Add reply**: **Paste a reply to FN…** for
 prose, or **Open a response file for FN…** for a structured response (the format
 is in the bpr-cycle skill's

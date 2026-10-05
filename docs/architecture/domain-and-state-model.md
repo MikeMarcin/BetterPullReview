@@ -138,7 +138,14 @@ holding it, so an editor that saves by replacing the file does not replace the
 root. Identity decides whether a root is still the bound one; the location
 only says where to look. Every rebind, including a moved root, is an explicit
 confirmed command that advances the binding version, and a rebind over captured
-material records the material check the reviewer confirmed. Each capture names
+material records the material check the reviewer confirmed. The terminal
+(`bpr cycle rebind`) and the window (**Rebind Folder…**) offer it the same way
+([[BPR-1279]]): `core::admit_workspace_rebind` says, before anything is asked,
+whether a candidate may be offered (never another active cycle's root, never a
+file for a folder), and `core::workspace_rebind_confirmation` is what the
+reviewer confirms, a digest of the cycle, the binding it replaces, the
+candidate as observed and the check shown, so a confirmation does not survive a
+change to any of them. Each capture names
 the binding version it was read under and is refused when that version is not
 current, so bytes from a replaced or same-named checkout never land in the
 cycle unannounced. An imported project resolves to a local one only through an

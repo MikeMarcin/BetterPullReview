@@ -75,6 +75,16 @@ namespace bpr::application {
 		/// \brief [[BPR-1184]]. Cancels the running capture: nothing is
 		/// recorded and the latest revision stays as it was.
 		void cancel_capture();
+		/// \brief [[BPR-1279]]. Rebind Folder: reads the folder or file chosen
+		/// at `aLocation` against the open cycle's latest capture and shows how
+		/// it compares, or why it cannot be rebound. Nothing is bound.
+		void check_rebind(std::string aLocation);
+		/// \brief Rebinds the open cycle to the candidate shown, with the check
+		/// shown. The candidate is checked again first: if the folder or the
+		/// cycle changed meanwhile, the new check is shown to confirm instead.
+		void confirm_rebind();
+		/// \brief Leaves Rebind Folder; nothing is bound.
+		void cancel_rebind();
 		/// \brief [[BPR-1184]]. Lists the next (`aDirection` > 0) or previous
 		/// window of the latest capture's files in the drawer; with
 		/// `aOpenEdge`, then opens the window's first or last file.

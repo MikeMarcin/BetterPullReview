@@ -304,6 +304,22 @@ namespace bpr::application {
 		auto        operator<=>(const review_cycle_publication_view&) const = default;
 	};
 
+	/// \brief [[BPR-1279]]. An explicit rebind the reviewer asked for: the
+	/// candidate chosen, how it compares with the latest capture, and whether
+	/// that check may be confirmed. Nothing is bound until it is.
+	struct review_cycle_rebind_view
+	{
+		/// The folder or file chosen, as chosen.
+		std::string Location;
+		/// The candidate is being read and compared, or the rebind recorded.
+		bool Checking = true;
+		/// How it compares, or why it cannot be rebound; empty while checking.
+		std::string Words;
+		/// The check is shown and the rebind may be confirmed.
+		bool Confirmable                                        = false;
+		auto operator<=>(const review_cycle_rebind_view&) const = default;
+	};
+
 	enum class review_cycle_activity : std::uint8_t {
 		idle,
 		opening,
@@ -361,7 +377,12 @@ namespace bpr::application {
 		std::string Message;
 		/// Plain words about the last capture when it recorded nothing new.
 		std::string Notice;
-		auto        operator<=>(const review_cycle_workbench_projection&) const = default;
+		/// [[BPR-1279]]. The last capture was refused because another root, or
+		/// none, answers at the cycle's location: Rebind Folder is offered.
+		bool RebindOffered = false;
+		/// Present while an explicit rebind is being checked or confirmed.
+		std::optional<review_cycle_rebind_view> Rebind;
+		auto                                    operator<=>(const review_cycle_workbench_projection&) const = default;
 	};
 
 	struct review_cycle_recent

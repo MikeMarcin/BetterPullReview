@@ -9,6 +9,8 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QColor>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QKeySequence>
@@ -399,10 +401,54 @@ namespace bpr::qt {
 		auto* const captureMenu = new QMenu{ this };
 		captureMenu->addAction(CaptureAgain);
 		CaptureAction->setMenu(captureMenu);
+		// [[BPR-1279]]. Rebind Folder: in the menu always, and on the bar beside
+		// Capture revision while a refused capture offers it.
+		RebindMenu = new QAction{ QStringLiteral("Rebind Folder…"), this };
+		RebindMenu->setObjectName(QStringLiteral("cycleRebindMenuAction"));
+		captureMenu->addAction(RebindMenu);
 		ReviewBar->addAction(CaptureAction);
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CaptureAction))) {
 			button->setPopupMode(QToolButton::MenuButtonPopup);
 		}
+		RebindAction = new QAction{ QStringLiteral("Rebind Folder…"), this };
+		RebindAction->setObjectName(QStringLiteral("cycleRebindAction"));
+		RebindAction->setVisible(false);
+		ReviewBar->addAction(RebindAction);
+		for (auto* const action : { RebindAction, RebindMenu }) {
+			action->setToolTip(QStringLiteral("Choose where this cycle's folder is now, or a replacement; nothing is bound until you confirm what is there"));
+		}
+		RebindDialog = new QDialog{ this };
+		RebindDialog->setObjectName(QStringLiteral("cycleRebindDialog"));
+		RebindDialog->setWindowTitle(QStringLiteral("Rebind Folder"));
+		RebindDialog->setWindowModality(Qt::WindowModal);
+		RebindDialog->setModal(true);
+		auto* const rebindLayout = new QVBoxLayout{ RebindDialog };
+		RebindWords              = new QLabel{ RebindDialog };
+		RebindWords->setObjectName(QStringLiteral("cycleRebindWords"));
+		RebindWords->setTextFormat(Qt::PlainText);
+		RebindWords->setWordWrap(true);
+		RebindWords->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		RebindWords->setMinimumWidth(RebindWords->fontMetrics().averageCharWidth() * 56);
+		rebindLayout->addWidget(RebindWords);
+		auto* const rebindButtons = new QDialogButtonBox{ RebindDialog };
+		RebindConfirm             = rebindButtons->addButton(QStringLiteral("Rebind"), QDialogButtonBox::AcceptRole);
+		RebindConfirm->setObjectName(QStringLiteral("cycleRebindConfirm"));
+		auto* const rebindCancel = rebindButtons->addButton(QStringLiteral("Cancel"), QDialogButtonBox::RejectRole);
+		rebindCancel->setObjectName(QStringLiteral("cycleRebindCancel"));
+		rebindLayout->addWidget(rebindButtons);
+		// Rebind confirms the check shown and leaves the dialog to the host;
+		// Cancel and Escape leave it, binding nothing.
+		connect(RebindConfirm, &QPushButton::clicked, this, [this] {
+			if (Dispatch.ConfirmRebind) {
+				Dispatch.ConfirmRebind();
+			}
+		});
+		connect(rebindButtons, &QDialogButtonBox::rejected, RebindDialog, &QDialog::reject);
+		connect(RebindDialog, &QDialog::rejected, this, [this] {
+			if (!Presenting && Dispatch.CancelRebind) {
+				Dispatch.CancelRebind();
+			}
+		});
 		// [[BPR-1182]]. The pull request's private-progress tick, named in its tooltip.
 		MarkReviewed = new QAction{ strip_icon(strip_glyph::private_progress, palette()), QStringLiteral("Mark reviewed"), this };
 		MarkReviewed->setObjectName(QStringLiteral("cycleMarkReviewed"));
@@ -697,6 +743,13 @@ namespace bpr::qt {
 				Dispatch.Capture(true);
 			}
 		});
+		for (auto* const action : { RebindAction, RebindMenu }) {
+			connect(action, &QAction::triggered, this, [this] {
+				if (Dispatch.ChooseRebind) {
+					Dispatch.ChooseRebind();
+				}
+			});
+		}
 		connect(MarkReviewed, &QAction::triggered, this, [this] {
 			if (Dispatch.MarkReviewed) {
 				Dispatch.MarkReviewed();
@@ -1200,6 +1253,7 @@ namespace bpr::qt {
 		refresh_actions();
 		// [[BPR-1182]]. What the bar holds changes only here and with the width.
 		apply_review_bar_width();
+		present_rebind();
 		if (composing) {
 			// The sheet hangs from the review bar, over the file the reviewer was reading.
 			SharePage->set_anchor(ReviewBar->mapToGlobal(QPoint{ ReviewBar->width() / 2, ReviewBar->height() }));
@@ -1227,6 +1281,34 @@ namespace bpr::qt {
 			}
 		}
 		Presenting = false;
+	}
+
+	void review_cycle_view::present_rebind()
+	{
+		if (!Projection.Rebind) {
+			if (RebindDialog->isVisible()) {
+				RebindDialog->hide();
+			}
+			return;
+		}
+		const auto& rebind = *Projection.Rebind;
+		const auto  title  = Projection.Cycle ? text_of(Projection.Cycle->Title) : QStringLiteral("this cycle");
+		auto        words  = QStringLiteral("Rebind \"%1\" to %2?").arg(title, text_of(rebind.Location));
+		if (rebind.Checking && rebind.Words.empty()) {
+			words += QStringLiteral("\n\nComparing it with the latest capture…");
+		} else {
+			words += QStringLiteral("\n\n") + text_of(rebind.Words);
+		}
+		if (rebind.Confirmable) {
+			words += QStringLiteral("\n\nIts captures, notes and rounds stay as they are; the next capture reads this folder. Nothing is captured until you capture.");
+		}
+		RebindWords->setText(words);
+		RebindWords->setAccessibleName(words);
+		RebindConfirm->setEnabled(rebind.Confirmable && !rebind.Checking);
+		RebindConfirm->setVisible(rebind.Confirmable || rebind.Checking);
+		if (!RebindDialog->isVisible()) {
+			RebindDialog->open();
+		}
 	}
 
 	void review_cycle_view::present_comparison(const application::review_cycle_comparison_view& aComparison, const bool aChanged)
@@ -1740,6 +1822,11 @@ namespace bpr::qt {
 											: QStringLiteral("Read the project folder now and keep its bytes as the next revision"));
 		CaptureAction->setEnabled(bound || capturing);
 		CaptureAgain->setEnabled(bound && !capturing && !Projection.Revisions.empty());
+		// [[BPR-1279]]. Offered on the bar from a refused capture; from the menu whenever the cycle is bound and settled.
+		const auto rebindable = bound && !capturing && Projection.Cycle && Projection.Cycle->WorkspaceKind.has_value() && !Projection.Rebind;
+		RebindAction->setVisible(open && Projection.RebindOffered);
+		RebindAction->setEnabled(rebindable);
+		RebindMenu->setEnabled(rebindable);
 		MarkReviewed->setEnabled(open && !Projection.Revisions.empty());
 		ViewButton->setEnabled(open && !Projection.Revisions.empty());
 		ReplyButton->setEnabled(open);
@@ -1810,6 +1897,21 @@ namespace bpr::qt {
 			// [[BPR-1184]]. Past the window's edge: the next window, and its first file.
 			Dispatch.ListFiles(aDirection, true);
 		}
+	}
+
+	auto review_cycle_view::rebind_action() const noexcept -> QAction*
+	{
+		return RebindAction;
+	}
+
+	auto review_cycle_view::rebind_menu_action() const noexcept -> QAction*
+	{
+		return RebindMenu;
+	}
+
+	auto review_cycle_view::rebind_dialog() const noexcept -> QDialog*
+	{
+		return RebindDialog;
 	}
 
 	auto review_cycle_view::publish_sheet() const noexcept -> review_cycle_publish_sheet*

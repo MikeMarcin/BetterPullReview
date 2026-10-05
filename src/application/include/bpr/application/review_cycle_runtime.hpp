@@ -41,6 +41,19 @@ namespace bpr::application {
 		std::optional<workspace_failure>                Failure;
 	};
 
+	/// \brief What an explicit rebind of the selected cycle to a candidate
+	/// would bind, and how it compares ([[BPR-1279]]).
+	struct cycle_rebind_check
+	{
+		/// The selected cycle as it stood when the candidate was checked.
+		core::review_cycle_state Cycle;
+		/// The candidate's bytes against the latest revision, and the root
+		/// the check opened.
+		cycle_material_check_outcome Material;
+		/// Other active cycles of the profile bound to the candidate root.
+		std::vector<core::review_cycle_id> BoundElsewhere;
+	};
+
 	/// \brief Owns the cycle store on the decision lane.
 	/// \details Store calls run one at a time on the effect lane in request
 	/// order; each accepted call completes exactly once on the decision lane.
@@ -254,6 +267,12 @@ namespace bpr::application {
 		auto list(std::optional<core::review_cycle_id> aAfter, completion<cycle_page> aDone) -> bool;
 		/// \brief One cycle's state, whatever is selected (for recents).
 		auto load(core::local_cycle_subject aSubject, completion<std::optional<core::review_cycle_state>> aDone) -> bool;
+		/// \brief [[BPR-1279]]. Opens `aLocation` as a candidate root for the
+		/// selected cycle and reads its bytes under the cycle's scope against
+		/// the latest revision, installing and changing nothing; with the
+		/// profile's other cycles bound to it. `aSource` must stay alive until
+		/// the completion runs.
+		auto check_rebind_selected(workspace_source_port& aSource, std::string aLocation, completion<cycle_rebind_check> aDone) -> bool;
 		/// \brief Applies one change to the selected cycle (rename, scope, bind).
 		auto apply_selected(cycle_operation_id aOperation, std::uint64_t aExpectedRevision, core::review_cycle_change aChange, completion<cycle_write_receipt> aDone) -> bool;
 		auto revisions_selected(std::optional<core::cycle_source_revision_id> aAfter, completion<cycle_revision_page> aDone) -> bool;

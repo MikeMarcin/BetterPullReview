@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <string_view>
 
 namespace bpr::application {
 	// [[BPR-1184]]. A refusal names the limit it met.
@@ -46,13 +47,63 @@ namespace bpr::application {
 		{
 			switch (aVerification.value_or(core::workspace_verification::replaced)) {
 			case core::workspace_verification::repository_changed:
-				return "The folder is the one this cycle captured, but its Git repository or worktree is not; nothing was recorded. This cycle captures only the checkout it was opened on.";
+				return "The folder is the one this cycle captured, but its Git repository or worktree is not; nothing was recorded. This cycle captures only the checkout it was opened "
+					   "on, unless you rebind it to this one.";
 			case core::workspace_verification::kind_changed:
 				return "What this cycle captured changed kind: a file became a folder or the reverse, or the checkout lost its repository; nothing was recorded.";
 			default:
+				// [[BPR-1279]]. The way forward is a confirmed rebind, or moving it back.
 				return "Another folder now answers at this cycle's location: the one it captured was moved, replaced or recreated. Nothing was recorded, and capturing "
-					   "again reads the same folder. Move the original back to capture into this cycle; open the folder now there to review it as a cycle of its own.";
+					   "again reads the same folder. Rebind the cycle to where its folder is now, or move the folder back; open the folder now there to review it as a "
+					   "cycle of its own.";
 			}
+		}
+
+		auto counted(const std::uint64_t aCount, const std::string_view aNoun) -> std::string
+		{
+			return grouped_count(aCount) + " " + std::string{ aNoun } + (aCount == 1U ? "" : "s");
+		}
+	}
+
+	auto cycle_capture_offers_rebind(const cycle_capture_outcome& aOutcome) noexcept -> bool
+	{
+		return aOutcome.Status == cycle_capture_status::root_changed || (aOutcome.Status == cycle_capture_status::workspace && aOutcome.Workspace == workspace_failure::missing);
+	}
+
+	auto cycle_material_check_words(const core::workspace_material_check& aCheck, const bool aCaptured) -> std::string
+	{
+		if (!aCaptured) {
+			return "Nothing is captured yet, so there is nothing to compare.";
+		}
+		return "Compared with the latest capture's " + counted(aCheck.Compared, "file") + ": " + grouped_count(aCheck.Matching) + " the same, " + grouped_count(aCheck.Differing)
+			+ " changed, " + grouped_count(aCheck.Missing) + " missing and " + grouped_count(aCheck.Added) + " new.";
+	}
+
+	auto cycle_rebind_words(const core::workspace_rebind_problem aProblem, const std::string_view aOther) -> std::string
+	{
+		switch (aProblem) {
+		case core::workspace_rebind_problem::none:      return { };
+		case core::workspace_rebind_problem::unbound:   return "This cycle has no folder to rebind; open the folder as a cycle instead. Nothing was changed.";
+		case core::workspace_rebind_problem::archived:  return "The cycle is archived, and an archived cycle is not rebound. Nothing was changed.";
+		case core::workspace_rebind_problem::unchanged: return "The cycle is already bound to that folder, at that location. Nothing was changed.";
+		case core::workspace_rebind_problem::kind_changed:
+			return "A cycle that reviews a folder can be rebound only to a folder, and one that reviews a file only to a file. Nothing was changed.";
+		case core::workspace_rebind_problem::file_scope: return "A single file cannot hold the paths this cycle's scope names. Nothing was changed.";
+		case core::workspace_rebind_problem::bound_elsewhere:
+			return "That folder is already the project of " + std::string{ aOther } + ", and a cycle never takes over another cycle's folder. Nothing was changed.";
+		}
+		return { };
+	}
+
+	auto cycle_rebind_check_words(const cycle_material_check_outcome& aOutcome) -> std::string
+	{
+		switch (aOutcome.Status) {
+		case cycle_capture_status::captured:         return { };
+		case cycle_capture_status::workspace:        return (aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : std::string{ "The chosen folder could not be read." }) + " Nothing was changed.";
+		case cycle_capture_status::too_many_entries: return "The folder holds more than 250,000 entries, the most one capture keeps; nothing was changed.";
+		case cycle_capture_status::store:            return aOutcome.Store ? cycle_store_words(*aOutcome.Store) : "The local cycle store is unavailable.";
+		case cycle_capture_status::cancelled:        return { };
+		default:                                     return "The chosen folder could not be compared; nothing was changed.";
 		}
 	}
 
@@ -64,9 +115,14 @@ namespace bpr::application {
 		case cycle_capture_status::root_changed:     return cycle_root_changed_words(aOutcome.Verification);
 		case cycle_capture_status::too_many_entries: return "The folder holds more than 250,000 entries, the most one capture keeps; nothing was recorded. Narrow the scope.";
 		case cycle_capture_status::store:            return aOutcome.Store ? cycle_store_words(*aOutcome.Store) : "The local cycle store is unavailable.";
-		case cycle_capture_status::workspace:        return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The chosen folder could not be read.";
-		case cycle_capture_status::not_bound:        return "The cycle has no folder to capture.";
-		case cycle_capture_status::cancelled:        return { };
+		case cycle_capture_status::workspace:
+			if (aOutcome.Workspace == workspace_failure::missing) {
+				// [[BPR-1279]]. Moved away with nothing in its place.
+				return "This cycle's folder is no longer at its location; nothing was recorded. Rebind the cycle to where the folder is now, or move it back.";
+			}
+			return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The chosen folder could not be read.";
+		case cycle_capture_status::not_bound: return "The cycle has no folder to capture.";
+		case cycle_capture_status::cancelled: return { };
 		}
 		return { };
 	}

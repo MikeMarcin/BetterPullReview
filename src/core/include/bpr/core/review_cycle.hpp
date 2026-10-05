@@ -497,6 +497,45 @@ namespace bpr::core {
 	/// true for an active cycle bound to a root of this kind and identity.
 	/// What Open Project and the terminal's working folder resolve by.
 	[[nodiscard]] auto bound_to(const review_cycle_state& aCycle, const workspace_root_observation& aRoot) noexcept -> bool;
+
+	/// \brief Why an explicit rebind of a cycle to a candidate root is not
+	/// offered ([[BPR-1279]]). The rebind itself is `bind_cycle_workspace`,
+	/// whose own rules still decide; this says, before anything is asked of
+	/// the reviewer, what those rules and the profile's other cycles allow.
+	enum class workspace_rebind_problem : std::uint8_t {
+		none,
+		/// The cycle has never been bound; opening a folder binds it.
+		unbound,
+		/// Only unarchiving is accepted on an archived cycle.
+		archived,
+		/// The candidate is the bound root, at the bound location: nothing to do.
+		unchanged,
+		/// A folder binding cannot become a file binding, or the reverse.
+		kind_changed,
+		/// A file cannot hold the scope paths the cycle names.
+		file_scope,
+		/// The candidate is the root of another active cycle: that cycle's
+		/// project, which a rebind never takes over.
+		bound_elsewhere,
+	};
+	/// \brief Whether `aCandidate` may be offered as the cycle's root.
+	/// \param aBoundElsewhere Whether another active cycle of the profile is
+	/// bound to the candidate (`bound_to`).
+	[[nodiscard]] auto admit_workspace_rebind(const review_cycle_state& aCycle, const workspace_root_observation& aCandidate, bool aBoundElsewhere) noexcept
+		-> workspace_rebind_problem;
+	[[nodiscard]] auto stable_name(workspace_rebind_problem aProblem) noexcept -> std::string_view;
+
+	/// \brief Characters in a rebind confirmation.
+	inline constexpr std::size_t workspace_rebind_confirmation_characters = 16U;
+	/// \brief What the reviewer confirms when rebinding: a short lowercase hex
+	/// digest of the cycle and the binding it would replace (subject, record
+	/// revision, binding version), the candidate root as observed (kind,
+	/// location, identities) and the material check shown.
+	/// \details Any change to any of them between the check and the
+	/// confirmation yields another value, so a confirmation names exactly
+	/// what was shown and is never a general "yes".
+	[[nodiscard]] auto workspace_rebind_confirmation(const review_cycle_state& aCycle, const workspace_root_observation& aCandidate,
+													 const std::optional<workspace_material_check>& aCheck) -> std::string;
 }
 
 #endif

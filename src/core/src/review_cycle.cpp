@@ -482,4 +482,89 @@ namespace bpr::core {
 	{
 		return aCycle.Lifecycle == cycle_lifecycle::active && aCycle.Workspace && aCycle.Workspace->Root.Kind == aRoot.Kind && aCycle.Workspace->Root.Root == aRoot.Root;
 	}
+
+	auto admit_workspace_rebind(const review_cycle_state& aCycle, const workspace_root_observation& aCandidate, const bool aBoundElsewhere) noexcept
+		-> workspace_rebind_problem
+	{
+		const auto& current = aCycle.Workspace;
+		if (!current) {
+			return workspace_rebind_problem::unbound;
+		}
+		if (aCycle.Lifecycle == cycle_lifecycle::archived) {
+			return workspace_rebind_problem::archived;
+		}
+		// The rules `bind_cycle_workspace` applies, in the words a reviewer is shown.
+		if (directory_root(current->Root.Kind) != directory_root(aCandidate.Kind)) {
+			return workspace_rebind_problem::kind_changed;
+		}
+		if (aCandidate.Kind == workspace_root_kind::file && !aCycle.Scope.Paths.empty()) {
+			return workspace_rebind_problem::file_scope;
+		}
+		if (current->Root.Location == aCandidate.Location && verify_workspace(*current, aCandidate) == workspace_verification::matches) {
+			return workspace_rebind_problem::unchanged;
+		}
+		if (aBoundElsewhere) {
+			return workspace_rebind_problem::bound_elsewhere;
+		}
+		return workspace_rebind_problem::none;
+	}
+
+	auto stable_name(const workspace_rebind_problem aProblem) noexcept -> std::string_view
+	{
+		switch (aProblem) {
+		case workspace_rebind_problem::none:            return "none";
+		case workspace_rebind_problem::unbound:         return "unbound";
+		case workspace_rebind_problem::archived:        return "archived";
+		case workspace_rebind_problem::unchanged:       return "unchanged";
+		case workspace_rebind_problem::kind_changed:    return "kind_changed";
+		case workspace_rebind_problem::file_scope:      return "file_scope";
+		case workspace_rebind_problem::bound_elsewhere: return "bound_elsewhere";
+		}
+		return "unknown";
+	}
+
+	auto workspace_rebind_confirmation(const review_cycle_state& aCycle, const workspace_root_observation& aCandidate, const std::optional<workspace_material_check>& aCheck)
+		-> std::string
+	{
+		constexpr auto domain = std::string_view{ "BPR-workspace-rebind-v1" };
+		auto           bytes  = std::vector<std::uint8_t>(domain.begin(), domain.end());
+		bytes.push_back(0);
+		const auto number = [&bytes](const std::uint64_t aValue) {
+			for (auto shift = 56; shift >= 0; shift -= 8) {
+				bytes.push_back(static_cast<std::uint8_t>(aValue >> static_cast<unsigned>(shift)));
+			}
+		};
+		const auto identity = [&](const std::optional<workspace_object_identity>& aIdentity) {
+			bytes.push_back(aIdentity ? 1U : 0U);
+			const auto value = aIdentity.value_or(workspace_object_identity{ });
+			for (const auto part : { value.Volume, value.ObjectHigh, value.ObjectLow }) {
+				number(part);
+			}
+		};
+		const auto& incarnation = aCycle.Subject.Authority.Incarnation.bytes();
+		bytes.insert(bytes.end(), incarnation.begin(), incarnation.end());
+		for (const auto value : { static_cast<std::uint64_t>(aCycle.Subject.Authority.Profile.value()), static_cast<std::uint64_t>(aCycle.Subject.Cycle.value()), aCycle.Subject.Generation,
+								  aCycle.Revision, aCycle.Workspace ? aCycle.Workspace->Version : 0U }) {
+			number(value);
+		}
+		bytes.push_back(static_cast<std::uint8_t>(aCandidate.Kind));
+		number(aCandidate.Location.size());
+		bytes.insert(bytes.end(), aCandidate.Location.begin(), aCandidate.Location.end());
+		identity(aCandidate.Root);
+		identity(aCandidate.Repository);
+		identity(aCandidate.Worktree);
+		bytes.push_back(aCheck ? 1U : 0U);
+		const auto check = aCheck.value_or(workspace_material_check{ });
+		for (const auto value : { check.Compared, check.Matching, check.Differing, check.Missing, check.Added }) {
+			number(value);
+		}
+		const auto     digest = sha256(bytes);
+		constexpr auto digits = std::string_view{ "0123456789abcdef" };
+		auto           result = std::string{ };
+		for (std::size_t index = 0; index < workspace_rebind_confirmation_characters / 2U; ++index) {
+			result.push_back(digits[digest[index] >> 4U]);
+			result.push_back(digits[digest[index] & 0x0FU]);
+		}
+		return result;
+	}
 }

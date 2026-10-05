@@ -118,6 +118,9 @@ namespace bpr::application {
 		std::optional<workspace_failure>              Workspace;
 		std::optional<cycle_store_error>              Store;
 		std::optional<core::workspace_material_check> Check;
+		/// The candidate root as the check opened it: what a rebind confirmed
+		/// against this check binds ([[BPR-1279]]).
+		std::optional<core::workspace_root_observation> Root;
 	};
 
 	/// \brief Captures bound workspaces into a cycle store. Every call runs on

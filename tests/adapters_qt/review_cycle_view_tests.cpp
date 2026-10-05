@@ -17,6 +17,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QDialog>
 #include <QDir>
 #include <QFontDatabase>
 #include <QFontInfo>
@@ -601,6 +602,10 @@ namespace {
 		int                                   FullSource   = 0;
 		int                                   Refreshed    = 0;
 		int                                   MarkedReview = 0;
+		/// [[BPR-1279]]. Rebind Folder's gestures.
+		int RebindChosen    = 0;
+		int RebindConfirmed = 0;
+		int RebindCancelled = 0;
 	};
 
 	auto menu_action(QMenu* aMenu, const QString& aText) -> QAction*
@@ -704,6 +709,75 @@ namespace {
 
 	/// BPR-1164: replies entered by hand, response files chosen, and what was
 	/// said shown beside each note as claims.
+	/// [[BPR-1279]]. Rebind Folder: on the bar only from a refused capture and
+	/// always in Capture revision's menu; the confirmation shows the host's
+	/// check and offers Rebind only when the host says it may be confirmed.
+	void offers_and_confirms_a_rebind(qt::review_cycle_view& aView, const view_gestures& aGestures)
+	{
+		auto view                 = projection(1);
+		view.Cycle->WorkspaceKind = core::workspace_root_kind::folder;
+		view.Location             = "/work/parser-project";
+		aView.present(view);
+		settle();
+		expect(!aView.rebind_action()->isVisible() && aView.rebind_menu_action()->isEnabled(), "not on the bar while captures succeed; in the menu");
+		expect(menu_action(aView.capture_action()->menu(), QStringLiteral("Rebind Folder…")) == aView.rebind_menu_action(), "Capture revision's menu holds Rebind Folder");
+		view.RebindOffered = true;
+		view.Message       = "Another folder now answers at this cycle's location: the one it captured was moved, replaced or recreated. Rebind the cycle to where its folder is now.";
+		aView.present(view);
+		settle();
+		auto* const button = aView.review_bar()->widgetForAction(aView.rebind_action());
+		expect(aView.rebind_action()->isVisible() && aView.rebind_action()->isEnabled() && button != nullptr && button->isVisible(), "a refused capture puts Rebind Folder on the bar");
+		expect(aView.updates_line()->text().contains(QStringLiteral("Rebind the cycle")), "beside the words that point at it");
+		capture(aView, QStringLiteral("cycle-rebind-offered"));
+		aView.rebind_action()->trigger();
+		aView.rebind_menu_action()->trigger();
+		expect(aGestures.RebindChosen == 2, "either asks the host to choose a folder");
+		expect(!aView.rebind_dialog()->isVisible(), "nothing is shown until a folder is chosen");
+
+		auto* const confirm = aView.rebind_dialog()->findChild<QPushButton*>(QStringLiteral("cycleRebindConfirm"));
+		auto* const words   = aView.rebind_dialog()->findChild<QLabel*>(QStringLiteral("cycleRebindWords"));
+		view.Rebind         = application::review_cycle_rebind_view{ .Location = "/work/parser-moved", .Checking = true };
+		aView.present(view);
+		settle();
+		expect(aView.rebind_dialog()->isVisible() && aView.rebind_dialog()->isModal() && confirm != nullptr && words != nullptr, "the confirmation opens while the folder is compared");
+		expect(!confirm->isEnabled() && words->text().contains(QStringLiteral("Comparing it with the latest capture")), "and cannot be confirmed yet");
+		expect(!aView.rebind_action()->isEnabled() && !aView.rebind_menu_action()->isEnabled(), "one rebind at a time");
+
+		view.Rebind = application::review_cycle_rebind_view{ .Location = "/work/parser-other", .Checking = false, .Words = "That folder is already the project of RC-2, and a cycle never takes over another cycle's folder. Nothing was changed." };
+		aView.present(view);
+		settle();
+		expect(aView.rebind_dialog()->isVisible() && !confirm->isVisible() && words->text().contains(QStringLiteral("project of RC-2")), "a refused candidate offers no Rebind");
+		confirm->click();
+		expect(aGestures.RebindConfirmed == 0, "a hidden Rebind confirms nothing");
+
+		view.Rebind = application::review_cycle_rebind_view{ .Location = "/work/parser-moved", .Checking = false, .Words = "Compared with the latest capture's 2 files: 2 the same, 0 changed, 0 missing and 0 new.", .Confirmable = true };
+		aView.present(view);
+		settle();
+		expect(confirm->isVisible() && confirm->isEnabled() && words->text().contains(QStringLiteral("2 the same")) && words->text().contains(QStringLiteral("/work/parser-moved")), "the check shown, with Rebind");
+		capture(*aView.rebind_dialog(), QStringLiteral("cycle-rebind-confirm"));
+		tests::window_system_clicks(*confirm, QRectF{ confirm->rect() }.center(), 1);
+		expect(aGestures.RebindConfirmed == 1 && aGestures.RebindCancelled == 0, "Rebind, clicked, confirms the check shown");
+		auto* const cancel = aView.rebind_dialog()->findChild<QPushButton*>(QStringLiteral("cycleRebindCancel"));
+		expect(cancel != nullptr && cancel->isVisible() && cancel->isEnabled(), "Cancel is offered");
+		tests::window_system_clicks(*cancel, QRectF{ cancel->rect() }.center(), 1);
+		expect(aGestures.RebindCancelled == 1 && !aView.rebind_dialog()->isVisible(), "Cancel, clicked, leaves it");
+		aView.present(view);
+		settle();
+		expect(aView.rebind_dialog()->isVisible(), "shown again while the host still has it");
+		tests::window_system_key(*aView.rebind_dialog(), Qt::Key_Escape, Qt::NoModifier, QStringLiteral("\x1b"));
+		expect(aGestures.RebindCancelled == 2 && !aView.rebind_dialog()->isVisible(), "and so does Escape");
+
+		// The host closes it when the rebind is recorded; closing it so is not a cancel.
+		aView.present(view);
+		settle();
+		view.Rebind.reset();
+		view.RebindOffered = false;
+		view.Message.clear();
+		aView.present(view);
+		settle();
+		expect(!aView.rebind_dialog()->isVisible() && aGestures.RebindCancelled == 2 && !aView.rebind_action()->isVisible(), "recorded: closed, and the offer gone");
+	}
+
 	void records_replies(qt::review_cycle_view& aView, const reply_gestures& aGestures)
 	{
 		auto view                = projection(1);
@@ -2320,6 +2394,9 @@ try {
 		.Suggest          = [&](application::review_cycle_suggestion_request aRequest) { suggested = std::move(aRequest); },
 		.Relate           = { },
 		.Capture          = [&](const bool aDeliberate) { gestures.Captures.push_back(aDeliberate); },
+		.ChooseRebind     = [&] { ++gestures.RebindChosen; },
+		.ConfirmRebind    = [&] { ++gestures.RebindConfirmed; },
+		.CancelRebind     = [&] { ++gestures.RebindCancelled; },
 		.Compare          = [&](const core::cycle_view_request& aRequest) { gestures.Compared.push_back(aRequest); },
 		.FullSource       = [&] { ++gestures.FullSource; },
 		.Refresh          = [&] { ++gestures.Refreshed; },
@@ -2354,6 +2431,7 @@ try {
 	states_newer_material_without_moving(view);
 	opens_files_and_steps(view, opened);
 	captures_and_compares(view, gestures);
+	offers_and_confirms_a_rebind(view, gestures);
 	records_replies(view, replies);
 	decides_explicitly(view, decisions);
 	shares_from_a_sheet_over_the_code(view, shares);

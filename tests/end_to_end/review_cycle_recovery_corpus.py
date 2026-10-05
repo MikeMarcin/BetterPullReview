@@ -39,9 +39,13 @@ a second cycle in the same profile is untouched, and no project folder changed.
    is refused. A folder that keeps changing is retried a bounded number of
    times and refused, nothing recorded. A root replaced at its location, or
    swapped for a link to another folder, is refused, in the terminal and the
-   window, with words that say retrying will not help; the folder now there
-   opens as a new cycle; a moved root is recognised by identity but not read
-   from its new location; moved back, it captures again.
+   window, with words that say retrying will not help and point at a rebind;
+   the folder now there opens as a new cycle; a moved root is recognised by
+   identity but not read from its new location. [[BPR-1279]]: a rebind binds
+   it there only once confirmed against the check shown, in the terminal
+   (`bpr cycle rebind`) and the window (Rebind Folder); another cycle's folder,
+   a file, a wrong or missing confirmation and Cancel bind nothing; rebound, it
+   captures from the new location.
 7. Duplicates (RC60-05). The same response twice is one response; another
    response under its identifier, duplicate JSON keys and a repeated
    operation ID are refused with nothing changed.
@@ -635,18 +639,26 @@ def main():
         write_tree(alpha, impostor)
         captures = shown("RC-1")["captures"]
         error = refused("source_unavailable", "capture", "RC-1")
-        assert "Another folder now answers" in error["message"] and error["next"] is None, f"a replaced root is refused, and retrying is not offered: {error}"
+        assert "Another folder now answers" in error["message"] and "Rebind the cycle" in error["message"], f"a replaced root is refused, in words that point at rebind: {error}"
+        assert error["next"] == "bpr cycle rebind RC-1 --to PATH", f"retrying is not offered; a rebind is ([[BPR-1279]]): {error}"
         assert shown("RC-1")["captures"] == captures, "nothing was recorded from the impostor"
+        unbound = shown("RC-1")
         desktop = Desktop(args.application, data, workspace, 3, environment)
         try:
             resumed = desktop.ask("resume", title="alpha-project", notes=1)
             assert resumed["cycle"] == "RC-1", resumed
             said = desktop.ask("capture-refused")
             assert "Another folder now answers" in said["message"], f"the window says the same: {said['message']}"
+            assert said["rebind_offered"] is True and said["location"] == str(alpha), f"and offers Rebind Folder on its review bar: {said}"
+            # [[BPR-1279]]. The window's negative controls: another cycle's folder offers no Rebind, and Cancel binds nothing.
+            taken = desktop.ask("rebind", path=str(beta), confirm=True)
+            assert taken["confirmable"] is False and "project of RC-2" in taken["words"] and taken["location"] == str(alpha), f"another cycle's folder is refused in the window: {taken}"
+            left = desktop.ask("rebind", path=str(moved), confirm=False)
+            assert left["confirmable"] is True and "0 changed, 0 missing and 0 new" in left["words"] and left["location"] == str(alpha), f"the moved folder's check is shown, and Cancel binds nothing: {left}"
             desktop.quit()
         finally:
             desktop.close()
-        assert shown("RC-1")["captures"] == captures
+        assert shown("RC-1") == unbound, "nothing rebinds in the window without Rebind"
         opened = ok("open", str(alpha))
         assert opened["cycle"] not in ("RC-1", "RC-2") and opened["created"] is True, f"the folder now there opens as its own cycle: {opened}"
         replaced_cycle = opened["cycle"]
@@ -662,14 +674,44 @@ def main():
         # A moved root is the same object, but its old location is what the cycle reads.
         assert ok("open", str(moved))["cycle"] == "RC-1", "the moved folder is recognised as RC-1's root by identity"
         error = refused("source_unavailable", "capture", "RC-1")
-        assert "no longer exists" in error["message"] and error["next"] is None, f"nothing is at the old location, and that is what is said: {error}"
+        assert "no longer at its location" in error["message"] and error["next"] == "bpr cycle rebind RC-1 --to PATH", f"nothing is at the old location, and a rebind is offered: {error}"
         assert shown("RC-1")["captures"] == captures, "a moved root is not captured from its new location silently"
+        # [[BPR-1279]]. The terminal's rebind: the check first, and nothing bound without its confirmation.
+        unbound = shown("RC-1")
+        asked = refused("interaction_required", "rebind", "RC-1", "--to", str(moved))
+        check = asked["detail"]["check"]
+        assert check["compared"] == check["matching"] == unbound["latest_entries"] and check["differing"] == check["missing"] == check["added"] == "0", f"the moved folder matches the latest capture: {asked}"
+        assert asked["next"] == f"bpr cycle rebind RC-1 --to {moved} --confirm {asked['detail']['confirm']}", asked
+        refused("stale_revision", "rebind", "RC-1", "--to", str(moved), "--confirm", "0" * 16)
+        taken = refused("conflict", "rebind", "RC-1", "--to", str(beta))
+        assert taken["detail"] == {"problem": "bound_elsewhere", "cycle": "RC-2"}, f"another cycle's folder is that cycle's project: {taken}"
+        refused("invalid_input", "rebind", "RC-1", "--to", str(beta / "notes.txt"))
+        assert shown("RC-1") == unbound and tree_digest(beta) == beta_tree, "no refused rebind changed the cycle or the other folder"
+        rebound = ok("rebind", "RC-1", "--to", str(moved), "--confirm", asked["detail"]["confirm"])
+        assert rebound["rebound"] is True and rebound["location"] == str(moved) and rebound["captures"] == captures, rebound
+        ok("capture", "RC-1", "--again")
+        assert int(shown("RC-1")["captures"]) == int(captures) + 1, "rebound, it captures from the new location"
+        # Moved again, then rebound and captured from the window.
         os.rename(moved, alpha)
         assert tree_digest(alpha) == alpha_tree, "moving changed nothing inside"
-        ok("capture", "RC-1", "--again")
-        assert int(shown("RC-1")["captures"]) == int(captures) + 1, "moved back, it captures again"
+        desktop = Desktop(args.application, data, workspace, 4, environment)
+        try:
+            # The impostor's cycle shares the title; Open Project finds RC-1 by its root object.
+            reopened = desktop.ask("open-project", path=str(alpha))
+            assert reopened["cycle"] == "RC-1", f"the folder moved back is RC-1's root, wherever RC-1 last read it: {reopened}"
+            said = desktop.ask("capture-refused")
+            assert "no longer at its location" in said["message"] and said["rebind_offered"] is True, f"the window says the same, and offers Rebind Folder: {said}"
+            rebound = desktop.ask("rebind", path=str(alpha), confirm=True)
+            assert rebound["confirmable"] is True and rebound["location"] == str(alpha) and rebound["rebind_offered"] is False and "Rebound to" in rebound["updates"], f"Rebind binds the folder chosen: {rebound}"
+            captured = desktop.ask("capture")
+            assert captured["message"] == "" and "No change" in captured["updates"], f"and Capture revision reads it: {captured}"
+            desktop.quit()
+        finally:
+            desktop.close()
+        assert shown("RC-1")["location"] == str(alpha), "the window's rebind is the cycle's"
         assert shown(replaced_cycle)["captures"] == "1", "the impostor's cycle keeps only its own capture"
         witnesses("after the roots")
+        print("RECOVERY_REBIND_OK terminal window refused_elsewhere=2 unconfirmed=3")
         print("RECOVERY_STALE_AND_ROOTS_OK")
 
         # ---------------------------------------------------------------- 7. duplicates

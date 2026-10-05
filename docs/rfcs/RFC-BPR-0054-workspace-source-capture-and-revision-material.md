@@ -19,7 +19,9 @@ holds each row and its limits. RC54-03's junction escape was observed refused on
 native Windows by BPR-1284. RFC-BPR-0053, 0003 and 0004 are Auto-Verified. No
 owner verdict was needed. On Windows the held root cannot be renamed, so root
 replacement is prevented rather than detected; no window or command rebinds a
-moved project (BPR-1279).
+moved project (BPR-1279). Since closure, [BPR-1279](../issues/30-in-progress/BPR-1279-offer-an-explicit-rebind-for-a-moved-or-replaced-cycle-folder.md)
+offers that rebind, confirmed against a material check, as `bpr cycle rebind`
+and the window's Rebind Folder.
 
 ## Outcome and decisions
 

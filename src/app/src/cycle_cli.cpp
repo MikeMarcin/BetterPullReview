@@ -214,6 +214,9 @@ namespace bpr::app {
 					values[option] = chosen_path(values[option]);
 				}
 			}
+			if (*parsed == core::cycle_command::rebind && values.contains("--to")) {
+				values["--to"] = chosen_path(values["--to"]);
+			}
 			invocation.Values = std::move(values);
 			return result;
 		}
@@ -295,7 +298,7 @@ namespace bpr::app {
 				{ "network", false },
 				{ "cycle_names", "RC-<n> cycles, R<n> captures, I<n> notes, F<n> frozen rounds" },
 				{ "target_resolution", "an explicit RC-<n>, or the one active cycle bound to the working folder; never a remembered or active-window cycle" },
-				{ "owner", "one writer: while another BetterPullReview process owns the profile, each command is forwarded to it over its same-user command channel (protocol 4) and run on its store; an owner without one is refused with capability_unavailable" },
+				{ "owner", "one writer: while another BetterPullReview process owns the profile, each command is forwarded to it over its same-user command channel (protocol 5) and run on its store; an owner without one is refused with capability_unavailable" },
 				{ "operation_id", "--operation-id names a command; repeating it never applies the command twice, and an owner answers a repeat as it answered the first" },
 				{ "role", aConsumer ? "consumer" : "reviewer" },
 				{ "consumer_commands", QJsonArray::fromStringList(consumer_command_names()) },
@@ -524,6 +527,26 @@ namespace bpr::app {
 			return output{ };
 		}
 
+		/// [[BPR-1279]]. A person reads the check, then confirms it by typing;
+		/// the confirmation sent is the one that check gave, so a folder or cycle
+		/// that changed meanwhile is refused rather than rebound.
+		auto run_rebind(runner& aRunner, cycle_invocation aInvocation) -> result<output>
+		{
+			auto checked = aRunner.run(aInvocation);
+			if (checked || !aInvocation.Interactive || aInvocation.has("--confirm") || checked.error().Code != "interaction_required" || !checked.error().Detail.contains("confirm")) {
+				return checked;
+			}
+			const auto& detail = checked.error().Detail;
+			std::cout << neutral_terminal_text(text(checked.error().Message)).toUtf8().constData() << "\nType rebind to rebind " << utf8(detail.value("cycle").toString()) << " to "
+					  << neutral_terminal_text(detail.value("location").toString()).toUtf8().constData() << ", or press Enter to cancel: " << std::flush;
+			auto answer = read_tour_terminal_line();
+			if (!answer || *answer != "rebind") {
+				return fail("cancelled", "Nothing was rebound.");
+			}
+			aInvocation.Values.insert("--confirm", detail.value("confirm").toString());
+			return aRunner.run(std::move(aInvocation));
+		}
+
 		auto perform(const command& aCommand) -> result<output>
 		{
 			if (aCommand.Name == "capabilities") {
@@ -538,6 +561,7 @@ namespace bpr::app {
 			case core::cycle_command::note:         return run_note(every, std::move(invocation));
 			case core::cycle_command::freeze:       return run_freeze(every, std::move(invocation));
 			case core::cycle_command::export_round: return run_export(every, aCommand, std::move(invocation));
+			case core::cycle_command::rebind:       return run_rebind(every, std::move(invocation));
 			default:                                return every.run(std::move(invocation));
 			}
 		}

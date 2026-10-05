@@ -12,6 +12,7 @@ namespace bpr::core {
 			cycle_command::open,
 			cycle_command::show,
 			cycle_command::capture,
+			cycle_command::rebind,
 			cycle_command::note,
 			cycle_command::review,
 			cycle_command::freeze,
@@ -44,6 +45,7 @@ namespace bpr::core {
 		constexpr auto paging       = std::array{ "--round"sv, "--cursor"sv };
 		constexpr auto sourcing     = std::array{ "--round"sv, "--source"sv, "--range"sv, "--cursor"sv };
 		constexpr auto policy       = std::array{ "--classification"sv, "--channel"sv, "--permission"sv };
+		constexpr auto rebinding    = std::array{ "--to"sv, "--confirm"sv };
 	}
 
 	auto name(const cycle_command aCommand) noexcept -> std::string_view
@@ -67,6 +69,7 @@ namespace bpr::core {
 		case cycle_command::round_source:    return "round source";
 		case cycle_command::response_append: return "response append";
 		case cycle_command::policy:          return "policy";
+		case cycle_command::rebind:          return "rebind";
 		}
 		return "unknown";
 	}
@@ -101,6 +104,7 @@ namespace bpr::core {
 		case cycle_command::round_source:    return sourcing;
 		case cycle_command::response_append: return response;
 		case cycle_command::policy:          return policy;
+		case cycle_command::rebind:          return rebinding;
 		case cycle_command::open:
 		case cycle_command::show:            return none;
 		}

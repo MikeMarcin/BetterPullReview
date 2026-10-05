@@ -1040,6 +1040,7 @@ namespace bpr::application {
 			outcome.Workspace = root.error();
 			return outcome;
 		}
+		outcome.Root             = root->Session->observation();
 		const auto  noExclusions = std::vector<std::string>{ };
 		const auto* git          = root->Git ? &*root->Git : nullptr;
 		auto        candidate    = scope_pass{ *root->Session, nullptr, pass_mode::hash, aCycle, noExclusions, git, core::maximum_captured_file_bytes, aStop }.run();
