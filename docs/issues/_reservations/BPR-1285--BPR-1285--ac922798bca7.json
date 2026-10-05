@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1285"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Owner chat note after session 2dc9fa20: the Share notes sheet is too full of text; icons, tooltips, colours",
+  "created": "2026-10-05T02:50:06.924113+00:00",
+  "base": "1effd05aba45b917f0b1c77030ac61d7ee8b5506"
+}
