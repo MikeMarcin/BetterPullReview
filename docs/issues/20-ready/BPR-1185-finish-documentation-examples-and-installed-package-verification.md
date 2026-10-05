@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1185"
 title: "Finish documentation, examples and installed-package verification"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0053", "RFC-BPR-0060", "RFC-BPR-0061"]
 depends_on: ["BPR-1182", "BPR-1183", "BPR-1184"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "qualification", "acceptance": ["RC53-10", "RC60-01", "RC60-02", "RC60-03", "RC61-01", "RC61-10"], "pack_alias": "PACK-CYCLE-43", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
