@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1283"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Profile purge inventory omits publication-git-v1 (BPR-1185 finding)",
+  "created": "2026-10-05T01:46:20.652006+00:00",
+  "base": "0eda62217a14cdcc7f233b13fa68a2b67f1ba4a0"
+}
