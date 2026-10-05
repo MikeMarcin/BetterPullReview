@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1283"
 title: "Profile purge refuses any profile that ever planned a publication: its inventory omits publication-git-v1"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
