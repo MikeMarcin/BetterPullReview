@@ -32,7 +32,7 @@ Record the direct test/gesture, actual result, producing revision and limitation
 
 [Record](../../design/BPR-1080-label-icons-v1.html) and
 [frames](../../design/BPR-1080-label-icons-frames-v1.html), at candidate
-`c93008559`. The icons replace the two letters inside the marks that BPR-1079
+`c93008559` (on main as `aff980294`, with byte-identical files). The icons replace the two letters inside the marks that BPR-1079
 selected (the 16 px tinted square, filled when blocking, under the avatar with
 the rail). Tints are unchanged.
 

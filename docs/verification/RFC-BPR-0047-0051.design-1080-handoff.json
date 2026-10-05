@@ -55,5 +55,7 @@
   "command_state": "quiescent except the handed-off review host (pid 16891, http://127.0.0.1:50730, started with nohup)",
   "next_action": "Coordinator waits on handed-back after 12; a fresh rfc-implementer records the verdicts, then finishes BPR-1080 or draws v2.",
   "worktree": "/Users/jaeger/Documents/GitHub/BetterPullReview.wt-bpr1079-1080 (removed after push)",
-  "base": "d7c828fa9"
+  "base": "d7c828fa9",
+  "integrated_revision": "aff980294 (rebase of c93008559 onto origin/main; both design files byte-identical, blobs fbd9db34 and 46a447e5)",
+  "claim_commit": "7bced6dc6"
 }
