@@ -91,6 +91,8 @@ namespace bpr::core {
 			auto offer = cycle_send_offer{
 				.Profile     = profile.Id,
 				.DisplayName = profile.DisplayName,
+				.Harness     = harness_name(profile),
+				.Protocol    = profile.Protocol,
 				.Verdict     = decide_agent_invocation(profile, aPolicy),
 				.Continues   = continues_sessions(profile.Protocol),
 			};

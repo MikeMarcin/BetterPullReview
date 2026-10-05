@@ -9,6 +9,7 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QEvent>
 #include <QFont>
 #include <QFontMetrics>
@@ -23,6 +24,7 @@
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPalette>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
@@ -123,17 +125,48 @@ namespace bpr::qt {
 			return QStringLiteral("Not allowed (%1).").arg(QString::fromLatin1(name.data(), static_cast<qsizetype>(name.size())));
 		}
 
-		/// [[BPR-1180]]. What pressing Send does, before it is pressed.
-		auto send_disclosure(const core::cycle_send_offer& aOffer, const std::optional<std::string>& aSession, const std::string& aFolder, const core::cycle_round_id aRound) -> QString
+		/// [[BPR-1282]]. An agent as its list names it: by its harness, the
+		/// two Codex protocols told apart, a custom harness by its own name.
+		auto offer_label(const core::cycle_send_offer& aOffer) -> QString
 		{
-			const auto agent  = QString::fromStdString(aOffer.DisplayName);
-			const auto folder = aFolder.empty() ? QStringLiteral("the cycle's folder") : QString::fromStdString(aFolder);
-			const auto start  = aSession ? QStringLiteral("Continues %1 session %2 in %3").arg(agent, QString::fromStdString(*aSession), folder)
-										 : QStringLiteral("Starts a new %1 session in %2").arg(agent, folder);
-			return QStringLiteral("%1 and gives it round %2's text, exactly as Copy gives it. It runs with %3's own settings and sign-in; no credential is passed. If the send fails, nothing else is tried.")
-				.arg(start)
+			switch (aOffer.Protocol) {
+			case core::agent_protocol::codex_app_server:   return QStringLiteral("%1 (app server)").arg(QString::fromStdString(aOffer.Harness));
+			case core::agent_protocol::codex_jsonl_exec:   return QStringLiteral("%1 (exec)").arg(QString::fromStdString(aOffer.Harness));
+			case core::agent_protocol::claude_stream_json:
+			case core::agent_protocol::external_terminal:  break;
+			}
+			return QString::fromStdString(aOffer.Harness);
+		}
+
+		/// The folder's own name; the whole path is in the details.
+		auto folder_name(const std::string& aFolder) -> QString
+		{
+			const auto name = QDir::fromNativeSeparators(QString::fromStdString(aFolder)).section(QLatin1Char('/'), -1, -1, QString::SectionSkipEmpty);
+			return name.isEmpty() ? QStringLiteral("the cycle's folder") : name;
+		}
+
+		/// [[BPR-1180]], shortened by [[BPR-1282]]. What pressing Send does,
+		/// in one line, naming the harness; sessions only for a harness that
+		/// has them.
+		auto send_summary(const core::cycle_send_offer& aOffer, const std::optional<std::string>& aSession, const std::string& aFolder) -> QString
+		{
+			const auto harness = QString::fromStdString(aOffer.Harness);
+			const auto folder  = folder_name(aFolder);
+			if (aSession) {
+				return QStringLiteral("Continues %1 session %2 in %3.").arg(harness, QString::fromStdString(*aSession), folder);
+			}
+			return aOffer.Continues ? QStringLiteral("Starts a new %1 session in %2.").arg(harness, folder) : QStringLiteral("Runs %1 in %2.").arg(harness, folder);
+		}
+
+		/// The rest, behind Details: the exact text, whose settings, no
+		/// credential, no fallback, and the whole folder.
+		auto send_detail_words(const core::cycle_send_offer& aOffer, const std::string& aFolder, const core::cycle_round_id aRound) -> QString
+		{
+			const auto harness = QString::fromStdString(aOffer.Harness);
+			const auto folder  = aFolder.empty() ? QStringLiteral("the cycle's folder") : QDir::toNativeSeparators(QString::fromStdString(aFolder));
+			return QStringLiteral("Sends round %1's text exactly as Copy gives it. %2 uses its own settings and sign-in; no credential is passed. If the send fails, nothing else is tried.\nFolder: %3")
 				.arg(aRound.value())
-				.arg(agent);
+				.arg(harness, folder);
 		}
 
 		constexpr auto all_actions = std::array{ core::cycle_round_action::discuss, core::cycle_round_action::plan, core::cycle_round_action::implement };
@@ -1049,15 +1082,41 @@ namespace bpr::qt {
 		SendProfile->setObjectName(QStringLiteral("cycleSendProfile"));
 		SendProfile->setAccessibleName(QStringLiteral("Agent"));
 		agentLabel->setBuddy(SendProfile);
-		auto* const sessionLabel = new QLabel{ QStringLiteral("Session"), SendBox };
-		SendSession              = new QComboBox{ SendBox };
+		SendSessionLabel = new QLabel{ QStringLiteral("Session"), SendBox };
+		SendSession      = new QComboBox{ SendBox };
 		SendSession->setObjectName(QStringLiteral("cycleSendSession"));
 		SendSession->setAccessibleName(QStringLiteral("Session"));
-		sessionLabel->setBuddy(SendSession);
+		SendSessionLabel->setBuddy(SendSession);
 		SendWords = new QLabel{ SendBox };
 		SendWords->setObjectName(QStringLiteral("cycleSendWords"));
 		SendWords->setTextFormat(Qt::PlainText);
 		SendWords->setWordWrap(true);
+		SendWords->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+		// [[BPR-1282]]. One line says what Send does; the rest waits behind Details.
+		SendMore = new QToolButton{ SendBox };
+		SendMore->setObjectName(QStringLiteral("cycleSendMore"));
+		SendMore->setText(QStringLiteral("Details"));
+		SendMore->setAccessibleName(QStringLiteral("Send details"));
+		SendMore->setCheckable(true);
+		SendMore->setAutoRaise(true);
+		SendMore->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		SendMore->setArrowType(Qt::RightArrow);
+		SendDetails = new QLabel{ SendBox };
+		SendDetails->setObjectName(QStringLiteral("cycleSendDetails"));
+		SendDetails->setTextFormat(Qt::PlainText);
+		SendDetails->setWordWrap(true);
+		SendDetails->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		SendDetails->setForegroundRole(QPalette::PlaceholderText);
+		SendDetails->hide();
+		connect(SendMore, &QToolButton::toggled, this, [this](const bool aOpen) {
+			SendMore->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
+			SendDetails->setVisible(aOpen);
+		});
+		auto* const sendLine = new QHBoxLayout{ };
+		sendLine->setContentsMargins(0, 0, 0, 0);
+		sendLine->setSpacing(4);
+		sendLine->addWidget(SendWords, 1);
+		sendLine->addWidget(SendMore, 0, Qt::AlignVCenter);
 		SendIt = new QPushButton{ QStringLiteral("Send"), SendBox };
 		SendIt->setObjectName(QStringLiteral("cycleSendIt"));
 		SendIt->setAutoDefault(false);
@@ -1067,9 +1126,10 @@ namespace bpr::qt {
 		StopSend->setToolTip(QStringLiteral("End the send under way; whether the agent read the round stays unknown"));
 		sendLayout->addWidget(agentLabel, 0, 0);
 		sendLayout->addWidget(SendProfile, 0, 1);
-		sendLayout->addWidget(sessionLabel, 1, 0);
+		sendLayout->addWidget(SendSessionLabel, 1, 0);
 		sendLayout->addWidget(SendSession, 1, 1);
-		sendLayout->addWidget(SendWords, 2, 0, 1, 3);
+		sendLayout->addLayout(sendLine, 2, 1, 1, 2);
+		sendLayout->addWidget(SendDetails, 3, 1, 1, 2);
 		sendLayout->addWidget(SendIt, 0, 2);
 		sendLayout->addWidget(StopSend, 1, 2);
 		sendLayout->setColumnStretch(1, 1);
@@ -1402,10 +1462,12 @@ namespace bpr::qt {
 		const auto profile = SendProfile->currentData();
 		SendProfile->clear();
 		for (const auto& offer : send->Offers) {
-			const auto name = QString::fromStdString(offer.DisplayName);
-			SendProfile->addItem(offer.offered() ? name : QStringLiteral("%1 — not allowed here").arg(name), QVariant::fromValue(offer.Profile.value()));
+			const auto name  = QString::fromStdString(offer.DisplayName);
+			const auto label = offer_label(offer);
+			SendProfile->addItem(offer.offered() ? label : QStringLiteral("%1 — not allowed here").arg(label), QVariant::fromValue(offer.Profile.value()));
 			const auto at = SendProfile->count() - 1;
-			SendProfile->setItemData(at, offer.offered() ? QString{ } : send_refusal_text(offer.Verdict), Qt::ToolTipRole);
+			// The profile's own name, for whoever wants to know which one it is.
+			SendProfile->setItemData(at, offer.offered() ? name : send_refusal_text(offer.Verdict), Qt::ToolTipRole);
 			if (!offer.offered()) {
 				SendProfile->setItemData(at, 0, Qt::UserRole - 1);
 			}
@@ -1429,19 +1491,28 @@ namespace bpr::qt {
 		const auto kept = session.isValid() ? SendSession->findData(session) : -1;
 		SendSession->setCurrentIndex(kept < 0 ? 0 : kept);
 		SendSession->setEnabled(SendSession->count() > 1 && !send->Sending);
+		// [[BPR-1282]]. A session to choose only where there is one to continue.
+		const auto sessions = SendSession->count() > 1;
+		SendSessionLabel->setVisible(sessions);
+		SendSession->setVisible(sessions);
 		SendProfile->setEnabled(!send->Sending);
 		const auto chosen = chosen_send();
+		SendMore->setVisible(offer != nullptr && !send->Sending);
 		if (send->Sending) {
-			SendWords->setText(QStringLiteral("Sending to %1. Stop ends it; whether it read the round then stays unknown.").arg(QString::fromStdString(send->Profile)));
+			SendWords->setText(QStringLiteral("Sending round %1 to %2…").arg(Shown.Round.value()).arg(QString::fromStdString(send->Profile)));
 		} else if (offer == nullptr) {
-			SendWords->setText(QStringLiteral("No installed agent is allowed for this review; nothing can be sent."));
+			SendWords->setText(QStringLiteral("No agent is allowed for this review."));
 		} else {
-			SendWords->setText(send_disclosure(*offer, chosen ? chosen->Session.Continue : std::nullopt, send->Folder, Shown.Round));
+			SendWords->setText(send_summary(*offer, chosen ? chosen->Session.Continue : std::nullopt, send->Folder));
+			SendDetails->setText(send_detail_words(*offer, send->Folder, Shown.Round));
 		}
+		SendDetails->setVisible(SendMore->isVisible() && SendMore->isChecked());
+		SendWords->setAccessibleDescription(SendMore->isVisible() ? SendDetails->text() : QString{ });
 		SendIt->setText(QStringLiteral("Send Round %1").arg(Shown.Round.value()));
 		SendIt->setEnabled(chosen.has_value() && !send->Sending && Idle && !Shown.Refusal && !route->isHidden() && route->isEnabled());
 		StopSend->setVisible(send->Sending);
-		ReplyLabel->setText(QStringLiteral("%1 replied about round %2. It is kept only if you add it.").arg(QString::fromStdString(send->Profile)).arg(send->ReplyRound ? send->ReplyRound->value() : 0U));
+		// The status above says it is kept only if added; the label names whose words these are.
+		ReplyLabel->setText(QStringLiteral("%1's reply about round %2").arg(QString::fromStdString(send->Profile)).arg(send->ReplyRound ? send->ReplyRound->value() : 0U));
 		if (ReplyText->toPlainText() != QString::fromStdString(send->Reply)) {
 			ReplyText->setPlainText(QString::fromStdString(send->Reply));
 		}
@@ -1796,7 +1867,7 @@ namespace bpr::qt {
 			for (const auto& row : Rows) {
 				order.insert(order.end(), { row.Include, row.Disclose, row.Whole });
 			}
-			order.insert(order.end(), { ReplaceIt, KeepIt, Invocation, SendProfile, SendSession, SendIt, StopSend, ReplyText, AddReply, Routes[0], Routes[1], ExactText, Routes[2], Routes[3], Routes[4], Cancel });
+			order.insert(order.end(), { ReplaceIt, KeepIt, Invocation, SendProfile, SendSession, SendMore, SendIt, StopSend, ReplyText, AddReply, Routes[0], Routes[1], ExactText, Routes[2], Routes[3], Routes[4], Cancel });
 			for (std::size_t index = 1; index < order.size(); ++index) {
 				QWidget::setTabOrder(order[index - 1U], order[index]);
 			}
@@ -2236,6 +2307,16 @@ namespace bpr::qt {
 	auto review_cycle_share_sheet::send_words() const noexcept -> QLabel*
 	{
 		return SendWords;
+	}
+
+	auto review_cycle_share_sheet::send_details() const noexcept -> QLabel*
+	{
+		return SendDetails;
+	}
+
+	auto review_cycle_share_sheet::send_more() const noexcept -> QToolButton*
+	{
+		return SendMore;
 	}
 
 	auto review_cycle_share_sheet::send_button() const noexcept -> QPushButton*

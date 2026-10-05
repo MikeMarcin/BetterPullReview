@@ -384,6 +384,8 @@ namespace bpr::application {
 			core::cycle_round_id      Round;
 			std::string               From;
 			std::string               Text;
+			/// [[BPR-1282]]. The harness that replied, as the Send box names it.
+			std::string Harness;
 		};
 		std::optional<pending_reply> Reply;
 		/// Compose edits waiting for the one in flight.
@@ -1656,7 +1658,7 @@ namespace bpr::application {
 			send.Reply.clear();
 			send.ReplyRound.reset();
 			if (!SendRunning && Reply && Subject && Reply->Subject == *Subject) {
-				send.Profile    = Reply->From;
+				send.Profile    = Reply->Harness;
 				send.Reply      = Reply->Text;
 				send.ReplyRound = Reply->Round;
 			}
@@ -1676,7 +1678,7 @@ namespace bpr::application {
 			const auto route   = std::ranges::find(View.Share->Routes, core::cycle_share_route::send_to_agent, &core::cycle_share_route_offer::Route);
 			const auto channel = route == View.Share->Routes.end() ? core::cycle_authorization::channel_denied : route->Decision;
 			const auto found   = std::ranges::find(SendEnvironment.Profiles, aRequest.Profile, &core::agent_profile::Id);
-			const auto name    = found == SendEnvironment.Profiles.end() ? std::string{ "that agent" } : found->DisplayName;
+			const auto name    = found == SendEnvironment.Profiles.end() ? std::string{ "that agent" } : core::harness_name(*found);
 			if (const auto refused = core::decide_send(channel, SendEnvironment.Profiles, send_policy(), View.Share->Deliveries, aRequest)) {
 				View.Share->Status = send_refusal_words(*refused, name);
 				publish();
@@ -1710,19 +1712,22 @@ namespace bpr::application {
 				reload_share("A send is under way; nothing more was sent.");
 				return;
 			}
-			const auto& round      = *aOutput.Round;
-			const auto  seen       = delivery_observation(round, core::cycle_delivery_state::accepted_by_adapter, core::cycle_disclosure_channel::agent_adapter, aOutput.Bytes, aOutput.Format);
-			auto        pending    = cycle_send_record{ .Round = round.Round.Round, .Output = seen.Output.value_or(core::cycle_delivery_output{ }), .Protocol = aProfile.Protocol };
-			auto        roundName  = round.Content.Payload.RoundId;
-			auto        words      = aSession.Continue ? "Sending " + roundName + " to " + aProfile.DisplayName + ", continuing session " + *aSession.Continue + "…"
-													   : "Sending " + roundName + " to " + aProfile.DisplayName + " in a new session…";
-			auto        assignment = cycle_send_assignment{ .Profile = aProfile, .Session = aSession, .Document = std::move(aOutput.Bytes), .WorkingDirectory = send_folder() };
-			SendRunning            = true;
-			SendProfile            = aProfile.DisplayName;
-			SendStop               = std::make_shared<std::stop_source>();
+			const auto& round     = *aOutput.Round;
+			const auto  seen      = delivery_observation(round, core::cycle_delivery_state::accepted_by_adapter, core::cycle_disclosure_channel::agent_adapter, aOutput.Bytes, aOutput.Format);
+			auto        pending   = cycle_send_record{ .Round = round.Round.Round, .Output = seen.Output.value_or(core::cycle_delivery_output{ }), .Protocol = aProfile.Protocol };
+			auto        roundName = round.Content.Payload.RoundId;
+			// [[BPR-1282]]. The harness by name; session words only for one that has sessions.
+			const auto harness    = core::harness_name(aProfile);
+			auto       words      = aSession.Continue         ? "Sending " + roundName + " to " + harness + ", continuing session " + *aSession.Continue + "…"
+				: core::continues_sessions(aProfile.Protocol) ? "Sending " + roundName + " to " + harness + " in a new session…"
+															  : "Sending " + roundName + " to " + harness + "…";
+			auto       assignment = cycle_send_assignment{ .Profile = aProfile, .Session = aSession, .Document = std::move(aOutput.Bytes), .WorkingDirectory = send_folder() };
+			SendRunning           = true;
+			SendProfile           = harness;
+			SendStop              = std::make_shared<std::stop_source>();
 			Reply.reset();
 			SendEnvironment.Lane->post([weak = weak_from_this(), sender = SendEnvironment.Sender, work = std::move(assignment), stop = SendStop->get_token(), decisions = &Decisions,
-										subject = *Subject, record = std::move(pending), name = roundName, from = aProfile.DisplayName, continued = aSession.Continue]() mutable {
+										subject = *Subject, record = std::move(pending), name = roundName, from = harness, continued = aSession.Continue]() mutable {
 				auto result = sender->send(work, stop);
 				decisions->post([weak, subject, kept = std::move(record), outcome = std::move(result), label = std::move(name), profile = std::move(from), session = std::move(continued)]() mutable {
 					if (const auto self = weak.lock()) {
@@ -1771,7 +1776,7 @@ namespace bpr::application {
 			}
 			auto words = send_words(aResult, *aRecorded, aName, aFrom, aContinued);
 			if (aResult.End == core::cycle_send_end::completed && !aRecorded->Response && !aResult.Reply.empty()) {
-				Reply = pending_reply{ .Subject = aSubject, .Round = aRound, .From = aFrom + " (Send to Agent)", .Text = std::move(aResult.Reply) };
+				Reply = pending_reply{ .Subject = aSubject, .Round = aRound, .From = aFrom + " (Send to Agent)", .Text = std::move(aResult.Reply), .Harness = aFrom };
 			}
 			if (!open) {
 				return;

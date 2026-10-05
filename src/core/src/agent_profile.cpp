@@ -193,6 +193,17 @@ namespace bpr::core {
 		return policy;
 	}
 
+	auto harness_name(const agent_profile& aProfile) -> std::string
+	{
+		switch (aProfile.Protocol) {
+		case agent_protocol::codex_app_server:
+		case agent_protocol::codex_jsonl_exec:   return "Codex";
+		case agent_protocol::claude_stream_json: return "Claude";
+		case agent_protocol::external_terminal:  break;
+		}
+		return aProfile.DisplayName;
+	}
+
 	auto stable_name(const agent_protocol aProtocol) noexcept -> std::string_view
 	{
 		switch (aProtocol) {

@@ -118,6 +118,13 @@ namespace {
 		expect(terminal.offered() && !terminal.Continues && terminal.Sessions.empty(), "the external terminal starts a new session every time");
 		const auto open = send_offers(profiles, cycle_send_policy(folder, std::nullopt), deliveries);
 		expect(offer_of(open, codex_jsonl_profile_id).offered(), "GitHub.com permits Codex");
+		// [[BPR-1282]]. Each offer names its harness, never the built-in label.
+		expect(claude.Harness == "Claude" && claude.Protocol == agent_protocol::claude_stream_json, "Claude's stream protocol is Claude");
+		expect(offer_of(open, codex_app_server_profile_id).Harness == "Codex" && offer_of(open, codex_jsonl_profile_id).Harness == "Codex", "either Codex protocol is Codex");
+		expect(terminal.Harness == terminal.DisplayName && terminal.Harness.find("Claude") == std::string::npos, "a custom harness by its own name, not Claude's");
+		auto custom        = profiles.back();
+		custom.DisplayName = "Team review bot";
+		expect(harness_name(custom) == "Team review bot", "whatever the custom profile is called");
 	}
 
 	void decides_before_anything_is_frozen()

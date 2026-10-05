@@ -115,6 +115,12 @@ namespace bpr::core {
 		auto operator<=>(const agent_profile&) const = default;
 	};
 
+	/// \brief [[BPR-1282]]. The harness a profile runs, as a person names it:
+	/// "Claude" for Claude's stream protocol, "Codex" for either Codex
+	/// protocol, and a custom harness by its profile's own display name.
+	/// Words about a send name this, never a fixed harness.
+	[[nodiscard]] auto harness_name(const agent_profile& aProfile) -> std::string;
+
 	/// \brief Stable identities of the immutable built-in agent profiles.
 	inline constexpr agent_profile_id codex_app_server_profile_id{ 1U };
 	inline constexpr agent_profile_id codex_jsonl_profile_id{ 2U };

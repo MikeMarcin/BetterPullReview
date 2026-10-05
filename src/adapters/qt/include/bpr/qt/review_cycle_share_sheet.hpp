@@ -272,6 +272,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto send_profile() const noexcept -> QComboBox*;
 		[[nodiscard]] auto send_session() const noexcept -> QComboBox*;
 		[[nodiscard]] auto send_words() const noexcept -> QLabel*;
+		/// [[BPR-1282]]. What Send does beyond its one line, shown by Details.
+		[[nodiscard]] auto send_details() const noexcept -> QLabel*;
+		[[nodiscard]] auto send_more() const noexcept -> QToolButton*;
 		[[nodiscard]] auto send_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto stop_send_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto reply_box() const noexcept -> QWidget*;
@@ -384,18 +387,21 @@ namespace bpr::qt {
 		QLabel*                                                 Meaning     = nullptr;
 		std::array<QPushButton*, core::cycle_share_route_count> Routes{ };
 		std::array<QLabel*, 2>                                  RouteWords{ };
-		QPushButton*                                            ExactText   = nullptr;
-		QPushButton*                                            Cancel      = nullptr;
-		QWidget*                                                SendBox     = nullptr;
-		QComboBox*                                              SendProfile = nullptr;
-		QComboBox*                                              SendSession = nullptr;
-		QLabel*                                                 SendWords   = nullptr;
-		QPushButton*                                            SendIt      = nullptr;
-		QPushButton*                                            StopSend    = nullptr;
-		QWidget*                                                ReplyBox    = nullptr;
-		QLabel*                                                 ReplyLabel  = nullptr;
-		QPlainTextEdit*                                         ReplyText   = nullptr;
-		QPushButton*                                            AddReply    = nullptr;
+		QPushButton*                                            ExactText        = nullptr;
+		QPushButton*                                            Cancel           = nullptr;
+		QWidget*                                                SendBox          = nullptr;
+		QComboBox*                                              SendProfile      = nullptr;
+		QComboBox*                                              SendSession      = nullptr;
+		QLabel*                                                 SendWords        = nullptr;
+		QLabel*                                                 SendSessionLabel = nullptr;
+		QToolButton*                                            SendMore         = nullptr;
+		QLabel*                                                 SendDetails      = nullptr;
+		QPushButton*                                            SendIt           = nullptr;
+		QPushButton*                                            StopSend         = nullptr;
+		QWidget*                                                ReplyBox         = nullptr;
+		QLabel*                                                 ReplyLabel       = nullptr;
+		QPlainTextEdit*                                         ReplyText        = nullptr;
+		QPushButton*                                            AddReply         = nullptr;
 		/// The reviewer opened the box with Send to Agent….
 		bool                       SendOpen = false;
 		review_cycle_share_viewer* Viewer   = nullptr;

@@ -285,7 +285,7 @@ namespace {
 		expect(offer_of(work.share(), core::claude_stream_json_profile_id).offered() && offer_of(work.share(), core::external_terminal_profile_id).offered(), "the approved agents stay");
 		work.Host->send(codex);
 		work.deliver();
-		expect(contains(work.share().Status, "does not allow Codex JSONL (profile_forbidden_on_host)") && contains(work.share().Status, "no other agent or way was used instead"),
+		expect(contains(work.share().Status, "does not allow Codex (profile_forbidden_on_host)") && contains(work.share().Status, "no other agent or way was used instead"),
 			   "the denied GHES profile is refused by name");
 		expect(work.view().Facts.Rounds.empty() && work.Sender->Received.empty() && work.Clipboard.Written.empty() && work.share().Deliveries.empty(),
 			   "nothing frozen, sent, copied or recorded in its place");
@@ -317,7 +317,7 @@ namespace {
 			return core::cycle_send_result{ .End = core::cycle_send_end::completed, .Session = "s-1", .Reply = reply_for(run.ProfileRoot, run.Subject, core::cycle_round_id{ 1 }, "RESP-1") };
 		};
 		work.Host->send(claude);
-		expect(work.share().Frozen && work.share().Send->Sending && contains(work.share().Status, "Sending F1 to Approved Claude stream JSON in a new session"),
+		expect(work.share().Frozen && work.share().Send->Sending && contains(work.share().Status, "Sending F1 to Claude in a new session"),
 			   "frozen, and said to be sending in a new session");
 		work.Host->send(terminal);
 		expect(contains(work.share().Status, "A send is under way") && work.Sender->Received.empty(), "one send at a time");
@@ -369,7 +369,7 @@ namespace {
 		work.Lanes.drain();
 		const auto kept = responses(run.ProfileRoot, run.Subject);
 		expect(kept.size() == 2U && kept[1].first.Channel == core::cycle_response_channel::manual_entry && kept[1].first.Round == core::cycle_round_id{ 2 }
-				   && std::get<core::cycle_manual_reply>(kept[1].second).From == "Approved Claude stream JSON (Send to Agent)",
+				   && std::get<core::cycle_manual_reply>(kept[1].second).From == "Claude (Send to Agent)",
 			   "added as the reviewer's own entry, to its round");
 		expect(work.share().Send && work.share().Send->Reply.empty(), "and no longer waiting");
 

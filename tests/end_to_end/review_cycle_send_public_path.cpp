@@ -26,6 +26,7 @@
 #include <QPushButton>
 #include <QStandardItemModel>
 #include <QThread>
+#include <QToolButton>
 
 #include <algorithm>
 #include <cstdint>
@@ -246,10 +247,41 @@ namespace {
 		route->click();
 		settle(lanes);
 		expect(sheet->send_box()->isVisible() && sheet->send_profile()->count() == 4 && sheet->send_session()->count() == 1, "four agents, and only a new session yet");
+		// [[BPR-1282]]. Each agent by its harness; no built-in label, no session row yet.
+		auto names = QStringList{ };
+		for (auto index = 0; index < sheet->send_profile()->count(); ++index) {
+			names.append(sheet->send_profile()->itemText(index));
+		}
+		expect(names == QStringList{ QStringLiteral("Codex (app server)"), QStringLiteral("Codex (exec)"), QStringLiteral("Claude"), QStringLiteral("External terminal harness") },
+			   "the agents by harness: " + names.join(QStringLiteral(", ")).toStdString());
+		expect(sheet->send_session()->isHidden(), "no session to continue, so no session row");
+		const auto folder = QString::fromStdString(project.filename().string());
+		expect(sheet->send_words()->text() == QStringLiteral("Runs Codex in %1.").arg(folder) && !contains(sheet->send_words()->text(), QStringLiteral("Claude"))
+				   && !contains(sheet->send_words()->text(), QStringLiteral("session")),
+			   "Codex selected: the words name Codex, never Claude, and no session: " + sheet->send_words()->text().toStdString());
 		choose(*sheet, core::claude_stream_json_profile_id, { });
-		expect(contains(sheet->send_words()->text(), QStringLiteral("Starts a new Approved Claude stream JSON session in ") + QString::fromStdString(project.string()))
-				   && contains(sheet->send_words()->text(), QStringLiteral("exactly as Copy gives it")) && contains(sheet->send_words()->text(), QStringLiteral("nothing else is tried")),
-			   "a new session in the cycle's folder, the round's exact text, no fallback: said before sending");
+		expect(sheet->send_words()->text() == QStringLiteral("Starts a new Claude session in %1.").arg(folder), "Claude selected: one line, naming Claude: " + sheet->send_words()->text().toStdString());
+		auto* const details = sheet->send_details();
+		expect(sheet->send_more()->isVisible() && !details->isVisible(), "the rest waits behind Details");
+		const auto shownWords = sheet->send_words()->text().split(QLatin1Char(' '), Qt::SkipEmptyParts).size();
+		std::cout << "send box words shown: " << shownWords << " (details closed), " << details->text().split(QLatin1Char(' '), Qt::SkipEmptyParts).size() << " behind Details\n";
+		expect(shownWords <= 8, "the Send box says what Send does in at most eight words");
+		sheet->send_more()->click();
+		QApplication::processEvents();
+		expect(details->isVisible() && contains(details->text(), QStringLiteral("exactly as Copy gives it")) && contains(details->text(), QStringLiteral("nothing else is tried"))
+				   && contains(details->text(), QStringLiteral("Claude uses its own settings and sign-in")) && contains(details->text(), QDir::toNativeSeparators(QString::fromStdString(project.string()))),
+			   "Details: the exact text, Claude's own settings, no fallback, the whole folder");
+		expect(contains(sheet->send_words()->accessibleDescription(), QStringLiteral("nothing else is tried")), "and a screen reader hears the details with the line");
+		expect(details->height() >= details->heightForWidth(details->width()), "the details are not cut");
+		render(*sheet, QStringLiteral("send-box-details"));
+		sheet->send_more()->click();
+		QApplication::processEvents();
+		expect(!details->isVisible(), "Details closes again");
+		// The box gives back the room the details took once the layout runs.
+		for (auto turn = 0; turn < 3; ++turn) {
+			QApplication::processEvents();
+		}
+		expect(sheet->send_box()->height() == sheet->send_box()->heightForWidth(sheet->send_box()->width()), "and the box is its one-line height again");
 		expect(sheet->send_button()->isEnabled() && sheet->send_button()->text() == QStringLiteral("Send Round 1"), "Send Round 1");
 		// [[BPR-1182]]. What a send will do is said whole: the words keep the
 		// height their wrapped lines need, however tall the window leaves the sheet.
@@ -261,7 +293,7 @@ namespace {
 		wait_for_send(desktop, lanes);
 		const auto claude = agents / "claude";
 		expect(sends_in(claude) == 1U && read_file(claude / "send-1.args") == "-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose", "one harness process, a new session");
-		expect(contains(sheet->status()->text(), QStringLiteral("finished its turn on F1")) && contains(sheet->status()->text(), QStringLiteral("Its response is added to F1"))
+		expect(contains(sheet->status()->text(), QStringLiteral("Claude finished its turn on F1")) && contains(sheet->status()->text(), QStringLiteral("Its response is added to F1"))
 				   && contains(sheet->status()->text(), QStringLiteral("Nothing was captured or verified")),
 			   "finished, its structured response added, nothing more");
 		expect(words->height() >= words->heightForWidth(words->width()), "after the send, the Send box's words are still whole");
@@ -292,7 +324,7 @@ namespace {
 		route->click();
 		settle(lanes);
 		choose(*sheet, core::claude_stream_json_profile_id, QStringLiteral("Continue session fixture-session-1"));
-		expect(contains(sheet->send_words()->text(), QStringLiteral("Continues Approved Claude stream JSON session fixture-session-1")), "the session it continues, said");
+		expect(sheet->send_words()->text() == QStringLiteral("Continues Claude session fixture-session-1 in %1.").arg(folder) && !sheet->send_session()->isHidden(), "the session it continues, said, with the session row: " + sheet->send_words()->text().toStdString() + (sheet->send_session()->isHidden() ? " (row hidden)" : " (row shown)"));
 		sheet->send_button()->click();
 		wait_for_send(desktop, lanes);
 		expect(sends_in(claude) == 2U && read_file(claude / "send-2.args").ends_with("--verbose\n--resume\nfixture-session-1"), "bound to exactly that session");
@@ -321,14 +353,17 @@ namespace {
 			   "Codex listed, not choosable, under a corporate host");
 		desktop.host().send({ .Profile = core::codex_jsonl_profile_id });
 		settle(lanes);
-		expect(contains(sheet->status()->text(), QStringLiteral("does not allow Codex JSONL (profile_forbidden_on_host)")) && page->projection().Facts.Rounds.size() == 2U,
+		expect(contains(sheet->status()->text(), QStringLiteral("does not allow Codex (profile_forbidden_on_host)")) && page->projection().Facts.Rounds.size() == 2U,
 			   "the denied GHES profile is refused; nothing frozen");
 		expect(sends_in(agents / "codex-jsonl") == 0U && sends_in(claude) == 2U && sends_in(agents / "terminal") == 0U, "and nothing started in its place");
 
 		// The external terminal gets the same bytes as plain text.
 		desktop.set_publication_account([] { return std::optional<application::github_publication_account>{ }; });
 		choose(*sheet, core::external_terminal_profile_id, { });
-		expect(sheet->send_session()->count() == 1 && !sheet->send_session()->isEnabled(), "a harness that cannot continue offers only a new session");
+		expect(sheet->send_session()->count() == 1 && !sheet->send_session()->isEnabled() && sheet->send_session()->isHidden(), "a harness that cannot continue offers no session");
+		expect(sheet->send_words()->text() == QStringLiteral("Runs External terminal harness in %1.").arg(folder) && !contains(sheet->send_words()->text(), QStringLiteral("Claude"))
+				   && !contains(sheet->send_details()->text(), QStringLiteral("Claude")),
+			   "the custom harness by its own name, never Claude: " + sheet->send_words()->text().toStdString());
 		sheet->send_button()->click();
 		wait_for_send(desktop, lanes);
 		const auto terminal = agents / "terminal";

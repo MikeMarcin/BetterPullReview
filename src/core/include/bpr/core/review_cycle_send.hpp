@@ -80,8 +80,12 @@ namespace bpr::core {
 	/// listed, refused.
 	struct cycle_send_offer
 	{
-		agent_profile_id         Profile;
-		std::string              DisplayName;
+		agent_profile_id Profile;
+		std::string      DisplayName;
+		/// [[BPR-1282]]. Its harness as a person names it (`harness_name`),
+		/// and the protocol that says which harness that is.
+		std::string              Harness;
+		agent_protocol           Protocol = agent_protocol::external_terminal;
 		agent_invocation_verdict Verdict;
 		/// Its harness can continue a session.
 		bool Continues = false;
