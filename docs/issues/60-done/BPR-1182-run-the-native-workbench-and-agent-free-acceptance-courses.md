@@ -123,3 +123,28 @@ not gating, as the integrator directed: the Windows station run, the Linux
 `xcb` course and the Ubuntu 24.04 DEB, and the macOS desktop and editor rows
 on cocoa. Copied to [[BPR-1185]]. The full record is the ledger's "BPR-1182:
 the owner's three verdicts" section.
+
+**Note: Windows station run (bpr-main-win, 2026-10-05).** Windows 11 Home
+10.0.26200, MSVC 14.51, Qt 6.11.2, Debug, at `ac63a3fea` (holds `bf8da83c7`).
+Both builds printed no `warning C` or `warning LNK` line.
+
+- **`windows-dev`: 6 of 6.** `qt_review_cycle_view_1_0` and `_2_0` pass the
+  1,600 → 900 pixel cycle-bar sweep, so no control folds at Windows metrics
+  and there is no `bar … hint …` line to report. The desktop and send courses,
+  the round-trip contract and `architecture_boundaries` pass.
+- **Agent-free tour-CLI tree (`build/windows-bpr1182-free`): 4 of 5 under
+  `-j4`.** The two-round, parity and CLI courses and `architecture_boundaries`
+  pass. `composed_application_hosts` timed out at 30.02 s. Run alone it passes
+  in 26.17 s, a margin of under 4 s on its 30 s timeout, and it timed out
+  under load in the [[BPR-1179]] full graph too. Recorded, not changed.
+- **Agent-free MSI.** `packaging/package.py --build
+  build/windows-app-release-agent-free --generator WIX --output
+  build/releases/bpr1182-windows-agent-free` at `ac63a3fea` (clean tree, WiX
+  5.0.2, as on [[BPR-1179]]) produced
+  `BetterPullReview-0.1.3-windows-x64-agent-free.msi` (21,929,984 bytes, SHA-256
+  `3171b7eb7f86d2a571776e985db193e12deff0d563e9eb2b271410328ea3b236`).
+  `scripts/verify_release_package.py` on its expanded runtime prints
+  `RELEASE_PACKAGE_OK`. It is unsigned and unpublished.
+- **Owed, waiting for the owner to clear the desktop:** the native Windows
+  two-round run (`QT_QPA_PLATFORM=windows`), and installing the MSI over a
+  full one and back with the profile's cycles reopened.
