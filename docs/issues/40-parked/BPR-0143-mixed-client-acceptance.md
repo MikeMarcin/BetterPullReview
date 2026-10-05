@@ -5,7 +5,7 @@ title: "Mixed-client acceptance against a designated repository"
 status: "Parked"
 rfcs: []
 depends_on: ["BPR-0142"]
-parked_on: "awaiting-live-github"
+parked_on: "human-review"
 metadata: {"origin_rfc":"RFC-BPR-0008","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0008 closeout dependency"}
 ---
 
@@ -110,3 +110,41 @@ The card stays Parked on `awaiting-live-github`. Next: an attended session
 that revalidates BPR-Test#1's identities, performs the four approved actions
 from a second client, and records the workbench after each Refresh. No live
 object was made for it.
+
+## Reassessment after the BPR-Test designation — 2026-10-05
+
+The owner's 2026-10-05 designation (root `AGENTS.md`) covers every remote
+action this card needs, and the single `MikeMarcin` account is enough: the
+second client can be `gh api` rather than the website, which also avoids the
+browser-control stop of 2026-09-05. Each of the four approved actions has a
+direct `gh api` form (PATCH and DELETE on the pull request review comment,
+GraphQL `resolveReviewThread` and `unresolveReviewThread`).
+
+A read-only `gh api` revalidation as `MikeMarcin` found the packet's
+identities unchanged: BPR-Test#1 open, not draft, head
+`17990ba0c2fb50338141f35c0717f0f99639c7ba`; parent comment 3940608913 on
+RIGHT line 1 of `bpr-live-review-fixture.txt` with body `BetterPullReview
+attended round-trip verification.`; reply 3941498416 (in reply to
+3940608913) with body `BetterPullReview web reply return verification.`;
+their thread `PRRT_kwDOTyvof86fjN_V` unresolved. A second unresolved thread
+(comment 4116400082, by `MikeMarcin`) now exists on the PR and is outside the
+packet. BPR-Test has no workflows (`actions/workflows` total 0).
+
+The four actions were not run. Each result is what the shipped application
+shows after Refresh with the workbench open, observed between actions, and
+this session has no way to see the application's window. Running them
+without that observation would spend the only edit-then-delete sequence on
+the disposable reply. Reading BetterPullReview's own store back is not the
+evidence the card asks for. The database-loss course also reopens the
+application.
+
+The service wait is over and the remaining wait is attendance, so the card
+moves from `awaiting-live-github` to `human-review`. The prepared
+[operator packet](../../verification/reviews/mixed-client-thread-state-v001/operator-packet.md)
+and the owner's approval of its four actions still apply; only its second
+client changes from the website to `gh api`. No live object was made for it.
+
+**Owner question:** will you attend one session at the Mac in which the agent
+performs the four approved actions on BPR-Test#1 through `gh api`, one at a
+time, and you press Refresh in BetterPullReview after each and confirm what
+the workbench shows?
