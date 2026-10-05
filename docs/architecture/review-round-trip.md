@@ -1019,3 +1019,37 @@ body. Retry publication reuses that exact identity through the existing logical
 journal. A request retired before delivery to the mutation host is compensated
 on its original storage context. A successful terminal adopts the committed
 receipt before requesting ordinary shared conversation synchronization.
+
+
+### Conventional Comments header edits (RFC-BPR-0048, BPR-1082)
+
+A label is text at the start of the draft body. No store, draft record or
+window keeps a label, decoration or annotation beside that body; every reader
+recognizes the saved bytes again. `core::plan_feedback_draft_edit` turns one
+chip, menu or shortcode edit into the command the draft owner already accepts:
+an ordinary whole-body `edit` carrying the revision the author was shown and no
+composition link. It then travels the path any typed edit takes. A durable draft
+is committed by `review_composition_application_host::change_draft`, which
+records a linked draft's reviewer successor, and adopted by the shared owner. A
+volatile draft goes through `shared_draft_application_host::apply`.
+
+The plan refuses before any write when the draft has another revision or body
+than the author saw (`stale_draft`, with the current body's annotation as the
+conflict candidate), and when the draft is not `drafting` (`not_editable`). A
+publishing draft therefore keeps the exact body its proposal, grant and
+idempotency key were prepared with, including across a restart and a retry
+after a lost answer. A new label after a definite failure is a new revision, a
+new proposal and a new key, and needs a new publish gesture. An edit that races
+another window or store connection fails the existing revision check, and the
+newer text is kept.
+
+`core::decide_feedback_composition_edit` is the header decision for a body
+being written. It adds one case to `decide_feedback_header_edit`: a blank body
+takes the header alone, as in `issue: `, and a body that is exactly such a
+header can be relabelled, redecorated or emptied, so a label may be chosen
+before the subject is typed. A local tour stop is planned by
+`plan_feedback_tour_stop_edit` as the existing `edit_stop` command, so the tour
+owner's revision check, undo journal and request receipts serve the desktop
+and `bpr tour` alike. The Qt controls are BPR-1083's. The headless
+comment-draft command is BPR-1092's; until it lands, an ordinary comment draft
+has no CLI path.

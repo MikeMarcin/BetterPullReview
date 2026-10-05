@@ -178,6 +178,13 @@ Consumers: the inline composition page and reply drafts
   removes only the recognized prefix. Malformed leading syntax is never
   deleted. A stale body revision is refused or offered as a conflict
   (RFC-BPR-0048).
+- **Label first** (derived, BPR-1082). An empty comment takes the label
+  alone, as in `issue: `, and until a subject follows it the chip, menu and
+  decorations can still change or remove that label. The editor plans these
+  edits with `core::decide_feedback_composition_edit`, the header decision
+  above with this one case added. Until a subject follows, the recognizer
+  reads the body as `malformed` (`empty_subject`); how the chip shows that
+  state is BPR-1083's to settle.
 - **Helper off by default** (owner, Settings v1). With the label helper off,
   there is no completion or replacement, and `:qu:` is plain text. A label
   typed out in full counts either way. The last `(blocking)` used is never

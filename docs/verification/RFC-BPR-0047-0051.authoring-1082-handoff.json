@@ -1,0 +1,44 @@
+{
+  "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/authoring",
+  "card": "BPR-1082",
+  "run_id": "bpr-conventional-comments-20261005",
+  "segment_id": "authoring-bpr-1082",
+  "mandate_revision": "r1-20261005-owner-release-implement-bpr-1075",
+  "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
+  "status": "done",
+  "claim_commit": "6a63aa151",
+  "candidate_revision": "9ab462544664eeb11dc969f31e54c984ff07550d",
+  "changed_paths": [
+    "src/core/include/bpr/core/feedback_draft_edit.hpp",
+    "src/core/src/feedback_draft_edit.cpp",
+    "src/core/CMakeLists.txt",
+    "tests/core/feedback_draft_edit_tests.cpp",
+    "tests/core/CMakeLists.txt",
+    "tests/sqlite_contract/feedback_draft_store_tests.cpp",
+    "tests/sqlite_contract/CMakeLists.txt",
+    "tests/application/review_mutation_application_host_tests.cpp",
+    "docs/architecture/review-round-trip.md",
+    "docs/ux/conventional-comments-feedback.md",
+    "docs/verification/RFC-BPR-0047-0051.md",
+    "docs/verification/RFC-BPR-0047-0051.authoring-checkpoint.json",
+    "docs/verification/RFC-BPR-0047-0051.authoring-1082-handoff.json",
+    "docs/issues/60-done/BPR-1082-compose-convention-edits-through-shared-durable-draft-services.md"
+  ],
+  "round_trip_pin": "not touched; src/app unchanged",
+  "verification": [
+    {"command": "cmake --build --preset dev (whole tree); ctest --test-dir build/dev -R 'core_feedback|application_feedback_draft_store|application_review_mutation_application_host|application_private_review_host|shared_draft|review_tour_host|sqlite_review_tour_storage|core_review_composition|core_revisioned|core_dependency_boundary|core_boundary_contract|architecture_boundar|test_network_isolation'", "result": "24 of 24 passed"},
+    {"command": "cmake --build --preset core-only (whole tree); ctest --test-dir build/core-only -R 'core_feedback|core_dependency_boundary|core_boundary_contract|core_revisioned|core_review_tour$'", "result": "9 of 9 passed"},
+    {"command": "cmake --build --preset dev --target coding-format-check; clang-format 22.1.8 vs 23.1.1 on 5 changed C++ files", "result": "passed; identical"},
+    {"command": "python3 _coding-standard/scripts/tidy.py --warnings-as-errors on 4 changed TUs", "result": "no finding in changed files; existing findings in review_tour_codec.hpp and private_review_fixture.hpp"},
+    {"command": "five reverted negative controls", "result": "each failed at the named check (ledger)"}
+  ],
+  "review_session": null,
+  "pending_obligations": [
+    "Linux and Windows station runs of core_feedback_draft_edit, application_feedback_draft_store and application_review_mutation_application_host",
+    "BPR-1083: Qt chip/menu/shortcodes use decide_feedback_composition_edit and the plan; settle how the chip shows a header-only (empty_subject) body",
+    "BPR-1092: headless command for ordinary comment-draft prefix edits",
+    "Closeout cards hold the remaining shares of R09-R11, R41, R42"
+  ],
+  "command_state": "quiescent; no review host started; worktree removed after landing",
+  "next_action": "BPR-1083 (depends on BPR-1082, BPR-1081) becomes eligible; BPR-1084-1086 per their dependencies."
+}
