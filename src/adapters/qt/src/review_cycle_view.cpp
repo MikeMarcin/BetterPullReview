@@ -302,6 +302,37 @@ namespace bpr::qt {
 			return QStringLiteral("Esc");
 #endif
 		}
+
+		/// \brief [[BPR-1280]]. The key that saves the open note, reply or
+		/// suggestion (owner, 2026-10-04: "I want cmd+return to save the
+		/// note"): Command-Return on macOS, Control-Enter on Windows and
+		/// Linux. Qt names the main key Return and the keypad's Enter, so
+		/// both are bound; Qt's Control is the Mac's Command. Return alone
+		/// keeps its meaning: a new line while writing, a note on the
+		/// caret's line in the read-only code.
+		auto composer_save_keys() -> QList<QKeySequence>
+		{
+			return { QKeySequence{ Qt::CTRL | Qt::Key_Return }, QKeySequence{ Qt::CTRL | Qt::Key_Enter } };
+		}
+
+		/// The save key as the platform writes it: ⌘↩ on macOS, Ctrl+Enter elsewhere.
+		auto save_key_words() -> QString
+		{
+#if defined(Q_OS_MACOS)
+			// The Mac's own Return glyph, as its menus write it; Qt writes ↵.
+			return QString::fromUtf8("\xE2\x8C\x98\xE2\x86\xA9");
+#else
+			return QKeySequence{ Qt::CTRL | Qt::Key_Enter }.toString(QKeySequence::NativeText);
+#endif
+		}
+
+		/// A save button names its key, so the key is found without a manual.
+		void label_save_button(QPushButton& aButton, const QString& aWords, const QString& aTip)
+		{
+			aButton.setText(QStringLiteral("%1  %2").arg(aWords, save_key_words()));
+			aButton.setToolTip(QStringLiteral("%1 (%2)").arg(aTip, save_key_words()));
+			aButton.setAccessibleName(aWords);
+		}
 	}
 
 	review_cycle_view::review_cycle_view(QWidget* aParent)
@@ -557,9 +588,10 @@ namespace bpr::qt {
 		auto* const cancelComment = new QPushButton{ QStringLiteral("Cancel"), commentPage };
 		cancelComment->setObjectName(QStringLiteral("cycleCommentCancel"));
 		cancelComment->setToolTip(QStringLiteral("Discard this note (%1)").arg(cancel_key_words()));
-		auto* const saveComment = new QPushButton{ QStringLiteral("Save note"), commentPage };
+		auto* const saveComment = new QPushButton{ commentPage };
 		saveComment->setObjectName(QStringLiteral("cycleCommentSave"));
 		saveComment->setDefault(true);
+		label_save_button(*saveComment, QStringLiteral("Save note"), QStringLiteral("Save this note"));
 		commentButtons->addWidget(cancelComment);
 		commentButtons->addWidget(saveComment);
 		commentColumn->addLayout(commentButtons);
@@ -590,8 +622,9 @@ namespace bpr::qt {
 		replyButtons->addStretch(1);
 		auto* const cancelReply = new QPushButton{ QStringLiteral("Cancel"), ReplyPage };
 		cancelReply->setObjectName(QStringLiteral("cycleReplyCancel"));
-		auto* const saveReply = new QPushButton{ QStringLiteral("Save reply"), ReplyPage };
+		auto* const saveReply = new QPushButton{ ReplyPage };
 		saveReply->setObjectName(QStringLiteral("cycleReplySave"));
+		label_save_button(*saveReply, QStringLiteral("Save reply"), QStringLiteral("Keep this reply with its round"));
 		replyButtons->addWidget(cancelReply);
 		replyButtons->addWidget(saveReply);
 		replyColumn->addLayout(replyButtons);
@@ -608,6 +641,7 @@ namespace bpr::qt {
 		TrayComposer->setCurrentIndex(0);
 		trayColumn->addWidget(TrayComposer);
 		Composer->cancel_button()->setToolTip(QStringLiteral("Discard this suggestion (%1)").arg(cancel_key_words()));
+		label_save_button(*Composer->save_button(), QStringLiteral("Save suggestion"), QStringLiteral("Save these changes as a suggestion"));
 		// [[BPR-1157]]. Escape, and Control-C on macOS, cancel the open note or
 		// suggestion as its Cancel does, while focus is inside it. The keys
 		// are claimed only while one is open; the code view keeps Escape
@@ -618,6 +652,14 @@ namespace bpr::qt {
 		CancelKeys->setContext(Qt::WidgetWithChildrenShortcut);
 		CancelKeys->setEnabled(false);
 		connect(CancelKeys, &QShortcut::activated, this, [this] { cancel_focused_composer(); });
+		// [[BPR-1280]]. Command-Return (Control-Enter) saves the open note,
+		// reply or suggestion as its Save does, while focus is inside it.
+		SaveKeys = new QShortcut{ this };
+		SaveKeys->setObjectName(QStringLiteral("cycleComposerSaveKeys"));
+		SaveKeys->setKeys(composer_save_keys());
+		SaveKeys->setContext(Qt::WidgetWithChildrenShortcut);
+		SaveKeys->setEnabled(false);
+		connect(SaveKeys, &QShortcut::activated, this, [this] { save_focused_composer(); });
 		// Leaving the composer, however it is left, gives the pane back to reading.
 		connect(TrayComposer, &QStackedWidget::currentChanged, this, [this] {
 			if (!suggesting()) {
@@ -1543,10 +1585,29 @@ namespace bpr::qt {
 		}
 	}
 
+	void review_cycle_view::save_focused_composer()
+	{
+		const auto* const focus  = QApplication::focusWidget();
+		const auto        within = [focus](const QWidget* aRegion) { return focus != nullptr && (focus == aRegion || aRegion->isAncestorOf(focus)); };
+		const auto* const open   = TrayComposer->currentWidget();
+		if (open == CommentEditor->parentWidget() && within(CommentEditor->parentWidget())) {
+			save_comment();
+			if (Centre->currentWidget() == Source) {
+				Source->setFocus(Qt::OtherFocusReason);
+			}
+		} else if (open == ReplyPage && within(ReplyPage)) {
+			save_reply();
+		} else if (suggesting() && (within(Source) || within(Composer)) && Composer->save_button()->isEnabled()) {
+			// Exactly what clicking Save suggestion does, refusals included.
+			Composer->save_button()->click();
+		}
+	}
+
 	void review_cycle_view::refresh_cancel_keys()
 	{
 		const auto* const open = TrayComposer->currentWidget();
 		CancelKeys->setEnabled(open == CommentEditor->parentWidget() || open == Composer);
+		SaveKeys->setEnabled(open == CommentEditor->parentWidget() || open == ReplyPage || open == Composer);
 	}
 
 	void review_cycle_view::begin_suggestion()

@@ -221,7 +221,11 @@ namespace bpr::qt {
 		/// Cancels the open note or suggestion when keyboard focus is inside
 		/// it, or leaves Compose feedback from inside it.
 		void cancel_focused_composer();
-		/// The cancel keys are live while a note, a suggestion or Compose feedback is open.
+		/// [[BPR-1280]]. Saves the open note, reply or suggestion when
+		/// keyboard focus is inside it, as its Save button does.
+		void save_focused_composer();
+		/// The cancel keys are live while a note or a suggestion is open; the
+		/// save keys also while a reply is.
 		void refresh_cancel_keys();
 		void refresh_actions();
 		void step_file(int aDirection);
@@ -285,6 +289,7 @@ namespace bpr::qt {
 		QCheckBox*                                           ReplyAbout    = nullptr;
 		QPlainTextEdit*                                      ReplyEditor   = nullptr;
 		QShortcut*                                           CancelKeys    = nullptr;
+		QShortcut*                                           SaveKeys      = nullptr;
 		review_cycle_share_sheet*                            SharePage     = nullptr;
 		review_cycle_publish_sheet*                          PublishSheet  = nullptr;
 		QAction*                                             PublishAction = nullptr;

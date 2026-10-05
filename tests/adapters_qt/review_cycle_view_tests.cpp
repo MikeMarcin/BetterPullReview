@@ -738,6 +738,16 @@ namespace {
 		expect(aGestures.Replies.size() == 1U && aGestures.Replies[0].first == core::cycle_round_id{ 1 } && aGestures.Replies[0].second.From == "Sam"
 				   && aGestures.Replies[0].second.Items == std::vector<std::string>{ "I1" } && aGestures.Replies[0].second.Body == "Done, but not tested.",
 			   "the reply handed over as entered");
+		// [[BPR-1280]]. Command-Return (Control-Enter) saves a reply too.
+		emit menu->aboutToShow();
+		menu->actions()[0]->trigger();
+		settle();
+		aView.activateWindow();
+		settle();
+		aView.reply_editor()->setPlainText(QStringLiteral("By the keyboard."));
+		aView.reply_editor()->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*aView.reply_editor(), Qt::Key_Return, Qt::ControlModifier, QStringLiteral("\r"));
+		expect(aGestures.Replies.size() == 2U && aGestures.Replies[1].second.Body == "By the keyboard." && !aView.reply_editor()->isVisible(), "Command-Return saves the reply as Save reply does");
 		emit menu->aboutToShow();
 		menu->actions()[1]->trigger();
 		expect(aGestures.Chosen == std::vector<core::cycle_round_id>{ core::cycle_round_id{ 1 } }, "a response file chosen for F1");
@@ -1095,6 +1105,83 @@ namespace {
 		settle();
 #endif
 		expect(!aView.suggesting() && code->read_only(), "back to reading");
+	}
+
+	/// \brief [[BPR-1280]]. The owner's note on BPR-1182-agent-free-loop-v001
+	/// (event 947): "I want cmd+return to save the note so I don't have to
+	/// click save note with a mouse". Command-Return on macOS, Control-Enter
+	/// elsewhere (Qt's Control either way), saves the open note or suggestion
+	/// as its Save does; Return keeps its meaning. Window-system keys, with
+	/// negative controls beside each gesture.
+	void saves_the_open_composer_from_the_keyboard(qt::review_cycle_view& aView, core::begin_cycle_feedback& aNoted, application::review_cycle_suggestion_request& aSuggested)
+	{
+		aView.present(projection(1));
+		aView.activateWindow();
+		settle();
+		auto* const code     = aView.source();
+		auto* const editor   = aView.comment_editor();
+		auto* const keys     = aView.findChild<QShortcut*>(QStringLiteral("cycleComposerSaveKeys"));
+		auto* const save     = aView.findChild<QPushButton*>(QStringLiteral("cycleCommentSave"));
+		const auto  noteLine = [&] {
+			code->setFocus(Qt::TabFocusReason);
+			code->select_bytes(24U, 24U);
+			tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		};
+#if defined(Q_OS_MACOS)
+		// Command and the Return glyph macOS menus use (U+2318, U+21A9).
+		const auto words = QString::fromUtf8("\xE2\x8C\x98\xE2\x86\xA9");
+#else
+		const auto words = QKeySequence{ Qt::CTRL | Qt::Key_Enter }.toString(QKeySequence::NativeText);
+		expect(words == QStringLiteral("Ctrl+Enter"), "Windows and Linux write the key as Ctrl+Enter: " + words.toStdString());
+#endif
+		expect(keys != nullptr && !keys->isEnabled(), "the save keys are claimed only while something is composed");
+		expect(save->text() == QStringLiteral("Save note  ") + words && save->toolTip().contains(words) && save->accessibleName() == QStringLiteral("Save note"), "Save note names its key, on the button and in its tooltip");
+		expect(aView.composer()->save_button()->text().endsWith(words) && aView.composer()->save_button()->toolTip().contains(words), "so does Save suggestion");
+		expect(aView.findChild<QPushButton*>(QStringLiteral("cycleReplySave"))->text().endsWith(words), "and Save reply");
+
+		// Return is a new line in the note; Command-Return saves it whole.
+		aNoted = { };
+		noteLine();
+		expect(editor->isVisible() && QApplication::focusWidget() == editor && keys->isEnabled(), "Return opens the note, and claims the save keys");
+		editor->setPlainText(QStringLiteral("First line."));
+		editor->moveCursor(QTextCursor::End);
+		tests::window_system_key(*editor, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		expect(editor->isVisible() && editor->toPlainText() == QStringLiteral("First line.\n") && aNoted.Body.empty(), "Return in the note is a new line, not a save");
+		editor->insertPlainText(QStringLiteral("Second line."));
+		tests::window_system_key(*editor, Qt::Key_Return, Qt::ControlModifier, QStringLiteral("\r"));
+		expect(!editor->isVisible() && aNoted.Body == "First line.\nSecond line." && QApplication::focusWidget() == code && !keys->isEnabled(),
+			   "Command-Return (Control-Enter) saves the note as Save note does, and the code has focus again");
+		aNoted = { };
+		noteLine();
+		editor->setPlainText(QStringLiteral("By the keypad."));
+		tests::window_system_key(*editor, Qt::Key_Enter, Qt::ControlModifier | Qt::KeypadModifier, QStringLiteral("\r"));
+		expect(!editor->isVisible() && aNoted.Body == "By the keypad.", "the keypad's Enter with the modifier saves too");
+
+		// Negative controls: focus outside the open note, and nothing open.
+		aNoted = { };
+		noteLine();
+		editor->setPlainText(QStringLiteral("Not yet."));
+		aView.files()->setFocus(Qt::TabFocusReason);
+		tests::window_system_key(*aView.files(), Qt::Key_Return, Qt::ControlModifier, QStringLiteral("\r"));
+		expect(editor->isVisible() && editor->toPlainText() == QStringLiteral("Not yet.") && aNoted.Body.empty(), "outside the open note the key saves nothing");
+		aView.findChild<QPushButton*>(QStringLiteral("cycleCommentCancel"))->click();
+		settle();
+		code->setFocus(Qt::TabFocusReason);
+		code->select_bytes(24U, 24U);
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ControlModifier, QStringLiteral("\r"));
+		expect(!editor->isVisible() && aNoted.Body.empty() && !aView.suggesting(), "with nothing open the key opens and saves nothing in the code");
+
+		// Suggest change: Return is a line break in the edit; the key saves it.
+		aSuggested = { };
+		code->select_bytes(13U, 13U);
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+		expect(aView.suggesting() && keys->isEnabled() && !aView.composer()->save_button()->isEnabled(), "Shift+Return begins Suggest change; nothing changed, so nothing to save");
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ControlModifier, QStringLiteral("\r"));
+		expect(aView.suggesting() && aSuggested.Edits.empty(), "an unchanged suggestion is not saved by the key, as Save suggestion is unavailable");
+		tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+		expect(aView.suggesting() && code->text().size() > parser.size() && aSuggested.Edits.empty(), "Return in the suggestion is a line break");
+		tests::window_system_key(*code, Qt::Key_Return, Qt::ControlModifier, QStringLiteral("\r"));
+		expect(!aView.suggesting() && aSuggested.Edits.size() == 1U && code->read_only() && !keys->isEnabled(), "Command-Return saves the suggestion as Save suggestion does");
 	}
 
 	void opens_files_and_steps(qt::review_cycle_view& aView, std::string& aOpened)
@@ -2047,6 +2134,7 @@ try {
 	suggests_from_the_caret_and_the_context_menu(view, suggested);
 	return_notes_and_suggests_where_the_caret_is(view, noted);
 	cancels_the_open_composer_from_the_keyboard(view, noted, suggested);
+	saves_the_open_composer_from_the_keyboard(view, noted, suggested);
 	shows_where_focus_is();
 	states_newer_material_without_moving(view);
 	opens_files_and_steps(view, opened);

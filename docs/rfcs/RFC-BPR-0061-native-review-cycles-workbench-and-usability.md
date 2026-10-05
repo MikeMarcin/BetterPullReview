@@ -56,6 +56,25 @@ Ctrl+C is Copy, so cancel is not bound to it there. In the code, Escape first
 collapses a selection or extra carets. The evidence is on
 [BPR-1157](../issues/60-done/BPR-1157-integrate-local-entry-and-source-first-tabs-with-the-accepted-chrome.md#owner-verdicts-at-hand-back-815-and-a-key-to-cancel--macos-2026-10-02).
 
+## Owner requests, 2026-10-04: a key that saves, and a shorter Send box
+
+Accepting `BPR-1182-agent-free-loop-v001` (event 947), the owner asked: "I
+want cmd+return to save the note so I don't have to click save note with a
+mouse". This is recorded as a decision under RC61-09's shortcuts. While a
+note, a reply or Suggest change is open and keyboard focus is inside it,
+Command-Return on macOS and Control-Enter on Windows and Linux save it, as
+its Save button does; a suggestion with nothing to save stays open. Each Save
+button names the key. Return keeps its meaning: a line break while writing,
+a note in the read-only code. The work and evidence are BPR-1280's.
+
+Accepting `BPR-1182-send-box-v001` (event 951), the owner found the sheet's
+text overwhelming and asked that the Send box name the harness that is
+configured, not Claude, since Claude, Codex and custom harnesses are all
+supported. The Send box says what Send does in one line, naming the selected
+profile's harness (Claude, Codex, or a custom harness by its own name), and
+keeps the rest behind Details. A session to continue is offered only by a
+harness that continues sessions. The work and evidence are BPR-1282's.
+
 ## Normative contracts
 
 The detailed contracts [UX.md](assets/bpr-review-cycles-v1/specs/UX.md), [LIMITS.md](assets/bpr-review-cycles-v1/specs/LIMITS.md) are normative parts of this proposal. The common [domain](assets/bpr-review-cycles-v1/specs/DOMAIN.md), [decisions](assets/bpr-review-cycles-v1/supporting/DECISIONS.md) and [security boundary](assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md) apply. If a live predecessor differs, record a specific compatibility decision; do not quietly implement a weaker alternate workflow.
