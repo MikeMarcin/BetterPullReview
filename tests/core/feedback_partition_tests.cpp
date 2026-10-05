@@ -8,6 +8,7 @@
 
 #include "bpr/core/feedback_partition.hpp"
 #include "bpr/core/review_cycle_json.hpp"
+#include "bpr/core/review_tour_markdown.hpp"
 
 #include <algorithm>
 #include <array>
@@ -56,11 +57,22 @@ namespace {
 
 	struct post_text
 	{
+		post_text(std::string aConversation, std::string aId, std::optional<std::string> aReplyTo, std::string aBody, bool aDeleted = false, feedback_body_segment aSegment = { })
+			: Conversation{ std::move(aConversation) }
+			, Id{ std::move(aId) }
+			, ReplyTo{ std::move(aReplyTo) }
+			, Body{ std::move(aBody) }
+			, Deleted{ aDeleted }
+			, Segment{ aSegment }
+		{
+		}
+
 		std::string                Conversation;
 		std::string                Id;
 		std::optional<std::string> ReplyTo;
 		std::string                Body;
 		bool                       Deleted = false;
+		feedback_body_segment      Segment;
 	};
 
 	auto annotate(const feedback_annotation_set& aCurrent, const std::vector<post_text>& aPosts) -> feedback_annotation_set
@@ -71,6 +83,7 @@ namespace {
 											  .Id           = aPost.Id,
 											  .ReplyTo      = aPost.ReplyTo ? std::optional<std::string_view>{ *aPost.ReplyTo } : std::nullopt,
 											  .Body         = aPost.Body,
+											  .Segment      = aPost.Segment,
 											  .Deleted      = aPost.Deleted };
 		});
 		auto refresh = refresh_feedback_annotations(aCurrent, review_key(), observations);
@@ -206,12 +219,12 @@ namespace {
 				} else if (unit.ParseStatus == "limited") {
 					body = std::string(1100U, '\n') + "issue: Root.";
 				}
-				posts.push_back({ unit.Id, root, std::nullopt, body, unit.Deleted });
+				posts.emplace_back(unit.Id, root, std::nullopt, body, unit.Deleted);
 			} else {
-				posts.push_back({ unit.Id, unit.Id + "/orphan", root, "issue: A reply whose root was not observed." });
+				posts.emplace_back(unit.Id, unit.Id + "/orphan", root, "issue: A reply whose root was not observed.");
 			}
 			for (std::size_t at = 0U; at < unit.Replies.size(); ++at) {
-				posts.push_back({ unit.Id, unit.Id + "/reply" + std::to_string(at), root, unit.Replies[at] + ": Reply." });
+				posts.emplace_back(unit.Id, unit.Id + "/reply" + std::to_string(at), root, unit.Replies[at] + ": Reply.");
 			}
 		}
 		return posts;
@@ -571,6 +584,27 @@ namespace {
 		expect(partial.Included == 1U && partial.Limits == std::vector{ feedback_count_limit::collection_partial }, "a short page is a qualified count, not an exact one");
 	}
 
+	/// Published tour stops are ordinary conversations: a plain stop is a
+	/// known catch-all, a labelled stop counts in its bucket, and an
+	/// envelope whose narrative was not mapped is never stripped by pattern.
+	void tour_roots()
+	{
+		const std::array navigation{ tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" } };
+		const auto       plainStop    = *render_tour_stop("Why", 1, "Read the cache first.", navigation);
+		const auto       labelledStop = *render_tour_stop("How", 2, "todo: Close the handle.", navigation);
+		const auto       narrative    = [](const std::string& aStop) {
+			const auto mapped = map_tour_stop(aStop);
+			return feedback_body_segment{ .Managed = true, .UserBody = feedback_span{ mapped.Narrative->Begin, mapped.Narrative->End } };
+		};
+		const std::vector<post_text> posts{ { "S1", "s1", std::nullopt, plainStop, false, narrative(plainStop) },
+											{ "S2", "s2", std::nullopt, labelledStop, false, narrative(labelledStop) },
+											{ "S3", "s3", std::nullopt, labelledStop, false, { .Managed = true } } };
+		const auto                   population = populate(annotate({ }, posts), { facts("S1", feedback_resolution::unresolved), facts("S2", feedback_resolution::unresolved), facts("S3", feedback_resolution::unresolved) });
+		const auto                   view       = counts_for(population, pull_request, { feedback_label::todo }, feedback_resolution_mode::unresolved);
+		expect(dedicated(view, feedback_label::todo) == 1U && view.CatchallParts == feedback_catchall_parts{ .Plain = 1U, .Unclassified = 1U }, "plain stop is catch-all, labelled stop is todo, unmapped stop is unclassified");
+		expect(has_limit(view, feedback_count_limit::classification_partial), "the unmapped stop qualifies the count");
+	}
+
 	// --- Generated populations -----------------------------------------------
 
 	struct splitmix64
@@ -719,6 +753,7 @@ auto main(int aArgc, char** aArgv) -> int
 	inclusion_rules();
 	coverage();
 	transitions();
+	tour_roots();
 	const auto random = generated(2000U, 40U);
 	const auto bulk   = large();
 	std::cout << "pack subset projections: " << projections << '\n';
