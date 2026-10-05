@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1079 feedback UX, round v3: thread marks</title>
+<!--
+  [[BPR-1079]] Conventional Comments UX, round v3: where a label mark sits on a thread card,
+  after the owner's round-2 verdicts (session 4742c47e). Frames live in
+  BPR-1079-feedback-ux-frames-v3.html. Rounds v1 and v2 stay as history.
+  Nothing on this page is implemented.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --marker:#B7791F; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1340px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+h3 { font-size:15px; margin:20px 0 6px; }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:200px; font-weight:600; }
+.st { display:inline-block; padding:0 7px; border-radius:9px; font-size:12px; font-weight:600; background:#E3E6EA; }
+.st.pend { background:#FBF1DC; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+.sw { display:inline-block; width:14px; height:11px; border-radius:2px; vertical-align:-1px; margin-right:5px; border:1px solid rgba(0,0,0,.15); }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+blockquote { margin:0; padding:0 0 0 10px; border-left:3px solid var(--rule-2); color:var(--ink-2); }
+</style>
+</head>
+<body>
+<main>
+<h1>Conventional Comments: where a thread mark sits, round v3</h1>
+<div class="by">BPR-1079 (RFC-BPR-0048, 0049, 0050; R30, R33). 2026-10-05. Frames: <a href="BPR-1079-feedback-ux-frames-v3.html">BPR-1079-feedback-ux-frames-v3.html</a>, 1440×820 and 960×760, light and dark. Earlier rounds: <a href="BPR-1079-feedback-ux-v2.html">v2</a>, <a href="BPR-1079-feedback-ux-v1.html">v1</a>.</div>
+
+<p><b>None of this is implemented.</b> Round v3 redraws only the thread cards. Everything else stands as round v2 drew it. The two-letter squares are still placeholders for BPR-1080's icons.</p>
+
+<h2>Round v2 verdicts (session 4742c47e636d407949d455abdd8030a3)</h2>
+<table>
+<thead><tr><th>Item</th><th>Verdict</th><th>Owner's note, verbatim</th><th>Round v3</th></tr></thead>
+<tbody>
+<tr><th>Shortcodes</th><td>Accept</td><td>(none)</td><td><span class="st">settled</span></td></tr>
+<tr><th>Tints</th><td>Accept</td><td>(none)</td><td><span class="st">settled</span></td></tr>
+<tr><th>Threads</th><td>Reject</td><td><blockquote>It's weird that its positioned differently for the thread opening comment.<br>Maybe it belongs consistently to the left of the comment below the author icon? Or consistently to the left of the author name? Or consistently in line with the comment so it makes sense when you edit it? I dunno try a couple options, surprise me with one. Let me pick. But i dont like this currently non-consistency.</blockquote></td><td>Four options below. <span class="st pend">asked</span></td></tr>
+</tbody>
+</table>
+
+<h2>The rule all four keep</h2>
+<p>A post's mark goes in the same place whether the post is the root or a reply, and whether the thread has one post or many. The card header now holds only the line (or tour stop) and the state pill. The mark is shown without its word, with the tint, tooltip and accessible name accepted in round v2 ("issue (blocking)"). A plain post shows no mark.</p>
+
+<h2>Options</h2>
+<table>
+<thead><tr><th>Option</th><th>Where</th><th>For</th><th>Against</th></tr></thead>
+<tbody>
+<tr><th>A: under the avatar</th><td>Below the author's avatar, in the avatar's column.</td><td>Uses space that is otherwise empty, so it costs no width. The avatar column becomes a column of labels.</td><td>Sits beside the first text line rather than the name, so it can read as belonging to the text. While editing, the label shows twice: the mark, and the words at the start of the field.</td></tr>
+<tr><th>B: left of the name</th><td>First in the name row, before the author's name.</td><td>The smallest change from v2. Name and label read together.</td><td>Names start at different places for labelled and plain posts. Shows the label twice while editing, as A does.</td></tr>
+<tr><th>C: start of the text</th><td>The first thing in the comment text, where the label really is. While editing, the same mark sits in the same place in the field and stands for the words "question: ".</td><td>Matches the data: the label is the start of the comment. Reading and editing look the same, and the label shows once.</td><td>Costs about 20 px on the first line. The composition page's editor would show the same mark in place of the highlighted words, so authoring A changes to match (the chip, menu and shortcodes stay, and the preview stays plain text).</td></tr>
+<tr><th>D: label rail (surprise)</th><td>Each post gets a thin left rule. A labelled post's rule takes the label's tint and the mark heads it, level with the name. Plain posts keep a grey rule.</td><td>The tint runs the full height of the comment, so labels are recognisable at a glance from the tray's edge. Roots and replies share one structure: the reply rule that already existed now also appears on roots.</td><td>The most colour on screen. Costs about 21 px of width on every post. Shows the label twice while editing, as A and B do.</td></tr>
+</tbody>
+</table>
+
+<h2>Frames</h2>
+<p>The comparison frame puts all four side by side: a thread being read, my reply being edited, and the first comment of my own thread being edited. For each option, the other frames show the full Read tray at 1440 and 960 px, in light and dark, with and without an edit in progress. The wide frame also shows the root mark's tooltip. Editing is drawn in place on the card. Where an edit opens is not decided here.</p>
+<div class="frames" id="f-cmp"></div>
+<div class="frames" id="f-opt"></div>
+
+<h2>Consistency, measured</h2>
+<p>Open any frame with <code>?check=1</code> to measure each mark against its anchor. For A the anchor is the avatar, for B the name, for C the text after the mark, and for D the post's edge and the name. Across all 17 frames in light and dark, the spread between roots and replies is 0 px in both directions, including posts being edited, and no card header holds a mark. The centre offset is 0.008 px for B and D and 0 px for C. In A the gap under the avatar is a constant 3 px. v3 also corrects v2's narrow frames, where long code pushed the tray partly off screen.</p>
+
+<h2>Open, not decided here</h2>
+<ul>
+  <li>The owner's choice among A, B, C and D (round v3's attended session).</li>
+  <li>The icons and their resource form: BPR-1080. The selection record and implementation contract: BPR-1081.</li>
+  <li>Native verification at 100%, 125% and 200%, in high contrast and with larger text, applies to the built surfaces (R33), not to these frames.</li>
+</ul>
+</main>
+<script>
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [f, w, h, cap, theme] of list) {
+    const s = 0.42;
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="BPR-1079-feedback-ux-frames-v3.html?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+put("f-cmp", [["th3-compare",1440,820,"A, B, C and D side by side"],["th3-compare",1440,820,"Side by side, dark","dark"]]);
+const NAME = { A:"under the avatar", B:"left of the name", C:"start of the text", D:"label rail" };
+put("f-opt", Object.entries(NAME).flatMap(([k, n]) => [
+  [`th3-${k}-wide`,1440,820,`${k}: ${n}, with the root's tooltip`],[`th3-${k}-wide`,1440,820,`${k}, dark`,"dark"],
+  [`th3-${k}-narrow`,960,760,`${k}, narrow`],[`th3-${k}-narrow`,960,760,`${k}, narrow, dark`,"dark"],
+  [`th3-${k}-wide-edit`,1440,820,`${k}: editing my reply`],[`th3-${k}-wide-edit`,1440,820,`${k}: editing my reply, dark`,"dark"],
+  [`th3-${k}-narrow-edit`,960,760,`${k}: editing my thread's first comment`],[`th3-${k}-narrow-edit`,960,760,`${k}: editing my first comment, dark`,"dark"]]));
+</script>
+</body>
+</html>
