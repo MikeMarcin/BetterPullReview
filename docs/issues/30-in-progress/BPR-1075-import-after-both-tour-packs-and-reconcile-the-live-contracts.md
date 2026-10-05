@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1075"
 title: "Import after both tour packs and reconcile the live contracts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0047", "RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0050", "RFC-BPR-0051"]
 depends_on: []
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-01","milestone":"intake","acceptance":["R19","R39","R47"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
