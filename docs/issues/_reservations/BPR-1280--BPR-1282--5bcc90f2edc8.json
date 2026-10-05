@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1280",
+    "BPR-1281",
+    "BPR-1282"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "BPR-1182 owner notes (session cbd48b91): Cmd+Return saves a note; syntax colour in All cycle changes; a shorter Send to Agent box naming the configured harness",
+  "created": "2026-10-05T00:15:21.479535+00:00",
+  "base": "fb30cecf7a2ece1ba5b76983d54e4463de96a843"
+}
