@@ -70,3 +70,15 @@ Limitations: this is the macOS arm64 AppleClang core-only Debug run only, and th
 Linux/Windows station runs are owed. Header edits, roots, caches, the Qt span
 mapping and the CLI belong to later cards. No fuzz selector was added; BPR-1093
 covers adversarial verification.
+
+**Note: Linux run at `d2187e3d1` (holds `887119820`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, the `core-only` preset, `build/bpr1076`).**
+`test_feedback_convention` built with no GCC warning or error. Run as
+written, all 4 rows were "Not Run": the command builds only
+`test_feedback_convention`, and each network-isolated row needs
+`better_pull_review_network_sandbox`, which is not built
+([[BPR-1180]] and [[BPR-1185]] had the same gap). After building the whole
+`core-only` tree, also with no warnings, 4 of 4 passed:
+`core_feedback_convention` (2.2 s), `core_review_tour_markdown`,
+`core_dependency_boundary` and `core_boundary_contract`. Nothing needed a
+fix. `build/bpr1076` was removed. Done is not reopened.
