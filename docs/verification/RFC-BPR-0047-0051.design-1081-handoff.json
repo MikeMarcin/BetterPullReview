@@ -1,0 +1,71 @@
+{
+  "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/design",
+  "card": "BPR-1081",
+  "run_id": "bpr-conventional-comments-20261005",
+  "segment_id": "design",
+  "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
+  "status": "done",
+  "candidate_revision": "70ce0a9fe",
+  "changed_paths": [
+    "docs/ux/conventional-comments-feedback.md",
+    "docs/rfcs/RFC-BPR-0050-feedback-ux-label-icon-design.md",
+    "docs/issues/60-done/BPR-1081-record-the-selected-ux-and-icon-delivery-contract.md",
+    "docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1.LIVE_IMPORT.md",
+    "docs/verification/RFC-BPR-0047-0051.md",
+    "docs/verification/RFC-BPR-0047-0051.design-1081-handoff.json"
+  ],
+  "bound_sources": {
+    "docs/design/BPR-1079-feedback-ux-selected.html": {
+      "revision": "d7c828fa9",
+      "sha256": "d8acbe664c2cd1da113b6c58b2b7f6e25779526a6a9d525425773ff943ff90db"
+    },
+    "docs/design/BPR-1079-feedback-ux-frames-v2.html": {
+      "revision": "48b588d25",
+      "sha256": "941118fd9256d4318b20383d205c715e6e66e3e27ce02fc43285f96803b5a257"
+    },
+    "docs/design/BPR-1079-feedback-ux-frames-v4.html": {
+      "revision": "6793935cd",
+      "sha256": "4946afd1e533bec6a12cc4ab8a22086b189c8e9e142e04197b7cbb2091dcc386"
+    },
+    "docs/design/BPR-1080-label-icons-selected.html": {
+      "revision": "759ecc692",
+      "sha256": "776e376424aae169c5952d5cc1039eb18e878f57b905fb304c796ce7653ab03e"
+    },
+    "docs/design/BPR-1080-label-icons-frames-v4.html": {
+      "revision": "44d09faa3",
+      "sha256": "fa185de22aeadabc7780af9c9aef968341d48df19f55306288facb321cad236b"
+    }
+  },
+  "intended_icon_location": {
+    "header": "src/adapters/qt/include/bpr/qt/feedback_label_marks.hpp",
+    "source": "src/adapters/qt/src/feedback_label_marks.cpp",
+    "target": "better_pull_review_adapter_qt (STATIC, linked into src/app)",
+    "separate_packaging_path": null
+  },
+  "review_session": null,
+  "verification": [
+    {
+      "command": "scratch check_contract.py (31 assertions: source hashes at revision and HEAD, codes vs frames-v2 MONO, glyph names vs frames-v4 OPTIONS, Ctrl+L/Ctrl+0 bindings, 47 roles, RFC-BPR-0034 C5 45, static adapter linked by app, no Qt Svg, consuming classes, core symbols, Settings frame strings)",
+      "result": "31 PASS, 0 FAIL"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64 tests OK"
+    }
+  ],
+  "pending_obligations": [
+    "BPR-1083 asks the owner before listing labels in Comment ▾",
+    "BPR-1089 records the keyboard route to a single Overview chip",
+    "The card adding the 12 tint roles amends RFC-BPR-0034 C5 (45 to 57 offered roles)",
+    "R31-R33 runtime and native evidence belongs to the building cards"
+  ],
+  "command_state": "quiescent; no review host started",
+  "next_action": "BPR-1082: compose convention edits through shared durable draft services (Ready-eligible).",
+  "worktree": "/Users/jaeger/Documents/GitHub/BetterPullReview.worktrees/bpr1080-finish (removed after push)",
+  "claim_commit": "d37f49715",
+  "contract": "docs/ux/conventional-comments-feedback.md"
+}
