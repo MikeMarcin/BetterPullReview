@@ -55,3 +55,26 @@ not run it, because it still needs two things the designation does not give:
 The card stays Blocked on `safe-github-tour-target`. Its next step is the
 owner naming a second GitHub account for the reviewer role and scheduling an
 attended course on BPR-Test. No live object was made for it.
+
+## Reassessment after the BPR-Test designation — 2026-10-05
+
+The owner's 2026-10-05 designation (root `AGENTS.md`: BPR-Test "for any
+testing need") repeats the 2026-09-30 grant of the repository and does not
+change either missing input. A read-only check through `gh api` as
+`MikeMarcin` found `MikeMarcin` the only collaborator on BPR-Test and no
+workflows (`actions/workflows` total 0), so a review there starts no Actions.
+
+The course still cannot run with one account:
+
+- Step 3, AC40-07 and AC42-08 need a browser signed in as a reviewer account
+  that is not the PR's author. `MikeMarcin` is the only account and authors
+  every PR it opens on BPR-Test.
+- Steps 1–9 drive the shipped application's tour gestures and record what a
+  person sees there and on the website. That is an attended course.
+
+The card stays Blocked on `safe-github-tour-target`. No live object was made
+for it.
+
+**Owner question:** which second GitHub account (not `MikeMarcin`) should be
+the reviewer on BPR-Test, signed into a browser during an attended run of the
+course?
