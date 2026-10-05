@@ -71,3 +71,12 @@ Linux/Windows station runs are owed. Nothing calls the new APIs yet: draft and
 store binding is BPR-1082, read-model adaptation BPR-1087, the Qt byte-span
 conversion BPR-1083, and partition and coverage BPR-1078. R05, R07, R08 and R41 are
 met here for the core decisions only.
+
+**Note: Linux run at `d75570840` (holds `b9c8f2587`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, the `core-only` preset, Debug, `build/bpr1077`).** The
+whole tree built with no GCC warning or error, and 7 of 7 passed:
+`core_feedback_convention` (2.2 s), `core_feedback_header_edit` (1.5 s),
+`core_feedback_conversation`, `core_review_composition`,
+`core_review_tour_markdown`, `core_dependency_boundary` and
+`core_boundary_contract`. Nothing needed a fix. `build/bpr1077` was removed.
+Done is not reopened.
