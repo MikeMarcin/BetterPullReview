@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1079"
 title: "Develop compact authoring, counter and resolution UX candidates"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0050"]
 depends_on: ["BPR-1075"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-05","milestone":"design","acceptance":["R30","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1079:constraints","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-frames-v1.html","detail":"Frames at 1440x820 and 960x700-760 (Settings at its 760x560 minimum), rendered headless and inspected: Overview A and B with none, issue+question and all twelve label columns; twelve at 960 px pin File and scroll (A) or fold into +n (B); 0/1/11/104 counts; long paths elide; long comment body with a native suggestion; labelled reply under a differently labelled root; unknown coverage chip and Not on a file row. Static design, not native evidence."}},{"criterion":"BPR-1079:explains","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Rules every candidate keeps: conversation counting unit (root, replies never count), Other as catchall remainder with the partition computed in the frames (fixture src/cache.cpp: Open 2/1/4 of 7, All 4/1/5 of 10), Not on a file remainder, four resolution states, explicit Comment/Approve/Request changes with no automatic verdict, public label text versus private defect badge and uncounted drafts."}},{"criterion":"BPR-1079:tradeoffs","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Tradeoff tables for Overview A/B, authoring A/B/C and preflight A/B; the record and every frame say nothing is implemented and the two-letter marks are placeholders for BPR-1080."}},{"criterion":"BPR-1079:owner-selection","outcome":"pending","revision":"6793935cd","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0047-0051.md","detail":"Round v1 (session ca54b0e8e5bc8a46f40cee31ea0619fd, read after 18 to 25): overview-columns B, preflight B, authoring A plus C, overview-states Accept, settings Accept with a note, threads Reject. Round v2 (session 4742c47e636d407949d455abdd8030a3, read after 9 to 13, handed back at 13): shortcodes-v002 Accept, tints-v002 Accept, threads-v002 Reject with a note. Round v3 (session 830ffc2a626c879b180a04e3a4e9d802, read after 3 to 5, handed back at 5): threads-v003 selected A and D with a note. Round v4 pending in session 3a17a6eb6b995ba6414161d6d158b315 (state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v004, ready at sequence 3): threads-v004, Accept or Reject, on frozen root /Users/jaeger/bpr1079-feedback-ux-review-v004.QT45LD."}}]
+acceptance: [{"criterion":"BPR-1079:constraints","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-frames-v1.html","detail":"Frames at 1440x820 and 960x700-760 (Settings at its 760x560 minimum), rendered headless and inspected: Overview A and B with none, issue+question and all twelve label columns; twelve at 960 px pin File and scroll (A) or fold into +n (B); 0/1/11/104 counts; long paths elide; long comment body with a native suggestion; labelled reply under a differently labelled root; unknown coverage chip and Not on a file row. Static design, not native evidence."}},{"criterion":"BPR-1079:explains","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Rules every candidate keeps: conversation counting unit (root, replies never count), Other as catchall remainder with the partition computed in the frames (fixture src/cache.cpp: Open 2/1/4 of 7, All 4/1/5 of 10), Not on a file remainder, four resolution states, explicit Comment/Approve/Request changes with no automatic verdict, public label text versus private defect badge and uncounted drafts."}},{"criterion":"BPR-1079:tradeoffs","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Tradeoff tables for Overview A/B, authoring A/B/C and preflight A/B; the record and every frame say nothing is implemented and the two-letter marks are placeholders for BPR-1080."}},{"criterion":"BPR-1079:owner-selection","outcome":"pass","revision":"6793935cd","evidence":{"kind":"freeform","path":"docs/design/BPR-1079-feedback-ux-selected.html","detail":"Owner verdicts in attended sessions ca54b0e8e5bc8a46f40cee31ea0619fd (v1: Overview B, authoring A+C, preflight B, states and settings Accept), 4742c47e636d407949d455abdd8030a3 (v2: shortcodes and tints Accept), 830ffc2a626c879b180a04e3a4e9d802 (v3: threads A and D, combine) and 3a17a6eb6b995ba6414161d6d158b315 (v4: threads-v004 Accept, no note; decision at sequence 4, handed-back at 5). Consolidated in the selected design record. Static frames, not native evidence; R33 belongs to the built surfaces."}}]
 ---
 
 # BPR-1079: Develop compact authoring, counter and resolution UX candidates
@@ -212,3 +211,31 @@ Limitations: these are static HTML frames rendered with headless Chrome. They
 are not native, scaled, high-contrast or assistive-technology evidence; the
 accessibility names come from Chrome's tree for the frame, not from the Qt
 surface. Nothing is implemented.
+
+## Round v4 verdict (2026-10-05)
+
+Session `3a17a6eb6b995ba6414161d6d158b315`, read with `status --after 3`
+(decision at sequence 4, `handed-back` at 5, nothing pending). The owner gave no
+note.
+
+| Item | Verdict | Note |
+|---|---|---|
+| `BPR-1079-threads-v004` | **Accept** | (none) |
+
+## Selected design
+
+Every item now has an owner verdict. The
+[selected design](../../design/BPR-1079-feedback-ux-selected.html) consolidates
+them in one place:
+
+- Overview B: label chips in one Comments column.
+- Open/All states, the ? chip and the Label key, as accepted.
+- Authoring A, the chip and its ⌘L menu, plus round v2's `:shortcodes:`.
+- Preflight B: one chip, with the list on demand.
+- Settings › Reviews & queue › Comment labels, as accepted.
+- Round v2's tints, configurable on Appearance › Colours.
+- Round v4's thread cards: a 16 px mark centred under the avatar, a tinted
+  rail, and blocking shown by a filled mark with a 4 px rail.
+
+BPR-1080 replaces the two-letter placeholders with icons. BPR-1081 records the
+implementation contract. Native evidence (R33) belongs to the built surfaces.

@@ -4,17 +4,16 @@
   "run_id": "bpr-conventional-comments-20261005",
   "segment_id": "design",
   "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
-  "status": "parked-human-review",
+  "status": "done",
   "round": "v4",
   "candidate_revision": "6793935cd",
   "changed_paths": [
-    "docs/design/BPR-1079-feedback-ux-frames-v4.html",
-    "docs/design/BPR-1079-feedback-ux-v4.html",
-    "docs/issues/40-parked/BPR-1079-develop-compact-authoring-counter-and-resolution-ux-candidates.md",
+    "docs/design/BPR-1079-feedback-ux-selected.html",
+    "docs/issues/60-done/BPR-1079-develop-compact-authoring-counter-and-resolution-ux-candidates.md",
     "docs/verification/RFC-BPR-0047-0051.md",
     "docs/verification/RFC-BPR-0047-0051.design-1079-handoff.json"
   ],
-  "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v004.QT45LD",
+  "frozen_root": "deleted 2026-10-05 after the v4 Accept (v001 to v004 roots)",
   "frozen_sha256": {
     "docs/design/BPR-1079-feedback-ux-frames-v4.html": "4946afd1e533bec6a12cc4ab8a22086b189c8e9e142e04197b7cbb2091dcc386",
     "docs/design/BPR-1079-feedback-ux-v4.html": "67ff9d15a3b36379b5f969b79c1356fd7a74b3880c70d39909a50a6f4a130e4d"
@@ -24,10 +23,11 @@
     "repo_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
     "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v004",
     "wait_cursor": 3,
-    "url": "http://127.0.0.1:62342/ (token in /Users/jaeger/bpr1079-feedback-ux-review-v004.QT45LD/serve.log)",
+    "url": "host stopped",
     "candidates": {
       "BPR-1079-threads-v004": "accept or reject: mark centred under the avatar, label rail on the left edge, blocking = filled mark + 4 px rail"
-    }
+    },
+    "consumed_cursor": 5
   },
   "verification": [
     {
@@ -52,20 +52,32 @@
     }
   ],
   "pending_obligations": [
-    "Owner Accept or Reject on threads-v004 (session 3a17a6eb, after sequence 3)",
-    "BPR-1081 records the selection; design-dependent implementation waits for it (R30)",
     "BPR-1080 icons replace the two letters; tints, the blocking fill and the rail carry over",
+    "BPR-1081 records the selection as the implementation contract; design-dependent implementation waits for it (R30)",
     "R33 native/scale/theme/assistive evidence belongs to the built surfaces, not these frames"
   ],
-  "command_state": "quiescent except the handed-off review host (pid 7911, http://127.0.0.1:62342, started with nohup)",
-  "next_action": "Coordinator waits on handed-back after 3; a fresh rfc-implementer records the v004 verdict, then finishes BPR-1079 or draws v5.",
-  "worktree": "/Users/jaeger/bpr-wt-1079d (removed after push)",
-  "base": "2cd2e80ce",
+  "command_state": "quiescent; the v004 host was already stopped",
+  "next_action": "BPR-1080: develop the twelve label icon candidates.",
+  "worktree": "/Users/jaeger/Documents/GitHub/BetterPullReview.wt-bpr1079-1080 (removed after push)",
+  "base": "df13949dd",
+  "round_v4": {
+    "session": "3a17a6eb6b995ba6414161d6d158b315",
+    "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v004",
+    "consumed_cursor": 5,
+    "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v004.QT45LD (deleted)",
+    "candidate_revision": "6793935cd",
+    "verdicts": {
+      "BPR-1079-threads-v004": {
+        "outcome": "accept",
+        "note": ""
+      }
+    }
+  },
   "round_v3": {
     "session": "830ffc2a626c879b180a04e3a4e9d802",
     "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v003",
     "consumed_cursor": 5,
-    "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v003.2cR7rG",
+    "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v003.2cR7rG (deleted)",
     "candidate_revision": "275e74b82",
     "verdicts": {
       "BPR-1079-threads-v003": {
@@ -82,7 +94,7 @@
     "session": "4742c47e636d407949d455abdd8030a3",
     "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v002",
     "consumed_cursor": 13,
-    "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v002.50kSvD",
+    "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v002.50kSvD (deleted)",
     "candidate_revision": "48b588d25",
     "verdicts": {
       "BPR-1079-shortcodes-v002": {
@@ -103,7 +115,7 @@
     "session": "ca54b0e8e5bc8a46f40cee31ea0619fd",
     "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v001",
     "consumed_cursor": 25,
-    "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v001.xSnkqM",
+    "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v001.xSnkqM (deleted)",
     "candidate_revision": "59f65ad9e",
     "verdicts": {
       "BPR-1079-authoring-v001": {
@@ -142,5 +154,6 @@
       }
     }
   },
-  "claim_commit": "7ff4126ca1315c635dc5fe6bffaae1610ad0573b"
+  "claim_commit": "7ff4126ca1315c635dc5fe6bffaae1610ad0573b",
+  "selected_design": "docs/design/BPR-1079-feedback-ux-selected.html"
 }

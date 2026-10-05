@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1079 feedback UX: the selected design</title>
+<!--
+  [[BPR-1079]] Conventional Comments UX: the design the owner selected across rounds v1 to v4
+  (sessions ca54b0e8, 4742c47e, 830ffc2a, 3a17a6eb). This page only consolidates; the rounds'
+  records and frames hold the drawings and the measurements. Nothing here is implemented.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1100px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:36px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:170px; font-weight:600; }
+.sw { display:inline-block; width:14px; height:11px; border-radius:2px; vertical-align:-1px; margin-right:5px; border:1px solid rgba(0,0,0,.15); }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Conventional Comments: the selected design</h1>
+<div class="by">BPR-1079 (RFC-BPR-0048, 0049, 0050; R30, R33). 2026-10-05. Consolidated from rounds <a href="BPR-1079-feedback-ux-v1.html">v1</a>, <a href="BPR-1079-feedback-ux-v2.html">v2</a> and <a href="BPR-1079-feedback-ux-v4.html">v4</a>, whose frames hold the drawings and measurements. <a href="BPR-1079-feedback-ux-v3.html">v3</a> was the thread-mark comparison that v4 resolved.</div>
+
+<p><b>Nothing here is implemented.</b> This is the owner's selection from static design frames. BPR-1081 turns it into the implementation contract. The marks' icons are BPR-1080's work, and until then the frames show two-letter placeholders.</p>
+
+<h2>Selected</h2>
+<table>
+<thead><tr><th>Surface</th><th>Selection</th><th>Owner's verdict</th><th>Frames</th></tr></thead>
+<tbody>
+<tr><th>Overview counts</th><td><b>B:</b> label chips in one Comments column. Only non-zero chips appear. Chips that don't fit the fixed column fold into "+n", whose tooltip names them. The Comments ▾ header menu picks the label to sort by.</td><td>v1, selected B</td><td><a href="BPR-1079-feedback-ux-frames-v2.html">v2</a></td></tr>
+<tr><th>Overview states</th><td>Open (default) and All. A ? chip counts what Open leaves out or can't classify. All adds a state bar under each number. Four round state marks: open, resolved, unknown and not resolvable. Unknown and not resolvable are never shown as resolved or as a clean zero. The Label key (⌥K) lists all twelve marks with names and shortcodes.</td><td>v1, Accept</td><td><a href="BPR-1079-feedback-ux-frames-v2.html">v2</a></td></tr>
+<tr><th>Authoring</th><td><b>A:</b> a label chip with its ⌘L menu (3×4 grid, decorations below), plus <b>:shortcodes:</b>. A code is the label's two letters between colons, and it works only at the very start of the comment. A colon and a letter open completion. The closing colon, Tab or Enter replaces the code in one undoable step. Esc, an unknown code or pasted text leaves the text alone. Shortcodes belong to the label helper, which is off by default.</td><td>v1, selected A and C; v2 shortcodes, Accept</td><td><a href="BPR-1079-feedback-ux-frames-v2.html">v2</a></td></tr>
+<tr><th>Review preflight</th><td><b>B:</b> one chip with counts, and the list on demand. Comment, Approve and Request changes stay three visible, explicit choices. Approve carries an amber dot while I have open blocking feedback.</td><td>v1, selected B</td><td><a href="BPR-1079-feedback-ux-frames-v2.html">v2</a></td></tr>
+<tr><th>Settings</th><td>Reviews &amp; queue › Comment labels: the label helper (off by default), the default count (Open), the Overview chips to show and their order, and a "Mark colours" link.</td><td>v1, Accept</td><td><a href="BPR-1079-feedback-ux-frames-v2.html">v2</a></td></tr>
+<tr><th>Tints</th><td>Each mark has a soft fill and a border in its label's tint. Twelve colour roles ("Label issue" and so on) form a fifth group, Comment labels, on Appearance › Colours, which makes 45 roles 57. Each theme variant has its own built-in tints. A stored palette without these roles reads them as the built-in tints. No default uses the amber of open or the green of resolved.</td><td>v2, Accept</td><td><a href="BPR-1079-feedback-ux-frames-v2.html">v2</a></td></tr>
+<tr><th>Thread cards</th><td>A <b>16 px mark</b> sits centred under the author's 18 px avatar, on every post, root and reply alike. A <b>rail</b> in the label's tint runs down the post's left edge, in space the card already had, so no width is added. Plain posts get a grey rail. <b>Blocking</b> fills the mark with its tint, with a white or near-black glyph, and makes the rail 4 px instead of 2 px. The word appears only in the tooltip and the accessible name, for example "issue (blocking)". The post is named "tbutler, issue (blocking)".</td><td>v4, Accept</td><td><a href="BPR-1079-feedback-ux-frames-v4.html">v4</a></td></tr>
+</tbody>
+</table>
+
+<h2>Rules every surface keeps</h2>
+<ul>
+<li>One conversation counts once, classified by its root. Replies carry their own marks but never add to a count.</li>
+<li>Other is the remainder: chips plus Other equal the included conversations. A last row, Not on a file, holds unanchored conversations.</li>
+<li>Labels are square and states are round. Colour adds to a mark and never carries meaning alone.</li>
+<li>A label is public text at the start of the comment. The preview shows exactly what GitHub gets, and Copy source keeps the prefix. A shortcode is never sent. Private defects keep their dashed, locked badge.</li>
+<li>No label resolves, approves or requests changes. A suggested-change block keeps its own header and apply affordance.</li>
+</ul>
+
+<h2>Built-in tints</h2>
+<table id="tints"><thead><tr><th>Label</th><th>Code</th><th>Light</th><th>Dark</th><th>High-contrast light</th><th>High-contrast dark</th></tr></thead><tbody></tbody></table>
+
+<h2>Open, not decided here</h2>
+<ul>
+<li>The twelve icons that replace the two letters, and their resource form: BPR-1080.</li>
+<li>The implementation contract: BPR-1081. Design-dependent implementation waits for it (R30).</li>
+<li>Native verification at 100%, 125% and 200%, in high contrast, with larger text and with assistive technology, applies to the built surfaces (R33), not to these frames.</li>
+</ul>
+</main>
+<script>
+const TINTS = {
+  praise:     ["pr", "#BF3989", "#F778BA", "#8A0F5C", "#FF8FD0"],
+  nitpick:    ["ni", "#6E7781", "#9BA4AE", "#3A3F45", "#D0D5DA"],
+  suggestion: ["su", "#1F6FD0", "#6CB0FF", "#0033AA", "#7FC0FF"],
+  issue:      ["is", "#D1242F", "#FF7B72", "#A50000", "#FF7070"],
+  todo:       ["td", "#C24E00", "#FFA05A", "#7A2E00", "#FFB074"],
+  question:   ["qu", "#8250DF", "#C29BFF", "#5A009E", "#D9B0FF"],
+  thought:    ["th", "#4F5BD5", "#9AA5FF", "#2A2F9E", "#B4BCFF"],
+  chore:      ["ch", "#8A5A2B", "#D2A26E", "#5A3510", "#E6BC8A"],
+  note:       ["no", "#0A7EA4", "#4DC3E8", "#004F6B", "#6FD8F5"],
+  typo:       ["ty", "#6F7A00", "#C3CE4A", "#434A00", "#D6E070"],
+  polish:     ["po", "#0F8577", "#3FCDB8", "#005048", "#5EE6D2"],
+  quibble:    ["qb", "#9A5B7A", "#D99BBB", "#5E2A44", "#F0B8D4"],
+};
+document.querySelector("#tints tbody").innerHTML = Object.entries(TINTS).map(([l, [c, ...t]]) =>
+  `<tr><td>${l}</td><td><code>:${c}:</code></td>${t.map((h) => `<td><span class="sw" style="background:${h}"></span><code>${h}</code></td>`).join("")}</tr>`).join("");
+</script>
+</body>
+</html>
