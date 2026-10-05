@@ -86,3 +86,17 @@ renders `cycle-rebind-offered.png` and `cycle-rebind-confirm.png` come from
 `qt_review_cycle_view`.
 
 Linux and Windows station runs are owed. Their commands are in the ledger.
+
+**Note: Linux run at `1fb3cd77d` (holds `e7ddaad63`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, `build/bpr1279` with `BPR_BUILD_TOUR_CLI=ON`, offscreen,
+serial; no remote mutation).** The full tree built, 2,122 steps, with no GCC
+warnings (the build log has no line containing "warning"). 13 of 13 passed:
+`core_review_cycle_workspace`, `core_review_cycle_command`,
+`sqlite_tour_owner_channel`, `review_cycle_capture`,
+`review_cycle_workbench` (63.1 s), `qt_review_cycle_view_1_0` and `_2_0`,
+`cycle_cli_public_path`, `cycle_cli_documentation`,
+`application_review_cycle_security_qualification` (80.8 s),
+`application_review_cycle_parity_public_path` (37.4 s),
+`application_review_cycle_two_round_public_path` and
+`application_review_cycle_recovery_corpus` (76.5 s). `build/bpr1279` was
+removed. Done is not reopened.
