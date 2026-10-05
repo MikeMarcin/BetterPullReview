@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1078"
 title: "Implement conversation partition and explicit resolution coverage"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0047", "RFC-BPR-0049"]
 depends_on: ["BPR-1077"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-04","milestone":"semantics","acceptance":["R21","R22","R23","R24","R25","R26","R43"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
