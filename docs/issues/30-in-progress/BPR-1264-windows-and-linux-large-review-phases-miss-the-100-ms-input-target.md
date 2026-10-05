@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1264"
 title: "Large-review phases at or over the 100 ms input target (Windows, Linux, and one on macOS)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
