@@ -80,3 +80,22 @@ whole tree built with no GCC warning or error, and 7 of 7 passed:
 `core_review_tour_markdown`, `core_dependency_boundary` and
 `core_boundary_contract`. Nothing needed a fix. `build/bpr1077` was removed.
 Done is not reopened.
+
+### Windows core-only (bpr-main-win, 2026-10-05)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, at `34ab71337` (which holds
+`8508f0c9a`): `cmake --preset core-only -B build/bpr1077`, the whole tree
+built.
+
+MSVC first refused `src/core/src/feedback_convention.cpp:500`, with errors
+C2440 and C3535 on `const auto* found = std::ranges::find_if(catalog, …)`.
+Over a `std::array`, MSVC's STL returns an iterator class, not the raw pointer
+libstdc++ and libc++ return. This also broke every Windows build of `main`.
+The fix, `const auto found`, is BPR-1077's MSVC fix.
+
+With it, the whole core-only tree builds with no `warning C` or `warning LNK`
+line. `ctest -R "core_feedback_|core_review_composition|core_review_tour_markdown|core_dependency_boundary|core_boundary_contract"`
+passes **8 of 8**: `core_feedback_convention`, `core_feedback_header_edit`,
+`core_feedback_conversation`, `core_feedback_partition`,
+`core_review_composition`, `core_review_tour_markdown`,
+`core_dependency_boundary` and `core_boundary_contract`.
