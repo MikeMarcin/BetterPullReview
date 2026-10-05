@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1280"
 title: "Command-Return (Control-Enter elsewhere) saves the note being written"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0061", "RFC-BPR-0055"]
 depends_on: []
 priority: "P1"
