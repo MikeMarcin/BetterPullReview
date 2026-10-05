@@ -586,6 +586,13 @@ bpr_enable_hardening(test_feedback_conversation)
 bpr_enable_warnings(test_feedback_conversation)
 bpr_add_network_isolated_test(NAME core_feedback_conversation COMMAND test_feedback_conversation "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1078]]. Conversation partition, resolution states and count coverage, against the pack's counter cases and every label subset.
+bpr_add_executable(test_feedback_partition feedback_partition_tests.cpp)
+target_link_libraries(test_feedback_partition PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_partition)
+bpr_enable_warnings(test_feedback_partition)
+bpr_add_network_isolated_test(NAME core_feedback_partition COMMAND test_feedback_partition "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
+
 bpr_add_executable(test_review_tour_import review_tour_import_tests.cpp)
 target_link_libraries(test_review_tour_import PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_tour_import)
