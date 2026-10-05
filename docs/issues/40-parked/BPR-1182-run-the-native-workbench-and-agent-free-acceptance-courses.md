@@ -71,3 +71,25 @@ Checkpoint: candidate `7a25821b1`; next action is to read the three verdicts,
 record them verbatim, read the agent-free profile's store after the loop
 (`home-agent-free/` in the frozen root) for its objective record, and finish
 the card or revise the rejected candidate.
+
+**Note: Linux station run at `bf8da83c7` (holds `bf8da83c7`; station
+`bpr-main-linux`, Ubuntu 26.04 under WSL2, GCC 15.2.0, offscreen; no remote
+mutation, no model).**
+
+1. `dev`: 6 of 6 passed: `qt_review_cycle_view_1_0` and `_2_0`, which sweep
+   the cycle bar from 1,600 to 900 px; `application_review_cycle_desktop_public_path`;
+   `application_review_cycle_send_public_path`;
+   `application_review_round_trip_composition_contract`; and
+   `architecture_boundaries`. No control folded at Linux metrics, so no
+   `bar … hint …` line was printed.
+2. `build/bpr1182-free` (`BPR_BUILD_TOUR_CLI=ON`,
+   `BPR_BUILD_AGENT_INTEGRATIONS=OFF`) built with no warnings, and 5 of 5
+   passed: `application_review_cycle_two_round_public_path`,
+   `application_review_cycle_parity_public_path` (36.7 s),
+   `cycle_cli_public_path`, `composed_application_hosts` and
+   `architecture_boundaries`.
+3. Not run: the native `QT_QPA_PLATFORM=xcb` two-round course. This station's
+   WSLg desktop is shared and cleared only by the owner, and the integrator
+   said to skip it. It is owed until the owner clears the desktop.
+
+The DEB is owed by an Ubuntu 24.04 station; this one is 26.04.
