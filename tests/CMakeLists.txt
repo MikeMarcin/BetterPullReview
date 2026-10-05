@@ -42,7 +42,8 @@ if(BPR_BUILD_TOUR_CLI)
     # [[BPR-1170]]. The bpr-cycle skill package: its text pinned, and its documented
     # command lines run as a declared consumer against a local cycle with a stored
     # grant, with the refusals it teaches observed and broken copies refused.
-    bpr_add_network_isolated_test(NAME skill_bpr_cycle_package
+    # Uncontained on Windows: a MASK-deployed copy links out of the checkout.
+    bpr_add_network_isolated_test(NAME skill_bpr_cycle_package WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/bpr_cycle_skill_tests.py"
         "${PROJECT_SOURCE_DIR}/packaging/agent-skills/bpr-cycle" "$<TARGET_FILE:app_bpr>")
     set_tests_properties(skill_bpr_cycle_package PROPERTIES TIMEOUT 300)

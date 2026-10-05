@@ -84,3 +84,32 @@ passed: `cycle_cli_documentation` (3.7 s), `cycle_cli_public_path` (5.9 s),
 `-Wstringop-overread` warning from the vendored SQLite amalgamation
 (`_bpr/sqlite/3.53.4/sqlite3.c:36482`), third-party code that does not fail
 the build. `build/bpr1185-rows` was removed. Done is not reopened.
+
+**Note: Windows run at `9c717f15a` (holds `0eda62217`; station `bpr-main-win`,
+Windows 11 Home 10.0.26200, MSVC 14.51, the `tour-cli` preset with
+`-DBUILD_TESTING=ON`, Release, `build/windows-bpr1185-rows`, targets `app_bpr`
+and `tool_better_pull_review_network_sandbox`; no remote mutation).** The
+first run passed 4 of 5: `skill_bpr_cycle_package` ([[BPR-1170]]) failed, for
+two Windows reasons, both now fixed in the test and its registration.
+
+- `bpr capabilities` exited `0xC0000135` (DLL not found) with empty output.
+  The skill test builds its child environment without `PATH`, so `bpr.exe`
+  could not load `Qt6Core.dll`. `cycle_cli_documentation_tests.py` already
+  keeps `PATH` on Windows, and `bpr_cycle_skill_tests.py` now does the same.
+- Contained, the row then failed at "`.claude/skills/bpr-cycle` differs from
+  the package; import it again". On this station that copy is the MASK
+  deployment, a link into the MASK store under the user profile. The
+  container reads it as an empty tree. Uncontained, the store's copy matches
+  the package byte for byte. The row is now pinned `WINDOWS_UNCONTAINED` as
+  `repository-content-outside-checkout`, the reason [[BPR-0873]] measured
+  for the same link, with this measurement.
+
+`cycle_cli_documentation`, run contained through the sandbox launcher, stops
+at its first `bpr cycle open` (prepare, line 331) with "profile_unavailable:
+The application root is unavailable or is not owner-private". That is
+`cycle_cli_public_path`'s refusal. The placeholder in
+`verify_test_network_isolation.py` now holds this measurement. With these
+changes 5 of 5 pass: `tour_cli_public_entry`, `cycle_cli_public_path`
+(27.7 s), `cycle_cli_documentation` (22.2 s), `skill_bpr_cycle_package`
+(13.6 s) and `test_network_isolation_manifest`. The build printed no
+`warning C` or `warning LNK` line.

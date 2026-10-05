@@ -372,6 +372,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # checkout, and needs a Git child behind that.
     "documentation_structure": "repository-content-outside-checkout",
     "documentation_issue_graph_contract": "repository-content-outside-checkout",
+    # [[BPR-1170]]. Measured on JaegAW 2026-10-05 at 9c717f15a in a tour-cli
+    # tree with tests, as registered contained: the station's MASK deployment
+    # `.claude/skills/bpr-cycle` is a link into the MASK store under the user
+    # profile, which the container reads as an empty tree, so the copy check
+    # fails at "differs from the package; import it again". Uncontained the
+    # store's copy matches the package byte for byte and the row passes.
+    "skill_bpr_cycle_package": "repository-content-outside-checkout",
     # [[BPR-1020]]. Measured on JaegAW 2026-09-23, each registered contained by
     # a reverted trial hook; the first contained failure is named. The release
     # scripts and the modified-endpoint fixture stop at the DOS form: Git starts
@@ -590,10 +597,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "tour_cli_composition": "dos-volume-name",
     "tour_cli_process_commands": "dos-volume-name",
     "cycle_cli_public_path": "dos-volume-name",
-    # [[BPR-1185]]. Not yet measured contained on Windows. It composes the same
-    # profile data root through the same `bpr cycle` as cycle_cli_public_path,
-    # whose contained refusal is measured above; the BPR-1185 station request
-    # runs it.
+    # [[BPR-1185]]. Measured on JaegAW 2026-10-05 at 9c717f15a in a tour-cli
+    # tree with tests, contained through the sandbox launcher: its first
+    # `bpr cycle open` (prepare, line 331) answers "profile_unavailable: The
+    # application root is unavailable or is not owner-private", as
+    # cycle_cli_public_path does. It passes uncontained.
     "cycle_cli_documentation": "dos-volume-name",
     "application_profile_cycle_handoff_public_path": "dos-volume-name",
     "application_profile_tour_handoff_public_path": "dos-volume-name",

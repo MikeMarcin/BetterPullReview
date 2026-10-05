@@ -46,7 +46,7 @@ def environment(extra=None):
     """Nothing a desktop session, an account or a provider would supply."""
     value = dict(BASE_ENVIRONMENT)
     if os.name == "nt":
-        for name in ("SystemRoot", "SystemDrive", "TEMP", "TMP"):
+        for name in ("SystemRoot", "SystemDrive", "TEMP", "TMP", "PATH"):
             if name in os.environ:
                 value[name] = os.environ[name]
     value.update(extra or {})
