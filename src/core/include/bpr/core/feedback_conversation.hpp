@@ -109,7 +109,8 @@ namespace bpr::core {
 		invalid_scope,
 		/// A post or conversation identity is empty.
 		invalid_identity,
-		/// One post identity was observed twice.
+		/// One post identity was observed twice with different facts, such as
+		/// another body or another conversation.
 		duplicate_post,
 	};
 	[[nodiscard]] auto stable_name(feedback_refresh_refusal aRefusal) noexcept -> std::string_view;
@@ -122,7 +123,9 @@ namespace bpr::core {
 	/// or now deleted. `ChangedConversations` names conversations whose
 	/// root, status or label changed, appeared or vanished; a reply's own
 	/// edit never appears there. After a scope replacement nothing is reused
-	/// and every conversation counts as changed.
+	/// and every conversation counts as changed. `Collapsed` counts repeated
+	/// observations of one post that overlapping provider pages delivered
+	/// with identical facts; each is kept once.
 	struct feedback_annotation_refresh
 	{
 		feedback_refresh_refusal Refusal = feedback_refresh_refusal::none;
@@ -133,11 +136,15 @@ namespace bpr::core {
 		std::vector<std::string> Recognized;
 		std::vector<std::string> Removed;
 		std::vector<std::string> ChangedConversations;
-		std::size_t              Reused = 0U;
+		std::size_t              Reused    = 0U;
+		std::size_t              Collapsed = 0U;
 	};
 
 	/// \brief Recompute the set from one complete accepted observation of a
 	/// scope, reusing only annotations whose exact key still matches.
+	/// \details A post repeated with identical facts counts once. A post
+	/// repeated with any different fact refuses the whole refresh, because
+	/// no observation says which one is current.
 	[[nodiscard]] auto refresh_feedback_annotations(const feedback_annotation_set& aCurrent, const cached_review_key& aScope,
 													std::span<const feedback_post_observation> aPosts) -> feedback_annotation_refresh;
 

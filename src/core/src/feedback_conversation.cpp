@@ -99,6 +99,28 @@ namespace bpr::core {
 		{
 			return !aPost.Conversation.empty() && !aPost.Id.empty() && (!aPost.ReplyTo || !aPost.ReplyTo->empty());
 		}
+		auto same_observation(const feedback_post_observation& aLeft, const feedback_post_observation& aRight) -> bool
+		{
+			return std::tie(aLeft.Conversation, aLeft.Id, aLeft.ReplyTo, aLeft.Body, aLeft.Segment, aLeft.Deleted)
+				== std::tie(aRight.Conversation, aRight.Id, aRight.ReplyTo, aRight.Body, aRight.Segment, aRight.Deleted);
+		}
+		/// Mark every later copy of a post that overlapping pages repeated
+		/// with identical facts. A copy that differs in any fact is a
+		/// contradiction, and nothing is marked.
+		auto repeated_pages(std::span<const feedback_post_observation> aPosts, const std::vector<id_index>& aIndex) -> std::optional<std::vector<bool>>
+		{
+			std::vector<bool> repeated(aPosts.size(), false);
+			for (std::size_t at = 1U; at < aIndex.size(); ++at) {
+				if (aIndex[at].first != aIndex[at - 1U].first) {
+					continue;
+				}
+				if (!same_observation(aPosts[aIndex[at - 1U].second], aPosts[aIndex[at].second])) {
+					return std::nullopt;
+				}
+				repeated[aIndex[at].second] = true;
+			}
+			return repeated;
+		}
 		auto by_conversation(const feedback_post& aLeft, const feedback_post& aRight) -> bool
 		{
 			return std::tie(aLeft.Conversation, aLeft.Id) < std::tie(aRight.Conversation, aRight.Id);
@@ -212,7 +234,8 @@ namespace bpr::core {
 			return refresh;
 		}
 		const auto observed = index_by(aPosts, [](const feedback_post_observation& aPost) { return aPost.Id; });
-		if (has_duplicate(observed)) {
+		const auto repeated = repeated_pages(aPosts, observed);
+		if (!repeated) {
 			refresh.Refusal = feedback_refresh_refusal::duplicate_post;
 			return refresh;
 		}
@@ -221,7 +244,12 @@ namespace bpr::core {
 		next.Scope          = aScope;
 		next.Epoch          = aCurrent.Epoch + 1U;
 		next.Posts.reserve(aPosts.size());
-		for (const auto& observation : aPosts) {
+		for (std::size_t at = 0U; at < aPosts.size(); ++at) {
+			const auto& observation = aPosts[at];
+			if ((*repeated)[at]) {
+				++refresh.Collapsed;
+				continue;
+			}
 			feedback_post post{ .Conversation = std::string{ observation.Conversation },
 								.Id           = std::string{ observation.Id },
 								.ReplyTo      = observation.ReplyTo ? std::optional<std::string>{ *observation.ReplyTo } : std::nullopt,

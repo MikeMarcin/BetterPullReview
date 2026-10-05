@@ -326,6 +326,31 @@ namespace {
 		expect(refresh(set, accountB, { { "T", "a", std::nullopt, "x" }, { "U", "a", std::nullopt, "y" } }).Refusal == feedback_refresh_refusal::duplicate_post, "one post in two conversations refused");
 	}
 
+	// Overlapping provider pages repeat a post: identical copies count once,
+	// and a copy that differs in any fact refuses the refresh.
+	void repeated_pages()
+	{
+		const auto                   key = scope(1U);
+		const std::vector<post_text> once{ { "T", "r", std::nullopt, "issue: Root." }, { "T", "p", "r", "question: Reply." } };
+		auto                         twice = once;
+		twice.insert(twice.begin(), once.begin(), once.end());
+		twice.push_back(once[1]);
+		const auto single   = refresh({ }, key, once);
+		const auto repeated = refresh({ }, key, twice);
+		expect(repeated.Refusal == feedback_refresh_refusal::none && repeated.Collapsed == 3U && single.Collapsed == 0U, "identical repeated pages collapse");
+		expect(summary(repeated.Next) == summary(single.Next) && repeated.Recognized == single.Recognized, "a collapsed copy changes nothing");
+
+		const auto differs = [&](post_text aCopy, std::string_view aWhy) {
+			auto posts = once;
+			posts.push_back(std::move(aCopy));
+			expect(refresh({ }, key, posts).Refusal == feedback_refresh_refusal::duplicate_post, aWhy);
+		};
+		differs({ "T", "p", "r", "question: Edited reply." }, "another body refused");
+		differs({ "T", "p", std::nullopt, "question: Reply." }, "another reply target refused");
+		differs({ "T", "p", "r", "question: Reply.", true }, "another deletion state refused");
+		differs({ "T", "p", "r", "question: Reply.", false, { .Managed = true } }, "another segment refused");
+	}
+
 	// The pack's normalized counter units, each built as a real conversation.
 	auto counter_units(const std::filesystem::path& aPack) -> std::size_t
 	{
@@ -338,10 +363,11 @@ namespace {
 		for (const auto& entry : units) {
 			const auto& unit = std::get<cycle_json_value::object>(entry.Value);
 			const auto  id   = std::get<std::string>(find_member(unit, "id")->Value);
-			if (std::ranges::find(seen, id, &std::pair<std::string, const cycle_json_value::object*>::first) != seen.end()) {
-				continue; // A repeated page of the same unit; deduplication is BPR-1078's.
+			// A repeated page of the same unit is observed again, as a
+			// provider would deliver it, and collapses in the refresh.
+			if (std::ranges::find(seen, id, &std::pair<std::string, const cycle_json_value::object*>::first) == seen.end()) {
+				seen.emplace_back(id, &unit);
 			}
-			seen.emplace_back(id, &unit);
 			const auto* label  = find_member(unit, "root_label");
 			const auto* raw    = find_member(unit, "raw_label");
 			const auto* status = find_member(unit, "parse_status");
@@ -367,7 +393,9 @@ namespace {
 				posts.emplace_back(id, id + "/orphan", id + "/root", "issue: A reply whose root was not observed.");
 			}
 		}
-		const auto set = adopted({ }, refresh({ }, scope(1U), posts));
+		auto refreshed = refresh({ }, scope(1U), posts);
+		expect(refreshed.Collapsed == 3U, "the repeated issue-open page collapses: root and two replies");
+		const auto set = adopted({ }, std::move(refreshed));
 		for (const auto& [id, unit] : seen) {
 			const auto& result  = conversation(set, id);
 			const auto* label   = std::get_if<std::string>(&find_member(*unit, "root_label")->Value);
@@ -394,6 +422,7 @@ auto main(int aArgc, char** aArgv) -> int
 	root_status();
 	refresh_cycle();
 	scope_and_staleness();
+	repeated_pages();
 	const auto units = counter_units(aArgv[1]);
 	std::cout << "pack counter units: " << units << '\n';
 	std::cout << "FEEDBACK_CONVERSATION_OK\n";
