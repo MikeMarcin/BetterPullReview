@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1079"
 title: "Develop compact authoring, counter and resolution UX candidates"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0050"]
 depends_on: ["BPR-1075"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-05","milestone":"design","acceptance":["R30","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1079:constraints","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-frames-v1.html","detail":"Frames at 1440x820 and 960x700-760 (Settings at its 760x560 minimum), rendered headless and inspected: Overview A and B with none, issue+question and all twelve label columns; twelve at 960 px pin File and scroll (A) or fold into +n (B); 0/1/11/104 counts; long paths elide; long comment body with a native suggestion; labelled reply under a differently labelled root; unknown coverage chip and Not on a file row. Static design, not native evidence."}},{"criterion":"BPR-1079:explains","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Rules every candidate keeps: conversation counting unit (root, replies never count), Other as catchall remainder with the partition computed in the frames (fixture src/cache.cpp: Open 2/1/4 of 7, All 4/1/5 of 10), Not on a file remainder, four resolution states, explicit Comment/Approve/Request changes with no automatic verdict, public label text versus private defect badge and uncounted drafts."}},{"criterion":"BPR-1079:tradeoffs","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Tradeoff tables for Overview A/B, authoring A/B/C and preflight A/B; the record and every frame say nothing is implemented and the two-letter marks are placeholders for BPR-1080."}},{"criterion":"BPR-1079:owner-selection","outcome":"pending","revision":"59f65ad9e","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0047-0051.md","detail":"Owner verdicts pending in attended session ca54b0e8e5bc8a46f40cee31ea0619fd (state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v001, ready at sequence 18): overview-columns, authoring, preflight (choices) and overview-states, threads, settings (Accept/Reject), all -v001, on frozen root /Users/jaeger/bpr1079-feedback-ux-review-v001.xSnkqM."}}]
 ---
 
 # BPR-1079: Develop compact authoring, counter and resolution UX candidates

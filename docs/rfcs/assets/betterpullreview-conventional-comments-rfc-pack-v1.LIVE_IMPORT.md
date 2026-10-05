@@ -26,7 +26,7 @@ The five closeout cards (one per RFC, as authored) are retitled "Verify and clos
 | `PACK-CC-02` | [BPR-1076](../../issues/60-done/BPR-1076-implement-the-complete-catalog-and-bounded-lossless-prefix-recognizer.md) |
 | `PACK-CC-03` | [BPR-1077](../../issues/10-backlog/BPR-1077-implement-revisioned-header-edits-and-root-post-classification.md) |
 | `PACK-CC-04` | [BPR-1078](../../issues/10-backlog/BPR-1078-implement-conversation-partition-and-explicit-resolution-coverage.md) |
-| `PACK-CC-05` | [BPR-1079](../../issues/30-in-progress/BPR-1079-develop-compact-authoring-counter-and-resolution-ux-candidates.md) |
+| `PACK-CC-05` | [BPR-1079](../../issues/40-parked/BPR-1079-develop-compact-authoring-counter-and-resolution-ux-candidates.md) |
 | `PACK-CC-06` | [BPR-1080](../../issues/10-backlog/BPR-1080-develop-all-twelve-reusable-label-icon-candidates.md) |
 | `PACK-CC-07` | [BPR-1081](../../issues/10-backlog/BPR-1081-record-the-selected-ux-and-icon-delivery-contract.md) |
 | `PACK-CC-08` | [BPR-1082](../../issues/10-backlog/BPR-1082-compose-convention-edits-through-shared-durable-draft-services.md) |

@@ -1,0 +1,48 @@
+{
+  "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/design",
+  "card": "BPR-1079",
+  "run_id": "bpr-conventional-comments-20261005",
+  "segment_id": "design",
+  "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
+  "status": "parked-human-review",
+  "claim_commit": "7ff4126ca1315c635dc5fe6bffaae1610ad0573b",
+  "candidate_revision": "59f65ad9e",
+  "changed_paths": [
+    "docs/design/BPR-1079-feedback-ux-frames-v1.html",
+    "docs/design/BPR-1079-feedback-ux-v1.html",
+    "docs/issues/40-parked/BPR-1079-develop-compact-authoring-counter-and-resolution-ux-candidates.md",
+    "docs/verification/RFC-BPR-0047-0051.md",
+    "docs/verification/RFC-BPR-0047-0051.design-1079-handoff.json"
+  ],
+  "frozen_root": "/Users/jaeger/bpr1079-feedback-ux-review-v001.xSnkqM",
+  "frozen_sha256": {
+    "docs/design/BPR-1079-feedback-ux-frames-v1.html": "5329600e08cebdb7b5140fa7cac8a2ddc92f62c6d04ae539f75d5cb559f36ec8",
+    "docs/design/BPR-1079-feedback-ux-v1.html": "0038c9e695ee05a37f8fe3d470fa073b0c9f1ca950547788448035da924f853f"
+  },
+  "review_session": {
+    "id": "ca54b0e8e5bc8a46f40cee31ea0619fd",
+    "repo_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v001",
+    "wait_cursor": 18,
+    "candidates": {
+      "BPR-1079-overview-columns-v001": "select A|B",
+      "BPR-1079-overview-states-v001": "accept|reject",
+      "BPR-1079-authoring-v001": "select A|B|C",
+      "BPR-1079-threads-v001": "accept|reject",
+      "BPR-1079-preflight-v001": "select A|B",
+      "BPR-1079-settings-v001": "accept|reject"
+    }
+  },
+  "verification": [
+    {"command": "ctest --test-dir build/dev -R 'qt_pull_request_overview_page|qt_review_submission_editor|qt_review_draft_editor|qt_conversation_cards_view' (BPR_QT_RENDER_PATH set)", "result": "6/6 passed; inspection renders of the current surfaces"},
+    {"command": "render.py (headless Chrome) over every frame, light and dark", "result": "24 frames + 2 dark rendered and inspected; partition check in count() never threw"},
+    {"command": "python3 scripts/verify_documentation.py --root .", "result": "DOCUMENTATION_OK"}
+  ],
+  "pending_obligations": [
+    "Owner verdicts on the six -v001 items (session ca54b0e8, after sequence 18)",
+    "BPR-1081 records the selection; design-dependent implementation waits for it (R30)",
+    "R33 native/scale/theme evidence belongs to the built surfaces, not these frames"
+  ],
+  "command_state": "quiescent except the handed-off review host (pid 86699, http://127.0.0.1:57389, started with nohup)",
+  "next_action": "Coordinator waits on handed-back after 18; a fresh rfc-implementer reconciles verdicts, finishes BPR-1079 and continues with BPR-1080."
+}
