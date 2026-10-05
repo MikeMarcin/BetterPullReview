@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1182"
 title: "Run the native workbench and agent-free acceptance courses"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0055", "RFC-BPR-0060", "RFC-BPR-0061"]
 depends_on: ["BPR-1166", "BPR-1171", "BPR-1177", "BPR-1181"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "qualification", "acceptance": ["RC55-07", "RC60-02", "RC60-10", "RC61-09"], "pack_alias": "PACK-CYCLE-40", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"RC55-07","outcome":"pass","revision":"7a25821b1","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"BPR-1182's share: the owner accepted the editor gestures, IME included, as BPR-1156-editor-gestures-v004 (event 790) and BPR-1157's later keys as native-keyboard-v002; qt_suggestion_editor_1_0/_2_0 pass at this revision (build/dev, macOS arm64). Native cocoa runs of the editor rows stopped at their first click because macOS kept the keyboard with the person's application; recorded, not a product failure."}},{"criterion":"RC60-02","outcome":"pending","revision":"7a25821b1","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Native cocoa two-round course in the agent-free graph passes (F1 2,675 bytes/8 items, F2 1,530/3, no child, no canary); agent-free graph 13/13; installed full, agent-free and automation-off packages pass RELEASE_PACKAGE_OK and installed_cycle_package_course.py natively (cycle reads back byte for byte across swaps). The installed GUI round trip waits on the owner's BPR-1182-agent-free-loop-v001 (session cbd48b91, ready at event 946)."}},{"criterion":"RC60-10","outcome":"pass","revision":"7a25821b1","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"BPR-1182's share for macOS: the three tests-disabled packages audited (verify_release_package, verify_composed_hosts with family flags) and started natively from outside: no child process, no network socket, no PATH canary, activation endpoint bound, owner command endpoint exactly with local automation (from the process's bound sockets), variant-over-variant replacement keeping the cycle; negative controls fail. Every result names its producer; nothing cross-compiled. Linux and Windows are station requests."}},{"criterion":"RC61-09","outcome":"pending","revision":"7a25821b1","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Fixed and checked: the cycle bar keeps every control at 900 px (sweep 1,600 to 900, cocoa 875 px widest, offscreen 889 after two yields; negative control folds at 963), the Original line drops a CRLF line's CR, the Send box's words keep their height (fails 21 of 45 px without the fix). The two looks wait on BPR-1182-cycle-bar-floor-v001 and BPR-1182-send-box-v001."}},{"criterion":"BPR-1182:boundary","outcome":"pass","revision":"7a25821b1","evidence":{"kind":"command","detail":"build/dev 11/11 then 7/7 after the Send fix (view, editor, desktop, send, publish, workbench, round-trip pin unchanged, architecture_boundaries); agent-free build/dev-tour-cli 13/13 including test_network_isolation_manifest; clang-format clean; clang-tidy only a QStringLiteral branch-clone report on a changed line."}}]
+acceptance: [{"criterion":"RC55-07","outcome":"pass","revision":"7a25821b1","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"BPR-1182's share: the owner accepted the editor gestures, IME included, as BPR-1156-editor-gestures-v004 (event 790) and BPR-1157's later keys as native-keyboard-v002; qt_suggestion_editor_1_0/_2_0 pass at 7a25821b1 (build/dev, macOS arm64). Native cocoa runs of the editor rows stop at their first click while another application holds the keyboard; owed, not a product failure."}},{"criterion":"RC60-02","outcome":"pass","revision":"7a25821b1","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Native cocoa two-round course in the agent-free graph passes (F1 2,675 bytes/8 items, F2 1,530/3, no child, no canary); agent-free graph 13/13; installed full, agent-free and automation-off packages pass RELEASE_PACKAGE_OK and installed_cycle_package_course.py natively. Owner accepted the installed GUI round trip BPR-1182-agent-free-loop-v001 (session cbd48b91, decision 0ea103c3-565c-4bcb-9481-9eaf1acf4eef, event 947); the agent-free profile's store holds one cycle with R1 and R2 (R2 replaces only README.md's object), one note, F1 frozen (750-byte payload) and copied twice (874 bytes), two clean launches, no agent canary. Linux agent-free rows 5/5 at bf8da83c7. Owner note became BPR-1280."}},{"criterion":"RC60-10","outcome":"pass","revision":"7a25821b1","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Every result names its producer: native cocoa processes in tests-enabled graphs, the three tests-disabled macOS packages audited and started from outside (no child, no socket, no canary, endpoints as composed, negative controls fail), Linux station offscreen runs at bf8da83c7 (Ubuntu 26.04 WSL2, GCC 15.2). Nothing cross-compiled or claimed native when it was not. Windows station run, Linux xcb course and 24.04 DEB recorded as owed (not gating, integrator direction) and copied to BPR-1185."}},{"criterion":"RC61-09","outcome":"pass","revision":"7a25821b1","evidence":{"kind":"observation","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"Owner accepted BPR-1182-cycle-bar-floor-v001 (decision 4f8fe853-0573-45a3-81dd-449eef6ce09d, event 950, replacing a Reject at 948) and BPR-1182-send-box-v001 (decision 4870d3bb-de7a-415c-a8b4-820f25478617, event 951). Bar sweep 1,600 to 900 px passes on macOS (cocoa 875 px widest) and Linux at bf8da83c7 with nothing folded; CRLF Original line and Send box height fixed with negative controls. Owner notes became BPR-1281 (comparison never had syntax colour, plain since 48ba9741d) and BPR-1282."}},{"criterion":"BPR-1182:boundary","outcome":"pass","revision":"7a25821b1","evidence":{"kind":"command","detail":"build/dev 11/11 then 7/7 after the Send fix (view, editor, desktop, send, publish, workbench, round-trip pin unchanged, architecture_boundaries); agent-free build/dev-tour-cli 13/13 including test_network_isolation_manifest; Linux dev 6/6 and agent-free 5/5 at bf8da83c7; clang-format clean."}}]
 ---
 
 Pack alias: **PACK-CYCLE-40** (live `BPR-1182`, allocated at import).
@@ -93,3 +92,34 @@ mutation, no model).**
    said to skip it. It is owed until the owner clears the desktop.
 
 The DEB is owed by an Ubuntu 24.04 station; this one is 26.04.
+
+## Owner verdicts and Done (2026-10-04)
+
+Session `cbd48b91…` came back at events 952 and 953 and was read with
+`status --after 946`. All three items are Accept, each with a note that is
+now its own card:
+
+- `BPR-1182-agent-free-loop-v001` (RC60-02), event 947: "I want cmd+return to
+  save the note so I don't have to click save note with a mouse".
+  [[BPR-1280]].
+- `BPR-1182-cycle-bar-floor-v001` (RC61-09), event 950 (replacing a Reject
+  saved at 948): "Bar width is okay but why did we lose syntax highlighting
+  on all cycle cahnges?" The comparison pane never had colour; it has been
+  plain text since `48ba9741d` ([[BPR-1163]]). [[BPR-1281]].
+- `BPR-1182-send-box-v001` (RC61-09), event 951: "The sned ot agent box is
+  fine but there's too much damned text on this screen. It's overwhelming.
+  Especailly the "starts an approved calude stream...." Also it shouldn't
+  even be saying Claude there I don't think unless claude is what got
+  configured. But we got claude codex and custom harnesses to support."
+  [[BPR-1282]].
+
+The agent-free profile's store holds the owner's loop: one cycle with R1 and
+R2 (R2 replaces only `README.md`'s object), one note, F1 frozen and copied
+twice (874 bytes each), two clean launches, no agent canary run. Released by
+candidate name at events 954 to 956.
+
+RC55-07, RC60-02, RC60-10 and RC61-09 pass for this card's share. Owed and
+not gating, as the integrator directed: the Windows station run, the Linux
+`xcb` course and the Ubuntu 24.04 DEB, and the macOS desktop and editor rows
+on cocoa. Copied to [[BPR-1185]]. The full record is the ledger's "BPR-1182:
+the owner's three verdicts" section.

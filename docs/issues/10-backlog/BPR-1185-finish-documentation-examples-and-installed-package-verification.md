@@ -27,3 +27,18 @@ Criteria: RC53-10, RC60-01, RC60-02, RC60-03, RC61-01, RC61-10.
 Use the owning RFC and [integration map](../../rfcs/assets/bpr-review-cycles-v1/supporting/INTEGRATION-MAP.md) to resolve live paths; proposed names are not a claim files already exist. Preserve the core/host/Qt allocation. Record the actual owned paths before editing. Reuse shared components and unchanged evidence; no second implementation or global cleanup.
 
 Product evidence is **Not run** at authoring. Follow [PRODUCT-VERIFICATION.md](../../rfcs/assets/bpr-review-cycles-v1/verification/PRODUCT-VERIFICATION.md). No live GitHub/GHES mutation, model invocation, shared-skill installation, credential access or unrelated repository write is authorized merely by importing this card. Record result, revision, environment and limitations; a fixture result is not native/user/service acceptance.
+
+## Input from BPR-1182 (2026-10-04): native runs owed, not gating
+
+[[BPR-1182]] closed with these runs recorded as owed, at the integrator's
+direction. They belong with this card's installed-package course:
+
+- Windows (`bpr-main-win`): the six `dev` rows, the five agent-free rows,
+  the native two-round course on the desktop, and the agent-free WiX MSI
+  installed over a full one and back with the profile's cycles reopening.
+  The exact commands are in the ledger's BPR-1182 section of
+  [RFC-BPR-0053-0061.md](../../verification/RFC-BPR-0053-0061.md).
+- Linux: the `xcb` two-round course once the owner clears the shared WSLg
+  desktop, and the agent-free DEB on an Ubuntu 24.04 station.
+- macOS: the desktop and editor rows on cocoa, which need the keyboard
+  (nobody else using the machine).
