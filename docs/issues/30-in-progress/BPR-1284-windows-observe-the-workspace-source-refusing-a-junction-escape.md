@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1284"
 title: "Windows: observe the workspace source refusing a directory junction escape"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0054"]
 depends_on: []
 priority: "P1"
