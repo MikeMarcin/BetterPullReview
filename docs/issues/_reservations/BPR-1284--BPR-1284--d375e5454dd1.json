@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1284"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0054 closeout: Windows junction escape evidence for RC54-03",
+  "created": "2026-10-05T01:56:48.852659+00:00",
+  "base": "2d42399019647a1d8b1c9bfdcd9cf1654f8e4a8d"
+}
