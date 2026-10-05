@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1284"
 title: "Windows: observe the workspace source refusing a directory junction escape"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0054"]
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"origin":"BPR-1187 closeout reconciliation (RC54-03)","reservation":"docs/issues/_reservations/BPR-1284--BPR-1284--d375e5454dd1.json","related_cards":["BPR-1148","BPR-1187","BPR-1244"]}
+acceptance: [{"criterion":"RC54-03","outcome":"pass","revision":"dfe38a5f3","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0053-0061.md","detail":"BPR-1284's junction half of RC54-03, native Windows 11, MSVC 14.51, windows-dev Debug, rows as registered (WINDOWS_UNCONTAINED). A real directory junction (FSCTL_SET_REPARSE_POINT, IO_REPARSE_TAG_MOUNT_POINT, no privilege) pointing outside the root: workspace_source lists it as kind other and refuses list, stat and read through it, and a directory swapped for one after it was read, as escape (NATIVE: directory-junction escapes refused); review_cycle_capture lists it as itself, unsupported_kind, with nothing beneath it read. Negative control: reparse detection narrowed to symbolic links fails both junction rows at their first junction check while the symbolic-link rows still pass. No product change."}}]
 ---
 
 # BPR-1284: Windows: observe the workspace source refusing a directory junction escape
