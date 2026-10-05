@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1080"
 title: "Develop all twelve reusable label icon candidates"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0050"]
 depends_on: ["BPR-1079"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-06","milestone":"design","acceptance":["R30","R31"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
