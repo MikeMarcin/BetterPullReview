@@ -62,6 +62,9 @@ Tests are direct evidence, not naming evidence.
   `/WX`): `std::getenv`, `std::fopen`, `strcpy`, `sprintf` and similar. Use
   `qEnvironmentVariable`, `QFile`, or `_wfopen_s` behind `_WIN32`
   (BPR-1177 and BPR-1180 broke the Windows build this way).
+- Bind range-for elements by reference (`const auto& [a, b]`). GCC's
+  `-Werror=range-loop-construct` rejects a by-value copy that Clang accepts,
+  so the Mac build does not catch it (BPR-1078 broke the Linux build this way).
 - Fixtures are sanitized and deterministic; never include credentials or
   private repository content.
 - Native credential fixtures use an adapter-owned integration service and
