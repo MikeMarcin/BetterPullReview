@@ -26,7 +26,6 @@
 #include <QPushButton>
 #include <QStandardItemModel>
 #include <QThread>
-#include <QToolButton>
 
 #include <algorithm>
 #include <cstdint>
@@ -269,7 +268,7 @@ namespace {
 		expect(shownWords <= 8, "the Send box says what Send does in at most eight words");
 		sheet->send_more()->click();
 		QApplication::processEvents();
-		expect(details->isVisible() && contains(details->text(), QStringLiteral("exactly as Copy gives it")) && contains(details->text(), QStringLiteral("nothing else is tried"))
+		expect(details->isVisible() && sheet->send_more()->text() == QStringLiteral("Hide details") && contains(details->text(), QStringLiteral("exactly as Copy gives it")) && contains(details->text(), QStringLiteral("nothing else is tried"))
 				   && contains(details->text(), QStringLiteral("Claude uses its own settings and sign-in")) && contains(details->text(), QDir::toNativeSeparators(QString::fromStdString(project.string()))),
 			   "Details: the exact text, Claude's own settings, no fallback, the whole folder");
 		expect(contains(sheet->send_words()->accessibleDescription(), QStringLiteral("nothing else is tried")), "and a screen reader hears the details with the line");
@@ -277,7 +276,7 @@ namespace {
 		render(*sheet, QStringLiteral("send-box-details"));
 		sheet->send_more()->click();
 		QApplication::processEvents();
-		expect(!details->isVisible(), "Details closes again");
+		expect(!details->isVisible() && sheet->send_more()->text() == QStringLiteral("Details"), "Hide details closes them again");
 		// The box gives back the room the details took once the layout runs.
 		for (auto turn = 0; turn < 3; ++turn) {
 			QApplication::processEvents();

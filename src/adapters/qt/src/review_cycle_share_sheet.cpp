@@ -1093,14 +1093,13 @@ namespace bpr::qt {
 		SendWords->setWordWrap(true);
 		SendWords->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 		// [[BPR-1282]]. One line says what Send does; the rest waits behind Details.
-		SendMore = new QToolButton{ SendBox };
+		// A flat text button, so the line stays quiet: it reads as Details
+		// until opened, then as Hide details.
+		SendMore = new QPushButton{ QStringLiteral("Details"), SendBox };
 		SendMore->setObjectName(QStringLiteral("cycleSendMore"));
-		SendMore->setText(QStringLiteral("Details"));
 		SendMore->setAccessibleName(QStringLiteral("Send details"));
-		SendMore->setCheckable(true);
-		SendMore->setAutoRaise(true);
-		SendMore->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-		SendMore->setArrowType(Qt::RightArrow);
+		SendMore->setFlat(true);
+		SendMore->setAutoDefault(false);
 		SendDetails = new QLabel{ SendBox };
 		SendDetails->setObjectName(QStringLiteral("cycleSendDetails"));
 		SendDetails->setTextFormat(Qt::PlainText);
@@ -1108,9 +1107,10 @@ namespace bpr::qt {
 		SendDetails->setTextInteractionFlags(Qt::TextSelectableByMouse);
 		SendDetails->setForegroundRole(QPalette::PlaceholderText);
 		SendDetails->hide();
-		connect(SendMore, &QToolButton::toggled, this, [this](const bool aOpen) {
-			SendMore->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
-			SendDetails->setVisible(aOpen);
+		connect(SendMore, &QPushButton::clicked, this, [this] {
+			SendDetailsOpen = !SendDetailsOpen;
+			SendMore->setText(SendDetailsOpen ? QStringLiteral("Hide details") : QStringLiteral("Details"));
+			SendDetails->setVisible(SendDetailsOpen);
 		});
 		auto* const sendLine = new QHBoxLayout{ };
 		sendLine->setContentsMargins(0, 0, 0, 0);
@@ -1506,7 +1506,7 @@ namespace bpr::qt {
 			SendWords->setText(send_summary(*offer, chosen ? chosen->Session.Continue : std::nullopt, send->Folder));
 			SendDetails->setText(send_detail_words(*offer, send->Folder, Shown.Round));
 		}
-		SendDetails->setVisible(SendMore->isVisible() && SendMore->isChecked());
+		SendDetails->setVisible(SendMore->isVisible() && SendDetailsOpen);
 		SendWords->setAccessibleDescription(SendMore->isVisible() ? SendDetails->text() : QString{ });
 		SendIt->setText(QStringLiteral("Send Round %1").arg(Shown.Round.value()));
 		SendIt->setEnabled(chosen.has_value() && !send->Sending && Idle && !Shown.Refusal && !route->isHidden() && route->isEnabled());
@@ -2314,7 +2314,7 @@ namespace bpr::qt {
 		return SendDetails;
 	}
 
-	auto review_cycle_share_sheet::send_more() const noexcept -> QToolButton*
+	auto review_cycle_share_sheet::send_more() const noexcept -> QPushButton*
 	{
 		return SendMore;
 	}

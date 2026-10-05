@@ -274,7 +274,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto send_words() const noexcept -> QLabel*;
 		/// [[BPR-1282]]. What Send does beyond its one line, shown by Details.
 		[[nodiscard]] auto send_details() const noexcept -> QLabel*;
-		[[nodiscard]] auto send_more() const noexcept -> QToolButton*;
+		[[nodiscard]] auto send_more() const noexcept -> QPushButton*;
 		[[nodiscard]] auto send_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto stop_send_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto reply_box() const noexcept -> QWidget*;
@@ -394,7 +394,7 @@ namespace bpr::qt {
 		QComboBox*                                              SendSession      = nullptr;
 		QLabel*                                                 SendWords        = nullptr;
 		QLabel*                                                 SendSessionLabel = nullptr;
-		QToolButton*                                            SendMore         = nullptr;
+		QPushButton*                                            SendMore         = nullptr;
 		QLabel*                                                 SendDetails      = nullptr;
 		QPushButton*                                            SendIt           = nullptr;
 		QPushButton*                                            StopSend         = nullptr;
@@ -403,8 +403,10 @@ namespace bpr::qt {
 		QPlainTextEdit*                                         ReplyText        = nullptr;
 		QPushButton*                                            AddReply         = nullptr;
 		/// The reviewer opened the box with Send to Agent….
-		bool                       SendOpen = false;
-		review_cycle_share_viewer* Viewer   = nullptr;
+		bool SendOpen = false;
+		/// [[BPR-1282]]. The reviewer opened the Send box's details.
+		bool                       SendDetailsOpen = false;
+		review_cycle_share_viewer* Viewer          = nullptr;
 		/// What had focus when the larger view opened; it gets focus back.
 		QPointer<QWidget> ReturnFocus;
 		/// The note the larger view shows, while it is open on a note.
