@@ -139,3 +139,33 @@ compile of the switched-off code.
   installed. Installing it is the owner's call, so the agent-free MSI,
   `scripts/verify_release_package.py` on it, and installing it over a full MSI
   and back are still owed on Windows.
+
+### Windows agent-free MSI (bpr-main-win, 2026-10-05)
+
+- **WiX.** The owner chose WiX 5 over the current release. Installed for the
+  user as a global .NET tool on .NET SDK 10.0.401: `wix` **5.0.2**
+  (`5.0.2+aa65968c`) and `WixToolset.UI.wixext` **5.0.2**. Their NuGet
+  metadata names the MS-RL, an OSI-approved license with no further terms. WiX
+  7.0.0, the current release, ships `OSMFEULA.txt` (the Open Source
+  Maintenance Fee EULA), which asks revenue-generating users for a fee beyond
+  the OSI license; that is why it was not used. CPack's existing
+  `CPACK_WIX_VERSION 4` (.NET-tool) mode drove 5.0.2 with no CMake change.
+- **Redistribution notice.** The packager requires
+  `BPR_MSVC_REDISTRIBUTION_NOTICE`. The owner chose Visual Studio 18
+  Community's own installed `Licenses\1033\Redist.txt`. That file is a
+  190-byte stub naming the distributable-code list and pointing to
+  https://aka.ms/vs/18/redistribution, and the package's
+  `THIRD-PARTY-NOTICES.txt` carries it as installed.
+- **Package.** `packaging/package.py --build build/windows-app-release-agent-free
+  --generator WIX` at `d31ebf1f5` (clean tree) produced
+  `BetterPullReview-0.1.3-windows-x64-agent-free.msi` (21,925,888 bytes,
+  SHA-256 `b8656d6d75bcf218baf9bbeddae39d1afca333433c9ba77a8cf57c5d7fc3cc31`), with its SPDX, provenance, checksums and
+  `BetterPullReview-0.1.3-windows-x64-corresponding-source.zip`. It is
+  unsigned and unpublished.
+- **Audit.** `scripts/verify_release_package.py` on the expanded runtime prints
+  `RELEASE_PACKAGE_OK`: 15 binaries, no MCP context helper, families
+  `agent_integrations: false` and `local_automation: true`, and the source
+  asset bound by name and SHA-256. `trust` is `not-assessed`, so this is not
+  signature or license approval.
+- **Owed.** Installing this MSI over a full one and back is a desktop-attended
+  step, and stays owed until the owner clears the desktop.

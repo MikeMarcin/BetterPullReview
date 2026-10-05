@@ -21,7 +21,7 @@ There is no new core SDK or embedding API.
 | Native build host | Definition and route | Required operator inputs |
 |---|---|---|
 | macOS | `macos-release`; universal x86_64/arm64, minimum macOS 13; app/ZIP, full release also DMG | Existing Qt/macOS toolchain; local prepare mode needs no Apple credential |
-| Windows 10/11 x64 | `windows-app-release`; WiX 4 per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` | Native MSVC x64 developer environment, Ninja, WiX 4, Python 3.10+, Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
+| Windows 10/11 x64 | `windows-app-release`; WiX per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
 | Ubuntu 24.04 LTS x86_64 | `linux-package`; DEB and per-user archive | C++23 compiler/library meeting the build's checks, Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools and libsecret and libxcb development files |
 | RHEL 10 x86_64 | `linux-package`; RPM and per-user archive | Native RHEL packaging/development tools and the same runtime requirements; CPU floor x86-64-v3 |
 
@@ -29,7 +29,11 @@ Build prerequisites include CMake 4.4.2, Ninja, Python 3.10+ and a C++23
 compiler/library accepted by the root feature checks. The inspected macOS release
 configuration records AppleClang `21.0.0.21000101`. M9's native Windows producer
 records MSVC `19.51.36257.0` / toolset `14.51.36231`, Visual Studio 18 Community,
-WiX 4.0.6 and Qt's `msvc2022_64` package. These identify observed producers, not
+WiX 4.0.6 and Qt's `msvc2022_64` package. BPR-1179's agent-free MSI on the
+`bpr-main-win` station used the WiX .NET tool 5.0.2 and `WixToolset.UI.wixext`
+5.0.2, both MS-RL, with no CMake change. WiX 6 and later ship under the Open
+Source Maintenance Fee EULA, a term beyond their OSI license; the owner chose
+5.0.2 for that reason. These identify observed producers, not
 every compatible toolchain. No Linux compiler/libstdc++ package baseline has yet
 completed native qualification. Installed Git 2.39+ is required for the Git path;
 optional `gh` and agents are separately installed and explicitly selected.
