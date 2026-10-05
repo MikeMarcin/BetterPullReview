@@ -82,3 +82,65 @@ Owner review: session `82eb35d69600801ab5f8875d88d836a2` (state
 ready at sequence 12). It asks three option questions, for praise, chore and
 quibble, and one Accept/Reject for the other nine. The frozen root is
 `/Users/jaeger/bpr1080-label-icons-review-v001.BP1nCI`.
+
+## Owner verdicts on round v1 (2026-10-05)
+
+Session `82eb35d69600801ab5f8875d88d836a2` was handed back at sequence 26, with
+nothing pending. `status --after 12` was read, and the host had already been
+stopped. Final verdicts, verbatim:
+
+- `BPR-1080-praise-v001`: **selected A: heart**, with no note.
+- `BPR-1080-chore-v001`: **Reject**. "Broom is good but that broom is ugly."
+  Attached: [broom reference](../../design/BPR-1080-owner-ref-chore-broom.png)
+  (`image.png`, 274×324, SHA-256 `0bebc3b7…46858e`). It shows a solid broom
+  with a diagonal handle, a band and a fanned bristle head with splits.
+- `BPR-1080-quibble-v001`: **Reject**, with no note. Attached: ["small wobble"
+  reference](../../design/BPR-1080-owner-ref-quibble-small-wobble.png)
+  (`image.png`, 250×328, SHA-256 `c2753d57…6e5536`). It shows a wavy,
+  tilde-like line with three short rays above it.
+- `BPR-1080-set-v001` (the other nine): **Reject**. "nitpick make a better
+  loupe, chore make a broom, type do spellcheck aka Abc over squiggle, quibble
+  do attached". Attached: the same small-wobble image (byte-identical).
+
+Earlier decisions in the same session were superseded before handback. Chore
+was first selected as B (broom) at sequence 13, then rejected. Praise was
+rejected at sequences 14, 15 and 17, with the note "Avoid things that are
+already github emoji reactions, and stars on github already has a meaning
+too. Maybe more like laurel sprigs?", then selected as A (heart) at 24. Only
+the final verdicts bind. The two reference images are committed as owner
+references; they contain no secrets.
+
+## Candidates, round v2 (2026-10-05)
+
+[Record](../../design/BPR-1080-label-icons-v2.html) and
+[frames](../../design/BPR-1080-label-icons-frames-v2.html). Round v1's files
+are unchanged.
+
+- **Kept.** Praise keeps the selected heart. Suggestion, issue, todo,
+  question, thought, note and polish are v1's glyphs, unchanged.
+- **Redrawn.**
+  - nitpick: a loupe with an open ring and a thick, round-ended handle; the
+    speck inside the lens is gone.
+  - chore: a solid broom in the reference's style, with a diagonal handle, a
+    band and a fanned head split twice.
+  - typo: spellcheck, "Abc" over a zigzag squiggle. The letters use a 2-unit
+    pen (1 px at 1×) on the 1× pixel lattice, so all three stay distinct at
+    16 px.
+  - quibble: the small wobble, one hump with flicked-up ends and three rays.
+- **Resource form.** It is still `QPainterPath` data and M/L/C/Z plus discs.
+  Two element kinds are new: a filled path (`fillPath`, no pen) and a stroke
+  with its own pen width (typo's 2.0). There is still no SVG, font or runtime
+  asset.
+- **Provenance.** The `rfc-implementer` wrote the coordinates by hand for this
+  card. The owner's images set the style; nothing was traced from them (R30).
+- **Measured** with `?check=1` over 16 dumps:
+  - Minimum cross-label separation is 0.57 at 12 px and 0.48 at 24 px. That
+    is issue and note, unchanged from v1.
+  - Every redrawn glyph is at least 0.66 from its nearest neighbour. Typo and
+    quibble measure 0.81.
+  - Contrast is unchanged: at least 6.06:1 soft and 4.52:1 blocking, in four
+    theme variants.
+  - Placement and names are unchanged.
+
+Limitations: these are static frames rendered with headless Chrome. They are
+not native evidence (R33), and nothing is approved until the owner accepts it.
