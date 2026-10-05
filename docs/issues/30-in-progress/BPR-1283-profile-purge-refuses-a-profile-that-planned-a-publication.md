@@ -70,3 +70,26 @@ the row fails at its first check, and passes again once restored.
 
 The storage guide now says purge includes the folder. Closeout is left to the
 main integrator.
+
+## Windows (station `bpr-main-win`, 2026-10-05)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `windows-dev` Debug built at
+`fe013a0a4` (holds `2d4239901`); no remote mutation. The first run passed 6 of
+7. `sqlite_release_maintenance_files` failed at "private publication isolation
+directory". The cause is the test, not the fix. It created the nested
+directories as `isolation / "repositories/v1"`, which keeps the `/`.
+`create_storage_root_owner_private` refuses any root that is not its own
+`lexically_normal()` form, and on Windows that form spells the separator `\`.
+The test now passes the normalized path. Without that change, no Windows run
+could reach the inventory check.
+
+With that change all 7 pass: `sqlite_release_maintenance_files` (1.2 s),
+`core_release_maintenance`, `application_release_maintenance`,
+`application_release_maintenance_public_path`,
+`qt_release_maintenance_scale_100`,
+`application_review_cycle_publish_public_path` and `architecture_boundaries`.
+So the purge inventory takes a publication isolation root on Windows and
+refuses the unknown file, the unrecovered `tmp` entry and the foreign store,
+and a confirmed purge keeps `state/v1/profile-registry.sqlite3`. clang-format
+22.1.3 is clean on the changed test and the build printed no `warning C` line.
+macOS runs the same portable inventory code that Linux and Windows pass here.

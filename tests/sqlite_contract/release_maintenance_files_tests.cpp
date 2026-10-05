@@ -431,7 +431,7 @@ namespace {
 		write(store / "objects/45" / std::string(38U, 'a'), "loose object fixture");
 		for (const auto* const name : { "home", "xdg", "tmp", "work", "hooks", "templates", "repositories", "repositories/v1", "incoming", "incoming/v1", "publication/v1/sha1.git/objects/info",
 										"publication/v1/sha1.git/objects/pack", "publication/v1/sha1.git/refs", "publication/v1/sha1.git/refs/heads", "publication/v1/sha1.git/refs/tags" }) {
-			expect(adapters::sqlite::create_storage_root_owner_private(isolation / name), "private publication isolation directory");
+			expect(adapters::sqlite::create_storage_root_owner_private((isolation / name).lexically_normal()), "private publication isolation directory");
 		}
 		auto                                        owner = lease(root.Path);
 		adapters::sqlite::release_maintenance_files files{ root.Path, owner, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U } };
