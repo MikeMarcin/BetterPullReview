@@ -638,6 +638,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # optional before the course checked it).
     "review_cycle_send": "dos-volume-name",
     "application_review_cycle_send_public_path": "dos-volume-name",
+    # [[BPR-1181]]. Measured on JaegAW 2026-10-04 at 72ca49f18 in a
+    # BPR_BUILD_TOUR_CLI tree, contained as registered: the course's first
+    # `git init` (review_cycle_security_qualification.py, line 214) fails
+    # before any attack runs, Git's getcwd under AC\Temp as in the two-round
+    # course. It is run uncontained.
+    "application_review_cycle_security_qualification": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they

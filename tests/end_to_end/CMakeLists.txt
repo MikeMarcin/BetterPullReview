@@ -3332,10 +3332,10 @@ if(TARGET app_bpr)
     # checkout whose Git canaries never fire, hostile note text, forged
     # responses, one policy for every channel with and without the desktop, a
     # same-user peer and impostor owners at the owner's endpoint, and credential
-    # and content canaries kept out of every file, log and refusal. Registered
-    # contained: Windows has not measured it yet; a measured refusal is pinned,
-    # not guessed.
-    bpr_add_network_isolated_test(NAME application_review_cycle_security_qualification
+    # and content canaries kept out of every file, log and refusal. Uncontained
+    # on Windows (dos-volume-name): contained, the course's first `git init`
+    # fails before any attack runs. Measured on JaegAW 2026-10-04.
+    bpr_add_network_isolated_test(NAME application_review_cycle_security_qualification WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_security_qualification.py"
         --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
         --cycle-application $<TARGET_FILE:app_bpr>)

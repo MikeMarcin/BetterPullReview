@@ -86,3 +86,32 @@ The POSIX course printed every marker:
 - `REVIEW_CYCLE_SECURITY_QUALIFICATION_OK`.
 
 `build/bpr1181` was removed afterwards. Done is not reopened.
+
+### Windows at `72ca49f18` (bpr-main-win, 2026-10-04)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-bpr1181`
+(`windows-dev`, `BPR_BUILD_TOUR_CLI=ON`) Debug. The build printed no
+`warning C` or `warning LNK` line.
+
+- **As registered, 8 of 9.** `application_review_cycle_security_qualification`
+  failed contained in 0.29 s: its first `git init` (line 214 of the course)
+  fails before any attack runs. That is Git's `getcwd` under `AC\Temp`, the
+  [[BPR-1166]] shape. It is now `WINDOWS_UNCONTAINED` and pinned
+  `dos-volume-name` with that line. The other eight pass:
+  `core_review_cycle_round`, `review_cycle_response`, `cycle_cli_public_path`,
+  `application_profile_cycle_handoff_public_path`, `qt_review_cycle_view_1_0`,
+  `review_cycle_workbench`, `architecture_boundaries` and
+  `test_network_isolation_manifest`.
+- **Uncontained, the course passes** in 21.64 s with
+  `REVIEW_CYCLE_SECURITY_QUALIFICATION_OK`. It names the four parts Windows
+  skips, as the ledger expects:
+  - POSIX modes, which the stores' own contracts cover on Windows;
+  - raw owner-channel attacks, which `sqlite_tour_owner_channel` covers;
+  - the impostor owner, because a Windows pipe owner can only be a real one;
+  - Git canary liveness, which is shown on POSIX.
+
+  `test_network_isolation_manifest` passes with the pin.
+- **The three rows the ledger said the manifest would flag are already
+  pinned:** `application_review_cycle_automation_off_two_round` (on
+  [[BPR-1179]]) and `review_cycle_send` and
+  `application_review_cycle_send_public_path` (on [[BPR-1180]]).
