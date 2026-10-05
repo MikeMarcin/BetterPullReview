@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1283"
 title: "Profile purge refuses any profile that ever planned a publication: its inventory omits publication-git-v1"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"BPR-1185 documentation pass (code reading)","reservation":"docs/issues/_reservations/BPR-1283--BPR-1283--9b8c97b80602.json","related_cards":["BPR-1177","BPR-1185"]}
+acceptance: [{"criterion":"BPR-1283:reproduced","outcome":"pass","revision":"2d4239901","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1283-profile-purge-refuses-a-profile-that-planned-a-publication.md","detail":"Real: a publish leaves publication-git-v1/ (lock, three configs, empty home/xdg/tmp/work/hooks/templates, repositories/v1 and incoming/v1 skeleton, bare store publication/v1/sha1.git) in the profile root. test_publication_isolation_inventory builds exactly that layout and, before the fix, fails at 'a profile that planned a publication is inventoried for purge' (Linux, bpr-main-linux, GCC 15.2.0)."}},{"criterion":"BPR-1283:fix","outcome":"pass","revision":"2d4239901","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1283-profile-purge-refuses-a-profile-that-planned-a-publication.md","detail":"release_maintenance_files.cpp classifies publication-git-v1 for purge only by the profile isolation's rules (files, empty directories, publication/v1/{sha1,sha256}.git as repository_artifact); refuses an unknown store file (incomplete_inventory), an unrecovered tmp entry and a foreign store; a confirmed purge removes the root and keeps state/v1/profile-registry.sqlite3. Negative controls (no fix; store name broken) fail at the first check. Linux build/dev 7 of 7 release-maintenance, publish course and architecture_boundaries rows; coding-format-check and DOCUMENTATION_OK."}},{"criterion":"BPR-1283:windows","outcome":"pass","revision":"5befd7c2a","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1283-profile-purge-refuses-a-profile-that-planned-a-publication.md","detail":"bpr-main-win, MSVC 14.51, windows-dev Debug: 7 of 7 (sqlite_release_maintenance_files, core/application/public-path release maintenance, qt_release_maintenance_scale_100, application_review_cycle_publish_public_path, architecture_boundaries) after the test names its nested directories in lexically normal form (create_storage_root_owner_private refuses a root spelled with '/' on Windows); test-only change, clang-format clean. macOS runs the same portable inventory code."}}]
 ---
 
 # BPR-1283: Profile purge refuses any profile that ever planned a publication
