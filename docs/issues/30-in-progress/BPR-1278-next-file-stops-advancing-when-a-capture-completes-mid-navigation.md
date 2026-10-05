@@ -136,3 +136,23 @@ succeeded and 6 of 6 passed: `review_cycle_workbench` (36.0 s),
 `review_cycle_large_project_targets` and `test_network_isolation_manifest`.
 `application_review_cycle_large_project` with `--repeat until-fail:3` passed
 all three runs (25.69, 25.42 and 25.85 s).
+
+**Note: Windows run (bpr-main-win, 2026-10-04).** This is the platform the
+race was seen on. Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2,
+`build/windows-dev-tour-cli` Debug, at `ed4c4cbd5` (holds `b668900d4`), with
+BPR-1180's stand-in fixture fixed for MSVC (`_wfopen_s`). The build printed no
+`warning C` or `warning LNK` line.
+
+- `review_cycle_workbench` passes and prints `NATIVE: Next file pressed at
+  each of 28 turns of a capture's reload reads the next file on the tab's
+  revision`. `qt_review_cycle_view_1_0`, `qt_review_cycle_view_2_0`,
+  `application_review_cycle_two_round_public_path` and
+  `review_cycle_large_project_targets` pass too.
+- `application_review_cycle_large_project` with `--repeat until-fail:3`
+  passes all three runs, in 128.85, 102.49 and 105.57 s. Before the fix this
+  row stalled at "Next file reads the file after d000/s0/f000008.txt"
+  ([[BPR-1274]]'s Windows note).
+- `test_network_isolation_manifest` fails, but only on [[BPR-1180]]'s two new
+  rows, `review_cycle_send` and `application_review_cycle_send_public_path`.
+  They are `WINDOWS_UNCONTAINED` with no measured pin yet; that is BPR-1180's
+  station work, not this card's.
