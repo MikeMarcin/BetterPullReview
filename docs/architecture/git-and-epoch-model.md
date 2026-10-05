@@ -1373,3 +1373,35 @@ A selected anonymous file resolves exact repository path, base, head, and conten
 through the same retained epoch session and diff host. Switching modes invalidates
 that session and its projection before another authority is accepted. This is
 public reading, not unauthenticated access to previously cached private data.
+
+## Review Cycles beside epochs
+
+A Review Cycle ([RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md))
+is not an epoch and has no pull request authority. Its revisions are captures
+the reviewer asked for, kept in the profile's own `review-cycles.sqlite3` with
+their bytes as content-addressed objects; none is an epoch catalog row, a
+retained cache object or a claim about any remote head, and a cycle never reads
+the epoch catalog or the retained cache (`review_material_bridge` answers each
+subject from its own authority and never falls back to the other).
+
+Capturing a Git checkout reads it as data. The workspace adapter parses the
+index, `HEAD`, references and `.gitignore` files as bytes and never starts Git,
+so hooks, filters, `fsmonitor`, `textconv` and lazy fetch never run, and nothing
+in the checkout or its `.git` changes (see the
+[domain model](domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053)).
+
+Publishing a cycle as a new pull request is the one cycle path that runs Git,
+and it is a separate finite catalog (`publication_candidate_port`,
+`bpr/adapters/git/installed_git_publication.hpp`). It shares the isolated runner
+described above but none of its repositories, references or operations: every
+command names a BPR-owned bare store in the profile's own `publication-git-v1`
+isolation root, with no system configuration, credential helper, protocol or
+lazy fetch, and sees the checkout's objects only as a per-command alternate. It
+reads the starting commit and its tree, writes the candidate's blobs, tree and
+commit (`commit-tree --no-gpg-sign`) in that store, and admits each object only
+when Git names it as the core computed (`bpr/core/git_objects.hpp`). It never
+pushes. The objects, branch and pull request reach GitHub through the native
+REST publication session instead (see the
+[threat model](security-threat-model.md#review-cycles)). A pull request created
+or linked this way is then reviewed through the ordinary epoch path, like any
+other.

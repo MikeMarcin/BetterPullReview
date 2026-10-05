@@ -33,6 +33,12 @@ if(BPR_BUILD_TOUR_CLI)
     bpr_add_network_isolated_test(NAME cycle_cli_public_path WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/cycle_cli_tests.py" "$<TARGET_FILE:app_bpr>")
     set_tests_properties(cycle_cli_public_path PROPERTIES TIMEOUT 300)
+    # [[BPR-1185]]. docs/development/cycle-cli.md against the built `bpr`: its
+    # commands, each command's options (and the core registry's), exit codes,
+    # limits, help and examples, with altered copies of the page refused.
+    bpr_add_network_isolated_test(NAME cycle_cli_documentation WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/cycle_cli_documentation_tests.py" "$<TARGET_FILE:app_bpr>")
+    set_tests_properties(cycle_cli_documentation PROPERTIES TIMEOUT 300)
     # [[BPR-1170]]. The bpr-cycle skill package: its text pinned, and its documented
     # command lines run as a declared consumer against a local cycle with a stored
     # grant, with the refusals it teaches observed and broken copies refused.

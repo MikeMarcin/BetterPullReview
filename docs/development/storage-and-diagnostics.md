@@ -89,6 +89,27 @@ is retained; a save conflict keeps both copies. These drafts are not server-back
 Profile purge removes the admitted tour store and sidecars without changing any
 GitHub comment. See the [tour storage contract](../architecture/review-tours.md).
 
+Review Cycles keep everything in `state/v1/review-cycles.sqlite3`: each
+cycle's binding, captured revisions, notes and suggestions with every wording,
+round drafts, frozen rounds, delivery observations, responses, verifications,
+grants, the disclosure policy, publication plans and journals, and pull request
+links. Captured bytes and frozen payloads are content-addressed objects in the
+same store, pinned while a revision or round names them. A captured file is at
+most 128 MiB (a larger one is listed as too large), and retained objects are
+held within a 768 MiB budget: an install that would exceed it is refused with
+the store's inventory rather than evicting pinned evidence, and reclaiming
+removes only objects nothing references. Removing a cycle needs a preview whose token still
+matches and loses its history irrecoverably; GitHub cannot restore it. Rounds the
+reviewer saved or exported, and `.bpr-review.zip` bundles, are the reviewer's
+own files and stay where they were written. None of this is encrypted by
+BetterPullReview. Publishing a cycle (Share notes > Publish as Pull Request…)
+also makes the profile's `publication-git-v1/`, a BPR-owned Git store for the
+candidate's objects. Profile purge does not list that folder yet, so preparing a
+purge of a profile that has one is refused as an incomplete inventory
+(recorded on [[BPR-1185]] for a follow-up). Do not delete it by hand to get past
+the refusal. The [domain model](../architecture/domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053)
+gives the store's recovery and pin rules.
+
 Manual-token sessions are session-only and remove their exact slots on orderly
 quit. Settled device grants survive orderly quit and are revalidated on restart.
 Sign out also disables the resumable binding; replacing a device grant with a

@@ -9,23 +9,39 @@ explains stale anchors, provenance, split targets, and public-body behavior;
 the [RFC-BPR-0023 ledger](../verification/RFC-BPR-0023.md) records the remaining
 designated live-publication acceptance gap.
 
-Review Cycles is registered as a future product extension in [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md). Its local-source review and optional new-PR publication contracts are proposals. The current shipped behavior and authority model below remain the implemented contract until those RFCs earn acceptance.
+Review Cycles ([RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md))
+is built into the desktop and the `bpr cycle` terminal. Those RFCs stay
+Proposed until their closeout cards judge every criterion; the
+[execution ledger](../verification/RFC-BPR-0053-0061.md) records what is
+qualified, on which platform, and what is still owed.
 
-The proposed extension is deliberately narrow. A review cycle is a local
-subject in one BPR profile: captured source revisions, private feedback,
-frozen rounds and reviewer judgments stay on this machine unless the reviewer
-explicitly shares a round or publishes. The only new GitHub write it proposes
-is creating a new branch and pull request from a selected final result; it does
-not merge, close or push to existing pull requests, run arbitrary Git
-operations, host shared review, or execute code. A cycle may link to an
-existing pull request without inheriting its publication authority. Pull
-request identity, credentials, epochs and the shared-state authority in the
-table below are unchanged, and GitHub still wins every shared fact. Local
-cycle history is not recoverable from GitHub.
+Review Cycles is deliberately narrow. A review cycle is a local subject in one
+BPR profile, opened with File > Open Project… or Home's Review Cycles section on
+a folder, a single file or a Git checkout, with no account, remote, commit or
+agent. Captured source revisions, notes and suggestions, frozen rounds,
+responses and the reviewer's verifications stay in the profile's private store
+on this machine. They leave it only when the reviewer copies, saves or exports a
+frozen round, grants one round to a harness that runs `bpr`, sends one to an
+agent (Send to Agent, in a build with agent integrations), or publishes. The
+only GitHub write is creating a new branch and pull request on github.com from a
+selected final result, through the existing native transport and the account
+signed in, after the reviewer confirms the exact plan. It does not merge, close
+or push to an existing pull request, comment or review on GitHub, run Git in the
+reviewer's checkout, host shared review, or execute captured code. A cycle may be
+linked to an existing pull request without inheriting its publication authority,
+and the reviewer may add a linked cycle's notes to that pull request's Review
+Tour as an unpublished local tour edit. GHES pull requests cannot be published
+or linked yet. Pull request identity, credentials, epochs and the shared-state
+authority in the table below are unchanged, and GitHub still wins every shared
+fact. Local cycle history is not recoverable from GitHub. The
+[domain model](domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053),
+[threat model](security-threat-model.md#review-cycles) and
+[terminal guide](../development/cycle-cli.md) state the details, and the
+[Review Cycles workflow](../ux/review-cycles-workflow.md) is the reviewer's guide.
 
 ## Definition
 
-BetterPullReview is an alternative native client for reviewing code contained in GitHub pull requests. It is not a replacement pull-request server, a second collaborative review database, a merge client, or an IDE.
+BetterPullReview is an alternative native client for reviewing code contained in GitHub pull requests, and, as Review Cycles, a local workbench for reviewing a folder, file or checkout of one's own over repeated rounds. It is not a replacement pull-request server, a second collaborative review database, a merge client, or an IDE.
 
 ## Authority model
 
@@ -35,6 +51,7 @@ BetterPullReview is an alternative native client for reviewing code contained in
 | Private retained revision history | Local BetterPullReview Git cache and epoch catalog | Exact base/head objects that BetterPullReview observed, epoch identity and cause, availability, and current-viewer review associations |
 | Provider-evidenced update history | GitHub timeline, reconciled in the local epoch catalog | Portable force-push occurrence identity and event time; explicit incomplete or ambiguous history when the read or association lacks evidence |
 | Private workflow state | Local BetterPullReview ledger | Read receipts, acceptance receipts, observer rules, private notes, local defect classification, AI drafts |
+| Local review cycles | The profile's private cycle store (`review-cycles.sqlite3`) | Captured source revisions and their bytes, notes, suggestions, round drafts, frozen rounds, delivery observations, responses, reviewer verifications, publication plans and journals, links to pull requests |
 | Derived state | Recomputed from GitHub plus private retained/local state | Selected retained comparison, changed since my review, unread conversation, needs verification, next actionable item |
 
 When local and GitHub state disagree about a shared fact, GitHub wins. A

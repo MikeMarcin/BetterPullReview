@@ -590,6 +590,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "tour_cli_composition": "dos-volume-name",
     "tour_cli_process_commands": "dos-volume-name",
     "cycle_cli_public_path": "dos-volume-name",
+    # [[BPR-1185]]. Not yet measured contained on Windows. It composes the same
+    # profile data root through the same `bpr cycle` as cycle_cli_public_path,
+    # whose contained refusal is measured above; the BPR-1185 station request
+    # runs it.
+    "cycle_cli_documentation": "dos-volume-name",
     "application_profile_cycle_handoff_public_path": "dos-volume-name",
     "application_profile_tour_handoff_public_path": "dos-volume-name",
     "sqlite_tour_owner_channel": "dos-volume-name",

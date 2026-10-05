@@ -1,6 +1,11 @@
 # BetterPullReview System Architecture
 
-Review Cycles is registered as a future product extension in [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md). Its local-source review and optional new-PR publication contracts are proposals. The current shipped behavior and authority model below remain the implemented contract until those RFCs earn acceptance.
+Review Cycles ([RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md))
+is built into the desktop and `bpr cycle` under the same allocation as a pull
+request; the [product contract](product-contract.md) states its narrow scope and
+the [execution ledger](../verification/RFC-BPR-0053-0061.md) what is qualified
+and owed. Those RFCs stay Proposed until their closeout cards judge each
+criterion. See [Review Cycles](#review-cycles) below.
 
 ## Normative pattern
 
@@ -519,6 +524,7 @@ Do not fragment a feature into unnecessary targets before the ownership boundary
 |---|---|---|
 | Shared collaborative state | GitHub, accessed through host/provider sessions | PR commits, comments, replies, reviews, thread resolution, checks |
 | Private durable review state | Host-owned SQLite ledger | receipts, acceptance, observer rules, local defect classification/lifecycle/anchor history, AI drafts |
+| Local review cycles | Host-owned profile-private cycle store and its content objects | captured revisions and bytes, notes, suggestions, round drafts, frozen rounds, deliveries, responses, verifications, publication plans and journals |
 | Interaction state | Functional core | active PR/file/change, epoch selection, navigation context, command state, pending semantic operation |
 | Bounded observations | Host, borrowed by core | current GitHub snapshot, selected file material, permissions, capability facts, visible queue records |
 | Staged provider results | Application host, pending a core acceptance decision | immutable normalized snapshots keyed by complete request context |
@@ -998,6 +1004,7 @@ window closes. Linux and Windows keep a tray per profile.
 | GitHub mutations | semantic proposal, target/head validation policy | mutation execution, idempotency, reconciliation | draft editor, confirmation, progress, diagnostics |
 | Queue/observers | rule matching and attention policy | refresh timers, API/cache, notification request execution | queue models, filters, native notification presentation |
 | AI | provider-host policy, context-scope decisions, staleness, finding promotion | process/session/workspace management and protocols | explicit invocation, approvals, chat/findings presentation |
+| Review Cycles | cycle, revision, item and round identities and transitions, capture-path admission, exact comparisons, suggestion conflicts, round assembly and freezing, the disclosure decision (`authorize`), response admission, publication plans and journals, wire names | cycle runtime and store, read-only workspace source, capture lane, exports, owner command channel, harness grants, publication catalog and GitHub publication session, Send to Agent through the existing launcher | cycle page, drawer, code view, notes, Suggest change, Compose feedback and Share notes sheets, Publish as Pull Request sheet, Updates line |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
 | Dif mascot | appearance preferences and bounded native-observation resolution only; no asset, clip, frame, timer, widget, decode, or cue state | persisted preference effects and typed accepted presentation facts; no art generation, decode, painting, or animation state | RFC-BPR-0030/0031 fixed resources, shared decoded cache, elapsed-time sequencing, painting, window lifecycle, native observation, and bounded presentation-only cues |
 
@@ -1170,6 +1177,46 @@ at least 75% of the client width and 85% of its height while every hidden
 surface remains reopenable through the shipped toolbar. That height floor
 reflects the product-owner requirement that all secondary upper and lower
 detail chrome collapse together.
+
+## Review Cycles
+
+A review cycle is a second review subject beside the pull request, under the
+same allocation. The core (`bpr/core/review_cycle*.hpp`) owns the cycle,
+revision, item, round, response, verification and publication identities and
+their transitions; capture-path admission and byte classification; exact
+comparisons; suggestion conflicts; round assembly and the frozen canonical
+payload; the disclosure decision `authorize` that every channel asks; response
+admission; publication plans and journals; and the wire names (`RC-3`, `R2`,
+`I7`, `F1`) the desktop and the terminal share. It names no host, account,
+filesystem or process.
+
+The application host composes `review_cycle_runtime` over the profile's
+`review_cycle_store` with a decision lane, an effect lane and, in the desktop, a
+capture lane of its own, and nothing else: no account, provider, vault, agent
+or executable lookup. Its ports are the read-only workspace source
+(`bpr/adapters/workspace`, which never runs Git), the SQLite cycle store, the
+local export destination, the installed-Git publication catalog
+(`publication_candidate_port`, in a BPR-owned store) and the GitHub publication
+session (`github_publication_port`) minted by the accepted account's transport.
+`review_cycle_workbench` turns them into the page's steps. Qt presents: the
+cycle page (`review_cycle_view`), its Compose feedback and Share notes sheet
+(`review_cycle_share_sheet`), Publish as Pull Request (`review_cycle_publish_sheet`)
+and Add Notes to Review Tour (`review_cycle_promote_sheet`), with no store,
+file, Git or network effect of their own.
+
+`src/app` composes the desktop's cycle host (`review_cycle_desktop`) and the
+terminal (`cycle_cli`, `cycle_commands`, `cycle_session`) over the same runtime.
+A profile has one writer, the process holding its runtime lease; a terminal
+command meets a running desktop through `cycle_owner_service` on the profile's
+same-user owner channel and runs there on the desktop's store, so both
+interfaces give the same answer. Send to Agent (`review_cycle_agent_sender`)
+hands the frozen round to the existing agent launcher and records what it saw;
+it is compiled only with agent integrations, and the owner channel and `bpr`
+only with local automation (see [Release maintenance and packaged ownership](#release-maintenance-and-packaged-ownership)).
+Stored cycles depend on neither family. The
+[domain model](domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053),
+[terminal guide](../development/cycle-cli.md) and
+[threat model](security-threat-model.md#review-cycles) carry the contracts.
 
 ## RFC-BPR-0003 dedicated epoch vertical slice
 

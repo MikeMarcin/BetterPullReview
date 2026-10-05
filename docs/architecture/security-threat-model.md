@@ -1357,13 +1357,15 @@ The restricted process protocol and profile/owner/generation checks remain the
 existing writing-assistance boundary. Deterministic process fixtures establish
 these application behaviors, not installed provider enforcement or model quality.
 
-## Review Cycles registration (proposed)
+## Review Cycles
 
 [RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md)
-propose local review cycles over captured workspace source. Those RFCs are
-not yet accepted, but the surfaces this section describes are built into the
-desktop and `bpr` and qualified as their cards record; they change no boundary
-above. The proposal adds two narrow surfaces. Locally, a root-bound
+add local review cycles over captured workspace source. The surfaces this
+section describes are built into the desktop and `bpr` and qualified as the
+[execution ledger](../verification/RFC-BPR-0053-0061.md) records, platform by
+platform; the RFCs stay Proposed until their closeout cards judge each
+criterion. They change no boundary above. Review Cycles adds two narrow
+surfaces. Locally, a root-bound
 read-only capture host reads only the source the reviewer selects into the
 profile-private store; it never writes, resets or cleans the reviewer's
 checkout, and local cycle history does not leave the machine unless the
@@ -1375,7 +1377,7 @@ request identity, epochs and shared-state authority keep their current owners.
 Capture, freeze, export, response import, reviewer verification and
 publication are separate grants, and imported response text grants none of
 them. The [capability and packaging contract](../rfcs/assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md)
-is the proposal's normative source.
+is the RFCs' normative source.
 
 The core decision for these grants is `authorize` in
 `bpr/core/review_cycle_policy.hpp`. Its inputs are the host-established actor
@@ -1483,7 +1485,7 @@ listing is admitted only when the commit's bytes hash to the requested commit
 and the listing rebuilds its tree; blobs, trees and commits are admitted only
 when Git names them exactly as the core computed. No filter, hook, signing
 program or repository script runs, and nothing is sent anywhere; the new
-branch and pull request remain a separate, not yet present capability.
+branch and pull request are the separate GitHub publication catalog below.
 
 Publication authority (BPR-1174) is a finite plan, not a standing grant. The
 plan's digest covers the candidate, the destination host, account,
@@ -1539,6 +1541,23 @@ current wording: no reply, decision, round, suggestion, earlier wording or
 unchosen note crosses into the tour. Exact lines are claimed only when the
 published plan and the note's bytes prove them, so promotion never points a
 historical or off-commit note at whatever line a later commit holds.
+
+Send to Agent (BPR-1180) is the one cycle surface that starts a program, and
+only in a build with agent integrations. It hands one existing agent profile
+the frozen round's readable document, the bytes Copy gives and nothing else,
+within 4 MiB, through the existing supervised launcher, environment allowlist
+and agent host policy (`core::decide_agent_invocation`). A local folder of
+unknown origin is refused until the profile's `agent_adapter` channel is
+allowed, and a profile whose account is on a host other than github.com
+answers to the corporate policy. The harness runs in the cycle's bound folder
+with its own settings and sign-in and is passed no credential. Nothing is
+resent, sent to another agent, captured or verified on the reviewer's behalf,
+and a reply becomes a response only when it is a structured response to exactly
+the round that was sent. A build without agent integrations (BPR-1179) has none
+of this code: its package audit forbids the launcher, the protocol decoders, the
+agent hosts, the MCP supervisor and the round sender. A build without local
+automation binds no owner command endpoint and ships no `bpr`. Neither removes
+or rewrites a stored cycle, and the reviewer's Copy, Save and manual loop remain.
 
 ### Qualified boundaries and residual risks (BPR-1181)
 

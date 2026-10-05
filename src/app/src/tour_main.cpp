@@ -3,11 +3,11 @@
 #include <QCoreApplication>
 #include <QtLogging>
 
+#include <cstdio>
+
 #if defined(_WIN32)
 	#include <fcntl.h>
 	#include <io.h>
-
-	#include <cstdio>
 #endif
 
 namespace {
@@ -56,8 +56,17 @@ int main(int aCount, char** aArguments)
 	QCoreApplication::setOrganizationName(QStringLiteral("BetterPullReview"));
 	QCoreApplication::setApplicationName(QStringLiteral("BetterPullReview"));
 	const auto arguments = QCoreApplication::arguments().mid(1);
+	// [[BPR-1185]]. `bpr` alone names both families. It printed the tour
+	// family's help, so `bpr cycle` could not be found from the terminal.
+	if (arguments.isEmpty() || arguments == QStringList{ QStringLiteral("help") } || arguments == QStringList{ QStringLiteral("--help") }) {
+		std::fputs("bpr - BetterPullReview from a terminal\n"
+				   "bpr tour   review tours of a pull request (bpr tour capabilities)\n"
+				   "bpr cycle  local Review Cycles of a folder or file (bpr cycle capabilities)\n",
+				   stdout);
+		return 0;
+	}
 	// One executable, two command families on the same non-GUI composition.
-	if (!arguments.isEmpty() && arguments.front() == QStringLiteral("cycle")) {
+	if (arguments.front() == QStringLiteral("cycle")) {
 		return bpr::app::run_cycle_cli(arguments.mid(1));
 	}
 	return bpr::app::run_tour_cli(arguments);

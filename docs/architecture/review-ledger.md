@@ -26,6 +26,14 @@ the independence directly and fails if the two are ever pointed at one path.
 `application_id` is `0x42505244` (`BPRD`) and the current `user_version` is
 **7**.
 
+Review Cycles keep their own file, `state/v1/review-cycles.sqlite3`
+([RFC-BPR-0053](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md)),
+for the same reason. A cycle's notes, reviewed marks, rounds, responses and
+verifications are records of that store, not ledger receipts: the ledger has no
+cycle table and no ledger row names a cycle, and a pull request a cycle
+published or linked starts with the ledger state any other pull request has.
+Profile purge lists the two files separately.
+
 ## Ownership
 
 | Region | Owns |

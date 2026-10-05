@@ -214,6 +214,28 @@ disposable agent workspace left by a full install is still cleaned up by the
 Git workspace recovery. To uninstall `bpr`, delete the files CMake recorded in
 `build/tour-cli/install_manifest_TourCLI.txt`. The desktop is unaffected.
 
+On macOS, `tests/end_to_end/installed_cycle_package_course.py` ([[BPR-1182]])
+checks the three prepared packages from outside, since nothing inside a
+tests-disabled package can be driven. It installs the full, agent-free,
+agent-free automation-off and full packages in turn into one place over one
+profile, starts each on Cocoa, and requires that each composes the profile,
+starts no child process, holds no network socket, runs none of the agent-named
+canaries placed first on PATH, binds its activation endpoint, and binds the
+owner command endpoint exactly when it was built with local automation. A cycle
+made with `bpr` before the first swap must read back byte for byte after every
+package ran. Prepare each variant into its own output folder, then name the
+folder holding all three (the course expects the names `bpr1182-full`,
+`bpr1182-agent-free` and `bpr1182-agent-free-automation-off`) and any `bpr`:
+
+```sh
+python3 /absolute/checkout/tests/end_to_end/installed_cycle_package_course.py \
+  --package-root /absolute/package-root --bpr /absolute/install/root/bin/bpr
+```
+
+It prints `INSTALLED_CYCLE_PACKAGE_COURSE_OK`. Its root is made under the
+account's home and removed afterwards. It does not cover Windows or Linux
+installers, signing or the GUI round trip a person drives.
+
 ## Exact dependency and license evidence
 
 `packaging/package_runtime.py` creates a closed runtime inventory and hashes

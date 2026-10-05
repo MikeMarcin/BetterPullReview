@@ -80,6 +80,7 @@ typed path and its direct checks.
 | Capability and trigger | Destination and data boundary |
 |---|---|
 | Native GitHub reads and explicit review publication | HTTPS `api.github.com` REST/GraphQL; repository/review metadata and selected published text. Account-bound credentials stay in the designated transport. Native Git smart HTTP uses the accepted repository on `github.com`. |
+| Review Cycles publication | HTTPS `api.github.com` REST only, after the reviewer confirms one plan's digest under the signed-in GitHub.com account: the candidate's blobs, one tree, one commit, a new branch (`POST git/refs`, never an update) and one pull request in the plan's repository, with reads before and after. No Git push, force, delete, merge or comment. GHES is refused. Notes, rounds and replies are never uploaded. |
 | Explicit GHES profile | HTTPS on the configured canonical host: `/api/v3`, `/api/graphql` and that repository's smart-Git path. Provider content cannot add a host. |
 | GitHub.com device sign-in | Outbound `github.com/login/device/code` and `/login/oauth/access_token`; the system browser opens the admitted verification address. No inbound OAuth callback listener. GHES device flow is unavailable. |
 | Public preview | macOS-only anonymous GitHub.com REST and smart HTTP after an explicit read; no credential fallback from failed sign-in. Windows/Linux and GHES refuse this mode. |
@@ -155,6 +156,28 @@ ordinary broader agent trust remains as described above. Tour navigation and
 preparation never publish, resolve, approve or mark files viewed. See the
 [tour contract](../architecture/review-tours.md) and
 [operator guide](../development/review-tours.md).
+
+## Review Cycles: retained source and disclosure
+
+A Review Cycle (RFC-BPR-0053 through RFC-BPR-0061) captures the bytes of a
+folder, file or checkout the reviewer chose into the profile-private
+`review-cycles.sqlite3`, unencrypted like the other stores, so it holds
+corporate source exactly as captured, including untracked files the checkout's
+own ignore files do not exclude. Capture never runs Git or anything the checkout configures and
+never writes there. A round leaves the machine only through a channel the
+profile's disclosure policy allows: the clipboard, a saved file or bundle,
+terminal output, a harness reading one granted round through `bpr`, or Send to
+Agent. A source of unknown or enterprise origin is refused to the two channels
+that reach another program until the policy allows them, and a host-imposed
+denial holds everywhere. Every local folder is unclassified today. Once a round
+is copied, saved or read by a harness, clipboard history, the file's location
+and the harness's own transcripts and provider requests keep it beyond
+BetterPullReview's reach. `BPR_CYCLE_ROLE=consumer` and grants confine a
+cooperating harness only; a program running as the same user can read the store.
+Builds without agent integrations or local automation remove Send to Agent, or
+the owner command endpoint and `bpr`, from the package; see the
+[package guide](../development/release-packages.md#packages-without-agent-integrations-or-local-automation)
+and the [threat model](../architecture/security-threat-model.md#review-cycles).
 
 ## Diagnostics, removal and distribution
 

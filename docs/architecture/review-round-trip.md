@@ -13,6 +13,18 @@ Inspection-style defect semantics are layered over these threads as a local
 projection; see [Defect Workflow](defect-workflow.md). Nothing there changes
 the shared protocol described here.
 
+Review Cycles ([RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md))
+add no path into this protocol. A cycle's notes, suggestions, rounds, replies
+and verifications are never published as comments, reviews or replies. Its one
+GitHub write, creating a new branch and pull request from a selected result, is
+a separate publication catalog with its own finite plan, journal and recovery
+([domain model](domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053)),
+not this composer, and its description is the reviewer's Problem and Solution.
+Adding a linked cycle's notes to that pull request's Review Tour is a local tour
+edit; the tour reaches GitHub only through its own preview and confirmation.
+Once published, the pull request is reviewed here like any other, and its
+comments are this page's.
+
 ## Ownership
 
 | Region | Owns |

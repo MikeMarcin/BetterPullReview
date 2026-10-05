@@ -71,7 +71,7 @@ The host supplies the nonreversible authority-scope identity and catalog
 incarnation from validated authority/persistence state; the core neither
 hashes provider text nor reads randomness.
 
-### Review cycle identities (RFC-BPR-0053, in progress)
+### Review cycle identities (RFC-BPR-0053)
 
 `bpr/core/review_cycle.hpp` adds a second review subject beside the pull
 request: `review_subject` is either the unchanged `pull_request_authority` or a

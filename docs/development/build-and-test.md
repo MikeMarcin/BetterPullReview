@@ -190,6 +190,20 @@ baselines/toolchains and existing `publish-release` workflow. Ordinary
 bind source, compile/link graph, installed bytes, SPDX/notices and the separate
 source asset; they do not supply publisher trust or native acceptance.
 
+Three switches shape the graph for Review Cycles and its optional families,
+all independent of the preset:
+
+| Switch | Default | What it changes |
+|---|---|---|
+| `BPR_BUILD_TOUR_CLI` | `OFF` in `dev`, `ON` in `tour-cli` | Builds `bpr` (`app_bpr`) and registers the rows that run it: `cycle_cli_public_path`, `cycle_cli_documentation`, `skill_bpr_cycle_package`, and, in a graph with Qt, the two-round, parity and handoff courses. Requires `BPR_BUILD_LOCAL_AUTOMATION`. |
+| `BPR_BUILD_AGENT_INTEGRATIONS` | `ON` (`OFF` in `tour-cli` and the `-agent-free` presets) | Compiles out the agent launch adapter, protocol decoders, agent hosts, MCP helper and Send to Agent. |
+| `BPR_BUILD_LOCAL_AUTOMATION` | `ON` (`OFF` in the `-agent-free-automation-off` presets) | Without it no owner command endpoint is bound and `bpr` cannot be built; the automation-off two-round course is registered instead. |
+
+A `dev` graph with `bpr` is `cmake --preset dev -B build/dev-tour-cli
+-DBPR_BUILD_TOUR_CLI=ON`. The [terminal guide](cycle-cli.md) and
+[release packages](release-packages.md#packages-without-agent-integrations-or-local-automation)
+give the commands and what each package omits.
+
 ## Dif asset maintenance
 
 The checked-in files below `src/adapters/qt/assets/dif/source/` and the manifest

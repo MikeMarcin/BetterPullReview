@@ -297,6 +297,23 @@ Standalone Blocked BPR-1222–1226 retain GitHub.com/GHES live operations and we
 courses, remaining native stations, installed-provider/model evidence and original
 predecessor acceptance. RFC status enables no unavailable operation.
 
+## Review Cycles
+
+Use **File > Open Project…** or Home's Review Cycles section to review a folder,
+a file or a Git checkout of your own, with no account, remote, commit or agent.
+Write notes and exact suggested edits on any line, compose them into one frozen
+round, and hand it over with **Copy**, **Save** or a bundle. After the changes,
+**Capture revision** reads the folder again, the comparisons show what changed,
+and you record replies and your own verification before the next round. A
+finished result can become a new pull request on GitHub.com
+(**Publish as Pull Request…**). `bpr cycle` works the same cycles from a
+terminal, and a harness that runs `bpr` can read one round you grant it. The
+[Review Cycles workflow](docs/ux/review-cycles-workflow.md) is the guide and the
+[terminal guide](docs/development/cycle-cli.md) the command reference.
+RFC-BPR-0053–0061 stay Proposed until their closeout cards; the
+[execution ledger](docs/verification/RFC-BPR-0053-0061.md) records what is
+qualified on which platform and what is still owed.
+
 ## Installation, privacy and release status
 
 The [package guide](docs/development/release-packages.md) covers per-user

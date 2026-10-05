@@ -1156,3 +1156,40 @@ editor/owner/hook/source generations must still match at delivery. Outline outpu
 contains no comment bodies, Ready flags or publication authority; retained entries
 need individual visible author completion. See the [settings contract](../development/settings.md)
 and [tour operator guide](../development/review-tours.md) for exact limits and undo.
+
+## Review Cycles and agents
+
+Review Cycles ([RFC-BPR-0058](../rfcs/RFC-BPR-0058-headless-cycle-cli-and-portable-consumer-skill.md),
+[RFC-BPR-0060](../rfcs/RFC-BPR-0060-removable-agent-adapters-and-capability-isolation.md))
+need no agent. A frozen round is a complete assignment that a person or any
+harness can act on from its Markdown alone, and a recipient's structured
+response or a reply pasted by hand is recorded the same way whatever produced
+it. BetterPullReview starts no model for a cycle except through Send to Agent,
+and its claims about who answered stay claims.
+
+There are three ways a round reaches a harness, each decided by the profile's
+disclosure policy for its channel:
+
+- **Copy, Save or `bpr cycle export`.** The reviewer hands the document over;
+  nothing is started.
+- **A grant (`bpr cycle round grant`).** A harness that can run `bpr` reads that
+  one round and, unless the grant is read-only, appends a response to it. The
+  [bpr-cycle skill](../development/cycle-cli.md#the-bpr-cycle-skill) teaches only
+  those consumer commands, under `BPR_CYCLE_ROLE=consumer`, and starts no model
+  of its own. The harness keeps its own tools, credentials and approvals.
+- **Send to Agent.** In a build with agent integrations, the share sheet hands
+  the round's document to one of the existing agent profiles above (Codex,
+  Claude, or an external terminal harness, named by its profile) through the
+  same supervised launcher,
+  environment allowlist and host policy, in the cycle's bound folder, and
+  records what was seen: accepted by the adapter, acknowledged with a session,
+  or uncertain. Only Claude stream JSON continues a session, and only one an
+  earlier send of the cycle reported. Nothing is retried or sent elsewhere, and
+  nothing is captured or verified for the reviewer
+  ([threat model](security-threat-model.md#review-cycles)).
+
+A build with `BPR_BUILD_AGENT_INTEGRATIONS=OFF` compiles out the launcher, the
+protocol decoders, the agent hosts, the MCP helper and Send to Agent, and its
+window withdraws their controls; it still opens every stored cycle and every
+record an agent wrote earlier. See
+[release packages](../development/release-packages.md#packages-without-agent-integrations-or-local-automation).

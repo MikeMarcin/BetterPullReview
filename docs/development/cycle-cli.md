@@ -68,6 +68,23 @@ bound to the working folder; several are `target_ambiguous` and none is
 `not_found` with `bpr cycle open .` as the next command. Nothing remembers a
 "current" cycle and no window's selection is consulted.
 
+Every command also takes these options. `capabilities` takes only the first
+four, and a command refuses any option that is neither its own nor one of these
+(`unsupported_option`, exit 2):
+
+| Option | What it does |
+|---|---|
+| `--json` | One result document on standard output; see Output. |
+| `--non-interactive` | Never prompts or opens an editor, even in a terminal. |
+| `--schema-version 1` | Names the result schema the caller reads; any other is `unsupported_version`. |
+| `--data-root PATH` | The application data folder, an absolute owner-private path. By default the desktop's own (on macOS `~/Library/Application Support/BetterPullReview/BetterPullReview`). |
+| `--profile ID\|NAME` | The profile, by numeric ID or exact name; by default the default profile (ID 1). A name two profiles share is `profile_ambiguous`, and one no profile has is `profile_unknown`. |
+| `--operation-id ID` | Names the command so that repeating it never applies it twice; see below. |
+
+`bpr` with no arguments names its two command families, `bpr tour` and
+`bpr cycle`. `bpr cycle` alone, or `bpr cycle help`, prints the command list
+`capabilities` gives.
+
 ## Output
 
 Default output is plain prose and short lists on standard output. Errors say
@@ -360,7 +377,20 @@ in attended item `BPR-1170-rc58-08-distribution-v001`.
 
 ## Not in this build
 
-The parity course across desktop, terminal and external consumer is
-[[BPR-1171]]'s. The desktop does not list Use in external agent yet ([[BPR-1161]]'s route stays hidden until it is
-enabled there); its host side stores the same grant `round grant` does.
-`publication` commands are not offered here.
+- The desktop does not list Use in external agent yet ([[BPR-1161]]'s route
+  stays hidden until it is enabled there); its host side stores the same grant
+  `round grant` does. A harness is given a round by `round grant` here.
+- Publication is the desktop's alone (Share notes > Publish as Pull Request…,
+  [[BPR-1177]]): no `bpr cycle` command plans, publishes, recovers or links a
+  pull request.
+- No command imports a `.bpr-review.zip` bundle. `export --format bundle`
+  writes one, and the core and host validate one ([[BPR-1160]]), but no shipped
+  surface reads it in yet.
+- A round cannot be sent to an agent from here. Send to Agent is the desktop's,
+  in a build with agent integrations ([[BPR-1180]]).
+
+The desktop, the terminal and a granted harness give the same answers about one
+cycle, with the desktop open or closed; [[BPR-1171]]'s parity course
+(`application_review_cycle_parity_public_path`) checks it, and
+`cycle_cli_documentation` checks this page's commands, options, exit codes,
+limits and examples against the built `bpr`.
