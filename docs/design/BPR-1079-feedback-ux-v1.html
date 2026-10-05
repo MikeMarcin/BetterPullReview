@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1079 feedback UX candidates, round v1</title>
+<!--
+  [[BPR-1079]] Conventional Comments UX candidates, round v1: the design record for
+  RFC-BPR-0048, 0049 and 0050 (R30, R33). Frames live in BPR-1079-feedback-ux-frames-v1.html.
+  Nothing on this page is implemented; the owner's selection is pending.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --marker:#B7791F; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1340px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+h3 { font-size:15px; margin:20px 0 6px; }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:200px; font-weight:600; }
+.keep { background:var(--sheet); border:1px solid var(--rule); border-left:3px solid var(--marker); border-radius:6px; padding:9px 13px; max-width:92ch; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Conventional Comments: authoring, counters and resolution — candidates v1</h1>
+<div class="by">BPR-1079 (RFC-BPR-0048, 0049, 0050; R30, R33). 2026-10-05. Frames: <a href="BPR-1079-feedback-ux-frames-v1.html">BPR-1079-feedback-ux-frames-v1.html</a>, each drawn at a real window size (1440×820 wide, 960×700–760 narrow, Settings at its 760×560 minimum) in the app's light palette, three also dark.</div>
+
+<p><b>None of this is implemented.</b> These are static design frames. The owner's selection is pending in attended review. BPR-1081 records it, and only after that does design-dependent work start (R30). The two-letter squares are <b>placeholder marks</b>: they stand in for the twelve icons, which are BPR-1080's work. They propose no metaphor or colour, and none comes from the chat.</p>
+
+<h2>What exists today (inspected at 7ff4126ca)</h2>
+<ul>
+  <li><b>Overview files table</b> (<code>overview_file_model</code>, <code>overview_row_delegate</code>): columns operation, File, Added, Removed, Changed, Read, Comments and Note. The Comments cell paints an amber bubble with the <code>UnresolvedThreadCount</code> and a grey bubble with the <code>ThreadCount</code>. It has no labels, no mode and no unknown state. Its offscreen render came from <code>qt_pull_request_overview_page</code> with <code>BPR_QT_RENDER_PATH</code>.</li>
+  <li><b>Compose review</b> (<code>review_submission_editor</code>, rendered by <code>qt_review_submission_editor_scale_100</code>): a disposition combo box with Comment, Approve and Request changes, a summary field and Submit review. It has no preflight.</li>
+  <li><b>Inline comment page</b> (<code>review_draft_editor</code>): Publish and Discard over a plain-text body. The workbench spec reserves Comment's arrow menu as the place for labels, and that menu offers none yet.</li>
+  <li><b>Comments tray cards</b> (<code>conversation_cards_view</code>): Reply and Resolve per card, and a private defect text badge (BPR-1208). Labels are raw text in the body.</li>
+  <li><b>Settings → Reviews &amp; queue</b>: observer rules and saved repositories. Nothing for labels.</li>
+  <li>The RFC-BPR-0052 scaffolding frames (BPR-1106 v8) sketched a label menu and a "My feedback" list. RFC-BPR-0050 says those sketches are not approved, so they enter here only as starting points.</li>
+</ul>
+
+<h2>Rules every candidate keeps</h2>
+<table>
+<tbody>
+<tr><th>Counting unit</th><td>One <b>conversation</b> (a native thread, a top-level comment or a review summary) counts once, classified by its <b>root</b>. Replies carry their own marks but never add to a count. Every column header and count tooltip says "conversations" and "replies don't count".</td></tr>
+<tr><th>Other (catchall)</th><td>The existing Comments counter becomes <b>Other</b> as soon as any label has a column: plain comments, labels without a column, custom labels and unreadable roots. With no label columns it keeps its name and counts everything. Dedicated columns + Other = the included conversations, in every scope. The frames compute this from unit data, and HairStrandsLighting.cpp is the pack fixture's <code>src/cache.cpp</code>: Open gives issue 2, question 1, Other 4, total 7, and All gives issue 4, question 1, Other 5, total 10.</td></tr>
+<tr><th>Not on a file</th><td>A last row holds unanchored threads, PR-level comments and review summaries, so file rows never claim them and the PR total stays honest.</td></tr>
+<tr><th>Resolution</th><td>Four states, each with its own round mark: open (amber dot), resolved (green tick), unknown (dashed ring with ?) and not resolvable (ring with a dash). Open is the default count. All counts every conversation and adds a small state bar under each number. Unknown and not-resolvable conversations are never shown as resolved or as a clean zero. A <b>?</b> chip beside the switch counts what Open leaves out or can't classify and lists those conversations in Discuss.</td></tr>
+<tr><th>Labels vs states</th><td>Labels are square and states are round, so a label never shares a shape with a state. Colour belongs to states and only ever adds to a mark and its words. A resolved issue still shows its issue mark.</td></tr>
+<tr><th>Identification</th><td>Every mark has a tooltip and an accessible name with the label's word. A keyboard-reachable <b>Label key</b> button (⌥K) shows all twelve marks with their names, so a hover isn't the only way to learn them.</td></tr>
+<tr><th>Drill-down</th><td>Clicking a count opens Discuss filtered to that file, label and mode: the same conversations the number counted.</td></tr>
+<tr><th>Public vs local</th><td>A label is <b>public text</b> at the start of the comment. The editor shows it highlighted in the Markdown, the preview shows exactly what GitHub gets, and Copy source keeps it. Private defects keep their own dashed, locked badge and never become a public label. Drafts, private notes and pending posts are never counted.</td></tr>
+<tr><th>Native review</th><td>Comment, Approve and Request changes remain explicit choices that the reviewer makes. No label resolves, approves or requests changes, and nothing is sent before Submit review or Publish.</td></tr>
+<tr><th>Suggestions</th><td>A suggested-change block keeps its own header and is never restyled by a label. A tick (or ↗ Apply on GitHub) appears only where GitHub can apply it. A struck-out ↗ marks a fallback that GitHub cannot apply.</td></tr>
+</tbody>
+</table>
+
+<h2>1. Overview label counts: A or B</h2>
+<div class="frames" id="f-ov"></div>
+<table>
+<thead><tr><th></th><th>A: a column per label</th><th>B: chips in one Comments column</th></tr></thead>
+<tbody>
+<tr><th>Scan</th><td>Best: aligned numbers per label down the table, sortable per column</td><td>Weaker: each row's chips sit at different x</td></tr>
+<tr><th>Width</th><td>30 px per label. Twelve labels overflow at 960 px: File pins and the label columns scroll sideways. Note hides when narrow.</td><td>Fixed (210 or 150 px). Excess labels fold into "+n", whose tooltip names them.</td></tr>
+<tr><th>Zero, one, many</th><td>Zero is blank. 1, 11 and 104 fit the bubble.</td><td>Only non-zero chips appear, so a row with no feedback is empty.</td></tr>
+<tr><th>Sorting</th><td>Click a label header</td><td>The Comments ▾ header menu chooses which label to sort by</td></tr>
+<tr><th>Cost in Qt</th><td>Dynamic columns in <code>overview_file_model</code>, painted by the existing delegate</td><td>One delegate cell paints the chips, plus a sort menu</td></tr>
+</tbody>
+</table>
+
+<h2>2. Open/All, unknown and remainder (one proposal)</h2>
+<div class="frames" id="f-st"></div>
+
+<h2>3. Writing a labelled comment: A, B or C</h2>
+<p>All three edit the Markdown's first line in one undoable step. Plain removes only the recognized prefix. A label you type yourself works with every candidate, helper on or off. The frames show a reply labelled <i>suggestion</i> under a <i>question</i> root, and a long body with a native suggestion.</p>
+<div class="frames" id="f-cm"></div>
+<table>
+<thead><tr><th></th><th>A: label chip and menu</th><th>B: icon strip</th><th>C: type it</th></tr></thead>
+<tbody>
+<tr><th>Seen at rest</th><td>One chip, "Plain ▾" or the label</td><td>Thirteen marks always shown</td><td>Nothing until typed; a small mark button for ⌘L</td></tr>
+<tr><th>Choose</th><td>Click or ⌘L opens a 3×4 grid with the names; the decorations sit below it</td><td>One click; the name is in the tooltip</td><td>Type a letter and pick from the completion list, which shows each label's meaning</td></tr>
+<tr><th>Decorations</th><td>Shown once a label is chosen</td><td>Always shown</td><td>Typed, or from ⌘L</td></tr>
+<tr><th>Narrow</th><td>Unchanged</td><td>Decorations wrap to a second row</td><td>Unchanged</td></tr>
+<tr><th>Risk</th><td>One extra click</td><td>Busiest; marks need learning</td><td>Hard to discover</td></tr>
+</tbody>
+</table>
+
+<h2>4. Labels on thread cards (one proposal)</h2>
+<p>The root's mark and label head the card, and the round state pill sits at the right. The card body starts after the prefix, which the mark stands in for, and Copy source keeps the prefix. A reply shows its own mark, which can differ from the root's. A tour stop is plain unless its author labelled it. The private defect badge is dashed and locked.</p>
+<div class="frames" id="f-th"></div>
+
+<h2>5. Before submitting a review: A or B</h2>
+<p>The disposition becomes three visible buttons. Approve carries an amber dot while I have open blocking feedback, and its tooltip says that approving doesn't resolve it. The list shows only my own blocking items, published or not, with uncertainty on its own row. A chore appears separately, not as blocking. Other reviewers' items stay collapsed under "Others".</p>
+<div class="frames" id="f-rv"></div>
+<table>
+<thead><tr><th></th><th>A: list beside the summary</th><th>B: one chip, list on demand</th></tr></thead>
+<tbody>
+<tr><th>Seen at rest</th><td>Always</td><td>Counts only: issue 2, draft 1, unknown 3</td></tr>
+<tr><th>Narrow</th><td>Stacks under the summary</td><td>Unchanged</td></tr>
+<tr><th>Risk</th><td>Takes width from the summary</td><td>Easy to skip</td></tr>
+</tbody>
+</table>
+
+<h2>6. Settings → Reviews &amp; queue → Comment labels (one proposal)</h2>
+<p>The section holds the label helper (off by default), the default count (Open) and the columns, which you tick and drag to order with a preview of the Overview header. Reset applies to this section only. It uses the existing typed settings store, and the Comments drawer's own filter is not touched.</p>
+<div class="frames" id="f-se"></div>
+
+<h2>Open, not decided here</h2>
+<ul>
+  <li>The twelve icons, their colours and the resource form: BPR-1080.</li>
+  <li>The selection record and implementation contract: BPR-1081.</li>
+  <li>Native verification at 100%, 125% and 200%, high contrast and larger text applies to the built surfaces (R33), not to these frames.</li>
+  <li>Headless (CLI) parity for prefix edits: BPR-1092. Website interoperability needs a named safe target (card 21).</li>
+</ul>
+</main>
+<script>
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [f, w, h, cap, theme] of list) {
+    const s = 0.42;
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="BPR-1079-feedback-ux-frames-v1.html?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+put("f-ov", [["ov-A-none-wide",1440,820,"A, no label columns"],["ov-A-two-wide",1440,820,"A, issue + question"],["ov-A-twelve-wide",1440,820,"A, all twelve"],["ov-A-twelve-narrow",960,700,"A, twelve at 960 px: File pinned, columns scroll"],
+  ["ov-B-two-wide",1440,820,"B, issue + question"],["ov-B-twelve-wide",1440,820,"B, all twelve"],["ov-B-twelve-narrow",960,700,"B, twelve at 960 px: +n"]]);
+put("f-st", [["ov-A-two-wide-tip",1440,820,"Open: tooltip says what is and isn't counted"],["ov-A-twelve-wide-all",1440,820,"All: state bar under each number"],["ov-A-twelve-wide-all",1440,820,"All, dark","dark"],["ov-A-two-narrow-legend",960,700,"Label key (⌥K)"],["ov-B-twelve-wide-all",1440,820,"B in All"]]);
+put("f-cm", [["cm-A-wide-open",1440,820,"A: menu open on a reply"],["cm-A-narrow",960,760,"A narrow: issue (blocking)"],["cm-B-wide",1440,820,"B: strip, tooltip on polish"],["cm-B-narrow",960,760,"B narrow"],["cm-C-wide-typing",1440,820,"C: typing q"],["cm-C-narrow",960,760,"C narrow"]]);
+put("f-th", [["th-wide",1440,820,"Cards, wide"],["th-wide",1440,820,"Cards, dark","dark"],["th-narrow",960,760,"Cards, narrow tray"]]);
+put("f-rv", [["rv-A-wide",1440,640,"A: list beside the summary"],["rv-A-narrow",960,760,"A narrow: stacked"],["rv-B-wide-open",1440,640,"B: chip, list open"]]);
+put("f-se", [["st-wide",960,640,"Settings"],["st-narrow",760,560,"Settings at its minimum size"]]);
+</script>
+</body>
+</html>
