@@ -1,0 +1,47 @@
+{
+  "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/semantics: BPR-1076",
+  "mandate_revision": "r1-20261005-owner-release-implement-bpr-1075",
+  "run_id": "bpr-conventional-comments-20261005",
+  "segment_id": "semantics-bpr-1076",
+  "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
+  "status": "card-accepted; milestone semantics open (BPR-1077, BPR-1078 remain)",
+  "claim_commit": "190b5b9f91296f2533d7ebc13b2b1351dbb404a9",
+  "candidate_revision": "dca6d277261eecf130d7451552337059beaf3e50",
+  "changed_paths": [
+    "src/core/include/bpr/core/feedback_convention.hpp",
+    "src/core/src/feedback_convention.cpp",
+    "src/core/CMakeLists.txt",
+    "tests/core/feedback_convention_tests.cpp",
+    "tests/core/CMakeLists.txt",
+    "docs/issues/60-done/BPR-1076-implement-the-complete-catalog-and-bounded-lossless-prefix-recognizer.md",
+    "docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1.LIVE_IMPORT.md",
+    "docs/verification/RFC-BPR-0047-0051.md",
+    "docs/verification/RFC-BPR-0047-0051.semantics-checkpoint.json",
+    "docs/verification/RFC-BPR-0047-0051.semantics-handoff.json"
+  ],
+  "verification": [
+    {
+      "command": "cmake --preset core-only; cmake --build build/core-only; build/core-only/tests/core/feedback_convention docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1 (ctest core_feedback_convention)",
+      "result": "FEEDBACK_CONVENTION_OK: 48 corpus cases, 648 label/form combinations, 288 false-positive bodies, 40,000 generated bodies; macOS arm64 AppleClang Debug -Werror"
+    },
+    {
+      "command": "four source mutations (indent bound, last-token-wins, decoration bound, '(' requirement), each reverted",
+      "result": "each failed the test at the named check"
+    },
+    {
+      "command": "ctest --test-dir build/core-only -R 'core_dependency_boundary|core_boundary_contract|architecture_boundar|core_review_tour_markdown|test_network_isolation_manifest|test_network_isolation_structure_contract'",
+      "result": "all passed"
+    },
+    {
+      "command": "clang-format 23.1.1 -i and clang-format 22.1.8 comparison; _coding-standard/scripts/tidy.py --build-dir build/core-only --warnings-as-errors --paths <both translation units>",
+      "result": "identical output; tidy clean"
+    }
+  ],
+  "pending_obligations": [
+    "Linux and Windows station runs of core_feedback_convention",
+    "semantics:exit:2 and BPR-1077 (header edits, root classification), BPR-1078 (partition, resolution coverage)",
+    "RFC closeout dependencies unchanged: RFC-BPR-0021 (Deferred); RFC-BPR-0036, 0037, 0044-0046 (Proposed)"
+  ],
+  "command_state": "quiescent; no background commands; no review server",
+  "next_action": "Promote BPR-1077 (its only dependency BPR-1076 is Done) and start a fresh rfc-implementer for it within milestone semantics."
+}
