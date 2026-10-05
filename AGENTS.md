@@ -65,6 +65,12 @@ network, or process effects.
 - Keep M8/M9 native, vault, crash and vulnerability gaps explicit in operator
   claims. Profile purge excludes shared updater/registry state and is not uninstall.
 - Use fixtures or designated safe test repositories for remote mutations.
+- `github.com/MikeMarcin/BPR-Test` is the owner's designated live GitHub
+  target for any testing need (owner, 2026-10-05: "For live github tests you
+  can use the MikeMarcin/BPR-Test repo for any testing needs"). Live cards may
+  create branches, pull requests, reviews, comments and threads there, and
+  resolve or close what they made. Do not delete the repository, change its
+  settings or collaborators, or touch any other repository.
 - Never commit credentials, private repository content, transient inspection
   artifacts, build output, or secret-bearing logs.
 
