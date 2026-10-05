@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1076"
 title: "Implement the complete catalog and bounded lossless prefix recognizer"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0047"]
 depends_on: ["BPR-1075"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-02","milestone":"semantics","acceptance":["R01","R02","R03","R04","R06","R40"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}

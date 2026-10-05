@@ -23,7 +23,7 @@ The five closeout cards (one per RFC, as authored) are retitled "Verify and clos
 | Pack alias | Live card |
 |---|---|
 | `PACK-CC-01` | [BPR-1075](../../issues/60-done/BPR-1075-import-after-both-tour-packs-and-reconcile-the-live-contracts.md) |
-| `PACK-CC-02` | [BPR-1076](../../issues/20-ready/BPR-1076-implement-the-complete-catalog-and-bounded-lossless-prefix-recognizer.md) |
+| `PACK-CC-02` | [BPR-1076](../../issues/30-in-progress/BPR-1076-implement-the-complete-catalog-and-bounded-lossless-prefix-recognizer.md) |
 | `PACK-CC-03` | [BPR-1077](../../issues/10-backlog/BPR-1077-implement-revisioned-header-edits-and-root-post-classification.md) |
 | `PACK-CC-04` | [BPR-1078](../../issues/10-backlog/BPR-1078-implement-conversation-partition-and-explicit-resolution-coverage.md) |
 | `PACK-CC-05` | [BPR-1079](../../issues/30-in-progress/BPR-1079-develop-compact-authoring-counter-and-resolution-ux-candidates.md) |
