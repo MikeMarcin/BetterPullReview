@@ -70,3 +70,17 @@ per-criterion index and the station requests, is the BPR-1185 section of
   documented in the storage guide. A card must be allocated on `main`.
 - Owed, not gating: the Windows and Linux items above, the new row on both
   stations, and the macOS Cocoa desktop and editor rows.
+
+**Note: Linux run at `15bb8c921` (holds `0eda62217`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, the `tour-cli` preset, Release, `build/bpr1185-rows`; no
+remote mutation).** Run exactly as written, `app_bpr` built but all 5 rows
+were "Not Run": ctest could not find
+`build/bpr1185-rows/better_pull_review_network_sandbox`, because the
+`--target` list does not build `tool_better_pull_review_network_sandbox`
+([[BPR-1180]]'s request had the same gap). With that target added, 5 of 5
+passed: `cycle_cli_documentation` (3.7 s), `cycle_cli_public_path` (5.9 s),
+`skill_bpr_cycle_package` (3.9 s), `tour_cli_public_entry` and
+`test_network_isolation_manifest`. The build printed one
+`-Wstringop-overread` warning from the vendored SQLite amalgamation
+(`_bpr/sqlite/3.53.4/sqlite3.c:36482`), third-party code that does not fail
+the build. `build/bpr1185-rows` was removed. Done is not reopened.
