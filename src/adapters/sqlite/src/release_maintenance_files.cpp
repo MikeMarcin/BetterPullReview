@@ -210,6 +210,34 @@ namespace bpr::adapters::sqlite {
 			const auto prefixSize = std::string_view{ "repositories/v1/" }.size() + path[2].size();
 			return repository_artifact(aPath.size() == prefixSize ? std::string_view{ } : aPath.substr(prefixSize + 1U), aDirectory);
 		}
+		/// [[BPR-1283]]. The publication catalog's own isolation root
+		/// ([[BPR-1177]]), relative to `publication-git-v1/`: the installed Git
+		/// owner's closed isolation layout, whose work/home/temp directories and
+		/// empty cache skeleton must be empty, and one bare object store per
+		/// hash algorithm under `publication/v1`.
+		auto publication_artifact(std::string_view aPath, bool aDirectory) -> bool
+		{
+			if (aPath == ".git-process-boundary.lock") {
+				return !aDirectory;
+			}
+			constexpr std::array files{ "config-system", "config-global", "attributes-system" };
+			if (std::ranges::find(files, aPath) != files.end()) {
+				return !aDirectory;
+			}
+			constexpr std::array directories{ "home", "xdg", "tmp", "work", "hooks", "templates", "repositories", "repositories/v1", "incoming", "incoming/v1", "publication", "publication/v1" };
+			if (std::ranges::find(directories, aPath) != directories.end()) {
+				return aDirectory;
+			}
+			for (const auto store : { std::string_view{ "publication/v1/sha1.git" }, std::string_view{ "publication/v1/sha256.git" } }) {
+				if (aPath == store) {
+					return aDirectory;
+				}
+				if (aPath.starts_with(store) && aPath[store.size()] == '/') {
+					return repository_artifact(aPath.substr(store.size() + 1U), aDirectory);
+				}
+			}
+			return false;
+		}
 		auto classified(std::string_view aPath, bool aDirectory, bool aPurge) -> bool
 		{
 			if (aPath == "logs") {
@@ -258,6 +286,12 @@ namespace bpr::adapters::sqlite {
 			}
 			if (aPath.starts_with("mcp-snapshot/")) {
 				return false; // Window shutdown owns exact snapshot removal.
+			}
+			if (aPath == "publication-git-v1") {
+				return aDirectory;
+			}
+			if (aPath.starts_with("publication-git-v1/")) {
+				return publication_artifact(aPath.substr(19U), aDirectory);
 			}
 			return cache_artifact(aPath, aDirectory);
 		}

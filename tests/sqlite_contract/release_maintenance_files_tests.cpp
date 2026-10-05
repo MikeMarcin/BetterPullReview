@@ -410,6 +410,48 @@ namespace {
 		expect(files.erase(erase, **candidate, { }, [] { return true; }).has_value(), "confirmed complete profile removes exact cache objects");
 		expect(!fs::exists(repository) && fs::exists(root.Path), "empty cache skeleton removed without removing profile root");
 	}
+	/// \brief [[BPR-1283]]. Publish as Pull Request ([[BPR-1177]]) gives the
+	/// installed Git publication catalog its own isolation root,
+	/// `publication-git-v1`, with the same closed layout as the profile's and
+	/// one bare object store under `publication/v1`. The purge inventory takes
+	/// exactly that layout, as a publish leaves it, and refuses anything else
+	/// inside it.
+	void test_publication_isolation_inventory()
+	{
+		scratch    root;
+		const auto isolation = root.Path / "publication-git-v1";
+		const auto store     = isolation / "publication/v1/sha1.git";
+		seed(root.Path);
+		write(isolation / ".git-process-boundary.lock", "");
+		for (const auto name : { "config-global", "config-system", "attributes-system" }) {
+			write(isolation / name, "");
+		}
+		write(store / "HEAD", "ref: refs/heads/main\n");
+		write(store / "config", "[core]\n bare = true\n");
+		write(store / "objects/45" / std::string(38U, 'a'), "loose object fixture");
+		for (const auto* const name : { "home", "xdg", "tmp", "work", "hooks", "templates", "repositories", "repositories/v1", "incoming", "incoming/v1", "publication/v1/sha1.git/objects/info",
+										"publication/v1/sha1.git/objects/pack", "publication/v1/sha1.git/refs", "publication/v1/sha1.git/refs/heads", "publication/v1/sha1.git/refs/tags" }) {
+			expect(adapters::sqlite::create_storage_root_owner_private(isolation / name), "private publication isolation directory");
+		}
+		auto                                        owner = lease(root.Path);
+		adapters::sqlite::release_maintenance_files files{ root.Path, owner, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U } };
+		auto                                        candidate = files.prepare(context(files, command::prepare_purge), { });
+		expect(candidate.has_value(), "a profile that planned a publication is inventoried for purge");
+		write(store / "developer-file.cpp", "must remain unknown");
+		const auto unknown = files.prepare(context(files, command::prepare_purge), { });
+		expect(!unknown && unknown.error() == reason::incomplete_inventory, "an unknown entry in the publication store blocks purge");
+		fs::remove(store / "developer-file.cpp");
+		write(isolation / "tmp/unfinished", "unresolved producer data");
+		expect(!files.prepare(context(files, command::prepare_purge), { }), "publication isolation descendants must be recovered by their owner");
+		fs::remove(isolation / "tmp/unfinished");
+		write(isolation / "publication/v1/other.git/HEAD", "ref: refs/heads/main\n");
+		expect(!files.prepare(context(files, command::prepare_purge), { }), "only the catalog's own stores are taken");
+		fs::remove_all(isolation / "publication/v1/other.git");
+		auto erase      = context(files, command::purge_profile);
+		erase.Selection = (*candidate)->selection();
+		expect(files.erase(erase, **candidate, { }, [] { return true; }).has_value(), "confirmed purge removes the publication isolation root");
+		expect(!fs::exists(isolation) && fs::exists(root.Path / "state/v1/profile-registry.sqlite3"), "the publication root is gone and shared registry state is kept");
+	}
 #if defined(_WIN32)
 	/// \brief [[BPR-1038]]. The installed Git owner makes its isolation
 	/// directories with `std::filesystem::create_directory`, and Git makes its
@@ -477,6 +519,7 @@ try {
 	test_durable_recovery();
 	test_credential_cleanup_and_recovery();
 	test_populated_cache_inventory();
+	test_publication_isolation_inventory();
 #if defined(_WIN32)
 	test_inherited_git_isolation_directories();
 #endif

@@ -104,10 +104,10 @@ reviewer saved or exported, and `.bpr-review.zip` bundles, are the reviewer's
 own files and stay where they were written. None of this is encrypted by
 BetterPullReview. Publishing a cycle (Share notes > Publish as Pull Request…)
 also makes the profile's `publication-git-v1/`, a BPR-owned Git store for the
-candidate's objects. Profile purge does not list that folder yet, so preparing a
-purge of a profile that has one is refused as an incomplete inventory
-(recorded on [[BPR-1185]] for a follow-up). Do not delete it by hand to get past
-the refusal. The [domain model](../architecture/domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053)
+candidate's objects. Profile purge includes that folder by its exact layout
+(the installed Git isolation files, empty work and cache directories, and the
+`publication/v1` bare object stores); anything else inside it blocks the purge
+as an incomplete inventory ([[BPR-1283]]). The [domain model](../architecture/domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053)
 gives the store's recovery and pin rules.
 
 Manual-token sessions are session-only and remove their exact slots on orderly
