@@ -26,6 +26,7 @@
 class QEvent;
 class QLabel;
 class QPlainTextEdit;
+class QTextDocument;
 class QResizeEvent;
 class QScrollBar;
 class QSplitter;
@@ -80,7 +81,13 @@ namespace bpr::qt {
 	/// \brief Records directly observable composed-workbench activity.
 	struct diff_workbench_statistics
 	{
-		std::uint64_t Publications                 = 0U;
+		std::uint64_t Publications = 0U;
+		/// [[BPR-1264]]. Publications whose source documents were filled over
+		/// several bounded GUI turns, the turns spent filling them, and the
+		/// staged fills a newer request superseded before adoption.
+		std::uint64_t StagedPublications           = 0U;
+		std::uint64_t PublicationFillBatches       = 0U;
+		std::uint64_t SupersededStagedPublications = 0U;
 		std::uint64_t Failures                     = 0U;
 		std::uint64_t Invalidations                = 0U;
 		std::uint64_t GeometryRebuilds             = 0U;
@@ -372,8 +379,17 @@ namespace bpr::qt {
 		void schedule_geometry_rebuild(
 			measured_geometry_change      aChange,
 			diff_geometry_rebuild_trigger aTrigger);
-		void               queue_geometry_continuation();
-		void               rebuild_geometry();
+		void queue_geometry_continuation();
+		void rebuild_geometry();
+		/// \brief [[BPR-1264]]. Fills a staged publication's documents within one
+		/// bounded GUI turn, and adopts the publication once both are complete.
+		void continue_publication();
+		void queue_publication_continuation();
+		void drop_staged_publication();
+		/// \brief The publication's state changes, with the source documents
+		/// either replaced in place or adopted already filled.
+		void               adopt_publication(const application::diff_publication& aPublication,
+											 QTextDocument* aLeft, QTextDocument* aRight);
 		void               apply_frame(const comparison_scroll_frame& aFrame);
 		[[nodiscard]] auto select_line(
 			core::diff_side aSide,
@@ -449,10 +465,15 @@ namespace bpr::qt {
 			= diff_geometry_rebuild_trigger::none;
 		struct geometry_measurement;
 		std::shared_ptr<geometry_measurement> PendingMeasurement;
-		bool                                  GeometryRevealPending = false;
-		bool                                  GeometryScheduled     = false;
-		bool                                  ApplyingFrame         = false;
-		bool                                  OnePaneEnabled        = false;
+		/// [[BPR-1264]]. A large publication whose detached documents are
+		/// still being filled; nothing else observes them before adoption.
+		struct staged_publication;
+		std::shared_ptr<staged_publication> PendingPublication;
+		bool                                PublicationScheduled  = false;
+		bool                                GeometryRevealPending = false;
+		bool                                GeometryScheduled     = false;
+		bool                                ApplyingFrame         = false;
+		bool                                OnePaneEnabled        = false;
 	};
 } // namespace bpr::qt
 

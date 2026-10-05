@@ -23,6 +23,7 @@
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextCursor>
+#include <QTextDocument>
 #include <QTextLayout>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -662,6 +663,75 @@ namespace bpr::qt {
 				static_cast<qsizetype>(aDocument->Bytes.size()));
 		}
 
+		/// [[BPR-1264]]. Above this many lines on the two sides together a
+		/// publication fills its documents over several GUI turns. Below it the
+		/// single replacement is a few milliseconds on the slowest station.
+		inline constexpr std::size_t staged_publication_lines = 4096U;
+		/// Lines appended per batch, and the time after which a turn yields.
+		inline constexpr int          staged_publication_batch_lines = 256;
+		inline constexpr std::int64_t staged_publication_turn_ns     = 4'000'000;
+
+		/// \brief One side's detached document and how far it is filled.
+		struct staged_document
+		{
+			QPointer<QTextDocument> Document;
+			QTextCursor             End;
+			QString                 Text;
+			qsizetype               Position = 0;
+
+			void start(QPlainTextEdit& aPane, const std::optional<core::decoded_text_document>& aSource)
+			{
+				Text     = text_document(aSource);
+				Document = new QTextDocument{ &aPane };
+				// A read-only pane keeps no history, and recording one per batch
+				// would cost time and memory for nothing.
+				Document->setUndoRedoEnabled(false);
+				End = QTextCursor{ Document.data() };
+			}
+			[[nodiscard]] auto complete() const noexcept -> bool
+			{
+				return Position >= Text.size();
+			}
+			/// Appends up to `aLines` lines. A batch ends on a line break, so the
+			/// next one starts a fresh block, exactly as one replacement would.
+			void append(const int aLines)
+			{
+				auto end = Position;
+				for (auto line = 0; line < aLines && end < Text.size(); ++line) {
+					const auto next = Text.indexOf(QLatin1Char('\n'), end);
+					end             = next < 0 ? Text.size() : next + 1;
+				}
+				End.insertText(Text.sliced(Position, end - Position));
+				Position = end;
+			}
+			void discard()
+			{
+				delete Document.data();
+			}
+		};
+
+		/// \brief Gives a pane a filled document, keeping its typography.
+		///
+		/// \details QPlainTextEdit keeps its font, tab stop and margin on the
+		/// document, so a new one is given the replaced one's, and the plain
+		/// text layout the pane requires.
+		void adopt_document(QPlainTextEdit& aPane, QTextDocument& aDocument)
+		{
+			auto* const previous = aPane.document();
+			aDocument.setDefaultFont(previous->defaultFont());
+			aDocument.setDefaultTextOption(previous->defaultTextOption());
+			aDocument.setDocumentMargin(previous->documentMargin());
+			aDocument.setUndoRedoEnabled(previous->isUndoRedoEnabled());
+			aDocument.setDocumentLayout(new QPlainTextDocumentLayout{ &aDocument });
+			// The pane's first document belongs to its text control, which
+			// deletes it on replacement; one adopted earlier is the pane's child.
+			const auto adopted = previous->parent() == &aPane;
+			aPane.setDocument(&aDocument);
+			if (adopted) {
+				delete previous;
+			}
+		}
+
 		[[nodiscard]] auto line_text_at(
 			const std::optional<core::decoded_text_document>& aDocument,
 			const std::uint32_t                               aLine) -> QString
@@ -694,6 +764,9 @@ namespace bpr::qt {
 				: QStringLiteral("(no source line)");
 		}
 
+		/// Lines of one span the detail pane shows before saying how many remain.
+		inline constexpr std::uint32_t detail_span_lines = 64U;
+
 		[[nodiscard]] auto span_text(
 			const std::optional<core::decoded_text_document>& aDocument,
 			const core::line_span                             aSpan) -> QString
@@ -703,12 +776,19 @@ namespace bpr::qt {
 				|| aSpan.End > aDocument->Lines.size()) {
 				return QStringLiteral("(no source lines)");
 			}
-			auto result = QString{ };
-			for (auto line = aSpan.Begin; line < aSpan.End; ++line) {
+			// [[BPR-1264]]. The detail pane is a compact summary. An approximate
+			// alignment's span can be most of the file, and copying all of it
+			// here cost as much as filling a source pane.
+			const auto shown  = std::min(aSpan.End, aSpan.Begin + detail_span_lines);
+			auto       result = QString{ };
+			for (auto line = aSpan.Begin; line < shown; ++line) {
 				if (!result.isEmpty()) {
 					result += QLatin1Char('\n');
 				}
 				result += line_text_at(aDocument, line);
+			}
+			if (shown < aSpan.End) {
+				result += QStringLiteral("\n(%1 more lines)").arg(aSpan.End - shown);
 			}
 			return result;
 		}
@@ -984,6 +1064,13 @@ namespace bpr::qt {
 
 	diff_workbench::~diff_workbench() = default;
 
+	struct diff_workbench::staged_publication
+	{
+		application::diff_publication Publication;
+		staged_document               Left;
+		staged_document               Right;
+	};
+
 	void diff_workbench::publish(
 		const application::diff_publication& aPublication)
 	{
@@ -999,6 +1086,29 @@ namespace bpr::qt {
 			++Statistics.RejectedStaleInput;
 			return;
 		}
+		drop_staged_publication();
+		const auto lines = [](const std::optional<core::decoded_text_document>& aDocument) {
+			return aDocument.has_value() ? aDocument->Lines.size() : std::size_t{ 0U };
+		};
+		if (lines(aPublication.Result->LeftDocument) + lines(aPublication.Result->RightDocument) <= staged_publication_lines) {
+			adopt_publication(aPublication, nullptr, nullptr);
+			return;
+		}
+		// [[BPR-1264]]. Replacing both panes' text in one turn held the GUI
+		// thread for the whole file twice. The documents are filled detached,
+		// a bounded batch per turn, and adopted together once complete.
+		auto staged         = std::make_shared<staged_publication>();
+		staged->Publication = aPublication;
+		staged->Left.start(*Left, aPublication.Result->LeftDocument);
+		staged->Right.start(*Right, aPublication.Result->RightDocument);
+		PendingPublication = std::move(staged);
+		++Statistics.StagedPublications;
+		queue_publication_continuation();
+	}
+
+	void diff_workbench::adopt_publication(const application::diff_publication& aPublication,
+										   QTextDocument* const aLeft, QTextDocument* const aRight)
+	{
 		const auto previousSelection = Interaction.Selection;
 		CurrentResult                = aPublication.Result;
 		SemanticIndex                = aPublication.Index;
@@ -1017,8 +1127,13 @@ namespace bpr::qt {
 		// A document's revision does not identify its content ([[BPR-1123]]).
 		LeftHeights.clear();
 		RightHeights.clear();
-		Left->setPlainText(text_document(CurrentResult->LeftDocument));
-		Right->setPlainText(text_document(CurrentResult->RightDocument));
+		if (aLeft != nullptr && aRight != nullptr) {
+			adopt_document(*Left, *aLeft);
+			adopt_document(*Right, *aRight);
+		} else {
+			Left->setPlainText(text_document(CurrentResult->LeftDocument));
+			Right->setPlainText(text_document(CurrentResult->RightDocument));
+		}
 		rebuild_unified_document();
 		++Statistics.SemanticQueries;
 		static_cast<void>(core::reconcile_diff_interaction(Interaction, *SemanticIndex));
@@ -1553,6 +1668,61 @@ namespace bpr::qt {
 		plain_text_pane_measurement                     Right;
 	};
 
+	void diff_workbench::queue_publication_continuation()
+	{
+		if (PublicationScheduled) {
+			return;
+		}
+		PublicationScheduled = true;
+		QPointer<diff_workbench> self{ this };
+		QTimer::singleShot(0, this, [self] {
+			if (self != nullptr) {
+				self->PublicationScheduled = false;
+				self->continue_publication();
+			}
+		});
+	}
+
+	void diff_workbench::continue_publication()
+	{
+		const auto staged = PendingPublication;
+		if (!staged) {
+			return;
+		}
+		if (!CurrentContext.has_value() || *CurrentContext != staged->Publication.Context
+			|| staged->Left.Document == nullptr || staged->Right.Document == nullptr) {
+			drop_staged_publication();
+			return;
+		}
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		while (!staged->Left.complete() || !staged->Right.complete()) {
+			(staged->Left.complete() ? staged->Right : staged->Left).append(staged_publication_batch_lines);
+			// One batch is indivisible; check the time between batches.
+			if (timer.nsecsElapsed() >= staged_publication_turn_ns) {
+				break;
+			}
+		}
+		++Statistics.PublicationFillBatches;
+		if (!staged->Left.complete() || !staged->Right.complete()) {
+			queue_publication_continuation();
+			return;
+		}
+		PendingPublication.reset();
+		adopt_publication(staged->Publication, staged->Left.Document.data(), staged->Right.Document.data());
+	}
+
+	void diff_workbench::drop_staged_publication()
+	{
+		if (!PendingPublication) {
+			return;
+		}
+		++Statistics.SupersededStagedPublications;
+		PendingPublication->Left.discard();
+		PendingPublication->Right.discard();
+		PendingPublication.reset();
+	}
+
 	void diff_workbench::schedule_geometry_rebuild(
 		const measured_geometry_change      aChange,
 		const diff_geometry_rebuild_trigger aTrigger)
@@ -1575,7 +1745,7 @@ namespace bpr::qt {
 
 	auto diff_workbench::geometry_pending() const noexcept -> bool
 	{
-		return CurrentResult && (GeometryScheduled || PendingMeasurement);
+		return PendingPublication || (CurrentResult && (GeometryScheduled || PendingMeasurement));
 	}
 
 	void diff_workbench::queue_geometry_continuation()
@@ -2908,6 +3078,7 @@ namespace bpr::qt {
 		PresentationReadingLine.reset();
 		PresentationReadingSide.reset();
 		const auto hadSelection = Interaction.Selection.has_value();
+		drop_staged_publication();
 		PendingMeasurement.reset();
 		GeometryRevealPending = false;
 		CurrentDetail.reset();

@@ -126,13 +126,13 @@ namespace bpr::e2e::large_review {
 	inline constexpr std::uint64_t PlatformFootprintGrowthLimitBytes          = 168U * MiB;
 	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 216U * MiB;
 	inline constexpr double        PlatformActiveCloseQuiescenceLimitMs       = 100.0;
-	// Observed over two runs: large_file_selection 94.4-108.0,
+	// [[BPR-1264]]. The four named phases (large_file_selection 94.4-108.0,
 	// large_source_revisit_render 90.4-115.3, approximate_file_selection
-	// 117.4-127.6, first_tab_file 99.8.
-	inline constexpr std::array<std::string_view, 4> PlatformKnownInputMisses{
-		"large_file_selection", "large_source_revisit_render", "approximate_file_selection", "first_tab_file"
-	};
-	inline constexpr int RunBudgetScale = 1;
+	// 117.4-163.4, first_tab_file 92.7-103.3) were one publication replacing
+	// both panes' text in a GUI turn. Filled over bounded turns, they measure
+	// 23.4-36.6, and every Linux phase gates the target.
+	inline constexpr std::array<std::string_view, 0> PlatformKnownInputMisses{ };
+	inline constexpr int                             RunBudgetScale = 1;
 #endif
 
 	[[nodiscard]] auto known_input_miss(std::string_view aPhase) -> bool

@@ -1464,6 +1464,57 @@ namespace {
 			   "a valid prepared index does not authorize a stale request after clear");
 	}
 
+	/// \brief [[BPR-1264]]. A large publication fills its source documents over
+	/// bounded GUI turns and adopts them together, with the panes' typography.
+	///
+	/// \details Replacing both panes' text in the publishing turn held the GUI
+	/// thread for both files at once (84-164 ms on the Linux station for the
+	/// 20,000-line fixture), over the 100 ms input target.
+	void test_large_publication_fills_over_bounded_turns()
+	{
+		const auto [leftText, rightText] = large_comparison_text(6'000U, 8U);
+		const auto diff                  = std::make_shared<const core::computed_file_diff>(computed(leftText, rightText, { }, 43U));
+		auto       workbench             = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto font = workbench.left_pane()->font();
+		font.setPointSizeF(font.pointSizeF() + 3.0);
+		workbench.left_pane()->setFont(font);
+		workbench.left_pane()->setTabStopDistance(37.0);
+		const auto selected = context(*diff, 92U, 92U);
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = diff }));
+		expect(!workbench.current_result() && workbench.geometry_pending() && workbench.statistics().StagedPublications == 1U
+				   && workbench.statistics().Publications == 0U && workbench.left_pane()->document()->isEmpty(),
+			   "a large publication adopts nothing in the publishing turn");
+		settle_geometry(workbench);
+		expect(workbench.current_result() == diff && workbench.statistics().Publications == 1U
+				   && workbench.statistics().PublicationFillBatches > 1U,
+			   "the documents fill over several bounded turns and are then adopted");
+		expect(workbench.left_pane()->toPlainText() == QString::fromStdString(leftText)
+				   && workbench.right_pane()->toPlainText() == QString::fromStdString(rightText),
+			   "the adopted documents hold exactly the published text");
+		expect(workbench.left_pane()->document()->defaultFont() == font && qFuzzyCompare(workbench.left_pane()->tabStopDistance(), 37.0)
+				   && workbench.left_pane()->lineWrapMode() == QPlainTextEdit::NoWrap && workbench.left_pane()->isReadOnly(),
+			   "the pane keeps its font, tab stop, wrapping and read-only state");
+		expect(workbench.selection().has_value() && workbench.scroll_controller()->current_frame().has_value(),
+			   "the adopted publication selects and measures as a direct one would");
+
+		const auto adopted = workbench.statistics().Publications;
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = diff }));
+		QApplication::processEvents();
+		const auto small = std::make_shared<const core::computed_file_diff>(computed("old\n", "new\n", { }, 44U));
+		const auto next  = context(*small, 93U, 93U);
+		workbench.set_loading(next);
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = next, .Result = small }));
+		settle_geometry(workbench);
+		expect(workbench.current_result() == small && workbench.statistics().SupersededStagedPublications == 1U
+				   && workbench.statistics().Publications == adopted + 1U && workbench.left_pane()->toPlainText() == QStringLiteral("old\n"),
+			   "a newer selection drops a staged publication before it is adopted");
+	}
+
 	void test_measurement_yields_and_cancels()
 	{
 		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
@@ -3401,6 +3452,7 @@ auto main(int argc, char** argv) -> int
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();
 	test_prepared_semantic_index_adoption();
+	test_large_publication_fills_over_bounded_turns();
 	test_measurement_yields_and_cancels();
 	test_scale_and_high_frequency_evidence();
 	test_line_painting_stays_bounded_by_the_viewport();

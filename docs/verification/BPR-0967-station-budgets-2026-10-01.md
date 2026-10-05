@@ -195,3 +195,12 @@ macOS's name removed, the approximate course fails on its own 111.1 ms
 selection gap with "fixture input target missed outside the platform's named
 phases". That failure was the natural control for the new gate; the source was
 restored byte-for-byte.
+
+## Linux named phases removed — [[BPR-1264]], 2026-10-05
+
+The four Linux phases were one cause: a publication replaced both panes' text
+in one GUI turn. Filling the documents over bounded turns brings them to
+23.4–36.6 ms on the same station, and Linux's `PlatformKnownInputMisses` is
+now empty. With every phase gated, the 18 large-review rows pass in the
+optimized tree. The macOS and Windows lists are unchanged until their own
+optimized runs; [[BPR-1264]] has the numbers and the owed runs.
