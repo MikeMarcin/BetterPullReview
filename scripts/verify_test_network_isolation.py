@@ -644,6 +644,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # before any attack runs, Git's getcwd under AC\Temp as in the two-round
     # course. It is run uncontained.
     "application_review_cycle_security_qualification": "dos-volume-name",
+    # [[BPR-1183]]. Measured on JaegAW 2026-10-05 at 1fb3cd77d in a
+    # BPR_BUILD_TOUR_CLI tree, contained as registered: the corpus's first
+    # `bpr cycle open` exits 7 with "The application root is unavailable or
+    # is not owner-private.", the profile_unavailable refusal
+    # cycle_cli_public_path measures. It is run uncontained.
+    "application_review_cycle_recovery_corpus": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they

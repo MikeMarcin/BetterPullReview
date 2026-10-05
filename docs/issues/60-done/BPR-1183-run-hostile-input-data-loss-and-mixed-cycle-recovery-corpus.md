@@ -84,3 +84,36 @@ Not covered by this command: `RECOVERY_CORPUS_SKIPPED mixed builds: no
 --older-cycle-application or --agent-free-cycle-application was given`. The
 mixed-build case did not run on Linux. `build/bpr1183` was removed. Done is
 not reopened.
+
+### Windows at `1fb3cd77d` (bpr-main-win, 2026-10-05)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-bpr1183`
+(`windows-dev`, `BPR_BUILD_TOUR_CLI=ON`) Debug, with the four requested
+targets. The build printed no `warning C` or `warning LNK` line.
+
+- **Contained, as registered,** `application_review_cycle_recovery_corpus`
+  stops at its first `bpr cycle open` with exit 7, "The application root is
+  unavailable or is not owner-private.", the `profile_unavailable` refusal. It
+  is now `WINDOWS_UNCONTAINED` and pinned `dos-volume-name` with that line.
+  `test_network_isolation_manifest` passes (`configured=595`,
+  `registrations=554`). `sqlite_review_cycle_storage` passes.
+- **Uncontained, Windows' recovery holds.** Kills and file locking were the
+  concern, and they behave:
+  - `RECOVERY_KILL_POINTS_OK`: capture, note and goal kill points; killed
+    before, after, finished first and refused on repeat.
+  - `RECOVERY_OWNER_KILLED_OK`: terminal exit 6, the owner killed while
+    writing.
+  - `RECOVERY_DAMAGED_MATERIAL_OK` and `RECOVERY_DAMAGED_STORE_OK`.
+  - It prints `RECOVERY_CORPUS_SKIPPED full disk: no per-process file-size
+    limit on Windows`.
+- **It then fails at the moved-root step.** That step is [[BPR-1279]]'s, not
+  this card's. The window does offer Rebind Folder (`rebind_offered: True`,
+  with the moved-folder words), but the location it reports is
+  `C:/Users/…/alpha-project` against the course's `C:\Users\…\alpha-project`.
+  `cycle_cli_public_path` fails the same way in its BPR-1279 rebinding
+  section: `bpr cycle show` reports `C:/…/rebound` against `str(first)`. One
+  cause, then: on Windows the product reports a cycle's location with forward
+  slashes, and BPR-1279's new checks compare native spellings. It is reported
+  to the integrator as a BPR-1279 matter (product spelling or course
+  comparison), and nothing was loosened here. The rest of the corpus, after
+  that step, has not run on Windows.

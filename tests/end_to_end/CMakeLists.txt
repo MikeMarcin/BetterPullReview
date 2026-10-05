@@ -3349,10 +3349,11 @@ if(TARGET app_bpr)
     # mid-command; a full disk; damaged and missing retained material; a
     # damaged and a lost store; stale drafts and replaced and moved roots;
     # duplicates; case collisions where a case-sensitive folder can be made.
-    # Older and agent-free builds join when the course is given them. Registered
-    # contained: Windows has not measured it yet; a measured refusal is pinned,
-    # not guessed.
-    bpr_add_network_isolated_test(NAME application_review_cycle_recovery_corpus
+    # Older and agent-free builds join when the course is given them.
+    # Uncontained on Windows (dos-volume-name): contained, its first `bpr cycle
+    # open` exits 7, "The application root is unavailable or is not
+    # owner-private." Measured on JaegAW 2026-10-05.
+    bpr_add_network_isolated_test(NAME application_review_cycle_recovery_corpus WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_recovery_corpus.py"
         --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
         --cycle-application $<TARGET_FILE:app_bpr>)
