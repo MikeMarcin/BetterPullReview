@@ -1,0 +1,465 @@
+{
+  "schema": "bpr.cc.intake-audit.v1",
+  "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/intake",
+  "observed_revision": "d659921ea912f5b1b31b1e61ffdbfdc1f9225df9",
+  "pack_checksums": {
+    "listed": 61,
+    "matching": 61
+  },
+  "archives": {
+    "betterpullreview-review-tour-rfc-pack-v1": {
+      "archive_sha256": "b4f45e7e63465b0dc4d0308699d1bcb6308ec6e1d0720eef42c05be1bf0478d6",
+      "expected_sha256": "b4f45e7e63465b0dc4d0308699d1bcb6308ec6e1d0720eef42c05be1bf0478d6",
+      "retained_as": "docs/rfcs/assets/bpr-review-tour-v1/",
+      "files": 83,
+      "byte_identical_to_retained": true
+    },
+    "betterpullreview-pr-tour-cli-extension-rfc-pack-v1": {
+      "archive_sha256": "3cdc6a070deafcf3301a13ad0739bf9fe798884771276fa76751cea554516782",
+      "expected_sha256": "3cdc6a070deafcf3301a13ad0739bf9fe798884771276fa76751cea554516782",
+      "retained_as": "docs/rfcs/assets/bpr-pr-tour-cli-extension-v1/",
+      "files": 63,
+      "byte_identical_to_retained": true
+    },
+    "betterpullreview-conventional-comments-rfc-pack-v1": {
+      "archive_sha256": "032862e35e62e8136943d10eba990cb8020fd5adc79b875293ff3cc86eeb6d44",
+      "expected_sha256": null,
+      "retained_as": "docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1/",
+      "files": 62,
+      "byte_identical_to_retained": true
+    }
+  },
+  "predecessors": {
+    "bpr-review-tour-v1": {
+      "cards": "BPR-0991..BPR-1016",
+      "rfc_aliases": {},
+      "lanes": {
+        "60-done": [
+          "BPR-0991",
+          "BPR-0992",
+          "BPR-0993",
+          "BPR-0994",
+          "BPR-0995",
+          "BPR-0996",
+          "BPR-0997",
+          "BPR-0998",
+          "BPR-0999",
+          "BPR-1000",
+          "BPR-1001",
+          "BPR-1002",
+          "BPR-1003",
+          "BPR-1004",
+          "BPR-1005",
+          "BPR-1006",
+          "BPR-1007",
+          "BPR-1008",
+          "BPR-1009",
+          "BPR-1010",
+          "BPR-1011",
+          "BPR-1012",
+          "BPR-1013",
+          "BPR-1014",
+          "BPR-1015",
+          "BPR-1016"
+        ]
+      }
+    },
+    "bpr-pr-tour-cli-extension-v1": {
+      "cards": "BPR-1052..BPR-1071",
+      "rfc_aliases": {},
+      "lanes": {
+        "60-done": [
+          "BPR-1052",
+          "BPR-1053",
+          "BPR-1054",
+          "BPR-1055",
+          "BPR-1056",
+          "BPR-1057",
+          "BPR-1058",
+          "BPR-1059",
+          "BPR-1060",
+          "BPR-1061",
+          "BPR-1062",
+          "BPR-1063",
+          "BPR-1064",
+          "BPR-1065",
+          "BPR-1066"
+        ],
+        "40-parked": [
+          "BPR-1067"
+        ],
+        "10-backlog": [
+          "BPR-1068",
+          "BPR-1069",
+          "BPR-1070",
+          "BPR-1071"
+        ]
+      }
+    },
+    "rfc_status": {
+      "RFC-BPR-0039": "Auto-Verified",
+      "RFC-BPR-0040": "Auto-Verified",
+      "RFC-BPR-0041": "Auto-Verified",
+      "RFC-BPR-0042": "Auto-Verified",
+      "RFC-BPR-0043": "Auto-Verified",
+      "RFC-BPR-0044": "Proposed",
+      "RFC-BPR-0045": "Proposed",
+      "RFC-BPR-0046": "Proposed"
+    }
+  },
+  "allocation": {
+    "cards": {
+      "BPR-1075": {
+        "alias": "PACK-CC-01",
+        "lane": "30-in-progress",
+        "milestone": "intake"
+      },
+      "BPR-1076": {
+        "alias": "PACK-CC-02",
+        "lane": "10-backlog",
+        "milestone": "semantics"
+      },
+      "BPR-1077": {
+        "alias": "PACK-CC-03",
+        "lane": "10-backlog",
+        "milestone": "semantics"
+      },
+      "BPR-1078": {
+        "alias": "PACK-CC-04",
+        "lane": "10-backlog",
+        "milestone": "semantics"
+      },
+      "BPR-1079": {
+        "alias": "PACK-CC-05",
+        "lane": "10-backlog",
+        "milestone": "design"
+      },
+      "BPR-1080": {
+        "alias": "PACK-CC-06",
+        "lane": "10-backlog",
+        "milestone": "design"
+      },
+      "BPR-1081": {
+        "alias": "PACK-CC-07",
+        "lane": "10-backlog",
+        "milestone": "design"
+      },
+      "BPR-1082": {
+        "alias": "PACK-CC-08",
+        "lane": "10-backlog",
+        "milestone": "authoring"
+      },
+      "BPR-1083": {
+        "alias": "PACK-CC-09",
+        "lane": "10-backlog",
+        "milestone": "authoring"
+      },
+      "BPR-1084": {
+        "alias": "PACK-CC-10",
+        "lane": "10-backlog",
+        "milestone": "authoring"
+      },
+      "BPR-1085": {
+        "alias": "PACK-CC-11",
+        "lane": "10-backlog",
+        "milestone": "authoring"
+      },
+      "BPR-1086": {
+        "alias": "PACK-CC-12",
+        "lane": "10-backlog",
+        "milestone": "authoring"
+      },
+      "BPR-1087": {
+        "alias": "PACK-CC-13",
+        "lane": "10-backlog",
+        "milestone": "overview"
+      },
+      "BPR-1088": {
+        "alias": "PACK-CC-14",
+        "lane": "10-backlog",
+        "milestone": "overview"
+      },
+      "BPR-1089": {
+        "alias": "PACK-CC-15",
+        "lane": "10-backlog",
+        "milestone": "overview"
+      },
+      "BPR-1090": {
+        "alias": "PACK-CC-16",
+        "lane": "10-backlog",
+        "milestone": "hooks-cli"
+      },
+      "BPR-1091": {
+        "alias": "PACK-CC-17",
+        "lane": "10-backlog",
+        "milestone": "hooks-cli"
+      },
+      "BPR-1092": {
+        "alias": "PACK-CC-18",
+        "lane": "10-backlog",
+        "milestone": "hooks-cli"
+      },
+      "BPR-1093": {
+        "alias": "PACK-CC-19",
+        "lane": "10-backlog",
+        "milestone": "verification"
+      },
+      "BPR-1094": {
+        "alias": "PACK-CC-20",
+        "lane": "10-backlog",
+        "milestone": "verification"
+      },
+      "BPR-1095": {
+        "alias": "PACK-CC-21",
+        "lane": "10-backlog",
+        "milestone": "verification"
+      },
+      "BPR-1096": {
+        "alias": "PACK-CC-22",
+        "lane": "10-backlog",
+        "milestone": "verification"
+      },
+      "BPR-1097": {
+        "alias": "PACK-CC-23",
+        "lane": "10-backlog",
+        "milestone": "closeout"
+      },
+      "BPR-1098": {
+        "alias": "PACK-CC-24",
+        "lane": "10-backlog",
+        "milestone": "closeout"
+      },
+      "BPR-1099": {
+        "alias": "PACK-CC-25",
+        "lane": "10-backlog",
+        "milestone": "closeout"
+      },
+      "BPR-1100": {
+        "alias": "PACK-CC-26",
+        "lane": "10-backlog",
+        "milestone": "closeout"
+      },
+      "BPR-1101": {
+        "alias": "PACK-CC-27",
+        "lane": "10-backlog",
+        "milestone": "closeout"
+      }
+    },
+    "receipt": "docs/issues/_reservations/BPR-1075--BPR-1101--243d1ef0e225.json",
+    "counter": "docs/issues/NEXT_ID",
+    "next_id_at_audit": "BPR-1286",
+    "plan_milestones": [
+      "intake",
+      "semantics",
+      "design",
+      "authoring",
+      "overview",
+      "hooks-cli",
+      "verification",
+      "closeout"
+    ],
+    "plan_equivalence": "all eight authored milestones' fields equal after alias substitution"
+  },
+  "rfcs": {
+    "RFC-BPR-0047": "Proposed",
+    "RFC-BPR-0048": "Proposed",
+    "RFC-BPR-0049": "Proposed",
+    "RFC-BPR-0050": "Proposed",
+    "RFC-BPR-0051": "Proposed"
+  },
+  "source_drift": {
+    "same": 5,
+    "changed": 25,
+    "files": {
+      "AGENTS.md": {
+        "baseline": "0168bda20d47eb7a5074399e46da54d61880b6fb2771d59746298ec9213a49f2",
+        "current": "3a9021accc044878f126a0da4e6d5b12831866ad7f3b3cefa461259587f67f06",
+        "same": false
+      },
+      ".mask/skill-config/implement-rfc/project.md": {
+        "baseline": "502cdb142aa89e85fdcd34bec0c8e86910898e99ceeda7a0634f9064ab499a3f",
+        "current": "9a946c7545dd76995be088bd52da2e7d183ada6d0cfc1c8ca1fa2b7b84ef0f5d",
+        "same": false
+      },
+      "docs/issues/README.md": {
+        "baseline": "fcf9ca3248861d73bffa778141cfba86ff8aa1643ad1578b486ad37c86659f77",
+        "current": "69b5e4590ce5530b00e9785c5dd972ed8a14ba94c50bd1945ac2c7bd42220505",
+        "same": false
+      },
+      "docs/rfcs/README.md": {
+        "baseline": "0c038b98cf2863eab60641e73148d17832d69abb67361196261f744b1d34ba03",
+        "current": "50fe001fd7d39ed1f4fd92eaebadf1d851bb5c6309817c83d3e23151a15743c5",
+        "same": false
+      },
+      "docs/architecture/defect-workflow.md": {
+        "baseline": "ab502ceb1a90b6058418c991fe1c8058dbb9c4bb49b67886ba4ba279bec5e265",
+        "current": "ab502ceb1a90b6058418c991fe1c8058dbb9c4bb49b67886ba4ba279bec5e265",
+        "same": true
+      },
+      "docs/architecture/native-markdown.md": {
+        "baseline": "35cc9ae1b1743fd2b32412947c0839dd04b6f81a7cc9a36d68b7f47629b0fe79",
+        "current": "35cc9ae1b1743fd2b32412947c0839dd04b6f81a7cc9a36d68b7f47629b0fe79",
+        "same": true
+      },
+      "docs/architecture/ai-agent-boundary.md": {
+        "baseline": "d8ef027ac7ac32e1e8df7bcde4fd2dc1df27a94d82b5b00a676fcf04cf1b372f",
+        "current": "27fca2dd84462417c34a598089d117124c668fabfe697f8c4fc1afd165c58932",
+        "same": false
+      },
+      "docs/rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md": {
+        "baseline": "96692488ff02a80b832da4f6d45e5fd06f3666d0229056b036dfbd426cc40417",
+        "current": "f5162a4604930d6565f737673edf4f465ed336b18bc3abd9841e30fe82c16d83",
+        "same": false
+      },
+      "docs/rfcs/RFC-BPR-0023-private-review-threads-provenance-comment-composition.md": {
+        "baseline": "4ea993d7a16a7cee8542418b06fc62e89ad72826d340506b1afaa01a1d697468",
+        "current": "c310d7708bd417a62d27ca3627b3ee8a4d4f98f5b54df434e22b01db9a2e9d4b",
+        "same": false
+      },
+      "docs/rfcs/RFC-BPR-0036-native-markdown-rendering.md": {
+        "baseline": "2c0a01abbcd9f0fab28fc541458b2cf02ccf58eebd38f7f8eec3e3bdae5b52b4",
+        "current": "2c0a01abbcd9f0fab28fc541458b2cf02ccf58eebd38f7f8eec3e3bdae5b52b4",
+        "same": true
+      },
+      "docs/rfcs/RFC-BPR-0037-first-pr-review-workflow.md": {
+        "baseline": "68bc531d40e9dea1e9b60375cc211b4c27a2c6074c3e6ef983ebcbd93a63c562",
+        "current": "b28f7a8559c10c03eb4a78db810c380a8f4215d73080015dbe26d68243a0b58f",
+        "same": false
+      },
+      "docs/rfcs/RFC-BPR-0038-native-package-release-security-qualification.md": {
+        "baseline": "70e41255808476e9cd5780919d0a7706813039a5275567dae9056016322b4101",
+        "current": "37e38135625ee0b46f2de9d21b252a1ddea757b72b56a66474298d12294fd128",
+        "same": false
+      },
+      "src/application/include/bpr/application/github_read_model.hpp": {
+        "baseline": "80ee15d8526433fafca6329423c91b104f17c91f1470d12e75546725818ee5a2",
+        "current": "d539fba82f58de7a6e920e0b51269fdf0028e21aa33d5e9183e5570f69e03903",
+        "same": false
+      },
+      "src/application/include/bpr/application/pull_request_overview.hpp": {
+        "baseline": "959619012b789bd4e2413f2b7e2488ff3252a24d93a9260814529a74308bea65",
+        "current": "d2d9b703fb6de59a15c416c669de3dd31de6c58ce1d2ea85c13f9f09b811339f",
+        "same": false
+      },
+      "src/application/src/pull_request_overview.cpp": {
+        "baseline": "5f14387c5333abf6e01f00f29343b18c4258befe10475739df721b1b1fbf7e06",
+        "current": "6b42d662a9b18de1d6dd045fea3477621c331ebc9264ec6f9f248c33732808dc",
+        "same": false
+      },
+      "src/application/include/bpr/application/workbench_runtime_ports.hpp": {
+        "baseline": "58bfa3cdb9a4ce5e50629a8493d5cf2c45872cb7f13bc63194149fba54ad5b42",
+        "current": "898c2fc17fe3412e310496035f3b2b200e4d3f7b1b710d0656e4cb6aff28ad2b",
+        "same": false
+      },
+      "src/core/include/bpr/core/review_round_trip.hpp": {
+        "baseline": "08327211d149c241e207ca9e2c7e234f14b9786d423c3d2696acb3845c0583ab",
+        "current": "4dad9ca160125227f25835acf7006acaae09149bec2fdc153a6d0af9bb00d930",
+        "same": false
+      },
+      "src/core/include/bpr/core/review_submission.hpp": {
+        "baseline": "9e53d6a0ccc31f3091952e1dcecc2fbc266dacd3326d5e189ab21afde3999b06",
+        "current": "09411e7001618e7c39b034e49ba9ab92ef1f8f56eaac564925483fd31d8014e4",
+        "same": false
+      },
+      "src/application/include/bpr/application/review_mutation_coordinator.hpp": {
+        "baseline": "db523db8cd82e6a0c8f813346698f9d02ec6e6b6af6f9854461ca2e06b3db63b",
+        "current": "39d2a7eb98aaf30b5805d9a3025dab6e880d2848f0afa3b4ff05f0318ee0b1c1",
+        "same": false
+      },
+      "src/application/include/bpr/application/review_submission_application_host.hpp": {
+        "baseline": "0213db3a7f24c81ef5a1a62cc5398e1c74ffa230275a24c157c4ec7188fe9074",
+        "current": "7f723e5f27899021f4b3d493efb817753fd9675cce719a0940678c05d8ddd61d",
+        "same": false
+      },
+      "src/application/src/agent_comment_workshop_host.cpp": {
+        "baseline": "d95557b58a9a84813fa5c59178197bfcdaaa18bf05d2a56a54150b0517103af9",
+        "current": "d95557b58a9a84813fa5c59178197bfcdaaa18bf05d2a56a54150b0517103af9",
+        "same": true
+      },
+      "src/adapters/qt/include/bpr/qt/markdown_body_view.hpp": {
+        "baseline": "4ecaca24504c3173d000ea665f36da5a5cc1d98455d8679f5541019d2ea93d99",
+        "current": "921cad9951f6ed6e4c6d903cd889c16296844c98607b6c3c132be46740bdfdf3",
+        "same": false
+      },
+      "src/adapters/qt/src/pull_request_overview_page.cpp": {
+        "baseline": "21a3c5e7ed25ebdffb541815c30bd981b352ffa53306935ed47f8815c23a8631",
+        "current": "803e281f00bdfcb5c48d351569611888635ab2351344245254e8f496dbe537e1",
+        "same": false
+      },
+      "src/adapters/qt/src/review_draft_editor.cpp": {
+        "baseline": "d8f313da37e4645830cc87008c73bf382f844f283c273a6a52cb6487a16d02bb",
+        "current": "03c33a2b11a70583df0d5d09790cc0443676a6983f5e96865ecbb25c241d45d8",
+        "same": false
+      },
+      "src/adapters/qt/src/review_submission_editor.cpp": {
+        "baseline": "5664478aa5d7d3c38743e88ade36acb05fa43013afe0fb2f3560029a402f7084",
+        "current": "2d023b864e9c0b13e09446581b2f0d08fe79d3938fb797b2e2a22f671d6d3a90",
+        "same": false
+      },
+      "src/adapters/qt/src/github_conversation_panel.cpp": {
+        "baseline": "3436a1cfe9d2ae1b557e9dde6ea0bd38da2b3be101aeeeedfe471afa55626ad2",
+        "current": "bd617ea774dc032adf91a838239e31cd66a07c3d87eacdad7308fe032f110ff6",
+        "same": false
+      },
+      "src/adapters/qt/src/conversation_cards_view.cpp": {
+        "baseline": "98fac82607ac2f327b2eb6e21621f128ddd3daebc02aa9e9bb94fbd255b348c3",
+        "current": "929a727cfbd4226960deed32aab21ae52d7249d1276d1010f5448c48158a2b48",
+        "same": false
+      },
+      "src/adapters/qt/src/settings_window.cpp": {
+        "baseline": "470eac3b4ef70290cdd1c969053a6e9f0feb3b674b648560ca365286348cde62",
+        "current": "d1c05ad7aa6a3b6ba40f09b9b0dd49d0f956ab24eec774aa331a2855d8465630",
+        "same": false
+      },
+      "src/adapters/sqlite/src/workbench_settings_store.cpp": {
+        "baseline": "aefc92213c6831a4f9c123a887448e797c4a0212561621c7ddc2c739c916dc29",
+        "current": "8342685a1868369f2a94e4352ea3178b0060558a0c1be9b2b533b1aa137491e2",
+        "same": false
+      },
+      "docs/rfcs/assets/bpr-shell-surfaces-v1/milestone-plan.json": {
+        "baseline": "5306f2d5d2c3096148851e43c309c7a9244f0ed520b82d9f34178d74a822315b",
+        "current": "5306f2d5d2c3096148851e43c309c7a9244f0ed520b82d9f34178d74a822315b",
+        "same": true
+      }
+    }
+  },
+  "seam_paths_checked": [
+    "packaging/agent-skills/bpr-cycle/SKILL.md",
+    "packaging/agent-skills/pr-tour/SKILL.md",
+    "src/adapters/github/src/review_comment_permalink.hpp",
+    "src/adapters/qt/src/writing_hooks_panel.cpp",
+    "src/adapters/sqlite/src/workbench_settings_database.cpp",
+    "src/app/src/cycle_cli.cpp",
+    "src/app/src/tour_cli.cpp",
+    "src/app/src/tour_main.cpp",
+    "src/app/src/tour_owner_service.hpp",
+    "src/application/include/bpr/application/agent_comment_workshop_host.hpp",
+    "src/application/include/bpr/application/pull_request_overview.hpp",
+    "src/application/include/bpr/application/review_comment_placement.hpp",
+    "src/application/include/bpr/application/review_tour_host.hpp",
+    "src/application/include/bpr/application/shared_draft_application_host.hpp",
+    "src/application/include/bpr/application/tour_owner_channel.hpp",
+    "src/application/include/bpr/application/writing_hooks.hpp",
+    "src/core/include/bpr/core/agent_chat_scope.hpp",
+    "src/core/include/bpr/core/agent_finding_promotion.hpp",
+    "src/core/include/bpr/core/review_cycle_promotion.hpp",
+    "src/core/include/bpr/core/review_preparation.hpp",
+    "src/core/include/bpr/core/review_tour_markdown.hpp",
+    "src/core/include/bpr/core/revisioned_review_draft.hpp",
+    "src/core/src/review_tour_markdown.cpp"
+  ],
+  "shipped_hook_resources": [
+    "application-contract.md",
+    "problem-statement.md",
+    "solution-summary.md",
+    "tour-outline.md",
+    "tour-stop-comment.md"
+  ],
+  "conventional_comment_product_source": [],
+  "conventional_comment_test_corpora": [
+    "tests/adapters_qt/markdown_body_view_tests.cpp",
+    "tests/core/review_cycle_disclosure_tests.cpp"
+  ],
+  "result": "pass",
+  "failures": []
+}

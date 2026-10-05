@@ -1,0 +1,11 @@
+{
+  "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/intake",
+  "mandate_revision": "r1-20261005-owner-release-implement-bpr-1075",
+  "run_id": "bpr-conventional-comments-20261005",
+  "segment_id": "intake",
+  "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
+  "status": "in-progress",
+  "execution_base": "1cd828ba8114ea3a2e639c671a8e47f5edf22fb5",
+  "historical_import_base": "b5cb3b43bb948b3e8e971a967b6772ef150c1d5a",
+  "claim_commit": "d659921ea912f5b1b31b1e61ffdbfdc1f9225df9"
+}

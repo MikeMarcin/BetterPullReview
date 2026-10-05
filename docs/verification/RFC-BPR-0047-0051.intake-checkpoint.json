@@ -1,0 +1,80 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "bpr-conventional-comments-20261005",
+  "segment_id": "intake",
+  "mandate_revision": "r1-20261005-owner-release-implement-bpr-1075",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1075",
+  "binding": {
+    "plan_id": "betterpullreview-conventional-comments-rfc-pack-v1",
+    "plan_path": "docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json",
+    "milestone_id": "intake",
+    "definition_fingerprint": "sha256:5774737e470ce0bb14698e7c6f7fb9d116084a9b355d8d8ea165f34347205691",
+    "obligations": [
+      {
+        "id": "BPR-1075:*",
+        "source": "BPR-1075",
+        "selector": null,
+        "source_fingerprint": "sha256:8872ab882ccb7085bbef1bba9a6692420d964b891d304fd6f2ee8a415bcb493b"
+      }
+    ],
+    "obligation_fingerprint": "sha256:6374c5f8b6e41d40934be31e171528bf06122b7b03571cd3e3c96c57a7f88698",
+    "exit_criteria": [
+      {
+        "id": "intake:exit:1",
+        "text": "All new IDs and external predecessor references are mapped."
+      },
+      {
+        "id": "intake:exit:2",
+        "text": "The eight authored milestones are adopted without recreating their grouping."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "intake",
+    "semantics",
+    "design",
+    "authoring",
+    "overview",
+    "hooks-cli",
+    "verification",
+    "closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/bpr-wt-1075",
+    "workflow_root": "/Users/jaeger/bpr-wt-1075",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "bpr-1075",
+    "source_revision": "1cd828ba8114ea3a2e639c671a8e47f5edf22fb5",
+    "workflow_branch": "bpr-1075",
+    "workflow_revision": "1cd828ba8114ea3a2e639c671a8e47f5edf22fb5"
+  }
+}
