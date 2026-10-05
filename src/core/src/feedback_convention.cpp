@@ -607,4 +607,8 @@ namespace bpr::core {
 		}
 		return recognize(aBody, *aUserBody);
 	}
+	auto recognize_feedback_body(std::string_view aBody, const feedback_body_segment& aSegment) -> feedback_annotation
+	{
+		return aSegment.Managed ? recognize_feedback_segment(aBody, aSegment.UserBody) : recognize_feedback_prefix(aBody);
+	}
 }

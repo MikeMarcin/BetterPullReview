@@ -572,6 +572,13 @@ bpr_enable_hardening(test_feedback_convention)
 bpr_enable_warnings(test_feedback_convention)
 bpr_add_network_isolated_test(NAME core_feedback_convention COMMAND test_feedback_convention "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1077]]. Revisioned Conventional Comments header edits, against the pack's header-edit cases.
+bpr_add_executable(test_feedback_header_edit feedback_header_edit_tests.cpp)
+target_link_libraries(test_feedback_header_edit PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_header_edit)
+bpr_enable_warnings(test_feedback_header_edit)
+bpr_add_network_isolated_test(NAME core_feedback_header_edit COMMAND test_feedback_header_edit "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
+
 bpr_add_executable(test_review_tour_import review_tour_import_tests.cpp)
 target_link_libraries(test_review_tour_import PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_tour_import)

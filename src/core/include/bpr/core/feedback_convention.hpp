@@ -202,6 +202,21 @@ namespace bpr::core {
 	/// not find the user's text: the body stays ordinary text, `plain`, with
 	/// `classification_unavailable`, and nothing is stripped by guesswork.
 	[[nodiscard]] auto recognize_feedback_segment(std::string_view aBody, std::optional<feedback_span> aUserBody) -> feedback_annotation;
+
+	/// \brief Which bytes of one body are the user's.
+	/// \details An ordinary body is the user's from its first byte to its
+	/// last. A managed envelope (a published tour stop, a permalink comment)
+	/// is the user's only inside the span its owner validated, and not at all
+	/// when the owner found none.
+	struct feedback_body_segment
+	{
+		bool                         Managed                                                = false;
+		std::optional<feedback_span> UserBody                                               = std::nullopt;
+		auto                         operator==(const feedback_body_segment&) const -> bool = default;
+	};
+	/// \brief `recognize_feedback_prefix` for an ordinary body,
+	/// `recognize_feedback_segment` for a managed one.
+	[[nodiscard]] auto recognize_feedback_body(std::string_view aBody, const feedback_body_segment& aSegment) -> feedback_annotation;
 }
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_FEEDBACK_CONVENTION_HPP
