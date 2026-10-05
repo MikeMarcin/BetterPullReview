@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1279"
 title: "Offer an explicit rebind for a moved or replaced cycle folder in the terminal and the window"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0054"]
 depends_on: []
 priority: "P2"
