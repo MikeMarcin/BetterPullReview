@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1080 label icons, candidates v3</title>
+<!--
+  [[BPR-1080]] Twelve label icon candidates, round v3, for the marks BPR-1079 selected
+  (BPR-1079-feedback-ux-selected.html). Frames live in BPR-1080-label-icons-frames-v3.html.
+  Rounds v1 and v2 stay in BPR-1080-label-icons-v1.html and BPR-1080-label-icons-v2.html.
+  Nothing on this page is implemented or approved.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1340px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:40px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:180px; font-weight:600; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Label icons, candidates v3</h1>
+<div class="by">BPR-1080 (RFC-BPR-0050; R30, R31). 2026-10-05. Frames: <a href="BPR-1080-label-icons-frames-v3.html">BPR-1080-label-icons-frames-v3.html</a>. Earlier rounds: <a href="BPR-1080-label-icons-v1.html">v1</a>, <a href="BPR-1080-label-icons-v2.html">v2</a>. Marks as selected in <a href="BPR-1079-feedback-ux-selected.html">BPR-1079</a>.</div>
+
+<p><b>Candidates only. Nothing is implemented, and chore and typo are not approved.</b> Each icon replaces its label's two letters inside the accepted 16 px mark. Tints are unchanged.</p>
+
+<h2>What the owner said about v2</h2>
+<p>Session <code>22be5050669115b022366b9e8e56a6c5</code>, handed back at sequence 21. Verdicts, verbatim:</p>
+<table>
+<thead><tr><th>Question</th><th>Verdict</th><th>Note and attachment</th></tr></thead>
+<tbody>
+<tr><th>nitpick (loupe)</th><td>Accept</td><td>No note.</td></tr>
+<tr><th>quibble (small wobble)</th><td>Accept</td><td>No note.</td></tr>
+<tr><th>all twelve together</th><td>Accept</td><td>No note.</td></tr>
+<tr><th>chore (broom)</th><td>Reject</td><td>"Make the broom look better."</td></tr>
+<tr><th>typo (Abc over a squiggle)</th><td>Reject</td><td>"I dont like the A". Attached: <a href="BPR-1080-owner-ref-typo-abc.png">Abc reference</a>, a bold geometric "Abc" over a smooth sine squiggle.</td></tr>
+</tbody>
+</table>
+<p>So v3 redraws chore and typo. The other ten glyphs are v2's, byte for byte.</p>
+
+<h2>The two redrawn glyphs</h2>
+<table>
+<thead><tr><th>Label</th><th>v3</th><th>Change from v2</th></tr></thead>
+<tbody>
+<tr><th>chore</th><td>Broom</td><td>Closer to the <a href="BPR-1080-owner-ref-chore-broom.png">broom reference</a>: a thinner handle, a band, a clear seam, and a broad head that fans out and is split twice from its foot. The handle, seam and splits sit on the 1× pixel diagonals.</td></tr>
+<tr><th>typo</th><td>Spellcheck: "Abc" over a squiggle</td><td>After the <a href="BPR-1080-owner-ref-typo-abc.png">Abc reference</a>: a sturdy, symmetric A with straight legs, a flat apex and a flat crossbar, drawn as one filled shape; a round b and c; a smooth sine of 3.5 periods instead of the zigzag. Every stroke has the same weight.</td></tr>
+</tbody>
+</table>
+<p>Variants were tried for each and only the best is presented. For chore: a free-angle broom with fanned splits (clean at 2× but spotty at 1×), and lattice brooms with balanced or unequal sections. For typo: wider, bolder free-drawn letters, which ran together at 1×, and narrower lattice letters.</p>
+
+<h2>Legibility at 16 px</h2>
+<ul>
+<li><b>typo.</b> A 12 px glyph box has room for "Abc" only if each letter keeps one clear pixel column from the next. The A is 5 px wide with its apex on the centre pixel. The b's stem, its bowl and the c are 1 px strokes on pixel edges. The A's legs (2.25 units across) carry the same weight as those strokes. The A's diagonals are the only antialiased edges, and its crossbar is a full pixel row. The squiggle reads as a wave at 1×, and is smooth at 2×.</li>
+<li><b>chore.</b> At 45°, edges that fall between the pixel diagonals render as whole pixel steps. So the seam between band and head, and both splits, are each one clean diagonal of lighter pixels at 1×, not a smear. The head stays one solid fan, so at 1× the broom reads as a stick with a fan.</li>
+</ul>
+
+<div class="frames" id="f-ic"></div>
+<div class="frames" id="f-th"></div>
+
+<h2>Resource form</h2>
+<p>Unchanged from v2. It is <code>QPainterPath</code> data on the 24-unit grid, using M, L, C and Z plus discs. There are four element kinds: shared-pen strokes, strokes with their own pen width, filled paths and discs. The typo A is a filled path with a hole. The hole winds against the outline, so the browser's nonzero rule and <code>QPainterPath</code>'s default odd-even rule fill it the same way. The broom's handle is now a 2.2-unit stroke. There is no SVG, font, runtime asset or build-time generation. The glyphs compile into the Qt adapter.</p>
+
+<h2>Provenance</h2>
+<p>The <code>rfc-implementer</code> agent (Claude Opus 5.5) wrote the v3 coordinates by hand for this card on 2026-10-05, in the frames' <code>GLYPHS</code> table. The broom is laid out on chosen pixel diagonals. Its angle and proportions follow the owner's broom reference: handle to head, band width, head spread and split depth. The letters are laid out on the pixel lattice in the style of the owner's Abc reference. The two references are committed beside this record. Nothing was traced or sampled from them, and no icon set, font, tracing, image generation or third-party artwork was used. The data belongs to this repository under its licence (R30).</p>
+
+<h2>Measured</h2>
+<p>From <code>?check=1</code> on the frozen source, with headless Chrome, over all eight frames, light and dark (16 dumps). The figures are in the card and the verification log. Contrast, placement and names are unchanged from v2.</p>
+
+<h2>Open, not decided here</h2>
+<ul>
+<li>Accept or Reject on chore v3 and typo v3, in round v3's attended session.</li>
+<li>BPR-1081 records the selection and the delivery contract.</li>
+<li>Native evidence at 100%, 125% and 200%, in high contrast, with larger text and with assistive technology, belongs to the built surfaces (R33).</li>
+</ul>
+</main>
+<script>
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [f, w, h, cap, theme] of list) {
+    const s = w > 1200 ? 0.42 : 0.55;
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="BPR-1080-label-icons-frames-v3.html?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+put("f-ic", [["ic-sheet",1440,820,"All twelve: theme variants, 2.5×, greyscale, grid"],["ic-changes",1440,520,"v2 beside v3, with the owner's references"],["ic-surfaces",1100,480,"Overview, menu, completion, Label key"]]);
+put("f-th", [["th-wide",1440,820,"Thread cards"],["th-wide-more",1440,820,"Thread cards, further down","dark"],
+  ["th-narrow",960,760,"Narrow","dark"],["th-narrow-edit",960,760,"Editing my blocking first comment"]]);
+</script>
+</body>
+</html>

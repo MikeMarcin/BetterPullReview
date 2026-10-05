@@ -151,3 +151,63 @@ ready at sequence 15). It asks five Accept/Reject questions, one for each of
 nitpick, chore, typo and quibble and one for the twelve together. The frozen
 root is `/Users/jaeger/bpr1080-label-icons-review-v002.rEBx7h`. The v001 root
 was deleted after its decided candidates were released.
+
+## Owner verdicts on round v2 (2026-10-05)
+
+Session `22be5050669115b022366b9e8e56a6c5` was handed back at sequence 21, with
+nothing pending. The host was already stopped. `status --after 15` returned
+decisions at sequences 16–20 and `handed-back` at 21. Verdicts, verbatim:
+
+- `BPR-1080-nitpick-v002`: **Accept**, with no note.
+- `BPR-1080-quibble-v002`: **Accept**, with no note.
+- `BPR-1080-set-v002` (all twelve together): **Accept**, with no note.
+- `BPR-1080-chore-v002`: **Reject**. "Make the broom look better."
+- `BPR-1080-typo-v002`: **Reject**. "I dont like the A". Attached:
+  [Abc reference](../../design/BPR-1080-owner-ref-typo-abc.png) (`image.png`,
+  266×324, SHA-256 `7a9deb0b…c5d9`). It shows a bold geometric sans "Abc" over
+  a smooth sine squiggle, all one weight.
+
+The loupe (nitpick), the small wobble (quibble) and the set are accepted as v2
+drew them. Chore and typo stay open.
+
+## Candidates, round v3 (2026-10-05)
+
+[Record](../../design/BPR-1080-label-icons-v3.html) and
+[frames](../../design/BPR-1080-label-icons-frames-v3.html). The files from
+rounds v1 and v2 are unchanged.
+
+- **Kept.** The other ten glyphs are v2's, byte for byte. A script compared
+  the two `GLYPHS` tables entry by entry, and the tints are identical.
+- **Redrawn.**
+  - chore: a broom closer to the owner's reference. It has a thinner handle
+    (a 2.2-unit stroke), a band, a clear seam, and a broad head that fans out
+    and is split twice from the foot. It is drawn at 45°, with every edge on
+    an odd value of x − y or x + y. Those values fall between the pixel
+    diagonals at 1×, so the seam and the splits render as clean diagonals.
+  - typo: "Abc" in the reference's style. The A is a single filled shape with
+    straight legs, a flat apex on the centre pixel, a flat crossbar and a
+    counter, all symmetric. The b and c are round 2-unit strokes on the 1×
+    lattice. The squiggle is a smooth sine of 3.5 periods. All of it carries
+    one weight.
+  - Only the best variant of each is presented. Also tried for chore: a
+    free-angle broom with fanned splits, which was spotty at 1×, and lattice
+    brooms with other section widths. Also tried for typo: wider, bolder
+    free-drawn letters, which ran together at 1×, and narrower letters.
+- **Resource form.** Unchanged. The A's hole winds against its outline, so
+  the nonzero and odd-even fill rules agree.
+- **Provenance.** The `rfc-implementer` wrote the coordinates by hand. The
+  broom's angle and proportions follow the owner's reference. Nothing was
+  traced (R30).
+- **Measured.** `?check=1`, 16 dumps:
+  - The minimum cross-label separation is still issue and note, at 0.57
+    (12 px) and 0.48 (24 px).
+  - Each redrawn glyph against its nearest neighbour (todo in both cases):
+    chore 0.65 and 0.61, typo 0.76 and 0.76.
+  - Typo and quibble separate at 0.79 and 0.80.
+  - Contrast is at least 6.06:1 on the soft fill and 4.52:1 on the blocking
+    fill. Placement and names are unchanged.
+  - The 1× renders of both marks were inspected pixel by pixel in all four
+    variants.
+
+Limitations: static headless-Chrome frames, not native evidence (R33). Chore
+and typo are not approved until the owner accepts them.
