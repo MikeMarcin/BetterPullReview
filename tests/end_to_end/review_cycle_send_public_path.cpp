@@ -259,6 +259,7 @@ namespace {
 		expect(sheet->send_words()->text() == QStringLiteral("Runs Codex in %1.").arg(folder) && !contains(sheet->send_words()->text(), QStringLiteral("Claude"))
 				   && !contains(sheet->send_words()->text(), QStringLiteral("session")),
 			   "Codex selected: the words name Codex, never Claude, and no session: " + sheet->send_words()->text().toStdString());
+		render(*sheet, QStringLiteral("send-box-codex"));
 		choose(*sheet, core::claude_stream_json_profile_id, { });
 		expect(sheet->send_words()->text() == QStringLiteral("Starts a new Claude session in %1.").arg(folder), "Claude selected: one line, naming Claude: " + sheet->send_words()->text().toStdString());
 		auto* const details = sheet->send_details();
@@ -364,6 +365,7 @@ namespace {
 		expect(sheet->send_words()->text() == QStringLiteral("Runs External terminal harness in %1.").arg(folder) && !contains(sheet->send_words()->text(), QStringLiteral("Claude"))
 				   && !contains(sheet->send_details()->text(), QStringLiteral("Claude")),
 			   "the custom harness by its own name, never Claude: " + sheet->send_words()->text().toStdString());
+		render(*sheet, QStringLiteral("send-box-custom-harness"));
 		sheet->send_button()->click();
 		wait_for_send(desktop, lanes);
 		const auto terminal = agents / "terminal";
