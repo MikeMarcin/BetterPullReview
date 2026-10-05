@@ -87,3 +87,22 @@ passed at `126940be4`; the Windows station run is owed and not gating, since
 no criterion of this card is Windows-only. The full record is the ledger's
 "three owner Accepts, and Done" section of
 [RFC-BPR-0053-0061.md](../../verification/RFC-BPR-0053-0061.md).
+
+**Note: Windows run at `fe013a0a4` (holds `126940be4`; station `bpr-main-win`,
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, Debug, offscreen; no remote
+mutation).** The `windows-dev` build printed no `warning C` or `warning LNK`
+line, and 8 of 8 passed: `qt_review_cycle_view_1_0` and `_2_0`,
+`application_review_cycle_desktop_public_path`,
+`application_review_cycle_send_public_path`, `review_cycle_send`,
+`core_review_cycle_send`, `application_review_round_trip_composition_contract`
+and `architecture_boundaries`.
+
+The view rows' off-macOS label check passes, so Save note and Save suggestion
+end in `Ctrl+Enter` on Windows. A probe against the same Qt, under the
+`windows` and `offscreen` platforms, printed `Ctrl+Return`, `Ctrl+Enter` and
+`Ctrl+Num+Enter` for the bound keys and listed every `QKeySequence::StandardKey`
+binding. The only Return or Enter bindings are `InsertParagraphSeparator`
+(Return, Enter), `InsertLineSeparator` (Shift+Return, Shift+Enter) and
+`FullScreen` (Alt+Enter), so the save key collides with none. The nearest
+Windows system shortcut, Win+Ctrl+Enter (Narrator), needs the Windows key.
+No pixel check failed, so there are no counts to report.
