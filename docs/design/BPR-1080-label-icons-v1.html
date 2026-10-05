@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1080 label icons, candidates v1</title>
+<!--
+  [[BPR-1080]] Twelve label icon candidates for the marks BPR-1079 selected
+  (BPR-1079-feedback-ux-selected.html). Frames live in BPR-1080-label-icons-frames-v1.html.
+  Nothing on this page is implemented or approved.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1340px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:40px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:180px; font-weight:600; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Label icons, candidates v1</h1>
+<div class="by">BPR-1080 (RFC-BPR-0050; R30, R31). 2026-10-05. Frames: <a href="BPR-1080-label-icons-frames-v1.html">BPR-1080-label-icons-frames-v1.html</a>. Marks as selected in <a href="BPR-1079-feedback-ux-selected.html">BPR-1079</a>.</div>
+
+<p><b>Candidates only. Nothing is approved or implemented.</b> Each icon replaces its label's two letters inside the accepted 16 px mark: a soft tinted square normally, filled with the tint when blocking, under the avatar with the label rail. Tints are unchanged.</p>
+
+<h2>The twelve</h2>
+<table>
+<thead><tr><th>Label</th><th>Candidate</th><th>Alternatives</th></tr></thead>
+<tbody>
+<tr><th>praise</th><td>Heart</td><td>Thumbs up, star</td></tr>
+<tr><th>nitpick</th><td>Magnifier on a speck</td><td></td></tr>
+<tr><th>suggestion</th><td>Light bulb</td><td></td></tr>
+<tr><th>issue</th><td>Exclamation mark</td><td></td></tr>
+<tr><th>todo</th><td>Ticked box</td><td></td></tr>
+<tr><th>question</th><td>Question mark</td><td></td></tr>
+<tr><th>thought</th><td>Thought cloud</td><td></td></tr>
+<tr><th>chore</th><td>Wrench</td><td>Broom</td></tr>
+<tr><th>note</th><td>Information i</td><td></td></tr>
+<tr><th>typo</th><td>Letter over a spelling squiggle</td><td></td></tr>
+<tr><th>polish</th><td>Sparkles</td><td></td></tr>
+<tr><th>quibble</th><td>Swap arrows</td><td>Plus-minus</td></tr>
+</tbody>
+</table>
+<p>Every label has its own glyph, with no aliases. Related labels have unrelated shapes: suggestion (bulb) and polish (sparkles), and nitpick (magnifier) and quibble (arrows). Alternatives are offered only where a second metaphor works as well at 16 px. Tweezers for nitpick and scales for quibble were tried and dropped, because at 1× they read as a pen and as a blot.</p>
+
+<div class="frames" id="f-ic"></div>
+<div class="frames" id="f-th"></div>
+
+<h2>Identification without colour or hover</h2>
+<ul>
+<li>The glyph's shape carries the label, and the tint only adds to it. The greyscale rows in the sheet keep all twelve apart.</li>
+<li>Blocking is shown by the fill and the 4 px rail, not by colour.</li>
+<li>Each mark is an image named with its label and decoration, for example "issue (blocking)", and its tooltip shows the same words, as BPR-1079 accepted.</li>
+<li>The Label key (⌥K) is reachable from the keyboard and lists every mark with its name and shortcode. The ⌘L menu and completion show the name beside the mark.</li>
+<li>The label's public text stays the source. Copy source and GitHub get the words, never the icon.</li>
+</ul>
+
+<h2>Resource form</h2>
+<p>The glyphs are path data on the app's existing stroked-glyph grid: 24 units, a round-capped pen, as <code>workbench_strip.cpp</code> and <code>review_cycle_share_marks.cpp</code> already draw. The data uses only M, L, C and Z plus filled discs, so it maps one-to-one onto <code>QPainterPath</code> moveTo, lineTo, cubicTo, closeSubpath and addEllipse. The Qt adapter paints each glyph into the mark at 1×, 1.25× and 2× in the label's ink. The pen is 2.6 units: 1.3 px in the 12 px glyph box at 1×.</p>
+<p>The glyphs need no SVG files, Qt SVG module, icon font, bundled font, runtime download or build-time generation, and add no separate package asset. The glyphs compile into the Qt adapter. BPR-1081 binds the selected path data to its source revision and its place in that adapter.</p>
+
+<h2>Provenance</h2>
+<p>The <code>rfc-implementer</code> agent (Claude Opus 5.5) wrote every coordinate by hand for this card on 2026-10-05, in the frames' <code>GLYPHS</code> table. No icon set, font, tracing, image generation or third-party artwork was used. The metaphors are common conventions, such as a heart, a question mark or a light bulb, and no particular artwork is copied. The data belongs to this repository under its licence. Nothing comes from a chat sketch (R30).</p>
+
+<h2>Measured</h2>
+<p><code>?check=1</code> on the frozen source, from headless Chrome:</p>
+<ul>
+<li><b>Separation.</b> Each glyph was rasterised alone with the shipping pen, and every pair from different labels was compared by ink overlap (1 − intersection / union). The closest pair at 12 px is star and swap, at 0.54. At 24 px it is issue and note, at 0.48: the two share a stem, with the dot at opposite ends. Suggestion and polish measure 0.79. Nitpick and quibble measure 0.69 with swap and 0.86 with plus-minus.</li>
+<li><b>Contrast.</b> The glyph against its soft fill is at least 6.06:1 (typo, dark). Against a blocking fill it is at least 4.52:1 (polish, light). Both minimums cover all twelve tints in the four theme variants.</li>
+<li><b>Placement.</b> The thread frames keep v4's placement: the mark is centred under the avatar (0 px offset, 3 px gap), the rail sits 3 px away, blocking posts have the fill and the 4 px rail, the names match, and no header holds a mark.</li>
+</ul>
+
+<h2>Open, not decided here</h2>
+<ul>
+<li>The owner's choice for praise, chore and quibble, and Accept or Reject for the other nine. The questions are in this round's attended session.</li>
+<li>BPR-1081 records the selection and the delivery contract.</li>
+<li>Native evidence at 100%, 125% and 200%, in high contrast, with larger text and with assistive technology, belongs to the built surfaces (R33).</li>
+</ul>
+</main>
+<script>
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [f, w, h, cap, theme] of list) {
+    const s = w > 1200 ? 0.42 : 0.55;
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="BPR-1080-label-icons-frames-v1.html?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+put("f-ic", [["ic-sheet",1440,820,"All twelve: theme variants, 2.5×, greyscale, grid"],["ic-alts",1440,410,"Alternatives"],["ic-surfaces",1100,480,"Overview, menu, completion, Label key"]]);
+put("f-th", [["th-wide",1440,820,"Thread cards"],["th-wide-more",1440,820,"Thread cards, further down","dark"],
+  ["th-narrow",960,760,"Narrow","dark"],["th-narrow-edit",960,760,"Editing my blocking first comment"]]);
+</script>
+</body>
+</html>
