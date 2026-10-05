@@ -1674,3 +1674,33 @@ foreach(cycle_scale IN ITEMS 1.0 2.0)
         TIMEOUT 60
     )
 endforeach()
+
+# [[BPR-1083]]. The twelve label marks: compiled glyphs against the accepted
+# path data, tints, shortcodes and names.
+bpr_add_executable(
+    test_better_pull_review_qt_feedback_label_marks_tests
+    feedback_label_marks_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_feedback_label_marks_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+target_compile_definitions(
+    test_better_pull_review_qt_feedback_label_marks_tests
+    PRIVATE
+        "BPR_FEEDBACK_GLYPHS=\"${PROJECT_SOURCE_DIR}/tests/fixtures/feedback/bpr-1080-selected-glyphs.txt\""
+        "BPR_FEEDBACK_SELECTED_PAGE=\"${PROJECT_SOURCE_DIR}/docs/design/BPR-1080-label-icons-selected.html\""
+)
+bpr_enable_hardening(test_better_pull_review_qt_feedback_label_marks_tests)
+bpr_enable_warnings(test_better_pull_review_qt_feedback_label_marks_tests)
+bpr_add_network_isolated_test(
+    NAME qt_feedback_label_marks
+    COMMAND test_better_pull_review_qt_feedback_label_marks_tests
+)
+set_tests_properties(
+    qt_feedback_label_marks
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "feedback-label-marks-tests:pass"
+)
