@@ -62,3 +62,17 @@ unchanged and the owner's question invites a note on it. Owner question
 Station requests and the full record are in the ledger's "BPR-1280, BPR-1281
 and BPR-1282" section of
 [RFC-BPR-0053-0061.md](../../verification/RFC-BPR-0053-0061.md).
+
+**Note: Linux run at `126940be4` (holds `126940be4`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, Qt 6.11.2, offscreen; no remote mutation).** The `dev`
+build succeeded with no warnings and 8 of 8 passed:
+`qt_review_cycle_view_1_0` and `_2_0`,
+`application_review_cycle_desktop_public_path`,
+`application_review_cycle_send_public_path`, `review_cycle_send`,
+`core_review_cycle_send`, `application_review_round_trip_composition_contract`
+and `architecture_boundaries`.
+
+The view rows check that Save note and Save suggestion end with
+`QKeySequence(Ctrl+Enter).toString(NativeText)`. A separate probe against the
+same Qt printed that as `Ctrl+Enter` on Linux. No pixel check failed at 1x or
+2x, so there are no counts to report.
