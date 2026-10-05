@@ -238,7 +238,9 @@ namespace {
 		settle(lanes);
 		desktop.host().comment({ .Primary = core::cycle_whole_target{ }, .Body = "Never send twice." });
 		settle(lanes);
-		const auto subject = *desktop.host().selected();
+		const auto selected = desktop.host().selected();
+		expect(selected.has_value(), "the opened project is the selected cycle");
+		const auto subject = *selected;
 
 		// Listed, refused, until the round's channel is allowed for this source.
 		auto*       sheet = compose(*page, lanes);

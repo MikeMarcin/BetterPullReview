@@ -633,8 +633,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # contained through the sandbox launcher; each passes uncontained.
     # review_cycle_send exits 3 at its first store step ("FAILED: two
     # notes"), as the other review_cycle_* store rows do. The send course
-    # exits 0xC0000409 on a Debug "operator*() called on empty optional":
-    # a refused contained step whose result the course dereferences.
+    # exits 3 at "FAILED: the opened project is the selected cycle": opening
+    # the project is refused contained (it had crashed on the unchecked
+    # optional before the course checked it).
     "review_cycle_send": "dos-volume-name",
     "application_review_cycle_send_public_path": "dos-volume-name",
 }
