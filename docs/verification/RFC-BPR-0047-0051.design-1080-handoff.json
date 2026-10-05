@@ -5,42 +5,49 @@
   "segment_id": "design",
   "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
   "status": "parked-human-review",
-  "round": "v1",
-  "candidate_revision": "c93008559",
+  "round": "v2",
+  "candidate_revision": "0a467a380",
   "changed_paths": [
-    "docs/design/BPR-1080-label-icons-frames-v1.html",
-    "docs/design/BPR-1080-label-icons-v1.html",
+    "docs/design/BPR-1080-label-icons-frames-v2.html",
+    "docs/design/BPR-1080-label-icons-v2.html",
+    "docs/design/BPR-1080-owner-ref-chore-broom.png",
+    "docs/design/BPR-1080-owner-ref-quibble-small-wobble.png",
     "docs/issues/40-parked/BPR-1080-develop-all-twelve-reusable-label-icon-candidates.md",
     "docs/verification/RFC-BPR-0047-0051.md",
     "docs/verification/RFC-BPR-0047-0051.design-1080-handoff.json"
   ],
-  "frozen_root": "/Users/jaeger/bpr1080-label-icons-review-v001.BP1nCI",
+  "frozen_root": "/Users/jaeger/bpr1080-label-icons-review-v002.rEBx7h",
   "frozen_sha256": {
     "docs/design/BPR-1079-feedback-ux-selected.html": "d8acbe664c2cd1da113b6c58b2b7f6e25779526a6a9d525425773ff943ff90db",
     "docs/design/BPR-1080-label-icons-frames-v1.html": "99a3db6bf5fb1fcd685d99afbee3762a8f79b2d23a65780b5a6f43132591c32b",
-    "docs/design/BPR-1080-label-icons-v1.html": "caa4d318a38b16167933ff651b59cffd2c60f2b1e69f818d6430703f519ad7ad"
+    "docs/design/BPR-1080-label-icons-frames-v2.html": "6694194b5e41dcc9ccb166855e07e51ce350e59e15da2172fb1b81edc380e03e",
+    "docs/design/BPR-1080-label-icons-v1.html": "caa4d318a38b16167933ff651b59cffd2c60f2b1e69f818d6430703f519ad7ad",
+    "docs/design/BPR-1080-label-icons-v2.html": "2a1a7b8ab4fdbc4aaf8ea04ea01ed52e4a081eb4e9646daaf9e5075fe0742720",
+    "docs/design/BPR-1080-owner-ref-chore-broom.png": "0bebc3b79da6d5e3d8e69719e2d403e3882976e107484eeeb309ebb14e46858e",
+    "docs/design/BPR-1080-owner-ref-quibble-small-wobble.png": "c2753d57269d2bfaa57227e2a855f890480ce425705aadb7639f85e5209e5536"
   },
   "review_session": {
-    "id": "82eb35d69600801ab5f8875d88d836a2",
+    "id": "22be5050669115b022366b9e8e56a6c5",
     "repo_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
-    "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1080-label-icons-v001",
-    "wait_cursor": 12,
-    "url": "http://127.0.0.1:50730/ (token in /Users/jaeger/bpr1080-label-icons-review-v001.BP1nCI/serve.log)",
+    "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1080-label-icons-v002",
+    "wait_cursor": 15,
+    "url": "http://127.0.0.1:50385/ (token in /Users/jaeger/bpr1080-label-icons-review-v002.rEBx7h/serve.log)",
     "candidates": {
-      "BPR-1080-praise-v001": "select A: heart | B: thumbs up | C: star, or reject",
-      "BPR-1080-chore-v001": "select A: wrench | B: broom, or reject",
-      "BPR-1080-quibble-v001": "select A: swap arrows | B: plus-minus, or reject",
-      "BPR-1080-set-v001": "accept or reject: nitpick, suggestion, issue, todo, question, thought, note, typo, polish"
+      "BPR-1080-nitpick-v002": "accept or reject: loupe",
+      "BPR-1080-chore-v002": "accept or reject: broom",
+      "BPR-1080-typo-v002": "accept or reject: Abc over a squiggle",
+      "BPR-1080-quibble-v002": "accept or reject: small wobble",
+      "BPR-1080-set-v002": "accept or reject: all twelve together"
     }
   },
   "verification": [
     {
-      "command": "render.py (headless Chrome) over all 8 frames, light and dark, at 1x and 2x, from the frozen source",
-      "result": "32 renders; the sheet, alternatives, surfaces and thread frames inspected"
+      "command": "render.py (headless Chrome) over all 8 frames, light and dark, at 1x and 2x, from the frozen source; ic-changes per redrawn label; 1x crops enlarged 5x",
+      "result": "renders inspected; typo legible at 1x after moving its letters onto the pixel lattice"
     },
     {
-      "command": "Chrome --dump-dom frames-v1?f=<each frame>&theme=light|dark&check=1, on the frozen source",
-      "result": "16 dumps in consistency-check.txt: min cross-label ink-overlap separation 0.538 at 12 px (star/swap), 0.483 at 24 px (issue/note); suggestion/polish 0.793; nitpick/quibble 0.694 swap, 0.864 plus-minus; glyph contrast >= 6.06 soft, >= 4.52 blocking over 4 variants; thread marks centred 0 px, gap 3 px, rail 3 px, blocking treatment and names match, 0 header marks"
+      "command": "Chrome --dump-dom frames-v2?f=<each frame>&theme=light|dark&check=1, on the frozen source",
+      "result": "16 dumps in consistency-check.txt: min cross-label separation 0.571 at 12 px, 0.483 at 24 px (issue/note); redrawn glyphs >= 0.656 from nearest; typo/quibble 0.807; glyph contrast >= 6.06 soft, >= 4.52 blocking over 4 variants; thread marks centred 0 px, gap 3 px, rail 3 px, names match, 0 header marks"
     },
     {
       "command": "python3 scripts/verify_documentation.py --root .",
@@ -48,14 +55,48 @@
     }
   ],
   "pending_obligations": [
-    "Owner choices on praise, chore and quibble and Accept/Reject on the other nine (session 82eb35d6, after sequence 12)",
+    "Owner Accept/Reject on nitpick, chore, typo, quibble and the set (session 22be5050, after sequence 15)",
     "BPR-1081 records the selection and binds the selected path data to its source revision and Qt adapter location (R30, R31)",
     "R33 native/scale/theme/assistive evidence belongs to the built surfaces, not these frames"
   ],
-  "command_state": "quiescent except the handed-off review host (pid 16891, http://127.0.0.1:50730, started with nohup)",
-  "next_action": "Coordinator waits on handed-back after 12; a fresh rfc-implementer records the verdicts, then finishes BPR-1080 or draws v2.",
-  "worktree": "/Users/jaeger/Documents/GitHub/BetterPullReview.wt-bpr1079-1080 (removed after push)",
-  "base": "d7c828fa9",
-  "integrated_revision": "aff980294 (rebase of c93008559 onto origin/main; both design files byte-identical, blobs fbd9db34 and 46a447e5)",
-  "claim_commit": "7bced6dc6"
+  "command_state": "quiescent except the handed-off review host (pid 14298, http://127.0.0.1:50385, started with nohup)",
+  "next_action": "Coordinator waits on handed-back after 15; a fresh rfc-implementer records the verdicts, then finishes BPR-1080 or draws v3.",
+  "worktree": "/Users/jaeger/Documents/GitHub/BPR-wt-1080-v2 (removed after push)",
+  "base": "71d9add2b",
+  "claim_commit": "7bced6dc6",
+  "previous_round": {
+    "round": "v1",
+    "candidate_revision": "c93008559",
+    "session": "82eb35d69600801ab5f8875d88d836a2",
+    "consumed_cursor": 26,
+    "released_at_sequence": 27,
+    "frozen_root_deleted": "/Users/jaeger/bpr1080-label-icons-review-v001.BP1nCI",
+    "verdicts": {
+      "BPR-1080-praise-v001": {
+        "outcome": "select",
+        "selected": [
+          "A: heart"
+        ],
+        "note": ""
+      },
+      "BPR-1080-chore-v001": {
+        "outcome": "reject",
+        "note": "Broom is good but that broom is ugly.",
+        "attachment": "docs/design/BPR-1080-owner-ref-chore-broom.png",
+        "attachment_sha256": "0bebc3b79da6d5e3d8e69719e2d403e3882976e107484eeeb309ebb14e46858e"
+      },
+      "BPR-1080-quibble-v001": {
+        "outcome": "reject",
+        "note": "",
+        "attachment": "docs/design/BPR-1080-owner-ref-quibble-small-wobble.png",
+        "attachment_sha256": "c2753d57269d2bfaa57227e2a855f890480ce425705aadb7639f85e5209e5536"
+      },
+      "BPR-1080-set-v001": {
+        "outcome": "reject",
+        "note": "nitpick make a better loupe, chore make a broom, type do spellcheck aka Abc over squiggle, quibble do attached",
+        "attachment": "docs/design/BPR-1080-owner-ref-quibble-small-wobble.png",
+        "attachment_sha256": "c2753d57269d2bfaa57227e2a855f890480ce425705aadb7639f85e5209e5536"
+      }
+    }
+  }
 }
