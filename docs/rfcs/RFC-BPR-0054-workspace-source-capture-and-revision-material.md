@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0054"
 title: "Workspace Source Capture and Immutable Revision Material"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review Cycles"
 depends_on: ["RFC-BPR-0053", "RFC-BPR-0003", "RFC-BPR-0004"]
@@ -10,6 +10,16 @@ metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-
 ---
 
 # RFC-BPR-0054: Workspace Source Capture and Immutable Revision Material
+
+**Status (2026-10-04): Auto-Verified.** [BPR-1187](../issues/60-done/BPR-1187-close-rfc-0054.md)
+judged all ten criteria whole against the cards' recorded evidence, with runs on
+macOS arm64 and the Linux and Windows stations; the
+[execution ledger](../verification/RFC-BPR-0053-0061.md#bpr-1187-rfc-bpr-0054-closed-2026-10-04)
+holds each row and its limits. RC54-03's junction escape was observed refused on
+native Windows by BPR-1284. RFC-BPR-0053, 0003 and 0004 are Auto-Verified. No
+owner verdict was needed. On Windows the held root cannot be renamed, so root
+replacement is prevented rather than detected; no window or command rebinds a
+moved project (BPR-1279).
 
 ## Outcome and decisions
 
