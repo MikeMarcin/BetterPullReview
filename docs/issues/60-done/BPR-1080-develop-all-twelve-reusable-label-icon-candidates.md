@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1080"
 title: "Develop all twelve reusable label icon candidates"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0050"]
 depends_on: ["BPR-1079"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-06","milestone":"design","acceptance":["R30","R31"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1080:roles","outcome":"pass","revision":"44d09faa3","evidence":{"kind":"artifact","path":"docs/design/BPR-1080-label-icons-frames-v4.html","detail":"Round v4: twelve distinct glyphs, one per catalog ID, no alias or omission; eleven are v3's byte for byte (the accepted set, including the broom accepted in session bfc59159). ?check=1 on the frozen source, 16 dumps: min cross-label separation 0.571 at 12 px, 0.483 at 24 px (issue/note, unchanged); typo 0.73/0.74 from its nearest neighbour (todo), 0.776/0.80 from quibble."}},{"criterion":"BPR-1080:previews","outcome":"pass","revision":"44d09faa3","evidence":{"kind":"artifact","path":"docs/design/BPR-1080-label-icons-v4.html","detail":"Actual 16 px marks normal and blocking in light, dark, high-contrast light and dark, 2.5x, greyscale and grid; v3 beside v4 with the owner's Abc reference; thread cards and surfaces; rendered at 1x and 2x from the frozen source; 1x pixels of the redrawn typo inspected in four variants, normal and blocking. Names unchanged; glyph contrast >= 6.06 soft, >= 4.52 blocking. Static frames, not native evidence (R33)."}},{"criterion":"BPR-1080:provenance","outcome":"pass","revision":"44d09faa3","evidence":{"kind":"artifact","path":"docs/design/BPR-1080-label-icons-v4.html","detail":"Coordinates hand-written by the rfc-implementer; the owner's three reference images (docs/design/BPR-1080-owner-ref-*.png) set the style; nothing traced. QPainterPath data (M/L/C/Z, discs, filled paths with opposite-wound holes, per-element pen width) compiled into the Qt adapter; no SVG, Qt SVG, icon font, runtime fetch or build-time generation. Typo not approved."}},{"criterion":"BPR-1080:owner-selection","outcome":"pending","revision":"44d09faa3","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0047-0051.md","detail":"Round v3 verdicts recorded (session bfc59159: chore accepted; typo rejected). Eleven glyphs now owner-accepted. Round v4 pending in attended session d7393d7131b629b535e95f60cfb9564b (state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1080-label-icons-v004, ready at sequence 3): Accept/Reject on typo-v004, on frozen root /Users/jaeger/bpr1080-label-icons-review-v004.1AmFcn."}}]
+acceptance: [{"criterion":"BPR-1080:roles","outcome":"pass","revision":"44d09faa3","evidence":{"kind":"artifact","path":"docs/design/BPR-1080-label-icons-frames-v4.html","detail":"Round v4: twelve distinct glyphs, one per catalog ID, no alias or omission; eleven are v3's byte for byte (the accepted set, including the broom accepted in session bfc59159). ?check=1 on the frozen source, 16 dumps: min cross-label separation 0.571 at 12 px, 0.483 at 24 px (issue/note, unchanged); typo 0.73/0.74 from its nearest neighbour (todo), 0.776/0.80 from quibble."}},{"criterion":"BPR-1080:previews","outcome":"pass","revision":"44d09faa3","evidence":{"kind":"artifact","path":"docs/design/BPR-1080-label-icons-v4.html","detail":"Actual 16 px marks normal and blocking in light, dark, high-contrast light and dark, 2.5x, greyscale and grid; v3 beside v4 with the owner's Abc reference; thread cards and surfaces; rendered at 1x and 2x from the frozen source; 1x pixels of the redrawn typo inspected in four variants, normal and blocking. Names unchanged; glyph contrast >= 6.06 soft, >= 4.52 blocking. Static frames, not native evidence (R33)."}},{"criterion":"BPR-1080:provenance","outcome":"pass","revision":"44d09faa3","evidence":{"kind":"artifact","path":"docs/design/BPR-1080-label-icons-v4.html","detail":"Coordinates hand-written by the rfc-implementer; the owner's three reference images (docs/design/BPR-1080-owner-ref-*.png) set the style; nothing traced. QPainterPath data (M/L/C/Z, discs, filled paths with opposite-wound holes, per-element pen width) compiled into the Qt adapter; no SVG, Qt SVG, icon font, runtime fetch or build-time generation. Typo not approved."}},{"criterion":"BPR-1080:owner-selection","outcome":"pass","revision":"44d09faa3","evidence":{"kind":"artifact","path":"docs/design/BPR-1080-label-icons-selected.html","detail":"Owner verdicts in attended sessions 82eb35d69600801ab5f8875d88d836a2 (v1: praise selected A, heart), 22be5050669115b022366b9e8e56a6c5 (v2: nitpick, quibble and set-v002 Accept, covering the seven glyphs unchanged since v1), bfc59159786ef55286d1c1613b87f595 (v3: chore Accept) and d7393d7131b629b535e95f60cfb9564b (v4: typo-v004 Accept, no note; decision at sequence 4, handed-back at 5). Each final glyph is byte-identical to its accepted round; the selected page carries the exact path data from frames-v4 at 44d09faa3. Static frames, not native evidence; R33 belongs to the built surfaces."}}]
 ---
 
 # BPR-1080: Develop all twelve reusable label icon candidates
@@ -284,3 +283,45 @@ ready at sequence 3). It asks one Accept/Reject question, `typo-v004`. It shows
 v3, v4 and the owner's reference, plus the 1× marks enlarged. The frozen root
 is `/Users/jaeger/bpr1080-label-icons-review-v004.1AmFcn`. The v003 session's candidates were released at its sequence 10, with
 the verdicts kept, and its frozen root was deleted.
+
+## Owner verdict on round v4 (2026-10-05)
+
+Session `d7393d7131b629b535e95f60cfb9564b` was handed back at sequence 5, with
+nothing pending. The host was already stopped. `status --after 3` returned the
+decision at sequence 4 and `handed-back` at 5. Verdict, verbatim:
+
+| Item | Verdict | Note |
+|---|---|---|
+| `BPR-1080-typo-v004` | **Accept** | (none) |
+
+The v4 "Abc" is accepted for typo.
+
+## Selected icons
+
+All twelve glyphs now have an owner verdict. The
+[selected icons](../../design/BPR-1080-label-icons-selected.html) list them
+with their exact path data, copied from the `GLYPHS` table of
+`BPR-1080-label-icons-frames-v4.html` at `44d09faa3`. A script checked that
+each glyph's path strings and discs on the page match the table exactly.
+
+| Label | Glyph | Accepted in |
+|---|---|---|
+| praise | heart | v1, selected A (session `82eb35d6`) |
+| nitpick | loupe | v2, Accept (`22be5050`) |
+| quibble | small wobble | v2, Accept (`22be5050`) |
+| suggestion, issue, todo, question, thought, note, polish | v1's bulb, exclamation mark, ticked box, question mark, thought cloud, information i, sparkles | v2, `set-v002` Accept (`22be5050`) |
+| chore | broom | v3, Accept (`bfc59159`) |
+| typo | Abc over a squiggle | v4, Accept (`d7393d71`) |
+
+A script compared the four rounds' `GLYPHS` tables entry by entry. Each final
+glyph is byte-identical to the one accepted in its round.
+
+The v004 session's candidate was released (`resume-development --all`,
+sequence 6), with the verdict kept. The frozen root
+`/Users/jaeger/bpr1080-label-icons-review-v004.1AmFcn` and the owner
+attachment directory `/Users/jaeger/bpr1080-owner-attachments` were deleted.
+All four attachments are committed byte-identically as the three
+`BPR-1080-owner-ref-*.png` references (two attachments were the same image).
+
+BPR-1081 binds this inventory to the Qt adapter location, the packaging path
+and a source revision. Native evidence (R33) belongs to the built surfaces.
