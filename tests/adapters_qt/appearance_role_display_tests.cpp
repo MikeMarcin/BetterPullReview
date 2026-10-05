@@ -1,11 +1,11 @@
 /// \file
 /// \brief Proves the Colours list's role vocabulary is total, grouped and its own.
 ///
-/// \details RFC-BPR-0034's C5 lists all 47 roles in four groups with counts. The
+/// \details RFC-BPR-0034's C5 lists the roles in five groups with counts. The
 /// vocabulary is presentation's: `core::stable_name` is the durable exchange
 /// identifier a theme document keys on and must never be shown, so this course
 /// checks that no displayed string is one, that every declared role has words and
-/// a group, and that the four groups hold the accepted 7, 8, 6 and 26 roles.
+/// a group, and that the five groups hold the accepted 7, 8, 6, 26 and 12 roles.
 
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/qt/appearance_role_display.hpp"
@@ -83,8 +83,8 @@ namespace {
 		}
 	}
 
-	/// \brief The four groups must hold exactly the accepted counts, and all 47.
-	void test_the_four_groups_hold_every_role()
+	/// \brief The five groups must hold exactly the accepted counts, and all 59.
+	void test_the_five_groups_hold_every_role()
 	{
 		auto counted = std::array<std::size_t, qt::appearance_role_group_count>{ };
 		for (auto index = std::size_t{ 0U };
@@ -96,25 +96,27 @@ namespace {
 
 		// The counts the accepted design prints beside each sticky header.
 		const auto accepted = std::array<std::size_t, qt::appearance_role_group_count>{
-			7U, 8U, 6U, 26U
+			7U, 8U, 6U, 26U, 12U
 		};
-		expect(counted == accepted, "the groups hold 7, 8, 6 and 26 roles");
+		expect(counted == accepted, "the groups hold 7, 8, 6, 26 and 12 roles");
 
 		auto total = std::size_t{ 0U };
 		for (const auto count : counted) {
 			total += count;
 		}
 		expect(
-			total == core::appearance_role_count && total == 47U,
-			"and together they hold every one of the 47 roles, so no role can be "
+			total == core::appearance_role_count && total == 59U,
+			"and together they hold every one of the 59 roles, so no role can be "
 			"grouped out of the list");
 	}
 
-	/// \brief The card offers 45 roles: every one but the two hunk-header roles.
+	/// \brief The card offers 57 roles: every one but the two hunk-header roles.
 	///
 	/// \details [[BPR-0986]]. RFC-BPR-0034 C5 was amended from 47 offered roles
 	/// to 45 on 2026-09-24, because the review window has no hunk header for the
 	/// two roles to change. They stay in the vocabulary and in their group.
+	/// [[BPR-1083]] added the twelve label tints as a fifth group, Comment
+	/// labels, all offered: 57 (owner, BPR-1079 `tints-v002`).
 	void test_the_card_offers_every_role_but_the_hunk_header()
 	{
 		auto offered   = std::array<std::size_t, qt::appearance_role_group_count>{ };
@@ -135,8 +137,8 @@ namespace {
 			"exactly the two hunk-header roles are not offered");
 		expect(
 			offered
-				== std::array<std::size_t, qt::appearance_role_group_count>{ 7U, 6U, 6U, 26U },
-			"so the card's groups offer 7, 6, 6 and 26 roles, 45 in all");
+				== std::array<std::size_t, qt::appearance_role_group_count>{ 7U, 6U, 6U, 26U, 12U },
+			"so the card's groups offer 7, 6, 6, 26 and 12 roles, 57 in all");
 		expect(
 			qt::appearance_role_group_of(core::appearance_role::diff_hunk_header_text)
 					== qt::appearance_role_group::diff
@@ -161,9 +163,9 @@ namespace {
 		expect(
 			qt::appearance_role_text(core::appearance_role::application_surface)
 					== QStringLiteral("Application surface")
-				&& qt::appearance_role_text(core::appearance_role::syntax_other)
-					== QStringLiteral("Syntax other"),
-			"the first and last roles of the vocabulary read as the board lists "
+				&& qt::appearance_role_text(core::appearance_role::feedback_label_quibble)
+					== QStringLiteral("Label quibble"),
+			"the first and last roles of the vocabulary read as the boards list "
 			"them");
 		expect(
 			qt::appearance_role_group_text(
@@ -175,8 +177,12 @@ namespace {
 					   qt::appearance_role_group::review_states)
 					== QStringLiteral("Review states")
 				&& qt::appearance_role_group_text(qt::appearance_role_group::syntax)
-					== QStringLiteral("Syntax"),
-			"the four headings are the accepted four");
+					== QStringLiteral("Syntax")
+				&& qt::appearance_role_group_text(qt::appearance_role_group::comment_labels)
+					== QStringLiteral("Comment labels")
+				&& qt::appearance_role_text(core::appearance_role::feedback_label_issue)
+					== QStringLiteral("Label issue"),
+			"the five headings are the accepted five, and a tint reads Label issue");
 		expect(
 			qt::appearance_role_group_of(core::appearance_role::application_surface)
 					== qt::appearance_role_group::surfaces_and_text
@@ -192,7 +198,7 @@ auto main() -> int
 {
 	test_every_role_has_words();
 	test_no_displayed_name_is_a_stable_name();
-	test_the_four_groups_hold_every_role();
+	test_the_five_groups_hold_every_role();
 	test_the_card_offers_every_role_but_the_hunk_header();
 	test_the_accepted_wording_is_used();
 	std::cout << "appearance-role-display-tests:pass\n";

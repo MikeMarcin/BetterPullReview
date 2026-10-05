@@ -1037,7 +1037,9 @@ namespace bpr::qt {
 		const core::appearance_palette& aPalette)
 	{
 		PendingPreview.reset();
-		PreviewPalette = aPalette;
+		// [[BPR-1083]]. A theme written before the label tints reads them as
+		// the built-in tints of the theme on screen.
+		PreviewPalette = ResolvedVariant.has_value() ? with_builtin_label_tints(aPalette, *ResolvedVariant) : aPalette;
 		refresh_colours();
 		refresh_preview_bar();
 		// Names the theme it previews into, because it previews into exactly one

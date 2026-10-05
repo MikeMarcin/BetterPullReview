@@ -120,6 +120,31 @@ namespace bpr::qt {
 			return { group::syntax, "Syntax error" };
 		case role::syntax_other:
 			return { group::syntax, "Syntax other" };
+
+		case role::feedback_label_praise:
+			return { group::comment_labels, "Label praise" };
+		case role::feedback_label_nitpick:
+			return { group::comment_labels, "Label nitpick" };
+		case role::feedback_label_suggestion:
+			return { group::comment_labels, "Label suggestion" };
+		case role::feedback_label_issue:
+			return { group::comment_labels, "Label issue" };
+		case role::feedback_label_todo:
+			return { group::comment_labels, "Label todo" };
+		case role::feedback_label_question:
+			return { group::comment_labels, "Label question" };
+		case role::feedback_label_thought:
+			return { group::comment_labels, "Label thought" };
+		case role::feedback_label_chore:
+			return { group::comment_labels, "Label chore" };
+		case role::feedback_label_note:
+			return { group::comment_labels, "Label note" };
+		case role::feedback_label_typo:
+			return { group::comment_labels, "Label typo" };
+		case role::feedback_label_polish:
+			return { group::comment_labels, "Label polish" };
+		case role::feedback_label_quibble:
+			return { group::comment_labels, "Label quibble" };
 		}
 
 		return { };
@@ -154,6 +179,8 @@ namespace bpr::qt {
 			return QStringLiteral("Review states");
 		case appearance_role_group::syntax:
 			return QStringLiteral("Syntax");
+		case appearance_role_group::comment_labels:
+			return QStringLiteral("Comment labels");
 		}
 
 		return { };

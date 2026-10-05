@@ -72,7 +72,10 @@ namespace bpr::core {
 		/// A role of the closed vocabulary that the document never assigns. The
 		/// subject is the missing role's stable identifier. A palette is total,
 		/// so a partial document is refused rather than completed with defaults
-		/// the core does not own.
+		/// the core does not own. The one exception is a role for which
+		/// `defaults_on_import` holds (the label tints, [[BPR-1083]]): it is
+		/// imported as `unassigned_appearance_color`, which presentation reads
+		/// as its built-in value.
 		missing_field,
 
 		/// A reference to content outside the document, such as a scheme-bearing

@@ -280,8 +280,8 @@ namespace bpr::core {
 			syntax_role_count == 26U,
 			"the syntax group must stay one contiguous run of the vocabulary");
 		static_assert(
-			index_of(last_syntax_role) + 1U == appearance_role_count,
-			"the syntax group must stay at the end of the vocabulary");
+			index_of(last_syntax_role) + 1U == index_of(first_feedback_label_role),
+			"the syntax group must stay directly before the label tints at the end of the vocabulary");
 
 		/// \brief Selects the floor one background holds its text to.
 		///

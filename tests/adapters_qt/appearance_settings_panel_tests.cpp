@@ -800,9 +800,9 @@ namespace {
 			"and it follows the theme on screen when that changes");
 
 		expect(
-			panel.colours() != nullptr && panel.colours()->listed_roles().size() == 45U,
-			"the card lists the 45 roles it offers (RFC-BPR-0034 C5, amended "
-			"2026-09-24)");
+			panel.colours() != nullptr && panel.colours()->listed_roles().size() == 57U,
+			"the card lists the 57 roles it offers (RFC-BPR-0034 C5, amended "
+			"2026-09-24 and for the label tints by BPR-1083)");
 	}
 
 	/// \brief A swatch previews through the picker, and one bar offers the choice.
@@ -1212,7 +1212,7 @@ namespace {
 	/// `qt_settings_window`, which asserts it in four appearances and at four scales
 	/// through the composed window. What is panel-local, and what makes that
 	/// possible, is that the two large collections bound themselves: the six tiles
-	/// and the 45 colour rows each scroll inside their own well instead of asking the
+	/// and the 57 colour rows each scroll inside their own well instead of asking the
 	/// page for their full width and height. The measured minimum is recorded as
 	/// context rather than compared against an invented figure.
 	void test_the_page_does_not_demand_width()
@@ -1240,7 +1240,7 @@ namespace {
 		expect(
 			list->well() != nullptr
 				&& list->well()->verticalScrollBar()->maximum() > 0,
-			"and the 45 rows scroll inside theirs rather than lengthening the page");
+			"and the 57 rows scroll inside theirs rather than lengthening the page");
 		panel.hide();
 	}
 

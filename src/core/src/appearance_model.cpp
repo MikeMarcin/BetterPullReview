@@ -272,6 +272,30 @@ namespace bpr::core {
 			return "syntax_error";
 		case appearance_role::syntax_other:
 			return "syntax_other";
+		case appearance_role::feedback_label_praise:
+			return "feedback_label_praise";
+		case appearance_role::feedback_label_nitpick:
+			return "feedback_label_nitpick";
+		case appearance_role::feedback_label_suggestion:
+			return "feedback_label_suggestion";
+		case appearance_role::feedback_label_issue:
+			return "feedback_label_issue";
+		case appearance_role::feedback_label_todo:
+			return "feedback_label_todo";
+		case appearance_role::feedback_label_question:
+			return "feedback_label_question";
+		case appearance_role::feedback_label_thought:
+			return "feedback_label_thought";
+		case appearance_role::feedback_label_chore:
+			return "feedback_label_chore";
+		case appearance_role::feedback_label_note:
+			return "feedback_label_note";
+		case appearance_role::feedback_label_typo:
+			return "feedback_label_typo";
+		case appearance_role::feedback_label_polish:
+			return "feedback_label_polish";
+		case appearance_role::feedback_label_quibble:
+			return "feedback_label_quibble";
 		}
 
 		return { };

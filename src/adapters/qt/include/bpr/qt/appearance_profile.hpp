@@ -72,6 +72,17 @@ namespace bpr::qt {
 		core::appearance_variant aVariant) noexcept
 		-> const core::appearance_palette&;
 
+	/// \brief Gives every label tint a palette left unassigned its built-in value.
+	///
+	/// \details [[BPR-1083]]. A stored palette or theme document written before
+	/// the twelve label tints existed imports them as
+	/// `core::unassigned_appearance_color` (`core::defaults_on_import`). Shown
+	/// or previewed, they read as the built-in tints of `aVariant`, and no other
+	/// role changes. A palette with nothing unassigned is returned unchanged.
+	[[nodiscard]] auto with_builtin_label_tints(
+		core::appearance_palette aPalette,
+		core::appearance_variant aVariant) noexcept -> core::appearance_palette;
+
 	/// \brief Returns the presentation name of one built-in profile.
 	[[nodiscard]] auto builtin_appearance_profile_name(
 		core::appearance_variant aVariant) -> QString;

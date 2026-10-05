@@ -188,7 +188,7 @@ namespace bpr::qt {
 			[this](int) { refresh_sticky_header(); });
 
 		// The rows are deliberately not built here. See the class documentation:
-		// forty-five rows of four widgets each is the largest fixed structure in
+		// fifty-seven rows of four widgets each is the largest fixed structure in
 		// the application's chrome, and a reviewer who never opens Appearance should
 		// not be carrying it.
 	}

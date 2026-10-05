@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -256,8 +257,48 @@ namespace {
 			   "a partial document yields no palette instead of a defaulted one");
 
 		const auto headerOnly = imported("bpr-theme 1\n");
-		expect(headerOnly.Rejections.size() == appearance_role_count,
-			   "a document that assigns nothing is missing every role");
+		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count,
+			   "a document that assigns nothing is missing every role but the label tints");
+	}
+
+	/// \brief [[BPR-1083]]. A document written before the twelve label tints
+	/// existed still imports, the tints unassigned and every other role as written.
+	auto test_a_document_without_label_tints_leaves_them_unassigned() -> void
+	{
+		auto document = std::string{ "bpr-theme 1\n" };
+		auto expected = appearance_palette{ };
+		for (std::size_t index = 0U; index < appearance_role_count; ++index) {
+			const auto role = static_cast<appearance_role>(static_cast<std::uint8_t>(index));
+			if (defaults_on_import(role)) {
+				expected[index] = unassigned_appearance_color;
+				continue;
+			}
+			const auto value      = static_cast<std::uint8_t>(index + 1U);
+			expected[index]       = appearance_color{ value, value, value, 255U };
+			auto           line   = std::string{ stable_name(role) } + " #";
+			constexpr auto digits = std::string_view{ "0123456789abcdef" };
+			for (auto channel = 0; channel < 3; ++channel) {
+				line.push_back(digits[value >> 4U]);
+				line.push_back(digits[value & 0x0FU]);
+			}
+			document += line + "\n";
+		}
+		const auto result = imported(document);
+		expect(result.Rejections.empty() && result.Palette.has_value(),
+			   "a 47-role document imports");
+		expect(result.Palette == std::optional{ expected },
+			   "the label tints are unassigned and every other role is the document's");
+		const auto partial = imported(document + "feedback_label_issue #d1242fff\n");
+		expect(partial.Palette.has_value()
+				   && (*partial.Palette)[index_of(appearance_role::feedback_label_issue)] == appearance_color{ 0xD1U, 0x24U, 0x2FU, 255U }
+				   && (*partial.Palette)[index_of(appearance_role::feedback_label_praise)] == unassigned_appearance_color,
+			   "a document that assigns some label tints keeps them and leaves the rest unassigned");
+		expect(!defaults_on_import(appearance_role::syntax_other) && defaults_on_import(appearance_role::feedback_label_praise)
+				   && defaults_on_import(appearance_role::feedback_label_quibble),
+			   "only the twelve label tints may be absent");
+		expect(stable_name(appearance_role::feedback_label_issue) == "feedback_label_issue"
+				   && find_appearance_role("feedback_label_quibble") == appearance_role::feedback_label_quibble,
+			   "the label tints' stable names are feedback_label_<id>");
 	}
 
 	auto test_external_references_are_refused_wherever_they_appear() -> void
@@ -489,6 +530,7 @@ int main()
 	test_a_document_may_be_written_by_hand();
 	test_an_unknown_field_is_refused_by_name();
 	test_a_partial_document_is_refused_rather_than_defaulted();
+	test_a_document_without_label_tints_leaves_them_unassigned();
 	test_external_references_are_refused_wherever_they_appear();
 	test_include_directives_are_refused();
 	test_style_and_executable_payloads_are_refused();

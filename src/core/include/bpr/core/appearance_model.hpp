@@ -146,6 +146,24 @@ namespace bpr::core {
 		syntax_alert,
 		syntax_error,
 		syntax_other,
+
+		// [[BPR-1083]]. The Conventional Comments label tints (RFC-BPR-0050),
+		// one per catalog label in `feedback_label` order. A mark's border and
+		// soft fill take its label's tint, and a blocking mark is filled with
+		// it. These roles may be absent from a stored palette or a theme
+		// document written before they existed; see `defaults_on_import`.
+		feedback_label_praise,
+		feedback_label_nitpick,
+		feedback_label_suggestion,
+		feedback_label_issue,
+		feedback_label_todo,
+		feedback_label_question,
+		feedback_label_thought,
+		feedback_label_chore,
+		feedback_label_note,
+		feedback_label_typo,
+		feedback_label_polish,
+		feedback_label_quibble,
 	};
 
 	/// \brief The opacity the code panes composite the selection wash at.
@@ -182,17 +200,44 @@ namespace bpr::core {
 		};
 	}
 
-	inline constexpr std::size_t appearance_role_count = 47U;
+	inline constexpr std::size_t appearance_role_count = 59U;
 
 	static_assert(
-		static_cast<std::size_t>(appearance_role::syntax_other) + 1U == appearance_role_count,
+		static_cast<std::size_t>(appearance_role::feedback_label_quibble) + 1U == appearance_role_count,
 		"appearance_role_count must cover every declared role");
+
+	/// \brief The first of the twelve label tint roles, in catalog order.
+	inline constexpr auto        first_feedback_label_role = appearance_role::feedback_label_praise;
+	inline constexpr std::size_t feedback_label_role_count = 12U;
+	static_assert(
+		static_cast<std::size_t>(first_feedback_label_role) + feedback_label_role_count == appearance_role_count,
+		"the label tint roles must stay one contiguous run at the end of the vocabulary");
 
 	/// \brief Returns the palette index of the supplied role.
 	[[nodiscard]] constexpr auto index_of(const appearance_role aRole) noexcept -> std::size_t
 	{
 		return static_cast<std::size_t>(aRole);
 	}
+
+	/// \brief Whether a stored palette or a theme document may leave the role out.
+	///
+	/// \details [[BPR-1083]]. Only the twelve label tints, which were added after
+	/// palettes and theme documents had been written without them. The owner's
+	/// rule (BPR-1079 `tints-v002`) is that such a palette reads them as the
+	/// built-in tints and no other role changes. The core holds no built-in
+	/// colour, so an import leaves such a role `unassigned_appearance_color` and
+	/// presentation reads that as its own built-in tint for the variant.
+	[[nodiscard]] constexpr auto defaults_on_import(const appearance_role aRole) noexcept -> bool
+	{
+		return index_of(aRole) >= index_of(first_feedback_label_role) && index_of(aRole) < appearance_role_count;
+	}
+
+	/// \brief The value an import gives a role the document left out.
+	///
+	/// \details Fully transparent black, which no built-in palette uses and which
+	/// a presentation never paints: it reads it as "use the built-in value".
+	/// Only a role for which `defaults_on_import` holds can carry it.
+	inline constexpr appearance_color unassigned_appearance_color{ .Red = 0U, .Green = 0U, .Blue = 0U, .Alpha = 0U };
 
 	/// \brief Maps every role of the closed vocabulary to one colour.
 	///

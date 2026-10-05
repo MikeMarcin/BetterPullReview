@@ -221,9 +221,10 @@ Color is never the only state signal. Icons, labels, gutter marks, line prefixes
 
 ### Semantic customization and local import
 
-The settings surface lists the whole closed role vocabulary — all 47 roles in
-four groups, Surfaces and text, Diff, Review states and Syntax, with sticky
-group headers and counts — and edits roles inside a total
+The settings surface lists the closed role vocabulary — 57 of its 59 roles
+(not the two hunk-header roles) in five groups, Surfaces and text, Diff, Review
+states, Syntax and Comment labels, with sticky group headers and counts — and
+edits roles inside a total
 `appearance_palette`; a raw `QPalette`, QSS fragment, or widget stylesheet is
 never the saved authority. The list is built from the core's published count in
 the core's own order, so a role the core declares cannot be one the editor
@@ -384,6 +385,14 @@ measured as indistinguishable in every variant. The pairs in that position are
 recorded and asserted exactly, so a palette change that creates a new one
 fails; each is owed a line prefix, gutter mark, icon, outline, or accessible
 name, which is what "colour is never the only state signal" means concretely.
+
+The twelve Comment labels roles, `feedback_label_praise` to
+`feedback_label_quibble`, tint the Conventional Comments marks
+([conventional-comments-feedback.md](conventional-comments-feedback.md)). Each
+theme variant has its own built-in tints. A stored palette or a theme document
+written before they existed may leave them out: they read as the built-in
+tints of the theme they customise, and no other role changes. Every other role
+is still required ([[BPR-1083]]).
 
 ## Syntax highlighting
 

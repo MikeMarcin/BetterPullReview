@@ -85,11 +85,11 @@ namespace bpr::qt {
 		auto operator<=>(const colour_role_list_statistics&) const = default;
 	};
 
-	/// \brief RFC-BPR-0034's Colours list: 45 offered roles, grouped, filtered,
+	/// \brief RFC-BPR-0034's Colours list: 57 offered roles, grouped, filtered,
 	/// picked.
 	///
 	/// \details [[BPR-0790]]. Every role of the core's closed vocabulary that the
-	/// card offers, in the core's own order, in the four groups the accepted design
+	/// card offers, in the core's own order, in the five groups the accepted design
 	/// names, with sticky group headers carrying the count of the roles each one
 	/// lists. A row is a swatch, the role's name in words, and its value in the
 	/// code font; an edited row shows its new value in ink with the old one beside
@@ -102,7 +102,7 @@ namespace bpr::qt {
 	/// box.
 	///
 	/// The rows are built when the list is first shown or first asked about, not
-	/// when it is constructed. Forty-five rows of four widgets each is the largest
+	/// when it is constructed. Fifty-seven rows of four widgets each is the largest
 	/// fixed structure in the application's chrome, and a reviewer who never opens
 	/// Appearance should not be carrying it: the workbench's own bound on its
 	/// retained widget tree is what makes that concrete. Everything supplied before
@@ -188,7 +188,7 @@ namespace bpr::qt {
 			QLabel*  Count   = nullptr;
 		};
 
-		/// \brief Builds the four group headers and the 45 offered rows, once.
+		/// \brief Builds the five group headers and the 57 offered rows, once.
 		void ensure_rows();
 		void refresh_row(core::appearance_role aRole);
 		void refresh_rows();

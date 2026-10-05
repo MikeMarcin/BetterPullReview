@@ -1,9 +1,10 @@
 /// \file
-/// \brief Proves RFC-BPR-0034's Colours list: 45 roles, four groups, live picking.
+/// \brief Proves RFC-BPR-0034's Colours list: 57 roles, five groups, live picking.
 ///
 /// \details Criterion C5's list half. The inventory is every role the core
 /// declares except the two hunk-header roles the card no longer offers (C5
-/// amended from 47 to 45 on 2026-09-24, [[BPR-0986]]), in four groups with
+/// amended from 47 to 45 on 2026-09-24, [[BPR-0986]]; then to 57 when
+/// [[BPR-1083]] added the twelve label tints as a fifth group), in five groups with
 /// sticky headers carrying counted totals; the filter
 /// lists what it matches; a swatch opens the picker through the settable seam and
 /// every colour the picker moves through is reported, so the review window can
@@ -133,8 +134,8 @@ namespace {
 		show(list);
 
 		expect(
-			list.listed_roles().size() == 45U && core::appearance_role_count == 47U,
-			"45 of the 47 roles the core declares are listed");
+			list.listed_roles().size() == 57U && core::appearance_role_count == 59U,
+			"57 of the 59 roles the core declares are listed");
 		for (const auto unoffered :
 			 { role::diff_hunk_header_background, role::diff_hunk_header_text }) {
 			expect(
@@ -187,8 +188,10 @@ namespace {
 				&& list.group_count_text(group::diff) == QStringLiteral("6")
 				&& list.group_count_text(group::review_states)
 					== QStringLiteral("6")
-				&& list.group_count_text(group::syntax) == QStringLiteral("26"),
-			"the four group headers carry the accepted counts");
+				&& list.group_count_text(group::syntax) == QStringLiteral("26")
+				&& list.group_heading_text(group::comment_labels) == QStringLiteral("Comment labels")
+				&& list.group_count_text(group::comment_labels) == QStringLiteral("12"),
+			"the five group headers carry the accepted counts");
 
 		expect(
 			list.well() != nullptr
@@ -257,9 +260,22 @@ namespace {
 		list.filter_field()->clear();
 		settle();
 		expect(
-			list.listed_roles().size() == 45U
+			list.listed_roles().size() == 57U
 				&& list.group_count_text(group::syntax) == QStringLiteral("26"),
 			"clearing the filter lists every offered role again");
+
+		// [[BPR-1083]]. Settings' "Mark colours" row opens Appearance filtered
+		// to "label" (BPR-1088); the filter must find exactly the twelve tints.
+		list.filter_field()->setText(QStringLiteral("label"));
+		settle();
+		expect(
+			list.listed_roles().size() == 12U && list.listed_roles().front() == role::feedback_label_praise
+				&& list.listed_roles().back() == role::feedback_label_quibble
+				&& list.group_count_text(group::comment_labels) == QStringLiteral("12")
+				&& list.group_header_of(group::syntax)->isHidden(),
+			"filtering for label lists the twelve label tints in catalog order and nothing else");
+		list.filter_field()->clear();
+		settle();
 	}
 
 	/// \brief A group header must pin itself once its own header scrolls away.
@@ -281,7 +297,7 @@ namespace {
 		expect(
 			!list.sticky_header()->isHidden()
 				&& list.sticky_header()->y() == 0
-				&& list.sticky_heading_text() == QStringLiteral("Syntax"),
+				&& list.sticky_heading_text() == QStringLiteral("Comment labels"),
 			"scrolled to the last group, its heading is pinned at the top of the "
 			"list");
 		expect(

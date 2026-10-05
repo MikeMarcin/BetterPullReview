@@ -431,6 +431,48 @@ namespace {
 			   "and is refused as an integrity failure");
 	}
 
+	/// \brief [[BPR-1083]]. A palette stored before the twelve label tints
+	/// existed still loads; the tints are unassigned for presentation to read as
+	/// its built-in values, every other role is as stored, and the file needs no
+	/// migration.
+	auto test_a_palette_stored_without_label_tints_loads() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("appearance.sqlite3");
+		const auto stored  = distinct_settings(core::appearance_variant::dark);
+		{
+			auto opened = appearance_settings_database::open(path, { });
+			expect(opened.has_value() && opened->store(stored, { }).has_value(), "a legal record stores");
+		}
+		{
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open_v2(path.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK,
+				   "the database reopens directly");
+			auto       document = core::export_theme(application::customisation_of(stored, core::appearance_variant::dark).Palette);
+			const auto cut      = document.find("feedback_label_praise ");
+			expect(cut != std::string::npos, "the stored document carries the label tints");
+			document.erase(cut);
+			auto* statement = static_cast<::sqlite3_stmt*>(nullptr);
+			expect(::sqlite3_prepare_v2(raw, ("UPDATE appearance_settings SET " + document_column(core::appearance_variant::dark) + " = ?1 WHERE singleton = 1").c_str(), -1, &statement, nullptr) == SQLITE_OK
+					   && ::sqlite3_bind_text(statement, 1, document.c_str(), -1, SQLITE_TRANSIENT) == SQLITE_OK
+					   && ::sqlite3_step(statement) == SQLITE_DONE,
+				   "the dark palette is written back as a 47-role document");
+			(void)::sqlite3_finalize(statement);
+			(void)::sqlite3_close_v2(raw);
+		}
+		auto reopened = appearance_settings_database::open(path, { });
+		expect(reopened.has_value(), "the store reopens without a migration");
+		const auto loaded = reopened->load({ });
+		expect(loaded.has_value() && loaded->has_value(), "the record loads");
+		const auto& palette  = application::customisation_of(**loaded, core::appearance_variant::dark);
+		auto        expected = application::customisation_of(stored, core::appearance_variant::dark).Palette;
+		for (auto index = core::index_of(core::first_feedback_label_role); index < core::appearance_role_count; ++index) {
+			expected[index] = core::unassigned_appearance_color;
+		}
+		expect(palette.Stored && palette.Palette == expected,
+			   "the label tints are unassigned and every other role is exactly as stored");
+	}
+
 	auto test_a_stored_flag_outside_its_range_is_refused() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -1348,6 +1390,7 @@ try {
 	test_every_theme_round_trips_independently();
 	test_each_theme_is_stored_as_its_own_theme_document();
 	test_a_tampered_palette_is_refused();
+	test_a_palette_stored_without_label_tints_loads();
 	test_a_stored_flag_outside_its_range_is_refused();
 	test_an_unknown_mode_name_is_refused();
 	test_typography_the_core_rejects_is_refused_whole();

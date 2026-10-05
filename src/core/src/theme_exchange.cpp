@@ -511,10 +511,17 @@ namespace bpr::core {
 		auto append_missing_roles(body_state& aState) -> void
 		{
 			for (std::size_t index = 0U; index < appearance_role_count; ++index) {
-				if (!aState.Assigned[index]) {
-					aState.Rejections.push_back(rejection_of(
-						theme_import_reason::missing_field, stable_name(role_at(index)), 0U));
+				if (aState.Assigned[index]) {
+					continue;
 				}
+				// [[BPR-1083]]. A label tint the document predates reads as the
+				// built-in tint, which presentation owns; nothing else changes.
+				if (defaults_on_import(role_at(index))) {
+					aState.Palette[index] = unassigned_appearance_color;
+					continue;
+				}
+				aState.Rejections.push_back(rejection_of(
+					theme_import_reason::missing_field, stable_name(role_at(index)), 0U));
 			}
 		}
 

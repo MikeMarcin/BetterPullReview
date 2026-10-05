@@ -121,6 +121,19 @@ namespace bpr::qt {
 			{ role::syntax_alert, srgb(0xB60A5B) },
 			{ role::syntax_error, srgb(0xA40E11) },
 			{ role::syntax_other, srgb(0x444D56) },
+			// [[BPR-1083]]. The label tints, BPR-1079 `tints-v002` (owner, v2).
+			{ role::feedback_label_praise, srgb(0xBF3989) },
+			{ role::feedback_label_nitpick, srgb(0x6E7781) },
+			{ role::feedback_label_suggestion, srgb(0x1F6FD0) },
+			{ role::feedback_label_issue, srgb(0xD1242F) },
+			{ role::feedback_label_todo, srgb(0xC24E00) },
+			{ role::feedback_label_question, srgb(0x8250DF) },
+			{ role::feedback_label_thought, srgb(0x4F5BD5) },
+			{ role::feedback_label_chore, srgb(0x8A5A2B) },
+			{ role::feedback_label_note, srgb(0x0A7EA4) },
+			{ role::feedback_label_typo, srgb(0x6F7A00) },
+			{ role::feedback_label_polish, srgb(0x0F8577) },
+			{ role::feedback_label_quibble, srgb(0x9A5B7A) },
 		} });
 
 		constexpr auto dark_profile = make_profile(profile_entries{ {
@@ -191,6 +204,18 @@ namespace bpr::qt {
 			{ role::syntax_alert, srgb(0xFF8AC7) },
 			{ role::syntax_error, srgb(0xF39B73) },
 			{ role::syntax_other, srgb(0xB1BAC4) },
+			{ role::feedback_label_praise, srgb(0xF778BA) },
+			{ role::feedback_label_nitpick, srgb(0x9BA4AE) },
+			{ role::feedback_label_suggestion, srgb(0x6CB0FF) },
+			{ role::feedback_label_issue, srgb(0xFF7B72) },
+			{ role::feedback_label_todo, srgb(0xFFA05A) },
+			{ role::feedback_label_question, srgb(0xC29BFF) },
+			{ role::feedback_label_thought, srgb(0x9AA5FF) },
+			{ role::feedback_label_chore, srgb(0xD2A26E) },
+			{ role::feedback_label_note, srgb(0x4DC3E8) },
+			{ role::feedback_label_typo, srgb(0xC3CE4A) },
+			{ role::feedback_label_polish, srgb(0x3FCDB8) },
+			{ role::feedback_label_quibble, srgb(0xD99BBB) },
 		} });
 
 		constexpr auto high_contrast_light_profile = make_profile(profile_entries{ {
@@ -241,6 +266,18 @@ namespace bpr::qt {
 			{ role::syntax_alert, srgb(0x8B0045) },
 			{ role::syntax_error, srgb(0x8B0000) },
 			{ role::syntax_other, srgb(0x1A1A1A) },
+			{ role::feedback_label_praise, srgb(0x8A0F5C) },
+			{ role::feedback_label_nitpick, srgb(0x3A3F45) },
+			{ role::feedback_label_suggestion, srgb(0x0033AA) },
+			{ role::feedback_label_issue, srgb(0xA50000) },
+			{ role::feedback_label_todo, srgb(0x7A2E00) },
+			{ role::feedback_label_question, srgb(0x5A009E) },
+			{ role::feedback_label_thought, srgb(0x2A2F9E) },
+			{ role::feedback_label_chore, srgb(0x5A3510) },
+			{ role::feedback_label_note, srgb(0x004F6B) },
+			{ role::feedback_label_typo, srgb(0x434A00) },
+			{ role::feedback_label_polish, srgb(0x005048) },
+			{ role::feedback_label_quibble, srgb(0x5E2A44) },
 		} });
 
 		constexpr auto high_contrast_dark_profile = make_profile(profile_entries{ {
@@ -291,6 +328,18 @@ namespace bpr::qt {
 			{ role::syntax_alert, srgb(0xFFA6D9) },
 			{ role::syntax_error, srgb(0xFFA6A0) },
 			{ role::syntax_other, srgb(0xE0E0E0) },
+			{ role::feedback_label_praise, srgb(0xFF8FD0) },
+			{ role::feedback_label_nitpick, srgb(0xD0D5DA) },
+			{ role::feedback_label_suggestion, srgb(0x7FC0FF) },
+			{ role::feedback_label_issue, srgb(0xFF7070) },
+			{ role::feedback_label_todo, srgb(0xFFB074) },
+			{ role::feedback_label_question, srgb(0xD9B0FF) },
+			{ role::feedback_label_thought, srgb(0xB4BCFF) },
+			{ role::feedback_label_chore, srgb(0xE6BC8A) },
+			{ role::feedback_label_note, srgb(0x6FD8F5) },
+			{ role::feedback_label_typo, srgb(0xD6E070) },
+			{ role::feedback_label_polish, srgb(0x5EE6D2) },
+			{ role::feedback_label_quibble, srgb(0xF0B8D4) },
 		} });
 
 		/// \brief [[BPR-0776]]. Home's state colours per built-in variant, in
@@ -601,6 +650,20 @@ namespace bpr::qt {
 		};
 	}
 
+	auto with_builtin_label_tints(
+		core::appearance_palette       aPalette,
+		const core::appearance_variant aVariant) noexcept -> core::appearance_palette
+	{
+		const auto& builtin = builtin_appearance_palette(aVariant);
+		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count; ++index) {
+			if (core::defaults_on_import(static_cast<core::appearance_role>(static_cast<std::uint8_t>(index)))
+				&& aPalette[index] == core::unassigned_appearance_color) {
+				aPalette[index] = builtin[index];
+			}
+		}
+		return aPalette;
+	}
+
 	auto default_appearance_settings() -> application::appearance_settings
 	{
 		// No customization, for any variant. A fresh installation is the absence
@@ -660,6 +723,12 @@ namespace bpr::qt {
 			for (auto index = std::size_t{ 0U };
 				 index < core::appearance_role_count;
 				 ++index) {
+				// [[BPR-1083]]. A label tint the stored palette predates is the
+				// built-in tint, not a colour the reviewer chose.
+				if (core::defaults_on_import(static_cast<core::appearance_role>(static_cast<std::uint8_t>(index)))
+					&& customisation.Palette[index] == core::unassigned_appearance_color) {
+					continue;
+				}
 				if (customisation.Palette[index] != builtin[index]) {
 					overrides[index] = customisation.Palette[index];
 				}
@@ -921,6 +990,7 @@ namespace bpr::qt {
 	auto appearance_profile::preview_palette(core::appearance_palette aPalette)
 		-> bool
 	{
+		aPalette = with_builtin_label_tints(std::move(aPalette), Resolution.Variant);
 		if (PreviewPalette.has_value() && *PreviewPalette == aPalette) {
 			return false;
 		}
@@ -1175,7 +1245,9 @@ namespace bpr::qt {
 		for (auto index = std::size_t{ 0U };
 			 index < core::appearance_role_count;
 			 ++index) {
-			overrides[index] = aPalette[index] == builtin[index]
+			const auto unassigned = core::defaults_on_import(static_cast<core::appearance_role>(static_cast<std::uint8_t>(index)))
+				&& aPalette[index] == core::unassigned_appearance_color;
+			overrides[index] = unassigned || aPalette[index] == builtin[index]
 				? std::optional<core::appearance_color>{ }
 				: std::optional<core::appearance_color>{ aPalette[index] };
 		}

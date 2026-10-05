@@ -46,3 +46,15 @@ syntax_warning #ffffffff
 syntax_alert #ffffffff
 syntax_error #ffffffff
 syntax_other #ffffffff
+feedback_label_praise #bf3989ff
+feedback_label_nitpick #6e7781ff
+feedback_label_suggestion #1f6fd0ff
+feedback_label_issue #d1242fff
+feedback_label_todo #c24e00ff
+feedback_label_question #8250dfff
+feedback_label_thought #4f5bd5ff
+feedback_label_chore #8a5a2bff
+feedback_label_note #0a7ea4ff
+feedback_label_typo #6f7a00ff
+feedback_label_polish #0f8577ff
+feedback_label_quibble #9a5b7aff

@@ -898,6 +898,49 @@ namespace {
 			   "and reproduces exactly the same customisation on reload");
 	}
 
+	/// \brief [[BPR-1083]]. A stored palette written before the twelve label
+	/// tints existed reads them as the built-in tints of its own theme, and no
+	/// other role changes (owner, BPR-1079 `tints-v002`).
+	auto test_a_palette_without_label_tints_reads_the_builtin_tints() -> void
+	{
+		constexpr auto onDark                      = core::appearance_observation{ .Scheme = core::os_color_scheme::dark };
+		constexpr auto chosen                      = core::appearance_color{ 3U, 5U, 7U, 255U };
+		auto           stored                      = qt::builtin_appearance_palette(core::appearance_variant::dark);
+		stored[core::index_of(role::state_defect)] = chosen;
+		for (auto index = core::index_of(core::first_feedback_label_role); index < core::appearance_role_count; ++index) {
+			stored[index] = core::unassigned_appearance_color;
+		}
+		auto record = qt::default_appearance_settings();
+		record.Mode = core::appearance_mode::dark;
+		application::customisation_of(record, core::appearance_variant::dark)
+			= application::appearance_palette_customisation{ .Palette = stored, .Stored = true };
+		const auto profile                           = qt::appearance_profile{ record, onDark };
+		auto       expected                          = qt::builtin_appearance_palette(core::appearance_variant::dark);
+		expected[core::index_of(role::state_defect)] = chosen;
+		expect(profile.palette() == expected && profile.customised_roles() == 1U,
+			   "the missing label tints are the dark built-in tints and only the chosen role is customised");
+		expect(profile.color(role::feedback_label_issue) == QColor{ 0xFF, 0x7B, 0x72 },
+			   "dark issue is #FF7B72, the dark built-in tint");
+
+		auto previewed                                        = qt::appearance_profile{ qt::default_appearance_settings(), onDark };
+		auto imported                                         = qt::builtin_appearance_palette(core::appearance_variant::dark);
+		imported[core::index_of(role::feedback_label_praise)] = core::unassigned_appearance_color;
+		static_cast<void>(previewed.preview_palette(imported));
+		expect(previewed.palette() == qt::builtin_appearance_palette(core::appearance_variant::dark),
+			   "an imported theme without a label tint previews that tint as the built-in one, never transparent");
+
+		const auto& light  = qt::builtin_appearance_palette(core::appearance_variant::light);
+		const auto& dark   = qt::builtin_appearance_palette(core::appearance_variant::dark);
+		const auto& hcl    = qt::builtin_appearance_palette(core::appearance_variant::high_contrast_light);
+		const auto& hcd    = qt::builtin_appearance_palette(core::appearance_variant::high_contrast_dark);
+		const auto  issue  = core::index_of(role::feedback_label_issue);
+		const auto  praise = core::index_of(role::feedback_label_praise);
+		expect(light[issue] == core::appearance_color{ 0xD1U, 0x24U, 0x2FU, 255U } && dark[issue] == core::appearance_color{ 0xFFU, 0x7BU, 0x72U, 255U }
+				   && hcl[issue] == core::appearance_color{ 0xA5U, 0x00U, 0x00U, 255U } && hcd[issue] == core::appearance_color{ 0xFFU, 0x70U, 0x70U, 255U }
+				   && light[praise] == core::appearance_color{ 0xBFU, 0x39U, 0x89U, 255U } && hcd[praise] == core::appearance_color{ 0xFFU, 0x8FU, 0xD0U, 255U },
+			   "each theme variant has its own built-in tints, the BPR-1079 table");
+	}
+
 	auto test_a_record_adopted_with_its_variant_does_not_colour_another() -> void
 	{
 		auto record  = qt::default_appearance_settings();
@@ -2653,6 +2696,7 @@ auto main(int argc, char** argv) -> int
 	test_immediate_preview_updates_without_restart();
 	test_customisation_round_trips_through_the_durable_record();
 	test_a_stored_palette_customises_exactly_one_variant();
+	test_a_palette_without_label_tints_reads_the_builtin_tints();
 	test_a_record_adopted_with_its_variant_does_not_colour_another();
 	test_editing_a_colour_keeps_every_other_theme();
 	test_customised_counts_and_palettes_are_per_theme();

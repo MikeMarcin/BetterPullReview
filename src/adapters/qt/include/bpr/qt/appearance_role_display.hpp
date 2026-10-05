@@ -10,7 +10,7 @@
 #include <string_view>
 
 namespace bpr::qt {
-	/// \brief The four groups RFC-BPR-0034's Colours card lists the roles in.
+	/// \brief The groups RFC-BPR-0034's Colours card lists the roles in.
 	///
 	/// \details Presentation's own grouping. The core's header carries comments
 	/// that mark five runs of roles — application chrome, the code canvas, diff,
@@ -23,12 +23,15 @@ namespace bpr::qt {
 		diff,
 		review_states,
 		syntax,
+		/// [[BPR-1083]]. The fifth group, Comment labels: the twelve label
+		/// tints (owner, BPR-1079 `tints-v002`).
+		comment_labels,
 	};
 
-	inline constexpr std::size_t appearance_role_group_count = 4U;
+	inline constexpr std::size_t appearance_role_group_count = 5U;
 
 	static_assert(
-		static_cast<std::size_t>(appearance_role_group::syntax) + 1U
+		static_cast<std::size_t>(appearance_role_group::comment_labels) + 1U
 			== appearance_role_group_count,
 		"appearance_role_group_count must cover every declared group");
 
@@ -47,6 +50,9 @@ namespace bpr::qt {
 	/// owner amended RFC-BPR-0034 C5 from 47 offered roles to 45 on 2026-09-24
 	/// ([[BPR-0986]]). The core's vocabulary and the theme documents keep both
 	/// roles, so import and export still carry them.
+	///
+	/// The twelve label tints [[BPR-1083]] adds are offered, which makes 57
+	/// (owner, BPR-1079 `tints-v002`; RFC-BPR-0034 C5 amended).
 	struct appearance_role_display
 	{
 		appearance_role_group Group = appearance_role_group::surfaces_and_text;
