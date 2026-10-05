@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1079 feedback UX frames v4: mark under the avatar, label rail, blocking</title>
+<!--
+  [[BPR-1079]] Conventional Comments UX, round v4 (RFC-BPR-0048, 0049, 0050). Owner's round-3
+  verdict (session 830ffc2a): selected A and D, "combine A and D", with the A mark centred
+  under the avatar, the rail without a mark on top, no extra horizontal space, and more
+  emphasis on blocking. v4 draws only the thread cards, one way:
+    - the mark sits under the avatar, centred on it: an 18 px avatar over a 16 px mark,
+      so 1 px either side at any whole scale (v3's 15 px mark sat half a pixel right)
+    - the post's left edge carries the rail in the label's tint, with no mark on it; the
+      rail is drawn in the indent the card and the reply already had, so every post keeps
+      plain A's geometry exactly
+    - blocking: the mark is filled with its tint (soft fill otherwise) and the rail is
+      4 px instead of 2 px; the accessible name says "issue (blocking)"
+  Tints, tooltips and shortcodes are round v2's. Static design frames, not the product:
+  render a frame headless at its own size. Every other surface is round v2's (frames-v2).
+
+  Query parameters:
+    f      the frame id (see FRAMES below); no f draws the index of frames
+    theme  light (default) | dark
+    check  1: write #check: mark-to-avatar centring, v4 against plain A widths, rail
+           containment, blocking-glyph contrast and accessible names
+           (read it with headless Chrome's dump-dom)
+
+  Label marks are PLACEHOLDERS (two letters in a tinted square) for BPR-1080's icons.
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#EEF1F5; --rule:#D9DEE5; --rule-2:#C3CAD3;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#6B7480; --signal:#2F6FD6; --signal-soft:#DCE8F9; --on-signal:#FFFFFF;
+  --marker:#B7791F; --marker-soft:#FBF1DC; --open:#D29922; --ok:#1A7F37; --ok-soft:#E3F4E8; --defect:#CF222E;
+  --stale:#5B6570; --code:#FFFFFF; --gutter:#F0F2F5; --lnum:#5B6570; --curline:#F2F6FC; --add:#E6FFEC; --del:#FFEBE9;
+  --field:#FFFFFF; --shadow:0 12px 32px rgba(31,35,40,.20); --tip:#1F2328; --tip-ink:#F6F7F9;
+  --kw:#B51D27; --fn:#6639BA; --ty:#6E3EC8; --num:#0550AE; --cm:#555E69;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"JetBrains Mono NL", "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+body.dark {
+  --bg:#1C2026; --side:#20252C; --panel:#242930; --panel-2:#2A3039; --rule:#343A44; --rule-2:#414955;
+  --ink:#E6EDF3; --ink-2:#A0A8B2; --ink-3:#8B949E; --signal:#7FB0E8; --signal-soft:#26374F; --on-signal:#0D1117;
+  --marker:#E0B15A; --marker-soft:#3A3120; --open:#E0B15A; --ok:#3FB950; --ok-soft:#173523; --defect:#FF7B72;
+  --stale:#8B949E; --code:#0D1117; --gutter:#141921; --lnum:#8B949E; --curline:#161C24; --add:#153622; --del:#3E1F1F;
+  --field:#161B22; --shadow:0 14px 36px rgba(0,0,0,.55); --tip:#E6EDF3; --tip-ink:#1C2026;
+  --kw:#6DA9DB; --fn:#FF8000; --ty:#FFD700; --num:#B5CEA8; --cm:#66B559;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--ink); font:12px/1.4 var(--ui); }
+body.index { overflow:auto; padding:20px; }
+.win { position:relative; width:100vw; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+svg.i { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none; vertical-align:-2px; }
+.sp { flex:1; }
+
+/* chrome: title row and review bar, as RFC-BPR-0052 draws them */
+.title { flex:0 0 30px; display:flex; align-items:center; gap:6px; padding:0 6px 0 0; background:var(--panel); border-bottom:1px solid var(--rule-2); }
+.lights { display:flex; gap:8px; width:74px; padding-left:10px; flex:none; }
+.lights i { width:12px; height:12px; border-radius:50%; display:block; background:#FF5F57; }
+.lights i:nth-child(2) { background:#FEBC2E; } .lights i:nth-child(3) { background:#28C840; }
+.prname { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.prname .n { color:var(--ink-2); font-weight:400; margin-right:4px; }
+.seg { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; flex:none; }
+.seg > span { display:inline-flex; align-items:center; gap:4px; padding:0 9px; height:20px; color:var(--ink-2); border-right:1px solid var(--rule-2); white-space:nowrap; }
+.seg > span:last-child { border-right:0; }
+.seg > span.on { background:var(--signal-soft); color:var(--ink); font-weight:600; }
+.ib { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:22px; min-width:26px; padding:0 6px; border:1px solid transparent; border-radius:5px; color:var(--ink); white-space:nowrap; flex:none; }
+.ib.box { border-color:var(--rule-2); background:var(--panel-2); }
+.ib.on { background:var(--signal-soft); border-color:var(--signal); }
+.ib .caret { font-size:8px; color:var(--ink-2); }
+.bar { flex:0 0 30px; display:flex; align-items:center; gap:6px; padding:0 6px; background:var(--panel); border-bottom:1px solid var(--rule); white-space:nowrap; }
+.bar .div { width:1px; height:18px; background:var(--rule-2); margin:0 2px; }
+.bar .lab { color:var(--ink-2); }
+.body { flex:1; display:flex; min-height:0; position:relative; }
+
+/* marks: label placeholders (square) and states (round) */
+.lm { --t:var(--ink-2); display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:4px; border:1.3px solid var(--t); color:var(--ink); background:color-mix(in srgb, var(--t) 22%, var(--panel)); font:700 8.5px/1 var(--ui); letter-spacing:-.02em; flex:none; text-transform:lowercase; vertical-align:middle; }
+body.dark .lm { background:color-mix(in srgb, var(--t) 30%, var(--panel)); }
+.lm.big { width:20px; height:20px; font-size:9.5px; }
+.lm.sm { width:15px; height:15px; font-size:7.5px; border-radius:3px; }
+.lm.plain { --t:var(--ink-3); border-style:dashed; color:var(--ink-3); background:var(--panel); }
+.lmn { display:inline-flex; align-items:center; gap:5px; }
+.lmn b { font-weight:600; }
+.sm-open, .sm-res, .sm-unk, .sm-na { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; flex:none; font:700 8px/1 var(--ui); }
+.sm-open { background:var(--open); }
+.sm-res { background:var(--ok); color:#fff; }
+.sm-res::after { content:""; width:5px; height:3px; border:1.6px solid #fff; border-top:0; border-right:0; transform:rotate(-45deg) translate(1px,-1px); }
+.sm-unk { border:1.5px dashed var(--stale); color:var(--stale); }
+.sm-unk::after { content:"?"; }
+.sm-na { border:1.5px solid var(--stale); }
+.sm-na::after { content:""; width:6px; height:1.5px; background:var(--stale); }
+.pill { display:inline-flex; align-items:center; gap:4px; height:18px; padding:0 7px 0 4px; border-radius:9px; background:var(--panel-2); color:var(--ink-2); font-size:11px; white-space:nowrap; }
+.pill.open { background:var(--marker-soft); color:var(--ink); }
+.pill.res { background:var(--ok-soft); color:var(--ink); }
+
+/* tooltip and popovers */
+.tip { position:absolute; z-index:20; background:var(--tip); color:var(--tip-ink); border-radius:5px; padding:5px 8px; font-size:11.5px; line-height:1.35; box-shadow:var(--shadow); max-width:300px; }
+.tip .tk { opacity:.75; }
+.tip::before { content:""; position:absolute; width:8px; height:8px; background:var(--tip); transform:rotate(45deg); top:-4px; left:var(--ax, 14px); }
+.tip.up::before { top:auto; bottom:-4px; }
+.pop { position:absolute; z-index:15; background:var(--panel); border:1px solid var(--rule-2); border-radius:8px; box-shadow:var(--shadow); padding:6px; }
+.focus { outline:2px solid var(--signal); outline-offset:1px; }
+
+
+/* code */
+/* code */
+.code { font:12px/19px var(--mono); color:var(--ink); background:var(--code); }
+.code .ln { display:flex; white-space:pre; }
+.code .ln .g { flex:0 0 44px; text-align:right; padding-right:10px; color:var(--lnum); background:var(--gutter); }
+.code .ln .t { padding-left:10px; }
+.code .ln.cur .t { background:var(--curline); }
+.k { color:var(--kw); } .fn { color:var(--fn); } .ty { color:var(--ty); } .nu { color:var(--num); } .cm { color:var(--cm); }
+
+
+/* comments tray and cards */
+.tray { flex:0 0 var(--trayw, 360px); background:var(--panel); border-left:1px solid var(--rule); display:flex; flex-direction:column; min-height:0; }
+.tr-tabs { flex:0 0 30px; display:flex; align-items:center; gap:2px; padding:0 8px; border-bottom:1px solid var(--rule); }
+.tr-tab { padding:0 9px; line-height:29px; color:var(--ink-2); }
+.tr-tab.on { color:var(--ink); font-weight:600; box-shadow:inset 0 -2px 0 var(--signal); }
+.tr-tools { display:flex; align-items:center; gap:6px; padding:6px 8px; border-bottom:1px solid var(--rule); }
+.cards { flex:1; overflow:hidden; padding:8px; display:flex; flex-direction:column; gap:8px; }
+.card { border:1px solid var(--rule); border-radius:7px; background:var(--panel); padding:7px 9px; }
+.card.cur { border-color:var(--signal); box-shadow:0 0 0 1px var(--signal); }
+.card-h { display:flex; align-items:center; gap:6px; margin-bottom:4px; color:var(--ink-2); font-size:11px; white-space:nowrap; }
+.post { display:flex; gap:7px; margin-top:6px; }
+.post.reply { margin-left:14px; padding-left:8px; border-left:2px solid var(--rule); }
+.av { width:18px; height:18px; border-radius:50%; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none; }
+.av.me { background:var(--signal); color:var(--on-signal); border-color:var(--signal); }
+.post .nm { display:flex; align-items:center; gap:5px; min-height:17px; white-space:nowrap; }
+.post .who { font-weight:600; }
+.post .when { color:var(--ink-3); font-size:11px; }
+.post p { margin:2px 0 0; line-height:1.4; }
+.card-h .ref { color:var(--ink-2); }
+.acts { display:flex; gap:12px; margin-top:6px; color:var(--signal); font-size:11.5px; }
+.priv { display:inline-flex; align-items:center; gap:4px; height:18px; padding:0 7px; border-radius:4px; border:1px dashed var(--defect); color:var(--defect); font-size:10.5px; font-weight:600; white-space:nowrap; }
+.tour-h { font-weight:600; color:var(--ink); }
+
+
+/* suggested-change block */
+.sugg { border:1px solid var(--rule-2); border-radius:5px; overflow:hidden; font:12px/18px var(--mono); }
+.sugg .sh { display:flex; align-items:center; gap:6px; padding:3px 8px; font:600 11px/18px var(--ui); color:var(--ink-2); background:var(--panel-2); border-bottom:1px solid var(--rule); }
+.sugg .l { white-space:pre; padding:0 8px; }
+.sugg .l.d { background:var(--del); } .sugg .l.a { background:var(--add); }
+
+/* v3 plain A, kept only for the width comparison in th4-detail */
+.body > .code { min-width:0; overflow:hidden; }
+.tray { min-width:0; } .post .pb .sugg { max-width:100%; }
+.post .pb { min-width:0; flex:1; }
+.gut { display:flex; flex-direction:column; align-items:center; gap:3px; flex:none; width:18px; }
+
+/* v4: A's column with D's rail. The rail is drawn in space the card already has: the root's
+   in the card's 9 px left padding, a reply's in its 24 px indent. Its right edge is always
+   3 px left of the avatar, so a thicker rail grows outward and never moves the text. */
+.post.v4 { position:relative; }
+.post.v4.reply { margin-left:24px; padding-left:0; border-left:0; }
+.post.v4::before { content:""; position:absolute; top:0; bottom:0; right:calc(100% + 3px); width:2px; border-radius:1px; background:var(--rt, var(--rule)); }
+.post.v4.blk::before { width:4px; border-radius:1.5px; }
+.post.v4 .gut .lm { width:16px; height:16px; font-size:8px; border-radius:4px; border-width:1.5px; }
+.lm.blk { background:var(--t); border-color:var(--t); color:var(--on-t, #fff); font-weight:800; }
+body.dark .lm.blk { background:var(--t); }
+
+/* detail frame */
+.det { display:grid; grid-template-columns:380px 380px 1fr; gap:22px; padding:16px 18px; height:100vh; background:var(--bg); align-items:start; }
+.det h2 { margin:0 0 6px; font-size:14px; }
+.det .cap { color:var(--ink-2); margin:0 0 6px; min-height:32px; }
+.det .meas { margin-top:6px; color:var(--ink-2); font:11px/1.5 var(--mono); }
+.det .cards { padding:0; overflow:visible; }
+.strip { display:grid; grid-template-columns:76px repeat(2, 120px); gap:0 10px; align-items:center; background:var(--panel); border:1px solid var(--rule); border-radius:7px; padding:8px 10px 8px 18px; }
+.strip .hd { color:var(--ink-3); font-size:11px; padding-bottom:4px; }
+.strip .nm2 { color:var(--ink-2); }
+.strip .cell { position:relative; height:24px; display:flex; align-items:center; padding-left:8px; }
+.strip .cell::before { content:""; position:absolute; left:0; top:2px; bottom:2px; width:2px; border-radius:1px; background:var(--rt); }
+.strip .cell.blk::before { left:-2px; width:4px; border-radius:1.5px; }
+.strip .cell .lm { width:16px; height:16px; font-size:8px; border-width:1.5px; }
+.det .meas { white-space:pre; }
+.zoom { display:flex; gap:18px; margin-top:16px; }
+.zoom .zc { display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--ink-3); font-size:11px; width:100px; text-align:center; }
+.zoom .zb { width:84px; height:116px; position:relative; }
+.zoom .zb > div { transform:scale(3); transform-origin:0 0; position:absolute; left:27px; top:2px; }
+.zoom .post { margin:0; } .zoom .post .pb { display:none; }
+.tip.side::before { top:7px; left:-4px; }
+.fld { margin-top:3px; border:1px solid var(--signal); box-shadow:0 0 0 1px var(--signal-soft); border-radius:4px; background:var(--field); padding:4px 6px; line-height:1.4; }
+.fld .pfx { background:var(--signal-soft); border-radius:3px; }
+.fld .caret { display:inline-block; width:1.5px; height:13px; background:var(--ink); vertical-align:-2px; margin-left:1px; }
+.fld-f { display:flex; align-items:center; gap:6px; margin-top:4px; }
+.fld-k { color:var(--ink-3); font-size:10.5px; }
+.btn { display:inline-flex; align-items:center; height:20px; padding:0 8px; border:1px solid var(--rule-2); border-radius:4px; background:var(--panel); color:var(--ink); font-size:11px; white-space:nowrap; }
+.btn.primary { background:var(--signal); border-color:var(--signal); color:var(--on-signal); font-weight:600; }
+.card { position:relative; }
+
+/* index */
+.idx { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:6px 18px; }
+.idx a { color:var(--signal); }
+</style>
+</head>
+<body>
+<script>
+(() => {
+"use strict";
+const q = new URLSearchParams(location.search);
+if (q.get("theme") === "dark") document.body.classList.add("dark");
+
+// ---- the catalog and placeholder marks -------------------------------------------
+const LABELS = ["praise","nitpick","suggestion","issue","todo","question","thought","chore","note","typo","polish","quibble"];
+const MONO = { praise:"pr", nitpick:"ni", suggestion:"su", issue:"is", todo:"td", question:"qu", thought:"th", chore:"ch", note:"no", typo:"ty", polish:"po", quibble:"qb" };
+const DESC = { praise:"Something done well", nitpick:"Trivial preference", suggestion:"An improvement", issue:"A concrete problem", todo:"Small necessary change", question:"Asks for clarification", thought:"An idea, not a request", chore:"Process work first", note:"Information only", typo:"Spelling", polish:"Quick quality fix", quibble:"Minor preference" };
+// The shortcode is the mark's own two letters between colons: learn one, know the other.
+const CODE = Object.fromEntries(LABELS.map((l) => [l, `:${MONO[l]}:`]));
+// Default tint per label and theme variant: light, dark, high-contrast light, high-contrast dark.
+// No amber (open) and no green (resolved): those belong to states.
+const TINTS = {
+  praise:     ["#BF3989", "#F778BA", "#8A0F5C", "#FF8FD0"],
+  nitpick:    ["#6E7781", "#9BA4AE", "#3A3F45", "#D0D5DA"],
+  suggestion: ["#1F6FD0", "#6CB0FF", "#0033AA", "#7FC0FF"],
+  issue:      ["#D1242F", "#FF7B72", "#A50000", "#FF7070"],
+  todo:       ["#C24E00", "#FFA05A", "#7A2E00", "#FFB074"],
+  question:   ["#8250DF", "#C29BFF", "#5A009E", "#D9B0FF"],
+  thought:    ["#4F5BD5", "#9AA5FF", "#2A2F9E", "#B4BCFF"],
+  chore:      ["#8A5A2B", "#D2A26E", "#5A3510", "#E6BC8A"],
+  note:       ["#0A7EA4", "#4DC3E8", "#004F6B", "#6FD8F5"],
+  typo:       ["#6F7A00", "#C3CE4A", "#434A00", "#D6E070"],
+  polish:     ["#0F8577", "#3FCDB8", "#005048", "#5EE6D2"],
+  quibble:    ["#9A5B7A", "#D99BBB", "#5E2A44", "#F0B8D4"],
+};
+const DARK = q.get("theme") === "dark";
+const tint = (l, edits = {}) => edits[l] || TINTS[l][DARK ? 1 : 0];
+let EDITS = {};
+const lm = (l, cls = "", tip = l) => l === null ? `<span class="lm plain ${cls}" title="Plain comment">··</span>` : `<span class="lm ${cls}" style="--t:${tint(l, EDITS)}" title="${tip}" aria-label="${tip}">${MONO[l]}</span>`;
+const lmn = (l, deco = "", cls = "") => `<span class="lmn">${lm(l, cls)}<b>${l}${deco ? ` (${deco})` : ""}</b></span>`;
+const SM = { open:'<span class="sm-open"></span>', resolved:'<span class="sm-res"></span>', unknown:'<span class="sm-unk"></span>', na:'<span class="sm-na"></span>' };
+const icon = {
+  home:'<svg class="i" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></svg>',
+  files:'<svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 5v14M9 10h11"/></svg>',
+  refresh:'<svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>',
+  comments:'<svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM15 5v14"/></svg>',
+  account:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  settings:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>',
+  compose:'<svg class="i" viewBox="0 0 24 24"><path d="M5 19h4L19 9l-4-4L5 15z"/><path d="M13.5 6.5l4 4"/></svg>',
+  comment:'<svg class="i" viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/></svg>',
+  other:'<svg class="i" viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
+  check:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  changes:'<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><path d="M7 7l10 10"/></svg>',
+  key:'<svg class="i" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 10h2M14 10h2M8 14h8"/></svg>',
+  lock:'<svg class="i" viewBox="0 0 24 24"><rect x="6" y="11" width="12" height="9" rx="1.5"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg>',
+  ext:'<svg class="i" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/></svg>',
+  people:'<svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 19c1-3 3.5-4.5 6-4.5s5 1.5 6 4.5M15 15.5c2.5-.5 4.5.8 5.5 3"/></svg>',
+  draft:'<svg class="i" viewBox="0 0 24 24"><path d="M5 19h4L19 9l-4-4L5 15z"/></svg>',
+  approve:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  request:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16v.01"/></svg>',
+  reset:'<svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>',
+  info:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.01"/></svg>',
+  nofix:'<svg class="i" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/><path d="M4 4l16 16"/></svg>',
+};
+
+
+// ---- chrome ------------------------------------------------------------------------
+const titleRow = (mod, narrow) => `<div class="title"><div class="lights"><i></i><i></i><i></i></div>
+  <span class="ib" title="Home">${icon.home}</span><span class="ib" title="Files">${icon.files}</span>
+  <span class="prname"><span class="n">#14366</span>${narrow ? "" : "Hair strand lighting fixes for LSS"}</span><span class="sp"></span>
+  <span class="seg">${["Overview","Read","Review","Discuss"].map((m) => `<span class="${m === mod ? "on" : ""}">${m}</span>`).join("")}</span>
+  <span class="ib" title="Refresh">${icon.refresh}</span><span class="ib" title="Comments, 2 threads with new comments">${icon.comments}</span>
+  <span class="ib">${icon.account}</span><span class="ib">${icon.settings}</span></div>`;
+const reviewBar = (narrow, commentOpen = false) => `<div class="bar"><span class="lab">▸ Updates</span><span>Comparing <b style="font-weight:500">since my last review</b>${narrow ? "" : `<span class="lab"> · Feb 1 → Feb 15</span>`} ▾</span>
+  <span class="div"></span><span class="lab">File</span><span>‹ ›</span><span class="lab">${narrow ? "3/7" : "3 of 7"}</span>
+  <span class="lab">Changes</span><span>‹ ›</span><span class="lab">${narrow ? "2/11" : "2 of 11"}</span><span class="ib">${icon.check}<span class="caret">▾</span></span>
+  <span class="sp"></span><span class="ib" title="Compose review (⌥R)">${icon.compose}</span><span class="ib ${commentOpen ? "on" : ""}" title="Comment (⌥C)">${icon.comment}<span class="caret">▾</span></span></div>`;
+
+// ---- v4: thread cards. A's mark under the avatar, D's rail on the left edge -------------------
+// Blocking glyphs sit on the full tint, so pick whichever of white or ink reads better on it.
+const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+const GLYPH = ["#FFFFFF", "#111418"];
+const onTint = (t) => ratio(t, GLYPH[0]) >= ratio(t, GLYPH[1]) ? GLYPH[0] : GLYPH[1];
+const decoWord = (p) => p.l ? `${p.l}${p.deco ? ` (${p.deco})` : ""}` : "";
+// The mark's accessible name is the label and its decoration; the post's adds the author.
+const mark4 = (p, v = "v4") => {
+  if (!p.l) return "";
+  const t = tint(p.l), w = decoWord(p), blk = v === "v4" && p.deco === "blocking";
+  return `<span ${p.id ? `id="${p.id}" ` : ""}class="lm ${blk ? "blk" : ""} ${v === "A" ? "sm" : ""}" role="img" style="--t:${t}${blk ? `;--on-t:${onTint(t)}` : ""}" title="${w}" aria-label="${w}">${MONO[p.l]}</span>`;
+};
+// p: who, av, me, when, l (label or null), deco, text, extra (html under the text), reply, edit, id
+// v: "v4" or "A" (round v3's plain A, for the width comparison only)
+function post(p, v = "v4") {
+  const w = decoWord(p), blk = p.deco === "blocking";
+  const av = `<span class="av ${p.me ? "me" : ""}" aria-hidden="true">${p.av}</span>`;
+  const nmRow = `<div class="nm"><span class="who">${p.who}</span><span class="when">${p.when}${p.edit ? " · editing" : ""}</span></div>`;
+  let text;
+  if (p.edit) {
+    // As on the accepted composition page: the label is the highlighted words at the start.
+    // The mark under the avatar and the rail follow the words as they change.
+    text = `<div class="fld" role="textbox" aria-label="Edit comment">${p.l ? `<span class="pfx">${w}: </span>` : ""}${p.text}<span class="caret"></span></div>
+      <div class="fld-f"><span class="fld-k">⌘L label</span><span class="sp"></span><span class="btn">Cancel</span><span class="btn primary">Save</span></div>`;
+  } else {
+    text = `<p>${p.text}</p>`;
+  }
+  const cls = v === "v4" ? `v4 ${blk ? "blk" : ""}` : "";
+  const rt = v === "v4" && p.l ? ` style="--rt:${tint(p.l)}"` : "";
+  const name = `${p.who}${w ? `, ${w}` : ""}`;
+  return `<div class="post ${cls} ${p.reply ? "reply" : ""}" data-v="${v}" data-deco="${p.deco || ""}" data-label="${p.l || ""}" role="article" aria-label="${name}"${rt}><div class="gut">${av}${mark4(p, v)}</div><div class="pb">${nmRow}${text}${p.extra || ""}</div></div>`;
+}
+const pill = { open:`<span class="pill open">${SM.open}Open</span>`, resolved:`<span class="pill res">${SM.resolved}Resolved</span>`,
+  unknown:`<span class="pill" title="GitHub didn't say whether this is resolved">${SM.unknown}Unknown</span>`, na:`<span class="pill">${SM.na}Not resolvable</span>` };
+function card(c, o = {}) {
+  const { edit = null, tip = false, v = "v4" } = o;
+  const posts = c.posts.map((p, i) => post({ ...p, reply:i > 0, edit:edit === i, id:tip && i === 0 ? "rootmark" : null }, v)).join("");
+  const acts = `<div class="acts"><span>Reply</span><span>Resolve</span><span class="sp"></span>${c.priv ? `<span class="priv" title="Private to you, never published">${icon.lock} Defect · major</span>` : ""}</div>`;
+  const tipHtml = tip ? `<div class="tip side" data-anchor="rootmark" data-side="right" data-dx="7" data-dy="-3" style="white-space:nowrap">${c.posts[0].l} (${c.posts[0].deco})</div>` : "";
+  return `<div class="card ${c.cur ? "cur" : ""}"><div class="card-h">${c.tour ? `<span class="tour-h">${c.ref}</span>` : `<span class="ref">${c.ref}</span>`}<span class="sp"></span>${pill[c.state]}</div>${posts}${c.acts ? acts : ""}${tipHtml}</div>`;
+}
+const SUGG = (applicable) => `<div class="sugg" style="margin-top:4px"><div class="sh">${icon.changes} Suggested change<span class="sp"></span>${applicable
+  ? `<span title="Apply on GitHub" style="color:var(--signal)">${icon.ext}</span></div><div class="l a">+	constexpr float MinShadowBias = 0.05f;</div>`
+  : `<span title="Outside the diff: GitHub can't apply this. Copy it instead." style="color:var(--ink-3)">${icon.nofix}</span></div><div class="l a">+#pragma once</div>`}</div>`;
+// Blocking: the issue root and my suggestion. Explicitly non-blocking: the nitpick. The rest
+// carry no decoration, and two posts are plain.
+const CARDS = {
+  issue: { ref:"Line 438", state:"open", cur:true, acts:true, priv:true, posts:[
+    { who:"tbutler", av:"T", when:"Feb 15", l:"issue", deco:"blocking", text:"LightScale ignores the view's post-process settings." },
+    { who:"MikeMarcin", av:"M", me:true, when:"Feb 15", l:"question", text:"Can the view settings be null on secondary views?" },
+    { who:"jiayin", av:"J", when:"today", l:"praise", text:"Good catch — fixed in 81b39fa." },
+    { who:"tbutler", av:"T", when:"today", l:null, text:"Thanks, resolving after CI." } ] },
+  sugg: { ref:"Line 439", state:"open", posts:[
+    { who:"MikeMarcin", av:"M", me:true, when:"today", l:"suggestion", deco:"blocking", text:"Name the limit.", extra:SUGG(true) },
+    { who:"jiayin", av:"J", when:"today", l:"todo", text:"Will do in the next push." } ] },
+  resolved: { ref:"Line 439", state:"resolved", posts:[
+    { who:"rcaloca", av:"R", when:"Feb 9", l:"issue", text:"Bias below 0.05 never takes effect." } ] },
+  unknown: { ref:"Line 441", state:"unknown", posts:[
+    { who:"aleks", av:"A", when:"Feb 3", l:null, text:"This line also runs for the deep shadow pass." } ] },
+  fallback: { ref:"Header line 12", state:"na", posts:[
+    { who:"MikeMarcin", av:"M", me:true, when:"today", l:"nitpick", deco:"non-blocking", text:"Outside the diff.", extra:SUGG(false) } ] },
+};
+// edit: null, "reply" (my reply in the issue thread) or "root" (my own blocking thread's root)
+function threads(o) {
+  const { narrow, edit } = o;
+  const trayW = narrow ? 300 : 380;
+  const codeLines = [
+    [436, `	<span class="k">if</span> (!View.HairStrandsViewData.IsValid()) { <span class="k">return</span>; }`],
+    [437, ``], [438, `	<span class="k">const float</span> LightScale = GHairLightScale;`], [439, `	<span class="k">const float</span> ShadowBias = FMath::<span class="fn">Max</span>(CVarBias.<span class="fn">GetValueOnRenderThread</span>(), <span class="nu">0.05f</span>);`],
+    [440, ``], [441, `	<span class="fn">AddHairLightingPass</span>(GraphBuilder, View, LightScale, ShadowBias);`], [442, `}`],
+  ];
+  const code = `<div class="code" style="flex:1;padding-top:6px">${codeLines.map(([n, t]) => `<div class="ln ${n === 438 ? "cur" : ""}"><span class="g">${n}</span><span class="t">${t}</span></div>`).join("")}</div>`;
+  const cards = [
+    card(CARDS.issue, { edit:edit === "reply" ? 1 : null }),
+    card(CARDS.sugg, { edit:edit === "root" ? 0 : null, tip:!edit && !narrow }),
+    card(CARDS.fallback), card(CARDS.resolved), card(CARDS.unknown),
+  ].join("");
+  return `<div class="win">${titleRow("Read", narrow)}${reviewBar(narrow)}<div class="body">${code}<div class="tray" style="--trayw:${trayW}px">
+    <div class="tr-tabs"><span class="tr-tab on">Comments</span><span class="tr-tab">Notes</span><span class="sp"></span><span style="color:var(--ink-3);font-size:11px">v4</span></div>
+    <div class="tr-tools"><span class="seg"><span class="on">This file</span><span>Whole PR</span></span><span class="chip">Unresolved ▾</span><span class="sp"></span><span class="ib box" title="Label key">${icon.key}</span></div>
+    <div class="cards">${cards}</div></div></div></div>`;
+}
+// Plain A beside v4 at the same tray width, every label normal and blocking, and the gut at 3x.
+function detail() {
+  const strip = LABELS.map((l) => `<span class="nm2">${l}</span>${["", "blocking"].map((d) => `<div class="cell ${d ? "blk" : ""}" style="--rt:${tint(l)}">${mark4({ l, deco:d })}</div>`).join("")}`).join("");
+  const z = (l, d, cap) => `<div class="zc"><div class="zb"><div>${post({ who:"", av:"T", when:"", l, deco:d, text:"" })}</div></div>${cap}</div>`;
+  return `<div class="det">
+    <div><h2>Round v3, plain A</h2><div class="cap">The mark under the avatar, no rail. Replies indented with a grey rule.</div>
+      <div class="cards" data-w="A">${card({ ...CARDS.issue, cur:false }, { v:"A" })}</div><div class="meas" id="measA"></div></div>
+    <div><h2>v4, the same thread</h2><div class="cap">A's column with the rail in the indent it already had. Text starts at the same place.</div>
+      <div class="cards" data-w="v4">${card({ ...CARDS.issue, cur:false })}</div><div class="meas" id="meas4"></div></div>
+    <div><h2>Normal and blocking, every label</h2><div class="cap">Blocking fills the mark with its tint and doubles the rail.</div>
+      <div class="strip"><span class="hd"></span><span class="hd">normal</span><span class="hd">(blocking)</span>${strip}</div>
+      <div class="zoom">${z("issue", "", "issue, 3×")}${z("issue", "blocking", "issue (blocking), 3×")}${z("question", "", "question, 3×")}${z("praise", "blocking", "praise (blocking), 3×")}</div></div>
+  </div>`;
+}
+
+// ---- after render: place the tooltip, measure ---------------------------------------------
+const r3 = (x) => Math.round(x * 1000) / 1000;
+function widths(scope) {
+  const ps = [...document.querySelectorAll(`[data-w="${scope}"] .post`)];
+  return ps.map((p) => { const pb = p.querySelector(".pb").getBoundingClientRect(), c = p.closest(".card").getBoundingClientRect();
+    return { root:!p.classList.contains("reply"), left:r3(pb.left - c.left), width:r3(pb.width) }; });
+}
+function afterRender() {
+  for (const el of document.querySelectorAll("[data-anchor]")) {
+    const a = document.getElementById(el.dataset.anchor);
+    if (!a) continue;
+    const r = a.getBoundingClientRect();
+    const host = el.offsetParent ? el.offsetParent.getBoundingClientRect() : { left:0, top:0 };
+    const side = el.dataset.side === "right";
+    el.style.left = `${(side ? r.right : r.left) - host.left + Number(el.dataset.dx || 0)}px`;
+    el.style.top = `${(side ? r.top : r.bottom) - host.top + Number(el.dataset.dy || 0)}px`;
+  }
+  const wa = widths("A"), w4 = widths("v4");
+  const fmt = (ws) => ws.map((w) => `${w.root ? "root " : "reply"}  text ${w.left} px from the card edge, ${w.width} px wide`).join("\n");
+  if (wa.length) { document.getElementById("measA").textContent = fmt(wa); document.getElementById("meas4").textContent = fmt(w4); }
+  if (q.get("check") !== "1") return;
+  // Centring: mark centre x minus avatar centre x, and the gap under the avatar.
+  // Rail: its right edge to the avatar, its width, and whether it stays inside its card.
+  const rows = [];
+  for (const po of document.querySelectorAll(".post.v4")) {
+    const a = po.querySelector(".av").getBoundingClientRect(), m = po.querySelector(".lm");
+    const rail = getComputedStyle(po, "::before"), pr = po.getBoundingClientRect();
+    const railRight = pr.left - 3, railW = parseFloat(rail.width), railLeft = railRight - railW;
+    const cardEl = po.closest(".card"), cr = cardEl ? cardEl.getBoundingClientRect() : null;
+    const row = { root:!po.classList.contains("reply"), deco:po.dataset.deco, label:po.dataset.label, railW, railToAvatar:r3(a.left - railRight),
+      railInside:cr ? railLeft >= cr.left + 1 : true, name:po.getAttribute("aria-label"), rect:[a.left, a.top, a.width, a.height].map(r3) };
+    if (m) { const r = m.getBoundingClientRect(); Object.assign(row, { dx:r3((r.left + r.width / 2) - (a.left + a.width / 2)), dy:r3(r.top - a.bottom), mw:r.width, aw:a.width,
+      mark:[r.left, r.top, r.width, r.height].map(r3), markName:m.getAttribute("aria-label"), role:m.getAttribute("role"), filled:m.classList.contains("blk") }); }
+    rows.push(row);
+  }
+  const marked = rows.filter((x) => "dx" in x);
+  const blkOk = rows.every((x) => (x.deco === "blocking") === (x.railW === 4) && (!x.label || (x.deco === "blocking") === x.filled));
+  const nameOk = marked.every((x) => x.role === "img" && x.markName === `${x.label}${x.deco ? ` (${x.deco})` : ""}` && x.name.endsWith(x.markName));
+  // Contrast of the blocking glyph on its tint, in all four theme variants.
+  let minGlyph = 99;
+  for (const l of LABELS) for (const t of TINTS[l]) minGlyph = Math.min(minGlyph, ratio(t, onTint(t)));
+  const out = { posts:rows.length, marks:marked.length, blocking:rows.filter((x) => x.deco === "blocking").length,
+    dx:[...new Set(marked.map((x) => x.dx))], dy:[...new Set(marked.map((x) => x.dy))], markW:[...new Set(marked.map((x) => x.mw))], avatarW:[...new Set(marked.map((x) => x.aw))],
+    railToAvatar:[...new Set(rows.map((x) => x.railToAvatar))], railW:[...new Set(rows.map((x) => x.railW))], railInsideCard:rows.every((x) => x.railInside),
+    blockingTreatmentMatches:blkOk, accessibleNamesMatch:nameOk, minBlockingGlyphContrast:r3(minGlyph), headerMarks:document.querySelectorAll(".card-h .lm").length };
+  if (wa.length) out.widths = { A:wa, v4:w4, same:JSON.stringify(wa) === JSON.stringify(w4) };
+  out.boxes = marked.slice(0, 4).map((x) => ({ avatar:x.rect, mark:x.mark, deco:x.deco }));
+  const pre = document.createElement("pre");
+  pre.id = "check";
+  pre.textContent = JSON.stringify(out);
+  document.body.append(pre);
+}
+
+// ---- the frames ---------------------------------------------------------------------------
+const FRAMES = {
+  "th4-wide": { size:[1440, 820], fn:() => threads({}) },
+  "th4-narrow": { size:[960, 760], fn:() => threads({ narrow:true }) },
+  "th4-wide-edit": { size:[1440, 820], fn:() => threads({ edit:"reply" }) },
+  "th4-narrow-edit": { size:[960, 760], fn:() => threads({ narrow:true, edit:"root" }) },
+  "th4-detail": { size:[1440, 820], fn:() => detail() },
+};
+window.BPR1079_FRAMES = Object.fromEntries(Object.entries(FRAMES).map(([k, v]) => [k, v.size]));
+
+const f = q.get("f");
+if (f && FRAMES[f]) {
+  document.body.innerHTML = FRAMES[f].fn();
+  afterRender();
+} else {
+  document.body.classList.add("index");
+  document.body.innerHTML = `<h3 style="margin:0 0 10px">BPR-1079 frames v4, thread marks: open one at its own size</h3><div class="idx">${Object.entries(FRAMES).map(([k, v]) => `<a href="?f=${k}">${k}</a><span style="color:var(--ink-3)">${v.size.join("×")}</span>`).join("")}</div>`;
+}
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1079 feedback UX, round v4: mark under the avatar, label rail, blocking</title>
+<!--
+  [[BPR-1079]] Conventional Comments UX, round v4: A and D combined on the thread card, after
+  the owner's round-3 verdict (session 830ffc2a). Frames live in
+  BPR-1079-feedback-ux-frames-v4.html. Rounds v1 to v3 stay as history.
+  Nothing on this page is implemented.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --marker:#B7791F; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1340px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+h3 { font-size:15px; margin:20px 0 6px; }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:200px; font-weight:600; }
+.st { display:inline-block; padding:0 7px; border-radius:9px; font-size:12px; font-weight:600; background:#E3E6EA; }
+.st.pend { background:#FBF1DC; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+.sw { display:inline-block; width:14px; height:11px; border-radius:2px; vertical-align:-1px; margin-right:5px; border:1px solid rgba(0,0,0,.15); }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+blockquote { margin:0; padding:0 0 0 10px; border-left:3px solid var(--rule-2); color:var(--ink-2); }
+</style>
+</head>
+<body>
+<main>
+<h1>Conventional Comments: mark under the avatar, label rail, blocking, round v4</h1>
+<div class="by">BPR-1079 (RFC-BPR-0048, 0049, 0050; R30, R33). 2026-10-05. Frames: <a href="BPR-1079-feedback-ux-frames-v4.html">BPR-1079-feedback-ux-frames-v4.html</a>, 1440×820 and 960×760, light and dark. Earlier rounds: <a href="BPR-1079-feedback-ux-v3.html">v3</a>, <a href="BPR-1079-feedback-ux-v2.html">v2</a>, <a href="BPR-1079-feedback-ux-v1.html">v1</a>.</div>
+
+<p><b>None of this is implemented.</b> Round v4 redraws only the thread cards. Everything else stands as round v2 drew it. The two-letter squares are still placeholders for BPR-1080's icons.</p>
+
+<h2>Round v3 verdict (session 830ffc2a626c879b180a04e3a4e9d802)</h2>
+<table>
+<thead><tr><th>Item</th><th>Verdict</th><th>Owner's note, verbatim</th><th>Round v4</th></tr></thead>
+<tbody>
+<tr><th>Threads</th><td>Selected A: under the avatar, and D: label rail</td><td><blockquote>I like A but it's right aligned and needs to be centered. I like the colored rail but it takes too much space with the label ontop so combine A and D. Horizontal space is a premium. Also I don't think there's enough emphasis put on the blocker attribute now.</blockquote></td><td>One combined design below. <span class="st pend">asked</span></td></tr>
+</tbody>
+</table>
+
+<h2>The design</h2>
+<table>
+<tbody>
+<tr><th>Mark</th><td>Under the author's avatar, centred on it, for every post, root and reply alike. v3 put a 15 px mark under an 18 px avatar. An odd width can't centre on an even one, so the rendered ink sat 2 px in on the left and 1 px on the right, which is why it read as right-aligned. The v4 mark is 16 px, so the ink sits 1 px in on each side at 1× and 2 px at 2×.</td></tr>
+<tr><th>Rail</th><td>A rule down the post's left edge, in the label's tint, with no mark on it. A plain post gets a grey rule. The rail goes in space the card already had: the card's 9 px left padding for the root, and the reply's 24 px indent for a reply. Its right edge is always 3 px left of the avatar. A thicker rail grows outward, so it never moves the text.</td></tr>
+<tr><th>Width</th><td>No width is added compared with plain A. Measured in the detail frame at the wide tray (380 px): plain A's root text starts 35 px from the card edge and is 335 px wide, and its replies start at 59 px and are 311 px wide. v4's numbers are the same. v3's D cost about 21 px on every post.</td></tr>
+<tr><th>Blocking</th><td>Two cues, and neither is text. The mark is <b>filled</b> with its tint and its letters turn white or near-black, whichever contrasts more. A normal mark keeps the soft fill. The rail is <b>4 px</b> instead of 2 px. Because the cue is the fill rather than the colour, it also shows in greyscale and with colour-vision differences. The lowest letter contrast on a filled mark, across all twelve tints in all four theme variants, is 4.52:1. "(non-blocking)" and undecorated labels look the same.</td></tr>
+<tr><th>Accessible name</th><td>The mark is an image named with the label and its decoration, for example "issue (blocking)". The post is an article named with the author and the same words: "tbutler, issue (blocking)". The tooltip shows the same words. These were read from Chrome's accessibility tree.</td></tr>
+<tr><th>Editing</th><td>As on the accepted composition page, the label is the highlighted words at the start of the field ("suggestion (blocking): "). The mark and rail follow those words.</td></tr>
+</tbody>
+</table>
+
+<h2>Frames</h2>
+<p>The detail frame shows plain A and v4 side by side, with their measured widths, then every label in normal and blocking form, then the avatar column at 3×. The other frames show the Read tray at 1440 and 960 px, in light and dark, reading and editing. The wide frame shows a blocking mark's tooltip. "Editing" is my reply at 1440 and my own blocking first comment at 960. Two posts are blocking, one is non-blocking and two are plain.</p>
+<div class="frames" id="f-det"></div>
+<div class="frames" id="f-th"></div>
+
+<h2>Measured</h2>
+<p><code>?check=1</code> on all 10 frames, in light and dark, from the frozen source:</p>
+<ul>
+<li>The mark's centre is 0 px from the avatar's centre for every post, and the gap under the avatar is 3 px.</li>
+<li>Every rail is 3 px from its avatar and stays inside its card.</li>
+<li>The blocking fill and the 4 px rail appear on blocking posts and on no other posts.</li>
+<li>Every accessible name matches its label and decoration, and no card header holds a mark.</li>
+</ul>
+<p>The rendered PNGs were also measured at 1× and 2×. The mark's ink sits (1, 1) device px inside the avatar's ink at 1× and (2, 2) at 2×, in all 16 renders. Rail ink is 4 or 2 px at 1× and 8 or 4 px at 2×, always 3 px (6 at 2×) from the avatar.</p>
+
+<h2>Open, not decided here</h2>
+<ul>
+  <li>The owner's Accept or Reject of v4 (round v4's attended session).</li>
+  <li>The icons and their resource form: BPR-1080. The selection record and implementation contract: BPR-1081.</li>
+  <li>Native verification at 100%, 125% and 200%, in high contrast and with larger text, applies to the built surfaces (R33), not to these frames.</li>
+</ul>
+</main>
+<script>
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [f, w, h, cap, theme] of list) {
+    const s = 0.42;
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="BPR-1079-feedback-ux-frames-v4.html?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+put("f-det", [["th4-detail",1440,820,"Plain A against v4; normal and blocking"],["th4-detail",1440,820,"Detail, dark","dark"]]);
+put("f-th", [["th4-wide",1440,820,"Wide, with a blocking mark's tooltip"],["th4-wide",1440,820,"Wide, dark","dark"],
+  ["th4-narrow",960,760,"Narrow"],["th4-narrow",960,760,"Narrow, dark","dark"],
+  ["th4-wide-edit",1440,820,"Editing my reply"],["th4-wide-edit",1440,820,"Editing my reply, dark","dark"],
+  ["th4-narrow-edit",960,760,"Editing my blocking first comment"],["th4-narrow-edit",960,760,"Editing my first comment, dark","dark"]]);
+</script>
+</body>
+</html>
