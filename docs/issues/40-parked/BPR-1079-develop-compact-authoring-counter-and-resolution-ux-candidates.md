@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0050"]
 depends_on: ["BPR-1075"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-05","milestone":"design","acceptance":["R30","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1079:constraints","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-frames-v1.html","detail":"Frames at 1440x820 and 960x700-760 (Settings at its 760x560 minimum), rendered headless and inspected: Overview A and B with none, issue+question and all twelve label columns; twelve at 960 px pin File and scroll (A) or fold into +n (B); 0/1/11/104 counts; long paths elide; long comment body with a native suggestion; labelled reply under a differently labelled root; unknown coverage chip and Not on a file row. Static design, not native evidence."}},{"criterion":"BPR-1079:explains","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Rules every candidate keeps: conversation counting unit (root, replies never count), Other as catchall remainder with the partition computed in the frames (fixture src/cache.cpp: Open 2/1/4 of 7, All 4/1/5 of 10), Not on a file remainder, four resolution states, explicit Comment/Approve/Request changes with no automatic verdict, public label text versus private defect badge and uncounted drafts."}},{"criterion":"BPR-1079:tradeoffs","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Tradeoff tables for Overview A/B, authoring A/B/C and preflight A/B; the record and every frame say nothing is implemented and the two-letter marks are placeholders for BPR-1080."}},{"criterion":"BPR-1079:owner-selection","outcome":"pending","revision":"59f65ad9e","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0047-0051.md","detail":"Owner verdicts pending in attended session ca54b0e8e5bc8a46f40cee31ea0619fd (state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v001, ready at sequence 18): overview-columns, authoring, preflight (choices) and overview-states, threads, settings (Accept/Reject), all -v001, on frozen root /Users/jaeger/bpr1079-feedback-ux-review-v001.xSnkqM."}}]
+acceptance: [{"criterion":"BPR-1079:constraints","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-frames-v1.html","detail":"Frames at 1440x820 and 960x700-760 (Settings at its 760x560 minimum), rendered headless and inspected: Overview A and B with none, issue+question and all twelve label columns; twelve at 960 px pin File and scroll (A) or fold into +n (B); 0/1/11/104 counts; long paths elide; long comment body with a native suggestion; labelled reply under a differently labelled root; unknown coverage chip and Not on a file row. Static design, not native evidence."}},{"criterion":"BPR-1079:explains","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Rules every candidate keeps: conversation counting unit (root, replies never count), Other as catchall remainder with the partition computed in the frames (fixture src/cache.cpp: Open 2/1/4 of 7, All 4/1/5 of 10), Not on a file remainder, four resolution states, explicit Comment/Approve/Request changes with no automatic verdict, public label text versus private defect badge and uncounted drafts."}},{"criterion":"BPR-1079:tradeoffs","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Tradeoff tables for Overview A/B, authoring A/B/C and preflight A/B; the record and every frame say nothing is implemented and the two-letter marks are placeholders for BPR-1080."}},{"criterion":"BPR-1079:owner-selection","outcome":"pending","revision":"48b588d25","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0047-0051.md","detail":"Round v1 (session ca54b0e8e5bc8a46f40cee31ea0619fd, read after sequence 18 to 25): overview-columns B, preflight B, authoring A plus C, overview-states Accept, settings Accept with a note, threads Reject. Round v2 pending in session 4742c47e636d407949d455abdd8030a3 (state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v002, ready at sequence 9): threads-v002, tints-v002, shortcodes-v002, each Accept/Reject, on frozen root /Users/jaeger/bpr1079-feedback-ux-review-v002.50kSvD."}}]
 ---
 
 # BPR-1079: Develop compact authoring, counter and resolution UX candidates
@@ -69,3 +69,55 @@ Limitations: these are static HTML frames rendered with headless Chrome. They
 are not the product, and they are not native, scaled, high-contrast or
 assistive-technology evidence (R33 applies to the built surfaces). Nothing is
 implemented.
+
+## Round v1 verdicts (2026-10-05)
+
+Session `ca54b0e8e5bc8a46f40cee31ea0619fd`, read with `status --after 18`
+(sequences 19 to 25). The owner's notes are quoted verbatim.
+
+| Item | Verdict | Note |
+|---|---|---|
+| `BPR-1079-authoring-v001` | Selected **A: label chip and menu** and **C: type it, with completion** | "I like type it as a shortcut but it needs something more distinct like \`:qu:\` maybe treat them like typing an emojis that we replace." |
+| `BPR-1079-overview-columns-v001` | Selected **B: label chips in one Comments column** | (none) |
+| `BPR-1079-overview-states-v001` | **Accept** | (none) |
+| `BPR-1079-preflight-v001` | Selected **B: one chip, list on demand** | (none) |
+| `BPR-1079-settings-v001` | **Accept** (sequence 25 supersedes the note-less Accept at 23) | "I think we should tint the marks so they are more recognizable at a glance without always having to read the tiny letters. Tints should be configurable in settings appearance." |
+| `BPR-1079-threads-v001` | **Reject** | "Looks like its doing both the mark and the full word still. It's designed to save space so it should be just the mark, mark can have a tooltip with the whole word. Also the marks look like they are lower than the text." |
+
+## Round v2 (2026-10-05)
+
+[Design record v2](../../design/BPR-1079-feedback-ux-v2.html) and
+[frames v2](../../design/BPR-1079-feedback-ux-frames-v2.html), at candidate
+`48b588d25`. Only the chosen options are left: Overview B, authoring A, and
+preflight B. Round v1's files stay as history.
+
+- **Threads v2.** The card header has the root's mark, the line and the state
+  pill. A reply's mark sits in its name row. The word and its decoration
+  appear only in the tooltip and the accessible name, for example "issue
+  (blocking)". Round v1's reply marks sat 3 px low because of
+  `vertical-align:-3px`. In v2 every mark is centred in a flex row. With
+  `?check=align` the frames measure each mark's centre against its text: the
+  largest gap is 0.008 px in th-wide (6 marks), th-narrow (6) and th-detail
+  (3), in light and dark, on the frozen source.
+- **Tints.** Each mark has a soft fill and a border in its label's colour.
+  The letters stay ink, and no default uses the amber of open or the green of
+  resolved. Following RFC-BPR-0034, the tints are twelve colour roles ("Label
+  issue" and so on) in a fifth group, Comment labels, on Appearance ›
+  Colours. That makes 45 offered roles 57. Each theme variant has its own
+  built-in tints, listed in the record. An edit changes only the theme on
+  screen and previews through the existing bar. A stored palette without
+  these roles reads them as the built-in tints. Reviews & queue › Comment
+  labels gets a "Mark colours" link, and "Overview columns" becomes
+  "Overview chips".
+- **Shortcodes.** A label's code is its mark's two letters between colons:
+  `:pr: :ni: :su: :is: :td: :qu: :th: :ch: :no: :ty: :po: :qb:`. Codes work
+  only at the start of the comment. A colon and one letter open the
+  completion list, which matches codes before names. The closing colon, Tab
+  or Enter replaces the code in one undoable step, and ⌘Z puts it back.
+  A code replaces an existing label. Esc, an unknown code or pasted text
+  leaves the text as it is. Codes belong to the label helper, and the
+  preview shows plain label text.
+
+Limitations: these are static HTML frames rendered with headless Chrome. They
+are not native, scaled, high-contrast or assistive-technology evidence.
+Nothing is implemented.
