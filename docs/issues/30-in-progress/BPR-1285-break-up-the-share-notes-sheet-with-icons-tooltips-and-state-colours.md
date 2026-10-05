@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1285"
 title: "Break up the Share notes sheet with icons, tooltips and state colours"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0061"]
 depends_on: []
 priority: "P1"
