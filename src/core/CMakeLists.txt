@@ -73,6 +73,7 @@ add_library(
         src/review_tour_import.cpp
         src/review_tour_destination.cpp
         src/review_tour_markdown.cpp
+        src/feedback_convention.cpp
         src/review_tour_reconciliation.cpp
     src/review_tour_revision.cpp
         src/review_tour_update.cpp

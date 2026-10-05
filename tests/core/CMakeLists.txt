@@ -565,6 +565,13 @@ bpr_enable_hardening(test_review_tour_markdown)
 bpr_enable_warnings(test_review_tour_markdown)
 bpr_add_network_isolated_test(NAME core_review_tour_markdown COMMAND test_review_tour_markdown)
 
+# [[BPR-1076]]. Conventional Comments catalog and bounded prefix recognizer, against the pack's catalog and corpus.
+bpr_add_executable(test_feedback_convention feedback_convention_tests.cpp)
+target_link_libraries(test_feedback_convention PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_convention)
+bpr_enable_warnings(test_feedback_convention)
+bpr_add_network_isolated_test(NAME core_feedback_convention COMMAND test_feedback_convention "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
+
 bpr_add_executable(test_review_tour_import review_tour_import_tests.cpp)
 target_link_libraries(test_review_tour_import PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_tour_import)
