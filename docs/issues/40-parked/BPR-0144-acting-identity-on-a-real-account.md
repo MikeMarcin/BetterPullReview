@@ -89,3 +89,21 @@ the built application.
 The card stays Parked on `awaiting-live-github`. Next: the owner names a
 second GitHub account (as author or reviewer) for BPR-Test. No live object
 was made for it.
+
+## Reassessment after the BPR-Test designation — 2026-10-05
+
+The owner's 2026-10-05 designation (root `AGENTS.md`) repeats the 2026-09-30
+grant of BPR-Test and supplies no second identity. A read-only `gh api` check
+as `MikeMarcin` found `MikeMarcin` the only collaborator and the author of
+every PR on BPR-Test. GitHub refuses Approve and Request Changes from a PR's
+author, so two of the three required dispositions cannot be observed with
+this account alone. BPR-Test still has no workflows (`actions/workflows`
+total 0), so a review there starts no Actions.
+
+The card stays Parked on `awaiting-live-github`. A Comment-only run was not
+made: it would not satisfy the card and would spend a live review on a
+partial course. No live object was made for it.
+
+**Owner question:** which second GitHub account should take part on BPR-Test,
+either opening a PR that `MikeMarcin` reviews in BetterPullReview or being
+the account signed into BetterPullReview to review a `MikeMarcin` PR?
