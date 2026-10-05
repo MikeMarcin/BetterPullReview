@@ -70,3 +70,17 @@ of `core_feedback_partition` and `core_feedback_conversation` are owed by statio
 Nothing calls the partition yet: read-model adaptation and deltas are BPR-1087,
 settings BPR-1088, and Overview rendering, sorting and drill-down BPR-1089. R21-R26
 and R43 are met here for the core decisions only.
+
+**Note: Linux run at `8508f0c9a` (station `bpr-main-linux`, WSL2, GCC 15.2.0, the
+`core-only` preset, Debug, `build/bpr1078`).** The whole-tree build first
+failed: GCC 15 `-Werror=range-loop-construct` rejected
+`tests/core/feedback_partition_tests.cpp:520`, where
+`for (const auto [collection, limit] : partialLimits)` copies each
+`std::pair` (Clang does not warn). The loop now binds
+`const auto& [collection, limit]`; the change is test only, with no change
+in behaviour. The tree then built with no warnings, and 8 of 8 passed:
+`core_feedback_partition` (2.0 s), `core_feedback_convention`,
+`core_feedback_header_edit`, `core_feedback_conversation`,
+`core_review_composition`, `core_review_tour_markdown`,
+`core_dependency_boundary` and `core_boundary_contract`. clang-format 22 is
+clean. `build/bpr1078` was removed. Done is not reopened.

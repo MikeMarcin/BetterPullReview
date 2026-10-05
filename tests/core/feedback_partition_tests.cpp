@@ -517,7 +517,7 @@ namespace {
 
 		const std::array partialLimits{ std::pair{ feedback_collection::partial, feedback_count_limit::collection_partial }, std::pair{ feedback_collection::stale, feedback_count_limit::collection_stale },
 										std::pair{ feedback_collection::unavailable, feedback_count_limit::collection_unavailable } };
-		for (const auto [collection, limit] : partialLimits) {
+		for (const auto& [collection, limit] : partialLimits) {
 			const auto empty = counts_for(populate(set, { }, collection), pull_request, { feedback_label::issue }, feedback_resolution_mode::unresolved);
 			expect(empty.Included == 0U && !empty.Exact && empty.Limits == std::vector{ limit }, std::string{ "an incomplete collection is never a clean zero: " } + std::string{ stable_name(collection) });
 		}
