@@ -497,7 +497,7 @@ namespace bpr::core {
 	}
 	auto find_feedback_label(std::string_view aRaw) noexcept -> std::optional<feedback_label>
 	{
-		const auto* found = std::ranges::find_if(catalog, [&](const feedback_label_definition& aEntry) { return ascii_equal(aEntry.Id, aRaw); });
+		const auto found = std::ranges::find_if(catalog, [&](const feedback_label_definition& aEntry) { return ascii_equal(aEntry.Id, aRaw); });
 		return found == catalog.end() ? std::nullopt : std::optional{ found->Label };
 	}
 	auto stable_name(feedback_label aLabel) noexcept -> std::string_view
