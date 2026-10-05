@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1278"
 title: "Next file stops advancing when a capture completes mid-navigation"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"BPR-1274 Windows Debug large-project row at 8d838c696 (bpr-main-win)","reservation":"docs/issues/_reservations/BPR-1278--BPR-1278--d362f90a34fd.json","related_cards":["BPR-1274","BPR-1184"]}
+acceptance: [{"criterion":"BPR-1278:macos","outcome":"pass","revision":"b668900d4","evidence":{"kind":"command","path":"tests/workspace_contract/review_cycle_workbench_tests.cpp","detail":"macOS arm64 build/dev Debug: next_file_advances_through_a_capture_reload covers all 28 turns of a capture's reload; without the guard it fails with the field signature ('Next file pressed 16 turns into the capture's reload reads f001.txt after f000.txt, not f000.txt'). The large-project Debug row, the navigation and cycle rows, the boundaries, the round-trip contract (outside the pinned scope) and the manifest pass; clang-format 22 and 23 agree."}},{"criterion":"BPR-1278:windows","outcome":"pass","revision":"5c76a103f","evidence":{"kind":"command","path":"tests/workspace_contract/review_cycle_workbench_tests.cpp","detail":"Windows 11, MSVC 14.51, Qt 6.11.2, windows-dev-tour-cli Debug at ed4c4cbd5 (holds b668900d4), where the race was seen. review_cycle_workbench passes with 'NATIVE: Next file pressed at each of 28 turns of a capture's reload reads the next file on the tab's revision'; qt_review_cycle_view_1_0/_2_0, the two-round course and review_cycle_large_project_targets pass; application_review_cycle_large_project --repeat until-fail:3 passes 3/3 (128.85, 102.49, 105.57 s). The manifest's only complaints are BPR-1180's two unpinned send rows, owed to BPR-1180."}},{"criterion":"BPR-1278:linux","outcome":"pass","revision":"b874334c2","evidence":{"kind":"command","path":"tests/end_to_end/review_cycle_large_project_contract.py","detail":"bpr-main-linux, WSL2, build/dev-tour-cli at b874334c2 (holds b668900d4): 6/6, and the large-project row 3/3 (25.69, 25.42, 25.85 s), recorded on the card."}}]
 ---
 
 # BPR-1278: Next file stops advancing when a capture completes mid-navigation
