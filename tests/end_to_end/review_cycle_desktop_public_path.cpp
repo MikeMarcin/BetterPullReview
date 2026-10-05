@@ -779,6 +779,26 @@ try {
 	expect(page->projection().Comparison && page->comparison()->isVisible() && page->comparison()->toPlainText().contains(QStringLiteral("+ \treturn aText ? check(aText) : 0;")),
 		   "the comparison pane shows the shared engine's rows");
 	expect(page->view_button()->text() == QStringLiteral("All cycle changes · R1 → R2"), "the review bar names the view and its pair");
+	// [[BPR-1281]]. The comparison in the panes' syntax colours, through the
+	// same classifier and painter: the removed row's words painted, and the
+	// added row's code carrying the same role colours after its line numbers.
+	expect(word_painted(*page->comparison(), QStringLiteral("return"), flow) && word_painted(*page->comparison(), QStringLiteral("check"), function),
+		   "the comparison's removed row in the panes' syntax colours");
+	const auto addedRow = [&] {
+		for (auto block = page->comparison()->document()->firstBlock(); block.isValid(); block = block.next()) {
+			if (block.text().endsWith(QStringLiteral("+ \treturn aText ? check(aText) : 0;"))) {
+				return block;
+			}
+		}
+		return QTextBlock{ };
+	}();
+	const auto rowCoded = [&](const QColor& aColour, const QString& aWord) {
+		const auto at      = addedRow.text().indexOf(aWord);
+		const auto formats = addedRow.isValid() && addedRow.layout() != nullptr ? addedRow.layout()->formats() : QList<QTextLayout::FormatRange>{ };
+		return std::ranges::any_of(formats, [&](const QTextLayout::FormatRange& aRange) { return aRange.start == at && aRange.length == aWord.size() && aRange.format.foreground().color() == aColour; });
+	};
+	expect(rowCoded(flow, QStringLiteral("return")) && rowCoded(function, QStringLiteral("check")), "the added row's code in the same role colours, after its line numbers");
+	capture(window, QStringLiteral("desktop-cycle-compare-syntax"));
 	page->mark_reviewed_action()->trigger();
 	settle(lanes);
 	expect(page->projection().Facts.LastReview && page->projection().Facts.LastReview->Revision == core::cycle_source_revision_id{ 2 }, "reviewed through R1");

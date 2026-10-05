@@ -2,6 +2,7 @@
 
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 
 #include <QAction>
@@ -16,6 +17,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QPalette>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -24,6 +26,9 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTextBlock>
+#include <QTextCharFormat>
+#include <QTextCursor>
+#include <QTextLayout>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -459,6 +464,8 @@ namespace bpr::qt {
 		Comparison->setReadOnly(true);
 		Comparison->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Comparison->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		// [[BPR-1281]]. The rows scrolled into view take their colours.
+		connect(Comparison, &QPlainTextEdit::updateRequest, this, [this] { paint_comparison_syntax(); });
 		Centre->addWidget(Source);
 		Centre->addWidget(SourceNotice);
 		Centre->addWidget(Comparison);
@@ -817,6 +824,7 @@ namespace bpr::qt {
 		apply_source_syntax();
 		Composer->adopt_appearance(aProfile);
 		SharePage->set_code_colours(SyntaxColors);
+		paint_comparison();
 	}
 
 	auto review_cycle_view::adopt_source_syntax(const std::string_view aDocument, application::shared_token_spans aSpans) -> bool
@@ -1200,31 +1208,124 @@ namespace bpr::qt {
 			return;
 		}
 		if (aChanged) {
+			// [[BPR-1281]]. Each side's text is its rows joined by LF, so a
+			// row's line is the same line of the text that is classified,
+			// whatever ending the file used.
 			auto lines = QStringList{ };
 			lines.reserve(static_cast<qsizetype>(aComparison.Rows.size()));
-			auto marks = QList<QTextEdit::ExtraSelection>{ };
+			ComparisonTexts  = { };
+			ComparisonSyntax = { };
+			ComparisonPlaces.clear();
+			ComparisonPlaces.reserve(aComparison.Rows.size());
+			const auto append = [this](const std::size_t aSide, const std::string& aText) -> std::uint64_t {
+				auto&      text  = ComparisonTexts.at(aSide);
+				const auto begin = text.size();
+				text.append(aText);
+				text.push_back('\n');
+				return begin;
+			};
 			for (const auto& row : aComparison.Rows) {
-				const auto sign  = row.Kind == core::cycle_diff_row_kind::added ? QLatin1Char('+') : row.Kind == core::cycle_diff_row_kind::removed ? QLatin1Char('-')
-																																					: QLatin1Char(' ');
-				const auto left  = row.LeftLine ? QString::number(*row.LeftLine) : QString{ };
-				const auto right = row.RightLine ? QString::number(*row.RightLine) : QString{ };
-				lines.append(QStringLiteral("%1 %2 %3 %4").arg(left, 5).arg(right, 5).arg(sign).arg(text_of(row.Text)));
+				const auto sign   = row.Kind == core::cycle_diff_row_kind::added ? QLatin1Char('+') : row.Kind == core::cycle_diff_row_kind::removed ? QLatin1Char('-')
+																																					 : QLatin1Char(' ');
+				const auto left   = row.LeftLine ? QString::number(*row.LeftLine) : QString{ };
+				const auto right  = row.RightLine ? QString::number(*row.RightLine) : QString{ };
+				const auto prefix = QStringLiteral("%1 %2 %3 ").arg(left, 5).arg(right, 5).arg(sign);
+				lines.append(prefix + text_of(row.Text));
+				auto place = comparison_place{ .Length = row.Text.size(), .Code = static_cast<int>(prefix.size()), .Kind = row.Kind };
+				if (row.Kind != core::cycle_diff_row_kind::added) {
+					place.Left = append(0U, row.Text);
+				}
+				if (row.Kind != core::cycle_diff_row_kind::removed) {
+					place.Right = append(1U, row.Text);
+				}
+				ComparisonPlaces.push_back(place);
 			}
 			Comparison->setPlainText(lines.join(QLatin1Char('\n')));
-			auto block = Comparison->document()->firstBlock();
-			for (const auto& row : aComparison.Rows) {
-				if (row.Kind != core::cycle_diff_row_kind::context && block.isValid()) {
-					auto mark = QTextEdit::ExtraSelection{ };
-					mark.format.setBackground(row.Kind == core::cycle_diff_row_kind::added ? QColor{ 0x2E, 0xA0, 0x43, 0x40 } : QColor{ 0xCF, 0x22, 0x2E, 0x40 });
-					mark.format.setProperty(QTextFormat::FullWidthSelection, true);
-					mark.cursor = QTextCursor{ block };
-					marks.append(mark);
+			// Plain until the classification of exactly these texts arrives.
+			if (ComparisonSyntaxWanted) {
+				for (std::size_t side = 0; side < ComparisonTexts.size(); ++side) {
+					if (side == 0U || ComparisonTexts[1] != ComparisonTexts[0]) {
+						ComparisonSyntaxWanted({ .Path = aComparison.Path, .Document = ComparisonTexts.at(side) });
+					}
 				}
-				block = block.next();
 			}
-			Comparison->setExtraSelections(marks);
+			paint_comparison();
 		}
 		ReadingPage = Comparison;
+	}
+
+	auto review_cycle_view::adopt_comparison_syntax(const std::string_view aDocument, const application::shared_token_spans& aSpans) -> bool
+	{
+		if (!aSpans || !Projection.Comparison || ComparisonPlaces.empty()) {
+			return false;
+		}
+		auto adopted = false;
+		for (std::size_t side = 0; side < ComparisonTexts.size(); ++side) {
+			if (const auto& text = ComparisonTexts.at(side); text == aDocument) {
+				ComparisonSyntax.at(side) = classify_text_lines(std::span{ reinterpret_cast<const std::uint8_t*>(text.data()), text.size() }, aSpans);
+				adopted                   = true;
+			}
+		}
+		if (adopted) {
+			paint_comparison_syntax();
+		}
+		return adopted;
+	}
+
+	void review_cycle_view::paint_comparison()
+	{
+		// The review panes' diff fills; fixed washes before an appearance applies.
+		auto marks = QList<QTextEdit::ExtraSelection>{ };
+		for (std::size_t index = 0; index < ComparisonPlaces.size(); ++index) {
+			const auto kind = ComparisonPlaces[index].Kind;
+			if (kind == core::cycle_diff_row_kind::context) {
+				continue;
+			}
+			const auto added = kind == core::cycle_diff_row_kind::added;
+			auto       fill  = code_sample_row_fill(added ? code_sample_row_kind::added : code_sample_row_kind::removed, SyntaxColors);
+			if (!fill.isValid()) {
+				fill = added ? QColor{ 0x2E, 0xA0, 0x43, 0x40 } : QColor{ 0xCF, 0x22, 0x2E, 0x40 };
+			}
+			append_line_band(marks, *Comparison, core::line_span{ .Begin = static_cast<std::uint32_t>(index), .End = static_cast<std::uint32_t>(index + 1U) }, fill);
+		}
+		Comparison->setExtraSelections(marks);
+		paint_comparison_syntax();
+	}
+
+	void review_cycle_view::paint_comparison_syntax()
+	{
+		// Only the rows in view: scrolling asks again, and a row already in
+		// its colours is not laid out again.
+		if (ComparisonPlaces.empty()) {
+			return;
+		}
+		auto quiet = QTextCharFormat{ };
+		quiet.setForeground(Comparison->palette().color(QPalette::PlaceholderText));
+		const auto last = Comparison->cursorForPosition(QPoint{ 0, Comparison->viewport()->height() }).block();
+		for (auto block = Comparison->cursorForPosition(QPoint{ 0, 0 }).block(); block.isValid(); block = block.next()) {
+			const auto index = static_cast<std::size_t>(block.blockNumber());
+			if (index >= ComparisonPlaces.size()) {
+				break;
+			}
+			const auto& place   = ComparisonPlaces[index];
+			auto        formats = QList<QTextLayout::FormatRange>{ QTextLayout::FormatRange{ .start = 0, .length = place.Code, .format = quiet } };
+			// A removed row is the left side's, an added row the right's; an
+			// unchanged row is on both and takes whichever is classified.
+			const auto right = place.Right && (!place.Left || ComparisonSyntax[1].Spans);
+			const auto side  = right ? std::size_t{ 1 } : std::size_t{ 0 };
+			if (const auto begin = right ? place.Right : place.Left; begin && ComparisonSyntax.at(side).Spans) {
+				const auto& text = ComparisonTexts.at(side);
+				const auto  code = std::span{ reinterpret_cast<const std::uint8_t*>(text.data()) + *begin, static_cast<std::size_t>(place.Length) };
+				for (auto range : code_syntax_format_ranges_at(ComparisonSyntax.at(side), *begin, code, SyntaxColors)) {
+					range.start += place.Code;
+					formats.append(std::move(range));
+				}
+			}
+			apply_syntax_format_ranges(*Comparison->document(), block, formats);
+			if (block == last) {
+				break;
+			}
+		}
 	}
 
 	void review_cycle_view::rebuild_view_menu()

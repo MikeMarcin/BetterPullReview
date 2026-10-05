@@ -267,6 +267,8 @@ namespace bpr::app {
 			CodeHost                         = std::make_unique<application::syntax_classification_application_host>(*CodeClassifier, *aSyntax.Effects, aDecisions, *CodeRelay, core::application_session_id{ 2U },
 																													 application::appearance_host_limits{ .OutstandingRequests = 1U, .TokenSpanCacheEntries = 4U });
 			View->share_page()->SyntaxWanted = [this](const qt::source_syntax_request& aRequest) { want_code_syntax(aRequest); };
+			// [[BPR-1281]]. The comparison's two sides through the same host.
+			View->ComparisonSyntaxWanted = [this](const qt::source_syntax_request& aRequest) { want_code_syntax(aRequest); };
 		}
 		View->set_dispatch({
 			.OpenFile      = [this](const std::string& aPath, const bool aNewTab) { Host->open_file(aPath, aNewTab); },
@@ -671,6 +673,7 @@ namespace bpr::app {
 			CodeTexts->release(CodeClassifying->Key.Blob);
 			if (!Closing && aSpans != nullptr && aSpans->Key == CodeClassifying->Key) {
 				View->share_page()->adopt_code_syntax(*CodeClassifying->Document, aSpans->Spans);
+				View->adopt_comparison_syntax(*CodeClassifying->Document, aSpans->Spans);
 			}
 		}
 		CodeClassifying.reset();

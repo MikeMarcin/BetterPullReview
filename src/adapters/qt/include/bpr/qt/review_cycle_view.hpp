@@ -11,10 +11,13 @@
 
 #include <QWidget>
 
+#include <array>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 class QAction;
 class QCheckBox;
@@ -99,7 +102,10 @@ namespace bpr::qt {
 	/// cancels the open note or suggestion from inside it, as its Cancel
 	/// does, and so does Control-C on macOS, where Command-C is Copy (owner,
 	/// native-keyboard v002, 2026-10-02); elsewhere Ctrl+C is Copy and stays
-	/// so. Share notes (BPR-1161), labelled in the review bar with the number of
+	/// so. Command-Return (Control-Enter elsewhere) saves the open note,
+	/// reply or suggestion as its Save does (owner, 2026-10-04). A
+	/// comparison is coloured from a classification of each side
+	/// (`ComparisonSyntaxWanted`), as the full source is. Share notes (BPR-1161), labelled in the review bar with the number of
 	/// open notes, opens the share sheet over the code until Cancel, Done or
 	/// Escape. It decides nothing and
 	/// performs no effect: gestures leave through `review_cycle_dispatch`.
@@ -120,9 +126,18 @@ namespace bpr::qt {
 		/// the exact bytes the pane shows now is.
 		auto adopt_source_syntax(std::string_view aDocument, application::shared_token_spans aSpans) -> bool;
 
+		/// \brief [[BPR-1281]]. Colours the comparison pane from one
+		/// classification of one of its two sides.
+		/// \returns Whether the spans were adopted: only a classification of
+		/// a side the pane shows now is.
+		auto adopt_comparison_syntax(std::string_view aDocument, const application::shared_token_spans& aSpans) -> bool;
+
 		/// Asks for the shown file to be classified, whenever the pane shows
 		/// other bytes.
 		std::function<void(const source_syntax_request&)> SourceSyntaxWanted;
+		/// [[BPR-1281]]. Asks for each side of a comparison to be classified,
+		/// whenever the pane shows other rows.
+		std::function<void(const source_syntax_request&)> ComparisonSyntaxWanted;
 
 		[[nodiscard]] auto review_bar() const noexcept -> workbench_strip*;
 		[[nodiscard]] auto tabs() const noexcept -> document_tab_strip*;
@@ -215,6 +230,10 @@ namespace bpr::qt {
 		void save_reply();
 		void apply_source_syntax();
 		void present_comparison(const application::review_cycle_comparison_view& aComparison, bool aChanged);
+		/// [[BPR-1281]]. The comparison's bands, and its code in the role
+		/// colours on the rows in view once a side is classified.
+		void paint_comparison();
+		void paint_comparison_syntax();
 		void present_notes(const std::optional<application::review_cycle_source_view>& aSource);
 
 		review_cycle_dispatch                          Dispatch;
@@ -285,6 +304,23 @@ namespace bpr::qt {
 		/// The shown file's classification, and the colours it is painted in.
 		classified_text  SourceSyntax;
 		code_role_colors SyntaxColors{ };
+
+		/// [[BPR-1281]]. Where one comparison row's code is: its offset in
+		/// each side's text that holds it, and where the code starts in the
+		/// row after the line numbers and the sign.
+		struct comparison_place
+		{
+			std::optional<std::uint64_t> Left;
+			std::optional<std::uint64_t> Right;
+			std::uint64_t                Length = 0;
+			int                          Code   = 0;
+			core::cycle_diff_row_kind    Kind   = core::cycle_diff_row_kind::context;
+		};
+		/// The comparison's two sides as LF-joined texts of its rows, which
+		/// are classified; a row's line is the same line of its side.
+		std::array<std::string, 2>     ComparisonTexts;
+		std::array<classified_text, 2> ComparisonSyntax;
+		std::vector<comparison_place>  ComparisonPlaces;
 	};
 }
 
