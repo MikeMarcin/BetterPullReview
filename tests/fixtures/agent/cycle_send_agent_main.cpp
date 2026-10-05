@@ -32,7 +32,15 @@ namespace {
 	/// Writes `aBytes` to a file that did not exist; false when it did.
 	auto write_new(const std::filesystem::path& aPath, const std::string& aBytes) -> bool
 	{
+#if defined(_WIN32)
+		// MSVC refuses fopen (C4996); the wide path also keeps a non-ANSI root.
+		std::FILE* file = nullptr;
+		if (_wfopen_s(&file, aPath.c_str(), L"wbx") != 0) {
+			file = nullptr;
+		}
+#else
 		auto* const file = std::fopen(aPath.string().c_str(), "wbx");
+#endif
 		if (file == nullptr) {
 			return false;
 		}
