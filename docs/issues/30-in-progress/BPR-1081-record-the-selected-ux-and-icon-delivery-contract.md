@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1081"
 title: "Record the selected UX and icon delivery contract"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0050"]
 depends_on: ["BPR-1079", "BPR-1080"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-07","milestone":"design","acceptance":["R30","R31","R32","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
