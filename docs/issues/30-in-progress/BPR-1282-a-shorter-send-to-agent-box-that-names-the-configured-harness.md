@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1282"
 title: "A shorter Send to Agent box that names the configured harness"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0060", "RFC-BPR-0061"]
 depends_on: []
 priority: "P1"
