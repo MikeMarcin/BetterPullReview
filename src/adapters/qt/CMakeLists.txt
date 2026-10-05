@@ -9,6 +9,7 @@ add_library(
         src/review_cycle_share_sheet.cpp
         src/review_cycle_share_marks.cpp
         src/feedback_label_marks.cpp
+        src/feedback_label_controls.cpp
         src/review_cycle_publish_sheet.cpp
         src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp

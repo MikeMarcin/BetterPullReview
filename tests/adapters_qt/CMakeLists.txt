@@ -1704,3 +1704,27 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "feedback-label-marks-tests:pass"
 )
+
+# [[BPR-1083]]. The label chip, menu, toggles, ⌘L/⌘0 and shortcodes in the
+# composed review draft editor.
+bpr_add_executable(
+    test_better_pull_review_qt_feedback_label_controls_tests
+    feedback_label_controls_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_feedback_label_controls_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_feedback_label_controls_tests)
+bpr_enable_warnings(test_better_pull_review_qt_feedback_label_controls_tests)
+bpr_add_network_isolated_test(
+    NAME qt_feedback_label_controls
+    COMMAND test_better_pull_review_qt_feedback_label_controls_tests
+)
+set_tests_properties(
+    qt_feedback_label_controls
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "feedback-label-controls-tests:pass"
+)

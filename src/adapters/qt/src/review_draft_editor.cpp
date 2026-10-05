@@ -1,5 +1,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 
+#include "bpr/qt/feedback_label_controls.hpp"
+
 #include <QAction>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -125,12 +127,19 @@ namespace bpr::qt {
 		Members.Body->setAccessibleName(QStringLiteral("Review comment body"));
 		Members.Body->setAccessibleDescription(QStringLiteral(
 			"Edit the selected semantic source-line review comment."));
+		// [[BPR-1083]]. The label tool row sits on the field and is the next
+		// tab stop after it. Its edits change the body's text, which this
+		// widget's one typed-edit path below turns into one draft edit.
+		Members.Labels = new feedback_label_controls{ Members.Body, this };
+		Members.Labels->set_status_sink([this](const QString& aText) { Members.MutationStatus->setText(aText); });
+		layout->addWidget(Members.Labels);
 		layout->addWidget(Members.Body);
 		connect(Members.Body, &QPlainTextEdit::textChanged, this, [this] {
 			if (!Members.ApplyingPresentation) {
 				emit_draft(core::review_draft_command_kind::edit);
 			}
 		});
+		QWidget::setTabOrder(Members.Body, Members.Labels->chip());
 
 		// Two surfaces, side by side and never the same one. A workshop that
 		// showed the proposal in the original's place would have destroyed
@@ -241,6 +250,21 @@ namespace bpr::qt {
 	auto review_draft_editor::body_editor() const noexcept -> QPlainTextEdit*
 	{
 		return Members.Body;
+	}
+
+	auto review_draft_editor::label_controls() const noexcept -> feedback_label_controls*
+	{
+		return Members.Labels;
+	}
+
+	void review_draft_editor::set_label_tints(const feedback_label_tints& aTints)
+	{
+		Members.Labels->set_tints(aTints);
+	}
+
+	void review_draft_editor::set_label_helper(const bool aEnabled)
+	{
+		Members.Labels->set_helper(aEnabled);
 	}
 
 	auto review_draft_editor::target_label() const noexcept -> QLabel*
@@ -863,6 +887,8 @@ namespace bpr::qt {
 		Members.Discard->setEnabled(drafting);
 		Members.Body->setReadOnly(!drafting);
 		Members.Body->setVisible(Members.ShownDraft.has_value() || Members.Revisioned.Candidate.has_value());
+		Members.Labels->setVisible(Members.ShownDraft.has_value() || Members.Revisioned.Candidate.has_value());
+		Members.Labels->refresh();
 		Members.TargetLabel->setVisible(!Members.TargetLabel->text().isEmpty());
 		const auto unavailable = tr("No editable draft is selected. Return to an open pull request and select a current-head line.");
 		Members.Publish->setToolTip(retry ? tr("Retry this exact publication identity; already transmitted work is reconciled.") : !drafting ? unavailable

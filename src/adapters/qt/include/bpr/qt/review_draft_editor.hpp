@@ -7,6 +7,7 @@
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
+#include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QString>
 #include <QWidget>
@@ -23,6 +24,8 @@ class QLabel;
 class QPlainTextEdit;
 
 namespace bpr::qt {
+	class feedback_label_controls;
+
 	/// \brief Names why no review-draft projection remains presentable.
 	enum class review_draft_editor_clear_reason : std::uint8_t {
 		selection_cleared,
@@ -202,6 +205,11 @@ namespace bpr::qt {
 		/// operation with no control here fails the test that names all six.
 		std::array<QAction*, core::workshop_operation_count> WorkshopOperations{ };
 
+		/// [[BPR-1083]]. The label chip, its menu, the decoration toggles and
+		/// the leading shortcodes. They edit `Body`'s text and nothing else, so
+		/// a label leaves this widget the way typed text does.
+		feedback_label_controls* Labels = nullptr;
+
 		std::optional<core::review_comment_draft> ShownDraft;
 		std::optional<core::file_receipt>         ShownReceipt;
 		std::optional<comment_workshop_proposal>  ShownProposal;
@@ -296,6 +304,13 @@ namespace bpr::qt {
 		void describe_target(const QString& aDescription);
 
 		[[nodiscard]] auto body_editor() const noexcept -> QPlainTextEdit*;
+		/// \brief [[BPR-1083]]. The label chip, menu, toggles and shortcodes.
+		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
+		/// \brief The label tints of the theme on screen.
+		void set_label_tints(const feedback_label_tints& aTints);
+		/// \brief The label helper (completion and shortcode replacement), off
+		/// by default; the Settings section that owns it is BPR-1088.
+		void               set_label_helper(bool aEnabled);
 		[[nodiscard]] auto target_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-0657]]. Names the thread the shown draft answers; shown only while it does.
 		[[nodiscard]] auto reply_target_label() const noexcept -> QLabel*;

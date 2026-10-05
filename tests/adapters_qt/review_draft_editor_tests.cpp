@@ -1,4 +1,5 @@
 #include "bpr/application/agent_comment_workshop_host.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 
 #include <QAction>
@@ -1110,6 +1111,7 @@ namespace {
 					 acceptRevision,
 					 rejectRevision,
 					 workshopOperations,
+					 labels,
 					 shownDraft,
 					 shownReceipt,
 					 shownProposal,
@@ -1149,6 +1151,9 @@ namespace {
 		static_assert(std::is_same_v<decltype(acceptRevision), QAction* const>);
 		static_assert(std::is_same_v<decltype(rejectRevision), QAction* const>);
 		static_assert(std::is_same_v<decltype(replyTarget), QLabel* const>);
+		// [[BPR-1083]]. The label controls edit the body's text and hold no
+		// provider, endpoint, store or process of their own.
+		static_assert(std::is_same_v<decltype(labels), qt::feedback_label_controls* const>);
 		// One control per declared operation and no more: the array's own type
 		// says there are six, so a seventh operation offered from somewhere
 		// else fails here rather than appearing beside them.
