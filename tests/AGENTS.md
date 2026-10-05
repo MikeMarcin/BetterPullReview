@@ -58,6 +58,10 @@ Tests are direct evidence, not naming evidence.
 - Do not name a test identifier `near`, `far`, `small`, `min` or `max`: the
   Windows SDK defines them as macros, and MSVC then fails to compile the file
   (BPR-1156 hit `near` twice). Pixel helpers use `colour_near`.
+- Do not call C library functions MSVC deprecates (C4996 is an error under
+  `/WX`): `std::getenv`, `std::fopen`, `strcpy`, `sprintf` and similar. Use
+  `qEnvironmentVariable`, `QFile`, or `_wfopen_s` behind `_WIN32`
+  (BPR-1177 and BPR-1180 broke the Windows build this way).
 - Fixtures are sanitized and deterministic; never include credentials or
   private repository content.
 - Native credential fixtures use an adapter-owned integration service and
