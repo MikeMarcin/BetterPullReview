@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0053"
 title: "Review Cycles: Domain, Local Authority and Durable History"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review Cycles"
 depends_on: ["RFC-BPR-0001", "RFC-BPR-0003", "RFC-BPR-0007"]
@@ -10,6 +10,15 @@ metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-
 ---
 
 # RFC-BPR-0053: Review Cycles: Domain, Local Authority and Durable History
+
+**Status (2026-10-04): Auto-Verified.** [BPR-1186](../issues/60-done/BPR-1186-close-rfc-0053.md)
+judged all ten criteria whole against the cards' recorded evidence, with runs on
+macOS arm64 and the Linux and Windows stations; the
+[execution ledger](../verification/RFC-BPR-0053-0061.md#bpr-1186-rfc-bpr-0053-closed-2026-10-04)
+holds each row and its limits. RFC-BPR-0001, 0003 and 0007 are Auto-Verified. No
+owner verdict was needed. Windows compiles out the crash courses, as in every
+SQLite contract; no window or command removes a single cycle; profile purge
+of a profile that published is refused until BPR-1283.
 
 ## Outcome and decisions
 
