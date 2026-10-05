@@ -94,3 +94,15 @@ Limitations:
   terminal origin, not over the owner channel's socket.
 - **Requirement shares.** R09–R11, R41 and R42 are met for this card's share
   only. The closeout cards hold the rest.
+
+**Note: Linux run at `597f9edf7` (holds `a736600dd`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, the `dev` preset, `build/bpr1082`).** The full tree built
+with no GCC warning or error, and the 23 matching rows passed. They include
+`application_feedback_draft_store`, `application_private_review_host`
+(5.3 s), `application_review_mutation_application_host`,
+`application_shared_draft_application_host`, `application_review_tour_host`,
+`sqlite_review_tour_storage`, the five `core_feedback_*` rows, the eight
+`test_network_isolation_*` rows, `core_dependency_boundary`,
+`core_boundary_contract`, `architecture_boundaries` and
+`architecture_boundary_contract` (181.2 s). Nothing needed a fix.
+`build/bpr1082` was removed. Done is not reopened.
