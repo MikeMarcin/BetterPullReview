@@ -350,6 +350,13 @@ are Blocked; the original predecessor RFCs remain Proposed/Deferred. Other
 explicit dependencies and all unavailable production capability flags remain.
 The r1 start hold for RFC-BPR-0044–0051 remains outside this amendment.
 
+Owner release, 2026-10-05 (chat): "I dont know what the RFC-0044–0051 hold
+is so go lift it". This lifts the 2026-09-24 start hold for RFC-BPR-0044
+through RFC-BPR-0051. Their cards may start in dependency order. Explicit
+dependencies, required human, native and server evidence, and the
+remote-effect boundary remain in force; the release supplies no acceptance
+verdict.
+
 RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile
 chooser are cluttered, that the chooser must stop appearing when the last
