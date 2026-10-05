@@ -18,6 +18,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QDialog>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QGuiApplication>
@@ -599,7 +600,7 @@ namespace {
 				auto object = state(Window, Page);
 				// [[BPR-1279]]. Whether the review bar now offers Rebind Folder, and where the cycle reads.
 				object[QStringLiteral("rebind_offered")] = Page.rebind_action()->isVisible() && Page.rebind_action()->isEnabled();
-				object[QStringLiteral("location")]       = text_of(Page.projection().Location);
+				object[QStringLiteral("location")]       = QDir::toNativeSeparators(text_of(Page.projection().Location));
 				return object;
 			}
 			if (verb == QStringLiteral("rebind")) {
@@ -715,7 +716,7 @@ namespace {
 			auto object                              = state(Window, Page);
 			object[QStringLiteral("words")]          = shownWords;
 			object[QStringLiteral("confirmable")]    = confirmable;
-			object[QStringLiteral("location")]       = text_of(Page.projection().Location);
+			object[QStringLiteral("location")]       = QDir::toNativeSeparators(text_of(Page.projection().Location));
 			object[QStringLiteral("rebind_offered")] = action->isVisible();
 			return object;
 		}

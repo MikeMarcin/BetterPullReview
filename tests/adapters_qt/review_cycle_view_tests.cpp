@@ -753,7 +753,7 @@ namespace {
 		view.Rebind = application::review_cycle_rebind_view{ .Location = "/work/parser-moved", .Checking = false, .Words = "Compared with the latest capture's 2 files: 2 the same, 0 changed, 0 missing and 0 new.", .Confirmable = true };
 		aView.present(view);
 		settle();
-		expect(confirm->isVisible() && confirm->isEnabled() && words->text().contains(QStringLiteral("2 the same")) && words->text().contains(QStringLiteral("/work/parser-moved")), "the check shown, with Rebind");
+		expect(confirm->isVisible() && confirm->isEnabled() && words->text().contains(QStringLiteral("2 the same")) && words->text().contains(QDir::toNativeSeparators(QStringLiteral("/work/parser-moved"))), "the check shown, with Rebind, the folder as the platform writes it");
 		expect(words->height() >= words->heightForWidth(words->width()) && words->geometry().bottom() < confirm->geometry().top() + confirm->parentWidget()->geometry().top(),
 			   "every line of the words is shown, above the buttons");
 		capture(*aView.rebind_dialog(), QStringLiteral("cycle-rebind-confirm"));

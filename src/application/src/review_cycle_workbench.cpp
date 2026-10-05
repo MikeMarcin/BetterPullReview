@@ -17,6 +17,15 @@
 
 namespace bpr::application {
 	namespace {
+		/// [[BPR-1279]]. A stored location as a person reads it: native
+		/// separators (backslashes on Windows). The stored form stays generic.
+		auto native_location(const std::string& aLocation) -> std::string
+		{
+			auto       path = std::filesystem::path{ std::u8string{ aLocation.begin(), aLocation.end() } }.make_preferred();
+			const auto text = path.u8string();
+			return { text.begin(), text.end() };
+		}
+
 		auto view_words(const core::cycle_view_problem aProblem) -> std::string
 		{
 			switch (aProblem) {
@@ -739,7 +748,7 @@ namespace bpr::application {
 				self->View.Rebind.reset();
 				self->View.RebindOffered = false;
 				self->View.Message.clear();
-				self->View.Notice = "Rebound to " + location + "; nothing was captured. Capture revision reads it now.";
+				self->View.Notice = "Rebound to " + native_location(location) + "; nothing was captured. Capture revision reads it now.";
 				self->load(false);
 			});
 		}

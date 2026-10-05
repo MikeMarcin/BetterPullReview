@@ -11,6 +11,7 @@
 #include <QColor>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QKeySequence>
@@ -1293,7 +1294,7 @@ namespace bpr::qt {
 		}
 		const auto& rebind = *Projection.Rebind;
 		const auto  title  = Projection.Cycle ? text_of(Projection.Cycle->Title) : QStringLiteral("this cycle");
-		auto        words  = QStringLiteral("Rebind \"%1\" to %2?").arg(title, text_of(rebind.Location));
+		auto        words  = QStringLiteral("Rebind \"%1\" to %2?").arg(title, QDir::toNativeSeparators(text_of(rebind.Location)));
 		if (rebind.Checking && rebind.Words.empty()) {
 			words += QStringLiteral("\n\nComparing it with the latest capture…");
 		} else {

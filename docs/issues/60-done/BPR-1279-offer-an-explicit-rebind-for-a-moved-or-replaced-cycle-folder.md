@@ -100,3 +100,48 @@ warnings (the build log has no line containing "warning"). 13 of 13 passed:
 `application_review_cycle_two_round_public_path` and
 `application_review_cycle_recovery_corpus` (76.5 s). `build/bpr1279` was
 removed. Done is not reopened.
+
+### Windows (bpr-main-win, 2026-10-05)
+
+Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2, `build/windows-bpr1279`
+(`windows-dev`, `BPR_BUILD_TOUR_CLI=ON`) Debug, at `23671f2e0` plus this
+change. The build printed no `warning C` or `warning LNK` line.
+
+**What failed first.** `cycle_cli_public_path` failed in its rebinding section,
+and `application_review_cycle_recovery_corpus` failed at its moved-root step.
+In both, Windows reported a cycle's location with forward slashes
+(`C:/Users/…/rebound`, from the stored generic form), while the courses compare
+native spellings (`str(path)`, `C:\Users\…`).
+
+**Change (integrator's decision A).** Every location a person reads uses native
+separators. The stored form stays generic, so there is no schema or storage
+change, and on macOS and Linux the change does nothing.
+
+- `cycle_commands.cpp`: a `native()` helper (`QDir::toNativeSeparators`) for
+  `show`'s JSON `location`, the "at …" words, the rebind check's `location`,
+  its Next command, the "Rebinding … to …" words and "Rebound … to …".
+- `review_cycle_workbench.cpp`: the window's "Rebound to …" notice, through
+  `std::filesystem::path::make_preferred`, which keeps the application layer
+  free of Qt.
+- `review_cycle_view.cpp`: the "Rebind "…" to …?" prompt.
+- The test desktop's `location` field (`review_cycle_two_round_public_path_tests.cpp`)
+  now reports what the window shows. `review_cycle_view_tests.cpp` expects the
+  prompt's folder as the platform writes it.
+
+The round-trip pins are unchanged (`PIN_CHECK_OK`): `cycle_commands.cpp` is
+outside the pinned scope, and `github_application.cpp` did not change.
+
+**Result: 14 of 14** with the station's selection:
+`core_review_cycle_workspace`, `core_review_cycle_command`,
+`sqlite_tour_owner_channel`, `review_cycle_capture`, `review_cycle_workbench`,
+`qt_review_cycle_view_1_0` and `_2_0`, `cycle_cli_public_path` (29.14 s),
+`cycle_cli_documentation`, `application_review_cycle_security_qualification`,
+`application_review_cycle_parity_public_path`,
+`application_review_cycle_two_round_public_path`,
+`application_review_cycle_recovery_corpus` (whole, 114.44 s) and
+`test_network_isolation_manifest`.
+
+**Renames on Windows.** Both the CLI course and the recovery corpus rename the
+cycle's folder between captures and go on. So Windows allows that rename while
+a session holds the cycle: it is a capture, not an open session, that holds
+the root.

@@ -43,6 +43,12 @@ namespace bpr::app {
 		{
 			return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size()));
 		}
+		/// [[BPR-1279]]. A stored location as a person reads it: native separators
+		/// (backslashes on Windows). The stored form stays generic.
+		auto native(const std::string_view aLocation) -> QString
+		{
+			return QDir::toNativeSeparators(text(aLocation));
+		}
 		auto utf8(const QString& aValue) -> std::string
 		{
 			const auto bytes = aValue.toUtf8();
@@ -378,7 +384,7 @@ namespace bpr::app {
 			return {
 				{ "cycle", wire(aCycle.Subject.Cycle) },
 				{ "title", text(aCycle.Title) },
-				{ "location", aCycle.Workspace ? QJsonValue{ text(aCycle.Workspace->Root.Location) } : QJsonValue{ } },
+				{ "location", aCycle.Workspace ? QJsonValue{ native(aCycle.Workspace->Root.Location) } : QJsonValue{ } },
 				{ "workspace_kind", aCycle.Workspace ? QJsonValue{ kind_name(aCycle.Workspace->Root.Kind) } : QJsonValue{ } },
 				{ "lifecycle", aCycle.Lifecycle == core::cycle_lifecycle::active ? "active" : "archived" },
 				{ "revision", decimal(aCycle.Revision) },
@@ -392,7 +398,7 @@ namespace bpr::app {
 		{
 			auto words = wire(aCycle.Subject.Cycle) + " \"" + text(aCycle.Title) + "\"";
 			if (aCycle.Workspace) {
-				words += " at " + text(aCycle.Workspace->Root.Location);
+				words += " at " + native(aCycle.Workspace->Root.Location);
 			}
 			words += "\n";
 			if (aCycle.Latest) {
@@ -824,7 +830,7 @@ namespace bpr::app {
 			const auto& root    = *material.Root;
 			const auto  other   = inspected->BoundElsewhere.empty() ? std::string{ } : core::cycle_wire_name(inspected->BoundElsewhere.front());
 			const auto  problem = core::admit_workspace_rebind(state, root, !inspected->BoundElsewhere.empty());
-			const auto  shown   = text(*location);
+			const auto  shown   = native(*location);
 			switch (problem) {
 			case core::workspace_rebind_problem::none:      break;
 			case core::workspace_rebind_problem::unchanged: {
@@ -841,11 +847,11 @@ namespace bpr::app {
 			const auto check        = captured ? material.Check : std::nullopt;
 			const auto confirmation = core::workspace_rebind_confirmation(state, root, check);
 			const auto words        = application::cycle_material_check_words(*material.Check, captured);
-			const auto next         = "bpr cycle rebind " + name + " --to " + *location + " --confirm " + confirmation;
+			const auto next         = "bpr cycle rebind " + name + " --to " + utf8(shown) + " --confirm " + confirmation;
 			auto       detail       = QJsonObject{ { "cycle", text(name) }, { "location", shown }, { "kind", kind_name(root.Kind) }, { "captured", captured }, { "check", check_json(*material.Check) }, { "confirm", text(confirmation) } };
 			if (!aCommand.has("--confirm")) {
 				return fail("interaction_required",
-							"Rebinding " + name + " to " + *location + " makes its next capture read that folder; its captures, notes and rounds stay as they are. " + words
+							"Rebinding " + name + " to " + utf8(shown) + " makes its next capture read that folder; its captures, notes and rounds stay as they are. " + words
 								+ " Nothing was changed: to rebind, confirm exactly this check with --confirm.",
 							next, detail);
 			}
