@@ -36,10 +36,10 @@
         "id": "BPR-1075:*",
         "source": "BPR-1075",
         "selector": null,
-        "source_fingerprint": "sha256:8872ab882ccb7085bbef1bba9a6692420d964b891d304fd6f2ee8a415bcb493b"
+        "source_fingerprint": "sha256:6321d7bd979f15764ae3dfbaf136e3c97f4a36aeae77ab98f8fe6fabf612efa8"
       }
     ],
-    "obligation_fingerprint": "sha256:6374c5f8b6e41d40934be31e171528bf06122b7b03571cd3e3c96c57a7f88698",
+    "obligation_fingerprint": "sha256:212f2faf437d2b51e7da18933cf5d299c62aa794f5f3129a3c295073a30b7980",
     "exit_criteria": [
       {
         "id": "intake:exit:1",
@@ -73,8 +73,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "bpr-1075",
-    "source_revision": "1cd828ba8114ea3a2e639c671a8e47f5edf22fb5",
+    "source_revision": "35e0312b62a11c2f38df847f06c4b5bb8e7323cb",
     "workflow_branch": "bpr-1075",
-    "workflow_revision": "1cd828ba8114ea3a2e639c671a8e47f5edf22fb5"
+    "workflow_revision": "35e0312b62a11c2f38df847f06c4b5bb8e7323cb"
   }
 }

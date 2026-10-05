@@ -4,8 +4,58 @@
   "run_id": "bpr-conventional-comments-20261005",
   "segment_id": "intake",
   "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
-  "status": "in-progress",
+  "status": "milestone-accepted",
   "execution_base": "1cd828ba8114ea3a2e639c671a8e47f5edf22fb5",
   "historical_import_base": "b5cb3b43bb948b3e8e971a967b6772ef150c1d5a",
-  "claim_commit": "d659921ea912f5b1b31b1e61ffdbfdc1f9225df9"
+  "claim_commit": "d659921ea912f5b1b31b1e61ffdbfdc1f9225df9",
+  "candidate_revision": "35e0312b62a11c2f38df847f06c4b5bb8e7323cb",
+  "changed_paths": [
+    "docs/issues/30-in-progress/BPR-1075-import-after-both-tour-packs-and-reconcile-the-live-contracts.md",
+    "docs/issues/60-done/BPR-1075-import-after-both-tour-packs-and-reconcile-the-live-contracts.md",
+    "docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1.LIVE_IMPORT.md",
+    "docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/execution-selection.json",
+    "docs/verification/RFC-BPR-0047-0051.md",
+    "docs/verification/RFC-BPR-0047-0051.intake-audit.json",
+    "docs/verification/RFC-BPR-0047-0051.intake-checkpoint.json",
+    "docs/verification/RFC-BPR-0047-0051.intake-handoff.json"
+  ],
+  "verification": [
+    {
+      "command": "python3 -B docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1/scripts/verify_pack.py; python3 -B -m unittest discover -s tests (in the pack); shasum -a 256 -c SHA256SUMS",
+      "result": "PASS: 5 RFCs, 27 cards, 8 milestones, 48 requirements, 12 labels, 32,768 projections; 19/19 tests; 61/61 checksums."
+    },
+    {
+      "command": "Intake audit script (direct Python assertions) over extracted ~/Downloads archives, id-maps, receipt, NEXT_ID, plan, cards, overlays, SOURCE-BASELINE and seam symbols",
+      "result": "pass, zero failures; archives byte-identical; 5 baseline files identical, 25 changed; no CC product source.",
+      "artifact": "docs/verification/RFC-BPR-0047-0051.intake-audit.json"
+    },
+    {
+      "command": "milestone_plan.py discover --target BPR-1075; milestone_checkpoint.py bind; milestone_checkpoint.py check --execution quiescent",
+      "result": "found/valid; bound BPR-1075 and both exits; check action fresh-context toward semantics. Rebound after claim/evidence edits: only the card source fingerprint changed."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "64/64 passed"
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0047..0051 --json",
+      "result": "valid:true; 1275 cards; no errors"
+    },
+    {
+      "command": "git diff --check; git diff --exit-code 1cd828ba8 -- src tests cmake CMakeLists.txt packaging <retained packs> <authored plan>",
+      "result": "no product, test, build, package, retained-pack or plan changes"
+    }
+  ],
+  "pending_obligations": [
+    "RFC closeout dependencies: RFC-BPR-0021 (Deferred); RFC-BPR-0036, 0037, 0044-0046 (Proposed)",
+    "BPR-1090 must choose the canonical home of the convention fragment; no feedback/workshop hook exists",
+    "BPR-1092 headless prefix edits on ordinary comment drafts have no owner-channel operation; counts need BPR-1227",
+    "All product criteria on BPR-1097..1101 remain Not run"
+  ],
+  "command_state": "quiescent; no background commands; no review server",
+  "next_action": "Fresh rfc-implementer for milestone semantics (BPR-1076 first); design (BPR-1079 first) is independently eligible and needs attended owner selection."
 }
