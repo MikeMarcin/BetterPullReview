@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1079 feedback UX, round v2</title>
+<!--
+  [[BPR-1079]] Conventional Comments UX, round v2: the design record for RFC-BPR-0048, 0049
+  and 0050 (R30, R33) after the owner's round-1 verdicts (session ca54b0e8). Frames live in
+  BPR-1079-feedback-ux-frames-v2.html. Round v1 stays as BPR-1079-feedback-ux-v1.html.
+  Nothing on this page is implemented.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --marker:#B7791F; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1340px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+h3 { font-size:15px; margin:20px 0 6px; }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:200px; font-weight:600; }
+.st { display:inline-block; padding:0 7px; border-radius:9px; font-size:12px; font-weight:600; background:#E3E6EA; }
+.st.pend { background:#FBF1DC; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+.sw { display:inline-block; width:14px; height:11px; border-radius:2px; vertical-align:-1px; margin-right:5px; border:1px solid rgba(0,0,0,.15); }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+blockquote { margin:0; padding:0 0 0 10px; border-left:3px solid var(--rule-2); color:var(--ink-2); }
+</style>
+</head>
+<body>
+<main>
+<h1>Conventional Comments: authoring, counters and resolution, round v2</h1>
+<div class="by">BPR-1079 (RFC-BPR-0048, 0049, 0050; R30, R33). 2026-10-05. Frames: <a href="BPR-1079-feedback-ux-frames-v2.html">BPR-1079-feedback-ux-frames-v2.html</a>, at the same window sizes as round v1 (1440×820 wide, 960×640–760 narrow, Settings at its 760×560 minimum), light, with four also in dark. Round v1: <a href="BPR-1079-feedback-ux-v1.html">record</a>, <a href="BPR-1079-feedback-ux-frames-v1.html">frames</a>.</div>
+
+<p><b>None of this is implemented.</b> These are static design frames. Round v2 keeps only the options the owner chose and revises the three items that round v1 left open. The two-letter squares are still <b>placeholder marks</b> standing in for BPR-1080's icons. Their two letters are now also the label's shortcode, and each mark now carries a tint. Both changes came from the owner's notes.</p>
+
+<h2>Round v1 verdicts (session ca54b0e8e5bc8a46f40cee31ea0619fd)</h2>
+<table>
+<thead><tr><th>Item</th><th>Verdict</th><th>Owner's note, verbatim</th><th>Round v2</th></tr></thead>
+<tbody>
+<tr><th>Authoring</th><td>Selected A (label chip and menu) and C (type it, with completion)</td><td><blockquote>I like type it as a shortcut but it needs something more distinct like `:qu:` maybe treat them like typing an emojis that we replace.</blockquote></td><td>A kept. C becomes <code>:shortcodes:</code> (section 2). <span class="st pend">asked</span></td></tr>
+<tr><th>Overview columns</th><td>Selected B (label chips in one Comments column)</td><td>(none)</td><td>B kept, A dropped. <span class="st">settled</span></td></tr>
+<tr><th>Overview states</th><td>Accept</td><td>(none)</td><td>Kept, redrawn on B. <span class="st">settled</span></td></tr>
+<tr><th>Preflight</th><td>Selected B (one chip, list on demand)</td><td>(none)</td><td>B kept, A dropped. <span class="st">settled</span></td></tr>
+<tr><th>Settings</th><td>Accept</td><td><blockquote>I think we should tint the marks so they are more recognizable at a glance without always having to read the tiny letters. Tints should be configurable in settings appearance.</blockquote></td><td>Section kept. Tints added and configurable in Appearance (section 5). <span class="st pend">asked</span></td></tr>
+<tr><th>Threads</th><td>Reject</td><td><blockquote>Looks like its doing both the mark and the full word still. It's designed to save space so it should be just the mark, mark can have a tooltip with the whole word. Also the marks look like they are lower than the text.</blockquote></td><td>Mark only, word in the tooltip, marks centred (section 3). <span class="st pend">asked</span></td></tr>
+</tbody>
+</table>
+
+<h2>Rules every surface keeps</h2>
+<p>These are unchanged from round v1 except for the two rows marked v2.</p>
+<table>
+<tbody>
+<tr><th>Counting unit</th><td>One <b>conversation</b> (a native thread, a top-level comment or a review summary) counts once, classified by its <b>root</b>. Replies carry their own marks but never add to a count.</td></tr>
+<tr><th>Other (catchall)</th><td>The speech bubble in the Comments cell is <b>Other</b> as soon as any label has a chip: plain comments, labels without a chip, custom labels and unreadable roots. With no label chips chosen it counts everything. Chips + Other = the included conversations, in every scope. HairStrandsLighting.cpp is the pack fixture's <code>src/cache.cpp</code>: Open gives issue 2, question 1, Other 4 of 7. All gives issue 4, question 1, Other 5 of 10.</td></tr>
+<tr><th>Not on a file</th><td>A last row holds unanchored threads, PR-level comments and review summaries.</td></tr>
+<tr><th>Resolution</th><td>Four round state marks: open, resolved, unknown, not resolvable. Open is the default count. All puts a small state bar under each number. Unknown and not resolvable are never shown as resolved or as a clean zero. The <b>?</b> chip lists what Open leaves out.</td></tr>
+<tr><th>Labels vs states (v2)</th><td>Labels are square and states are round. A label's <b>tint</b> fills its square softly and draws its border. The two letters stay in the ink colour, so contrast never depends on the tint, and the mark still reads in grey or with the tint set to the background. No default tint uses the amber of open or the green of resolved.</td></tr>
+<tr><th>Identification (v2)</th><td>Every mark has a tooltip and an accessible name with the label's word and any decoration, for example "issue (blocking)". The Label key (⌥K) shows all twelve tinted marks with their names and shortcodes.</td></tr>
+<tr><th>Public vs local</th><td>A label is <b>public text</b> at the start of the comment. The preview shows exactly what GitHub gets, which is plain text with no mark (v2 removes the mark round v1 drew in the preview). Copy source keeps the prefix. A shortcode is never sent: it becomes the label in the editor before anything is saved. Private defects keep their dashed, locked badge.</td></tr>
+<tr><th>Native review</th><td>Comment, Approve and Request changes remain explicit. No label resolves, approves or requests changes.</td></tr>
+<tr><th>Suggestions</th><td>A suggested-change block keeps its own header. A tick (or ↗ Apply on GitHub) appears only where GitHub can apply it.</td></tr>
+</tbody>
+</table>
+
+<h2>1. Overview: chips in one Comments column (B), Open/All and remainder</h2>
+<p>Chosen and accepted in round v1. Round v2 only redraws the accepted Open/All, ? chip, tooltip and Label key frames on B, adds the tints, and puts a state bar under each chip's number in All. Variant A's frames are gone.</p>
+<div class="frames" id="f-ov"></div>
+
+<h2>2. Writing a labelled comment: the chip (A) and <code>:shortcodes:</code></h2>
+<p>The label chip and its ⌘L menu are unchanged from round v1 except that each menu entry now shows its shortcode. Typing is the shortcut. A label's code is its mark's two letters between colons, so learning one teaches the other.</p>
+<table>
+<thead><tr><th>Label</th><th>Code</th><th>Label</th><th>Code</th><th>Label</th><th>Code</th></tr></thead>
+<tbody>
+<tr><td>praise</td><td><code>:pr:</code></td><td>nitpick</td><td><code>:ni:</code></td><td>suggestion</td><td><code>:su:</code></td></tr>
+<tr><td>issue</td><td><code>:is:</code></td><td>todo</td><td><code>:td:</code></td><td>question</td><td><code>:qu:</code></td></tr>
+<tr><td>thought</td><td><code>:th:</code></td><td>chore</td><td><code>:ch:</code></td><td>note</td><td><code>:no:</code></td></tr>
+<tr><td>typo</td><td><code>:ty:</code></td><td>polish</td><td><code>:po:</code></td><td>quibble</td><td><code>:qb:</code></td></tr>
+</tbody>
+</table>
+<table>
+<tbody>
+<tr><th>Where</th><td>Only at the very start of the comment, the place a label can go. Typed anywhere else, colons are plain text: <code>FMath::Max</code>, times and GitHub's own <code>:emoji:</code> codes are never touched.</td></tr>
+<tr><th>Completion</th><td>A colon followed by one letter opens a list under the text. It lists every label whose code or name starts with what follows the colon, codes first. <code>:q</code> lists question and quibble; <code>:qui</code> lists quibble. Each row shows the tinted mark, the code, the name and its meaning. ↑ and ↓ move through the list, and Tab or Enter replaces the text with the highlighted label.</td></tr>
+<tr><th>Replacement</th><td>Typing the closing colon of an exact code replaces it at once, without the list. <code>:qu:</code> becomes <code>question: </code> with the caret after it, in one undoable step. The chip shows the new label and offers its decorations. A small note says what happened, and ⌘Z right after puts back the literal <code>:qu:</code>.</td></tr>
+<tr><th>Existing label</th><td>A code typed in front of an existing label replaces that label in the same step. A code never adds a second prefix.</td></tr>
+<tr><th>Decorations</th><td>Not part of the codes. They come from the chip, from the menu, or from typing them.</td></tr>
+<tr><th>Left as text</th><td>Esc closes the list and keeps what you typed. A code that matches nothing (<code>:zz:</code>) stays as text. Pasted text is never replaced.</td></tr>
+<tr><th>Helper off</th><td>Shortcodes belong to the label helper (Settings › Reviews &amp; queue, off by default, accepted in round v1). With it off, <code>:qu:</code> is plain text. A label typed out in full (<code>question: </code>) counts either way.</td></tr>
+</tbody>
+</table>
+<div class="frames" id="f-cm"></div>
+
+<h2>3. Labels on thread cards, v2</h2>
+<p>Round v1 drew the mark and the word together, which was rejected. In v2 a card's header holds only the root's mark, then the line, then the round state pill. A reply's mark sits in its name row, before the author. The word and any decoration appear only in the mark's tooltip and accessible name, for example "issue (blocking)". A plain comment and a plain tour stop show no mark. Copy source still keeps the prefix.</p>
+<p><b>Alignment.</b> Round v1 set reply marks inline in the text and pushed them 3 px down (<code>vertical-align:-3px</code>). That is why they looked low. In v2 every mark sits in a flex row with the text beside it, and both are centred on the same line. The frames measure this. With <code>?check=align</code>, every mark's centre is compared with the centre of the text beside it. In th-wide, th-narrow and th-detail, in light and dark, the largest gap is 0.008 px across 6, 6 and 3 marks. The 200 % detail frame draws a dashed guide through each mark's centre.</p>
+<div class="frames" id="f-th"></div>
+
+<h2>4. Before submitting a review: one chip, list on demand (B)</h2>
+<p>Chosen in round v1. Variant A is gone. Round v2 changes only the tints.</p>
+<div class="frames" id="f-rv"></div>
+
+<h2>5. Settings: Comment labels, and mark tints in Appearance</h2>
+<p>The Comment labels section in Reviews &amp; queue was accepted in round v1. With B chosen, "Overview columns" becomes <b>Overview chips</b>, and the preview of A's header is gone. A new <b>Mark colours</b> row links to Appearance with its filter set to "label".</p>
+<p>The tints follow the per-theme colour model accepted in RFC-BPR-0034. Each label is a colour role, "Label issue" and so on, in a fifth group, <b>Comment labels</b>, of the Colours card. The card then offers 57 roles instead of 45. Every theme variant (light, dark, high-contrast light and high-contrast dark) has its own built-in tint for each label. An edit applies only to the theme on screen and previews in the review window through the existing bar ("Previewing 1 colour change to Light…", Cancel or Keep changes). Import, Export and Reset all cover the tints like any other role, and a theme's customised count includes them. A stored palette that has no label roles reads them as the built-in tints, so existing customisations keep working without a change.</p>
+<table>
+<thead><tr><th>Label</th><th>Light</th><th>Dark</th><th>High-contrast light</th><th>High-contrast dark</th></tr></thead>
+<tbody id="tints"></tbody>
+</table>
+<p>The defaults are spread across the hue wheel and leave out the amber and green that states use. Their contrast with their own fill is not a concern, because the letters are always ink. BPR-1080 may still adjust them next to its icons.</p>
+<div class="frames" id="f-se"></div>
+
+<h2>Open, not decided here</h2>
+<ul>
+  <li>The owner's verdicts on threads v2, the mark tints with their Appearance settings, and shortcode authoring (round v2's attended session).</li>
+  <li>The twelve icons and the resource form: BPR-1080. The icons replace the two letters, and the tints carry over.</li>
+  <li>The selection record and implementation contract: BPR-1081.</li>
+  <li>Native verification at 100%, 125% and 200%, in high contrast and with larger text, applies to the built surfaces (R33), not to these frames.</li>
+  <li>Headless (CLI) parity for prefix edits: BPR-1092. Shortcodes are an editor convenience, and the CLI takes the label by name.</li>
+</ul>
+</main>
+<script>
+const T = {
+  praise:["#BF3989","#F778BA","#8A0F5C","#FF8FD0"], nitpick:["#6E7781","#9BA4AE","#3A3F45","#D0D5DA"], suggestion:["#1F6FD0","#6CB0FF","#0033AA","#7FC0FF"],
+  issue:["#D1242F","#FF7B72","#A50000","#FF7070"], todo:["#C24E00","#FFA05A","#7A2E00","#FFB074"], question:["#8250DF","#C29BFF","#5A009E","#D9B0FF"],
+  thought:["#4F5BD5","#9AA5FF","#2A2F9E","#B4BCFF"], chore:["#8A5A2B","#D2A26E","#5A3510","#E6BC8A"], note:["#0A7EA4","#4DC3E8","#004F6B","#6FD8F5"],
+  typo:["#6F7A00","#C3CE4A","#434A00","#D6E070"], polish:["#0F8577","#3FCDB8","#005048","#5EE6D2"], quibble:["#9A5B7A","#D99BBB","#5E2A44","#F0B8D4"],
+};
+document.getElementById("tints").innerHTML = Object.entries(T).map(([l, v]) => `<tr><td>${l}</td>${v.map((c) => `<td><span class="sw" style="background:${c}"></span><code>${c}</code></td>`).join("")}</tr>`).join("");
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [f, w, h, cap, theme] of list) {
+    const s = 0.42;
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="BPR-1079-feedback-ux-frames-v2.html?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+put("f-ov", [["ov-B-none-wide",1440,820,"No label chips: the bubble counts all"],["ov-B-two-wide",1440,820,"issue + question"],["ov-B-two-wide",1440,820,"issue + question, dark","dark"],["ov-B-twelve-wide",1440,820,"All twelve: +n"],["ov-B-twelve-narrow",960,700,"All twelve at 960 px"],
+  ["ov-B-two-wide-tip",1440,820,"Open: the chip's tooltip"],["ov-B-twelve-wide-all",1440,820,"All: state bar under each number"],["ov-B-two-narrow-legend",960,700,"Label key (⌥K) with codes"]]);
+put("f-cm", [["cm-A-wide-open",1440,820,"Chip menu with codes, on a reply"],["cm-A-narrow",960,760,"Chip, narrow: issue (blocking)"],["cm-S-wide-typing",1440,820,"Typing :q at the start"],["cm-S-wide-typing",1440,820,"Typing :q, dark","dark"],["cm-S-wide-replaced",1440,820,":qu: replaced by question:"],["cm-S-narrow-typing",960,760,"Typing :is, narrow"]]);
+put("f-th", [["th-wide",1440,820,"Cards: mark only, tooltip on the root's mark"],["th-wide",1440,820,"Cards, dark","dark"],["th-narrow",960,760,"Narrow tray"],["th-detail",900,640,"One card at 200 %, centre guides"]]);
+put("f-rv", [["rv-B-wide-open",1440,640,"Chip, list open"],["rv-B-narrow",960,640,"Chip, narrow"]]);
+put("f-se", [["st-wide",960,640,"Reviews & queue › Comment labels"],["st-narrow",760,560,"At its minimum size"],["ap-wide",960,640,"Appearance › Colours for Light, one tint edited"],["ap-wide",960,640,"Colours for Dark, one tint edited","dark"],["ap-narrow",760,560,"Appearance at its minimum size"]]);
+</script>
+</body>
+</html>

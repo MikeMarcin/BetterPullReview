@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1079 feedback UX frames v2</title>
+<!--
+  [[BPR-1079]] Conventional Comments UX, round v2 (RFC-BPR-0048, 0049, 0050), after the
+  owner's round-1 verdicts in session ca54b0e8. Only the chosen options remain: Overview B,
+  authoring A plus :shortcodes:, preflight B. Static design frames, not the product. The
+  page is the window: render it headless at the frame's own size. Every colour other than a
+  label tint is an appearance_profile.cpp role or a tint of one.
+
+  Query parameters:
+    f      the frame id (see FRAMES below); no f draws the index of frames
+    theme  light (default) | dark
+    check  align: write the vertical offset of every thread-card mark from its text to
+           #align-check (read it with headless Chrome's dump-dom)
+
+  Label marks are PLACEHOLDERS: a rounded square holding the label's two-letter code. The
+  twelve icons are BPR-1080's. v2 tints each mark: a soft fill and a border in the label's
+  colour, letters in ink, so contrast never depends on the tint. The tints are colour roles
+  per theme (Settings > Appearance > Colours), defaults in TINTS below. State marks (open,
+  resolved, unknown, not applicable) stay round, so a label never shares a shape with a state.
+
+  Counts are computed here from conversation units (one per thread, by its root), so
+  every frame obeys RFC-BPR-0049's partition: dedicated columns + Other = included.
+  HairStrandsLighting.cpp is the pack fixture's src/cache.cpp (counter-cases.json).
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#EEF1F5; --rule:#D9DEE5; --rule-2:#C3CAD3;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#6B7480; --signal:#2F6FD6; --signal-soft:#DCE8F9; --on-signal:#FFFFFF;
+  --marker:#B7791F; --marker-soft:#FBF1DC; --open:#D29922; --ok:#1A7F37; --ok-soft:#E3F4E8; --defect:#CF222E;
+  --stale:#5B6570; --code:#FFFFFF; --gutter:#F0F2F5; --lnum:#5B6570; --curline:#F2F6FC; --add:#E6FFEC; --del:#FFEBE9;
+  --field:#FFFFFF; --shadow:0 12px 32px rgba(31,35,40,.20); --tip:#1F2328; --tip-ink:#F6F7F9;
+  --kw:#B51D27; --fn:#6639BA; --ty:#6E3EC8; --num:#0550AE; --cm:#555E69;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"JetBrains Mono NL", "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+body.dark {
+  --bg:#1C2026; --side:#20252C; --panel:#242930; --panel-2:#2A3039; --rule:#343A44; --rule-2:#414955;
+  --ink:#E6EDF3; --ink-2:#A0A8B2; --ink-3:#8B949E; --signal:#7FB0E8; --signal-soft:#26374F; --on-signal:#0D1117;
+  --marker:#E0B15A; --marker-soft:#3A3120; --open:#E0B15A; --ok:#3FB950; --ok-soft:#173523; --defect:#FF7B72;
+  --stale:#8B949E; --code:#0D1117; --gutter:#141921; --lnum:#8B949E; --curline:#161C24; --add:#153622; --del:#3E1F1F;
+  --field:#161B22; --shadow:0 14px 36px rgba(0,0,0,.55); --tip:#E6EDF3; --tip-ink:#1C2026;
+  --kw:#6DA9DB; --fn:#FF8000; --ty:#FFD700; --num:#B5CEA8; --cm:#66B559;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--ink); font:12px/1.4 var(--ui); }
+body.index { overflow:auto; padding:20px; }
+.win { position:relative; width:100vw; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+svg.i { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none; vertical-align:-2px; }
+.sp { flex:1; }
+
+/* chrome: title row and review bar, as RFC-BPR-0052 draws them */
+.title { flex:0 0 30px; display:flex; align-items:center; gap:6px; padding:0 6px 0 0; background:var(--panel); border-bottom:1px solid var(--rule-2); }
+.lights { display:flex; gap:8px; width:74px; padding-left:10px; flex:none; }
+.lights i { width:12px; height:12px; border-radius:50%; display:block; background:#FF5F57; }
+.lights i:nth-child(2) { background:#FEBC2E; } .lights i:nth-child(3) { background:#28C840; }
+.prname { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.prname .n { color:var(--ink-2); font-weight:400; margin-right:4px; }
+.seg { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; flex:none; }
+.seg > span { display:inline-flex; align-items:center; gap:4px; padding:0 9px; height:20px; color:var(--ink-2); border-right:1px solid var(--rule-2); white-space:nowrap; }
+.seg > span:last-child { border-right:0; }
+.seg > span.on { background:var(--signal-soft); color:var(--ink); font-weight:600; }
+.ib { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:22px; min-width:26px; padding:0 6px; border:1px solid transparent; border-radius:5px; color:var(--ink); white-space:nowrap; flex:none; }
+.ib.box { border-color:var(--rule-2); background:var(--panel-2); }
+.ib.on { background:var(--signal-soft); border-color:var(--signal); }
+.ib .caret { font-size:8px; color:var(--ink-2); }
+.bar { flex:0 0 30px; display:flex; align-items:center; gap:6px; padding:0 6px; background:var(--panel); border-bottom:1px solid var(--rule); white-space:nowrap; }
+.bar .div { width:1px; height:18px; background:var(--rule-2); margin:0 2px; }
+.bar .lab { color:var(--ink-2); }
+.body { flex:1; display:flex; min-height:0; position:relative; }
+
+/* marks: label placeholders (square) and states (round) */
+.lm { --t:var(--ink-2); display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:4px; border:1.3px solid var(--t); color:var(--ink); background:color-mix(in srgb, var(--t) 22%, var(--panel)); font:700 8.5px/1 var(--ui); letter-spacing:-.02em; flex:none; text-transform:lowercase; vertical-align:middle; }
+body.dark .lm { background:color-mix(in srgb, var(--t) 30%, var(--panel)); }
+.lm.big { width:20px; height:20px; font-size:9.5px; }
+.lm.sm { width:15px; height:15px; font-size:7.5px; border-radius:3px; }
+.lm.plain { --t:var(--ink-3); border-style:dashed; color:var(--ink-3); background:var(--panel); }
+.lmn { display:inline-flex; align-items:center; gap:5px; }
+.lmn b { font-weight:600; }
+.sm-open, .sm-res, .sm-unk, .sm-na { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; flex:none; font:700 8px/1 var(--ui); }
+.sm-open { background:var(--open); }
+.sm-res { background:var(--ok); color:#fff; }
+.sm-res::after { content:""; width:5px; height:3px; border:1.6px solid #fff; border-top:0; border-right:0; transform:rotate(-45deg) translate(1px,-1px); }
+.sm-unk { border:1.5px dashed var(--stale); color:var(--stale); }
+.sm-unk::after { content:"?"; }
+.sm-na { border:1.5px solid var(--stale); }
+.sm-na::after { content:""; width:6px; height:1.5px; background:var(--stale); }
+.pill { display:inline-flex; align-items:center; gap:4px; height:18px; padding:0 7px 0 4px; border-radius:9px; background:var(--panel-2); color:var(--ink-2); font-size:11px; white-space:nowrap; }
+.pill.open { background:var(--marker-soft); color:var(--ink); }
+.pill.res { background:var(--ok-soft); color:var(--ink); }
+
+/* tooltip and popovers */
+.tip { position:absolute; z-index:20; background:var(--tip); color:var(--tip-ink); border-radius:5px; padding:5px 8px; font-size:11.5px; line-height:1.35; box-shadow:var(--shadow); max-width:300px; }
+.tip .tk { opacity:.75; }
+.tip::before { content:""; position:absolute; width:8px; height:8px; background:var(--tip); transform:rotate(45deg); top:-4px; left:var(--ax, 14px); }
+.tip.up::before { top:auto; bottom:-4px; }
+.pop { position:absolute; z-index:15; background:var(--panel); border:1px solid var(--rule-2); border-radius:8px; box-shadow:var(--shadow); padding:6px; }
+.focus { outline:2px solid var(--signal); outline-offset:1px; }
+
+/* overview page */
+.ov { flex:1; display:flex; min-width:0; }
+.ov-main { flex:1; min-width:0; padding:16px 18px; display:flex; flex-direction:column; }
+.ov-side { flex:0 0 var(--sidew, 300px); background:var(--side); border-left:1px solid var(--rule); padding:14px 14px; }
+.ov h1 { font-size:18px; margin:0 0 2px; }
+.ov .meta { color:var(--ink-2); margin-bottom:10px; }
+.ov .desc { border:1px solid var(--rule-2); background:var(--field); border-radius:4px; padding:5px 8px; margin-bottom:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fh { display:flex; align-items:center; gap:8px; margin:0 0 6px; color:var(--ink-2); font-weight:600; font-size:11px; white-space:nowrap; }
+.fh .seg > span { height:20px; font-weight:500; font-size:11.5px; }
+.chip { display:inline-flex; align-items:center; gap:5px; height:20px; padding:0 7px; border-radius:10px; border:1px solid var(--rule-2); background:var(--panel); color:var(--ink); font-weight:500; font-size:11.5px; white-space:nowrap; }
+.tblwrap { position:relative; flex:1; min-height:0; background:var(--panel); border:1px solid var(--rule); border-radius:3px; overflow:hidden; }
+table.ft { border-collapse:separate; border-spacing:0; width:100%; table-layout:fixed; }
+table.ft th { position:sticky; top:0; background:var(--panel-2); color:var(--ink-2); font-weight:500; text-align:left; height:22px; padding:0 4px; border-bottom:1px solid var(--rule-2); border-right:1px solid var(--rule); white-space:nowrap; overflow:hidden; }
+table.ft td { height:22px; padding:0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-bottom:1px solid transparent; }
+table.ft tr.folder td { color:var(--ink-2); font-weight:600; }
+table.ft tr.folder .cnt.o { background:none; color:var(--marker); box-shadow:inset 0 0 0 1.2px var(--open); }
+table.ft tr.folder .cnt.a { background:none; }
+table.ft tr.folder .lchip .cnt.o { box-shadow:none; }
+table.ft tr.rem td { border-top:1px solid var(--rule-2); background:var(--side); }
+table.ft tr.sel td { background:var(--signal-soft); }
+table.ft td.num, table.ft th.num { text-align:right; }
+table.ft th.lc, table.ft td.lc { text-align:center; padding:0; }
+table.ft th.lc .lm { margin-top:2px; }
+td .add { color:var(--ok); } td .del { color:var(--defect); }
+.op { display:inline-flex; width:13px; height:13px; border-radius:2px; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font-size:8.5px; font-weight:700; align-items:center; justify-content:center; }
+.op.a { background:var(--ok); color:#fff; border-color:var(--ok); }
+.dot-read { display:inline-block; width:9px; height:9px; border-radius:50%; border:1.4px solid var(--ink); }
+.dot-read.on { background:var(--ok); border-color:var(--ok); }
+.chg { display:inline-block; padding:0 7px; border-radius:7px; font-size:10px; font-weight:600; color:#fff; background:var(--signal); line-height:14px; }
+.chg.new { background:var(--ok); }
+.cnt { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:15px; padding:0 4px; border-radius:8px; font-size:10.5px; font-weight:600; line-height:15px; }
+.cnt.o { background:var(--open); color:#fff; }
+body.dark .cnt.o { color:#1C2026; }
+.cnt.a { background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink); }
+.cnt.z { color:var(--ink-3); font-weight:400; }
+.stack { display:flex; height:3px; width:18px; margin:1px auto 0; border-radius:2px; overflow:hidden; }
+.stack i { display:block; height:3px; }
+.cell2 { display:flex; flex-direction:column; align-items:center; justify-content:center; height:22px; }
+.lchip { display:inline-flex; align-items:center; gap:3px; margin-right:5px; }
+.lchip .cnt { min-width:0; padding:0 1px; background:none; color:var(--ink); }
+.lchip .cnt.o { color:var(--marker); background:none; }
+.pinshade { position:absolute; top:0; bottom:10px; width:12px; pointer-events:none; }
+.hscroll { position:absolute; left:0; right:0; bottom:0; height:10px; background:var(--panel-2); border-top:1px solid var(--rule); }
+.hscroll i { position:absolute; top:2px; height:6px; border-radius:3px; background:var(--rule-2); }
+.side-h { color:var(--ink-2); font-weight:600; font-size:11px; margin:12px 0 6px; }
+.side-r { display:flex; justify-content:space-between; padding:2px 0; }
+.side-r .v { color:var(--ink-2); }
+.side-r .v.hl { color:var(--signal); }
+.btn { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border:1px solid var(--rule-2); border-radius:5px; background:var(--panel); color:var(--ink); white-space:nowrap; }
+.btn.primary { background:var(--signal); border-color:var(--signal); color:var(--on-signal); font-weight:600; }
+.btn.dis { opacity:.5; }
+.legend { display:grid; grid-template-columns:repeat(3, auto); gap:5px 14px; padding:6px 8px; }
+.legend .row { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.legend .hd { grid-column:1 / -1; color:var(--ink-2); font-weight:600; font-size:11px; border-top:1px solid var(--rule); padding-top:6px; margin-top:2px; }
+.legend .hd:first-child { border-top:0; padding-top:0; margin-top:0; }
+
+/* code */
+.code { font:12px/19px var(--mono); color:var(--ink); background:var(--code); }
+.code .ln { display:flex; white-space:pre; }
+.code .ln .g { flex:0 0 44px; text-align:right; padding-right:10px; color:var(--lnum); background:var(--gutter); }
+.code .ln .t { padding-left:10px; }
+.code .ln.cur .t { background:var(--curline); }
+.k { color:var(--kw); } .fn { color:var(--fn); } .ty { color:var(--ty); } .nu { color:var(--num); } .cm { color:var(--cm); }
+
+/* composition page */
+.cmp { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--bg); }
+.cmp-head { display:flex; align-items:center; gap:10px; padding:10px 16px 6px; }
+.cmp-head h2 { font-size:15px; margin:0; display:flex; align-items:center; gap:7px; white-space:nowrap; }
+.back { color:var(--ink-2); white-space:nowrap; }
+.kbd { font-size:10.5px; color:var(--ink-3); border:1px solid var(--rule-2); border-radius:3px; padding:0 4px; margin-left:4px; }
+.target { color:var(--ink-2); padding:0 16px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.excerpt { margin:0 16px 10px; border:1px solid var(--rule); border-radius:4px; overflow:hidden; }
+.cmp-cols { flex:1; display:flex; gap:12px; padding:0 16px 12px; min-height:0; }
+.cmp-cols.vert { flex-direction:column; }
+.ed { flex:1; min-width:0; display:flex; flex-direction:column; border:1px solid var(--rule-2); border-radius:5px; background:var(--field); min-height:0; }
+.ed-tools { display:flex; align-items:center; gap:6px; padding:5px 6px; border-bottom:1px solid var(--rule); flex-wrap:wrap; }
+.ed-text { flex:1; padding:8px 10px; font:12.5px/19px var(--mono); white-space:pre-wrap; overflow:hidden; color:var(--ink); position:relative; }
+.ed-text .pfx { background:var(--signal-soft); border-radius:3px; box-shadow:0 0 0 1px var(--signal-soft); }
+.ed-text .caret { display:inline-block; width:1.5px; height:15px; background:var(--ink); vertical-align:-3px; }
+.ed-text .fence { color:var(--ink-2); }
+.ed-gut { position:absolute; left:-1px; top:9px; }
+.pv { flex:1; min-width:0; border:1px solid var(--rule); border-radius:5px; background:var(--panel); padding:10px 12px; overflow:hidden; display:flex; flex-direction:column; gap:8px; }
+.pv-h { display:flex; align-items:center; gap:6px; color:var(--ink-2); font-size:11px; font-weight:600; }
+.pv p { margin:0; font-size:13px; line-height:1.5; }
+.sugg { border:1px solid var(--rule-2); border-radius:5px; overflow:hidden; font:12px/18px var(--mono); }
+.sugg .sh { display:flex; align-items:center; gap:6px; padding:3px 8px; font:600 11px/18px var(--ui); color:var(--ink-2); background:var(--panel-2); border-bottom:1px solid var(--rule); }
+.sugg .l { white-space:pre; padding:0 8px; }
+.sugg .l.d { background:var(--del); } .sugg .l.a { background:var(--add); }
+.cmp-foot { display:flex; align-items:center; gap:8px; padding:8px 16px 12px; }
+.dec { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 7px; border-radius:10px; border:1px solid var(--rule-2); color:var(--ink-2); font-size:11px; }
+.dec.on { border-color:var(--signal); background:var(--signal-soft); color:var(--ink); font-weight:600; }
+.lgrid { display:grid; grid-template-columns:repeat(3, 1fr); gap:2px; }
+.lgrid .it, .lcol .it { display:flex; align-items:center; gap:7px; padding:4px 8px; border-radius:5px; white-space:nowrap; }
+.lgrid .it.on, .lcol .it.on { background:var(--signal-soft); }
+.lgrid .it .k2, .lcol .it .k2 { margin-left:auto; color:var(--ink-3); font-size:10.5px; }
+.popsec { color:var(--ink-3); font-size:10.5px; padding:4px 8px 2px; }
+.strip { display:flex; gap:2px; }
+.strip .s { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:5px; border:1px solid transparent; }
+.strip .s.on { border-color:var(--signal); background:var(--signal-soft); }
+
+/* comments tray and cards */
+.tray { flex:0 0 var(--trayw, 360px); background:var(--panel); border-left:1px solid var(--rule); display:flex; flex-direction:column; min-height:0; }
+.tr-tabs { flex:0 0 30px; display:flex; align-items:center; gap:2px; padding:0 8px; border-bottom:1px solid var(--rule); }
+.tr-tab { padding:0 9px; line-height:29px; color:var(--ink-2); }
+.tr-tab.on { color:var(--ink); font-weight:600; box-shadow:inset 0 -2px 0 var(--signal); }
+.tr-tools { display:flex; align-items:center; gap:6px; padding:6px 8px; border-bottom:1px solid var(--rule); }
+.cards { flex:1; overflow:hidden; padding:8px; display:flex; flex-direction:column; gap:8px; }
+.card { border:1px solid var(--rule); border-radius:7px; background:var(--panel); padding:7px 9px; }
+.card.cur { border-color:var(--signal); box-shadow:0 0 0 1px var(--signal); }
+.card-h { display:flex; align-items:center; gap:6px; margin-bottom:4px; color:var(--ink-2); font-size:11px; white-space:nowrap; }
+.post { display:flex; gap:7px; margin-top:6px; }
+.post.reply { margin-left:14px; padding-left:8px; border-left:2px solid var(--rule); }
+.av { width:18px; height:18px; border-radius:50%; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none; }
+.av.me { background:var(--signal); color:var(--on-signal); border-color:var(--signal); }
+.post .nm { display:flex; align-items:center; gap:5px; min-height:17px; white-space:nowrap; }
+.post .who { font-weight:600; }
+.post .when { color:var(--ink-3); font-size:11px; }
+.post p { margin:2px 0 0; line-height:1.4; }
+.card-h .ref { color:var(--ink-2); }
+.acts { display:flex; gap:12px; margin-top:6px; color:var(--signal); font-size:11.5px; }
+.priv { display:inline-flex; align-items:center; gap:4px; height:18px; padding:0 7px; border-radius:4px; border:1px dashed var(--defect); color:var(--defect); font-size:10.5px; font-weight:600; white-space:nowrap; }
+.tour-h { font-weight:600; color:var(--ink); }
+
+/* compose review page */
+.rv { flex:1; display:flex; gap:16px; padding:12px 18px; min-width:0; }
+.rv.vert { flex-direction:column; gap:10px; }
+.rv-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+.rv-side { flex:0 0 380px; border:1px solid var(--rule); border-radius:7px; background:var(--panel); padding:8px 10px; display:flex; flex-direction:column; gap:3px; align-self:flex-start; }
+.rv.vert .rv-side { flex:none; align-self:stretch; }
+.rv h2 { font-size:15px; margin:0; }
+.disp { display:flex; gap:0; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; align-self:flex-start; }
+.disp span { display:inline-flex; align-items:center; gap:6px; padding:0 12px; height:28px; border-right:1px solid var(--rule-2); white-space:nowrap; position:relative; }
+.disp span:last-child { border-right:0; }
+.disp span.on { background:var(--signal-soft); font-weight:600; box-shadow:inset 0 -2px 0 var(--signal); }
+.disp .warn { position:absolute; top:4px; right:4px; width:7px; height:7px; border-radius:50%; background:var(--open); }
+.field { border:1px solid var(--rule-2); border-radius:5px; background:var(--field); padding:8px 10px; font-size:13px; line-height:1.5; flex:1; }
+.pf-h { display:flex; align-items:center; gap:6px; color:var(--ink-2); font-weight:600; font-size:11px; margin:5px 0 2px; }
+.pf-r { display:flex; align-items:center; gap:7px; padding:3px 4px; border-radius:4px; white-space:nowrap; }
+.pf-r .w { color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0; }
+.pf-r .a { color:var(--signal); }
+.pf-r.muted { color:var(--ink-2); }
+
+/* settings */
+.st { width:100vw; height:100vh; display:flex; background:var(--bg); }
+.st-side { flex:0 0 170px; background:var(--side); border-right:1px solid var(--rule); padding:12px 8px; }
+.st-side div { padding:4px 8px; border-radius:5px; color:var(--ink); }
+.st-side div.on { background:var(--signal-soft); font-weight:600; }
+.st-main { flex:1; padding:16px 20px; overflow:hidden; display:flex; flex-direction:column; gap:10px; min-width:0; }
+.st-main h3 { margin:6px 0 0; font-size:13px; display:flex; align-items:center; gap:8px; }
+.st-row { display:flex; align-items:center; gap:10px; }
+.st-row .lab { width:150px; color:var(--ink-2); flex:none; }
+.tog { width:28px; height:16px; border-radius:8px; background:var(--rule-2); position:relative; flex:none; }
+.tog::after { content:""; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#fff; }
+.tog.on { background:var(--signal); } .tog.on::after { left:14px; }
+.cols { display:flex; gap:14px; min-height:0; }
+.lcol { border:1px solid var(--rule-2); border-radius:6px; background:var(--panel); padding:4px; width:250px; flex:none; }
+.lcol .it .h { color:var(--ink-3); cursor:grab; letter-spacing:-2px; }
+.cb { width:13px; height:13px; border:1.4px solid var(--ink-2); border-radius:3px; flex:none; display:inline-flex; align-items:center; justify-content:center; }
+.cb.on { background:var(--signal); border-color:var(--signal); }
+.cb.on::after { content:""; width:6px; height:3px; border:1.8px solid #fff; border-top:0; border-right:0; transform:rotate(-45deg) translate(1px,-1px); }
+.lcol .sep { border-top:1px solid var(--rule); margin:3px 6px; }
+.prevhdr { border:1px solid var(--rule); border-radius:4px; overflow:hidden; background:var(--panel); }
+.prevhdr .r { display:flex; align-items:center; height:22px; background:var(--panel-2); color:var(--ink-2); }
+.prevhdr .r span { padding:0 6px; border-right:1px solid var(--rule); height:22px; display:flex; align-items:center; }
+
+.st-link { color:var(--signal); }
+
+/* appearance page, as RFC-BPR-0034 accepted it, scrolled to the Colours card */
+.ap-main { flex:1; padding:14px 20px 0; overflow:hidden; display:flex; flex-direction:column; gap:10px; min-width:0; }
+.ap-card { border:1px solid var(--rule); border-radius:8px; background:var(--panel); display:flex; flex-direction:column; min-height:0; }
+.ap-card .hd { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--rule); }
+.ap-card .hd b { font-size:13px; }
+.ap-card .sub { color:var(--ink-2); padding:6px 12px 0; }
+.ap-filter { margin:8px 12px 6px; height:24px; border:1px solid var(--rule-2); border-radius:5px; background:var(--field); display:flex; align-items:center; gap:6px; padding:0 8px; }
+.ap-list { flex:1; overflow:hidden; border-top:1px solid var(--rule); min-height:0; }
+.ap-grp { position:sticky; top:0; display:flex; align-items:center; gap:6px; padding:4px 12px; background:var(--panel-2); color:var(--ink-2); font-weight:600; font-size:11px; border-bottom:1px solid var(--rule); }
+.ap-row { display:flex; align-items:center; gap:9px; height:26px; padding:0 12px; border-bottom:1px solid var(--rule); white-space:nowrap; }
+.ap-row.edited { background:var(--signal-soft); }
+.ap-sw { width:22px; height:14px; border-radius:3px; border:1px solid var(--rule-2); flex:none; }
+.ap-row .nmx { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.ap-row .hex { font:11.5px var(--mono); color:var(--ink); }
+.ap-row .old { font:11.5px var(--mono); color:var(--ink-3); text-decoration:line-through; }
+.ap-bar { display:flex; align-items:center; gap:8px; padding:7px 12px; border-top:1px solid var(--rule-2); background:var(--marker-soft); }
+.cmp-hint { position:absolute; left:10px; bottom:8px; display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font:11px var(--ui); }
+.code-s { font:11.5px var(--mono); color:var(--ink-2); }
+
+/* index */
+.idx { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:6px 18px; }
+.idx a { color:var(--signal); }
+</style>
+</head>
+<body>
+<script>
+(() => {
+"use strict";
+const q = new URLSearchParams(location.search);
+if (q.get("theme") === "dark") document.body.classList.add("dark");
+
+// ---- the catalog and placeholder marks -------------------------------------------
+const LABELS = ["praise","nitpick","suggestion","issue","todo","question","thought","chore","note","typo","polish","quibble"];
+const MONO = { praise:"pr", nitpick:"ni", suggestion:"su", issue:"is", todo:"td", question:"qu", thought:"th", chore:"ch", note:"no", typo:"ty", polish:"po", quibble:"qb" };
+const DESC = { praise:"Something done well", nitpick:"Trivial preference", suggestion:"An improvement", issue:"A concrete problem", todo:"Small necessary change", question:"Asks for clarification", thought:"An idea, not a request", chore:"Process work first", note:"Information only", typo:"Spelling", polish:"Quick quality fix", quibble:"Minor preference" };
+// The shortcode is the mark's own two letters between colons: learn one, know the other.
+const CODE = Object.fromEntries(LABELS.map((l) => [l, `:${MONO[l]}:`]));
+// Default tint per label and theme variant: light, dark, high-contrast light, high-contrast dark.
+// No amber (open) and no green (resolved): those belong to states.
+const TINTS = {
+  praise:     ["#BF3989", "#F778BA", "#8A0F5C", "#FF8FD0"],
+  nitpick:    ["#6E7781", "#9BA4AE", "#3A3F45", "#D0D5DA"],
+  suggestion: ["#1F6FD0", "#6CB0FF", "#0033AA", "#7FC0FF"],
+  issue:      ["#D1242F", "#FF7B72", "#A50000", "#FF7070"],
+  todo:       ["#C24E00", "#FFA05A", "#7A2E00", "#FFB074"],
+  question:   ["#8250DF", "#C29BFF", "#5A009E", "#D9B0FF"],
+  thought:    ["#4F5BD5", "#9AA5FF", "#2A2F9E", "#B4BCFF"],
+  chore:      ["#8A5A2B", "#D2A26E", "#5A3510", "#E6BC8A"],
+  note:       ["#0A7EA4", "#4DC3E8", "#004F6B", "#6FD8F5"],
+  typo:       ["#6F7A00", "#C3CE4A", "#434A00", "#D6E070"],
+  polish:     ["#0F8577", "#3FCDB8", "#005048", "#5EE6D2"],
+  quibble:    ["#9A5B7A", "#D99BBB", "#5E2A44", "#F0B8D4"],
+};
+const DARK = q.get("theme") === "dark";
+const tint = (l, edits = {}) => edits[l] || TINTS[l][DARK ? 1 : 0];
+let EDITS = {};
+const lm = (l, cls = "", tip = l) => l === null ? `<span class="lm plain ${cls}" title="Plain comment">··</span>` : `<span class="lm ${cls}" style="--t:${tint(l, EDITS)}" title="${tip}" aria-label="${tip}">${MONO[l]}</span>`;
+const lmn = (l, deco = "", cls = "") => `<span class="lmn">${lm(l, cls)}<b>${l}${deco ? ` (${deco})` : ""}</b></span>`;
+const SM = { open:'<span class="sm-open"></span>', resolved:'<span class="sm-res"></span>', unknown:'<span class="sm-unk"></span>', na:'<span class="sm-na"></span>' };
+const icon = {
+  home:'<svg class="i" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></svg>',
+  files:'<svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 5v14M9 10h11"/></svg>',
+  refresh:'<svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>',
+  comments:'<svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM15 5v14"/></svg>',
+  account:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  settings:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>',
+  compose:'<svg class="i" viewBox="0 0 24 24"><path d="M5 19h4L19 9l-4-4L5 15z"/><path d="M13.5 6.5l4 4"/></svg>',
+  comment:'<svg class="i" viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/></svg>',
+  other:'<svg class="i" viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
+  check:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  changes:'<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><path d="M7 7l10 10"/></svg>',
+  key:'<svg class="i" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 10h2M14 10h2M8 14h8"/></svg>',
+  lock:'<svg class="i" viewBox="0 0 24 24"><rect x="6" y="11" width="12" height="9" rx="1.5"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg>',
+  ext:'<svg class="i" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/></svg>',
+  people:'<svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 19c1-3 3.5-4.5 6-4.5s5 1.5 6 4.5M15 15.5c2.5-.5 4.5.8 5.5 3"/></svg>',
+  draft:'<svg class="i" viewBox="0 0 24 24"><path d="M5 19h4L19 9l-4-4L5 15z"/></svg>',
+  approve:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  request:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16v.01"/></svg>',
+  reset:'<svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>',
+  info:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.01"/></svg>',
+  nofix:'<svg class="i" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/><path d="M4 4l16 16"/></svg>',
+};
+
+// ---- conversation units: one per thread, labelled by its root ----------------------
+// u(label, state, n): label is a catalog id, null (plain), "custom" (unknown label) or
+// "unreadable" (root missing); state is open | resolved | unknown | na.
+const u = (label, state, n = 1) => Array.from({ length: n }, () => ({ label, state }));
+const FILES = [
+  { dir:"Engine/Source/Runtime/Renderer/Private/HairStrands", name:"HairStrandsLighting.cpp", op:"M", add:212, del:48, chg:"changed", read:true,
+    units:[...u("issue","open",2), ...u("issue","resolved"), ...u("issue","unknown"), ...u("question","open"), ...u("suggestion","open"),
+           ...u("note","resolved"), ...u(null,"open"), ...u("custom","open"), ...u("unreadable","open")], note:"Re-read the atomic move" },
+  { dir:"Engine/Source/Runtime/Renderer/Private/HairStrands", name:"HairStrandsVoxelization.cpp", op:"M", add:31, del:9, chg:"changed", read:true,
+    units:[...u("issue","open",3), ...u("nitpick","open",4), ...u("polish","open",2), ...u("typo","resolved",2), ...u("praise","open")] },
+  { dir:"Engine/Source/Runtime/Renderer/Private/HairStrands", name:"HairStrandsCluster.cpp", op:"M", add:12, del:3, read:false, units:[...u("praise","resolved")] },
+  { dir:"Engine/Shaders/Private/HairStrands", name:"HairStrandsDeepShadow.usf", op:"A", add:64, del:0, chg:"new", read:false, units:[...u("question","open")] },
+  { dir:"Engine/Shaders/Private/HairStrands", name:"HairStrandsVisibilityCompute.usf", op:"M", add:7, del:7, read:false, units:[...u(null,"open",104), ...u("nitpick","resolved",8)] },
+  { dir:"Engine/Plugins/Experimental/HairStrands/Source/HairStrandsCore/Private", name:"GroomRenderingResourcesAndBindingValidation.cpp", op:"M", add:18, del:2, read:false,
+    units:[...u("chore","open"), ...u("todo","open"), ...u("thought","open"), ...u("quibble","open")] },
+  { dir:"/", name:"README.md", op:"M", add:4, del:1, read:true, units:[] },
+];
+// Not on a file: an unanchored native thread, two PR-level comments and a review summary.
+const REMAINDER = [...u("issue","open"), ...u("praise","na"), ...u(null,"na",2)];
+
+// count one scope under one column set and mode; returns { per:{label:n}, other, included, unknown, unreadable, na, states }
+function count(units, cols, mode) {
+  const per = Object.fromEntries(cols.map((c) => [c, 0]));
+  const states = { open:0, resolved:0, unknown:0, na:0 };
+  const perStates = Object.fromEntries([...cols, "_other"].map((c) => [c, { open:0, resolved:0, unknown:0, na:0 }]));
+  let other = 0, included = 0, unreadable = 0;
+  for (const x of units) {
+    states[x.state]++;
+    if (x.label === "unreadable") unreadable++;
+    const into = cols.includes(x.label) ? x.label : "_other";
+    perStates[into][x.state]++;
+    if (mode === "open" && x.state !== "open") continue;
+    included++;
+    if (into === "_other") other++; else per[into]++;
+  }
+  const sum = Object.values(per).reduce((a, b) => a + b, 0);
+  if (sum + other !== included) throw new Error("partition broken");
+  return { per, other, included, states, perStates, unknown:states.unknown, na:states.na, unreadable };
+}
+
+// ---- chrome ------------------------------------------------------------------------
+const titleRow = (mod, narrow) => `<div class="title"><div class="lights"><i></i><i></i><i></i></div>
+  <span class="ib" title="Home">${icon.home}</span><span class="ib" title="Files">${icon.files}</span>
+  <span class="prname"><span class="n">#14366</span>${narrow ? "" : "Hair strand lighting fixes for LSS"}</span><span class="sp"></span>
+  <span class="seg">${["Overview","Read","Review","Discuss"].map((m) => `<span class="${m === mod ? "on" : ""}">${m}</span>`).join("")}</span>
+  <span class="ib" title="Refresh">${icon.refresh}</span><span class="ib" title="Comments, 2 threads with new comments">${icon.comments}</span>
+  <span class="ib">${icon.account}</span><span class="ib">${icon.settings}</span></div>`;
+const reviewBar = (narrow, commentOpen = false) => `<div class="bar"><span class="lab">▸ Updates</span><span>Comparing <b style="font-weight:500">since my last review</b>${narrow ? "" : `<span class="lab"> · Feb 1 → Feb 15</span>`} ▾</span>
+  <span class="div"></span><span class="lab">File</span><span>‹ ›</span><span class="lab">${narrow ? "3/7" : "3 of 7"}</span>
+  <span class="lab">Changes</span><span>‹ ›</span><span class="lab">${narrow ? "2/11" : "2 of 11"}</span><span class="ib">${icon.check}<span class="caret">▾</span></span>
+  <span class="sp"></span><span class="ib" title="Compose review (⌥R)">${icon.compose}</span><span class="ib ${commentOpen ? "on" : ""}" title="Comment (⌥C)">${icon.comment}<span class="caret">▾</span></span></div>`;
+
+// ---- overview -------------------------------------------------------------------------
+function stateSlot(c, mode) {
+  // the row's honest qualification: unknown state (not in Open), unreadable root (in Other)
+  const bits = [];
+  if (c.unknown) bits.push(`${c.unknown} state unknown`);
+  if (c.unreadable) bits.push(`${c.unreadable} label unreadable`);
+  if (mode === "open" && c.na) bits.push(`${c.na} not resolvable`);
+  if (!bits.length) return "";
+  return `<span title="${bits.join(" · ")}">${c.unknown || c.unreadable ? SM.unknown : SM.na}</span>`;
+}
+
+function overview(o) {
+  // Variant B, the owner's choice: label chips in one Comments column.
+  const { cols, mode, narrow } = o;
+  const W = narrow ? 960 : 1440;
+  const sideW = narrow ? 230 : 300;
+  const mainW = W - sideW - 36;
+  const fixed = { op:22, add:48, del:58, chg:70, read:36, st:22 };
+  const rows = [];
+  const showNote = !narrow;
+  const chipsW = narrow ? 150 : 210;
+  const fileW = mainW - 2 - (fixed.op + fixed.add + fixed.del + fixed.chg + fixed.read + chipsW + fixed.st + (showNote ? 150 : 0));
+  const tableW = mainW - 2;
+  const tableCols = `<col style="width:${fixed.op}px"><col style="width:${fileW}px"><col style="width:${fixed.add}px"><col style="width:${fixed.del}px"><col style="width:${fixed.chg}px"><col style="width:${fixed.read}px"><col style="width:${chipsW}px"><col style="width:${fixed.st}px">${showNote ? `<col>` : ""}`;
+  const head = `<tr><th></th><th>File</th><th class="num">Added</th><th class="num">Removed</th><th>Changed</th><th>Read</th><th title="${mode === "open" ? "Open conversations" : "Conversations"} by label, in your Settings order; ${cols.length ? "the speech bubble is Other" : "no label chips chosen, so the bubble counts them all"}. Replies don't count. Click a chip to list them.">Comments ▾</th><th></th>${showNote ? "<th>Note</th>" : ""}</tr>`;
+  const countCells = (c, anchor = false) => {
+    // chips for non-zero chosen labels, Other last, +n when the cell is full
+    const chips = cols.filter((l) => c.per[l]).map((l) => ({ l, n:c.per[l] }));
+    if (c.other) chips.push({ l:"_other", n:c.other });
+    const fit = Math.floor((chipsW - 8) / (mode === "all" ? 46 : 40));
+    const shown = chips.length > fit ? chips.slice(0, fit - 1) : chips;
+    const more = chips.length - shown.length;
+    const one = ({ l, n }) => {
+      const num = mode === "open" ? `<span class="cnt o">${n}</span>` : `<span class="cell2" style="display:inline-flex;height:auto"><span class="cnt">${n}</span><span class="stack">${["open","resolved","unknown","na"].map((k) => { const st = c.perStates[l]; const t = st.open + st.resolved + st.unknown + st.na || 1; const col = { open:"var(--open)", resolved:"var(--ok)", unknown:"var(--stale)", na:"var(--rule-2)" }[k]; return st[k] ? `<i style="width:${(100 * st[k]) / t}%;background:${col}"></i>` : ""; }).join("")}</span></span>`;
+      return `<span class="lchip">${l === "_other" ? `<span title="${cols.length ? "Other" : "Comments"}">${cols.length ? icon.other : icon.comment}</span>` : lm(l, "sm")}${num}</span>`;
+    };
+    const chipHtml = shown.map((x, i) => anchor && i === 0 ? one(x).replace('class="lchip"', 'class="lchip" id="tipanchor"') : one(x)).join("")
+      + (more ? `<span class="chip" style="height:16px;padding:0 5px;font-size:10.5px" title="${chips.slice(shown.length).map(({ l, n }) => `${l === "_other" ? "Other" : l} ${n}`).join(", ")}">+${more}</span>` : "");
+    return `<td>${chipHtml}</td><td class="lc">${stateSlot(c, mode)}</td>`;
+  };
+  const groups = [];
+  for (const f of FILES) { let g = groups.find((x) => x.dir === f.dir); if (!g) groups.push(g = { dir:f.dir, files:[] }); g.files.push(f); }
+  for (const g of groups) {
+    const c = count(g.files.flatMap((f) => f.units), cols, mode);
+    rows.push(`<tr class="folder"><td></td><td title="${g.dir}">▾ ${g.dir}</td><td></td><td></td><td></td><td></td>${countCells(c)}${showNote ? "<td></td>" : ""}</tr>`);
+    for (const f of g.files) {
+      const fc = count(f.units, cols, mode);
+      rows.push(`<tr class="${f.name === "HairStrandsLighting.cpp" ? "sel" : ""}"><td><span class="op ${f.op === "A" ? "a" : ""}">${f.op}</span></td><td style="padding-left:16px" title="${f.dir}/${f.name}">${f.name}</td><td class="num"><span class="add">+${f.add}</span></td><td class="num">${f.del ? `<span class="del">−${f.del}</span>` : ""}</td><td>${f.chg ? `<span class="chg ${f.chg === "new" ? "new" : ""}">${f.chg}</span>` : ""}</td><td style="text-align:center"><span class="dot-read ${f.read ? "on" : ""}"></span></td>${countCells(fc, f.name === "HairStrandsLighting.cpp")}${showNote ? `<td style="color:var(--ink-2)">${f.note || ""}</td>` : ""}</tr>`);
+    }
+  }
+  const rc = count(REMAINDER, cols, mode);
+  rows.push(`<tr class="rem"><td></td><td title="Unanchored threads, pull request comments and review summaries" style="color:var(--ink-2)">${icon.other} Not on a file</td><td></td><td></td><td></td><td></td>${countCells(rc)}${showNote ? "<td></td>" : ""}</tr>`);
+
+  const all = count([...FILES.flatMap((f) => f.units), ...REMAINDER], cols, mode);
+  const covN = all.unknown + all.unreadable;
+  const switcher = `<span class="seg" title="What the numbers count"><span class="${mode === "open" ? "on" : ""}" title="Unresolved conversations (default)">${SM.open} Open</span><span class="${mode === "all" ? "on" : ""}" title="Every conversation: open, resolved, unknown">All</span></span>`;
+  const cov = `<span class="chip" id="cov" title="Not counted as open or not labelled: click to list in Discuss">${SM.unknown}${covN}</span>`;
+  const legendBtn = `<span class="ib box ${o.legend ? "on" : ""}" id="legendbtn" title="Label key (⌥K)">${icon.key}</span>`;
+  const fh = `<div class="fh"><span>Files: 7 · 2 changed since my last review · 4 not read</span><span class="sp"></span>${switcher}${cov}${legendBtn}</div>`;
+
+  const pinShade = "";
+  const table = `<div class="tblwrap"><table class="ft" style="width:${tableW}px">${tableCols}<thead>${head}</thead><tbody>${rows.join("")}</tbody></table>${pinShade}</div>`;
+  const side = `<div class="ov-side" style="--sidew:${sideW}px"><div class="side-h" style="margin-top:0">Participants</div>
+    <div class="side-r"><span>jiayin</span><span class="v">uploaded</span></div><div class="side-r"><span>mike</span><span class="v" style="color:var(--marker)">changes requested</span></div><div class="side-r"><span>rcaloca</span><span class="v" style="color:var(--ok)">approved</span></div>
+    <div class="side-h">Since my last review on Feb 1</div><div class="side-r"><span>Uploads</span><span class="v hl">2</span></div><div class="side-r"><span>Replies to me</span><span class="v hl">1</span></div><div class="side-r"><span>My unresolved threads</span><span class="v">2</span></div>
+    <div class="side-h">My review</div><div class="side-r"><span>Files read</span><span class="v">3 of 7</span></div><div class="side-r"><span>Drafted comments</span><span class="v">1 unpublished</span></div>
+    <div style="margin-top:12px"><span class="btn">Continue review</span></div></div>`;
+  let overlay = "";
+  if (o.legend) {
+    overlay += `<div class="pop" style="right:${sideW + 22}px;top:${o.legendTop || 214}px;width:470px"><div class="legend">
+      <div class="hd">Labels (first comment of a conversation)</div>${LABELS.map((l) => `<div class="row">${lm(l)}<span>${l}</span><span class="code-s">${CODE[l]}</span></div>`).join("")}
+      <div class="hd">Other numbers</div><div class="row">${icon.other}<span>Other: rest</span></div><div class="row">${SM.open}<span>Open</span></div><div class="row">${SM.unknown}<span>Unknown / not counted</span></div>
+      <div class="row">${SM.resolved}<span>Resolved</span></div><div class="row">${SM.na}<span>Not resolvable</span></div><div class="row"><span class="cnt o">2</span><span>Conversations</span></div></div></div>`;
+  }
+  if (o.tip) overlay += o.tip;
+  return `<div class="win">${titleRow("Overview", narrow)}${reviewBar(narrow)}<div class="body"><div class="ov"><div class="ov-main">
+    <h1>Hair strand lighting fixes for LSS</h1><div class="meta">jiayin wants to merge 4 commits into ue5-main from hair-lss</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px"><span class="btn">View source</span><span class="btn">Copy source</span></div>
+    <div class="desc">Guards the strand lighting pass on view data validity, clamps the deep shadow bias to the path's own limit and reads the light scale per view.</div>
+    ${fh}${table}</div>${side}</div>${overlay}</div></div>`;
+}
+
+// ---- composition page: A (label chip and menu) plus :shortcodes: ------------------------
+const BODY_LINES = [
+  `The global scale ignores per-view post-process overrides, so split-screen`,
+  `and scene captures light hair with the wrong intensity. Read it from the`,
+  `view the pass is running for:`,
+  ``,
+  `<span class="fence">\`\`\`suggestion</span>`,
+  `	const float LightScale = View.FinalPostProcessSettings.HairLightScale;`,
+  `<span class="fence">\`\`\`</span>`,
+  ``,
+  `The deep shadow path already does this at line 61 of`,
+  `HairStrandsDeepShadow.usf, so the two would agree again. If the view`,
+  `settings can be null here (the secondary-view case from Feb 9), keep the`,
+  `global as the fallback rather than skipping the scale entirely.`,
+];
+// What the completion list offers for a typed ":xy": codes first, then names, by prefix.
+function shortcodeMatches(typed) {
+  const t = typed.replace(/^:/, "");
+  const byCode = LABELS.filter((l) => MONO[l].startsWith(t));
+  const byName = LABELS.filter((l) => l.startsWith(t) && !byCode.includes(l));
+  return [...byCode, ...byName];
+}
+function composition(o) {
+  const { narrow, reply } = o;
+  const label = o.label === undefined ? "suggestion" : o.label;
+  const deco = o.deco || "";
+  const prefixText = label ? `${label}${deco ? ` (${deco})` : ""}: ` : "";
+  const subject = "Read the light scale from the view";
+  let firstLine;
+  if (o.typing) firstLine = `<span id="typed">${o.typing}</span><span class="caret" id="caret"></span>${subject}`;
+  else if (o.replaced) firstLine = `<span class="pfx">${prefixText}</span><span class="caret" id="caret"></span>${subject}`;
+  else firstLine = `${prefixText ? `<span class="pfx">${prefixText}</span>` : ""}${subject}`;
+  const hint = o.replaced ? `<span class="cmp-hint"><span class="code-s">${CODE[label]}</span>→ ${label}: <span style="color:var(--ink-3)">· ⌘Z puts back ${CODE[label]}</span></span>` : "";
+  const text = `<div class="ed-text">${firstLine}\n\n${BODY_LINES.join("\n")}${hint}</div>`;
+  const tools = `<div class="ed-tools"><span class="chip ${o.open ? "focus" : ""}" id="labelchip" title="Label (⌘L), or type a code such as :qu: at the start">${label && !o.typing ? lm(label) : lm(null)}<span>${label && !o.typing ? label : "Plain"}</span><span class="caret" style="font-size:8px;color:var(--ink-2)">▾</span></span>
+      ${label && !o.typing ? `<span class="dec ${deco === "blocking" ? "on" : ""}" title="Adds (blocking) to the label">blocking</span><span class="dec ${deco === "non-blocking" ? "on" : ""}">non-blocking</span><span class="dec">if-minor</span>` : ""}<span class="sp"></span><span class="ib" title="Suggest a change">${icon.changes}</span><span class="ib" title="Ask the workshop">✦</span></div>`;
+  // The preview is what GitHub receives: the label is plain text, no mark.
+  const pvLabel = label && !o.typing ? `${label}${deco ? ` (${deco})` : ""}: ` : (o.typing ? o.typing : "");
+  const preview = `<div class="pv"><div class="pv-h">${icon.comment} On GitHub<span class="sp"></span><span title="The label is plain text in the comment; nothing is hidden.">${icon.info}</span></div>
+    <p>${pvLabel}${subject}</p>
+    <p>The global scale ignores per-view post-process overrides, so split-screen and scene captures light hair with the wrong intensity. Read it from the view the pass is running for:</p>
+    <div class="sugg"><div class="sh">${icon.changes} Suggested change<span class="sp"></span><span title="GitHub can apply this on line 438" style="color:var(--ok)">${icon.check}</span></div><div class="l d">-	const float LightScale = GHairLightScale;</div><div class="l a">+	const float LightScale = View.FinalPostProcessSettings.HairLightScale;</div></div>
+    <p style="color:var(--ink-2)">The deep shadow path already does this at line 61 of HairStrandsDeepShadow.usf, so the two would agree again…</p></div>`;
+  const heading = reply
+    ? `<h2>${icon.comment} Reply to tbutler ${lm("question","sm")}</h2>`
+    : `<h2>${icon.comment} Comment on line 438</h2>`;
+  const excerpt = `<div class="excerpt code">
+    <div class="ln"><span class="g">436</span><span class="t">	<span class="k">if</span> (!View.HairStrandsViewData.IsValid()) { <span class="k">return</span>; }</span></div>
+    <div class="ln cur"><span class="g">438</span><span class="t">	<span class="k">const float</span> LightScale = GHairLightScale;</span></div>
+    ${reply ? `<div class="ln" style="align-items:center"><span class="g"></span><span class="t" style="font-family:var(--ui);color:var(--ink-2);display:flex;align-items:center;gap:5px">${lm("question","sm")} tbutler: Why the global? The view has its own post-process settings.</span></div>` : ""}</div>`;
+  let overlay = "";
+  const cols = narrow ? "cmp-cols vert" : "cmp-cols";
+  if (o.open) {
+    overlay = `<div class="pop" data-anchor="labelchip" data-dy="4" style="width:460px">
+      <div class="lgrid" style="grid-template-columns:1fr"><div class="it ${label ? "" : "on"}">${lm(null)}<span>Plain comment</span><span class="k2">⌘0</span></div></div>
+      <div class="popsec">Label</div><div class="lgrid">${LABELS.map((l) => `<div class="it ${l === label ? "on" : ""}" title="${DESC[l]}">${lm(l)}<span>${l}</span><span class="k2 code-s">${CODE[l]}</span></div>`).join("")}</div>
+      <div class="popsec">Adds</div><div style="display:flex;gap:6px;padding:2px 8px 4px"><span class="dec ${deco === "blocking" ? "on" : ""}">blocking</span><span class="dec">non-blocking</span><span class="dec">if-minor</span></div></div>`;
+  }
+  if (o.typing) {
+    const m = shortcodeMatches(o.typing);
+    overlay = `<div class="pop" data-anchor="typed" data-dy="3" style="width:330px;padding:4px"><div class="lcol" style="border:0;width:auto;padding:0">${m.map((l, i) => `<div class="it ${i === 0 ? "on" : ""}">${lm(l)}<span class="code-s" style="color:var(--ink)">${CODE[l]}</span><b>${l}</b><span class="k2">${DESC[l]}</span></div>`).join("")}</div>
+      <div class="popsec" style="border-top:1px solid var(--rule);margin-top:3px;padding-top:5px">Tab or Enter replaces · : finishes a code · Esc keeps the text</div></div>`;
+  }
+  return `<div class="win">${titleRow("Read", narrow)}${reviewBar(narrow)}<div class="body"><div class="cmp">
+    <div class="cmp-head"><span class="back">‹ Back<span class="kbd">Esc</span></span>${heading}</div>
+    <div class="target">github.com · EpicGames/UnrealEngine#14366 · HairStrandsLighting.cpp:438 · head 81b39fa</div>
+    ${excerpt}<div class="${cols}"><div class="ed">${tools}${text}</div>${preview}</div>
+    <div class="cmp-foot"><span class="btn primary">Publish</span><span class="btn">Discard</span><span class="sp"></span><span style="color:var(--ink-3)">Saved as a draft · nothing is sent until Publish</span></div></div>${overlay}</div></div>`;
+}
+
+// ---- comments tray: mark only, the word in its tooltip -------------------------------------
+const nm = (who, when, l = null, tip = l) => `<div class="nm">${l ? lm(l, "sm", tip) : ""}<span class="who">${who}</span><span class="when">${when}</span></div>`;
+function cardIssue(o = {}) {
+  return `<div class="card cur"><div class="card-h" style="position:relative">${lm("issue", "", "issue (blocking)").replace('<span class="lm', '<span id="rootmark" class="lm')}<span class="ref">Line 438</span><span class="sp"></span><span class="pill open">${SM.open}Open</span>${o.tip ? `<div class="tip" data-anchor="rootmark" data-dy="7" style="--ax:5px;white-space:nowrap">issue (blocking)</div>` : ""}</div>
+    <div class="post"><span class="av">T</span><div>${nm("tbutler", "Feb 15")}<p title="Copy source keeps &quot;issue (blocking):&quot;">LightScale ignores the view's post-process settings.</p></div></div>
+    <div class="post reply"><span class="av me">M</span><div>${nm("MikeMarcin", "Feb 15", "question")}<p>Can the view settings be null on secondary views?</p></div></div>
+    <div class="post reply"><span class="av">J</span><div>${nm("jiayin", "today", "praise")}<p>Good catch — fixed in 81b39fa.</p></div></div>
+    <div class="acts"><span>Reply</span><span>Resolve</span><span class="sp"></span><span class="priv" title="Private to you, never published">${icon.lock} Defect · major</span></div></div>`;
+}
+function threads(o) {
+  const { narrow } = o;
+  const trayW = narrow ? 300 : 380;
+  const codeLines = [
+    [436, `	<span class="k">if</span> (!View.HairStrandsViewData.IsValid()) { <span class="k">return</span>; }`],
+    [437, ``], [438, `	<span class="k">const float</span> LightScale = GHairLightScale;`], [439, `	<span class="k">const float</span> ShadowBias = FMath::<span class="fn">Max</span>(CVarBias.<span class="fn">GetValueOnRenderThread</span>(), <span class="nu">0.05f</span>);`],
+    [440, ``], [441, `	<span class="fn">AddHairLightingPass</span>(GraphBuilder, View, LightScale, ShadowBias);`], [442, `}`],
+  ];
+  const code = `<div class="code" style="flex:1;padding-top:6px">${codeLines.map(([n, t]) => `<div class="ln ${n === 438 ? "cur" : ""}"><span class="g">${n}</span><span class="t">${t}</span></div>`).join("")}</div>`;
+  const cardSugg = `<div class="card"><div class="card-h">${lm("suggestion")}<span class="ref">Line 439</span><span class="sp"></span><span class="pill open">${SM.open}Open</span></div>
+    <div class="post"><span class="av me">M</span><div style="min-width:0;flex:1">${nm("MikeMarcin", "today")}<p>Name the limit.</p>
+    <div class="sugg" style="margin-top:4px"><div class="sh">${icon.changes} Suggested change<span class="sp"></span><span title="Apply on GitHub" style="color:var(--signal)">${icon.ext}</span></div><div class="l a">+	constexpr float MinShadowBias = 0.05f;</div></div></div></div></div>`;
+  const cardResolved = `<div class="card"><div class="card-h">${lm("issue")}<span class="ref">Line 439</span><span class="sp"></span><span class="pill res">${SM.resolved}Resolved</span></div>
+    <div class="post"><span class="av">R</span><div>${nm("rcaloca", "Feb 9")}<p style="color:var(--ink-2)">Bias below 0.05 never takes effect.</p></div></div></div>`;
+  const cardUnknown = `<div class="card"><div class="card-h"><span class="ref">Line 441</span><span class="sp"></span><span class="pill" title="GitHub didn't say whether this is resolved">${SM.unknown}Unknown</span></div>
+    <div class="post"><span class="av">A</span><div>${nm("aleks", "Feb 3")}<p>This line also runs for the deep shadow pass.</p></div></div></div>`;
+  const cardTour = `<div class="card"><div class="card-h"><span class="tour-h">Author's tour · 2</span><span class="sp"></span><span class="pill open">${SM.open}Open</span></div>
+    <div class="post"><span class="av">J</span><div>${nm("jiayin", "Feb 15")}<p>Where the shadow bias limit comes from: the deep shadow path clamps to 0.05 already.</p></div></div></div>`;
+  const cardFallback = `<div class="card"><div class="card-h">${lm("nitpick")}<span class="ref">Header line 12</span><span class="sp"></span><span class="pill">${SM.na}Not resolvable</span></div>
+    <div class="post"><span class="av me">M</span><div style="min-width:0;flex:1">${nm("MikeMarcin", "today")}<p>Outside the diff.</p>
+    <div class="sugg" style="margin-top:4px"><div class="sh">${icon.changes} Suggested change<span class="sp"></span><span title="Outside the diff: GitHub can't apply this. Copy it instead." style="color:var(--ink-3)">${icon.nofix}</span></div><div class="l a">+#pragma once</div></div></div></div></div>`;
+  return `<div class="win">${titleRow("Read", narrow)}${reviewBar(narrow)}<div class="body">${code}<div class="tray" style="--trayw:${trayW}px">
+    <div class="tr-tabs"><span class="tr-tab on">Comments</span><span class="tr-tab">Notes</span></div>
+    <div class="tr-tools"><span class="seg"><span class="on">This file</span><span>Whole PR</span></span><span class="chip">Unresolved ▾</span><span class="sp"></span><span class="ib box" title="Label key">${icon.key}</span></div>
+    <div class="cards">${cardIssue({ tip:o.tip })}${cardSugg}${cardResolved}${cardUnknown}${cardTour}${cardFallback}</div></div></div></div>`;
+}
+// One card at twice the size, with a guide through each mark's centre.
+function threadDetail() {
+  return `<div style="padding:16px 20px;background:var(--bg);height:100vh"><div style="color:var(--ink-2);margin-bottom:8px">One card at 200 %. The dashed line runs through the centre of each mark; it should cross the middle of the text beside it.</div>
+    <div class="tray" style="width:380px;zoom:2;border:0;background:none"><div class="cards" style="padding:0">${cardIssue()}</div></div><div id="guides"></div></div>`;
+}
+
+// ---- compose review with preflight B: one chip, list on demand ---------------------------
+function review(o) {
+  const { narrow } = o;
+  const disp = `<div class="disp"><span class="on">${icon.comment} Comment</span><span title="Approve. You have 1 open blocking comment; approving does not resolve it.">${icon.approve} Approve<i class="warn"></i></span><span>${icon.request} Request changes</span></div>`;
+  const rows = `
+    <div class="pf-h">${icon.comment} Mine, on GitHub</div>
+    <div class="pf-r">${lm("issue")}<b>blocking</b><span class="w">Lighting.cpp:438 · LightScale ignores the view</span>${SM.open}<span class="a">Open</span></div>
+    <div class="pf-r">${lm("issue")}<b>blocking</b><span class="w">Voxelization.cpp:88 · Off by one</span><span title="State unknown">${SM.unknown}</span><span class="a">Open</span></div>
+    <div class="pf-h">${icon.draft} Mine, not sent</div>
+    <div class="pf-r">${lm("todo")}<b>blocking</b><span class="w">Lighting.cpp:452 · Remove the old CVar</span><span class="chip" style="height:16px;font-size:10.5px">draft</span><span class="a">Open</span></div>
+    <div class="pf-r muted">${lm("chore")}<span class="w" title="Labelled chore, not marked blocking">1 chore, not marked blocking</span><span class="a">Show</span></div>
+    <div class="pf-r muted" style="border-top:1px solid var(--rule);margin-top:4px;padding-top:6px">${SM.unknown}<span class="w">3 threads: GitHub didn't say if resolved</span><span class="a">Show</span></div>
+    <div class="pf-r muted">${icon.people}<span class="w">Others: 2 open blocking (not yours)</span><span class="a">Show</span></div>`;
+  const chip = `<span class="chip ${o.open ? "focus" : ""}" id="pfchip" title="Your blocking feedback">${lm("issue","sm")}2 ${icon.draft}1 ${SM.unknown}3 <span style="font-size:8px;color:var(--ink-2)">▾</span></span>`;
+  const pop = o.open ? `<div class="pop" data-anchor="pfchip" data-dy="4" style="width:390px;padding:6px 10px">${rows}</div>` : "";
+  return `<div class="win">${titleRow("Review", narrow)}${reviewBar(narrow)}<div class="body"><div class="rv"><div class="rv-main">
+    <div style="display:flex;align-items:center;gap:10px"><span class="back">‹ Back<span class="kbd">Esc</span></span><h2>Review pull request</h2></div>
+    <div style="color:var(--ink-2)">github.com · EpicGames/UnrealEngine#14366 · head 81b39fa · as MikeMarcin</div>
+    <div style="display:flex;align-items:center;gap:10px">${disp}${chip}</div>
+    <div class="field">The strand pass guard reads well. Two things before this lands: the bias clamp needs its source named, and the light scale should come from the view's post-process settings rather than the global.</div>
+    <div style="display:flex;gap:8px;align-items:center"><span class="btn primary">Submit review</span><span class="btn">Discard</span><span class="sp"></span><span style="color:var(--ink-3)">Nothing is sent until Submit review</span></div></div>
+    </div>${pop}</div></div>`;
+}
+
+// ---- settings: Reviews & queue, Comment labels (accepted), now tinted ------------------
+const SETTINGS_PAGES = ["General","Accounts & hosts","Reviews & queue","Appearance","Notifications","Agents & context","Storage & privacy"];
+const settingsSide = (on) => `<div class="st-side">${SETTINGS_PAGES.map((p) => `<div class="${p === on ? "on" : ""}">${p}</div>`).join("")}</div>`;
+function settings(o) {
+  const chosen = ["issue", "question"];
+  const rest = LABELS.filter((l) => !chosen.includes(l));
+  const row = (l, on) => `<div class="it">${on ? '<span class="h" title="Drag to reorder (⌥↑ ⌥↓)">⋮⋮</span>' : '<span class="h" style="visibility:hidden">⋮⋮</span>'}<span class="cb ${on ? "on" : ""}"></span>${lm(l)}<span>${l}</span>${o.narrow ? "" : `<span class="k2">${DESC[l]}</span>`}</div>`;
+  return `<div class="st">${settingsSide("Reviews & queue")}
+    <div class="st-main"><h3>Comment labels<span class="sp"></span><span class="ib" title="Reset comment labels">${icon.reset}</span></h3>
+      <div class="st-row"><span class="lab">Label helper</span><span class="tog"></span><span style="color:var(--ink-3)" title="The label chip and :shortcodes: while writing. Off: write labels yourself; they still count.">${icon.info}</span></div>
+      <div class="st-row"><span class="lab">Overview counts</span><span class="seg"><span class="on">${SM.open} Open</span><span>All</span></span></div>
+      <div class="st-row"><span class="lab">Mark colours</span><span class="st-link" title="Opens Appearance with the filter set to Label">Appearance › Colours ›</span></div>
+      <div class="st-row" style="align-items:flex-start"><span class="lab" style="padding-top:4px">Overview chips</span>
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+          <div class="lcol" style="width:${o.narrow ? 220 : 380}px">${chosen.map((l) => row(l, true)).join("")}<div class="sep"></div>${rest.map((l) => row(l, false)).join("")}</div>
+        </div></div></div></div>`;
+}
+
+// ---- settings: Appearance, Colours card filtered to the label tints ------------------------
+function appearance(o) {
+  const variant = DARK ? "Dark" : "Light";
+  const edits = o.edit ? { praise: DARK ? "#FF6FA3" : "#D6336C" } : {};
+  EDITS = edits;
+  const rows = LABELS.map((l) => {
+    const now = tint(l, edits), was = TINTS[l][DARK ? 1 : 0];
+    const edited = now !== was;
+    return `<div class="ap-row ${edited ? "edited" : ""}"><span class="ap-sw" style="background:${now}" title="Choose a colour"></span>${lm(l)}<span class="nmx">Label ${l}</span><span class="hex">${now}</span>${edited ? `<span class="old">${was}</span>` : ""}</div>`;
+  }).join("");
+  const html = `<div class="st">${settingsSide("Appearance")}
+    <div class="ap-main"><div><b style="font-size:15px">Appearance</b><div style="color:var(--ink-2)">Changes apply as you make them and show in the review window behind this one.</div></div>
+      <div style="color:var(--ink-3)">Scrolled past the Theme and Type cards to Colours.</div>
+      <div class="ap-card" style="flex:1"><div class="hd"><b>Colours for ${variant}</b><span class="sp"></span><span class="btn">Import</span><span class="btn">Export</span><span class="btn">Reset all</span></div>
+        <div class="sub">Edits change ${variant} only. Each theme keeps its own colours.</div>
+        <div class="ap-filter"><span style="color:var(--ink-3)">⌕</span><span>label</span><span class="sp"></span><span style="color:var(--ink-3)">12 of 57 roles</span></div>
+        <div class="ap-list"><div class="ap-grp">Comment labels<span style="font-weight:400">12</span></div>${rows}</div>
+        ${o.edit ? `<div class="ap-bar"><span>Previewing 1 colour change to ${variant} in the review window.</span><span class="sp"></span><span class="btn">Cancel</span><span class="btn primary">Keep changes</span></div>` : ""}</div></div></div>`;
+  EDITS = {};
+  return html;
+}
+
+// ---- after render: place anchored popovers, measure mark alignment --------------------------
+function afterRender() {
+  for (const el of document.querySelectorAll("[data-anchor]")) {
+    const a = document.getElementById(el.dataset.anchor);
+    if (!a) continue;
+    const r = a.getBoundingClientRect();
+    const host = el.offsetParent ? el.offsetParent.getBoundingClientRect() : { left:0, top:0 };
+    el.style.left = `${r.left - host.left + Number(el.dataset.dx || 0)}px`;
+    el.style.top = `${r.bottom - host.top + Number(el.dataset.dy || 0)}px`;
+  }
+  // every mark in a card header or name row against the text that follows it
+  const pairs = [];
+  for (const m of document.querySelectorAll(".card-h .lm, .nm .lm")) {
+    const t = m.parentElement.querySelector(".ref, .who, .tour-h");
+    if (!t) continue;
+    const a = m.getBoundingClientRect(), b = t.getBoundingClientRect();
+    pairs.push({ mark:m.textContent, text:t.textContent, a, d:(a.top + a.height / 2) - (b.top + b.height / 2) });
+  }
+  const g = document.getElementById("guides");
+  if (g) g.innerHTML = pairs.map((p) => `<div style="position:absolute;left:${p.a.left - 6}px;width:${p.a.width + 200}px;top:${p.a.top + p.a.height / 2}px;border-top:1px dashed var(--signal)"></div>`).join("");
+  if (q.get("check") === "align") {
+    const out = document.createElement("pre");
+    out.id = "align-check";
+    out.textContent = JSON.stringify({ n:pairs.length, max:Math.max(0, ...pairs.map((p) => Math.abs(p.d))), pairs:pairs.map((p) => [p.mark, p.text, Math.round(p.d * 100) / 100]) });
+    document.body.append(out);
+  }
+}
+
+// ---- the frames ---------------------------------------------------------------------------
+const TWO = ["issue", "question"];
+const FRAMES = {
+  "ov-B-none-wide":    { size:[1440, 820], fn:() => overview({ cols:[], mode:"open" }) },
+  "ov-B-two-wide":     { size:[1440, 820], fn:() => overview({ cols:TWO, mode:"open" }) },
+  "ov-B-two-wide-tip": { size:[1440, 820], fn:() => overview({ cols:TWO, mode:"open", tip:`<div class="tip" data-anchor="tipanchor" data-dy="6" style="--ax:6px">2 open issue conversations here.<br>Replies don't count. Click to list them.<br><span class="tk">1 more issue: state unknown (not counted)</span></div>` }) },
+  "ov-B-twelve-wide":  { size:[1440, 820], fn:() => overview({ cols:LABELS, mode:"open" }) },
+  "ov-B-twelve-wide-all": { size:[1440, 820], fn:() => overview({ cols:LABELS, mode:"all" }) },
+  "ov-B-twelve-narrow":{ size:[960, 700], fn:() => overview({ cols:LABELS, mode:"open", narrow:true }) },
+  "ov-B-two-narrow-legend": { size:[960, 700], fn:() => overview({ cols:TWO, mode:"open", narrow:true, legend:true, legendTop:168 }) },
+  "cm-A-wide-open":    { size:[1440, 820], fn:() => composition({ open:true, reply:true }) },
+  "cm-A-narrow":       { size:[960, 760], fn:() => composition({ narrow:true, label:"issue", deco:"blocking" }) },
+  "cm-S-wide-typing":  { size:[1440, 820], fn:() => composition({ typing:":q", label:null }) },
+  "cm-S-wide-replaced":{ size:[1440, 820], fn:() => composition({ replaced:true, label:"question" }) },
+  "cm-S-narrow-typing":{ size:[960, 760], fn:() => composition({ narrow:true, typing:":is", label:null }) },
+  "th-wide":           { size:[1440, 820], fn:() => threads({ tip:true }) },
+  "th-narrow":         { size:[960, 760], fn:() => threads({ narrow:true }) },
+  "th-detail":         { size:[900, 640], fn:() => threadDetail() },
+  "rv-B-wide-open":    { size:[1440, 640], fn:() => review({ open:true }) },
+  "rv-B-narrow":       { size:[960, 640], fn:() => review({ narrow:true }) },
+  "st-wide":           { size:[960, 640], fn:() => settings({}) },
+  "st-narrow":         { size:[760, 560], fn:() => settings({ narrow:true }) },
+  "ap-wide":           { size:[960, 640], fn:() => appearance({ edit:true }) },
+  "ap-narrow":         { size:[760, 560], fn:() => appearance({}) },
+};
+window.BPR1079_FRAMES = Object.fromEntries(Object.entries(FRAMES).map(([k, v]) => [k, v.size]));
+
+const f = q.get("f");
+if (f && FRAMES[f]) {
+  document.body.innerHTML = FRAMES[f].fn();
+  afterRender();
+} else {
+  document.body.classList.add("index");
+  document.body.innerHTML = `<h3 style="margin:0 0 10px">BPR-1079 frames v2 — open one at its own size</h3><div class="idx">${Object.entries(FRAMES).map(([k, v]) => `<a href="?f=${k}">${k}</a><span style="color:var(--ink-3)">${v.size.join("×")}</span>`).join("")}</div>`;
+}
+})();
+</script>
+</body>
+</html>
