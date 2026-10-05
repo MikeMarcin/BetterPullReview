@@ -2,6 +2,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/core/review_cycle.hpp"
+#include "windows_junction.hpp"
 #include "workspace_fixture.hpp"
 
 #include <algorithm>
@@ -259,6 +260,45 @@ namespace {
 	}
 }
 
+#if defined(_WIN32)
+namespace {
+	/// \brief [[BPR-1284]]. A directory junction (`IO_REPARSE_TAG_MOUNT_POINT`,
+	/// no symbolic-link privilege) to a folder outside the root is listed as
+	/// itself and never followed, and a directory swapped for one after it was
+	/// read is refused.
+	void refuses_junction_escapes(const std::filesystem::path& aScratch)
+	{
+		using bpr::tests::workspace_contract::try_junction;
+		auto       source  = adapters::workspace::make_local_workspace_source();
+		const auto outside = aScratch / "junction-outside";
+		const auto root    = aScratch / "junction-root";
+		write_file(outside / "secret.txt", "secret");
+		write_file(root / "inside.txt", "inside");
+		write_file(root / "sub" / "file.txt", "sub file");
+		if (!try_junction(outside, root / "escape_dir")) {
+			std::cout << "NATIVE: directory junctions unavailable on this volume; junction escape rows not run\n";
+			return;
+		}
+		expect(read_file(root / "escape_dir" / "secret.txt") == "secret", "the junction reaches outside the root");
+		auto       session = open(*source, root);
+		const auto listed  = session->list("", { });
+		expect(listed.has_value(), "list with a junction");
+		const auto found = std::ranges::find(*listed, "escape_dir", &application::workspace_entry_observation::Name);
+		expect(found != listed->end() && found->Kind == workspace_entry_kind::other, "a junction is listed as itself, kind other");
+		expect(refused(session->list("escape_dir", { }), workspace_failure::escape), "no listing through a junction");
+		expect(refused(session->stat("escape_dir/secret.txt", { }), workspace_failure::escape), "no stat through a junction");
+		expect(refused(read_text(*session, "escape_dir/secret.txt"), workspace_failure::escape), "no read through a junction");
+
+		// A directory replaced by a junction after it was first read.
+		expect(read_text(*session, "sub/file.txt") == "sub file", "before the swap");
+		std::filesystem::rename(root / "sub", aScratch / "junction-sub-moved");
+		expect(try_junction(outside, root / "sub"), "swap in a junction");
+		expect(refused(read_text(*session, "sub/secret.txt"), workspace_failure::escape), "a swapped-in junction is refused");
+		std::cout << "NATIVE: directory-junction escapes refused\n";
+	}
+}
+#endif
+
 auto main(const int aArgc, char** aArgv) -> int
 try {
 	tests::sqlite_contract::scratch_root scratch{ "workspace-source" };
@@ -269,6 +309,9 @@ try {
 		std::cout << "NATIVE: no Git in this build; Git root rows not run\n";
 	}
 	refuses_escapes_and_replaced_roots(scratch.path());
+#if defined(_WIN32)
+	refuses_junction_escapes(scratch.path());
+#endif
 	keeps_same_named_checkouts_apart(scratch.path());
 	reports_native_name_collisions(scratch.path());
 	std::cout << "workspace-source-tests:pass\n";

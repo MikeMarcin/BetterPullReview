@@ -54,3 +54,24 @@ junction must fail the row.
   BPR-1187, with its revision and environment.
 - If the adapter follows a junction, fix it under RFC-BPR-0054 and record the
   failure first.
+
+## Result (bpr-main-win, 2026-10-04)
+
+Observed natively on Windows. The adapter refuses a directory junction, as
+the code reading predicted, so no product change was needed. New:
+`tests/workspace_contract/windows_junction.hpp`, a junction made with
+`FSCTL_SET_REPARSE_POINT` and no privilege. Rows:
+`refuses_junction_escapes` in `workspace_source` and
+`captures_a_junction_as_itself` in `review_cycle_capture`.
+
+- **Escape refused.** The junction is listed as kind `other`. List, stat and
+  read through it are refused as `escape`, and so is a directory swapped for
+  a junction after it was read. The row prints `NATIVE: directory-junction
+  escapes refused`.
+- **Capture.** The junction is listed as itself, `unsupported_kind`, with no
+  content and nothing beneath it.
+- **Negative control.** With reparse detection narrowed to symbolic links,
+  the junction rows fail at their first junction check and the symbolic-link
+  rows still pass.
+- Both rows run as registered (`WINDOWS_UNCONTAINED`). The ledger entry is
+  under BPR-1187 in the [execution ledger](../../verification/RFC-BPR-0053-0061.md).

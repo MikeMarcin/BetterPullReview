@@ -7,6 +7,7 @@
 #include "bpr/application/review_cycle_runtime.hpp"
 #include "bpr/core/sha256.hpp"
 #include "cycle_course.hpp"
+#include "windows_junction.hpp"
 #include "workspace_fixture.hpp"
 
 #include <algorithm>
@@ -554,6 +555,34 @@ namespace {
 	}
 }
 
+#if defined(_WIN32)
+namespace {
+	/// \brief [[BPR-1284]]. A capture lists a directory junction as itself,
+	/// unsupported, and reads nothing beyond it.
+	void captures_a_junction_as_itself(const std::filesystem::path& aScratch)
+	{
+		const auto outside = aScratch / "capture-junction-outside";
+		const auto root    = aScratch / "capture-junction-root";
+		write_file(outside / "secret.txt", "secret beyond the root");
+		write_file(root / "inside.txt", "inside");
+		if (!tests::workspace_contract::try_junction(outside, root / "escape_dir")) {
+			std::cout << "NATIVE: directory junctions unavailable on this volume; junction capture row not run\n";
+			return;
+		}
+		auto       source  = adapters::workspace::make_local_workspace_source();
+		auto       cycle   = course{ *source, root };
+		const auto outcome = cycle.capture(*source, { .MaximumFileBytes = 1024 });
+		expect(outcome.Status == cycle_capture_status::captured, "a root holding a junction is captured");
+		const auto  manifest = cycle.manifest(outcome);
+		const auto& junction = entry(manifest, "escape_dir");
+		expect(junction.Availability == core::manifest_availability::unsupported_kind && !junction.Content, "the junction is listed as itself, unsupported, with nothing read");
+		expect(std::ranges::none_of(manifest.Entries, [](const core::manifest_entry& aEntry) { return aEntry.Path.starts_with("escape_dir/"); }), "nothing beyond the junction is listed");
+		expect(cycle.content(entry(manifest, "inside.txt")) == "inside", "the root's own file is captured");
+		std::cout << "NATIVE: a directory junction captured as itself, unsupported, nothing beyond it read\n";
+	}
+}
+#endif
+
 auto main(const int aArgc, char** aArgv) -> int
 try {
 	tests::sqlite_contract::scratch_root scratch{ "cycle-capture" };
@@ -566,6 +595,9 @@ try {
 	}
 	retries_detected_instability(scratch.path());
 	preserves_bytes_modes_and_special_files(scratch.path(), git);
+#if defined(_WIN32)
+	captures_a_junction_as_itself(scratch.path());
+#endif
 	checks_material_before_rebind(scratch.path());
 	captures_through_the_runtime(scratch.path());
 	captures_beside_reads(scratch.path());
