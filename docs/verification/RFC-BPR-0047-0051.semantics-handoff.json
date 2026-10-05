@@ -1,19 +1,28 @@
 {
-  "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/semantics: BPR-1076",
+  "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/semantics: BPR-1077",
   "mandate_revision": "r1-20261005-owner-release-implement-bpr-1075",
   "run_id": "bpr-conventional-comments-20261005",
-  "segment_id": "semantics-bpr-1076",
+  "segment_id": "semantics-bpr-1077",
   "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
-  "status": "card-accepted; milestone semantics open (BPR-1077, BPR-1078 remain)",
-  "claim_commit": "190b5b9f91296f2533d7ebc13b2b1351dbb404a9",
-  "candidate_revision": "dca6d277261eecf130d7451552337059beaf3e50",
+  "status": "card-accepted; milestone semantics open (BPR-1078 remains)",
+  "claim_commit": "b50b14b61c717aba7e250265ab988e903b833134",
+  "candidate_revision": "79c171e036964c9b35d75cb6fc80c4c8d9c34f55",
+  "product_commits": [
+    "c4d9971a8e05fb11a3640970dd2c7c2c04c7d5eb",
+    "79c171e036964c9b35d75cb6fc80c4c8d9c34f55"
+  ],
   "changed_paths": [
     "src/core/include/bpr/core/feedback_convention.hpp",
     "src/core/src/feedback_convention.cpp",
+    "src/core/include/bpr/core/feedback_header_edit.hpp",
+    "src/core/src/feedback_header_edit.cpp",
+    "src/core/include/bpr/core/feedback_conversation.hpp",
+    "src/core/src/feedback_conversation.cpp",
     "src/core/CMakeLists.txt",
-    "tests/core/feedback_convention_tests.cpp",
+    "tests/core/feedback_header_edit_tests.cpp",
+    "tests/core/feedback_conversation_tests.cpp",
     "tests/core/CMakeLists.txt",
-    "docs/issues/60-done/BPR-1076-implement-the-complete-catalog-and-bounded-lossless-prefix-recognizer.md",
+    "docs/issues/60-done/BPR-1077-implement-revisioned-header-edits-and-root-post-classification.md",
     "docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1.LIVE_IMPORT.md",
     "docs/verification/RFC-BPR-0047-0051.md",
     "docs/verification/RFC-BPR-0047-0051.semantics-checkpoint.json",
@@ -21,27 +30,28 @@
   ],
   "verification": [
     {
-      "command": "cmake --preset core-only; cmake --build build/core-only; build/core-only/tests/core/feedback_convention docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1 (ctest core_feedback_convention)",
-      "result": "FEEDBACK_CONVENTION_OK: 48 corpus cases, 648 label/form combinations, 288 false-positive bodies, 40,000 generated bodies; macOS arm64 AppleClang Debug -Werror"
+      "command": "cmake --preset core-only -DCPM_SOURCE_CACHE=<main checkout>/build/.cpm-cache; cmake --build build/core-only; ctest --test-dir build/core-only -R core_feedback",
+      "result": "core_feedback_convention, core_feedback_header_edit (5 pack cases, 3,924 round trips, 30,000 generated edits) and core_feedback_conversation (27 pack counter units) passed at 79c171e03; macOS arm64 AppleClang Debug -Werror"
     },
     {
-      "command": "four source mutations (indent bound, last-token-wins, decoration bound, '(' requirement), each reverted",
-      "result": "each failed the test at the named check"
+      "command": "twelve source mutations (block refusal, read-back, decoration rewrite, digest check, no-op, two roots, first-post root, reuse digest, adopt epoch, cross-scope reuse, cycle, unobserved parent), each reverted",
+      "result": "each failed its test at the named check"
     },
     {
-      "command": "ctest --test-dir build/core-only -R 'core_dependency_boundary|core_boundary_contract|architecture_boundar|core_review_tour_markdown|test_network_isolation_manifest|test_network_isolation_structure_contract'",
+      "command": "ctest --test-dir build/core-only -R 'core_dependency_boundary|core_boundary_contract|architecture_boundar|core_review_tour_markdown|core_review_composition|test_network_isolation_manifest|test_network_isolation_structure_contract'",
       "result": "all passed"
     },
     {
-      "command": "clang-format 23.1.1 -i and clang-format 22.1.8 comparison; _coding-standard/scripts/tidy.py --build-dir build/core-only --warnings-as-errors --paths <both translation units>",
+      "command": "clang-format 23.1.1 -i and clang-format 22.1.8 comparison on 8 files; _coding-standard/scripts/tidy.py --build-dir build/core-only --warnings-as-errors on 5 translation units",
       "result": "identical output; tidy clean"
     }
   ],
   "pending_obligations": [
-    "Linux and Windows station runs of core_feedback_convention",
-    "semantics:exit:2 and BPR-1077 (header edits, root classification), BPR-1078 (partition, resolution coverage)",
+    "Linux and Windows station runs of core_feedback_header_edit and core_feedback_conversation (and BPR-1076's Windows run of core_feedback_convention)",
+    "semantics:exit:2 remainder: BPR-1078 (partition, resolution coverage, disjoint subsets)",
+    "Application, Qt and mixed-client shares of R05, R07, R08, R41: BPR-1082 (draft binding), BPR-1083 (Qt), BPR-1087 (read model), BPR-1088/1092/1093/1101 (other R41 shares), closeout BPR-1097",
     "RFC closeout dependencies unchanged: RFC-BPR-0021 (Deferred); RFC-BPR-0036, 0037, 0044-0046 (Proposed)"
   ],
-  "command_state": "quiescent; no background commands; no review server",
-  "next_action": "Promote BPR-1077 (its only dependency BPR-1076 is Done) and start a fresh rfc-implementer for it within milestone semantics."
+  "command_state": "quiescent; no background commands; no review server; worktree /Users/jaeger/bpr-wt-1077 removed after landing",
+  "next_action": "Promote BPR-1078 (its only dependency BPR-1077 is Done) and start a fresh rfc-implementer for it within milestone semantics."
 }
