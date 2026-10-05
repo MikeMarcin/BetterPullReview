@@ -75,6 +75,16 @@ profile's harness (Claude, Codex, or a custom harness by its own name), and
 keeps the rest behind Details. A session to continue is offered only by a
 harness that continues sessions. The work and evidence are BPR-1282's.
 
+After accepting that box, the owner said the whole sheet was still too full
+of text and asked for "icons, tooltips, colors, something". This is recorded
+as a decision about how RC61-05 and RC61-06 are presented. The criteria are
+unchanged. The sheet marks states with glyphs and chips in the appearance's
+state colours, always beside words or a glyph. Each explanation sits behind
+an info glyph or a tooltip that a keyboard and a screen reader also reach.
+Every delivery observation keeps its accepted words as its text and tooltip,
+and the caption keeps its words behind the info glyph. The work and evidence
+are BPR-1285's.
+
 ## Normative contracts
 
 The detailed contracts [UX.md](assets/bpr-review-cycles-v1/specs/UX.md), [LIMITS.md](assets/bpr-review-cycles-v1/specs/LIMITS.md) are normative parts of this proposal. The common [domain](assets/bpr-review-cycles-v1/specs/DOMAIN.md), [decisions](assets/bpr-review-cycles-v1/supporting/DECISIONS.md) and [security boundary](assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md) apply. If a live predecessor differs, record a specific compatibility decision; do not quietly implement a weaker alternate workflow.
