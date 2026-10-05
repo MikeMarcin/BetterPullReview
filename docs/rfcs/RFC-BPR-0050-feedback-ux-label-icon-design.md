@@ -130,6 +130,18 @@ required target or human check is unavailable, keep that exact criterion open.
 Continue unaffected semantic and host work rather than blocking the whole pack.
 No screenshots or artwork are generated as part of authoring this RFC archive.
 
+## Design record
+
+The live design record is the
+[Conventional Comments delivery contract](../ux/conventional-comments-feedback.md)
+([[BPR-1081]], 2026-10-05). It binds the owner's selections from
+[BPR-1079](../design/BPR-1079-feedback-ux-selected.html) and
+[BPR-1080](../design/BPR-1080-label-icons-selected.html) to the surfaces and
+the Qt adapter unit that build them. It also marks each rule as owner-selected,
+existing or derived, and lists what is still open. That record satisfies R30
+for the design-dependent cards. R31 to R33 are earned by the cards that build
+the surfaces.
+
 ## Acceptance criteria
 
 - R30: A dedicated, recorded UX/art decision precedes design-dependent implementation; no chat sketch or pack placeholder is treated as approved art.
