@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0050"]
 depends_on: ["BPR-1075"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-05","milestone":"design","acceptance":["R30","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1079:constraints","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-frames-v1.html","detail":"Frames at 1440x820 and 960x700-760 (Settings at its 760x560 minimum), rendered headless and inspected: Overview A and B with none, issue+question and all twelve label columns; twelve at 960 px pin File and scroll (A) or fold into +n (B); 0/1/11/104 counts; long paths elide; long comment body with a native suggestion; labelled reply under a differently labelled root; unknown coverage chip and Not on a file row. Static design, not native evidence."}},{"criterion":"BPR-1079:explains","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Rules every candidate keeps: conversation counting unit (root, replies never count), Other as catchall remainder with the partition computed in the frames (fixture src/cache.cpp: Open 2/1/4 of 7, All 4/1/5 of 10), Not on a file remainder, four resolution states, explicit Comment/Approve/Request changes with no automatic verdict, public label text versus private defect badge and uncounted drafts."}},{"criterion":"BPR-1079:tradeoffs","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Tradeoff tables for Overview A/B, authoring A/B/C and preflight A/B; the record and every frame say nothing is implemented and the two-letter marks are placeholders for BPR-1080."}},{"criterion":"BPR-1079:owner-selection","outcome":"pending","revision":"275e74b82","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0047-0051.md","detail":"Round v1 (session ca54b0e8e5bc8a46f40cee31ea0619fd, read after 18 to 25): overview-columns B, preflight B, authoring A plus C, overview-states Accept, settings Accept with a note, threads Reject. Round v2 (session 4742c47e636d407949d455abdd8030a3, read after 9 to 13, handed back at 13): shortcodes-v002 Accept, tints-v002 Accept, threads-v002 Reject with a note. Round v3 pending in session 830ffc2a626c879b180a04e3a4e9d802 (state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v003, ready at sequence 3): threads-v003, one choice of A/B/C/D, on frozen root /Users/jaeger/bpr1079-feedback-ux-review-v003.2cR7rG."}}]
+acceptance: [{"criterion":"BPR-1079:constraints","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-frames-v1.html","detail":"Frames at 1440x820 and 960x700-760 (Settings at its 760x560 minimum), rendered headless and inspected: Overview A and B with none, issue+question and all twelve label columns; twelve at 960 px pin File and scroll (A) or fold into +n (B); 0/1/11/104 counts; long paths elide; long comment body with a native suggestion; labelled reply under a differently labelled root; unknown coverage chip and Not on a file row. Static design, not native evidence."}},{"criterion":"BPR-1079:explains","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Rules every candidate keeps: conversation counting unit (root, replies never count), Other as catchall remainder with the partition computed in the frames (fixture src/cache.cpp: Open 2/1/4 of 7, All 4/1/5 of 10), Not on a file remainder, four resolution states, explicit Comment/Approve/Request changes with no automatic verdict, public label text versus private defect badge and uncounted drafts."}},{"criterion":"BPR-1079:tradeoffs","outcome":"pass","revision":"59f65ad9e","evidence":{"kind":"artifact","path":"docs/design/BPR-1079-feedback-ux-v1.html","detail":"Tradeoff tables for Overview A/B, authoring A/B/C and preflight A/B; the record and every frame say nothing is implemented and the two-letter marks are placeholders for BPR-1080."}},{"criterion":"BPR-1079:owner-selection","outcome":"pending","revision":"6793935cd","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0047-0051.md","detail":"Round v1 (session ca54b0e8e5bc8a46f40cee31ea0619fd, read after 18 to 25): overview-columns B, preflight B, authoring A plus C, overview-states Accept, settings Accept with a note, threads Reject. Round v2 (session 4742c47e636d407949d455abdd8030a3, read after 9 to 13, handed back at 13): shortcodes-v002 Accept, tints-v002 Accept, threads-v002 Reject with a note. Round v3 (session 830ffc2a626c879b180a04e3a4e9d802, read after 3 to 5, handed back at 5): threads-v003 selected A and D with a note. Round v4 pending in session 3a17a6eb6b995ba6414161d6d158b315 (state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1079-feedback-ux-v004, ready at sequence 3): threads-v004, Accept or Reject, on frozen root /Users/jaeger/bpr1079-feedback-ux-review-v004.QT45LD."}}]
 ---
 
 # BPR-1079: Develop compact authoring, counter and resolution UX candidates
@@ -169,3 +169,46 @@ Limitations: these are static HTML frames rendered with headless Chrome. They
 are not native, scaled, high-contrast or assistive-technology evidence.
 Editing is drawn in place on the card. Where an edit opens is not decided
 here. Nothing is implemented.
+
+## Round v3 verdict (2026-10-05)
+
+Session `830ffc2a626c879b180a04e3a4e9d802`, read with `status --after 3`
+(decision at sequence 4, `handed-back` at 5). The owner's note is quoted verbatim.
+
+| Item | Verdict | Note |
+|---|---|---|
+| `BPR-1079-threads-v003` | Selected **A: under the avatar** and **D: label rail** | "I like A but it's right aligned and needs to be centered. I like the colored rail but it takes too much space with the label ontop so combine A and D. Horizontal space is a premium. Also I don't think there's enough emphasis put on the blocker attribute now." |
+
+## Round v4 (2026-10-05)
+
+[Design record v4](../../design/BPR-1079-feedback-ux-v4.html) and
+[frames v4](../../design/BPR-1079-feedback-ux-frames-v4.html), at candidate
+`6793935cd`. Only the thread cards are redrawn, and in one way, A and D
+combined:
+
+- **Mark.** It sits under the avatar, centred, on every post. Measured from
+  the ink of the round v3 renders, v3's 15 px mark under the 18 px avatar sat
+  2 px in on the left and 1 px on the right. The v4 mark is 16 px, which
+  leaves 1 px on each side at 1× and 2 px at 2×.
+- **Rail.** A rule in the label's tint runs down the post's left edge, with no
+  mark on it. Plain posts get a grey rule. The rail uses space the card
+  already had: the card's 9 px padding for the root and the 24 px indent for a
+  reply. Its right edge is always 3 px from the avatar. Measured at the 380 px
+  tray, plain A and v4 are the same: root text starts 35 px from the card edge
+  and is 335 px wide, and reply text starts at 59 px and is 311 px wide. v3's D
+  cost about 21 px a post.
+- **Blocking.** The mark is filled with its tint, its letters white or
+  near-black (lowest contrast 4.52:1 across the twelve tints in four theme
+  variants), and the rail is 4 px instead of 2 px. "(non-blocking)" looks like
+  an undecorated label. The mark is an image named "issue (blocking)", and the
+  post is an article named "tbutler, issue (blocking)". Both were read from
+  Chrome's accessibility tree.
+- **Frames.** 1440×820 and 960×760, in light and dark, reading and editing (my
+  reply; my own blocking first comment), with two blocking posts, one
+  non-blocking post and two plain posts. A detail frame sets plain A beside v4,
+  shows every label normal and blocking, and shows the avatar column at 3×.
+
+Limitations: these are static HTML frames rendered with headless Chrome. They
+are not native, scaled, high-contrast or assistive-technology evidence; the
+accessibility names come from Chrome's tree for the frame, not from the Qt
+surface. Nothing is implemented.
