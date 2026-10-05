@@ -89,3 +89,19 @@ stays a recorded limitation.
 The card stays Parked on `awaiting-live-github`. Next: a PR on BPR-Test
 authored by a second account with `MikeMarcin` neither author nor reviewer,
 then the before-and-after reads the card lists. No live object was made for it.
+
+## Reassessment after the BPR-Test designation — 2026-10-05
+
+The owner's 2026-10-05 designation (root `AGENTS.md`) repeats the 2026-09-30
+grant of BPR-Test and supplies no second identity. A read-only `gh api` check
+as `MikeMarcin` found `MikeMarcin` the only collaborator and the author of
+all 40 PRs on BPR-Test (#1–#40). No PR there has an author and reviewer set
+that excludes `MikeMarcin`, and one cannot be made without another account. A bot-authored PR would need Actions, which no mandate
+grants (BPR-Test has no workflows, `actions/workflows` total 0).
+
+The card stays Parked on `awaiting-live-github`. No live object was made for
+it, and no GitHub write is needed once the PR exists: the before and after
+reads run through `gh api`, with the subscription field a recorded limitation.
+
+**Owner question:** which second GitHub account will open a disposable PR on
+BPR-Test that `MikeMarcin` neither authors nor reviews?
