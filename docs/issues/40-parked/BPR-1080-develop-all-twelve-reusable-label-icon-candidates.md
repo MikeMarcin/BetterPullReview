@@ -219,3 +219,61 @@ ready at sequence 6). It asks two Accept/Reject questions, `chore-v003` and
 enlarged. The frozen root is `/Users/jaeger/bpr1080-label-icons-review-v003.WtBVGN`.
 The v002 session's candidates were released at its sequence 22, with the
 verdicts kept, and its frozen root was deleted.
+
+## Owner verdicts on round v3 (2026-10-05)
+
+Session `bfc59159786ef55286d1c1613b87f595` was handed back at sequence 9, with
+nothing pending. The host was already stopped. `status --after 6` returned
+decisions at sequences 7 and 8 and `handed-back` at 9. Verdicts, verbatim:
+
+- `BPR-1080-chore-v003`: **Accept**, with no note.
+- `BPR-1080-typo-v003`: **Reject**. "I think you can do a little better, that
+  b looks far from the A and that c looks cut off"
+
+The v3 broom is accepted for chore. Typo stays open.
+
+## Candidates, round v4 (2026-10-05)
+
+[Record](../../design/BPR-1080-label-icons-v4.html) and
+[frames](../../design/BPR-1080-label-icons-frames-v4.html). The files from
+rounds v1 to v3 are unchanged.
+
+- **Kept.** The other eleven glyphs are v3's, byte for byte, including the
+  accepted broom. A script compared the two `GLYPHS` tables entry by entry,
+  and the tints are identical.
+- **Redrawn: typo**, "Abc" set as one word over v3's sine squiggle.
+  - Why v3's c looked cut off: the 1× glyph box is 12 px, and a 5 px A, a
+    3 px b and a 3 px c with a clear pixel between each need 13. v3 kept both
+    gaps and the full A, so the c got 2 px and ran into the border.
+  - The A keeps its bold, symmetric shape and its flat apex on the centre
+    pixel. Its feet move half a pixel in on each side (0.5 and 9.5), its legs
+    are heavier (2.4 units across), and its crossbar sits a pixel lower
+    (10–12), which opens a counter at 1× and at 2×.
+  - The b's stem follows the A at once (10–12). The gap closes towards the
+    baseline, as in the owner's reference. The bowl keeps a one-pixel
+    counter, and a clear pixel column parts b from c.
+  - The c is three pixels wide, square-cut at 23.5, a whole and open c that
+    stops a pixel short of the border.
+  - All three letters are filled shapes. The squiggle is unchanged.
+  - Only the best variant is presented. Also tried: v3's A with the b kerned
+    onto its foot, which merged at 1×; a narrower A, which lost weight; the
+    word over the full 24 units, which put the b on half pixels; a c reaching
+    the box edge, which looked clipped again; heavier b and c strokes, which
+    greyed the b's counter; and other crossbar heights.
+- **Resource form.** Unchanged in kind. The A's and b's holes wind against
+  their outlines, so the nonzero and odd-even fill rules agree.
+- **Provenance.** The `rfc-implementer` wrote the coordinates by hand in the
+  style of the owner's Abc reference. Nothing was traced (R30).
+- **Measured.** `?check=1`, 16 dumps:
+  - The minimum cross-label separation is still issue and note, at 0.57
+    (12 px) and 0.48 (24 px).
+  - Typo against its nearest neighbour (todo) is 0.73 and 0.74. Typo and
+    quibble separate at 0.78 and 0.80.
+  - Contrast is at least 6.06:1 on the soft fill and 4.52:1 on the blocking
+    fill. Placement and names are unchanged.
+  - The 1× renders were inspected pixel by pixel in all four variants,
+    normal and blocking. The A reads as apex, shoulders, counter, bar and
+    feet. The c's terminals are about three-quarter-strength pixels.
+
+Limitations: static headless-Chrome frames, not native evidence (R33). Typo is
+not approved until the owner accepts it.

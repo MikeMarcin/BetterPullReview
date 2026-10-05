@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1080 label icons, candidates v4</title>
+<!--
+  [[BPR-1080]] Twelve label icon candidates (RFC-BPR-0050 R30, R31), drawn into BPR-1079's
+  accepted marks: the 16 px tinted square, soft fill normally and filled with the tint when
+  blocking, centred under the avatar with the label rail (round v4, accepted in session
+  3a17a6eb). The icons replace the two-letter placeholders. Nothing here is implemented and no
+  candidate is approved until the owner selects it (R30).
+
+  Round v4 (2026-10-05) follows the owner's v3 verdicts in session bfc59159: chore's v3 broom was
+  accepted; typo was rejected ("I think you can do a little better, that b looks far from the A and
+  that c looks cut off"). v4 redraws typo only and keeps the other eleven exactly as in v3. The
+  owner's reference is BPR-1080-owner-ref-typo-abc.png beside this file. It sets the style asked
+  for; the v4 coordinates are written by hand, not traced from it. Round v3 stays in
+  BPR-1080-label-icons-frames-v3.html.
+
+  Glyph source: GLYPHS below, authored for this card on the app's stroked-glyph grid (24 units,
+  round caps and joins, as workbench_strip.cpp and review_cycle_share_marks.cpp draw). Path data
+  uses only M, L, C and Z plus filled discs, so each maps one-to-one onto QPainterPath moveTo,
+  lineTo, cubicTo, closeSubpath and addEllipse. A glyph is drawn in a 12 px box (unit 0.5 px)
+  with a 2.6-unit pen: 1.3 px at 1x, 2.6 px at 2x. Four element kinds: a string is stroked with
+  that pen; {d, w} is stroked with a w-unit pen (typo's letters); {fill} is a filled path
+  (QPainter::fillPath, no pen); {dot:[x, y, r]} is a filled disc. A filled path with a hole (typo's
+  A and b) winds the hole opposite to its outline, so the nonzero rule here and QPainterPath's default
+  odd-even rule fill it the same way.
+
+  Query parameters:
+    f      the frame id (see FRAMES below); no f draws the index of frames
+    theme  light (default) | dark
+    pick   override the default option per label (v4 has one option per label)
+    only   with f=ic-changes: draw one changed label's row, e.g. only=chore
+    check  1: write #check: glyph separation (pairwise, at 12 and 24 px), glyph contrast on
+           the soft and the filled mark in all four theme variants, mark centring and names
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#EEF1F5; --rule:#D9DEE5; --rule-2:#C3CAD3;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#6B7480; --signal:#2F6FD6; --signal-soft:#DCE8F9; --on-signal:#FFFFFF;
+  --marker:#B7791F; --marker-soft:#FBF1DC; --open:#D29922; --ok:#1A7F37; --ok-soft:#E3F4E8; --defect:#CF222E;
+  --stale:#5B6570; --code:#FFFFFF; --gutter:#F0F2F5; --lnum:#5B6570; --curline:#F2F6FC; --add:#E6FFEC; --del:#FFEBE9;
+  --field:#FFFFFF; --shadow:0 12px 32px rgba(31,35,40,.20); --tip:#1F2328; --tip-ink:#F6F7F9;
+  --kw:#B51D27; --fn:#6639BA; --ty:#6E3EC8; --num:#0550AE; --cm:#555E69;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"JetBrains Mono NL", "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+body.dark, .dk {
+  --bg:#1C2026; --side:#20252C; --panel:#242930; --panel-2:#2A3039; --rule:#343A44; --rule-2:#414955;
+  --ink:#E6EDF3; --ink-2:#A0A8B2; --ink-3:#8B949E; --signal:#7FB0E8; --signal-soft:#26374F; --on-signal:#0D1117;
+  --marker:#E0B15A; --marker-soft:#3A3120; --open:#E0B15A; --ok:#3FB950; --ok-soft:#173523; --defect:#FF7B72;
+  --stale:#8B949E; --code:#0D1117; --gutter:#141921; --lnum:#8B949E; --curline:#161C24; --add:#153622; --del:#3E1F1F;
+  --field:#161B22; --shadow:0 14px 36px rgba(0,0,0,.55); --tip:#E6EDF3; --tip-ink:#1C2026;
+  --kw:#6DA9DB; --fn:#FF8000; --ty:#FFD700; --num:#B5CEA8; --cm:#66B559;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--ink); font:12px/1.4 var(--ui); }
+body.index { overflow:auto; padding:20px; }
+.win { position:relative; width:100vw; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+svg.i { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none; vertical-align:-2px; }
+.sp { flex:1; }
+
+/* chrome: title row and review bar, as RFC-BPR-0052 draws them */
+.title { flex:0 0 30px; display:flex; align-items:center; gap:6px; padding:0 6px 0 0; background:var(--panel); border-bottom:1px solid var(--rule-2); }
+.lights { display:flex; gap:8px; width:74px; padding-left:10px; flex:none; }
+.lights i { width:12px; height:12px; border-radius:50%; display:block; background:#FF5F57; }
+.lights i:nth-child(2) { background:#FEBC2E; } .lights i:nth-child(3) { background:#28C840; }
+.prname { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.prname .n { color:var(--ink-2); font-weight:400; margin-right:4px; }
+.seg { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; flex:none; }
+.seg > span { display:inline-flex; align-items:center; gap:4px; padding:0 9px; height:20px; color:var(--ink-2); border-right:1px solid var(--rule-2); white-space:nowrap; }
+.seg > span:last-child { border-right:0; }
+.seg > span.on { background:var(--signal-soft); color:var(--ink); font-weight:600; }
+.ib { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:22px; min-width:26px; padding:0 6px; border:1px solid transparent; border-radius:5px; color:var(--ink); white-space:nowrap; flex:none; }
+.ib.box { border-color:var(--rule-2); background:var(--panel-2); }
+.ib.on { background:var(--signal-soft); border-color:var(--signal); }
+.ib .caret { font-size:8px; color:var(--ink-2); }
+.bar { flex:0 0 30px; display:flex; align-items:center; gap:6px; padding:0 6px; background:var(--panel); border-bottom:1px solid var(--rule); white-space:nowrap; }
+.bar .div { width:1px; height:18px; background:var(--rule-2); margin:0 2px; }
+.bar .lab { color:var(--ink-2); }
+.body { flex:1; display:flex; min-height:0; position:relative; }
+
+/* marks: label placeholders (square) and states (round) */
+.lm { --t:var(--ink-2); display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:4px; border:1.5px solid var(--t); color:var(--ink); background:color-mix(in srgb, var(--t) 22%, var(--panel)); font:700 8.5px/1 var(--ui); letter-spacing:-.02em; flex:none; text-transform:lowercase; vertical-align:middle; }
+body.dark .lm, .dk .lm { background:color-mix(in srgb, var(--t) 30%, var(--panel)); }
+.lm.big { width:20px; height:20px; font-size:9.5px; }
+.lm.sm { width:15px; height:15px; font-size:7.5px; border-radius:3px; }
+.lm.plain { --t:var(--ink-3); border-style:dashed; color:var(--ink-3); background:var(--panel); }
+.lmn { display:inline-flex; align-items:center; gap:5px; }
+.lmn b { font-weight:600; }
+.sm-open, .sm-res, .sm-unk, .sm-na { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; flex:none; font:700 8px/1 var(--ui); }
+.sm-open { background:var(--open); }
+.sm-res { background:var(--ok); color:#fff; }
+.sm-res::after { content:""; width:5px; height:3px; border:1.6px solid #fff; border-top:0; border-right:0; transform:rotate(-45deg) translate(1px,-1px); }
+.sm-unk { border:1.5px dashed var(--stale); color:var(--stale); }
+.sm-unk::after { content:"?"; }
+.sm-na { border:1.5px solid var(--stale); }
+.sm-na::after { content:""; width:6px; height:1.5px; background:var(--stale); }
+.pill { display:inline-flex; align-items:center; gap:4px; height:18px; padding:0 7px 0 4px; border-radius:9px; background:var(--panel-2); color:var(--ink-2); font-size:11px; white-space:nowrap; }
+.pill.open { background:var(--marker-soft); color:var(--ink); }
+.pill.res { background:var(--ok-soft); color:var(--ink); }
+
+/* tooltip and popovers */
+.tip { position:absolute; z-index:20; background:var(--tip); color:var(--tip-ink); border-radius:5px; padding:5px 8px; font-size:11.5px; line-height:1.35; box-shadow:var(--shadow); max-width:300px; }
+.tip .tk { opacity:.75; }
+.tip::before { content:""; position:absolute; width:8px; height:8px; background:var(--tip); transform:rotate(45deg); top:-4px; left:var(--ax, 14px); }
+.tip.up::before { top:auto; bottom:-4px; }
+.pop { position:absolute; z-index:15; background:var(--panel); border:1px solid var(--rule-2); border-radius:8px; box-shadow:var(--shadow); padding:6px; }
+.focus { outline:2px solid var(--signal); outline-offset:1px; }
+
+
+/* code */
+/* code */
+.code { font:12px/19px var(--mono); color:var(--ink); background:var(--code); }
+.code .ln { display:flex; white-space:pre; }
+.code .ln .g { flex:0 0 44px; text-align:right; padding-right:10px; color:var(--lnum); background:var(--gutter); }
+.code .ln .t { padding-left:10px; }
+.code .ln.cur .t { background:var(--curline); }
+.k { color:var(--kw); } .fn { color:var(--fn); } .ty { color:var(--ty); } .nu { color:var(--num); } .cm { color:var(--cm); }
+
+
+/* comments tray and cards */
+.tray { flex:0 0 var(--trayw, 360px); background:var(--panel); border-left:1px solid var(--rule); display:flex; flex-direction:column; min-height:0; }
+.tr-tabs { flex:0 0 30px; display:flex; align-items:center; gap:2px; padding:0 8px; border-bottom:1px solid var(--rule); }
+.tr-tab { padding:0 9px; line-height:29px; color:var(--ink-2); }
+.tr-tab.on { color:var(--ink); font-weight:600; box-shadow:inset 0 -2px 0 var(--signal); }
+.tr-tools { display:flex; align-items:center; gap:6px; padding:6px 8px; border-bottom:1px solid var(--rule); }
+.cards { flex:1; overflow:hidden; padding:8px; display:flex; flex-direction:column; gap:8px; }
+.card { border:1px solid var(--rule); border-radius:7px; background:var(--panel); padding:7px 9px; }
+.card.cur { border-color:var(--signal); box-shadow:0 0 0 1px var(--signal); }
+.card-h { display:flex; align-items:center; gap:6px; margin-bottom:4px; color:var(--ink-2); font-size:11px; white-space:nowrap; }
+.post { display:flex; gap:7px; margin-top:6px; }
+.post.reply { margin-left:14px; padding-left:8px; border-left:2px solid var(--rule); }
+.av { width:18px; height:18px; border-radius:50%; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none; }
+.av.me { background:var(--signal); color:var(--on-signal); border-color:var(--signal); }
+.post .nm { display:flex; align-items:center; gap:5px; min-height:17px; white-space:nowrap; }
+.post .who { font-weight:600; }
+.post .when { color:var(--ink-3); font-size:11px; }
+.post p { margin:2px 0 0; line-height:1.4; }
+.card-h .ref { color:var(--ink-2); }
+.acts { display:flex; gap:12px; margin-top:6px; color:var(--signal); font-size:11.5px; }
+.priv { display:inline-flex; align-items:center; gap:4px; height:18px; padding:0 7px; border-radius:4px; border:1px dashed var(--defect); color:var(--defect); font-size:10.5px; font-weight:600; white-space:nowrap; }
+.tour-h { font-weight:600; color:var(--ink); }
+
+
+/* suggested-change block */
+.sugg { border:1px solid var(--rule-2); border-radius:5px; overflow:hidden; font:12px/18px var(--mono); }
+.sugg .sh { display:flex; align-items:center; gap:6px; padding:3px 8px; font:600 11px/18px var(--ui); color:var(--ink-2); background:var(--panel-2); border-bottom:1px solid var(--rule); }
+.sugg .l { white-space:pre; padding:0 8px; }
+.sugg .l.d { background:var(--del); } .sugg .l.a { background:var(--add); }
+
+/* v3 plain A, kept only for the width comparison in th4-detail */
+.body > .code { min-width:0; overflow:hidden; }
+.tray { min-width:0; } .post .pb .sugg { max-width:100%; }
+.post .pb { min-width:0; flex:1; }
+.gut { display:flex; flex-direction:column; align-items:center; gap:3px; flex:none; width:18px; }
+
+/* v4: A's column with D's rail. The rail is drawn in space the card already has: the root's
+   in the card's 9 px left padding, a reply's in its 24 px indent. Its right edge is always
+   3 px left of the avatar, so a thicker rail grows outward and never moves the text. */
+.post.v4 { position:relative; }
+.post.v4.reply { margin-left:24px; padding-left:0; border-left:0; }
+.post.v4::before { content:""; position:absolute; top:0; bottom:0; right:calc(100% + 3px); width:2px; border-radius:1px; background:var(--rt, var(--rule)); }
+.post.v4.blk::before { width:4px; border-radius:1.5px; }
+.post.v4 .gut .lm { width:16px; height:16px; font-size:8px; border-radius:4px; border-width:1.5px; }
+.lm.blk { background:var(--t); border-color:var(--t); color:var(--on-t, #fff); font-weight:800; }
+body.dark .lm.blk, .dk .lm.blk { background:var(--t); }
+
+/* detail frame */
+.det { display:grid; grid-template-columns:380px 380px 1fr; gap:22px; padding:16px 18px; height:100vh; background:var(--bg); align-items:start; }
+.det h2 { margin:0 0 6px; font-size:14px; }
+.det .cap { color:var(--ink-2); margin:0 0 6px; min-height:32px; }
+.det .meas { margin-top:6px; color:var(--ink-2); font:11px/1.5 var(--mono); }
+.det .cards { padding:0; overflow:visible; }
+.strip { display:grid; grid-template-columns:76px repeat(2, 120px); gap:0 10px; align-items:center; background:var(--panel); border:1px solid var(--rule); border-radius:7px; padding:8px 10px 8px 18px; }
+.strip .hd { color:var(--ink-3); font-size:11px; padding-bottom:4px; }
+.strip .nm2 { color:var(--ink-2); }
+.strip .cell { position:relative; height:24px; display:flex; align-items:center; padding-left:8px; }
+.strip .cell::before { content:""; position:absolute; left:0; top:2px; bottom:2px; width:2px; border-radius:1px; background:var(--rt); }
+.strip .cell.blk::before { left:-2px; width:4px; border-radius:1.5px; }
+.strip .cell .lm { width:16px; height:16px; font-size:8px; border-width:1.5px; }
+.det .meas { white-space:pre; }
+.zoom { display:flex; gap:18px; margin-top:16px; }
+.zoom .zc { display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--ink-3); font-size:11px; width:100px; text-align:center; }
+.zoom .zb { width:84px; height:116px; position:relative; }
+.zoom .zb > div { transform:scale(3); transform-origin:0 0; position:absolute; left:27px; top:2px; }
+.zoom .post { margin:0; } .zoom .post .pb { display:none; }
+.tip.side::before { top:7px; left:-4px; }
+.fld { margin-top:3px; border:1px solid var(--signal); box-shadow:0 0 0 1px var(--signal-soft); border-radius:4px; background:var(--field); padding:4px 6px; line-height:1.4; }
+.fld .pfx { background:var(--signal-soft); border-radius:3px; }
+.fld .caret { display:inline-block; width:1.5px; height:13px; background:var(--ink); vertical-align:-2px; margin-left:1px; }
+.fld-f { display:flex; align-items:center; gap:6px; margin-top:4px; }
+.fld-k { color:var(--ink-3); font-size:10.5px; }
+.btn { display:inline-flex; align-items:center; height:20px; padding:0 8px; border:1px solid var(--rule-2); border-radius:4px; background:var(--panel); color:var(--ink); font-size:11px; white-space:nowrap; }
+.btn.primary { background:var(--signal); border-color:var(--signal); color:var(--on-signal); font-weight:600; }
+.card { position:relative; }
+
+/* glyphs inside a mark: 12 px box, 2.6-unit pen (1.3 px at 1x) */
+.lm svg.g { width:12px; height:12px; display:block; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+.lm.blk { font-weight:400; }
+.lm.plain { font:700 8px/1 var(--ui); }
+.hcl { --bg:#FFFFFF; --panel:#FFFFFF; --panel-2:#F2F2F2; --ink:#000000; --ink-2:#000000; --ink-3:#2B2B2B; --rule:#000000; --rule-2:#000000; }
+.hcd { --bg:#000000; --panel:#000000; --panel-2:#1A1A1A; --ink:#FFFFFF; --ink-2:#FFFFFF; --ink-3:#D6D6D6; --rule:#FFFFFF; --rule-2:#FFFFFF; }
+.hcl .lm, .hcd .lm { background:color-mix(in srgb, var(--t) 22%, var(--panel)); }
+.hcd .lm { background:color-mix(in srgb, var(--t) 30%, var(--panel)); }
+.hcl .lm.blk, .hcd .lm.blk { background:var(--t); }
+
+/* sheet */
+.sheet { padding:14px 18px; height:100vh; background:var(--bg); display:flex; flex-direction:column; gap:10px; }
+.sheet h2 { font-size:13px; margin:0; }
+.sheet .cap { color:var(--ink-2); font-size:11px; }
+.vgrid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.vpan { background:var(--panel); color:var(--ink); border:1px solid var(--rule); border-radius:7px; padding:8px 10px; }
+.vpan .vh { font-size:11px; color:var(--ink-2); margin-bottom:6px; font-weight:600; }
+.lrow { display:grid; grid-template-columns:repeat(12, 1fr); gap:2px; justify-items:center; }
+.lrow .cl { display:flex; flex-direction:column; align-items:center; gap:5px; }
+.lrow .nmx { font-size:9.5px; color:var(--ink-3); }
+.big .lm { width:40px; height:40px; border-radius:10px; border-width:3.75px; }
+.big .lm svg.g { width:30px; height:30px; }
+.grey { filter:grayscale(1); }
+.cons { display:grid; grid-template-columns:repeat(12, 1fr); gap:6px; }
+.cons .cc { display:flex; flex-direction:column; align-items:center; gap:3px; font-size:10px; color:var(--ink-3); }
+svg.c { color:var(--ink); width:84px; height:84px; background-color:var(--panel); background-image:linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px); background-size:7px 7px; border:1px solid var(--rule-2); fill:none; stroke:var(--ink); stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+.pairs { display:flex; gap:22px; align-items:center; }
+.pairs .pr { display:flex; gap:6px; align-items:center; background:var(--panel); border:1px solid var(--rule); border-radius:6px; padding:5px 9px; }
+.opt { display:grid; grid-template-columns:120px repeat(3, 1fr); gap:10px; align-items:stretch; }
+.opt .ol { font-weight:600; font-size:14px; display:flex; align-items:center; gap:8px; }
+.opt .oc { background:var(--panel); border:1px solid var(--rule); border-radius:8px; padding:8px 10px; display:flex; gap:14px; align-items:center; }
+.opt .oc .on { font-size:15px; font-weight:700; color:var(--ink-2); width:16px; }
+.opt .oc .sm4 { display:flex; gap:5px; align-items:center; padding:5px 6px; border-radius:5px; }
+.opt .oc .post { margin:0; }
+.chg { display:grid; grid-template-columns:90px 1fr 1fr 190px; gap:10px; align-items:stretch; }
+.chg .ol { font-weight:600; font-size:14px; display:flex; align-items:center; }
+.chg .oc { background:var(--panel); border:1px solid var(--rule); border-radius:8px; padding:8px 10px; display:flex; gap:10px; align-items:center; }
+.chg .oc.old { opacity:.75; }
+.chg .oc .on { font-size:13px; font-weight:700; color:var(--ink-2); width:20px; }
+.chg .oc .sm4 { display:flex; gap:4px; align-items:center; padding:5px; border-radius:5px; }
+.chg .lm-c svg.c { width:72px; height:72px; background-size:6px 6px; }
+.chg .rf { gap:8px; font-size:11px; color:var(--ink-2); }
+.chg .ref { width:64px; height:auto; border-radius:6px; border:1px solid var(--rule); }
+
+/* surfaces */
+.surf { display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:14px 18px; height:100vh; background:var(--bg); align-content:start; }
+.surf h2 { font-size:13px; margin:0 0 6px; }
+.surf .box { background:var(--panel); border:1px solid var(--rule); border-radius:7px; padding:8px; }
+.otab { border-collapse:collapse; width:100%; }
+.otab th { text-align:left; font-weight:500; color:var(--ink-2); background:var(--panel-2); height:22px; padding:0 6px; border-bottom:1px solid var(--rule-2); }
+.otab td { height:24px; padding:0 6px; white-space:nowrap; }
+.lchip { display:inline-flex; align-items:center; gap:3px; margin-right:7px; }
+.lchip b { font-weight:600; font-size:11px; }
+.mgrid { display:grid; grid-template-columns:repeat(3, 1fr); gap:2px; }
+.mgrid .mi { display:flex; align-items:center; gap:7px; padding:4px 6px; border-radius:4px; }
+.mgrid .mi.sel { background:var(--signal-soft); }
+.klist .kr { display:grid; grid-template-columns:22px 82px 40px 1fr; align-items:center; gap:6px; padding:2px 4px; }
+.klist .kr code { font:11px var(--mono); color:var(--ink-2); }
+.klist .kr .d { color:var(--ink-3); font-size:11px; }
+.comp .kr { display:grid; grid-template-columns:22px 40px 70px 1fr; align-items:center; gap:6px; padding:3px 6px; border-radius:4px; }
+.comp .kr.sel { background:var(--signal-soft); }
+.comp code { font:11px var(--mono); }
+
+/* index */
+.idx { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:6px 18px; }
+.idx a { color:var(--signal); }
+</style>
+</head>
+<body>
+<script>
+(() => {
+"use strict";
+const q = new URLSearchParams(location.search);
+if (q.get("theme") === "dark") document.body.classList.add("dark");
+
+// ---- the catalog and placeholder marks -------------------------------------------
+const LABELS = ["praise","nitpick","suggestion","issue","todo","question","thought","chore","note","typo","polish","quibble"];
+const MONO = { praise:"pr", nitpick:"ni", suggestion:"su", issue:"is", todo:"td", question:"qu", thought:"th", chore:"ch", note:"no", typo:"ty", polish:"po", quibble:"qb" };
+const DESC = { praise:"Something done well", nitpick:"Trivial preference", suggestion:"An improvement", issue:"A concrete problem", todo:"Small necessary change", question:"Asks for clarification", thought:"An idea, not a request", chore:"Process work first", note:"Information only", typo:"Spelling", polish:"Quick quality fix", quibble:"Minor preference" };
+// The shortcode is the mark's own two letters between colons: learn one, know the other.
+const CODE = Object.fromEntries(LABELS.map((l) => [l, `:${MONO[l]}:`]));
+// Default tint per label and theme variant: light, dark, high-contrast light, high-contrast dark.
+// No amber (open) and no green (resolved): those belong to states.
+const TINTS = {
+  praise:     ["#BF3989", "#F778BA", "#8A0F5C", "#FF8FD0"],
+  nitpick:    ["#6E7781", "#9BA4AE", "#3A3F45", "#D0D5DA"],
+  suggestion: ["#1F6FD0", "#6CB0FF", "#0033AA", "#7FC0FF"],
+  issue:      ["#D1242F", "#FF7B72", "#A50000", "#FF7070"],
+  todo:       ["#C24E00", "#FFA05A", "#7A2E00", "#FFB074"],
+  question:   ["#8250DF", "#C29BFF", "#5A009E", "#D9B0FF"],
+  thought:    ["#4F5BD5", "#9AA5FF", "#2A2F9E", "#B4BCFF"],
+  chore:      ["#8A5A2B", "#D2A26E", "#5A3510", "#E6BC8A"],
+  note:       ["#0A7EA4", "#4DC3E8", "#004F6B", "#6FD8F5"],
+  typo:       ["#6F7A00", "#C3CE4A", "#434A00", "#D6E070"],
+  polish:     ["#0F8577", "#3FCDB8", "#005048", "#5EE6D2"],
+  quibble:    ["#9A5B7A", "#D99BBB", "#5E2A44", "#F0B8D4"],
+};
+// ---- BPR-1080 glyphs ---------------------------------------------------------------
+// 24-unit grid, stroked with round caps and joins with the 2.6-unit pen. Element kinds: a string
+// is stroked; {d, w} is stroked with a w-unit pen; {fill} is filled without a pen; {dot:[x, y, r]}
+// is a filled disc. Round v4 has one option per label. Eleven glyphs are the owner-accepted ones,
+// unchanged from v3; typo is redrawn after the owner's v3 verdict.
+const OPTIONS = {
+  praise:     { heart:"Heart" },
+  nitpick:    { loupe:"Loupe" },
+  suggestion: { bulb:"Light bulb" },
+  issue:      { bang:"Exclamation mark" },
+  todo:       { checkbox:"Ticked box" },
+  question:   { mark:"Question mark" },
+  thought:    { cloud:"Thought cloud" },
+  chore:      { broom:"Broom" },
+  note:       { info:"Information i" },
+  typo:       { abc:"Spellcheck: Abc over a squiggle" },
+  polish:     { sparkles:"Sparkles" },
+  quibble:    { wobble:"Small wobble" },
+};
+const GLYPHS = {
+  "praise.heart": ["M12 19.5 C6.2 15.6 3.5 12.6 3.5 9.2 C3.5 6.6 5.4 4.8 7.7 4.8 C9.6 4.8 11 5.9 12 7.6 C13 5.9 14.4 4.8 16.3 4.8 C18.6 4.8 20.5 6.6 20.5 9.2 C20.5 12.6 17.8 15.6 12 19.5 Z"],
+  // v2: an open ring with a thick, round-ended handle at 45 degrees; nothing inside the lens.
+  "nitpick.loupe": ["M15.5 9.5 C15.5 12.81 12.81 15.5 9.5 15.5 C6.19 15.5 3.5 12.81 3.5 9.5 C3.5 6.19 6.19 3.5 9.5 3.5 C12.81 3.5 15.5 6.19 15.5 9.5 Z", { fill:"M12.43 15.62 L15.62 12.43 L21.63 18.44 C23.75 20.57 20.57 23.75 18.44 21.63 Z" }],
+  "suggestion.bulb": ["M9.2 15.6 C7 14.3 5.5 12.2 5.5 9.6 C5.5 6 8.4 3.5 12 3.5 C15.6 3.5 18.5 6 18.5 9.6 C18.5 12.2 17 14.3 14.8 15.6 L14.8 17 L9.2 17 Z", "M9.8 20.3 L14.2 20.3"],
+  "issue.bang": ["M12 4 L12 14", { dot:[12, 19, 1.75] }],
+  "todo.checkbox": ["M15.5 12.5 L15.5 18.5 C15.5 19.05 15.05 19.5 14.5 19.5 L5.5 19.5 C4.95 19.5 4.5 19.05 4.5 18.5 L4.5 9.5 C4.5 8.95 4.95 8.5 5.5 8.5 L11 8.5", "M7.8 13 L10.6 15.8 L19.8 5"],
+  "question.mark": ["M8.4 8.6 C8.4 5.9 10 4.2 12.2 4.2 C14.4 4.2 15.9 5.7 15.9 7.7 C15.9 10.6 12.2 11.1 12.2 14.3", { dot:[12.2, 19, 1.75] }],
+  "thought.cloud": ["M7.2 14 C5 14 3.6 12.6 3.6 11 C3.6 9.4 5 8.2 6.8 8.4 C7.2 5.8 9.3 4 12 4 C14.6 4 16.6 5.7 17 8 C19 7.9 20.5 9.3 20.5 11 C20.5 12.7 19.2 14 17.3 14 Z", { dot:[7.6, 18, 1.8] }, { dot:[4.4, 20.9, 1.3] }],
+  // v3: a solid broom at 45 degrees, after the owner's reference: a handle, a band, a clear seam,
+  // then a fanned head split twice from its foot. Every edge across or along the axis lies on an odd
+  // value of x - y or x + y, between the 1x pixel diagonals, so the seam and both splits fall on
+  // whole pixel diagonals at 1x instead of smearing across two.
+  "chore.broom": [{ d:"M22 3 L15.75 9.25", w:2.2 }, { fill:"M14 7 L18 11 L16.5 13.5 L11.5 8.5 Z" }, { fill:"M16 15 L10 9 L1.5 12.5 L4 15 L8 11 L9 12 L5 16 L9 20 L13 16 L14 17 L10 21 L12.5 23.5 Z" }],
+  "note.info": [{ dot:[12, 5.6, 1.75] }, "M12 10.5 L12 19.5", "M9.8 10.5 L12 10.5", "M9.8 19.5 L14.2 19.5"],
+  // v4: spellcheck in the owner's reference style, a bold geometric "Abc" over a smooth squiggle,
+  // set as one word. All three letters are filled shapes, each hole wound against its outline.
+  // The 1x box is 12 px, and A, b and c at one pixel apart would need 13, so the A gives up half a
+  // pixel each side: its feet stand at 0.5 and 9.5, its flat apex stays on the centre pixel (4..6)
+  // and its legs are 2.4 units across. The b's stem follows at once (10..12), half a pixel from the
+  // A's foot and closing in towards the baseline as the reference's "Ab" does; its bowl reaches 16
+  // with a one-pixel counter. A clear pixel column (16..18) parts b from c. The c is three pixels
+  // wide, square-cut at 23.5, so it is a whole, open c and stops a pixel short of the mark's border.
+  // The crossbar sits on 10..12, a pixel row of its own at 1x, which leaves a counter above it.
+  // Horizontal edges are on even units, 1x pixel edges. The squiggle is v3's sine, unchanged.
+  "typo.abc": [{ fill:"M0.5 14 L4 2 L6 2 L9.5 14 L7.1 14 L6.52 12 L3.48 12 L2.9 14 Z M4.07 10 L5.93 10 L5 6.8 Z" }, { fill:"M10 2 L12 2 L12 6 L13.5 6 C14.88 6 16 7.12 16 8.5 L16 11.5 C16 12.88 14.88 14 13.5 14 L10 14 Z M12 8 L12 12 L13.5 12 C13.78 12 14 11.78 14 11.5 L14 8.5 C14 8.22 13.78 8 13.5 8 Z" }, { fill:"M23.5 6 L21 6 C19.34 6 18 7.34 18 9 L18 11 C18 12.66 19.34 14 21 14 L23.5 14 L23.5 12 L21 12 C20.45 12 20 11.55 20 11 L20 9 C20 8.45 20.45 8 21 8 L23.5 8 Z" }, { d:"M1.5 20.8 C2.59 20.8 3.41 18.2 4.5 18.2 C5.59 18.2 6.41 20.8 7.5 20.8 C8.59 20.8 9.41 18.2 10.5 18.2 C11.59 18.2 12.41 20.8 13.5 20.8 C14.59 20.8 15.41 18.2 16.5 18.2 C17.59 18.2 18.41 20.8 19.5 20.8 C20.59 20.8 21.41 18.2 22.5 18.2", w:2 }],
+  "polish.sparkles": ["M10 3.5 C10.6 7.8 11.7 8.9 16 9.5 C11.7 10.1 10.6 11.2 10 15.5 C9.4 11.2 8.3 10.1 4 9.5 C8.3 8.9 9.4 7.8 10 3.5 Z", "M17.5 14 C17.8 16.1 18.4 16.7 20.5 17 C18.4 17.3 17.8 17.9 17.5 20 C17.2 17.9 16.6 17.3 14.5 17 C16.6 16.7 17.2 16.1 17.5 14 Z"],
+  // v2: the owner's small wobble: one hump with both ends flicking up, three short rays above.
+  "quibble.wobble": ["M3 17.2 C3.5 18.8 4.4 19.8 5.7 19.8 C8.3 19.8 9.4 13.8 12 13.8 C14.6 13.8 15.7 19.8 18.3 19.8 C19.6 19.8 20.5 18.8 21 17.2", "M12 7.8 L12 4.4 M7.72 9.04 L5.71 6.81 M16.28 9.04 L18.29 6.81"],
+};
+// Round v3's glyph for the redrawn label, kept only to draw v3 beside v4 (frame ic-changes).
+const PREV = {
+  typo: [{ fill:"M0 14 L4 2 L6 2 L10 14 L7.75 14 L6.42 10 L3.58 10 L2.25 14 Z M4.25 8 L5.75 8 L5 5.75 Z" }, { fill:"M12 2 L14 2 L14 14 L12 14 Z" }, { d:"M13 7 L14.4 7 C15.83 7 17 8.17 17 9.6 L17 10.4 C17 11.83 15.83 13 14.4 13 L13 13", w:2 }, { d:"M23 7 C21.9 7 21 7.9 21 9 L21 11 C21 12.1 21.9 13 23 13", w:2 }, { d:"M1.5 20.8 C2.59 20.8 3.41 18.2 4.5 18.2 C5.59 18.2 6.41 20.8 7.5 20.8 C8.59 20.8 9.41 18.2 10.5 18.2 C11.59 18.2 12.41 20.8 13.5 20.8 C14.59 20.8 15.41 18.2 16.5 18.2 C17.59 18.2 18.41 20.8 19.5 20.8 C20.59 20.8 21.41 18.2 22.5 18.2", w:2 }],
+};
+const PREV_ROUND = "v3", ROUND = "v4";
+// What the owner said about the redrawn label in session bfc59159, and the reference to follow.
+const CHANGED = {
+  typo: { ask:"I think you can do a little better, that b looks far from the A and that c looks cut off", ref:"BPR-1080-owner-ref-typo-abc.png", refName:"Abc over a squiggle" },
+};
+const PICK = Object.fromEntries(LABELS.map((l) => [l, Object.keys(OPTIONS[l])[0]]));
+for (const kv of (q.get("pick") || "").split(",").filter(Boolean)) { const [l, o] = kv.split(":"); if (OPTIONS[l] && OPTIONS[l][o]) PICK[l] = o; }
+const glyphKey = (l, o = PICK[l]) => `${l}.${o}`;
+const glyphEl = (x) => typeof x === "string" ? `<path d="${x}"/>`
+  : x.fill ? `<path d="${x.fill}" fill="currentColor" stroke="none"/>`
+  : x.d ? `<path d="${x.d}" stroke-width="${x.w}"/>`
+  : `<circle cx="${x.dot[0]}" cy="${x.dot[1]}" r="${x.dot[2]}" fill="currentColor" stroke="none"/>`;
+const glyphSvg = (key, cls = "g") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${(Array.isArray(key) ? key : GLYPHS[key]).map(glyphEl).join("")}</svg>`;
+const VARIANTS = [["Light", "", 0], ["Dark", "dk", 1], ["High contrast light", "hcl", 2], ["High contrast dark", "hcd", 3]];
+const DARK = q.get("theme") === "dark";
+const tint = (l, edits = {}) => edits[l] || TINTS[l][DARK ? 1 : 0];
+let EDITS = {};
+const lm = (l, cls = "", tip = l) => l === null ? `<span class="lm plain ${cls}" title="Plain comment">··</span>` : `<span class="lm ${cls}" style="--t:${tint(l, EDITS)}" role="img" title="${tip}" aria-label="${tip}">${glyphSvg(glyphKey(l))}</span>`;
+const lmn = (l, deco = "", cls = "") => `<span class="lmn">${lm(l, cls)}<b>${l}${deco ? ` (${deco})` : ""}</b></span>`;
+const SM = { open:'<span class="sm-open"></span>', resolved:'<span class="sm-res"></span>', unknown:'<span class="sm-unk"></span>', na:'<span class="sm-na"></span>' };
+const icon = {
+  home:'<svg class="i" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></svg>',
+  files:'<svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 5v14M9 10h11"/></svg>',
+  refresh:'<svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>',
+  comments:'<svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM15 5v14"/></svg>',
+  account:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  settings:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>',
+  compose:'<svg class="i" viewBox="0 0 24 24"><path d="M5 19h4L19 9l-4-4L5 15z"/><path d="M13.5 6.5l4 4"/></svg>',
+  comment:'<svg class="i" viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/></svg>',
+  other:'<svg class="i" viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/><path d="M9 10h.01M12 10h.01M15 10h.01"/></svg>',
+  check:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  changes:'<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><path d="M7 7l10 10"/></svg>',
+  key:'<svg class="i" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 10h2M14 10h2M8 14h8"/></svg>',
+  lock:'<svg class="i" viewBox="0 0 24 24"><rect x="6" y="11" width="12" height="9" rx="1.5"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg>',
+  ext:'<svg class="i" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/></svg>',
+  people:'<svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 19c1-3 3.5-4.5 6-4.5s5 1.5 6 4.5M15 15.5c2.5-.5 4.5.8 5.5 3"/></svg>',
+  draft:'<svg class="i" viewBox="0 0 24 24"><path d="M5 19h4L19 9l-4-4L5 15z"/></svg>',
+  approve:'<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  request:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16v.01"/></svg>',
+  reset:'<svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>',
+  info:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.01"/></svg>',
+  nofix:'<svg class="i" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/><path d="M4 4l16 16"/></svg>',
+};
+
+
+// ---- chrome ------------------------------------------------------------------------
+const titleRow = (mod, narrow) => `<div class="title"><div class="lights"><i></i><i></i><i></i></div>
+  <span class="ib" title="Home">${icon.home}</span><span class="ib" title="Files">${icon.files}</span>
+  <span class="prname"><span class="n">#14366</span>${narrow ? "" : "Hair strand lighting fixes for LSS"}</span><span class="sp"></span>
+  <span class="seg">${["Overview","Read","Review","Discuss"].map((m) => `<span class="${m === mod ? "on" : ""}">${m}</span>`).join("")}</span>
+  <span class="ib" title="Refresh">${icon.refresh}</span><span class="ib" title="Comments, 2 threads with new comments">${icon.comments}</span>
+  <span class="ib">${icon.account}</span><span class="ib">${icon.settings}</span></div>`;
+const reviewBar = (narrow, commentOpen = false) => `<div class="bar"><span class="lab">▸ Updates</span><span>Comparing <b style="font-weight:500">since my last review</b>${narrow ? "" : `<span class="lab"> · Feb 1 → Feb 15</span>`} ▾</span>
+  <span class="div"></span><span class="lab">File</span><span>‹ ›</span><span class="lab">${narrow ? "3/7" : "3 of 7"}</span>
+  <span class="lab">Changes</span><span>‹ ›</span><span class="lab">${narrow ? "2/11" : "2 of 11"}</span><span class="ib">${icon.check}<span class="caret">▾</span></span>
+  <span class="sp"></span><span class="ib" title="Compose review (⌥R)">${icon.compose}</span><span class="ib ${commentOpen ? "on" : ""}" title="Comment (⌥C)">${icon.comment}<span class="caret">▾</span></span></div>`;
+
+// ---- v4: thread cards. A's mark under the avatar, D's rail on the left edge -------------------
+// Blocking glyphs sit on the full tint, so pick whichever of white or ink reads better on it.
+const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+const GLYPH = ["#FFFFFF", "#111418"];
+const onTint = (t) => ratio(t, GLYPH[0]) >= ratio(t, GLYPH[1]) ? GLYPH[0] : GLYPH[1];
+const decoWord = (p) => p.l ? `${p.l}${p.deco ? ` (${p.deco})` : ""}` : "";
+// The mark's accessible name is the label and its decoration; the post's adds the author.
+const mark4 = (p, v = "v4") => {
+  if (!p.l) return "";
+  const t = p.variant !== undefined ? TINTS[p.l][p.variant] : tint(p.l), w = decoWord(p), blk = v === "v4" && p.deco === "blocking";
+  return `<span ${p.id ? `id="${p.id}" ` : ""}class="lm ${blk ? "blk" : ""} ${v === "A" ? "sm" : ""}" role="img" style="--t:${t}${blk ? `;--on-t:${onTint(t)}` : ""}" title="${w}" aria-label="${w}">${glyphSvg(glyphKey(p.l, p.opt))}</span>`;
+};
+// p: who, av, me, when, l (label or null), deco, text, extra (html under the text), reply, edit, id
+// v: "v4" or "A" (round v3's plain A, for the width comparison only)
+function post(p, v = "v4") {
+  const w = decoWord(p), blk = p.deco === "blocking";
+  const av = `<span class="av ${p.me ? "me" : ""}" aria-hidden="true">${p.av}</span>`;
+  const nmRow = `<div class="nm"><span class="who">${p.who}</span><span class="when">${p.when}${p.edit ? " · editing" : ""}</span></div>`;
+  let text;
+  if (p.edit) {
+    // As on the accepted composition page: the label is the highlighted words at the start.
+    // The mark under the avatar and the rail follow the words as they change.
+    text = `<div class="fld" role="textbox" aria-label="Edit comment">${p.l ? `<span class="pfx">${w}: </span>` : ""}${p.text}<span class="caret"></span></div>
+      <div class="fld-f"><span class="fld-k">⌘L label</span><span class="sp"></span><span class="btn">Cancel</span><span class="btn primary">Save</span></div>`;
+  } else {
+    text = `<p>${p.text}</p>`;
+  }
+  const cls = v === "v4" ? `v4 ${blk ? "blk" : ""}` : "";
+  const rt = v === "v4" && p.l ? ` style="--rt:${p.variant !== undefined ? TINTS[p.l][p.variant] : tint(p.l)}"` : "";
+  const name = `${p.who}${w ? `, ${w}` : ""}`;
+  return `<div class="post ${cls} ${p.reply ? "reply" : ""}" data-v="${v}" data-deco="${p.deco || ""}" data-label="${p.l || ""}" role="article" aria-label="${name}"${rt}><div class="gut">${av}${mark4(p, v)}</div><div class="pb">${nmRow}${text}${p.extra || ""}</div></div>`;
+}
+const pill = { open:`<span class="pill open">${SM.open}Open</span>`, resolved:`<span class="pill res">${SM.resolved}Resolved</span>`,
+  unknown:`<span class="pill" title="GitHub didn't say whether this is resolved">${SM.unknown}Unknown</span>`, na:`<span class="pill">${SM.na}Not resolvable</span>` };
+function card(c, o = {}) {
+  const { edit = null, tip = false, v = "v4" } = o;
+  const posts = c.posts.map((p, i) => post({ ...p, reply:i > 0, edit:edit === i, id:tip && i === 0 ? "rootmark" : null }, v)).join("");
+  const acts = `<div class="acts"><span>Reply</span><span>Resolve</span><span class="sp"></span>${c.priv ? `<span class="priv" title="Private to you, never published">${icon.lock} Defect · major</span>` : ""}</div>`;
+  const tipHtml = tip ? `<div class="tip side" data-anchor="rootmark" data-side="right" data-dx="7" data-dy="-3" style="white-space:nowrap">${c.posts[0].l} (${c.posts[0].deco})</div>` : "";
+  return `<div class="card ${c.cur ? "cur" : ""}"><div class="card-h">${c.tour ? `<span class="tour-h">${c.ref}</span>` : `<span class="ref">${c.ref}</span>`}<span class="sp"></span>${pill[c.state]}</div>${posts}${c.acts ? acts : ""}${tipHtml}</div>`;
+}
+const SUGG = (applicable) => `<div class="sugg" style="margin-top:4px"><div class="sh">${icon.changes} Suggested change<span class="sp"></span>${applicable
+  ? `<span title="Apply on GitHub" style="color:var(--signal)">${icon.ext}</span></div><div class="l a">+	constexpr float MinShadowBias = 0.05f;</div>`
+  : `<span title="Outside the diff: GitHub can't apply this. Copy it instead." style="color:var(--ink-3)">${icon.nofix}</span></div><div class="l a">+#pragma once</div>`}</div>`;
+// All twelve labels appear across the tray. Blocking: the issue root and my suggestion.
+// Explicitly non-blocking: the nitpick. Two posts are plain.
+const CARDS = {
+  issue: { ref:"Line 438", state:"open", cur:true, acts:true, priv:true, posts:[
+    { who:"tbutler", av:"T", when:"Feb 15", l:"issue", deco:"blocking", text:"LightScale ignores the view's post-process settings." },
+    { who:"MikeMarcin", av:"M", me:true, when:"Feb 15", l:"question", text:"Can the view settings be null on secondary views?" },
+    { who:"jiayin", av:"J", when:"today", l:"praise", text:"Good catch — fixed in 81b39fa." },
+    { who:"tbutler", av:"T", when:"today", l:null, text:"Thanks, resolving after CI." } ] },
+  sugg: { ref:"Line 439", state:"open", posts:[
+    { who:"MikeMarcin", av:"M", me:true, when:"today", l:"suggestion", deco:"blocking", text:"Name the limit.", extra:SUGG(true) },
+    { who:"jiayin", av:"J", when:"today", l:"todo", text:"Will do in the next push." },
+    { who:"rcaloca", av:"R", when:"today", l:"polish", text:"Same for the deep shadow bias." } ] },
+  fallback: { ref:"Header line 12", state:"na", posts:[
+    { who:"MikeMarcin", av:"M", me:true, when:"today", l:"nitpick", deco:"non-blocking", text:"Outside the diff.", extra:SUGG(false) },
+    { who:"aleks", av:"A", when:"today", l:"quibble", text:"I'd keep pragma once here." } ] },
+  resolved: { ref:"Line 440", state:"resolved", posts:[
+    { who:"rcaloca", av:"R", when:"Feb 9", l:"typo", text:"\"Strands\" is misspelt in the comment." },
+    { who:"jiayin", av:"J", when:"Feb 9", l:"chore", text:"Ran the formatter over the file too." } ] },
+  unknown: { ref:"Line 441", state:"unknown", posts:[
+    { who:"aleks", av:"A", when:"Feb 3", l:"thought", text:"This could share the deep shadow pass." },
+    { who:"tbutler", av:"T", when:"Feb 4", l:"note", text:"The pass is disabled on mobile." },
+    { who:"aleks", av:"A", when:"Feb 4", l:null, text:"OK." } ] },
+};
+// edit: null, "reply" (my reply in the issue thread) or "root" (my own blocking thread's root)
+function threads(o) {
+  const { narrow, edit, more } = o;
+  const trayW = narrow ? 300 : 380;
+  const codeLines = [
+    [436, `	<span class="k">if</span> (!View.HairStrandsViewData.IsValid()) { <span class="k">return</span>; }`],
+    [437, ``], [438, `	<span class="k">const float</span> LightScale = GHairLightScale;`], [439, `	<span class="k">const float</span> ShadowBias = FMath::<span class="fn">Max</span>(CVarBias.<span class="fn">GetValueOnRenderThread</span>(), <span class="nu">0.05f</span>);`],
+    [440, ``], [441, `	<span class="fn">AddHairLightingPass</span>(GraphBuilder, View, LightScale, ShadowBias);`], [442, `}`],
+  ];
+  const code = `<div class="code" style="flex:1;padding-top:6px">${codeLines.map(([n, t]) => `<div class="ln ${n === 438 ? "cur" : ""}"><span class="g">${n}</span><span class="t">${t}</span></div>`).join("")}</div>`;
+  // "more" scrolls the tray to the last three cards, where the remaining labels are.
+  const cards = (more ? [card(CARDS.fallback), card(CARDS.resolved), card(CARDS.unknown)] : [
+    card(CARDS.issue, { edit:edit === "reply" ? 1 : null }),
+    card(CARDS.sugg, { edit:edit === "root" ? 0 : null, tip:!edit && !narrow }),
+    card(CARDS.fallback), card(CARDS.resolved), card(CARDS.unknown),
+  ]).join("");
+  return `<div class="win">${titleRow("Read", narrow)}${reviewBar(narrow)}<div class="body">${code}<div class="tray" style="--trayw:${trayW}px">
+    <div class="tr-tabs"><span class="tr-tab on">Comments</span><span class="tr-tab">Notes</span><span class="sp"></span></div>
+    <div class="tr-tools"><span class="seg"><span class="on">This file</span><span>Whole PR</span></span><span class="chip">Unresolved ▾</span><span class="sp"></span><span class="ib box" title="Label key">${icon.key}</span></div>
+    <div class="cards">${cards}</div></div></div></div>`;
+}
+// ---- BPR-1080 frames ------------------------------------------------------------------------
+// A mark at a theme variant: n = normal, b = blocking.
+const markV = (l, vi, blk, opt) => { const t = TINTS[l][vi], w = `${l}${blk ? " (blocking)" : ""}`;
+  return `<span class="lm ${blk ? "blk" : ""}" role="img" data-label="${l}" data-variant="${vi}" style="--t:${t}${blk ? `;--on-t:${onTint(t)}` : ""}" title="${w}" aria-label="${w}">${glyphSvg(Array.isArray(opt) ? opt : glyphKey(l, opt))}</span>`; };
+// Every label at actual size, normal over blocking, in the four theme variants; then 2.5x, greyscale and the grid.
+function sheet() {
+  const row = (vi, extra = "") => `<div class="lrow ${extra}">${LABELS.map((l) => `<div class="cl">${markV(l, vi, false)}${markV(l, vi, true)}<span class="nmx">${l}</span></div>`).join("")}</div>`;
+  const pans = VARIANTS.map(([name, cls, vi]) => `<div class="vpan ${cls}"><div class="vh">${name}</div>${row(vi)}</div>`).join("");
+  const big = `<div class="vgrid"><div class="vpan big"><div class="vh">2.5×, light</div>${row(0)}</div><div class="vpan dk big"><div class="vh">2.5×, dark</div>${row(1)}</div></div>`;
+  const grey = `<div class="vgrid"><div class="vpan grey"><div class="vh">Greyscale, light</div>${row(0)}</div><div class="vpan dk grey"><div class="vh">Greyscale, dark</div>${row(1)}</div></div>`;
+  const cons = `<div class="vpan"><div class="vh">24-unit grid, 2.6-unit pen (typo squiggle 2.0, chore handle 2.2)</div><div class="cons">${LABELS.map((l) => `<div class="cc">${glyphSvg(glyphKey(l), "c")}${l}</div>`).join("")}</div></div>`;
+  return `<div class="sheet"><div class="vgrid">${pans}</div>${big}${grey}${cons}</div>`;
+}
+// Round v4's changed label: v3 beside v4, each as marks in the four theme variants (normal over
+// blocking), at 2.5x, and on the grid; with the owner's reference image where one was attached.
+function changes(only) {
+  const ls = only && CHANGED[only] ? [only] : Object.keys(CHANGED);
+  const strip = (l, g) => `${VARIANTS.map(([, cls, vi]) => `<span class="sm4 ${cls}" style="background:var(--panel)">${markV(l, vi, false, g)}${markV(l, vi, true, g)}</span>`).join("")}
+      <span class="sm4 big">${markV(l, 0, false, g)}${markV(l, 0, true, g)}</span><span class="sm4"><span class="lm-c">${glyphSvg(g, "c")}</span></span>`;
+  const rows = ls.map((l) => {
+    const c = CHANGED[l], ref = `<img class="ref" src="${c.ref}" alt="Owner reference: ${c.refName}"><span class="rn">Owner reference<br>${c.refName}</span>`;
+    return `<div class="ol">${l}</div>
+      <div class="oc old"><span class="on">${PREV_ROUND}</span>${strip(l, PREV[l])}</div>
+      <div class="oc"><span class="on">${ROUND}</span>${strip(l, GLYPHS[glyphKey(l)])}</div>
+      <div class="oc rf">${ref}</div>`;
+  }).join("");
+  return `<div class="sheet"><div class="chg">${rows}</div></div>`;
+}
+// The same marks where else they appear: Overview chips, the label menu, completion and the Label key.
+function surfaces() {
+  const chip = (l, n, o) => `<span class="lchip">${lm(l)}<b style="${o ? "color:var(--marker)" : ""}">${n}</b></span>`;
+  const rows = [["HairStrandsLighting.cpp", [["issue", 2, 1], ["question", 1, 1], ["suggestion", 1, 1]], 4],
+    ["HairStrandsRendering.h", [["nitpick", 3, 1], ["typo", 1, 1], ["polish", 2, 1]], 1],
+    ["HairStrandsVisibility.cpp", [["thought", 1, 1], ["praise", 2, 1], ["todo", 1, 1], ["quibble", 1, 1]], 0],
+    ["HairStrandsInterface.cpp", [["chore", 1, 1], ["note", 2, 1]], 2]];
+  const ov = `<table class="otab"><thead><tr><th>File</th><th style="width:250px">Comments</th></tr></thead><tbody>${rows.map(([f, cs, other]) =>
+    `<tr><td>${f}</td><td>${cs.map(([l, n, o]) => chip(l, n, o)).join("")}${other ? `<span class="lchip">${icon.other}<b>${other}</b></span>` : ""}</td></tr>`).join("")}</tbody></table>`;
+  const menu = `<div class="mgrid">${LABELS.map((l) => `<div class="mi ${l === "issue" ? "sel" : ""}">${lm(l)}${l}</div>`).join("")}</div>`;
+  const comp = `<div class="comp"><div style="color:var(--ink-3);font:11px var(--mono);padding:2px 6px 4px">:q</div>${["question", "quibble"].map((l, i) => `<div class="kr ${i ? "" : "sel"}">${lm(l)}<code>${CODE[l]}</code><b>${l}</b><span style="color:var(--ink-3)">${DESC[l]}</span></div>`).join("")}</div>`;
+  const key = `<div class="klist">${LABELS.map((l) => `<div class="kr">${lm(l)}<b>${l}</b><code>${CODE[l]}</code><span class="d">${DESC[l]}</span></div>`).join("")}</div>`;
+  return `<div class="surf"><div><h2>Overview, Comments column</h2><div class="box">${ov}</div>
+    <h2 style="margin-top:14px">Label menu (⌘L)</h2><div class="box">${menu}</div>
+    <h2 style="margin-top:14px">Completion after ":q"</h2><div class="box">${comp}</div></div>
+    <div><h2>Label key (⌥K)</h2><div class="box">${key}</div></div></div>`;
+}
+
+// ---- after render: place the tooltip, measure ---------------------------------------------
+const r3 = (x) => Math.round(x * 1000) / 1000;
+// Glyph separation: each glyph is rasterised alone at 12 and 24 px with the shipping pen, and
+// every pair is compared as ink masks (1 - intersection / union; 0 = identical, 1 = disjoint).
+// Contrast: the glyph against its soft fill (normal) and against its tint (blocking) in the four
+// theme variants, with the soft fill mixed exactly as the CSS does.
+function rasterise(key, px) {
+  const els = Array.isArray(key) ? key : GLYPHS[key];
+  const c = document.createElement("canvas"); c.width = c.height = px;
+  const g = c.getContext("2d"), u = px / 24;
+  g.scale(u, u); g.lineWidth = 2.6; g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = g.fillStyle = "#000";
+  for (const x of els) {
+    if (typeof x === "string") g.stroke(new Path2D(x));
+    else if (x.fill) g.fill(new Path2D(x.fill));
+    else if (x.d) { g.lineWidth = x.w; g.stroke(new Path2D(x.d)); g.lineWidth = 2.6; }
+    else { g.beginPath(); g.arc(x.dot[0], x.dot[1], x.dot[2], 0, Math.PI * 2); g.fill(); }
+  }
+  const d = g.getImageData(0, 0, px, px).data, m = new Uint8Array(px * px);
+  for (let i = 0; i < m.length; ++i) m[i] = d[i * 4 + 3] >= 128 ? 1 : 0;
+  return m;
+}
+function separation(a, b) { let i = 0, u = 0; for (let k = 0; k < a.length; ++k) { i += a[k] & b[k]; u += a[k] | b[k]; } return u ? 1 - i / u : 0; }
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const mix = (t, p, w) => "#" + hex(t).map((c, i) => Math.round(c * w + hex(p)[i] * (1 - w)).toString(16).padStart(2, "0")).join("");
+const VAR_PANEL = ["#FFFFFF", "#242930", "#FFFFFF", "#000000"], VAR_INK = ["#1F2328", "#E6EDF3", "#000000", "#FFFFFF"], VAR_MIX = [0.22, 0.30, 0.22, 0.30];
+function glyphChecks() {
+  const keys = LABELS.map((l) => glyphKey(l)), out = { glyphs:keys.length, distinctKeys:new Set(keys).size, labelsWithOptions:LABELS.filter((l) => Object.keys(OPTIONS[l]).length > 1) };
+  for (const px of [12, 24]) {
+    const ms = Object.fromEntries(keys.map((k) => [k, rasterise(k, px)]));
+    // Every pair of the twelve; and each redrawn glyph against its own previous-round glyph.
+    let min = { d:2 };
+    for (let i = 0; i < keys.length; ++i) for (let j = i + 1; j < keys.length; ++j) {
+      if (keys[i].split(".")[0] === keys[j].split(".")[0]) continue;
+      const d = separation(ms[keys[i]], ms[keys[j]]);
+      if (d < min.d) min = { d, a:keys[i], b:keys[j] };
+    }
+    const r = (a, b) => Math.round(separation(ms[a], ms[b]) * 1000) / 1000;
+    out[`px${px}`] = { minAcrossLabels:{ ...min, d:Math.round(min.d * 1000) / 1000 },
+      suggestionPolish:r("suggestion.bulb", "polish.sparkles"), nitpickQuibble:r("nitpick.loupe", "quibble.wobble"),
+      typoQuibble:r("typo.abc", "quibble.wobble"), nitpickNote:r("nitpick.loupe", "note.info"), choreTodo:r("chore.broom", "todo.checkbox"),
+      prevToNow:Object.fromEntries(Object.keys(CHANGED).map((l) => [l, Math.round(separation(rasterise(PREV[l], px), ms[glyphKey(l)]) * 1000) / 1000])),
+      nearest:Object.fromEntries(Object.keys(CHANGED).map((l) => { let b = { d:2 }; for (const k of keys) if (k !== glyphKey(l)) { const d = separation(ms[glyphKey(l)], ms[k]); if (d < b.d) b = { d:Math.round(d * 1000) / 1000, k }; } return [l, b]; })),
+      inkPixels:Object.fromEntries(keys.map((k) => [k, ms[k].reduce((a, b) => a + b, 0)])) };
+  }
+  let minNormal = { r:99 }, minBlocking = { r:99 };
+  for (const l of LABELS) for (let v = 0; v < 4; ++v) {
+    const t = TINTS[l][v], soft = mix(t, VAR_PANEL[v], VAR_MIX[v]);
+    const rn = ratio(VAR_INK[v], soft), rb = ratio(onTint(t), t);
+    if (rn < minNormal.r) minNormal = { r:Math.round(rn * 100) / 100, label:l, variant:VARIANTS[v][0] };
+    if (rb < minBlocking.r) minBlocking = { r:Math.round(rb * 100) / 100, label:l, variant:VARIANTS[v][0] };
+  }
+  out.glyphContrast = { normal:minNormal, blocking:minBlocking };
+  out.markNames = [...document.querySelectorAll(".lm[role=img]")].every((m) => (m.getAttribute("aria-label") || "").length > 0 && m.getAttribute("aria-label") === m.getAttribute("title"));
+  return out;
+}
+function afterRender() {
+  for (const el of document.querySelectorAll("[data-anchor]")) {
+    const a = document.getElementById(el.dataset.anchor);
+    if (!a) continue;
+    const r = a.getBoundingClientRect();
+    const host = el.offsetParent ? el.offsetParent.getBoundingClientRect() : { left:0, top:0 };
+    const side = el.dataset.side === "right";
+    el.style.left = `${(side ? r.right : r.left) - host.left + Number(el.dataset.dx || 0)}px`;
+    el.style.top = `${(side ? r.top : r.bottom) - host.top + Number(el.dataset.dy || 0)}px`;
+  }
+  if (q.get("check") !== "1") return;
+  // Centring: mark centre x minus avatar centre x, and the gap under the avatar.
+  // Rail: its right edge to the avatar, its width, and whether it stays inside its card.
+  const rows = [];
+  for (const po of document.querySelectorAll(".post.v4")) {
+    const a = po.querySelector(".av").getBoundingClientRect(), m = po.querySelector(".lm");
+    const rail = getComputedStyle(po, "::before"), pr = po.getBoundingClientRect();
+    const railRight = pr.left - 3, railW = parseFloat(rail.width), railLeft = railRight - railW;
+    const cardEl = po.closest(".card"), cr = cardEl ? cardEl.getBoundingClientRect() : null;
+    const row = { root:!po.classList.contains("reply"), deco:po.dataset.deco, label:po.dataset.label, railW, railToAvatar:r3(a.left - railRight),
+      railInside:cr ? railLeft >= cr.left + 1 : true, name:po.getAttribute("aria-label"), rect:[a.left, a.top, a.width, a.height].map(r3) };
+    if (m) { const r = m.getBoundingClientRect(); Object.assign(row, { dx:r3((r.left + r.width / 2) - (a.left + a.width / 2)), dy:r3(r.top - a.bottom), mw:r.width, aw:a.width,
+      mark:[r.left, r.top, r.width, r.height].map(r3), markName:m.getAttribute("aria-label"), role:m.getAttribute("role"), filled:m.classList.contains("blk") }); }
+    rows.push(row);
+  }
+  const marked = rows.filter((x) => "dx" in x);
+  const blkOk = rows.every((x) => (x.deco === "blocking") === (x.railW === 4) && (!x.label || (x.deco === "blocking") === x.filled));
+  const nameOk = marked.every((x) => x.role === "img" && x.markName === `${x.label}${x.deco ? ` (${x.deco})` : ""}` && x.name.endsWith(x.markName));
+  // Contrast of the blocking glyph on its tint, in all four theme variants.
+  let minGlyph = 99;
+  for (const l of LABELS) for (const t of TINTS[l]) minGlyph = Math.min(minGlyph, ratio(t, onTint(t)));
+  const out = { posts:rows.length, marks:marked.length, blocking:rows.filter((x) => x.deco === "blocking").length,
+    dx:[...new Set(marked.map((x) => x.dx))], dy:[...new Set(marked.map((x) => x.dy))], markW:[...new Set(marked.map((x) => x.mw))], avatarW:[...new Set(marked.map((x) => x.aw))],
+    railToAvatar:[...new Set(rows.map((x) => x.railToAvatar))], railW:[...new Set(rows.map((x) => x.railW))], railInsideCard:rows.every((x) => x.railInside),
+    blockingTreatmentMatches:blkOk, accessibleNamesMatch:nameOk, minBlockingGlyphContrast:r3(minGlyph), headerMarks:document.querySelectorAll(".card-h .lm").length };
+  Object.assign(out, glyphChecks());
+  out.boxes = marked.slice(0, 4).map((x) => ({ avatar:x.rect, mark:x.mark, deco:x.deco }));
+  const pre = document.createElement("pre");
+  pre.id = "check";
+  pre.textContent = JSON.stringify(out);
+  document.body.append(pre);
+}
+
+// ---- the frames ---------------------------------------------------------------------------
+const FRAMES = {
+  "ic-sheet": { size:[1440, 820], fn:() => sheet() },
+  "ic-changes": { size:[1440, 520], fn:() => changes(q.get("only")) },
+  "ic-surfaces": { size:[1100, 480], fn:() => surfaces() },
+  "th-wide": { size:[1440, 820], fn:() => threads({}) },
+  "th-wide-more": { size:[1440, 820], fn:() => threads({ more:true }) },
+  "th-narrow": { size:[960, 760], fn:() => threads({ narrow:true }) },
+  "th-wide-edit": { size:[1440, 820], fn:() => threads({ edit:"reply" }) },
+  "th-narrow-edit": { size:[960, 760], fn:() => threads({ narrow:true, edit:"root" }) },
+};
+window.BPR1080_FRAMES = Object.fromEntries(Object.entries(FRAMES).map(([k, v]) => [k, v.size]));
+
+const f = q.get("f");
+if (f && FRAMES[f]) {
+  document.body.innerHTML = FRAMES[f].fn();
+  afterRender();
+} else {
+  document.body.classList.add("index");
+  document.body.innerHTML = `<h3 style="margin:0 0 10px">BPR-1080 label icon frames v4: open one at its own size</h3><div class="idx">${Object.entries(FRAMES).map(([k, v]) => `<a href="?f=${k}">${k}</a><span style="color:var(--ink-3)">${v.size.join("×")}</span>`).join("")}</div>`;
+}
+})();
+</script>
+</body>
+</html>
