@@ -1306,6 +1306,8 @@ namespace bpr::qt {
 		RebindWords->setAccessibleName(words);
 		RebindConfirm->setEnabled(rebind.Confirmable && !rebind.Checking);
 		RebindConfirm->setVisible(rebind.Confirmable || rebind.Checking);
+		// The words change while it is shown: it grows to hold them whole.
+		RebindDialog->adjustSize();
 		if (!RebindDialog->isVisible()) {
 			RebindDialog->open();
 		}

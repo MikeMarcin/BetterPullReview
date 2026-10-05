@@ -754,6 +754,8 @@ namespace {
 		aView.present(view);
 		settle();
 		expect(confirm->isVisible() && confirm->isEnabled() && words->text().contains(QStringLiteral("2 the same")) && words->text().contains(QStringLiteral("/work/parser-moved")), "the check shown, with Rebind");
+		expect(words->height() >= words->heightForWidth(words->width()) && words->geometry().bottom() < confirm->geometry().top() + confirm->parentWidget()->geometry().top(),
+			   "every line of the words is shown, above the buttons");
 		capture(*aView.rebind_dialog(), QStringLiteral("cycle-rebind-confirm"));
 		tests::window_system_clicks(*confirm, QRectF{ confirm->rect() }.center(), 1);
 		expect(aGestures.RebindConfirmed == 1 && aGestures.RebindCancelled == 0, "Rebind, clicked, confirms the check shown");
