@@ -6,6 +6,10 @@
 #include "bpr/application/review_cycle_runtime.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/review_cycle_response.hpp"
+#include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/code_sample_painter.hpp"
+#include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/review_cycle_share_marks.hpp"
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -25,6 +29,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStandardItemModel>
+#include <QStyleHints>
 #include <QThread>
 
 #include <algorithm>
@@ -214,6 +219,13 @@ namespace {
 		window.resize(1280, 800);
 		window.show();
 		auto desktop = app::review_cycle_desktop{ window, aProfileRoot, core::bpr_profile_id{ 1 }, lanes, lanes, { }, &lanes };
+		// [[BPR-1285]]. The appearance the application applies, in the platform's
+		// own scheme, so the sheet's marks take the role colours it would.
+		const auto scheme     = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? core::os_color_scheme::dark : core::os_color_scheme::light;
+		auto       appearance = qt::appearance_profile{ qt::default_appearance_settings(), { .Scheme = scheme } };
+		appearance.apply_to(window);
+		desktop.adopt_appearance(appearance);
+		const auto roles = qt::code_role_colors_of(appearance.palette());
 		desktop.set_send_profiles(profiles);
 		const auto handoff = aScratch / "handoff";
 		std::filesystem::create_directories(handoff);
@@ -298,6 +310,19 @@ namespace {
 			   "finished, its structured response added, nothing more");
 		expect(words->height() >= words->heightForWidth(words->width()), "after the send, the Send box's words are still whole");
 		render(*sheet, QStringLiteral("send-box-finished"));
+		// [[BPR-1285]]. Through the real composition: the shared round's chip and
+		// the onward observations in the appearance's role colours, each with
+		// words; the caption whole behind the info glyph.
+		{
+			const auto role_colour = [&roles](const core::appearance_role aRole) { return roles.at(static_cast<std::size_t>(aRole)); };
+			expect(sheet->round_chip()->text() == QStringLiteral("Shared") && sheet->round_chip()->colour() == role_colour(core::appearance_role::state_accepted), "the shared round's chip in the accepted role");
+			auto onward = sheet->deliveries()->count() > 0;
+			for (auto row = 0; row < sheet->deliveries()->count(); ++row) {
+				onward = onward && sheet->deliveries()->item(row)->data(qt::review_cycle_share_sheet::delivery_colour_role).value<QColor>() == role_colour(core::appearance_role::state_verified);
+			}
+			expect(onward, "accepted by the adapter and acknowledged, each in the verified role, beside its words");
+			expect(sheet->meaning()->consequence() == QStringLiteral("These say only what happened to the bytes. None of them means the round was received, read, acted on or accepted."), "and what none of them means, whole");
+		}
 		const auto received = framed_text(read_file(claude / "send-1.stdin"));
 		expect(received == QString::fromStdString(document), "the harness got the round's readable document");
 		auto* const clipboard = QGuiApplication::clipboard();
@@ -351,6 +376,8 @@ namespace {
 		const auto  codex = sheet->send_profile()->findData(QVariant::fromValue(core::codex_jsonl_profile_id.value()));
 		expect(model != nullptr && codex >= 0 && !model->item(codex)->isEnabled() && sheet->send_profile()->itemText(codex).endsWith(QStringLiteral("not allowed here")),
 			   "Codex listed, not choosable, under a corporate host");
+		expect(!sheet->send_profile()->itemIcon(codex).isNull() && sheet->send_profile()->itemIcon(sheet->send_profile()->currentIndex()).isNull() && !sheet->send_profile()->itemData(codex, Qt::ToolTipRole).toString().isEmpty(),
+			   "marked refused with a glyph, its reason the tooltip; an allowed agent carries none");
 		desktop.host().send({ .Profile = core::codex_jsonl_profile_id });
 		settle(lanes);
 		expect(contains(sheet->status()->text(), QStringLiteral("does not allow Codex (profile_forbidden_on_host)")) && page->projection().Facts.Rounds.size() == 2U,

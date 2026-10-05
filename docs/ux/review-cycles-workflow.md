@@ -88,10 +88,20 @@ the file is shown as stale rather than applied somewhere else.
    to paste into an agent's chat, an issue or a message; this is the usual way.
    **Save as File…** writes it as Markdown, and **Save as Bundle…** writes the
    text, the exact round and its selected source as a `.bpr-review.zip`.
-   **Read the Exact Text** shows exactly what Copy and Save send.
+   **Exact Text** shows exactly what Copy and Save send.
+
+The sheet says most of this with marks rather than sentences. A chip beside
+the title shows the round's state (**Not shared yet**, **Changed since round
+N**, **Shared**), and the info glyph beside it explains it. What each choice
+and route is for is its tooltip, which a screen reader reads too. A route the
+project's policy refuses stays listed, marked **Not allowed**, with the reason
+in its tooltip. Colours come from the appearance's state colours and always
+sit beside words or a glyph.
 
 The first hand-over freezes the round (`F1`, `F2`, …): it never changes after,
-and the sheet then says how it was shared. A recipient needs nothing but the
+and the sheet then says how it was shared. **Shared so far** lists each
+observation in its own words, with a glyph for its kind; its info glyph says
+that none of them means the round was received, read, acted on or accepted. A recipient needs nothing but the
 text; every note, suggested change and code excerpt is in it. Later notes go
 into the next round.
 

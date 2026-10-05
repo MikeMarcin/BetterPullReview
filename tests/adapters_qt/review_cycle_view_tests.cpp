@@ -5,7 +5,9 @@
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/bundled_code_font.hpp"
+#include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/review_cycle_share_marks.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 
 #include <QAccessible>
@@ -32,6 +34,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
@@ -1315,6 +1318,35 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1285]]. The words a sighted reader meets on the sheet
+	/// without hovering or opening anything: every visible label, button and
+	/// list line in the sheet's own window, a combo box's current text, and an
+	/// empty field's placeholder. Tooltips and accessible text are not counted.
+	auto visible_sheet_words(QWidget& aSheet) -> int
+	{
+		auto       words = 0;
+		const auto count = [&words](const QString& aText) { words += static_cast<int>(aText.split(QRegularExpression{ QStringLiteral("\\s+") }, Qt::SkipEmptyParts).size()); };
+		for (auto* const widget : aSheet.findChildren<QWidget*>()) {
+			if (widget->window() != &aSheet || !widget->isVisible()) {
+				continue;
+			}
+			if (const auto* label = qobject_cast<QLabel*>(widget)) {
+				count(label->text());
+			} else if (const auto* button = qobject_cast<QAbstractButton*>(widget)) {
+				count(button->text());
+			} else if (const auto* list = qobject_cast<QListWidget*>(widget)) {
+				for (auto row = 0; row < list->count(); ++row) {
+					count(list->item(row)->text());
+				}
+			} else if (const auto* combo = qobject_cast<QComboBox*>(widget)) {
+				count(combo->currentText());
+			} else if (const auto* field = qobject_cast<QLineEdit*>(widget); field != nullptr && field->text().isEmpty()) {
+				count(field->placeholderText());
+			}
+		}
+		return words;
+	}
+
 	/// The middle of excerpt row `aRow` in a code view's viewport, `aX` from its left.
 	auto row_point(qt::note_code_view& aCode, const int aRow, const qreal aX) -> QPoint
 	{
@@ -1357,6 +1389,156 @@ namespace {
 		return kinds;
 	}
 
+	/// \brief [[BPR-1285]]. Whether `aText` can be reached on the sheet: in the
+	/// text, tooltip, accessible name or description of a control it shows, an
+	/// info glyph's sentence, a field's placeholder, or a list line.
+	auto reachable(QWidget& aSheet, const QString& aText) -> bool
+	{
+		auto widgets = aSheet.findChildren<QWidget*>();
+		widgets.prepend(&aSheet);
+		for (auto* const widget : widgets) {
+			if (widget->window() != &aSheet || !widget->isVisible()) {
+				continue;
+			}
+			auto carried = QStringList{ widget->toolTip(), widget->accessibleName(), widget->accessibleDescription() };
+			if (const auto* label = qobject_cast<QLabel*>(widget)) {
+				carried.append(label->text());
+			}
+			if (const auto* button = qobject_cast<QAbstractButton*>(widget)) {
+				carried.append(button->text());
+			}
+			if (const auto* glyph = dynamic_cast<qt::info_glyph*>(widget)) {
+				carried.append(glyph->consequence());
+			}
+			if (const auto* field = qobject_cast<QLineEdit*>(widget)) {
+				carried.append({ field->placeholderText(), field->text() });
+			}
+			if (const auto* list = qobject_cast<QListWidget*>(widget)) {
+				for (auto row = 0; row < list->count(); ++row) {
+					carried.append({ list->item(row)->text(), list->item(row)->toolTip() });
+				}
+			}
+			if (std::ranges::any_of(carried, [&aText](const QString& aCarried) { return aCarried.contains(aText); })) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// \brief [[BPR-1285]]. The shown buttons that carry a glyph but no tooltip
+	/// or no name a screen reader can say.
+	auto unnamed_glyphs(QWidget& aSheet) -> QStringList
+	{
+		auto offenders = QStringList{ };
+		for (auto* const button : aSheet.findChildren<QAbstractButton*>()) {
+			if (button->window() != &aSheet || !button->isVisible() || button->icon().isNull()) {
+				continue;
+			}
+			if (button->toolTip().isEmpty() || (button->accessibleName().isEmpty() && button->text().isEmpty())) {
+				offenders.append(button->objectName());
+			}
+		}
+		return offenders;
+	}
+
+	/// \brief Pixels of `aImage` inside `aBox` within the test's tolerance of `aColour`.
+	auto pixels_near(const QImage& aImage, const QRect& aBox, const QColor& aColour) -> int
+	{
+		auto count = 0;
+		for (auto y = std::max(0, aBox.top()); y <= std::min(aImage.height() - 1, aBox.bottom()); ++y) {
+			for (auto x = std::max(0, aBox.left()); x <= std::min(aImage.width() - 1, aBox.right()); ++x) {
+				count += colour_near(aImage.pixelColor(x, y), aColour) ? 1 : 0;
+			}
+		}
+		return count;
+	}
+
+	/// \brief [[BPR-1285]]. The shared sheet says its states with marks: each
+	/// delivery line's glyph in its state's role colour, the round's chip in
+	/// its own, every glyph-bearing button named and explained, every former
+	/// message still reachable, and fewer words on view. Rendered, with
+	/// negative controls.
+	void shares_with_marks(qt::review_cycle_share_sheet& aSheet)
+	{
+		using role           = core::appearance_role;
+		const auto  colours  = qt::code_role_colors_of(qt::appearance_profile{ }.palette());
+		const auto  colour   = [&colours](const role aRole) { return colours.at(static_cast<std::size_t>(aRole)); };
+		auto* const list     = aSheet.deliveries();
+		const auto  expected = std::vector<std::pair<qt::share_glyph, role>>{
+			{ qt::share_glyph::copied, role::state_accepted },
+			{ qt::share_glyph::save, role::state_accepted },
+			{ qt::share_glyph::bundle, role::state_accepted },
+			{ qt::share_glyph::read, role::state_verified },
+			{ qt::share_glyph::handoff, role::state_verified },
+			{ qt::share_glyph::acknowledged, role::state_verified },
+			{ qt::share_glyph::uncertain, role::syntax_warning },
+			{ qt::share_glyph::failed, role::state_defect },
+		};
+		expect(list->count() == static_cast<int>(expected.size()), "one line per observation");
+		for (auto row = 0; row < list->count() && row < static_cast<int>(expected.size()); ++row) {
+			const auto* item = list->item(row);
+			const auto  want = expected[static_cast<std::size_t>(row)];
+			expect(item->data(qt::review_cycle_share_sheet::delivery_glyph_role).toInt() == static_cast<int>(want.first) && item->data(qt::review_cycle_share_sheet::delivery_colour_role).value<QColor>() == colour(want.second),
+				   "each observation's glyph and its state's role colour: " + item->text().toStdString());
+			expect(item->toolTip() == item->text(), "and its accepted words on demand, whole");
+		}
+		// Rendered: the copied line's glyph is in the accepted role's colour and
+		// has none of the defect's; the failed line the other way round.
+		const auto line_pixels = [list](const int aRow, const QColor& aColour) {
+			list->scrollToItem(list->item(aRow));
+			settle();
+			const auto pixmap = list->viewport()->grab();
+			const auto scale  = pixmap.devicePixelRatio();
+			const auto box    = list->visualItemRect(list->item(aRow));
+			return pixels_near(pixmap.toImage(), QRect{ QPoint{ static_cast<int>(box.left() * scale), static_cast<int>(box.top() * scale) }, QSize{ static_cast<int>(box.width() * scale), static_cast<int>(box.height() * scale) } }, aColour);
+		};
+		expect(!colour_near(colour(role::state_accepted), colour(role::state_defect)), "the two role colours can be told apart");
+		expect(line_pixels(0, colour(role::state_accepted)) > 0 && line_pixels(0, colour(role::state_defect)) == 0, "the copied line's glyph is painted in the accepted role's colour, none in the defect's");
+		expect(line_pixels(7, colour(role::state_defect)) > 0 && line_pixels(7, colour(role::state_accepted)) == 0, "the failed line's in the defect's, none in the accepted's");
+		list->scrollToItem(list->item(0));
+		// The round's chip: shared, in the accepted role's colour, with words.
+		auto* const chip = aSheet.round_chip();
+		{
+			const auto pixmap = chip->grab();
+			const auto image  = pixmap.toImage();
+			expect(chip->text() == QStringLiteral("Shared") && chip->colour() == colour(role::state_accepted), "the shared round's chip in the accepted role, with its word");
+			expect(pixels_near(image, image.rect(), colour(role::state_accepted)) > 0 && pixels_near(image, image.rect(), colour(role::state_defect)) == 0, "rendered: its glyph in that colour, none in another role's");
+		}
+		// Every glyph-bearing button is named and explained; taking a tooltip away is caught.
+		expect(unnamed_glyphs(aSheet).isEmpty(), "every glyph on the sheet has a tooltip and a name: " + unnamed_glyphs(aSheet).join(QLatin1Char(' ')).toStdString());
+		auto* const bundle = aSheet.route_button(core::cycle_share_route::save_bundle);
+		const auto  kept   = bundle->toolTip();
+		bundle->setToolTip(QString{ });
+		expect(unnamed_glyphs(aSheet).contains(bundle->objectName()), "negative control: a glyph without its tooltip is found");
+		bundle->setToolTip(kept);
+		// Nothing the sheet used to say is lost: each message is reachable.
+		const auto former = QStringList{
+			QStringLiteral("Round 1 is fixed as you shared it: copying or saving it again sends the same text, and changing it now makes round 2. When the changes come back, choose Capture revision to see them beside what you asked."),
+			QStringLiteral("Answer the notes; change nothing."),
+			QStringLiteral("Reply with a plan before changing anything."),
+			QStringLiteral("Make the changes the notes describe."),
+			QStringLiteral("Paste it into your agent's chat, an issue or a message. This is the usual way."),
+			QStringLiteral("Keep a Markdown file to attach, check in or hand over."),
+			QStringLiteral("Save the text, the exact round and its selected source as one bundle, for a tool that reads bundles."),
+			QStringLiteral("Read exactly the text Copy and Save send, with its size and digest"),
+			QStringLiteral("Read the Exact Text"),
+			QStringLiteral("These say only what happened to the bytes. None of them means the round was received, read, acted on or accepted."),
+			QStringLiteral("In the order they will be read"),
+			QStringLiteral("Note for the whole round (optional)"),
+			QStringLiteral("What the whole round is for, in a sentence"),
+			QStringLiteral("Copied F1 to the clipboard (1,414 bytes)."),
+			QStringLiteral("F1 · Saved as RC-1-F1.md · 1,414 bytes · 2 times"),
+			QStringLiteral("F2 · Copy failed: there was no clipboard"),
+		};
+		for (const auto& message : former) {
+			expect(reachable(aSheet, message), "still reachable: " + message.toStdString());
+		}
+		expect(!reachable(aSheet, QStringLiteral("Hand this round to a colleague by fax.")), "negative control: a sentence the sheet never said is not found");
+		// Fewer words on view: 266 on these fixtures at ed4c4cbd5, before [[BPR-1285]].
+		const auto words = visible_sheet_words(aSheet);
+		expect(words < 266, "fewer words on view after sharing than the 266 before: " + std::to_string(words));
+	}
+
 	/// \brief RC61-05 and RC61-06 as direction A presents them (owner choice,
 	/// 2026-10-02): Share notes opens a window-modal sheet over the code; one
 	/// default button, Copy round N; Save beside it; each note short by
@@ -1384,21 +1566,37 @@ namespace {
 		expect(sheet->isVisible() && sheet->isWindow() && sheet->windowModality() == Qt::WindowModal && aView.source()->isVisible(), "a window-modal sheet; the code stays behind it");
 		expect(sheet->geometry().top() >= bar->mapToGlobal(QPoint{ 0, bar->height() }).y() - 1 && sheet->width() < aView.width(), "hung from the review bar, narrower than the window");
 		expect(sheet->title()->text() == QStringLiteral("Share round 1"), "what it is");
-		expect(sheet->intro()->text().startsWith(QStringLiteral("Your two notes go out together as one message to whoever is changing the code")) && sheet->intro()->text().contains(QStringLiteral("Nothing leaves this window until you copy or save it.")),
+		expect(sheet->intro()->consequence().startsWith(QStringLiteral("Your two notes go out together as one message to whoever is changing the code")) && sheet->intro()->consequence().contains(QStringLiteral("Nothing leaves this window until you copy or save it.")),
 			   "why one would, and that nothing has left");
+		// [[BPR-1285]]. Said on demand now: the info glyph beside the title.
+		expect(sheet->intro()->isVisible() && sheet->intro()->toolTip() == sheet->intro()->consequence() && sheet->intro()->accessibleDescription() == sheet->intro()->consequence() && sheet->intro()->accessibleName() == QStringLiteral("About this round"),
+			   "the introduction behind an info glyph, by pointer, keyboard and screen reader");
+		expect(sheet->round_chip()->isVisible() && sheet->round_chip()->text() == QStringLiteral("Not shared yet") && sheet->round_chip()->glyph() == qt::share_glyph::pending, "the round's state beside the title: not shared yet");
 		auto* const copy   = sheet->route_button(core::cycle_share_route::copy_document);
 		auto* const save   = sheet->route_button(core::cycle_share_route::save_document);
 		auto* const bundle = sheet->route_button(core::cycle_share_route::save_bundle);
 		expect(copy->text() == QStringLiteral("Copy round 1") && copy->isDefault() && copy->isEnabled() && save->text() == QStringLiteral("Save as File…") && !save->isDefault() && save->isEnabled(),
 			   "one default button, Copy round 1; Save beside it");
-		expect(sheet->route_words(core::cycle_share_route::copy_document)->isVisible() && sheet->route_words(core::cycle_share_route::copy_document)->text().contains(QStringLiteral("This is the usual way"))
-				   && sheet->route_words(core::cycle_share_route::save_document)->isVisible() && sheet->route_words(core::cycle_share_route::save_document)->text().startsWith(QStringLiteral("Keep a Markdown file")),
-			   "each says when to use it");
-		expect(copy->mapTo(sheet, QPoint{ }).y() < save->mapTo(sheet, QPoint{ }).y() && bundle->isVisible() && bundle->isFlat() && sheet->exact_text_button()->isVisible(), "Copy above Save; the bundle and the exact text in the foot");
+		// [[BPR-1285]]. When to use each is its tooltip and accessible description, not a line beside it.
+		expect(!sheet->route_words(core::cycle_share_route::copy_document)->isVisible() && copy->toolTip().contains(QStringLiteral("This is the usual way")) && copy->accessibleDescription() == copy->toolTip()
+				   && !sheet->route_words(core::cycle_share_route::save_document)->isVisible() && save->toolTip().startsWith(QStringLiteral("Keep a Markdown file")) && save->accessibleDescription() == save->toolTip(),
+			   "each says when to use it, on demand");
+		expect(!copy->icon().isNull() && !save->icon().isNull() && !bundle->icon().isNull() && !sheet->exact_text_button()->icon().isNull(), "each route carries its glyph");
+		expect(std::abs(copy->mapTo(sheet, QPoint{ }).y() - save->mapTo(sheet, QPoint{ }).y()) <= 2 && save->mapTo(sheet, QPoint{ }).x() > copy->mapTo(sheet, QPoint{ }).x() + copy->width() - 1 && bundle->isVisible() && bundle->isFlat()
+				   && sheet->exact_text_button()->isVisible() && bundle->mapTo(sheet, QPoint{ }).y() > copy->mapTo(sheet, QPoint{ }).y(),
+			   "Save beside Copy; the bundle and the exact text in the foot below");
 		expect(!sheet->route_button(core::cycle_share_route::external_agent)->isVisible() && !sheet->route_button(core::cycle_share_route::send_to_agent)->isVisible(), "no agent route, and no disabled one, without the capability");
 		expect(QApplication::focusWidget() == copy, "focus waits on Copy");
 		expect(sheet->action_button(core::cycle_round_action::implement)->isChecked() && sheet->action_words()->text() == QStringLiteral("Make the changes the notes describe."), "what the round asks, in words");
+		{
+			auto* const implement = sheet->action_button(core::cycle_round_action::implement);
+			const auto  words     = sheet->action_words()->mapTo(sheet, QPoint{ 0, sheet->action_words()->height() / 2 });
+			const auto  button    = implement->mapTo(sheet, QPoint{ implement->width(), implement->height() / 2 });
+			expect(std::abs(words.y() - button.y()) <= 2 && words.x() > button.x() && implement->toolTip() == QStringLiteral("Make the changes the notes describe."), "on the buttons' own line, and each button's tooltip");
+		}
 		expect(!sheet->deliveries()->isVisible() && !sheet->meaning()->isVisible(), "no shared-so-far list before anything was shared");
+		expect(sheet->goal()->placeholderText() == QStringLiteral("Note for the whole round (optional)") && sheet->goal()->toolTip() == QStringLiteral("What the whole round is for, in a sentence") && sheet->goal()->accessibleName() == QStringLiteral("Note for the whole round"),
+			   "the round note names itself, and says what it is for on demand");
 
 		// Short by default: two lines a note, in the order they will be read.
 		const auto& rows = sheet->rows();
@@ -1476,12 +1674,16 @@ namespace {
 			QApplication::setFont(kept, "QToolButton");
 			settle();
 		}
-		expect(sheet->notes_heading()->text() == QStringLiteral("2 of 2 notes, in the order they will be read"), "how many go");
+		expect(sheet->notes_heading()->text() == QStringLiteral("2 of 2 notes") && sheet->notes_heading()->toolTip() == QStringLiteral("In the order they will be read") && sheet->notes_area()->accessibleDescription() == QStringLiteral("In the order they will be read"),
+			   "how many go; their order, on demand");
 		for (auto* const control : sheet->findChildren<QWidget*>()) {
 			if (control->window() == sheet && control->isVisible() && control->focusPolicy() & Qt::TabFocus && control->objectName() != QStringLiteral("cycleKeyboardFocus")) {
 				expect(control->findChild<QWidget*>(QStringLiteral("cycleKeyboardFocus"), Qt::FindDirectChildrenOnly) != nullptr, "every Tab stop on the sheet shows the focus ring");
 			}
 		}
+		std::cerr << "share-sheet-words: before-share=" << visible_sheet_words(*sheet) << '\n';
+		// 138 on these fixtures at ed4c4cbd5, before [[BPR-1285]].
+		expect(visible_sheet_words(*sheet) < 138, "fewer words on view before sharing than the 138 before");
 		capture_with_sheet(aView, QStringLiteral("cycle-share-sheet"));
 
 		// The code is blocked while the sheet is open: a click on Comment does nothing.
@@ -1646,8 +1848,9 @@ namespace {
 		shown.Share = frozen;
 		aView.present(shown);
 		settle();
-		expect(sheet->title()->text() == QStringLiteral("Round 1 is fixed as you shared it") && sheet->intro()->text().contains(QStringLiteral("changing it now makes round 2")) && sheet->intro()->text().contains(QStringLiteral("Capture revision")),
+		expect(sheet->title()->text() == QStringLiteral("Round 1 is fixed as you shared it") && sheet->intro()->consequence().contains(QStringLiteral("changing it now makes round 2")) && sheet->intro()->consequence().contains(QStringLiteral("Capture revision")),
 			   "fixed as shared, what changing it does and what comes next");
+		expect(sheet->round_chip()->text() == QStringLiteral("Shared") && sheet->round_chip()->glyph() == qt::share_glyph::fixed, "and the chip says shared");
 		expect(sheet->cancel_button()->text() == QStringLiteral("Done") && sheet->cancel_button()->isDefault() && !copy->isDefault() && copy->isEnabled(), "Done is the default; copying again stays one click");
 		expect(sheet->status()->text() == QStringLiteral("Copied F1 to the clipboard (1,414 bytes)."), "what the last share did");
 		const auto delivered = lines_of(*sheet->deliveries());
@@ -1662,7 +1865,12 @@ namespace {
 				   QStringLiteral("F2 · Copy failed: there was no clipboard"),
 			   },
 			   "copied, saved, retrieved, accepted and acknowledged each said apart, in the accepted words");
-		expect(sheet->meaning()->isVisible() && sheet->meaning()->text() == QStringLiteral("These say only what happened to the bytes. None of them means the round was received, read, acted on or accepted."), "and what none of them means");
+		std::cerr << "share-sheet-words: after-share=" << visible_sheet_words(*sheet) << '\n';
+		expect(sheet->meaning()->isVisible() && sheet->meaning()->consequence() == QStringLiteral("These say only what happened to the bytes. None of them means the round was received, read, acted on or accepted.") && sheet->meaning()->toolTip() == sheet->meaning()->consequence()
+				   && sheet->meaning()->accessibleDescription() == sheet->meaning()->consequence() && sheet->deliveries()->accessibleDescription() == sheet->meaning()->consequence(),
+			   "and what none of them means, verbatim, behind the info glyph beside Shared so far and with the list");
+		shares_with_marks(*sheet);
+		capture_with_sheet(aView, QStringLiteral("cycle-share-sheet-deliveries"));
 		for (const auto& line : delivered) {
 			for (const auto* word : { "complete", "verified", "addressed", "done", "delivered" }) {
 				expect(!line.contains(QString::fromLatin1(word), Qt::CaseInsensitive), "no observation reads as completion or acceptance of the review");
@@ -1681,8 +1889,9 @@ namespace {
 		shown.Share    = amended;
 		aView.present(shown);
 		settle();
-		expect(sheet->title()->text() == QStringLiteral("Share round 2") && sheet->intro()->text().startsWith(QStringLiteral("You changed this round after sharing it as round 1, which stays as it was.")) && copy->text() == QStringLiteral("Copy round 2"),
+		expect(sheet->title()->text() == QStringLiteral("Share round 2") && sheet->intro()->consequence().startsWith(QStringLiteral("You changed this round after sharing it as round 1, which stays as it was.")) && copy->text() == QStringLiteral("Copy round 2"),
 			   "an edit after sharing is the next round");
+		expect(sheet->round_chip()->text() == QStringLiteral("Changed since round 1") && sheet->round_chip()->glyph() == qt::share_glyph::changed, "and the chip says it changed since round 1");
 
 		// A refused channel stays listed, refused, and says so; Save is decided on its own.
 		auto refused               = share_view();
@@ -1691,8 +1900,14 @@ namespace {
 		shown.Share                = refused;
 		aView.present(shown);
 		settle();
-		expect(copy->isVisible() && !copy->isEnabled() && sheet->route_words(core::cycle_share_route::copy_document)->text().contains(QStringLiteral("no other way is used instead")) && save->isEnabled() && save->isDefault(),
-			   "Copy shown refused, in words, never hidden; Save still its own choice, and the default");
+		expect(copy->isVisible() && !copy->isEnabled() && sheet->route_words(core::cycle_share_route::copy_document)->isVisible() && sheet->route_words(core::cycle_share_route::copy_document)->text() == QStringLiteral("Not allowed")
+				   && sheet->route_words(core::cycle_share_route::copy_document)->toolTip().contains(QStringLiteral("no other way is used instead")) && copy->toolTip().contains(QStringLiteral("no other way is used instead")) && save->isEnabled() && save->isDefault()
+				   && !sheet->route_words(core::cycle_share_route::save_document)->isVisible(),
+			   "Copy shown refused, marked Not allowed with the reason on demand, never hidden; Save still its own choice, and the default");
+		{
+			auto* const chip = sheet->route_words(core::cycle_share_route::copy_document);
+			expect(chip->glyph() == qt::share_glyph::refused && chip->colour() == colours.at(static_cast<std::size_t>(core::appearance_role::state_defect)), "in the defect role's colour, with the refused glyph");
+		}
 		expect(sheet->status()->text().contains(QStringLiteral("no other way was used instead")), "and said");
 		capture_with_sheet(aView, QStringLiteral("cycle-share-sheet-refused"));
 
@@ -2052,7 +2267,7 @@ namespace {
 		sheet.present(share, notes, true);
 		sheet.show();
 		expect(sheet.listing() && sheet.rows().size() == qt::review_cycle_share_sheet::rows_per_pass, "the sheet opens with its first pass of rows");
-		expect(sheet.notes_heading()->text() == QStringLiteral("514 of 514 notes, in the order they will be read"), "and counts every note from the start");
+		expect(sheet.notes_heading()->text() == QStringLiteral("514 of 514 notes"), "and counts every note from the start");
 		for (auto turn = 0; sheet.listing() && turn < 64; ++turn) {
 			QApplication::processEvents();
 		}

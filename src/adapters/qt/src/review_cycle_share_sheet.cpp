@@ -2,7 +2,9 @@
 
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/suggestion_text_editing.hpp"
+#include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/review_cycle_share_marks.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 
 #include <QApplication>
@@ -32,6 +34,8 @@
 #include <QScrollBar>
 #include <QShortcut>
 #include <QStackedWidget>
+#include <QStyle>
+#include <QStyledItemDelegate>
 #include <QTextBlock>
 #include <QTimer>
 #include <QToolButton>
@@ -282,12 +286,19 @@ namespace bpr::qt {
 			return words.join(QLatin1Char(' '));
 		}
 
+		/// One observation's parts: its round, what was seen, and its size.
+		struct delivery_parts
+		{
+			QString Round;
+			QString What;
+			QString Size;
+		};
+
 		/// One observation in its own words: what was seen, never more (accepted as
 		/// BPR-1161-delivery-words-v001, 2026-10-02; kept verbatim).
-		auto delivery_text(const core::cycle_delivery_record& aRecord) -> QString
+		auto delivery_words(const core::cycle_delivery_record& aRecord) -> delivery_parts
 		{
 			const auto& seen   = aRecord.Observation;
-			const auto  size   = seen.Output ? QStringLiteral(" · %1").arg(bytes_text(seen.Output->Bytes)) : QString{ };
 			const auto  bundle = seen.Output && seen.Output->Format == core::cycle_round_file_kind::bundle;
 			auto        what   = QString{ };
 			switch (seen.State) {
@@ -299,8 +310,103 @@ namespace bpr::qt {
 			case core::cycle_delivery_state::failed:                 what = seen.Channel == core::cycle_disclosure_channel::clipboard ? QStringLiteral("Copy failed: there was no clipboard") : QStringLiteral("Delivery failed"); break;
 			case core::cycle_delivery_state::uncertain:              what = seen.Channel == core::cycle_disclosure_channel::clipboard ? QStringLiteral("Copy not confirmed by the clipboard") : QStringLiteral("Delivery not confirmed"); break;
 			}
-			return QStringLiteral("%1 · %2%3").arg(round_text(seen.Round.Id), what, size);
+			return { .Round = round_text(seen.Round.Id), .What = what, .Size = seen.Output ? bytes_text(seen.Output->Bytes) : QString{ } };
 		}
+
+		auto delivery_text(const core::cycle_delivery_record& aRecord) -> QString
+		{
+			const auto parts = delivery_words(aRecord);
+			return QStringLiteral("%1 · %2%3").arg(parts.Round, parts.What, parts.Size.isEmpty() ? QString{ } : QStringLiteral(" · %1").arg(parts.Size));
+		}
+
+		/// [[BPR-1285]]. An observation's glyph and the tone that colours it:
+		/// bytes that left here, bytes that went on, not confirmed, failed.
+		auto delivery_mark(const core::cycle_delivery_record& aRecord) -> std::pair<share_glyph, share_tone>
+		{
+			const auto& seen = aRecord.Observation;
+			switch (seen.State) {
+			case core::cycle_delivery_state::copied: return { share_glyph::copied, share_tone::local };
+			case core::cycle_delivery_state::saved:
+				return { seen.Output && seen.Output->Format == core::cycle_round_file_kind::bundle ? share_glyph::bundle : share_glyph::save, share_tone::local };
+			case core::cycle_delivery_state::retrieved:
+				return { seen.Channel == core::cycle_disclosure_channel::terminal_output ? share_glyph::terminal : share_glyph::read, share_tone::onward };
+			case core::cycle_delivery_state::accepted_by_adapter:    return { share_glyph::handoff, share_tone::onward };
+			case core::cycle_delivery_state::recipient_acknowledged: return { share_glyph::acknowledged, share_tone::onward };
+			case core::cycle_delivery_state::failed:                 return { share_glyph::failed, share_tone::refused };
+			case core::cycle_delivery_state::uncertain:              return { share_glyph::uncertain, share_tone::warning };
+			}
+			return { share_glyph::uncertain, share_tone::warning };
+		}
+
+		/// The parts a delivery line paints; its text stays the whole sentence.
+		constexpr int delivery_round_role = Qt::UserRole + 3;
+		constexpr int delivery_what_role  = Qt::UserRole + 4;
+		constexpr int delivery_size_role  = Qt::UserRole + 5;
+		constexpr int delivery_times_role = Qt::UserRole + 6;
+		/// The tone, so new role colours can paint the line again.
+		constexpr int delivery_tone_role = Qt::UserRole + 7;
+
+		/// \brief [[BPR-1285]]. A delivery line as marks: the round in an
+		/// outline, the state's glyph in its role colour, the words, then the
+		/// size and any repeat count quietly. The item's text, its accessible
+		/// name and its tooltip stay the whole sentence in the accepted words.
+		class delivery_delegate final : public QStyledItemDelegate
+		{
+		public:
+			using QStyledItemDelegate::QStyledItemDelegate;
+
+			void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+			{
+				auto option = aOption;
+				initStyleOption(&option, aIndex);
+				const auto* const widget = option.widget;
+				auto* const       style  = widget != nullptr ? widget->style() : QApplication::style();
+				style->drawPrimitive(QStyle::PE_PanelItemViewItem, &option, aPainter, widget);
+				aPainter->save();
+				aPainter->setRenderHint(QPainter::Antialiasing, true);
+				aPainter->setFont(option.font);
+				const auto metrics = QFontMetrics{ option.font };
+				const auto box     = option.rect.adjusted(6, 0, -6, 0);
+				const auto middle  = box.center().y();
+				const auto quiet   = option.palette.color(QPalette::PlaceholderText);
+				const auto ink     = option.palette.color(QPalette::Text);
+				auto       x       = box.left();
+				// The round, in a quiet outline.
+				const auto round = aIndex.data(delivery_round_role).toString();
+				const auto pill  = QRectF{ static_cast<qreal>(x), middle - (metrics.height() + 2) / 2.0, static_cast<qreal>(metrics.horizontalAdvance(round) + 12), static_cast<qreal>(metrics.height() + 2) };
+				aPainter->setPen(QPen{ quiet, 1.0 });
+				aPainter->setBrush(Qt::NoBrush);
+				aPainter->drawRoundedRect(pill.adjusted(0.5, 0.5, -0.5, -0.5), pill.height() / 2.0, pill.height() / 2.0);
+				aPainter->drawText(pill, Qt::AlignCenter, round);
+				x = static_cast<int>(pill.right()) + 8;
+				// The state's glyph, in its role colour.
+				const auto glyph = metrics.height();
+				const auto mark  = static_cast<share_glyph>(aIndex.data(review_cycle_share_sheet::delivery_glyph_role).toInt());
+				const auto tone  = aIndex.data(review_cycle_share_sheet::delivery_colour_role).value<QColor>();
+				aPainter->drawPixmap(QPointF{ static_cast<qreal>(x), middle - glyph / 2.0 }, share_glyph_pixmap(mark, tone, glyph, aPainter->device()->devicePixelRatioF()));
+				x += glyph + 6;
+				// The words, then the size and the repeat count, quiet.
+				auto tail = aIndex.data(delivery_size_role).toString();
+				if (const auto times = aIndex.data(delivery_times_role).toInt(); times > 1) {
+					tail += (tail.isEmpty() ? QString{ } : QStringLiteral("   ")) + QStringLiteral("×%1").arg(times);
+				}
+				const auto tailWidth = tail.isEmpty() ? 0 : metrics.horizontalAdvance(tail) + 12;
+				const auto words     = metrics.elidedText(aIndex.data(delivery_what_role).toString(), Qt::ElideMiddle, std::max(0, box.right() - x - tailWidth));
+				aPainter->setPen(ink);
+				aPainter->drawText(QRect{ x, box.top(), box.right() - x, box.height() }, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, words);
+				if (!tail.isEmpty()) {
+					aPainter->setPen(quiet);
+					aPainter->drawText(QRect{ x + metrics.horizontalAdvance(words) + 12, box.top(), tailWidth, box.height() }, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, tail);
+				}
+				aPainter->restore();
+			}
+
+			[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ aOption.font };
+				return QSize{ QStyledItemDelegate::sizeHint(aOption, aIndex).width(), metrics.height() + 10 };
+			}
+		};
 
 		auto refusal_text(const core::cycle_round_refusal& aRefusal) -> QString
 		{
@@ -934,12 +1040,21 @@ namespace bpr::qt {
 		font.setBold(true);
 		font.setPointSizeF(font.pointSizeF() * 1.25);
 		Title->setFont(font);
-		column->addWidget(Title);
-		Intro = new QLabel{ this };
+		// [[BPR-1285]]. The title, and at its trailing end the round's state as
+		// a chip and what a round is behind an info glyph: the paragraph that
+		// stood under the title. The title takes the width and wraps in it.
+		auto* const heading = new QHBoxLayout{ };
+		heading->setSpacing(8);
+		heading->addWidget(Title, 1, Qt::AlignVCenter);
+		RoundChip = new share_chip{ this };
+		RoundChip->setObjectName(QStringLiteral("cycleShareRoundState"));
+		heading->addWidget(RoundChip, 0, Qt::AlignVCenter);
+		Intro = new info_glyph{ QString{ }, this };
 		Intro->setObjectName(QStringLiteral("cycleShareIntro"));
-		Intro->setTextFormat(Qt::PlainText);
-		Intro->setWordWrap(true);
-		column->addWidget(Intro);
+		Intro->setAccessibleName(QStringLiteral("About this round"));
+		heading->addWidget(Intro, 0, Qt::AlignVCenter);
+		column->addLayout(heading);
+		column->addSpacing(4);
 
 		// What to ask for, and what it means.
 		auto* const ask      = new QHBoxLayout{ };
@@ -953,31 +1068,34 @@ namespace bpr::qt {
 			button->setObjectName(QStringLiteral("cycleShareAction_%1").arg(action_label(action)));
 			button->setCheckable(true);
 			button->setAutoDefault(false);
+			button->setToolTip(action_meaning(action));
 			button->setAccessibleDescription(action_meaning(action));
 			ActionGroup->addButton(button, static_cast<int>(action));
 			ask->addWidget(button);
 			Actions.at(index) = button;
 		}
-		ask->addStretch(1);
-		column->addLayout(ask);
+		// What the chosen one asks for, quietly on the same line ([[BPR-1285]]).
 		ActionWords = new QLabel{ this };
 		ActionWords->setObjectName(QStringLiteral("cycleShareActionWords"));
 		ActionWords->setTextFormat(Qt::PlainText);
-		ActionWords->setWordWrap(true);
-		column->addWidget(ActionWords);
+		ActionWords->setForegroundRole(QPalette::PlaceholderText);
+		ask->addSpacing(6);
+		ask->addWidget(ActionWords, 1);
+		column->addLayout(ask);
 		connect(ActionGroup, &QButtonGroup::idClicked, this, [this](const int aId) {
 			if (!Presenting && Dispatch.Edit) {
 				Dispatch.Edit(core::set_round_action{ static_cast<core::cycle_round_action>(aId) });
 			}
 		});
 
-		auto* const goalLabel = new QLabel{ QStringLiteral("Note for the whole round (optional)"), this };
-		column->addWidget(goalLabel);
+		// [[BPR-1285]]. The field names itself: its label is its placeholder,
+		// and what it is for is its tooltip and accessible description.
 		Goal = new QLineEdit{ this };
 		Goal->setObjectName(QStringLiteral("cycleShareGoal"));
 		Goal->setAccessibleName(QStringLiteral("Note for the whole round"));
-		Goal->setPlaceholderText(QStringLiteral("What the whole round is for, in a sentence"));
-		goalLabel->setBuddy(Goal);
+		Goal->setPlaceholderText(QStringLiteral("Note for the whole round (optional)"));
+		Goal->setToolTip(QStringLiteral("What the whole round is for, in a sentence"));
+		Goal->setAccessibleDescription(Goal->toolTip());
 		Goal->installEventFilter(this);
 		column->addWidget(Goal);
 		connect(Goal, &QLineEdit::editingFinished, this, [this] {
@@ -987,11 +1105,16 @@ namespace bpr::qt {
 		});
 
 		// The notes, in the order they will be read.
+		column->addSpacing(4);
 		auto* const notesHeader = new QHBoxLayout{ };
 		NotesHeading            = new QLabel{ this };
 		NotesHeading->setObjectName(QStringLiteral("cycleShareNotesHeading"));
 		NotesHeading->setTextFormat(Qt::PlainText);
 		NotesHeading->setWordWrap(true);
+		auto sectionFont = NotesHeading->font();
+		sectionFont.setBold(true);
+		NotesHeading->setFont(sectionFont);
+		NotesHeading->setToolTip(QStringLiteral("In the order they will be read"));
 		notesHeader->addWidget(NotesHeading, 1);
 		AllCode = new QToolButton{ this };
 		AllCode->setObjectName(QStringLiteral("cycleShareAllCode"));
@@ -1012,6 +1135,7 @@ namespace bpr::qt {
 		NotesArea = new QScrollArea{ this };
 		NotesArea->setObjectName(QStringLiteral("cycleShareNotes"));
 		NotesArea->setAccessibleName(QStringLiteral("Notes in this round"));
+		NotesArea->setAccessibleDescription(QStringLiteral("In the order they will be read"));
 		NotesArea->setWidgetResizable(true);
 		NotesArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		// Its notes' controls take focus, and it scrolls to each; the area itself is no stop.
@@ -1029,17 +1153,21 @@ namespace bpr::qt {
 		DropMark->setBackgroundRole(QPalette::Highlight);
 		DropMark->hide();
 
-		Status = new QLabel{ this };
+		// [[BPR-1285]]. The last share's words on a panel washed in what they say.
+		StatusPanel = new share_panel{ this };
+		StatusPanel->setObjectName(QStringLiteral("cycleShareStatusPanel"));
+		Status = new QLabel{ StatusPanel };
 		Status->setObjectName(QStringLiteral("cycleShareStatus"));
 		Status->setTextFormat(Qt::PlainText);
 		Status->setWordWrap(true);
 		Status->setAccessibleName(QStringLiteral("Last share"));
-		Status->hide();
-		column->addWidget(Status);
-		ReplaceRow                = new QWidget{ this };
-		auto* const replaceLayout = new QHBoxLayout{ ReplaceRow };
-		replaceLayout->setContentsMargins(0, 0, 0, 0);
-		ReplaceText = new QLabel{ ReplaceRow };
+		static_cast<QHBoxLayout*>(StatusPanel->layout())->addWidget(Status, 1);
+		StatusPanel->hide();
+		column->addWidget(StatusPanel);
+		ReplaceRow = new share_panel{ this };
+		ReplaceRow->setObjectName(QStringLiteral("cycleShareReplacePanel"));
+		auto* const replaceLayout = static_cast<QHBoxLayout*>(ReplaceRow->layout());
+		ReplaceText               = new QLabel{ ReplaceRow };
 		ReplaceText->setObjectName(QStringLiteral("cycleShareReplaceText"));
 		ReplaceText->setTextFormat(Qt::PlainText);
 		ReplaceText->setWordWrap(true);
@@ -1068,6 +1196,7 @@ namespace bpr::qt {
 		Invocation->setObjectName(QStringLiteral("cycleShareInvocation"));
 		Invocation->setAccessibleName(QStringLiteral("Ask your harness to run"));
 		Invocation->setReadOnly(true);
+		Invocation->setToolTip(QStringLiteral("Ask your harness to run this; it reads the round through the local interface"));
 		Invocation->hide();
 		column->addWidget(Invocation);
 
@@ -1194,8 +1323,19 @@ namespace bpr::qt {
 		auto* const sharedColumn = new QVBoxLayout{ Shared };
 		sharedColumn->setContentsMargins(0, 0, 0, 0);
 		sharedColumn->setSpacing(2);
+		auto* const sharedHeading = new QHBoxLayout{ };
+		sharedHeading->setSpacing(4);
 		auto* const sharedLabel = new QLabel{ QStringLiteral("Shared so far"), Shared };
-		sharedColumn->addWidget(sharedLabel);
+		sharedLabel->setFont(sectionFont);
+		sharedHeading->addWidget(sharedLabel);
+		// [[BPR-1285]]. What none of them means, said on demand: hovering,
+		// focusing or pressing the glyph, and to a screen reader.
+		Meaning = new info_glyph{ QStringLiteral("These say only what happened to the bytes. None of them means the round was received, read, acted on or accepted."), Shared };
+		Meaning->setObjectName(QStringLiteral("cycleShareMeaning"));
+		Meaning->setAccessibleName(QStringLiteral("What these mean"));
+		sharedHeading->addWidget(Meaning);
+		sharedHeading->addStretch(1);
+		sharedColumn->addLayout(sharedHeading);
 		Deliveries = new QListWidget{ Shared };
 		Deliveries->setObjectName(QStringLiteral("cycleShareDeliveries"));
 		Deliveries->setAccessibleName(QStringLiteral("Shared so far"));
@@ -1203,21 +1343,20 @@ namespace bpr::qt {
 		Deliveries->setSelectionMode(QAbstractItemView::NoSelection);
 		Deliveries->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Deliveries->setFocusPolicy(Qt::NoFocus);
+		Deliveries->setItemDelegate(new delivery_delegate{ Deliveries });
+		Deliveries->setAccessibleDescription(Meaning->consequence());
 		sharedLabel->setBuddy(Deliveries);
 		sharedColumn->addWidget(Deliveries);
-		Meaning = new QLabel{ QStringLiteral("These say only what happened to the bytes. None of them means the round was received, read, acted on or accepted."), Shared };
-		Meaning->setObjectName(QStringLiteral("cycleShareMeaning"));
-		Meaning->setTextFormat(Qt::PlainText);
-		Meaning->setWordWrap(true);
-		sharedColumn->addWidget(Meaning);
 		Shared->hide();
 		column->addWidget(Shared);
 
-		// Copy, the usual way, then Save; each says when to use it.
-		auto* const primary = new QGridLayout{ };
-		primary->setHorizontalSpacing(12);
-		primary->setVerticalSpacing(6);
+		// Copy, the usual way, with Save beside it; when to use each is its
+		// tooltip, and a refused one says so in a chip beside it ([[BPR-1285]]).
+		column->addSpacing(4);
+		auto* const primary = new QHBoxLayout{ };
+		primary->setSpacing(8);
 		auto* const foot = new QHBoxLayout{ };
+		foot->setSpacing(2);
 		for (const auto route : all_routes) {
 			auto* const button = new QPushButton{ route_label(route, core::cycle_round_id{ 1 }), this };
 			button->setObjectName(QStringLiteral("cycleShare_%1").arg(QString::fromLatin1(core::stable_name(route).data(), static_cast<qsizetype>(core::stable_name(route).size()))));
@@ -1227,20 +1366,20 @@ namespace bpr::qt {
 			Routes.at(static_cast<std::size_t>(route)) = button;
 			if (route == core::cycle_share_route::copy_document || route == core::cycle_share_route::save_document) {
 				const auto  line  = route == core::cycle_share_route::copy_document ? 0 : 1;
-				auto* const words = new QLabel{ route_use(route), this };
+				auto* const words = new share_chip{ this };
 				words->setObjectName(QStringLiteral("cycleShareWords_%1").arg(QString::fromLatin1(core::stable_name(route).data(), static_cast<qsizetype>(core::stable_name(route).size()))));
-				words->setTextFormat(Qt::PlainText);
-				words->setWordWrap(true);
+				words->hide();
 				RouteWords.at(static_cast<std::size_t>(line)) = words;
-				primary->addWidget(button, line, 0);
-				primary->addWidget(words, line, 1);
+				primary->addWidget(button);
+				primary->addWidget(words);
 			} else {
 				button->setFlat(true);
 				if (route == core::cycle_share_route::save_bundle) {
-					ExactText = new QPushButton{ QStringLiteral("Read the Exact Text"), this };
+					ExactText = new QPushButton{ QStringLiteral("Exact Text"), this };
 					ExactText->setObjectName(QStringLiteral("cycleShareExactText"));
 					ExactText->setFlat(true);
 					ExactText->setAutoDefault(false);
+					ExactText->setAccessibleName(QStringLiteral("Read the Exact Text"));
 					ExactText->setToolTip(QStringLiteral("Read exactly the text Copy and Save send, with its size and digest"));
 					foot->addWidget(ExactText);
 				}
@@ -1261,7 +1400,7 @@ namespace bpr::qt {
 				}
 			});
 		}
-		primary->setColumnStretch(1, 1);
+		primary->addStretch(1);
 		column->addLayout(primary);
 		foot->addStretch(1);
 		Cancel = new QPushButton{ QStringLiteral("Cancel"), this };
@@ -1333,6 +1472,7 @@ namespace bpr::qt {
 			row.Code->set_colours(aColours);
 		}
 		Viewer->set_colours(aColours);
+		refresh_marks();
 	}
 
 	auto review_cycle_share_sheet::adopt_code_syntax(const std::string_view aDocument, const application::shared_token_spans& aSpans) -> bool
@@ -1366,19 +1506,19 @@ namespace bpr::qt {
 		const auto notes = static_cast<std::uint64_t>(aShare.Selection.Items.size());
 		if (aShare.Frozen) {
 			Title->setText(shared_title(aShare));
-			Intro->setText(QStringLiteral("Round %1 is fixed as you shared it: copying or saving it again sends the same text, and changing it now makes round %2. When the changes come back, choose Capture revision to see them beside what you asked.")
-							   .arg(round)
-							   .arg(round + 1U));
+			Intro->set_consequence(QStringLiteral("Round %1 is fixed as you shared it: copying or saving it again sends the same text, and changing it now makes round %2. When the changes come back, choose Capture revision to see them beside what you asked.")
+									   .arg(round)
+									   .arg(round + 1U));
 		} else if (aShare.Amends) {
 			Title->setText(QStringLiteral("Share round %1").arg(round));
-			Intro->setText(QStringLiteral("You changed this round after sharing it as round %1, which stays as it was. Sharing now sends it as round %2. Nothing leaves this window until you copy or save it.")
-							   .arg(aShare.Amends->value())
-							   .arg(round));
+			Intro->set_consequence(QStringLiteral("You changed this round after sharing it as round %1, which stays as it was. Sharing now sends it as round %2. Nothing leaves this window until you copy or save it.")
+									   .arg(aShare.Amends->value())
+									   .arg(round));
 		} else {
 			Title->setText(QStringLiteral("Share round %1").arg(round));
-			Intro->setText(notes == 0U ? QStringLiteral("Check the notes this round should carry. Nothing leaves this window until you copy or save it.")
-									   : QStringLiteral("Your %1 %2 out together as one message to whoever is changing the code: an agent in your own tool, or a colleague. Nothing leaves this window until you copy or save it.")
-											 .arg(notes == 1U ? QStringLiteral("note") : spelled(notes) + QStringLiteral(" notes"), notes == 1U ? QStringLiteral("goes") : QStringLiteral("go")));
+			Intro->set_consequence(notes == 0U ? QStringLiteral("Check the notes this round should carry. Nothing leaves this window until you copy or save it.")
+											   : QStringLiteral("Your %1 %2 out together as one message to whoever is changing the code: an agent in your own tool, or a colleague. Nothing leaves this window until you copy or save it.")
+													 .arg(notes == 1U ? QStringLiteral("note") : spelled(notes) + QStringLiteral(" notes"), notes == 1U ? QStringLiteral("goes") : QStringLiteral("go")));
 		}
 		setAccessibleName(Title->text());
 
@@ -1410,7 +1550,7 @@ namespace bpr::qt {
 			status.append(text_of(aShare.Status));
 		}
 		Status->setText(status.join(QLatin1Char('\n')));
-		Status->setVisible(!status.isEmpty());
+		StatusPanel->setVisible(!status.isEmpty());
 		ReplaceRow->setVisible(aShare.Replace.has_value());
 		if (aShare.Replace) {
 			ReplaceText->setText(QStringLiteral("%1 already holds other content (%2). Replace exactly that file, or keep it and choose another.").arg(text_of(aShare.Replace->Name), bytes_text(aShare.Replace->Size)));
@@ -1429,16 +1569,20 @@ namespace bpr::qt {
 			button->setEnabled(offered && !aShare.Refusal && aIdle);
 			button->setToolTip(offer == aShare.Routes.end() || offered ? route_use(route) : refused_words(offer->Decision));
 			button->setAccessibleDescription(button->toolTip());
+			button->setProperty("cycleShareRefused", offer != aShare.Routes.end() && !offered);
 			if (route == core::cycle_share_route::copy_document || route == core::cycle_share_route::save_document) {
+				// [[BPR-1285]]. Refused: a chip beside it, its reason the chip's tooltip.
 				auto* const words = RouteWords.at(route == core::cycle_share_route::copy_document ? 0U : 1U);
-				words->setVisible(!button->isHidden());
-				words->setText(button->toolTip());
+				words->setVisible(!button->isHidden() && offer != aShare.Routes.end() && !offered);
+				words->setToolTip(button->toolTip());
+				words->setAccessibleDescription(button->toolTip());
 			}
 		}
 		ExactText->setEnabled(aShare.DocumentBytes > 0U);
 		Cancel->setText(aShare.Frozen ? QStringLiteral("Done") : QStringLiteral("Cancel"));
 		refresh_send();
 		rebuild_deliveries(aShare);
+		refresh_marks();
 		refresh_defaults();
 		refresh_viewer();
 		Presenting = false;
@@ -1470,6 +1614,8 @@ namespace bpr::qt {
 			SendProfile->setItemData(at, offer.offered() ? name : send_refusal_text(offer.Verdict), Qt::ToolTipRole);
 			if (!offer.offered()) {
 				SendProfile->setItemData(at, 0, Qt::UserRole - 1);
+				// [[BPR-1285]]. Marked refused as well as said; the reason is its tooltip.
+				SendProfile->setItemIcon(at, RefusedMark);
 			}
 		}
 		auto at = profile.isValid() ? SendProfile->findData(profile) : -1;
@@ -1553,6 +1699,95 @@ namespace bpr::qt {
 			if (button->window() == this) {
 				button->setDefault(button == chosen);
 			}
+		}
+		// The default button's glyph follows its text's colour.
+		refresh_route_marks();
+	}
+
+	void review_cycle_share_sheet::refresh_marks()
+	{
+		// A palette change can arrive before the constructor has made the marks.
+		if (SendIt == nullptr) {
+			return;
+		}
+		const auto& colours = palette();
+		const auto  tone    = [&](const share_tone aTone) { return share_tone_colour(aTone, Colours, colours); };
+		if (Shown.Frozen) {
+			RoundChip->set_mark(share_glyph::fixed, tone(share_tone::local), QStringLiteral("Shared"));
+		} else if (Shown.Amends) {
+			RoundChip->set_mark(share_glyph::changed, tone(share_tone::changed), QStringLiteral("Changed since round %1").arg(Shown.Amends->value()));
+		} else {
+			RoundChip->set_mark(share_glyph::pending, tone(share_tone::waiting), QStringLiteral("Not shared yet"));
+		}
+		RoundChip->setToolTip(Intro->consequence());
+		StatusPanel->set_mark(Shown.Refusal ? share_glyph::refused : share_glyph::information, tone(Shown.Refusal ? share_tone::refused : share_tone::information));
+		ReplaceRow->set_mark(share_glyph::caution, tone(share_tone::warning));
+		for (auto* const words : RouteWords) {
+			words->set_mark(share_glyph::refused, tone(share_tone::refused), QStringLiteral("Not allowed"));
+		}
+		if (const auto refused = tone(share_tone::refused); property("cycleShareRefusedInk").value<QColor>() != refused) {
+			RefusedMark = share_glyph_icon(share_glyph::refused, refused, refused);
+			setProperty("cycleShareRefusedInk", refused);
+			refresh_send();
+		}
+		for (auto row = 0; row < Deliveries->count(); ++row) {
+			auto* const item   = Deliveries->item(row);
+			const auto  colour = tone(static_cast<share_tone>(item->data(delivery_tone_role).toInt()));
+			if (item->data(delivery_colour_role).value<QColor>() != colour) {
+				item->setData(delivery_colour_role, colour);
+			}
+		}
+		const auto ink = colours.color(QPalette::Active, QPalette::PlaceholderText);
+		if (Invocation->property("cycleShareMarkInk").value<QColor>() != ink) {
+			for (auto* const action : Invocation->actions()) {
+				Invocation->removeAction(action);
+				action->deleteLater();
+			}
+			Invocation->addAction(share_glyph_icon(share_glyph::terminal, ink, ink), QLineEdit::LeadingPosition);
+			Invocation->setProperty("cycleShareMarkInk", ink);
+		}
+		refresh_route_marks();
+	}
+
+	void review_cycle_share_sheet::refresh_route_marks()
+	{
+		if (SendIt == nullptr) {
+			return;
+		}
+		const auto& colours  = palette();
+		const auto  disabled = colours.color(QPalette::Disabled, QPalette::ButtonText);
+		const auto  mark     = [&](QPushButton* const aButton, const share_glyph aGlyph) {
+			const auto refused = aButton->property("cycleShareRefused").toBool();
+			auto       ink     = colours.color(QPalette::Active, QPalette::ButtonText);
+			// AppKit fills the default button with the accent and writes on it in
+			// the highlighted text colour; other styles draw it as any button.
+			if (aButton->isDefault() && aButton->style()->name().compare(QStringLiteral("macos"), Qt::CaseInsensitive) == 0) {
+				ink = colours.color(QPalette::Active, QPalette::HighlightedText);
+			}
+			const auto glyph = refused ? share_glyph::refused : aGlyph;
+			if (refused) {
+				ink = share_tone_colour(share_tone::refused, Colours, colours);
+			}
+			const auto key = QStringLiteral("%1/%2/%3").arg(static_cast<int>(glyph)).arg(ink.rgba()).arg(refused ? share_tone_colour(share_tone::refused, Colours, colours).rgba() : disabled.rgba());
+			if (aButton->property("cycleShareMark").toString() != key) {
+				aButton->setIcon(share_glyph_icon(glyph, ink, refused ? ink : disabled));
+				aButton->setProperty("cycleShareMark", key);
+			}
+		};
+		const auto glyphs = std::array{ share_glyph::copy, share_glyph::save, share_glyph::bundle, share_glyph::terminal, share_glyph::send };
+		for (const auto route : all_routes) {
+			mark(Routes.at(static_cast<std::size_t>(route)), glyphs.at(static_cast<std::size_t>(route)));
+		}
+		mark(ExactText, share_glyph::page);
+		mark(SendIt, share_glyph::send);
+	}
+
+	void review_cycle_share_sheet::changeEvent(QEvent* const aEvent)
+	{
+		QDialog::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange || aEvent->type() == QEvent::FontChange) {
+			refresh_marks();
+			Deliveries->viewport()->update();
 		}
 	}
 
@@ -1857,17 +2092,17 @@ namespace bpr::qt {
 			}
 			NotesLayout->setEnabled(true);
 		}
-		NotesHeading->setText(QStringLiteral("%1 of %2 %3, in the order they will be read")
+		NotesHeading->setText(QStringLiteral("%1 of %2 %3")
 								  .arg(included)
 								  .arg(listed.size())
 								  .arg(listed.size() == 1U ? QStringLiteral("note") : QStringLiteral("notes")));
 		// Tab follows what is shown: the round's choices, each note, then the buttons.
 		if (kept < Rows.size() || kept < TabOrdered || Rows.empty()) {
-			auto order = std::vector<QWidget*>{ Actions[0], Actions[1], Actions[2], Goal, AllCode };
+			auto order = std::vector<QWidget*>{ Intro, Actions[0], Actions[1], Actions[2], Goal, AllCode };
 			for (const auto& row : Rows) {
 				order.insert(order.end(), { row.Include, row.Disclose, row.Whole });
 			}
-			order.insert(order.end(), { ReplaceIt, KeepIt, Invocation, SendProfile, SendSession, SendMore, SendIt, StopSend, ReplyText, AddReply, Routes[0], Routes[1], ExactText, Routes[2], Routes[3], Routes[4], Cancel });
+			order.insert(order.end(), { ReplaceIt, KeepIt, Invocation, SendProfile, SendSession, SendMore, SendIt, StopSend, ReplyText, AddReply, Meaning, Routes[0], Routes[1], ExactText, Routes[2], Routes[3], Routes[4], Cancel });
 			for (std::size_t index = 1; index < order.size(); ++index) {
 				QWidget::setTabOrder(order[index - 1U], order[index]);
 			}
@@ -1891,30 +2126,46 @@ namespace bpr::qt {
 	void review_cycle_share_sheet::rebuild_deliveries(const application::review_cycle_share_view& aShare)
 	{
 		// Repeats of the same observation read as one line with a count.
-		auto lines = QStringList{ };
-		auto times = std::vector<int>{ };
+		struct line
+		{
+			QString                            Text;
+			delivery_parts                     Parts;
+			std::pair<share_glyph, share_tone> Mark;
+			int                                Times = 1;
+		};
+		auto lines = std::vector<line>{ };
 		for (const auto& record : aShare.Deliveries) {
-			const auto text = delivery_text(record);
-			if (!lines.isEmpty() && lines.back() == text) {
-				++times.back();
+			auto text = delivery_text(record);
+			if (!lines.empty() && lines.back().Text == text) {
+				++lines.back().Times;
 			} else {
-				lines.append(text);
-				times.push_back(1);
+				lines.push_back({ .Text = std::move(text), .Parts = delivery_words(record), .Mark = delivery_mark(record) });
 			}
 		}
-		for (qsizetype index = 0; index < lines.size(); ++index) {
-			if (times[static_cast<std::size_t>(index)] > 1) {
-				lines[index] += QStringLiteral(" · %1 times").arg(times[static_cast<std::size_t>(index)]);
-			}
+		Shared->setVisible(!lines.empty());
+		auto texts = QStringList{ };
+		for (const auto& each : lines) {
+			texts.append(each.Times > 1 ? each.Text + QStringLiteral(" · %1 times").arg(each.Times) : each.Text);
 		}
-		Shared->setVisible(!lines.isEmpty());
 		auto shown = QStringList{ };
 		for (auto row = 0; row < Deliveries->count(); ++row) {
 			shown.append(Deliveries->item(row)->text());
 		}
-		if (shown != lines) {
+		if (shown != texts) {
 			Deliveries->clear();
-			Deliveries->addItems(lines);
+			for (std::size_t index = 0; index < lines.size(); ++index) {
+				const auto& each = lines[index];
+				const auto& text = texts[static_cast<qsizetype>(index)];
+				auto* const item = new QListWidgetItem{ text, Deliveries };
+				item->setToolTip(text);
+				item->setData(delivery_glyph_role, static_cast<int>(each.Mark.first));
+				item->setData(delivery_tone_role, static_cast<int>(each.Mark.second));
+				item->setData(delivery_colour_role, share_tone_colour(each.Mark.second, Colours, palette()));
+				item->setData(delivery_round_role, each.Parts.Round);
+				item->setData(delivery_what_role, each.Parts.What);
+				item->setData(delivery_size_role, each.Parts.Size);
+				item->setData(delivery_times_role, each.Times);
+			}
 		}
 		// Four lines, then the list scrolls; the caption stays in view.
 		const auto rows = std::min(static_cast<int>(lines.size()), 4);
@@ -2207,9 +2458,19 @@ namespace bpr::qt {
 	{
 		return Title;
 	}
-	auto review_cycle_share_sheet::intro() const noexcept -> QLabel*
+	auto review_cycle_share_sheet::round_chip() const noexcept -> share_chip*
+	{
+		return RoundChip;
+	}
+
+	auto review_cycle_share_sheet::intro() const noexcept -> info_glyph*
 	{
 		return Intro;
+	}
+
+	auto review_cycle_share_sheet::status_panel() const noexcept -> share_panel*
+	{
+		return StatusPanel;
 	}
 	auto review_cycle_share_sheet::status() const noexcept -> QLabel*
 	{
@@ -2219,7 +2480,7 @@ namespace bpr::qt {
 	{
 		return Routes.at(static_cast<std::size_t>(aRoute));
 	}
-	auto review_cycle_share_sheet::route_words(const core::cycle_share_route aRoute) const noexcept -> QLabel*
+	auto review_cycle_share_sheet::route_words(const core::cycle_share_route aRoute) const noexcept -> share_chip*
 	{
 		switch (aRoute) {
 		case core::cycle_share_route::copy_document: return RouteWords[0];
@@ -2264,7 +2525,7 @@ namespace bpr::qt {
 	{
 		return Deliveries;
 	}
-	auto review_cycle_share_sheet::meaning() const noexcept -> QLabel*
+	auto review_cycle_share_sheet::meaning() const noexcept -> info_glyph*
 	{
 		return Meaning;
 	}
@@ -2283,6 +2544,11 @@ namespace bpr::qt {
 	auto review_cycle_share_sheet::replace_words() const noexcept -> QLabel*
 	{
 		return ReplaceText;
+	}
+
+	auto review_cycle_share_sheet::replace_panel() const noexcept -> share_panel*
+	{
+		return ReplaceRow;
 	}
 	auto review_cycle_share_sheet::viewer() const noexcept -> review_cycle_share_viewer*
 	{

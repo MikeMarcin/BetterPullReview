@@ -7,6 +7,7 @@
 
 #include <QDialog>
 #include <QFont>
+#include <QIcon>
 #include <QPlainTextEdit>
 #include <QPointer>
 
@@ -31,6 +32,12 @@ class QPushButton;
 class QScrollArea;
 class QToolButton;
 class QVBoxLayout;
+
+namespace bpr::qt {
+	class info_glyph;
+	class share_chip;
+	class share_panel;
+}
 
 namespace bpr::qt {
 	/// \brief The gestures the share sheet sends to its host.
@@ -212,7 +219,14 @@ namespace bpr::qt {
 	/// or Option+Up and Option+Down (Alt elsewhere) move the focused note.
 	/// After a share the sheet says what happened and what comes next, lists
 	/// every delivery observation in its own words under what none of them
-	/// means, and Done becomes the default. Return presses the default
+	/// means, and Done becomes the default.
+	///
+	/// [[BPR-1285]]: the sheet says the rest with marks. The round's state is a
+	/// chip beside the title, its explanation behind an info glyph; what each
+	/// action and route is for is in its tooltip; each route and observation
+	/// has a glyph; a refused route is marked refused; the status and the
+	/// replace question sit on a washed panel. Colours are the appearance's
+	/// role colours (`share_tone`), always beside words or a glyph. Return presses the default
 	/// button; Escape (and Control-C on macOS, as in the code) is Cancel,
 	/// which leaves the draft as saved. It decides nothing and performs
 	/// nothing: gestures leave through `review_cycle_share_dispatch`.
@@ -244,12 +258,21 @@ namespace bpr::qt {
 		void save_draft_editor();
 
 		[[nodiscard]] auto title() const noexcept -> QLabel*;
-		[[nodiscard]] auto intro() const noexcept -> QLabel*;
+		/// \brief [[BPR-1285]]. The round's state beside the title: not shared
+		/// yet, changed since a shared round, or shared.
+		[[nodiscard]] auto round_chip() const noexcept -> share_chip*;
+		/// \brief What a round is and what sharing does, behind an info glyph
+		/// beside the round's chip ([[BPR-1285]]; once a line under the title).
+		[[nodiscard]] auto intro() const noexcept -> info_glyph*;
 		[[nodiscard]] auto status() const noexcept -> QLabel*;
+		/// \brief The washed panel that holds the status, marked by what it says.
+		[[nodiscard]] auto status_panel() const noexcept -> share_panel*;
 		/// \brief The button for a route, when the sheet offers or refuses it.
+		/// When to use it is its tooltip and accessible description.
 		[[nodiscard]] auto route_button(core::cycle_share_route aRoute) const noexcept -> QPushButton*;
-		/// \brief The words beside Copy or Save: when to use it, or why it is refused.
-		[[nodiscard]] auto route_words(core::cycle_share_route aRoute) const noexcept -> QLabel*;
+		/// \brief Beside Copy or Save, shown only while the route is refused: a
+		/// "Not allowed" chip whose tooltip says why ([[BPR-1285]]).
+		[[nodiscard]] auto route_words(core::cycle_share_route aRoute) const noexcept -> share_chip*;
 		[[nodiscard]] auto action_button(core::cycle_round_action aAction) const noexcept -> QPushButton*;
 		[[nodiscard]] auto action_words() const noexcept -> QLabel*;
 		[[nodiscard]] auto goal() const noexcept -> QLineEdit*;
@@ -258,13 +281,22 @@ namespace bpr::qt {
 		[[nodiscard]] auto all_code_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto exact_text_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto cancel_button() const noexcept -> QPushButton*;
+		/// \brief Shared so far. Each line's text is the observation in its
+		/// accepted words; it is painted as the round, a glyph in its state's
+		/// role colour, the words and the size (`delivery_glyph_role` and
+		/// `delivery_colour_role` hold the mark).
 		[[nodiscard]] auto deliveries() const noexcept -> QListWidget*;
-		[[nodiscard]] auto meaning() const noexcept -> QLabel*;
-		[[nodiscard]] auto invocation() const noexcept -> QLineEdit*;
-		[[nodiscard]] auto replace_button() const noexcept -> QPushButton*;
-		[[nodiscard]] auto keep_button() const noexcept -> QPushButton*;
-		[[nodiscard]] auto replace_words() const noexcept -> QLabel*;
-		[[nodiscard]] auto viewer() const noexcept -> review_cycle_share_viewer*;
+		/// \brief What none of the observations means, behind the info glyph
+		/// beside Shared so far ([[BPR-1285]]).
+		[[nodiscard]] auto   meaning() const noexcept -> info_glyph*;
+		static constexpr int delivery_glyph_role  = Qt::UserRole + 1;
+		static constexpr int delivery_colour_role = Qt::UserRole + 2;
+		[[nodiscard]] auto   invocation() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto   replace_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto   keep_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto   replace_words() const noexcept -> QLabel*;
+		[[nodiscard]] auto   replace_panel() const noexcept -> share_panel*;
+		[[nodiscard]] auto   viewer() const noexcept -> review_cycle_share_viewer*;
 		/// \brief Send to Agent's box ([[BPR-1180]]), opened by its route:
 		/// which agent, which session, what happens, Send and Stop; then the
 		/// reply a finished send brought back, with Add as Reply.
@@ -325,8 +357,14 @@ namespace bpr::qt {
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 		void done(int aResult) override;
 		void showEvent(QShowEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
 
 	private:
+		/// [[BPR-1285]]. Paints every mark again from the palette and the role
+		/// colours: the round's chip, the route glyphs, the panels and the
+		/// delivery lines.
+		void refresh_marks();
+		void refresh_route_marks();
 		void rebuild_rows(const application::review_cycle_share_view& aShare, const std::vector<application::review_cycle_note_entry>& aNotes);
 		auto make_row(core::cycle_feedback_item_id aItem) -> note_row;
 		void fill_row(note_row& aRow, std::size_t aNumber, const application::review_cycle_note_entry& aNote, const application::review_cycle_note_context* aContext);
@@ -355,8 +393,9 @@ namespace bpr::qt {
 		review_cycle_share_dispatch                       Dispatch;
 		application::review_cycle_share_view              Shown;
 		std::vector<application::review_cycle_note_entry> ShownNotes;
-		QLabel*                                           Title = nullptr;
-		QLabel*                                           Intro = nullptr;
+		QLabel*                                           Title     = nullptr;
+		share_chip*                                       RoundChip = nullptr;
+		info_glyph*                                       Intro     = nullptr;
 		std::array<QPushButton*, 3>                       Actions{ };
 		QButtonGroup*                                     ActionGroup  = nullptr;
 		QLabel*                                           ActionWords  = nullptr;
@@ -377,16 +416,17 @@ namespace bpr::qt {
 		bool                                                    PassQueued = false;
 		std::set<core::cycle_feedback_item_id>                  Expanded;
 		QLabel*                                                 Status      = nullptr;
-		QWidget*                                                ReplaceRow  = nullptr;
+		share_panel*                                            StatusPanel = nullptr;
+		share_panel*                                            ReplaceRow  = nullptr;
 		QLabel*                                                 ReplaceText = nullptr;
 		QPushButton*                                            ReplaceIt   = nullptr;
 		QPushButton*                                            KeepIt      = nullptr;
 		QLineEdit*                                              Invocation  = nullptr;
 		QWidget*                                                Shared      = nullptr;
 		QListWidget*                                            Deliveries  = nullptr;
-		QLabel*                                                 Meaning     = nullptr;
+		info_glyph*                                             Meaning     = nullptr;
 		std::array<QPushButton*, core::cycle_share_route_count> Routes{ };
-		std::array<QLabel*, 2>                                  RouteWords{ };
+		std::array<share_chip*, 2>                              RouteWords{ };
 		QPushButton*                                            ExactText        = nullptr;
 		QPushButton*                                            Cancel           = nullptr;
 		QWidget*                                                SendBox          = nullptr;
@@ -404,6 +444,8 @@ namespace bpr::qt {
 		QPushButton*                                            AddReply         = nullptr;
 		/// The reviewer opened the box with Send to Agent….
 		bool SendOpen = false;
+		/// [[BPR-1285]]. The refused glyph an agent the host refuses carries in the list.
+		QIcon RefusedMark;
 		/// [[BPR-1282]]. The reviewer opened the Send box's details.
 		bool                       SendDetailsOpen = false;
 		review_cycle_share_viewer* Viewer          = nullptr;

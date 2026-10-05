@@ -7,6 +7,7 @@ add_library(
         src/suggestion_composer.cpp
         src/review_cycle_view.cpp
         src/review_cycle_share_sheet.cpp
+        src/review_cycle_share_marks.cpp
         src/review_cycle_publish_sheet.cpp
         src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
