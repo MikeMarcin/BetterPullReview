@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1077"
 title: "Implement revisioned header edits and root-post classification"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0047"]
 depends_on: ["BPR-1076"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-03","milestone":"semantics","acceptance":["R05","R07","R08","R41"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
