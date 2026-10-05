@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1264"
 title: "Large-review phases at or over the 100 ms input target (Windows, Linux, and one on macOS)"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -16,7 +16,7 @@ metadata: {"found_by":"BPR-0967 station runs, 2026-10-01","reservation":"docs/is
 
 [[BPR-0967]]'s optimized station runs (Windows at `682ea1392`, Linux at
 `e257b236a`, both on an i9-10900KF; summaries in
-[`docs/verification/BPR-0967-station/`](../../verification/BPR-0967-station/))
+[`docs/verification/BPR-0967-station/`](../../verification/BPR-0967-station))
 measured these phases at or over 90 ms of the unchanged 100 ms input target in
 the courses that gate it (responsiveness, launch, active work, pathological,
 provider cancellation). Values are the largest event-loop gap in the phase,
