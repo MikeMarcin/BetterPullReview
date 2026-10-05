@@ -30,7 +30,7 @@ The five closeout cards (one per RFC, as authored) are retitled "Verify and clos
 | `PACK-CC-06` | [BPR-1080](../../issues/60-done/BPR-1080-develop-all-twelve-reusable-label-icon-candidates.md) |
 | `PACK-CC-07` | [BPR-1081](../../issues/60-done/BPR-1081-record-the-selected-ux-and-icon-delivery-contract.md) |
 | `PACK-CC-08` | [BPR-1082](../../issues/60-done/BPR-1082-compose-convention-edits-through-shared-durable-draft-services.md) |
-| `PACK-CC-09` | [BPR-1083](../../issues/10-backlog/BPR-1083-implement-selected-authoring-controls-and-shared-label-visuals.md) |
+| `PACK-CC-09` | [BPR-1083](../../issues/20-ready/BPR-1083-implement-selected-authoring-controls-and-shared-label-visuals.md) |
 | `PACK-CC-10` | [BPR-1084](../../issues/10-backlog/BPR-1084-preserve-and-compose-native-suggested-changes.md) |
 | `PACK-CC-11` | [BPR-1085](../../issues/10-backlog/BPR-1085-integrate-reviewer-scoped-preflight-with-native-review-decisions.md) |
 | `PACK-CC-12` | [BPR-1086](../../issues/10-backlog/BPR-1086-integrate-private-tracking-promotion-and-ordinary-tour-comments.md) |
