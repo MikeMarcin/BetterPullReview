@@ -388,6 +388,17 @@ selected thread's detail (`markdown_body_view`).
   - A suggested-change block keeps its own header and apply affordance, and a
     label never restyles it.
   - A tour stop is plain unless its author labelled it (BPR-1086).
+    As built: a published stop's mark comes from the narrative its tour
+    owner maps (`core::published_feedback_segment`, the same reading the
+    review preflight uses). The pinned source, the generated heading and
+    the navigation are never read as a label and never set in semibold, and
+    a stop whose envelope does not map shows no mark. The stop's text is
+    shown and copied as written.
+  - Tracking stays the thread menu's existing "Classify as defect…"
+    (BPR-1208), offered on any review thread on a current line, an `issue`
+    root included. Reading a label creates no defect, and a website label
+    edit, resolution or applied suggestion never verifies or withdraws one
+    (BPR-1086). No label-specific offer was added.
 - **Refresh** (existing). Marks follow the accepted body revision. A refresh
   keeps the selection, expansion and caret, and an unchanged body is not
   reparsed (BPR-1087).
