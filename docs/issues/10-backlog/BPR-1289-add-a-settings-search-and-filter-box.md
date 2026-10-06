@@ -74,8 +74,11 @@ focus. Clearing the field restores the page list.
 
 ## Port candidates (owner, 2026-10-05)
 
-All four are the owner's own code; the two private ones carry no licence
-file, so record the owner's permission with the port. Read on 2026-10-05:
+All four are the owner's own code. The owner's permission, in chat on
+2026-10-05: "theyre all mine, as far as your concerned any port just gets
+licensed to the BPR license". A port from any of the four is licensed under
+BetterPullReview's licence; cite the source path and revision in the port's
+provenance note, and no third-party notice is needed. Read on 2026-10-05:
 
 - **containers, `gct::strings::fuzzy_matcher`.**
   `/Users/jaeger/Documents/Personal/containers/source/gct/strings/fuzzy_match.hpp`
