@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1299"
+  ],
+  "reserve_for": "rfc-0036-status-close",
+  "purpose": "Status-only close of RFC-BPR-0036 (BPR-0917 is Done; no open card owned it)",
+  "created": "2026-10-06T19:10:26.893942+00:00",
+  "base": "1b295a701c0ddad7b7449cac3122edfe5c84c40f"
+}
