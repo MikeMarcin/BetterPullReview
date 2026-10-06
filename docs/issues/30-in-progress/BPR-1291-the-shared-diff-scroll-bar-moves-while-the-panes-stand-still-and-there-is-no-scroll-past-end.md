@@ -115,8 +115,10 @@ between 0 and the document's height less the viewport's.
 
 ## Result (2026-10-06, macOS 26.6.2 arm64, M4 Pro, Qt 6.11.2)
 
-Candidate `974e10e7b` (product at `224f682ac`), built from worktree branch
-`bpr-1291-scroll-past-end` off `226a44882`.
+Candidate `1aaf8f781` (product at `1cff20091`), on `main` at `8e6c0a042`.
+The Qt and controller rows and the 18 large-review rows were run before the
+rebase (off `226a44882`) and again after it; the rebase brought no change to
+a file this card touches but the benchmark's Windows constants.
 
 - **Cause.** Recorded above.
 - **Bar agrees.** `qt_diff_workbench_scale_{100,125,200}` run
@@ -148,7 +150,9 @@ Candidate `974e10e7b` (product at `224f682ac`), built from worktree branch
   files' last lines are level.
 - **Kept.** `build/dev` (Debug): 121 `qt_` rows, the diff public path, the
   scaling, multi-window and rate-limit render rows and
-  `architecture_boundaries` pass. Three test changes follow the new range:
+  `architecture_boundaries` pass (126/126). After the rebase the diff
+  workbench, controller, window, link map and syntax rows, the diff public
+  path and `architecture_boundaries` pass again (13/13). Three test changes follow the new range:
   the white-space captures and the syntax bound go back to the top or a page
   from the end, which the old maximum used to show, and the window course's
   scrolled stage steps a page back from the maximum.
@@ -158,11 +162,13 @@ Candidate `974e10e7b` (product at `224f682ac`), built from worktree branch
   base's `src/adapters`), so it is not this card's.
 - **Large review.** Optimized tests-on tree (`app-release`,
   `BUILD_TESTING=ON`, Apple clang `-O3`): the 18 large-review rows pass 18/18
-  in 142.2 s. All 14 reports have `BudgetsEnforced` true, `KnownInputMisses`
-  empty and no input failure. Largest gaps in ms: `large_file_selection`
-  13.1–22.3, `large_source_revisit_render` 12.1 and 12.6,
-  `approximate_file_selection` 23.4, `first_tab_file` 12.0; the largest gap
-  in any phase is 38.5 (`first_tab_base`). The wheel course's position check
+  in 142.2 s before the rebase and 134.8 s after it. All 14 reports have
+  `BudgetsEnforced` true, `KnownInputMisses` empty and no input failure in
+  both runs. Largest gaps in ms after the rebase (before it in brackets):
+  `large_file_selection` 12.3–18.4 (13.1–22.3), `large_source_revisit_render`
+  8.5 and 14.6 (12.1 and 12.6), `approximate_file_selection` 15.4 (23.4),
+  `first_tab_file` 19.6 (12.0); the largest gap in any phase is 37.4,
+  `first_tab_head` (38.5, `first_tab_base`). The wheel course's position check
   now counts its 1,000 pixels from the bar's start; before that fix six rows
   failed "scroll gesture work/position contract".
   `application_large_review_cache_bytes` is close to its 184 MiB footprint
