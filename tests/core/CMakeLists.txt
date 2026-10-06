@@ -614,6 +614,13 @@ bpr_enable_hardening(test_feedback_partition)
 bpr_enable_warnings(test_feedback_partition)
 bpr_add_network_isolated_test(NAME core_feedback_partition COMMAND test_feedback_partition "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1085]]. The submitting reviewer's own feedback before a native review decision, and which changes invalidate a prepared decision.
+bpr_add_executable(test_review_preflight review_preflight_tests.cpp)
+target_link_libraries(test_review_preflight PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_review_preflight)
+bpr_enable_warnings(test_review_preflight)
+bpr_add_network_isolated_test(NAME core_review_preflight COMMAND test_review_preflight)
+
 bpr_add_executable(test_review_tour_import review_tour_import_tests.cpp)
 target_link_libraries(test_review_tour_import PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_tour_import)

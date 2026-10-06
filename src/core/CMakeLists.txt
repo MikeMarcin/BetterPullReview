@@ -88,6 +88,7 @@ add_library(
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
         src/review_submission.cpp
+        src/review_preflight.cpp
         src/sha1.cpp
         src/sha256.cpp
         src/theme_exchange.cpp
