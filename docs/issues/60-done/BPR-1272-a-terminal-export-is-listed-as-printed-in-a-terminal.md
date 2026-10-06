@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1272"
 title: "A terminal export is listed as Printed in a terminal, which is the one case never recorded"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0056", "RFC-BPR-0061"]
 depends_on: []
 priority: "P3"
 metadata: {"pack": "bpr-review-cycles-v1", "found_by": "BPR-1166", "related_issues": ["BPR-1161", "BPR-1167"], "acceptance": ["RC56-07", "RC61-06"]}
+acceptance: [{"criterion":"BPR-1272:course","outcome":"pass","revision":"e0d7833ee","evidence":{"kind":"command","detail":"application_review_cycle_two_round_public_path (automated) exports F1 twice with --output - into a pipe and asserts F2's sheet lists exactly one 'F1 · Written to standard output · … · 2 times' and no delivery naming a terminal; with the old words restored it fails listing 'F1 · Printed in a terminal · 2,675 bytes · 2 times'. Two-round, desktop, parity, qt_review_cycle_view_1_0/_2_0, cycle_cli_documentation and architecture_boundaries pass 7/7 on bpr-main-linux."}},{"criterion":"BPR-1272:owner-words","outcome":"pass","revision":"e0d7833ee","evidence":{"kind":"observation","detail":"Owner, in chat via the integrator's question on 2026-10-06, verbatim: \"Accept\" — the words \"Written to standard output\"."}}]
 ---
 
 # BPR-1272: A terminal export is listed as "Printed in a terminal", which is the one case never recorded
