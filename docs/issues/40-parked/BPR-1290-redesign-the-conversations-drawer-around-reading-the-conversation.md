@@ -688,3 +688,79 @@ crowded ticks are hit-tested to the nearest within a few pixels; a tick has a
 "Shift-click to go to …" tooltip and a pointing cursor while Shift is held
 over it. BPR-1290:navigation is amended above. Nothing else in v001 was
 rejected, and BPR-1290:owner-look is asked again on v002.
+
+## Built drawer v002, 2026-10-06
+
+Candidate `b109295f4` ("Shift-click a scroll-bar tick to go to its thread; a
+plain press stays the bar's own"), the change the v001 Reject asked for and
+nothing else. Presentation in the Qt adapter only:
+
+- **Shift-click on a tick** (`diff_workbench`'s tick bar,
+  `set_thread_tick_dispatch`) goes to its thread: the window's
+  `go_to_thread_at` shows the drawer on Comments, opens the thread in place
+  and reveals its exact line through Show line's path, so the line comes into
+  view even when the thread was already current.
+- **A plain press** on the bar is the bar's own (pages or drags). The gutter
+  marker still opens or closes its thread.
+- **Crowded ticks.** The pointer finds the tick whose centre is nearest,
+  within 4 px of its edge.
+- **Tooltip and cursor.** A tick's anchored tooltip (BPR-1083's) says
+  "Shift-click to go to line 250: 1 post, 1 new". With Shift held over the bar
+  the pointer is a hand and the tick a press would choose is ringed in the
+  window's ink; pressing or letting go of Shift while the pointer rests there
+  updates both. The bar's accessible description names the gesture.
+
+The specification's [Conversation drawer](../../ux/workbench-specification.md#conversation-drawer)
+section is amended with the gesture.
+
+### Verification on the candidate
+
+- `qt_composed_inline_drawer_scale_{100,125,200}`, extended through the
+  composed window: line 250's thread current but closed and out of view, a
+  plain press on its tick moves the code and opens nothing (negative control);
+  Shift-click opens it and its line is in view and selected; Shift-click 3 px
+  below line 300's tick goes to it; Shift-click on a stretch with no tick
+  opens nothing and stays the bar's (negative control); lines 60 and 64's
+  ticks are 8 px apart and one point reaches both: Shift-click a pixel nearer
+  either goes to that one; without Shift no ring and no hand (negative
+  control), Shift pressed and let go with the pointer resting adds and removes
+  them; the tooltip's text, the nearer tick's between crowded ones, and none
+  away from every tick (negative control). Passed in Debug and Release on
+  macOS; Shift-click answers in 5 to 7 ms (limit 100, enforced in Release),
+  opening in place 10 to 13 ms, a scroll frame 3 to 9 ms.
+- Mutations, each failing the row as expected: a plain press going to the
+  thread; no explicit reveal; first tick in reach instead of nearest; no reach;
+  no Shift watch while the pointer rests.
+- 45 rows (`qt_composed*`, `qt_conversation*`, `qt_github_conversation*`,
+  `qt_feedback_label*`, `qt_workbench_window*`, `qt_diff*`,
+  `architecture_boundaries` and every `*composition_contract`, including the
+  round trip): passed in Debug. `src/app` is unchanged, so the round-trip pin
+  is unchanged. `qt_conversation_cards_view` also in Release. Format check and
+  clang-tidy on the changed units: clean. `DOCUMENTATION_OK`.
+
+### Owner look, session v002
+
+Pending: BPR-1290:owner-look is the owner's, not self-certified. One question,
+Accept or Reject: "The built drawer matches the prototype, with Shift-click on
+scroll-bar markers."
+
+- Session `ef04b01ef8a5c04f9d6ff1b0f0dbbe87`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-built-v002`,
+  candidate `BPR-1290-built-drawer-v002` (revision `frozen-b109295f4-v002`,
+  fingerprint `0190c2ea2162…`), ready at event cursor 2.
+- Frozen root `/Users/jaeger/bpr1290-inline-drawer-review-v002.GSNSiu`: the
+  `git archive` of `b109295f4` built there with the dev preset (tests on),
+  source read-only; executable SHA-256 `676fd7790bd8…`. Offscreen on it,
+  `--attended-open-file` showed both `src/ui/conversation_cards_view.cpp` and
+  `src/engine/renderer.cpp`, and the inline rows passed from its build tree.
+- Launch: `python3 /Users/jaeger/bpr1290-inline-drawer-review-v002.GSNSiu/launch.py`
+  (the long file; `--renderer` for renderer.cpp; `--prototype` for the kept
+  prototype). It checks the build and fixture tree first and reports an early
+  exit within seconds.
+- v001's session was released (`resume-development --all`, sequence 5), its
+  app instance stopped and its frozen root
+  `/Users/jaeger/bpr1290-inline-drawer-review-v001.HWZ3wf` deleted.
+
+Next: read the session's decision. Accept satisfies :owner-look and the card
+finishes; Reject comes back with what differs in its note, for a v003
+candidate. Linux and Windows have not run v002's rows.
