@@ -323,3 +323,24 @@ right."
 Linux). Next: read the session's decision. Accept satisfies :owner-look and,
 with the Windows row green, the card finishes. Reject comes back with what to
 change in its note, for a v002 candidate.
+
+**Note: Windows run at `4bff265ee`** (holds `d93c7b5b4`; station `bpr-main-win`,
+MSVC 14.51, Qt 6.11.2, `windows-dev` Debug, whole tree; no remote
+mutation). The tree built with no `warning C` or `warning LNK` line.
+
+- **First run: 9 of 10.** `core_fuzzy_match` failed in 0.03 s at "invalid
+  UTF-8 becomes replacement characters". The expected value was written as
+  `U"��"`, that is, two U+FFFD characters as UTF-8 bytes in the source.
+  MSVC builds this target without `/utf-8`, so it reads the file in the ANSI
+  code page and turned each U+FFFD into three other characters. The test now
+  writes `U"\uFFFD\uFFFD"`, which means the same on every compiler. Only
+  the test changed; the product source (`fuzzy_match.cpp`) is ASCII.
+- **After the fix: 10 of 10.** `core_fuzzy_match`,
+  `qt_settings_window` and `qt_settings_window_scale_{125,150,200}` (9.8
+  to 10.6 s), `qt_appearance_settings_panel`, `core_dependency_boundary`,
+  `core_boundary_contract`, `architecture_boundaries` and
+  `application_review_round_trip_composition_contract` pass.
+- The test's narrow `"Résumé"`, `"résumé"` and `"Straße"` literals pass
+  here, because their bytes pass through the code page unchanged. On a
+  station whose ANSI code page cannot hold them they would need the same
+  escapes.

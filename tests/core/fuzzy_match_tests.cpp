@@ -88,7 +88,10 @@ namespace {
 		expect(kind("theme", "\xEF\xBC\xB4\xEF\xBD\x88\xEF\xBD\x85\xEF\xBD\x8D\xEF\xBD\x85") == fuzzy_match_kind::exact, "full-width letters fold to ASCII");
 		expect(kind("cafe", "cafe\xCC\x81") == fuzzy_match_kind::exact, "a combining accent is dropped");
 		expect(fold_search_text("  Dark   theme  ") == U"dark theme", "white space collapses and trims");
-		expect(fold_search_text("\xFF\xFE") == U"��", "invalid UTF-8 becomes replacement characters");
+		// MSVC without /utf-8 reads this file in the ANSI code page, so a literal
+		// U+FFFD written as UTF-8 bytes would become three other characters;
+		// the universal character names mean the same on every compiler.
+		expect(fold_search_text("\xFF\xFE") == U"\uFFFD\uFFFD", "invalid UTF-8 becomes replacement characters");
 	}
 
 	void test_every_term_must_match()
