@@ -7,6 +7,7 @@
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/logging/quill_log.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "github_cli_runtime.hpp"
@@ -159,6 +160,7 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -15506,6 +15508,44 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::optional<std::uint32_t>          ThreadlessLine;
 		};
 		std::optional<threaded_reply_probe_state> ThreadedReplyProbe;
+		// [[BPR-1083]]. One fixture file opened in Read, for an attended look
+		// and for the label-authoring course.
+		struct fixture_file_reveal_state
+		{
+			enum class phase {
+				awaiting_files,
+				awaiting_diff,
+				shown,
+				failed,
+			};
+			phase       Phase = phase::awaiting_files;
+			std::string Path;
+		};
+		std::optional<fixture_file_reveal_state> FileReveal;
+		// [[BPR-1083]]. The label-authoring course.
+		struct label_authoring_probe_state
+		{
+			enum class phase {
+				awaiting_file,
+				awaiting_marks,
+				awaiting_line_draft,
+				awaiting_shortcode,
+				awaiting_chip,
+				awaiting_shortcut,
+				awaiting_published,
+				awaiting_refreshed,
+				passed,
+				failed,
+			};
+			detail::label_authoring_probe_evidence Evidence;
+			phase                                  Phase = phase::awaiting_file;
+			std::string                            Diagnostic;
+			std::size_t                            Renders = 0U;
+			/// Characters still to type, one a tick once the draft has the
+			/// text on screen, as a person's keystrokes arrive.
+			QString Typing;
+		};
+		std::optional<label_authoring_probe_state> LabelAuthoringProbe;
 		struct defect_composition_probe_state
 		{
 			enum class phase {
@@ -24172,6 +24212,334 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			break;
 		}
 		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::reveal_fixture_file(
+		github_application& aApplication, const std::string_view aPath) -> detail::fixture_file_reveal_result
+	{
+		using result               = detail::fixture_file_reveal_result;
+		using state_type           = github_application::implementation::fixture_file_reveal_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->FileReveal.has_value() || implementation->FileReveal->Path != aPath) {
+			implementation->FileReveal = state_type{ .Path = std::string{ aPath } };
+		}
+		auto& reveal = *implementation->FileReveal;
+		if (reveal.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (reveal.Phase == state_type::phase::shown) {
+			return result::shown;
+		}
+		if (implementation->Window == nullptr || implementation->WorkbenchHost == nullptr
+			|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const view   = window->files_drawer() != nullptr ? window->files_drawer()->contents_view() : nullptr;
+		if (reveal.Phase == state_type::phase::awaiting_files) {
+			const auto row = drawer_row(*window, aPath);
+			if (view == nullptr || !row.isValid() || window->showing_home()) {
+				return result::pending;
+			}
+			// The reviewer's way in: Read on the strip, then the file's row.
+			window->choose_modality(qt::review_modality::read);
+			QCoreApplication::processEvents();
+			view->setCurrentIndex(row);
+			reveal.Phase = state_type::phase::awaiting_diff;
+			return result::pending;
+		}
+		const auto& last = implementation->LastSelectedDiff;
+		if (!last.has_value() || last->Request.File.PresentationPath != aPath
+			|| window->comparison_surface()->current_result() == nullptr
+			|| window->current_modality() != qt::review_modality::read) {
+			return result::pending;
+		}
+		reveal.Phase = state_type::phase::shown;
+		return result::shown;
+	}
+
+	auto detail::github_application_fixture_access::exercise_label_authoring(
+		github_application& aApplication, const std::optional<std::string>& aEvidenceDirectory) -> detail::label_authoring_probe_result
+	{
+		using result               = detail::label_authoring_probe_result;
+		using state_type           = github_application::implementation::label_authoring_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->LabelAuthoringProbe.has_value()) {
+			implementation->LabelAuthoringProbe.emplace();
+		}
+		auto& probe = *implementation->LabelAuthoringProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr
+			|| implementation->WorkbenchHost == nullptr || implementation->ReviewMutationHost == nullptr) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const cards  = window->conversation_panel() != nullptr ? window->conversation_panel()->cards() : nullptr;
+		auto* const editor = window->review_editor();
+		auto* const model  = window->conversation_model();
+		if (cards == nullptr || editor == nullptr || model == nullptr || editor->label_controls() == nullptr) {
+			return result::pending;
+		}
+		auto* const controls = editor->label_controls();
+		auto* const body     = editor->body_editor();
+		const auto  fail     = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		// Layout evidence for the implementer's own look, never a substitute
+		// for the owner's.
+		const auto render = [&probe, window, &aEvidenceDirectory](const char* const aName) {
+			if (!aEvidenceDirectory.has_value()) {
+				return;
+			}
+			++probe.Renders;
+			static_cast<void>(window->grab().save(QDir{ QString::fromStdString(*aEvidenceDirectory) }.filePath(QStringLiteral("%1-%2.png").arg(probe.Renders).arg(QString::fromLatin1(aName)))));
+		};
+		// One key as a keyboard delivers it: the shortcut pass first, then the press.
+		const auto key = [body](const int aKey, const Qt::KeyboardModifiers aModifiers, const QString& aText) {
+			auto overrideEvent = QKeyEvent{ QEvent::ShortcutOverride, aKey, aModifiers, aText };
+			QCoreApplication::sendEvent(body, &overrideEvent);
+			auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers, aText };
+			QCoreApplication::sendEvent(body, &press);
+			auto release = QKeyEvent{ QEvent::KeyRelease, aKey, aModifiers, aText };
+			QCoreApplication::sendEvent(body, &release);
+			QCoreApplication::processEvents();
+		};
+		const auto text = [body] { return body->toPlainText(); };
+		// Types the next queued character once the draft holds what the body
+		// shows; true when nothing is left to type and the two agree.
+		const auto typed = [&probe, &key, &text, implementation] {
+			const auto& draft  = implementation->ReviewDraft;
+			const auto  caught = draft.has_value() && QString::fromStdString(draft->Body) == text();
+			if (!caught) {
+				return false;
+			}
+			if (probe.Typing.isEmpty()) {
+				return true;
+			}
+			const auto character = probe.Typing.front();
+			probe.Typing.remove(0, 1);
+			key(static_cast<int>(character.toUpper().unicode()), Qt::NoModifier, QString{ character });
+			return false;
+		};
+		const auto cardFor = [cards](const std::string_view aId) -> const qt::thread_card* {
+			const auto found = std::ranges::find(cards->cards(), std::string{ aId }, &qt::thread_card::Id);
+			return found == cards->cards().end() ? nullptr : &*found;
+		};
+		const auto rootLabel = [](const qt::thread_card* const aCard) -> std::optional<core::feedback_label> {
+			return aCard == nullptr || aCard->Posts.empty() ? std::nullopt : aCard->Posts.front().Label;
+		};
+		constexpr auto path      = std::string_view{ "src/engine/renderer.cpp" };
+		constexpr auto subject   = std::string_view{ "Should the width be clamped to one pixel?" };
+		constexpr auto published = std::string_view{ "issue: Should the width be clamped to one pixel?" };
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed");
+			}
+			if (revealed == detail::fixture_file_reveal_result::pending) {
+				return result::pending;
+			}
+			probe.Evidence.FileShown = true;
+			probe.Phase              = state_type::phase::awaiting_marks;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_marks: {
+			const auto* const first  = cardFor("review-thread:PRRT_cc_1");
+			const auto* const second = cardFor("review-thread:PRRT_cc_2");
+			note("cards=" + std::to_string(cards->cards().size()) + " first=" + std::to_string(first != nullptr ? 1 : 0)
+				 + " second=" + std::to_string(second != nullptr ? 1 : 0) + " visible=" + std::to_string(cards->isVisibleTo(window) ? 1 : 0));
+			if (first == nullptr || second == nullptr || !cards->isVisibleTo(window)) {
+				return result::pending;
+			}
+			// renderer.cpp's two threads: issue (blocking), question, praise and
+			// a plain reply; suggestion (non-blocking) and todo.
+			const auto marked = rootLabel(first) == core::feedback_label::issue && first->Posts.front().Blocking
+				&& first->Posts.size() == 4U && first->Posts[1].Label == core::feedback_label::question
+				&& first->Posts[2].Label == core::feedback_label::praise && !first->Posts[3].Label.has_value()
+				&& rootLabel(second) == core::feedback_label::suggestion && !second->Posts.front().Blocking;
+			if (!marked) {
+				return fail("thread-marks-not-drawn");
+			}
+			probe.Evidence.ThreadMarksDrawn = true;
+			render("read-renderer-marks");
+			probe.Phase = state_type::phase::awaiting_line_draft;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_line_draft: {
+			// The first current-head line no thread is on, chosen in Read.
+			auto line = std::optional<std::uint32_t>{ };
+			for (auto candidate = std::uint32_t{ 0U }; candidate < 32U && !line; ++candidate) {
+				if (window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate)
+					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
+					line = candidate;
+				}
+			}
+			const auto& draft = implementation->ReviewDraft;
+			note("line=" + std::to_string(line.value_or(0U)) + " draft=" + std::to_string(draft.has_value() ? 1 : 0)
+				 + " comment=" + std::to_string(window->comment_action()->isEnabled() ? 1 : 0));
+			if (!line || !draft || draft->ReplyToThread || !window->comment_action()->isEnabled()) {
+				return result::pending;
+			}
+			window->comment_action()->trigger();
+			QCoreApplication::processEvents();
+			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+			if (inlinePage == nullptr || !inlinePage->isVisibleTo(window) || body->isReadOnly() || !controls->isVisibleTo(window)) {
+				return fail("comment-page-not-editable");
+			}
+			probe.Evidence.CommentEditable = true;
+			body->setFocus();
+			probe.Typing = QStringLiteral(":qu:");
+			probe.Phase  = state_type::phase::awaiting_shortcode;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_shortcode: {
+			note("body=" + text().toStdString() + " draft=" + (implementation->ReviewDraft ? implementation->ReviewDraft->Body : std::string{ "-" })
+				 + " helper=" + std::to_string(controls->helper() ? 1 : 0) + " typing=" + probe.Typing.toStdString() + " status=" + editor->mutation_status_label()->text().toStdString());
+			// The replacement is queued after the closing colon's own change.
+			if (!typed() || (text() != QStringLiteral("question: ") && !text().startsWith(QStringLiteral("question: S")))) {
+				return result::pending;
+			}
+			if (text() == QStringLiteral("question: ")) {
+				probe.Evidence.ShortcodeApplied = controls->state().Label == core::feedback_label::question;
+				probe.Typing                    = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+				return result::pending;
+			}
+			if (text() != QStringLiteral("question: ") + QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()))) {
+				return result::pending;
+			}
+			render("editor-shortcode");
+			controls->chip()->click();
+			QCoreApplication::processEvents();
+			auto* const choice = controls->menu() != nullptr ? controls->menu()->label_button(core::feedback_label::suggestion) : nullptr;
+			if (choice == nullptr || !controls->menu()->isVisible()) {
+				return fail("chip-menu-not-open");
+			}
+			choice->click();
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_chip;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_chip: {
+			note("body=" + text().toStdString() + " menu=" + std::to_string(controls->menu()->isVisible() ? 1 : 0));
+			if (!text().startsWith(QStringLiteral("suggestion: "))) {
+				return result::pending;
+			}
+			probe.Evidence.ChipApplied = controls->state().Label == core::feedback_label::suggestion && !controls->menu()->isVisible()
+				&& text() == QStringLiteral("suggestion: ") + QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			const auto opens = controls->statistics().MenuOpens;
+			key(Qt::Key_L, Qt::ControlModifier, QString{ });
+			auto* const choice = controls->menu()->label_button(core::feedback_label::issue);
+			if (controls->statistics().MenuOpens != opens + 1U || !controls->menu()->isVisible() || choice == nullptr) {
+				return fail("command-l-did-not-open-the-menu");
+			}
+			render("label-menu");
+			choice->click();
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_shortcut;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_shortcut: {
+			const auto& draft = implementation->ReviewDraft;
+			note("body=" + text().toStdString() + " draft=" + (draft ? draft->Body : std::string{ "-" })
+				 + " publish=" + std::to_string(editor->publish_action()->isEnabled() ? 1 : 0));
+			if (text().toStdString() != published || !draft || draft->Body != published || !editor->publish_action()->isEnabled()) {
+				return result::pending;
+			}
+			probe.Evidence.ShortcutApplied = controls->state().Label == core::feedback_label::issue;
+			render("editor-labelled");
+			editor->publish_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_published: {
+			const auto mutations = implementation->Fixture->review_mutation_evidence();
+			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0)
+				 + " native=" + std::to_string(mutations.NativePosts) + " status=" + editor->mutation_status_label()->text().toStdString());
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == 0U) {
+				return result::pending;
+			}
+			probe.Evidence.Published = mutations.NativePosts == 1U && mutations.StoredComments == 1U;
+			auto* const refresh      = window->github_refresh_action();
+			if (refresh == nullptr) {
+				return fail("refresh-unavailable");
+			}
+			if (!refresh->isEnabled()) {
+				return result::pending;
+			}
+			refresh->trigger();
+			probe.Phase = state_type::phase::awaiting_refreshed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_refreshed: {
+			const auto  thread = model->index_for_id("review-thread:PRRT_composed_1");
+			const auto* card   = cardFor("review-thread:PRRT_composed_1");
+			note("thread=" + std::to_string(thread.isValid() ? 1 : 0) + " card=" + std::to_string(card != nullptr ? 1 : 0)
+				 + " cards=" + std::to_string(cards->cards().size()));
+			if (card == nullptr) {
+				return result::pending;
+			}
+			probe.Evidence.PublishedMarked = rootLabel(card) == core::feedback_label::issue && !card->Posts.front().Blocking
+				&& card->Posts.front().Name.endsWith(QStringLiteral(", issue"));
+			render("published-marked");
+			if (!probe.Evidence.PublishedMarked) {
+				return fail("published-thread-unmarked name=" + card->Posts.front().Name.toStdString());
+			}
+			const auto& evidence = probe.Evidence;
+			const auto  all      = evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
+				&& evidence.ChipApplied && evidence.ShortcutApplied && evidence.Published && evidence.PublishedMarked;
+			probe.Phase = all ? state_type::phase::passed : state_type::phase::failed;
+			return all ? result::passed : result::failed;
+		}
+		case state_type::phase::passed:
+		case state_type::phase::failed:
+			break;
+		}
+		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::label_authoring_evidence(
+		const github_application& aApplication) -> detail::label_authoring_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->LabelAuthoringProbe.has_value()) {
+			return { };
+		}
+		return implementation->LabelAuthoringProbe->Evidence;
+	}
+
+	auto detail::github_application_fixture_access::label_authoring_diagnostic(
+		const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->LabelAuthoringProbe.has_value()) {
+			return { };
+		}
+		return implementation->LabelAuthoringProbe->Diagnostic;
 	}
 
 	auto detail::github_application_fixture_access::threaded_reply_diagnostic(

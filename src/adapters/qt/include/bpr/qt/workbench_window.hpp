@@ -90,6 +90,7 @@ namespace bpr::qt {
 	class review_tour_editor;
 	enum class dif_clip_id : std::size_t;
 	class dif_catalog_provider;
+	class feedback_mark_preview;
 	class dif_cue_router;
 	class dif_widget;
 	class home_list;
@@ -525,6 +526,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto behaviour() const noexcept -> const application::review_behaviour_settings&;
 		/// \brief The Reviews & queue preference editor ([[BPR-0661]]).
 		[[nodiscard]] auto behaviour_editor() const noexcept -> QWidget*;
+		/// \brief [[BPR-1083]]. The marks beside Comment labels › Label marks.
+		[[nodiscard]] auto feedback_marks_preview() const noexcept -> feedback_mark_preview*;
 		/// \brief Adopts the read state of the review's conversations.
 		///
 		/// \details [[BPR-0656]]. The cards draw it, the gutter marks a new
@@ -1667,6 +1670,7 @@ namespace bpr::qt {
 		application::review_behaviour_settings   Behaviour;
 		QWidget*                                 BehaviourEditor = nullptr;
 		std::array<std::vector<QToolButton*>, 7> BehaviourOptions{ };
+		feedback_mark_preview*                   FeedbackMarksPreview = nullptr;
 		/// [[BPR-1083]]. The label tints of the theme on screen, once the
 		/// composition supplies them; the mark style is `Behaviour`'s.
 		std::optional<feedback_label_tints> LabelTints;

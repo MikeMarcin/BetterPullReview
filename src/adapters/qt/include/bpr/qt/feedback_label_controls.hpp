@@ -6,6 +6,7 @@
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QFrame>
+#include <QSize>
 #include <QString>
 #include <QWidget>
 
@@ -13,6 +14,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <span>
 #include <vector>
 
 class QLabel;
@@ -172,6 +174,34 @@ namespace bpr::qt {
 		std::array<QToolButton*, core::feedback_label_count> Labels{ };
 		std::array<QToolButton*, 3U>                         Decorations{ };
 		QLabel*                                              Hint = nullptr;
+	};
+
+	/// \brief [[BPR-1083]]. A few marks drawn in the style and tints on
+	/// screen, beside the Label marks setting, so a reviewer sees Icons or
+	/// Letters before meeting them in a thread (owner, mark-style-v001: "it'd
+	/// be nice to see a preview").
+	/// \details Presentation only: it paints what `set_theme` hands it and
+	/// dispatches nothing. One mark is blocking, so the full fill shows too.
+	class feedback_mark_preview final : public QWidget
+	{
+	public:
+		explicit feedback_mark_preview(QWidget* aParent = nullptr);
+
+		void               set_theme(const feedback_mark_theme& aTheme);
+		[[nodiscard]] auto theme() const noexcept -> const feedback_mark_theme&;
+		/// \brief The labels drawn, in order, and which of them is blocking.
+		[[nodiscard]] static auto labels() noexcept -> std::span<const core::feedback_label>;
+		[[nodiscard]] static auto blocking_label() noexcept -> core::feedback_label;
+		[[nodiscard]] auto        sizeHint() const -> QSize override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
+
+	private:
+		void name_for_theme();
+
+		feedback_mark_theme Theme;
 	};
 } // namespace bpr::qt
 

@@ -23,11 +23,14 @@
 #include <QLabel>
 #include <QPainter>
 #include <QPlainTextEdit>
+#include <QPoint>
+#include <QRect>
 #include <QScrollBar>
 #include <QTextEdit>
 #include <QToolButton>
 #include <QTreeView>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -251,6 +254,60 @@ namespace {
 		reset->click();
 		expect(records.back().FeedbackMarks == application::review_feedback_marks::icons, "Reset returns the Comment labels group to icons");
 	}
+	/// \brief The owner, accepting the toggle (mark-style-v001): "it'd be nice
+	/// to see a preview". A row of marks sits on the Label marks line, after
+	/// the choices, and draws what the published style and tints draw.
+	void test_the_mark_style_preview_follows_the_setting()
+	{
+		qt::workbench_window window;
+		auto                 records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) { records.push_back(aSettings); });
+		auto* const page    = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const letters = window.findChild<QToolButton*>(QStringLiteral("feedbackMarksLetters"));
+		auto* const preview = window.feedback_marks_preview();
+		expect(preview != nullptr && letters != nullptr && page->isAncestorOf(preview)
+				   && preview->objectName() == QStringLiteral("feedbackMarksPreview"),
+			   "Reviews & queue shows the marks preview");
+		window.settings()->resize(1'100, 760);
+		window.settings()->present(qt::settings_page::reviews_and_queue);
+		settle();
+		const auto lettersBox = QRect{ letters->mapTo(page, QPoint{ 0, 0 }), letters->size() };
+		const auto previewBox = QRect{ preview->mapTo(page, QPoint{ 0, 0 }), preview->size() };
+		expect(previewBox.left() > lettersBox.right() && previewBox.left() - lettersBox.right() < 40
+				   && std::abs(previewBox.center().y() - lettersBox.center().y()) <= 2,
+			   "the preview sits on the Label marks line, just after Letters");
+		expect(preview->theme().Style == qt::feedback_mark_style::icons
+				   && preview->accessibleName() == QStringLiteral("Label marks preview, icons")
+				   && preview->toolTip().contains(QStringLiteral("issue (blocking)")),
+			   "it starts in icons and names what it shows");
+		const auto paint = [preview] {
+			auto image = QImage{ preview->size(), QImage::Format_ARGB32 };
+			image.fill(Qt::transparent);
+			preview->render(&image);
+			return image;
+		};
+		const auto icons      = paint();
+		const auto marks      = qt::feedback_mark_preview::labels();
+		const auto issueIndex = std::distance(marks.begin(), std::ranges::find(marks, qt::feedback_mark_preview::blocking_label()));
+		const auto issueX     = 1 + static_cast<int>(issueIndex) * (static_cast<int>(qt::feedback_mark_size) + 6);
+		const auto issueTint  = window.label_marks().Tints[static_cast<std::size_t>(core::feedback_label::issue)];
+		const auto corner     = icons.pixelColor(issueX + 3, (preview->height() / 2) - 5);
+		expect(std::abs(corner.red() - issueTint.red()) < 24 && std::abs(corner.green() - issueTint.green()) < 24 && std::abs(corner.blue() - issueTint.blue()) < 24,
+			   "the blocking issue mark is filled with the issue tint");
+		letters->click();
+		auto projection      = application::workbench_projection{ };
+		projection.Behaviour = records.back();
+		window.publish(projection);
+		settle();
+		const auto lettered = paint();
+		expect(preview->theme().Style == qt::feedback_mark_style::letters
+				   && preview->accessibleName() == QStringLiteral("Label marks preview, letters") && lettered != icons,
+			   "choosing Letters redraws the preview in letters once it is published");
+		save_render(*page, "reviews-and-queue-letters-preview");
+		window.set_label_tints(qt::feedback_label_tints_of(qt::builtin_appearance_palette(core::appearance_variant::dark)));
+		expect(preview->theme().Tints[3] == QColor{ 0xFF, 0x7B, 0x72 } && preview->theme().Style == qt::feedback_mark_style::letters,
+			   "a theme's tints reach the preview without changing its style");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -260,6 +317,7 @@ auto main(int argc, char** argv) -> int
 	test_compact_entries_carry_the_root_rail();
 	test_the_post_list_and_the_body_reader();
 	test_the_mark_style_setting_reaches_every_surface();
+	test_the_mark_style_preview_follows_the_setting();
 	std::cout << "feedback-label-threads-tests:pass\n";
 	return EXIT_SUCCESS;
 }

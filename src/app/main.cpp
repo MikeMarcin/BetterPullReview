@@ -1118,6 +1118,13 @@ namespace {
 		bool                                            ThreadedReplyPassed  = false;
 		bpr::app::detail::threaded_reply_probe_evidence ThreadedReplyEvidence;
 		std::string                                     ThreadedReplyDiagnostic;
+		// [[BPR-1083]]. `--label-authoring-probe`, renders into
+		// `--label-authoring-evidence` when it names a folder.
+		bool                                             LabelAuthoringProbe  = false;
+		bool                                             LabelAuthoringPassed = false;
+		bpr::app::detail::label_authoring_probe_evidence LabelAuthoringEvidence;
+		std::string                                      LabelAuthoringDiagnostic;
+		std::optional<std::string>                       LabelAuthoringEvidenceDirectory;
 		std::optional<bpr::app::detail::defect_composition_probe>
 			DefectCompositionProbe;
 		// [[BPR-0654]]. `--overview-since-review`.
@@ -4684,6 +4691,14 @@ namespace {
 				   << evidence.ReplyUnderThread << evidence.ResolveAsked << evidence.ThreadResolved << '\n';
 			stream << "THREADED_REPLY_DIAGNOSTIC:" << QString::fromStdString(aRun.ThreadedReplyDiagnostic) << '\n';
 		}
+		if (aRun.LabelAuthoringProbe) {
+			const auto& evidence = aRun.LabelAuthoringEvidence;
+			stream << (aRun.LabelAuthoringPassed ? "LABEL_AUTHORING_OK\n" : "LABEL_AUTHORING_FAILED\n")
+				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
+				   << evidence.ShortcodeApplied << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
+				   << evidence.PublishedMarked << '\n';
+			stream << "LABEL_AUTHORING_DIAGNOSTIC:" << QString::fromStdString(aRun.LabelAuthoringDiagnostic) << '\n';
+		}
 		if (aRun.ReviewRoundTripCompositionProbe) {
 			const auto& evidence = aRun.ReviewRoundTripCompositionEvidence;
 			stream << (aRun.ReviewRoundTripCompositionPassed
@@ -4747,6 +4762,7 @@ namespace {
 			&& !aRun.UIforEtwSelectedDiffProbe
 			&& !aRun.Appearance.Enabled
 			&& !aRun.ReviewRoundTripCompositionProbe && !aRun.ThreadedReplyProbe
+			&& !aRun.LabelAuthoringProbe
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
 			// public-path expectation matches its markers contiguously, so a
@@ -5094,6 +5110,96 @@ namespace {
 		} else {
 			fail_automated_run(aApplication, aRun);
 		}
+	}
+
+	// [[BPR-1083]]. `--attended-open-file`: before a person looks, the
+	// fixture's account signs in, the pull request opens from the Home bar and
+	// the named file is selected in Read, the way a reviewer would get there.
+	// It then leaves the window to the person and prints one line saying
+	// whether it got there.
+	void schedule_attended_reveal(
+		bpr::app::github_application& aApplication,
+		std::string                   aPath,
+		QString                       aPullRequest)
+	{
+		enum class step : std::uint8_t {
+			connect,
+			open,
+			reveal,
+		};
+		struct reveal_state
+		{
+			step                        Step = step::connect;
+			automated_clock::time_point Started;
+		};
+		auto        state = std::make_shared<reveal_state>(reveal_state{ .Started = automated_clock::now() });
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, path = std::move(aPath), pullRequest = std::move(aPullRequest), alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				timer->stop();
+				timer->deleteLater();
+			};
+			if (automated_clock::now() - state->Started > std::chrono::seconds{ 90 }) {
+				finish(QStringLiteral("ATTENDED_FILE_FAILED:timeout:step=%1").arg(static_cast<int>(state->Step)));
+				return;
+			}
+			switch (state->Step) {
+			case step::connect:
+				if (window.github_connect_action()->isEnabled()) {
+					window.github_connect_action()->trigger();
+					state->Step = step::open;
+				}
+				return;
+			case step::open:
+				if (window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled()) {
+					window.home_open_bar()->setText(pullRequest);
+					window.home_open_action()->trigger();
+					state->Step = step::reveal;
+				}
+				return;
+			case step::reveal:
+				switch (bpr::app::detail::github_application_fixture_access::reveal_fixture_file(aApplication, path)) {
+				case bpr::app::detail::fixture_file_reveal_result::pending:
+					return;
+				case bpr::app::detail::fixture_file_reveal_result::shown:
+					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
+					return;
+				case bpr::app::detail::fixture_file_reveal_result::failed:
+					finish(QStringLiteral("ATTENDED_FILE_FAILED:%1").arg(QString::fromStdString(path)));
+					return;
+				}
+				return;
+			}
+		});
+		timer->start();
+	}
+
+	// [[BPR-1083]]. One tick of the label-authoring course; ends the run when
+	// the course does.
+	void advance_label_authoring_probe(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		const auto result = bpr::app::detail::github_application_fixture_access::exercise_label_authoring(
+			aApplication, aRun.LabelAuthoringEvidenceDirectory);
+		aRun.LabelAuthoringDiagnostic = bpr::app::detail::github_application_fixture_access::label_authoring_diagnostic(aApplication);
+		if (result == bpr::app::detail::label_authoring_probe_result::pending) {
+			return;
+		}
+		aRun.LabelAuthoringEvidence = bpr::app::detail::github_application_fixture_access::label_authoring_evidence(aApplication);
+		aRun.LabelAuthoringPassed   = result == bpr::app::detail::label_authoring_probe_result::passed;
+		if (!aRun.LabelAuthoringPassed) {
+			fail_automated_run(aApplication, aRun);
+			return;
+		}
+		aRun.PresentationPassed = true;
+		transition_to_shutdown(aApplication, aRun);
 	}
 
 	void advance_uiforetw_selected_diff_probe(
@@ -5853,6 +5959,13 @@ namespace {
 				if (aRun->UIforEtwSelectedDiffProbe
 					&& aRun->UIforEtwSelectedDiffStarted) {
 					advance_uiforetw_selected_diff_probe(aApplication, *aRun);
+					break;
+				}
+				// [[BPR-1083]]. The course opens its own file in Read, so it
+				// starts as soon as the pull request is being read rather than
+				// after a presentation check that needs a file selected first.
+				if (aRun->LabelAuthoringProbe) {
+					advance_label_authoring_probe(aApplication, *aRun);
 					break;
 				}
 				if (aRun->ThreadedReplyProbe && aRun->ThreadedReplyStarted
@@ -7931,7 +8044,11 @@ auto main(int argc, char** argv) -> int
 			= has_argument(argc, argv, "--public-preview-empty-timeline-course");
 		fixtureOptions.UnfetchableFirstHistoricalHead
 			= has_argument(argc, argv, "--public-preview-unfetchable-first-head-course");
-		fixtureOptions.LabelHelper           = has_argument(argc, argv, "--label-helper");
+		// [[BPR-1083]]. The label-authoring course types `:qu:`, so it needs
+		// the helper, and reads the pull request again after publishing.
+		const auto labelAuthoringProbe       = has_argument(argc, argv, "--label-authoring-probe");
+		fixtureOptions.LabelHelper           = has_argument(argc, argv, "--label-helper") || labelAuthoringProbe;
+		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || labelAuthoringProbe;
 		fixtureOptions.SuppressDeviceBrowser = has_argument(
 			argc,
 			argv,
@@ -8481,6 +8598,21 @@ auto main(int argc, char** argv) -> int
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
+		// [[BPR-1083]]. An attended look that should start on a file, signed in
+		// with the fixture's account: without it the window opens on Home,
+		// where the Home bar's public-preview reading is read-only.
+		const auto attendedOpenFile = argument_value(argc, argv, "--attended-open-file");
+		if (attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty())) {
+			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		const auto attendedPullRequest    = QStringLiteral("%1/%2#%3").arg(QString::fromStdString(fixtureExpectations.Owner), QString::fromStdString(fixtureExpectations.Repository), QString::number(fixtureExpectations.Number));
+		const auto labelAuthoringEvidence = argument_value(argc, argv, "--label-authoring-evidence");
+		if ((labelAuthoringProbe && (fixtureName != "conventional-comments-v1" || attendedLaunch || selfTest || renderPath.has_value()))
+			|| (labelAuthoringEvidence.has_value() && !labelAuthoringProbe)) {
+			QTextStream{ stdout } << "LABEL_AUTHORING_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
 		if ((nativeNotificationProbe && nativeNotificationAttended)
 			|| (nativeNotificationRequestCut
 				&& nativeNotificationActivationCut)
@@ -8808,6 +8940,8 @@ auto main(int argc, char** argv) -> int
 								.ReviewLedgerCompositionProbe    = reviewLedgerCompositionProbe,
 								.ReviewRoundTripCompositionProbe = reviewRoundTripCompositionProbe,
 								.ThreadedReplyProbe              = threadedReplyProbe,
+								.LabelAuthoringProbe             = labelAuthoringProbe,
+								.LabelAuthoringEvidenceDirectory = labelAuthoringEvidence.has_value() ? std::optional<std::string>{ std::string{ *labelAuthoringEvidence } } : std::nullopt,
 								.DefectCompositionProbe          = defectCompositionProbe,
 								.OverviewSinceReviewRequested    = overviewSinceReview,
 								.ReviewBehaviourRequested        = reviewBehaviour,
@@ -8833,6 +8967,11 @@ auto main(int argc, char** argv) -> int
 								.RenderCollapsesFilesDrawer = renderCollapsesFilesDrawer,
 							}));
 				}
+#if defined(BPR_BUILD_TESTING)
+				if (heldOpenForInspection && attendedOpenFile.has_value()) {
+					schedule_attended_reveal(*application, std::string{ *attendedOpenFile }, attendedPullRequest);
+				}
+#endif
 
 			} catch (...) {
 #if defined(BPR_BUILD_TESTING)

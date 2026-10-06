@@ -549,6 +549,43 @@ namespace bpr::app::detail {
 		auto operator<=>(const threaded_reply_probe_evidence&) const = default;
 	};
 
+	/// [[BPR-1083]]. Opening one of the fixture's files in Read, as a
+	/// reviewer would from the files drawer.
+	enum class fixture_file_reveal_result {
+		pending,
+		shown,
+		failed,
+	};
+
+	/// [[BPR-1083]]. The label-authoring course over `conventional-comments-v1`.
+	enum class label_authoring_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct label_authoring_probe_evidence
+	{
+		/// The file opened in Read with its threads in the drawer.
+		bool FileShown = false;
+		/// Its labelled threads' cards carry the marks the bodies name.
+		bool ThreadMarksDrawn = false;
+		/// Comment opened an editable inline page in Read.
+		bool CommentEditable = false;
+		/// `:qu:` typed into an empty body became `question: `.
+		bool ShortcodeApplied = false;
+		/// The chip's menu changed the label.
+		bool ChipApplied = false;
+		/// ⌘L in the body opened the menu, which changed it again.
+		bool ShortcutApplied = false;
+		/// Publish posted one comment with the labelled body.
+		bool Published = false;
+		/// After a refresh, the new thread's card carries its mark.
+		bool PublishedMarked = false;
+
+		auto operator<=>(const label_authoring_probe_evidence&) const = default;
+	};
+
 	enum class defect_composition_probe {
 		seed,
 		reopen,
@@ -1169,6 +1206,21 @@ namespace bpr::app::detail {
 			-> threaded_reply_probe_evidence;
 		/// \brief The probe's phase and the facts it last saw, for the run summary.
 		[[nodiscard]] static auto threaded_reply_diagnostic(const github_application& aApplication)
+			-> std::string;
+		/// \brief [[BPR-1083]]. Selects `aPath` in the files drawer in Read and
+		/// waits for its comparison. Pending until the pull request's files are
+		/// listed; the gesture is the drawer's own selection.
+		[[nodiscard]] static auto reveal_fixture_file(github_application& aApplication, std::string_view aPath)
+			-> fixture_file_reveal_result;
+		/// \brief [[BPR-1083]]. In Read on `src/engine/renderer.cpp`: the
+		/// thread marks, then a new comment labelled by `:qu:`, the chip and ⌘L,
+		/// published, and its mark after a refresh. Saves window renders into
+		/// `aEvidenceDirectory` when one is named.
+		[[nodiscard]] static auto exercise_label_authoring(github_application& aApplication, const std::optional<std::string>& aEvidenceDirectory)
+			-> label_authoring_probe_result;
+		[[nodiscard]] static auto label_authoring_evidence(const github_application& aApplication)
+			-> label_authoring_probe_evidence;
+		[[nodiscard]] static auto label_authoring_diagnostic(const github_application& aApplication)
 			-> std::string;
 		[[nodiscard]] static auto dormant_live_provider_selection_evidence_for(
 			const github_application& aApplication)

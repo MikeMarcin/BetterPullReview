@@ -91,6 +91,9 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
   same mark, with the same tints, blocking fill, size and accessible names.
   The choice is the Label marks row of Reviews & queue › Comment labels, kept
   with the profile's review behaviour (workbench settings store, schema 12),
+  with six marks beside it (praise, suggestion, issue blocking, question,
+  nitpick, todo) drawn in the published style and the theme's tints (owner,
+  `mark-style-v001`: "it'd be nice to see a preview"),
   and it applies everywhere a mark is drawn: threads, the chip and its menu,
   completion, and the Overview chips and Label key when BPR-1087 and BPR-1089
   draw them through `feedback_mark_theme`.
@@ -218,11 +221,10 @@ Consumers: the inline composition page and reply drafts
   Every label and Plain can be reached by keyboard (RFC-BPR-0048). The chip
   does not change size at narrow widths. Focus returns to the body, with the
   caret after the prefix, when the menu closes.
-- **Open.** The workbench specification reserves the Comment ▾ menu on the
-  review bar for labels. The owner selected the chip, not that menu.
-  BPR-1083 delivers the chip. If it proposes listing labels in Comment ▾ as
-  well, that is asked of the owner first. BPR-1083 asks it, as one Accept or
-  Reject, in its attended session; the card records the answer.
+- **Comment ▾ lists no labels** (owner, BPR-1083 `comment-menu-v001`,
+  Accept, 2026-10-05). The review bar's Comment ▾ offers the plain comment
+  alone; labels are chosen in the editor's chip. The workbench
+  specification's reservation of that menu for labels is withdrawn.
 - **As built** (BPR-1083). `feedback_label_controls` is the editor's tool row,
   directly above the field and the next tab stop after it. The menu is a popup:
   Plain comment, the grid with each label's mark, name, code and catalog
@@ -233,6 +235,22 @@ Consumers: the inline composition page and reply drafts
   `plan_feedback_draft_edit` plans for the same label. Completion is a list
   under the caret that never takes focus. The helper's Settings row is
   BPR-1088's; a tests-on fixture launch turns it on with `--label-helper`.
+- **One edit with the draft owner at a time** (derived, BPR-1083 v002). The
+  replacement of a leading code follows its closing colon at once, while the
+  colon's own edit can still be with the draft owner (the private-review
+  draft path answers asynchronously). It used to go on the revision that edit
+  was based on and was refused as "Draft changed in another window". The
+  editor now holds a change made while an edit is unanswered and sends it on
+  the revision accepted; with no answer within half a second it goes as
+  before. The composed `application_label_authoring_contract` found it.
+- **Attended setup** (BPR-1083 v002). A tests-on `--attended-launch` with
+  `--attended-open-file PATH` signs in with the fixture's account, opens the
+  fixture pull request from the Home bar and selects `PATH` in Read, then
+  prints `ATTENDED_FILE_SHOWN:PATH`. Without it the window opens on Home,
+  whose bar reads a pull request in public preview, where comments are
+  read-only (the owner's `chip-menu-v001` rejection). The automated
+  `--label-authoring-probe` course drives the same path through Comment,
+  `:qu:`, the chip, ⌘L, Publish and the refreshed thread's mark.
 
 ### Thread cards and detail (BPR-1083; RFC-BPR-0050)
 
@@ -386,8 +404,6 @@ description reader (RFC-BPR-0050). Offscreen renders are layout evidence only.
 
 ## Open, not decided here
 
-- Whether Comment ▾ on the review bar lists labels (BPR-1083 asks the owner
-  if it proposes it).
 - The keyboard route to a single Overview chip (BPR-1089 records it).
 - Live website interoperability with a real GitHub host (verification
   milestone). It uses `MikeMarcin/BPR-Test` only.

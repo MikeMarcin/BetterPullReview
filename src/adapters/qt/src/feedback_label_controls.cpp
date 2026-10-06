@@ -14,8 +14,12 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMetaObject>
+#include <QPaintEvent>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QScreen>
+#include <QSizePolicy>
+#include <QStringList>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -24,6 +28,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -779,5 +784,93 @@ namespace bpr::qt {
 	{
 		QFrame::hideEvent(aEvent);
 		Controls.return_focus();
+	}
+
+	namespace {
+		/// Five soft marks and one blocking: enough to show the shapes or the
+		/// letters, the tints and the fill without becoming a second key.
+		constexpr auto preview_labels = std::array{
+			core::feedback_label::praise,
+			core::feedback_label::suggestion,
+			core::feedback_label::issue,
+			core::feedback_label::question,
+			core::feedback_label::nitpick,
+			core::feedback_label::todo,
+		};
+		constexpr auto preview_gap = 6;
+	} // namespace
+
+	feedback_mark_preview::feedback_mark_preview(QWidget* const aParent)
+		: QWidget{ aParent }
+		, Theme{ default_feedback_mark_theme(palette()) }
+	{
+		setObjectName(QStringLiteral("feedbackMarksPreview"));
+		setFocusPolicy(Qt::NoFocus);
+		setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		name_for_theme();
+	}
+
+	void feedback_mark_preview::set_theme(const feedback_mark_theme& aTheme)
+	{
+		Theme = aTheme;
+		name_for_theme();
+		update();
+	}
+
+	auto feedback_mark_preview::theme() const noexcept -> const feedback_mark_theme&
+	{
+		return Theme;
+	}
+
+	auto feedback_mark_preview::labels() noexcept -> std::span<const core::feedback_label>
+	{
+		return preview_labels;
+	}
+
+	auto feedback_mark_preview::blocking_label() noexcept -> core::feedback_label
+	{
+		return core::feedback_label::issue;
+	}
+
+	auto feedback_mark_preview::sizeHint() const -> QSize
+	{
+		const auto mark  = static_cast<int>(feedback_mark_size);
+		const auto count = static_cast<int>(preview_labels.size());
+		return QSize{ (count * mark) + ((count - 1) * preview_gap) + 2, mark + 2 };
+	}
+
+	void feedback_mark_preview::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing);
+		const auto mark = feedback_mark_size;
+		auto       left = 1.0;
+		const auto top  = (static_cast<qreal>(height()) - mark) / 2.0;
+		for (const auto label : preview_labels) {
+			paint_feedback_mark(painter, QRectF{ left, top, mark, mark }, label, label == blocking_label(), feedback_mark_colours_for(Theme, label, palette()));
+			left += mark + preview_gap;
+		}
+	}
+
+	void feedback_mark_preview::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange) {
+			update();
+		}
+	}
+
+	void feedback_mark_preview::name_for_theme()
+	{
+		const auto style = Theme.Style == feedback_mark_style::letters ? QStringLiteral("letters") : QStringLiteral("icons");
+		setAccessibleName(QStringLiteral("Label marks preview, %1").arg(style));
+		auto names = QStringList{ };
+		for (const auto label : preview_labels) {
+			names.push_back(label == blocking_label() ? feedback_label_text(label) + QStringLiteral(" (blocking)") : feedback_label_text(label));
+		}
+		const auto description = QStringLiteral("Marks as threads show them, in %1: %2").arg(style, names.join(QStringLiteral(", ")));
+		setAccessibleDescription(description);
+		setToolTip(description);
 	}
 } // namespace bpr::qt

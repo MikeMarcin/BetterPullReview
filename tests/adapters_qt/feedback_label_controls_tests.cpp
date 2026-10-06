@@ -15,6 +15,8 @@
 #include "bpr/qt/review_draft_editor.hpp"
 
 #include <QApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -73,18 +75,46 @@ namespace {
 		qt::review_draft_editor*                           Editor = nullptr;
 		std::vector<core::revisioned_review_draft_command> Commands;
 		core::revisioned_review_draft                      Accepted;
+		/// The owner's latest answer. Like the composed host's shared drafts,
+		/// it answers each edit at once unless `Answering` is false, when the
+		/// edit waits in `Unanswered` for `answer()`.
+		core::revisioned_review_draft                      Latest;
+		bool                                               Answering = true;
+		std::vector<core::revisioned_review_draft_command> Unanswered;
 
 		explicit fixture(std::string aBody, const core::review_draft_state aState = core::review_draft_state::drafting)
 			: Accepted{ a_draft(std::move(aBody), aState), 3U, core::review_draft_scope_id{ 1U } }
+			, Latest{ Accepted }
 		{
 			auto* const layout = new QVBoxLayout{ &Window };
 			Editor             = new qt::review_draft_editor{ [](auto) { }, [](auto) { }, &Window };
 			layout->addWidget(Editor);
-			Editor->set_revisioned_dispatch([this](core::revisioned_review_draft_command aCommand) { Commands.push_back(std::move(aCommand)); });
+			Editor->set_revisioned_dispatch([this](core::revisioned_review_draft_command aCommand) {
+				Commands.push_back(aCommand);
+				if (Answering) {
+					answer(aCommand);
+				} else {
+					Unanswered.push_back(std::move(aCommand));
+				}
+			});
 			Editor->present(Accepted);
 			Window.resize(900, 600);
 			Window.show();
 			settle();
+		}
+
+		/// \brief The owner accepts one edit made on its latest revision.
+		void answer(const core::revisioned_review_draft_command& aCommand)
+		{
+			if (aCommand.ExpectedRevision != Latest.Revision) {
+				Editor->present_conflict({ .Accepted = Latest, .Refusal = core::revisioned_draft_refusal::conflict });
+				return;
+			}
+			auto next       = Latest;
+			next.Draft.Body = aCommand.Command.Body;
+			next.Revision   = Latest.Revision + 1U;
+			Latest          = next;
+			Editor->acknowledge(aCommand, next);
 		}
 
 		[[nodiscard]] auto body() const -> QPlainTextEdit* { return Editor->body_editor(); }
@@ -428,6 +458,54 @@ namespace {
 		expect(off.controls()->state().Label == core::feedback_label::question, "a label typed in full counts either way");
 	}
 
+	/// \brief Found by BPR-1083's composed label-authoring course: the
+	/// replacement of `:qu:` follows its closing colon at once, while the
+	/// colon's own edit can still be with the draft owner. It used to go on
+	/// the revision that edit was based on and was refused as "Draft changed in
+	/// another window". It now waits for the answer and goes on the revision
+	/// accepted; with no answer it goes as before.
+	void test_a_shortcode_waits_for_the_unanswered_colon()
+	{
+		auto f = fixture{ "Fix it." };
+		f.Editor->set_label_helper(true);
+		caret_at(f.body(), 0);
+		type(f.body(), QStringLiteral(":qu"));
+		settle();
+		f.Answering = false;
+		type(f.body(), QStringLiteral(":"));
+		settle();
+		expect(f.text() == "question: Fix it." && f.Unanswered.size() == 1U && f.Unanswered.front().Command.Body == ":qu:Fix it.",
+			   "the closing colon's edit is with the owner and the replacement is on screen");
+		const auto sent    = f.Commands.size();
+		const auto pending = f.Unanswered.front();
+		f.Unanswered.clear();
+		f.Answering = true;
+		f.answer(pending);
+		settle();
+		expect(f.Commands.size() == sent + 1U && f.Commands.back().Command.Body == "question: Fix it."
+				   && f.Commands.back().ExpectedRevision == pending.ExpectedRevision + 1U && f.Latest.Draft.Body == "question: Fix it."
+				   && f.text() == "question: Fix it." && f.Editor->mutation_status_label()->text().isEmpty(),
+			   "the replacement then goes on the accepted revision, with no conflict and nothing undone");
+
+		auto silent = fixture{ "Fix it." };
+		silent.Editor->set_label_helper(true);
+		caret_at(silent.body(), 0);
+		type(silent.body(), QStringLiteral(":qu"));
+		settle();
+		silent.Answering = false;
+		type(silent.body(), QStringLiteral(":"));
+		settle();
+		const auto stale = silent.Unanswered.front().ExpectedRevision;
+		auto       clock = QElapsedTimer{ };
+		clock.start();
+		while (silent.Unanswered.size() < 2U && clock.elapsed() < 2'000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 50);
+		}
+		expect(silent.Unanswered.size() == 2U && silent.Unanswered.back().Command.Body == "question: Fix it."
+				   && silent.Unanswered.back().ExpectedRevision == stale,
+			   "with no answer, the waiting change still goes, as it did before");
+	}
+
 	void test_the_chip_keeps_its_size_when_narrow()
 	{
 		auto       f    = fixture{ "suggestion (blocking): Narrow." };
@@ -450,6 +528,7 @@ auto main(int argc, char** argv) -> int
 	test_a_label_comes_first_on_an_empty_comment();
 	test_refusals_change_nothing();
 	test_shortcodes_complete_and_replace_at_the_start();
+	test_a_shortcode_waits_for_the_unanswered_colon();
 	test_the_chip_keeps_its_size_when_narrow();
 	std::cout << "feedback-label-controls-tests:pass\n";
 	return EXIT_SUCCESS;

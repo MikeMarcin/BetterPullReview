@@ -67,9 +67,9 @@ thread when there is one (the thread the reviewer chose, or the thread on the
 line they selected) and otherwise starts a comment on the current line. It
 names that target wherever it is offered: its tooltip ("Comment on line 431
 (⌥C)", "Reply to tbutler's thread (⌥C)"), the Pull Request menu, and the menu
-its arrow opens on the review bar, which offers that plain comment alone; it is
-where RFC-BPR-0048's Conventional Comments labels will be offered, and no label
-is offered before then. Either way it opens the inline composition page on the
+its arrow opens on the review bar, which offers that plain comment alone. Labels
+are chosen in the comment editor's chip, never in this menu (owner, BPR-1083
+`comment-menu-v001`, 2026-10-05). Either way it opens the inline composition page on the
 line's draft or on the reply draft; nothing is published without the page's
 explicit Publish. [[BPR-1207]] requires an admitted editable draft, or an explicit recovery for its
 retained text, at the named current-head target before Comment opens. Otherwise the tooltip and

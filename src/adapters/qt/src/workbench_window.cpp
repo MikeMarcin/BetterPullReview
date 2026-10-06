@@ -15,6 +15,7 @@
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
@@ -1159,8 +1160,8 @@ namespace bpr::qt {
 		ReviewBar->addAction(CommentAction);
 		// [[BPR-1133]]. Comment's arrow opens its menu, which names what
 		// Comment would start: "Comment on line 431…" or "Reply to tbutler's
-		// thread…". RFC-BPR-0048's labels will be offered beneath it; until then
-		// it offers the plain comment alone, and no label is invented here.
+		// thread…". It offers that plain comment alone. Labels are chosen in
+		// the editor's chip, never here (owner, BPR-1083 comment-menu-v001).
 		CommentMenu = new QMenu{ this };
 		CommentMenu->setObjectName(QStringLiteral("commentMenu"));
 		CommentMenu->addAction(CommentAction);
@@ -6257,6 +6258,11 @@ namespace bpr::qt {
 		return BehaviourEditor;
 	}
 
+	auto workbench_window::feedback_marks_preview() const noexcept -> feedback_mark_preview*
+	{
+		return FeedbackMarksPreview;
+	}
+
 	// [[BPR-0661]]. Two groups of segmented rows: the modality rules (which
 	// modality a pull request opens in; which one Continue review enters) and
 	// the reading behaviour (when a file is marked read; the comparison on
@@ -6284,6 +6290,8 @@ namespace bpr::qt {
 			QString             Label;
 			QString             Name;
 			std::vector<option> Options;
+			/// Drawn after the choices, as the Label marks preview is.
+			QWidget* Trailing = nullptr;
 		};
 		const auto addGroup = [this, column](const QString&          aHeading,
 											 const QString&          aResetName,
@@ -6336,6 +6344,10 @@ namespace bpr::qt {
 					});
 					line->addWidget(button);
 					buttons.push_back(button);
+				}
+				if (one.Trailing != nullptr) {
+					line->addSpacing(12);
+					line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
 				}
 				line->addStretch(1);
 				column->addLayout(line);
@@ -6407,7 +6419,10 @@ namespace bpr::qt {
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
 		// because i liked both of them." Icons are the default. The Comment
-		// labels section's other rows are BPR-1088's.
+		// labels section's other rows are BPR-1088's. The owner, accepting it
+		// (mark-style-v001): "it'd be nice to see a preview", so a few marks
+		// in the published style sit beside the choices.
+		FeedbackMarksPreview = new feedback_mark_preview{ BehaviourEditor };
 		addGroup(
 			QStringLiteral("Comment labels"),
 			QStringLiteral("resetCommentLabels"),
@@ -6416,7 +6431,8 @@ namespace bpr::qt {
 					 QStringLiteral("Label marks"),
 					 QStringLiteral("feedbackMarks"),
 					 { { QStringLiteral("Icons"), QStringLiteral("feedbackMarksIcons") },
-					   { QStringLiteral("Letters"), QStringLiteral("feedbackMarksLetters") } } },
+					   { QStringLiteral("Letters"), QStringLiteral("feedbackMarksLetters") } },
+					 FeedbackMarksPreview },
 			},
 			[](application::review_behaviour_settings& aNext) {
 				aNext.FeedbackMarks = application::review_behaviour_settings{ }.FeedbackMarks;
@@ -6446,6 +6462,9 @@ namespace bpr::qt {
 		}
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_label_marks(theme);
+		}
+		if (FeedbackMarksPreview != nullptr) {
+			FeedbackMarksPreview->set_theme(theme);
 		}
 	}
 

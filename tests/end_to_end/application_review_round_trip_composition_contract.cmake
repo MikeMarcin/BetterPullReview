@@ -677,6 +677,17 @@ endfunction()
 # name it. Presentation and fixture selection only: no grant, target,
 # provider, credential, mutation or publication path changes; mutation pin
 # unchanged; no new src/app source. Reviewed on BPR-1083.
+# BPR-1083 v002 reseal: over the BPR-1083 reseal above; no intervening
+# pinned-scope commit. github_application.cpp adds two tests-on fixture
+# courses beside the threaded-reply course: reveal_fixture_file selects one
+# fixture file in Read through the files drawer, and exercise_label_authoring
+# writes a comment there (`:qu:`, the chip, ⌘L), publishes it through the
+# existing review mutation port to the fixture and checks the refreshed
+# thread's mark. main.cpp adds the tests-on --label-authoring-probe run and
+# the --attended-open-file attended setup (the fixture account's own Connect,
+# the Home bar's open, then the reveal). Fixture-only: no grant, target,
+# provider, credential, mutation or publication path changes; mutation pin
+# unchanged; no new src/app source. Reviewed on BPR-1083.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -695,7 +706,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4b4054f4a6561ea94ecff95546bf8a51588264266428eb12eb0a79898b7641e8"
+		"89e4a7dea797de809fbe58f685b51ae8b2e3927d725d18aebcfd78da89ce70b5"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -893,7 +904,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4960dd83fc3fb6035adc8a2f71deef4255c485da0def3a0fb7e0f2821f22e225"
+        "1379faa290ca0757b733d065808ae0e722013875fdae00cf2fd95717174b2444"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

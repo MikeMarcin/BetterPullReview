@@ -21,6 +21,7 @@
 
 class QAction;
 class QLabel;
+class QTimer;
 class QPlainTextEdit;
 
 namespace bpr::qt {
@@ -153,8 +154,15 @@ namespace bpr::qt {
 		bool                                                       Conflict                      = false;
 		bool                                                       Selected                      = false;
 		bool                                                       DispatchingWorkshopAcceptance = false;
-		QAction*                                                   Reload                        = nullptr;
-		QAction*                                                   Reapply                       = nullptr;
+		/// [[BPR-1083]]. An edit is with the draft owner and unanswered; a
+		/// change made meanwhile waits for its answer (`Deferred`) and then
+		/// goes on the accepted revision, so a label shortcode replaced the
+		/// moment its closing colon is typed is not refused as stale.
+		bool     InFlight = false;
+		bool     Deferred = false;
+		QTimer*  Flush    = nullptr;
+		QAction* Reload   = nullptr;
+		QAction* Reapply  = nullptr;
 	};
 	struct review_draft_editor_members
 	{
@@ -373,6 +381,7 @@ namespace bpr::qt {
 
 	private:
 		void render_draft(const core::review_comment_draft& aDraft);
+		void settle_in_flight();
 		void emit_draft(core::review_draft_command_kind aKind);
 		void emit_receipt(core::file_receipt_command_kind aKind);
 		void accept_revision();

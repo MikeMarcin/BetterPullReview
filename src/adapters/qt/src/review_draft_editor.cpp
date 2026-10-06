@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -107,6 +108,7 @@ namespace bpr::qt {
 			}
 			state.Candidate.reset();
 			state.Conflict = false;
+			settle_in_flight();
 			Members.MutationStatus->clear();
 			render_draft(state.Accepted->Draft);
 		});
@@ -119,8 +121,21 @@ namespace bpr::qt {
 			command.ExpectedRevision = state.Accepted->Revision;
 			state.Candidate          = command;
 			state.Conflict           = false;
+			settle_in_flight();
+			state.InFlight = true;
 			refresh_enablement();
 			state.Dispatch(command);
+		});
+		// A change that waited on an answer that never comes goes as it
+		// always did, on the revision this editor last accepted.
+		Members.Revisioned.Flush = new QTimer{ this };
+		Members.Revisioned.Flush->setSingleShot(true);
+		Members.Revisioned.Flush->setInterval(500);
+		connect(Members.Revisioned.Flush, &QTimer::timeout, this, [this] {
+			if (std::exchange(Members.Revisioned.Deferred, false)) {
+				Members.Revisioned.InFlight = false;
+				emit_draft(core::review_draft_command_kind::edit);
+			}
 		});
 		Members.Body = new QPlainTextEdit{ this };
 		Members.Body->setObjectName(QStringLiteral("reviewDraftBody"));
@@ -438,6 +453,11 @@ namespace bpr::qt {
 			if (!revisioned.Selected || !revisioned.Accepted || revisioned.Conflict) {
 				return;
 			}
+			if (aKind == core::review_draft_command_kind::edit && revisioned.InFlight) {
+				revisioned.Deferred = true;
+				revisioned.Flush->start();
+				return;
+			}
 			auto body = Members.Body->toPlainText().toStdString();
 			if (body.size() > core::maximum_shared_draft_body_bytes) {
 				Members.MutationStatus->setText(tr("Draft text exceeds the size limit."));
@@ -446,6 +466,7 @@ namespace bpr::qt {
 			auto command = core::revisioned_review_draft_command{ { revisioned.Accepted->Draft.Id, aKind, std::move(body) }, revisioned.Accepted->Revision, false, { }, revisioned.Accepted->Scope };
 			if (aKind == core::review_draft_command_kind::edit) {
 				revisioned.Candidate = command;
+				revisioned.InFlight  = true;
 			}
 			++Members.Statistics.DraftIntents;
 			revisioned.Dispatch(command);
@@ -657,6 +678,16 @@ namespace bpr::qt {
 		state.Conflict = false;
 		state.Accepted = aAccepted;
 		Members.MutationStatus->clear();
+		const auto deferred = state.Deferred;
+		settle_in_flight();
+		// The text typed while this edit was answered goes next, on the
+		// revision just accepted; showing the accepted body would undo it.
+		if (deferred && Members.Body->toPlainText().toStdString() != aAccepted.Draft.Body) {
+			Members.ShownDraft = aAccepted.Draft;
+			emit_draft(core::review_draft_command_kind::edit);
+			refresh_enablement();
+			return;
+		}
 		render_draft(aAccepted.Draft);
 	}
 	void review_draft_editor::acknowledge_published_body(const core::revisioned_review_draft& aPublished)
@@ -671,6 +702,7 @@ namespace bpr::qt {
 		state.Candidate.reset();
 		state.Conflict = false;
 		state.Replacement.reset();
+		settle_in_flight();
 		refresh_enablement();
 	}
 
@@ -680,9 +712,19 @@ namespace bpr::qt {
 		if (!state.Candidate || state.Candidate->Scope != aOutcome.Accepted.Scope || state.Candidate->Command.Id != aOutcome.Accepted.Draft.Id) {
 			return;
 		}
+		settle_in_flight();
 		state.Conflict = true;
 		present(aOutcome.Accepted);
 	}
+	void review_draft_editor::settle_in_flight()
+	{
+		Members.Revisioned.InFlight = false;
+		Members.Revisioned.Deferred = false;
+		if (Members.Revisioned.Flush != nullptr) {
+			Members.Revisioned.Flush->stop();
+		}
+	}
+
 	void review_draft_editor::render_draft(const core::review_comment_draft& aDraft)
 	{
 		++Members.Statistics.Presentations;
