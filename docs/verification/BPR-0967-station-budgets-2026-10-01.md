@@ -223,3 +223,33 @@ in each of the three runs with every phase gated, `BudgetsEnforced` true and no
 input or limit failure. The largest gap outside the resource courses is
 36.4–38.0 ms (`first_tab_base`). The BPR-0967 runs had measured
 `approximate_file_selection` at 96.3–111.1.
+
+## Windows named phases removed — [[BPR-1264]], 2026-10-05
+
+The same optimized tree as the station runs above (`build/bpr0967-release`,
+MSVC 19.51 `/O2`, i9-10900KF). It was at `d85ce5879`, which holds the
+bounded fill (`ac0d9d1d4`). Each column below is three serial runs of the 18
+large-review rows. Values are the largest gap in ms over the gated courses;
+`files_drawer_open` is the whole phase.
+
+| Phase | Without the bounded fill | Main, before the list change | Main, every phase gated |
+|---|---|---|---|
+| `large_file_selection` | 122.1–131.6 | 29.9–32.1 | 27.8–32.1 |
+| `large_source_revisit_render` | 94.5–103.5 | 22.0–24.2 | 18.6–22.7 |
+| `approximate_file_selection` | 146.0–191.3 | 32.4–39.1 | 34.8–36.6 |
+| `first_tab_file` | 120.7–127.3 | 25.1–29.7 | 28.4–29.6 |
+| `shutdown` | 23.0–23.7 | 21.6–24.1 | 22.2–28.0 |
+| `files_drawer_open` (whole phase) | 72.7–81.0 | 69.2–70.1 | 67.6–68.7 |
+| `active_window_close` | 17.5–20.1 | 15.6–18.7 | 17.4–28.2 |
+| `paged_review_and_git_load` | 50.9–58.4 | 53.1–57.4 | 53.2–56.2 |
+
+- **Without the bounded fill,** with the list emptied, five rows failed in
+  each run on the first four phases.
+- **With every phase gated,** the 18 rows pass in each run (522.9–578.9 s).
+  Every report has `BudgetsEnforced` true and nothing in `KnownInputMisses`.
+  The largest gated gap is 53.2–56.2 ms.
+- **The other four phases** no longer reproduce, with or without the change.
+  [[BPR-1264]] has the attribution.
+
+Windows' `PlatformKnownInputMisses` is now empty, as Linux's and macOS's are.
+The resource courses stay ungated.

@@ -106,15 +106,14 @@ namespace bpr::e2e::large_review {
 	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 208U * MiB;
 	// Public close reached quiescence in 98.854 ms: 150.
 	inline constexpr double PlatformActiveCloseQuiescenceLimitMs = 150.0;
-	// Observed over two runs: large_file_selection 94.1-130.5,
-	// large_source_revisit_render 105.0-115.4, shutdown 93.4-124.9,
-	// files_drawer_open 98.2 (whole phase), active_window_close 93.2-104.0,
-	// paged_review_and_git_load 98.2, approximate_file_selection 153.7-179.9,
-	// first_tab_file 122.4-154.1.
-	inline constexpr std::array<std::string_view, 8> PlatformKnownInputMisses{
-		"large_file_selection", "large_source_revisit_render", "shutdown", "files_drawer_open",
-		"active_window_close", "paged_review_and_git_load", "approximate_file_selection", "first_tab_file"
-	};
+	// [[BPR-1264]]. large_file_selection, large_source_revisit_render,
+	// approximate_file_selection and first_tab_file were the publication that
+	// replaced both panes' text in one GUI turn: 94.5-191.3 without the bounded
+	// fill, 18.6-39.1 with it. shutdown, files_drawer_open (whole phase),
+	// active_window_close and paged_review_and_git_load no longer reproduce
+	// with or without it (at most 28.2, 81.0, 28.2 and 58.4). Every Windows
+	// phase gates the target.
+	inline constexpr std::array<std::string_view, 0> PlatformKnownInputMisses{ };
 	// Windows Debug runs the courses several times slower than Release: the
 	// resources course outran its 90 s clock (105.94 s row), and the byte
 	// course then took 1,626 s of a doubled 1,680 s clock. Three times keeps

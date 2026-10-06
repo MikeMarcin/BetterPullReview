@@ -181,3 +181,60 @@ not on the list).
 `test_large_publication_fills_over_bounded_turns`, pass in the same tree.
 
 Only the Windows half remains.
+
+## Windows: measured and gated — 2026-10-05 (`bpr-main-win`)
+
+**Tree.** `d85ce5879` (holds `ac0d9d1d4`) in the optimized tests-on tree
+`build/bpr0967-release`, the same one BPR-0967 measured in. It is
+`windows-app-release` with `BUILD_TESTING=ON`, MSVC 19.51 `/O2 /Ob2
+/DNDEBUG`, Qt 6.11.2, Fusion, offscreen, on the same i9-10900KF, otherwise
+idle. Each run is the 18 large-review rows serially: the 16, the fixture
+contract and the replay contract. Values are the largest event-loop gap in
+the phase, in ms, over the gated courses, three runs each. For
+`files_drawer_open` the value is the whole phase. The four resource courses
+(resources, loaded-close, cache entries and cache bytes) run the 1 ms heap
+sampler and are not gated, so they are left out.
+
+- **Without the bounded fill (control).** `main` with `diff_workbench`'s
+  `ac0d9d1d4` change reversed (`163cad3b1`'s later change kept), and the
+  Windows list emptied. Each run failed 5 of 18 with "fixture input target
+  missed outside the platform's named phases".
+- **Main, before the list change.** `d85ce5879` as it is, with the eight
+  names still listed. 18 of 18 passed in each run (582.3, 605.4 and 598.6 s).
+- **Main, every phase gated.** `d85ce5879` with Windows'
+  `PlatformKnownInputMisses` empty. 18 of 18 passed in each run (522.9,
+  578.9 and 551.6 s). All 14 reports in each run have `BudgetsEnforced`
+  true, an empty `KnownInputMisses`, and no limit miss or failure. The
+  largest gated gap is 53.2–56.2 ms (`paged_review_and_git_load`).
+
+| Phase | Without the bounded fill | Main, before the list change | Main, every phase gated |
+|---|---|---|---|
+| `large_file_selection` | 122.1–131.6 | 29.9–32.1 | 27.8–32.1 |
+| `large_source_revisit_render` | 94.5–103.5 | 22.0–24.2 | 18.6–22.7 |
+| `approximate_file_selection` | 146.0–191.3 | 32.4–39.1 | 34.8–36.6 |
+| `first_tab_file` | 120.7–127.3 | 25.1–29.7 | 28.4–29.6 |
+| `shutdown` | 23.0–23.7 | 21.6–24.1 | 22.2–28.0 |
+| `files_drawer_open` (whole phase) | 72.7–81.0 | 69.2–70.1 | 67.6–68.7 |
+| `active_window_close` | 17.5–20.1 | 15.6–18.7 | 17.4–28.2 |
+| `paged_review_and_git_load` | 50.9–58.4 | 53.1–57.4 | 53.2–56.2 |
+
+**Attribution.**
+
+- **The first four share the Linux cause.** Without the bounded fill they
+  miss the target, as on Linux. With it they measure 18.6–39.1.
+- **The other four no longer reproduce.** `shutdown`, `files_drawer_open`,
+  `active_window_close` and `paged_review_and_git_load` stay well under the
+  target even without the bounded fill. They were 93.2–124.9 at `682ea1392`
+  and `f61340e17`, and are at most 28.2 (`files_drawer_open` 81.0 as a whole
+  phase). So no change here covers them, and there is nothing to repair.
+  What lowered them between `f61340e17` and `d85ce5879` is not bisected.
+  Windows timer granularity ([[BPR-1259]]) and the station's lower load
+  (10% → 3% then) are context, not an attribution.
+- **The resource courses.** Their heap sampler still lifts
+  `paged_review_and_git_load` to 174.8–235.6 and `large_file_selection` to
+  95.4–153.4. That is as [[BPR-0967]] recorded, and they stay ungated.
+
+**Gate.** Windows' `PlatformKnownInputMisses` is now empty, so every Windows
+phase gates the target. That completes the list change on all three
+platforms. Only `tests/end_to_end/large_review_benchmark.cpp` changed, and
+clang-format 22.1.3 is clean on it.
