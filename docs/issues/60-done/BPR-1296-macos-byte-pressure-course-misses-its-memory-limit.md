@@ -115,3 +115,31 @@ declaration before the scan.
 - clang-format clean on the touched files; clang-tidy clean on
   `painted_glyph_icon.cpp` and the three icon sources. In the test file, the
   only finding is the earlier `line_pixels` name.
+
+**Note: Linux run at `715e00fcd` (holds `715e00fcd`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, offscreen).**
+
+- **Dev tree** (rebuilt whole, no warnings): every `qt_` row and
+  `architecture_boundaries` pass, 124/124 in 92.1 s.
+- **Optimized tests-on tree** (`app-release`, `BUILD_TESTING=ON`, GCC
+  `-O3`, `-j1`, idle): the 18 large-review rows pass 18/18 in 90.8 s, with
+  `BudgetsEnforced` true and no limit miss.
+- **`application_large_review_cache_bytes`** passed 3/3 (32.4, 32.9 and
+  33.0 s). Lifetime-peak growth was 196.5 and 196.6 MiB in the two runs whose
+  reports were kept, against Linux's 216 MiB limit (BPR-0967's basis was
+  196.01). The live heap was 35.2 MiB with the application constructed and
+  54.0 MiB with the review loaded. Linux's limit is resident memory, which
+  includes file-backed pages, so it never showed the macOS regression.
+- **Sharpness** (a temporary probe, deleted after use, rendering through
+  `QIcon::pixmap` at 16 pixels).
+  - Strip icons: `next_file`, `refresh` and `new_comment`.
+  - Share glyphs: `copy` and `bundle`.
+  - At 1× each is 16×16 at device pixel ratio 1; at 2× each is 32×32 at
+    ratio 2.
+  - Each 2× image differs from a nearest-neighbour upscale of its 1× image at
+    12–40 % of its pixels, so it is painted at 2×, not enlarged.
+  - The share of inked pixels that are partly transparent edge falls at 2×
+    (`next_file` 94 % to 64 %, `bundle` 89 % to 65 %), as sharper strokes
+    do.
+
+`build/app-release-tests` was removed. Done is not reopened.
