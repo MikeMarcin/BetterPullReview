@@ -160,3 +160,10 @@ At 324f17e2c (holds 3036a08af) on macOS arm64 Debug, clean worktree: 15/15 of
 git_process_contract, git_cache_contract, github_cli_process_runner,
 gh_cli_transport, both architecture boundary rows, qt_workbench_title_row and
 qt_workbench_window at 100/125/200, and qt_document_tabs passed.
+
+**Note: Linux run at `324f17e2c` (holds `3036a08af`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, `build/dev` rebuilt with no warnings).** 6 of 6 passed:
+`git_process_contract` (6.0 s), `git_cache_contract` (5.0 s),
+`github_cli_process_runner` (1.5 s), `gh_cli_transport`,
+`architecture_boundaries` (26.7 s) and `architecture_boundary_contract`
+(191.0 s).
