@@ -109,3 +109,8 @@ contract and `architecture_boundaries` pass 133/133. `coding-format-check` and
 request against the exact candidate, run from the Mac. Suggested question:
 *"Beside Files, two chevron buttons collapse and expand every folder at once
 (names in their tooltips). Accept?"*
+
+## Owner look — 2026-10-06
+
+The integrator asked the owner in chat on 2026-10-06 and relayed the answer
+verbatim: "Accept" (the chevron buttons).

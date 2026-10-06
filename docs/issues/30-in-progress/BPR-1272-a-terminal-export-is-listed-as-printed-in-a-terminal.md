@@ -83,3 +83,8 @@ clang-format is clean.
 session and event, run from the Mac. One question: *"A `bpr cycle export
 --output -` into a pipe or file is listed as 'F1 · Written to standard output ·
 2,675 bytes · 2 times'. Accept these words?"*
+
+## Owner look — 2026-10-06
+
+The integrator asked the owner in chat on 2026-10-06 and relayed the answer
+verbatim: "Accept" (the words "Written to standard output").
