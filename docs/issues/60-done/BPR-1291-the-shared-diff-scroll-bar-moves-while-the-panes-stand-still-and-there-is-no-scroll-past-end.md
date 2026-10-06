@@ -182,3 +182,26 @@ a file this card touches but the benchmark's Windows constants.
   `DOCUMENTATION_OK`.
 - **Owed.** Linux and Windows station runs of the same rows. The change is
   portable Qt and C++.
+
+**Note: Windows run at `4d2694a54` (holds `68c1fe9b7`; station `bpr-main-win`,
+MSVC 14.51, Qt 6.11.2; no remote mutation).**
+
+- **`windows-dev`, Debug, whole tree.** It built with no `warning C` or
+  `warning LNK` line. Run with `-j1`, 17 of 20 pass:
+  - the scroll controller, link map and diff workbench rows at 100, 125 and
+    200 %;
+  - the four diff axis scales;
+  - `qt_syntax_pane_composition`, `qt_workbench_conversation_reveal` and
+    `application_diff_workbench_public_path`;
+  - `architecture_boundaries`.
+
+  The three `qt_workbench_window_scale_{100,125,200}` rows fail at "no
+  review-bar control folds into an overflow menu at any width". That is
+  parked [[BPR-1255]]'s failure, already recorded for Windows, not this
+  card's.
+- **Optimized tests-on tree** (`build/bpr0967-release`, MSVC `/O2`). It
+  built with no warning, and the 18 large-review rows pass 18 of 18 with
+  `-j1` in 518.3 s. All 14 reports have `BudgetsEnforced` true, an empty
+  `KnownInputMisses` and no limit miss. The largest gap in a gated course is
+  59.0 ms (`paged_review_and_git_load`); `approximate_file_selection` is
+  23.4 ms and `large_file_selection` 28.3 ms.
