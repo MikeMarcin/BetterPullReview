@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1237"
 title: "Windows: test_network_isolation_manifest reports 47 rows that are uncontained or unlabelled without a pin"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json","related_cards":["BPR-1231"]}
+acceptance: [{"criterion":"test_network_isolation_manifest passes on Windows","outcome":"pass","revision":"3134abc5cefad2f3d7578cf572aa29f125b61024","evidence":{"kind":"command","path":"scripts/verify_test_network_isolation.py","detail":"bpr-main-win build/windows-dev Debug, MSVC 14.51: test_network_isolation_manifest passes (20.92 s) and test_network_isolation_structure_contract passes (9.95 s) at current main; every WINDOWS_UNCONTAINED row carries a measured pin (dbe6966ea/e517d66d0 for this card's 46 plus BPR-0967's 10; later BPR-1185, BPR-1082, BPR-1083 pins measured on this station)."}},{"criterion":"It still passes on macOS and Linux","outcome":"pass","revision":"c1cd6b585","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1280-command-return-saves-the-note-being-written.md","detail":"After the pin change e517d66d0: macOS integrator build/dev-tour-cli passes test_network_isolation_manifest at c1cd6b585 (BPR-1280 boundary record); Linux bpr-main-linux passes it at e517d66d0 (4/4 with the structure contract and the two re-contained rows) and at 15bb8c921 (BPR-1185 Linux note)."}}]
 ---
 
 # BPR-1237: Windows: test_network_isolation_manifest reports 47 rows that are uncontained or unlabelled without a pin
