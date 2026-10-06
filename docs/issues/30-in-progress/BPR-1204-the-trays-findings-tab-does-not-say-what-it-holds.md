@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1204"
 title: "The tray's Findings tab does not say what it holds"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1134","BPR-1208","BPR-1209"]
 priority: "P2"
