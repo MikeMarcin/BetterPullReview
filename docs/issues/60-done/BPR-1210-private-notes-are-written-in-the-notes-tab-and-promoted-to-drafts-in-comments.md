@@ -286,3 +286,10 @@ No pinned-scope commit intervened since the BPR-1289 reseal.
 private-review, Notes, agent-launch, review-submission, composition and
 release-maintenance rows, and both architecture rows pass 72/72 in 817 s.
 `coding-format-check` and `DOCUMENTATION_OK` pass.
+
+## macOS run (coordinator, 2026-10-06)
+
+At 2e89f8cfc on macOS arm64 Debug, clean worktree: 6/6 of
+sqlite_review_ledger_storage, sqlite_private_review_storage,
+application_review_submission_composition_public_path, the round-trip
+composition contract, qt_private_notes_panel and architecture_boundaries.
