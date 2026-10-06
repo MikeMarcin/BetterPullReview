@@ -243,3 +243,33 @@ overflow fold is reached and met.
 What remains for this card's acceptance is the Windows and Linux six, which now
 stop only at [[BPR-1255]]'s overflow check. The card finishes when the owner's
 [[BPR-1255]] decision lands and those rows are rerun.
+
+## Verified on Windows after BPR-1255 (bpr-main-win, 2026-10-06)
+
+Nothing in the layout was changed for this close. Both of this card's fixes
+were already in place: the strip's one-tab minimum (`42e536f67`), and the
+title decided from the room beside the whole modality (option 1). The rows
+stopped only at [[BPR-1255]]'s overflow check, which the floor that follows
+the review bar has since answered.
+
+At `c6ab4fb61`, on `build/windows-dev` (Debug, MSVC 14.51, Qt 6.11.2,
+offscreen), the whole tree built with no `warning C` line. With `-j1`, 9 of 9
+pass:
+
+- `qt_document_tabs_scale_{100,125,200}`: 7.1, 8.1 and 11.6 s;
+- `qt_workbench_title_row_scale_{100,125,200}`: 22.5, 25.3 and 29.2 s;
+- `qt_workbench_window_scale_{100,125,200}`: 120.5, 127.2 and 138.3 s.
+
+The window rows include "the title yields once and does not return at a
+narrower width" and the review-bar fold. Getting there needed one Windows
+test fix on the way, in [[BPR-1255]]'s run (`fe300517d`): the Comment course
+held a stale card iterator.
+
+**macOS and Linux**, from their latest records:
+
+- Linux passes the window rows with [[BPR-1255]]'s floor at `1fecfaef5`
+  ([[BPR-1290]]'s Linux note), and the document-tab rows since `42e536f67`.
+- macOS passed the window and title-row rows at `9751195d0`; the document-tab
+  rows have passed there since the main-stabilization milestone.
+- Neither has rerun all six at `c6ab4fb61`. That is owed to the coordinator,
+  not gating, since no layout code changed for this close.
