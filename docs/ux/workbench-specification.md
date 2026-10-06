@@ -31,7 +31,7 @@ authored and directly requested pull requests of the saved repositories
 ## Primary layout
 
 ```text
-┌ Title row: Home | Repositories | Files | name ········ Overview Review Conversations | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
+┌ Title row: Home | Repositories | Files | name ········ Overview Review Conversations Discuss | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
 ├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ ········ Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
@@ -62,11 +62,13 @@ when ⌘2 is pressed while already in Review. BPR-1295 is Ready and is built
 after [[BPR-1290]]; until then the window still offers Read on ⌘2, Review on
 ⌘3 and Discuss on ⌘4.
 
-**Conversations replaces Discuss** ([[BPR-1293]], owner decision 2026-10-06:
-"What if we were to replace discuss with conversations."). The third modality
-is Conversations, on `Ctrl+3` (⌘3), and `Ctrl+J` (⌘J) goes straight to it from
-Overview or Review, as does the finder button at the top of the Comments
-drawer. It puts the finder of
+**Conversations beside Discuss** ([[BPR-1293]], owner decision 2026-10-06,
+amended by the owner's answers the same day: "Hide drawers" and "just keep
+discuss for now even after 1294"). Conversations is added and Discuss is
+kept: the modalities are Overview, Review, Conversations and Discuss, on
+`Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4), so Discuss moves from ⌘3 to ⌘4 and keeps its
+behaviour. `Ctrl+J` (⌘J) goes straight to Conversations from Overview, Review
+or Discuss, as does the finder button at the top of the Comments drawer. It puts the finder of
 [prototype v2](../design/BPR-1290-inline-drawer-v2/index.html) in the main
 pane, for navigation only: one row per conversation on a file, grouped by
 file, with its line, its first post's label mark, its first words, an avatar
@@ -78,10 +80,10 @@ Review on that file, opens the Comments drawer if it is closed, and opens the
 thread in place at its line with the picked post washed amber and scrolled
 into view. ⌘J again, or Esc on an empty search, returns to where it was
 entered from. Pull request comments and review summaries that are not on a
-file are not listed ([[BPR-1294]]). BPR-1293 is Ready and is built after
-BPR-1290 and BPR-1295; until then the window offers Discuss. Whether the
-drawers stay beside the finder is the owner's open question there; the text
-below assumes they are hidden while it shows, as Discuss hides them.
+file are not listed; Discuss still reads them ([[BPR-1294]]). The drawers are
+hidden while Conversations shows, as Discuss hides them, and nothing changes
+their states. BPR-1293 is Ready and is built after BPR-1290 and BPR-1295;
+until then the window offers no Conversations.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
@@ -166,8 +168,8 @@ Comparison**, and **Make New Tabs Use This Comparison**. Ctrl+Tab and
 Ctrl+Shift+Tab step between tabs on every platform; Cmd-W (Ctrl+W elsewhere)
 closes the active tab, choosing the next neighbour or the previous one at the
 end. Closing the last tab leaves the pull request and its file chooser open.
-Overview and Conversations show the window's comparison (Conversations keeps
-it underneath the finder); Review shows the active tab's. When no tab is open, changing the comparison sets the window's
+Overview, Conversations and Discuss show the window's comparison
+(Conversations keeps it underneath the finder); Review shows the active tab's. When no tab is open, changing the comparison sets the window's
 pair; the first file opened takes that pair. Resume restores the retained tab order, active tab, exact pairs
 and reading positions. Unavailable material stays unavailable on its own tab.
 
@@ -175,7 +177,7 @@ An older-pair tab places only threads belonging to its revisions and disables
 new Comment when neither endpoint is current. The Comments tray counts current
 threads on later updates of that file and offers **Show them**. It activates an
 existing same-file tab on the window's pair, returns this tab to that pair, or
-opens Conversations searching that file ([[BPR-1293]]). Later threads remain listed with unavailable code anchors; the
+opens Discuss. Later threads remain listed with unavailable code anchors; the
 owner's choice about hiding them until Show them is pending, as is whether
 **+** should duplicate the active view.
 
@@ -202,8 +204,8 @@ again it reopens exactly that set at the saved widths, or Review's preset when
 nothing is remembered. Opening a drawer by hand while they are hidden, or ⌘2 in
 Review, drops the remembered set; leaving Review and coming back keeps it. The
 core decides it, as it decides every drawer gesture. Overview refuses it with
-its existing reason and Conversations disables it, because there the finder is
-the page ([[BPR-1293]]). The icon is a window outline with a column on each side, filled while
+its existing reason, and Discuss and Conversations disable it, because there
+the conversation or the finder is the page ([[BPR-1293]] for Conversations). The icon is a window outline with a column on each side, filled while
 the drawers show and outlined and checked while they are hidden; its tooltip
 names what it hides or brings back with the key ("Show Files and Comments
 (⌘B)").
@@ -270,11 +272,10 @@ column, and RFC-BPR-0032 gives it one job per row.
   its `R<n>` line is selected when the comparison on screen ends at the pull
   request's head. `#discussion_r<id>` reveals the comment when the read
   identified it by that number (a signed-out read does; an authenticated read
-  names comments by node identity only): Review opens on its file with the
-  thread open in place at that post ([[BPR-1293]]). `#pullrequestreview-<id>`
-  revealed that review in Discuss; a review is not on a file, so until
-  [[BPR-1294]] gives it a home the link opens the pull request and says that a
-  review is not shown from a link yet. Everything else — a commit page, a base-side `L<n>`
+  names comments by node identity only): in Discuss today, and once
+  [[BPR-1293]] lands Review opens on its file with the thread open in place at
+  that post. `#pullrequestreview-<id>` reveals that review in Discuss.
+  Everything else — a commit page, a base-side `L<n>`
   line (GitHub numbers it against a merge base the comparison does not use),
   an `#issuecomment-` link, a digest naming no changed file, an unread
   fragment — opens the pull request and says, under the bar and in the status
@@ -630,7 +631,7 @@ never invents enabled state.
 | Comment, or Reply to the selected thread | `Alt+C` (Option-C) |
 | Back from a composition page | `Esc` |
 | Hide or show every drawer ([[BPR-1295]]) | `Ctrl+B` (⌘B) |
-| Overview, Review, Conversations ([[BPR-1295]], [[BPR-1293]]; proposed) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
+| Overview, Review, Conversations, Discuss ([[BPR-1295]], [[BPR-1293]]; proposed) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3`, `Ctrl+4` (⌘1-⌘4) |
 | Find a conversation: go to Conversations, or back ([[BPR-1293]]) | `Ctrl+J` (⌘J) |
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because

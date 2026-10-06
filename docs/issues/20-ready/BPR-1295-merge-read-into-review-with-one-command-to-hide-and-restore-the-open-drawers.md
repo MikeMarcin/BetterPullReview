@@ -38,6 +38,11 @@ conversations."): Conversations replaces Discuss as the third modality, on ⌘3.
 This card still builds the third slot as Discuss on ⌘3, and BPR-1293, built
 after it, turns that slot into Conversations (see
 [the amendment below](#owner-amendment-2026-10-06-conversations-replaces-discuss)).
+Amended again 2026-10-06 by the owner's answers on BPR-1293 ("just keep
+discuss for now even after 1294"): Conversations is added and Discuss is kept.
+This card still builds Discuss on ⌘3; BPR-1293, built after it, adds
+Conversations on ⌘3 and moves Discuss to ⌘4 (see
+[the later amendment](#owner-amendment-2026-10-06-conversations-beside-discuss)).
 
 ## How Read and Review differ today
 
@@ -166,8 +171,8 @@ binding is proposed.
 ⌘4). The owner objected only to the toggle's keys and the button, not to
 these. They are set explicitly rather than by strip position, and are
 confirmed at the built-UI review (BPR-1295:owner-look). Amended 2026-10-06
-([[BPR-1293]]): ⌘3 belongs to the third modality, which is Conversations once
-BPR-1293 lands; until then it is Discuss.
+([[BPR-1293]]), as corrected the same day: this card puts Discuss on ⌘3;
+BPR-1293 then puts Conversations on ⌘3 and Discuss on ⌘4.
 
 #### Every B binding, and how each collision is resolved
 
@@ -356,7 +361,8 @@ at `fc03ddccf`.
   today; it opens it in Review. Discuss's fate, which the owner's "beyond
   overview and review" puts in doubt, stays with BPR-1293. This card keeps
   Discuss unchanged apart from its shortcut. Amended 2026-10-06: BPR-1293 is
-  Ready and replaces Discuss with Conversations on ⌘3, after this card.
+  Ready and adds Conversations on ⌘3 beside Discuss, which it moves to ⌘4,
+  after this card.
 - **[[BPR-1294]]** (Backlog). PR-wide comments are heading to Overview, one of
   the two modalities the owner keeps. This card removes the "in Read" wording
   from its inventory and changes nothing else there.
@@ -406,6 +412,10 @@ The card is Ready on these answers. Its code waits for [[BPR-1290]] to land.
 
 ## Owner amendment, 2026-10-06: Conversations replaces Discuss
 
+Superseded the same day in part by
+[the next amendment](#owner-amendment-2026-10-06-conversations-beside-discuss):
+Discuss is kept, and Conversations takes ⌘3 beside it.
+
 On [[BPR-1293]]'s finder prototype the owner said in chat, verbatim, "I like
 that a lot." Asked "Which finder placement should we build? Like Home / Tab /
 Both", the owner answered, verbatim: "What if we were to replace discuss with
@@ -429,6 +439,27 @@ switches to Review on its file with the thread open in the inline drawer, and
   by this card (Discuss on ⌘3), and says that Conversations takes ⌘3 when
   BPR-1293 lands.
 
+## Owner amendment, 2026-10-06: Conversations beside Discuss
+
+The owner answered BPR-1293's two questions in chat, verbatim. On the drawers
+while Conversations shows: "Hide drawers". On the gap for pull request wide
+comments if Discuss is removed: "just keep discuss for now even after 1294".
+
+So Conversations is **added** and Discuss is **kept**. The modalities become
+**Overview ⌘1, Review ⌘2, Conversations ⌘3 and Discuss ⌘4**, and ⌘J still goes
+to Conversations. For this card:
+
+- **Its build is unchanged.** It removes Read, sets ⌘1 to ⌘3 explicitly with
+  Discuss on ⌘3, and disables ⌘B in Discuss. BPR-1293, built after it, adds
+  Conversations on ⌘3, moves Discuss to ⌘4, and disables ⌘B in Conversations
+  too, where the drawers are hidden.
+- **Discuss stays as this card leaves it.** BPR-1293 does not change its
+  behaviour or its preset, and Overview's refusal, which names the modalities
+  that show drawers, does not gain Conversations, which shows none.
+- **Owner-look.** The question on the ⌘1-⌘3 keys asks about the keys as built
+  by this card, and says that once BPR-1293 lands Conversations takes ⌘3 and
+  Discuss ⌘4.
+
 ## Acceptance
 
 - **BPR-1295:owner-answers.** The three questions are answered by the owner
@@ -436,7 +467,8 @@ switches to Review on its file with the thread open in the inline drawer, and
 - **BPR-1295:three-modalities.** The strip offers Overview, Review and Discuss.
   No Read remains in the core, the Qt adapter, settings, tooltips or
   accessible names. (Amended 2026-10-06: Discuss stays here as the third
-  modality; [[BPR-1293]] replaces it with Conversations afterwards.)
+  modality; [[BPR-1293]] afterwards adds Conversations on ⌘3 and moves
+  Discuss to ⌘4.)
 - **BPR-1295:entries.** Every path in the inventory that entered Read enters
   Review in the arrangement Review last had in that window; the preset applies
   on the window's first entry and on ⌘2 in Review.
@@ -449,8 +481,8 @@ switches to Review on its file with the thread open in the inline drawer, and
   - ⌘B (Ctrl+B) toggles from the code, the drawers' lists and single-line
     fields, and does nothing while an editable multi-line editor has focus,
     the native macOS menu item included. ⌘1, ⌘2 and ⌘3 choose Overview,
-    Review and Discuss (Conversations once [[BPR-1293]] lands; amended
-    2026-10-06). No key sequence is duplicated in the assembled window.
+    Review and Discuss (once [[BPR-1293]] lands, ⌘3 is Conversations and ⌘4
+    Discuss; amended 2026-10-06). No key sequence is duplicated in the assembled window.
   - The icon sits immediately right of the Comments toggle, shows its state,
     and carries tooltip, accessible name and focus stop.
   - It stays at the platform's narrowest width.
@@ -473,7 +505,7 @@ switches to Review on its file with the thread open in the inline drawer, and
 
 This changes the presentation and the core's drawer decision. It adds no new
 authority and no GitHub, Git or SQLite effect beyond the existing settings
-record. It does not decide Discuss's future ([[BPR-1293]]; the owner
-replaced Discuss with Conversations there on 2026-10-06), the drawer's
+record. It does not decide Discuss's future ([[BPR-1293]]; on 2026-10-06 the
+owner added Conversations there and kept Discuss), the drawer's
 design ([[BPR-1290]]), or where comments that are not on a file live
 ([[BPR-1294]]).

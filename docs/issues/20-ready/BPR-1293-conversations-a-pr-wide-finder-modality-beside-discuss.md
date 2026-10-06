@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1293"
-title: "Conversations: a PR-wide finder that replaces Discuss"
+title: "Conversations: a PR-wide finder modality beside Discuss"
 status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner chat, 2026-10-06, during BPR-1290","reservation":"docs/issues/_reservations/BPR-1293--BPR-1293--370e927e88e9.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0037","RFC-BPR-0052"],"related_cards":["BPR-1290","BPR-1295","BPR-1294","BPR-1089","BPR-1021","BPR-1135","BPR-0418","BPR-0211","BPR-0649","BPR-0926","BPR-0929"],"implementation_note":"Build faithful to docs/design/BPR-1290-inline-drawer-v2 with the frontend-design skill; owner review is required","owner_decision":{"date":"2026-10-06","prototype":"I like that a lot.","placement":"What if we were to replace discuss with conversations."},"open_questions":["Q1 drawers while in Conversations","Q2 the gap for comments not on a file until BPR-1294"],"acceptance":["BPR-1293:owner-decision","BPR-1293:owner-questions","BPR-1293:modality","BPR-1293:finder","BPR-1293:pick","BPR-1293:keys","BPR-1293:entries","BPR-1293:removed","BPR-1293:governing-text","BPR-1293:tests","BPR-1293:owner-look"],"sequence_after":"BPR-1290 and BPR-1295 (all three change the modality strip, workbench_window.cpp and the window tests; this card's code waits for both)"}
+metadata: {"origin":"Owner chat, 2026-10-06, during BPR-1290","reservation":"docs/issues/_reservations/BPR-1293--BPR-1293--370e927e88e9.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0037","RFC-BPR-0052"],"related_cards":["BPR-1290","BPR-1295","BPR-1294","BPR-1089","BPR-1021","BPR-1135","BPR-0418","BPR-0211","BPR-0649","BPR-0926","BPR-0929"],"implementation_note":"Build faithful to docs/design/BPR-1290-inline-drawer-v2 with the frontend-design skill; owner review is required","owner_decision":{"date":"2026-10-06","prototype":"I like that a lot.","placement":"What if we were to replace discuss with conversations.","answers_date":"2026-10-06","q1":"Hide drawers","q2":"just keep discuss for now even after 1294"},"open_questions":[],"acceptance":["BPR-1293:owner-decision","BPR-1293:owner-questions","BPR-1293:modality","BPR-1293:finder","BPR-1293:pick","BPR-1293:keys","BPR-1293:entries","BPR-1293:discuss-kept","BPR-1293:governing-text","BPR-1293:tests","BPR-1293:owner-look"],"sequence_after":"BPR-1290 and BPR-1295 (all three change the modality strip, workbench_window.cpp and the window tests; this card's code waits for both)"}
 ---
 
-# BPR-1293: Conversations: a PR-wide finder that replaces Discuss
+# BPR-1293: Conversations: a PR-wide finder modality beside Discuss
 
 ## Origin
 
@@ -43,17 +43,30 @@ threads. The owner then narrowed it, verbatim:
 
 ## Outcome
 
-**Conversations** replaces **Discuss** as the third modality. The modalities
-are Overview ⌘1, Review ⌘2 and Conversations ⌘3 (Read merges into Review under
-[[BPR-1295]]). Conversations puts the finder from
+Amended 2026-10-06 by the owner's answers to Q1 and Q2
+([below](#owner-answers-2026-10-06)): Conversations is added and Discuss is
+kept, even after [[BPR-1294]].
+
+**Conversations** is a new modality beside **Discuss**. The modalities are
+Overview ⌘1, Review ⌘2, Conversations ⌘3 and Discuss ⌘4 (Read merges into
+Review under [[BPR-1295]], which puts Discuss on ⌘3; this card moves it to
+⌘4). Conversations puts the finder from
 [prototype v2](../../design/BPR-1290-inline-drawer-v2/index.html) in the main
 pane: every conversation in the pull request that is on a file, grouped by
-file, for **navigation only**. Picking one switches to Review on its file, with
-the thread open in the inline drawer ([[BPR-1290]]) at the picked post, as the
-prototype's Tab placement does. ⌘J (Ctrl+J) goes straight to Conversations.
+file, for **navigation only**. The drawers are hidden while it shows. Picking
+one switches to Review on its file, with the thread open in the inline drawer
+([[BPR-1290]]) at the picked post, as the prototype's Tab placement does. ⌘J
+(Ctrl+J) goes straight to Conversations.
 
-Pull request comments and review summaries that are not on a file are not in
-Conversations. They are [[BPR-1294]]'s, whose leading direction is Overview.
+Discuss keeps its behaviour. Pull request comments and review summaries that
+are not on a file are not in Conversations; Discuss still reads them, and
+[[BPR-1294]] may give them a better home without removing Discuss.
+
+### As decided before the answers (superseded 2026-10-06)
+
+Conversations replaced Discuss as the third modality: Overview ⌘1, Review ⌘2
+and Conversations ⌘3, with Discuss removed and pull request comments left
+without a reader until BPR-1294.
 
 ### As first filed (superseded 2026-10-06)
 
@@ -149,8 +162,9 @@ What follows from them:
   grouping, branching, marks, avatars, states, search, filters and keys
   ([Finder prototype v2](#finder-prototype-v2-2026-10-06) above).
 - **The placement is decided.** It is neither a tab nor a summoned window but a
-  modality, **Conversations**, in the main pane, and it replaces Discuss. The
-  open question "main-pane tab or summoned window" is closed.
+  modality, **Conversations**, in the main pane. The open question "main-pane
+  tab or summoned window" is closed. (As first read, it replaced Discuss;
+  amended 2026-10-06 by the owner's Q2 answer: Discuss stays beside it.)
 - **Picking works as the Tab placement did.** It switches to Review on the
   picked conversation's file, with the thread open in the inline drawer pinned
   at its line and the picked post washed amber and scrolled into view.
@@ -162,30 +176,62 @@ The points this card left open are settled as follows:
 - *Deep threads* (`branching-thread-v1`, RFC-BPR-0028 AC-08). Conversations
   shows a conversation's branches as indented rows only where they exist, and
   the drawer reads the thread whole (BPR-1290). The thread map is not used.
-- *What happens to Discuss.* Conversations replaces it (inventory below).
+- *What happens to Discuss.* First read as replaced (inventory below);
+  amended 2026-10-06 by the owner's Q2 answer: Discuss stays, unchanged, on
+  ⌘4.
+
+## Owner answers, 2026-10-06
+
+The owner answered the two questions below in chat, relayed by the
+coordinator, verbatim:
+
+- **Q1** (drawers while Conversations shows): "Hide drawers".
+- **Q2** (the gap for pull request wide comments if Discuss is removed):
+  "just keep discuss for now even after 1294".
+
+What follows from them:
+
+- **Q1.** The drawers are hidden while Conversations shows and nothing
+  changes their states; Review comes back with the arrangement it last had
+  (BPR-1295). ⌘B is disabled in Conversations.
+- **Q2.** Conversations is **added** and Discuss is **kept**, even after
+  [[BPR-1294]]. The modalities are Overview ⌘1, Review ⌘2, Conversations ⌘3 and
+  Discuss ⌘4, set explicitly. ⌘J still goes to Conversations. Discuss's own
+  behaviour does not change: its page, list, map, feed, filters, preset,
+  tooltip and names stay as they are; only its key moves from ⌘3 (BPR-1295) to
+  ⌘4. There is no gap for comments that are not on a file: Discuss still reads
+  them.
+- **Entry points.** Each keeps its current destination unless it is better
+  as Review in place ([Entry points, as amended](#entry-points-as-amended)).
+- **Removal is out of scope.** Nothing of Discuss is removed or renamed, so
+  the criterion that removed it is withdrawn and BPR-1293:discuss-kept takes
+  its place.
 
 ## What Conversations does
 
-Proposed from the owner's decision and the prototype. Q1 and Q2 below are the
-two points left to the owner; the rest is shown at BPR-1293:owner-look.
+Proposed from the owner's decision, answers and the prototype; shown at
+BPR-1293:owner-look. Amended 2026-10-06 for the answers.
 
-- **The modality.** The strip's third segment, "Conversations", on ⌘3 (set
-  explicitly, as BPR-1295 sets ⌘1 to ⌘3). Overview, Review and Conversations
-  are the only modalities. Its tooltip: "Find a conversation in the pull
-  request (⌘3, ⌘J)".
+- **The modality.** The strip's third segment, "Conversations", on ⌘3, between
+  Review and Discuss. The four keys are set explicitly, as BPR-1295 sets ⌘1 to
+  ⌘3; Discuss moves to ⌘4. Its tooltip: "Find a conversation in the pull
+  request (⌘3, ⌘J)". The strip's control description becomes "Overview,
+  Review, Conversations and Discuss"; Discuss's segment, tooltip and object
+  names are unchanged.
 - **The page.** The finder fills the centre, as Discuss's page does today: the
   search field with ⌘J printed in it, the Only new chip with its count, Hide
   resolved, one label, and the list grouped by file. The review bar stays, as
   it does in every modality. Its file and change arrows move the comparison
   retained underneath, as they do under Discuss today ([[BPR-0929]]), and do
   not move the finder's cursor.
-- **The drawers (Q1).** Recommended: while in Conversations the drawers are not
-  shown, and nothing changes their states. Review comes back with the
+- **The drawers (Q1, answered "Hide drawers").** While in Conversations the
+  drawers are not shown, and nothing changes their states. Review comes back with the
   arrangement it last had (BPR-1295), hidden drawers included. Discuss's preset
   (Files collapsed, Conversations expanded) is not carried over. ⌘B is
-  disabled in Conversations, as BPR-1295 disables it in Discuss.
-- **Entering.** ⌘3, the strip segment, ⌘J, and the finder button at the top of
-  the Comments drawer (the prototype's, tooltip "Find a conversation in the
+  disabled in Conversations, as BPR-1295 disables it in Discuss. Overview's
+  refusal text does not name Conversations, which shows no drawer.
+- **Entering.** ⌘3, the strip segment, ⌘J from Overview, Review or Discuss,
+  and the finder button at the top of the Comments drawer (the prototype's, tooltip "Find a conversation in the
   pull request ⌘J"). The search field has focus. The cursor starts on the
   conversation open in the drawer, with the path from the first comment to the
   picked post traced in amber, or on the first row when none is open.
@@ -206,8 +252,8 @@ two points left to the owner; the rest is shown at BPR-1293:owner-look.
   filters, selection and scroll today. Nothing is stored. A restored window
   never opens in Conversations, since the modality is never stored or
   inferred ([[BPR-0727]]).
-- **Last used.** "A pull request opens in: Last used" may be Conversations, as
-  it may be Discuss today ([[BPR-0661]]).
+- **Last used.** "A pull request opens in: Last used" may be Conversations or
+  Discuss ([[BPR-0661]]).
 - **Comment and Compose review.** They stay on the review bar. In
   Conversations, Comment answers the thread the reviewer picked and never a
   selected line, as in Discuss today (`comment_target_text`).
@@ -217,11 +263,20 @@ two points left to the owner; the rest is shown at BPR-1293:owner-look.
   drawer", so only the modality is called Conversations. Shown at
   BPR-1293:owner-look.
 - **Not in Conversations.** Pull request comments, review summaries and
-  threads that are not on a file ([[BPR-1294]]). Reading, replying, resolving
+  threads that are not on a file. Discuss lists and reads them, as today;
+  [[BPR-1294]] looks for a better home. Reading, replying, resolving
   and marking read happen in Review's drawer, not on this page: the finder
   only previews a post's first words on hover, as drawn.
 
 ## Discuss today, and where each part goes
+
+**Background since 2026-10-06.** This inventory was written while
+Conversations was to replace Discuss. After the owner's Q2 answer Discuss
+stays, so it is kept only as the map of what Discuss does and how the finder
+relates to it. Where its last column drops, removes or renames a part of
+Discuss, read "kept in Discuss, unchanged". It does not govern the build: the
+entry points follow [Entry points, as amended](#entry-points-as-amended), and
+the acceptance below governs the rest.
 
 Read from the code at `15f9de54c` (origin/main). BPR-1290 is changing the
 drawer and Discuss's list in its branch; where that matters it is noted. Every
@@ -332,6 +387,11 @@ row goes somewhere or is dropped on purpose.
 
 ### The gap until BPR-1294 is built
 
+**No gap now** (amended 2026-10-06, Q2: "just keep discuss for now even after
+1294"). Discuss stays, so pull request comments and review summaries stay
+readable there and a `#pullrequestreview-` link keeps revealing its review in
+Discuss. The rest of this section is the gap as it would have been.
+
 Today Discuss is the only place in the application where a pull request
 comment or a review summary can be read. With Conversations and the inline
 drawer, neither shows them. Until [[BPR-1294]] gives them a home:
@@ -346,11 +406,55 @@ drawer, neither shows them. Until [[BPR-1294]] gives them a home:
 - Replying to a pull request comment and the review summary at Submit are
   unaffected: they never went through Discuss.
 
-Q2 asks whether the owner accepts that gap or wants Discuss's removal to wait.
+Q2 asked whether the owner accepts that gap or wants Discuss's removal to
+wait. The owner kept Discuss.
+
+## Entry points, as amended
+
+Decided 2026-10-06 after the owner's answers. Each entry point keeps the
+destination it has today unless it is better as Review in place. Discuss's
+own behaviour is not changed.
+
+**Changed: Review in place.** These name a conversation on a file, the place
+that reads it with its code is Review's inline drawer, and a pick from
+Conversations lands there too. Each enters Review in its remembered
+arrangement on the thread's file, opens the Comments drawer if it is closed (a
+manual open), and opens the thread in place at the named post, or among the
+file's unplaceable threads when it cannot be placed.
+
+- **A `#discussion_r<id>` link** (`reveal_conversation` from the link
+  location), when the read identified the comment. Today it reveals the
+  comment in Discuss.
+- **The published-post reveal** (`select_published_conversation`): after an
+  inline comment is published, the window stays in Review with the thread
+  open at the published post. Today it switches to Discuss.
+- **Previous and Next defect** (`navigate_defect`), when the defect's thread
+  is not among the drawer's: Review on the defect's thread's file. Today it
+  switches to Discuss. A defect thread that is not on a file still goes to
+  Discuss.
+
+**Kept: Discuss, as today.**
+
+- **A `#pullrequestreview-<id>` link** reveals the review in Discuss. A review
+  is not on a file.
+- **An older-pair tab's Show them**, when the window's comparison is no later
+  than the tab's (`show_later_threads`), opens Discuss. Conversations is for
+  navigation only and is not better here.
+- **A Discuss card's Open in code** returns to Review at the thread's line, as
+  BPR-1295 leaves it.
+- **Overview's Comments column drill-down, its ? chip and its "Not on a file"
+  row** ([[BPR-1089]], not built) open Discuss as the delivery contract says.
+  BPR-1089 may choose Conversations for file scopes when it is built.
+
+**Into Conversations:** ⌘3, the strip segment, ⌘J and the drawer's finder
+button only.
 
 ## Questions for the owner
 
-Asked in chat, one question each, Accept or Reject.
+Asked in chat, one question each, Accept or Reject. Both answered 2026-10-06
+([Owner answers](#owner-answers-2026-10-06)): Q1 "Hide drawers" (Accept); Q2
+"just keep discuss for now even after 1294" (Reject: Discuss is kept, and not
+only until BPR-1294).
 
 1. **Q1. Drawers while in Conversations.** The finder takes the whole centre
    and the drawers are hidden while it shows, then come back exactly as Review
@@ -369,19 +473,25 @@ The code waits for [[BPR-1290]] (In Progress: the inline drawer this card
 picks into) and [[BPR-1295]] (Ready: Read into Review, the ⌘1 to ⌘3 keys and
 ⌘B). All three change the modality strip, `workbench_window.cpp` and the
 window tests. This is recorded as `sequence_after`, not `depends_on`, because
-the board keeps a card with unfinished dependencies in Backlog. Q1 and Q2 are
-answered before the build starts.
+the board keeps a card with unfinished dependencies in Backlog. Q1 and Q2 were
+answered on 2026-10-06.
 
 ## Acceptance
+
+Amended 2026-10-06 for the owner's answers: :modality, :keys, :entries,
+:governing-text, :tests and :owner-look follow them, and :removed is replaced
+by :discuss-kept.
 
 - **BPR-1293:owner-decision.** The owner's words on prototype v2 and the
   placement are recorded here verbatim. Recorded 2026-10-06 (above).
 - **BPR-1293:owner-questions.** Q1 and Q2 are answered by the owner and
   recorded here verbatim before the build starts, and the build follows them.
-- **BPR-1293:modality.** The strip offers Overview, Review and Conversations
-  on ⌘1, ⌘2 and ⌘3, set explicitly. No Discuss remains in the core, the Qt
-  adapter, tooltips, accessible names or object names. The drawer toggle's
-  action is named Comments drawer.
+  Recorded 2026-10-06 ([Owner answers](#owner-answers-2026-10-06)).
+- **BPR-1293:modality.** The strip offers Overview, Review, Conversations and
+  Discuss on ⌘1, ⌘2, ⌘3 and ⌘4, set explicitly. Conversations has its own
+  value in the core's and the Qt adapter's modality enums, its own segment,
+  tooltip, accessible name and object names. The drawer toggle's action is
+  named Comments drawer.
 - **BPR-1293:finder.** Conversations draws the finder faithful to prototype
   v2: one row per conversation grouped by file, with its line, the first
   post's label mark, its first words, an avatar per post in posting order, and
@@ -401,29 +511,37 @@ answered before the build starts.
   Conversations starts on that conversation with its path traced. A thread
   that cannot be placed opens among the file's unplaceable threads.
 - **BPR-1293:keys.** ⌘J (Ctrl+J) and the drawer's finder button enter
-  Conversations from Overview or Review with the search focused. ⌘J, or Esc on
-  an empty search, returns to the modality it came from. No key sequence is
-  duplicated in the assembled window. Under Q1 as answered, entering and
-  leaving Conversations changes no drawer state, and ⌘B is disabled there.
-- **BPR-1293:entries.** Every entry point in the inventory lands where the
-  inventory says: `#discussion_r`, the published-post reveal and defect
-  navigation in Review with the thread open in place; Show them in
-  Conversations on that file; `#pullrequestreview-` per Q2. Window and
-  public-path courses cover each.
-- **BPR-1293:removed.** Discuss's page, arrangement, file choice, summary,
-  back button, feed mode, excerpt locator and `discuss_filters` are removed,
-  and `github_thread_map` too unless the finder reuses it, with their tests
-  removed or migrated.
-- **BPR-1293:governing-text.** The amendments owed when the code lands
-  (inventory above) are made, with [[BPR-1021]]'s and [[BPR-1135]]'s rows
-  matching their criteria, and the documentation gate passes.
-- **BPR-1293:tests.** The tests in the inventory are updated and a finder
-  view test is added. The focused core, Qt and end-to-end selectors pass, with
+  Conversations from Overview, Review or Discuss with the search focused. ⌘J,
+  or Esc on an empty search, returns to the modality it came from. No key
+  sequence is duplicated in the assembled window. Under Q1 as answered, the
+  drawers are hidden while Conversations shows, entering and leaving it
+  changes no drawer state, and ⌘B is disabled there.
+- **BPR-1293:entries.** Every entry point lands where
+  [Entry points, as amended](#entry-points-as-amended) says: `#discussion_r`,
+  the published-post reveal and defect navigation in Review with the thread
+  open in place; `#pullrequestreview-`, Show them and a Discuss card's Open in
+  code where they land today. Window and public-path courses cover each
+  changed entry and each kept one.
+- **BPR-1293:discuss-kept.** Discuss keeps its page, arrangement, preset, file
+  scope, filters, summary, map, feed, Open in code, tooltip and names, and
+  reads pull request comments and review summaries as before; only its key
+  moves to ⌘4. Its existing courses pass with no change other than the key
+  and the modality loops gaining Conversations.
+- **BPR-1293:governing-text.** The workbench specification and RFC-BPR-0028
+  describe the build; RFC-BPR-0052's "Overview and Discuss have no tab" names
+  Conversations too, with [[BPR-1021]]'s and [[BPR-1135]]'s rows matching
+  their criteria; and the documentation gate passes. Text that describes
+  Discuss stays as written.
+- **BPR-1293:tests.** The modality loops and key cases in the inventory gain
+  Conversations and Discuss on ⌘4, Conversations window cases cover the page,
+  the pick, ⌘J and Esc, the hidden drawers and ⌘B, and a finder view test is
+  added. The focused core, Qt and end-to-end selectors pass, with
   `qt_composed_github` included per the board's selector trap.
 - **BPR-1293:owner-look.** The owner uses Conversations in the built
   application in an attended session and accepts it, with one question each for
-  the finder's drawing, picking, the keys (⌘3 and ⌘J), and the drawer
-  toggle's new name. Required, not self-certified.
+  the finder's drawing, picking, the keys (⌘3 for Conversations, ⌘4 for
+  Discuss, and ⌘J), and the drawer toggle's new name. Required, not
+  self-certified.
 
 ## Boundaries
 
@@ -431,6 +549,6 @@ Presentation in the Qt adapter, plus the core's modality enum and the window's
 modality wiring. No new authority and no GitHub, Git or SQLite effect: the
 finder reads the conversation projection the drawer already reads, and every
 gesture it starts is a file selection and a thread selection that already
-exist. It does not give comments that are not on a file a home
-([[BPR-1294]]), redesign the drawer ([[BPR-1290]]) or change Review's
-arrangement and ⌘B ([[BPR-1295]]).
+exist. It does not change Discuss's behaviour beyond its key, give comments
+that are not on a file a new home ([[BPR-1294]]), redesign the drawer
+([[BPR-1290]]) or change Review's arrangement and ⌘B ([[BPR-1295]]).
