@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1229"
 title: "Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json","related_cards":["BPR-1128","BPR-1139"]}
+acceptance: [{"criterion":"The owner's choice is recorded on this card","outcome":"pass","revision":"2c62d2f218b09fba93a0c41553672ae3568d9ebc","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1229-windows-qt-agent-launch-canary-durable-child-course-fails-contained.md","detail":"Decided by the integrating coordinator on 2026-10-06 as test configuration: option 2, the durable child course as its own row on every platform, uncontained and pinned on Windows; the canary's launch courses stay contained. Recorded in the card's 'Decided: option 2' section."}},{"criterion":"qt_agent_launch_canary passes on Windows, and the durable course runs somewhere on Windows","outcome":"pass","revision":"2c62d2f218b09fba93a0c41553672ae3568d9ebc","evidence":{"kind":"command","path":"tests/adapters_qt/agent_launch_canary_tests.cpp","detail":"bpr-main-win windows-dev Debug, MSVC 14.51: qt_agent_launch_canary passes contained (108.6 s, 109.2 s) with every launch course, after three courses take make_scratch_directory roots the AppContainer can write; qt_agent_launch_canary_durable_course passes uncontained (2.8 s); agent_parent_death, architecture_boundaries and architecture_boundary_contract pass. macOS and Linux runs of both rows are owed."}},{"criterion":"test_network_isolation_manifest names no row this card changes","outcome":"pass","revision":"2c62d2f218b09fba93a0c41553672ae3568d9ebc","evidence":{"kind":"command","path":"scripts/verify_test_network_isolation.py","detail":"qt_agent_launch_canary_durable_course pinned dos-volume-name with its measured line ('FAILED: open durable child course', agent_launch_canary_tests.cpp:281); test_network_isolation_manifest and test_network_isolation_structure_contract pass on Windows."}}]
 ---
 
 # BPR-1229: Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer
