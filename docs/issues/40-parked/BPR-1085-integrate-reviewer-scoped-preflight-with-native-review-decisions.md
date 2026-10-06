@@ -71,3 +71,23 @@ the full evidence.
 
 Each new check has a failing-before control, listed in the ledger. No live
 GitHub was used, and Linux is the only platform run.
+
+**Note: Windows run at `cd9b87e19`** (holds `35b8d4fcb`; station `bpr-main-win`,
+MSVC 14.51, Qt 6.11.2, `windows-dev` Debug, whole tree with no `warning C` or
+`warning LNK` line; no remote mutation). The shared [[BPR-1084]] and
+[[BPR-1085]] selection passes 19 of 19 with `-j4`:
+
+- core: `core_feedback_suggestion_preservation`,
+  `core_suggestion_applicability`, `core_review_preflight` and
+  `core_review_submission`;
+- Qt: `qt_review_draft_editor`, `qt_review_submission_editor_scale_{100,125,200}`
+  and `qt_conversation_cards_view`;
+- application: `application_review_submission_{contract,application_host}`
+  and `application_review_submission_composition_{public_path,scale_125,scale_200}`
+  (33–35 s), `application_label_authoring_contract`;
+- `github_review_comment_permalink`;
+- `application_review_round_trip_composition_contract`,
+  `architecture_boundaries` and `test_network_isolation_manifest`.
+
+There was no MSVC issue to fix, and no row was refused inside the sandbox,
+so no pin was needed.
