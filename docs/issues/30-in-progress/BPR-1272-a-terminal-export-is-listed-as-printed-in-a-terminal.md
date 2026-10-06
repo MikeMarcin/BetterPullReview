@@ -50,3 +50,36 @@ words are unchanged.
 - The owner accepts the words, recorded verbatim with session and event.
 - A course exports a round with `--output -` into a pipe and the share sheet
   shows the new words; a negative control restoring the old words fails it.
+
+## Linux implementation — 2026-10-06 (`bpr-main-linux`)
+
+**Words proposed:** "Written to standard output". This is the shortest
+statement of what the observation records: `bpr cycle export --output -` wrote
+the exact bytes to standard output, for a pipe or file. A terminal display is
+never recorded. It follows the owner's preference for minimal text; "by bpr
+cycle export" is left out, because only that command makes the observation.
+
+**Change:** the one string in `delivery_words`
+(`src/adapters/qt/src/review_cycle_share_sheet.cpp`). Its comment now says
+that this state's words changed and await the owner's look. No row or document
+quoted the old words except the historical verification ledger, which is left
+as it was. The other observation words are unchanged.
+
+**Course:** `application_review_cycle_two_round_public_path`, in its automated
+form, exports F1 twice with `--output -` into a pipe. It now asserts that F2's
+share sheet lists exactly one `F1 · Written to standard output · … · 2 times`
+and no delivery naming a terminal.
+
+**Control:** with the old words restored the course fails, listing
+`F1 · Printed in a terminal · 2,675 bytes · 2 times`. It passes with the new
+words.
+
+**Evidence** (`build/dev-tour-cli`, GCC 15.2, offscreen): the two-round,
+desktop and parity courses, `qt_review_cycle_view_1_0` and `_2_0`,
+`cycle_cli_documentation` and `architecture_boundaries` pass 7/7.
+clang-format is clean.
+
+**Open:** the owner's Accept or Reject of the words, recorded verbatim with the
+session and event, run from the Mac. One question: *"A `bpr cycle export
+--output -` into a pipe or file is listed as 'F1 · Written to standard output ·
+2,675 bytes · 2 times'. Accept these words?"*

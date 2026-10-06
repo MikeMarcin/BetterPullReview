@@ -295,7 +295,10 @@ namespace bpr::qt {
 		};
 
 		/// One observation in its own words: what was seen, never more (accepted as
-		/// BPR-1161-delivery-words-v001, 2026-10-02; kept verbatim).
+		/// BPR-1161-delivery-words-v001, 2026-10-02; kept verbatim). [[BPR-1272]]:
+		/// a `bpr cycle export --output -` records only bytes written to standard
+		/// output for a pipe or file, never a terminal display, so that state no
+		/// longer says "Printed in a terminal"; its words await the owner's look.
 		auto delivery_words(const core::cycle_delivery_record& aRecord) -> delivery_parts
 		{
 			const auto& seen   = aRecord.Observation;
@@ -304,7 +307,7 @@ namespace bpr::qt {
 			switch (seen.State) {
 			case core::cycle_delivery_state::copied:                 what = QStringLiteral("Copied to the clipboard"); break;
 			case core::cycle_delivery_state::saved:                  what = QStringLiteral("Saved %1as %2").arg(bundle ? QStringLiteral("a bundle ") : QString{ }, text_of(seen.Destination)); break;
-			case core::cycle_delivery_state::retrieved:              what = seen.Channel == core::cycle_disclosure_channel::terminal_output ? QStringLiteral("Printed in a terminal") : QStringLiteral("Read through the local interface"); break;
+			case core::cycle_delivery_state::retrieved:              what = seen.Channel == core::cycle_disclosure_channel::terminal_output ? QStringLiteral("Written to standard output") : QStringLiteral("Read through the local interface"); break;
 			case core::cycle_delivery_state::accepted_by_adapter:    what = QStringLiteral("Accepted by the agent adapter"); break;
 			case core::cycle_delivery_state::recipient_acknowledged: what = QStringLiteral("The recipient acknowledged receiving it"); break;
 			case core::cycle_delivery_state::failed:                 what = seen.Channel == core::cycle_disclosure_channel::clipboard ? QStringLiteral("Copy failed: there was no clipboard") : QStringLiteral("Delivery failed"); break;

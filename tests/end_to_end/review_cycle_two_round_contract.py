@@ -544,6 +544,12 @@ def main():
             saved = desktop.ask("share", route="save", path=str(handoff / "RC-1-F2.md"))
             of_f2 = [entry for entry in saved["deliveries"] if entry.startswith("F2 · ")]
             assert saved["frozen"] and saved["round"] == "F2" and len(of_f2) == 1 and of_f2[0].startswith("F2 · Saved as RC-1-F2.md"), saved["deliveries"]
+            if automated:
+                # [[BPR-1272]]. F1 went to standard output twice, into a pipe: the
+                # one export a terminal never shows, so it is never "printed".
+                written = [entry for entry in saved["deliveries"] if entry.startswith("F1 · Written to standard output · ")]
+                assert len(written) == 1 and written[0].endswith(" · 2 times"), saved["deliveries"]
+                assert not any("terminal" in entry.lower() for entry in saved["deliveries"]), saved["deliveries"]
             copied = desktop.ask("share", route="copy", evidence=str(workspace / "clipboard-F2.md"))
             desktop.ask("share", route="bundle", path=str(handoff / "RC-1-F2.bpr-review.zip"))
             clipboard_f2 = (workspace / "clipboard-F2.md").read_bytes()
