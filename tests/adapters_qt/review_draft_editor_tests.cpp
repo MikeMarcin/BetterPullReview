@@ -5,17 +5,21 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QImage>
 #include <QLabel>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QTextCursor>
 #include <QToolButton>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -1434,6 +1438,69 @@ namespace {
 		expect(!shown(), "cleared, no mark");
 		delete editor;
 	}
+
+	/// \brief [[BPR-1084]]. The mark is a state, so it is round beside the
+	/// square label marks (BPR-1083): a ring around a plus over a minus, solid
+	/// for native and broken into dashes for text only. The glyph inside is the
+	/// same in both, with no strike across it, and it holds at 1x and 2x.
+	void test_the_suggestion_mark_is_a_ring_solid_or_dashed()
+	{
+		const auto ink    = QColor{ 0x11, 0x14, 0x18 };
+		const auto render = [&ink](const core::suggestion_applicability aApplicability, const qreal aRatio) {
+			const auto pixels = static_cast<int>(16.0 * aRatio);
+			auto       image  = QImage{ pixels, pixels, QImage::Format_ARGB32_Premultiplied };
+			image.fill(Qt::transparent);
+			{
+				auto painter = QPainter{ &image };
+				qt::paint_suggestion_mark(painter, QRectF{ 0.0, 0.0, static_cast<qreal>(pixels), static_cast<qreal>(pixels) }, aApplicability, ink);
+			}
+			return image;
+		};
+		for (const auto ratio : { 1.0, 2.0 }) {
+			const auto native = render(core::suggestion_applicability::native, ratio);
+			const auto text   = render(core::suggestion_applicability::textual_only, ratio);
+			const auto none   = render(core::suggestion_applicability::no_patch, ratio);
+			const auto at     = [ratio](const QImage& aImage, const qreal aX, const qreal aY) {
+				return aImage.pixelColor(static_cast<int>(aX * ratio), static_cast<int>(aY * ratio)).alpha();
+			};
+			// Round: the corners a square mark would ink stay empty.
+			for (const auto& image : { native, text }) {
+				expect(at(image, 0.5, 0.5) == 0 && at(image, 15.5, 0.5) == 0 && at(image, 0.5, 15.5) == 0 && at(image, 15.5, 15.5) == 0,
+					   "the mark is round: a square label mark's corners stay empty");
+			}
+			// The ring at its own radius: unbroken for native, dashed for text only.
+			auto nativeGaps = 0;
+			auto textGaps   = 0;
+			auto textInked  = 0;
+			for (auto step = 0; step < 72; ++step) {
+				const auto angle = step * 5.0 * 3.14159265358979 / 180.0;
+				const auto x     = 8.0 + 7.25 * std::cos(angle);
+				const auto y     = 8.0 + 7.25 * std::sin(angle);
+				nativeGaps += at(native, x, y) < 96 ? 1 : 0;
+				textGaps += at(text, x, y) < 96 ? 1 : 0;
+				textInked += at(text, x, y) >= 96 ? 1 : 0;
+			}
+			expect(nativeGaps == 0, "native: the ring is unbroken");
+			expect(textGaps >= 12 && textInked >= 24, "text only: the ring is dashed, gaps and dashes both");
+			// The glyph: a plus over a minus, the same in both, with no strike.
+			expect(at(native, 8.0, 6.5) >= 128 && at(native, 8.0, 4.5) >= 128 && at(native, 6.0, 11.5) >= 200 && at(native, 10.0, 11.5) >= 200
+					   && at(native, 6.0, 6.5) >= 200 && at(native, 8.0, 10.2) < 64,
+				   "a plus over a minus inside the ring, apart");
+			auto same = true;
+			for (auto y = 0; y < native.height(); ++y) {
+				for (auto x = 0; x < native.width(); ++x) {
+					const auto dx = (x + 0.5) / ratio - 8.0;
+					const auto dy = (y + 0.5) / ratio - 8.0;
+					if (dx * dx + dy * dy < 5.5 * 5.5) {
+						same = same && native.pixel(x, y) == text.pixel(x, y);
+					}
+				}
+			}
+			expect(same, "inside the ring both are the same plus over a minus, with nothing struck across it");
+			expect(none.isNull() || std::ranges::all_of(std::span{ reinterpret_cast<const QRgb*>(none.constBits()), static_cast<std::size_t>(none.width() * none.height()) }, [](const QRgb aPixel) { return qAlpha(aPixel) == 0; }),
+				   "no patch draws nothing");
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -1456,6 +1523,7 @@ auto main(int argc, char** argv) -> int
 	test_left_new_comment_keeps_text_without_offering_publish();
 	test_target_and_server_failures_are_distinct();
 	test_a_suggested_change_is_marked_before_publish();
+	test_the_suggestion_mark_is_a_ring_solid_or_dashed();
 	test_typed_clear_removes_stale_selection_bound_state();
 	test_retry_preserves_the_frozen_publication_revision();
 	test_the_workshop_shows_both_texts_at_once_on_two_surfaces();

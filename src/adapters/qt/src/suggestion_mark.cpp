@@ -1,5 +1,7 @@
 #include "bpr/qt/suggestion_mark.hpp"
 
+#include "bpr/qt/feedback_label_marks.hpp"
+
 #include <QEvent>
 #include <QPainter>
 #include <QPen>
@@ -107,31 +109,45 @@ namespace bpr::qt {
 			return;
 		}
 		auto painter = QPainter{ this };
-		painter.setRenderHint(QPainter::Antialiasing, true);
-		const auto text    = Decision.Applicability == core::suggestion_applicability::textual_only;
-		const auto ink     = palette().color(QPalette::Active, text ? QPalette::PlaceholderText : QPalette::WindowText);
-		const auto side    = static_cast<qreal>(std::min(width(), height()));
-		const auto unit    = side / 16.0;
-		const auto box     = QRectF{ (width() - side) / 2.0, (height() - side) / 2.0, side, side }.adjusted(1.5 * unit, 1.5 * unit, -1.5 * unit, -1.5 * unit);
-		auto       outline = QPen{ ink, 1.2 * unit };
-		if (text) {
-			outline.setStyle(Qt::DashLine);
+		paint_suggestion_mark(painter, QRectF{ rect() }, Decision.Applicability, palette().color(QPalette::Active, QPalette::WindowText));
+	}
+
+	void paint_suggestion_mark(QPainter& aPainter, const QRectF& aBox, const core::suggestion_applicability aApplicability, const QColor& aInk)
+	{
+		if (aApplicability == core::suggestion_applicability::no_patch) {
+			return;
 		}
-		painter.setPen(outline);
-		painter.setBrush(Qt::NoBrush);
-		painter.drawRoundedRect(box, 2.5 * unit, 2.5 * unit);
-		auto stroke = QPen{ ink, 1.4 * unit, Qt::SolidLine, Qt::RoundCap };
-		painter.setPen(stroke);
-		const auto centre = box.center();
-		const auto arm    = 2.6 * unit;
-		// A plus above a minus: the change and what it replaces.
-		painter.drawLine(QPointF{ centre.x() - arm, centre.y() - 2.2 * unit }, QPointF{ centre.x() + arm, centre.y() - 2.2 * unit });
-		painter.drawLine(QPointF{ centre.x(), centre.y() - 2.2 * unit - arm }, QPointF{ centre.x(), centre.y() - 2.2 * unit + arm });
-		painter.drawLine(QPointF{ centre.x() - arm, centre.y() + 3.0 * unit }, QPointF{ centre.x() + arm, centre.y() + 3.0 * unit });
-		if (text) {
-			// Struck through: not applicable here.
-			painter.drawLine(box.bottomLeft(), box.topRight());
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		// Drawn on the 16 px mark's own units, centred in the box.
+		const auto side = std::min(aBox.width(), aBox.height());
+		aPainter.translate(aBox.center() - QPointF{ side / 2.0, side / 2.0 });
+		aPainter.scale(side / feedback_mark_size, side / feedback_mark_size);
+		// A state, so a ring (BPR-1083: labels are square, states round), with
+		// the marks' border. Text only opens it into the accepted dashes, as a
+		// non-blocking mark's border: the same change, a lighter form.
+		auto ring = QPen{ aInk, feedback_mark_border };
+		if (aApplicability == core::suggestion_applicability::textual_only) {
+			ring.setCapStyle(Qt::FlatCap);
+			ring.setDashPattern({ feedback_mark_dash / feedback_mark_border, feedback_mark_dash_gap / feedback_mark_border });
 		}
+		aPainter.setPen(ring);
+		aPainter.setBrush(Qt::NoBrush);
+		const auto inset = feedback_mark_border / 2.0;
+		aPainter.drawEllipse(QRectF{ inset, inset, feedback_mark_size - feedback_mark_border, feedback_mark_size - feedback_mark_border });
+		// A plus over a minus: the change and what it replaces, in the
+		// glyphs' stroke (2.6 units of BPR-1080's 24-unit grid in a 12 px box).
+		aPainter.setPen(QPen{ aInk, feedback_glyph_pen * feedback_mark_glyph_size / feedback_glyph_grid, Qt::SolidLine, Qt::RoundCap });
+		// The bars sit on pixel centres, so both are crisp at 1x, with a clear
+		// pixel between them, and the pair is centred in the ring.
+		constexpr auto centre = feedback_mark_size / 2.0;
+		constexpr auto arm    = 2.3;
+		constexpr auto plus   = 6.5;
+		constexpr auto minus  = 11.5;
+		aPainter.drawLine(QPointF{ centre - arm, plus }, QPointF{ centre + arm, plus });
+		aPainter.drawLine(QPointF{ centre, plus - arm }, QPointF{ centre, plus + arm });
+		aPainter.drawLine(QPointF{ centre - arm, minus }, QPointF{ centre + arm, minus });
+		aPainter.restore();
 	}
 
 	void suggestion_mark::changeEvent(QEvent* const aEvent)

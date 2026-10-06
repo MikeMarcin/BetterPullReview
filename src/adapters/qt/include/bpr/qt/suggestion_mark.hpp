@@ -3,11 +3,15 @@
 
 #include "bpr/core/suggestion_applicability.hpp"
 
+#include <QColor>
+#include <QRectF>
 #include <QSize>
 #include <QString>
 #include <QWidget>
 
 #include <string_view>
+
+class QPainter;
 
 /// \file
 /// \brief [[BPR-1084]]. The small mark a comment editor shows before Publish
@@ -25,9 +29,16 @@ namespace bpr::qt {
 	/// with the change here, and for text only why.
 	[[nodiscard]] auto suggestion_mark_tooltip(const core::suggestion_applicability_decision& aDecision) -> QString;
 
-	/// \brief A 16 px glyph: a plus over a minus in a rounded box, struck
-	/// through and dashed when the change is text only, so the two states
-	/// differ in shape and not only in colour. Hidden with no patch.
+	/// \brief Draws the mark for one applicability into a box in one ink: a
+	/// plus over a minus in a ring, the ring dashed when the change is text
+	/// only. Nothing for no patch.
+	void paint_suggestion_mark(QPainter& aPainter, const QRectF& aBox, core::suggestion_applicability aApplicability, const QColor& aInk);
+
+	/// \brief A 16 px glyph: a plus over a minus in a ring, the ring solid
+	/// when GitHub takes the change as its own suggestion and dashed when it
+	/// is text only, so the two differ in shape and not only in colour. A
+	/// state, so round, beside the square label marks (BPR-1083). Hidden with
+	/// no patch.
 	class suggestion_mark final : public QWidget
 	{
 	public:
