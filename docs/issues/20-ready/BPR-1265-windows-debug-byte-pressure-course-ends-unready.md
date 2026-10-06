@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1265"
 title: "Windows Debug: the large-review byte-pressure course ends unready at an epoch refresh"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
