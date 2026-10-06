@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1298"
 title: "Desktop draft and reply editors read CRLF back as LF"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0048"]
 depends_on: []
 priority: "P2"
