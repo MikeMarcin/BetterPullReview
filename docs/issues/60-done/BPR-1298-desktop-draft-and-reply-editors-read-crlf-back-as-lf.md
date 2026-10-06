@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1298"
 title: "Desktop draft and reply editors read CRLF back as LF"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0048"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"found_by":"BPR-1084 implementation, bpr-main-linux, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1298--BPR-1298--7914bd7bf76b.json","related_cards":["BPR-1084","BPR-1290","BPR-1083"],"acceptance":["BPR-1298:round-trip","BPR-1298:edits","BPR-1298:controls"]}
+acceptance: [{"criterion":"BPR-1298:round-trip","outcome":"pass","revision":"6e45430a2","evidence":{"kind":"command","detail":"core_line_endings: unedited LF, CRLF, mixed, empty and break-ended bodies return byte for byte; qt_review_draft_editor test_a_crlf_body_keeps_its_line_endings: a presented CRLF body with a suggestion fence and mixed tail reads back exactly through body_text() and presenting sends nothing. bpr-main-linux."}},{"criterion":"BPR-1298:edits","outcome":"pass","revision":"6e45430a2","evidence":{"kind":"command","detail":"The label controls' typed relabel (issue) and the blocking toggle keep every CR after the header; typed lines keep unchanged endings and take the body's CRLF style; the in-place reply mirrors the draft editor and publishes through body_text(). 140/140 over qt_, core, label-authoring, submission and pin rows."}},{"criterion":"BPR-1298:controls","outcome":"pass","revision":"6e45430a2","evidence":{"kind":"command","detail":"body_text() returning the editor's LF text fails qt_review_draft_editor ('a presented CRLF body reads back byte for byte, and presenting sends nothing'); a pass-through restore_line_endings fails core_line_endings ('an unedited body returns exactly'); both pass restored."}}]
 ---
 
 # BPR-1298: Desktop draft and reply editors read CRLF back as LF
