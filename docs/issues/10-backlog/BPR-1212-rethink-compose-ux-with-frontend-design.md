@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"BPR-0966 final owner verdict, 2026-09-26","related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"related_issues":["BPR-0966","BPR-1203","BPR-1207","BPR-1161"],"requested_skill":"frontend-design","timing":"Later follow-up; not active m2b work or a blocker for accepted Dif placement","decision_id":"3bcafec9-7811-46dd-83dd-f7bda4cdac1b","candidate":"BPR-0966-compose-slot-v002","candidate_revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","mandate_revision":"r4-with-owner-compose-20260925-r3"}
+metadata: {"origin":"BPR-0966 final owner verdict, 2026-09-26","related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"related_issues":["BPR-0966","BPR-1203","BPR-1207","BPR-1161","BPR-1083"],"requested_skill":"frontend-design","timing":"Later follow-up; not active m2b work or a blocker for accepted Dif placement","decision_id":"3bcafec9-7811-46dd-83dd-f7bda4cdac1b","candidate":"BPR-0966-compose-slot-v002","candidate_revision":"388f814c7be796b91c4dd6779422be3d4321e4f3","mandate_revision":"r4-with-owner-compose-20260925-r3"}
 ---
 
 # Rethink the Compose UX with frontend-design
@@ -72,12 +72,38 @@ action, and machine detail behind "exact text". Do not redraw it as a
 separate convention. This note neither activates this card nor changes its
 criteria.
 
+## Owner amendment: an inline composer beside the code ([[BPR-1083]], 2026-10-05)
+
+Accepting `BPR-1083-chip-menu-v002` in attended session
+`c2a2442c5ce16c3fbb77598fc87360bb` (decision
+`0df6d634-f0bf-49c2-b41c-d786bc3e3f64`, 2026-10-06T02:50Z), the owner wrote,
+verbatim:
+
+> Functionality works as expected.
+>
+> I hate this full screen comment page being the default. I want to be able
+> to still see the code I'm commenting on. Maybe it has an expand button to
+> get something similar to this.
+
+Their screenshot,
+[`BPR-1083-owner-ref-full-page-composer.png`](../../design/owner-refs/BPR-1083-owner-ref-full-page-composer.png),
+shows Read after Comment on a line of `renderer.cpp`: the comment page
+(Back, the target line, Publish and Discard, the label chip and the body)
+fills the whole comparison area, and no code is visible. The note's third
+paragraph, about the decorations, is BPR-1083's and was built there.
+
+This card's "new inline comment" flow already covers the ask, so it is
+recorded here and not filed separately (coordinator, 2026-10-05: "if 1212
+already covers it, amend 1212"). It adds AC5 below. The rest of this card's
+scope, timing and Backlog lane are unchanged.
+
 ## Acceptance
 
 - AC1: Use `frontend-design` to inventory the integrated flows and present concrete native-feasible layout and interaction alternatives, including normal, empty, unavailable/conflicted and kept-draft states. Record the chosen design and rationale against the owner's full-rethink request.
 - AC2: Implement the chosen composition flow with visible target and draft context, usable authoring space and clear local accept/reject versus publish actions. Preserve exact identity, draft retention, explicit publication, keyboard navigation and accessibility through the existing core/host/Qt boundaries.
 - AC3: Exercise the actual composed entry-to-edit-to-return paths using safe fixtures, including comments, replies, whole reviews and workshop proposals; prove draft preservation, stale-target refusal and zero publication from navigation or local acceptance. Verify rendered narrow/wide and larger-font states on each claimed platform and keep unavailable native evidence explicit.
 - AC4: Obtain an owner judgment on the built Compose UX at its exact candidate, with one question per independent criterion and Accept/Reject for keep-or-change decisions. Record any resulting follow-ups without treating the earlier Dif Accept as Compose acceptance.
+- AC5 (owner amendment, above): A new inline comment, and a reply on a thread, open their composer inline beside the code by default, so the commented line and its neighbours stay visible while writing. An expand control, with a keyboard route and an accessible name, opens the full-page composer with the same draft, and returns from it to the inline one. Both keep the draft, label controls, Publish and Discard, and neither adds a scroll trap or a clipped composer (RFC-BPR-0050).
 
 ## Scheduling
 
