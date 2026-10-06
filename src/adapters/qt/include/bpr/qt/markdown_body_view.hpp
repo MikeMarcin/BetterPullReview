@@ -51,6 +51,26 @@ namespace bpr::qt {
 		/// so a description or a tour preview shows no mark.
 		void               set_feedback_marks(const feedback_mark_theme& aTheme);
 		[[nodiscard]] auto feedback_mark_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1290]]. Reads one post in place, in an open thread of
+		/// the conversations drawer: as tall as its content at a width
+		/// (`heightForWidth`), with no vertical scrolling of its own, so a
+		/// vertical wheel goes to what holds it; wide code and tables still
+		/// scroll sideways. Its own source controls and destination line are
+		/// hidden: the holder offers View source and Copy source through
+		/// `show_source` and `copy_source`, and a link's destination is its
+		/// tooltip. Headings keep to the body's scale, and a recognized
+		/// Conventional Comments header is set in semibold, as the notes set it
+		/// ([[BPR-1083]]). Call before `set_body`.
+		void               set_in_place(bool aInPlace);
+		[[nodiscard]] auto in_place() const noexcept -> bool;
+		/// \brief Called when the height for a width changes in place: a new
+		/// body, a source switch, a font or palette change.
+		void set_height_observer(std::function<void()> aObserver);
+		/// \brief In place, how many characters at the start of the rendered
+		/// text are the recognized header set in semibold; zero otherwise.
+		[[nodiscard]] auto header_length() const noexcept -> qsizetype;
+		[[nodiscard]] auto hasHeightForWidth() const -> bool override;
+		[[nodiscard]] auto heightForWidth(int aWidth) const -> int override;
 
 		[[nodiscard]] auto original_body() const noexcept -> const std::string&;
 		[[nodiscard]] auto source_visible() const noexcept -> bool;
@@ -69,6 +89,7 @@ namespace bpr::qt {
 		void prepare_rendered();
 		void refresh_mark();
 		void refresh_formats();
+		void height_changed();
 
 		std::string                             Body;
 		std::string                             Identity;
@@ -77,6 +98,7 @@ namespace bpr::qt {
 		QPlainTextEdit*                         Source      = nullptr;
 		QStackedWidget*                         Pages       = nullptr;
 		QPushButton*                            Toggle      = nullptr;
+		QPushButton*                            Copy        = nullptr;
 		QLabel*                                 Notice      = nullptr;
 		QLabel*                                 Destination = nullptr;
 		QLabel*                                 Mark        = nullptr;
@@ -88,6 +110,12 @@ namespace bpr::qt {
 		bool                                    VisitedSource     = false;
 		bool                                    VisitedRendered   = false;
 		QString                                 Fallback;
+		bool                                    InPlace = false;
+		std::function<void()>                   HeightObserver;
+		qsizetype                               HeaderChars   = 0;
+		qsizetype                               SourceColumns = 0;
+		mutable int                             CachedWidth   = -1;
+		mutable int                             CachedHeight  = 0;
 	};
 } // namespace bpr::qt
 

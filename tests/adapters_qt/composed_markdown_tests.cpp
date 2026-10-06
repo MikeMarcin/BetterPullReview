@@ -8,9 +8,8 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
-#include <QMouseEvent>
-#include <QTextCursor>
 
+#include <QAbstractButton>
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -26,6 +25,7 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextEdit>
 #include <QTextFragment>
 #include <QTextTable>
@@ -291,50 +291,76 @@ int main(int argc, char** argv)
 	auto* panel = window.conversation_panel();
 	window.choose_modality(qt::review_modality::discuss);
 	settle();
-	// [[BPR-1290]]. Every public post reads in place in its open thread, as
-	// written, with its web links admitted through the same host.
-	const auto postBody = [panel](const std::string& aPost) -> QTextEdit* {
-		const auto& cards = panel->cards()->cards();
-		const auto  card  = std::ranges::find_if(cards, [&aPost](const qt::thread_card& aCard) {
+	// [[BPR-1290]], RFC-BPR-0036. Every public post reads in place in its
+	// open thread through the shared Markdown reader: its structure rendered,
+	// its source and copy exact, reached and read by keyboard to its final
+	// line, its links admitted through the same host.
+	auto* const cards      = panel->cards();
+	const auto  postReader = [cards](const std::string& aPost) -> qt::markdown_body_view* {
+		const auto& notes = cards->cards();
+		const auto  card  = std::ranges::find_if(notes, [&aPost](const qt::thread_card& aCard) {
 			return std::ranges::any_of(aCard.Posts, [&aPost](const qt::card_post& aEntry) { return aEntry.Id == aPost; });
 		});
-		if (card == cards.end()) {
+		if (card == notes.end()) {
 			return nullptr;
 		}
-		panel->cards()->open_thread(card->Id);
+		cards->open_thread(card->Id);
 		QApplication::processEvents();
-		auto* const open = panel->cards()->open_card();
+		auto* const open = cards->open_card();
 		if (open == nullptr) {
 			return nullptr;
 		}
 		for (auto* const post : open->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
 			if (post->property("postIdentity").toString() == QString::fromStdString(aPost)) {
-				return post->findChild<QTextEdit*>(QStringLiteral("threadPostBody"));
+				return dynamic_cast<qt::markdown_body_view*>(post->findChild<QWidget*>(QStringLiteral("threadPostReader")));
 			}
 		}
 		return nullptr;
 	};
-	const auto pressLink = [](QTextEdit& aBody, const QString& aTarget) {
-		const auto found = aBody.document()->find(aTarget);
-		expect(!found.isNull(), "the link's address is in the post as written");
-		auto cursor = QTextCursor{ aBody.document() };
-		cursor.setPosition(found.selectionStart() + 2);
-		const auto point   = QPointF{ aBody.cursorRect(cursor).center() };
-		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, point, aBody.viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, point, aBody.viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
-		QApplication::sendEvent(aBody.viewport(), &press);
-		QApplication::sendEvent(aBody.viewport(), &release);
+	const auto postButton = [](const qt::markdown_body_view& aReader, const char* aName) {
+		return aReader.parentWidget()->findChild<QAbstractButton*>(QString::fromLatin1(aName));
+	};
+	const auto inDrawer = [cards](QTextEdit& aView) {
+		const auto caret = aView.cursorRect();
+		return cards->viewport()->rect().contains(QRect{ aView.viewport()->mapTo(cards->viewport(), caret.topLeft()), caret.size() });
 	};
 	const std::vector<std::string> ids{ "review:summary", "review-comment:root", "review-comment:reply", "public-preview-comment:rest-root", "public-preview-comment:rest-reply", "issue-comment:issue" };
 	for (const auto& id : ids) {
 		expect(panel->model()->index_for_id(id).isValid(), "every public body and reply is in the conversation model");
-		auto* const body = postBody(id);
-		expect(body != nullptr && body->isVisible(), "every public body and reply reads in place in its open thread");
-		expect(body->toPlainText().trimmed().endsWith(QStringLiteral("Final content: Ω 日本語 🦊")) && body->toPlainText().contains(QStringLiteral("Native review content")),
-			   "each post reads complete, to its final content");
-		pressLink(*body, QStringLiteral("https://example.invalid/review"));
+		auto* const postView = postReader(id);
+		expect(postView != nullptr && postView->isVisible(), "every public body and reply reads in place through the shared Markdown reader");
+		cards->setFocus(Qt::OtherFocusReason);
 		settle();
-		expect(lastGesture.has_value() && lastGesture->Body == id, "a link gesture carries the exact public post identity");
+		key(cards, Qt::Key_Tab);
+		for (auto step = 0; step < 64 && !postView->isAncestorOf(QApplication::focusWidget()) && QApplication::focusWidget() != nullptr; ++step) {
+			key(QApplication::focusWidget(), Qt::Key_Tab);
+		}
+		expect(postView->isAncestorOf(QApplication::focusWidget()), "Tab from the notes reaches each post's native reader text");
+		structures(*postView);
+		const auto shown = postView->rendered_view()->toPlainText();
+		expect(!shown.contains(QStringLiteral("- [x]")) && !shown.contains(QStringLiteral("| --- |")) && !shown.contains(QStringLiteral("**Readable**")) && !shown.contains(QStringLiteral("```")),
+			   "the post shows no Markdown punctuation as prose");
+		expect(postView->original_body() == corpus, "each post preserves full source");
+		reach_end(postView->rendered_view());
+		expect(inDrawer(*postView->rendered_view()), "reading to the post's end by keyboard brings its final line into the drawer");
+		expect(postView->rendered_view()->toPlainText().endsWith(QStringLiteral("Final content: Ω 日本語 🦊")), "each public post reaches final content");
+		activate(*postView, QStringLiteral("https://example.invalid/review"));
+		expect(lastGesture.has_value() && lastGesture->Body == id, "link gesture carries exact public post identity");
+		auto* const viewSource = postButton(*postView, "threadPostSource");
+		auto* const copySource = postButton(*postView, "threadPostCopySource");
+		expect(viewSource != nullptr && copySource != nullptr && viewSource->accessibleName() == QStringLiteral("View original Markdown source"),
+			   "each post offers View source and Copy source");
+		viewSource->click();
+		settle();
+		expect(postView->source_visible() && postView->source_view()->toPlainText().toStdString() == corpus && postView->source_view()->isVisible()
+				   && viewSource->accessibleName() == QStringLiteral("Show rendered Markdown"),
+			   "View source switches the post to its complete original body");
+		QApplication::clipboard()->clear();
+		copySource->click();
+		expect(QApplication::clipboard()->mimeData()->data("text/plain").toStdString() == corpus, "Copy source copies the post's exact bytes");
+		viewSource->click();
+		settle();
+		expect(!postView->source_visible() && postView->rendered_view()->isVisible(), "the post switches back to its rendered body");
 	}
 	// Shared signed-out status is not a window body publication.
 	application::public_preview_presentation sibling;
@@ -354,11 +380,15 @@ int main(int argc, char** argv)
 		overview->adopt_appearance(appearance);
 		panel->adopt_appearance(appearance);
 		settle();
-		expect(panel->cards()->code_font() == appearance.code_font(), "composed code typography comes from appearance profile");
+		auto* const appearanceReader = postReader("review-comment:root");
+		expect(cards->code_font() == appearance.code_font() && appearanceReader != nullptr && appearanceReader->source_view()->font() == appearance.code_font(),
+			   "composed source/code typography comes from appearance profile");
+		standard_key(appearanceReader->rendered_view(), QKeySequence::MoveToStartOfDocument);
+		cards->verticalScrollBar()->setValue(0);
 		capture(window, QStringLiteral("conversation-%1").arg(static_cast<int>(mode)));
 	}
 	// Same accepted content and new publication preserve the reader's selection.
-	auto* text   = postBody("issue-comment:issue");
+	auto* text   = postReader("issue-comment:issue")->rendered_view();
 	auto  cursor = text->textCursor();
 	cursor.setPosition(10);
 	cursor.setPosition(20, QTextCursor::KeepAnchor);

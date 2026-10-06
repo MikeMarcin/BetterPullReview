@@ -412,6 +412,9 @@ namespace bpr::qt {
 		void focusOutEvent(QFocusEvent* aEvent) override;
 		auto viewportEvent(QEvent* aEvent) -> bool override;
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
+		/// \brief [[BPR-1290]]. Tab from the notes with a thread open enters
+		/// its first post's text, where the conversation is read.
+		auto focusNextPrevChild(bool aNext) -> bool override;
 
 	private:
 		struct closed_measure
@@ -445,6 +448,10 @@ namespace bpr::qt {
 		void               notify_marks();
 		void               step_new(int aDirection);
 		void               ensure_visible(const QRect& aViewportRect);
+		/// \brief Brings what is being read in an open thread into view: the
+		/// notes' own overflow in Discuss, the code (which the drawer follows)
+		/// in Review, as a wheel over the notes would.
+		void               reveal_reading(const QRect& aViewportRect);
 		[[nodiscard]] auto card_index(const std::string& aId) const -> std::optional<std::size_t>;
 		[[nodiscard]] auto to_content(QPoint aViewportPoint) const -> QPoint;
 		[[nodiscard]] auto to_viewport(QRect aContentRect) const -> QRect;

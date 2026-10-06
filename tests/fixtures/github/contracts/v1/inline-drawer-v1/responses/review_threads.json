@@ -506,13 +506,28 @@
 										"outdated": false,
 										"path": "src/ui/conversation_cards_view.cpp",
 										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Only the panel. **Two callers** before this change, one after:\n\n- [x] `github_conversation_panel` switches it with Discuss\n- [ ] `workbench_window` still sets it on a profile switch\n\n```cpp\nCards->set_feed(Discuss);\n```\n\n| Caller | Before | After |\n| --- | --- | --- |\n| panel | yes | yes |\n| window | yes | **no** |\n",
+										"id": "PRRC_cc_8_2",
+										"line": 430,
+										"originalLine": 430,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_8_1"
+										}
 									}
 								],
 								"pageInfo": {
-									"endCursor": "Y3Vyc29yOlBSUkNfY2NfOF8x",
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfOF8y",
 									"hasNextPage": false
 								},
-								"totalCount": 1
+								"totalCount": 2
 							},
 							"diffSide": "RIGHT",
 							"id": "PRRT_cc_8",

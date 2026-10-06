@@ -20,7 +20,9 @@ its base is the head without the prototype's four added ranges (601-630,
 The long file carries the prototype's eight threads, at lines 38 (resolved),
 430, 656, 667, 927, 1080, 1176 and 1510, in the voices of the
 conventional-comments people. The prototype's draft at line 1142 is a local
-note, not a thread, so it is not here. Fourteen threads, 44 posts.
+note, not a thread, so it is not here. Fourteen threads, 45 posts. Line
+430's reply is written in Markdown (a task list, a code block, a table and
+bold), for the open thread's rendered posts ([[BPR-1290]] v005, RFC-BPR-0036).
 
 ## Files and how they are made
 

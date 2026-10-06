@@ -13,6 +13,7 @@
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 
 #include <QAbstractButton>
@@ -59,7 +60,11 @@
 #include <QStringList>
 #include <QStyleOptionViewItem>
 #include <QTabWidget>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
 #include <QTextEdit>
+#include <QTextTable>
 #include <QToolButton>
 #include <QTreeView>
 #include <QWidget>
@@ -2465,10 +2470,16 @@ namespace {
 			return nullptr;
 		};
 		auto* const longBodyView = longPost() != nullptr ? longPost()->findChild<QTextEdit*>(QStringLiteral("threadPostBody")) : nullptr;
+		auto* const longReader   = longPost() != nullptr ? dynamic_cast<qt::markdown_body_view*>(longPost()->findChild<QWidget*>(QStringLiteral("threadPostReader"))) : nullptr;
+		// RFC-BPR-0036: the post reads through the shared reader, where raw
+		// HTML stays literal text and the source keeps every byte.
 		expect(
 			longIndex.data(qt::github_conversation_model::body_role).toString() == literal
-				&& longBodyView != nullptr && longBodyView->toPlainText() == literal && longBodyView->isReadOnly(),
-			"conversation content remains literal text in the open thread: markup is not interpreted and nothing is elided");
+				&& longBodyView != nullptr && longReader != nullptr && longBodyView->isReadOnly()
+				&& longBodyView->toPlainText().startsWith(QStringLiteral("<b>& literal markup remains text."))
+				&& longBodyView->toPlainText().endsWith(QStringLiteral("without clipping or elision."))
+				&& QString::fromStdString(longReader->original_body()) == literal,
+			"conversation content in the open thread: HTML is not interpreted, nothing is elided, and the source is exact");
 
 		const auto measureHeight = [&longPost](const int aWidth) {
 			auto* const post = longPost();
@@ -3002,6 +3013,14 @@ namespace {
 	/// negative control that fails when the claim is false.
 	auto test_inline_drawer_follows_the_code_and_opens_threads_in_place() -> void
 	{
+		// A reply with a task list, a code block, a table, bold and a link.
+		const auto markdownReply = std::string{
+			"The viewport has no margins here. **Checked** at both widths:\n\n"
+			"- [x] 280 px\n- [ ] 760 px\n\n"
+			"```cpp\nconst auto width = viewport()->width();\n```\n\n"
+			"| Width | Margin |\n| --- | --- |\n| 280 | 0 |\n| 760 | 0 |\n\n"
+			"Measured on [the margins page](https://example.invalid/margins).\n"
+		};
 		const auto opaque = []<typename Identity>(const std::uint8_t aSeed) {
 			auto bytes    = std::array<std::uint8_t, 32U>{ };
 			bytes.front() = aSeed;
@@ -3091,7 +3110,8 @@ namespace {
 			{ 60U, false, { { "tbutler", "issue (blocking): compute() runs before the cache is warm on the second pass." }, { "reviewer", "question: Should it warm the cache first?" }, { "jiayin", "praise: Good catch, this explains the slow start." }, { "tbutler", "Warm it first. I'll push the fix with a test." } } },
 			{ 64U, false, { { "jiayin", "suggestion (non-blocking, if-minor): Look the value up in an index instead of walking every line." } } },
 			{ 140U, false, { { "reviewer-four", "thought: Then the placing half could be tested without fonts." }, { "observer-three", "Which would have caught the clipping last week." }, { "jiayin", "note (perf): this runs twice on a scope change; the second pass finds nothing to do." }, { "reviewer", "Splitting after this lands, on its own card." }, { "tbutler", "praise: Thanks, happy with that." }, { "jiayin", "One more thought on the index." }, { "reviewer", "Go on." }, { "jiayin", "It could be built once per refresh." } } },
-			{ 200U, false, { { "observer-three", "Why the margin and not the viewport's width?" }, { "reviewer", "The viewport has no margins here." } } },
+			// RFC-BPR-0036: line 200's reply is written in Markdown, read rendered in place.
+			{ 200U, false, { { "observer-three", "Why the margin and not the viewport's width?" }, { "reviewer", markdownReply } } },
 			{ 250U, false, { { "tbutler", "chore (non-blocking): Say in a comment that Shift+F10 and the Menu key open the same menu." } } },
 			{ 300U, false, { { "jiayin", "todo (blocking, if-minor): Leave a comment pointing at the measurement." } } },
 		};
@@ -3123,6 +3143,8 @@ namespace {
 			}
 		}
 		pullRequest.Conversations = threads;
+		// An accepted body context, so a post's link reaches the admission.
+		pullRequest.MarkdownContext = core::markdown_context{ .Snapshot = core::provider_snapshot_id{ 5U }, .Revision = 1U };
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
 				.Commands = enabled_commands(),
@@ -3607,6 +3629,131 @@ namespace {
 		window.review_editor()->set_label_helper(false);
 		expect(cards->reply_editor() == nullptr, "the emptied reply gives itself up");
 
+		// RFC-BPR-0036 in the drawer ([[BPR-1290]] v005, after BPR-1299 found
+		// posts shown as written): an open post reads through the shared
+		// Markdown reader, keeps its label header, its source and its links,
+		// and is read by keyboard.
+		{
+			auto lastLink = std::optional<core::markdown_link_intent>{ };
+			window.set_markdown_link_dispatch([&lastLink](const core::markdown_link_intent& aIntent) {
+				lastLink = aIntent;
+				return core::markdown_link_result::opened;
+			});
+			const auto readerOf = [cards](const std::string& aPost) -> qt::markdown_body_view* {
+				auto* const opened = cards->open_card();
+				for (auto* const post : opened != nullptr ? opened->findChildren<QWidget*>(QStringLiteral("threadPost")) : QList<QWidget*>{ }) {
+					if (post->property("postIdentity").toString() == QString::fromStdString(aPost)) {
+						return dynamic_cast<qt::markdown_body_view*>(post->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+					}
+				}
+				return nullptr;
+			};
+			cards->close_thread();
+			QApplication::processEvents();
+			timer.restart();
+			cards->open_thread("review-thread:t200");
+			QApplication::processEvents();
+			const auto markdownOpenMs = timer.elapsed();
+			settleOpen();
+			std::cout << "inline-drawer:markdown-open-ms=" << markdownOpenMs << '\n';
+#if defined(NDEBUG)
+			expect(markdownOpenMs < 100, "opening a thread with a Markdown post answers within 100 ms in an optimized build");
+#endif
+			auto* const root  = readerOf("review-comment:c16");
+			auto* const reply = readerOf("review-comment:c17");
+			expect(root != nullptr && reply != nullptr && reply->isVisible() && reply->original_body() == markdownReply,
+				   "every open post reads through the shared Markdown reader, its source as written");
+			expect(reply->rendered_available() && !reply->source_visible(), "the Markdown post is rendered");
+			auto* const document = reply->rendered_view()->document();
+			auto        tasks    = 0;
+			auto        code     = 0;
+			for (auto block = document->begin(); block.isValid(); block = block.next()) {
+				tasks += block.blockFormat().marker() != QTextBlockFormat::MarkerType::NoMarker ? 1 : 0;
+				code += block.blockFormat().hasProperty(QTextFormat::BlockCodeFence) ? 1 : 0;
+			}
+			const auto bold = document->find(QStringLiteral("Checked"));
+			expect(tasks == 2 && code > 0 && std::ranges::any_of(document->rootFrame()->childFrames(), [](QTextFrame* aFrame) { return dynamic_cast<QTextTable*>(aFrame) != nullptr; })
+					   && !bold.isNull() && bold.charFormat().fontWeight() >= QFont::Bold,
+				   "the post's task list, code block, table and bold are rendered as structure");
+			const auto shown = reply->rendered_view()->toPlainText();
+			expect(!shown.contains(QStringLiteral("- [x]")) && !shown.contains(QStringLiteral("```")) && !shown.contains(QStringLiteral("| --- |")) && !shown.contains(QStringLiteral("**")),
+				   "the post shows no Markdown punctuation as prose");
+			expect(root->rendered_view()->toPlainText() == QStringLiteral("Why the margin and not the viewport's width?") && root->header_length() == 0,
+				   "negative control: a plain post reads as its words, with no header");
+			// Keyboard: Tab from the notes enters the thread's first post, then
+			// walks to the Markdown post and its link.
+			cards->setFocus(Qt::OtherFocusReason);
+			QApplication::processEvents();
+			const auto tab = [](QWidget* aTarget) {
+				auto event = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+				QApplication::sendEvent(aTarget, &event);
+				QApplication::processEvents();
+			};
+			tab(cards);
+			expect(root->isAncestorOf(QApplication::focusWidget()), "Tab from the notes enters the open thread's first post");
+			for (auto step = 0; step < 16 && !reply->isAncestorOf(QApplication::focusWidget()); ++step) {
+				tab(QApplication::focusWidget());
+			}
+			expect(reply->isAncestorOf(QApplication::focusWidget()), "Tab walks on to the next post's text");
+			auto* const replyText = reply->rendered_view();
+			const auto  start     = replyText->textCursor().position();
+			auto        down      = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
+			QApplication::sendEvent(replyText, &down);
+			QApplication::processEvents();
+			expect(cards->open_thread_id() == "review-thread:t200" && replyText->textCursor().position() > start,
+				   "in a post's text Down moves the reading caret, not to another thread");
+			tab(replyText);
+			expect(replyText->hasFocus() && replyText->textCursor().charFormat().anchorHref() == QStringLiteral("https://example.invalid/margins")
+					   && qt::anchored_tooltip() != nullptr && qt::anchored_tooltip()->isVisible(),
+				   "Tab in the post reaches its link and says where it goes");
+			auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(replyText, &enter);
+			QApplication::processEvents();
+			qt::hide_anchored_tooltip();
+			expect(lastLink.has_value() && lastLink->Body == "review-comment:c17" && lastLink->Destination == "https://example.invalid/margins",
+				   "Return on the link hands it to the application's admission with the post's identity");
+			// View source and Copy source in the post's name row.
+			auto* const replyPost  = reply->parentWidget();
+			auto* const viewSource = replyPost->findChild<QAbstractButton*>(QStringLiteral("threadPostSource"));
+			auto* const copySource = replyPost->findChild<QAbstractButton*>(QStringLiteral("threadPostCopySource"));
+			expect(viewSource != nullptr && copySource != nullptr, "the post offers View source and Copy source");
+			const auto renderedHeight = replyPost->height();
+			viewSource->click();
+			settleOpen();
+			expect(reply->source_visible() && reply->source_view()->toPlainText().toStdString() == markdownReply && reply->source_view()->isVisible()
+					   && reply->height() >= reply->heightForWidth(reply->width()) && replyPost->height() != renderedHeight,
+				   "View source shows the post as written, at its own height");
+			copySource->click();
+			expect(QApplication::clipboard()->text().toStdString() == markdownReply, "Copy source copies the post as written");
+			viewSource->click();
+			settleOpen();
+			expect(!reply->source_visible() && replyPost->height() == renderedHeight, "the post switches back to rendered");
+			capture_layout_state(window, QStringLiteral("inline-markdown-post"));
+			// A vertical wheel over a post's text still scrolls the code.
+			const auto wheelBefore = bar->value();
+			const auto inside      = QPointF{ replyText->viewport()->rect().center() };
+			auto       overText    = QWheelEvent{ inside, replyText->viewport()->mapToGlobal(inside), QPoint{ 0, 0 }, QPoint{ 0, -240 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(replyText->viewport(), &overText);
+			QApplication::processEvents();
+			expect(bar->value() > wheelBefore, "a wheel over a post's text scrolls the code");
+			// The label header as accepted ([[BPR-1083]]): rendered, semibold.
+			cards->open_thread("review-thread:t250");
+			settleOpen();
+			auto* const labelled = readerOf("review-comment:c18");
+			auto        header   = QTextCursor{ labelled != nullptr ? labelled->rendered_view()->document() : nullptr };
+			const auto  length   = labelled != nullptr ? labelled->header_length() : 0;
+			expect(labelled != nullptr && labelled->rendered_view()->toPlainText().startsWith(QStringLiteral("chore (non-blocking): Say"))
+					   && length == QStringLiteral("chore (non-blocking):").size(),
+				   "a labelled post keeps its header and decorations as written");
+			header.setPosition(1);
+			const auto headerWeight = header.charFormat().fontWeight();
+			header.setPosition(static_cast<int>(length) + 3);
+			expect(headerWeight >= QFont::DemiBold && header.charFormat().fontWeight() < QFont::DemiBold,
+				   "the header is semibold and the words after it are not");
+			cards->close_thread();
+			QApplication::processEvents();
+		}
+
 		// The filters: Hide resolved and Only new.
 		panel->filter_unresolved_button()->click();
 		QApplication::processEvents();
@@ -3668,8 +3815,10 @@ namespace {
 					   && window.next_new_comment_button()->isVisible(),
 				   "every tab shows whole, and the tools stay on screen, beside the tabs or under them");
 			for (auto* const post : opened->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
-				auto* const body = post->findChild<QTextEdit*>(QStringLiteral("threadPostBody"));
-				expect(body != nullptr && body->geometry().right() < post->width() && body->height() >= body->document()->size().height() - 1,
+				auto* const reader = dynamic_cast<qt::markdown_body_view*>(post->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+				auto* const body   = post->findChild<QTextEdit*>(QStringLiteral("threadPostBody"));
+				expect(reader != nullptr && body != nullptr && reader->geometry().right() < post->width() && reader->height() >= reader->heightForWidth(reader->width())
+						   && body->height() >= body->document()->size().height() - 1,
 					   "each post's body fits its width and shows all of its lines");
 			}
 			capture_layout_state(window, QStringLiteral("inline-contrast-large-%1").arg(width));

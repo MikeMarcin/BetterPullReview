@@ -139,6 +139,23 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 12.0, 12.5 }, QPointF{ 12.0, 20.5 });
 				polyline(aPainter, { { 8.5, 17.0 }, { 12.0, 20.5 }, { 15.5, 17.0 } });
 				break;
+			case conversation_glyph::source:
+				polyline(aPainter, { { 7.5, 7.5 }, { 3.0, 12.0 }, { 7.5, 16.5 } });
+				polyline(aPainter, { { 16.5, 7.5 }, { 21.0, 12.0 }, { 16.5, 16.5 } });
+				aPainter.drawLine(QPointF{ 13.6, 5.5 }, QPointF{ 10.4, 18.5 });
+				break;
+			case conversation_glyph::rendered:
+				aPainter.save();
+				aPainter.setPen(QPen{ aPainter.pen().color(), glyph_pen + 0.9, Qt::SolidLine, Qt::RoundCap });
+				aPainter.drawLine(QPointF{ 4.5, 6.5 }, QPointF{ 13.5, 6.5 });
+				aPainter.restore();
+				aPainter.drawLine(QPointF{ 4.5, 12.0 }, QPointF{ 19.5, 12.0 });
+				aPainter.drawLine(QPointF{ 4.5, 17.5 }, QPointF{ 16.0, 17.5 });
+				break;
+			case conversation_glyph::copy:
+				aPainter.drawRoundedRect(QRectF{ 8.5, 8.5, 11.0, 12.0 }, 2.0, 2.0);
+				polyline(aPainter, { { 4.5, 16.0 }, { 4.5, 4.5 }, { 16.0, 4.5 } });
+				break;
 			}
 		}
 

@@ -1040,8 +1040,18 @@ A thread opens in place: one at a time, pinned exactly at its line, with the
 line washed amber in the code, its gutter marker ringed and the open card's
 amber edge and notch pointing at it. The other notes make room above and
 below. The open thread shows every post in posting order with its avatar,
-mark, rail, unread dot and complete body as written, and a reply that answers
-anything but the thread's first post names whom it answers. What is new is
+mark, rail, unread dot and complete body, and a reply that answers anything
+but the thread's first post names whom it answers. Each body reads through the
+shared Markdown reader in place (RFC-BPR-0036; [[BPR-1290]] v005, after
+[[BPR-1299]] found posts shown as written): headings, lists, tasks, quotes,
+code, tables and links rendered, the post as tall as its content with no
+scrolling of its own, wide code and tables scrolling sideways. A recognized
+label header and its decorations stay as written at the front, in semibold
+([[BPR-1083]]). Hovering a post or moving focus into it shows View source and
+Copy source in its name row; links open through the application's admission.
+Tab from the notes enters the open thread's first post, Tab walks its links
+and then the next post, and in a post's text the arrows move the reading
+caret, which the drawer keeps in view. What is new is
 said in the header: beside the line number a blue "N new", the closed note's
 count kept while the thread is open. A New rule is never a thread's first
 element: it stands only where a read post is followed by the first new one, in

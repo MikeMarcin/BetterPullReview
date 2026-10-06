@@ -20,7 +20,7 @@ Usage:
         served tree.
     build_inline_drawer_fixture.py --threads <contract directory>
         Replaces the served tree's empty review threads with the fourteen
-        threads.
+        threads (45 posts).
 """
 
 from __future__ import annotations
@@ -62,6 +62,23 @@ LONG_THREADS = (
     )),
     ("8", 430, False, (
         ("tbutler", "question: Who still calls `set_feed()` once Discuss has its own list?"),
+        # BPR-1290 v005: a reply written in Markdown, which the open thread
+        # renders through the shared reader (RFC-BPR-0036).
+        ("fixture-author", (
+            "Only the panel. **Two callers** before this change, one after:\n"
+            "\n"
+            "- [x] `github_conversation_panel` switches it with Discuss\n"
+            "- [ ] `workbench_window` still sets it on a profile switch\n"
+            "\n"
+            "```cpp\n"
+            "Cards->set_feed(Discuss);\n"
+            "```\n"
+            "\n"
+            "| Caller | Before | After |\n"
+            "| --- | --- | --- |\n"
+            "| panel | yes | yes |\n"
+            "| window | yes | **no** |\n"
+        )),
     )),
     ("9", 656, False, (
         ("tbutler", "issue (blocking): `set_current_thread()` keeps a reply's id when no card holds it, so `Current` can name nothing."),

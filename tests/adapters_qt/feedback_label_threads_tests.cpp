@@ -183,10 +183,11 @@ namespace {
 		const auto bodyOf = [](const QWidget* aPost) { return aPost->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->toPlainText(); };
 		expect(bodyOf(shown[0]) == QStringLiteral("issue (blocking): LightScale ignores the view's post-process settings.")
 				   && bodyOf(shown[1]) == QStringLiteral("question (if-minor, ux): Can the view settings be null on secondary views?")
-				   && bodyOf(shown[2]) == QStringLiteral("**praise:** Good catch.") && bodyOf(shown[3]) == QStringLiteral("Thanks, resolving after CI."),
-			   "every post reads as written, its label and decorations included");
-		const auto left = shown.front()->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->x();
-		expect(std::ranges::all_of(shown, [left](const QWidget* aPost) { return aPost->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->x() == left; }),
+				   && bodyOf(shown[2]) == QStringLiteral("praise: Good catch.") && bodyOf(shown[3]) == QStringLiteral("Thanks, resolving after CI."),
+			   "every post reads with its label and decorations, its Markdown rendered (RFC-BPR-0036)");
+		const auto readerX = [](const QWidget* aPost) { return aPost->findChild<QWidget*>(QStringLiteral("threadPostReader"))->x(); };
+		const auto left    = readerX(shown.front());
+		expect(std::ranges::all_of(shown, [left, &readerX](const QWidget* aPost) { return readerX(aPost) == left; }),
 			   "every post's text keeps the same left edge: the rail adds no width");
 		expect(std::ranges::all_of(std::span{ shown }.first(3U), [](const QWidget* aPost) { return aPost->height() >= 8 + 18 + 3 + 16; }),
 			   "a marked post is tall enough for its mark");

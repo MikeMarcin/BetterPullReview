@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_ADAPTERS_QT_SRC_CONVERSATION_OPEN_CARD_HPP
 #define BPR_SRC_ADAPTERS_QT_SRC_CONVERSATION_OPEN_CARD_HPP
 
+#include "conversation_glyphs.hpp"
+
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
@@ -8,7 +10,6 @@
 #include <QColor>
 #include <QFont>
 #include <QString>
-#include <QTextEdit>
 #include <QWidget>
 
 #include <cstdint>
@@ -24,6 +25,7 @@ class QToolButton;
 
 namespace bpr::qt {
 	class feedback_label_controls;
+	class markdown_body_view;
 	class suggestion_mark;
 
 	/// \brief [[BPR-1290]]. The colours the notes are drawn in, derived from
@@ -75,27 +77,32 @@ namespace bpr::qt {
 		bool                Feed              = false;
 	};
 
-	/// \brief One post's body as written: the recognized header in semibold,
-	/// inline code in the code font, web links that open through the
-	/// application's admission. Read-only and selectable.
-	class thread_post_body final : public QTextEdit
+	/// \brief [[BPR-1290]]. A post's quiet glyph button in its name row:
+	/// shown while the post is hovered or holds focus, or while it is on
+	/// (the source being read). Focusable and named either way.
+	class post_tool final : public QAbstractButton
 	{
 	public:
-		thread_post_body(QWidget* aParent);
-		void                                set_post(const card_post& aPost, const open_card_style& aStyle);
-		[[nodiscard]] auto                  height_for(int aWidth) const -> int;
-		std::function<void(const QString&)> LinkDispatch;
+		post_tool(conversation_glyph aGlyph, const note_colours& aColours, QWidget* aParent);
+		void               set_glyph(conversation_glyph aGlyph);
+		void               set_revealed(bool aRevealed);
+		void               set_on(bool aOn);
+		[[nodiscard]] auto revealed() const noexcept -> bool;
+		[[nodiscard]] auto sizeHint() const -> QSize override;
 
 	protected:
-		void mousePressEvent(QMouseEvent* aEvent) override;
-		void mouseReleaseEvent(QMouseEvent* aEvent) override;
-		void mouseMoveEvent(QMouseEvent* aEvent) override;
+		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
-		QString Pressed;
+		conversation_glyph Glyph;
+		note_colours       Colours;
+		bool               Revealed = false;
+		bool               On       = false;
 	};
 
-	/// \brief One post of the open thread: rail, avatar, mark, name row and body.
+	/// \brief One post of the open thread: rail, avatar, mark, name row and
+	/// its body, read through the shared Markdown reader in place
+	/// (RFC-BPR-0036), with View source and Copy source in the name row.
 	class thread_post_view final : public QWidget
 	{
 	public:
@@ -103,21 +110,35 @@ namespace bpr::qt {
 		[[nodiscard]] auto hasHeightForWidth() const -> bool override;
 		[[nodiscard]] auto heightForWidth(int aWidth) const -> int override;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
-		[[nodiscard]] auto body() const noexcept -> thread_post_body*;
+		[[nodiscard]] auto reader() const noexcept -> markdown_body_view*;
+		[[nodiscard]] auto source_button() const noexcept -> post_tool*;
+		[[nodiscard]] auto copy_button() const noexcept -> post_tool*;
 		[[nodiscard]] auto post() const noexcept -> const card_post&;
 		[[nodiscard]] auto mark_rect() const -> QRect;
 		[[nodiscard]] auto rail_rect() const -> QRectF;
+		/// \brief The body's height changed: a source switch, fonts.
+		std::function<void()> HeightChanged;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
+		void enterEvent(QEnterEvent* aEvent) override;
+		void leaveEvent(QEvent* aEvent) override;
 		auto event(QEvent* aEvent) -> bool override;
 
 	private:
-		card_post         Post;
-		open_card_style   Style;
-		bool              RuleAbove = false;
-		thread_post_body* Body      = nullptr;
+		[[nodiscard]] auto name_height() const -> int;
+		void               place_children();
+		void               refresh_tools();
+		void               refresh_source_button();
+
+		card_post           Post;
+		open_card_style     Style;
+		bool                RuleAbove    = false;
+		bool                Hovered      = false;
+		markdown_body_view* Reader       = nullptr;
+		post_tool*          SourceButton = nullptr;
+		post_tool*          CopyButton   = nullptr;
 	};
 
 	/// \brief A button drawn as the prototype draws it: a filled signal pill
@@ -166,6 +187,12 @@ namespace bpr::qt {
 		/// suggested change in the reply is native in this thread or text only.
 		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
 		[[nodiscard]] auto posts() const -> std::vector<thread_post_view*>;
+		/// \brief Whether \p aWatched is a post's rendered or source text,
+		/// where the arrow keys move the reading caret.
+		[[nodiscard]] auto is_reading(const QObject* aWatched) const -> bool;
+		/// \brief Where Tab from the notes enters the thread: its first post's
+		/// text. Null with no post.
+		[[nodiscard]] auto reading_entry() const -> QWidget*;
 		/// \brief The vertical centre of the notch, from the card's top.
 		void               set_notch(int aY);
 		[[nodiscard]] auto notch() const noexcept -> int;

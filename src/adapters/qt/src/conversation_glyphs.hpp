@@ -38,6 +38,12 @@ namespace bpr::qt {
 		up,
 		down,
 		resolved,
+		/// View a post's source: angle brackets around a slash.
+		source,
+		/// Back to the rendered post: three lines of text, the first a heading.
+		rendered,
+		/// Copy a post's source: two sheets, one behind the other.
+		copy,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

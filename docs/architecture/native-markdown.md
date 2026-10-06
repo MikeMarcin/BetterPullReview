@@ -1,7 +1,8 @@
 # Native Markdown reading
 
 RFC-BPR-0036 provides `qt::markdown_body_view`, shared by the expanded PR
-overview and the complete selected public post in Read and Discuss.
+overview and every post of the open thread in the conversations drawer and
+Discuss, where it reads in place (`set_in_place`, [[BPR-1290]] v005).
 The original provider body remains the authority for source, copy and publishing.
 
 ## Reading policy
@@ -102,10 +103,19 @@ platform context are in [the verification ledger](../verification/RFC-BPR-0036.m
 | Surface | Current path | Delivered behavior |
 | --- | --- | --- |
 | PR overview | `pull_request_overview_page.cpp`, `overview_description_view` | The shared renderer occupies the compact/expanded flow; the expanded viewport has no height cap and retains RFC0037 Return/Escape, source anchors and file focus. |
-| Public selected conversation | `github_conversation_panel.cpp`, selected `QTreeView` and `github_conversation_delegate.cpp` | Compact post summaries select complete bodies/replies in the shared reader; thread selection, read state and reply context retain their identities. Review summaries, GraphQL roots/replies, REST roots/replies and issue comments are included. |
-| Read/Discuss navigation cards | `conversation_cards_view.cpp` | Compact entries remain navigation summaries; the selected detail owns the complete public body. Draft entries keep their existing plain-text editing contract. |
+| Public conversation, open thread | `conversation_open_card.cpp` (`thread_post_view`), `conversation_cards_view.cpp` | Since [[BPR-1290]] the drawer has no post list or body pane: each post of the open thread reads in place through the shared reader, as tall as its content, with View source and Copy source in its name row and its links through the window's admission with the post's identity. Review summaries, GraphQL roots/replies, REST roots/replies and issue comments are included. |
+| Closed notes in the drawer and Discuss | `conversation_cards_view.cpp` | One- or two-line navigation summaries of the first post; the open thread owns the complete public body. My draft's open note renders its body the same way; editing keeps its plain-text contract. |
 | AI side chat | `side_chat_panel.cpp` | Inventoried, outside initial delivery. |
 | Local review/reply editors and draft cards | `review_draft_editor.cpp`, `review_submission_editor.cpp`, draft `conversation_cards_view` entries | Preserve Markdown editing and payloads; do not silently adopt rendering in this slice. |
+
+In place, the reader has no vertical scrolling of its own and reports its
+height for a width, so the open thread grows with its posts and a vertical
+wheel scrolls the code the drawer follows. Its source controls and destination
+line are the holder's: the post's name row has View source and Copy source,
+and a link's destination is its tooltip, shown at once when Tab reaches it.
+Headings keep to the body's scale, lists indent by half Qt's step, links on a
+dark panel keep their hue at a readable lightness, and a recognized
+Conventional Comments header is set in semibold as the notes set it.
 
 The wrapper exposes the rendered and source text widgets for layout, focus and
 selection integration. It does not own PR geometry, the conversation model,

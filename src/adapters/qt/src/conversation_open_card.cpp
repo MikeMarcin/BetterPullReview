@@ -4,7 +4,12 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
+
+#include <QApplication>
+#include <QFontMetricsF>
+#include <QTextEdit>
 
 #include <QAbstractTextDocumentLayout>
 #include <QFontMetrics>
@@ -18,7 +23,6 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPlainTextEdit>
-#include <QRegularExpression>
 #include <QResizeEvent>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -83,14 +87,6 @@ namespace bpr::qt {
 										  .Panel = aStyle.Colours.Panel,
 										  .Ink   = aStyle.Colours.Ink,
 										  .Style = aStyle.Marks.Style };
-		}
-
-		/// \brief A web address inside a post's plain text. Spelled without its
-		/// separator so the boundary scan for literal addresses stays quiet.
-		[[nodiscard]] auto web_address() -> const QRegularExpression&
-		{
-			static const auto expression = QRegularExpression{ QStringLiteral(R"((?:http|https):\/\/[^\s<>()\[\]`"']+)") };
-			return expression;
 		}
 
 		/// \brief A one-line state beside Show line: an icon and its words.
@@ -456,125 +452,72 @@ namespace bpr::qt {
 		aPainter.restore();
 	}
 
-	thread_post_body::thread_post_body(QWidget* const aParent)
-		: QTextEdit{ aParent }
+	post_tool::post_tool(const conversation_glyph aGlyph, const note_colours& aColours, QWidget* const aParent)
+		: QAbstractButton{ aParent }
+		, Glyph{ aGlyph }
+		, Colours{ aColours }
 	{
-		setObjectName(QStringLiteral("threadPostBody"));
-		setReadOnly(true);
-		setFrameShape(QFrame::NoFrame);
-		setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		setLineWrapMode(QTextEdit::WidgetWidth);
-		setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-		setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard | Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
-		setFocusPolicy(Qt::ClickFocus);
-		setAcceptDrops(false);
-		setUndoRedoEnabled(false);
-		document()->setDocumentMargin(0.0);
-		document()->setUndoRedoEnabled(false);
-		viewport()->setAutoFillBackground(false);
-		setAutoFillBackground(false);
-		viewport()->setMouseTracking(true);
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::PointingHandCursor);
+		setAttribute(Qt::WA_Hover, true);
+		anchor_tooltips(*this);
 	}
 
-	void thread_post_body::set_post(const card_post& aPost, const open_card_style& aStyle)
+	void post_tool::set_glyph(const conversation_glyph aGlyph)
 	{
-		setAccessibleName(QStringLiteral("Post by %1").arg(aPost.Author));
-		auto* const document = this->document();
-		document->clear();
-		document->setDefaultFont(font());
-		auto cursor = QTextCursor{ document };
-		auto plain  = QTextCharFormat{ };
-		plain.setForeground(aStyle.Colours.Ink);
-		auto header = plain;
-		header.setFontWeight(QFont::DemiBold);
-		header.setForeground(aStyle.Colours.Ink2);
-		auto code = plain;
-		code.setFontFamilies(aStyle.CodeFont.families());
-		code.setFontFixedPitch(true);
-		if (font().pointSizeF() > 0.0) {
-			code.setFontPointSize(font().pointSizeF() * 0.9);
+		Glyph = aGlyph;
+		update();
+	}
+
+	void post_tool::set_revealed(const bool aRevealed)
+	{
+		if (Revealed != aRevealed) {
+			Revealed = aRevealed;
+			update();
 		}
-		code.setBackground(mix(aStyle.Colours.Panel, aStyle.Colours.Ink, 0.06));
-		const auto insertPlain = [&](const QString& aText) {
-			// Web addresses become links the application admits; the rest is
-			// literal text.
-			auto at = qsizetype{ 0 };
-			for (auto match = web_address().globalMatch(aText); match.hasNext();) {
-				const auto found = match.next();
-				cursor.insertText(aText.mid(at, found.capturedStart() - at), plain);
-				auto link = plain;
-				link.setAnchor(true);
-				link.setAnchorHref(found.captured());
-				link.setFontUnderline(true);
-				link.setForeground(aStyle.Colours.Signal);
-				cursor.insertText(found.captured(), link);
-				at = found.capturedEnd();
-			}
-			cursor.insertText(aText.mid(at), plain);
-		};
-		const auto headerLength = std::clamp<qsizetype>(aPost.HeaderLength, 0, aPost.Body.size());
-		if (headerLength > 0) {
-			cursor.insertText(aPost.Body.left(headerLength), header);
+	}
+
+	void post_tool::set_on(const bool aOn)
+	{
+		if (On != aOn) {
+			On = aOn;
+			update();
 		}
-		// Inline code between two backticks on one line, as the prototype
-		// sets it; anything else is literal.
-		const auto rest = aPost.Body.mid(headerLength);
-		auto       at   = qsizetype{ 0 };
-		while (at < rest.size()) {
-			const auto open = rest.indexOf(QLatin1Char{ '`' }, at);
-			if (open < 0) {
-				break;
-			}
-			const auto close   = rest.indexOf(QLatin1Char{ '`' }, open + 1);
-			const auto newline = rest.indexOf(QLatin1Char{ '\n' }, open + 1);
-			if (close < 0 || close == open + 1 || (newline >= 0 && newline < close)) {
-				insertPlain(rest.mid(at, open + 1 - at));
-				at = open + 1;
-				continue;
-			}
-			insertPlain(rest.mid(at, open - at));
-			cursor.insertText(rest.mid(open + 1, close - open - 1), code);
-			at = close + 1;
+	}
+
+	auto post_tool::revealed() const noexcept -> bool
+	{
+		return Revealed || On || hasFocus();
+	}
+
+	auto post_tool::sizeHint() const -> QSize
+	{
+		return { 22, 22 };
+	}
+
+	void post_tool::paintEvent(QPaintEvent* /*aEvent*/)
+	{
+		// Out of the way until the post is hovered or holds focus: every post
+		// has them, and the conversation is what is read.
+		if (!revealed()) {
+			return;
 		}
-		insertPlain(rest.mid(at));
-		auto block = QTextBlockFormat{ };
-		block.setLineHeight(140.0, QTextBlockFormat::ProportionalHeight);
-		cursor.select(QTextCursor::Document);
-		cursor.mergeBlockFormat(block);
-		cursor.clearSelection();
-	}
-
-	auto thread_post_body::height_for(const int aWidth) const -> int
-	{
-		auto* const document = this->document();
-		const auto  previous = document->textWidth();
-		document->setTextWidth(std::max(1, aWidth));
-		const auto height = static_cast<int>(std::ceil(document->size().height()));
-		document->setTextWidth(previous);
-		return std::max(height, fontMetrics().height());
-	}
-
-	void thread_post_body::mousePressEvent(QMouseEvent* const aEvent)
-	{
-		Pressed = aEvent->button() == Qt::LeftButton ? anchorAt(aEvent->position().toPoint()) : QString{ };
-		QTextEdit::mousePressEvent(aEvent);
-	}
-
-	void thread_post_body::mouseReleaseEvent(QMouseEvent* const aEvent)
-	{
-		QTextEdit::mouseReleaseEvent(aEvent);
-		const auto target = anchorAt(aEvent->position().toPoint());
-		if (aEvent->button() == Qt::LeftButton && !target.isEmpty() && target == Pressed && LinkDispatch) {
-			LinkDispatch(target);
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto box = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+		if (On || underMouse() || isDown()) {
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(On ? with_alpha(Colours.Signal, Colours.Dark ? 0.26 : 0.14) : Colours.Hover);
+			painter.drawRoundedRect(box, 5.0, 5.0);
 		}
-		Pressed.clear();
-	}
-
-	void thread_post_body::mouseMoveEvent(QMouseEvent* const aEvent)
-	{
-		QTextEdit::mouseMoveEvent(aEvent);
-		viewport()->setCursor(anchorAt(aEvent->position().toPoint()).isEmpty() ? Qt::IBeamCursor : Qt::PointingHandCursor);
+		const auto ink  = On ? Colours.Signal : (underMouse() ? Colours.Ink : Colours.Faint);
+		const auto side = 14.0;
+		paint_conversation_glyph(painter, QRectF{ (width() - side) / 2.0, (height() - side) / 2.0, side, side }, Glyph, ink);
+		if (hasFocus()) {
+			painter.setPen(QPen{ Colours.Signal, 1.5 });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(box, 5.0, 5.0);
+		}
 	}
 
 	thread_post_view::thread_post_view(const card_post& aPost, const open_card_style& aStyle, const bool aRuleAbove, QWidget* const aParent)
@@ -588,8 +531,92 @@ namespace bpr::qt {
 		setAccessibleName(aPost.Name.isEmpty() ? aPost.Author : aPost.Name);
 		setAccessibleDescription(aPost.Unread ? QStringLiteral("New") : QString{ });
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-		Body = new thread_post_body{ this };
-		Body->set_post(aPost, aStyle);
+		// RFC-BPR-0036. The body reads through the shared Markdown reader, in
+		// place: as tall as its content, its links through the application's
+		// admission, its source a press away.
+		Reader = new markdown_body_view{ this };
+		Reader->setObjectName(QStringLiteral("threadPostReader"));
+		Reader->set_in_place(true);
+		Reader->set_code_font(aStyle.CodeFont, 4.0 * QFontMetricsF{ aStyle.CodeFont }.horizontalAdvance(QLatin1Char{ ' ' }));
+		Reader->set_body(aPost.Body.toStdString(), aPost.Id);
+		auto* const rendered = Reader->rendered_view();
+		rendered->setObjectName(QStringLiteral("threadPostBody"));
+		rendered->setAccessibleName(QStringLiteral("Post by %1").arg(aPost.Author));
+		rendered->setAccessibleDescription(QStringLiteral("Read-only post. Tab visits its links; Return opens the link. Wide code and tables scroll sideways."));
+		auto* const source = Reader->source_view();
+		source->setObjectName(QStringLiteral("threadPostSourceText"));
+		source->setAccessibleName(QStringLiteral("Source of the post by %1").arg(aPost.Author));
+		Reader->set_height_observer([this] {
+			updateGeometry();
+			place_children();
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		});
+		SourceButton = new post_tool{ conversation_glyph::source, aStyle.Colours, this };
+		SourceButton->setObjectName(QStringLiteral("threadPostSource"));
+		connect(SourceButton, &QAbstractButton::clicked, this, [this] {
+			Reader->show_source(!Reader->source_visible());
+			refresh_source_button();
+		});
+		CopyButton = new post_tool{ conversation_glyph::copy, aStyle.Colours, this };
+		CopyButton->setObjectName(QStringLiteral("threadPostCopySource"));
+		CopyButton->setToolTip(QStringLiteral("Copy source"));
+		CopyButton->setAccessibleName(QStringLiteral("Copy original Markdown source"));
+		connect(CopyButton, &QAbstractButton::clicked, this, [this] {
+			Reader->copy_source();
+			show_anchored_tooltip(*CopyButton, CopyButton->rect(), QStringLiteral("Source copied"));
+		});
+		// A fallback body already shows its source; there is nothing to switch to.
+		SourceButton->setEnabled(Reader->rendered_available());
+		connect(qApp, &QApplication::focusChanged, this, [this] { refresh_tools(); });
+		refresh_source_button();
+	}
+
+	void thread_post_view::refresh_source_button()
+	{
+		const auto source = Reader->source_visible() && Reader->rendered_available();
+		SourceButton->set_glyph(source ? conversation_glyph::rendered : conversation_glyph::source);
+		SourceButton->set_on(source);
+		SourceButton->setToolTip(source ? QStringLiteral("Show rendered") : QStringLiteral("View source"));
+		SourceButton->setAccessibleName(source ? QStringLiteral("Show rendered Markdown") : QStringLiteral("View original Markdown source"));
+	}
+
+	auto thread_post_view::name_height() const -> int
+	{
+		return std::max(19, QFontMetrics{ semibold(font()) }.height());
+	}
+
+	void thread_post_view::place_children()
+	{
+		const auto name  = name_height();
+		const auto width = std::max(1, this->width() - text_left - text_right);
+		Reader->setGeometry(text_left, post_padding + name + 1, width, Reader->heightForWidth(width));
+		const auto size = SourceButton->sizeHint();
+		const auto top  = post_padding + (name - size.height()) / 2;
+		CopyButton->setGeometry(this->width() - text_right + 4 - size.width(), top, size.width(), size.height());
+		SourceButton->setGeometry(CopyButton->x() - 2 - size.width(), top, size.width(), size.height());
+	}
+
+	void thread_post_view::refresh_tools()
+	{
+		const auto revealed = Hovered || isAncestorOf(QApplication::focusWidget());
+		SourceButton->set_revealed(revealed);
+		CopyButton->set_revealed(revealed);
+	}
+
+	void thread_post_view::enterEvent(QEnterEvent* const aEvent)
+	{
+		QWidget::enterEvent(aEvent);
+		Hovered = true;
+		refresh_tools();
+	}
+
+	void thread_post_view::leaveEvent(QEvent* const aEvent)
+	{
+		QWidget::leaveEvent(aEvent);
+		Hovered = false;
+		refresh_tools();
 	}
 
 	auto thread_post_view::hasHeightForWidth() const -> bool
@@ -599,8 +626,7 @@ namespace bpr::qt {
 
 	auto thread_post_view::heightForWidth(const int aWidth) const -> int
 	{
-		const auto name = std::max(19, QFontMetrics{ semibold(font()) }.height());
-		const auto text = name + 1 + Body->height_for(aWidth - text_left - text_right);
+		const auto text = name_height() + 1 + Reader->heightForWidth(std::max(1, aWidth - text_left - text_right));
 		const auto gut  = Post.Label ? avatar_size + mark_gap + mark_size + 1 : avatar_size + 1;
 		return post_padding + std::max(text, gut) + post_padding;
 	}
@@ -611,9 +637,19 @@ namespace bpr::qt {
 		return { width, heightForWidth(width) };
 	}
 
-	auto thread_post_view::body() const noexcept -> thread_post_body*
+	auto thread_post_view::reader() const noexcept -> markdown_body_view*
 	{
-		return Body;
+		return Reader;
+	}
+
+	auto thread_post_view::source_button() const noexcept -> post_tool*
+	{
+		return SourceButton;
+	}
+
+	auto thread_post_view::copy_button() const noexcept -> post_tool*
+	{
+		return CopyButton;
 	}
 
 	auto thread_post_view::post() const noexcept -> const card_post&
@@ -638,9 +674,7 @@ namespace bpr::qt {
 	void thread_post_view::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QWidget::resizeEvent(aEvent);
-		const auto name  = std::max(19, QFontMetrics{ semibold(font()) }.height());
-		const auto width = std::max(1, this->width() - text_left - text_right);
-		Body->setGeometry(text_left, post_padding + name + 1, width, Body->height_for(width));
+		place_children();
 	}
 
 	void thread_post_view::paintEvent(QPaintEvent* /*aEvent*/)
@@ -666,14 +700,15 @@ namespace bpr::qt {
 		const auto who  = Post.Mine ? QStringLiteral("you") : Post.Author;
 		painter.setFont(bold);
 		painter.setPen(colours.Ink);
-		painter.drawText(QRect{ x, post_padding, width() - x - text_right, name }, Qt::AlignLeft | Qt::AlignVCenter, who);
+		const auto tools = SourceButton->x() - 4;
+		painter.drawText(QRect{ x, post_padding, std::max(0, tools - x), name }, Qt::AlignLeft | Qt::AlignVCenter, who);
 		x += QFontMetrics{ bold }.horizontalAdvance(who) + 7;
 		if (!Post.ReplyingTo.isEmpty()) {
 			const auto small = scaled(font(), 0.92);
 			const auto words = QStringLiteral("↩ %1").arg(Post.ReplyingTo);
 			painter.setFont(small);
 			painter.setPen(colours.Faint);
-			painter.drawText(QRect{ x, post_padding, width() - x - text_right, name }, Qt::AlignLeft | Qt::AlignVCenter, words);
+			painter.drawText(QRect{ x, post_padding, std::max(0, tools - x), name }, Qt::AlignLeft | Qt::AlignVCenter, words);
 			x += QFontMetrics{ small }.horizontalAdvance(words) + 7;
 		}
 		if (Post.Unread) {
@@ -932,10 +967,15 @@ namespace bpr::qt {
 					ruleAbove = false;
 				}
 			}
-			auto* const view           = new thread_post_view{ post, Style, ruleAbove, this };
-			view->body()->LinkDispatch = [this, id = post.Id](const QString& aDestination) {
+			auto* const view = new thread_post_view{ post, Style, ruleAbove, this };
+			view->reader()->set_link_dispatch([this, id = post.Id](const std::string& aDestination) {
 				if (Link) {
-					Link(id, aDestination);
+					Link(id, QString::fromStdString(aDestination));
+				}
+			});
+			view->HeightChanged = [this] {
+				if (HeightChanged) {
+					HeightChanged();
 				}
 			};
 			Posts.push_back(view);
@@ -1144,6 +1184,18 @@ namespace bpr::qt {
 	auto open_thread_card::posts() const -> std::vector<thread_post_view*>
 	{
 		return Posts;
+	}
+
+	auto open_thread_card::is_reading(const QObject* const aWatched) const -> bool
+	{
+		return aWatched != nullptr && std::ranges::any_of(Posts, [aWatched](const thread_post_view* aPost) {
+				   return aWatched == aPost->reader()->rendered_view() || aWatched == aPost->reader()->source_view();
+			   });
+	}
+
+	auto open_thread_card::reading_entry() const -> QWidget*
+	{
+		return Posts.empty() ? nullptr : Posts.front()->reader();
 	}
 
 	void open_thread_card::set_notch(const int aY)

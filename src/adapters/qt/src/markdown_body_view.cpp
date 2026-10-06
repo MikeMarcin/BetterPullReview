@@ -2,6 +2,7 @@
 
 #include "markdown_document.hpp"
 
+#include "bpr/core/feedback_convention.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 
 #include <QApplication>
@@ -17,6 +18,7 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QStyle>
 #include <QTextBlock>
 #include <QTextEdit>
 #include <QTextFragment>
@@ -25,6 +27,8 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -221,14 +225,14 @@ namespace bpr::qt {
 			}
 		}
 
-		void style_tables(QTextFrame& aFrame, const QPalette& aPalette)
+		void style_tables(QTextFrame& aFrame, const QBrush& aBorder)
 		{
 			for (auto* frame : aFrame.childFrames()) {
 				if (auto* table = qobject_cast<QTextTable*>(frame)) {
 					auto format = table->format();
 					format.setBorder(1);
 					format.setBorderStyle(QTextFrameFormat::BorderStyle_Solid);
-					format.setBorderBrush(aPalette.text());
+					format.setBorderBrush(aBorder);
 					format.setCellPadding(4);
 					table->setFormat(format);
 					style_table_header(*table);
@@ -244,9 +248,19 @@ namespace bpr::qt {
 						}
 					}
 				}
-				style_tables(*frame, aPalette);
+				style_tables(*frame, aBorder);
 			}
 		}
+
+		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
+		{
+			const auto blend = [aAmount](const int aA, const int aB) {
+				return static_cast<int>(std::lround(aA + (aB - aA) * aAmount));
+			};
+			return QColor{ blend(aFrom.red(), aTo.red()), blend(aFrom.green(), aTo.green()), blend(aFrom.blue(), aTo.blue()) };
+		}
+
+		constexpr auto markdown_features = QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML;
 	} // namespace
 
 	class markdown_text_view final : public QTextEdit
@@ -266,6 +280,10 @@ namespace bpr::qt {
 		std::function<void(const QString&)> Activate;
 		std::function<void(const QString&)> Describe;
 		std::function<void(bool)>           LeaveLinks;
+		/// A link reached by Tab, so its destination can be said where it is.
+		std::function<void(const QString&)> LinkFocused;
+		/// In place a vertical wheel belongs to what holds the post.
+		bool InPlace = false;
 
 		void reset_links()
 		{
@@ -290,6 +308,15 @@ namespace bpr::qt {
 	protected:
 		void wheelEvent(QWheelEvent* aEvent) override
 		{
+			if (InPlace) {
+				const auto delta = aEvent->pixelDelta().isNull() ? aEvent->angleDelta() : aEvent->pixelDelta();
+				if (std::abs(delta.y()) >= std::abs(delta.x())) {
+					aEvent->ignore();
+					return;
+				}
+				QTextEdit::wheelEvent(aEvent);
+				return;
+			}
 			if (!aEvent->pixelDelta().isNull()) {
 				auto* vertical   = verticalScrollBar();
 				auto* horizontal = horizontalScrollBar();
@@ -355,6 +382,9 @@ namespace bpr::qt {
 				if (Describe) {
 					Describe(link.Target);
 				}
+				if (LinkFocused) {
+					LinkFocused(link.Target);
+				}
 				return true;
 			}
 			FocusedLink      = -1;
@@ -391,6 +421,7 @@ namespace bpr::qt {
 		Toggle->setObjectName(QStringLiteral("markdownSourceToggle"));
 		Toggle->setAccessibleName(QStringLiteral("View original Markdown source"));
 		auto* copy = new QPushButton{ QStringLiteral("Copy source"), this };
+		Copy       = copy;
 		copy->setAccessibleName(QStringLiteral("Copy original Markdown source"));
 		copy->setObjectName(QStringLiteral("markdownCopySource"));
 		Mark = new QLabel{ this };
@@ -452,12 +483,26 @@ namespace bpr::qt {
 		const auto retainSource = source_visible() && Identity == aIdentity;
 		Body                    = std::move(aBody);
 		Identity                = std::move(aIdentity);
-		Source->setPlainText(QString::fromUtf8(Body.data(), static_cast<qsizetype>(Body.size())));
+		const auto text         = QString::fromUtf8(Body.data(), static_cast<qsizetype>(Body.size()));
+		Source->setPlainText(text);
+		// The widest source line in columns, tabs at four, for the in-place
+		// height: a line wider than the post gets the sideways scroll bar.
+		SourceColumns = 0;
+		auto column   = qsizetype{ 0 };
+		for (const auto ch : text) {
+			if (ch == QLatin1Char{ '\n' }) {
+				column = 0;
+				continue;
+			}
+			column        = ch == QLatin1Char{ '\t' } ? column + 4 - column % 4 : column + 1;
+			SourceColumns = std::max(SourceColumns, column);
+		}
 		VisitedSource   = false;
 		VisitedRendered = false;
 		Destination->clear();
 		prepare_rendered();
 		show_source(retainSource || !RenderedAvailable);
+		height_changed();
 	}
 
 	void markdown_body_view::clear()
@@ -497,6 +542,121 @@ namespace bpr::qt {
 		return Mark;
 	}
 
+	void markdown_body_view::set_in_place(const bool aInPlace)
+	{
+		if (InPlace == aInPlace) {
+			return;
+		}
+		InPlace           = aInPlace;
+		Rendered->InPlace = aInPlace;
+		Toggle->setVisible(!aInPlace);
+		Copy->setVisible(!aInPlace);
+		Destination->setVisible(!aInPlace);
+		layout()->setSpacing(aInPlace ? 4 : -1);
+		const auto margin = aInPlace ? 0.0 : 4.0;
+		for (auto* const area : { static_cast<QAbstractScrollArea*>(Rendered), static_cast<QAbstractScrollArea*>(Source) }) {
+			area->setFrameShape(aInPlace ? QFrame::NoFrame : QFrame::StyledPanel);
+			area->setVerticalScrollBarPolicy(aInPlace ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded);
+			area->viewport()->setAutoFillBackground(!aInPlace);
+		}
+		Rendered->document()->setDocumentMargin(margin);
+		Source->document()->setDocumentMargin(margin);
+		// The holder places the reader at the height its content needs.
+		Pages->setSizePolicy(aInPlace ? QSizePolicy::Ignored : QSizePolicy::Preferred, aInPlace ? QSizePolicy::Ignored : QSizePolicy::Preferred);
+		auto policy = sizePolicy();
+		policy.setHeightForWidth(aInPlace);
+		setSizePolicy(policy);
+		if (aInPlace) {
+			// The destination the hidden line would say is the link's tooltip:
+			// under the pointer, or under the link Tab reached.
+			Rendered->LeaveLinks = nullptr;
+			anchor_tooltips(*Rendered->viewport(), [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
+				const auto target = Rendered->anchorAt(aPosition);
+				if (target.isEmpty()) {
+					return std::nullopt;
+				}
+				return anchored_tooltip_target{ .Anchor = Rendered->cursorRect(Rendered->cursorForPosition(aPosition)), .Text = target };
+			});
+			Rendered->LinkFocused = [this](const QString& aTarget) {
+				show_anchored_tooltip(*Rendered->viewport(), Rendered->cursorRect(), aTarget);
+			};
+		} else {
+			Rendered->LeaveLinks = [this](const bool aNext) {
+				(aNext ? static_cast<QWidget*>(Toggle) : static_cast<QWidget*>(Copy))->setFocus(aNext ? Qt::TabFocusReason : Qt::BacktabFocusReason);
+			};
+			Rendered->LinkFocused = nullptr;
+		}
+		prepare_rendered();
+		height_changed();
+	}
+
+	auto markdown_body_view::in_place() const noexcept -> bool
+	{
+		return InPlace;
+	}
+
+	void markdown_body_view::set_height_observer(std::function<void()> aObserver)
+	{
+		HeightObserver = std::move(aObserver);
+	}
+
+	auto markdown_body_view::header_length() const noexcept -> qsizetype
+	{
+		return HeaderChars;
+	}
+
+	void markdown_body_view::height_changed()
+	{
+		CachedWidth = -1;
+		if (!InPlace) {
+			return;
+		}
+		updateGeometry();
+		if (HeightObserver) {
+			HeightObserver();
+		}
+	}
+
+	auto markdown_body_view::hasHeightForWidth() const -> bool
+	{
+		return InPlace || QWidget::hasHeightForWidth();
+	}
+
+	auto markdown_body_view::heightForWidth(const int aWidth) const -> int
+	{
+		if (!InPlace) {
+			return QWidget::heightForWidth(aWidth);
+		}
+		const auto width = std::max(1, aWidth);
+		if (width == CachedWidth) {
+			return CachedHeight;
+		}
+		auto height = 0;
+		if (!Notice->isHidden()) {
+			height += Notice->heightForWidth(width) + layout()->spacing();
+		}
+		auto wide = false;
+		if (source_visible()) {
+			const auto metrics = QFontMetricsF{ Source->font() };
+			height += static_cast<int>(std::ceil(static_cast<qreal>(std::max(1, Source->document()->blockCount())) * metrics.lineSpacing())) + 2;
+			wide = static_cast<qreal>(SourceColumns) * metrics.horizontalAdvance(QLatin1Char{ ' ' }) > width;
+		} else {
+			auto* const document = Rendered->document();
+			const auto  previous = document->textWidth();
+			document->setTextWidth(width);
+			height += static_cast<int>(std::ceil(document->size().height()));
+			wide = document->idealWidth() > width + 0.5;
+			document->setTextWidth(previous);
+		}
+		auto* const page = source_visible() ? static_cast<const QAbstractScrollArea*>(Source) : static_cast<const QAbstractScrollArea*>(Rendered);
+		if (wide && page->style()->styleHint(QStyle::SH_ScrollBar_Transient, nullptr, page->horizontalScrollBar()) == 0) {
+			height += page->horizontalScrollBar()->sizeHint().height();
+		}
+		CachedWidth  = width;
+		CachedHeight = std::max(height, fontMetrics().height());
+		return CachedHeight;
+	}
+
 	void markdown_body_view::prepare_rendered()
 	{
 		// [[BPR-1083]]. The mark leads the body, which reads as written, its
@@ -504,6 +664,7 @@ namespace bpr::qt {
 		BodyMark = MarkTheme.has_value() ? feedback_body_mark_of(Body) : feedback_body_mark{ };
 		refresh_mark();
 		const auto shown  = std::string_view{ Body };
+		HeaderChars       = 0;
 		Fallback          = rendering_limit(shown);
 		RenderedAvailable = Fallback.isEmpty();
 		auto* document    = Rendered->document();
@@ -511,9 +672,23 @@ namespace bpr::qt {
 		document->clear();
 		if (RenderedAvailable) {
 			const auto source = QString::fromUtf8(shown.data(), static_cast<qsizetype>(shown.size()));
-			document->setMarkdown(source, QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML);
+			document->setMarkdown(source, markdown_features);
 			if (restore_code_tabs(*document, source)) {
 				replace_images(*document);
+				if (InPlace) {
+					// [[BPR-1083]]. The recognized header leads the first
+					// paragraph as written; rendered, `**praise:**` reads
+					// "praise:", so the header is matched as it renders.
+					const auto annotation = core::recognize_feedback_prefix(Body);
+					if (annotation.Status == core::feedback_prefix_status::recognized && annotation.Header.has_value()) {
+						auto probe = QTextDocument{ };
+						probe.setMarkdown(source.left(feedback_text_index(Body, annotation.Header->End)), markdown_features);
+						const auto header = probe.toPlainText().trimmed();
+						if (!header.isEmpty() && document->begin().text().startsWith(header)) {
+							HeaderChars = header.size();
+						}
+					}
+				}
 				refresh_formats();
 			} else {
 				Fallback          = QStringLiteral("This tab-bearing construct cannot be rendered without changing whitespace. The complete source is available.");
@@ -541,6 +716,8 @@ namespace bpr::qt {
 		}
 		auto* document = Rendered->document();
 		document->setDefaultFont(font());
+		// In place a list indents by half Qt's step: the drawer can be 280 px.
+		document->setIndentWidth(InPlace ? 20.0 : 40.0);
 		// [[BPR-0970]]. Restyling a fragment can merge it with its neighbour,
 		// which invalidates a QTextBlock::iterator standing on it; the parser
 		// fuzz target found `[_|_)]()` reading freed fragment nodes. Each
@@ -552,6 +729,28 @@ namespace bpr::qt {
 			QTextCharFormat Format;
 		};
 		std::vector<fragment_style> fragments;
+		// [[BPR-1290]]. In place a heading keeps to the post's scale: a
+		// conversation is read at the drawer's width, not as a document.
+		const auto base    = font();
+		const auto heading = [&base](const int aLevel) {
+			const auto factor = aLevel == 1 ? 1.25 : aLevel == 2 ? 1.12
+																 : 1.0;
+			auto       chars  = QTextCharFormat{ };
+			chars.setProperty(QTextFormat::FontSizeAdjustment, 0);
+			if (base.pointSizeF() > 0.0) {
+				chars.setFontPointSize(base.pointSizeF() * factor);
+			} else if (base.pixelSize() > 0) {
+				chars.setProperty(QTextFormat::FontPixelSize, static_cast<int>(std::lround(base.pixelSize() * factor)));
+			}
+			chars.setFontWeight(QFont::DemiBold);
+			return chars;
+		};
+		// In place on a dark panel, a palette's default link blue is too dark
+		// to read; it keeps its hue at a readable lightness.
+		auto link = palette().color(QPalette::Active, QPalette::Link);
+		if (InPlace && palette().color(QPalette::Active, QPalette::Base).lightness() < 128 && link.lightness() < 165) {
+			link = QColor::fromHsl(link.hslHue() < 0 ? 210 : link.hslHue(), std::min(link.hslSaturation(), 200), 175);
+		}
 		for (auto block = document->begin(); block.isValid(); block = block.next()) {
 			auto       cursor = QTextCursor{ block };
 			auto       format = block.blockFormat();
@@ -565,10 +764,29 @@ namespace bpr::qt {
 				format.setNonBreakableLines(code);
 				cursor.setBlockFormat(format);
 			}
+			if (InPlace && !code && cursor.currentTable() == nullptr) {
+				format.setLineHeight(130.0, QTextBlockFormat::ProportionalHeight);
+				if (block.textList() != nullptr) {
+					// List items sit close, as one list.
+					format.setTopMargin(0.0);
+					format.setBottomMargin(2.0);
+				}
+				if (block == document->begin()) {
+					format.setTopMargin(0.0);
+				}
+				if (block == document->lastBlock()) {
+					format.setBottomMargin(0.0);
+				}
+				cursor.setBlockFormat(format);
+			}
+			const auto level = InPlace ? format.headingLevel() : 0;
 			fragments.clear();
 			for (auto it = block.begin(); !it.atEnd(); ++it) {
 				const auto fragment = it.fragment();
 				auto       chars    = fragment.charFormat();
+				if (level > 0) {
+					chars.merge(heading(level));
+				}
 				if (code || chars.fontFixedPitch()) {
 					chars.setFontFamilies(CodeFont.families());
 					chars.setFontFixedPitch(true);
@@ -576,7 +794,7 @@ namespace bpr::qt {
 					chars.setBackground(palette().window());
 				}
 				if (chars.isAnchor()) {
-					chars.setForeground(palette().link());
+					chars.setForeground(link);
 					chars.setFontUnderline(true);
 				}
 				fragments.push_back({ .Position = fragment.position(), .Length = fragment.length(), .Format = chars });
@@ -589,7 +807,32 @@ namespace bpr::qt {
 				cursor.setCharFormat(fragment.Format);
 			}
 		}
-		style_tables(*document->rootFrame(), palette());
+		const auto ink  = palette().color(QPalette::Active, QPalette::Text);
+		const auto back = palette().color(QPalette::Active, QPalette::Base);
+		style_tables(*document->rootFrame(), InPlace ? QBrush{ mixed(ink, back, 0.74) } : palette().text());
+		if (InPlace && HeaderChars > 0 && HeaderChars < document->characterCount()) {
+			// The header in the notes' secondary ink and at least semibold; a
+			// header written strong stays bold.
+			const auto headerInk = mixed(ink, back, 0.28);
+			fragments.clear();
+			for (auto it = document->begin().begin(); !it.atEnd(); ++it) {
+				const auto fragment = it.fragment();
+				if (fragment.position() >= HeaderChars) {
+					break;
+				}
+				auto chars = fragment.charFormat();
+				chars.setForeground(headerInk);
+				chars.setFontWeight(std::max(chars.fontWeight(), static_cast<int>(QFont::DemiBold)));
+				const auto end = std::min(fragment.position() + fragment.length(), static_cast<int>(HeaderChars));
+				fragments.push_back({ .Position = fragment.position(), .Length = end - fragment.position(), .Format = chars });
+			}
+			auto cursor = QTextCursor{ document };
+			for (const auto& fragment : fragments) {
+				cursor.setPosition(fragment.Position);
+				cursor.setPosition(fragment.Position + fragment.Length, QTextCursor::KeepAnchor);
+				cursor.setCharFormat(fragment.Format);
+			}
+		}
 		Source->setFont(CodeFont);
 		if (TabStopDistance > 0) {
 			Source->setTabStopDistance(TabStopDistance);
@@ -602,6 +845,7 @@ namespace bpr::qt {
 		CodeFont        = aFont;
 		TabStopDistance = aTabStopDistance;
 		refresh_formats();
+		height_changed();
 	}
 
 	void markdown_body_view::set_link_dispatch(std::function<void(const std::string&)> aDispatch)
@@ -624,6 +868,7 @@ namespace bpr::qt {
 		Toggle->setText(source ? QStringLiteral("Rendered") : QStringLiteral("View source"));
 		Toggle->setAccessibleName(source ? QStringLiteral("Show rendered Markdown") : QStringLiteral("View original Markdown source"));
 		setFocusProxy(source ? static_cast<QWidget*>(Source) : static_cast<QWidget*>(Rendered));
+		height_changed();
 	}
 
 	void markdown_body_view::copy_source() const
@@ -691,6 +936,7 @@ namespace bpr::qt {
 		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::ApplicationPaletteChange
 			|| aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::ApplicationFontChange || aEvent->type() == QEvent::StyleChange) {
 			refresh_formats();
+			height_changed();
 		}
 	}
 } // namespace bpr::qt

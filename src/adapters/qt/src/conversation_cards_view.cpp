@@ -3,6 +3,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
@@ -28,6 +29,7 @@
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QTextEdit>
 #include <QTextLayout>
 #include <QToolButton>
 #include <QWheelEvent>
@@ -35,6 +37,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <map>
 #include <optional>
 #include <set>
@@ -639,7 +642,10 @@ namespace bpr::qt {
 		setVerticalScrollBarPolicy(Feed ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
 		verticalScrollBar()->setValue(0);
 		setAccessibleName(Feed ? QStringLiteral("Conversations") : QStringLiteral("Threads in this file"));
-		OpenCard = nullptr;
+		// The open card is rebuilt, and the old one deleted, on the next layout.
+		if (OpenCard != nullptr) {
+			OpenCard->setProperty("threadKey", QString{ });
+		}
 		relayout();
 	}
 
@@ -742,7 +748,10 @@ namespace bpr::qt {
 		}
 		CodeFont = aFont;
 		clear_measurements();
-		OpenCard = nullptr;
+		// The open card is rebuilt, and the old one deleted, on the next layout.
+		if (OpenCard != nullptr) {
+			OpenCard->setProperty("threadKey", QString{ });
+		}
 		relayout();
 	}
 
@@ -934,9 +943,12 @@ namespace bpr::qt {
 		if (Accent == aAccent && Marker == aMarker) {
 			return;
 		}
-		Accent   = aAccent;
-		Marker   = aMarker;
-		OpenCard = nullptr;
+		Accent = aAccent;
+		Marker = aMarker;
+		// The open card is rebuilt, and the old one deleted, on the next layout.
+		if (OpenCard != nullptr) {
+			OpenCard->setProperty("threadKey", QString{ });
+		}
 		relayout();
 	}
 
@@ -1367,7 +1379,15 @@ namespace bpr::qt {
 		auto* const previous    = OpenCard;
 		const auto  hadFocus    = previous != nullptr && previous->isAncestorOf(QApplication::focusWidget());
 		const auto  focusedName = hadFocus ? QApplication::focusWidget()->objectName() : QString{ };
-		auto        style       = open_card_style{
+		// Every post's text has the same name, so the post is kept too.
+		auto focusedPost = QVariant{ };
+		for (auto* widget = hadFocus ? QApplication::focusWidget() : nullptr; widget != nullptr && widget != previous; widget = widget->parentWidget()) {
+			if (widget->objectName() == QStringLiteral("threadPost")) {
+				focusedPost = widget->property("postIdentity");
+				break;
+			}
+		}
+		auto style = open_card_style{
 			.Marks             = MarkTheme,
 			.Colours           = note_colours_of(palette(), Accent, Marker),
 			.CodeFont          = CodeFont,
@@ -1444,13 +1464,35 @@ namespace bpr::qt {
 		for (auto* const child : OpenCard->findChildren<QWidget*>()) {
 			child->installEventFilter(this);
 		}
+		// RFC-BPR-0036. A caret moved by the keyboard in a post stays in view.
+		for (auto* const post : OpenCard->posts()) {
+			auto* const reader = post->reader();
+			connect(reader->rendered_view(), &QTextEdit::cursorPositionChanged, OpenCard, [this, view = reader->rendered_view()] {
+				if (view->hasFocus()) {
+					reveal_reading(QRect{ view->viewport()->mapTo(viewport(), view->cursorRect().topLeft()), view->cursorRect().size() });
+				}
+			});
+			connect(reader->source_view(), &QPlainTextEdit::cursorPositionChanged, OpenCard, [this, view = reader->source_view()] {
+				if (view->hasFocus()) {
+					reveal_reading(QRect{ view->viewport()->mapTo(viewport(), view->cursorRect().topLeft()), view->cursorRect().size() });
+				}
+			});
+		}
 		OpenCard->show();
 		if (previous != nullptr) {
 			previous->hide();
 			previous->deleteLater();
 		}
 		if (hadFocus) {
-			auto* target = focusedName.isEmpty() ? nullptr : OpenCard->findChild<QWidget*>(focusedName);
+			auto* scope = static_cast<QWidget*>(OpenCard);
+			if (focusedPost.isValid()) {
+				for (auto* const post : OpenCard->posts()) {
+					if (post->property("postIdentity") == focusedPost) {
+						scope = post;
+					}
+				}
+			}
+			auto* target = focusedName.isEmpty() ? nullptr : scope->findChild<QWidget*>(focusedName);
 			if (target != nullptr && target->isVisible()) {
 				target->setFocus(Qt::OtherFocusReason);
 			} else {
@@ -2107,6 +2149,41 @@ namespace bpr::qt {
 		}
 	}
 
+	void conversation_cards_view::reveal_reading(const QRect& aViewportRect)
+	{
+		const auto room    = fontMetrics().lineSpacing();
+		const auto visible = viewport()->rect().adjusted(0, room, 0, -room);
+		auto       move    = 0;
+		if (aViewportRect.bottom() > visible.bottom()) {
+			move = aViewportRect.bottom() - visible.bottom();
+		}
+		if (aViewportRect.top() - move < visible.top()) {
+			move = aViewportRect.top() - visible.top();
+		}
+		if (move == 0) {
+			return;
+		}
+		if (!aligned()) {
+			verticalScrollBar()->setValue(verticalScrollBar()->value() + move);
+			return;
+		}
+		// The drawer follows the code: move it as a wheel over the notes does.
+		const auto centre = QPointF{ viewport()->rect().center() };
+		auto       wheel  = QWheelEvent{ centre, viewport()->mapToGlobal(centre), QPoint{ 0, -move }, QPoint{ 0, -move }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		wheelEvent(&wheel);
+	}
+
+	auto conversation_cards_view::focusNextPrevChild(const bool aNext) -> bool
+	{
+		if (aNext && hasFocus() && OpenCard != nullptr && OpenCard->isVisible()) {
+			if (auto* const entry = OpenCard->reading_entry(); entry != nullptr) {
+				entry->setFocus(Qt::TabFocusReason);
+				return true;
+			}
+		}
+		return QAbstractScrollArea::focusNextPrevChild(aNext);
+	}
+
 	void conversation_cards_view::set_hovered(const std::string& aId)
 	{
 		if (Hovered == aId) {
@@ -2341,15 +2418,38 @@ namespace bpr::qt {
 				}
 				return false;
 			}
-			if (key.key() == Qt::Key_Up || key.key() == Qt::Key_Down) {
+			// In a post's text the arrows move the reading caret; elsewhere in
+			// the thread they move between threads.
+			if ((key.key() == Qt::Key_Up || key.key() == Qt::Key_Down) && !OpenCard->is_reading(aWatched)) {
 				setFocus(Qt::OtherFocusReason);
 				keyPressEvent(&key);
 				return true;
 			}
 			return handle_thread_key(key, false);
 		}
+		if (aEvent->type() == QEvent::FocusIn && OpenCard != nullptr && OpenCard->isAncestorOf(qobject_cast<QWidget*>(aWatched))) {
+			// Tab reaching a post's text or control brings it into view.
+			const auto reason = static_cast<QFocusEvent*>(aEvent)->reason();
+			if (reason == Qt::TabFocusReason || reason == Qt::BacktabFocusReason) {
+				auto* const widget = static_cast<QWidget*>(aWatched);
+				auto        area   = QRect{ widget->mapTo(viewport(), QPoint{ 0, 0 }), widget->size() };
+				if (const auto* const text = qobject_cast<const QTextEdit*>(widget); text != nullptr) {
+					area = QRect{ text->viewport()->mapTo(viewport(), text->cursorRect().topLeft()), text->cursorRect().size() };
+				} else if (const auto* const source = qobject_cast<const QPlainTextEdit*>(widget); source != nullptr) {
+					area = QRect{ source->viewport()->mapTo(viewport(), source->cursorRect().topLeft()), source->cursorRect().size() };
+				}
+				reveal_reading(area);
+			}
+			return false;
+		}
 		if (aEvent->type() == QEvent::Wheel && OpenCard != nullptr && OpenCard->isAncestorOf(qobject_cast<QWidget*>(aWatched))) {
-			wheelEvent(static_cast<QWheelEvent*>(aEvent));
+			// A sideways wheel is a wide code block's or table's own.
+			auto*      wheel = static_cast<QWheelEvent*>(aEvent);
+			const auto delta = wheel->pixelDelta().isNull() ? wheel->angleDelta() : wheel->pixelDelta();
+			if (std::abs(delta.x()) > std::abs(delta.y())) {
+				return false;
+			}
+			wheelEvent(wheel);
 			return true;
 		}
 		if (aEvent->type() == QEvent::Wheel && aWatched == OpenCard) {
