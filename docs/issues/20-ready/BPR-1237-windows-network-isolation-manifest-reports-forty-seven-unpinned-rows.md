@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1237"
 title: "Windows: test_network_isolation_manifest reports 47 rows that are uncontained or unlabelled without a pin"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
