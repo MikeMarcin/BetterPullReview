@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1272"
 title: "A terminal export is listed as Printed in a terminal, which is the one case never recorded"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0056", "RFC-BPR-0061"]
 depends_on: []
 priority: "P3"
