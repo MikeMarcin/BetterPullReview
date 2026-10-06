@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1290"
 title: "Redesign the Conversations drawer around reading the conversation"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-parked_on: "owner-design-discussion"
 metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-1293","BPR-1294","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
 ---
 
@@ -113,26 +112,64 @@ Read from the code and the screenshot, not from the owner:
   Amended 2026-10-06 by the owner's format choice after round v3 (below): the
   owner chooses one of the whole-window concepts (or rejects all) in chat, and
   the chosen one is then prototyped; the choice and note are recorded here.
+  The owner kept the inline drawer prototype on 2026-10-06 ("I like it",
+  below).
 - **BPR-1290:reading.** In Read, the selected conversation fills the drawer's
   height under the tabs and its navigation (Read is Review since [[BPR-1295]]): every post shows its author,
   avatar, mark and rail per BPR-1083 v4, unread state and complete body, with
   no nested scroll area; Reply opens the editor in place, in the conversation.
+  Amended 2026-10-06 by the owner's verdict on the inline drawer prototype
+  ("I like it", below): the open thread does not fill the drawer. It opens in
+  place, pinned at its line and as tall as its posts, and the drawer moves with
+  the code; the rest of the criterion stands.
 - **BPR-1290:navigation.** Choosing a thread is one compact control that keeps
   this-file and whole-PR scope, the filters, unread and draft state, keyboard
   access (Up/Down, Return, Shift+F10) and the exact line reveal both ways.
+  Amended 2026-10-06 by the owner's verdict on the inline drawer prototype
+  ("I like it", below): the drawer shows this file's threads only. A thread
+  is chosen by its margin note, its marker in the code's gutter, the
+  out-of-view chips at the drawer's top and bottom, or its tick on the code's
+  scroll bar. The filters are Only new and Hide resolved. The keys are
+  Up/Down between threads, Return to open, Esc to close, R to reply, N for
+  the next new thread, Command+Return (Ctrl+Return) to publish, and
+  Shift+F10 for the thread's actions. Opening a thread reveals its line, and
+  its marker opens it. Finding a conversation anywhere in the pull request
+  moves to [[BPR-1293]].
 - **BPR-1290:depth.** The reply-tree graph and the "Path to this reply"
   caption are gone, or folded into a control that names what it does; a reply
   to anything but the post above it says whom it answers; the branching
   fixture (`branching-thread-v1`, RFC-BPR-0028 AC-08) reads correctly.
+  Amended 2026-10-06 by the owner's verdict on the inline drawer prototype
+  ("I like it", below): the thread map, the path caption, the post list and
+  the body pane leave the drawer, and nothing replaces them there. A deep
+  thread is read in place: every post in posting order with its complete body,
+  and a reply that answers anything but the thread's first post names whom it
+  answers. `branching-thread-v1` reads correctly that way. Navigating deep or
+  PR-wide structure is [[BPR-1293]]'s.
 - **BPR-1290:kept.** Every inventory row still works or is removed by the
   owner's choice, with the governing text amended (RFC-BPR-0028 AC-05 if line
   alignment changes; the specification's thread-map section; RFC-BPR-0005 is
   satisfied while comments stay in the drawer). Object and accessible names
   used by tests and screen readers stay or migrate with their tests. Discuss
   is redrawn in the same language.
+  Amended 2026-10-06 by the owner's verdict on the inline drawer prototype
+  ("I like it", below). Removed by that choice: the drawer's whole-PR scope
+  (to [[BPR-1293]]), the thread map and the path caption (the map's widget is
+  kept for BPR-1293 to reuse), the post list and the Markdown body pane (each
+  post is read in place, as written), and the "Conversations drawer" caption.
+  Comments that are not on a file are [[BPR-1294]]'s. Kept: unread state and
+  Mark read, Resolve, Reply, my draft with Publish, Edit and Delete, defect
+  badges and the thread menu (Shift+F10), Support details (a line in the open
+  thread), the exact line synchronization both ways, the gutter marks, Notes
+  and Tour. Discuss keeps its scope, file and filter controls, and lists the
+  same notes in file order, each opening in place. The governing text is
+  amended in the specification's Conversation drawer and thread-map sections
+  and in RFC-BPR-0028's Read and Discuss paragraphs, AC-05 and AC-08.
+  RFC-BPR-0005 is satisfied: comments stay in the drawer.
 - **BPR-1290:themes.** Light, dark and both high-contrast variants, larger
   text, 375 px, 280 px and Discuss widths render without clipping; colours
-  come from the palette.
+  come from the palette. The drawer's width drags from 280 to 760 px (the
+  prototype's range).
 - **BPR-1290:owner-look.** The owner accepts the built drawer in an attended
   session. Required, not self-certified.
 
@@ -140,7 +177,8 @@ Read from the code and the screenshot, not from the owner:
 
 Presentation in the Qt adapter (`github_conversation_panel`,
 `conversation_cards_view`, `github_conversation_delegate`,
-`github_thread_map`, `markdown_body_view`). No new authority: reading,
+`github_thread_map`, `markdown_body_view`, and for the gutter markers and
+scroll-bar ticks `diff_workbench`). No new authority: reading,
 replying, resolving, marking read and publishing keep their existing core and
 host paths. The frames are design evidence, not the product.
 
@@ -478,12 +516,20 @@ voices; the changed-line ranges are illustrative. Kept as today and not drawn:
 More's items, defect actions, the composer's inside ([[BPR-1212]]),
 Notes and Tour.
 
-## Pending owner decision
+## Owner verdict on the inline drawer prototype, 2026-10-06
 
-In chat, no attended session: keep the inline drawer as prototyped, or what to
-change (BPR-1290:direction, as amended). Open it with
-`open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/design/BPR-1290-inline-drawer-v1/index.html`.
+In chat, relayed by the coordinator, verbatim:
 
-Next: record the owner's words here; amend :navigation, :depth and :kept with
-the owner; then build the drawer in the Qt adapter. BPR-1083's sessions are
-separate and untouched.
+> I like it
+
+The owner keeps the inline drawer as prototyped, which settles
+BPR-1290:direction as amended. :reading, :navigation, :depth and :kept are
+amended above to the inline-only drawer, citing this verdict. The governing
+text follows in the same change: the specification's
+[Conversation drawer](../../ux/workbench-specification.md#conversation-drawer)
+and [thread map](../../ux/workbench-specification.md#the-thread-map) sections,
+and [RFC-BPR-0028](../../rfcs/RFC-BPR-0028-review-workbench-direction.md)'s
+Read and Discuss paragraphs, AC-05 and AC-08.
+
+Next: build the drawer in the Qt adapter, faithful to the prototype, then one
+short attended session on a frozen build for BPR-1290:owner-look.

@@ -992,8 +992,8 @@ permanent status sentence and no Reload Profiles button, and nothing announces
 
 The drawer is RFC-BPR-0052's right tray, and its header is its tabs:
 **Comments**, then **Notes** ([[BPR-1204]]). It opens on Comments. The
-Comments tab holds the conversation exactly as described below, with its scope
-and filters, and Next new comment beneath the tabs; the tab carries the count
+Comments tab holds this file's threads exactly as described below; its filters
+and Next new comment sit at the right of the tab row; the tab carries the count
 of threads with new comments as an accent pill and says it to accessibility
 ("Comments, 2 threads with new comments"). The Notes tab holds private ledger notes, AI tools, side chat replies and the
 finding queue. It stays available with no agent configured. Its introductory
@@ -1016,81 +1016,83 @@ Compose workshop remain prime spots. No Dif slot belongs to the private tab. Eac
 position and the selected conversation. The tabs are one focus stop and the
 arrow keys move between them. RFC-BPR-0039's Tour joins them when it exists.
 
-Replies read as a linear feed, not a staircase. A reply sits one step in from
-the root it belongs to, and a reply to a reply sits in the same place — the
-grouping by root stays visible, SmartBear Collaborator style, while depth stops
-spending the width the comment text needs. Depth is still carried by the model
-and is read on the thread map above, which is the product owner's own stated
-reason for accepting a flat feed here.
+The Comments tab is inline only (owner verdict on [[BPR-1290]]'s prototype,
+2026-10-06: "I like it"). It shows this file's threads as notes in a margin
+beside the code, each hanging from its line, and the drawer moves with the
+code: it never scrolls on its own, and a wheel over it scrolls the code. Only
+when the code can scroll no further does the drawer take the overflow, so the
+foot of a tall open thread can still be read. A closed note shows its first
+post's author, avatar, label mark and rail ([[BPR-1083]]), two lines of the
+body as written (one when resolved), the reply count with the people who
+replied, the count of new posts and ✓ when resolved; a resolved note is faded.
+My unpublished draft is a dashed note at its line.
 
-Filters include New, Unresolved, Defects, Needs Verification, Pending Drafts,
-Outdated, and All. The current comparison filters roots to the exact file. A
-reviewer-selected source line narrows that forest to the exact diff side and
-line; selecting a root or reply drives the reciprocal code reveal described
-above. The first thread the drawer makes current by itself, so that its detail
-has something to show, is not a selection: it moves no code, and a comparison
-published again reveals only a thread the reviewer chose ([[BPR-0985]]).
-Otherwise every file's first thread would take the reader's line, and a
-resumed reading would lose its saved line to it. Unplaceable threads remain
-readable at file scope and state why no code marker is drawn. Retained
+A thread opens in place: one at a time, pinned exactly at its line, with the
+line washed amber in the code, its gutter marker ringed and the open card's
+amber edge and notch pointing at it. The other notes make room above and
+below. The open thread shows every post in posting order with its avatar,
+mark, rail, unread dot and complete body as written, a New rule before the
+first unread post, and a reply that answers anything but the thread's first
+post names whom it answers. Its header row has Show line, Resolve or
+Unresolve, Mark read, More (the thread menu) and Close; my draft has Publish,
+Edit and Delete instead. Reply opens an editor in place at the foot of the
+thread; the reply is the same draft the composition entry writes, and nothing
+is published until Publish (Command+Return). A file-level compatibility
+comment states in the open thread why it is placed at its line (RFC-BPR-0022).
+
+Threads above or below what the drawer shows are chips on its top and bottom
+edges, nearest first, three at most and then a count; choosing one opens it at
+its line. The code's scroll bar carries a tick per thread, amber for the open
+one, blue for one with new posts, outlined for my draft. The code's gutter
+carries a marker per thread, the root post's label mark or a plain square, a
+blue dot when new, faded when resolved; pressing it opens or closes the
+thread. Keys in the drawer: Up and Down move between threads, Return opens,
+Esc closes, R replies, N opens the next thread with new posts (Shift+N the
+previous), and Shift+F10 or the context-menu key opens the thread's actions.
+The drawer is 375 pixels wide by default and drags from 280 to 760.
+
+The filters are **Only new** and **Hide resolved**; the open thread is never
+filtered out. Finding a conversation anywhere in the pull request is
+[[BPR-1293]]'s, and pull request comments that are not on a file are
+[[BPR-1294]]'s. The current comparison filters roots to the exact file. A
+reviewer-selected source line narrows the selection authority's forest to the
+exact diff side and line; selecting a thread drives the reciprocal code reveal
+described above. The first thread the drawer makes current by itself is not a
+selection: it moves no code and opens nothing, and a comparison published
+again reveals only a thread the reviewer chose ([[BPR-0985]]). Otherwise every
+file's first thread would take the reader's line, and a resumed reading would
+lose its saved line to it. Unplaceable threads remain readable at file scope,
+after the placed ones, and state why no code marker is drawn. Retained
 historical navigation requires a revision identity and remains separate work;
 an outdated thread is never placed against the current panes by reusing its
 original line.
 
+Discuss borrows the same notes for the centre: every thread of the pull
+request (or of one chosen file) in file order under its path, with Discuss's
+scope, file and Unread and Unresolved filters, each note opening in place as
+it does beside the code.
+
 ### The thread map
 
-Above the tree, the drawer draws the same forest as a map of its reply
-structure. It is the Treeverse-style view the product owner chose on
-2026-08-21, and it exists because a reply chain deep enough to matter stops
-being followable as an indented list — which is the case the linear
-presentation loses, not the ordinary one.
+The drawer no longer draws a thread map (owner verdict on [[BPR-1290]]'s
+inline drawer prototype, 2026-10-06: "I like it"). A deep thread is read in
+place, every post in posting order, and a reply that answers anything but the
+first post names whom it answers. Finding a conversation across the pull
+request, which is what the owner wanted the map for ("Not to move around a
+single conversation, I mean to find the right conversation"), moves to a view
+of its own, [[BPR-1293]].
 
-Nodes are boxes labelled with the author of a comment, or with the anchored
-file and line for a thread's root, laid out one row per depth. Edges run
-parent to child. Slots within a depth are assigned in pre-order, so within one
-row every node of an earlier subtree precedes every node of a later one and no
-two edges can cross. A box is sized to its own label, so no author name is
-elided into an ambiguous prefix.
+The Treeverse-style map the owner chose on 2026-08-21 ([[BPR-0418]]) is kept
+as a widget, `github_thread_map`, with its layout rules and tests, for
+BPR-1293 to reuse: nodes laid out one row per depth in pre-order so no two
+edges cross, the root-to-selection path drawn heaviest and everything
+downstream of it lighter, and an unexpected shape costing nesting and never a
+row. It is composed nowhere until BPR-1293 places it.
 
-Selecting a node highlights **the whole branch it belongs to**, in two weights.
-The root-to-selection path is drawn heaviest: that is the floor the owner set
-— "it still needs to show the full branch that you clicked on, or at least up
-to the node you selected". Everything downstream of the selection is drawn
-lighter, so the chain's continuation is visible without competing with the
-path; that lighter set is the whole subtree, sibling sub-branches included,
-because all of it is downstream of the comment that was clicked. Anything
-neither above nor below the selection is left plain. A caption below the map
-states the path and how many replies follow.
-
-Highlighting is not the same claim as showing. The drawer's band is short, so
-selecting a node scrolls the map to it and keeps as much of the path above it
-as fits; when the whole branch fits, all of it is shown. A band that changes
-height re-reveals rather than leaving the selection scrolled away. Without
-that, a reviewer gets a highlighted branch whose selected end is off-screen —
-which is what the surface shipped as until an independent review measured it.
-
-Selection has one owner. Pressing a node moves the drawer tree's current index,
-and the code reveal, the anchor marker, and the defect surface keep reading
-that selection from where they always did. The map holds no selection authority
-of its own, performs no effect, and adds no projection: it is a second view of
-the drawer's forest, never a second source of it.
-
-There is deliberately **no read or unread state on the map**. The accepted
-mockup legends one, and nothing in this product carries it — the review
-ledger's unread notion is a per-conversation cursor rather than a per-comment
-flag. Showing it would mean inventing the state or approximating it, so the
-distinction is absent rather than faked.
-
-An unexpected shape costs nesting and never a row. A parent naming a comment
-that is not present, and a parent chain that never terminates, both promote the
-node to a root — every node on the chain, decided in a pass that writes nothing
-so the outcome cannot depend on visit order. That is the same answer the
-drawer's tree gives, and the drawer shows both views at once, so a shape they
-answered differently would be a disagreement the reviewer could see.
-
-The map maps whichever threads the drawer is currently showing, so its summary
-counts across them. A projection equal to the one already mapped is skipped
-rather than relaid, because the drawer re-adopts on every anchor change.
+Selection still has one owner: the drawer's conversation model and its
+current index, which the code reveal, the anchor marker, the reply target and
+the defect surface read. The notes hold no selection authority of their own;
+opening one sets that current index.
 
 ## Profile storage and privacy
 

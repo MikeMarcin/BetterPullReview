@@ -193,7 +193,11 @@ The comments drawer lists this file's threads aligned to their lines as cards
 on an avatar rail with a thread line; a whole-PR filter lists every thread in
 file order. Unread posts carry a blue dot and full-ink names; read posts step
 back. My unpublished notes appear as dashed drafts in the same column with
-Publish, Edit and Delete.
+Publish, Edit and Delete. Amended 2026-10-06 by the owner's verdict on
+[[BPR-1290]]'s inline drawer prototype ("I like it"): the drawer is inline
+only. It shows this file's threads as notes beside their lines, each opening in
+place to the whole conversation with a reply; the whole-PR filter leaves the
+drawer for [[BPR-1293]], and the thread map with it.
 
 **Discuss.** The conversation widens across the code. Left: a thread list
 (file and line roots, replies under a guide line, unread dots, counts) with
@@ -201,7 +205,11 @@ Whole PR, This file, Unread and Unresolved filters, and below it the accepted
 thread map for the selected thread. Right: a feed with one card per thread,
 its code excerpt on the theme, the root post and replies on a continuous rail,
 each post headed by author, role, "replying to", unread dot and time, and
-Reply, Resolve, Mark read and Open in code actions.
+Reply, Resolve, Mark read and Open in code actions. Amended 2026-10-06 by the
+owner's verdict on [[BPR-1290]]'s inline drawer prototype ("I like it"): the
+thread map and the separate feed leave Discuss as they leave the drawer.
+Discuss keeps its Whole PR, This file, Unread and Unresolved filters and lists
+every thread as the drawer's notes in file order, each opening in place.
 
 **Drawers.** Left to right: repositories, files, comparison, comments. The
 repositories drawer is a tree: each repository the profile's accounts have
@@ -315,7 +323,12 @@ design rounds.
   removed line sits against its struck row and a thread on an added line
   against the added row, and threads that would collide keep document order and
   are pushed down with their leader still on the anchored row; Discuss shows the
-  list, map and feed with the listed filters.
+  list, map and feed with the listed filters. Amended 2026-10-06 by the owner's
+  verdict on [[BPR-1290]]'s inline drawer prototype ("I like it"): the open
+  thread is pinned at its anchored row and the threads around it make room
+  above and below it, with the same document order; Discuss shows the list
+  with the listed filters, each thread opening in place, and no map or
+  separate feed.
 - AC-06 Home is the whole centre while nothing is open, with none of the
   review chrome, and the strip then shows only Home, account and settings;
   a Home button (⌘0) at the strip's left returns to Home from any review
@@ -331,6 +344,10 @@ design rounds.
   other page names where its settings will live.
 - AC-08 A recorded conversation with more than twenty posts and three branches
   reads correctly in Read and Discuss (the owner's stated stress case).
+  Amended 2026-10-06 by the owner's verdict on [[BPR-1290]]'s inline drawer
+  prototype ("I like it"): it reads in place, every post in posting order with
+  its complete body, and a reply that answers anything but the first post
+  names whom it answers. Navigating its structure is [[BPR-1293]]'s.
 
 ## Implementation entry
 
@@ -868,3 +885,17 @@ keys (as proposed).
 This RFC's criteria are unchanged. AC-01 keeps the owner's 2026-09-24 wording,
 and this RFC closes on what it built.
 
+## Owner decision, 2026-10-06: the drawer is inline only
+
+[[BPR-1290]] redesigned the Conversations drawer. After three design rounds
+and a round of whole-window concepts, the owner asked for the drawer to show
+only this file's line-anchored threads, each opening in place, with finding a
+conversation across the pull request moved to [[BPR-1293]] and pull request
+comments that are not on a file to [[BPR-1294]]. Shown the clickable
+[inline drawer prototype](../design/BPR-1290-inline-drawer-v1/index.html), the
+owner said in chat, verbatim: "I like it".
+
+The Read and Discuss paragraphs, AC-05 and AC-08 above are amended to that
+choice and cite it; their original wording is kept beside each amendment. The
+amendment changes where the map and the feed live, not this RFC's closeout
+dependencies.
