@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1212"
 title: "Rethink the Compose UX with frontend-design"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
