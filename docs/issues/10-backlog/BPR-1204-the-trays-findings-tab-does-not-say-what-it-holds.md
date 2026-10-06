@@ -200,3 +200,10 @@ gap, a historical file note's filename (`blocked_by:
 historical-note-path-contract`). BPR-1210 stays Blocked and keeps its own AC1.
 BPR-1134, BPR-1208 and BPR-1209 are Done. The card is finished on the evidence
 above, the owner's hand-back 49 Accepts, and the Linux station's run below.
+
+**Note: Linux confirmation at `86221c244` (station `bpr-main-linux`, WSL2,
+GCC 15.2.0, `build/dev`).** 19 of 19 passed: `qt_workbench_window` and
+`qt_workbench_focus_order` at 100, 125 and 200 %, `qt_composed_github` at
+three scales, `qt_private_notes_panel`, `qt_private_review_panel`, the agent
+rows, the private-review courses and `architecture_boundaries`. The window
+rows assert the Notes label, tooltip and action.
