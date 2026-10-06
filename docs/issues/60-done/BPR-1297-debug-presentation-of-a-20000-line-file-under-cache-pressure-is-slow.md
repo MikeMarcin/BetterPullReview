@@ -124,3 +124,9 @@ made in a small heap, and it is still caught.
 
 The sampler is shared test code. The coordinator runs the optimized rows on
 macOS and asks Linux.
+
+## macOS run (coordinator, 2026-10-06)
+
+At cd9b87e19 (holds 728097f12) on macOS arm64, optimized tests-on tree
+(app-release, BUILD_TESTING=ON) in a clean worktree: the 18 large-review rows
+passed 18/18 with -j1, budgets enforced.
