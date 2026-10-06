@@ -65,6 +65,13 @@ Tests are direct evidence, not naming evidence.
 - Bind range-for elements by reference (`const auto& [a, b]`). GCC's
   `-Werror=range-loop-construct` rejects a by-value copy that Clang accepts,
   so the Mac build does not catch it (BPR-1078 broke the Linux build this way).
+- Do not build a struct that has defaulted `std::string` members as a
+  designated-initializer temporary that is then copied or moved
+  (`x.Field = T{ .A = …, .B = … };`). GCC 15 at `-O3 -Werror` reports
+  `maybe-uninitialized` on the defaulted strings, which the Debug and Clang
+  builds never show. Default-construct a named local and assign its members
+  one by one, then move it (BPR-1297's optimized build hit this in a
+  BPR-1085 test).
 - Do not hold an iterator, pointer or reference into a widget's model or card
   list across `processEvents`, a menu popup or a refresh; look the item up
   again afterwards. MSVC's checked iterators abort on the stale one, while
