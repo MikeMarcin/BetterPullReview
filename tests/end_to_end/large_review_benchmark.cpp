@@ -49,6 +49,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -1923,7 +1924,7 @@ namespace bpr::e2e::large_review {
 				});
 				inputDuringMeasurement.start();
 				require(measure_wait(*application, budget, report, "large_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] {
-					if (!selected(surface, QStringLiteral("large/comparison.cpp")) || !quiet(*application) || surface.scroll_controller()->maximum_position() <= 1000.0) { return false; }
+					if (!selected(surface, QStringLiteral("large/comparison.cpp")) || !quiet(*application) || surface.scroll_controller()->maximum_position() - surface.scroll_controller()->minimum_position() <= 1000.0) { return false; }
 					if (report.ResponsivenessCourse) {
 						require(surface.isVisible() && surface.left_pane()->isVisible() && surface.right_pane()->isVisible(), "first source render is visible");
 						firstSourceFrame = window.grab();
@@ -1966,6 +1967,9 @@ namespace bpr::e2e::large_review {
 				}
 				auto* controller = surface.scroll_controller();
 				surface.shared_scrollbar()->setValue(0);
+				// [[BPR-1291]]. The bar's start is where the panes start, which is
+				// past the comparison's first position by the synchronization rail.
+				const auto    start                = controller->position();
 				const auto    before               = surface.statistics();
 				const auto    scrollBefore         = controller->statistics();
 				const auto    classificationBefore = application->status().ClassificationSubmissions;
@@ -1987,7 +1991,8 @@ namespace bpr::e2e::large_review {
 				report.ScrollGeometryRebuilds = after.GeometryRebuilds - before.GeometryRebuilds;
 				report.ScrollPaneMeasurements = after.PaneMeasurements - before.PaneMeasurements;
 				require(report.WheelEvents == 1000U && report.ScrollFrames == 1000U && report.ScrollIndexAdoptions == 0U && report.ScrollGeometryRebuilds == 0U && report.ScrollPaneMeasurements == 0U
-							&& application->status().ClassificationSubmissions == classificationBefore && controller->position() == 1000.0,
+							&& application->status().ClassificationSubmissions == classificationBefore
+							&& start == controller->minimum_position() && std::abs(controller->position() - (start + 1000.0)) < 0.000'001,
 						"scroll gesture work/position contract");
 				surface.shared_scrollbar()->setValue(0);
 				QApplication::processEvents();
