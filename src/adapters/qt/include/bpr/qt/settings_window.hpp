@@ -8,14 +8,19 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 class QLabel;
+class QLineEdit;
+class QListWidgetItem;
 class QKeyEvent;
 class QCloseEvent;
 class QListWidget;
 class QStackedWidget;
 
 namespace bpr::qt {
+	class filter_empty_notice;
+
 	/// \brief Names one page of the Settings window, in sidebar order.
 	///
 	/// \details The order is RFC-BPR-0018's: the pages a reviewer reaches first
@@ -70,18 +75,46 @@ namespace bpr::qt {
 		[[nodiscard]] auto pages() const noexcept -> QStackedWidget*;
 		[[nodiscard]] auto page_widget(settings_page aPage) const noexcept -> QWidget*;
 
+		/// \brief [[BPR-1289]]. The search field at the top of the sidebar.
+		[[nodiscard]] auto search_field() const noexcept -> QLineEdit*;
+		/// \brief [[BPR-1289]]. The results that replace the page list while
+		/// the search field holds text.
+		[[nodiscard]] auto search_results() const noexcept -> QListWidget*;
+		/// \brief [[BPR-1289]]. The notice shown when nothing matches, with Clear.
+		[[nodiscard]] auto search_notice() const noexcept -> QWidget*;
+		/// \brief [[BPR-1289]]. Opens a result's page and focuses its setting.
+		void go_to_search_result(int aRow);
+
 	protected:
 		void keyPressEvent(QKeyEvent* aEvent) override;
 		void closeEvent(QCloseEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
-		void select_page(int aRow);
+		/// \brief One search result: what it names, where it lives and what
+		/// choosing it focuses.
+		struct search_hit
+		{
+			settings_page     Page = settings_page::general;
+			QString           Name;
+			QString           Location;
+			QPointer<QWidget> Target;
+		};
 
-		std::function<void()> CloseHandler;
-		QPointer<QWidget>     ReturnFocus;
-		QListWidget*          Sidebar = nullptr;
-		QStackedWidget*       Pages   = nullptr;
+		void select_page(int aRow);
+		/// \brief Lists what matches the search field, or the page list when empty.
+		void               refresh_search();
+		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
+
+		std::function<void()>   CloseHandler;
+		QPointer<QWidget>       ReturnFocus;
+		QWidget*                SidebarColumn = nullptr;
+		QLineEdit*              Search        = nullptr;
+		QListWidget*            Sidebar       = nullptr;
+		QListWidget*            Results       = nullptr;
+		filter_empty_notice*    SearchNotice  = nullptr;
+		QStackedWidget*         Pages         = nullptr;
+		std::vector<search_hit> Hits;
 	};
 
 	[[nodiscard]] auto settings_page_title(settings_page aPage) -> QString;

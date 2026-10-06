@@ -11,6 +11,22 @@ its position when you switch categories. Tab reaches controls below the visible
 area. Escape first belongs to an active editor, picker or confirmation; an
 unhandled Escape closes Settings and returns focus to the invoking window.
 
+To find a setting, type in **Search settings** at the top of the sidebar, or
+press `Command+F` on macOS (`Ctrl+F` on Windows and Linux) ([[BPR-1289]]).
+While the field holds text, the page list becomes the matching settings,
+grouped by page in sidebar order. Each result names the setting and, under it,
+its page and section. A page or a section that matches is a result of its own.
+A setting is found by its name, as letters in order, with word starts and
+adjacent letters ranking first. It is also found by its section or description
+where the search starts one of their words. With nothing else found, a small
+typing slip is forgiven. Down moves into the results. Return or a click opens
+the result's page, scrolls the setting into view and focuses it, and changes
+nothing. Escape clears the field; with the field empty, Escape closes Settings
+as before. When nothing matches, the sidebar says so and offers Clear. The
+search reads the pages as they are shown, so a withdrawn page is never
+searched. The ranking is the core's `fuzzy_match`; its provenance is in
+[Ported code provenance](ported-code-provenance.md).
+
 Ordinary changes apply immediately after their owning host accepts them; there
 is no global Apply button. A refused change returns to the accepted value and
 shows its reason. Closing Settings cancels an uncommitted colour preview or

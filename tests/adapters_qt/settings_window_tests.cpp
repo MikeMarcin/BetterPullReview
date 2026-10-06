@@ -4,20 +4,24 @@
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/resident_filter.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QStackedWidget>
 #include <QSysInfo>
 #include <QVBoxLayout>
@@ -223,6 +227,111 @@ namespace {
 			   "the action presents Settings on Appearance");
 	}
 
+	/// \brief [[BPR-1289]]. The results' first lines, the settings they name.
+	[[nodiscard]] auto result_names(const qt::settings_window& aSettings) -> QStringList
+	{
+		auto names = QStringList{ };
+		for (auto row = 0; row < aSettings.search_results()->count(); ++row) {
+			names.push_back(aSettings.search_results()->item(row)->text().section(QLatin1Char('\n'), 0, 0));
+		}
+		return names;
+	}
+
+	void send_key(QWidget* const aTarget, const int aKey)
+	{
+		auto press = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier };
+		QApplication::sendEvent(aTarget, &press);
+	}
+
+	/// \brief [[BPR-1289]]. The search field filters the settings the pages
+	/// show, lists them by page and section, and goes to one without changing it.
+	void test_settings_search_finds_and_goes_to_a_setting()
+	{
+		qt::workbench_window workbench;
+		auto* const          settings = workbench.settings();
+		settings->present(qt::settings_page::general);
+		QApplication::processEvents();
+		auto* const search = settings->search_field();
+		expect(search != nullptr && search->accessibleName() == QStringLiteral("Search settings") && search->isClearButtonEnabled()
+				   && search->focusPolicy() != Qt::NoFocus,
+			   "the search field has an accessible name and a clear button and takes the keyboard");
+		expect(settings->sidebar()->isVisibleTo(settings) && !settings->search_results()->isVisibleTo(settings)
+				   && !settings->search_notice()->isVisibleTo(settings),
+			   "an empty field shows the ordinary page list");
+		auto findBound = false;
+		for (const auto* const shortcut : settings->findChildren<QShortcut*>()) {
+			findBound = findBound || shortcut->key() == QKeySequence{ QKeySequence::Find };
+		}
+		expect(findBound, "the platform's find key reaches the search field");
+
+		search->setText(QStringLiteral("code font"));
+		expect(!settings->sidebar()->isVisibleTo(settings) && settings->search_results()->isVisibleTo(settings),
+			   "results replace the page list while the field holds text");
+		expect(!result_names(*settings).isEmpty() && result_names(*settings).front() == QStringLiteral("Code font")
+				   && settings->search_results()->item(0)->text() == QStringLiteral("Code font\nAppearance · Type"),
+			   "a result names the setting, then its page and section");
+		auto* const appearance = settings->page_widget(qt::settings_page::appearance);
+		auto* const codeFont   = appearance->findChild<QComboBox*>(QStringLiteral("appearanceCodeFamily"));
+		expect(codeFont != nullptr, "the Code font row's chooser exists");
+		const auto before = codeFont->currentIndex();
+		send_key(search, Qt::Key_Return);
+		QApplication::processEvents();
+		expect(settings->current_page() == qt::settings_page::appearance, "Return opens the first result's page");
+		auto* const focused = settings->focusWidget();
+		expect(focused == codeFont, "the chosen setting has the focus");
+		expect(codeFont->currentIndex() == before, "choosing a result changes no setting");
+
+		search->setText(QStringLiteral("appear"));
+		expect(result_names(*settings) == QStringList{ QStringLiteral("Appearance") }
+				   && settings->search_results()->item(0)->text().endsWith(QStringLiteral("Settings page")),
+			   "a matching page is a result of its own");
+		search->setText(QStringLiteral("notif"));
+		const auto notifications = result_names(*settings);
+		expect(notifications.size() >= 2 && notifications.front() == QStringLiteral("Notifications"),
+			   "a page leads its group, followed by its matching settings");
+		expect(notifications == result_names(*settings), "the order is stable");
+		search->setFocus(Qt::OtherFocusReason);
+		send_key(search, Qt::Key_Down);
+		expect(settings->focusWidget() == settings->search_results(), "Down moves to the results");
+		settings->search_results()->setCurrentRow(1);
+		settings->go_to_search_result(1);
+		expect(settings->current_page() == qt::settings_page::notifications, "a result goes to its own page");
+
+		search->setText(QStringLiteral("zzzq"));
+		expect(settings->search_notice()->isVisibleTo(settings) && !settings->search_results()->isVisibleTo(settings)
+				   && static_cast<qt::filter_empty_notice*>(settings->search_notice())->message().contains(QStringLiteral("zzzq")),
+			   "no match says so");
+		static_cast<qt::filter_empty_notice*>(settings->search_notice())->clear_button()->click();
+		expect(search->text().isEmpty() && settings->sidebar()->isVisibleTo(settings), "Clear restores the page list");
+
+		search->setText(QStringLiteral("theme"));
+		send_key(search, Qt::Key_Escape);
+		expect(search->text().isEmpty() && settings->isVisible() && settings->sidebar()->isVisibleTo(settings),
+			   "Escape clears a search and leaves Settings open");
+		send_key(search, Qt::Key_Escape);
+		expect(!settings->isVisible(), "Escape in an empty field still closes Settings");
+	}
+
+	/// \brief [[BPR-1289]]. The index is the pages as shown: a withdrawn page is
+	/// never searched, and a newly placed setting is found without a second list.
+	void test_settings_search_reads_the_pages_as_shown()
+	{
+		qt::workbench_window workbench;
+		auto* const          settings = workbench.settings();
+		settings->search_field()->setText(QStringLiteral("private draft"));
+		expect(result_names(*settings).contains(QStringLiteral("Private draft")), "a setting on a page is found");
+		settings->withdraw_page(qt::settings_page::agents_and_context);
+		expect(!result_names(*settings).contains(QStringLiteral("Private draft"))
+				   && !result_names(*settings).contains(QStringLiteral("Agents & context")),
+			   "a withdrawn page never appears");
+		auto* const panel  = new QWidget;
+		auto* const column = new QVBoxLayout{ panel };
+		column->addWidget(new QCheckBox{ QStringLiteral("Brand new toggle"), panel });
+		settings->adopt_panel(qt::settings_page::general, panel);
+		settings->search_field()->setText(QStringLiteral("brand toggle"));
+		expect(result_names(*settings) == QStringList{ QStringLiteral("Brand new toggle") }, "a newly placed setting is searchable");
+	}
+
 	void test_settings_shortcut_selects_the_active_workbench()
 	{
 		qt::workbench_window first;
@@ -278,6 +387,8 @@ auto main(int argc, char** argv) -> int
 	test_adopting_a_panel_replaces_the_notice();
 	test_the_workbench_mounts_settings_with_the_preferences_shortcut();
 	test_settings_shortcut_selects_the_active_workbench();
+	test_settings_search_finds_and_goes_to_a_setting();
+	test_settings_search_reads_the_pages_as_shown();
 	std::cout << "settings-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }

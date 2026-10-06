@@ -137,3 +137,88 @@ unranked subsequence test; the drawers may later move to the new core matcher.
 
 Presentation and a Qt-side index only; no setting's storage changes. Lay the
 field out in BPR-1288's design if that lands first.
+
+## Linux implementation — 2026-10-06 (`bpr-main-linux`)
+
+**Matcher (BPR-1289:matcher).** `bpr::core::fuzzy_match` and `fuzzy_rank`
+(`src/core/{include/bpr/core,src}/fuzzy_match.*`) are pure standard C++, with
+no Qt and no clock.
+
+- **Folding:** case, Latin-1 and Latin Extended-A diacritics (ß → ss, æ → ae),
+  full-width forms and combining marks, with white space collapsed.
+- **Tiers:** exact 200,000; whole-query prefix 160,000 (shorter first);
+  word-start prefix 140,000 (earlier, then shorter, first).
+- **Letters:** otherwise every term must match as its best-scoring subsequence:
+  200 per letter, +500 at a word start, +300 at punctuation or a camel hump,
+  +180 per adjacent letter, −15 per skipped letter, −2 per letter of a late
+  start.
+- **Typos:** for a term of three or more letters with no subsequence, a
+  Damerau-Levenshtein distance of at most one edit (two beyond four letters)
+  to a word or word prefix that keeps the term's first letter, at −2,500 per
+  edit.
+- `fuzzy_rank` lists typo matches only when nothing matched directly, and
+  equal scores keep their input order.
+- `core_fuzzy_match` holds the ranking corpus. It covers the tiers, word-start
+  and camel bonuses, folding, multi-term queries, the typo rescue and stable
+  order.
+
+The Mac sources were unreachable from this station, so this is an
+implementation of the card's description, not a copied port.
+
+**Provenance (BPR-1289:provenance).** The header names both sources and the
+owner's licence grant. `docs/development/ported-code-provenance.md` records
+the details.
+
+**Search, results and go-to (BPR-1289:search, :results, :go-to).**
+`settings_window` gains a "Search settings" field above the page list. It has
+an accessible name, a clear button and `QKeySequence::Find` (Command-F or
+Ctrl+F).
+
+- **Esc:** clears the field; with the field empty, Escape still closes
+  Settings.
+- **Down and Return:** Down moves into the results; Return opens the current
+  or first result.
+- **Results:** they replace the page list, grouped by page in sidebar order
+  and then by score, in a stable order. Each names the setting, then "Page ·
+  Section". A matching page ("Settings page") or section is a result of its
+  own.
+- **No match:** the `filter_empty_notice` says so, with Clear.
+- **Go-to:** choosing a result, by pointer or Return, shows its page, makes it
+  visible with `ensureWidgetVisible` and focuses the control. It changes
+  nothing; the test checks the chosen combo's index.
+- **Index:** read from the pages as shown, on each query, so a new setting
+  needs no second list and a withdrawn page (BPR-1179) is skipped.
+  - Names come from form labels, buddies, appearance `…Row`/`…RowName`
+    labels, button text or the accessible name.
+  - Sections come from a titled group box, an appearance card or the last
+    `…Heading` label.
+  - A segmented choice ("Setting: option") is one result, focused on its
+    chosen option.
+
+**Refinements, decided here and open to the owner's look:**
+
+- A section or a description counts only where the query starts one of its
+  words. A description is a sentence, and scattered letters of almost any
+  query fall into one: "notif" listed every Reset button.
+- A setting is not listed merely because its page title matches. The page's
+  own result stands for the page; otherwise "appear" listed every Appearance
+  setting.
+
+**Evidence** (`build/dev`, GCC 15.2, offscreen):
+
+- `qt_settings_window` and its 125, 150 and 200 % rows pass 4/4, with the two
+  new courses. One finds "Code font" as "Code font / Appearance · Type", goes
+  to it by Return with focus and no change, and checks the page result, Down,
+  Escape and Clear. The other covers the withdrawn page and a newly adopted
+  setting.
+- Control: with `refresh_search` doing nothing, `qt_settings_window` fails
+  "results replace the page list while the field holds text".
+- The full set passes 147/147: every `qt_` row, `core_fuzzy_match`, the core
+  boundary rows, both architecture rows, settings, appearance and diagnostics.
+  The `core-only` preset builds, and its three matcher and boundary rows pass.
+- `coding-format-check` and `DOCUMENTATION_OK` pass.
+
+**Open:** BPR-1289:owner-look (the integrator's attended review from the Mac),
+and the macOS and Windows runs. The frontend-design skill the integrator named
+is not installed on this station, so the field follows the existing drawer
+filter fields' pattern.
