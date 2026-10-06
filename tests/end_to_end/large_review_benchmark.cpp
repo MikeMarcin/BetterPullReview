@@ -1589,10 +1589,10 @@ namespace bpr::e2e::large_review {
 		}
 		// [[BPR-1265]]. The byte-pressure course runs only in an optimized
 		// build, on every platform. A Debug build is diagnostic only (see
-		// TimingScope), and on the Windows station its presentation of the
-		// 20,000-line file under cache pressure takes 135-372 s per selection,
-		// so the course cannot finish within any reasonable clock. The row
-		// reports Skipped, with this reason, not a pass.
+		// TimingScope), and the course takes about ten minutes there even with
+		// [[BPR-1297]]'s bounded heap sampler (before it, the sampler's lock
+		// made a Windows Debug selection take 135-372 s). The row reports
+		// Skipped, with this reason, not a pass.
 		if (!OptimizedBuild && argc == 5 && std::string_view{ argv[4] } == "--cache-bytes") {
 			std::cout << "LARGE_REVIEW_CACHE_BYTES_SKIPPED: the byte-pressure course runs only in an optimized build; "
 					  << "a " << BPR_BENCH_BUILD_CONFIGURATION << " build is diagnostic only\n";

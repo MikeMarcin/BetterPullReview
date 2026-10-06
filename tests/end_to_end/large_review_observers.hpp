@@ -85,11 +85,20 @@ namespace bpr::e2e::large_review {
 				Observation.MaxSampleIntervalMs = std::max(Observation.MaxSampleIntervalMs,
 														   std::chrono::duration<double, std::milli>{ began - previous }.count());
 				Observation.PeakBytes           = std::max(Observation.PeakBytes, current_bytes());
-				Observation.MaxSampleCostMs     = std::max(Observation.MaxSampleCostMs,
-														   std::chrono::duration<double, std::milli>{ std::chrono::steady_clock::now() - began }.count());
+				const auto cost                 = std::chrono::steady_clock::now() - began;
+				Observation.MaxSampleCostMs     = std::max(Observation.MaxSampleCostMs, std::chrono::duration<double, std::milli>{ cost }.count());
 				++Observation.Samples;
 				previous = began;
-				std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+				// [[BPR-1297]]. A sample holds the heap's lock while it counts the
+				// heap, so the GUI thread's allocations wait for it. On Windows
+				// HeapSummary cost 5-10 ms a sample in an optimized build and about
+				// 14 ms in Debug, so a fixed 1 ms pause kept the lock taken 85-93%
+				// of the time and slowed the course it measures (a Debug
+				// cache-pressure selection: 135-372 s with it, 10.5-19.1 s
+				// without). Waiting at least four times the last sample's cost
+				// bounds that share to a fifth; a cheap sample still repeats every
+				// millisecond. The interval actually reached stays in the report.
+				std::this_thread::sleep_for(std::max<std::chrono::steady_clock::duration>(std::chrono::milliseconds{ 1 }, cost * 4));
 			}
 			Observation.MaxSampleIntervalMs = std::max(Observation.MaxSampleIntervalMs,
 													   std::chrono::duration<double, std::milli>{ std::chrono::steady_clock::now() - previous }.count());

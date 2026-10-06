@@ -192,3 +192,19 @@ The Debug presentation cost behind the decision goes to its own card,
 recorded at low priority. A Debug `cache_byte_selection` ran 3,315
 event-loop pulses over 135.7 s, only 528 of them with diff work. That is
 GUI-thread presentation of the 20,000-line file, not the diff.
+
+## Correction, 2026-10-06 (bpr-main-win)
+
+The cause this card gave for the Debug skip was wrong. Above, the card said a
+Debug selection's 135–372 s was "GUI-thread presentation of the 20,000-line
+file". [[BPR-1297]] measured it instead. The time went to the course's own
+1 ms live-heap sampler: on Windows each `HeapSummary` holds the heap's lock,
+and the GUI thread's allocations waited for it.
+
+- With the sampler off, a Debug selection took 10.5–19.1 s.
+- With the sampler bounded, as [[BPR-1297]] now does, the Debug row passes
+  in 569.0 s.
+
+The coordinator keeps the skip, on cost grounds: a ten-minute row in every
+Debug `ctest` is not worth it, and timing stays diagnostic in Debug. The
+skip's code comment now says so.
