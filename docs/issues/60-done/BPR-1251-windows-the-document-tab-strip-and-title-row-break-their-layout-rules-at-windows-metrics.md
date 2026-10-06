@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1251"
 title: "Windows: the document tab strip is narrower than one tab, and the title returns at a narrower width"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "linux"]
 metadata: {"found_by":"bpr-main-win station run of the main-stabilization Qt rows, 2026-09-30","reservation":"docs/issues/_reservations/BPR-1251--BPR-1251--080a64f21ab7.json","related_cards":["BPR-1242","BPR-1033","BPR-1106"]}
+acceptance: [{"criterion":"The six rows pass on Windows","outcome":"pass","revision":"c6ab4fb61","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1251-windows-the-document-tab-strip-and-title-row-break-their-layout-rules-at-windows-metrics.md","detail":"bpr-main-win windows-dev Debug, MSVC 14.51, -j1: qt_document_tabs_scale_{100,125,200} (7.1/8.1/11.6 s), qt_workbench_window_scale_{100,125,200} (120.5/127.2/138.3 s) and qt_workbench_title_row_scale_{100,125,200} pass, 9/9, after 42e536f67 (strip minimum), option 1 (title from the whole-modality room) and BPR-1255's floor."}},{"criterion":"They still pass on macOS and Linux","outcome":"pass","revision":"1fecfaef5","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1290-redesign-the-conversations-drawer-around-reading-the-conversation.md","detail":"Linux bpr-main-linux passes qt_workbench_window_scale_* with BPR-1255's floor at 1fecfaef5 and qt_document_tabs_scale_* since 42e536f67; macOS passed qt_workbench_window/title_row_scale_* at 9751195d0 and the document-tab rows since main-stabilization. A rerun of all six at c6ab4fb61 on both is owed, not gating; no layout code changed for this close."}}]
 ---
 
 # BPR-1251: Windows: the document tab strip is narrower than one tab, and the title returns at a narrower width
