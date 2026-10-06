@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1290"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Owner chat 2026-10-06: redesign the Conversations drawer around reading the conversation",
+  "created": "2026-10-06T01:55:02.615105+00:00",
+  "base": "c10678cc7f3e0fc749194b4b8308fb3e8c5eeff8"
+}
