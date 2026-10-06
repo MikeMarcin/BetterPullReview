@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1290"
 title: "Redesign the Conversations drawer around reading the conversation"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
