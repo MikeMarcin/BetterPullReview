@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1087"
 title: "Project accepted label buckets and bounded counter deltas"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0049"]
 depends_on: ["BPR-1078", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-13","milestone":"overview","acceptance":["R25","R26","R27","R29"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
