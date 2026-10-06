@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1212"
 title: "Rethink the Compose UX with frontend-design"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -105,9 +105,35 @@ scope, timing and Backlog lane are unchanged.
 - AC4: Obtain an owner judgment on the built Compose UX at its exact candidate, with one question per independent criterion and Accept/Reject for keep-or-change decisions. Record any resulting follow-ups without treating the earlier Dif Accept as Compose acceptance.
 - AC5 (owner amendment, above): A new inline comment, and a reply on a thread, open their composer inline beside the code by default, so the commented line and its neighbours stay visible while writing. An expand control, with a keyboard route and an accessible name, opens the full-page composer with the same draft, and returns from it to the inline one. Both keep the draft, label controls, Publish and Discard, and neither adds a scroll trap or a clipped composer (RFC-BPR-0050).
 
+## Owner direction: compose in the drawer, one flow with Review Cycles ([[BPR-1290]], 2026-10-06)
+
+Handing back BPR-1290's built drawer v003, the owner wrote in chat, verbatim
+(the BPR-1290 verdict itself is recorded on that card):
+
+> I want add comment from the right-click menu. I want add comment to show up
+> in the drawer instead of the full screen add comment window. Fold add
+> comment window into discuss. Drawer comment should have something like a
+> maximize button to go view it in discuss.
+>
+> I want to try to unify a bunch of this interaction with the local project
+> flow. Maybe we do right click to add comment / suggest change with enter /
+> shift+enter as shortcuts?
+
+Earlier, accepting BPR-1083 (quoted in full under AC5's amendment above):
+
+> I hate this full screen comment page being the default. I want to be able
+> to still see the code I'm commenting on.
+
+The coordinator activated this card on 2026-10-06 for a design round: an
+inventory of today's compose entry points and keys in both flows, a unified
+right-click and keyboard flow with the new comment drafted in the inline
+drawer and a maximize into Discuss, a clickable prototype extending
+[`BPR-1290-inline-drawer-v2`](../../design/BPR-1290-inline-drawer-v2/index.html),
+and owner questions answered in chat. No attended session.
+
 ## Scheduling
 
-Backlog, explicitly for later activation. No new predecessor status, remote
-mutation, installed-package or release approval follows from this card.
-Prepare an authored plan when activated; this registration neither selects a
-layout nor claims a native or human result.
+Activated 2026-10-06 (above). Before that: Backlog, explicitly for later
+activation. No new predecessor status, remote mutation, installed-package or
+release approval follows from this card. The design round neither builds
+anything in `src/` nor claims a native or human result.
