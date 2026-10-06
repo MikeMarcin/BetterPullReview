@@ -149,3 +149,12 @@ that core function instead of its own copy. The preflight reads it through the
 adapter. The merged tree rebuilt with no `warning C` line, and the same
 selection, which now has 20 rows with [[BPR-1086]]'s new core row, passes 20
 of 20.
+
+## macOS run (coordinator, 2026-10-06)
+
+At 6984585b9 on macOS arm64 Debug, clean worktree: 18/18 of
+application_feedback_counters, core_feedback_*, core_review_preflight, the
+defect application rows, application_label_authoring_contract,
+qt_feedback_label_threads, qt_conversation_cards_view,
+application_writing_delivery, the round-trip contract and
+architecture_boundaries.
