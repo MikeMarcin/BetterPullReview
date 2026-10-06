@@ -370,3 +370,7 @@ restore the course's conversation structure assertions, in BPR-1290's next
 candidate (BPR-1290 is itself parked for the owner). The second is to amend
 AC-01 and AC-04 to the overview and close. Nothing in the product changed
 here.
+
+Published after a rebase over `06a3c530b`: promotion `ceb7c9e6c` (recorded
+`5cbac5a6b`), claim `d60d83399` (recorded `c012afeaa`) and this record
+`03d814ec8`.
