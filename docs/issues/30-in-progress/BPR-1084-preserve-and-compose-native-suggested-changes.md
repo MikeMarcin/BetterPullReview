@@ -139,6 +139,14 @@ course); the pin reseal and these records follow in the next commit.
   `application_label_authoring_contract`, `github_review_comment_permalink`,
   `application_review_round_trip_composition_contract` (resealed): pass after
   rebasing onto `46f2a997e` (BPR-1290's reply label helper merged beside the mark).
+- Integration pass at `c246626a8`: every `qt_`, `application_` and
+  `github_review` row (343) with `-j4`, `DISPLAY` and `WAYLAND_DISPLAY` unset:
+  341 pass. `application_diagnostic_controls_public_path` needs a display (it
+  aborts loading the xcb plugin, not this card's code);
+  `application_review_submission_composition_public_path` timed out waiting for
+  shutdown under `-j4` load (43.6 s) and passes alone in 4.2 s.
+  `coding-format-check` (clang-format 22.1.8), `git diff --check` and
+  `verify_documentation.py` pass.
 - Failing-before controls, each reverted and the row green again:
   - the header edit stripping CR after the header:
     `core_feedback_suggestion_preservation` fails "change-label-with-native-patch
