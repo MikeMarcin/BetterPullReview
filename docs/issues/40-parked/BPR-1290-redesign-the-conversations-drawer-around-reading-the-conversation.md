@@ -1012,3 +1012,32 @@ section says the reply has the composer's label controls.
   passed. Format check and clang-tidy (`tidy.py --changed`): clean.
   `src/app` is unchanged. Linux and Windows have not run v004's rows.
 
+
+### Owner look, session v004
+
+Pending: BPR-1290:owner-look is the owner's, not self-certified. One
+question, Accept or Reject: "drawer v004: shortcodes work in replies."
+
+- Session `2c58f7ad375731fd84651160badee24e`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-built-v004`,
+  candidate `BPR-1290-built-drawer-v004` (revision `frozen-69ff2d5e3-v004`,
+  fingerprint `0149d0b24c45…`), ready at event cursor 4. It carries the frozen
+  build's own 2x render of line 250's reply after `:qu:`.
+- Frozen root `/Users/jaeger/bpr1290-inline-drawer-review-v004.3ABLRN`: the
+  `git archive` of `69ff2d5e3` built there with the dev preset (tests on),
+  source read-only (rebased onto `origin/main` as `69bdc0fce`, which differs
+  from it only in BPR-1212's design documents); executable SHA-256 `aed8dec988cf59c1…`. Offscreen with the
+  launcher's arguments it printed `ATTENDED_FILE_SHOWN`, and
+  `qt_composed_inline_drawer_scale_{100,125,200}` and
+  `qt_conversation_cards_view` passed from its build tree.
+- Launch: `python3 /Users/jaeger/bpr1290-inline-drawer-review-v004.3ABLRN/launch.py`
+  (v003's launcher with `--label-helper` added; `--renderer` for
+  renderer.cpp). It checks the build and fixture tree first and reports an
+  early exit within seconds.
+- v003's session was released (`resume-development --all`, sequence 6), its
+  app instance stopped and its frozen root
+  `/Users/jaeger/bpr1290-inline-drawer-review-v003.fAs2jw` deleted.
+
+Next: read the session's decision. Accept satisfies :owner-look and the card
+finishes; Reject comes back with what differs in its note, for a v005
+candidate. The composer items of the v003 note are BPR-1212's.
