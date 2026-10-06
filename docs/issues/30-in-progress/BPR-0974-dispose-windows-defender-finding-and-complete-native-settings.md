@@ -901,3 +901,59 @@ Building, installing and reading the image produced no Defender event.
 runs on the station's desktop. Each has been run before only inside a
 foreground block the coordinator announced and cleared. They wait for that
 clearance. Nothing has launched this image.
+
+## The 7c8402fc candidate's first launch and AC2 course, bpr-main-win, 2026-10-05
+
+The owner cleared the JaegAW desktop for these foreground runs, and approved
+them on the station, on 2026-10-05. Each run was driven by a station
+dispatcher bound to this image, and its records are under
+`build/logs/bpr-0974-main-win/7c8402fc/`. The image, its bundle and its build
+copy were read before and after every run, and never changed: `1947fa54…`,
+`fd94a0e6…` and `1947fa54…`. The 85e522d8 image was not touched.
+
+| UTC (2026-10-06) | Run | Result |
+| --- | --- | --- |
+| 02:30:09 | Foreground check | Claude's window in front, no WSLg (`msrdc`) window |
+| 02:30:10 | Defender before | The same 3 detections; newest operational record 7317; signatures 1.459.565.0, engine 1.1.26080.3; real-time and tamper protection on |
+| 02:30:16-02:30:45 | **First launch**, PID 12880 | Window `BetterPullReview - Default profile` (class `Qt6112QWindowIcon`) at +0.9 s; `WM_CLOSE`; exit **0**; 20 s later still 3 detections and **no operational event after 7317**; all three files present, digests unchanged |
+| 02:30:52-02:31:13 | **AC2 course with AC3's pages**, application PID 4140 | **Passed, exit 0**, `WINDOWS_SETTINGS_INVENTORY_OK` |
+| after | Defender after the course | No operational event after 7317; still 3 detections |
+
+**AC2 is met on 7c8402fc.** The record is
+[`windows-course-7c8402fc.json`](../../verification/BPR-0974-windows-native-settings/windows-course-7c8402fc.json).
+In one launch, bound to the image's and bundle's digests and its PID, it
+passed all five checks:
+
+- the native menu, Ctrl+comma, modeless, singleton and profile label check;
+- Escape, then reopening with the shortcut;
+- the same-profile sibling: Profiles > New Window, its menu and shortcut,
+  and retirement;
+- the seven categories, each with its page heading;
+- File > Quit, with exit **0**.
+
+Before [[BPR-1136]], the second use of the strip's Application menu exposed
+no item. The course now gets past it. It used a private temporary profile
+(`AUTOMATED_PROFILE_PRIVATE_OK`) and left no `better_pull_review.exe`. Its
+standard error held one redacted `QT_DIAGNOSTIC:warning content=omitted`
+line. `settings_inventory_comparison_tests.py` now binds the record to the
+image, the five checks, exit 0, the private profile and no remaining process.
+Its two negative controls fail as they should: a stopped course, and another
+image's digest. The suite passes 23 of 23.
+
+**Which image met each criterion:**
+
+- AC1: `85e522d8`, by the owner's amended disposition. This image's first
+  launch also drew no detection.
+- AC2: `7c8402fc`.
+- AC3: `85e522d8`, whose Linux comparison is unchanged. On this course's
+  capture, five pages match the 85e522d8 inventory control for control.
+  Agents & context and Storage & privacy changed with later product work,
+  the writing-hook controls and the diagnostics controls. This card does not
+  judge those.
+- AC4: both runs used a private profile, kept every digest unchanged, left no
+  process and changed nothing in Defender.
+
+**The card stays In Progress for one reason.** Moving it to `60-done/`
+rewrites its link in `docs/verification/BPR-0653-2026-09-25/index.md`, which
+the review packet pins by hash (checkpoint of 2026-09-25 above). How to close
+it is the integrator's decision.

@@ -29,6 +29,10 @@ WINDOWS_NATIVE = ROOT / "BPR-0974-windows-native-settings"
 BPR0974_REVISION = "85e522d86f29230454c72b4d965fa2e06986e394"
 BPR0974_IMAGE = "6aa27c8de85604d38a04c8728c610d2afb1fbcbd541e489bdedcc3891d798ac4"
 BPR0974_BUNDLE = "ca3bc2b191085ef61a5225369565376e163b4efb80920b2b52e72e68bf048f91"
+# The second cleared candidate, carrying BPR-1136's accessible menu reopening.
+BPR0974_COURSE_REVISION = "7c8402fca46b638fb589866ad5dc23ba73807a22"
+BPR0974_COURSE_IMAGE = "1947fa54a4d9886e3ae13e9a541ecaa5cccfb1bbdee2a901dd8e23dc5838e5f2"
+BPR0974_COURSE_BUNDLE = "fd94a0e6dfc9703870adf38b25076787552519939d133b8af647eb8620d7971c"
 # The Windows capture at 85e522d8 against the Linux b651554f capture, per page.
 # Each entry is a named product change since b651554f; every other page must
 # match control for control.
@@ -120,6 +124,7 @@ class SettingsInventoryComparison(unittest.TestCase):
         cls.bounded = load(LINUX_FOCUS / "linux-bounded-course-b651554f.json")
         cls.windows_inventory = load(WINDOWS_NATIVE / "windows-inventory-85e522d8.json")
         cls.windows_course = load(WINDOWS_NATIVE / "windows-course-stop-85e522d8.json")
+        cls.windows_full_course = load(WINDOWS_NATIVE / "windows-course-7c8402fc.json")
 
     def test_current_mac_dev_and_release_are_identical(self) -> None:
         self.assertEqual(self.dev["pages"], self.current["pages"])
@@ -396,6 +401,32 @@ class SettingsInventoryComparison(unittest.TestCase):
         self.assertFalse(any(line.startswith("  MENUITEM") for line in course["diagnosis"]))
         self.assertIn("AFTER_UIA_INVOKE visible=", course["diagnosis"][-1])
         self.assertEqual(course["diagnosis"][-1], "AFTER_UIA_INVOKE visible=")
+
+
+    def test_bpr0974_full_course_passes_on_the_second_candidate(self) -> None:
+        # AC2 is met on 7c8402fc, which carries BPR-1136: the course reopens the
+        # strip's Application menu, reaches Profiles > New Window, retires the
+        # sibling and quits with exit 0, in one launch with a private profile.
+        course = self.windows_full_course
+        self.assertEqual(course["revision"], BPR0974_COURSE_REVISION)
+        self.assertEqual((course["executable_sha256"], course["bundle_sha256"]), (BPR0974_COURSE_IMAGE, BPR0974_COURSE_BUNDLE))
+        self.assertEqual((course["course"], course["status"], course["exit_code"], course["failure"]), ("course", "passed", 0, None))
+        self.assertEqual(course["native_checks"], [
+            "native-menu-ctrl-comma-modeless-singleton-profile-label",
+            "escape-and-shortcut-reopen",
+            "same-profile-sibling-menu-shortcut-and-retirement",
+            "seven-categories-with-current-page-heading",
+            "native-quit-exit-zero",
+        ])
+        self.assertEqual(course["stdout"].strip(), "AUTOMATED_PROFILE_PRIVATE_OK")
+        self.assertEqual((course["errors"], course["remaining_bpr_processes"]), ([], []))
+        self.assertEqual(course["categories"], [page["category"] for page in course["pages"]])
+        # Five pages are control for control the 85e522d8 inventory's; the two
+        # others changed with later product work, which this course does not judge.
+        before = {page["category"]: controls(page) for page in self.windows_inventory["pages"]}
+        after = {page["category"]: controls(page) for page in course["pages"]}
+        same = [category for category in course["categories"] if before[category] == after[category]]
+        self.assertEqual(same, ["General", "Accounts & hosts", "Reviews & queue", "Appearance", "Notifications"])
 
 
 if __name__ == "__main__":

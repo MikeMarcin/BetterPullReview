@@ -1,0 +1,3754 @@
+{
+ "schema": "bpr.settings-inventory.uia.v1",
+ "course": "course",
+ "status": "passed",
+ "failure": null,
+ "build": "windows-tests-disabled-qt6112-release",
+ "revision": "7c8402fca46b638fb589866ad5dc23ba73807a22",
+ "executable": "C:\\Users\\mikem\\bpr0974-candidate-7c8402fc\\installed\\better_pull_review.exe",
+ "executable_sha256": "1947fa54a4d9886e3ae13e9a541ecaa5cccfb1bbdee2a901dd8e23dc5838e5f2",
+ "bundle_sha256": "fd94a0e6dfc9703870adf38b25076787552519939d133b8af647eb8620d7971c",
+ "platform": "Windows 10.0.26200.0 x64",
+ "source": "native UI Automation raw tree, user32 posted clicks and keys, no pointer",
+ "host": {
+  "computer": "JAEGAW",
+  "session": 1,
+  "user": "JAEGAW\\mikem",
+  "elevated": false,
+  "foreground_lock_timeout_ms": 2147483647,
+  "system_dpi": 144
+ },
+ "course_pid": 66796,
+ "application_pid": 4140,
+ "exit_code": 0,
+ "window_names": [],
+ "window_dpi": 144,
+ "started_utc": "2026-10-06T02:30:52.2959924Z",
+ "finished_utc": "2026-10-06T02:31:13.2722609Z",
+ "categories": [
+  "General",
+  "Accounts & hosts",
+  "Reviews & queue",
+  "Appearance",
+  "Notifications",
+  "Agents & context",
+  "Storage & privacy"
+ ],
+ "native_checks": [
+  "native-menu-ctrl-comma-modeless-singleton-profile-label",
+  "escape-and-shortcut-reopen",
+  "same-profile-sibling-menu-shortcut-and-retirement",
+  "seven-categories-with-current-page-heading",
+  "native-quit-exit-zero"
+ ],
+ "pages": [
+  {
+   "index": 0,
+   "category": "General",
+   "nodes": [
+    {
+     "depth": 0,
+     "type": "Pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "type": "Group",
+     "name": "General",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Text",
+     "name": "General",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "Application updates",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Installed: 0.1.3   Available: Unavailable",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Use the release page to update manually on this platform.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "No successful check yet",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "CheckBox",
+     "name": "Automatically check for updates",
+     "enabled": false,
+     "state": "On"
+    },
+    {
+     "depth": 5,
+     "type": "ComboBox",
+     "name": "Release access account",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Choose release access separately from the repository you review. Sign in with native GitHub.com authentication in Accounts & hosts to add an account here.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Update preferences are saved for this application.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Check for Updates…",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Download Update",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Later",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Skip This Version",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Cancel Download",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Install and Restart",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "View Release",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 1,
+   "category": "Accounts & hosts",
+   "nodes": [
+    {
+     "depth": 0,
+     "type": "Pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "type": "Group",
+     "name": "Accounts & hosts",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Text",
+     "name": "Accounts & hosts",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "Accounts and hosts",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "One account per server. Credentials are never shown here.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Group",
+     "name": "github.com",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Host",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Server kind and transport",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Connection state",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "?",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Account",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Sign-in terms",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Button",
+     "name": "Sign in to github.com",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "CheckBox",
+     "name": "Show details for github.com",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Capabilities, rate limits and the last problem.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Add enterprise server",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "category": "Reviews & queue",
+   "nodes": [
+    {
+     "depth": 0,
+     "type": "Pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "type": "Group",
+     "name": "Reviews & queue",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Text",
+     "name": "Reviews & queue",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "Reviews and queue",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Local behaviour only. Nothing here changes assignments or subscriptions on GitHub.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Group",
+     "name": "Review behaviour",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Modality rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Reset modality rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "A pull request opens in",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "A pull request opens in: Overview",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "A pull request opens in: Read",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "A pull request opens in: Last used",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Continue review enters",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Continue review enters: Read",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Continue review enters: Review",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Reading",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Reset reading",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Mark a file read",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Mark a file read: By hand",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Mark a file read: When fully seen",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "On return, compare",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "On return, compare: Whole PR",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "On return, compare: Since my last review",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "On return, compare: Since last upload",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Comments drawer opens on",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Comments drawer opens on: All",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Comments drawer opens on: Unread",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Comments drawer opens on: Unresolved",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Drawers",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Reset drawers",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Drawer controls",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Drawer controls: Hidden",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Drawer controls: Shown",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 5,
+     "type": "Group",
+     "name": "Queue defaults",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Queue role filter",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Role",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Queue observer reason filter",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Observer reason",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Queue attention bucket filter",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Attention",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Queue repository filter",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Repository",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Queue quiet or current filter",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Quiet reviews",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Queue sort order",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Sort",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Reset queue defaults",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Queue settings status",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Observer rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Group",
+     "name": "Observer rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Saved observer rules",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Observer rule kind",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Edit",
+     "name": "Observer rule pattern",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Exclude matching rule",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Add local observer rule",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Remove selected observer rule",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Saved repositories",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Group",
+     "name": "Saved repositories",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Saved repositories list",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Edit",
+     "name": "Repository to save",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Save repository",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Remove saved repository",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "ScrollBar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "category": "Appearance",
+   "nodes": [
+    {
+     "depth": 0,
+     "type": "Pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "type": "Group",
+     "name": "Appearance",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Text",
+     "name": "Appearance",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "Appearance settings",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Changes apply as you make them and show in the review window behind this one.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Custom",
+     "name": "Theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Button",
+     "name": "Reset appearance mode",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "Theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "type": "ScrollBar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Custom",
+     "name": "Type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Button",
+     "name": "Reset type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Interface font",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About interface font",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "ComboBox",
+     "name": "Interface font family",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "type": "Edit",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Interface size",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About interface size",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Spinner",
+     "name": "Interface font size, in points",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Interface weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About interface weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Spinner",
+     "name": "Interface font weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Line height",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About line height",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Spinner",
+     "name": "Interface line height, percent",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Code font",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About code font",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "ComboBox",
+     "name": "Code font family",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "type": "Edit",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Code size",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About code size",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Spinner",
+     "name": "Code font size, in points",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Code weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About code weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Spinner",
+     "name": "Code font weight",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Tab width",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About tab width",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Group",
+     "name": "Tab width, in spaces",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "type": "CheckBox",
+     "name": "Tab width 2",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 10,
+     "type": "CheckBox",
+     "name": "Tab width 4",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 10,
+     "type": "CheckBox",
+     "name": "Tab width 8",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "White space",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About white space",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "ComboBox",
+     "name": "Draw white space",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Ligatures",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About ligatures",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "CheckBox",
+     "name": "Ligatures",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Bold syntax emphasis",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About bold syntax emphasis",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "CheckBox",
+     "name": "Bold syntax emphasis",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Italic syntax emphasis",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About italic syntax emphasis",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "CheckBox",
+     "name": "Italic syntax emphasis",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "Preview",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Text",
+     "name": "Preview",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Files",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "12 of 40 read",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Engine/Source/Runtime/Renderer",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Edit",
+     "name": "Code preview",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Text",
+     "name": "Interface 9 pt, weight 400, line height 100 %. Code 9 pt, weight 400, tabs of 4, ligatures off, bold and italic emphasis on, white space drawn in the selection. Diff, selection and current-line colours from Dark.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Custom",
+     "name": "Colours for Dark",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Colours for Dark",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Button",
+     "name": "Import theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Button",
+     "name": "Export saved theme",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Button",
+     "name": "Reset all colours",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Edits change Dark only. Each theme keeps its own colours.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "Colours",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Edit",
+     "name": "Filter roles",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "Colour roles",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "Surfaces and text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Surfaces and text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "7",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Application surface",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Application surface",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#1c2026",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Application text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Application text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#e6edf3",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Code background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Code background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#0d1117",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Code gutter background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Code gutter background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#141921",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Code line number text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Code line number text",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#8b949e",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Code selection background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Code selection background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#28518c",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Code current line background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Code current line background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#161c24",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "Diff",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Diff",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "6",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Diff added background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Diff added background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#153622",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Diff removed background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Diff removed background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#3e1f1f",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Diff in-line added background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Diff in-line added background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#104a17",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Diff in-line removed background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Diff in-line removed background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#672323",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Diff moved background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Diff moved background",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#2d1900",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Diff group boundary rule",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Diff group boundary rule",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#808080",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "Review states",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Review states",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "6",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "State unread",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "State unread",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#58a6ff",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "State accepted",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "State accepted",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#3fb950",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "State defect",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "State defect",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#ff7b72",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "State fixed",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "State fixed",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#bc8cff",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "State verified",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "State verified",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#39c5b0",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "State stale",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "State stale",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#8b949e",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "Syntax",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "26",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax normal",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax normal",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#dcdcdc",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax keyword",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax keyword",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#6da9db",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax control flow",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax control flow",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#d8a0df",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax operator",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax operator",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#b4b4b4",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax builtin",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax builtin",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#6da9db",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax function",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax function",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#ff8000",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax variable",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax variable",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#bdb76b",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax type",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#ffd700",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax constant",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax constant",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#b8d7a3",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax number",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax number",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#b5cea8",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax string",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax string",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#d69d85",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax character",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax character",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#d69d85",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax escape sequence",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax escape sequence",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#ffd68f",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax comment",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax comment",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#66b559",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax documentation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax documentation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#66b559",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax annotation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax annotation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#8fbf72",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax macro",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax macro",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#ce8ad4",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax preprocessor",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax preprocessor",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#a3a3a3",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax import",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax import",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#a3a3a3",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax attribute",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax attribute",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#4ec9b0",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax region marker",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax region marker",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#a3a3a3",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax information",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax information",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#60b5ff",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax warning",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax warning",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#f0a03c",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax alert",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax alert",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#ff8ac7",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax error",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax error",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#f39b73",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 11,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Button",
+     "name": "Syntax other",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "Syntax other",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 12,
+     "type": "Text",
+     "name": "#b1bac4",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 10,
+     "type": "ScrollBar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Custom",
+     "name": "Dif",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Text",
+     "name": "Dif",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Button",
+     "name": "Reset Dif preferences",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Show Dif mascot",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About show dif mascot",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "CheckBox",
+     "name": "Show Dif mascot",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Dif motion",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Button",
+     "name": "About dif motion",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "ComboBox",
+     "name": "Dif motion",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Motion now",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 9,
+     "type": "Text",
+     "name": "Dif motion status",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "Custom",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Appearance settings status",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "ScrollBar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "category": "Notifications",
+   "nodes": [
+    {
+     "depth": 0,
+     "type": "Pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "type": "Group",
+     "name": "Notifications",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Text",
+     "name": "Notifications",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "CheckBox",
+     "name": "Enable review notifications",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 5,
+     "type": "CheckBox",
+     "name": "Pause notifications",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Notifications contain the repository, review number, attention category and unread count. They never include titles, source code or comment text. Choosing a notification selects that review in Home.\n\nYour operating system controls permission and presentation. BetterPullReview cannot confirm every system permission setting.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Preview for selected Home review",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Reset notification preferences",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Notification status",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "category": "Agents & context",
+   "nodes": [
+    {
+     "depth": 0,
+     "type": "Pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "type": "Group",
+     "name": "Agents & context",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Text",
+     "name": "Agents & context",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "The selected host determines which agent profiles are allowed. Choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "ComboBox",
+     "name": "Allowed agent profile for this request",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "List",
+     "name": "Private notes included with this request",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "CheckBox",
+     "name": "Include current private draft",
+     "enabled": false,
+     "state": "Off"
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Allowed profile",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Private notes",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Private draft",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "CheckBox",
+     "name": "Use existing working copy for this request",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Agent request scope",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "AI assistance · Review preparation",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "These instructions apply only when you explicitly ask for assistance. Test uses a sample passage with the selected agent in the open review, changes no draft and publishes nothing.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "ComboBox",
+     "name": "Review preparation writing hook",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Built-in · review-preparation-v1 · profile revision 1",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Edit",
+     "name": "Writing instructions",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 8,
+     "type": "ScrollBar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Save instructions",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Restore default",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Button",
+     "name": "Test saved hook (no publishing)",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "ScrollBar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "category": "Storage & privacy",
+   "nodes": [
+    {
+     "depth": 0,
+     "type": "Pane",
+     "name": "Settings page",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 1,
+     "type": "Group",
+     "name": "Storage & privacy",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Text",
+     "name": "Storage & privacy",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Local data location",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Edit",
+     "name": "Local application data location",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Local data includes repository caches, retained review history, drafts, notes, receipts and preferences. Retained epochs remain until explicitly pruned; maintenance can remove revisions needed for an older comparison. Moving this storage location and global purge are not available in this build.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "&Prune selected epochs",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Delete repository &cache",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Cancel history &maintenance",
+     "enabled": false,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "History maintenance above is limited to the selected review or repository cache and asks for confirmation. It does not change GitHub or your working copy. Diagnostic preview and local export are available in the profile controls. Removing the application does not remove its local data folder or system credential entries. Use Accounts & Hosts to sign out of remembered device sessions.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "Profile diagnostics and removal",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Export diagnostics for Default",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "CheckBox",
+     "name": "Profile maintenance",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Export anonymized diagnostics…",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Export with identifying details…",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 4,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Group",
+     "name": "Diagnostics",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "CheckBox",
+     "name": "Record local diagnostics",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "Diagnostics",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "CheckBox",
+     "name": "Diagnostic detail: Standard",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 7,
+     "type": "CheckBox",
+     "name": "Diagnostic detail: Verbose",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Diagnostic detail",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Choose how much diagnostic detail is saved locally.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Group",
+     "name": "Diagnostics",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 7,
+     "type": "CheckBox",
+     "name": "Identifying details: Anonymized",
+     "enabled": true,
+     "state": "On"
+    },
+    {
+     "depth": 7,
+     "type": "CheckBox",
+     "name": "Identifying details: Include locally",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Identifying details",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 6,
+     "type": "Text",
+     "name": "Choose whether new records keep identifiers. Existing logs are unchanged.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "CheckBox",
+     "name": "About local diagnostics",
+     "enabled": true,
+     "state": "Off"
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Open logs folder",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Button",
+     "name": "Clear local diagnostics…",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 5,
+     "type": "Text",
+     "name": "Recording. Dropped: 0. Recent context: 0 events, 0 bytes.",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 2,
+     "type": "Group",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    },
+    {
+     "depth": 3,
+     "type": "ScrollBar",
+     "name": "",
+     "enabled": true,
+     "state": ""
+    }
+   ]
+  }
+ ],
+ "stdout": "AUTOMATED_PROFILE_PRIVATE_OK\r\n",
+ "stderr": "QT_DIAGNOSTIC:warning content=omitted\r\n",
+ "errors": [],
+ "foreground_restored": true,
+ "remaining_bpr_processes": []
+}
