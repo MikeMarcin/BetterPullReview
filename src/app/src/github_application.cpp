@@ -24519,19 +24519,33 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (refresh == nullptr) {
 				return fail("refresh-unavailable");
 			}
+			// The application refreshes once after publishing, and that
+			// refresh holds the action until it answers.
 			if (!refresh->isEnabled()) {
 				return result::pending;
 			}
 			refresh->trigger();
+			// [[BPR-1292]]. The core takes the refresh on the dispatch: the
+			// action is held and the status says so before trigger returns.
+			// A refresh it refused would leave nothing to wait for.
+			if (refresh->isEnabled() || window->github_status_text() != "Refreshing the pull request.") {
+				return fail("refresh-not-taken status=" + window->github_status_text());
+			}
 			probe.Phase = state_type::phase::awaiting_refreshed;
 			return result::pending;
 		}
 		case state_type::phase::awaiting_refreshed: {
 			const auto  thread = model->index_for_id("review-thread:PRRT_composed_1");
 			const auto* card   = cardFor("review-thread:PRRT_composed_1");
+			const auto  ready  = window->github_status_text() == "Pull request ready." && window->github_refresh_action()->isEnabled();
 			note("thread=" + std::to_string(thread.isValid() ? 1 : 0) + " card=" + std::to_string(card != nullptr ? 1 : 0)
-				 + " cards=" + std::to_string(cards->cards().size()));
-			if (card == nullptr) {
+				 + " cards=" + std::to_string(cards->cards().size()) + " ready=" + std::to_string(ready ? 1 : 0));
+			// [[BPR-1292]]. The card is already there from the application's
+			// own refresh, so it says nothing about this one. The course's
+			// refresh has answered when the pull request is ready again and
+			// the action is released; until then its reads are in flight, and
+			// ending the run there cut the fixture's script short.
+			if (!ready || card == nullptr) {
 				return result::pending;
 			}
 			probe.Evidence.PublishedMarked = rootLabel(card) == core::feedback_label::issue && card->Posts.front().Emphasis == qt::feedback_mark_emphasis{ }
