@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1291"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "diff workbench scroll bar range and scroll-past-end",
+  "created": "2026-10-06T02:59:26.066044+00:00",
+  "base": "d85ce58798088eb36636fe8cdd8ac070b69714fc"
+}
