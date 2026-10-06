@@ -4181,6 +4181,34 @@ namespace {
 		std::cout << "BPR-1115 refused launch: process_start, " << createdRefused << " processes created; the allowed launch created "
 				  << createdAccepted << '\n';
 	}
+
+	// [[BPR-1265]]. A Git that finishes before its launcher checks the job is
+	// still a successful run. The seam holds the launcher for a second after the
+	// start, so the fake Git has exited before the check. Assigning the child
+	// to the job after the start, as before, failed exactly then
+	// (`ERROR_ACCESS_DENIED` on an exited process) and the request came back as
+	// `process_start`; with the job named at creation the child was in it all
+	// along. The accounting job shows the launch was created, once.
+	auto run_windows_finished_before_job_check_contract() -> void
+	{
+		temporary_root root{ "git-finished-before-job-check" };
+		const auto     fakeGitPath = make_fake_git_executable(root.Path);
+		auto           adapter     = make_adapter(fakeGitPath, root.Path);
+
+		// `git init` reads no input, so the fake Git exits at once and is gone
+		// well before the delayed check.
+		const created_processes created;
+		const auto              marker = root.Path / "inject-delay-before-job-check";
+		write_text(marker, "check the job after the child has exited");
+		const auto createdBefore = created.total();
+		const auto finished      = adapter->initialize_bare_repository(
+			{ .Repository = repository_path(root.Path, '7'), .Algorithm = application::git_hash_algorithm::sha1 }, { });
+		const auto createdNow = created.total() - createdBefore;
+		require(std::filesystem::remove(marker), "remove the job-check delay marker");
+		require(finished.has_value(), "a Git that finished before the job check succeeds");
+		require(createdNow >= 1U, "the launch was created");
+		std::cout << "BPR-1265 finished before the job check: succeeded, " << createdNow << " processes created" << std::endl;
+	}
 #endif
 }
 
@@ -4227,6 +4255,7 @@ try {
 	run_windows_inherited_handle_contract();
 	// Last: it moves this process into an accounting job it cannot leave.
 	run_windows_refused_launch_contract();
+	run_windows_finished_before_job_check_contract();
 #endif
 	std::cout << "Git process contract passed\n";
 	return 0;

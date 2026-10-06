@@ -59,6 +59,7 @@
 #include <iterator>
 #include <map>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -2241,6 +2242,25 @@ namespace bpr::e2e::large_review {
 			report.Extended.Heap    = heapSampler.finish();
 			report.Extended.Failure = error.what();
 			std::cerr << "large-review-benchmark-failed: " << error.what() << '\n';
+			// [[BPR-1265]]. The status says only that an epoch failed; the
+			// application's own sanitized diagnostic log says which failure.
+			// Close it, then relay its failure records before the root goes.
+			try {
+				application.reset();
+				std::istringstream       records{ bpr::tests::read_diagnostic_logs(dataRoot) };
+				std::vector<std::string> unusual;
+				for (std::string record; std::getline(records, record);) {
+					if (record.find("\"severity\":\"info\"") == std::string::npos || record.find("\"failure\":\"none\"") == std::string::npos) {
+						unusual.push_back(std::move(record));
+					}
+				}
+				const auto first = unusual.size() > 30U ? unusual.size() - 30U : 0U;
+				for (auto index = first; index < unusual.size(); ++index) {
+					std::cerr << "large-review-diagnostic:" << unusual[index] << '\n';
+				}
+			} catch (...) {
+				std::cerr << "large-review-diagnostic: unavailable\n";
+			}
 			if (const auto partial = glz::write_json(report); partial) {
 				std::cerr << "large-review-partial:" << *partial << '\n';
 				// [[BPR-0967]]. A failed course leaves its partial report, not a

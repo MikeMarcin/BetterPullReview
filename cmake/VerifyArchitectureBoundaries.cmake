@@ -3067,12 +3067,16 @@ set(
     "capability_probe[ \t\r\n]*\\("
     # [[BPR-1115]]. Every unguarded Windows Git takes the platform target's
     # launch restriction, whose refusal creates nothing, and a Git that started
-    # without it all the same is refused.
+    # without it all the same is refused. [[BPR-1265]]. The restriction also
+    # names the kill-on-close job, so process creation puts Git in it, and a
+    # Git found outside the job after the start is refused.
     "#[ \t]*include[ \t]*\"bpr/platform/windows_standard_handles\\.hpp\""
     "windows_standard_handles::launch_restriction"
     "(aInheritance|inheritance)\\.apply[ \t\r\n]*\\([ \t\r\n]*aArguments->startupInfo[ \t\r\n]*,[ \t\r\n]*aArguments->flags[ \t\r\n]*,[ \t\r\n]*aArguments->inheritHandles[ \t\r\n]*\\)"
     "restrict_to_standard_handles[ \t\r\n]*\\([ \t\r\n]*\\*process"
-    "!inheritance\\.restricted[ \t\r\n]*\\([ \t]*\\)"
+    "inheritance\\.place_in_job[ \t\r\n]*\\([ \t\r\n]*job\\.native[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*\\)"
+    "!inheritance\\.placed_in_job[ \t\r\n]*\\([ \t]*\\)"
+    "IsProcessInJob[ \t\r\n]*\\("
 )
 foreach(required_git_process_pattern IN LISTS required_git_process_patterns)
     if(
@@ -3089,6 +3093,9 @@ endforeach()
 
 set(
     forbidden_git_process_patterns
+    # [[BPR-1265]]. Assigning a started Git to its job by process id raced a
+    # Git that had already exited; the job is named at creation instead.
+    "AssignProcessToJobObject"
     "QNetwork[A-Za-z0-9_]*"
     "QProcessEnvironment::systemEnvironment"
     "QProcessEnvironment::InheritFromParent"

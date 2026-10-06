@@ -18,6 +18,13 @@
 // A launch whose list cannot be built is refused by process creation itself,
 // so nothing is created: no program runs, not even one with no handles.
 //
+// [[BPR-1265]]. A launcher that keeps its child in a kill-on-close job names
+// the job before the launch, and process creation puts the child in it. Opening
+// the started child by its process id and assigning it afterwards raced the
+// child: a Git command that finished first could no longer be assigned
+// (`ERROR_ACCESS_DENIED`), and ran, however briefly, outside the job. With the
+// job in the list, a child that cannot join it is never created.
+//
 // Header-only and free of Qt. An adapter passes the three fields of its own
 // process-creation arguments; this decides nothing about what runs, with which
 // arguments, environment or directory.
@@ -95,6 +102,27 @@ namespace bpr::platform::windows_standard_handles {
 			aFlags |= refused_creation_flags;
 		}
 
+		/// \brief Names the job the child is created in.
+		///
+		/// \details Called before `apply`. The handle must stay open until the
+		/// process creation `apply` changes has returned. Process creation then
+		/// adds the child to \p aJob as it creates it, or creates nothing. A null
+		/// handle, or a call after `apply`, refuses the launch.
+		void place_in_job(const HANDLE aJob) noexcept
+		{
+			JobRequested = true;
+			if (!Applied && aJob != nullptr && aJob != INVALID_HANDLE_VALUE) {
+				Job[0] = aJob;
+			}
+		}
+
+		/// \brief Whether `apply` restricted a launch and put the child in the
+		/// job `place_in_job` named.
+		[[nodiscard]] auto placed_in_job() const noexcept -> bool
+		{
+			return Restricted && JobRequested && Job[0] != nullptr;
+		}
+
 		/// \brief Whether `apply` restricted a launch.
 		///
 		/// \details False before `apply` runs, and after a refusal. A launcher
@@ -121,8 +149,12 @@ namespace bpr::platform::windows_standard_handles {
 					++count;
 				}
 			}
-			auto size = SIZE_T{ 0U };
-			static_cast<void>(::InitializeProcThreadAttributeList(nullptr, 1U, 0U, &size));
+			if (JobRequested && Job[0] == nullptr) {
+				return false;
+			}
+			const auto attributes = JobRequested ? DWORD{ 2U } : DWORD{ 1U };
+			auto       size       = SIZE_T{ 0U };
+			static_cast<void>(::InitializeProcThreadAttributeList(nullptr, attributes, 0U, &size));
 			if (size == 0U) {
 				return false;
 			}
@@ -132,12 +164,16 @@ namespace bpr::platform::windows_standard_handles {
 				return false;
 			}
 			auto* const list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(AttributeBuffer.data());
-			if (::InitializeProcThreadAttributeList(list, 1U, 0U, &size) == FALSE) {
+			if (::InitializeProcThreadAttributeList(list, attributes, 0U, &size) == FALSE) {
 				return false;
 			}
 			Attributes = list;
 			// The list keeps a pointer to the handles, which live in this object.
 			if (::UpdateProcThreadAttribute(Attributes, 0U, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, static_cast<void*>(Inherited.data()), count * sizeof(HANDLE), nullptr, nullptr) == FALSE) {
+				return false;
+			}
+			// The list keeps a pointer to the job handle too, also in this object.
+			if (JobRequested && ::UpdateProcThreadAttribute(Attributes, 0U, PROC_THREAD_ATTRIBUTE_JOB_LIST, static_cast<void*>(Job.data()), sizeof(HANDLE), nullptr, nullptr) == FALSE) {
 				return false;
 			}
 			Startup                 = STARTUPINFOEXW{ };
@@ -150,9 +186,11 @@ namespace bpr::platform::windows_standard_handles {
 		std::vector<std::byte>       AttributeBuffer;
 		LPPROC_THREAD_ATTRIBUTE_LIST Attributes = nullptr;
 		std::array<HANDLE, 3U>       Inherited{ };
+		std::array<HANDLE, 1U>       Job{ };
 		STARTUPINFOEXW               Startup{ };
-		bool                         Applied    = false;
-		bool                         Restricted = false;
+		bool                         Applied      = false;
+		bool                         Restricted   = false;
+		bool                         JobRequested = false;
 	};
 } // namespace bpr::platform::windows_standard_handles
 #endif // defined(_WIN32)

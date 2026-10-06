@@ -1321,7 +1321,15 @@ namespace bpr::adapters::git {
 #endif
 			}
 
-			[[nodiscard]] auto attach(const qint64 aProcessId) noexcept -> bool
+			/// \brief Creates the kill-on-close job, before the launch.
+			///
+			/// \details [[BPR-1265]]. The launch names this job in its creation
+			/// list (`launch_restriction::place_in_job`), so process creation
+			/// puts the child in it. Assigning the started child by its process
+			/// id instead raced it: a Git command that had already finished
+			/// could no longer be assigned (`ERROR_ACCESS_DENIED`), and the
+			/// request failed as `process_start` although Git had succeeded.
+			[[nodiscard]] auto create() noexcept -> bool
 			{
 #if defined(Q_OS_WIN)
 				Handle = CreateJobObjectW(nullptr, nullptr);
@@ -1330,25 +1338,52 @@ namespace bpr::adapters::git {
 				}
 				JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{ };
 				limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-				if (
-					SetInformationJobObject(
-						Handle,
-						JobObjectExtendedLimitInformation,
-						&limits,
-						sizeof(limits))
-					== 0) {
+				return SetInformationJobObject(
+						   Handle,
+						   JobObjectExtendedLimitInformation,
+						   &limits,
+						   sizeof(limits))
+					!= 0;
+#else
+				return true;
+#endif
+			}
+
+#if defined(Q_OS_WIN)
+			[[nodiscard]] auto native() const noexcept -> HANDLE
+			{
+				return Handle;
+			}
+#endif
+
+			/// \brief Whether the started child is in this job.
+			///
+			/// \details Process creation added it or created nothing, so this
+			/// is a check, not an assignment. Qt still holds the child's handle,
+			/// so its process id names this child even after it has exited. A
+			/// child found outside the job, or one that cannot be checked, is
+			/// terminated and refused; one that has finished inside it is not
+			/// a failure.
+			[[nodiscard]] auto holds(const qint64 aProcessId) noexcept -> bool
+			{
+#if defined(Q_OS_WIN)
+				if (Handle == nullptr) {
 					return false;
 				}
 				const auto process = OpenProcess(
-					PROCESS_SET_QUOTA | PROCESS_TERMINATE,
+					PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
 					FALSE,
 					static_cast<DWORD>(aProcessId));
 				if (process == nullptr) {
 					return false;
 				}
-				const auto assigned = AssignProcessToJobObject(Handle, process) != 0;
+				auto       inside  = FALSE;
+				const auto checked = IsProcessInJob(process, Handle, &inside) != 0;
+				if (!checked || inside == FALSE) {
+					static_cast<void>(TerminateProcess(process, 1U));
+				}
 				static_cast<void>(CloseHandle(process));
-				return assigned;
+				return checked && inside != FALSE;
 #else
 				static_cast<void>(aProcessId);
 				return true;
@@ -2453,6 +2488,12 @@ namespace bpr::adapters::git {
 				}
 #if defined(Q_OS_WIN)
 				if (!aRequest.WorkspaceGuard) {
+					// [[BPR-1265]]. The job exists before the launch, and the
+					// launch names it, so Git is created inside it.
+					if (!job.create()) {
+						return failed_execution(process, job, processGroupId, git_process_failure::process_start, lifetime);
+					}
+					inheritance.place_in_job(job.native());
 					restrict_to_standard_handles(*process, inheritance, aConfiguration.Home.parent_path());
 				}
 #endif
@@ -2571,9 +2612,16 @@ namespace bpr::adapters::git {
 				// restriction all the same, by a Qt that never called the modifier
 				// or a process creation that accepted the refused flags. It must
 				// not run.
-				if (!aRequest.WorkspaceGuard && !inheritance.restricted()) {
+				if (!aRequest.WorkspaceGuard && !inheritance.placed_in_job()) {
 					return failed(git_process_failure::process_start);
 				}
+	#if defined(BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION)
+				// [[BPR-1265]]. The contract's seam for the race: a slow parent
+				// reaches the job check after a quick Git has already exited.
+				if (std::error_code delayError; std::filesystem::exists(aConfiguration.Home.parent_path() / "inject-delay-before-job-check", delayError) && !delayError) {
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 1000 });
+				}
+	#endif
 #endif
 				if (aRequest.WorkspaceGuard) {
 					// The supervisor owns Git's lifetime; attaching it to this
@@ -2596,7 +2644,7 @@ namespace bpr::adapters::git {
 					}
 				} else if (
 					process->state() != QProcess::NotRunning
-					&& !job.attach(process->processId())) {
+					&& !job.holds(process->processId())) {
 					return failed(git_process_failure::process_start);
 				}
 

@@ -2002,7 +2002,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "Inheritance.apply(aArguments->startupInfo, aArguments->flags, "
             "aArguments->inheritHandles)",
             "restrict_to_standard_handles(*process",
-            "!inheritance.restricted()",
+            # [[BPR-1265]]. Git is created inside its job, and refused if
+            # found outside it.
+            "inheritance.place_in_job(job.native())",
+            "!inheritance.placed_in_job()",
+            "IsProcessInJob(",
         ):
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, GIT_PROCESS_RUNNER_SOURCE)
