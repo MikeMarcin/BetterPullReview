@@ -3,6 +3,7 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "painted_glyph_icon.hpp"
 #include <QStringDecoder>
 #include <QTextEdit>
 #include <type_traits>
@@ -34,11 +35,13 @@
 #include <QTextOption>
 #include <QTimeZone>
 #include <QTimer>
+#include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <optional>
@@ -1314,7 +1317,32 @@ namespace bpr::qt {
 		FilesHeading = make_heading(QStringLiteral("Files"), QStringLiteral("overviewFilesHeading"), main);
 		FilesHeading->setAccessibleName(QStringLiteral("Files in the pull request"));
 		mainColumn->addSpacing(8);
-		mainColumn->addWidget(FilesHeading);
+		// [[BPR-1269]]. Collapse all and expand all, as glyphs beside the heading
+		// with their names in tooltips; local to the page, like one folder's.
+		auto* const headingRow = new QHBoxLayout{ };
+		headingRow->setContentsMargins(0, 0, 0, 0);
+		headingRow->setSpacing(2);
+		headingRow->addWidget(FilesHeading);
+		headingRow->addStretch(1);
+		const auto folderButton = [main](const QString& aName, const QString& aObjectName) {
+			auto* const button = new QToolButton{ main };
+			button->setObjectName(aObjectName);
+			button->setAccessibleName(aName);
+			button->setToolTip(aName);
+			button->setAutoRaise(true);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setIconSize(QSize{ 16, 16 });
+			button->hide();
+			return button;
+		};
+		CollapseFolders = folderButton(QStringLiteral("Collapse all folders"), QStringLiteral("overviewCollapseFolders"));
+		ExpandFolders   = folderButton(QStringLiteral("Expand all folders"), QStringLiteral("overviewExpandFolders"));
+		connect(CollapseFolders, &QToolButton::clicked, this, [this] { collapse_all_folders(); });
+		connect(ExpandFolders, &QToolButton::clicked, this, [this] { expand_all_folders(); });
+		headingRow->addWidget(CollapseFolders);
+		headingRow->addWidget(ExpandFolders);
+		mainColumn->addLayout(headingRow);
+		refresh_folder_icons();
 
 		Model = new overview_file_model{ this };
 		Files = new QTreeView{ main };
@@ -1349,6 +1377,9 @@ namespace bpr::qt {
 				[this](const QModelIndex& aModelParent, const int aFirst, const int aLast) {
 					expand_new_folders(*Files, aModelParent, aFirst, aLast);
 				});
+		connect(Model, &QAbstractItemModel::rowsInserted, this, [this] { update_folder_controls(); });
+		connect(Model, &QAbstractItemModel::rowsRemoved, this, [this] { update_folder_controls(); });
+		connect(Model, &QAbstractItemModel::modelReset, this, [this] { update_folder_controls(); });
 		connect(Files, &QTreeView::collapsed, this, [this](const QModelIndex& aFolder) {
 			for (auto parent = Files->currentIndex().parent(); parent.isValid(); parent = parent.parent()) {
 				if (parent == aFolder) {
@@ -1556,6 +1587,7 @@ namespace bpr::qt {
 		const auto& since = aProjection.SinceLastReview;
 		present_files_heading(aProjection);
 		Model->apply(aProjection.Files);
+		update_folder_controls();
 
 		rebuild_participants(aProjection.Participants);
 
@@ -1684,6 +1716,7 @@ namespace bpr::qt {
 		FilesHeading->setText(QStringLiteral("Files"));
 		FilesHeading->setToolTip({ });
 		Model->apply({ });
+		update_folder_controls();
 		rebuild_participants({ });
 		SinceHeading->setText(QStringLiteral("Since my last review"));
 		for (auto* const value : Values) {
@@ -1750,6 +1783,7 @@ namespace bpr::qt {
 								  : QStringLiteral("File catalogue unavailable offline; source unavailable offline"));
 		FilesHeading->setToolTip(QStringLiteral("Historical GitHub change kinds and line counts, reported with the retained base/head. These are not a recomputed comparison of the base tip and head."));
 		Model->apply(cached_file_rows(aOverview.FileCatalogue));
+		update_folder_controls();
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
 			Files->setColumnHidden(column, true);
 		}
@@ -1777,6 +1811,7 @@ namespace bpr::qt {
 		CachedSourceBack->setVisible(aShow);
 		Files->setVisible(!aShow);
 		FilesHeading->setVisible(!aShow);
+		update_folder_controls();
 		CachedThreadsHeading->setVisible(!aShow);
 		CachedThreads->setVisible(!aShow && !CachedThreads->toPlainText().isEmpty());
 		CachedDiscussion->setVisible(!aShow);
@@ -1815,6 +1850,7 @@ namespace bpr::qt {
 		Side->setVisible(!aExpanded);
 		Files->setVisible(!aExpanded);
 		FilesHeading->setVisible(!aExpanded);
+		update_folder_controls();
 		ReturnToFiles->setVisible(aExpanded);
 		ReadDescription->setVisible(false);
 		EmptyBody->setVisible(!aExpanded && Projection.has_value() && Projection->Body.empty());
@@ -1860,8 +1896,72 @@ namespace bpr::qt {
 		Colours.Unread   = aProfile.color(core::appearance_role::state_unread);
 		Colours.Accepted = aProfile.color(core::appearance_role::state_accepted);
 		Colours.Defect   = aProfile.color(core::appearance_role::state_defect);
+		refresh_folder_icons();
 		update();
 		Files->viewport()->update();
+	}
+
+	void pull_request_overview_page::collapse_all_folders()
+	{
+		// One folder at a time, so a hidden current file moves to its folder
+		// exactly as a single collapse moves it.
+		for (auto row = 0; row < Model->rowCount(); ++row) {
+			const auto folder = Model->index(row, 0);
+			if (folder.data(overview_file_model::folder_role).toBool()) {
+				Files->collapse(folder);
+			}
+		}
+	}
+
+	void pull_request_overview_page::expand_all_folders()
+	{
+		for (auto row = 0; row < Model->rowCount(); ++row) {
+			const auto folder = Model->index(row, 0);
+			if (folder.data(overview_file_model::folder_role).toBool()) {
+				Files->expand(folder);
+			}
+		}
+	}
+
+	auto pull_request_overview_page::collapse_folders_button() const noexcept -> QToolButton*
+	{
+		return CollapseFolders;
+	}
+
+	auto pull_request_overview_page::expand_folders_button() const noexcept -> QToolButton*
+	{
+		return ExpandFolders;
+	}
+
+	void pull_request_overview_page::update_folder_controls()
+	{
+		const auto shown = FilesHeading != nullptr && !FilesHeading->isHidden() && Model != nullptr && Model->folder_count() > 0U;
+		CollapseFolders->setVisible(shown);
+		ExpandFolders->setVisible(shown);
+	}
+
+	void pull_request_overview_page::refresh_folder_icons()
+	{
+		// Two chevrons that close upward, or open downward, in the heading's ink.
+		const auto chevrons = [](const bool aDown) {
+			return [aDown](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				auto pen = QPen{ aInk, std::max<qreal>(1.25, aSide / 11.0) };
+				pen.setCapStyle(Qt::RoundCap);
+				pen.setJoinStyle(Qt::RoundJoin);
+				aPainter.setPen(pen);
+				const auto lean = aSide * (aDown ? 0.11 : -0.11);
+				for (const auto middle : { aSide * 0.34, aSide * 0.66 }) {
+					aPainter.drawPolyline(std::array{ QPointF{ aSide * 0.25, middle - lean }, QPointF{ aSide * 0.5, middle + lean },
+													  QPointF{ aSide * 0.75, middle - lean } }
+											  .data(),
+										  3);
+				}
+			};
+		};
+		const auto ink      = palette().color(QPalette::Text);
+		const auto disabled = palette().color(QPalette::Disabled, QPalette::Text);
+		CollapseFolders->setIcon(painted_glyph_icon(chevrons(false), ink, disabled));
+		ExpandFolders->setIcon(painted_glyph_icon(chevrons(true), ink, disabled));
 	}
 
 	auto pull_request_overview_page::colours() const noexcept -> const overview_colours&

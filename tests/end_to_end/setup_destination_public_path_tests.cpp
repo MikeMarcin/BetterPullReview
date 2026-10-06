@@ -427,6 +427,30 @@ namespace {
 		only({ }, "every file is shown again");
 		unchanged();
 		capture(window, QStringLiteral("nested-overview-folders-expanded.png"));
+		// [[BPR-1269]]. Collapse all, one folder's toggle, then expand all.
+		auto* const collapseAll = page->collapse_folders_button();
+		auto* const expandAll   = page->expand_folders_button();
+		expect(collapseAll->isVisible() && expandAll->isVisible() && collapseAll->toolTip() == QStringLiteral("Collapse all folders")
+				   && expandAll->toolTip() == QStringLiteral("Expand all folders"),
+			   "the Overview offers collapse all and expand all beside its heading");
+		collapseAll->click();
+		QApplication::processEvents();
+		for (auto row = 0; row < model->rowCount(); ++row) {
+			expect(!view->isExpanded(model->index(row, 0)), "collapse all closes all twelve folder rows");
+		}
+		only(all, "collapse all hides every file and leaves the folder rows");
+		unchanged();
+		capture(window, QStringLiteral("nested-overview-folders-all-collapsed.png"));
+		click(src);
+		expect(view->isExpanded(src) && visible("src/main.cpp") && !visible("src/engine/renderer.cpp") && !visible("README.md"),
+			   "after collapse all, one folder's click shows only that folder's files");
+		unchanged();
+		expandAll->click();
+		QApplication::processEvents();
+		only({ }, "expand all shows every file again, in its folder");
+		expect(order(shaders) == QStringList{ QStringLiteral("src/engine/shaders/basic.frag"), QStringLiteral("src/engine/shaders/basic.vert") },
+			   "each folder keeps its files in order");
+		unchanged();
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "nested-folders course quiescence");
 	}

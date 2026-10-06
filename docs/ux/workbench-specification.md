@@ -221,6 +221,15 @@ restores the same file identities and order. These gestures never open a
 comparison. If the focused file becomes hidden, focus moves to its folder
 without changing the active source selection.
 
+Beside the Files heading, two glyph buttons fold every folder row at once
+([[BPR-1269]]). Collapse all shows two chevrons closing upward, and expand all
+two chevrons opening downward. Each is named in its tooltip and to
+accessibility, and each takes the keyboard. Each folder keeps its files in
+order, and a per-folder toggle works as before afterwards. Like a single
+folder's, the gestures open no comparison and move a hidden focused file's
+focus to its folder. The buttons are shown only while the list has a folder
+row.
+
 Folder expansion is local to this page. Incremental same-authority refreshes
 retain surviving items, selection and expansion; newly appearing folders start
 expanded. Exact authority invalidation clears that local state. The native tree

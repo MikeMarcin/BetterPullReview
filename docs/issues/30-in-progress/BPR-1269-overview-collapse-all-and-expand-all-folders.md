@@ -56,3 +56,56 @@ expansion state, and no provider, Git, storage or publication effect follows.
   `docs/ux/workbench-specification.md` "Overview files" describes the gestures.
 - AC4: The owner judges the gestures on the nested-folders pull request against
   the exact candidate, as one Accept/Reject question.
+
+## Linux implementation — 2026-10-06 (`bpr-main-linux`)
+
+**Gestures** (`pull_request_overview_page`): two auto-raised glyph buttons sit
+to the right of the Files heading, "Collapse all folders" (two chevrons closing
+upward) and "Expand all folders" (two chevrons opening downward). They follow
+the owner's preference for minimal text, with the names in tooltips and
+accessible names. They take the keyboard (`Qt::StrongFocus`) and are shown
+only while the list has a folder row and its heading is shown. They paint on
+demand through [[BPR-1296]]'s `painted_glyph_icon`, in the palette's text ink,
+refreshed with the appearance.
+
+- Collapse all collapses each folder row in turn, so the existing `collapsed`
+  handler moves a hidden current file to its folder, as a single collapse does.
+- Expand all expands each folder row.
+- Both stay on the page, like per-folder disclosure: they make no dispatch and
+  no provider, Git, storage or publication effect.
+- Same-authority refreshes keep the result, because the model reconciles rows,
+  and a new folder arrives expanded. Authority replacement clears it.
+- `docs/ux/workbench-specification.md` "Overview files" describes the
+  gestures.
+
+**Tests:**
+
+- `test_collapse_all_and_expand_all_folders` in `qt_pull_request_overview_page`
+  covers the buttons' names, tooltips, focus and glyph, and collapse all with
+  each folder's files and order kept. It checks that a hidden current file
+  leaves its folder current with no dispatch, that a refresh keeps the
+  collapse while a new folder starts expanded, and that a per-folder Right
+  works afterwards. It also checks expand all, the buttons gone without
+  folders, and a replaced authority starting expanded.
+- The composed `application_nested_overview_folders_public_path` covers the
+  nested-folders pull request:
+  - collapse all closes all 12 folder rows and hides all 17 files;
+  - a click on `src` then shows only `src/main.cpp`;
+  - expand all shows every file again, in order;
+  - none of this opens a file or leaves Overview.
+
+  It saves `nested-overview-folders-all-collapsed.png`.
+
+**Control:** with `collapse_all_folders` doing nothing, both fail: "collapse
+all closes every folder and keeps its files in order" and "collapse all closes
+all twelve folder rows".
+
+**Evidence** (`build/dev`, GCC 15.2, offscreen): every `qt_` row, the Overview
+and nested-folders courses, setup destination, the round-trip composition
+contract and `architecture_boundaries` pass 133/133. `coding-format-check` and
+`DOCUMENTATION_OK` pass.
+
+**Open:** AC4, the owner's Accept or Reject on the nested-folders pull
+request against the exact candidate, run from the Mac. Suggested question:
+*"Beside Files, two chevron buttons collapse and expand every folder at once
+(names in their tooltips). Accept?"*

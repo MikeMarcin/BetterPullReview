@@ -20,6 +20,7 @@
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
 #include <QTextDocument>
+#include <QToolButton>
 #include <QTreeView>
 #include <QWheelEvent>
 
@@ -278,6 +279,87 @@ namespace {
 		QApplication::sendEvent(aView.viewport(), &press);
 		QApplication::sendEvent(aView.viewport(), &release);
 		settle();
+	}
+
+	/// \brief [[BPR-1269]]. Collapse all and expand all fold every folder row
+	/// at once, keep each folder's files and their order, open nothing, and
+	/// survive a refresh; a per-folder toggle still works afterwards.
+	void test_collapse_all_and_expand_all_folders()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1100, 700);
+		auto projected = projection();
+		projected.Files.push_back(row("README.md", application::overview_file_operation::modified,
+									  application::overview_change_since_review::unchanged, std::nullopt));
+		page.present(projected);
+		page.show();
+		settle();
+		auto* const view       = page.files_view();
+		auto* const model      = page.file_model();
+		auto* const collapse   = page.collapse_folders_button();
+		auto* const expand     = page.expand_folders_button();
+		auto        dispatches = 0;
+		page.set_file_dispatch([&](const QString&) { ++dispatches; });
+		expect(collapse != nullptr && expand != nullptr && collapse->isVisible() && expand->isVisible()
+				   && collapse->accessibleName() == QStringLiteral("Collapse all folders") && expand->accessibleName() == QStringLiteral("Expand all folders")
+				   && collapse->toolTip() == collapse->accessibleName() && expand->toolTip() == expand->accessibleName()
+				   && collapse->focusPolicy() == Qt::StrongFocus && expand->focusPolicy() == Qt::StrongFocus && !collapse->icon().isNull(),
+			   "two named glyph buttons beside the heading take the keyboard");
+		const auto folders = [model] {
+			auto result = std::vector<QPersistentModelIndex>{ };
+			for (auto folder = 0; folder < model->rowCount(); ++folder) {
+				result.emplace_back(model->index(folder, 0));
+			}
+			return result;
+		};
+		const auto children = [model](const QModelIndex& aFolder) {
+			auto paths = QStringList{ };
+			for (auto child = 0; child < model->rowCount(aFolder); ++child) {
+				paths.push_back(model->index(child, qt::overview_file_model::file_column, aFolder).data(qt::overview_file_model::path_role).toString());
+			}
+			return paths;
+		};
+		auto before = std::vector<QStringList>{ };
+		for (const auto& folder : folders()) {
+			before.push_back(children(folder));
+		}
+		const auto file = QPersistentModelIndex{ model->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp")) };
+		view->setCurrentIndex(file);
+		collapse->click();
+		settle();
+		auto index = std::size_t{ 0U };
+		for (const auto& folder : folders()) {
+			expect(!view->isExpanded(folder) && children(folder) == before[index++], "collapse all closes every folder and keeps its files in order");
+		}
+		expect(view->visualRect(file).isEmpty() && view->currentIndex().siblingAtColumn(0) == QModelIndex{ file.parent() } && dispatches == 0,
+			   "the hidden current file leaves its folder current, and nothing opens");
+		projected.Files.front().Read = core::file_read_state::read;
+		projected.Files.push_back(row("Docs/start.md", application::overview_file_operation::added, application::overview_change_since_review::added, std::nullopt));
+		page.present(projected);
+		settle();
+		const auto docs = QPersistentModelIndex{ model->index_for_path(QStringLiteral("Docs/start.md")).parent() };
+		for (const auto& folder : folders()) {
+			expect(folder == docs ? view->isExpanded(folder) : !view->isExpanded(folder),
+				   "a refresh keeps what collapse all closed, and a new folder starts expanded");
+		}
+		view->setFocus();
+		view->setCurrentIndex(file.parent());
+		key(*view, Qt::Key_Right);
+		expect(view->isExpanded(file.parent()) && !view->visualRect(file).isEmpty(), "a single folder still opens afterwards");
+		expand->click();
+		settle();
+		for (const auto& folder : folders()) {
+			expect(view->isExpanded(folder), "expand all opens every folder");
+		}
+		expect(dispatches == 0, "no folder gesture opens a file");
+		page.clear();
+		settle();
+		expect(!collapse->isVisible() && !expand->isVisible(), "without folders the buttons are gone");
+		page.present(projection());
+		settle();
+		for (const auto& folder : folders()) {
+			expect(view->isExpanded(folder), "a replaced authority starts every folder expanded");
+		}
 	}
 
 	/// \brief [[BPR-1213]]. The owner's flat folders: a folder row only where
@@ -877,6 +959,7 @@ auto main(int argc, char** argv) -> int
 	test_column_sizing_measures_visible_files();
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_folder_controls_preserve_identity_and_refresh_state();
+	test_collapse_all_and_expand_all_folders();
 	test_compact_descriptions();
 	test_retained_description_reader();
 	test_body_edits_clamp_retained_selection();

@@ -27,6 +27,7 @@ class QLabel;
 class QPaintEvent;
 class QPlainTextEdit;
 class QPushButton;
+class QToolButton;
 class QTreeView;
 class QVBoxLayout;
 
@@ -244,6 +245,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
 		[[nodiscard]] auto files_heading() const noexcept -> QLabel*;
 		[[nodiscard]] auto files_view() const noexcept -> QTreeView*;
+		/// \brief [[BPR-1269]]. Collapses every folder row; files keep their order
+		/// and nothing opens. A hidden current file leaves the current row on its
+		/// folder, as a single collapse does.
+		void collapse_all_folders();
+		/// \brief [[BPR-1269]]. Expands every folder row.
+		void               expand_all_folders();
+		[[nodiscard]] auto collapse_folders_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto expand_folders_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto file_model() const noexcept -> overview_file_model*;
 		[[nodiscard]] auto participant_rows() const -> std::vector<overview_participant_row*>;
 		[[nodiscard]] auto since_heading() const noexcept -> QLabel*;
@@ -257,6 +266,10 @@ namespace bpr::qt {
 		void show_cached_source(bool aShow);
 		void set_value(overview_value aValue, const QString& aText, bool aHighlight);
 		void present_files_heading(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-1269]]. Shows the folder buttons beside a shown heading
+		/// while there is a folder, and repaints their glyphs in the palette.
+		void update_folder_controls();
+		void refresh_folder_icons();
 		void present_entry(const application::pull_request_overview_projection& aProjection);
 		void rebuild_participants(const std::vector<application::overview_participant>& aParticipants);
 
@@ -283,6 +296,8 @@ namespace bpr::qt {
 		QPlainTextEdit*                                              CachedDiscussion     = nullptr;
 		QLabel*                                                      FilesHeading         = nullptr;
 		QTreeView*                                                   Files                = nullptr;
+		QToolButton*                                                 CollapseFolders      = nullptr;
+		QToolButton*                                                 ExpandFolders        = nullptr;
 		overview_file_model*                                         Model                = nullptr;
 		QVBoxLayout*                                                 Participants         = nullptr;
 		QLabel*                                                      SinceHeading         = nullptr;
