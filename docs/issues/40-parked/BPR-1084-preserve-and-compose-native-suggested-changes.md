@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0048", "RFC-BPR-0050"]
 depends_on: ["BPR-1082", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-10","milestone":"authoring","acceptance":["R12","R13","R32"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"R12","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"core_feedback_suggestion_preservation: 25 header edits x 9 fence bodies (multiline, deletion, range, CRLF/tab, Unicode, two fences) x 6 headers through header edit, composition edit, draft plan and tour-stop plan (6,750 runs) plus the pack header-edit cases keep every byte after the header and every anchor; control (CR stripped after the header) fails. application_label_authoring_contract: issue-with-patch reaches the fixture with the exact body, path, side and line. Limitation, recorded on the card for its own card: the desktop QPlainTextEdit draft and reply editors read a CRLF body back as LF, so a CRLF body written elsewhere loses CRs on its first desktop edit; the core keeps CRLF."}},{"criterion":"R13","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"decide_suggestion_applicability (core, pure): no_patch / native / textual_only with reason, from classify_review_body and plan_review_publication, never relocating; core_suggestion_applicability covers all 18 placement x capability x currency cases and the pack's issue-with-suggestion, suggestion-without-patch and unsupported-native-patch cases; the composed course shows suggestion-without-patch publishing prose only and an unsupported line refused incompatible_body with no file post, text kept and then marked text only. Controls fail."}},{"criterion":"R32","outcome":"pending","revision":"cc094c1d4","evidence":{"kind":"observation","detail":"The suggested-change mark (16 px glyph, tooltip, accessible name) in the comment draft editor and BPR-1290's in-place reply editor keeps the suggestion's meaning; qt_review_draft_editor and qt_conversation_cards_view pass with controls. Awaits the owner's look on macOS (UI-visible; frontend-design not installed on bpr-main-linux)."}}]
+acceptance: [{"criterion":"R12","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"core_feedback_suggestion_preservation: 25 header edits x 9 fence bodies (multiline, deletion, range, CRLF/tab, Unicode, two fences) x 6 headers through header edit, composition edit, draft plan and tour-stop plan (6,750 runs) plus the pack header-edit cases keep every byte after the header and every anchor; control (CR stripped after the header) fails. application_label_authoring_contract: issue-with-patch reaches the fixture with the exact body, path, side and line. Limitation, recorded on the card for its own card: the desktop QPlainTextEdit draft and reply editors read a CRLF body back as LF, so a CRLF body written elsewhere loses CRs on its first desktop edit; the core keeps CRLF."}},{"criterion":"R13","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"decide_suggestion_applicability (core, pure): no_patch / native / textual_only with reason, from classify_review_body and plan_review_publication, never relocating; core_suggestion_applicability covers all 18 placement x capability x currency cases and the pack's issue-with-suggestion, suggestion-without-patch and unsupported-native-patch cases; the composed course shows suggestion-without-patch publishing prose only and an unsupported line refused incompatible_body with no file post, text kept and then marked text only. Controls fail."}},{"criterion":"R32","outcome":"pending","revision":"b62420807","evidence":{"kind":"observation","detail":"The suggested-change mark is a 16 px ring around a plus over a minus, solid for native and dashed for text only (macOS look pass with frontend-design, b62420807); qt_review_draft_editor checks the ring at 1x and 2x with a control. Awaits the owner's look: attended question BPR-1084-suggestion-mark-v001, session ed68b8f1."}}]
 ---
 
 # BPR-1084: Preserve and compose native suggested changes
@@ -211,3 +211,68 @@ MSVC 14.51, Qt 6.11.2, `windows-dev` Debug, whole tree with no `warning C` or
 
 There was no MSVC issue to fix, and no row was refused inside the sandbox,
 so no pin was needed.
+
+## macOS look pass and owner look v001, 2026-10-06 (bpr-main-mac)
+
+Engineering owner `rfc-implementer` (`claude-opus-5-5`, effort high) on the
+Mac, in worktree `/Users/jaeger/bpr-wt-look` off `origin/main` with the shared
+CPM cache, `frontend-design` loaded.
+
+- **macOS rows** at `cd9b87e19`, before any change: the 17 focused rows of
+  both cards pass (`core_feedback_suggestion_preservation`,
+  `core_suggestion_applicability`, `core_review_preflight`,
+  `application_review_submission_{contract,application_host}`,
+  `qt_conversation_cards_view`, `qt_review_draft_editor`,
+  `qt_review_submission_editor_scale_{100,125,200}`,
+  `application_review_round_trip_composition_contract`,
+  `application_label_authoring_contract`,
+  `application_review_submission_composition_{public_path,scale_125,scale_200}`,
+  `architecture_boundaries`, `architecture_boundary_contract`). No macOS-only
+  failure.
+- **Look** (`8b6a8e2ba`). Reviewed in
+  Light, Dark and both high-contrast themes at 1x and 2x. The first build drew
+  a rounded box, which is the label marks' shape (BPR-1083: labels square,
+  states round), and the text-only strike read as a "%" at 1x. The mark is now
+  a ring in the marks' 1.5 px border around a plus over a minus, solid for
+  native, broken into the accepted 2.5/1.5 dashes for text only, both in the
+  text ink (text only no longer drops to the placeholder grey). The bars sit
+  on pixel centres, crisp at 1x with a clear pixel between them.
+  `paint_suggestion_mark` draws it for the widget and for tests.
+- **Check.** `qt_review_draft_editor` asserts at 1x and 2x that the mark is
+  round, the native ring unbroken and the text-only ring dashed, and the glyph
+  the same in both with nothing struck across it. Control: a rounded-rect
+  frame fails "the mark is round".
+- **Integration.** After rebasing onto `origin/main` (`06a3c530b`, which
+  brought the CRLF editor fix), 40 rows pass, including the 17 above and every
+  appearance, colour, theme, label-mark and attended row; format check and
+  clang-tidy on the changed units clean; `DOCUMENTATION_OK`.
+
+### Owner look, session v001
+
+Pending: R32's owner look, not self-certified. One question, Accept or
+Reject: `BPR-1084-suggestion-mark-v001` (revision `frozen-d9c5c2573-v001`,
+fingerprint `1d3609783bfa…`), "The suggested-change mark reads right at 1x in
+every theme: a plus over a minus in a solid ring when GitHub takes the change
+as its own suggestion, the same ring dashed when it is text only, with its
+words only in the tooltip." It carries a 1x sheet of all four themes beside
+BPR-1083's issue marks.
+
+- Session `ed68b8f1a60b465843afab5fc71393b0` (new and short, per AGENTS.md),
+  state `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1084-1085-look-v001`,
+  repo root the main checkout; host started detached (`nohup`), URL
+  `http://127.0.0.1:55376/` (token in the host's `serve.log` in the state
+  directory), ready at event cursor 8.
+- Frozen root `/Users/jaeger/bpr1084-1085-look-review-v001.Jerfb4`: the
+  `git archive` of `d9c5c2573` (pre-rebase; its `src/` and `tests/` are
+  identical to the published `b62420807`) built there with the dev settings (Debug, tests
+  on), source read-only; executable SHA-256 `cc9922e72e13…`. Offscreen on it,
+  `--attended-preflight-look native`, `text-only` and `review` each printed
+  their `ATTENDED_LOOK_SHOWN` line (native ring; dashed ring after the
+  fixture's 422; chip "Yours on GitHub: 2 open blocking / Yours, not sent: 1
+  blocking / Others: 1 open blocking (not yours)").
+- Launch: `python3 /Users/jaeger/bpr1084-1085-look-review-v001.Jerfb4/launch.py`
+  (native), `--text-only`, `--review`. It checks the build and fixture tree
+  first and reports an early exit within seconds.
+
+Next: read the decision. Accept satisfies R32 and the card finishes once its
+other criteria stand; Reject comes back with the change in its note for a v002.

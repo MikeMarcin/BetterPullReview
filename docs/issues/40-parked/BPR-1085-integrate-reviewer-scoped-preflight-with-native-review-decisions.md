@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0048"]
 depends_on: ["BPR-1082", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-11","milestone":"authoring","acceptance":["R14","R15","R42"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"R14","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"Comment, Approve and Request changes keep their exact native event paths (three exclusive buttons per the owner's preflight B, BPR-1079): the composed review-submission course submits approve exactly once with my blocker open and request_changes exactly once after reading the list; request, idempotency key, grant, journal, host and provider unchanged; mutation-branch pin unchanged. 19/19 focused rows re-verified on bpr-main-linux."}},{"criterion":"R15","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"prepare_review_decision / review_decision_changes bind draft, account, target, head, summary, disposition and selected drafts; a change to any invalidates the prepared action (refused before and after the existing write confirmation, naming what changed), while resolutions, other people's labels and unselected drafts do not; core_review_preflight and the composed stale-selection/summary cases pass, with failing-before controls (15 mutations recorded in the ledger)."}},{"criterion":"R42","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"project_review_preflight is reviewer-scoped: other reviewers' blockers appear only under Others, an unknown author is uncertainty never mine, and the projection carries no disposition; the composed course shows a label edit, a relabel to blocking and the last resolution submit nothing and leave the chosen Approve in place."}},{"criterion":"owner-look","outcome":"pending","revision":"91a82602e","evidence":{"kind":"observation","detail":"The 'Your blocking feedback' chip, its tooltip groups and the Approve amber dot in the submission view await the owner's look on macOS; frontend-design is not installed on bpr-main-linux and the R33 native look matrix is not run."}}]
+acceptance: [{"criterion":"R14","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"Comment, Approve and Request changes keep their exact native event paths (three exclusive buttons per the owner's preflight B, BPR-1079): the composed review-submission course submits approve exactly once with my blocker open and request_changes exactly once after reading the list; request, idempotency key, grant, journal, host and provider unchanged; mutation-branch pin unchanged. 19/19 focused rows re-verified on bpr-main-linux."}},{"criterion":"R15","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"prepare_review_decision / review_decision_changes bind draft, account, target, head, summary, disposition and selected drafts; a change to any invalidates the prepared action (refused before and after the existing write confirmation, naming what changed), while resolutions, other people's labels and unselected drafts do not; core_review_preflight and the composed stale-selection/summary cases pass, with failing-before controls (15 mutations recorded in the ledger)."}},{"criterion":"R42","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"project_review_preflight is reviewer-scoped: other reviewers' blockers appear only under Others, an unknown author is uncertainty never mine, and the projection carries no disposition; the composed course shows a label edit, a relabel to blocking and the last resolution submit nothing and leave the chosen Approve in place."}},{"criterion":"owner-look","outcome":"pending","revision":"b62420807","evidence":{"kind":"observation","detail":"Reviewed on macOS with frontend-design in all four themes (b62420807): Approve's dot is the new state_attention role with per-theme built-ins, and the chip's draft and ? icons use the marks' geometry. Awaits the owner's look: attended question BPR-1085-preflight-v001, session ed68b8f1. R33's native matrix is not run."}}]
 ---
 
 # BPR-1085: Integrate reviewer-scoped preflight with native review decisions
@@ -91,3 +91,82 @@ MSVC 14.51, Qt 6.11.2, `windows-dev` Debug, whole tree with no `warning C` or
 
 There was no MSVC issue to fix, and no row was refused inside the sandbox,
 so no pin was needed.
+
+## macOS look pass and owner look v001, 2026-10-06 (bpr-main-mac)
+
+Engineering owner `rfc-implementer` (`claude-opus-5-5`, effort high) on the
+Mac, in worktree `/Users/jaeger/bpr-wt-look` off `origin/main` with the shared
+CPM cache, `frontend-design` loaded. The macOS run of this card's focused
+rows at `cd9b87e19` is recorded on [[BPR-1084]]: all pass, none macOS-only.
+
+- **Attention role** (owner, 2026-10-06: "a proper palette role (e.g.
+  attention) with per-theme defaults on Appearance › Colours, rather than
+  fixed hex, per RFC-BPR-0034"). `core::appearance_role::state_attention`
+  joins the vocabulary after the label tints (60 roles), so no stored ordinal
+  moves; a palette or theme document without it reads the built-in value.
+  Built-ins `#AD7A00` Light, `#D29922` Dark, `#8A5300` High contrast light,
+  `#FFBC66` High contrast dark, each at least 3:1 on its surface and code
+  background (`#BF8700` was 2.93:1 on Light). Appearance › Colours lists it as
+  "State attention" under State stale (58 offered); the list is now ordered by
+  group and then the core's order. RFC-BPR-0034 records the direction and
+  C5's count. The composition passes the theme's value through
+  `workbench_window::set_attention_colour` to
+  `review_submission_editor::set_attention_colour`; the fixed hex is gone.
+- **Chip icons.** The draft icon uses the marks' 16 px square, 1.5 px border
+  and accepted dashes with a pencil; the "?" uses the marks' ring.
+- **Attended look** (tests-on): `--attended-preflight-look
+  native|text-only|review` on `conventional-comments-v1` stages two of the
+  fixture's thread roots as the fixture account's blocking feedback, writes a
+  blocking comment with a suggested change through the window's own Comment
+  action (text-only: one Publish the fixture refuses with its synthetic 422),
+  and for `review` opens Compose review. Nothing reaches GitHub.
+  `application_attended_launch_contract` refuses the look without its file,
+  on another fixture or with an unknown name.
+- **Pins.** Round-trip full-application and production-manifest pins
+  resealed for the composition's one `set_attention_colour` call, the tests-on
+  accessor and `main.cpp`'s tests-on look; mutation branch unchanged.
+- **Checks with controls.** `qt_appearance_profile` (old `#BF8700` fails
+  3:1), `qt_review_submission_editor_scale_100` (a fixed hex fails "a theme's
+  own attention amber repaints the dot"), `qt_colour_role_list` (index order
+  fails "the attention amber's row sits directly under State stale"); counts
+  updated in `core_theme_exchange`, `qt_appearance_role_display`,
+  `qt_colour_role_list`, `qt_appearance_settings_panel`; the theme fixture
+  gains `state_attention`. Product commit `b62420807`.
+- **Integration** after rebasing onto `origin/main`: 40 rows pass; format
+  check and clang-tidy clean; `DOCUMENTATION_OK`. Linux and Windows have not
+  run these changes.
+- **Not changed, for the coordinator:** BPR-0648/BPR-1290's open-thread amber
+  is still a fixed `#D29922` passed by the composition
+  (`conversations->cards()->set_colours(..., QColor{ 0xD2, 0x99, 0x22 })`).
+  It could take `state_attention` too, which would change Light's thread
+  amber to `#AD7A00`; that is an accepted surface, so it was left alone.
+
+### Owner look, session v001
+
+Pending: owner-look, not self-certified. One question, Accept or Reject:
+`BPR-1085-preflight-v001` (revision `frozen-d9c5c2573-v001`, fingerprint
+`6a263ac89772…`), "The review submission preflight reads right in every
+theme: three decision buttons, the "Your blocking feedback" chip (filled
+issue mark with my open count, dashed draft mark with my unsent count, ? for
+uncertain) and Approve's amber dot, now the State attention colour on
+Appearance > Colours." It carries a 2x sheet of all four themes.
+
+- Session `ed68b8f1a60b465843afab5fc71393b0` (new and short, per AGENTS.md),
+  state `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1084-1085-look-v001`,
+  repo root the main checkout; host started detached (`nohup`), URL
+  `http://127.0.0.1:55376/` (token in the host's `serve.log` in the state
+  directory), ready at event cursor 8.
+- Frozen root `/Users/jaeger/bpr1084-1085-look-review-v001.Jerfb4`: the
+  `git archive` of `d9c5c2573` (pre-rebase; its `src/` and `tests/` are
+  identical to the published `b62420807`) built there with the dev settings (Debug, tests
+  on), source read-only; executable SHA-256 `cc9922e72e13…`. Offscreen on it,
+  `--attended-preflight-look native`, `text-only` and `review` each printed
+  their `ATTENDED_LOOK_SHOWN` line (native ring; dashed ring after the
+  fixture's 422; chip "Yours on GitHub: 2 open blocking / Yours, not sent: 1
+  blocking / Others: 1 open blocking (not yours)").
+- Launch: `python3 /Users/jaeger/bpr1084-1085-look-review-v001.Jerfb4/launch.py`
+  (native), `--text-only`, `--review`. It checks the build and fixture tree
+  first and reports an early exit within seconds.
+
+Next: read the decision. Accept satisfies owner-look and the card can finish;
+Reject comes back with the change in its note for a v002.
