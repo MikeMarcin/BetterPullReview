@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1264"
 title: "Large-review phases at or over the 100 ms input target (Windows, Linux, and one on macOS)"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"found_by":"BPR-0967 station runs, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1264--BPR-1265--e0e97a5e10af.json","related_cards":["BPR-0967","BPR-1043","BPR-1259"]}
+acceptance: [{"criterion":"BPR-1264:direct","outcome":"pass","revision":"fcd0aebea","evidence":{"kind":"command","detail":"Every platform's PlatformKnownInputMisses list is empty and all 18 large-review rows pass with every phase gated in optimized station runs. Linux ac0d9d1d4 (23-37 ms on the former misses; largest gated 51.1 ms, 56.2 ms at 1b47f1bac). macOS 71d9add2b (10-19 ms; three runs 18/18). Windows fcd0aebea (three serial runs 18/18, largest gated 53.2-56.2 ms; control with the bounded fill reversed fails 5 of 18). Cause: diff_workbench::publish replaced both panes in one turn; fixed by the bounded staged fill. shutdown, files_drawer_open, active_window_close and paged_review_and_git_load no longer reproduce on Windows and are gated."}}]
 ---
 
 # BPR-1264: Windows and Linux large-review phases at or over the 100 ms input target
