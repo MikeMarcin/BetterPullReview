@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0058"
 title: "Headless Cycle CLI and Portable Consumer Skill"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review Cycles"
 depends_on: ["RFC-BPR-0053", "RFC-BPR-0056", "RFC-BPR-0057"]
@@ -54,7 +54,7 @@ The front matter's `depends_on` keeps RFC-BPR-0053, 0056 and 0057, and
 what is used from them. This amendment changes no RC58 criterion and closes
 none of RFC-BPR-0044, 0045 or 0046: they stay open on BPR-1071. The question
 and its answer are recorded on
-[BPR-1191](../issues/30-in-progress/BPR-1191-close-rfc-0058.md) and in the
+[BPR-1191](../issues/60-done/BPR-1191-close-rfc-0058.md) and in the
 [execution ledger](../verification/RFC-BPR-0053-0061.md).
 
 ## Normative contracts
