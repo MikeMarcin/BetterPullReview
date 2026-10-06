@@ -293,3 +293,20 @@ At 2e89f8cfc on macOS arm64 Debug, clean worktree: 6/6 of
 sqlite_review_ledger_storage, sqlite_private_review_storage,
 application_review_submission_composition_public_path, the round-trip
 composition contract, qt_private_notes_panel and architecture_boundaries.
+
+**Note: Windows run at `d8e8f70f6`** (holds `2e89f8cfc`, note paths and ledger
+v8; station `bpr-main-win`, MSVC 14.51, Qt 6.11.2, `windows-dev` Debug,
+whole tree with no `warning C` line; no remote mutation). 7 of 7 pass with
+`-j4`:
+
+- `sqlite_review_ledger_storage` (19.1 s) and `sqlite_private_review_storage`
+  (35.0 s);
+- `qt_private_notes_panel`;
+- `application_review_submission_composition_public_path` (36.4 s);
+- `application_review_round_trip_composition_contract` and
+  `architecture_boundaries`;
+- `test_network_isolation_manifest`, added to the selection so that any
+  unpinned row would show.
+
+No row measured as refused inside the sandbox, so no pin was needed. The
+registered rows keep their existing pins.
