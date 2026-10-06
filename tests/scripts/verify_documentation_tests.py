@@ -42,6 +42,7 @@ from scripts.verify_documentation import (  # noqa: E402
     verify_issue_board,
     verify_operator_packet_records,
     verify_pending_packet_manifests,
+    verify_no_conflict_markers,
     verify_rfc_index,
     verify_terminal_closeout_cards,
 )
@@ -84,6 +85,26 @@ class HistoricalReviewCardLinkTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assertTrue(relocated_review_card_link(self.root, pinned, self.old))
+
+
+class ConflictMarkerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.card = self.root / "docs/issues/60-done/BPR-0001-fixture.md"
+        self.card.parent.mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def test_a_setext_underline_is_not_a_marker(self) -> None:
+        self.card.write_text("Title\n=======\n", encoding="utf-8")
+        verify_no_conflict_markers(self.root)
+
+    def test_a_diff3_base_line_is_refused(self) -> None:
+        self.card.write_text("text\n||||||| parent of abc\nmore\n", encoding="utf-8")
+        with self.assertRaises(SystemExit):
+            verify_no_conflict_markers(self.root)
 
 
 class RfcIndexTests(unittest.TestCase):

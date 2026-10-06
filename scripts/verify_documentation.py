@@ -536,6 +536,26 @@ def relocated_review_card_link(root: Path, source: Path, target: Path) -> bool:
     return len(matches) == 1
 
 
+CONFLICT_MARKER_RE = re.compile(r"^(<{7}|\|{7}|>{7})(?: |$)", re.MULTILINE)
+
+
+def verify_no_conflict_markers(root: Path) -> None:
+    """A merge must not leave its markers in a document.
+
+    `=======` alone is a valid setext underline, so only the opening, base and
+    closing markers are refused. Two card merges left a diff3 base line that
+    nothing caught (BPR-1290 and BPR-1265, removed in a7d9b1da3).
+    """
+    for path in markdown_files(root):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        match = CONFLICT_MARKER_RE.search(text)
+        if match:
+            line = text.count("\n", 0, match.start()) + 1
+            fail(f"{path}:{line} holds a merge conflict marker")
+
+
 def verify_links(root: Path) -> None:
     for path in markdown_files(root):
         text = path.read_text(encoding="utf-8")
@@ -598,6 +618,7 @@ def main() -> int:
     verify_operator_packet_records(root)
     verify_pending_packet_manifests(root)
     verify_links(root)
+    verify_no_conflict_markers(root)
     verify_github_actions_not_selected(root)
 
     print("DOCUMENTATION_OK")
