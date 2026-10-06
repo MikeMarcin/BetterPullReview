@@ -19,19 +19,24 @@ namespace bpr::app {
 	[[nodiscard]] auto issue_local_assist(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, const tour_local_snapshot& aLoaded, const tour_assist_query& aQuery, std::vector<application::writing_source> aExtra, const tour_store_lane& aLane) -> tour_cli_result<tour_local_snapshot>;
 	/// \brief Retires every pending ticket and proposal for the draft.
 	[[nodiscard]] auto cancel_local_assist(const std::filesystem::path& aRoot, core::bpr_profile_id aProfile, const tour_local_snapshot& aLoaded, const tour_store_lane& aLane) -> tour_cli_result<tour_local_snapshot>;
+	/// \brief [[BPR-1227]]. Reads one pinned destination for an exact stored draft. The desktop answers a
+	/// source request from the window that holds the draft's pull request and never reaches this.
+	using tour_owner_source = std::function<tour_cli_result<tour_source_material>(const tour_local_snapshot&, const core::tour_code_destination&)>;
 	/// \brief Serves finite local tour commands for the profile owner from its own store.
 	/// Every request is one bounded transaction on the caller's store lane. Only tour commands are
 	/// admitted; the peer cannot select a process, URL, SQL statement or provider operation.
 	class tour_owner_service final
 	{
 	public:
-		tour_owner_service(std::filesystem::path aRoot, core::bpr_profile_id aProfile);
+		/// \param aSource How a `source` request is read; without one, it needs an open pull request.
+		tour_owner_service(std::filesystem::path aRoot, core::bpr_profile_id aProfile, tour_owner_source aSource = { });
 		/// \brief Returns the encoded response. Malformed input yields a refusal, never a mutation.
 		[[nodiscard]] auto serve(std::span<const std::uint8_t> aPayload) const -> application::tour_channel_bytes;
 
 	private:
 		std::filesystem::path Root;
 		core::bpr_profile_id  Profile;
+		tour_owner_source     Source;
 	};
 }
 #endif

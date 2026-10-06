@@ -824,6 +824,20 @@ endfunction()
 # behaviour in the Qt adapter, outside these pins. No grant, target,
 # provider, credential, mutation or publication path changes; mutation pin
 # unchanged; no new src/app source. Reviewed on BPR-1088.
+# BPR-1227 reseal (2026-10-06): over the BPR-1088 reseal above; no
+# intervening pinned-scope commit. The tour owner channel (protocol v6)
+# gains a `source` read. github_application.cpp: the profile route sends it
+# to the window whose current tour is that draft, which reads one pinned
+# range through its own epoch host and Git cache on its diff lane and
+# answers there; a closing window stops its reads and waits for none. Other
+# drafts go to tour_owner_service, which refuses them provider-free.
+# tour_runtime.cpp, tour_cli.cpp: the CLI forwards source reads instead of
+# refusing them, keeps assist source evidence standalone-only, and names
+# protocol v6. The read uses the session's already-accepted authority and
+# grants nothing the same user's standalone CLI could not read itself; it
+# records nothing and writes nothing. No target, credential, mutation or
+# publication path changes; mutation pin unchanged; no new src/app source.
+# Reviewed on BPR-1227.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -842,7 +856,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4866dcd6e8bf19ebaa40badbfb654131278f9c8a641db830e3edddfca15d14e6"
+		"646294960a57a8d0fa33383a78802f4752dfdb54a0f3c1c178dc2fee62ce5440"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1040,7 +1054,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "597a1ac0440ca1e3e5be755d067632ebdc3e0ab97bb5ae929361969ab9ce1429"
+        "dbc1598e1e01b91d7a33c9d284f103155d7cda0cbf60d11923f1ec2f853abce5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

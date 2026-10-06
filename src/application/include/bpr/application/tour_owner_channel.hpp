@@ -1,6 +1,7 @@
 #ifndef BPR_APPLICATION_TOUR_OWNER_CHANNEL_HPP
 #define BPR_APPLICATION_TOUR_OWNER_CHANNEL_HPP
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/application/review_tour_source.hpp"
 #include "bpr/core/review_cycle_command.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include <functional>
@@ -14,7 +15,10 @@ namespace bpr::application {
 													 assist_cancel,
 													 hooks_show,
 													 /// [[BPR-1168]]. One finite `bpr cycle` command for the owner's cycle store.
-													 cycle };
+													 cycle,
+													 /// [[BPR-1227]]. Bounded pinned source for one draft's stop, read by the
+													 /// window that holds that pull request; a read, never a mutation.
+													 source };
 	/// \brief What to write, chosen by the author or their agent. The owner resolves it and reads the draft
 	/// and hook itself; no context, range offsets beyond these or target ever arrive from the caller.
 	struct tour_owner_assist_query
@@ -79,6 +83,8 @@ namespace bpr::application {
 		tour_service_request    Edit;
 		tour_owner_assist_query Assist{ };
 		cycle_owner_request     Cycle{ };
+		/// [[BPR-1227]]. The pinned commit, path, side and lines a `source` request reads.
+		core::tour_code_destination Source{ };
 	};
 	struct tour_owner_response
 	{
@@ -92,6 +98,8 @@ namespace bpr::application {
 		std::string Json;
 		/// [[BPR-1168]]. The answer to a cycle command.
 		std::optional<cycle_owner_response> Cycle;
+		/// [[BPR-1227]]. The answer to a `source` request: the exact range and its text.
+		std::optional<review_tour_source_material> Source;
 	};
 	enum class tour_channel_failure : std::uint8_t { unavailable,
 													 refused,

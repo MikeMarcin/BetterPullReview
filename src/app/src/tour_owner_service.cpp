@@ -149,9 +149,10 @@ namespace bpr::app {
 		}
 		return tour_local_snapshot{ aLoaded.Target, *state.Draft, state.UndoLabel, state.RedoLabel, "not_refreshed", 0, state.Resume };
 	}
-	tour_owner_service::tour_owner_service(std::filesystem::path aRoot, core::bpr_profile_id aProfile)
+	tour_owner_service::tour_owner_service(std::filesystem::path aRoot, core::bpr_profile_id aProfile, tour_owner_source aSource)
 		: Root{ std::move(aRoot) }
 		, Profile{ aProfile }
+		, Source{ std::move(aSource) }
 	{ }
 	auto tour_owner_service::serve(std::span<const std::uint8_t> aPayload) const -> application::tour_channel_bytes
 	{
@@ -175,6 +176,20 @@ namespace bpr::app {
 			}
 			if (loaded->Target.Owner.Profile != Profile) {
 				return error_response("wrong_profile");
+			}
+			if (request->Operation == application::tour_owner_operation::source) {
+				// [[BPR-1227]]. A read: no request record, no draft change, only the bounded material.
+				if (!Source) {
+					return error_response("interaction_required");
+				}
+				if (request->Source.LastLine - request->Source.FirstLine >= 200) {
+					return error_response("source_too_large");
+				}
+				auto material = Source(*loaded, request->Source);
+				if (!material) {
+					return error_response(material.error().Code);
+				}
+				return adapters::sqlite::encode_tour_response({ .Source = std::move(*material) });
 			}
 			std::optional<application::tour_request_receipt> receipt;
 			if (request->Operation == application::tour_owner_operation::mutate) {

@@ -57,9 +57,11 @@ namespace {
 		}
 	}
 
+	auto load_request_value() -> tour_owner_request { return { .Operation = tour_owner_operation::load, .Draft = draft }; }
+
 	auto load_request() -> tour_channel_bytes
 	{
-		return encode_tour_request({ .Operation = tour_owner_operation::load, .Draft = draft });
+		return encode_tour_request(load_request_value());
 	}
 
 	auto edit_request(std::string aId, std::string aText, core::tour_command_kind aKind = core::tour_command_kind::problem) -> tour_owner_request
@@ -257,6 +259,56 @@ namespace {
 		expect(answered && answered->Cycle && answered->Cycle->Operation == "op-1" && answered->Cycle->Step == 2U && answered->Cycle->Data == answer.Cycle->Data && answered->Cycle->Output == "#", "a cycle answer round-trips");
 		answer.Cycle->Code = "conflict";
 		expect(encode_tour_response(answer).empty(), "an answer is either a result or a refusal");
+	}
+
+	/// [[BPR-1227]]. A source read names one pinned destination and nothing else; its answer is the
+	/// exact range and bounded text.
+	void test_source_codec()
+	{
+		const auto commit = core::parse_git_commit_oid("1111111111111111111111111111111111111111");
+		const auto blob   = core::parse_git_blob_oid("2222222222222222222222222222222222222222");
+		expect(commit.has_value() && blob.has_value(), "fixture object IDs parse");
+		const tour_owner_request request{ .Operation = tour_owner_operation::source, .Draft = draft, .Source = { .Commit = *commit, .Blob = *blob, .Path = "src/\xce\xb1.cpp", .Side = core::diff_side::left, .FirstLine = 2U, .LastLine = 4U } };
+		const auto               decoded = decode_tour_request(encode_tour_request(request));
+		expect(decoded && decoded->Operation == tour_owner_operation::source && decoded->Draft == draft && decoded->Source == request.Source && decoded->Edit.RequestId.empty(), "a source request round-trips");
+		const auto refused     = [](tour_owner_request aRequest, const char* aWhat) { expect(encode_tour_request(std::move(aRequest)).empty(), aWhat); };
+		auto       changed     = request;
+		changed.Edit.RequestId = "read-1";
+		refused(changed, "a read carries no request ID, so it can leave no request record");
+		changed = request;
+		changed.Draft.clear();
+		refused(changed, "a read names its exact draft");
+		changed             = request;
+		changed.Source.Path = "/etc/passwd";
+		refused(changed, "an absolute path is no repository source");
+		changed             = request;
+		changed.Source.Path = "a/../b.cpp";
+		refused(changed, "nor is a path that climbs");
+		changed                  = request;
+		changed.Source.FirstLine = 5U;
+		refused(changed, "the range is ordered");
+		changed               = request;
+		changed.Source.Commit = { };
+		refused(changed, "an unpinned read names no commit");
+		auto bytes = encode_tour_request(load_request_value());
+		expect(!bytes.empty(), "a load encodes");
+		bytes[0] = static_cast<std::uint8_t>(static_cast<std::uint8_t>(tour_owner_operation::source) + 1U);
+		expect(!decode_tour_request(bytes), "no operation after source decodes");
+
+		const core::file_comparison_digest digest{ std::array<std::uint8_t, 32>{ 7U } };
+		application::tour_owner_response   answer;
+		answer.Source       = application::review_tour_source_material{ { { digest, core::diff_side::left, 2U }, { digest, core::diff_side::left, 4U }, *commit, *blob, "src/\xce\xb1.cpp" }, "one\ntwo\nthree\n" };
+		const auto answered = decode_tour_response(encode_tour_response(answer));
+		expect(answered && answered->Source && answered->Source->Source == answer.Source->Source && answered->Source->Text == answer.Source->Text && answered->Error.empty(), "source material round-trips");
+		auto broken         = answer;
+		broken.Source->Text = "\xff";
+		expect(encode_tour_response(broken).empty(), "material is UTF-8");
+		broken              = answer;
+		broken.Source->Text = std::string(core::maximum_tour_field_bytes + 1U, 'x');
+		expect(encode_tour_response(broken).empty(), "material is bounded");
+		broken                                = answer;
+		broken.Source->Source.Last.Comparison = core::file_comparison_digest{ std::array<std::uint8_t, 32>{ 8U } };
+		expect(encode_tour_response(broken).empty(), "material names one comparison");
 	}
 
 #if !defined(_WIN32)
@@ -556,9 +608,9 @@ namespace {
 		client    caller{ root.Path, profile, load_request() };
 		const int accepted = ::accept(listen, nullptr, nullptr);
 		expect(accepted >= 0, "the caller connects");
-		// Version 4 is the owner before rebind (BPR-1279).
-		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', 4 };
-		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version 4");
+		// Version 5 is the owner before the tour source read (BPR-1227).
+		std::array<std::uint8_t, 64> hello{ 'B', 'P', 'R', 'T', 5 };
+		expect(::send(accepted, hello.data(), hello.size(), 0) == 64, "advertise version 5");
 		const auto& result = caller.wait();
 		expect(!result && result.error() == tour_channel_failure::version_mismatch, "another protocol version is named as such, before a payload is sent");
 		std::array<std::uint8_t, 1> probe{ };
@@ -787,6 +839,8 @@ int main()
 		std::cout << "test_codec" << std::endl;
 		test_codec();
 		test_cycle_codec();
+		std::cout << "test_source_codec" << std::endl;
+		test_source_codec();
 #if defined(_WIN32)
 		std::cout << "test_windows_pipe" << std::endl;
 		test_windows_pipe();

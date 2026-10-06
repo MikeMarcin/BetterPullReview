@@ -390,9 +390,22 @@ is refused as a conflict; both texts remain. Structure follows stable stop IDs, 
 undo from any presentation restores the same order and IDs through the one shared
 history.
 
-Commands that read the provider (`add`, `open`, `show --source`, `walk`, refresh,
-publish and recover) are not forwarded and answer `interaction_required` while a
-desktop owns the profile. BPR-1227 tracks forwarding the source reads.
+Pinned source is read where the pull request is open (BPR-1227). `add`,
+`show --source` and `walk` send the owner a `source` request (owner protocol v6)
+naming the draft and one pinned commit, path, side and line range; nothing else
+rides along, and it carries no request ID because a read records nothing. The
+window whose current tour is that draft reads the range through its own epoch host
+and Git cache on its diff lane, with the same bounds as a standalone read: at most
+200 lines and 256 KiB, exact UTF-8, no working-tree text. The CLI then builds the
+stop exactly as it does standalone and forwards it as an ordinary mutation, so only
+the stop is recorded. The CLI process reads no provider and opens no profile store.
+A draft no window shows is refused as `interaction_required`; open the pull request
+in the desktop and retry. A closing window stops its reads and waits for them.
+
+`open`, refresh, publish and recover still answer `interaction_required` while a
+desktop owns the profile: they observe the provider for a pull request the owner may
+not have composed, or need publication authority at the invoking terminal. Assist
+takes no source evidence from a running desktop either; ask without `--sources`.
 
 ## Assistance tickets
 

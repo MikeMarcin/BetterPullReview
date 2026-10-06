@@ -220,6 +220,24 @@ auto main(int aArgc, char** aArgv) -> int
 		} else if (verb == "undo") {
 			editor.trigger(qt::tour_editor_action::undo_structure);
 			say("UNDO_TRIGGERED");
+		} else if (verb == "pane") {
+			// [[BPR-1227]]. What the author's own comparison shows on these right-side lines, as hex
+			// so a line break cannot end the answer early.
+			std::istringstream range{ argument };
+			int                first = 0, last = 0;
+			range >> first >> last;
+			const auto* document = window.comparison_surface()->right_pane()->document();
+			std::string shown;
+			for (int line = first; line <= last; ++line) {
+				shown += document->findBlockByNumber(line).text().toStdString() + "\n";
+			}
+			std::string hex;
+			for (const auto byte : shown) {
+				constexpr const char* digits = "0123456789abcdef";
+				hex += digits[(static_cast<unsigned char>(byte) >> 4U) & 0xfU];
+				hex += digits[static_cast<unsigned char>(byte) & 0xfU];
+			}
+			say("PANE " + hex);
 		}
 		return std::filesystem::exists(signal);
 	};

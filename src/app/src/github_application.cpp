@@ -8814,7 +8814,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		core::git_commit_oid                          TourHead;
 		core::git_commit_oid                          TourAttentionHead;
 		std::optional<core::tour_code_destination>    PendingTourSource;
-		auto                                          selected_tour_source() const -> std::optional<core::tour_source_range>
+		/// [[BPR-1227]]. Source reads a forwarded `bpr tour` command has on the diff lane. Counted and
+		/// atomic because the worker ends its read; shutdown stops them and waits for none.
+		std::atomic_size_t TourSourceReadsInFlight{ 0U };
+		std::stop_source   TourSourceStop;
+		auto               selected_tour_source() const -> std::optional<core::tour_source_range>
 		{
 			const auto* surface = Window->comparison_surface();
 			if (!TourOwner || !SelectedDiffPublication || !surface->current_context() || surface->current_context()->Key != SelectedDiffPublication->Key) {
@@ -9004,6 +9008,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			return { };
+		}
+		/// [[BPR-1227]]. Reads one pinned range for the draft this window composes now, through its own
+		/// epoch host and Git cache on the diff lane, and answers it there; decision lane. False when
+		/// this window does not show that draft's pull request, so it neither answers nor keeps the reply.
+		auto read_tour_source(std::string_view aSelector, const core::tour_code_destination& aSource, std::function<void(application::tour_channel_bytes)>& aRespond) -> bool
+		{
+			if (Closing || !EpochHost || !LastAcceptedHandoff || !TourOwner || !live_tour(aSelector).Current) {
+				return false;
+			}
+			const auto authority = workbench_authority(*LastAcceptedHandoff);
+			if (*TourOwner != core::tour_owner{ DraftWindow.Profile, authority.Host, authority.HostAuthority, authority.Account, authority.Repository, authority.PullRequest }) {
+				return false;
+			}
+			const auto refuse  = [&](std::string aCode) { aRespond(adapters::sqlite::encode_tour_response({ .Error = std::move(aCode) })); };
+			const auto context = application::review_tour_source_context(*EpochHost, authority, aSource);
+			if (!context) {
+				refuse("source_unavailable");
+				return true;
+			}
+			const application::workbench_selected_diff_request request{ .Context = { core::request_id{ 1 }, authority.ApplicationSession, core::request_generation{ 1 } }, .WorkbenchAuthority = authority, .Diff = *context, .File = { .File = core::file_identity_of(aSource.Path), .PresentationPath = aSource.Path, .CurrentPath = native_filesystem_path(QString::fromUtf8(aSource.Path)), .Change = application::workbench_file_change_kind::unchanged, .ContentKind = application::workbench_file_content_kind::text } };
+			auto* const                                        epoch = EpochHost.get();
+			TourSourceReadsInFlight.fetch_add(1U, std::memory_order_acq_rel);
+			try {
+				DiffEffects.post([this, epoch, request, source = aSource, stop = TourSourceStop.get_token(), respond = aRespond] {
+					auto answer = application::tour_owner_response{ };
+					try {
+						auto material = application::materialize_review_tour_source(*epoch, *epoch, request, source, stop);
+						if (material) {
+							answer.Source = std::move(*material);
+						} else {
+							answer.Error = material.error() == application::review_tour_source_failure::range_unavailable ? "source_range_unavailable"
+								: material.error() == application::review_tour_source_failure::too_large                  ? "source_too_large"
+																														  : "source_unavailable";
+						}
+					} catch (...) {
+						answer = { .Error = "source_unavailable" };
+					}
+					try {
+						respond(adapters::sqlite::encode_tour_response(std::move(answer)));
+					} catch (...) { }
+					// Last: once this reaches zero the closing window may be destroyed.
+					TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+				});
+			} catch (...) {
+				TourSourceReadsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+				refuse("source_unavailable");
+			}
+			return true;
 		}
 		void compose_review_tour(const application::accepted_pull_request_handoff& aHandoff)
 		{
@@ -15016,6 +15068,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			OtherShutdownBegun = true;
+			TourSourceStop.request_stop();
 			if (PrivateReview) {
 				PrivateReview->shutdown();
 			}
@@ -15104,6 +15157,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			begin_other_shutdown();
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent() || ReadingAdvanceQueued
+				|| TourSourceReadsInFlight.load(std::memory_order_acquire) != 0U
 				|| (WindowRead && !WindowRead->is_quiescent())
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
@@ -16477,6 +16531,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto serve = [service = profile.TourOwnerService, &effects = profile.WorkbenchEffects](application::tour_channel_bytes aRead, std::function<void(application::tour_channel_bytes)> aReply) {
 			effects.post([service, read = std::move(aRead), reply = std::move(aReply)] { reply(service->serve(read)); });
 		};
+		if (request->Operation == application::tour_owner_operation::source) {
+			// [[BPR-1227]]. Source is read where the pull request is open, by that window's own provider
+			// composition: no second process reads the provider or opens a profile store, and nothing
+			// is written. A draft no window shows is refused by the service, provider-free.
+			if (request->Source.LastLine - request->Source.FirstLine >= 200) {
+				aRespond(tour_owner_error("source_too_large"));
+				return;
+			}
+			for (const auto& [context, session] : Sessions) {
+				static_cast<void>(context);
+				if (session->read_tour_source(request->Draft, request->Source, aRespond)) {
+					return;
+				}
+			}
+			serve(std::move(aRequest), std::move(aRespond));
+			return;
+		}
 		if (!found.Host) {
 			serve(std::move(aRequest), std::move(aRespond));
 			return;

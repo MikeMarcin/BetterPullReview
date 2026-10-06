@@ -181,11 +181,11 @@ namespace {
 	public:
 		enum class fault : int { none,
 								 drop_reply };
-		explicit owner_thread(app::tour_runtime::owner_binding aBinding)
-			: Thread{ [this, binding = std::move(aBinding)] {
+		explicit owner_thread(app::tour_runtime::owner_binding aBinding, app::tour_owner_source aSource = { })
+			: Thread{ [this, binding = std::move(aBinding), source = std::move(aSource)] {
 				auto server = adapters::sqlite::make_tour_owner_server(binding.Root, binding.Profile, binding.Lease);
 				expect(server.has_value(), "the owner binds its tour endpoint");
-				const app::tour_owner_service         service{ binding.Root, binding.Profile };
+				const app::tour_owner_service         service{ binding.Root, binding.Profile, source };
 				const application::tour_owner_handler handler = [&](std::span<const std::uint8_t> aPayload) {
 					auto answer = service.serve(aPayload);
 					// A committed request whose answer never leaves the owner: the lost-response case.
@@ -640,6 +640,117 @@ namespace {
 		auto afterOwner = requestStatus("forward-1");
 		expect(afterOwner.json()["data"].toObject()["operation_recorded"].toBool(), "the request record outlives the owner");
 	}
+	/// [[BPR-1227]]. `bpr tour add` and `show --source` with an owner: the owner reads the pinned
+	/// source, the CLI builds the stop exactly as it does standalone and forwards it as an ordinary
+	/// edit. The provider is never read in the CLI process, and a read changes and records nothing.
+	void forwarded_source()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cli-source" };
+		const auto                           dataRoot = scratch.path() / "profile data";
+		const auto                           root     = QString::fromStdString(dataRoot.string());
+		fixture_state                        state;
+		auto                                 call   = [&](QStringList args) {args.append({"--data-root",root});return run(args,state); };
+		auto                                 opened = call({ "tour", "open", "https://github.com/o/r/pull/7", "--json" });
+		expect(opened.Exit == 0, "open the draft before any owner exists");
+		const auto id       = opened.json()["data"].toObject()["draft_id"].toString();
+		auto       rev      = opened.json()["data"].toObject()["revision"].toString();
+		const auto file     = scratch.path() / "stop body.md";
+		const auto fileName = QString::fromStdString(file.string());
+		{
+			std::ofstream out{ file, std::ios::binary };
+			out << "Why this boundary matters.\n";
+		}
+		const auto revision = [](const reply& aReply) { return aReply.json()["data"].toObject()["revision"].toString(); };
+		const auto status   = [&]() { return call({ "tour", "status", "--profile", "1", "--draft", id, "--json" }); };
+		const auto add      = [&](QStringList aSource, const QString& aRequest) {
+			QStringList args{ "tour", "add" };
+			args.append(aSource);
+			args.append({ "--file", fileName, "--profile", "1", "--draft", id, "--json", "--expected-revision", rev, "--request-id", aRequest });
+			return call(args);
+		};
+		const auto recorded = [&](const QString& aRequest) { return call({ "tour", "status", "--profile", "1", "--draft", id, "--json", "--request-id", aRequest }).json()["data"].toObject()["operation_recorded"].toBool(); };
+		const auto stop     = [](const reply& aReply, qsizetype aIndex) {
+			auto value = aReply.json()["data"].toObject()["stops"].toArray()[aIndex].toObject();
+			value.remove("stop_id");
+			return value;
+		};
+		// Standalone: this process reads the provider and the pinned source itself.
+		const auto before     = state.Opens;
+		auto       standalone = add({ "src/a.cpp:3-5", "--side", "LEFT" }, "standalone-add");
+		expect(standalone.Exit == 0, "a standalone add commits");
+		expect(state.Opens == before + 1, "standalone source reads the provider in the CLI process");
+		rev = revision(standalone);
+		{
+			app::tour_runtime holder{ dataRoot, "1" };
+			const auto        binding = holder.owner();
+			expect(binding.has_value(), "the holder owns the profile lease");
+			{
+				// An owner with no window on this pull request reads nothing and refuses.
+				owner_thread serving{ *binding };
+				auto         closed = add({ "src/a.cpp:3-5", "--side", "LEFT" }, "closed-add");
+				expect(closed.Exit == 3 && closed.json()["error"].toObject()["code"] == "interaction_required", "a draft no window shows is refused, not read");
+				expect(!recorded("closed-add") && revision(status()) == rev, "and nothing was changed or recorded");
+			}
+			std::atomic<int> reads{ 0 };
+			owner_thread     serving{ *binding, [&](const app::tour_local_snapshot& aLoaded, const core::tour_code_destination& aDestination) -> app::tour_cli_result<app::tour_source_material> {
+									 ++reads;
+									 expect(app::tour_draft_token(aLoaded.Target) == id.toStdString(), "the owner reads for the exact draft");
+									 if (aDestination.Path == "src/missing.cpp") {
+										 return std::unexpected(app::tour_cli_error{ "source_unavailable", "missing", 5 });
+									 }
+									 fixture_state ownerState;
+									 return fixture_reader{ ownerState }.source(aDestination);
+								 } };
+			const auto opens     = state.Opens;
+			auto       forwarded = add({ "src/a.cpp:3-5", "--side", "LEFT" }, "forwarded-add");
+			expect(forwarded.Exit == 0, "a forwarded add commits through the owner");
+			expect(reads == 1 && state.Opens == opens, "the owner read the source; the CLI read no provider");
+			expect(recorded("forwarded-add"), "the stop itself is an ordinary recorded edit");
+			const auto stops = forwarded.json()["data"].toObject()["stops"].toArray();
+			expect(stops.size() == 2 && stop(forwarded, 1) == stop(forwarded, 0), "the forwarded stop equals the standalone one");
+			rev = revision(forwarded);
+			// A read alone: the exact text, no change and no record.
+			auto shown = call({ "tour", "show", "stop:2", "--source", "--profile", "1", "--draft", id, "--json" });
+			expect(shown.Exit == 0 && shown.json()["data"].toObject()["source"].toObject()["text"] == "fixture source\n" && shown.json()["data"].toObject()["source"].toObject()["first_line"] == "3", "show --source reads through the owner");
+			expect(reads == 2 && state.Opens == opens && revision(status()) == rev, "a provider read is never a mutation");
+			// Refusals leave no partial draft and no record.
+			auto unavailable = add({ "src/missing.cpp:1-2" }, "missing-add");
+			expect(unavailable.Exit == 5 && unavailable.json()["error"].toObject()["code"] == "source_unavailable", "unavailable source refuses as standalone does");
+			auto oversized = add({ "src/a.cpp:1-201" }, "oversized-add");
+			expect(oversized.Exit == 2 && oversized.json()["error"].toObject()["code"] == "invalid_source", "an oversized range refuses before any request");
+			auto unpinned = add({ "src/a.cpp:1-2", "--commit", "abc123" }, "unpinned-add");
+			expect(unpinned.Exit == 2 && unpinned.json()["error"].toObject()["code"] == "invalid_source", "an unpinned commit refuses before any request");
+			expect(reads == 3, "only the unavailable read reached the owner's reader");
+			for (const auto* request : { "missing-add", "oversized-add", "unpinned-add" }) {
+				expect(!recorded(request), "a refused add records nothing");
+			}
+			expect(revision(status()) == rev && status().json()["data"].toObject()["stops"].toArray().size() == 2, "and changes nothing");
+			// The channel itself, past the CLI's own checks.
+			const auto exchange = [&](application::tour_owner_request aRequest) -> std::optional<application::tour_owner_response> {
+				const auto bytes = adapters::sqlite::encode_tour_request(std::move(aRequest));
+				expect(!bytes.empty(), "the request encodes");
+				const auto sent = adapters::sqlite::send_tour_owner(binding->Root, binding->Profile, bytes);
+				expect(sent.has_value(), "the owner answers");
+				return adapters::sqlite::decode_tour_response(*sent);
+			};
+			const auto pinned = core::destination_of(*tests::review_tour_fixture().Stops[0].Original);
+			auto       large  = pinned;
+			large.FirstLine   = 0U;
+			large.LastLine    = 250U;
+			const auto big    = exchange({ .Operation = application::tour_owner_operation::source, .Draft = id.toStdString(), .Source = large });
+			expect(big && big->Error == "source_too_large" && !big->Source, "the owner refuses an oversized read itself");
+			auto foreign          = application::tour_saved_target{ };
+			foreign.Owner         = tests::review_tour_fixture().Owner;
+			foreign.Owner.Profile = core::bpr_profile_id{ 2 };
+			foreign.Draft         = tests::review_tour_fixture().Id;
+			const auto wrong      = exchange({ .Operation = application::tour_owner_operation::source, .Draft = app::tour_draft_token(foreign), .Source = pinned });
+			expect(wrong && !wrong->Error.empty() && !wrong->Source, "another profile's draft is refused");
+			expect(reads == 3 && revision(status()) == rev, "neither reached the reader or changed the draft");
+		}
+		// The owner is gone: what it committed is what a standalone read sees.
+		auto after = status();
+		expect(revision(after) == rev && stop(after, 1) == stop(after, 0), "the forwarded stop is durable and equal");
+	}
 }
 /// \brief A separate owner process for crash courses: `--serve-owner DATA_ROOT PROFILE [--stall-after-commit]`.
 /// It holds the profile lease and serves the tour endpoint until it is killed. With the stall flag
@@ -699,6 +810,7 @@ int main(int argc, char** argv)
 	}
 	cold_open();
 	forwarded_owner();
+	forwarded_source();
 	assist_courses();
 	forwarded_assist();
 	agent_boundary_courses();

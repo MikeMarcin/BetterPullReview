@@ -117,7 +117,7 @@ namespace bpr::adapters::sqlite {
 			aCodec.text(aRequest.Draft, 64);
 			aCodec.text(aRequest.Edit.RequestId, 64);
 			const bool profileWide = aRequest.Operation == application::tour_owner_operation::hooks_show || aRequest.Operation == application::tour_owner_operation::cycle;
-			if (aRequest.Operation > application::tour_owner_operation::cycle || aRequest.Draft.size() != (profileWide ? 0U : 64U)) {
+			if (aRequest.Operation > application::tour_owner_operation::source || aRequest.Draft.size() != (profileWide ? 0U : 64U)) {
 				aCodec.Good = false;
 			}
 			if (aRequest.Operation == application::tour_owner_operation::cycle) {
@@ -125,6 +125,21 @@ namespace bpr::adapters::sqlite {
 					aCodec.Good = false;
 				}
 				cycle_request_codec(aCodec, aRequest.Cycle);
+				return;
+			}
+			if (aRequest.Operation == application::tour_owner_operation::source) {
+				// [[BPR-1227]]. A read names its pinned destination and nothing else: no request ID,
+				// since it is no mutation and leaves no record.
+				auto& s = aRequest.Source;
+				aCodec.oid(s.Commit);
+				aCodec.optional(s.Blob, [&](auto& aBlob) { aCodec.oid(aBlob); });
+				aCodec.text(s.Path, core::maximum_tour_path_bytes);
+				aCodec.enumeration(s.Side);
+				aCodec.number(s.FirstLine);
+				aCodec.number(s.LastLine);
+				if (!aRequest.Edit.RequestId.empty() || (aCodec.Good && !core::valid(s))) {
+					aCodec.Good = false;
+				}
 				return;
 			}
 			if (aRequest.Operation == application::tour_owner_operation::mutate) {
@@ -157,7 +172,14 @@ namespace bpr::adapters::sqlite {
 			aCodec.text(aResponse.Error, 128);
 			aCodec.text(aResponse.Json, 65536);
 			aCodec.optional(aResponse.Cycle, [&](auto& aValue) { cycle_response_codec(aCodec, aValue); });
+			aCodec.optional(aResponse.Source, [&](auto& aValue) {
+				aCodec.source(aValue.Source);
+				aCodec.text(aValue.Text);
+			});
 			if (aResponse.Draft && core::validate(*aResponse.Draft) != core::tour_refusal::none) {
+				aCodec.Good = false;
+			}
+			if (aCodec.Good && aResponse.Source && (!core::valid_writing_utf8(aResponse.Source->Text) || !core::valid(aResponse.Source->Source))) {
 				aCodec.Good = false;
 			}
 		}

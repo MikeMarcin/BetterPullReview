@@ -168,9 +168,50 @@ def main():
             stale_answer = complete(outstanding, "late")
             assert stale_answer.returncode == 4 and code(stale_answer) == "stale", stale_answer.stdout
             assert ask("problem", "PROBLEM ") == "PROBLEM " + expected_text + "?"
-            # A source read is not something a running desktop serves yet.
+            # Assist takes no source evidence from a running desktop.
             sourced = bpr("assist", "context", "--hook", "outline", "--sources", "src/a.cpp:1-3")
             assert sourced.returncode == 3 and code(sourced) == "interaction_required", sourced.stdout
+            # [[BPR-1227]]. A stop from exact source: the window holding the pull request reads it, and
+            # the CLI's stop names the same pinned range as the author's own gesture on lines 3-5.
+            def status_of(request_id):
+                return data(bpr("status", "--request-id", request_id))["operation_recorded"]
+
+            listed = data(bpr("status"))["stops"]
+            gesture = next(stop for stop in listed if stop["stop_id"] == ids[0])
+            before = revision()
+            added = bpr("add", "review.cpp:3-5", "--expected-revision", before, "--request-id", "cli-source-add",
+                        "--file", "-", data=b"Read from the owner.\n")
+            assert added.returncode == 0, added.stdout + added.stderr
+            stops = data(added)["stops"]
+            assert len(stops) == len(listed) + 1, stops
+            new = stops[-1]
+            assert new["source_binding"] == gesture["source_binding"], (new, gesture)
+            assert new["title"] == "review.cpp", new
+            assert status_of("cli-source-add")
+            after_add = data(added)["revision"]
+            shown = bpr("show", "stop:" + new["stop_id"], "--source")
+            assert shown.returncode == 0, shown.stdout
+            text = data(shown)["source"]["text"]
+            assert text == bytes.fromhex(ask("pane 2 4", "PANE ").split()[1]).decode("utf-8"), text
+            assert revision() == after_add, "a source read changes nothing"
+            # Refused reads leave no partial draft and no record.
+            missing = bpr("add", "missing.cpp:1-2", "--expected-revision", after_add, "--request-id", "cli-missing",
+                          "--file", "-", data=b"never\n")
+            assert missing.returncode == 5 and code(missing) == "source_unavailable", missing.stdout
+            outside = bpr("add", "review.cpp:9000-9001", "--expected-revision", after_add, "--request-id", "cli-outside",
+                          "--file", "-", data=b"never\n")
+            assert outside.returncode == 2 and code(outside) == "source_range_unavailable", outside.stdout
+            unpinned = bpr("add", "review.cpp:3-5", "--commit", "abc123", "--expected-revision", after_add,
+                           "--request-id", "cli-unpinned", "--file", "-", data=b"never\n")
+            assert unpinned.returncode == 2 and code(unpinned) == "invalid_source", unpinned.stdout
+            oversized = bpr("add", "review.cpp:1-201", "--expected-revision", after_add, "--request-id", "cli-large",
+                            "--file", "-", data=b"never\n")
+            assert oversized.returncode == 2 and code(oversized) == "invalid_source", oversized.stdout
+            for request_id in ("cli-missing", "cli-outside", "cli-unpinned", "cli-large"):
+                assert not status_of(request_id), request_id
+            assert revision() == after_add and len(data(bpr("status"))["stops"]) == len(stops)
+            removed_source = bpr("remove", new["stop_id"], "--expected-revision", after_add, "--request-id", "cli-source-remove")
+            assert removed_source.returncode == 0, removed_source.stdout
             committed = expected_text
             final = data(bpr("show", "problem"))["text"]
             assert final == committed + "?", final

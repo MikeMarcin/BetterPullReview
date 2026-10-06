@@ -78,6 +78,8 @@ namespace bpr::app {
 			std::shared_ptr<application::profile_runtime_lease> Lease;
 		};
 		[[nodiscard]] auto owner() const -> tour_cli_result<owner_binding>;
+		/// rief Whether another process owns the profile, so every command goes through its tour channel.
+		[[nodiscard]] auto forwarding() const -> bool;
 		[[nodiscard]] auto connect(std::string aHostname, bool aGh, bool aInteractive) -> tour_cli_result<std::string>;
 		[[nodiscard]] auto open(std::string aHostname, core::repository_locator aRepository, core::pull_request_number aNumber, bool aGh, std::string aRoot, bool aOffline) -> tour_cli_result<tour_local_snapshot>;
 		[[nodiscard]] auto load(std::string_view aDraft, bool aMachine) -> tour_cli_result<tour_local_snapshot>;

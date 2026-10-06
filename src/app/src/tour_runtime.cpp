@@ -23,6 +23,23 @@ namespace bpr::app {
 		{
 			return failure(aResult.error().Failure == application::tour_store_failure::conflict ? "revision_conflict" : "storage_unavailable", "Private tour storage refused the operation; retained work was not reset.", aResult.error().Failure == application::tour_store_failure::conflict ? 4 : 7);
 		}
+		/// [[BPR-1227]]. An owner's source refusal reads, and exits, as the standalone one does.
+		auto source_failure(tour_cli_error aError) -> tour_cli_error
+		{
+			if (aError.Code == "source_unavailable") {
+				return { std::move(aError.Code), "The exact pinned source is unavailable, changed, binary or not UTF-8; no working-tree text is substituted.", 5 };
+			}
+			if (aError.Code == "source_range_unavailable") {
+				return { std::move(aError.Code), "The range is outside the pinned file.", 2 };
+			}
+			if (aError.Code == "source_too_large") {
+				return { std::move(aError.Code), "Selected source exceeds its presentation bound.", 2 };
+			}
+			if (aError.Code == "interaction_required") {
+				return { std::move(aError.Code), "The owning desktop reads source only for a pull request it has open. Open this pull request there, then retry; nothing was changed.", 3 };
+			}
+			return aError;
+		}
 	}
 	namespace {
 		class submission_runner final : public application::review_submission_projection_port
@@ -248,6 +265,7 @@ namespace bpr::app {
 	{ }
 	tour_runtime::~tour_runtime() { Implementation->Effects.close_and_drain(); }
 	auto tour_runtime::admission() const -> tour_cli_result<core::bpr_profile_id> { return Implementation->Failure ? tour_cli_result<core::bpr_profile_id>{ std::unexpected(*Implementation->Failure) } : tour_cli_result<core::bpr_profile_id>{ Implementation->Profile }; }
+	auto tour_runtime::forwarding() const -> bool { return Implementation->Forward; }
 	auto tour_runtime::owner() const -> tour_cli_result<owner_binding>
 	{
 		const auto& self = *Implementation;
@@ -393,11 +411,23 @@ namespace bpr::app {
 	}
 	auto tour_runtime::source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>
 	{
-		if (Implementation->Forward) {
-			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
-		}
 		if (!core::valid(aDestination)) {
 			return failure("invalid_source", "The source destination is invalid.", 2);
+		}
+		if (Implementation->Forward) {
+			// [[BPR-1227]]. The owner reads through the window that holds this draft's pull request;
+			// no provider read or profile store opens here.
+			if (aDestination.LastLine - aDestination.FirstLine >= 200) {
+				return failure("source_too_large", "Select at most 200 source lines.", 2);
+			}
+			auto answer = Implementation->exchange({ .Operation = application::tour_owner_operation::source, .Draft = std::string{ aDraft }, .Source = aDestination });
+			if (!answer) {
+				return std::unexpected(source_failure(std::move(answer.error())));
+			}
+			if (!answer->Source || core::destination_of(answer->Source->Source) != core::tour_code_destination{ aDestination.Commit, answer->Source->Source.Blob, aDestination.Path, aDestination.Side, aDestination.FirstLine, aDestination.LastLine } || (aDestination.Blob && aDestination.Blob != answer->Source->Source.Blob)) {
+				return failure("identity_changed", "The owner returned source for another destination.", 4);
+			}
+			return std::move(*answer->Source);
 		}
 		auto loaded = load(aDraft, true);
 		if (!loaded) {
@@ -459,7 +489,7 @@ namespace bpr::app {
 		auto& self = *Implementation;
 		if (self.Forward) {
 			if (!aExtra.empty()) {
-				return failure("interaction_required", "Source evidence is read through the provider, which a running desktop owner does not yet forward. Ask without --sources, or close the desktop.", 3);
+				return failure("interaction_required", "A running desktop owner does not take source evidence for assist. Ask without --sources, or close the desktop.", 3);
 			}
 			application::tour_owner_request request{ .Operation = application::tour_owner_operation::assist_issue, .Draft = std::string{ aDraft } };
 			request.Assist = { .Hook = aQuery.Hook, .Stop = aQuery.Stop, .HasRange = aQuery.Range.has_value(), .HasQuote = aQuery.Quote.has_value(), .Begin = aQuery.Range ? aQuery.Range->first : 0U, .End = aQuery.Range ? aQuery.Range->second : 0U, .Quote = aQuery.Quote.value_or(std::string{ }), .Session = aQuery.Session };
