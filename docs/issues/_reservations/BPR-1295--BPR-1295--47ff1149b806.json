@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1295"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Owner chat 2026-10-06: merge Read into Review, with one command to hide and restore the open drawers",
+  "created": "2026-10-06T07:46:02.992227+00:00",
+  "base": "5981cf21e08e53fb41f03db5854d0a6af139f52a"
+}
