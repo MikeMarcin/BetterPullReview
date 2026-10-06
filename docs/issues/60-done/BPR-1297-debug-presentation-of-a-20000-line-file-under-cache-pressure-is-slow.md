@@ -130,3 +130,22 @@ macOS and asks Linux.
 At cd9b87e19 (holds 728097f12) on macOS arm64, optimized tests-on tree
 (app-release, BUILD_TESTING=ON) in a clean worktree: the 18 large-review rows
 passed 18/18 with -j1, budgets enforced.
+
+**Note: Linux run at `e47258985` (holds `728097f12`; station `bpr-main-linux`,
+WSL2, GCC 15.2.0, offscreen).** The optimized tests-on tree (`app-release`,
+`BUILD_TESTING=ON`, `-O3`) first failed to build. GCC 15
+`-Werror=maybe-uninitialized` rejected a designated `review_preflight`
+temporary in `review_submission_editor_tests.cpp` ([[BPR-1085]]'s new test),
+a known GCC false positive. It was fixed test-only in the commit before this
+note, and the tree then built.
+
+With the station idle and `-j1`, the 18 large-review rows pass 18/18 in
+95.6 s. Every report has `BudgetsEnforced` true, `KnownInputMisses` empty
+and no input failure. Largest gaps in ms: `large_file_selection` 18.8–28.7,
+`large_source_revisit_render` 18.4 and 21.6, `approximate_file_selection`
+42.3 and `first_tab_file` 20.1. The largest gated gap is 54.2
+(`paged_review_and_git_load`).
+
+The two resource courses' heap sampler took 1,676 samples (loaded close:
+largest interval 8.9 ms, largest cost 1.8 ms) and 1,783 (resources: 13.7 ms
+and 2.7 ms). `build/app-release-tests` was removed. Done is not reopened.
