@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1085"
 title: "Integrate reviewer-scoped preflight with native review decisions"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0048"]
 depends_on: ["BPR-1082", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-11","milestone":"authoring","acceptance":["R14","R15","R42"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"R14","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"Comment, Approve and Request changes keep their exact native event paths (three exclusive buttons per the owner's preflight B, BPR-1079): the composed review-submission course submits approve exactly once with my blocker open and request_changes exactly once after reading the list; request, idempotency key, grant, journal, host and provider unchanged; mutation-branch pin unchanged. 19/19 focused rows re-verified on bpr-main-linux."}},{"criterion":"R15","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"prepare_review_decision / review_decision_changes bind draft, account, target, head, summary, disposition and selected drafts; a change to any invalidates the prepared action (refused before and after the existing write confirmation, naming what changed), while resolutions, other people's labels and unselected drafts do not; core_review_preflight and the composed stale-selection/summary cases pass, with failing-before controls (15 mutations recorded in the ledger)."}},{"criterion":"R42","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"project_review_preflight is reviewer-scoped: other reviewers' blockers appear only under Others, an unknown author is uncertainty never mine, and the projection carries no disposition; the composed course shows a label edit, a relabel to blocking and the last resolution submit nothing and leave the chosen Approve in place."}},{"criterion":"owner-look","outcome":"pending","revision":"91a82602e","evidence":{"kind":"observation","detail":"The 'Your blocking feedback' chip, its tooltip groups and the Approve amber dot in the submission view await the owner's look on macOS; frontend-design is not installed on bpr-main-linux and the R33 native look matrix is not run."}}]
 ---
 
 # BPR-1085: Integrate reviewer-scoped preflight with native review decisions
