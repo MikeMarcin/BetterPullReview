@@ -149,3 +149,23 @@ instead of being pinned, and `application_large_review_timing_control` is
 this card's. The section above and the file's comments are right.
 `sqlite_tour_owner_channel`, moved into the container there, returns to a
 measured pin with BPR-1168's named pipe (see BPR-1168's Windows note).
+
+## Verified on current main and closed (bpr-main-win, 2026-10-05)
+
+At `3134abc5c`, on `build/windows-dev` (Debug, MSVC 14.51):
+`test_network_isolation_manifest` passes (20.92 s) and
+`test_network_isolation_structure_contract` passes (9.95 s). Since this card's
+pins, every row registered `WINDOWS_UNCONTAINED` has been pinned with its
+measurement before it reached `main`. The latest are the [[BPR-1185]],
+[[BPR-1082]] and [[BPR-1083]] rows, measured on this station at `1f2a8452c`
+and `4d2694a54`.
+
+Both other platforms pass after the pin change (`e517d66d0`):
+
+- **macOS**: the integrator's `build/dev-tour-cli` passes
+  `test_network_isolation_manifest` at `c1cd6b585` ([[BPR-1280]]'s boundary
+  record).
+- **Linux**: `bpr-main-linux` passes it at `e517d66d0` (above) and again at
+  `15bb8c921` ([[BPR-1185]]'s Linux note).
+
+No code changed for this close.
