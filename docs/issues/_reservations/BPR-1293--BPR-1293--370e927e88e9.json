@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1293"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Owner chat 2026-10-06 (BPR-1290): a PR-wide conversations view you can summon",
+  "created": "2026-10-06T07:27:08.209259+00:00",
+  "base": "f8a29f1677a211f6e122b9ab4929335618aeddec"
+}
