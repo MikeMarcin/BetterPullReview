@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1291"
 title: "The shared diff scroll bar moves while the panes stand still, and the panes cannot scroll past their end"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
