@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner aside in attended session 8bf444584f9806487f06891db2f5af50 (BPR-1083 mark-style-v001, decision b504ffed, 2026-10-06T00:16Z)","reservation":"docs/issues/_reservations/BPR-1287--BPR-1289--621f5b91f3f1.json","related_cards":["BPR-1083","BPR-1288","BPR-0981"],"owner_reference":"docs/design/owner-refs/BPR-1083-owner-ref-codex-settings-search.png","port_candidates":[{"name":"containers gct","path":"/Users/jaeger/Documents/Personal/containers/source/gct/strings/fuzzy_match.hpp","revision":"a7454c4","licence":"none visible; private repository, every commit by the owner"},{"name":"Entole","path":"/Users/jaeger/Documents/Personal/aito/code/entole_developer_tools/modules/completion/src/Completion.cpp","revision":"962b48774","licence":"none visible; private repository, every commit by the owner"},{"name":"AllTheThings","path":"/Users/jaeger/Documents/GitHub/AllTheThings/Sources/ATTCore/FuzzyMatcher.swift","revision":"f755aeb","licence":"MIT, Copyright (c) 2026 Michael Marcin"}],"acceptance":["BPR-1289:search","BPR-1289:results","BPR-1289:go-to","BPR-1289:matcher","BPR-1289:provenance","BPR-1289:owner-look"]}
+metadata: {"origin":"Owner aside in attended session 8bf444584f9806487f06891db2f5af50 (BPR-1083 mark-style-v001, decision b504ffed, 2026-10-06T00:16Z)","reservation":"docs/issues/_reservations/BPR-1287--BPR-1289--621f5b91f3f1.json","related_cards":["BPR-1083","BPR-1288","BPR-0981"],"owner_reference":"docs/design/owner-refs/BPR-1083-owner-ref-codex-settings-search.png","port_candidates":[{"name":"containers gct","path":"/Users/jaeger/Documents/Personal/containers/source/gct/strings/fuzzy_match.hpp","revision":"a7454c4","licence":"none visible; private repository, every commit by the owner"},{"name":"Entole","path":"/Users/jaeger/Documents/Personal/aito/code/entole_developer_tools/modules/completion/src/Completion.cpp","revision":"962b48774","licence":"none visible; private repository, every commit by the owner"},{"name":"AllTheThings","path":"/Users/jaeger/Documents/GitHub/AllTheThings/Sources/ATTCore/FuzzyMatcher.swift","revision":"f755aeb","licence":"MIT, Copyright (c) 2026 Michael Marcin"},{"name":"FindInMedia (legacy Rust)","path":"/Users/jaeger/Documents/GitHub/FindInMedia/crates/fim-db/src/lib.rs","lines":"6236-6271","revision":"f1943cb","licence":"MIT (workspace Cargo.toml; no LICENSE file), every commit by the owner"}],"acceptance":["BPR-1289:search","BPR-1289:results","BPR-1289:go-to","BPR-1289:matcher","BPR-1289:provenance","BPR-1289:owner-look"]}
 ---
 
 # BPR-1289: Add a Settings search and filter box
@@ -25,7 +25,12 @@ Correcting that later the same day, relayed by the coordinator, verbatim:
 > The fuzzy search I was remembering was not in SiftThroughLogs it was in
 > these 3
 
-naming the three sources listed under "Port candidates" below.
+naming the three sources listed under "Port candidates" below, and then,
+verbatim:
+
+> And also FindInMedia (legacy Rust):
+> /Users/jaeger/Documents/GitHub/FindInMedia/crates/fim-db/src/lib.rs:6236 —
+> is_caption_spelling_variant; levenshtein_distance at line 6257.
 
 Their reference, [`BPR-1083-owner-ref-codex-settings-search.png`](../../design/owner-refs/BPR-1083-owner-ref-codex-settings-search.png),
 is the Codex desktop Settings sidebar with `appear` typed in a search field
@@ -57,7 +62,7 @@ focus. Clearing the field restores the page list.
   scrolls the setting into view and focuses it, and changes no setting.
 - **BPR-1289:matcher.** Matching is a pure core matcher in `src/core`
   (deterministic, no Qt, no clock unless passed in), ported from the best of
-  the three candidates below, case- and diacritic-insensitive, with a tested
+  the candidates below, case- and diacritic-insensitive, with a tested
   ranking (exact, then prefix, then word-start and consecutive letters before
   scattered ones). The Qt side builds its index from the settings the pages
   actually show, so a new setting is searchable without a second list;
@@ -69,7 +74,7 @@ focus. Clearing the field restores the page list.
 
 ## Port candidates (owner, 2026-10-05)
 
-All three are the owner's own code; the two private ones carry no licence
+All four are the owner's own code; the two private ones carry no licence
 file, so record the owner's permission with the port. Read on 2026-10-05:
 
 - **containers, `gct::strings::fuzzy_matcher`.**
@@ -107,6 +112,17 @@ file, so record the owner's permission with the port. Read on 2026-10-05:
   start; a query language with negation, fields and wildcards, and path,
   extension and kind scoring, which Settings does not need. Worth taking its
   normalisation.
+- **FindInMedia `is_caption_spelling_variant`** (legacy Rust).
+  `/Users/jaeger/Documents/GitHub/FindInMedia/crates/fim-db/src/lib.rs`, lines
+  6236 to 6271 (`MikeMarcin/FindInMedia` at `f1943cb`; `license = "MIT"` in the
+  workspace `Cargo.toml`, no licence file; every commit by Michael Marcin). Not
+  a ranker but a yes/no spelling-variant test for caption search: a candidate
+  of 3 to 12 ASCII letters and digits with at least two consonants is a
+  variant of the query when it is not identical, both have the same consonant
+  signature (letters other than a, e, i, o, u and y, lowercased), and their
+  plain Levenshtein distance (two-row dynamic programme, line 6257) is at most
+  two. It fits typo tolerance, the role containers' Damerau–Levenshtein
+  rescue plays, not subsequence ranking.
 
 SiftThroughLogs (`55e7e0c`), which the owner first named, has no fuzzy
 matcher: only SQLite FTS5 over log events and the query language's
