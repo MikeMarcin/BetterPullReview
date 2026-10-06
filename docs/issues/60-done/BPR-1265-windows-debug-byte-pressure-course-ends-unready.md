@@ -168,7 +168,6 @@ WSL2, GCC 15.2.0, `build/dev` rebuilt with no warnings).** 6 of 6 passed:
 `github_cli_process_runner` (1.5 s), `gh_cli_transport`,
 `architecture_boundaries` (26.7 s) and `architecture_boundary_contract`
 (191.0 s).
-||||||| parent of feb0726c2 (BPR-1265: the byte-pressure course runs only in optimized builds; a Debug run reports Skipped with its reason)
 ## The Debug row: optimized builds only (coordinator decision, 2026-10-06)
 
 The coordinator chose option (a), on every platform for consistency:

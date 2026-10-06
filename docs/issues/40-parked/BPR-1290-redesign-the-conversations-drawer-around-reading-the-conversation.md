@@ -764,7 +764,6 @@ scroll-bar markers."
 Next: read the session's decision. Accept satisfies :owner-look and the card
 finishes; Reject comes back with what differs in its note, for a v003
 candidate. Linux and Windows have not run v002's rows.
-||||||| parent of a8ea68098 (BPR-1290: Windows passes 21 of 21 drawer rows and the enforced large-review rows 18 of 18)
 **Note: Windows run at `1fecfaef5` (station `bpr-main-win`, MSVC 14.51, Qt
 6.11.2; no remote mutation).**
 
