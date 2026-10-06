@@ -2,55 +2,60 @@
   "assignment": "betterpullreview-conventional-comments-rfc-pack-v1/authoring",
   "card": "BPR-1083",
   "run_id": "bpr-conventional-comments-20261005",
-  "segment_id": "authoring-bpr-1083",
+  "segment_id": "authoring-bpr-1083-round-v002",
   "mandate_revision": "r1-20261005-owner-release-implement-bpr-1075",
   "owner_amendment": "2026-10-05 chat, verbatim: \"i think settings should also have a toggle to switch between the icons and the shortcode icons, because i liked both of them.\"",
   "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
   "status": "parked: human-review",
   "claim_commit": "1a1f9f526",
-  "candidate_revision": "7513758b0",
+  "candidate_revision": "163cad3b1",
   "product_commits": [
     "b43cd74a5",
     "37927cd14",
     "6ef0c5272",
-    "7513758b0"
+    "7513758b0",
+    "5793e0759",
+    "163cad3b1"
   ],
-  "frozen_root": "/Users/jaeger/bpr1083-authoring-review-v001.klH6zi",
-  "frozen_executable_sha256": "899f95b2f8c7f979a43ef9fd71341aead3cefe752f93c8f8cf29317e1f300f15",
-  "launch": "python3 /Users/jaeger/bpr1083-authoring-review-v001.klH6zi/launch.py",
+  "frozen_root": "/Users/jaeger/bpr1083-authoring-review-v002.nvkpPZ",
+  "frozen_executable_sha256": "7110dd479184eadcc5a4cbb9899f84275b34566addd8e667fb5c4a1b8c1c20a5",
+  "launch": "python3 /Users/jaeger/bpr1083-authoring-review-v002.nvkpPZ/launch.py  (BPR-1287: add --no-file)",
   "review_session": {
-    "id": "8bf444584f9806487f06891db2f5af50",
+    "id": "c2a2442c5ce16c3fbb77598fc87360bb",
     "repo_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
-    "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v001",
-    "url_port": 59265,
-    "host_pid": 19540,
-    "cursor": 18,
-    "wait": "python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v001 wait --after 18 --kind handed-back",
+    "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v002",
+    "url_port": 52993,
+    "host_pid": 2681,
+    "cursor": 20,
+    "wait": "python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v002 wait --after 20 --kind handed-back",
     "candidates": {
-      "BPR-1083-comment-menu-v001": "102238d6f8744955",
-      "BPR-1083-chip-menu-v001": "b9af8a5b55ae8b6b",
-      "BPR-1083-shortcodes-v001": "17f1a8fb522cb599",
-      "BPR-1083-thread-marks-v001": "a877281c8218150d",
-      "BPR-1083-appearance-tints-v001": "ce86d1c45ac2f4a0",
-      "BPR-1083-mark-style-v001": "b52f5a9fad3afee4"
+      "BPR-1083-chip-menu-v002": "15043b1ae65d25be",
+      "BPR-1083-shortcodes-v002": "ada5552dca39369a",
+      "BPR-1083-thread-marks-v002": "99dde4da9f73f220",
+      "BPR-1083-mark-preview-v002": "a786ae22bc9009e4",
+      "BPR-1287-read-empty-v001": "2ee49c3b3092ddfb"
     }
   },
   "verification": [
     {
-      "command": "cmake --build --preset dev (whole tree); ctest --test-dir build/dev -j10",
-      "result": "599 of 605 before the final fixes; the fixture-security inventory fixed; remaining failures unrelated: contained_temporary_usage_contract, qt_workbench_window_scale_{100,125,200} (BPR-1264 staged publication), application_profile_window_review_restoration_public_path (BPR-1236)"
+      "command": "ctest --test-dir build/dev -j8 (whole tree, worktree /Users/jaeger/bpr-wt-1083-v002)",
+      "result": "603 of 606; uiforetw selected-diff and composition contract fixed and rerun green; application_profile_window_review_restoration_public_path unrelated (BPR-1236)"
     },
     {
-      "command": "ctest --test-dir build/dev -R 'qt_feedback|qt_review_draft_editor|sqlite_workbench|github_contract_fixture_security|round_trip_composition|qt_conversation|qt_github|qt_markdown|qt_appearance|qt_colour|core_theme|architecture_bound|application_workbench|qt_composed'",
-      "result": "40 of 40"
+      "command": "ctest -R 'qt_feedback|qt_review_draft_editor|qt_diff_workbench|qt_workbench_window_scale|application_label_authoring_contract|application_threaded_reply_contract|application_review_round_trip_composition_contract|application_uiforetw_selected_diff_contract|application_composition_contract|architecture_boundaries|github_contract_fixture_security|test_network_isolation_manifest'",
+      "result": "all pass"
     },
     {
-      "command": "cmake --build --preset core-only; ctest --test-dir build/core-only",
-      "result": "237 of 238 (contained_temporary_usage_contract, unrelated)"
+      "command": "negative control: review_draft_editor hold removed",
+      "result": "qt_feedback_label_controls fails 'the closing colon's edit is with the owner and the replacement is on screen'"
     },
     {
-      "command": "clang-format 22.1.8 and 23.1.1 on every changed C++ file; tidy.py on 13 changed TUs",
-      "result": "identical; nothing new except an existing bugprone-signed-bitwise"
+      "command": "frozen executable offscreen: --label-authoring-probe; --attended-open-file; --attended-open-pull-request",
+      "result": "LABEL_AUTHORING_EVIDENCE:111111111; ATTENDED_FILE_SHOWN; ATTENDED_PULL_REQUEST_OPENED"
+    },
+    {
+      "command": "clang-format 22.1.8 and 23.1.1; tidy.py on changed TUs",
+      "result": "identical; only pre-existing warnings"
     },
     {
       "command": "python3 scripts/verify_documentation.py --root .",
@@ -58,11 +63,40 @@
     }
   ],
   "pending_obligations": [
-    "Owner verdicts on the six candidates; on Accept of comment-menu-v001 withdraw the Comment menu reservation in docs/ux/workbench-specification.md and workbench_window.cpp's comment",
+    "Owner verdicts on the five v002 candidates; on Accept of chip-menu, shortcodes and thread-marks with mark-preview, BPR-1083 can finish (AC1-AC3 automated pass; owner look complete)",
+    "BPR-1287 owner look (BPR-1287-read-empty-v001)",
     "R33 native matrix (scales, themes, larger text, keyboard, VoiceOver) for these surfaces",
-    "Linux and Windows station runs of qt_feedback_label_{marks,controls,threads}, sqlite_workbench_settings_storage, core_theme_exchange",
-    "BPR-1087/1089 draw Overview chips and the Label key through feedback_mark_theme; BPR-1088 adds the helper row to Comment labels"
+    "Linux and Windows station runs of qt_feedback_label_{marks,controls,threads}, qt_diff_workbench, qt_workbench_window, application_label_authoring_contract",
+    "BPR-1087/1089 draw Overview chips and the Label key through feedback_mark_theme; BPR-1088 adds the helper row"
   ],
-  "command_state": "quiescent except the handed-off review host (pid 19540); worktree removed after landing",
-  "next_action": "Coordinator arms wait --after 18 --kind handed-back; a fresh implementer interprets the verdicts. BPR-1084 to BPR-1086 per their dependencies."
+  "command_state": "quiescent except the handed-off review host (pid 2681); worktree removed after landing",
+  "next_action": "Coordinator arms wait --after 20 --kind handed-back; a fresh implementer interprets the verdicts, finishes or reworks BPR-1083 and BPR-1287, and deletes the v002 frozen root after releasing it.",
+  "previous_review": {
+    "session": "8bf444584f9806487f06891db2f5af50",
+    "state": "/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v001",
+    "consumed_cursor": 23,
+    "released_at_sequence": 24,
+    "verdicts": {
+      "BPR-1083-comment-menu-v001": "accept",
+      "BPR-1083-appearance-tints-v001": "accept",
+      "BPR-1083-mark-style-v001": "accept",
+      "BPR-1083-chip-menu-v001": "reject",
+      "BPR-1083-shortcodes-v001": "unanswered",
+      "BPR-1083-thread-marks-v001": "unanswered"
+    },
+    "frozen_root_deleted": "/Users/jaeger/bpr1083-authoring-review-v001.klH6zi"
+  },
+  "owner_amendments_round_v002": [
+    "Coordinator mandate 2026-10-05: fix the review setup (writable fixture, open on a labelled file, marks preview), file BPR-1287..1289, promote and optionally implement BPR-1287",
+    "BPR-1289 port sources corrected by the owner to containers gct, Entole, AllTheThings and FindInMedia"
+  ],
+  "related_commits": {
+    "allocation": "119c723e8",
+    "cards": "07f32a13e",
+    "claim_bpr_1287": "277d4b423",
+    "bpr_1289_sources": [
+      "5aeabec7a",
+      "978e288e0"
+    ]
+  }
 }

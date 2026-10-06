@@ -53,19 +53,59 @@ decisions, the checks, the negative controls and the unrelated failures.
   storage, fixture-security and round-trip rows pass; `core-only` 237 of 238.
   clang-format 22 and 23 agree; strict tidy clean on the changed units.
 
+## Owner verdicts, session `8bf44458` (v001), 2026-10-05
+
+Handed back at sequence 23. Verbatim:
+
+- `BPR-1083-comment-menu-v001`: **Accept**, no note. Comment ▾ keeps no
+  labels; the reservation in `docs/ux/workbench-specification.md` and the
+  comment in `workbench_window.cpp` are withdrawn.
+- `BPR-1083-appearance-tints-v001`: **Accept**. "Aside: These section labels in
+  settings are super ugly, needs some frontend design love." Filed as
+  [[BPR-1288]].
+- `BPR-1083-mark-style-v001`: **Accept**. "Aside: I really want one of those
+  full settings search/filter boxes like this codex screenshot. I think we had
+  some fuzzy text filtering code in SiftThroughLogs we might be able to port
+  over. / This reviews and queues settings page is incredibly ugly and needs
+  some frontend design love. / The setting is there and appears to work
+  although it'd be nice to see a preview." The asides are [[BPR-1289]] and
+  [[BPR-1288]]; the preview is built here.
+- `BPR-1083-chip-menu-v001`: **Reject**. "aside: this is what happens when you
+  go to Read without a file open. We need to not show a blank diff here and
+  instead have some clear direction to open a file. / I'm not able to leave a
+  comment on this review fixture so I cannot tell if this is working." The
+  aside is [[BPR-1287]]; the rejection is the review setup, fixed below.
+- `BPR-1083-shortcodes-v001`, `BPR-1083-thread-marks-v001`: unanswered (the
+  owner could not comment).
+
+## Round v002, 2026-10-05
+
+`5793e0759`: the v001 launch opened on Home, whose bar reads in public
+preview, read-only. `--attended-open-file` now signs in with the fixture's
+account and opens `src/engine/renderer.cpp` in Read; the
+`--label-authoring-probe` course (`application_label_authoring_contract`)
+drives Comment, `:qu:`, the chip, ⌘L, Publish and the refreshed mark. It found
+that the shortcode's replacement was refused as stale while the closing
+colon's edit was still with the draft owner; the editor now holds it until
+the answer. Reviews & queue shows six marks beside Label marks. Details and
+checks are in the [execution ledger](../../verification/RFC-BPR-0047-0051.md).
+
 ## Pending owner decisions
 
 One attended session asks, one Accept or Reject each, on a frozen build of
-`7513758b0` (`/Users/jaeger/bpr1083-authoring-review-v001.klH6zi`, launched by
-`python3 /Users/jaeger/bpr1083-authoring-review-v001.klH6zi/launch.py`):
+the product tree at `163cad3b1` (`/Users/jaeger/bpr1083-authoring-review-v002.nvkpPZ`, archived from `5aeabec7a`,
+executable SHA-256 `7110dd47…8c1c20a5`). `python3 /Users/jaeger/bpr1083-authoring-review-v002.nvkpPZ/launch.py` opens
+`src/engine/renderer.cpp` in Read signed in as the fixture's account;
+`--no-file` opens the pull request with no file chosen. Session
+`c2a2442c5ce16c3fbb77598fc87360bb`, state `/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v002`, cursor 20:
 
-1. `BPR-1083-comment-menu-v001`: keep the review bar's Comment ▾ free of labels
-   (the contract's open question).
-2. `BPR-1083-chip-menu-v001`: the chip, its menu and the toggles.
-3. `BPR-1083-shortcodes-v001`: the leading shortcodes.
-4. `BPR-1083-thread-marks-v001`: thread marks and rails.
-5. `BPR-1083-appearance-tints-v001`: the twelve tints on Appearance › Colours.
-6. `BPR-1083-mark-style-v001`: the Icons/Letters toggle.
+1. `BPR-1083-chip-menu-v002`: the chip, its menu and the toggles label a
+   comment, and Publish posts it.
+2. `BPR-1083-shortcodes-v002`: the leading shortcodes and completion.
+3. `BPR-1083-thread-marks-v002`: thread marks and rails.
+4. `BPR-1083-mark-preview-v002`: the preview beside Label marks.
+
+The same session asks `BPR-1287-read-empty-v001` for [[BPR-1287]].
 
 Limitations: macOS only (Linux and Windows station runs owed); R33's native
 matrix is not run; the Overview chips and Label key (BPR-1087, BPR-1089) must
