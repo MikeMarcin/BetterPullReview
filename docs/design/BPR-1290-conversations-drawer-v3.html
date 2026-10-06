@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 Conversations drawer, round v3</title>
+<!--
+  [[BPR-1290]] Conversations drawer, round v3: the Conversation tab becomes a map of every
+  conversation in the pull request (the Treeverse thread map, BPR-0418, widened from one thread to
+  the whole pull request) with a reader for the picked branch. Frames live in
+  BPR-1290-conversations-drawer-frames-v3.html; Inline's frames are v2's, unchanged, in
+  BPR-1290-conversations-drawer-frames-v2.html. Nothing on this page is implemented.
+  Round v2's tree-style question is superseded; its split and Inline pick questions are asked again.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1400px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+h3 { font-size:15px; margin:22px 0 6px; }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; max-width:110ch; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:200px; font-weight:600; }
+blockquote { margin:0 0 12px; padding:0 0 0 10px; border-left:3px solid var(--rule-2); color:var(--ink-2); max-width:90ch; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; align-items:flex-start; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; max-width:900px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+.opt { display:inline-block; font-weight:700; margin-right:6px; }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+.legend { display:grid; grid-template-columns:150px 1fr; gap:4px 14px; background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:10px 14px; max-width:880px; font-size:13.5px; }
+.legend b { font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+<h1>Conversations drawer, round v3</h1>
+<div class="by">BPR-1290, 2026-10-06. Frames: <a href="BPR-1290-conversations-drawer-frames-v3.html">BPR-1290-conversations-drawer-frames-v3.html</a>, light and dark, at the drawer's real widths (375 px default, 280 px, 760 px for B). The pull request is made up for the frames: 21 conversations in 10 files, mixing the <code>conventional-comments-v1</code> fixture's threads, v2's long-file threads and illustrative ones in the same people's voices. The deep thread is <code>branching-thread-v1</code> (24 posts, constructed). The 17-post thread on <code>github_thread_map.cpp:214</code> is illustrative and flat, as GitHub records replies. Code lines are verbatim from this repository.</div>
+
+<blockquote>I feel like the treemap should be the primary interface to navigate the conversation view., unless you have a good reason it shouldnt be.<br>Not to move around a single conversation, I mean to find the right conversation.<br>(chat, 2026-10-06)</blockquote>
+<blockquote>I prefer this view, it still needs to show the full branch that you clicked on, or at least up to the noce you selected.<br>(on the Treeverse mockup, 2026-08-21)</blockquote>
+
+<p><b>None of this is implemented.</b></p>
+
+<h2>The map</h2>
+<p>The Conversation tab opens on a map of every conversation in the pull request, grouped by file. Pick a conversation, or any post in it, and the reader shows the branch from the first comment to that post, then what follows it.</p>
+<div class="legend">
+<b>A row</b><span>One conversation: its line, who started it and its label mark, then one node per reply, oldest first. On the right: new count, ✓ resolved, or a lock for your draft.</span>
+<b>A line, not a tree</b><span>Replies sit on one line in the order they were posted. A reply that has replies of its own starts a lane underneath, joined to the post it answers. A GitHub thread, where every reply answers the first comment, is one line, so the map branches only where the conversation does.</span>
+<b>A long line</b><span>Folds its oldest read posts into a count. The picked post and new ones never fold.</span>
+<b>A node</b><span>The post's label mark (BPR-1083), or the author's initial when it has no label. A blue ring means new. Read posts are faded.</span>
+<b>Picked</b><span>An amber ring, and an amber edge on the same post in the reader. The path from the first comment is drawn heavy and what follows is drawn light. The reader shows only that branch; ⑂ n marks where other branches leave it.</span>
+<b>Toolbar</b><span>This file or whole pull request; only new (●); only unresolved (○); highlight a label, which fades everything else in place rather than hiding it.</span>
+</div>
+
+<h3>A long GitHub thread, a branching one, and the whole pull request</h3>
+<div class="frames" id="hero"></div>
+
+<h2>Choice 1: where the map sits</h2>
+<p><span class="opt">A. Above</span>The map on top and the reader below, with a divider between them. It works at every drawer width.</p>
+<div class="frames" id="la"></div>
+<p><span class="opt">B. Beside</span>Map on the left, reader on the right. The drawer widens to 760 px while Conversation is open, the same arrangement as Discuss. Below 640 px it falls back to A.</p>
+<div class="frames" id="lb"></div>
+<p><span class="opt">C. Fills the tab</span>The map fills the tab. Picking folds it to the picked conversation's row above the reader, and ‹ returns to the whole map (Esc).</p>
+<div class="frames" id="lc"></div>
+
+<h2>Filtering and highlighting</h2>
+<div class="frames" id="flt"></div>
+
+<h2>Inline, unchanged from v2</h2>
+<p>This file's threads as cards beside their lines; threads off screen as chips on the edges. Drawn on a 1518-line file at three scroll positions.</p>
+<div class="frames" id="inl"></div>
+
+<h2>Choice 2: clicking a card in Inline (v2's question)</h2>
+<p><span class="opt">A. Opens in place</span>The card grows into the whole conversation with Reply, as in Inline's first frame above. Its ↗ opens it in Conversation.</p>
+<p><span class="opt">B. Opens Conversation</span>Cards stay closed. A click switches to Conversation with that conversation picked in the map, and its line stays shown in the code. The card's ⌄ still opens it in place.</p>
+<div class="frames" id="pick"></div>
+
+<h2>Where today's parts go</h2>
+<table>
+<thead><tr><th>Today</th><th>v3</th></tr></thead>
+<tbody>
+<tr><th>Thread map and "Path to this reply"</th><td>The map is the Conversation tab's navigator for the whole pull request. The path is drawn on the map and read in the reader; the caption is gone.</td></tr>
+<tr><th>Post list and body pane</th><td>The reader: the picked branch in full, with Reply at the foot</td></tr>
+<tr><th>Thread cards at their lines</th><td>Inline (v2)</td></tr>
+<tr><th>Scope and filters</th><td>The map's toolbar; Inline keeps its own</td></tr>
+<tr><th>Next new comment</th><td>Both toolbars</td></tr>
+<tr><th>Reply, Resolve, Mark read</th><td>The reader's header and foot; open cards in Inline</td></tr>
+<tr><th>Drafts</th><td>A dashed root with a lock in the map; dashed cards in Inline</td></tr>
+<tr><th>Defect actions, Support details, View and Copy source</th><td>More (…)</td></tr>
+<tr><th>Line synchronization</th><td>Picking in the map shows the line in the code; ◎ in the reader shows it again</td></tr>
+<tr><th>Discuss</th><td>B is the Discuss arrangement. With A or C, Discuss is redrawn after this round.</td></tr>
+</tbody>
+</table>
+<p>If accepted, the specification's <a href="../ux/workbench-specification.md#the-thread-map">thread map section</a> is amended: the map covers the whole pull request, lays out by the rule above, and shows per-post new state. The ledger has carried per-post state since BPR-0656; the section's "no read or unread state on the map" predates it. RFC-BPR-0028 AC-05's alignment stays with Inline.</p>
+</main>
+<script>
+const V3 = "BPR-1290-conversations-drawer-frames-v3.html", V2 = "BPR-1290-conversations-drawer-frames-v2.html";
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [src, f, w, h, cap, theme, s] of list) {
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="${src}?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+const W = [1440, 820], S = 0.62, D = 0.8;
+put("hero", [
+  [V3, "a-long", ...W, "The long thread at 214, picked at its tenth post. Its first four replies are folded into a count.", "", S],
+  [V3, "a-long", ...W, "Dark", "dark", S],
+  [V3, "a-deep", 375, 820, "branching-thread-v1, picked at the aside off branch C", "", D],
+  [V3, "a-deep", 375, 820, "Dark", "dark", D],
+  [V3, "c-map", 375, 820, "The whole pull request, hovering a node", "", D],
+  [V3, "c-map", 375, 820, "Dark", "dark", D],
+]);
+put("la", [
+  [V3, "pk-after", ...W, "A, line 642's conversation picked", "", S],
+  [V3, "a-280", 280, 820, "A at 280 px, this file", "", D],
+  [V3, "a-280", 280, 820, "Dark", "dark", D],
+]);
+put("lb", [
+  [V3, "b-long", ...W, "B, the long thread at its first new post", "", S],
+  [V3, "b-deep", 760, 820, "B, branch B's sixth reply", "", 0.62],
+  [V3, "b-deep", 760, 820, "Dark", "dark", 0.62],
+]);
+put("lc", [
+  [V3, "c-map", 375, 820, "C, the map", "", D],
+  [V3, "c-deep", 375, 820, "C, after picking branch C's fifth reply", "", D],
+  [V3, "c-long", 375, 820, "C, after picking the long thread's first new post", "", D],
+  [V3, "c-long", 375, 820, "Dark", "dark", D],
+]);
+put("flt", [
+  [V3, "a-menu", 375, 820, "Choosing a label", "", D],
+  [V3, "a-filter", 375, 820, "Only new, with issue highlighted", "", D],
+  [V3, "a-filter", 375, 820, "Dark", "dark", D],
+]);
+put("inl", [
+  [V2, "in-p1", ...W, "Line 642's thread open beside its code", "", S],
+  [V2, "in-p2", ...W, "After clicking the 1109 chip", "dark", S],
+  [V2, "in-p3", ...W, "280 px, between threads", "", S],
+]);
+put("pick", [
+  [V2, "pk-inline", ...W, "B: Inline with cards closed, hovering 642", "", S],
+  [V3, "pk-after", ...W, "B: after the click", "", S],
+  [V2, "pk-inline", ...W, "B, dark", "dark", S],
+  [V3, "pk-after", ...W, "B, dark, after the click", "dark", S],
+]);
+</script>
+</body>
+</html>

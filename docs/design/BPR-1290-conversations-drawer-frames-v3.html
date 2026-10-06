@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 Conversations drawer frames v3</title>
+<!--
+  [[BPR-1290]] Conversations drawer, round v3. The owner, in chat on 2026-10-06: "I feel like the
+  treemap should be the primary interface to navigate the conversation view., unless you have a
+  good reason it shouldnt be." Then: "Not to move around a single conversation, I mean to find the
+  right conversation." The treemap is the Treeverse thread map (BPR-0418), of which the owner said
+  on 2026-08-21: "it still needs to show the full branch that you clicked on, or at least up to
+  the noce you selected."
+
+  v3 makes the Conversation tab a map of every conversation in the pull request, grouped by file,
+  above (A), beside (B) or in place of (C) the reader. Picking a conversation or one of its posts
+  shows, in the reader, the branch from the first comment to that post and what follows it.
+  Inline is v2's, unchanged (BPR-1290-conversations-drawer-frames-v2.html).
+
+  The map's rule. Time runs left to right. A conversation's replies sit on one line in the order
+  they were posted; a reply that has replies of its own starts a lane below, joined to the post it
+  answers. A GitHub thread, where every reply answers the first comment, is therefore one line,
+  and the map branches only where the conversation does. A line too long for the drawer folds
+  its oldest read posts into a count; the picked post and new ones are never folded.
+
+  Content.
+  - The pull request is made up for the frames: 21 conversations in 10 files. The renderer.cpp,
+    README, bloom.frag, main.cpp and button.cpp threads are tests/fixtures/github/contracts/v1/
+    conventional-comments-v1's; conversation_cards_view.cpp's seven are v2's illustrative threads;
+    the others are illustrative, in the fixture people's voices.
+  - Long thread: github_thread_map.cpp:214, 17 posts, illustrative; every reply answers the first
+    comment, as GitHub records it. Code lines of github_thread_map.cpp (196-239) and of
+    conversation_cards_view.cpp are verbatim from this repository.
+  - Deep thread: tests/fixtures/github/conversations/branching-thread-v1 (24 posts; A, B and C
+    branch off the first comment; an aside forks off C's third reply). Its unread state is
+    illustrative.
+  - Marks: BPR-1080's selected glyphs; posts per BPR-1083 v4. Per-post unread is the ledger's
+    (BPR-0656).
+
+  Query parameters:  f = frame id (none draws the index)   theme = light (default) | dark
+  Static design frames, not the product. Nothing here is implemented.
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#EEF1F5; --rule:#D9DEE5; --rule-2:#C3CAD3;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#6B7480; --signal:#2F6FD6; --signal-soft:#DCE8F9; --on-signal:#FFFFFF;
+  --open:#D29922; --ok:#1A7F37; --new:#2F6FD6; --hover:#F3F5F8;
+  --code:#FFFFFF; --gutter:#F0F2F5; --lnum:#5B6570; --add:#E6FFEC; --add-g:#CCFFD8; --cur:#FFF8C5;
+  --field:#FFFFFF; --shadow:0 10px 28px rgba(31,35,40,.18); --tip:#1F2328; --tip-ink:#F6F7F9;
+  --kw:#B51D27; --fn:#6639BA; --ty:#6E3EC8; --str:#0A3069; --cm:#6E7781;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"JetBrains Mono NL", "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+body.dark {
+  --bg:#1C2026; --side:#20252C; --panel:#242930; --panel-2:#2E343D; --rule:#343A44; --rule-2:#454D59;
+  --ink:#E6EDF3; --ink-2:#A0A8B2; --ink-3:#8B949E; --signal:#7FB0E8; --signal-soft:#26374F; --on-signal:#0D1117;
+  --open:#E0B15A; --ok:#3FB950; --new:#7FB0E8; --hover:#2A3038;
+  --code:#0D1117; --gutter:#141921; --lnum:#8B949E; --add:#12301D; --add-g:#1A4A2A; --cur:#2F2A12;
+  --field:#1A1F26; --shadow:0 12px 32px rgba(0,0,0,.55); --tip:#E6EDF3; --tip-ink:#1C2026;
+  --kw:#6DA9DB; --fn:#FF8000; --ty:#FFD700; --str:#A5D6FF; --cm:#8B949E;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--ink); font:12px/1.4 var(--ui); -webkit-font-smoothing:antialiased; }
+body.index { overflow:auto; padding:20px; }
+svg.i { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; display:block; }
+svg.i.s { width:13px; height:13px; }
+.sp { flex:1; }
+
+/* window chrome */
+.win { width:100vw; height:100vh; display:flex; flex-direction:column; }
+.title { flex:0 0 32px; display:flex; align-items:center; gap:8px; padding:0 10px 0 0; background:var(--panel); border-bottom:1px solid var(--rule-2); }
+.lights { display:flex; gap:8px; padding-left:12px; width:84px; flex:none; }
+.lights i { width:12px; height:12px; border-radius:50%; background:#FF5F57; display:block; }
+.lights i:nth-child(2) { background:#FEBC2E; } .lights i:nth-child(3) { background:#28C840; }
+.seg { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; }
+.seg > span { display:inline-flex; align-items:center; gap:5px; padding:0 10px; height:21px; color:var(--ink-2); border-right:1px solid var(--rule-2); white-space:nowrap; }
+.seg > span:last-child { border-right:0; }
+.seg > span.on { background:var(--signal-soft); color:var(--ink); font-weight:600; }
+.seg kbd { font:11px var(--ui); color:var(--ink-3); }
+.tb { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:22px; min-width:24px; padding:0 4px; border-radius:5px; color:var(--ink-2); white-space:nowrap; }
+.tb.on { background:var(--signal-soft); color:var(--ink); }
+.bar { flex:0 0 30px; display:flex; align-items:center; gap:10px; padding:0 10px; background:var(--panel); border-bottom:1px solid var(--rule); white-space:nowrap; color:var(--ink-2); }
+.bar b { color:var(--ink); font-weight:600; }
+.status { flex:0 0 24px; display:flex; align-items:center; padding:0 12px; background:var(--panel); border-top:1px solid var(--rule); color:var(--ink-2); font-size:11.5px; }
+.main { flex:1; display:flex; min-height:0; }
+
+/* code: one long file */
+.cmp { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--code); }
+.fh { flex:0 0 24px; display:flex; align-items:center; justify-content:center; gap:8px; background:var(--side); border-bottom:1px solid var(--rule); color:var(--ink); font-size:12px; }
+.fh span { color:var(--ink-3); }
+.panes { flex:1; display:flex; min-height:0; position:relative; }
+.pane { flex:1; font:12px/19px var(--mono); overflow:hidden; min-width:0; }
+.ln { display:flex; white-space:pre; position:relative; height:19px; }
+.ln .g { flex:0 0 52px; text-align:right; padding-right:9px; color:var(--lnum); background:var(--gutter); }
+.ln .t { padding-left:12px; flex:1; }
+.ln.add .t { background:var(--add); } .ln.add .g { background:var(--add-g); }
+.ln.cur .t { background:var(--cur); box-shadow:inset 0 0 0 1px var(--signal); }
+.ln .gm { position:absolute; left:52px; top:2px; bottom:2px; width:4px; border-radius:1px; }
+.ln .gm.dr { background:transparent !important; border:1.5px dashed var(--ink-3); width:5px; }
+.k { color:var(--kw); } .fn { color:var(--fn); } .ty { color:var(--ty); } .str { color:var(--str); } .cm { color:var(--cm); font-style:italic; }
+/* the code's scroll bar keeps a tick per thread */
+.ruler { flex:0 0 14px; position:relative; background:var(--side); border-left:1px solid var(--rule); }
+.ruler .thumb { position:absolute; left:2px; right:2px; border-radius:3px; background:color-mix(in srgb, var(--ink) 16%, transparent); }
+.ruler .rt { position:absolute; left:1px; right:1px; height:3px; border-radius:1px; }
+.ruler .rt.dr { background:transparent !important; border:1px dashed var(--ink-3); height:4px; }
+
+/* drawer */
+.drawer { flex:none; display:flex; flex-direction:column; background:var(--panel); border-left:1px solid var(--rule-2); min-height:0; position:relative; }
+.solo { position:relative; overflow:hidden; }
+.solo .drawer { width:100%; height:100%; border-left:0; }
+.tabs { flex:0 0 30px; display:flex; align-items:stretch; padding:0 4px; border-bottom:1px solid var(--rule); }
+.tab { display:flex; align-items:center; gap:5px; padding:0 8px; color:var(--ink-2); white-space:nowrap; }
+.tab.on { color:var(--ink); font-weight:600; box-shadow:inset 0 -2px 0 var(--signal); }
+.pillc { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 5px; border-radius:8px; background:var(--new); color:var(--on-signal); font-size:10.5px; font-weight:700; }
+.dbody { flex:1; display:flex; flex-direction:column; min-height:0; position:relative; }
+.nav { flex:0 0 34px; display:flex; align-items:center; gap:3px; padding:0 6px; border-bottom:1px solid var(--rule); }
+.ic { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:5px; color:var(--ink-2); flex:none; position:relative; }
+.ic.on { background:var(--signal-soft); color:var(--ink); }
+.ic.hot { box-shadow:0 0 0 2px var(--signal); }
+.vsep { width:1px; height:16px; background:var(--rule); margin:0 2px; flex:none; }
+.scopes { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; flex:none; }
+.scopes .ic { border-radius:0; width:26px; height:22px; }
+
+/* posts, BPR-1083 v4 */
+.post { position:relative; display:grid; grid-template-columns:18px 1fr; column-gap:9px; padding:8px 12px 8px var(--pl, 16px); }
+.post .rail { position:absolute; left:calc(var(--pl, 16px) - 5px); top:8px; bottom:8px; width:2px; border-radius:1px; background:var(--t, var(--rule-2)); }
+.post.blk .rail { left:calc(var(--pl, 16px) - 7px); width:4px; }
+.post.plain .rail { background:var(--rule-2); }
+.gut { display:flex; flex-direction:column; align-items:center; gap:3px; }
+.av { width:18px; height:18px; border-radius:50%; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; text-transform:uppercase; flex:none; }
+.av.me { background:var(--signal); border-color:var(--signal); color:var(--on-signal); }
+.lm { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:4px; border:1.5px solid var(--t); color:var(--ink); background:color-mix(in srgb, var(--t) 22%, var(--panel)); flex:none; }
+body.dark .lm { background:color-mix(in srgb, var(--t) 30%, var(--panel)); }
+.lm.blk { background:var(--t); color:var(--on-t); }
+.lm svg { display:block; width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+.lm.sm { width:14px; height:14px; border-radius:3.5px; } .lm.sm svg { width:10px; height:10px; }
+.pb { min-width:0; }
+.nm { display:flex; align-items:center; gap:6px; min-height:18px; white-space:nowrap; }
+.nm b { font-weight:600; }
+.nm .dot { width:7px; height:7px; border-radius:50%; background:var(--new); }
+.post.read .nm b { font-weight:500; color:var(--ink-2); }
+.tx { margin:2px 0 0; font-size:13px; line-height:1.5; color:var(--ink); overflow-wrap:anywhere; }
+.post.read .tx { color:color-mix(in srgb, var(--ink) 82%, var(--panel)); }
+.tx code { font:12px var(--mono); background:var(--panel-2); padding:0 3px; border-radius:3px; }
+.post.sel { background:color-mix(in srgb, var(--signal-soft) 70%, transparent); }
+.newline { display:flex; align-items:center; gap:8px; margin:2px 12px 0 16px; color:var(--new); font-size:11px; font-weight:600; }
+.newline::after { content:""; flex:1; height:1px; background:var(--new); opacity:.55; }
+.re { display:inline-flex; align-items:center; gap:4px; max-width:100%; margin-top:2px; padding:1px 7px 1px 4px; border-radius:5px; background:var(--panel-2); color:var(--ink-2); font-size:11.5px; white-space:nowrap; overflow:hidden; border:1px solid transparent; }
+.re.hot { border-color:var(--signal); color:var(--ink); }
+.re b { color:var(--ink); font-weight:600; }
+.re .q { overflow:hidden; text-overflow:ellipsis; }
+.fold { display:flex; align-items:center; gap:7px; margin:0 12px 2px var(--pl, 28px); padding:5px 8px; border-radius:6px; border:1px dashed var(--rule-2); color:var(--ink-2); font-size:11.5px; }
+.stack { display:inline-flex; }
+.stack .av { width:16px; height:16px; font-size:9px; margin-left:-4px; box-shadow:0 0 0 1.5px var(--panel); }
+.stack .av:first-child { margin-left:0; }
+/* the tree's guides: a line from a post that has several replies down to each of them */
+.guide { position:absolute; width:2px; border-radius:1px; background:color-mix(in srgb, var(--ink-3) 70%, transparent); pointer-events:none; }
+.elbow { position:absolute; height:2px; border-radius:1px; background:color-mix(in srgb, var(--ink-3) 70%, transparent); pointer-events:none; }
+.knob { position:absolute; width:14px; height:14px; border-radius:50%; background:var(--panel); border:1.5px solid color-mix(in srgb, var(--ink-3) 70%, transparent); color:var(--ink-2); display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%); }
+.knob svg { width:9px; height:9px; stroke-width:2.6; }
+.knob.hot { border-color:var(--signal); color:var(--ink); }
+
+.btn { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 10px; border-radius:6px; border:1px solid var(--rule-2); color:var(--ink); background:var(--panel); white-space:nowrap; font-weight:500; }
+.btn.pri { background:var(--signal); border-color:var(--signal); color:var(--on-signal); }
+.priv { font-size:11px; color:var(--ink-3); display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+
+/* reply in place */
+.rbox { flex:none; border-top:1px solid var(--rule); padding:8px 10px 10px; display:flex; flex-direction:column; gap:7px; background:var(--panel); }
+.rf { display:flex; align-items:center; gap:8px; }
+.field { flex:1; min-height:30px; border:1px solid var(--rule-2); border-radius:7px; background:var(--field); padding:6px 9px; color:var(--ink-3); font-size:13px; line-height:1.45; display:flex; align-items:center; gap:6px; }
+.field.on { border-color:var(--signal); box-shadow:0 0 0 2px color-mix(in srgb, var(--signal) 30%, transparent); color:var(--ink); align-items:flex-start; min-height:78px; flex-direction:column; }
+.field .caret { display:inline-block; width:1px; height:15px; background:var(--ink); vertical-align:-3px; }
+.lab { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 6px 0 3px; border-radius:5px; background:color-mix(in srgb, var(--t) 18%, var(--panel)); color:var(--ink); font-size:12px; }
+.ract { display:flex; align-items:center; gap:4px; }
+
+/* Inline: cards at their lines */
+.lane { flex:1; position:relative; overflow:hidden; background:var(--side); }
+.card { position:absolute; left:8px; right:8px; background:var(--panel); border:1px solid var(--rule-2); border-radius:8px; box-shadow:0 1px 2px rgba(31,35,40,.06); }
+.card.cur { border-color:var(--signal); box-shadow:0 0 0 1px var(--signal); }
+.card.draft { border-style:dashed; background:color-mix(in srgb, var(--panel) 70%, var(--side)); }
+.card.hov { border-color:var(--signal); }
+.notch { position:absolute; left:-9px; width:9px; height:2px; background:var(--rule-2); }
+.card.cur .notch { background:var(--signal); }
+.chead { display:flex; align-items:center; gap:3px; height:28px; padding:0 4px 0 8px; border-bottom:1px solid var(--rule); color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.card:not(.open) .chead { border-bottom:0; height:26px; }
+.where { display:inline-flex; align-items:center; gap:4px; color:var(--ink-2); font-weight:600; }
+.where::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--open); }
+.card.draft .where::before { background:transparent; border:1.5px dashed var(--ink-3); width:7px; height:7px; }
+.cnt { display:inline-flex; align-items:center; gap:3px; color:var(--ink-3); font-size:11.5px; margin:0 3px; }
+.n { min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--new); color:var(--on-signal); font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+.card .post { padding-top:4px; }
+.card:not(.open) .post .tx { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.card .rbox { border-radius:0 0 8px 8px; padding:6px 8px 8px; }
+.card .rbox .field { min-height:28px; padding:4px 8px; }
+.dacts { display:flex; gap:2px; align-items:center; padding:0 6px 6px 43px; }
+/* threads outside the visible lines */
+.edge { position:absolute; left:0; right:0; height:30px; display:flex; align-items:center; gap:4px; padding:0 8px; background:var(--panel); z-index:5; white-space:nowrap; overflow:hidden; }
+.edge.top { top:0; border-bottom:1px solid var(--rule); box-shadow:0 3px 6px -4px rgba(0,0,0,.25); }
+.edge.bot { bottom:0; border-top:1px solid var(--rule); box-shadow:0 -3px 6px -4px rgba(0,0,0,.25); }
+.edge .dir { color:var(--ink-3); display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; margin-right:2px; }
+.ech { display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 6px 0 4px; border-radius:6px; border:1px solid var(--rule); color:var(--ink); font-variant-numeric:tabular-nums; flex:none; position:relative; }
+.ech.dr { border-style:dashed; color:var(--ink-2); }
+.ech.hov { border-color:var(--signal); background:var(--signal-soft); }
+.ech .u { width:6px; height:6px; border-radius:50%; background:var(--new); }
+.ech .dsh { width:12px; height:12px; border:1.5px dashed var(--ink-3); border-radius:3px; }
+.card.peek { opacity:.92; }
+.card.peek .chead .where::after { content:""; }
+.peekdir { display:inline-flex; color:var(--ink-3); margin-right:2px; }
+.empty { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); text-align:center; color:var(--ink-3); font-size:12px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+
+/* Conversation */
+.conv { flex:1; display:flex; flex-direction:column; min-height:0; }
+.thead { flex:none; display:flex; align-items:center; gap:2px; padding:0 4px 0 6px; height:34px; border-bottom:1px solid var(--rule); }
+.pick { display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 6px 0 5px; border-radius:6px; border:1px solid var(--rule-2); color:var(--ink); font-weight:600; white-space:nowrap; min-width:0; overflow:hidden; }
+.pick.on { border-color:var(--signal); background:var(--signal-soft); }
+.pick .p { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.pick .p span { color:var(--ink-3); font-weight:400; }
+.feed { flex:1; overflow:hidden; padding:4px 0 10px; position:relative; }
+.feedin { position:relative; }
+.feedin.tail { padding-bottom:70px; }
+
+/* popover and tooltip */
+.pop { position:absolute; z-index:15; background:var(--panel); border:1px solid var(--rule-2); border-radius:8px; box-shadow:var(--shadow); padding:4px 0; overflow:hidden; }
+.row { display:flex; align-items:center; gap:7px; height:30px; padding:0 10px 0 10px; color:var(--ink); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.row.on { background:var(--signal-soft); }
+.row .ln2 { font-weight:600; min-width:22px; }
+.row .first { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; color:var(--ink-2); }
+.row .dsh { width:14px; height:14px; border:1.5px dashed var(--ink-3); border-radius:3.5px; flex:none; }
+.fgroup { height:24px; display:flex; align-items:center; padding:4px 10px 0; color:var(--ink-3); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tip { position:absolute; z-index:20; background:var(--tip); color:var(--tip-ink); border-radius:5px; padding:4px 8px; font-size:11.5px; line-height:1.35; box-shadow:var(--shadow); white-space:nowrap; }
+.tip kbd { font:11px var(--ui); opacity:.7; margin-left:6px; }
+.cursor { position:absolute; z-index:21; width:14px; height:20px; pointer-events:none; }
+
+
+/* ================= v3: the map ================= */
+:root { --focus:#C98A12; --focus-soft:#FDF1D6; }
+body.dark { --focus:#E8B54A; --focus-soft:#3A2F17; }
+.tabs .pillc { margin-left:1px; }
+.tg { display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 6px; border-radius:6px; color:var(--ink-2); font-variant-numeric:tabular-nums; font-size:11.5px; font-weight:600; white-space:nowrap; flex:none; border:1px solid transparent; }
+.tg.on { background:var(--signal-soft); color:var(--ink); border-color:color-mix(in srgb, var(--signal) 45%, transparent); }
+.tg .u { width:7px; height:7px; border-radius:50%; background:var(--new); }
+.tg .x { color:var(--ink-3); margin-left:1px; }
+.tg .lm.sm { width:14px; height:14px; }
+
+.mapwrap { flex:none; display:flex; flex-direction:column; min-height:0; background:var(--panel); }
+.map { flex:1; position:relative; overflow:hidden; min-height:0; }
+.mapin { position:relative; padding:2px 0 10px; }
+.fgrp { display:flex; align-items:center; gap:5px; height:24px; margin-top:4px; padding:0 8px 0 4px; color:var(--ink-2); font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; }
+.fgrp:first-child { margin-top:0; }
+.fgrp .fn2 { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.fgrp .fc { color:var(--ink-3); font-weight:500; font-variant-numeric:tabular-nums; }
+.fgrp.here { color:var(--ink); }
+.fgrp.here .herem { display:inline-flex; color:var(--signal); }
+.fgrp .tw { display:inline-flex; color:var(--ink-3); width:13px; }
+.cv { position:relative; }
+.cv.sel { background:color-mix(in srgb, var(--signal-soft) 62%, transparent); box-shadow:inset 2px 0 0 var(--signal); }
+.cv.res > .nd, .cv.res > .rc, .cv.res > svg { opacity:.42; }
+.cv.res > .rt { opacity:.85; }
+.cv.lo > * { opacity:.28 !important; }
+.rc { position:absolute; left:2px; top:0; height:26px; display:flex; align-items:center; gap:3px; }
+.rc .lnno { width:30px; text-align:right; padding-right:3px; font-variant-numeric:tabular-nums; font-weight:600; color:var(--ink-2); font-size:11.5px; }
+.cv.sel .rc .lnno { color:var(--ink); }
+.cv.dr .rc .lnno { color:var(--ink-3); }
+.rc .av { width:16px; height:16px; font-size:9px; }
+.rc .lm { width:15px; height:15px; border-radius:4px; }
+.rc .lm svg { width:11px; height:11px; }
+.rc .dsh { width:15px; height:15px; border:1.5px dashed var(--ink-3); border-radius:4px; }
+.rt { position:absolute; right:8px; top:5px; height:16px; display:flex; align-items:center; gap:4px; color:var(--ink-3); }
+.rt .ok { color:var(--ok); display:inline-flex; }
+.nd { position:absolute; transform:translate(-50%,-50%); display:flex; border-radius:50%; z-index:2; }
+.nd > .av { width:14px; height:14px; font-size:8px; border-width:1px; }
+.nd > .lm { width:14px; height:14px; border-radius:3.5px; }
+.nd > .lm svg { width:10px; height:10px; }
+.nd.rd { opacity:.5; }
+.nd.on { opacity:1; }
+.nd.u > * { box-shadow:0 0 0 1.5px var(--panel), 0 0 0 3px var(--new); }
+.cv.sel .nd.u > * { box-shadow:0 0 0 1.5px var(--signal-soft), 0 0 0 3px var(--new); }
+.nd.foc { z-index:4; }
+.nd.foc > * { box-shadow:0 0 0 2px var(--panel), 0 0 0 4.5px var(--focus) !important; }
+.nd.hit { opacity:1; }
+.nd.hit > * { box-shadow:0 0 0 2px var(--panel), 0 0 0 4px color-mix(in srgb, var(--t) 70%, transparent); }
+.nd.lo { opacity:.18; }
+.nd.hov > * { box-shadow:0 0 0 2px var(--panel), 0 0 0 4px var(--signal) !important; }
+.rc .nd { position:static; transform:none; }
+.fp { position:absolute; transform:translateY(-50%); height:14px; display:inline-flex; align-items:center; justify-content:center; border-radius:7px; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font-size:9.5px; font-weight:700; font-variant-numeric:tabular-nums; z-index:2; }
+svg.ed { position:absolute; left:0; top:0; overflow:visible; pointer-events:none; z-index:1; }
+svg.ed path { fill:none; stroke:var(--rule-2); stroke-width:1.5; stroke-linecap:round; }
+svg.ed path.dn { stroke:color-mix(in srgb, var(--signal) 50%, transparent); stroke-width:2; }
+svg.ed path.pa { stroke:var(--signal); stroke-width:3; }
+.split { flex:0 0 8px; position:relative; background:var(--side); border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); }
+.split i { position:absolute; left:50%; top:50%; width:28px; height:3px; border-radius:2px; background:var(--rule-2); transform:translate(-50%,-50%); }
+.vsplit { flex:0 0 8px; position:relative; background:var(--side); border-left:1px solid var(--rule); border-right:1px solid var(--rule); }
+.vsplit i { position:absolute; left:50%; top:50%; width:3px; height:28px; border-radius:2px; background:var(--rule-2); transform:translate(-50%,-50%); }
+.bes { flex:1; display:flex; min-height:0; }
+.bes > .mapwrap { flex:none; }
+.bes > .conv { flex:1; min-width:0; }
+.post.foc::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--focus); }
+.post.foc { background:color-mix(in srgb, var(--focus-soft) 75%, transparent); }
+.post.dwn .tx { color:color-mix(in srgb, var(--ink) 80%, var(--panel)); }
+.fork { display:flex; align-items:center; gap:5px; margin:-2px 12px 3px var(--pl, 34px); padding:2px 7px; width:max-content; border-radius:5px; border:1px dashed var(--rule-2); color:var(--ink-2); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; }
+.back { flex:0 0 32px; display:flex; align-items:center; gap:4px; padding:0 6px; border-bottom:1px solid var(--rule); color:var(--ink-2); font-weight:600; }
+.back .tg { padding:0 6px 0 2px; }
+.strip { border-bottom:1px solid var(--rule); padding:2px 0 4px; flex:none; }
+.thead .ttl { display:inline-flex; align-items:center; gap:5px; min-width:0; overflow:hidden; font-weight:600; white-space:nowrap; padding-left:2px; }
+.thead .ttl .p { overflow:hidden; text-overflow:ellipsis; }
+.thead .ttl .p span { color:var(--ink-3); font-weight:400; }
+.lrow { display:flex; align-items:center; gap:7px; height:28px; padding:0 10px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.lrow.on { background:var(--signal-soft); }
+.lrow .c { margin-left:auto; color:var(--ink-3); }
+.dbody > .tip { white-space:normal; max-width:280px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+"use strict";
+const Q = new URLSearchParams(location.search);
+const DARK = Q.get("theme") === "dark";
+if (DARK) document.body.classList.add("dark");
+const ME = "fixture-author";
+
+/* BPR-1080's selected glyphs and tints (light, dark, on-tint for blocking). */
+const L = {
+  issue:{lt:"#D1242F",dk:"#FF7B72",ol:"#FFFFFF",od:"#111418",g:'<path d="M12 4 L12 14"/><circle cx="12" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  question:{lt:"#8250DF",dk:"#C29BFF",g:'<path d="M8.4 8.6 C8.4 5.9 10 4.2 12.2 4.2 C14.4 4.2 15.9 5.7 15.9 7.7 C15.9 10.6 12.2 11.1 12.2 14.3"/><circle cx="12.2" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  praise:{lt:"#BF3989",dk:"#F778BA",g:'<path d="M12 19.5 C6.2 15.6 3.5 12.6 3.5 9.2 C3.5 6.6 5.4 4.8 7.7 4.8 C9.6 4.8 11 5.9 12 7.6 C13 5.9 14.4 4.8 16.3 4.8 C18.6 4.8 20.5 6.6 20.5 9.2 C20.5 12.6 17.8 15.6 12 19.5 Z"/>'},
+  suggestion:{lt:"#1F6FD0",dk:"#6CB0FF",g:'<path d="M9.2 15.6 C7 14.3 5.5 12.2 5.5 9.6 C5.5 6 8.4 3.5 12 3.5 C15.6 3.5 18.5 6 18.5 9.6 C18.5 12.2 17 14.3 14.8 15.6 L14.8 17 L9.2 17 Z"/><path d="M9.8 20.3 L14.2 20.3"/>'},
+  todo:{lt:"#C24E00",dk:"#FFA05A",g:'<path d="M15.5 12.5 L15.5 18.5 C15.5 19.05 15.05 19.5 14.5 19.5 L5.5 19.5 C4.95 19.5 4.5 19.05 4.5 18.5 L4.5 9.5 C4.5 8.95 4.95 8.5 5.5 8.5 L11 8.5"/><path d="M7.8 13 L10.6 15.8 L19.8 5"/>'},
+  nitpick:{lt:"#6E7781",dk:"#9BA4AE",g:'<path d="M15.5 9.5 C15.5 12.81 12.81 15.5 9.5 15.5 C6.19 15.5 3.5 12.81 3.5 9.5 C3.5 6.19 6.19 3.5 9.5 3.5 C12.81 3.5 15.5 6.19 15.5 9.5 Z"/><path d="M12.43 15.62 L15.62 12.43 L21.63 18.44 C23.75 20.57 20.57 23.75 18.44 21.63 Z" fill="currentColor" stroke="none"/>'},
+  thought:{lt:"#4F5BD5",dk:"#9AA5FF",g:'<path d="M7.2 14 C5 14 3.6 12.6 3.6 11 C3.6 9.4 5 8.2 6.8 8.4 C7.2 5.8 9.3 4 12 4 C14.6 4 16.6 5.7 17 8 C19 7.9 20.5 9.3 20.5 11 C20.5 12.7 19.2 14 17.3 14 Z"/><circle cx="7.6" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="4.4" cy="20.9" r="1.3" fill="currentColor" stroke="none"/>'},
+  chore:{lt:"#8A5A2B",dk:"#D2A26E",g:'<path d="M22 3 L15.75 9.25" stroke-width="2.2"/><path d="M14 7 L18 11 L16.5 13.5 L11.5 8.5 Z" fill="currentColor" stroke="none"/><path d="M16 15 L10 9 L1.5 12.5 L4 15 L8 11 L9 12 L5 16 L9 20 L13 16 L14 17 L10 21 L12.5 23.5 Z" fill="currentColor" stroke="none"/>'},
+  typo:{lt:"#6F7A00",dk:"#C3CE4A",g:'<path d="M0.5 14 L4 2 L6 2 L9.5 14 L7.1 14 L6.52 12 L3.48 12 L2.9 14 Z M4.07 10 L5.93 10 L5 6.8 Z" fill="currentColor" stroke="none"/><path d="M10 2 L12 2 L12 6 L13.5 6 C14.88 6 16 7.12 16 8.5 L16 11.5 C16 12.88 14.88 14 13.5 14 L10 14 Z M12 8 L12 12 L13.5 12 C13.78 12 14 11.78 14 11.5 L14 8.5 C14 8.22 13.78 8 13.5 8 Z" fill="currentColor" stroke="none"/><path d="M23.5 6 L21 6 C19.34 6 18 7.34 18 9 L18 11 C18 12.66 19.34 14 21 14 L23.5 14 L23.5 12 L21 12 C20.45 12 20 11.55 20 11 L20 9 C20 8.45 20.45 8 21 8 L23.5 8 Z" fill="currentColor" stroke="none"/><path d="M1.5 20.8 C2.59 20.8 3.41 18.2 4.5 18.2 C5.59 18.2 6.41 20.8 7.5 20.8 C8.59 20.8 9.41 18.2 10.5 18.2 C11.59 18.2 12.41 20.8 13.5 20.8 C14.59 20.8 15.41 18.2 16.5 18.2 C17.59 18.2 18.41 20.8 19.5 20.8 C20.59 20.8 21.41 18.2 22.5 18.2" stroke-width="2"/>'},
+  quibble:{lt:"#9A5B7A",dk:"#D99BBB",g:'<path d="M3 17.2 C3.5 18.8 4.4 19.8 5.7 19.8 C8.3 19.8 9.4 13.8 12 13.8 C14.6 13.8 15.7 19.8 18.3 19.8 C19.6 19.8 20.5 18.8 21 17.2"/><path d="M12 7.8 L12 4.4 M7.72 9.04 L5.71 6.81 M16.28 9.04 L18.29 6.81"/>'},
+};
+const tint = (l) => (DARK ? L[l].dk : L[l].lt);
+const mark = (l, blk, cls = "") => {
+  const name = l + (blk ? " (blocking)" : "");
+  const on = DARK ? (L[l].od || "#111418") : (L[l].ol || "#FFFFFF");
+  return `<span class="lm ${blk ? "blk" : ""} ${cls}" style="--t:${tint(l)};--on-t:${on}" role="img" aria-label="${name}" title="${name}"><svg viewBox="0 0 24 24" aria-hidden="true">${L[l].g}</svg></span>`;
+};
+
+const I = {
+  file:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
+  pr:'<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M6 8.2v7.6"/><path d="M18 15.8V10a3 3 0 0 0-3-3h-4"/><path d="M12.5 4.5 10 7l2.5 2.5"/>',
+  filter:'<path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/>',
+  resolve:'<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 5-5.4"/>',
+  read:'<path d="M2.5 12.5l3.6 3.6L13 9"/><path d="M10.6 16.1l.8.8L20.5 8"/>',
+  code:'<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
+  more:'<circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+  up:'<path d="M6 14.5l6-6 6 6"/>', down:'<path d="M6 9.5l6 6 6-6"/>',
+  chev:'<path d="M9.5 6l6 6-6 6"/>', chevd:'<path d="M6 9.5l6 6 6-6"/>', chevu:'<path d="M6 14.5l6-6 6 6"/>',
+  re:'<path d="M9.5 7 5 11.5 9.5 16"/><path d="M5 11.5h9a5 5 0 0 1 5 5V18"/>',
+  pencil:'<path d="M4.5 19.5l1-4.2L15.8 5a2 2 0 0 1 2.9 0l.3.3a2 2 0 0 1 0 2.9L8.7 18.5z"/>',
+  send:'<path d="M4 11.8 20 4.5l-6.2 15.5-2.7-6.5z"/><path d="M11.1 13.5 20 4.5"/>',
+  trash:'<path d="M5 7h14M10 7V4.5h4V7M7 7l1 12.5h8L17 7"/>',
+  tag:'<path d="M3.5 12V4.5H11l9.5 9.5-7.5 7.5z"/><circle cx="7.6" cy="8.6" r="1.3" fill="currentColor" stroke="none"/>',
+  next:'<circle cx="12" cy="7" r="3" fill="currentColor" stroke="none"/><path d="M12 12.5v8M8.5 17l3.5 3.5 3.5-3.5"/>',
+  lock:'<rect x="5.5" y="11" width="13" height="9" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/>',
+  home:'<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/>',
+  refresh:'<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+  drawer:'<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/>',
+  user:'<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/>',
+  sun:'<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  /* tabs */
+  inline:'<path d="M4 5h9M4 9h6M4 13h9M4 17h6"/><path d="M15 9.5h5.5v6h-2.5l-2 2v-2h-1z"/>',
+  conv:'<path d="M3.5 5h11v7.5h-6l-3 2.5v-2.5h-2z"/><path d="M17 9h3.5v7.5h-1.5v2.5l-3-2.5h-5v-2"/>',
+  notes:'<path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/>',
+  tour:'<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/>',
+  reply:'<path d="M4.5 5.5h15v10h-8l-4 3.5v-3.5h-3z"/>',
+  open:'<path d="M14 4.5h5.5V10"/><path d="M19.5 4.5 11 13"/><path d="M17 13.5v5.5H5V7h5.5"/>',
+  plus:'<path d="M12 6v12M6 12h12"/>', minus:'<path d="M6 12h12"/>',
+};
+const ic = (n, s = "") => `<svg class="i ${s}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const btn = (n, tip, cls = "") => `<span class="ic ${cls}" role="button" aria-label="${tip}" title="${tip}">${ic(n)}</span>`;
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const body = (s) => esc(s).replace(/(\w+\(\))/g, "<code>$1</code>");
+const avatar = (a) => `<span class="av ${a === ME ? "me" : ""}" title="${a}${a === ME ? " (you)" : ""}">${a[0]}</span>`;
+const people = (ps) => [...new Set(ps.map((p) => p.a))];
+const unread = (t) => t.posts.filter((p) => p.u).length;
+const base = (p) => p.split("/").pop();
+const rootGlyph = (r) => (r.l ? mark(r.l, r.blk, "sm") : `<span class="av" style="width:14px;height:14px;font-size:8px">${r.a[0]}</span>`);
+
+/* ================= content (v2) ================= */
+/* The long file: verbatim lines of this repository's conversation_cards_view.cpp at 7513758b0. */
+const SRC = {"632": "", "633": "    auto conversation_cards_view::unread_post_count() const noexcept -> std::size_t", "634": "    {", "635": "        auto count = std::size_t{ 0U };", "636": "        for (const auto& card : Cards) {", "637": "            count += card.UnreadCount;", "638": "        }", "639": "        return count;", "640": "    }", "641": "", "642": "    void conversation_cards_view::set_current_thread(const std::string& aId)", "643": "    {", "644": "        // A reply's identity names its card: the tree may be on a reply.", "645": "        Current = aId;", "646": "        for (const auto& card : Cards) {", "647": "            if (card.Draft) {", "648": "                continue;", "649": "            }", "650": "            if (card.Id == aId) {", "651": "                break;", "652": "            }", "653": "            if (std::ranges::any_of(card.Posts, [&aId](const card_post& aPost) { return aPost.Id == aId; })) {", "654": "                Current = card.Id;", "655": "                break;", "656": "            }", "657": "        }", "658": "        viewport()->update();", "659": "    }", "660": "", "661": "    void conversation_cards_view::set_colours(const QColor& aAccent, const QColor& aMarker)", "662": "    {", "663": "        Accent = aAccent;", "664": "        Marker = aMarker;", "665": "        viewport()->update();", "666": "    }", "667": "", "668": "    auto conversation_cards_view::cards() const noexcept -> const std::vector<thread_card>&", "669": "    {", "670": "        return Cards;", "1095": "                changed      = true;", "1096": "                card.Excerpt = std::move(excerpt);", "1097": "                measure_cached(card, card.Rect.width());", "1098": "                for (auto& post : card.Posts) {", "1099": "                    post.Rect.translate(card.Rect.topLeft());", "1100": "                }", "1101": "                for (auto& [action, rect] : card.Actions) {", "1102": "                    rect.translate(card.Rect.topLeft());", "1103": "                }", "1104": "            }", "1105": "        }", "1106": "        place_cards(changed);", "1107": "    }", "1108": "", "1109": "    void conversation_cards_view::place_cards(const bool aForce)", "1110": "    {", "1111": "        const auto scroll  = verticalScrollBar()->value();", "1112": "        auto       changed = aForce;", "1113": "        for (auto& card : Cards) {", "1114": "            const auto wasPlaced = card.Placed;", "1115": "            const auto targetY   = card.TargetY;", "1116": "            card.Placed          = false;", "1117": "            // The feed is a list in file order, never placed at lines.", "1118": "            if (!Feed && Scope == cards_scope::this_file && Locator && card.Side.has_value()", "1119": "                && card.Line.has_value() && *card.Line > 0U && !card.Outdated) {", "1120": "                if (const auto y = Locator(*card.Side, *card.Line); y.has_value()) {", "1121": "                    card.Placed  = true;", "1122": "                    card.TargetY = *y + scroll;", "1123": "                }", "1124": "            }", "1125": "            changed = changed || wasPlaced != card.Placed || (card.Placed && targetY != card.TargetY);", "1126": "        }", "1127": "        if (!changed) {", "1128": "            return;", "1129": "        }", "1130": "        // Placed cards in line order, then the rest; whole PR in file order.", "1131": "        std::ranges::stable_sort(Cards, [this](const thread_card& aLeft, const thread_card& aRight) {", "1132": "            if (Feed || Scope == cards_scope::whole_pull_request) {", "1133": "                return std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }", "760": "            const auto bodyHeight   = post.Body.isEmpty()", "761": "                ? 0", "762": "                : metrics.boundingRect(QRect{ 0, 0, bodyWidth, 100'000 }, Qt::TextWordWrap, post.Body).height();", "763": "            const auto height       = std::max(post.Label.has_value() ? marked_post_size : avatar_size, authorHeight + bodyHeight + 2);", "764": "            post.Rect               = QRect{ card_padding, y, aWidth - 2 * card_padding, height };", "765": "            y += height + post_gap;", "766": "        }", "767": "        aCard.Actions.clear();", "768": "        auto actionX = card_padding + avatar_column;", "769": "        auto actions = aCard.Draft", "770": "            ? std::vector{ card_action::publish_draft, card_action::edit_draft, card_action::delete_draft }", "771": "            : std::vector{ card_action::reply };", "772": "        if (!aCard.Draft && Compact && !has_code_anchor(aCard)) {", "773": "            actions.clear();", "774": "        }", "775": "        if (!aCard.Draft && aCard.UnreadCount > 0U) {", "776": "            actions.push_back(card_action::mark_read);", "777": "        }", "778": "        // [[BPR-0657]]. Resolve, or Unresolve on a resolved thread, once the", "779": "        // provider and the server both resolve threads.", "780": "        if (!aCard.Draft && ResolutionOffered && (!Compact || aCard.Kind == QStringLiteral(\"Inline thread\"))) {", "781": "            actions.push_back(aCard.Resolved ? card_action::unresolve : card_action::resolve);", "782": "        }", "783": "        if (!aCard.Draft && Feed && (!Compact || has_code_anchor(aCard))) {", "784": "            actions.push_back(card_action::open_in_code);", "785": "        }", "786": "        const auto actionMetrics = QFontMetrics{ small_font(font()) };", "787": "        const auto actionRight   = aWidth - card_padding;", "788": "        for (const auto action : actions) {", "789": "            const auto width = actionMetrics.horizontalAdvance(action_text(action)) + 4;", "790": "            // A second action that does not fit beside the first starts a", "791": "            // new row inside the card rather than leaving it.", "792": "            if (actionX + width > actionRight && actionX > card_padding + avatar_column) {", "793": "                actionX = card_padding + avatar_column;", "794": "                y += action_height + 2;", "795": "            }", "796": "            aCard.Actions.emplace_back(action, QRect{ actionX, y, width, action_height });", "797": "            actionX += width + 12;", "798": "        }"};
+const LONG = {path:"src/adapters/qt/src/conversation_cards_view.cpp", lines:1518};
+/* Its threads are illustrative, in the fixture people's voices. */
+const LT = {
+  l38:{line:38, posts:[
+    {a:"jiayin", l:"nitpick", b:"card_gap and card_margin are both 8; one constant would do."},
+    {a:ME, b:"They drift apart at Discuss widths, so I kept both."}]},
+  l416:{line:416, posts:[
+    {a:"tbutler", l:"question", b:"Who still calls set_feed() once Discuss has its own list?", u:1}]},
+  l642:{line:642, posts:[
+    {a:"tbutler", l:"issue", blk:1, b:"set_current_thread() keeps a reply's id when no card holds it, so Current can name nothing."},
+    {a:ME, l:"question", b:"Should it clear Current instead, or keep the last card?"},
+    {a:"jiayin", l:"praise", b:"Good catch, this explains the lost highlight after a refresh.", u:1},
+    {a:"tbutler", b:"Clear it. I'll push the fix with a test.", u:1}]},
+  l907:{line:907, posts:[
+    {a:"jiayin", l:"suggestion", b:"relayout() is 170 lines; measuring and placing could be two functions."},
+    {a:"tbutler", b:"Agreed, after this lands.", u:1}]},
+  l1109:{line:1109, posts:[
+    {a:"jiayin", l:"thought", b:"place_cards() runs on every scroll. A dirty flag might be cheaper."},
+    {a:"tbutler", b:"It already returns early when nothing moved.", u:1}]},
+  d1122:{line:1122, draft:1, posts:[
+    {a:ME, l:"todo", b:"Say in the header that TargetY includes the scroll offset."}]},
+  l1471:{line:1471, posts:[
+    {a:"tbutler", l:"chore", b:"keyPressEvent() could hand Shift+F10 to the thread menu too."},
+    {a:"jiayin", b:"+1, the context-menu key already does.", u:1}]},
+};
+const LKEYS = Object.keys(LT).sort((x, y) => LT[x].line - LT[y].line);
+const LUNREAD = LKEYS.filter((k) => unread(LT[k])).length;
+
+/* conventional-comments-v1: every thread of the fixture pull request. */
+const T = {
+  t6:{path:"src/engine/renderer.cpp", line:6, posts:[
+    {a:"tbutler", l:"issue", blk:1, b:"draw_scene() runs before the clear finishes on the second view."},
+    {a:ME, l:"question", b:"Does the second view share the depth buffer?"},
+    {a:"jiayin", l:"praise", b:"Good catch, this explains the flicker.", u:1},
+    {a:"tbutler", b:"Thanks, resolving after CI.", u:1}]},
+  t12:{path:"src/engine/renderer.cpp", line:12, posts:[
+    {a:"jiayin", l:"suggestion", b:"Clamp the width to at least one pixel."},
+    {a:ME, l:"todo", b:"I will add the clamp in the next push.", u:1}]},
+  r6:{path:"README.md", line:6, posts:[{a:"tbutler", l:"typo", b:"tests/ should be tests/engine/."}, {a:"jiayin", b:"polish: Add a sentence about the release flag.", u:1}]},
+  b5:{path:"src/engine/shaders/post/bloom.frag", line:5, posts:[{a:"jiayin", l:"quibble", b:"1.2 reads as a magic number."}, {a:"tbutler", b:"security: the shader trusts uScene.", u:1}]},
+  m6:{path:"src/main.cpp", line:6, posts:[{a:"tbutler", l:"nitpick", b:"1280 by 720 could be a named constant."}, {a:"jiayin", l:"thought", b:"A config file may want to own this later.", u:1}]},
+  w5:{path:"src/ui/widgets/button.cpp", line:5, posts:[{a:"jiayin", l:"chore", b:"Rename Handler to OnClick while you are here."}, {a:"tbutler", b:"note: The old name is still used by the plugin API.", u:1}]},
+};
+const PR = [["README.md", ["r6"]], ["src/engine/renderer.cpp", ["t6", "t12"]], ["src/engine/shaders/post/bloom.frag", ["b5"]], ["src/main.cpp", ["m6"]], ["src/ui/widgets/button.cpp", ["w5"]]];
+
+/* branching-thread-v1: posts with their parents, in the fixture's order. */
+const DEEP = (() => {
+  const P = [{id:"c01", p:null, a:"reviewer-one", b:"Should this traversal retain the selected node when the parent list is rebuilt?"}];
+  const A = "the rebuild keeps the identity because the map answers by identity, not by row.";
+  const B = "what about a parent that arrives after its child in the next page?";
+  const C = "the hostile fixtures cover that; this one is about depth and width together.";
+  const wa = ["author-two", "observer-three", "reviewer-four", "reviewer-one"];
+  for (let i = 1; i <= 8; i++) P.push({id:"a0" + i, p:i === 1 ? "c01" : "a0" + (i - 1), a:wa[(i - 1) % 4], b:`Branch A, reply ${i}: ${A}`});
+  const wb = ["observer-three", "reviewer-four", "reviewer-one", "author-two"];
+  for (let i = 1; i <= 7; i++) P.push({id:"b0" + i, p:i === 1 ? "c01" : "b0" + (i - 1), a:wb[(i - 1) % 4], b:`Branch B, reply ${i}: ${B}`, u:i >= 5 ? 1 : 0});
+  const wc = ["reviewer-four", "reviewer-one", "author-two", "observer-three"];
+  for (let i = 1; i <= 7; i++) P.push({id:"cc0" + i, p:i === 1 ? "c01" : "cc0" + (i - 1), a:wc[(i - 1) % 4], b:`Branch C, reply ${i}: ${C}`});
+  P.push({id:"aside", p:"cc03", a:"observer-three", b:"An aside off the third reply of branch C, so one branch itself forks."});
+  return {path:"src/core/thread_map.cpp", line:42, posts:P};
+})();
+/* A GitHub thread: every reply answers the first comment. */
+const asTree = (t) => t.posts.map((p, i) => ({...p, id:"p" + i, p:i ? "p0" : null}));
+
+const SRC2 = {"196": "        Entries.clear();", "197": "        Roots.clear();", "198": "        Entries.reserve(aConversations.size());", "199": "", "200": "        auto byIdentity = std::unordered_map<std::string, std::size_t>{ };", "201": "        byIdentity.reserve(aConversations.size());", "202": "        for (const auto& conversation : aConversations) {", "203": "            byIdentity.emplace(conversation.Id, Entries.size());", "204": "            Entries.push_back(entry{", "205": "                .Identity       = conversation.Id,", "206": "                .ParentIdentity = conversation.ParentId.value_or(std::string{ }),", "207": "                .Label          = node_label(conversation),", "208": "                .Accessible     = accessible_label(conversation),", "209": "                .IsThreadRoot   = conversation.Kind", "210": "                    == application::github_conversation_kind::review_thread,", "211": "            });", "212": "        }", "213": "", "214": "        // Resolved first, judged second, applied third. The judging pass writes", "215": "        // nothing, so the result cannot depend on the order it happens to visit", "216": "        // nodes in - and every member of a cycle is promoted, not just the one", "217": "        // the walk reached first. `github_conversation_model::apply` answers an", "218": "        // unexpected parent exactly this way, and the drawer's two views of one", "219": "        // forest have to agree on its shape or the map is lying about the tree.", "220": "        for (auto& node : Entries) {", "221": "            if (node.ParentIdentity.empty()) {", "222": "                continue;", "223": "            }", "224": "            const auto found = byIdentity.find(node.ParentIdentity);", "225": "            if (found != byIdentity.end()) {", "226": "                node.Parent = found->second;", "227": "            } else {", "228": "                // A parent naming a node that is not here. The node keeps its", "229": "                // recorded parent identity and becomes a root, which is a lost", "230": "                // level rather than a lost comment.", "231": "                ++Statistics.PromotedNodes;", "232": "            }", "233": "        }", "234": "        auto promote = std::vector<bool>(Entries.size(), false);", "235": "        for (auto index = std::size_t{ 0U }; index < Entries.size(); ++index) {", "236": "            auto walk = Entries[index].Parent;", "237": "            auto step = std::size_t{ 0U };", "238": "            while (walk != npos && step <= Entries.size()) {", "239": "                walk = Entries[walk].Parent;"};
+/* ================= posts ================= */
+function post(p, o = {}) {
+  const cls = ["post", p.blk ? "blk" : "", p.l ? "" : "plain", p.u ? "" : "read", o.sel ? "sel" : ""].join(" ");
+  const re = o.re ? `<div class="re ${o.reHot ? "hot" : ""}" title="Answers ${o.re.a}. Click to go there.">${ic("re", "s")}<b>${o.re.a}</b><span class="q">${esc(o.re.b)}</span></div>` : "";
+  return `<div class="${cls}" data-id="${p.id || ""}" style="--pl:${o.pl || 16}px;${p.l ? "--t:" + tint(p.l) : ""}" role="article" aria-label="${p.a}${p.l ? ", " + p.l + (p.blk ? " (blocking)" : "") : ""}">
+    <i class="rail"></i><div class="gut">${avatar(p.a)}${p.l ? mark(p.l, p.blk) : ""}</div>
+    <div class="pb"><div class="nm"><b>${p.a}</b>${p.u ? '<i class="dot" title="New since you last read"></i>' : ""}</div>${re}<p class="tx">${body(p.b)}</p></div></div>`;
+}
+const scopes = (pr) => `<span class="scopes">${btn("file", "This file", pr ? "" : "on")}${btn("pr", "Whole pull request", pr ? "on" : "")}</span>`;
+const filterBtn = () => btn("filter", "Filter: new, unresolved, drafts, defects");
+const nextNew = () => btn("next", "Next new comment ⌥N");
+const navInline = () => `<div class="nav">${scopes(false)}<span class="vsep"></span>${btn("up", "Previous thread ⌥↑")}${btn("down", "Next thread ⌥↓")}<span class="sp"></span>${nextNew()}${filterBtn()}</div>`;
+
+function replyBox(state) {
+  if (state === "typing") {
+    return `<div class="rbox"><div class="field on"><div><span class="lab" style="--t:${tint("suggestion")}">${mark("suggestion", 0, "sm")}suggestion</span></div><div>Wait on the clear's fence before draw_scene()<span class="caret"></span></div></div>
+      <div class="ract">${btn("tag", "Label ⌘L")}<span class="priv" style="margin-left:4px">${ic("lock", "s")}Kept as your draft</span><span class="sp"></span>${btn("trash", "Discard")}<span class="btn pri" title="Publish reply ⌘↩">${ic("send", "s")}Publish</span></div></div>`;
+  }
+  return `<div class="rbox"><div class="rf">${avatar(ME)}<div class="field">Reply</div></div></div>`;
+}
+
+/* ================= the window around the drawer ================= */
+const ROW = 19, FH = 24, NAVH = 64;
+function hl(s) {
+  let out = "", m;
+  const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|\b(void|const|auto|bool|int|for|if|return|continue|break|true|false|static|constexpr|namespace|std|noexcept|this)\b|\b([A-Z][A-Za-z_]*[a-z][A-Za-z_]*)(?=\b)|\b([a-z_][a-z_0-9]*)(?=\()/g;
+  let last = 0;
+  while ((m = re.exec(s))) {
+    out += esc(s.slice(last, m.index));
+    const v = esc(m[0]);
+    out += m[1] ? `<span class="cm">${v}</span>` : m[2] ? `<span class="str">${v}</span>` : m[3] ? `<span class="k">${v}</span>` : m[4] ? `<span class="ty">${v}</span>` : `<span class="fn">${v}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(s.slice(last));
+}
+function codePane(top, rows, st) {
+  let h = "";
+  for (let n = top; n < top + rows; n++) {
+    const txt = SRC[n];
+    if (txt === undefined) break;
+    const k = LKEYS.find((x) => LT[x].line === n);
+    let gm = "";
+    if (k) { const t = LT[k]; gm = `<i class="gm ${t.draft ? "dr" : ""}" style="background:${unread(t) ? "var(--new)" : "var(--open)"}" title="${t.draft ? "Your draft" : "Thread"}"></i>`; }
+    const add = st.added && n >= st.added[0] && n <= st.added[1];
+    h += `<div class="ln ${add ? "add" : ""} ${st.curLine === n ? "cur" : ""}"><span class="g">${n}</span>${gm}<span class="t">${hl(txt)}</span></div>`;
+  }
+  return `<div class="pane">${h}</div>`;
+}
+
+/* ================= v3 content ================= */
+Object.assign(I, {
+  unres:'<circle cx="12" cy="12" r="7.5"/>',
+  okc:'<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 5-5.4"/>',
+  fork:'<circle cx="6" cy="5.5" r="2.2"/><circle cx="6" cy="18.5" r="2.2"/><circle cx="18" cy="8" r="2.2"/><path d="M6 7.7v8.6"/><path d="M18 10.2c0 4-4 4.6-10.6 6.6"/>',
+  map:'<circle cx="5" cy="6" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><path d="M7 6h3M14 6h3M5 8v4a5 5 0 0 0 5 5"/><path d="M14 17h3"/>',
+  back:'<path d="M14.5 6l-6 6 6 6"/>',
+});
+const CODEF = {
+  cards:{path:LONG.path, lines:LONG.lines, src:SRC},
+  map:{path:"src/adapters/qt/src/github_thread_map.cpp", lines:945, src:SRC2},
+};
+
+/* A long GitHub thread on github_thread_map.cpp:214, illustrative: every reply answers the
+   first comment, as GitHub records it. 17 posts; the last five are new. */
+const LONGT = [
+  {a:"tbutler", l:"question", b:"Three passes to resolve parents. Would one walk with a visited set do?"},
+  {a:"jiayin", b:"A visited set depends on where the walk starts; the cycle test shows it."},
+  {a:ME, b:"That is why the judging pass writes nothing."},
+  {a:"tbutler", l:"thought", b:"Then the comment should say the order is the point, not the passes."},
+  {a:"jiayin", b:"It does, in its second sentence."},
+  {a:"reviewer-four", b:"Could the walk stop at Entries.size() steps instead of step <= size?"},
+  {a:ME, l:"suggestion", b:"Stop at size; a longer walk is already a cycle."},
+  {a:"tbutler", b:"Agreed, and name the bound."},
+  {a:"jiayin", l:"praise", b:"The promoted count in Statistics made this easy to test."},
+  {a:"reviewer-four", l:"nitpick", b:"byIdentity could reserve outside the loop. It already does; ignore me."},
+  {a:ME, b:"Leaving it."},
+  {a:"tbutler", b:"Rebased on main; the hostile fixtures still pass."},
+  {a:"jiayin", l:"issue", b:"A parent that arrives on the next page is promoted and never re-parented.", u:1},
+  {a:ME, b:"The map is rebuilt when that page lands, so it re-parents then.", u:1},
+  {a:"tbutler", l:"question", b:"Is there a test for that?", u:1},
+  {a:"jiayin", b:"Not yet. I will add one with the paged fixture.", u:1},
+  {a:ME, b:"Thanks, I will wait for it.", u:1},
+];
+const MAPF = CODEF.map.path, PROJ = "src/application/src/github_projection_mapping.cpp", CORE = "src/core/thread_map.cpp";
+/* The pull request the frames draw: the fixture's threads, the long file's, and made-up ones. */
+const CONVS = [
+  {k:"r6", ...T.r6},
+  {k:"s970", path:"docs/ux/workbench-specification.md", line:970, res:1, posts:[
+    {a:"jiayin", l:"suggestion", b:"Say what the map does with a thread that has no replies."}, {a:ME, b:"Added a sentence."}, {a:"jiayin", b:"Thanks."}]},
+  ...LKEYS.map((k) => ({k, path:LONG.path, ...LT[k], res:k === "l38" ? 1 : 0})),
+  {k:"g88", path:MAPF, line:88, posts:[{a:"reviewer-four", l:"question", b:"Why a pre-order slot and not the row index?", u:1}]},
+  {k:"g214", path:MAPF, line:214, posts:LONGT},
+  {k:"g301", path:MAPF, line:301, res:1, posts:[{a:"tbutler", l:"nitpick", b:"box_padding could be constexpr."}, {a:ME, b:"Done."}]},
+  {k:"p175", path:PROJ, line:175, posts:[
+    {a:"tbutler", l:"issue", blk:1, b:"Carry ReplyTo, not the root. The first comment's fallback is missing."},
+    {a:ME, b:"The first comment's replyTo is null, so it falls back to the root."},
+    {a:"tbutler", b:"Then say so in a test."}, {a:ME, l:"todo", b:"Adding one."}]},
+  {k:"p233", path:PROJ, line:233, res:1, posts:[{a:"jiayin", l:"suggestion", b:"Name the lambda; it is used twice."}, {a:"tbutler", b:"Agreed."}]},
+  {k:"c17", path:CORE, line:17, res:1, posts:[{a:"tbutler", l:"praise", b:"The cycle guard reads well."}]},
+  {k:"deep", path:CORE, line:42, posts:DEEP.posts},
+  {k:"t6", ...T.t6}, {k:"t12", ...T.t12}, {k:"b5", ...T.b5}, {k:"m6", ...T.m6}, {k:"w5", ...T.w5},
+].map((c) => ({...c, posts:c.posts[0].id ? c.posts : asTree(c)}));
+const CV = Object.fromEntries(CONVS.map((c) => [c.k, c]));
+const FILES = [...new Set(CONVS.map((c) => c.path))];
+const PRUNREAD = CONVS.filter((c) => !c.draft && unread(c)).length;
+const PRUNRES = CONVS.filter((c) => !c.res && !c.draft).length;
+
+/* ================= the map: one line per conversation ================= */
+/* Time runs left to right. A conversation's replies sit on one line in the order they were
+   posted. A reply that has replies of its own starts its own lane below, joined to the post it
+   answers; so a GitHub thread, where every reply answers the first comment, is one line, and
+   the map branches only where the conversation does. */
+function layout(posts) {
+  const kids = {};
+  for (const p of posts) if (p.p) (kids[p.p] ||= []).push(p);
+  const kc = (id) => kids[id] || [];
+  const root = posts[0];
+  const pos = {}, dpar = {};
+  let lanes = 0;
+  const chain = (node, lane, col, par) => {
+    pos[node.id] = {lane, col}; dpar[node.id] = par;
+    kc(node.id).forEach((k, i) => chain(k, i === 0 ? lane : lanes++, col + 1, node.id));
+  };
+  const rk = kc(root.id);
+  const leaves = rk.filter((c) => !kc(c.id).length);
+  const groups = rk.filter((c) => kc(c.id).length).map((b) => ({b, at:posts.indexOf(b)}));
+  if (leaves.length) groups.push({run:leaves, at:posts.indexOf(leaves[0])});
+  groups.sort((x, y) => x.at - y.at);
+  for (const g of groups) {
+    const lane = lanes++;
+    if (g.run) g.run.forEach((c, i) => { pos[c.id] = {lane, col:i}; dpar[c.id] = i ? g.run[i - 1].id : root.id; });
+    else chain(g.b, lane, 0, root.id);
+  }
+  pos[root.id] = {lane:0, col:-1};
+  return {pos, dpar, lanes, root};
+}
+const ROWH = 26, LANEH = 21, STEP = 18, X0 = 84, RPAD = 30;
+const descend = (dpar, id) => Object.keys(dpar).filter((v) => { for (let w = dpar[v]; w; w = dpar[w]) if (w === id) return true; return false; });
+
+function mapConv(c, W, o = {}) {
+  const posts = c.posts, L = layout(posts), by = Object.fromEntries(posts.map((p) => [p.id, p]));
+  const focus = o.sel && o.sel.k === c.k ? (o.sel.n || L.root.id) : null;
+  const path = new Set(), down = new Set();
+  if (focus) { for (let w = focus; w; w = L.dpar[w]) path.add(w); for (const d of descend(L.dpar, focus)) down.add(d); }
+  /* a lane that does not fit folds its oldest read posts into one count; never the picked or new ones */
+  const avail = Math.floor((W - X0 - RPAD) / STEP);
+  const hidden = new Set(), pills = [];
+  const branchedFrom = new Set(Object.entries(L.dpar).filter(([v, p]) => p !== L.root.id && L.pos[p].lane !== L.pos[v].lane).map(([, p]) => L.pos[p].lane));
+  for (let lane = 0; lane < L.lanes; lane++) {
+    const ns = posts.filter((p) => p.id !== L.root.id && L.pos[p.id].lane === lane).sort((a, b) => L.pos[a.id].col - L.pos[b.id].col);
+    const cap = avail - L.pos[ns[0].id].col;
+    if (ns.length <= cap || branchedFrom.has(lane)) continue;
+    const h = ns.length - cap + 2;
+    let i0 = 1;
+    for (; i0 + h <= ns.length - 1; i0++) if (ns.slice(i0, i0 + h).every((p) => !p.u && p.id !== focus)) break;
+    const gone = ns.slice(i0, i0 + h);
+    gone.forEach((p) => hidden.add(p.id));
+    const at = L.pos[gone[0].id].col;
+    pills.push({lane, col:at, n:h, ids:gone.map((p) => p.id), who:people(gone)});
+    for (const p of ns.slice(i0 + h)) L.pos[p.id].col -= h - 2;
+  }
+  const X = (id) => {
+    if (id === L.root.id) return X0 - 12;
+    if (hidden.has(id)) { const pl = pills.find((q) => q.ids.includes(id)); return X0 + pl.col * STEP + STEP; }
+    return X0 + L.pos[id].col * STEP + 7;
+  };
+  const Y = (lane) => ROWH / 2 + lane * LANEH;
+  const H = ROWH + Math.max(0, L.lanes - 1) * LANEH + (L.lanes > 1 ? 3 : 0);
+  const trunk = X0 - 4;
+  const seg = (u, v) => {
+    const lv = L.pos[v].lane;
+    if (u === L.root.id) return lv === 0 ? `M${X0 - 12},${Y(0)}H${X(v)}` : `M${trunk},${Y(0)}V${Y(lv) - 6}Q${trunk},${Y(lv)} ${trunk + 6},${Y(lv)}H${X(v)}`;
+    const lu = L.pos[u].lane;
+    if (lu === lv) return `M${X(u)},${Y(lu)}H${X(v)}`;
+    return `M${X(u)},${Y(lu) + 7}V${Y(lv) - 6}Q${X(u)},${Y(lv)} ${X(u) + 6},${Y(lv)}H${X(v)}`;
+  };
+  let d = "";
+  const ids = posts.map((p) => p.id).filter((id) => id !== L.root.id);
+  for (const v of ids) d += `<path d="${seg(L.dpar[v], v)}"/>`;
+  for (const v of ids) if (down.has(v)) d += `<path class="dn" d="${seg(L.dpar[v], v)}"/>`;
+  for (const v of ids) if (path.has(v)) d += `<path class="pa" d="${seg(L.dpar[v], v)}"/>`;
+  const node = (p) => {
+    const cls = ["nd", p.u ? "u" : "rd", path.has(p.id) || down.has(p.id) ? "on" : "", p.id === focus ? "foc" : "", o.hov === c.k + ":" + p.id ? "hov" : "",
+      o.hl ? (p.l === o.hl ? "hit" : "lo") : ""].join(" ");
+    const tip = `${p.a}${p.a === ME ? " (you)" : ""}${p.l ? ", " + p.l + (p.blk ? " (blocking)" : "") : ""}${p.u ? ", new" : ""}: ${p.b}`;
+    const face = p.l ? mark(p.l, p.blk) : avatar(p.a);
+    return `<span class="${cls}" ${p.l ? `style="--t:${tint(p.l)}"` : ""} title="${esc(tip)}" data-id="${p.id}">${face}</span>`;
+  };
+  let nodes = "";
+  for (const v of ids) {
+    if (hidden.has(v)) continue;
+    nodes += node(by[v]).replace('class="nd', `style="left:${X(v)}px;top:${Y(L.pos[v].lane)}px" class="nd`);
+  }
+  for (const pl of pills) nodes += `<span class="fp" style="left:${X0 + pl.col * STEP}px;top:${Y(pl.lane)}px;width:${2 * STEP - 4}px" title="${pl.n} earlier replies, all read: ${pl.who.join(", ")}. Click to show them.">${pl.n}</span>`;
+  const r = L.root, u = unread(c);
+  const hlc = o.hl ? (r.l === o.hl ? "hit" : "lo") : "";
+  const rootFace = c.draft ? '<i class="dsh"></i>' : (r.l ? `<span class="nd ${hlc}" style="--t:${tint(r.l)}">${mark(r.l, r.blk)}</span>` : "");
+  const rcls = ["nd", r.u ? "u" : "", r.id === focus ? "foc" : "", hlc === "lo" ? "lo" : ""].join(" ");
+  const rootTip = `${base(c.path)}:${c.line}. ${r.a}${r.l ? ", " + r.l + (r.blk ? " (blocking)" : "") : ""}: ${r.b}`;
+  const chip = `<span class="rc" title="${esc(rootTip)}"><span class="lnno">${c.line}</span><span class="${rcls}" ${r.l ? `style="--t:${tint(r.l)}"` : ""}>${avatar(r.a)}</span>${rootFace}</span>`;
+  const right = c.draft ? `<span title="Your draft, only you see it">${ic("lock", "s")}</span>`
+    : c.res ? `<span class="ok" title="Resolved">${ic("okc", "s")}</span>`
+    : u ? `<span class="n" title="${u} new">${u}</span>` : "";
+  const lo = o.hl && !posts.some((p) => p.l === o.hl);
+  return `<div class="cv ${c.k === (o.sel && o.sel.k) ? "sel" : ""} ${c.res ? "res" : ""} ${c.draft ? "dr" : ""} ${lo ? "lo" : ""}" data-k="${c.k}" style="height:${H}px"><svg class="ed" width="${W}" height="${H}">${d}</svg>${chip}${nodes}<span class="rt">${right}</span></div>`;
+}
+
+function mapView(W, o) {
+  let h = "";
+  for (const f of FILES) {
+    if (o.scope === "file" && f !== o.here) continue;
+    const all = CONVS.filter((c) => c.path === f);
+    let cs = all;
+    if (o.only) cs = cs.filter((c) => o.only.includes(c.k));
+    if (o.filters && o.filters.unread) cs = cs.filter((c) => unread(c) && !c.draft);
+    if (o.filters && o.filters.unres) cs = cs.filter((c) => !c.res);
+    if (!cs.length) continue;
+    const closed = o.closed && o.closed.includes(f);
+    if (!o.only) {
+      const fu = all.some((c) => unread(c) && !c.draft);
+      h += `<div class="fgrp ${f === o.here ? "here" : ""}" title="${f}"><span class="tw">${ic(closed ? "chev" : "chevd", "s")}</span>${ic("file", "s")}<span class="fn2">${base(f)}</span>${f === o.here ? `<span class="herem" title="The file in the code">${ic("code", "s")}</span>` : ""}<span class="fc">${cs.length === all.length ? all.length : cs.length + "/" + all.length}</span>${fu && closed ? '<i class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--new)"></i>' : ""}</div>`;
+    }
+    if (closed) continue;
+    for (const c of cs) h += mapConv(c, W, o);
+  }
+  return `<div class="map"><div class="mapin" data-scroll="${o.mapScroll || ""}">${h}</div></div>`;
+}
+const LABELS = ["issue", "question", "suggestion", "todo", "nitpick", "praise", "thought", "chore", "typo", "quibble"];
+const labelCount = (l) => CONVS.reduce((n, c) => n + c.posts.filter((p) => p.l === l).length, 0);
+function mapBar(o) {
+  const f = o.filters || {};
+  const hl = o.hl ? `<span class="tg on" title="Highlighting ${o.hl}: ${labelCount(o.hl)} posts. Click to change.">${mark(o.hl, 0, "sm")}${labelCount(o.hl)}<span class="x">${ic("chevd", "s")}</span></span>`
+    : `<span class="tg ${o.menu ? "on" : ""}" title="Highlight a label">${ic("tag", "s")}${ic("chevd", "s")}</span>`;
+  return `<div class="nav">${scopes(o.scope === "pr")}<span class="vsep"></span>
+    <span class="tg ${f.unread ? "on" : ""}" title="Only conversations with new comments"><i class="u"></i>${PRUNREAD}</span>
+    <span class="tg ${f.unres ? "on" : ""}" title="Only unresolved conversations">${ic("unres", "s")}${PRUNRES}</span>${hl}
+    <span class="sp"></span>${btn("next", "Next new comment ⌥N")}</div>`;
+}
+function labelMenu() {
+  const rows = LABELS.filter(labelCount).map((l) => `<div class="lrow ${l === "issue" ? "on" : ""}">${mark(l, 0, "sm")}${l}<span class="c">${labelCount(l)}</span></div>`).join("");
+  return `<div class="pop" style="left:120px;width:170px;top:${30 + 34}px">${rows}</div>`;
+}
+
+/* ================= the reader: the picked branch ================= */
+function reader(c, focusId, o = {}) {
+  const L = layout(c.posts), by = Object.fromEntries(c.posts.map((p) => [p.id, p]));
+  const focus = focusId || L.root.id;
+  const path = []; for (let w = focus; w; w = L.dpar[w]) path.unshift(w);
+  const down = new Set(descend(L.dpar, focus));
+  const show = c.posts.filter((p) => path.includes(p.id) || down.has(p.id));
+  const r = L.root;
+  let h = "", seen = false, prev = null;
+  for (const p of show) {
+    if (p.u && !seen) { h += `<div class="newline" style="margin-left:34px">New</div>`; seen = true; }
+    const re = p.p && prev && p.p !== prev.id && p.p !== r.id ? by[p.p] : null;
+    h += post(p, {pl:p.id === r.id ? 16 : 34, re}).replace('class="post', `class="post ${p.id === focus ? "foc" : ""} ${down.has(p.id) ? "dwn" : ""}`);
+    const others = Object.keys(L.dpar).filter((v) => L.dpar[v] === p.id && !path.includes(v) && !down.has(v));
+    if (path.includes(p.id) && p.id !== focus && others.length) {
+      const n = others.length;
+      h += `<div class="fork" style="--pl:${p.id === r.id ? 16 : 34}px" title="${n} other ${n === 1 ? "branch starts" : "branches start"} here. Pick ${n === 1 ? "it" : "one"} in the map.">${ic("fork", "s")}${n}</div>`;
+    }
+    prev = p;
+  }
+  const u = unread(c);
+  const glyph = r.l ? mark(r.l, r.blk, "sm") : avatar(r.a);
+  const narrow = o.W < 320;
+  const head = `<div class="thead"><span class="ttl" title="${c.path}:${c.line}">${glyph}<span class="p">${base(c.path)}<span>:${c.line}</span></span></span>${o.noNav ? "" : btn("up", "Previous conversation ⌥↑") + btn("down", "Next conversation ⌥↓")}<span class="sp"></span>${btn("code", `Show line ${c.line} in the code`)}${btn("resolve", "Resolve")}${narrow ? "" : btn("read", u ? `Mark ${u} new as read` : "Nothing new")}${btn("more", "More: copy link, view source, classify")}</div>`;
+  return `<div class="conv">${head}<div class="feed"><div class="feedin" data-focus="${focus}">${h}</div></div>${replyBox(o.reply)}</div>`;
+}
+
+/* ================= the Conversation tab ================= */
+function tabs3(on, narrow) {
+  const t = [["inline", "Inline", LUNREAD, `${LUNREAD} threads on this file have new comments`], ["conv", "Conversation", PRUNREAD, `${PRUNREAD} conversations have new comments`], ["notes", "Notes", 0, "Private notes and AI tools"], ["tour", "Tour", 0, "Guided tour of the changes"]];
+  return `<div class="tabs" role="tablist">${t.map(([k, label, n, tip]) => `<span class="tab ${k === on ? "on" : ""}" role="tab" title="${label}: ${tip}">${ic(k)}${!narrow || k === on ? label : ""}${n ? `<span class="pillc">${n}</span>` : ""}</span>`).join("")}</div>`;
+}
+function convTab(st, dw) {
+  const narrow = dw < 320, sel = st.sel, c = sel ? CV[sel.k] : null;
+  const o = {...st, W:dw};
+  let bodyH;
+  if (st.layout === "stack") {
+    bodyH = `<div class="mapwrap" style="height:${st.mapH}px">${mapBar(o)}${mapView(dw, o)}</div><div class="split" title="Drag to share the height"><i></i></div>${reader(c, sel.n, {W:dw, reply:st.reply})}`;
+  } else if (st.layout === "beside") {
+    const mw = st.mapW || 340;
+    bodyH = `<div class="bes"><div class="mapwrap">${mapBar({...o, W:mw})}<div style="width:${mw}px;flex:1;display:flex;min-height:0">${mapView(mw, {...o, W:mw})}</div></div><div class="vsplit" title="Drag to share the width"><i></i></div>${reader(c, sel.n, {W:dw - mw})}</div>`;
+  } else if (st.layout === "drill-map") {
+    bodyH = `<div class="mapwrap" style="flex:1">${mapBar(o)}${mapView(dw, o)}</div>`;
+  } else {
+    bodyH = `<div class="back">${`<span class="tg" title="Back to all conversations (Esc)">${ic("back", "s")}${ic("map", "s")}${CONVS.length}</span>`}<span class="sp"></span>${btn("up", "Previous conversation ⌥↑")}${btn("down", "Next conversation ⌥↓")}</div><div class="strip">${mapConv(c, dw, o)}</div>${reader(c, sel.n, {W:dw, reply:st.reply, noNav:true})}`;
+  }
+  return `${tabs3("conv", narrow)}<div class="dbody">${bodyH}${st.menu ? labelMenu() : ""}${st.tip ? `<div class="tip">${st.tip.text}</div>` : ""}</div>`;
+}
+
+/* ================= the window ================= */
+function codePane3(cf, top, rows, st) {
+  let h = "";
+  for (let n = top; n < top + rows; n++) {
+    const txt = cf.src[n];
+    if (txt === undefined) break;
+    const c = CONVS.find((x) => x.path === cf.path && x.line === n);
+    const gm = c ? `<i class="gm ${c.draft ? "dr" : ""}" style="background:${unread(c) && !c.draft ? "var(--new)" : "var(--open)"}" title="Conversation"></i>` : "";
+    h += `<div class="ln ${st.curLine === n ? "cur" : ""}"><span class="g">${n}</span>${gm}<span class="t">${hl(txt)}</span></div>`;
+  }
+  return `<div class="pane">${h}</div>`;
+}
+function ruler3(cf, top, rows) {
+  const H = 710;
+  let h = `<i class="thumb" style="top:${(top - 1) / cf.lines * H}px;height:${Math.max(10, rows / cf.lines * H)}px"></i>`;
+  for (const c of CONVS.filter((x) => x.path === cf.path)) {
+    const r = c.posts[0];
+    h += `<i class="rt ${c.draft ? "dr" : ""}" style="top:${(c.line - 1) / cf.lines * H}px;background:${r.l ? tint(r.l) : "var(--ink-3)"}" title="Line ${c.line}"></i>`;
+  }
+  return `<div class="ruler" title="Conversations in this file">${h}</div>`;
+}
+function windowFrame3(st, dw) {
+  const cf = CODEF[st.file], rows = 38;
+  return `<div class="win"><div class="title"><span class="lights"><i></i><i></i><i></i></span><span class="tb">${ic("home")}</span><span class="tb">${ic("drawer")}</span><span class="sp"></span>
+      <span class="seg"><span>Overview <kbd>⌘1</kbd></span><span class="${st.discuss ? "" : "on"}">Read <kbd>⌘2</kbd></span><span>Review <kbd>⌘3</kbd></span><span class="${st.discuss ? "on" : ""}">Discuss <kbd>⌘4</kbd></span></span>
+      <span class="tb">${ic("refresh")}</span><span class="tb on">${ic("drawer")}<span class="pillc">${PRUNREAD}</span></span><span class="tb">${ic("user")}</span><span class="tb">${ic("sun")}</span></div>
+    <div class="bar"><span>Comparing whole PR</span><span><b>Changes ${st.change || "4 of 10"}</b></span><span class="sp"></span></div>
+    <div class="main"><div class="cmp"><div class="fh">${base(cf.path)}<span>${cf.lines} lines</span></div><div class="panes">${codePane3(cf, st.top, rows, st)}${ruler3(cf, st.top, rows)}</div></div>
+      <div class="drawer" style="width:${dw}px">${convTab({...st, here:cf.path}, dw)}</div></div>
+    <div class="status">${st.status || "21 conversations in 10 files."}</div></div>`;
+}
+
+/* ================= frames ================= */
+const FRAMES = {};
+const add = (id, cap, w, h, kind, st = {}, dw = 375) => (FRAMES[id] = {cap, w, h, kind, st, dw});
+// A. Map above, reader below
+add("a-long", "A. The long GitHub thread at line 214, picked at its tenth post", 1440, 820, "window",
+  {layout:"stack", file:"map", top:196, curLine:214, scope:"pr", sel:{k:"g214", n:"p9"}, mapH:356, mapScroll:"g214"});
+add("a-deep", "A. branching-thread-v1, picked at the aside off branch C", 375, 820, "solo",
+  {layout:"stack", scope:"pr", sel:{k:"deep", n:"aside"}, mapH:392, mapScroll:"deep", here:LONG.path});
+add("a-filter", "A. Only new, issue highlighted", 375, 820, "solo",
+  {layout:"stack", scope:"pr", filters:{unread:1}, hl:"issue", sel:{k:"g214", n:"p12"}, mapH:330, here:LONG.path});
+add("a-menu", "A. Choosing a label to highlight", 375, 820, "solo",
+  {layout:"stack", scope:"pr", menu:1, sel:{k:"t6"}, mapH:330, here:LONG.path});
+add("a-280", "A at 280 px, this file only", 280, 820, "solo",
+  {layout:"stack", scope:"file", sel:{k:"l642"}, mapH:236, here:LONG.path});
+// B. Map beside the reader
+add("b-long", "B. Beside, the drawer at 760 px", 1440, 820, "window",
+  {layout:"beside", file:"map", top:196, curLine:214, scope:"pr", sel:{k:"g214", n:"p12"}, mapScroll:"p175", mapW:340}, 760);
+add("b-deep", "B. branching-thread-v1 picked at branch B's sixth reply", 760, 820, "solo",
+  {layout:"beside", scope:"pr", sel:{k:"deep", n:"b06"}, mapScroll:"g214", mapW:340, here:LONG.path}, 760);
+// C. The map fills the tab; picking folds it to the picked conversation
+add("c-map", "C. The map fills the tab", 375, 820, "solo",
+  {layout:"drill-map", scope:"pr", here:LONG.path, hov:"g214:p12", tip:{text:"jiayin, issue, new: A parent that arrives on the next page is promoted and never re-parented."}, closed:["README.md", "docs/ux/workbench-specification.md"]});
+add("c-deep", "C. After picking branch C's fifth reply", 375, 820, "solo",
+  {layout:"drill-read", scope:"pr", sel:{k:"deep", n:"cc05"}, here:LONG.path});
+add("c-long", "C. After picking the long thread's first new post", 375, 820, "solo",
+  {layout:"drill-read", scope:"pr", sel:{k:"g214", n:"p12"}, here:LONG.path});
+// Inline pick B: the click lands here
+add("pk-after", "Inline pick B: after clicking line 642's card", 1440, 820, "window",
+  {layout:"stack", file:"cards", top:632, curLine:642, scope:"pr", sel:{k:"l642"}, mapH:330, mapScroll:"l38"});
+
+const f = Q.get("f");
+const root = document.getElementById("root");
+if (!f || !FRAMES[f]) {
+  document.body.classList.add("index");
+  root.innerHTML = `<div class="idx"><h3>BPR-1290 frames v3</h3>${Object.entries(FRAMES).map(([k, v]) => `<a href="?f=${k}">${k}: ${v.cap}</a><a href="?f=${k}&theme=dark">${k}, dark</a>`).join("")}</div>`;
+} else {
+  const F = FRAMES[f];
+  if (F.kind === "window") root.innerHTML = windowFrame3(F.st, F.dw);
+  else { document.body.classList.add("solo"); root.innerHTML = `<div class="solo" style="width:${F.w}px;height:${F.h}px"><div class="drawer">${convTab(F.st, F.w)}</div></div>`; }
+  for (const mi of document.querySelectorAll(".mapin[data-scroll]")) {
+    const k = mi.dataset.scroll; if (!k) continue;
+    const t = mi.querySelector(`.cv[data-k="${k}"]`); if (t) { let g = t.previousElementSibling; while (g && !g.classList.contains("fgrp")) g = g.previousElementSibling; mi.parentElement.scrollTop = Math.max(0, Math.min(t.offsetTop - 30, g ? g.offsetTop - 4 : 1e9)); }
+  }
+  for (const fi of document.querySelectorAll(".feedin[data-focus]")) {
+    const t = fi.querySelector(".post.foc"), feed = fi.parentElement;
+    if (t && t.offsetTop + t.offsetHeight > feed.clientHeight - 10) feed.scrollTop = t.offsetTop - feed.clientHeight * 0.3;
+  }
+  const tip = document.querySelector(".tip"), hov = document.querySelector(".nd.hov");
+  if (tip && hov) {
+    const host = tip.offsetParent.getBoundingClientRect(), r = hov.getBoundingClientRect();
+    tip.style.left = Math.max(4, Math.min(r.left - host.left - 40, host.width - tip.offsetWidth - 4)) + "px";
+    tip.style.top = (r.bottom - host.top + 8) + "px";
+  }
+}
+</script>
+</body>
+</html>
