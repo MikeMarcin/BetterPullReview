@@ -49,14 +49,19 @@ def frontmatter(text):
     return result
 
 
-def tree_digest():
+def tree_digest(root=SKILL):
     """Order-independent digest of the package's files, so an import can be checked byte for byte."""
     import hashlib
     digest = hashlib.sha256()
-    for path in sorted(SKILL.rglob("*")):
+    for path in sorted(root.rglob("*")):
         if path.is_file():
-            digest.update(str(path.relative_to(SKILL)).encode() + b"\0" + hashlib.sha256(path.read_bytes()).digest())
+            digest.update(str(path.relative_to(root)).encode() + b"\0" + hashlib.sha256(path.read_bytes()).digest())
     return digest.hexdigest()
+
+
+def managed_link(path):
+    """A MASK deployment is a directory link into MASK's store, never a real directory."""
+    return path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction())
 
 
 def main():
@@ -136,24 +141,35 @@ def main():
             if error and error["code"] in SYNTAX_FAILURES:
                 fail(f"the CLI does not accept the taught syntax {example!r}: {error}")
     # One source of maintenance: no hand-maintained copy of the skill lives in this repository outside the
-    # candidate package and the imported pack asset, and the project does not yet select it from a source.
+    # candidate package and the imported pack asset. The owner authorized landing the package in AgentSkills and
+    # selecting it from there (BPR-1067, 2026-10-06), so a MASK link may deploy it; that link must be the shared
+    # source's copy, byte for byte the package here.
     root = SKILL.parents[2]
+    trees = (".claude/skills", ".codex/skills", ".agents/skills")
     allowed = {SKILL / "SKILL.md"}
     found = []
     for candidate in root.rglob("SKILL.md"):
         relative = candidate.relative_to(root).parts
         if relative[0] in ("build", ".git") or "pr-tour" not in relative:
             continue
+        if "/".join(relative[:2]) in trees and managed_link(root.joinpath(*relative[:3])):
+            continue
         if candidate not in allowed and "assets" not in relative:
             found.append(str(candidate.relative_to(root)))
     if found:
         fail(f"divergent copies of the pr-tour skill: {found}")
-    for tree in (".claude/skills", ".codex/skills", ".agents/skills"):
-        if (root / tree / "pr-tour").exists():
-            fail(f"{tree}/pr-tour is a hand-maintained copy")
     selected = json.loads((root / ".mask.json").read_text()) if (root / ".mask.json").exists() else {"skills": []}
     if any(entry.get("id") == "pr-tour" and entry.get("source") != "agentskills" for entry in selected["skills"]):
         fail("pr-tour may only be selected from the shared agentskills source")
+    chosen = any(entry.get("id") == "pr-tour" for entry in selected["skills"])
+    for tree in trees:
+        deployed = root / tree / "pr-tour"
+        if not deployed.exists() and not deployed.is_symlink():
+            continue
+        if not (managed_link(deployed) and chosen):
+            fail(f"{tree}/pr-tour is a hand-maintained copy")
+        if tree_digest(deployed.resolve()) != tree_digest():
+            fail(f"{tree}/pr-tour differs from the package; import it again")
     # The boundaries a text file can carry stay stated.
     text = read(skill_md)
     for phrase in ("never permission to fall back", "Never mint approval", "not permission to publish", "A tool read is not a visit", "no Apply/Dismiss", "Do not launch another model"):

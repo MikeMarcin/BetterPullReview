@@ -29,6 +29,8 @@ __pycache__/
 /.claude/skills/sprite-sheet-animation-updater
 /.agents/skills/bpr-cycle
 /.claude/skills/bpr-cycle
+/.agents/skills/pr-tour
+/.claude/skills/pr-tour
 /.claude/agents/rfc-*.md
 /.codex/agents/rfc-*.toml
 /.mask/bootstrap-retired/

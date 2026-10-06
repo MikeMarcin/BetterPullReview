@@ -18,6 +18,10 @@
       "source": "agentskills"
     },
     {
+      "id": "pr-tour",
+      "source": "agentskills"
+    },
+    {
       "id": "sprite-sheet-animation-updater",
       "source": "agentskills"
     },

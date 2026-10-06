@@ -279,9 +279,9 @@ open draft when there is one, and answers with its own clock and hook revision.
 `packaging/agent-skills/pr-tour/` is the ready-to-import Agent Skills package for the
 conversational wrapper: `SKILL.md` plus three small references. It teaches only
 `bpr tour` commands, keeps no draft, publisher or hook copy of its own, and starts no
-model. The canonical home is the shared AgentSkills repository, installed by MASK;
-BPR keeps no hand-maintained `.claude/skills` or `.codex/skills` copy. Until that
-import is authorized the package here is the candidate, not an installed skill.
+model. The canonical home is the shared AgentSkills repository (`skills/pr-tour/`),
+installed by MASK; BPR keeps no hand-maintained `.claude/skills` or `.codex/skills`
+copy. The package here is the source of each import.
 `skill_pr_tour_package` checks the package identity (`pr-tour`, contract
 `bpr.tour.cli-result.v1`), that it stays thin, that every mention of a publisher, raw
 HTTP, the database or an approval bypass is a prohibition, that every command it teaches
@@ -323,16 +323,17 @@ claim.
 
 ### Distribution status
 
-The canonical import is not done, and this repository does not claim it is. The shared
-source is the local AgentSkills repository (`ssh://git@github.com/~/MikeMarcin/AgentSkills.git`,
-selected here by `.mask.json` as `agentskills`), which has its own contribution contract:
-its own RFC and card, explicit-path commits, no unrequested push, and MASK deployment by
-links. Importing `pr-tour` is therefore that repository's work, authorized by its owner.
-To do it: copy `packaging/agent-skills/pr-tour/` unchanged to `skills/pr-tour/` there,
-commit it under that repository's process, add `{"id": "pr-tour", "source": "agentskills"}`
-to this repository's `.mask.json`, and run `mask install pr-tour`. Verify the import with
-`python3 tests/scripts/pr_tour_skill_tests.py PACKAGE_DIR bpr-fixture-cli --digest`, whose
-digest must equal the one recorded in the verification record for the candidate revision.
-The package needs only a released `bpr` CLI, not the desktop or this source tree. Which
-agent hosts load it, and whether the skill activates for a real user, are separate attended
-observations that are not made here.
+The package is in AgentSkills as `skills/pr-tour/` (commit `16992cd`, on that
+repository's `main`), byte for byte the package here. This repository selects it
+from `agentskills` in `.mask.json`, and `.mask.lock.json` pins the AgentSkills commit
+MASK resolved. Its `.claude/skills/pr-tour` and `.agents/skills/pr-tour` are MASK
+links into the MASK store and are ignored. `skill_pr_tour_package` fails on a real
+directory there, on a link the selection does not name, on a selection from another
+source, and on a deployed copy whose digest differs from the package's. Change the
+package here, then import it unchanged into AgentSkills under that repository's own
+process and run `mask upgrade pr-tour`; check the import with `python3
+tests/scripts/pr_tour_skill_tests.py PACKAGE_DIR bpr-fixture-cli --digest` on both
+copies. The owner authorized landing it on AgentSkills `main` on 2026-10-06
+([[BPR-1067]]). The package needs only a released `bpr` CLI, not the desktop or this
+source tree. A host loading the skill is an observation of that host, not something
+the row shows.
