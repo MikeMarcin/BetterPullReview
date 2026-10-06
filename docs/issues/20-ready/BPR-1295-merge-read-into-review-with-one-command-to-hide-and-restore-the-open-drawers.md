@@ -509,3 +509,9 @@ record. It does not decide Discuss's future ([[BPR-1293]]; on 2026-10-06 the
 owner added Conversations there and kept Discuss), the drawer's
 design ([[BPR-1290]]), or where comments that are not on a file live
 ([[BPR-1294]]).
+
+## Coordinator note, 2026-10-06: Discuss keeps ⌘4
+
+So Discuss's key does not move twice, this card leaves Discuss on ⌘4 and
+leaves ⌘3 unbound; BPR-1293 then gives ⌘3 to Conversations. Overview stays
+⌘1 and Review takes ⌘2. Confirmed at this card's built-UI review.
