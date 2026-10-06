@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1269"
 title: "Overview: collapse all and expand all folders"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac","win","linux"]
 metadata: {"origin":"Owner note on attended item BPR-1213-collapse-v002, session cbd48b91000b00f1e72e1ad62c7c384c, event 863, decision 4cc89d72-64df-4345-8bd0-a3cee4b5266b, 2026-10-03","reservation":"docs/issues/_reservations/BPR-1269--BPR-1269--742bebe75676.json","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-1213","BPR-0934"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c9f3a77db","evidence":{"kind":"command","detail":"Collapse all and expand all fold every Overview folder row at once; files keep their order; nothing opens (qt_pull_request_overview_page test_collapse_all_and_expand_all_folders; composed nested-folders course). Control: with collapse_all_folders a no-op both fail."}},{"criterion":"AC2","outcome":"pass","revision":"c9f3a77db","evidence":{"kind":"command","detail":"Buttons are named to accessibility and in tooltips, take the keyboard (StrongFocus); a hidden current file moves to its folder; a same-authority refresh keeps the result, a new folder starts expanded, authority replacement clears it."}},{"criterion":"AC3","outcome":"pass","revision":"c9f3a77db","evidence":{"kind":"command","detail":"Focused Qt course and application_nested_overview_folders_public_path cover collapse all, expand all, a per-folder toggle after, and refresh; docs/ux/workbench-specification.md 'Overview files' describes the gestures. 133/133 on bpr-main-linux."}},{"criterion":"AC4","outcome":"pass","revision":"c9f3a77db","evidence":{"kind":"observation","detail":"Owner, in chat via the integrator's question on 2026-10-06, verbatim: \"Accept\" — the chevron buttons."}}]
 ---
 
 # BPR-1269: Overview: collapse all and expand all folders
