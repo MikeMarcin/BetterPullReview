@@ -239,7 +239,7 @@ View/Copy source move under More. Discuss is redrawn after the choice.
 ## Pending owner decisions
 
 One attended session asks three questions on frames frozen from `552615a22`
-in `/Users/jaeger/bpr1290-drawer-review-v002.OWoDW6` (the two v2 HTML files and
+(rebased onto main as `13c079175`; the four frozen files are byte-identical) in `/Users/jaeger/bpr1290-drawer-review-v002.OWoDW6` (the two v2 HTML files and
 both owner screenshots; `open /Users/jaeger/bpr1290-drawer-review-v002.OWoDW6/source/docs/design/BPR-1290-conversations-drawer-v2.html`).
 Session `c6d804e30f0b4f6b02c7ef6d13335165`, state
 `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v002`,
