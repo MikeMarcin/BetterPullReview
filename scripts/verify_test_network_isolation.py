@@ -585,6 +585,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_cached_review_overview": "dos-volume-name",
     "sqlite_private_review_storage": "dos-volume-name",
     "application_private_review_host": "dos-volume-name",
+    # [[BPR-1082]], [[BPR-1083]]. Measured on JaegAW 2026-10-05 at fcd0aebea in
+    # windows-dev, contained through the sandbox launcher. Each passes
+    # uncontained. The draft store's fixture stops at its first private-review
+    # store (feedback_draft_store_tests.cpp:51), an unchecked std::expected
+    # ("operator*() called on a std::expected that contains an error"); the
+    # label authoring application at "STARTUP_PROFILE_REFUSAL:registry_unavailable".
+    "application_feedback_draft_store": "dos-volume-name",
+    "application_label_authoring_contract": "dos-volume-name",
     # [[BPR-1167]], [[BPR-1168]]. Measured on JaegAW 2026-10-02 at 3e3b3fa17 in a
     # BPR_BUILD_TOUR_CLI tree, contained through the sandbox launcher and as
     # registered. Each passes uncontained. Contained, the tour CLI rows and

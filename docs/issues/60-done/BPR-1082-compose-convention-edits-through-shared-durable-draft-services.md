@@ -106,3 +106,32 @@ with no GCC warning or error, and the 23 matching rows passed. They include
 `core_boundary_contract`, `architecture_boundaries` and
 `architecture_boundary_contract` (181.2 s). Nothing needed a fix.
 `build/bpr1082` was removed. Done is not reopened.
+
+**Note: Windows run at `fcd0aebea` (holds `a736600dd`; station `bpr-main-win`,
+MSVC 14.51, Qt 6.11.2, `windows-dev` in `build/bpr1082`, Debug, whole tree;
+no remote mutation).** The whole tree built with no `warning C` or
+`warning LNK` line. With two pins added, the named selection passes 23 of 23.
+That count includes [[BPR-1083]]'s `application_label_authoring_contract`
+(10.2 s), which the manifest named. `architecture_boundary_contract` took
+366.3 s.
+
+- **Two pins.** `application_feedback_draft_store` and
+  `application_label_authoring_contract` were registered
+  `WINDOWS_UNCONTAINED` but not pinned, so `test_network_isolation_manifest`
+  failed. Measured contained through the sandbox launcher:
+  - the draft store's fixture stops at its first private-review store
+    (`feedback_draft_store_tests.cpp:51`). That `std::expected` is
+    unchecked, so the run ends with "operator*() called on a std::expected
+    that contains an error" (exit `0xC0000409`) after 0.13 s;
+  - the label authoring application stops at startup with
+    `STARTUP_PROFILE_REFUSAL:registry_unavailable`.
+
+  Both pass uncontained. They are now pinned `dos-volume-name` in
+  `scripts/verify_test_network_isolation.py`, with the measured lines.
+- **Interpreter.** In the fresh tree's first run, `test_network_isolation_child`
+  failed with `WinError 5`. CMake had chosen the per-user
+  `pythoncore-3.14-64` interpreter, whose descriptor has no ALL APPLICATION
+  PACKAGES entry, so the contained Python could not start itself again.
+  Configured with `C:/Program Files/Python314/python.exe`, the interpreter
+  `build/windows-dev` uses, it passes. That is station configuration, not a
+  code change.
