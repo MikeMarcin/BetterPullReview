@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1290"
 title: "Redesign the Conversations drawer around reading the conversation"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-1293","BPR-1294","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
+parked_on: "human-review"
 ---
 
 # BPR-1290: Redesign the Conversations drawer around reading the conversation
@@ -533,3 +534,109 @@ Read and Discuss paragraphs, AC-05 and AC-08.
 
 Next: build the drawer in the Qt adapter, faithful to the prototype, then one
 short attended session on a frozen build for BPR-1290:owner-look.
+
+## Built drawer v001, 2026-10-06
+
+Candidate `ffea22995` ("BPR-1290: the conversations drawer is inline only"),
+on `origin/main` at `070d612c2`; pushed as `201c96f21` on `fa057ca50`, the
+same change over a base that adds only unrelated Git, workspace and export
+work (the pin, the drawer rows and `architecture_boundaries` pass again on
+it). Built in the Qt adapter, faithful to
+[`BPR-1290-inline-drawer-v1`](../../design/BPR-1290-inline-drawer-v1/index.html):
+
+- **Notes.** The Comments tab shows this file's threads as notes beside the
+  code (`conversation_cards_view`): avatar, BPR-1083 mark under it, rail,
+  author, the first post's text with its decoration text, a count, new and
+  draft state. Notes keep to their lines and push down when they would
+  overlap; an outdated thread's note follows the placed ones.
+- **Open in place** (`conversation_open_card`). A thread opens where its note
+  was, pinned at its line and as tall as its posts: every post in posting
+  order with its complete body as written, a reply that answers anything but
+  the first post naming whom it answers, a New rule before the new posts,
+  Show line, Resolve or Unresolve, Mark read, Reply written in place with
+  Command+Return (Ctrl+Return) to publish, my draft with Publish, Edit and
+  Delete, Support details, and the thread menu (Shift+F10). The code line is
+  washed, its gutter marker ringed, and the card has the amber edge.
+- **Finding a thread.** Out-of-view chips at the drawer's top and bottom count
+  the threads above and below and jump to the nearest; the code's scroll bar
+  has a tick per thread (`comparison_scroll_controller`'s axis, so ticks fall
+  where the thumb shows the line); the gutter marker opens its thread.
+- **Filters and keys.** Only new and Hide resolved, as two icons in the tab
+  row. Up/Down, Return, Esc, R, N, Command+Return, Shift+F10.
+- **Width.** The drawer opens at 375 and drags from 280 to 760
+  (`workbench_drawer`); the tab row wraps rather than clipping at 280 with
+  larger text.
+- **Removed from the drawer.** The thread map, the path caption, the post list
+  and the body pane; `github_conversation_delegate` is deleted. The
+  selection authority is still the conversation model's current index, held
+  by a tree that is never shown.
+- **Kept for [[BPR-1293]].** `github_thread_map` (the Treeverse widget) and its
+  rows stay in the tree, unused by the drawer, so BPR-1293's finder can reuse
+  it; nothing in this card depends on it.
+- **Discuss** lists the same notes in file order with its scope, file and
+  filter row; each opens in place. Notes and Tour are unchanged. Nothing here
+  depends on the Read/Review split ([[BPR-1295]]).
+
+Boundaries: presentation only. Reading, replying, resolving, marking read and
+publishing keep their core and host paths; no new authority, no QSS, colours
+from the palette.
+
+Fixture: `inline-drawer-v1` (`scripts/build_inline_drawer_fixture.py`):
+conventional-comments-v1's files and six threads plus a 1557-line file with
+the prototype's eight threads at its lines. Constructed, nothing fetched.
+
+### Verification on the candidate
+
+- Qt rows: `qt_conversation_cards_view` (rewritten),
+  `qt_github_conversation_panel`, `qt_github_thread_map`,
+  `qt_feedback_label_threads`, `qt_composed_markdown`, `qt_composed_github`,
+  `qt_workbench_window`, and the new `qt_composed_inline_drawer_scale_{100,125,200}`
+  (notes at their lines, open in place pinned at its line, wash, ring and
+  amber tick, chips, ticks, keys, filters, drag limits, a deep thread in
+  posting order, dark and high-contrast larger text; negative controls: the
+  drawer holds no thread map, path line, post list or body pane, a note does
+  not match the line below its own, a line with no thread has no marker, a
+  thread in view has no chip, no filter shows every note again). Passed in
+  Debug; the inline rows and the cards view also in Release, where their
+  100 ms open and scroll-frame checks are enforced.
+- Large-review rows in an optimized build (Release, budgets enforced):
+  `application_large_review_*`, `application_first_tab_comparison`,
+  `application_unavailable_diff_public_path`,
+  `application_approximate_diff_public_path`: passed.
+  `paged_review_and_git_load_input_gap` 37.6 ms in Release, 92.6 ms in Debug
+  (limit 100; closed notes are measured by advance, not laid out).
+  `application_large_review_cache_bytes` missed its footprint budget once
+  (198.7 MB against 192.9 MB) and then passed twice; `origin/main` at
+  `070d612c2` misses the same budget on its own (195.1 MB), so the row sits
+  at its limit independently of this card.
+- `application_composition_contract` and
+  `application_review_round_trip_composition_contract`: passed after the
+  BPR-1290 reseal (presentation and fixture only; mutation pin unchanged).
+- `architecture_boundaries`, fixture and documentation rows, format check,
+  clang-tidy on the changed Qt files: clean. `DOCUMENTATION_OK`.
+- `live_mutation_isolation` timed out once under a full parallel run and
+  passed alone (276 s).
+
+### Owner look, session v001
+
+Pending: BPR-1290:owner-look is the owner's, not self-certified. One
+attended session, one question, Accept or Reject: "The built drawer matches
+the prototype."
+
+- Session `b3a08bc827a529abbf0bc7ecede12823`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-built-v001`,
+  candidate `BPR-1290-built-drawer-v001` (revision `frozen-ffea22995-v001`,
+  fingerprint `a866088590f1…`), ready at event cursor 2.
+- Frozen root `/Users/jaeger/bpr1290-inline-drawer-review-v001.HWZ3wf`: the
+  `git archive` of `ffea22995` built there with the dev preset (tests on);
+  executable SHA-256 `af5db4f5f51a…`. Offscreen on it, `--attended-open-file`
+  showed both `src/ui/conversation_cards_view.cpp` and
+  `src/engine/renderer.cpp`, and the inline rows passed from its build tree.
+- Launch: `python3 /Users/jaeger/bpr1290-inline-drawer-review-v001.HWZ3wf/launch.py`
+  (the long file; `--renderer` for renderer.cpp; `--prototype` opens the kept
+  prototype for comparison). It checks the build and fixture tree first and
+  reports an early exit within seconds.
+
+Next: read the session's decision. Accept satisfies :owner-look and the card
+finishes; Reject comes back with what differs in its note, for a v002
+candidate.
