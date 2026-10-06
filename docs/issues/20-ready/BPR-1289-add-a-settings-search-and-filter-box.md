@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1289"
 title: "Add a Settings search and filter box"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
