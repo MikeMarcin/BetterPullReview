@@ -491,6 +491,27 @@ def markdown_files(root: Path) -> list[Path]:
     return sorted(set(files))
 
 
+def review_manifest_binds(root: Path, source: Path) -> bool:
+    """Whether a review packet's source manifest pins `source` by hash.
+
+    A pinned file outside `docs/verification/reviews` (BPR-0653's evidence
+    index pins a link to BPR-0974) is as byte-stable as the packet itself, so
+    its card links are historical locators too.
+    """
+    reviews = root / "docs/verification/reviews"
+    if not reviews.is_dir():
+        return False
+    try:
+        relative = source.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return False
+    for manifest in reviews.glob("*/source-manifest.txt"):
+        for line in manifest.read_text(encoding="utf-8").splitlines():
+            if line.partition("=")[0].strip() == relative:
+                return True
+    return False
+
+
 def relocated_review_card_link(root: Path, source: Path, target: Path) -> bool:
     """Keep signed review packets byte-stable when a board card changes lane.
 
@@ -500,7 +521,9 @@ def relocated_review_card_link(root: Path, source: Path, target: Path) -> bool:
     """
     reviews = root / "docs/verification/reviews"
     board = root / "docs/issues"
-    if not source.is_relative_to(reviews) or target.parent.parent != board or not board.is_dir():
+    if target.parent.parent != board or not board.is_dir():
+        return False
+    if not source.is_relative_to(reviews) and not review_manifest_binds(root, source):
         return False
     if not re.fullmatch(r"BPR-[0-9]{4}-.+\.md", target.name):
         return False

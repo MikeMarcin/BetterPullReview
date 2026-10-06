@@ -73,6 +73,18 @@ class HistoricalReviewCardLinkTests(unittest.TestCase):
         duplicate.write_text("duplicate\n", encoding="utf-8")
         self.assertFalse(relocated_review_card_link(self.root, self.review, self.old))
 
+    def test_file_pinned_by_a_review_manifest_keeps_its_card_link(self) -> None:
+        pinned = self.root / "docs/verification/BPR-0653-evidence/index.md"
+        pinned.parent.mkdir(parents=True)
+        pinned.write_text("evidence\n", encoding="utf-8")
+        self.assertFalse(relocated_review_card_link(self.root, pinned, self.old))
+        manifest = self.review.parent / "source-manifest.txt"
+        manifest.write_text(
+            "docs/verification/BPR-0653-evidence/index.md=" + "0" * 64 + "\n",
+            encoding="utf-8",
+        )
+        self.assertTrue(relocated_review_card_link(self.root, pinned, self.old))
+
 
 class RfcIndexTests(unittest.TestCase):
     def setUp(self) -> None:
