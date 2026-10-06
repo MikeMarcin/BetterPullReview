@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1239"
 title: "Windows: Save to file fails as 'unavailable' for a read-only or held destination, with no reason and no wait for a brief hold"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station read of the portable-rounds Save to file path, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1239--BPR-1239--7e90dbb9f4bb.json","related_cards":["BPR-1159","BPR-1040","BPR-1104"]}
+acceptance: [{"criterion":"On Windows, a Replace over a read-only destination fails with its specific reason; bytes and attribute unchanged; no temporary file remains","outcome":"pass","revision":"55ec1ee673905671c0c573d0197655a91c0e7699","evidence":{"kind":"command","path":"tests/workspace_contract/review_cycle_export_tests.cpp","detail":"windows_refusals_name_their_reason: confirmed Replace over a FILE_ATTRIBUTE_READONLY file returns cycle_export_failure::read_only ('The file there is read-only; nothing was replaced.'), bytes and READONLY attribute unchanged, no temporary file. Failing-before control: with the original local_export_destination.cpp the row fails at this check."}},{"criterion":"On Windows, a destination held without FILE_SHARE_DELETE and released within the bound is replaced; one held past the bound fails with its specific reason and nothing changes","outcome":"pass","revision":"55ec1ee673905671c0c573d0197655a91c0e7699","evidence":{"kind":"command","path":"src/adapters/workspace/src/local_export_destination.cpp","detail":"A held destination answers MoveFileExW with ERROR_ACCESS_DENIED (probed on the station); a DELETE-access probe that meets ERROR_SHARING_VIOLATION classifies it as held, retried within platform::retry_while_held (about 1.3 s). Released after 150 ms: replaced. Held past the bound: cycle_export_failure::in_use, bytes unchanged, no temporary file."}},{"criterion":"review_cycle_export still passes on every platform; architecture_boundaries and architecture_boundary_contract pass","outcome":"pass","revision":"55ec1ee673905671c0c573d0197655a91c0e7699","evidence":{"kind":"command","path":"src/platform/include/bpr/platform/windows_sharing_retry.hpp","detail":"Windows windows-dev Debug: review_cycle_export, review_cycle_bundle, review_cycle_publish_desk, review_cycle_workbench, application_review_cycle_desktop_public_path, git_cache_contract, git_process_contract, architecture_boundaries and architecture_boundary_contract pass; clang-format clean. The POSIX move path is unchanged and the new enum values only add words; macOS and Linux runs of review_cycle_export are owed."}}]
 ---
 
 # BPR-1239: Windows: Save to file fails as 'unavailable' for a read-only or held destination, with no reason and no wait for a brief hold
