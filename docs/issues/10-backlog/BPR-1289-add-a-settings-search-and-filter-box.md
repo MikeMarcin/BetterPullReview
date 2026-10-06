@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner aside in attended session 8bf444584f9806487f06891db2f5af50 (BPR-1083 mark-style-v001, decision b504ffed, 2026-10-06T00:16Z)","reservation":"docs/issues/_reservations/BPR-1287--BPR-1289--621f5b91f3f1.json","related_cards":["BPR-1083","BPR-1288","BPR-0981"],"owner_reference":"docs/design/owner-refs/BPR-1083-owner-ref-codex-settings-search.png","port_source":{"repository":"MikeMarcin/SiftThroughLogs","checkout":"/Users/jaeger/Documents/GitHub/SiftThroughLogs","revision":"55e7e0c","licence":"MIT, Copyright (c) 2026 Sift contributors","fuzzy_matcher_found":false},"acceptance":["BPR-1289:search","BPR-1289:results","BPR-1289:go-to","BPR-1289:matcher","BPR-1289:provenance","BPR-1289:owner-look"]}
+metadata: {"origin":"Owner aside in attended session 8bf444584f9806487f06891db2f5af50 (BPR-1083 mark-style-v001, decision b504ffed, 2026-10-06T00:16Z)","reservation":"docs/issues/_reservations/BPR-1287--BPR-1289--621f5b91f3f1.json","related_cards":["BPR-1083","BPR-1288","BPR-0981"],"owner_reference":"docs/design/owner-refs/BPR-1083-owner-ref-codex-settings-search.png","port_candidates":[{"name":"containers gct","path":"/Users/jaeger/Documents/Personal/containers/source/gct/strings/fuzzy_match.hpp","revision":"a7454c4","licence":"none visible; private repository, every commit by the owner"},{"name":"Entole","path":"/Users/jaeger/Documents/Personal/aito/code/entole_developer_tools/modules/completion/src/Completion.cpp","revision":"962b48774","licence":"none visible; private repository, every commit by the owner"},{"name":"AllTheThings","path":"/Users/jaeger/Documents/GitHub/AllTheThings/Sources/ATTCore/FuzzyMatcher.swift","revision":"f755aeb","licence":"MIT, Copyright (c) 2026 Michael Marcin"}],"acceptance":["BPR-1289:search","BPR-1289:results","BPR-1289:go-to","BPR-1289:matcher","BPR-1289:provenance","BPR-1289:owner-look"]}
 ---
 
 # BPR-1289: Add a Settings search and filter box
@@ -19,6 +19,13 @@ Accepting `BPR-1083-mark-style-v001`, the owner added, quoted exactly:
 > Aside: I really want one of those full settings search/filter boxes like
 > this codex screenshot. I think we had some fuzzy text filtering code in
 > SiftThroughLogs we might be able to port over.
+
+Correcting that later the same day, relayed by the coordinator, verbatim:
+
+> The fuzzy search I was remembering was not in SiftThroughLogs it was in
+> these 3
+
+naming the three sources listed under "Port candidates" below.
 
 Their reference, [`BPR-1083-owner-ref-codex-settings-search.png`](../../design/owner-refs/BPR-1083-owner-ref-codex-settings-search.png),
 is the Codex desktop Settings sidebar with `appear` typed in a search field
@@ -48,41 +55,64 @@ focus. Clearing the field restores the page list.
   its own; no match says so with Clear.
 - **BPR-1289:go-to.** Choosing a result (pointer or Return) shows its page,
   scrolls the setting into view and focuses it, and changes no setting.
-- **BPR-1289:matcher.** Matching is fuzzy and case-insensitive with a tested
-  ranking (exact and prefix words before scattered letters); the index is
-  built from the settings the pages actually show, so a new setting is
-  searchable without a second list; withdrawn pages (BPR-1179) never appear.
+- **BPR-1289:matcher.** Matching is a pure core matcher in `src/core`
+  (deterministic, no Qt, no clock unless passed in), ported from the best of
+  the three candidates below, case- and diacritic-insensitive, with a tested
+  ranking (exact, then prefix, then word-start and consecutive letters before
+  scattered ones). The Qt side builds its index from the settings the pages
+  actually show, so a new setting is searchable without a second list;
+  withdrawn pages (BPR-1179) never appear.
 - **BPR-1289:provenance.** Ported code names its source repository, path,
   revision and licence beside it, and the third-party or provenance notes
   record it.
 - **BPR-1289:owner-look.** The owner accepts it in an attended session.
 
-## Port source, as found on 2026-10-05
+## Port candidates (owner, 2026-10-05)
 
-The owner's recollection is not confirmed. SiftThroughLogs
-(`MikeMarcin/SiftThroughLogs`, checkout
-`/Users/jaeger/Documents/GitHub/SiftThroughLogs`, `main` at `55e7e0c`, the
-only branch; MIT, "Copyright (c) 2026 Sift contributors"; all 35 commits by
-Michael Marcin) has no fuzzy text matcher. A search of every tracked source
-and of the history for fuzzy, subsequence and fzf matching found none. The
-nearest code is:
+All three are the owner's own code; the two private ones carry no licence
+file, so record the owner's permission with the port. Read on 2026-10-05:
 
-- `libraries/store/src/capture_store.cpp` (about line 1077): an SQLite FTS5
-  table `event_fts` with the `unicode61 remove_diacritics 2` tokenizer, for
-  full-text search over captured log events;
-- `libraries/query/src/query.cpp` (about lines 1411 to 1421): the query
-  language's `contains`, `starts_with` and `ends_with`, compiled to `LIKE`;
-- `libraries/ui/src/facet_filter.cpp` and `libraries/ui/src/inspector_filter.cpp`:
-  facet and field predicates for the query bar, not text matching.
+- **containers, `gct::strings::fuzzy_matcher`.**
+  `/Users/jaeger/Documents/Personal/containers/source/gct/strings/fuzzy_match.hpp`
+  (2,068 lines, header-only C++, private repository
+  `code.mikemarcin.com:containers`, `a7454c4`; every commit by Michael Marcin,
+  2026-01-17 to 2026-02-10; tests in `test/strings/test_fuzzy_match.cpp`).
+  Tiered: exact 200,000, whole-query prefix 160,000, segment prefix 140,000;
+  otherwise a subsequence score of 200 per matched character, +300 at a soft
+  boundary (`._-/ ` or a camel hump), +500 at a segment start, +180 for each
+  adjacent match, −15 per skipped character and −2 per character of late
+  start; queries split into terms and segments with optional `..`/`...`
+  wildcards; a typo rescue by Damerau–Levenshtein distance (unrestricted
+  transpositions, one edit for terms up to four characters, two beyond,
+  −2,500 per edit); an optional frequency and recency boost; reusable
+  workspaces and source masks. It includes `DirectXMath.h` and `gct` core
+  headers, which a port drops. The most complete of the three and already
+  C++: the likely base.
+- **Entole completion.**
+  `/Users/jaeger/Documents/Personal/aito/code/entole_developer_tools/modules/completion/src/Completion.cpp`
+  (`score_candidate`, about lines 342 to 419; private repository `aito`,
+  `962b48774`; every commit by Michael Marcin). The same tiers and history
+  weights in a smaller form: exact 200,000, prefix 160,000, greedy
+  left-to-right subsequence 100,000 + 200 per character − 15 per gap
+  character − 2 per character of late start, else an edit distance of at most
+  two at 50,000 − 5,000 per edit; matched ranges for highlighting; ASCII
+  case folding only.
+- **AllTheThings `FuzzyMatcher`.**
+  `/Users/jaeger/Documents/GitHub/AllTheThings/Sources/ATTCore/FuzzyMatcher.swift`
+  (1,807 lines, Swift, `MikeMarcin/AllTheThings` at `f755aeb`, MIT,
+  "Copyright (c) 2026 Michael Marcin"). File search: case-, diacritic- and
+  width-folding normalisation; exact 10,000, prefix 8,000, substring 6,000,
+  then a greedy subsequence at 5,500 with +450 at the start, +70 per character
+  of the longest run, −18 per gap character and −8 per character of late
+  start; a query language with negation, fields and wildcards, and path,
+  extension and kind scoring, which Settings does not need. Worth taking its
+  normalisation.
 
-BetterPullReview already has a fuzzy filter:
-`src/adapters/qt/include/bpr/qt/resident_filter.hpp` and
-`src/adapters/qt/src/resident_filter.cpp` (`resident_filter_matches`,
-RFC-BPR-0025, [[BPR-0981]]), where every space-separated term must appear as
-an ordered, case-folded subsequence. It ranks nothing. Ask the owner first
-whether another SiftThroughLogs source (an unpushed branch or another
-checkout) was meant; if not, build on `resident_filter` and add the ranking
-here.
+SiftThroughLogs (`55e7e0c`), which the owner first named, has no fuzzy
+matcher: only SQLite FTS5 over log events and the query language's
+`contains`/`starts_with`/`ends_with`. BetterPullReview's own
+`resident_filter_matches` ([[BPR-0981]], RFC-BPR-0025) is a Qt-side,
+unranked subsequence test; the drawers may later move to the new core matcher.
 
 ## Boundaries
 
