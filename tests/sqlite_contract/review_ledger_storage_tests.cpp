@@ -2555,6 +2555,73 @@ namespace {
 			   "a missing allocator cannot erase the evidence needed to prevent revision reuse");
 	}
 
+	/// \brief [[BPR-1210]]. A file note keeps its path from schema 8; notes from
+	/// schema 7 migrate intact with none, and say so rather than guess.
+	void test_note_paths_migrate_and_round_trip()
+	{
+		const scratch_directory directory;
+		const auto              path  = directory.file("note-paths.db");
+		std::int64_t            scope = 0;
+		auto                    old   = application::local_note_record{ };
+		auto                    whole = application::local_note_record{ };
+		{
+			auto database = review_ledger_database::open(path, { });
+			expect(database.has_value(), "the note-path fixture opens");
+			const auto id = database->scope_id(scope_of("github.com", "octo", "app", 9));
+			expect(id.has_value(), "the note-path scope resolves");
+			scope    = *id;
+			auto pre = database->store_note(scope, note(1U, 70U, "before paths"));
+			expect(pre.has_value() && !pre->FilePath, "a schema 7 file note");
+			old       = *pre;
+			auto bare = note(2U, 72U, "about the whole review");
+			bare.Attachment.reset();
+			auto stored = database->store_note(scope, bare);
+			expect(stored.has_value(), "a schema 7 whole-review note");
+			whole = *stored;
+			bpr::tests::sqlite_contract::restore_v7_fixture(database->handle());
+		}
+		{
+			auto migrated = review_ledger_database::open(path, { });
+			expect(migrated.has_value(), "a schema 7 ledger migrates");
+			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
+			const auto table   = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM private_note_path");
+			expect(version && *version == 8 && table && *table == 0, "schema 8 adds an empty note path table");
+			const auto state = migrated->load_private(scope);
+			expect(state && state->Notes == std::vector{ old, whole } && !state->Notes.front().FilePath,
+				   "schema 7 notes keep text, revision and attachment, with no path");
+
+			auto written     = note(3U, 74U, "written with its path");
+			written.FilePath = "src/engine/renderer.cpp";
+			const auto kept  = migrated->store_note(scope, written);
+			expect(kept.has_value() && kept->FilePath == written.FilePath, "a file note is written with its path");
+			auto edited      = *kept;
+			edited.Note.Text = "edited later";
+			edited.FilePath.reset();
+			const auto edit = migrated->store_note(scope, edited, kept->Revision);
+			expect(edit.has_value() && edit->FilePath == written.FilePath, "an edit keeps the path kept when the note was written");
+
+			auto loose = note(4U, 76U, "path without a file");
+			loose.Attachment.reset();
+			loose.FilePath  = "src/a.cpp";
+			auto longer     = note(5U, 78U, "path too long");
+			longer.FilePath = std::string(application::maximum_note_path_bytes + 1U, 'a');
+			expect(!migrated->store_note(scope, loose) && !migrated->store_note(scope, longer),
+				   "a path without a file, or longer than its bound, is refused");
+		}
+		{
+			auto reopened = review_ledger_database::open(path, { });
+			expect(reopened.has_value(), "the schema 8 ledger reopens");
+			const auto state = reopened->load_private(scope);
+			const auto found = state ? std::ranges::find(state->Notes, application::local_note_id{ 3U }, &application::local_note_record::Id) : state->Notes.end();
+			expect(state && found != state->Notes.end() && found->FilePath == std::optional<std::string>{ "src/engine/renderer.cpp" }
+					   && found->Note.Text == "edited later",
+				   "the path survives restart");
+			expect(reopened->erase_note(scope, found->Id, found->Revision).has_value(), "the file note is deleted");
+			const auto rows = scalar_integer(reopened->handle(), "SELECT COUNT(*) FROM private_note_path");
+			expect(rows && *rows == 0, "deleting a note deletes its path");
+		}
+	}
+
 	void test_version_five_note_migration_is_atomic_and_repeatable()
 	{
 		const scratch_directory directory;
@@ -2668,6 +2735,7 @@ auto main() -> int
 try {
 	test_simultaneous_note_edits_have_one_winner();
 	test_version_five_note_migration_is_atomic_and_repeatable();
+	test_note_paths_migrate_and_round_trip();
 	test_two_connections_compare_note_revisions_without_aba();
 	test_a_directory_in_the_ledgers_place_is_a_typed_refusal();
 	test_the_schema_stores_no_presentation_coordinate();

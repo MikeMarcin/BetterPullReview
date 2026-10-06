@@ -113,6 +113,11 @@ namespace bpr::application {
 			|| aNote.Note.Text.size() > core::maximum_note_bytes) {
 			return false;
 		}
+		if (aNote.FilePath
+			&& (!aNote.Attachment || aNote.FilePath->empty() || aNote.FilePath->size() > maximum_note_path_bytes
+				|| aNote.FilePath->find('\0') != std::string::npos)) {
+			return false;
+		}
 		return !aNote.Attachment
 			|| (aNote.Attachment->File.valid()
 				&& aNote.Attachment->Comparison.valid());

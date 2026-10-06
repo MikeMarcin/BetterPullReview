@@ -223,3 +223,67 @@ as `historical-note-path-contract` and leave the card Blocked. Rationale: the
 retained bytes cannot reconstruct information that was never stored. This does
 not reopen AC7, request another owner judgment, or mark AC1 satisfied. BPR-1204
 keeps its terminal dependency on this card; native station debt stays BPR-1135.
+
+## Owner decision — 2026-10-06
+
+The integrator put one question to the owner in chat: *"A private note on a
+file keeps only an internal ID, not the file's name. If a later push drops that
+file from the pull request, the note can only say 'File comparison from an
+earlier update'. Should file notes also remember the file's path when you write
+them (a small local storage change; notes written before it stay unnamed), so
+they keep their file name?"* The answer, verbatim: "Accept (Recommended)".
+That lifts `historical-note-path-contract`. RFC-BPR-0007 records the
+amendment.
+
+## Linux implementation — 2026-10-06 (`bpr-main-linux`)
+
+- **Port:** `local_note_record` gains `FilePath`, the file's path when the
+  note was written. `valid()` allows it only with an attachment, non-empty,
+  without NUL and at most `maximum_note_path_bytes` (4,096).
+- **Ledger schema 7 → 8:** one new table, `private_note_path(scope_id,
+  thread_id, path)`, with its primary key and a foreign key to
+  `private_thread`. No row is the null path. It is a side table rather than a
+  column on `private_thread`, so the migration creates one table instead of
+  rebuilding a table that others reference by foreign key, inside the one
+  migration transaction. The meaning is the same as a nullable column.
+  - The migration creates it empty, so v7 notes stay unnamed.
+  - Canonical schema validation adds it at v8, and preflight still validates
+    v7.
+  - A note is written with its path. An edit without one keeps the stored
+    path.
+  - Deleting a note's thread deletes its path row first.
+  - The v6 legacy fixture drops the table, and a new `restore_v7_fixture`
+    builds an exact v7 ledger.
+- **App:** a new file note takes the selected comparison's
+  `PresentationPath`. The note's label is its file's current or previous path
+  from the accepted snapshot; failing that, the kept path; failing that,
+  "File comparison from an earlier update".
+- **Purge:** `review-ledger.sqlite3` and its sidecars are in the profile purge
+  store list (BPR-1283's inventory), so the path data is removed with the rest
+  of the ledger.
+
+**Tests:**
+
+- `test_note_paths_migrate_and_round_trip` (`sqlite_review_ledger_storage`):
+  a v7 ledger with a file note and a whole-review note migrates to schema 8
+  with an empty path table. Both notes keep text, revision and attachment,
+  with no path. A new file note is written with its path, and an edit without
+  one keeps it. A path without a file, or longer than its bound, is refused.
+  The path survives restart, and deleting the note deletes its path.
+- `application_review_submission_composition_public_path`: the real window's
+  file note puts exactly one row in `private_note_path`, the path its label
+  shows. The pull-request note has none.
+
+**Failing-before controls:** with the store not writing the path,
+`sqlite_review_ledger_storage` fails at "an edit keeps the path kept when the
+note was written". With the app not recording it, the composed course fails at
+its path check. Both pass again restored.
+
+**Pin:** `application_review_round_trip_composition_contract` is resealed
+(full application and production manifest digests; mutation pin unchanged).
+No pinned-scope commit intervened since the BPR-1289 reseal.
+
+**Evidence** (`build/dev`, GCC 15.2): every `sqlite_` row, the ledger,
+private-review, Notes, agent-launch, review-submission, composition and
+release-maintenance rows, and both architecture rows pass 72/72 in 817 s.
+`coding-format-check` and `DOCUMENTATION_OK` pass.

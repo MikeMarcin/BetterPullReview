@@ -265,13 +265,16 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			std::optional<local_note_record> note(std::uint64_t aId)
 			{
-				auto q = sql("SELECT n.revision,t.file_identity,t.comparison_id,c.body FROM private_legacy_note n JOIN private_thread t ON t.scope_id=n.scope_id AND t.id=n.thread_id JOIN private_turn u ON u.scope_id=t.scope_id AND u.thread_id=t.id JOIN private_content c ON c.scope_id=u.scope_id AND c.id=u.latest_revision WHERE n.scope_id=?1 AND n.note_id=?2 ORDER BY u.id LIMIT 1", Scope, aId);
+				auto q = sql("SELECT n.revision,t.file_identity,t.comparison_id,c.body,p.path FROM private_legacy_note n JOIN private_thread t ON t.scope_id=n.scope_id AND t.id=n.thread_id JOIN private_turn u ON u.scope_id=t.scope_id AND u.thread_id=t.id JOIN private_content c ON c.scope_id=u.scope_id AND c.id=u.latest_revision LEFT JOIN private_note_path p ON p.scope_id=t.scope_id AND p.thread_id=t.id WHERE n.scope_id=?1 AND n.note_id=?2 ORDER BY u.id LIMIT 1", Scope, aId);
 				if (!q.row()) {
 					return { };
 				}
 				local_note_record result{ .Id = local_note_id{ aId }, .Note = core::supplement_note{ .Text = q.text(3) }, .Revision = local_note_revision{ q.integer(0) } };
 				if (!q.null(1)) {
 					result.Attachment = local_note_attachment{ q.digest<file_identity>(1), q.digest<file_comparison_digest>(2) };
+				}
+				if (!q.null(4)) {
+					result.FilePath = q.text(4);
 				}
 				require(application::valid(result), error::integrity);
 				q.done();
@@ -402,6 +405,7 @@ namespace bpr::adapters::sqlite::detail {
 				write("DELETE FROM private_edge WHERE scope_id=?1 AND destination_id IN(SELECT id FROM private_content WHERE scope_id=?1 AND kind=0 AND owner_id=?2)", Scope, aId);
 				write("DELETE FROM private_legacy_note WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
 				write("DELETE FROM private_turn WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
+				write("DELETE FROM private_note_path WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
 				write("DELETE FROM private_thread WHERE scope_id=?1 AND id=?2", Scope, aId);
 				write("DELETE FROM private_content WHERE scope_id=?1 AND kind=0 AND owner_id=?2", Scope, aId);
 			}
@@ -450,6 +454,13 @@ namespace bpr::adapters::sqlite::detail {
 				aDb.write("INSERT INTO private_edge(scope_id,destination_id,source_id,kind) VALUES(?1,?2,?3,1)", aDb.Scope, id, predecessor->Revision.value());
 			}
 			aDb.write("INSERT INTO private_legacy_note(scope_id,note_id,thread_id,revision) VALUES(?1,?2,?3,?4) ON CONFLICT(scope_id,note_id) DO UPDATE SET revision=excluded.revision", aDb.Scope, aNote.Id.value(), header.Id.value(), accepted.Revision.value());
+			// [[BPR-1210]]. The path is written with the note. An edit that
+			// supplies none keeps the one already kept.
+			if (aNote.FilePath && !aMigrating) {
+				aDb.write("INSERT INTO private_note_path(scope_id,thread_id,path) VALUES(?1,?2,?3) ON CONFLICT(scope_id,thread_id) DO UPDATE SET path=excluded.path", aDb.Scope, header.Id.value(), *aNote.FilePath);
+			} else if (aCurrent && aCurrent->FilePath) {
+				accepted.FilePath = aCurrent->FilePath;
+			}
 			return accepted;
 		}
 		auto legacy_failure(error aError, std::optional<local_note_record> aCurrent = { }) -> local_note_failure
@@ -503,6 +514,15 @@ namespace bpr::adapters::sqlite::detail {
 		} catch (...) {
 			return std::unexpected(failure::unavailable);
 		}
+	}
+	auto migrate_private_note_paths(sqlite3* aHandle) -> std::expected<void, failure>
+	{
+		// Notes written before schema 8 keep no path: they stay honestly
+		// unnamed rather than being given a guessed one.
+		if (!execute(aHandle, PrivateNotePathTable.Sql).has_value()) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		return { };
 	}
 	auto private_store_note(sqlite3* aHandle, std::int64_t aScope, const local_note_record& aNote, std::optional<local_note_revision> aExpected) -> std::expected<local_note_record, local_note_failure>
 	{

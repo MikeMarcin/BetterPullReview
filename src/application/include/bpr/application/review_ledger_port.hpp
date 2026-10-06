@@ -11,6 +11,7 @@
 #include <expected>
 #include <functional>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -55,6 +56,9 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_private_defects         = 4'096U;
 	inline constexpr std::size_t maximum_retained_agent_sessions = 128U;
 
+	/// [[BPR-1210]]. The longest path a file note keeps, in UTF-8 bytes.
+	inline constexpr std::size_t maximum_note_path_bytes = 4'096U;
+
 	using local_note_id       = core::strong_id<struct local_note_id_tag>;
 	using local_note_revision = core::strong_id<struct local_note_revision_tag>;
 
@@ -70,8 +74,11 @@ namespace bpr::application {
 	/// \brief One durable private note.
 	///
 	/// \details A note may describe the review as a whole or one exact file
-	/// comparison. It never stores a path, source body, or presentation
-	/// coordinate. The text uses the same bound as an explicitly selected agent
+	/// comparison. It stores no source body or presentation coordinate. A file
+	/// note keeps the file's path as it was when the note was written
+	/// ([[BPR-1210]], the owner's amendment of RFC-BPR-0007 on 2026-10-06), so
+	/// it can still name a file that a later update dropped; a note written
+	/// before then has none. The text uses the same bound as an explicitly selected agent
 	/// note so persistence cannot create a value that downstream context must
 	/// silently truncate. Revision zero denotes an unpersisted candidate.
 	/// Only the separate expected revision grants edit or delete authority; the
@@ -82,6 +89,9 @@ namespace bpr::application {
 		std::optional<local_note_attachment> Attachment;
 		core::supplement_note                Note;
 		local_note_revision                  Revision;
+		/// The attached file's path when the note was written; only with an
+		/// attachment, at most `maximum_note_path_bytes`.
+		std::optional<std::string> FilePath;
 
 		auto operator<=>(const local_note_record&) const = default;
 	};

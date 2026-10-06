@@ -24,7 +24,9 @@
 #include <QTemporaryDir>
 #include <QTextEdit>
 #include <QToolButton>
+#include <filesystem>
 #include <iostream>
+#include <sqlite3.h>
 #include <stdexcept>
 
 namespace {
@@ -188,6 +190,29 @@ auto main(int argc, char** argv) -> int
 				notes->save_action()->trigger();
 				wait([&] { return notes->notes_list()->count() == 2; }, "file note commits");
 				expect(notes->notes_list()->item(0)->data(Qt::UserRole) != noteId && !notes->notes_list()->item(0)->text().contains(QStringLiteral("Pull request")), "newest note names its file");
+				{
+					// [[BPR-1210]]. The note was written with its file's path, so it can
+					// still name the file after a later update drops it.
+					auto ledger = std::filesystem::path{ };
+					for (const auto& entry : std::filesystem::recursive_directory_iterator{ *dataRoot }) {
+						if (entry.path().filename() == "review-ledger.sqlite3") {
+							ledger = entry.path();
+						}
+					}
+					::sqlite3* database = nullptr;
+					expect(!ledger.empty() && ::sqlite3_open_v2(ledger.string().c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK,
+						   "the private ledger opens for reading");
+					::sqlite3_stmt* query = nullptr;
+					expect(::sqlite3_prepare_v2(database, "SELECT path FROM private_note_path", -1, &query, nullptr) == SQLITE_OK, "the note path table is read");
+					auto paths = QStringList{ };
+					while (::sqlite3_step(query) == SQLITE_ROW) {
+						paths.push_back(QString::fromUtf8(reinterpret_cast<const char*>(::sqlite3_column_text(query, 0))));
+					}
+					::sqlite3_finalize(query);
+					::sqlite3_close(database);
+					expect(paths.size() == 1 && !paths.front().isEmpty() && notes->notes_list()->item(0)->text().contains(paths.front()),
+						   "the file note's path is kept with it, and only the file note has one");
+				}
 				notes->body_editor()->setPlainText(QString(static_cast<qsizetype>(core::maximum_note_bytes) + 1, QLatin1Char{ 'x' }));
 				notes->save_action()->trigger();
 				// [[BPR-1246]]. The ledger answers on its own lane ([[BPR-1211]]),

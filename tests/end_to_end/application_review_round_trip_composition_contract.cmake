@@ -750,6 +750,15 @@ endfunction()
 # Attended setup only: no grant, target, provider, credential, mutation or
 # publication path changes; mutation pin unchanged; no new src/app source.
 # Reviewed on BPR-1289.
+# BPR-1210 reseal: over the BPR-1289 reseal above; no intervening
+# pinned-scope commit. A new private file note is written with the selected
+# comparison's presentation path (within maximum_note_path_bytes), and a file
+# note's label falls back to that kept path when the file is in neither the
+# current nor the previous accepted snapshot, before the honest "earlier
+# update" text. Private ledger only (the owner's amendment of RFC-BPR-0007,
+# 2026-10-06): no grant, target, provider, credential, mutation or publication
+# path changes; mutation pin unchanged; no new src/app source. Reviewed on
+# BPR-1210.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -768,7 +777,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"46c89a78bf09fa32ae02a0f9707f4262b325bc7491666aaa117efc68b9228488"
+		"fb94bd1198c513cf1605b76e46d16a38bb7b9ca2509ee9d66e31ab727f88f4f0"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -966,7 +975,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a4afaa2467a3dd343f95b5acaf173834abfa043868c4f0db8a4713616db2b20f"
+        "cdde4e47fe1b3cee4e1f3d61e4658782c05e2fb16a9da9b9bb70bc83f18e67fc"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -392,6 +392,14 @@ namespace bpr::adapters::sqlite::detail {
 			return tables;
 		}();
 
+		/// [[BPR-1210]]. Schema 8 adds the note path table to schema 7.
+		const auto SchemaVersion8Tables = [] {
+			auto tables = SchemaVersion7Tables;
+			tables.push_back({ PrivateNotePathTable.Name, PrivateNotePathTable.Sql });
+			std::ranges::sort(tables, { }, &schema_table::Name);
+			return tables;
+		}();
+
 		[[nodiscard]] auto run_all(
 			::sqlite3*                              aDatabase,
 			const std::span<const std::string_view> aStatements,
@@ -536,6 +544,14 @@ namespace bpr::adapters::sqlite::detail {
 				version = 7;
 			}
 
+			if (version == 7) {
+				if (auto migrated = migrate_private_note_paths(aDatabase); !migrated) {
+					rollback();
+					return migrated;
+				}
+				version = 8;
+			}
+
 			if (auto recorded = execute(
 					aDatabase,
 					"UPDATE ledger_meta SET schema_format = "
@@ -640,7 +656,7 @@ namespace bpr::adapters::sqlite::detail {
 			return validate_at_version(
 				aDatabase,
 				review_ledger_schema_version,
-				SchemaVersion7Tables);
+				SchemaVersion8Tables);
 		}
 
 		struct preflight_file_image
@@ -1083,6 +1099,8 @@ namespace bpr::adapters::sqlite::detail {
 						expected = SchemaVersion6Tables;
 					} else if (*version == 7) {
 						expected = SchemaVersion7Tables;
+					} else if (*version == 8) {
+						expected = SchemaVersion8Tables;
 					} else {
 						validation = std::unexpected(failure::schema_mismatch);
 					}

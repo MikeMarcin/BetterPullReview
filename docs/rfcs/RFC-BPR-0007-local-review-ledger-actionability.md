@@ -45,6 +45,20 @@ GitHub does not represent the personal inspection ledger required to answer what
 
 SQLite contains identities, receipts, rules, notes, projections, and migration metadata. Git objects remain in the Git cache. Credentials and duplicated source bodies are prohibited. One serialized writer and bounded readers use prepared statements, foreign keys, transactions, and WAL.
 
+**Owner amendment, 2026-10-06 ([[BPR-1210]]).** A private note on a file
+identified that file only by opaque file and comparison identities, never by a
+path. Once a later update dropped the file from both accepted snapshots, the
+note could no longer name it. The owner accepted keeping the path:
+
+- A file note now keeps its file's path as it was when the note was written,
+  in ledger schema 8's `private_note_path`, one row per note thread.
+- The path is the pull request's own file name, kept only in the private
+  local ledger, and is never guessed or reconstructed.
+- Notes written before schema 8 keep no path. They say "File comparison from
+  an earlier update" when their file has left the pull request.
+- Deleting a note deletes its path, and profile purge removes the ledger file
+  as before.
+
 ## Receipt semantics
 
 File receipts attach to `FileMaterialId`. A new epoch preserves a receipt only when the compared material identity remains equivalent. Conversation receipts record the latest seen/accepted comment identity and edit version. New or edited comments reopen unread state.

@@ -12617,8 +12617,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::vector<application::local_note_record>               AcceptedPrivateNotes;
 		std::optional<std::map<core::file_identity, std::string>> NotePaths;
 
-		[[nodiscard]] auto private_note_file_label(const core::file_identity& aFile) -> std::string
+		/// \brief The name a file note shows: its file's current or previous path,
+		/// else the path kept when it was written ([[BPR-1210]]), else an honest
+		/// "earlier update" for a note written before paths were kept.
+		[[nodiscard]] auto private_note_file_label(const application::local_note_record& aNote) -> std::string
 		{
+			const auto& aFile = aNote.Attachment->File;
 			if (!NotePaths && WindowRead->accepted_snapshot()) {
 				NotePaths.emplace();
 				for (const auto& file : WindowRead->accepted_snapshot()->Files) {
@@ -12632,6 +12636,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (const auto found = NotePaths->find(aFile); found != NotePaths->end()) {
 					return found->second;
 				}
+			}
+			if (aNote.FilePath) {
+				return *aNote.FilePath;
 			}
 			return "File comparison from an earlier update";
 		}
@@ -12759,6 +12766,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						return;
 					}
 					note.Attachment = offered;
+					// [[BPR-1210]]. Kept with the note, so it can still name the
+					// file after a later update drops it.
+					if (const auto& path = SelectedDiffPublication->Request.File.PresentationPath;
+						!path.empty() && path.size() <= application::maximum_note_path_bytes) {
+						note.FilePath = path;
+					}
 				}
 			}
 			note.Note.Text = aIntent.Text;
@@ -12794,7 +12807,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					notes.reserve(AcceptedPrivateNotes.size());
 					for (const auto& note : AcceptedPrivateNotes) {
 						notes.push_back(note.Id);
-						projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note.Attachment->File) : "Pull request", .Text = note.Note.Text });
+						projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note) : "Pull request", .Text = note.Note.Text });
 					}
 					std::ranges::sort(projection.Notes, std::greater{ }, &qt::private_note_item::Id);
 				}
