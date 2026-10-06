@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1289"
 title: "Add a Settings search and filter box"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner aside in attended session 8bf444584f9806487f06891db2f5af50 (BPR-1083 mark-style-v001, decision b504ffed, 2026-10-06T00:16Z)","reservation":"docs/issues/_reservations/BPR-1287--BPR-1289--621f5b91f3f1.json","related_cards":["BPR-1083","BPR-1288","BPR-0981"],"owner_reference":"docs/design/owner-refs/BPR-1083-owner-ref-codex-settings-search.png","port_candidates":[{"name":"containers gct","path":"/Users/jaeger/Documents/Personal/containers/source/gct/strings/fuzzy_match.hpp","revision":"a7454c4","licence":"none visible; private repository, every commit by the owner"},{"name":"Entole","path":"/Users/jaeger/Documents/Personal/aito/code/entole_developer_tools/modules/completion/src/Completion.cpp","revision":"962b48774","licence":"none visible; private repository, every commit by the owner"},{"name":"AllTheThings","path":"/Users/jaeger/Documents/GitHub/AllTheThings/Sources/ATTCore/FuzzyMatcher.swift","revision":"f755aeb","licence":"MIT, Copyright (c) 2026 Michael Marcin"},{"name":"FindInMedia (legacy Rust)","path":"/Users/jaeger/Documents/GitHub/FindInMedia/crates/fim-db/src/lib.rs","lines":"6236-6271","revision":"f1943cb","licence":"MIT (workspace Cargo.toml; no LICENSE file), every commit by the owner"}],"acceptance":["BPR-1289:search","BPR-1289:results","BPR-1289:go-to","BPR-1289:matcher","BPR-1289:provenance","BPR-1289:owner-look"]}
+parked_on: "human-review"
 ---
 
 # BPR-1289: Add a Settings search and filter box
@@ -222,3 +223,103 @@ Ctrl+F).
 and the macOS and Windows runs. The frontend-design skill the integrator named
 is not installed on this station, so the field follows the existing drawer
 filter fields' pattern.
+
+## macOS port and design — 2026-10-06 (`bpr-main-mac`)
+
+Over the Linux candidate `db0b07ce3`, on branch
+`claude/bpr1289-settings-search`: `4205884a5` (matcher and design) and
+`9bc313b7e` (attended launch and reseal).
+
+**Matcher against the owner's sources (BPR-1289:matcher, :provenance).** The
+four sources were read on this Mac and compared with the Linux matcher, which
+was written from this card's description. Paths, revisions, licences and what
+was taken or left are in `docs/development/ported-code-provenance.md`.
+
+- **containers** (`a7454c4`, the base): the label-start bonus (+500 for a
+  first letter at index 0), and the late penalty on the match's end, as the
+  source charges it.
+- **Entole** (`962b48774`): matched ranges. `fuzzy_match_result` gains
+  `Spans`, in UTF-8 bytes of the source text, so folded letters (é, ß, a
+  combining accent) highlight the right characters.
+- **AllTheThings** (`f755aeb`): a substring tier (120,000) between a word's
+  start and scattered letters. Its anchors become two rules: scattered
+  letters start at a word or soft boundary, and enter another word only at
+  its start.
+- **FindInMedia** (`f1943cb`): the consonant signature. A typo may change the
+  first letter when the consonants hold ("eppearance" finds Appearance).
+- **Cascade.** `fuzzy_rank` lists only the nearest reach any candidate made
+  (`fuzzy_reach`): literal runs, then scattered letters, then typos. The
+  Linux matcher did this for typos only.
+
+On the 140 labels the live pages show, the Linux matcher listed scattered
+noise beside real hits: "lig" also found "[Li]ne hei[g]ht", "cache" found
+"[Ca]n[c]el [h]istory maint[e]nance", "pear" found "Review [p]r[e]p[ar]ation".
+These queries now list only the real hits. Abbreviations still work: "ntfc",
+"lnum" (Code line number text), "ilab" (Diff in-line added background) and
+"syn key". `core_fuzzy_match` adds spans, the word rules, containers' exact
+weights, the cascade, FindInMedia variants and a corpus of those live labels.
+Three controls each fail it: the word rule off, the cascade off, and
+one-byte spans.
+
+**Design (frontend-design, BPR-1289:search, :results, :go-to).** Palette
+roles only; no style sheet. The app keeps blue for state, so matches change
+weight, not colour.
+
+- **Field:** a magnifier drawn in the palette's quiet ink, redrawn on a
+  palette change, beside "Search settings", with a clear button.
+- **Rows:** a delegate on the native row ground. The setting's name, then
+  "Page · Section" at the app's 0.92 secondary scale in PlaceholderText.
+  Matched runs are DemiBold. A matched section rises to the name's ink in the
+  location line. A page result is one line (its accessible text says
+  "settings page").
+- **Order:** by page, then section, a page or section ahead of its settings.
+  The best match starts chosen, so Return takes it even when the grouping
+  puts it lower.
+- **Keys:** Up and Down choose while the caret stays in the field; Return
+  opens; Tab enters the list; Escape in the list returns to the query; Escape
+  in the field clears; Escape again closes Settings.
+- **Go-to:** a setting that cannot take focus (unavailable) is still shown,
+  and its page takes the keyboard.
+- **Descriptions:** a match found only in a description waits while a name,
+  section or page holds the query as near. The list does not show
+  descriptions, so "dif" had led with four unexplained Appearance rows. A
+  word only a description holds still finds its setting, and the tooltip
+  shows the description.
+
+**Evidence** (macOS arm64, Qt 6.11.2, `build/dev` in the worktree):
+
+- The rows the integrator named pass 9/9: `qt_settings_window` and its 125,
+  150 and 200 rows, `core_fuzzy_match`, `core_dependency_boundary`,
+  `core_boundary_contract`, `architecture_boundaries` and
+  `qt_appearance_settings_panel`.
+- `application_review_round_trip_composition_contract` passes, resealed for
+  the `main.cpp` launch option.
+- clang-format and clang-tidy are clean on the touched code; the one tidy
+  finding left in `settings_window_tests.cpp` is the earlier writing-hooks
+  lambda in `main()`. `DOCUMENTATION_OK`.
+- Rasters were looked at offscreen and on cocoa, in light, dark and both
+  high-contrast palettes.
+
+### Owner look, session v001
+
+Pending: BPR-1289:owner-look is the owner's, not self-certified. One attended
+session, one question, Accept or Reject: "Settings search works and looks
+right."
+
+- Session `5f1fc11b159a6e8a1ec72ea4fe1f3895`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1289-search-v001`,
+  candidate `BPR-1289-settings-search-v001` (revision `frozen-9bc313b7e-v001`,
+  fingerprint `e0c37723c701…`), ready, cursor 4.
+- Frozen root `/Users/jaeger/bpr1289-settings-search-review-v001.VFHC8S`: the
+  `git archive` of `9bc313b7e` built there with tests on; executable SHA-256
+  `092556aced7e…`. Offscreen on it, `--github-fixture conventional-comments-v1
+  --attended-launch --attended-open-settings` printed
+  `ATTENDED_SETTINGS_SHOWN`.
+- Launch: `python3 /Users/jaeger/bpr1289-settings-search-review-v001.VFHC8S/launch.py`.
+  It checks the build and fixture first and reports an early exit within
+  seconds.
+
+**Open:** BPR-1289:owner-look, and the Windows run (the Linux station ran
+Linux). Next: read the session's decision. Accept satisfies :owner-look and,
+with the Windows row green, the card finishes. Reject comes back with what to
+change in its note, for a v002 candidate.
