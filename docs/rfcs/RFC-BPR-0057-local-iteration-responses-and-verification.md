@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0057"
 title: "Local Iteration, Recipient Responses and Reviewer Verification"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review Cycles"
 depends_on: ["RFC-BPR-0053", "RFC-BPR-0054", "RFC-BPR-0055", "RFC-BPR-0056"]
