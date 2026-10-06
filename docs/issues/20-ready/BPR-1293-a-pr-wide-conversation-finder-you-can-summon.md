@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1293"
 title: "A PR-wide conversation finder you can summon"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -67,6 +67,23 @@ like Home**. Not designed yet. Ask with drawings when this card is taken up.
   reads in the drawer.
 - What happens to Discuss (RFC-BPR-0028 AC-05/AC-08, [[BPR-0649]]), given the
   owner's note on the modalities.
+
+## Owner direction, 2026-10-06
+
+In chat, about the inline drawer prototype
+([`BPR-1290-inline-drawer-v1`](../../design/BPR-1290-inline-drawer-v1/index.html)),
+verbatim as relayed by the coordinator:
+
+> I like it
+
+> Of course it didnt show the tree nav
+
+The coordinator took this card up from there: extend the same prototype so its
+finder button and a hotkey open the Treeverse finder over the same pull request,
+and let the owner try both placements (a main-pane tab beside the file, and a
+view summoned over the window like Home) in the prototype itself. The placement
+stays the owner's open question; the prototype answers nothing on its own.
+Feedback comes in chat, with no attended session.
 
 ## Acceptance
 
