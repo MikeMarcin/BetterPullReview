@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1297"
 title: "Debug presentation of a 20,000-line file under cache pressure takes 135–372 s per selection"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
 metadata: {"found_by":"BPR-1265 Windows Debug runs, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1297--BPR-1297--6e67e2e347b2.json","related_cards":["BPR-1265","BPR-1264"]}
+acceptance: [{"criterion":"The card records where a Debug selection's time goes, measured","outcome":"pass","revision":"728097f1211626f70fca2bffa235aed8a76fe288","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1297-debug-presentation-of-a-20000-line-file-under-cache-pressure-is-slow.md","detail":"Not presentation: the course's 1 ms live-heap sampler. On Windows each HeapSummary(GetProcessHeap()) holds the heap lock; measured rates 66 samples/s in Debug (~14 ms each, lock ~93% held) and 88-155/s optimized (~5-10 ms, ~85-90%). A/B in the Windows Debug row: sampler on 135-372 s per selection (never finishes in 2,520 s), sampler off 10.5-19.1 s (course ~522 s)."}},{"criterion":"A fix with a before-and-after measurement, or the owner's decision","outcome":"pass","revision":"728097f1211626f70fca2bffa235aed8a76fe288","evidence":{"kind":"command","path":"tests/end_to_end/large_review_observers.hpp","detail":"The sampler waits max(1 ms, 4x its last sample's cost), bounding its lock share to about a fifth. Debug cache_bytes with the bound: selections 13.5-14.2 s, refreshes 6.0-8.6 s, passes in 569.0 s (13.6 samples/s, max interval 164 ms, 182 MB peak caught). Optimized: 18/18 large-review rows pass with BudgetsEnforced, no misses; cache_bytes 210.7 s (was 280-316); sampler courses' paged-load gaps 159/180/195/182 -> 70/126/58/144 ms. The Debug row stays skipped by the coordinator's cost decision (BPR-1265, corrected). macOS and Linux optimized runs are with the coordinator."}}]
 ---
 
 # BPR-1297: Debug presentation of a 20,000-line file under cache pressure takes 135–372 s per selection
