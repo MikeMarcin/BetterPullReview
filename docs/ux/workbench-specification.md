@@ -1040,11 +1040,17 @@ A thread opens in place: one at a time, pinned exactly at its line, with the
 line washed amber in the code, its gutter marker ringed and the open card's
 amber edge and notch pointing at it. The other notes make room above and
 below. The open thread shows every post in posting order with its avatar,
-mark, rail, unread dot and complete body as written, a New rule before the
-first unread post, and a reply that answers anything but the thread's first
-post names whom it answers. Its header row has Show line, Resolve or
-Unresolve, Mark read, More (the thread menu) and Close; my draft has Publish,
-Edit and Delete instead. Reply (the field, or R) opens an editor in place at
+mark, rail, unread dot and complete body as written, and a reply that answers
+anything but the thread's first post names whom it answers. What is new is
+said in the header: beside the line number a blue "N new", the closed note's
+count kept while the thread is open. A New rule is never a thread's first
+element: it stands only where a read post is followed by the first new one, in
+place of the hairline between them and inset inside the card, whose edge runs
+through it ([[BPR-1290]], the owner's v002 note: a rule under the header "kind
+of looks like it belongs to the thread above it"). When the first post is
+already new, the header's count and the posts' unread dots say so and no rule
+is drawn. Its header row has Show line, Resolve or Unresolve, Mark read, More
+(the thread menu) and Close; my draft has Publish, Edit and Delete instead. Reply (the field, or R) opens an editor in place at
 the foot of the thread; the reply is the same draft the composition entry
 writes, and nothing is published until Publish (Command+Return). Comment
 (Option-C) still opens the composition page, whose inside is [[BPR-1212]]'s. A file-level compatibility
@@ -1059,7 +1065,9 @@ code to its line and opens its thread, as pressing its note does
 ([[BPR-1290]], the owner's v001 note). Where ticks crowd, the tick whose centre
 is nearest the pointer, within a few pixels of its edge, is the one chosen; its
 tooltip says "Shift-click to go to line N: …", and with Shift held over it the
-pointer is a hand and the tick is ringed. The code's gutter
+pointer is a hand, the tick is ringed and the tooltip shows at once, without
+the hover delay a tooltip otherwise has (the owner's v002 note). A modifier key
+alone does not take a tooltip away. The code's gutter
 carries a marker per thread, the root post's label mark or a plain square, a
 blue dot when new, faded when resolved; pressing it opens or closes the
 thread. Keys in the drawer: Up and Down move between threads, Return opens,

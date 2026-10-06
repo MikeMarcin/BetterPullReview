@@ -3220,6 +3220,12 @@ namespace {
 			QApplication::sendEvent(cards->viewport(), &press);
 			QApplication::processEvents();
 		};
+		const auto settleOpen = [surface] {
+			QApplication::processEvents();
+			for (auto settle = 0; settle < 20 && surface->geometry_pending(); ++settle) {
+				QApplication::processEvents();
+			}
+		};
 		auto timer = QElapsedTimer{ };
 		timer.start();
 		open("review-thread:t60");
@@ -3238,9 +3244,33 @@ namespace {
 				   && openCard->findChild<QToolButton*>(QStringLiteral("threadShowLine")) != nullptr
 				   && openCard->findChild<QToolButton*>(QStringLiteral("threadMarkRead")) != nullptr
 				   && openCard->findChild<QToolButton*>(QStringLiteral("threadMore")) != nullptr
-				   && openCard->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) != nullptr
-				   && openCard->findChild<QWidget*>(QStringLiteral("threadNewRule")) != nullptr,
-			   "the open thread shows every post, the New rule, Show line, Mark read, More and Reply");
+				   && openCard->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) != nullptr,
+			   "the open thread shows every post, Show line, Mark read, More and Reply");
+		// Line 60's first post is new: the header counts the new posts and no
+		// rule opens the thread (the owner's v002 Reject).
+		const auto* const newPill = openCard->findChild<QWidget*>(QStringLiteral("threadNewPill"));
+		expect(newPill != nullptr && newPill->isVisible() && newPill->accessibleName() == QStringLiteral("3 new posts")
+				   && openCard->findChild<QWidget*>(QStringLiteral("threadNewRule")) == nullptr,
+			   "a thread whose first post is new says so in its header, with no rule under it");
+		capture_layout_state(window, QStringLiteral("inline-open-first-post-new"));
+		// Read up to the reviewer's reply: the rule stands between it and the
+		// first new post, inside the card.
+		window.update_read_state("review-thread:t60", { "review-comment:c5", "review-comment:c6" });
+		settleOpen();
+		{
+			auto* const readFirst = cards->open_card();
+			auto        posts     = readFirst->findChildren<QWidget*>(QStringLiteral("threadPost"));
+			std::ranges::sort(posts, { }, [](const QWidget* aPost) { return aPost->geometry().top(); });
+			const auto* const rule = readFirst->findChild<QWidget*>(QStringLiteral("threadNewRule"));
+			const auto* const pill = readFirst->findChild<QWidget*>(QStringLiteral("threadNewPill"));
+			expect(rule != nullptr && posts.size() == 4 && rule->geometry().top() >= posts[1]->geometry().bottom()
+					   && rule->geometry().bottom() <= posts[2]->geometry().top() && rule->geometry().left() >= 0
+					   && rule->geometry().right() <= readFirst->width() && pill != nullptr && pill->accessibleName() == QStringLiteral("2 new posts"),
+				   "read posts then new ones: the rule sits between the last read post and the first new one, and the header counts the new");
+			capture_layout_state(window, QStringLiteral("inline-open-read-then-new"));
+		}
+		window.update_read_state("review-thread:t60", { "review-comment:c3", "review-comment:c5", "review-comment:c6" });
+		settleOpen();
 		const auto openMarks = surface->line_marks(core::diff_side::right);
 		expect(std::ranges::count_if(openMarks, &qt::diff_line_mark::Open) == 1
 				   && std::ranges::find_if(openMarks, &qt::diff_line_mark::Open)->Line == 59U
@@ -3260,7 +3290,7 @@ namespace {
 		bar->setValue(bar->value() + bar->pageStep() / 4);
 		QApplication::processEvents();
 		const auto scrollMs = timer.elapsed();
-		expect(openCard->geometry().top() == lineY(60U) - 4, "scrolling the code carries the open thread with its line");
+		expect(cards->open_card() != nullptr && cards->open_card()->geometry().top() == lineY(60U) - 4, "scrolling the code carries the open thread with its line");
 		std::cout << "inline-drawer:scroll-ms=" << scrollMs << '\n';
 #if defined(NDEBUG)
 		expect(scrollMs < 100, "a scroll frame relays the notes within 100 ms in an optimized build");
@@ -3439,6 +3469,53 @@ namespace {
 		qt::hide_anchored_tooltip();
 		hoverBarAt(QPoint{ -5, 0 }, Qt::NoModifier);
 		auto leave = QEvent{ QEvent::Leave };
+		QApplication::sendEvent(bar, &leave);
+
+		// With Shift held a tick's tooltip shows at once (the owner,
+		// rejecting v002: "Tooltip can show up immediately with the shift
+		// mouseover."); without Shift it keeps the hover delay.
+		const auto shownTip = []() -> QString {
+			const auto* const label = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+			return label != nullptr ? label->text() : QString{ };
+		};
+		const auto sendKey = [cards](const QEvent::Type aType, const int aKey, const Qt::KeyboardModifiers aModifiers) {
+			auto event = QKeyEvent{ aType, aKey, aModifiers };
+			QApplication::sendEvent(cards, &event);
+			QApplication::processEvents();
+		};
+		cards->close_thread();
+		bar->setValue(bar->minimum());
+		settleGeometry();
+		qt::hide_anchored_tooltip();
+		hoverBarAt(tick250.center(), Qt::NoModifier);
+		expect(shownTip().isEmpty(), "negative control: without Shift, resting on a tick shows no tooltip before the hover delay");
+		hoverBarAt(tick250.center() + QPoint{ 0, 1 }, Qt::ShiftModifier);
+		std::cout << "inline-drawer:shift-tick-tooltip=" << shownTip().toStdString() << '\n';
+		expect(shownTip() == QStringLiteral("Shift-click to go to line 250: 1 post, 1 new"),
+			   "moving onto a tick with Shift held shows its tooltip at once");
+		hoverBarAt(QPoint{ tick64.center().x(), near64 }, Qt::ShiftModifier);
+		expect(shownTip().startsWith(QStringLiteral("Shift-click to go to line 64:")), "moving with Shift held to another tick names that one at once");
+		hoverBarAt(QPoint{ tick60.center().x(), near60 }, Qt::ShiftModifier);
+		expect(shownTip().startsWith(QStringLiteral("Shift-click to go to line 60:")), "and between crowded ticks, the nearer one");
+		sendKey(QEvent::KeyRelease, Qt::Key_Shift, Qt::NoModifier);
+		qt::hide_anchored_tooltip();
+		hoverBarAt(QPoint{ tick300.center().x(), clearAt.value_or(0) }, Qt::ShiftModifier);
+		expect(shownTip().isEmpty(), "negative control: Shift held away from every tick shows no tooltip");
+		sendKey(QEvent::KeyRelease, Qt::Key_Shift, Qt::NoModifier);
+		hoverBarAt(tick300.center(), Qt::NoModifier);
+		expect(shownTip().isEmpty(), "resting on a tick without Shift shows nothing yet");
+		sendKey(QEvent::KeyPress, Qt::Key_Shift, Qt::ShiftModifier);
+		expect(shownTip().startsWith(QStringLiteral("Shift-click to go to line 300:")), "pressing Shift while resting on a tick shows its tooltip at once");
+		sendKey(QEvent::KeyPress, Qt::Key_Control, Qt::ShiftModifier | Qt::ControlModifier);
+		expect(shownTip().startsWith(QStringLiteral("Shift-click to go to line 300:")), "another modifier leaves the tooltip, as Qt's own tooltip does");
+		sendKey(QEvent::KeyRelease, Qt::Key_Control, Qt::ShiftModifier);
+		sendKey(QEvent::KeyRelease, Qt::Key_Shift, Qt::NoModifier);
+		auto letter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Q, Qt::NoModifier };
+		QApplication::sendEvent(bar, &letter);
+		QApplication::processEvents();
+		expect(shownTip().isEmpty(), "negative control: a key that is not a modifier still takes the tooltip away");
+		qt::hide_anchored_tooltip();
+		hoverBarAt(QPoint{ -5, 0 }, Qt::NoModifier);
 		QApplication::sendEvent(bar, &leave);
 
 		// The keys: Esc closes, Up and Down move, Return opens, N opens the next new.

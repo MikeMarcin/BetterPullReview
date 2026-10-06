@@ -20,7 +20,8 @@ class QWidget;
 /// rectangle instead: directly below it with their left edges aligned, or
 /// directly above it when below would leave the screen. The window looks like
 /// the style's own tooltip (its panel, palette and font) and goes away when
-/// the pointer leaves the anchor, on a press, a key or the wheel, when the
+/// the pointer leaves the anchor, on a press, a key other than a modifier
+/// (as `QToolTip`'s does) or the wheel, when the
 /// owner hides, or after ten seconds. Presentation only.
 namespace bpr::qt {
 	/// \brief The gap between an anchor and its tooltip, in pixels.

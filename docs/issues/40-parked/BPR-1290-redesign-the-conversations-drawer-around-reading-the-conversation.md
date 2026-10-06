@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-1293","BPR-1294","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
+metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-1293","BPR-1294","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp","docs/design/owner-refs/BPR-1290-owner-ref-built-drawer-v002.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
 parked_on: "human-review"
 ---
 
@@ -764,6 +764,7 @@ scroll-bar markers."
 Next: read the session's decision. Accept satisfies :owner-look and the card
 finishes; Reject comes back with what differs in its note, for a v003
 candidate. Linux and Windows have not run v002's rows.
+
 **Note: Windows run at `1fecfaef5` (station `bpr-main-win`, MSVC 14.51, Qt
 6.11.2; no remote mutation).**
 
@@ -793,3 +794,33 @@ with `-j1`:
 - `windows-dev` Debug: 7.1, 7.9 and 11.2 s;
 - the optimized tests-on tree (`build/bpr0967-release`, MSVC `/O2`), where
   the 100 ms open and scroll checks apply: 3.7, 1.3 and 2.2 s.
+
+## Owner verdict on built drawer v002, 2026-10-06
+
+Session `ef04b01ef8a5c04f9d6ff1b0f0dbbe87` handed back at sequence 4 (cursor
+2 to 4 read). `BPR-1290-built-drawer-v002` (revision `frozen-b109295f4-v002`):
+**Reject** (decision `08cb35c3`, 15:40:10Z). Note, verbatim:
+
+> Tooltip can show up immediately with the shift mouseover.
+>
+> Something about this screenshot feels broken. I don't think that horizontal
+> new line looks good before the the start of the thread. We might need to do
+> something special there, because it kind of looks like it belongs to the
+> thread above it instead and there's a rendering glitch even though that's
+> not true.
+
+The screenshot attached to the verdict,
+[`BPR-1290-owner-ref-built-drawer-v002.webp`](../../design/owner-refs/BPR-1290-owner-ref-built-drawer-v002.webp),
+shows Read on `inline-drawer-v1`'s long file (fixture data only): the open
+thread at line 667 has its header (◇ 667 and the actions), then a "New" rule
+with its line running to the right edge, then reviewer-four's first post. The
+rule is the first thing under the header, so it reads as the foot of the
+card above.
+
+Read as two requirements, relayed by the coordinator: a scroll-bar tick's
+tooltip shows at once while Shift is held over it, and other tooltips keep
+their delay; and the New rule is never a thread's first element. When the
+first shown post is already new, the header says the thread is new and the
+posts' unread dots carry the rest; the rule stays only between a read post and
+the first new one, clearly inside the card. Nothing else in v002 was rejected,
+and BPR-1290:owner-look is asked again on v003.

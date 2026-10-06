@@ -8,10 +8,12 @@
 #include <QApplication>
 #include <QContextMenuEvent>
 #include <QFile>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QPixmap>
 #include <QScrollBar>
 #include <QTextEdit>
 #include <QToolButton>
@@ -20,6 +22,7 @@
 #include <glaze/json.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -296,8 +299,10 @@ namespace {
 				   && rootCard->Posts.front().Unread && !rootCard->Posts[1].Unread,
 			   "the unread posts are the ones the state names, and the first post unread makes the thread new");
 		expect(view.unread_post_count() == 3U, "the count is over every note");
-		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewRule")) != nullptr,
-			   "the open thread rules off where its new posts start");
+		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewRule")) == nullptr
+				   && view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewPill")) != nullptr
+				   && view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewPill"))->accessibleName() == QStringLiteral("2 new posts"),
+			   "the open thread's first post is new, so its header counts the new posts and no rule opens it");
 		expect(view.unread_threads_in_file_order() == std::vector<std::string>{ root, "t-after" },
 			   "the unread threads of the whole pull request come in file order, the read one absent");
 		expect(view.unread_marked_lines(core::diff_side::right) == std::vector<std::uint32_t>{ 4U, 41U },
@@ -315,8 +320,9 @@ namespace {
 		view.set_read_state({ });
 		QApplication::processEvents();
 		expect(view.unread_post_count() == 0U && !button(view, "threadMarkRead")->isEnabled()
-				   && view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewRule")) == nullptr,
-			   "an empty state reads everything, withdraws Mark read and the New rule");
+				   && view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewRule")) == nullptr
+				   && view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewPill")) == nullptr,
+			   "an empty state reads everything, withdraws Mark read and the header's new count");
 		view.hide();
 	}
 
@@ -986,6 +992,154 @@ namespace {
 			   "a press whose dispatch makes another thread current still names the pressed thread");
 		view.hide();
 	}
+
+	/// \brief One open thread's New boundary, as the card shows it.
+	struct new_boundary
+	{
+		QString               Pill;
+		QWidget*              Rule = nullptr;
+		std::vector<QWidget*> Posts;
+		std::vector<QString>  Spoken;
+		QImage                Image;
+		QWidget*              Card = nullptr;
+	};
+
+	/// \brief Opens a thread of `aPosts` posts, the ones `aUnread` names new,
+	/// and reads its New boundary: the header's pill, the rule, the posts.
+	[[nodiscard]] auto open_with_unread(qt::conversation_cards_view& aView, const std::size_t aPosts, const std::vector<std::size_t>& aUnread) -> new_boundary
+	{
+		auto conversations = std::vector<conversation>{ thread("t-new", "src/a.cpp", 10U) };
+		for (std::size_t index = 0U; index < aPosts; ++index) {
+			conversations.push_back(reply("c-new-" + std::to_string(index), "t-new", index % 2U == 0U ? "reviewer-four" : "author-two",
+										  "Post " + std::to_string(index) + " of the thread, long enough to wrap onto a second line in the drawer."));
+		}
+		aView.adopt(conversations);
+		auto unread = std::vector<std::string>{ };
+		for (const auto index : aUnread) {
+			unread.push_back("c-new-" + std::to_string(index));
+		}
+		aView.set_read_state({ qt::thread_read_state{ .Thread = "t-new", .UnreadPosts = unread } });
+		aView.open_thread("t-new");
+		QApplication::processEvents();
+		auto* const card = aView.open_card();
+		expect(card != nullptr, "the thread opens in place");
+		auto found = new_boundary{ };
+		found.Card = card;
+		found.Rule = card->findChild<QWidget*>(QStringLiteral("threadNewRule"));
+		if (const auto* const pill = card->findChild<QWidget*>(QStringLiteral("threadNewPill")); pill != nullptr && pill->isVisible()) {
+			found.Pill = pill->accessibleName();
+		}
+		for (auto* const post : card->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+			found.Posts.push_back(post);
+			found.Spoken.push_back(post->accessibleDescription());
+		}
+		std::ranges::sort(found.Posts, { }, [](const QWidget* aPost) { return aPost->geometry().top(); });
+		found.Image = card->grab().toImage();
+		return found;
+	}
+
+	/// \brief Whether a pixel is the New colour (pure blue in this test) or
+	/// a blend of it over the panel.
+	[[nodiscard]] auto bluish(const QColor& aColour) -> bool
+	{
+		return aColour.blue() - std::max(aColour.red(), aColour.green()) > 60;
+	}
+
+	/// \brief [[BPR-1290]], the owner's v002 Reject ("I don't think that
+	/// horizontal new line looks good before the start of the thread"). The
+	/// New rule is never a thread's first element: a thread whose first post
+	/// is new says so with a pill in its header, and the rule stands only
+	/// between a read post and the first new one, inset inside the card.
+	auto test_new_boundary_is_never_the_first_thing_in_a_thread() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(360, 900);
+		view.set_colours(QColor{ 0, 0, 255 }, QColor{ 0xD2, 0x99, 0x22 });
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return static_cast<int>(aLine) * 10; });
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		view.show();
+		QApplication::processEvents();
+
+		// All new: the header says so; no rule under it.
+		auto allNew = open_with_unread(view, 3U, { 0U, 1U, 2U });
+		expect(allNew.Pill == QStringLiteral("3 new posts") && allNew.Rule == nullptr,
+			   "a thread whose posts are all new says so in its header and draws no rule under it");
+		expect(allNew.Spoken == std::vector<QString>(3U, QStringLiteral("New")), "each new post keeps its own unread dot");
+
+		// First read, then new: the rule stands between them, inside the card.
+		auto readThenNew = open_with_unread(view, 3U, { 1U, 2U });
+		expect(readThenNew.Pill == QStringLiteral("2 new posts") && readThenNew.Rule != nullptr,
+			   "a read post followed by new ones keeps the count in the header and the rule between them");
+		expect(readThenNew.Posts.size() == 3U && readThenNew.Rule->geometry().top() >= readThenNew.Posts[0]->geometry().bottom()
+				   && readThenNew.Rule->geometry().bottom() <= readThenNew.Posts[1]->geometry().top(),
+			   "the rule sits between the read post and the first new one, not above the thread's first post");
+		expect(readThenNew.Spoken == std::vector<QString>{ QString{ }, QStringLiteral("New"), QStringLiteral("New") }, "only the new posts have dots");
+		{
+			const auto& image = readThenNew.Image;
+			const auto  ratio = image.devicePixelRatio();
+			const auto  postY = static_cast<int>(std::lround((readThenNew.Posts[0]->geometry().center().y()) * ratio));
+			const auto  width = image.width();
+			// The rule's row is the one of its rows with the most of the New
+			// colour across it.
+			auto ruleY = -1;
+			auto most  = 0;
+			for (auto y = static_cast<int>(readThenNew.Rule->geometry().top() * ratio); y < static_cast<int>((readThenNew.Rule->geometry().bottom() + 1) * ratio); ++y) {
+				auto count = 0;
+				for (auto x = 0; x < width; ++x) {
+					count += bluish(image.pixelColor(x, y)) ? 1 : 0;
+				}
+				if (count > most) {
+					most  = count;
+					ruleY = y;
+				}
+			}
+			expect(ruleY >= 0, "the rule draws in the New colour");
+			auto first = -1;
+			auto last  = -1;
+			for (auto x = 0; x < width; ++x) {
+				if (bluish(image.pixelColor(x, ruleY))) {
+					first = first < 0 ? x : first;
+					last  = x;
+				}
+			}
+			std::cout << "new-boundary:rule-span=" << first << ".." << last << " of " << width << '\n';
+			expect(first >= static_cast<int>(10 * ratio) && first < width / 4 && last <= width - static_cast<int>(8 * ratio) && most > width / 2,
+				   "the rule runs across the card, inset: it starts inside the card's edge and stops short of its right side");
+			auto edgeContinuous = true;
+			for (auto x = 0; x < static_cast<int>(4 * ratio); ++x) {
+				edgeContinuous = edgeContinuous && image.pixelColor(x, ruleY) == image.pixelColor(x, postY);
+			}
+			expect(edgeContinuous, "the card's border and amber edge run through the rule's row as they do beside a post");
+		}
+
+		// All read: nothing says new.
+		auto allRead = open_with_unread(view, 3U, { });
+		expect(allRead.Pill.isEmpty() && allRead.Rule == nullptr, "a thread with nothing new has no pill and no rule");
+
+		// A single post, new and then read.
+		auto singleNew = open_with_unread(view, 1U, { 0U });
+		expect(singleNew.Pill == QStringLiteral("1 new post") && singleNew.Rule == nullptr, "a single new post: the header says so, no rule");
+		auto singleRead = open_with_unread(view, 1U, { });
+		expect(singleRead.Pill.isEmpty() && singleRead.Rule == nullptr, "a single read post: neither");
+
+		// Negative control: new, read, new. The first post is new, so the
+		// header says so and no rule appears before a later new post either.
+		auto mixed = open_with_unread(view, 3U, { 0U, 2U });
+		expect(mixed.Pill == QStringLiteral("2 new posts") && mixed.Rule == nullptr,
+			   "negative control: when the first post is new, no rule appears anywhere in the thread");
+		{
+			auto noRule = true;
+			for (auto y = 0; y < mixed.Image.height() && noRule; ++y) {
+				auto run = 0;
+				for (auto x = 0; x < mixed.Image.width(); ++x) {
+					run    = bluish(mixed.Image.pixelColor(x, y)) ? run + 1 : 0;
+					noRule = noRule && run < mixed.Image.width() / 3;
+				}
+			}
+			expect(noRule, "negative control: no row of the card carries a long blue line");
+		}
+		view.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -996,6 +1150,7 @@ auto main(int argc, char** argv) -> int
 	test_one_thread_read_state_matches_the_complete_state();
 	test_branching_conversation_reads_in_place();
 	test_read_state_marks_unread_posts_and_offers_mark_read();
+	test_new_boundary_is_never_the_first_thing_in_a_thread();
 	test_discuss_lists_threads_that_open_in_place();
 	test_notes_hang_from_their_lines_and_one_opens_pinned();
 	test_chips_wheel_and_overflow();

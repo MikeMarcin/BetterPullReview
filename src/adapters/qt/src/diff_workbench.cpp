@@ -90,15 +90,7 @@ namespace bpr::qt {
 					if (!index.has_value()) {
 						return std::nullopt;
 					}
-					const auto& tick = Ticks[*index];
-					auto        text = tick.Description;
-					if (!text.isEmpty()) {
-						text[0] = text[0].toLower();
-					}
-					return anchored_tooltip_target{
-						.Anchor = tick_rect(tick),
-						.Text   = text.isEmpty() ? QStringLiteral("Shift-click to go to this thread") : QStringLiteral("Shift-click to go to %1").arg(text),
-					};
+					return tooltip_of(Ticks[*index]);
 				});
 			}
 
@@ -142,6 +134,21 @@ namespace bpr::qt {
 				const auto centre = groove.top() + static_cast<int>(std::lround(std::clamp(aTick.Fraction, 0.0, 1.0) * travel)) + slider.height() / 2;
 				const auto height = aTick.Open ? 6 : 4;
 				return QRect{ groove.left() + 2, centre - height / 2, std::max(2, groove.width() - 4), height };
+			}
+
+			/// \brief What a tick's tooltip says, anchored to the band across
+			/// the bar in which the pointer finds it, so the tooltip stays
+			/// while the pointer is anywhere a press would choose that tick.
+			[[nodiscard]] auto tooltip_of(const diff_thread_tick& aTick) const -> anchored_tooltip_target
+			{
+				auto text = aTick.Description;
+				if (!text.isEmpty()) {
+					text[0] = text[0].toLower();
+				}
+				return anchored_tooltip_target{
+					.Anchor = QRect{ 0, tick_rect(aTick).top() - TickReach, width(), tick_rect(aTick).height() + 2 * TickReach },
+					.Text   = text.isEmpty() ? QStringLiteral("Shift-click to go to this thread") : QStringLiteral("Shift-click to go to %1").arg(text),
+				};
 			}
 
 			/// \brief The tick a point finds: of those within `TickReach` of
@@ -284,12 +291,18 @@ namespace bpr::qt {
 				}
 			}
 
-			/// Rings the tick Shift-click would choose and shows the hand.
+			/// Rings the tick Shift-click would choose, shows the hand and
+			/// names where it goes at once: with Shift held the tooltip does
+			/// not wait for the hover delay (the owner, rejecting the built
+			/// drawer v002: "Tooltip can show up immediately with the shift
+			/// mouseover."). Without Shift a tick's tooltip keeps its delay.
 			void follow_pointer()
 			{
 				auto target = std::optional<std::pair<core::diff_side, std::uint32_t>>{ };
+				auto index  = std::optional<std::size_t>{ };
 				if (ShiftHeld && Pointer.has_value()) {
-					if (const auto index = tick_at(*Pointer); index.has_value()) {
+					index = tick_at(*Pointer);
+					if (index.has_value()) {
 						target = std::pair{ Ticks[*index].Side, Ticks[*index].Line };
 					}
 				}
@@ -299,6 +312,8 @@ namespace bpr::qt {
 				Target = std::move(target);
 				if (Target.has_value()) {
 					setCursor(Qt::PointingHandCursor);
+					const auto tip = tooltip_of(Ticks[*index]);
+					show_anchored_tooltip(*this, tip.Anchor, tip.Text);
 				} else {
 					unsetCursor();
 				}

@@ -138,7 +138,15 @@ namespace bpr::qt {
 			QColor                            Ink;
 		};
 
-		/// \brief The "New" rule before the first unread post.
+		/// \brief The "New" rule between a read post and the first new one.
+		///
+		/// \details Never a thread's first element: when the first post is
+		/// already new, the header's `new_pill` says so instead (the owner,
+		/// rejecting the built drawer v002: a rule under the header "kind of
+		/// looks like it belongs to the thread above it"). It takes the place
+		/// of the hairline between the two posts and is inset from both sides,
+		/// so the card's border and amber edge run through it unbroken; its
+		/// word sits at the right end, a marker on the line, not a heading.
 		class new_rule final : public QWidget
 		{
 		public:
@@ -151,25 +159,85 @@ namespace bpr::qt {
 				auto small = semibold(scaled(font(), 0.82));
 				small.setWeight(QFont::Bold);
 				setFont(small);
-				setFixedHeight(QFontMetrics{ font() }.height() + 2);
+				setFixedHeight(QFontMetrics{ font() }.height() + 4);
+			}
+
+			/// \brief Where the line runs, in the rule's coordinates: inside
+			/// the card's edge on the left and short of the word on the right.
+			[[nodiscard]] auto line_span() const -> std::pair<int, int>
+			{
+				return { gut_left, word_left() - 6 };
+			}
+
+			[[nodiscard]] auto word_left() const -> int
+			{
+				return width() - text_right - QFontMetrics{ font() }.horizontalAdvance(QStringLiteral("New"));
 			}
 
 		protected:
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
-				auto       painter = QPainter{ this };
-				const auto metrics = QFontMetrics{ font() };
-				const auto words   = QStringLiteral("New");
-				const auto left    = text_left;
+				auto       painter    = QPainter{ this };
+				const auto words      = QStringLiteral("New");
+				const auto [from, to] = line_span();
+				painter.setPen(QPen{ with_alpha(Ink, 0.6), 1.0 });
+				painter.drawLine(QPointF{ static_cast<qreal>(from), height() / 2.0 }, QPointF{ static_cast<qreal>(to), height() / 2.0 });
 				painter.setPen(Ink);
-				painter.drawText(QRect{ left, 0, width() - left, height() }, Qt::AlignLeft | Qt::AlignVCenter, words);
-				const auto after = left + metrics.horizontalAdvance(words) + 8;
-				painter.setPen(QPen{ with_alpha(Ink, 0.55), 1.0 });
-				painter.drawLine(QPointF{ static_cast<qreal>(after), height() / 2.0 }, QPointF{ static_cast<qreal>(width() - text_right), height() / 2.0 });
+				painter.drawText(QRect{ word_left(), 0, width() - word_left(), height() }, Qt::AlignLeft | Qt::AlignVCenter, words);
 			}
 
 		private:
 			QColor Ink;
+		};
+
+		/// \brief The header's "N new": the closed note's blue count, kept
+		/// beside the line number while the thread is open.
+		class new_pill final : public QWidget
+		{
+		public:
+			new_pill(const std::size_t aCount, QColor aFill, QColor aInk, QWidget* aParent)
+				: QWidget{ aParent }
+				, Words{ QStringLiteral("%1 new").arg(aCount) }
+				, Fill{ std::move(aFill) }
+				, Ink{ std::move(aInk) }
+			{
+				setObjectName(QStringLiteral("threadNewPill"));
+				const auto spoken = aCount == 1U ? QStringLiteral("1 new post") : QStringLiteral("%1 new posts").arg(aCount);
+				setAccessibleName(spoken);
+				setToolTip(spoken);
+				auto small = semibold(scaled(font(), 0.8));
+				small.setWeight(QFont::Bold);
+				setFont(small);
+				setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+			}
+
+			[[nodiscard]] auto text() const -> const QString&
+			{
+				return Words;
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ font() };
+				return { metrics.horizontalAdvance(Words) + 12, std::max(16, metrics.height() + 2) };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(Fill);
+				painter.drawRoundedRect(QRectF{ rect() }, height() / 2.0, height() / 2.0);
+				painter.setPen(Ink);
+				painter.drawText(rect(), Qt::AlignCenter, Words);
+			}
+
+		private:
+			QString Words;
+			QColor  Fill;
+			QColor  Ink;
 		};
 
 		/// \brief The header row: Show line, the state, the actions, and a rule
@@ -796,6 +864,11 @@ namespace bpr::qt {
 			connect(where, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::show_line); } });
 			row->addWidget(where);
 		}
+		if (!aCard.Draft && aCard.UnreadCount > 0U) {
+			row->addSpacing(4);
+			row->addWidget(new new_pill{ aCard.UnreadCount, Style.Colours.New, Style.Colours.OnNew, header }, 0, Qt::AlignVCenter);
+			row->addSpacing(4);
+		}
 		if (aCard.Draft) {
 			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
 		} else if (aCard.Resolved) {
@@ -874,15 +947,18 @@ namespace bpr::qt {
 			excerpt->setContentsMargins(text_left, 8, text_right, 0);
 			column->addWidget(excerpt);
 		}
+		// The New rule goes only where a read post is followed by the first
+		// new one; a thread whose first post is new says so in its header.
 		auto seenNew = false;
 		auto first   = true;
 		for (const auto& post : aCard.Posts) {
 			auto ruleAbove = !first;
 			if (post.Unread && !seenNew && !aCard.Draft) {
-				column->addSpacing(2);
-				column->addWidget(new new_rule{ Style.Colours.New, this });
-				seenNew   = true;
-				ruleAbove = false;
+				seenNew = true;
+				if (!first) {
+					column->addWidget(new new_rule{ Style.Colours.New, this });
+					ruleAbove = false;
+				}
 			}
 			auto* const view           = new thread_post_view{ post, Style, ruleAbove, this };
 			view->body()->LinkDispatch = [this, id = post.Id](const QString& aDestination) {

@@ -5,6 +5,7 @@
 #include <QEvent>
 #include <QGuiApplication>
 #include <QHelpEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QPaintEvent>
 #include <QPointer>
@@ -112,9 +113,17 @@ namespace bpr::qt {
 						dismiss();
 					}
 					break;
+				case QEvent::KeyPress:
+					// A modifier alone leaves the tooltip, as `QToolTip`'s own
+					// does: holding Shift over a scroll-bar tick shows its
+					// tooltip at once ([[BPR-1290]]), and must not then take it
+					// away.
+					if (const auto key = static_cast<QKeyEvent*>(aEvent)->key(); key < Qt::Key_Shift || key > Qt::Key_ScrollLock) {
+						dismiss();
+					}
+					break;
 				case QEvent::MouseButtonPress:
 				case QEvent::MouseButtonDblClick:
-				case QEvent::KeyPress:
 				case QEvent::Wheel:
 				case QEvent::WindowDeactivate:
 				case QEvent::FocusOut:
