@@ -80,24 +80,26 @@ auto main(int argc, char** argv) -> int
 
 	// [[BPR-1085]]. The preflight: my blockers, my unsent blocking draft,
 	// guidance, uncertainty and others, apart; rows link to their items.
-	auto approved           = draft;
-	approved.Disposition    = core::review_disposition::approve;
-	auto withPreflight      = projection;
-	withPreflight.Draft     = approved;
-	withPreflight.Controls  = core::controls(approved);
-	withPreflight.Prepared  = core::prepare_review_decision(approved, { });
-	withPreflight.Preflight = core::review_preflight{
-		.Blockers  = { { .Conversation = "review-thread:T1", .Label = core::feedback_label::issue, .Resolution = core::feedback_resolution::unresolved },
-					   { .Conversation = "review-thread:T2", .Label = core::feedback_label::todo, .Resolution = core::feedback_resolution::unknown } },
-		.Pending   = { { .Draft = "draft:9", .Label = core::feedback_label::issue } },
-		.Guidance  = { { .Label = core::feedback_label::chore, .Guidance = core::feedback_label_guidance::required_before_acceptance, .Published = 1U } },
-		.Uncertain = { .ResolutionUnknown = 1U },
-		.Others    = 2U,
-	};
-	withPreflight.References = { { "review-thread:T1", { QStringLiteral("src/a.cpp:12"), QStringLiteral("The cache is never invalidated.") } },
-								 { "review-thread:T2", { QStringLiteral("src/b.cpp:3"), QStringLiteral("Add the clamp.") } },
-								 { "draft:9", { QStringLiteral("Line 40"), QStringLiteral("Not sent yet.") } } };
-	auto revealed            = std::vector<std::string>{ };
+	auto approved          = draft;
+	approved.Disposition   = core::review_disposition::approve;
+	auto withPreflight     = projection;
+	withPreflight.Draft    = approved;
+	withPreflight.Controls = core::controls(approved);
+	withPreflight.Prepared = core::prepare_review_decision(approved, { });
+	// Filled member by member: GCC 15 at -O3 reads a designated temporary as
+	// leaving the defaulted scope's strings uninitialized ([[BPR-1297]] run).
+	auto preflight                        = core::review_preflight{ };
+	preflight.Blockers                    = { { .Conversation = "review-thread:T1", .Label = core::feedback_label::issue, .Resolution = core::feedback_resolution::unresolved },
+											  { .Conversation = "review-thread:T2", .Label = core::feedback_label::todo, .Resolution = core::feedback_resolution::unknown } };
+	preflight.Pending                     = { { .Draft = "draft:9", .Label = core::feedback_label::issue } };
+	preflight.Guidance                    = { { .Label = core::feedback_label::chore, .Guidance = core::feedback_label_guidance::required_before_acceptance, .Published = 1U } };
+	preflight.Uncertain.ResolutionUnknown = 1U;
+	preflight.Others                      = 2U;
+	withPreflight.Preflight               = std::move(preflight);
+	withPreflight.References              = { { "review-thread:T1", { QStringLiteral("src/a.cpp:12"), QStringLiteral("The cache is never invalidated.") } },
+											  { "review-thread:T2", { QStringLiteral("src/b.cpp:3"), QStringLiteral("Add the clamp.") } },
+											  { "draft:9", { QStringLiteral("Line 40"), QStringLiteral("Not sent yet.") } } };
+	auto revealed                         = std::vector<std::string>{ };
 	editor.set_item_reveal([&](const std::string& aId) { revealed.push_back(aId); });
 	const auto beforePreflight = intents.size();
 	editor.present(withPreflight);
