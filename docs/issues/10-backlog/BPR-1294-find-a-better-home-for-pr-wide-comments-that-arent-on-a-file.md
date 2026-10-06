@@ -72,7 +72,11 @@ Read from the code at `fbbabb3ef`:
 - **Discuss** ([[BPR-0649]]). The same list, widened; the selected post's feed
   (`github_conversation_model`) heads each one "Pull request comment by
   @name" or "Review by @name", with no file or line
-  (`anchor_text` is empty for both).
+  (`anchor_text` is empty for both). Amended 2026-10-06: the owner replaced
+  Discuss with Conversations ([[BPR-1293]]), a finder that lists only
+  conversations on a file. Once it lands, these have no reader in the
+  application until this card is built; BPR-1293's Q2 asks the owner whether to
+  accept that gap meanwhile.
 - **Overview, header** (`github_pull_request_panel`). Only a count: "… · n
   reviews · n review threads · n pull request comments", beside the pull
   request's description. No comment is readable there.

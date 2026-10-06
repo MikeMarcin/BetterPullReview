@@ -168,7 +168,13 @@ open) only on a window's first entry and when ⌘2 is pressed while already in
 Review. One command, ⌘B (Ctrl+B elsewhere) and an icon beside the comments
 toggle, hides every open drawer, and a second press restores exactly the
 drawers that were open at their saved widths; Overview refuses it and Discuss
-disables it. A focused composer keeps ⌘B to itself.
+disables it. A focused composer keeps ⌘B to itself. Amended 2026-10-06 by the
+owner's decision on [[BPR-1293]]: Conversations replaces Discuss, so the
+modalities are Overview ⌘1, Review ⌘2 and Conversations ⌘3. Conversations puts
+a finder over every conversation on a file in the main pane, grouped by file,
+for navigation only; picking one enters Review on its file with the thread
+open in the comments drawer at the picked post. ⌘J goes straight to it. How
+the drawers behave while it shows is an open question on BPR-1293.
 
 **Overview.** A pull request opens on an overview: title, author and branches,
 description, a files table grouped by folder with operation, added and removed
@@ -293,7 +299,9 @@ design rounds.
   arrangement it last had in the window, hidden drawers included, and its
   preset only on the window's first entry or ⌘2 in Review; ⌘B and its icon hide
   every open drawer and restore exactly the same set, refused in Overview,
-  disabled in Discuss, and yielded to a focused composer.
+  disabled in Discuss, and yielded to a focused composer. Amended 2026-10-06
+  ([[BPR-1293]]): Conversations replaces Discuss as the third modality, on ⌘3,
+  and ⌘J goes straight to it.
 - AC-04 The overview shows every file with the listed columns from projections
   the host already publishes, plus participants and the since-my-last-review
   summary, and Continue review lands on the first unseen change.
@@ -781,6 +789,50 @@ Elsewhere in this document, too, where Read is named, read Review. The amendment
 changes the modalities and the drawer commands, not this RFC's closeout
 dependencies. [[BPR-1295]] builds it after [[BPR-1290]] lands, and the owner
 confirms the icon's place and the ⌘1-⌘3 keys at the built UI.
+
+## Owner decision, 2026-10-06: Conversations replaces Discuss
+
+Placed here for the same reason as the section above: [[BPR-1290]]'s in-flight
+amendment edits this document's Read and Discuss paragraphs, AC-05, AC-08 and
+its end.
+
+[[BPR-1293]] prototyped a finder for every conversation in the pull request
+([prototype v2](../design/BPR-1290-inline-drawer-v2/index.html)), with two
+placements to try: a tab in the main pane and a view summoned like Home. The
+owner said in chat, verbatim: "I like that a lot." Asked "Which finder
+placement should we build? Like Home / Tab / Both", the owner answered,
+verbatim: "What if we were to replace discuss with conversations."
+
+So **Conversations replaces Discuss**. The modalities are Overview ⌘1, Review
+⌘2 and Conversations ⌘3 (Read merged into Review above). Conversations is the
+finder in the main pane, as prototype v2 draws it: one row per conversation
+on a file, grouped by file, branching only where a post has two or more
+replies that have replies, with search and the Only new, Hide resolved and
+label filters. It is for navigation only. Picking a conversation enters Review
+on its file with the thread open in the inline comments drawer at its line and
+the picked post shown, as the prototype's Tab placement does. ⌘J goes straight
+to Conversations. Pull request comments and review summaries that are not on a
+file are not in it; [[BPR-1294]] finds them a home, Overview being the leading
+direction.
+
+The Modalities paragraph and AC-03 above carry dated amendments that cite
+this. The Discuss paragraph, AC-05's last clause and AC-08 are not edited in
+place while BPR-1290's amendment to the same lines is in flight. Until one of
+the two changes words them in place, read them so:
+
+- **The Discuss paragraph** describes what Conversations replaces. The list
+  becomes the finder's rows, the thread map is replaced by the finder's branch
+  rows, and the feed with its actions is read and used in Review's drawer
+  after a pick.
+- **AC-05's "Discuss shows the list, map and feed with the listed filters"**
+  reads "Conversations shows every conversation on a file in the finder, with
+  its search and filters, and a pick opens it in Review".
+- **AC-08's "in Read and Discuss"** reads "in Review, and found in
+  Conversations with its branches shown".
+
+BPR-1293 builds it after [[BPR-1290]] and [[BPR-1295]], and the owner accepts
+it at the built UI. The amendment changes the third modality, not this RFC's
+closeout dependencies; [[BPR-1021]]'s rows follow the criteria's wording.
 
 ## Owner decision, 2026-09-24: the scaffolding moves to RFC-BPR-0052
 

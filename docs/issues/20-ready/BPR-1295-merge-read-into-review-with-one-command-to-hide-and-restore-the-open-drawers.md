@@ -32,7 +32,12 @@ today lands in Review, and Review keeps the arrangement it last had. One
 command, on ⌘B (Ctrl+B) and an icon beside the Comments toggle, closes every
 open drawer and a second press brings back exactly the drawers that were open.
 Discuss is kept as it is for now. Whether it stays is [[BPR-1293]]'s
-question and the owner's, not this card's.
+question and the owner's, not this card's. Amended 2026-10-06 by the owner's
+decision on BPR-1293 ("What if we were to replace discuss with
+conversations."): Conversations replaces Discuss as the third modality, on ⌘3.
+This card still builds the third slot as Discuss on ⌘3, and BPR-1293, built
+after it, turns that slot into Conversations (see
+[the amendment below](#owner-amendment-2026-10-06-conversations-replaces-discuss)).
 
 ## How Read and Review differ today
 
@@ -160,7 +165,9 @@ binding is proposed.
 **Modality keys, proposed.** ⌘1 Overview, ⌘2 Review, ⌘3 Discuss (moved from
 ⌘4). The owner objected only to the toggle's keys and the button, not to
 these. They are set explicitly rather than by strip position, and are
-confirmed at the built-UI review (BPR-1295:owner-look).
+confirmed at the built-UI review (BPR-1295:owner-look). Amended 2026-10-06
+([[BPR-1293]]): ⌘3 belongs to the third modality, which is Conversations once
+BPR-1293 lands; until then it is Discuss.
 
 #### Every B binding, and how each collision is resolved
 
@@ -267,8 +274,7 @@ changes `src/`):
 
 **Still owed when the code lands:** `docs/architecture/native-markdown.md`
 and `docs/ux/conventional-comments-feedback.md` (they describe what the
-window does today), [[BPR-1293]]'s outcome (it is Parked for
-the owner on its finder prototype, and another writer holds it), and AC-05's and AC-08's in-place wording with their
+window does today), and AC-05's and AC-08's in-place wording with their
 [[BPR-1021]] rows, once BPR-1290's amendments to them are on main.
 
 The original list:
@@ -297,7 +303,8 @@ The original list:
   RFC-BPR-0005: comments stay in the drawer.
 - **Live cards.**
   - [[BPR-1290]]'s :reading ("In Read, …") becomes Review.
-  - [[BPR-1293]]'s outcome becomes "opens its file in Review".
+  - [[BPR-1293]]'s outcome becomes "opens its file in Review". Done
+    2026-10-06 with BPR-1293's owner decision.
   - [[BPR-1294]]'s "in Read the only way to reach a pull request comment …"
     becomes "in Review".
   - Parked [[BPR-1083]]'s launch steps open the fixture "in Read"; reword them
@@ -348,7 +355,8 @@ at `fc03ddccf`.
 - **[[BPR-1293]]** (Backlog). The PR-wide finder opens a conversation in Read
   today; it opens it in Review. Discuss's fate, which the owner's "beyond
   overview and review" puts in doubt, stays with BPR-1293. This card keeps
-  Discuss unchanged apart from its shortcut.
+  Discuss unchanged apart from its shortcut. Amended 2026-10-06: BPR-1293 is
+  Ready and replaces Discuss with Conversations on ⌘3, after this card.
 - **[[BPR-1294]]** (Backlog). PR-wide comments are heading to Overview, one of
   the two modalities the owner keeps. This card removes the "in Read" wording
   from its inventory and changes nothing else there.
@@ -396,13 +404,39 @@ What follows from them:
 
 The card is Ready on these answers. Its code waits for [[BPR-1290]] to land.
 
+## Owner amendment, 2026-10-06: Conversations replaces Discuss
+
+On [[BPR-1293]]'s finder prototype the owner said in chat, verbatim, "I like
+that a lot." Asked "Which finder placement should we build? Like Home / Tab /
+Both", the owner answered, verbatim: "What if we were to replace discuss with
+conversations."
+
+The modalities become **Overview ⌘1, Review ⌘2 and Conversations ⌘3**.
+Conversations is BPR-1293's finder in the main pane; picking a conversation
+switches to Review on its file with the thread open in the inline drawer, and
+⌘J goes straight to Conversations. For this card:
+
+- **Nothing in its build changes.** It removes Read, sets ⌘1 to ⌘3
+  explicitly, and leaves the third slot as Discuss. BPR-1293 is sequenced after
+  this card and replaces that slot with Conversations on the same key.
+- **⌘B in the third modality.** This card disables it in Discuss, and
+  BPR-1293 keeps it disabled in Conversations, whose page is the finder.
+- **Entering Review.** A pick in Conversations is one more path that enters
+  Review in the arrangement Review last had. When the picked thread needs the
+  Comments drawer and it is closed, BPR-1293 opens it as a manual open, as a
+  gutter mark's press does here.
+- **Owner-look.** The question on the ⌘1-⌘3 keys asks about the keys as built
+  by this card (Discuss on ⌘3), and says that Conversations takes ⌘3 when
+  BPR-1293 lands.
+
 ## Acceptance
 
 - **BPR-1295:owner-answers.** The three questions are answered by the owner
   and recorded here, verbatim. Recorded 2026-10-06 (above).
 - **BPR-1295:three-modalities.** The strip offers Overview, Review and Discuss.
   No Read remains in the core, the Qt adapter, settings, tooltips or
-  accessible names.
+  accessible names. (Amended 2026-10-06: Discuss stays here as the third
+  modality; [[BPR-1293]] replaces it with Conversations afterwards.)
 - **BPR-1295:entries.** Every path in the inventory that entered Read enters
   Review in the arrangement Review last had in that window; the preset applies
   on the window's first entry and on ⌘2 in Review.
@@ -415,7 +449,8 @@ The card is Ready on these answers. Its code waits for [[BPR-1290]] to land.
   - ⌘B (Ctrl+B) toggles from the code, the drawers' lists and single-line
     fields, and does nothing while an editable multi-line editor has focus,
     the native macOS menu item included. ⌘1, ⌘2 and ⌘3 choose Overview,
-    Review and Discuss. No key sequence is duplicated in the assembled window.
+    Review and Discuss (Conversations once [[BPR-1293]] lands; amended
+    2026-10-06). No key sequence is duplicated in the assembled window.
   - The icon sits immediately right of the Comments toggle, shows its state,
     and carries tooltip, accessible name and focus stop.
   - It stays at the platform's narrowest width.
@@ -438,6 +473,7 @@ The card is Ready on these answers. Its code waits for [[BPR-1290]] to land.
 
 This changes the presentation and the core's drawer decision. It adds no new
 authority and no GitHub, Git or SQLite effect beyond the existing settings
-record. It does not decide Discuss's future ([[BPR-1293]]), the drawer's
+record. It does not decide Discuss's future ([[BPR-1293]]; the owner
+replaced Discuss with Conversations there on 2026-10-06), the drawer's
 design ([[BPR-1290]]), or where comments that are not on a file live
 ([[BPR-1294]]).
