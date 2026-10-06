@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1088"
 title: "Persist scoped label-column and authoring preferences"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0049"]
 depends_on: ["BPR-1082", "BPR-1087"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-14","milestone":"overview","acceptance":["R20","R28","R41"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
