@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1297"
+  ],
+  "reserve_for": "debug-presentation",
+  "purpose": "Debug presentation of a 20,000-line file under cache pressure is slow",
+  "created": "2026-10-06T15:47:38.858273+00:00",
+  "base": "0066d4b4d04d43dfffe48ff6c51dfe93463aacc9"
+}
