@@ -12,7 +12,6 @@
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
-#include <QTemporaryDir>
 
 #include <algorithm>
 #include <array>
@@ -437,10 +436,11 @@ namespace {
 			[[nodiscard]] auto permitted() const noexcept -> bool override { return !Released.load(); }
 			void               release() noexcept override { Released.store(true); }
 		};
-		QTemporaryDir directory;
-		expect(directory.isValid(), "private input drain scratch directory");
-		const auto marker   = (std::filesystem::path{ directory.path().toStdString() } / "child-started").string();
-		auto       launched = request(core::agent_protocol::codex_jsonl_exec, std::string(12U * 1024U, 'p'));
+		// [[BPR-1229]]. A root the contained child can write its marker in.
+		const auto                      directory = bpr::tests::make_scratch_directory("bpr-agent-claim");
+		const bpr::tests::scratch_guard ownedDirectory{ directory };
+		const auto                      marker   = (directory / "child-started").string();
+		auto                            launched = request(core::agent_protocol::codex_jsonl_exec, std::string(12U * 1024U, 'p'));
 		launched.Input.append(512U * 1024U, 'x');
 		launched.Arguments.insert(launched.Arguments.end(), { "--pre-assignment-side-effect", marker, "--stderr-before-input", "--delay-input-ms", "400" });
 		auto claim                 = std::make_shared<observed_claim>();
@@ -464,13 +464,11 @@ namespace {
 		plant_parent_secrets();
 		qputenv("BPR_CANARY_ALLOWED", QByteArray{ "allowed-value" });
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
-		auto          launched = request(core::agent_protocol::codex_jsonl_exec);
-		QTemporaryDir scratch;
-		expect(scratch.isValid(), "the canary owns a random scratch root");
-		const auto      workingDirectory = std::filesystem::path{ scratch.path().toStdString() };
-		std::error_code filesystemError;
-		std::filesystem::permissions(workingDirectory, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace, filesystemError);
-		expect(!filesystemError, "canary root is owner private");
+		auto launched = request(core::agent_protocol::codex_jsonl_exec);
+		// [[BPR-1229]]. The shared helper's owner-private root, which on Windows
+		// also grants the AppContainer the row runs in.
+		const auto                      workingDirectory = bpr::tests::make_scratch_directory("bpr-agent-canary");
+		const bpr::tests::scratch_guard ownedWorkingDirectory{ workingDirectory };
 
 		launched.WorkingDirectory = workingDirectory.string();
 		auto       launcher       = adapters::agent::agent_process_launcher{ };
@@ -538,14 +536,15 @@ namespace {
 
 	void test_input_budget_refuses_before_real_child_effect()
 	{
-		QTemporaryDir scratch;
-		expect(scratch.isValid(), "budget course owns its random root");
-		const auto root = std::filesystem::path{ scratch.path().toStdString() };
-		std::filesystem::permissions(root, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
-		const auto marker         = root / "child-started";
-		auto       launched       = request(core::agent_protocol::external_terminal);
-		launched.WorkingDirectory = root.string();
-		launched.Arguments        = { "--pre-assignment-side-effect", marker.string() };
+		// [[BPR-1229]]. The shared helper's root, which on Windows also grants
+		// the AppContainer the row runs in, so the contained child can write
+		// its marker; a bare QTemporaryDir does not.
+		const auto                      root = bpr::tests::make_scratch_directory("bpr-agent-budget");
+		const bpr::tests::scratch_guard ownedRoot{ root };
+		const auto                      marker   = root / "child-started";
+		auto                            launched = request(core::agent_protocol::external_terminal);
+		launched.WorkingDirectory                = root.string();
+		launched.Arguments                       = { "--pre-assignment-side-effect", marker.string() };
 		launched.Input.assign(application::maximum_agent_input_bytes + 1, 'x');
 		auto       launcher = adapters::agent::agent_process_launcher{ };
 		const auto refused  = launcher.run(launched, 20'000);
@@ -1211,6 +1210,15 @@ namespace {
 auto main(int argc, char** argv) -> int
 try {
 	QCoreApplication application{ argc, argv };
+	// [[BPR-1229]]. The durable course opens a private SQLite store under a
+	// scratch root, which the Windows AppContainer refuses, so it is its own
+	// row (qt_agent_launch_canary_durable_course) on every platform and the
+	// launch courses below keep their network boundary.
+	if (argc == 2 && std::string_view{ argv[1] } == "--durable-course") {
+		test_durable_private_input_crosses_only_after_admission();
+		std::cout << "agent-launch-durable-course-tests:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc == 3) {
 #if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 		if (std::string_view{ argv[1] } == "--workspace-guard") {
@@ -1221,7 +1229,6 @@ try {
 		run_parent_death_course(argv[1], std::filesystem::canonical(argv[2]));
 		return EXIT_SUCCESS;
 	}
-	test_durable_private_input_crosses_only_after_admission();
 	test_input_budget_refuses_before_real_child_effect();
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_output_before_input_does_not_stall_the_request();

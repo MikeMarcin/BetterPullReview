@@ -591,6 +591,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # store (feedback_draft_store_tests.cpp:51), an unchecked std::expected
     # ("operator*() called on a std::expected that contains an error"); the
     # label authoring application at "STARTUP_PROFILE_REFUSAL:registry_unavailable".
+    # [[BPR-1229]]. Measured on JaegAW 2026-10-05 at f8a29f167 in windows-dev,
+    # contained as qt_agent_launch_canary then registered: the durable course's
+    # private-review store under its scratch root is refused, "FAILED: open
+    # durable child course" (agent_launch_canary_tests.cpp:281). The course is
+    # its own row so the canary's launch courses stay contained.
+    "qt_agent_launch_canary_durable_course": "dos-volume-name",
     "application_feedback_draft_store": "dos-volume-name",
     "application_label_authoring_contract": "dos-volume-name",
     # [[BPR-1167]], [[BPR-1168]]. Measured on JaegAW 2026-10-02 at 3e3b3fa17 in a

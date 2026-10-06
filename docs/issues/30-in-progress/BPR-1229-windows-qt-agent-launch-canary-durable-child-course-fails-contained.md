@@ -85,3 +85,47 @@ becomes its own row, `qt_agent_launch_canary_durable_course`, on every
 platform. On Windows it is pinned `WINDOWS_UNCONTAINED` with its measured
 line, like the other private-store rows. `qt_agent_launch_canary` keeps its
 launch courses contained. The card is un-parked.
+
+## Split and Windows evidence (bpr-main-win, 2026-10-06)
+
+**The split, the same on every platform.** `agent_launch_canary_tests.cpp`
+runs `test_durable_private_input_crosses_only_after_admission` only when
+given `--durable-course`, and prints `agent-launch-durable-course-tests:pass`.
+Its default run no longer includes it. The new row
+`qt_agent_launch_canary_durable_course` runs that argument on every
+platform. On Windows it is registered `WINDOWS_UNCONTAINED` and pinned
+`dos-volume-name` in `scripts/verify_test_network_isolation.py`, with the
+measured line: contained, the private-review store under its scratch root is
+refused at "FAILED: open durable child course" (line 281).
+`qt_agent_launch_canary` stays contained.
+
+**What the split uncovered.** With the durable course first, the contained
+row had stopped before every launch course since 2026-09-27, so those courses
+had not run contained on Windows since then. Once they ran, three of them
+failed. Each gave its contained child a bare `QTemporaryDir`, which carries
+no entry for the AppContainer, so the child could not write its marker:
+
+- `test_input_budget_refuses_before_real_child_effect` failed at "negative
+  control proves the same child creates the marker when admitted";
+- the private-claim course failed at "child reaches delayed-input
+  checkpoint";
+- the stdin-context course shared the same root shape.
+
+All three now use `bpr::tests::make_scratch_directory` with a
+`scratch_guard`, as the descendant course already did, following
+`tests/AGENTS.md` ("a row inside the AppContainer needs the container's
+SID"). The bare `std::filesystem::permissions` calls on those roots, which do
+nothing on Windows, are gone with them.
+
+**Windows** (`build/windows-dev` Debug, MSVC 14.51, no `warning C` line):
+
+- `qt_agent_launch_canary` passes contained (108.6 s, then 109.2 s), every
+  launch course included, the Windows breakaway and assignment courses among
+  them.
+- `qt_agent_launch_canary_durable_course` passes uncontained (2.8 s).
+- `agent_parent_death`, `test_network_isolation_manifest`,
+  `test_network_isolation_structure_contract`, `architecture_boundaries` and
+  `architecture_boundary_contract` pass.
+
+**Owed:** macOS and Linux runs of both rows. The split is the same there; on
+those platforms the durable course moves to its own row, contained as before.

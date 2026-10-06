@@ -937,6 +937,22 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "agent-launch-canary-tests:pass"
         TIMEOUT 120
 )
+# [[BPR-1229]]. The durable private-input course, split from the canary on
+# every platform: it opens a private SQLite store under a scratch root, which
+# the Windows AppContainer refuses, while the launch courses above stay
+# contained.
+bpr_add_network_isolated_test(
+    NAME qt_agent_launch_canary_durable_course
+    WINDOWS_UNCONTAINED
+    COMMAND test_better_pull_review_qt_agent_launch_canary_tests --durable-course
+)
+set_tests_properties(
+    qt_agent_launch_canary_durable_course
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "agent-launch-durable-course-tests:pass"
+        TIMEOUT 120
+)
 
 # [[BPR-0622]]. Windows runs the same course: suspend the supervisor, kill
 # the owner, and require the guard to stay held until the job is empty.
