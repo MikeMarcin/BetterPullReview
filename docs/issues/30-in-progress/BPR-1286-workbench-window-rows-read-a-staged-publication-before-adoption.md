@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1286"
 title: "Workbench window rows read a staged large publication before adoption; the installed package course calls tempfile.mkdtemp"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
