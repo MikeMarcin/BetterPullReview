@@ -149,3 +149,34 @@ each rule.
   The preview now also shows suggestion (if-minor) and nitpick
   (non-blocking).
 
+Checks and the negative controls are in the
+[execution ledger](../../verification/RFC-BPR-0047-0051.md).
+
+## Pending owner decisions
+
+One attended session asks one Accept or Reject per candidate, on a frozen
+build of `e8c9dc65c` (`/Users/jaeger/bpr1083-authoring-review-v003.AnLWd2`,
+executable SHA-256 `2158e3d0…8ad0f77`).
+`python3 /Users/jaeger/bpr1083-authoring-review-v003.AnLWd2/launch.py` opens
+`src/engine/renderer.cpp` in Read, signed in as the fixture's account. Session
+`5674c48efbb188e1183f72e4099c8545`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v003`,
+cursor 16:
+
+1. `BPR-1083-thread-marks-v003`: the drawer's thread entries, and my draft's
+   entry, lead with their first comment's mark.
+2. `BPR-1083-decorations-v003`: non-blocking and if-minor each look distinct
+   and quieter than blocking at 16 px.
+3. `BPR-1083-colon-trigger-v003`: a single `:` at the start opens the label
+   suggestions.
+4. `BPR-1083-preview-tooltips-v003`: one tooltip per preview mark.
+
+Accepted in v002 and not asked again: the chip, menu, toggles and Publish
+(`chip-menu-v002`), the shortcodes (`shortcodes-v002`) and the preview
+(`mark-preview-v002`). On Accept of all four, AC1 to AC3 stand on their
+automated evidence and the card can finish.
+
+Limitations: macOS only (Linux and Windows station runs owed); R33's native
+matrix is not run; the Overview chips and Label key (BPR-1087, BPR-1089) must
+draw through `feedback_mark_theme` and `feedback_mark_emphasis`; the helper's
+Settings row is BPR-1088.
