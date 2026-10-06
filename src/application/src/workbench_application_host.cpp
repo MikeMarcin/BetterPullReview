@@ -1215,7 +1215,10 @@ namespace bpr::application {
 				publish_changes(local_context());
 				return;
 			}
-			if (Layout.Behaviour == aSettings) {
+			// [[BPR-1088]]. A record equal to the held one is nothing to write,
+			// unless this window's earlier edit is still in flight: then it is
+			// the reviewer going back, and it must follow that edit.
+			if (Layout.Behaviour == aSettings && !(PendingPreferences && !PendingPreferenceDefaults)) {
 				return;
 			}
 			if (!Preferences->apply_behaviour(aSettings)) {
@@ -2056,7 +2059,8 @@ namespace bpr::application {
 
 	void workbench_application_host::apply_behaviour(review_behaviour_settings aSettings)
 	{
-		Implementation->enqueue(deferred_workbench_behaviour{ .Settings = aSettings });
+		// [[BPR-1088]]. A reviewer's record carries no load observation.
+		Implementation->enqueue(deferred_workbench_behaviour{ .Settings = edited(std::move(aSettings)) });
 	}
 
 	void workbench_application_host::apply_home_view(home_view_state aState)

@@ -307,8 +307,11 @@ Consumers: the inline composition page and reply drafts
   the field's text, so one undo step, and the editor's ordinary typed path
   sends it to the draft owner as one whole-body edit, the command
   `plan_feedback_draft_edit` plans for the same label. Completion is a list
-  under the caret that never takes focus. The helper's Settings row is
-  BPR-1088's; a tests-on fixture launch turns it on with `--label-helper`.
+  under the caret that never takes focus. The helper follows Reviews & queue
+  › Comment labels › Label helper (BPR-1088): the window hands the comment
+  editor the published choice, so every window of the profile follows a
+  saved change. A tests-on fixture launch with `--label-helper` writes that
+  same preference through the profile's host.
 - **One edit with the draft owner at a time** (derived, BPR-1083 v002). The
   replacement of a leading code follows its closing colon at once, while the
   colon's own edit can still be with the draft owner (the private-review
@@ -560,6 +563,32 @@ Consumer: `settings_window`, page Reviews & queue, section Comment labels
 
 The values persist through the existing typed profile settings store, and the
 Comments drawer's own filter is not touched.
+
+- **As built** (BPR-1088). The rows, in the design's order: **Label helper**
+  (a switch, with an info glyph saying "The label chip and :shortcodes: while
+  writing. Off: write labels yourself; they still count."), **Label marks**
+  (BPR-1083, unchanged), **Overview counts** (Open or All, with an info glyph
+  saying the Overview starts there and switching on an Overview changes only
+  that view), **Mark colours** (the link "Appearance › Colours ›", tooltip
+  "Opens Appearance with the filter set to Label") and **Overview chips**.
+  The chips are one list: ticked rows first in their Overview order with a
+  grip, a rule, then the rest in catalog order; each row is a check box, the
+  label's mark in the style and tints on screen, its ID and, at 340 px or
+  wider, its description; each row's tooltip is its description, plus "Drag
+  to reorder (⌥↑ ⌥↓)" on a ticked row, anchored under the row. The list is as
+  tall as its rows, so it never scrolls inside the page. The section's Reset
+  keeps the page's "Reset" button and gains the tooltip "Reset comment
+  labels". Every row dispatches the whole review-behaviour record and shows
+  what the host publishes, so a refused or failed save reverts.
+- **Derived** (BPR-1088). The Overview counts row carries no round state
+  mark yet: BPR-1089 draws the four state marks, and the row can adopt the
+  open one then. A stored chip list naming an unknown or repeated label shows
+  a line under the list: "Some saved chips were left out: 1 unknown label and
+  2 repeats. The rest keep their order. Change a chip or Reset to save this
+  list."
+- **Open: owner look.** Built from the existing Settings row language on
+  Linux, without the frontend-design skill (not installed on that station).
+  BPR-1288 redesigns the page's section headers and layout.
 
 ## What every surface keeps
 

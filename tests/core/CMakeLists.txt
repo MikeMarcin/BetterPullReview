@@ -614,6 +614,13 @@ bpr_enable_hardening(test_feedback_partition)
 bpr_enable_warnings(test_feedback_partition)
 bpr_add_network_isolated_test(NAME core_feedback_partition COMMAND test_feedback_partition "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1088]]. The Overview label columns as a stored preference: all twelve in any order, repeats and unknown IDs refused or left out and counted.
+bpr_add_executable(test_feedback_label_columns feedback_label_columns_tests.cpp)
+target_link_libraries(test_feedback_label_columns PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_label_columns)
+bpr_enable_warnings(test_feedback_label_columns)
+bpr_add_network_isolated_test(NAME core_feedback_label_columns COMMAND test_feedback_label_columns)
+
 # [[BPR-1086]]. Private promotion into the shared draft keeps lineage and leaks no private severity, category or provenance.
 bpr_add_executable(test_feedback_private_promotion feedback_private_promotion_tests.cpp)
 target_link_libraries(test_feedback_private_promotion PRIVATE BetterPullReview::Core)

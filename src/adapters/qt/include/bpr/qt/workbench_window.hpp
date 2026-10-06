@@ -92,6 +92,7 @@ namespace bpr::qt {
 	enum class dif_clip_id : std::size_t;
 	class dif_catalog_provider;
 	class feedback_mark_preview;
+	class feedback_label_columns_editor;
 	class dif_cue_router;
 	class dif_widget;
 	class home_list;
@@ -529,6 +530,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto behaviour_editor() const noexcept -> QWidget*;
 		/// \brief [[BPR-1083]]. The marks beside Comment labels › Label marks.
 		[[nodiscard]] auto feedback_marks_preview() const noexcept -> feedback_mark_preview*;
+		/// \brief [[BPR-1088]]. Comment labels › Label helper: the switch for
+		/// the comment editor's chip completion and `:shortcodes:`.
+		[[nodiscard]] auto label_helper_switch() const noexcept -> QCheckBox*;
+		/// \brief [[BPR-1088]]. Comment labels › Overview chips.
+		[[nodiscard]] auto label_columns_editor() const noexcept -> feedback_label_columns_editor*;
+		/// \brief [[BPR-1088]]. What the Overview chips row says when the stored
+		/// list named labels it left out; hidden otherwise.
+		[[nodiscard]] auto label_columns_recovery() const noexcept -> QLabel*;
+		/// \brief [[BPR-1088]]. Comment labels › Mark colours, which opens
+		/// Appearance with its colour filter set to "label".
+		[[nodiscard]] auto mark_colours_link() const noexcept -> QToolButton*;
 		/// \brief Adopts the read state of the review's conversations.
 		///
 		/// \details [[BPR-0656]]. The cards draw it, the gutter marks a new
@@ -1274,9 +1286,11 @@ namespace bpr::qt {
 		/// thread's comparison, once a comparison has arrived.
 		void resume_deferred_reply();
 		// [[BPR-0661]]. The preference rows and what honours them.
-		void               build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
-		void               apply_behaviour_controls();
-		void               apply_label_marks();
+		void build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
+		void apply_behaviour_controls();
+		void apply_label_marks();
+		/// [[BPR-1088]]. The comment editor follows the published helper choice.
+		void               apply_label_helper();
 		void               dispatch_behaviour_from_controls();
 		[[nodiscard]] auto behaviour_from_controls() const -> application::review_behaviour_settings;
 		[[nodiscard]] auto opening_modality() const -> review_modality;
@@ -1700,8 +1714,21 @@ namespace bpr::qt {
 		review_behaviour_dispatch                BehaviourDispatch;
 		application::review_behaviour_settings   Behaviour;
 		QWidget*                                 BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 7> BehaviourOptions{ };
+		std::array<std::vector<QToolButton*>, 8> BehaviourOptions{ };
 		feedback_mark_preview*                   FeedbackMarksPreview = nullptr;
+		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
+		/// Overview chips, what a load left out of them, and Mark colours.
+		QCheckBox*                     LabelHelperSwitch    = nullptr;
+		feedback_label_columns_editor* LabelColumnsEditor   = nullptr;
+		QLabel*                        LabelColumnsRecovery = nullptr;
+		QToolButton*                   MarkColoursLink      = nullptr;
+		/// [[BPR-1088]]. The helper choice last handed to the comment editor,
+		/// so only a published change reaches it.
+		std::optional<application::review_label_helper> AppliedLabelHelper;
+		/// [[BPR-1088]]. The record last asked of the host and not yet
+		/// answered by a publication, so a gesture that returns to the
+		/// published record while an earlier one is in flight is still sent.
+		std::optional<application::review_behaviour_settings> AskedBehaviour;
 		/// [[BPR-1083]]. The label tints of the theme on screen, once the
 		/// composition supplies them; the mark style is `Behaviour`'s.
 		std::optional<feedback_label_tints> LabelTints;

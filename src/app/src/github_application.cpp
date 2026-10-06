@@ -5550,6 +5550,9 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool LabelHelper = false;
+		/// [[BPR-1088]]. Set once the first window asked the profile's
+		/// preferences for the helper, so later windows do not ask again.
+		bool LabelHelperRequested = false;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool DisableDeviceAuthorizationPanelComposition = false;
@@ -6782,10 +6785,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 				});
 #if defined(BPR_BUILD_TESTING)
-			// [[BPR-1083]]. An attended look at the shortcodes turns the helper
-			// on; the product's own switch is BPR-1088's Settings row.
-			if (Profile->LabelHelper && Window->review_editor() != nullptr) {
-				Window->review_editor()->set_label_helper(true);
+			// [[BPR-1083]], [[BPR-1088]]. An attended look at the shortcodes, and
+			// the label-authoring probe, turn the helper on through the
+			// profile's own setting: the write the Comment labels › Label helper
+			// switch makes, so every window's comment editor follows the
+			// persisted preference exactly as it does for a reviewer.
+			if (Profile->LabelHelper && !Profile->LabelHelperRequested && Profile->WorkbenchPreferences) {
+				Profile->LabelHelperRequested = true;
+				auto* const preferences       = Profile->WorkbenchPreferences.get();
+				const auto  subscription      = std::make_shared<std::uint64_t>(0U);
+				*subscription                 = preferences->subscribe(DraftWindow.Profile, [preferences, subscription](const application::workbench_profile_preferences& aAccepted) {
+					if (aAccepted.Behaviour.LabelHelper == application::review_label_helper::on) {
+						if (*subscription != 0U) {
+							preferences->unsubscribe(*subscription);
+						}
+						return;
+					}
+					auto next        = aAccepted.Behaviour;
+					next.LabelHelper = application::review_label_helper::on;
+					static_cast<void>(preferences->apply_behaviour(next));
+				});
 			}
 #endif
 			Window->set_behaviour_dispatch(

@@ -55,7 +55,14 @@ namespace bpr::adapters::sqlite::detail {
 	/// Twelve since [[BPR-1083]]: how label marks are drawn, icons or the
 	/// two-letter shortcode marks, in the profile row. A migrated row reads
 	/// icons, the default.
-	inline constexpr std::int64_t workbench_settings_schema_version = 12;
+	///
+	/// Thirteen since [[BPR-1088]]: the comment editor's label helper, the
+	/// Overview's starting count and its ordered label columns, in the
+	/// profile row. A migrated row reads the helper off, Open and no
+	/// columns, and keeps every other field it had. Stored columns that name
+	/// an unknown or repeated label are read without them and reported; the
+	/// rest of the row still loads.
+	inline constexpr std::int64_t workbench_settings_schema_version = 13;
 
 	/// \brief Owns the durable workbench layout database.
 	///

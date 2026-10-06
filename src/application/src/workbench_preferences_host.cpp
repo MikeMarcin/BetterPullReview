@@ -175,8 +175,10 @@ namespace bpr::application {
 		if (!Implementation->Accepted || !valid(aBehaviour)) {
 			return false;
 		}
-		auto candidate      = Implementation->QueuedCandidate.value_or(Implementation->PendingCandidate.value_or(*Implementation->Accepted));
-		candidate.Behaviour = aBehaviour;
+		auto candidate = Implementation->QueuedCandidate.value_or(Implementation->PendingCandidate.value_or(*Implementation->Accepted));
+		// [[BPR-1088]]. An edit writes preferences only: what a load found
+		// wrong with the stored label columns is not carried into the write.
+		candidate.Behaviour = edited(aBehaviour);
 		if (Implementation->Pending) {
 			Implementation->QueuedCandidate = candidate;
 			return true;

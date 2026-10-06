@@ -11,13 +11,16 @@
 
 #include "bpr/qt/menu_tool_button.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/home_list.hpp"
+#include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -4601,8 +4604,10 @@ namespace bpr::qt {
 		if (aProjection.Behaviour) {
 			Behaviour          = *aProjection.Behaviour;
 			BehaviourPublished = true;
+			AskedBehaviour.reset();
 			apply_behaviour_controls();
 			apply_label_marks();
+			apply_label_helper();
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
 			// them now, once each.
@@ -6560,6 +6565,11 @@ namespace bpr::qt {
 		return FeedbackMarksPreview;
 	}
 
+	auto workbench_window::label_helper_switch() const noexcept -> QCheckBox* { return LabelHelperSwitch; }
+	auto workbench_window::label_columns_editor() const noexcept -> feedback_label_columns_editor* { return LabelColumnsEditor; }
+	auto workbench_window::label_columns_recovery() const noexcept -> QLabel* { return LabelColumnsRecovery; }
+	auto workbench_window::mark_colours_link() const noexcept -> QToolButton* { return MarkColoursLink; }
+
 	// [[BPR-0661]]. Two groups of segmented rows: the modality rules (which
 	// modality a pull request opens in; which one Continue review enters) and
 	// the reading behaviour (when a file is marked read; the comparison on
@@ -6589,6 +6599,14 @@ namespace bpr::qt {
 			std::vector<option> Options;
 			/// Drawn after the choices, as the Label marks preview is.
 			QWidget* Trailing = nullptr;
+			/// [[BPR-1088]]. A row that is one control rather than a choice
+			/// of buttons: a switch, a link or a list.
+			QWidget* Control = nullptr;
+			/// The space before `Trailing`: wide for a preview, narrow for an
+			/// info glyph.
+			int TrailingSpacing = 12;
+			/// The row's name at the top of a tall control.
+			bool Top = false;
 		};
 		const auto addGroup = [this, column](const QString&          aHeading,
 											 const QString&          aResetName,
@@ -6611,6 +6629,7 @@ namespace bpr::qt {
 				}
 				auto next = behaviour_from_controls();
 				aReset(next);
+				AskedBehaviour = next;
 				BehaviourDispatch(next);
 			});
 			headingRow->addWidget(reset);
@@ -6620,7 +6639,18 @@ namespace bpr::qt {
 				auto* const label = new QLabel{ one.Label, BehaviourEditor };
 				label->setObjectName(one.Name + QStringLiteral("Label"));
 				label->setMinimumWidth(180);
-				line->addWidget(label);
+				line->addWidget(label, 0, one.Top ? Qt::AlignTop : Qt::Alignment{ });
+				if (one.Control != nullptr) {
+					label->setBuddy(one.Control);
+					line->addWidget(one.Control, 0, one.Top ? Qt::AlignTop : Qt::Alignment{ });
+					if (one.Trailing != nullptr) {
+						line->addSpacing(one.TrailingSpacing);
+						line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
+					}
+					line->addStretch(1);
+					column->addLayout(line);
+					continue;
+				}
 				auto& buttons = BehaviourOptions[one.Index];
 				// One exclusive group per row: autoExclusive would make every
 				// button under the editor one group.
@@ -6643,12 +6673,13 @@ namespace bpr::qt {
 					buttons.push_back(button);
 				}
 				if (one.Trailing != nullptr) {
-					line->addSpacing(12);
+					line->addSpacing(one.TrailingSpacing);
 					line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
 				}
 				line->addStretch(1);
 				column->addLayout(line);
 			}
+			return reset;
 		};
 		addGroup(
 			QStringLiteral("Modality rules"),
@@ -6720,20 +6751,112 @@ namespace bpr::qt {
 		// (mark-style-v001): "it'd be nice to see a preview", so a few marks
 		// in the published style sit beside the choices.
 		FeedbackMarksPreview = new feedback_mark_preview{ BehaviourEditor };
-		addGroup(
+		// [[BPR-1088]]. The rest of the section the owner accepted (BPR-1079
+		// Settings v1, adjusted to Overview chips in v2): the label helper,
+		// off by default; where the Overview's counts start, Open by default;
+		// a link to the label tints; and the Overview chips, ticked and put in
+		// order. Each row dispatches the whole record and shows what the host
+		// publishes, so a refused or failed save reverts here.
+		LabelHelperSwitch = new QCheckBox{ BehaviourEditor };
+		LabelHelperSwitch->setObjectName(QStringLiteral("labelHelperSwitch"));
+		LabelHelperSwitch->setAccessibleName(QStringLiteral("Label helper"));
+		LabelHelperSwitch->setFocusPolicy(Qt::StrongFocus);
+		connect(LabelHelperSwitch, &QCheckBox::toggled, this, [this] {
+			if (!ApplyingBehaviour) {
+				dispatch_behaviour_from_controls();
+			}
+		});
+		auto* const helperRow    = new QWidget{ BehaviourEditor };
+		auto* const helperLayout = new QHBoxLayout{ helperRow };
+		helperLayout->setContentsMargins(0, 0, 0, 0);
+		helperLayout->setSpacing(4);
+		helperLayout->addWidget(LabelHelperSwitch);
+		auto* const helperInfo = new info_glyph{ QStringLiteral("The label chip and :shortcodes: while writing. Off: write labels yourself; they still count."), helperRow };
+		helperInfo->setObjectName(QStringLiteral("labelHelperInfo"));
+		helperLayout->addWidget(helperInfo);
+		auto* const countsInfo = new info_glyph{ QStringLiteral("Where the Overview's comment counts start. Open counts unresolved conversations; All counts every one. Switching on an Overview changes only that view."), BehaviourEditor };
+		countsInfo->setObjectName(QStringLiteral("overviewCountsInfo"));
+		MarkColoursLink = new QToolButton{ BehaviourEditor };
+		MarkColoursLink->setObjectName(QStringLiteral("markColoursLink"));
+		MarkColoursLink->setText(QStringLiteral("Appearance › Colours ›"));
+		MarkColoursLink->setAutoRaise(true);
+		MarkColoursLink->setCursor(Qt::PointingHandCursor);
+		MarkColoursLink->setFocusPolicy(Qt::StrongFocus);
+		MarkColoursLink->setToolTip(QStringLiteral("Opens Appearance with the filter set to Label"));
+		MarkColoursLink->setAccessibleName(QStringLiteral("Mark colours: Appearance, Colours"));
+		MarkColoursLink->setAccessibleDescription(MarkColoursLink->toolTip());
+		anchor_tooltips(*MarkColoursLink);
+		{
+			auto linkPalette = MarkColoursLink->palette();
+			linkPalette.setColor(QPalette::ButtonText, linkPalette.color(QPalette::Link));
+			MarkColoursLink->setPalette(linkPalette);
+		}
+		connect(MarkColoursLink, &QToolButton::clicked, this, [this] {
+			if (SettingsWindow == nullptr) {
+				return;
+			}
+			SettingsWindow->present(settings_page::appearance);
+			if (AppearanceSettings != nullptr && AppearanceSettings->colours() != nullptr) {
+				auto* const colours = AppearanceSettings->colours();
+				if (colours->filter_field() != nullptr) {
+					colours->filter_field()->setText(QStringLiteral("label"));
+				}
+				colours->apply_filter(QStringLiteral("label"));
+			}
+		});
+		auto* const chipsColumn = new QWidget{ BehaviourEditor };
+		auto* const chipsLayout = new QVBoxLayout{ chipsColumn };
+		chipsLayout->setContentsMargins(0, 0, 0, 0);
+		chipsLayout->setSpacing(6);
+		auto* const chipsLine = new QHBoxLayout{ };
+		chipsLine->setSpacing(4);
+		LabelColumnsEditor = new feedback_label_columns_editor{ chipsColumn };
+		LabelColumnsEditor->set_dispatch([this](const core::feedback_label_columns&) {
+			if (!ApplyingBehaviour) {
+				dispatch_behaviour_from_controls();
+			}
+		});
+		chipsLine->addWidget(LabelColumnsEditor, 1);
+		auto* const chipsInfo = new info_glyph{ QStringLiteral("Ticked labels get their own count in the Overview's Comments column, in this order. The speech bubble counts the rest. Replies don't count."), chipsColumn };
+		chipsInfo->setObjectName(QStringLiteral("labelColumnsInfo"));
+		chipsLine->addWidget(chipsInfo, 0, Qt::AlignTop);
+		chipsLayout->addLayout(chipsLine);
+		LabelColumnsRecovery = new QLabel{ chipsColumn };
+		LabelColumnsRecovery->setObjectName(QStringLiteral("labelColumnsRecovery"));
+		LabelColumnsRecovery->setWordWrap(true);
+		LabelColumnsRecovery->setMaximumWidth(420);
+		LabelColumnsRecovery->hide();
+		chipsLayout->addWidget(LabelColumnsRecovery);
+		auto* const commentLabelsReset = addGroup(
 			QStringLiteral("Comment labels"),
 			QStringLiteral("resetCommentLabels"),
 			{
-				row{ 6U,
-					 QStringLiteral("Label marks"),
-					 QStringLiteral("feedbackMarks"),
-					 { { QStringLiteral("Icons"), QStringLiteral("feedbackMarksIcons") },
-					   { QStringLiteral("Letters"), QStringLiteral("feedbackMarksLetters") } },
-					 FeedbackMarksPreview },
+				row{ .Index = 0U, .Label = QStringLiteral("Label helper"), .Name = QStringLiteral("labelHelper"), .Options = { }, .Control = helperRow },
+				row{ .Index    = 6U,
+					 .Label    = QStringLiteral("Label marks"),
+					 .Name     = QStringLiteral("feedbackMarks"),
+					 .Options  = { { QStringLiteral("Icons"), QStringLiteral("feedbackMarksIcons") },
+								   { QStringLiteral("Letters"), QStringLiteral("feedbackMarksLetters") } },
+					 .Trailing = FeedbackMarksPreview },
+				row{ .Index           = 7U,
+					 .Label           = QStringLiteral("Overview counts"),
+					 .Name            = QStringLiteral("overviewCounts"),
+					 .Options         = { { QStringLiteral("Open"), QStringLiteral("overviewCountsOpen") },
+										  { QStringLiteral("All"), QStringLiteral("overviewCountsAll") } },
+					 .Trailing        = countsInfo,
+					 .TrailingSpacing = 4 },
+				row{ .Index = 0U, .Label = QStringLiteral("Mark colours"), .Name = QStringLiteral("markColours"), .Options = { }, .Control = MarkColoursLink },
+				row{ .Index = 0U, .Label = QStringLiteral("Overview chips"), .Name = QStringLiteral("labelColumns"), .Options = { }, .Control = chipsColumn, .Top = true },
 			},
 			[](application::review_behaviour_settings& aNext) {
-				aNext.FeedbackMarks = application::review_behaviour_settings{ }.FeedbackMarks;
+				const auto defaults  = application::review_behaviour_settings{ };
+				aNext.FeedbackMarks  = defaults.FeedbackMarks;
+				aNext.LabelHelper    = defaults.LabelHelper;
+				aNext.OverviewCounts = defaults.OverviewCounts;
+				aNext.LabelColumns   = defaults.LabelColumns;
 			});
+		commentLabelsReset->setToolTip(QStringLiteral("Reset comment labels"));
+		commentLabelsReset->setAccessibleDescription(QStringLiteral("Returns the label helper, label marks, Overview counts and Overview chips to their defaults; nothing else changes"));
 		aColumn->addWidget(BehaviourEditor);
 		apply_behaviour_controls();
 	}
@@ -6778,6 +6901,20 @@ namespace bpr::qt {
 		if (FeedbackMarksPreview != nullptr) {
 			FeedbackMarksPreview->set_theme(theme);
 		}
+		if (LabelColumnsEditor != nullptr) {
+			LabelColumnsEditor->set_theme(theme);
+		}
+	}
+
+	void workbench_window::apply_label_helper()
+	{
+		// [[BPR-1088]]. Only a published change reaches the editor, so the
+		// helper follows the profile's setting in every window of it.
+		if (ReviewEditor == nullptr || AppliedLabelHelper == std::optional{ Behaviour.LabelHelper }) {
+			return;
+		}
+		AppliedLabelHelper = Behaviour.LabelHelper;
+		ReviewEditor->set_label_helper(Behaviour.LabelHelper == application::review_label_helper::on);
 	}
 
 	void workbench_window::apply_behaviour_controls()
@@ -6799,6 +6936,18 @@ namespace bpr::qt {
 		check(4U, static_cast<std::size_t>(Behaviour.CommentsFilter));
 		check(5U, static_cast<std::size_t>(Behaviour.DrawerControls));
 		check(6U, static_cast<std::size_t>(Behaviour.FeedbackMarks));
+		check(7U, static_cast<std::size_t>(Behaviour.OverviewCounts));
+		if (LabelHelperSwitch != nullptr) {
+			LabelHelperSwitch->setChecked(Behaviour.LabelHelper == application::review_label_helper::on);
+		}
+		if (LabelColumnsEditor != nullptr) {
+			LabelColumnsEditor->set_columns(Behaviour.LabelColumns);
+		}
+		if (LabelColumnsRecovery != nullptr) {
+			const auto& recovery = Behaviour.LabelColumnsRecovery;
+			LabelColumnsRecovery->setVisible(recovery.has_value());
+			LabelColumnsRecovery->setText(recovery.has_value() ? feedback_label_columns_recovery_text(recovery->Unknown, recovery->Repeated) : QString{ });
+		}
 		ApplyingBehaviour = false;
 	}
 
@@ -6821,6 +6970,9 @@ namespace bpr::qt {
 			.CommentsFilter   = static_cast<application::review_comments_filter>(chosen(4U)),
 			.DrawerControls   = static_cast<application::review_drawer_controls>(chosen(5U)),
 			.FeedbackMarks    = static_cast<application::review_feedback_marks>(chosen(6U)),
+			.LabelHelper      = LabelHelperSwitch != nullptr && LabelHelperSwitch->isChecked() ? application::review_label_helper::on : application::review_label_helper::off,
+			.OverviewCounts   = static_cast<application::review_overview_counts>(chosen(7U)),
+			.LabelColumns     = LabelColumnsEditor != nullptr ? LabelColumnsEditor->columns() : Behaviour.LabelColumns,
 		};
 	}
 
@@ -6830,7 +6982,8 @@ namespace bpr::qt {
 			return;
 		}
 		const auto next = behaviour_from_controls();
-		if (next != Behaviour) {
+		if (next != AskedBehaviour.value_or(Behaviour)) {
+			AskedBehaviour = next;
 			BehaviourDispatch(next);
 		}
 	}

@@ -1769,6 +1769,29 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "feedback-label-controls-tests:pass"
 )
 
+# [[BPR-1088]]. Reviews & queue > Comment labels: the label helper, Overview counts, Overview chips, Mark colours and the section's Reset.
+bpr_add_executable(
+    test_better_pull_review_qt_feedback_label_settings_tests
+    feedback_label_settings_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_feedback_label_settings_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_feedback_label_settings_tests)
+bpr_enable_warnings(test_better_pull_review_qt_feedback_label_settings_tests)
+bpr_add_network_isolated_test(
+    NAME qt_feedback_label_settings
+    COMMAND test_better_pull_review_qt_feedback_label_settings_tests
+)
+set_tests_properties(
+    qt_feedback_label_settings
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "feedback-label-settings-tests:pass"
+)
+
 # [[BPR-1083]]. Thread marks, rails and the reading body in both mark styles.
 bpr_add_executable(
     test_better_pull_review_qt_feedback_label_threads_tests

@@ -292,9 +292,10 @@ namespace bpr::app::detail {
 		// and the flow stays reachable through the self-test, so a graph that
 		// silently stopped composing the panel cannot pass for one that did.
 		bool DisableDeviceAuthorizationPanelComposition = false;
-		/// [[BPR-1083]]. Turns the label helper on in the comment editor for an
-		/// attended look at the shortcodes. Off by default, as the product is;
-		/// the Settings row that owns it is BPR-1088's.
+		/// [[BPR-1083]]. Turns the label helper on for an attended look at the
+		/// shortcodes. Off by default, as the product is. Since [[BPR-1088]] it
+		/// writes the profile's Label helper preference, the Settings row's own
+		/// path, rather than reaching into the editor.
 		bool LabelHelper = false;
 		// RFC-BPR-0017. Forces the shipped public-preview selection available
 		// against the recorded fixture, so the composed credential-free

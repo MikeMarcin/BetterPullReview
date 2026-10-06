@@ -11,6 +11,7 @@ add_library(
         src/anchored_tooltip.cpp
         src/feedback_label_marks.cpp
         src/feedback_label_controls.cpp
+        src/feedback_label_settings.cpp
         src/review_cycle_publish_sheet.cpp
         src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp

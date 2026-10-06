@@ -80,6 +80,7 @@ add_library(
         src/feedback_header_edit.cpp
         src/feedback_conversation.cpp
         src/feedback_partition.cpp
+        src/feedback_label_columns.cpp
         src/suggestion_applicability.cpp
         src/review_tour_reconciliation.cpp
     src/review_tour_revision.cpp

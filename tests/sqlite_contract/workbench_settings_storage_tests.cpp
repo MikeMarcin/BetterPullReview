@@ -118,7 +118,7 @@ namespace {
 			application::workbench_window_layout window;
 			window.UpdatesLine = core::workbench_updates_line::open;
 			expect(db->store_window(core::bpr_window_id{ 1 }, window, { }).has_value(), "version10 window seed");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop; ALTER TABLE workbench_preferences DROP COLUMN writing_outline; ALTER TABLE workbench_preferences DROP COLUMN writing_solution; ALTER TABLE workbench_preferences DROP COLUMN writing_problem; ALTER TABLE workbench_preferences DROP COLUMN writing_revision; UPDATE workbench_meta SET schema_format=10; PRAGMA user_version=10", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version10 source");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop; ALTER TABLE workbench_preferences DROP COLUMN writing_outline; ALTER TABLE workbench_preferences DROP COLUMN writing_solution; ALTER TABLE workbench_preferences DROP COLUMN writing_problem; ALTER TABLE workbench_preferences DROP COLUMN writing_revision; UPDATE workbench_meta SET schema_format=10; PRAGMA user_version=10", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version10 source");
 		}
 		{
 			auto db = workbench_settings_database::open(path, { });
@@ -153,7 +153,7 @@ namespace {
 			expect(loaded.has_value() && loaded->Behaviour == chosen.Behaviour, "letters survive a reopen");
 			expect(loaded->WritingHooks == chosen.WritingHooks, "with the writing hooks");
 			expect(*loaded == chosen, "and every other field");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; UPDATE workbench_meta SET schema_format=11; PRAGMA user_version=11", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; UPDATE workbench_meta SET schema_format=11; PRAGMA user_version=11", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "canonical version11 source");
 		}
 		{
@@ -1256,7 +1256,7 @@ namespace {
 		// [[BPR-0721]]. Version four predates the drawer-controls column, and
 		// DROP COLUMN rewrites the stored definition back to the text a
 		// version-four build wrote.
-		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
+		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
 		sqlite3_close(raw);
 	}
 	auto logical_snapshot(const std::filesystem::path& aPath, const bool aLegacy) -> std::vector<std::string>
@@ -1489,7 +1489,7 @@ namespace {
 								"ALTER TABLE window_layout DROP COLUMN geometry_width;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_y;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_x;"
-								"ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
+								"ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "canonical version-eight window fixture");
@@ -1548,7 +1548,7 @@ namespace {
 			// The exact version-nine definition, as a version-nine build wrote it.
 			expect(sqlite3_exec(database->handle(),
 								"ALTER TABLE window_layout DROP COLUMN updates_line;"
-								"ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
+								"ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "canonical version-nine window fixture");
@@ -1570,6 +1570,204 @@ namespace {
 		const auto before = logical_snapshot(path, false);
 		expect(!workbench_settings_database::open(path, { }) && logical_snapshot(path, false) == before,
 			   "a fold outside the vocabulary is refused without modifying the durable file");
+	}
+
+	/// \brief The stored text of the profile row's label columns, as bytes.
+	[[nodiscard]] auto stored_label_columns(::sqlite3* aDatabase) -> std::string
+	{
+		::sqlite3_stmt* statement = nullptr;
+		expect(sqlite3_prepare_v2(aDatabase, "SELECT label_columns FROM workbench_preferences WHERE singleton = 1", -1, &statement, nullptr) == SQLITE_OK, "the label columns can be read raw");
+		auto text = std::string{ "<no row>" };
+		if (sqlite3_step(statement) == SQLITE_ROW) {
+			const auto* bytes = reinterpret_cast<const char*>(sqlite3_column_text(statement, 0));
+			text.assign(bytes != nullptr ? bytes : "", static_cast<std::size_t>(sqlite3_column_bytes(statement, 0)));
+		}
+		sqlite3_finalize(statement);
+		return text;
+	}
+
+	/// \brief A profile row away from its defaults in every field this card
+	/// does not own, and a window row beside it, so a migration that loses or
+	/// resets anything else is seen.
+	[[nodiscard]] auto settled_profile() -> application::workbench_layout_settings
+	{
+		auto chosen                       = distinct_layout();
+		chosen.Repositories               = core::workbench_drawer_state::collapsed;
+		chosen.RepositoriesWidth          = 360U;
+		chosen.OnePane                    = core::workbench_one_pane::enabled;
+		chosen.Behaviour.OpenModality     = application::review_open_modality::last_used;
+		chosen.Behaviour.ContinueModality = application::review_continue_modality::review;
+		chosen.Behaviour.MarkRead         = application::review_mark_read_behaviour::when_fully_seen;
+		chosen.Behaviour.ReturnComparison = application::review_return_comparison::since_last_upload;
+		chosen.Behaviour.CommentsFilter   = application::review_comments_filter::unresolved;
+		chosen.Behaviour.DrawerControls   = application::review_drawer_controls::shown;
+		chosen.Behaviour.FeedbackMarks    = application::review_feedback_marks::letters;
+		chosen.WritingHooks.Revision      = 5U;
+		chosen.WritingHooks.Overrides[0]  = "Name the problem first.";
+		chosen.WritingHooks.Overrides[3]  = "One stop, one point.";
+		return chosen;
+	}
+
+	[[nodiscard]] auto label_columns_of(std::initializer_list<core::feedback_label> aLabels) -> core::feedback_label_columns
+	{
+		const auto labels = std::vector<core::feedback_label>(aLabels);
+		const auto made   = core::make_feedback_label_columns(labels);
+		expect(made.has_value(), "the test's own label columns are a selection");
+		return *made;
+	}
+
+	/// \brief [[BPR-1088]]. A version-twelve profile gains the label helper
+	/// (off), the Overview's starting count (Open) and no label columns, and
+	/// keeps every other field, its writing hooks and its window rows.
+	void test_label_preferences_migrate_from_twelve_without_resetting_anything_else()
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("labels-v12.sqlite3");
+		const auto chosen  = settled_profile();
+		auto       window  = application::window_layout(chosen);
+		window.FilesWidth  = 444U;
+		window.UpdatesLine = core::workbench_updates_line::open;
+		window.Geometry    = { .X = 40, .Y = 60, .Width = 1200, .Height = 800, .Maximized = false };
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value() && db->store(chosen, { }).has_value(), "a full profile row stores");
+			expect(db->store_window(core::bpr_window_id{ 4 }, window, { }).has_value(), "and a window row beside it");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; UPDATE workbench_meta SET schema_format=12; PRAGMA user_version=12", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "canonical version12 source");
+		}
+		auto db = workbench_settings_database::open(path, { });
+		expect(db.has_value(), "version12 migration opens");
+		expect(integer_pragma(path, "PRAGMA user_version") == 13, "and stamps version 13");
+		const auto loaded = db->load({ });
+		expect(loaded.has_value(), "the migrated row loads");
+		expect(loaded->Behaviour.LabelHelper == application::review_label_helper::off && loaded->Behaviour.OverviewCounts == application::review_overview_counts::open
+				   && loaded->Behaviour.LabelColumns == core::feedback_label_columns{ } && !loaded->Behaviour.LabelColumnsRecovery.has_value(),
+			   "absent fields take the safe defaults: helper off, Open, no columns, nothing to recover");
+		expect(*loaded == chosen, "every other field, the mark style and the writing hooks included, is kept exactly");
+		const auto windowLoaded = db->load_window(core::bpr_window_id{ 4 }, { });
+		expect(windowLoaded.has_value() && application::window_layout(*windowLoaded) == window && windowLoaded->Behaviour == chosen.Behaviour, "the window row is kept and reads the migrated behaviour");
+		expect(stored_label_columns(db->handle()).empty(), "the migrated row stores no columns");
+	}
+
+	/// \brief [[BPR-1088]]. All twelve label columns persist in the chosen
+	/// order, each alone too, with the helper and the starting count.
+	void test_all_twelve_label_columns_persist_in_order()
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("labels.sqlite3");
+		auto       chosen  = settled_profile();
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value(), "the store opens");
+			for (std::size_t index = 0U; index < core::feedback_label_count; ++index) {
+				const auto label              = static_cast<core::feedback_label>(index);
+				chosen.Behaviour.LabelColumns = label_columns_of({ label });
+				expect(db->store(chosen, { }).has_value(), "one column stores");
+				expect(stored_label_columns(db->handle()) == core::stable_name(label), "and is kept as its stable ID");
+				expect(db->load({ }) == std::expected<application::workbench_layout_settings, failure>{ chosen }, "each of the twelve labels reads back as the only column");
+			}
+			auto all = std::array<core::feedback_label, core::feedback_label_count>{ };
+			for (std::size_t index = 0U; index < all.size(); ++index) {
+				all[index] = static_cast<core::feedback_label>((index * 5U + 3U) % core::feedback_label_count);
+			}
+			chosen.Behaviour.LabelColumns   = *core::make_feedback_label_columns(all);
+			chosen.Behaviour.LabelHelper    = application::review_label_helper::on;
+			chosen.Behaviour.OverviewCounts = application::review_overview_counts::all;
+			expect(db->store(chosen, { }).has_value(), "all twelve, out of catalog order, store");
+			expect(stored_label_columns(db->handle()) == "issue,note,nitpick,thought,quibble,todo,typo,suggestion,chore,praise,question,polish", "in the order chosen, as stable IDs");
+		}
+		auto       db     = workbench_settings_database::open(path, { });
+		const auto loaded = db->load({ });
+		expect(loaded.has_value() && *loaded == chosen, "all twelve, the helper and All survive a reopen, compared whole");
+		expect(std::ranges::equal(core::labels_of(loaded->Behaviour.LabelColumns), core::labels_of(chosen.Behaviour.LabelColumns)), "the labels come back in the same order");
+
+		auto repeated                             = chosen;
+		repeated.Behaviour.LabelColumns           = label_columns_of({ core::feedback_label::issue, core::feedback_label::note });
+		repeated.Behaviour.LabelColumns.Labels[1] = core::feedback_label::issue;
+		auto outside                              = chosen;
+		outside.Behaviour.LabelColumns            = label_columns_of({ core::feedback_label::issue });
+		outside.Behaviour.LabelColumns.Labels[0]  = static_cast<core::feedback_label>(12);
+		const auto before                         = stored_label_columns(db->handle());
+		const auto refusedRepeat                  = db->store(repeated, { });
+		const auto refusedUnknown                 = db->store(outside, { });
+		expect(!refusedRepeat && refusedRepeat.error() == catalog_database_failure::integrity_failure, "a record with a repeated column is refused, not deduplicated");
+		expect(!refusedUnknown && refusedUnknown.error() == catalog_database_failure::integrity_failure, "a record with an unknown column is refused");
+		expect(stored_label_columns(db->handle()) == before && *db->load({ }) == chosen, "a refused write leaves the stored row exactly as it was");
+		auto stop = std::stop_source{ };
+		stop.request_stop();
+		auto other                   = chosen;
+		other.Behaviour.LabelColumns = { };
+		other.Behaviour.LabelHelper  = application::review_label_helper::off;
+		const auto cancelled         = db->store(other, stop.get_token());
+		expect(!cancelled && cancelled.error() == catalog_database_failure::cancelled && *db->load({ }) == chosen, "a cancelled write claims nothing and changes nothing");
+	}
+
+	/// \brief [[BPR-1088]]. Stored columns that name an unknown or repeated
+	/// label load without them, report what was left out, keep every valid
+	/// label in its place and every other setting, and are not rewritten
+	/// until the reviewer saves.
+	void test_unknown_or_repeated_stored_columns_load_safely_and_explain()
+	{
+		const auto scratch           = scratch_directory{ };
+		const auto path              = scratch.file("labels-recovery.sqlite3");
+		auto       chosen            = settled_profile();
+		chosen.Behaviour.LabelHelper = application::review_label_helper::on;
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value() && db->store(chosen, { }).has_value(), "a profile row stores");
+			expect(sqlite3_exec(db->handle(), "UPDATE workbench_preferences SET label_columns='issue,blocker,question,issue,,note'", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "a hand-edited list with an unknown, a repeated and an empty entry is injected");
+		}
+		auto db = workbench_settings_database::open(path, { });
+		expect(db.has_value(), "the store still opens: a bad list is not a broken file");
+		const auto loaded = db->load({ });
+		expect(loaded.has_value(), "and the row still loads");
+		expect(loaded->Behaviour.LabelColumns == label_columns_of({ core::feedback_label::issue, core::feedback_label::question, core::feedback_label::note }),
+			   "every valid label keeps its place, each once");
+		expect(loaded->Behaviour.LabelColumnsRecovery == std::optional{ application::review_label_columns_recovery{ .Unknown = 2U, .Repeated = 1U } },
+			   "what was left out is reported: two unknown entries and one repeat");
+		auto expected                           = chosen;
+		expected.Behaviour.LabelColumns         = loaded->Behaviour.LabelColumns;
+		expected.Behaviour.LabelColumnsRecovery = loaded->Behaviour.LabelColumnsRecovery;
+		expect(*loaded == expected && application::valid(loaded->Behaviour), "nothing else is reset, and the record read is valid");
+		expect(stored_label_columns(db->handle()) == "issue,blocker,question,issue,,note", "reading never rewrites the stored list");
+		expect(db->load({ }) == loaded, "and reads the same again");
+
+		auto saved     = application::edited(loaded->Behaviour);
+		auto next      = *loaded;
+		next.Behaviour = saved;
+		expect(db->store(next, { }).has_value(), "the reviewer's next save writes");
+		expect(stored_label_columns(db->handle()) == "issue,question,note", "the list as shown, without what was left out");
+		const auto clean = db->load({ });
+		expect(clean.has_value() && !clean->Behaviour.LabelColumnsRecovery.has_value() && clean->Behaviour.LabelColumns == expected.Behaviour.LabelColumns, "and the next load has nothing to report");
+
+		expect(sqlite3_exec(db->handle(), "UPDATE workbench_preferences SET label_columns='blocker'", nullptr, nullptr, nullptr) == SQLITE_OK, "a list with no valid label is injected");
+		const auto none = db->load({ });
+		expect(none.has_value() && none->Behaviour.LabelColumns == core::feedback_label_columns{ } && none->Behaviour.LabelColumnsRecovery == std::optional{ application::review_label_columns_recovery{ .Unknown = 1U, .Repeated = 0U } }
+				   && none->Behaviour.LabelHelper == application::review_label_helper::on,
+			   "it reads as no columns, reported, with the helper and the rest kept");
+	}
+
+	/// \brief [[BPR-1088]]. Storage the reader cannot judge fails closed like
+	/// every other column: an over-long list, a list that is not text, and a
+	/// helper or count outside its vocabulary.
+	void test_label_preference_storage_outside_its_bounds_fails_closed()
+	{
+		for (const auto* const mutation : { "PRAGMA ignore_check_constraints=ON; UPDATE workbench_preferences SET label_columns=printf('%0300d', 1)",
+											"PRAGMA ignore_check_constraints=ON; UPDATE workbench_preferences SET label_helper=2",
+											"PRAGMA ignore_check_constraints=ON; UPDATE workbench_preferences SET overview_counts=2" }) {
+			const auto scratch = scratch_directory{ };
+			const auto path    = scratch.file("labels-bounds.sqlite3");
+			{
+				auto db = workbench_settings_database::open(path, { });
+				expect(db.has_value() && db->store(settled_profile(), { }).has_value(), "a profile row stores");
+				expect(sqlite3_exec(db->handle(), mutation, nullptr, nullptr, nullptr) == SQLITE_OK, "an out-of-bounds value is injected");
+			}
+			const auto before  = logical_snapshot(path, false);
+			const auto refused = workbench_settings_database::open(path, { });
+			expect(!refused && refused.error() == catalog_database_failure::schema_mismatch, "a value outside its bounds fails closed at admission");
+			expect(logical_snapshot(path, false) == before, "and the file is left as it was");
+		}
 	}
 
 	void test_invalid_one_pane_window_is_refused()
@@ -1597,6 +1795,10 @@ try {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
 	test_authoritative_window_retention();
 	test_feedback_marks_round_trip_and_migrate_from_eleven();
+	test_label_preferences_migrate_from_twelve_without_resetting_anything_else();
+	test_all_twelve_label_columns_persist_in_order();
+	test_unknown_or_repeated_stored_columns_load_safely_and_explain();
+	test_label_preference_storage_outside_its_bounds_fails_closed();
 	test_native_geometry_is_window_local_and_migrates_from_eight();
 	test_the_updates_line_is_window_local_and_migrates_from_nine();
 	test_invalid_one_pane_window_is_refused();

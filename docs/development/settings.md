@@ -91,8 +91,22 @@ subscriptions. Saved preferences belong to the current BPR profile.
 | Modality rules | Open on Overview; Continue enters Read | These two choices |
 | Reading | Mark read by hand; return comparison Whole PR; comments All | These three choices |
 | Drawers | Drawer controls Hidden | Drawer-control preference |
-| Comment labels | Label marks Icons (or Letters, the two-letter shortcodes; [[BPR-1083]]), with a six-mark preview beside the choices | Label-mark preference |
+| Comment labels | Label helper off; Label marks Icons (or Letters, the two-letter shortcodes; [[BPR-1083]]), with a six-mark preview beside the choices; Overview counts Open; no Overview chips ([[BPR-1088]]) | These four choices |
 | Queue defaults | Any role, observer reason, attention bucket and repository; any quiet/current state; core priority order | Queue filters and sort only |
+
+Comment labels ([[BPR-1088]]). **Label helper** turns on the comment
+editor's label chip completion and its leading `:shortcodes:` in every window
+of the profile once the choice is saved; a label typed out in full is
+recognized and counted either way. **Overview counts** is where a pull
+request's Overview starts, Open (unresolved conversations) or All; switching
+on an Overview changes only that view. **Overview chips** lists the twelve
+labels: tick one to give it its own count in the Overview's Comments column,
+and drag a ticked one, or press Alt+Up or Alt+Down (⌥↑ ⌥↓ on macOS), to set
+the order. **Mark colours** opens Appearance › Colours with the filter set to
+"label". The Comments drawer's own first filter, under Reading, is separate
+and never changed by these rows. If the saved chips name a label this build
+does not know, or one label twice, the row says how many were left out; the
+rest keep their order, and changing a chip or Reset saves the list as shown.
 
 Observer rules match local repository, author or path facts. Add/remove changes
 the local rule and its matched membership. Saved repositories keep an exact

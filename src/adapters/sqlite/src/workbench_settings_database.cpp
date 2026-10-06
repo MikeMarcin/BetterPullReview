@@ -28,14 +28,16 @@ namespace bpr::adapters::sqlite::detail {
 		/// \brief The widest table this store admits, in columns.
 		///
 		/// \details `window_layout` has twenty-three columns after the Updates
-		/// line's fold ([[BPR-1130]]) joined native geometry and Home.
-		/// `SQLITE_LIMIT_COLUMN` bounds a table
+		/// line's fold ([[BPR-1130]]) joined native geometry and Home, and
+		/// `workbench_preferences` twenty-four since the label helper, the
+		/// Overview's starting count and its label columns ([[BPR-1088]],
+		/// version thirteen). `SQLITE_LIMIT_COLUMN` bounds a table
 		/// definition, the values of one INSERT, and the result of one `SELECT *`
-		/// alike, so below this a version-ten file could not even be parsed,
+		/// alike, so below this a version-thirteen file could not even be parsed,
 		/// let alone read: a column added later has to raise this in the same
 		/// schema step. Three admissible tables bound the whole enumerated
 		/// schema at three times this.
-		constexpr std::size_t MaximumTableColumns = 23U;
+		constexpr std::size_t MaximumTableColumns = 24U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -115,8 +117,22 @@ namespace bpr::adapters::sqlite::detail {
 				  // [[BPR-1083]]. How label marks are drawn, schema version
 				  // 12: zero is the pictorial icons, the default (owner,
 				  // 2026-10-05), one the two-letter shortcode marks.
-				  "feedback_marks INTEGER NOT NULL DEFAULT 0 CHECK(feedback_marks BETWEEN 0 AND 1)) STRICT";
+				  "feedback_marks INTEGER NOT NULL DEFAULT 0 CHECK(feedback_marks BETWEEN 0 AND 1),"
+				  // [[BPR-1088]]. Schema version 13, each defaulted so a
+				  // migrated row keeps what it had: the label helper off,
+				  // the Overview's count starting on Open, and no label
+				  // columns. The columns are stable catalog IDs and commas,
+				  // read by `core::read_feedback_label_columns`; the bound is
+				  // `core::maximum_feedback_label_columns_text`, written out
+				  // because preflight compares this text with a stored file.
+				  "label_helper INTEGER NOT NULL DEFAULT 0 CHECK(label_helper BETWEEN 0 AND 1),"
+				  "overview_counts INTEGER NOT NULL DEFAULT 0 CHECK(overview_counts BETWEEN 0 AND 1),"
+				  "label_columns TEXT NOT NULL DEFAULT '' CHECK(length(CAST(label_columns AS BLOB)) <= 256)) STRICT";
 		}
+
+		static_assert(core::maximum_feedback_label_columns_text == 256U);
+		static_assert(static_cast<std::int64_t>(application::review_label_helper::on) == 1);
+		static_assert(static_cast<std::int64_t>(application::review_overview_counts::all) == 1);
 
 		void remove_one_pane_column(std::string& aSql)
 		{
@@ -225,6 +241,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 5                        ? ",drawer_controls"
 				: aVersion <= 10                       ? ",writing_revision"
 				: aVersion <= 11                       ? ",feedback_marks"
+				: aVersion <= 12                       ? ",label_helper"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -253,7 +270,8 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 2 ? ",line_numbers" : "") + (aVersion >= 3 ? ",repositories_state,repositories_width" : "")
 				+ (aVersion >= 4 ? ",open_modality,continue_modality,mark_read,return_comparison,drawer_filter" : "")
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
-				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "");
+				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
+				+ (aVersion >= 12 ? ",feedback_marks" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -380,6 +398,17 @@ namespace bpr::adapters::sqlite::detail {
 						const auto  size = sqlite3_column_bytes(rows->Value, column);
 						const auto* text = reinterpret_cast<const char*>(sqlite3_column_text(rows->Value, column));
 						if (sqlite3_column_type(rows->Value, column) != SQLITE_TEXT || !text || size < 0 || size > 8192 || !core::valid_writing_utf8({ text, static_cast<std::size_t>(size) })) {
+							return false;
+						}
+						continue;
+					}
+					// [[BPR-1088]]. Text within its bound. Which IDs it names is
+					// the reader's to judge, so an unknown or repeated label
+					// is explained at load rather than refusing the store.
+					if (columnName == "label_columns") {
+						const auto size = sqlite3_column_bytes(rows->Value, column);
+						if (sqlite3_column_type(rows->Value, column) != SQLITE_TEXT || size < 0
+							|| static_cast<std::size_t>(size) > core::maximum_feedback_label_columns_text) {
 							return false;
 						}
 						continue;
@@ -573,11 +602,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to nine specifically,
+			// migration named here carries versions one to twelve specifically,
 			// written out rather than derived from the constant, so a version
 			// this build has no step for is refused rather than handed to the
 			// wrong one.
-			if (*current < 0 || *current > 11) {
+			if (*current < 0 || *current > 12) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -923,8 +952,9 @@ namespace bpr::adapters::sqlite::detail {
 			"singleton, files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
-			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20) "
+			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
+			"label_helper, overview_counts, label_columns) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -939,7 +969,8 @@ namespace bpr::adapters::sqlite::detail {
 			"return_comparison = excluded.return_comparison,"
 			"drawer_filter = excluded.drawer_filter,"
 			"drawer_controls = excluded.drawer_controls,"
-			"one_pane = excluded.one_pane, writing_revision = excluded.writing_revision, writing_problem = excluded.writing_problem, writing_solution = excluded.writing_solution, writing_outline = excluded.writing_outline, writing_stop = excluded.writing_stop, feedback_marks = excluded.feedback_marks");
+			"one_pane = excluded.one_pane, writing_revision = excluded.writing_revision, writing_problem = excluded.writing_problem, writing_solution = excluded.writing_solution, writing_outline = excluded.writing_outline, writing_stop = excluded.writing_stop, feedback_marks = excluded.feedback_marks,"
+			"label_helper = excluded.label_helper, overview_counts = excluded.overview_counts, label_columns = excluded.label_columns");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -953,7 +984,13 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(failure::integrity_failure);
 			}
 		}
-		if (::sqlite3_bind_int64(statement->Value, 20, static_cast<std::int64_t>(aSettings.Behaviour.FeedbackMarks)) != SQLITE_OK
+		// [[BPR-1088]]. `valid` above admitted the columns, so the text names
+		// each catalog label at most once.
+		const auto labelColumns = core::feedback_label_columns_text(aSettings.Behaviour.LabelColumns);
+		if (sqlite3_bind_text(statement->Value, 23, labelColumns.data(), static_cast<int>(labelColumns.size()), SQLITE_TRANSIENT) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 21, static_cast<std::int64_t>(aSettings.Behaviour.LabelHelper)) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 22, static_cast<std::int64_t>(aSettings.Behaviour.OverviewCounts)) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 20, static_cast<std::int64_t>(aSettings.Behaviour.FeedbackMarks)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 14, static_cast<std::int64_t>(aSettings.OnePane)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(
 				   statement->Value, 1, static_cast<std::int64_t>(aSettings.Files))
@@ -1236,7 +1273,8 @@ namespace bpr::adapters::sqlite::detail {
 			"SELECT files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
-			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks "
+			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
+			"label_helper, overview_counts, label_columns "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1299,9 +1337,28 @@ namespace bpr::adapters::sqlite::detail {
 		const auto feedbackMarks = preference_of(
 			::sqlite3_column_int64(statement->Value, 19),
 			application::review_feedback_marks::letters);
+		const auto labelHelper = preference_of(
+			::sqlite3_column_int64(statement->Value, 20),
+			application::review_label_helper::on);
+		const auto overviewCounts = preference_of(
+			::sqlite3_column_int64(statement->Value, 21),
+			application::review_overview_counts::all);
 		if (!onePane || !openModality || !continueModality || !markRead || !returnComparison
-			|| !commentsFilter || !drawerControls || !feedbackMarks) {
+			|| !commentsFilter || !drawerControls || !feedbackMarks || !labelHelper || !overviewCounts) {
 			return std::unexpected(failure::integrity_failure);
+		}
+		// [[BPR-1088]]. The label columns never fail the load: every catalog
+		// ID keeps its place, and an unknown or repeated one is left out and
+		// reported, so the rest of the reviewer's settings still load.
+		const auto  columnsBytes = sqlite3_column_bytes(statement->Value, 22);
+		const auto* columnsText  = reinterpret_cast<const char*>(sqlite3_column_text(statement->Value, 22));
+		if (sqlite3_column_type(statement->Value, 22) != SQLITE_TEXT || columnsText == nullptr || columnsBytes < 0) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		const auto columns  = core::read_feedback_label_columns({ columnsText, static_cast<std::size_t>(columnsBytes) });
+		auto       recovery = std::optional<application::review_label_columns_recovery>{ };
+		if (columns.Unknown != 0U || columns.Repeated != 0U) {
+			recovery = application::review_label_columns_recovery{ .Unknown = columns.Unknown, .Repeated = columns.Repeated };
 		}
 
 		core::writing_hook_settings hooks;
@@ -1331,13 +1388,17 @@ namespace bpr::adapters::sqlite::detail {
 			.RepositoriesWidth = static_cast<std::uint32_t>(
 				::sqlite3_column_int64(statement->Value, 6)),
 			.Behaviour = {
-				.OpenModality     = *openModality,
-				.ContinueModality = *continueModality,
-				.MarkRead         = *markRead,
-				.ReturnComparison = *returnComparison,
-				.CommentsFilter   = *commentsFilter,
-				.DrawerControls   = *drawerControls,
-				.FeedbackMarks    = *feedbackMarks,
+				.OpenModality         = *openModality,
+				.ContinueModality     = *continueModality,
+				.MarkRead             = *markRead,
+				.ReturnComparison     = *returnComparison,
+				.CommentsFilter       = *commentsFilter,
+				.DrawerControls       = *drawerControls,
+				.FeedbackMarks        = *feedbackMarks,
+				.LabelHelper          = *labelHelper,
+				.OverviewCounts       = *overviewCounts,
+				.LabelColumns         = columns.Columns,
+				.LabelColumnsRecovery = recovery,
 			},
 			.WritingHooks = std::move(hooks),
 		};

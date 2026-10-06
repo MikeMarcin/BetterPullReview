@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_RUNTIME_PORTS_HPP
 
 #include "bpr/application/home_view_state.hpp"
+#include "bpr/core/feedback_label_columns.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/workbench_interaction.hpp"
@@ -522,6 +523,43 @@ namespace bpr::application {
 		letters,
 	};
 
+	/// \brief Whether the comment editor offers the label helper ([[BPR-1088]]).
+	///
+	/// \details The helper is the label chip's completion and the leading
+	/// `:xx:` shortcodes (RFC-BPR-0048's convention-assisted composition).
+	/// Off by default (owner, BPR-1079 Settings v1): a label typed out in
+	/// full is recognized and counted either way.
+	enum class review_label_helper : std::uint8_t {
+		off,
+		on,
+	};
+
+	/// \brief Where the Overview's label counts start ([[BPR-1088]]).
+	///
+	/// \details Open is `core::feedback_resolution_mode::unresolved`, the
+	/// default (RFC-BPR-0049); All is `feedback_resolution_mode::all`. This
+	/// is the default a pull request's Overview opens with. The mode a
+	/// reviewer switches to on an Overview is that view's own state and is
+	/// never written back here.
+	enum class review_overview_counts : std::uint8_t {
+		open,
+		all,
+	};
+
+	/// \brief What reading the stored label columns left out ([[BPR-1088]]).
+	///
+	/// \details A load observation, never a preference: no store writes it,
+	/// and a reviewer's edit to the review behaviour clears it. Both counts
+	/// are `core::read_feedback_label_columns`'s; every valid stored label
+	/// kept its place in `LabelColumns`.
+	struct review_label_columns_recovery
+	{
+		std::uint8_t Unknown  = 0U;
+		std::uint8_t Repeated = 0U;
+
+		auto operator<=>(const review_label_columns_recovery&) const = default;
+	};
+
 	/// \brief The reviewer's durable review-behaviour preferences.
 	///
 	/// \details [[BPR-0661]]. RFC-BPR-0028's Reviews & queue rows. Stored
@@ -542,12 +580,34 @@ namespace bpr::application {
 		review_drawer_controls     DrawerControls   = review_drawer_controls::hidden;
 		/// [[BPR-1083]]. Icons by default.
 		review_feedback_marks FeedbackMarks = review_feedback_marks::icons;
+		/// [[BPR-1088]]. The comment editor's label helper, off by default.
+		review_label_helper LabelHelper = review_label_helper::off;
+		/// [[BPR-1088]]. The Overview's starting count, Open by default.
+		review_overview_counts OverviewCounts = review_overview_counts::open;
+		/// [[BPR-1088]]. The Overview's dedicated label chips, in order. None
+		/// by default, so the catch-all counts every conversation.
+		core::feedback_label_columns LabelColumns{ };
+		/// [[BPR-1088]]. Set only on a record read from a store whose label
+		/// columns named an unknown or repeated label; see the type.
+		std::optional<review_label_columns_recovery> LabelColumnsRecovery;
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
 
+	/// \brief The record a reviewer's edit asks for: the same preferences,
+	/// with no load observation carried into the write.
+	[[nodiscard]] inline auto edited(review_behaviour_settings aSettings) noexcept -> review_behaviour_settings
+	{
+		aSettings.LabelColumnsRecovery.reset();
+		return aSettings;
+	}
+
 	/// \brief Checks whether every preference names a value of its vocabulary.
-	[[nodiscard]] constexpr auto valid(const review_behaviour_settings& aSettings) noexcept -> bool
+	///
+	/// \details [[BPR-1088]]. The label columns must be a selection
+	/// `core::check_feedback_label_columns` accepts: no unknown or repeated
+	/// label is ever admitted, so a store never has one to write.
+	[[nodiscard]] inline auto valid(const review_behaviour_settings& aSettings) noexcept -> bool
 	{
 		return static_cast<std::uint8_t>(aSettings.OpenModality)
 			<= static_cast<std::uint8_t>(review_open_modality::last_used)
@@ -562,7 +622,12 @@ namespace bpr::application {
 			&& static_cast<std::uint8_t>(aSettings.DrawerControls)
 			<= static_cast<std::uint8_t>(review_drawer_controls::shown)
 			&& static_cast<std::uint8_t>(aSettings.FeedbackMarks)
-			<= static_cast<std::uint8_t>(review_feedback_marks::letters);
+			<= static_cast<std::uint8_t>(review_feedback_marks::letters)
+			&& static_cast<std::uint8_t>(aSettings.LabelHelper)
+			<= static_cast<std::uint8_t>(review_label_helper::on)
+			&& static_cast<std::uint8_t>(aSettings.OverviewCounts)
+			<= static_cast<std::uint8_t>(review_overview_counts::all)
+			&& core::check_feedback_label_columns(aSettings.LabelColumns).has_value();
 	}
 
 	/// Window-local normal geometry in logical display coordinates. Zero size

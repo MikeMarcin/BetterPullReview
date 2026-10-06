@@ -1,5 +1,6 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/workbench_application_host.hpp"
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -130,11 +131,151 @@ namespace {
 		expect(owner.is_quiescent(), "inline reentrant effects finish exactly once");
 	}
 
+	/// \brief [[BPR-1088]]. The label helper, the Overview's starting count and
+	/// the label columns follow the profile's existing preference authority:
+	/// one durable write fans out to every window of the profile, another
+	/// profile is untouched, a failed or cancelled write is never accepted, a
+	/// record naming a label twice is refused, and what a load found wrong with
+	/// the stored columns reaches the windows until the reviewer's next edit.
+	void test_label_preferences_follow_the_profile_authority()
+	{
+		state durable, otherDurable;
+		auto  stored                                     = application::review_behaviour_settings{ };
+		stored.OpenModality                              = application::review_open_modality::read;
+		stored.LabelColumns                              = *core::make_feedback_label_columns(std::array{ core::feedback_label::issue });
+		stored.LabelColumnsRecovery                      = application::review_label_columns_recovery{ .Unknown = 1U, .Repeated = 0U };
+		durable.Preferences.Behaviour                    = stored;
+		durable.Preferences.NewWindowDefaults.FilesWidth = 400U;
+		fake_settings_store                     preferencesPort{ durable, { } }, firstPort{ durable, core::bpr_window_id{ 7 } }, secondPort{ durable, core::bpr_window_id{ 9 } };
+		fake_settings_store                     otherPort{ otherDurable, { } }, otherWindowPort{ otherDurable, core::bpr_window_id{ 7 } };
+		application::manual_executor            effects, decision;
+		application::workbench_preferences_host preferences{ preferencesPort, effects, decision, core::bpr_profile_id{ 1 } };
+		application::workbench_preferences_host otherPreferences{ otherPort, effects, decision, core::bpr_profile_id{ 2 } };
+		observations                            observer;
+		projection                              firstProjection, secondProjection, otherProjection;
+		application::workbench_application_host first{ { }, observer, firstPort, effects, decision, firstProjection, core::application_session_id{ 1 }, { }, nullptr, nullptr, &preferences, core::bpr_profile_id{ 1 } };
+		application::workbench_application_host second{ { }, observer, secondPort, effects, decision, secondProjection, core::application_session_id{ 2 }, { }, nullptr, nullptr, &preferences, core::bpr_profile_id{ 1 } };
+		application::workbench_application_host other{ { }, observer, otherWindowPort, effects, decision, otherProjection, core::application_session_id{ 3 }, { }, nullptr, nullptr, &otherPreferences, core::bpr_profile_id{ 2 } };
+		const auto                              settle        = [&] { for (int count = 0; count < 6; ++count) { effects.drain(); decision.drain(); } };
+		const auto                              lastBehaviour = [](const projection& aProjection) {
+			for (auto it = aProjection.Published.rbegin(); it != aProjection.Published.rend(); ++it) {
+				if (it->Behaviour) {
+					return *it->Behaviour;
+				}
+			}
+			return application::review_behaviour_settings{ };
+		};
+		preferences.restore();
+		otherPreferences.restore();
+		first.restore();
+		second.restore();
+		other.restore();
+		settle();
+		expect(first.layout().Behaviour == stored && second.layout().Behaviour == stored && lastBehaviour(firstProjection).LabelColumnsRecovery == stored.LabelColumnsRecovery,
+			   "what the load found wrong with the stored columns reaches every window of the profile");
+		expect(other.layout().Behaviour == application::review_behaviour_settings{ }, "another profile starts from its own defaults");
+
+		auto chosen = stored;
+		chosen.LabelColumnsRecovery.reset();
+		chosen.LabelHelper                   = application::review_label_helper::on;
+		chosen.OverviewCounts                = application::review_overview_counts::all;
+		chosen.LabelColumns                  = *core::make_feedback_label_columns(std::array{ core::feedback_label::question, core::feedback_label::issue, core::feedback_label::quibble });
+		auto withObservation                 = chosen;
+		withObservation.LabelColumnsRecovery = stored.LabelColumnsRecovery;
+		first.apply_behaviour(withObservation);
+		expect(first.layout().Behaviour == stored && durable.Writes == 0U, "an edit is not accepted before its durable write completes");
+		settle();
+		expect(durable.Writes == 1U && durable.Preferences.Behaviour == chosen && !durable.Preferences.Behaviour.LabelColumnsRecovery.has_value(), "one durable write, with no load observation carried into it");
+		expect(first.layout().Behaviour == chosen && second.layout().Behaviour == chosen && lastBehaviour(secondProjection) == chosen,
+			   "the accepted edit reaches the other window of the profile, and the report is gone");
+		expect(other.layout().Behaviour == application::review_behaviour_settings{ } && otherDurable.Writes == 0U, "the other profile is unaffected");
+		expect(durable.Preferences.NewWindowDefaults.FilesWidth == 400U && durable.Preferences.Behaviour.OpenModality == application::review_open_modality::read,
+			   "no other preference is reset by the label edit");
+
+		auto twice                    = chosen;
+		twice.LabelColumns.Labels[1]  = core::feedback_label::question;
+		const auto failuresBefore     = firstProjection.Failures;
+		const auto publicationsBefore = firstProjection.Published.size();
+		first.apply_behaviour(twice);
+		settle();
+		expect(!preferences.apply_behaviour(twice) && durable.Writes == 1U && first.layout().Behaviour == chosen, "a record naming a label twice is refused and never written");
+		expect(firstProjection.Published.size() > publicationsBefore && lastBehaviour(firstProjection) == chosen && firstProjection.Failures == failuresBefore,
+			   "the refused record is answered by republishing the held one, so the page reverts");
+
+		auto there         = chosen;
+		there.LabelColumns = *core::make_feedback_label_columns(std::array{ core::feedback_label::note });
+		first.apply_behaviour(there);
+		first.apply_behaviour(chosen);
+		settle();
+		expect(durable.Writes == 3U && durable.Preferences.Behaviour == chosen && first.layout().Behaviour == chosen && second.layout().Behaviour == chosen,
+			   "going back to the held record while the first edit is in flight is written after it, so the reviewer's last choice wins");
+
+		// Two windows edit at once: the profile's one owner serializes the
+		// writes, the later record is the accepted one, and both windows show it.
+		auto fromFirst           = chosen;
+		fromFirst.OverviewCounts = application::review_overview_counts::open;
+		auto fromSecond          = chosen;
+		fromSecond.LabelColumns  = *core::make_feedback_label_columns(std::array{ core::feedback_label::typo, core::feedback_label::issue });
+		first.apply_behaviour(fromFirst);
+		second.apply_behaviour(fromSecond);
+		settle();
+		expect(durable.Writes == 5U && durable.Preferences.Behaviour == fromSecond && first.layout().Behaviour == fromSecond && second.layout().Behaviour == fromSecond,
+			   "concurrent edits from two windows are written in turn and both windows settle on the accepted record");
+		second.apply_behaviour(chosen);
+		settle();
+		expect(durable.Preferences.Behaviour == chosen && first.layout().Behaviour == chosen, "and the profile returns to the earlier record for the checks below");
+
+		durable.Fail        = true;
+		auto failed         = chosen;
+		failed.LabelHelper  = application::review_label_helper::off;
+		failed.LabelColumns = { };
+		second.apply_behaviour(failed);
+		settle();
+		expect(durable.Preferences.Behaviour == chosen && first.layout().Behaviour == chosen && second.layout().Behaviour == chosen,
+			   "a failed write is never accepted: both windows keep the held record");
+		expect(secondProjection.Failures != 0U && lastBehaviour(secondProjection) == chosen, "the window that asked is told and shown the held record");
+		durable.Fail = false;
+
+		auto cancelled           = chosen;
+		cancelled.OverviewCounts = application::review_overview_counts::open;
+		expect(preferences.apply_behaviour(cancelled), "a write begins");
+		preferences.cancel();
+		settle();
+		expect(durable.Preferences.Behaviour == chosen && !preferences.accepted(), "a cancelled write is not accepted and claims nothing");
+		preferences.restore();
+		settle();
+		expect(preferences.accepted() && preferences.accepted()->Behaviour == chosen, "the profile reloads what is durable");
+
+		auto reset           = chosen;
+		reset.FeedbackMarks  = application::review_behaviour_settings{ }.FeedbackMarks;
+		reset.LabelHelper    = application::review_behaviour_settings{ }.LabelHelper;
+		reset.OverviewCounts = application::review_behaviour_settings{ }.OverviewCounts;
+		reset.LabelColumns   = application::review_behaviour_settings{ }.LabelColumns;
+		second.apply_behaviour(reset);
+		settle();
+		expect(durable.Preferences.Behaviour == reset && first.layout().Behaviour == reset && reset.OpenModality == application::review_open_modality::read,
+			   "a scoped reset writes the label defaults only and reaches both windows");
+
+		auto otherChoice        = application::review_behaviour_settings{ };
+		otherChoice.LabelHelper = application::review_label_helper::on;
+		other.apply_behaviour(otherChoice);
+		settle();
+		expect(otherDurable.Preferences.Behaviour == otherChoice && durable.Preferences.Behaviour == reset && first.layout().Behaviour == reset,
+			   "the other profile's edit stays in that profile");
+		first.shutdown();
+		second.shutdown();
+		other.shutdown();
+		preferences.shutdown();
+		otherPreferences.shutdown();
+		settle();
+		expect(first.is_quiescent() && second.is_quiescent() && other.is_quiescent() && preferences.is_quiescent() && otherPreferences.is_quiescent(), "label preference work drains");
+	}
 }
 int main()
 {
 	test_refused_subscription_has_no_effect_authority();
 	test_reentrant_preference_fanout();
+	test_label_preferences_follow_the_profile_authority();
 	{
 		state                                   firstState, otherState;
 		fake_settings_store                     port{ firstState, { } }, otherPort{ otherState, { } };
