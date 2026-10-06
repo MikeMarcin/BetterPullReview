@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1188"
 title: "Verify and close RFC-BPR-0055"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0055"]
 depends_on: ["BPR-1187"]
 closeout_for: ["RFC-BPR-0055"]
-parked_on: "human-review"
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "closeout", "acceptance": ["RC55-01", "RC55-02", "RC55-03", "RC55-04", "RC55-05", "RC55-06", "RC55-07", "RC55-08", "RC55-09", "RC55-10"], "pack_alias": "PACK-CYCLE-46", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 ---
 

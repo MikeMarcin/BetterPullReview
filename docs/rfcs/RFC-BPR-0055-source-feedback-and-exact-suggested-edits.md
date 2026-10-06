@@ -116,7 +116,7 @@ what is used from them. This amendment changes no RC55 criterion and closes
 none of RFC-BPR-0036, 0047 or 0048: each stays open on its own cards, and
 RFC-BPR-0036's status-only close remains separate. The question and its answer
 are recorded on
-[BPR-1188](../issues/40-parked/BPR-1188-close-rfc-0055.md) and in the
+[BPR-1188](../issues/20-ready/BPR-1188-close-rfc-0055.md) and in the
 [execution ledger](../verification/RFC-BPR-0053-0061.md).
 
 ## Normative contracts
