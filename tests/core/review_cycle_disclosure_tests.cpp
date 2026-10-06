@@ -1,10 +1,13 @@
+#include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/review_cycle_disclosure.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -86,6 +89,75 @@ namespace {
 		}
 	}
 
+	struct expected_reading
+	{
+		feedback_prefix_status        Status;
+		std::optional<feedback_label> Label = std::nullopt;
+	};
+
+	/// What the shared RFC-BPR-0047 recognizer (BPR-1076) must report for
+	/// each of `bodies()`, in order: the twelve labels in catalog order, then
+	/// Plain and the bodies no label may be read from.
+	auto expected_readings() -> std::vector<expected_reading>
+	{
+		auto readings = std::vector<expected_reading>{ };
+		for (const auto& definition : feedback_label_catalog()) {
+			readings.push_back({ .Status = feedback_prefix_status::recognized, .Label = definition.Label });
+		}
+		readings.push_back({ .Status = feedback_prefix_status::plain });
+		readings.push_back({ .Status = feedback_prefix_status::recognized, .Label = feedback_label::nitpick });
+		readings.push_back({ .Status = feedback_prefix_status::malformed });
+		readings.push_back({ .Status = feedback_prefix_status::plain });
+		readings.push_back({ .Status = feedback_prefix_status::plain });
+		readings.push_back({ .Status = feedback_prefix_status::unknown_label });
+		readings.push_back({ .Status = feedback_prefix_status::malformed });
+		readings.push_back({ .Status = feedback_prefix_status::plain });
+		readings.push_back({ .Status = feedback_prefix_status::recognized, .Label = feedback_label::praise });
+		return readings;
+	}
+
+	auto span_inside(const std::optional<feedback_span>& aSpan, const std::string_view aBody) -> bool
+	{
+		return !aSpan || (aSpan->Begin <= aSpan->End && aSpan->End <= aBody.size());
+	}
+
+	/// RC55-03 through the shared recognizer: a cycle note's stored and
+	/// disclosed bytes are what BPR-1076 reads, it reads the label the author
+	/// wrote and nothing else, and what it reads changes nothing in the cycle.
+	void reads_labels_through_the_shared_recognizer()
+	{
+		const auto all      = bodies();
+		const auto readings = expected_readings();
+		expect(all.size() == readings.size(), "one reading per body");
+		auto cycle = captured_cycle();
+		for (std::size_t index = 0; index < all.size(); ++index) {
+			const auto& body   = all[index];
+			const auto  anchor = *make_anchor(cycle_source_revision_id{ 1 }, "src/f.cpp", bytes(source), 11, 19);
+			const auto  begun  = begin_feedback(cycle, cycle.Revision, { .Primary = anchor, .Body = body });
+			expect(begun.has_value(), "note for the recognizer");
+			const auto disclosed = disclose_feedback(begun->Thread, std::span{ &begun->Revision, 1U }, { });
+			expect(disclosed && disclosed->Revisions.size() == 1, "disclosed note");
+
+			const auto stored   = recognize_feedback_prefix(begun->Revision.Body);
+			const auto outgoing = recognize_feedback_prefix(disclosed->Revisions[0].Body);
+			expect(stored.Status == readings[index].Status && stored.Label == readings[index].Label, "shared recognizer reads the authored label");
+			expect(outgoing.Status == stored.Status && outgoing.Label == stored.Label && outgoing.Expectation == stored.Expectation && outgoing.BodyDigest == stored.BodyDigest,
+				   "stored and disclosed bytes read alike");
+			expect(span_inside(stored.RawLabel, body) && span_inside(stored.Header, body) && span_inside(stored.Subject, body) && span_inside(stored.Discussion, body), "spans index the authored bytes");
+			if (stored.Label) {
+				expect(find_feedback_label(feedback_text(body, *stored.RawLabel)) == stored.Label, "label read from the bytes as written");
+			}
+			// Recognition leaves the authored Markdown untouched.
+			expect(begun->Revision.Body == body && disclosed->Revisions[0].Body == body, "bytes unchanged by recognition");
+			// Whatever the recognizer reads, including blocking guidance and a
+			// `verified` decoration, the cycle records no patch, severity,
+			// permission, verification or provenance change.
+			expect(begun->Thread.NextSuggestion == 1 && begun->Thread.Lineage.Lifecycle == private_thread_lifecycle::open && begun->Revision.Author.Provenance == authored_provenance::human,
+				   "a recognized label implies nothing in the cycle");
+			cycle = begun->Cycle;
+		}
+	}
+
 	void discloses_only_what_is_selected()
 	{
 		const auto cycle   = captured_cycle();
@@ -148,6 +220,7 @@ namespace {
 auto main() -> int
 {
 	keeps_every_label_as_authored_text();
+	reads_labels_through_the_shared_recognizer();
 	discloses_only_what_is_selected();
 	return EXIT_SUCCESS;
 }
