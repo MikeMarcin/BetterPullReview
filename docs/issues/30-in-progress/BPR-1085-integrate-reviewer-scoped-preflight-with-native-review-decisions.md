@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1085"
 title: "Integrate reviewer-scoped preflight with native review decisions"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0048"]
 depends_on: ["BPR-1082", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-11","milestone":"authoring","acceptance":["R14","R15","R42"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
