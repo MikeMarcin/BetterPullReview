@@ -19,6 +19,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QHelpEvent>
 #include <QImage>
 #include <QLabel>
 #include <QPainter>
@@ -28,11 +29,13 @@
 #include <QScrollBar>
 #include <QTextEdit>
 #include <QToolButton>
+#include <QToolTip>
 #include <QTreeView>
 
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -103,9 +106,9 @@ namespace {
 		settle();
 		expect(view.cards().size() == 1U && view.cards().front().Posts.size() == 4U, "one thread of four posts");
 		const auto& posts = view.cards().front().Posts;
-		expect(posts[0].Label == core::feedback_label::issue && posts[0].Blocking && posts[0].Name == QStringLiteral("tbutler, issue (blocking)"),
+		expect(posts[0].Label == core::feedback_label::issue && posts[0].Emphasis == qt::feedback_mark_emphasis::blocking && posts[0].Name == QStringLiteral("tbutler, issue (blocking)"),
 			   "the root is a blocking issue named with its author first");
-		expect(posts[1].Label == core::feedback_label::question && !posts[1].Blocking && posts[2].Label == core::feedback_label::praise,
+		expect(posts[1].Label == core::feedback_label::question && posts[1].Emphasis == qt::feedback_mark_emphasis::undecorated && posts[2].Label == core::feedback_label::praise,
 			   "each reply shows its own mark, which may differ from its root's");
 		expect(!posts[3].Label.has_value() && posts[3].Name == QStringLiteral("tbutler"), "a plain post has no mark");
 		expect(posts[0].Body == QStringLiteral("LightScale ignores the view's post-process settings.") && posts[2].Body == QStringLiteral("Good catch.")
@@ -122,7 +125,7 @@ namespace {
 				expect(mark.isEmpty(), "a plain post has no mark rect");
 			}
 			const auto rail = view.rail_rect(view.cards().front(), post);
-			expect(rail.right() == post.Rect.left() - 3 && rail.width() == (post.Blocking ? 4.0 : 2.0) && rail.left() >= view.cards().front().Rect.left(),
+			expect(rail.right() == post.Rect.left() - 3 && rail.width() == (post.Emphasis == qt::feedback_mark_emphasis::blocking ? 4.0 : 2.0) && rail.left() >= view.cards().front().Rect.left(),
 				   "the rail runs 3 px left of the avatar, 2 px or 4 px when blocking, growing outward inside the card");
 		}
 
@@ -149,7 +152,10 @@ namespace {
 			   "letters change the mark's middle and keep its tint and border");
 	}
 
-	void test_compact_entries_carry_the_root_rail()
+	/// \brief The owner, rejecting `thread-marks-v002`: "Marks don't show on
+	/// inline comments." The drawer's entries are compact; each leads with its
+	/// root's mark, inline thread and draft alike, and keeps the root's rail.
+	void test_compact_entries_lead_with_the_root_mark()
 	{
 		qt::conversation_cards_view view;
 		view.set_compact(true);
@@ -162,7 +168,66 @@ namespace {
 		const auto& card = view.cards().front();
 		const auto  rail = view.rail_rect(card, card.Posts.front());
 		expect(view.mark_rect(card.Posts.front()).isEmpty() && rail.width() == 4.0 && rail.left() > card.Rect.left() && rail.right() < card.Rect.left() + 10,
-			   "a compact entry has its root's blocking rail in its own padding and no mark in a header");
+			   "a compact entry has its root's blocking rail in its own padding");
+		const auto mark = view.compact_mark_rect(card);
+		expect(mark.width() == 16 && mark.height() == 16 && mark.left() > rail.right() && card.Rect.contains(mark),
+			   "and its root's 16 px mark leads the entry, right of the rail, inside the card");
+		auto image = QImage{ view.viewport()->size(), QImage::Format_ARGB32_Premultiplied };
+		view.viewport()->render(&image);
+		const auto shown = mark.translated(0, -view.verticalScrollBar()->value());
+		expect(QColor{ image.pixel(shown.left() + 2, shown.center().y()) } == theme().Tints[3], "the blocking issue mark is drawn, filled with the issue tint");
+		// The entry's text starts after the mark: nothing of the text is
+		// drawn over it, and the mark leaves the line's first glyph unmoved
+		// relative to the other lines of the entry.
+		auto plainForest    = forest();
+		plainForest[1].Body = "LightScale ignores the view's post-process settings.";
+		qt::conversation_cards_view plain;
+		plain.set_compact(true);
+		plain.set_label_marks(theme());
+		plain.resize(320, 600);
+		plain.show();
+		plain.adopt(plainForest);
+		settle();
+		expect(plain.compact_mark_rect(plain.cards().front()).isEmpty(), "a plain root's entry has no mark");
+		auto plainImage = QImage{ plain.viewport()->size(), QImage::Format_ARGB32_Premultiplied };
+		plain.viewport()->render(&plainImage);
+		const auto firstInk = [](const QImage& aImage, const QRect& aCard) {
+			const auto background = QColor{ aImage.pixel(aCard.right() - 4, aCard.top() + 4) };
+			for (auto x = aCard.left() + 10; x < aCard.right(); ++x) {
+				for (auto y = aCard.top() + 6; y < aCard.top() + 22; ++y) {
+					const auto colour = QColor{ aImage.pixel(x, y) };
+					if (std::abs(colour.lightness() - background.lightness()) > 60) {
+						return x;
+					}
+				}
+			}
+			return -1;
+		};
+		const auto markedCard = card.Rect.translated(0, -view.verticalScrollBar()->value());
+		const auto plainCard  = plain.cards().front().Rect.translated(0, -plain.verticalScrollBar()->value());
+		expect(firstInk(plainImage, plainCard) >= 0 && firstInk(image, markedCard) == shown.left(),
+			   "the marked entry's first ink is its mark; the plain entry starts with its text");
+		auto       tip = QString{ };
+		QHelpEvent help{ QEvent::ToolTip, shown.center(), view.viewport()->mapToGlobal(shown.center()) };
+		QApplication::sendEvent(view.viewport(), &help);
+		tip = QToolTip::text();
+		expect(tip == QStringLiteral("tbutler, issue (blocking)"), "the mark's tooltip names the root post and its label");
+		QToolTip::hideText();
+
+		// My draft's entry leads with its own mark, in its own decoration.
+		const auto comparison = core::file_comparison_digest{ };
+		view.set_draft(core::review_comment_draft{
+						   .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 11U },
+						   .Body   = "suggestion (non-blocking): Clamp the width.",
+					   },
+					   comparison);
+		settle();
+		const auto draft = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; });
+		expect(draft != view.cards().end() && draft->Posts.front().Label == core::feedback_label::suggestion
+				   && draft->Posts.front().Emphasis == qt::feedback_mark_emphasis::non_blocking && !view.compact_mark_rect(*draft).isEmpty(),
+			   "a draft entry leads with its non-blocking suggestion mark");
+		expect(view.rail_rect(*draft, draft->Posts.front()).width() == 2.0, "and keeps a 2 px rail");
+		save_render(view, "cards-compact-draft");
 	}
 
 	void test_the_post_list_and_the_body_reader()
@@ -278,8 +343,27 @@ namespace {
 			   "the preview sits on the Label marks line, just after Letters");
 		expect(preview->theme().Style == qt::feedback_mark_style::icons
 				   && preview->accessibleName() == QStringLiteral("Label marks preview, icons")
-				   && preview->toolTip().contains(QStringLiteral("issue (blocking)")),
-			   "it starts in icons and names what it shows");
+				   && preview->accessibleDescription().contains(QStringLiteral("issue (blocking)"))
+				   && preview->accessibleDescription().contains(QStringLiteral("nitpick (non-blocking)"))
+				   && preview->accessibleDescription().contains(QStringLiteral("suggestion (if-minor)")),
+			   "it starts in icons and names what it shows, each decoration included");
+		// The owner, mark-preview-v002: "There should be individual tooltips
+		// instead of one giant tooltip."
+		expect(preview->toolTip().isEmpty(), "the preview has no one tooltip for all its marks");
+		const auto entries = qt::feedback_mark_preview::entries();
+		for (std::size_t index = 0U; index < entries.size(); ++index) {
+			const auto centre = preview->entry_rect(index).center().toPoint();
+			QHelpEvent help{ QEvent::ToolTip, centre, preview->mapToGlobal(centre) };
+			QApplication::sendEvent(preview, &help);
+			const auto expected = qt::feedback_mark_preview::entry_tooltip(entries[index]);
+			expect(QToolTip::isVisible() && QToolTip::text() == expected && !expected.contains(QStringLiteral(", ")),
+				   "each mark has its own tooltip: its name and description, nothing about the others");
+			expect(expected.startsWith(qt::feedback_label_text(entries[index].Label)), "the tooltip starts with the mark's label");
+			QToolTip::hideText();
+		}
+		const auto between = QPoint{ static_cast<int>(preview->entry_rect(0U).right()) + 3, preview->height() / 2 };
+		expect(!preview->entry_at(QPointF{ between }).has_value() && preview->entry_at(preview->entry_rect(2U).center()) == std::optional<std::size_t>{ 2U },
+			   "the gap between marks belongs to no mark, so it shows no tooltip");
 		const auto paint = [preview] {
 			auto image = QImage{ preview->size(), QImage::Format_ARGB32 };
 			image.fill(Qt::transparent);
@@ -287,9 +371,8 @@ namespace {
 			return image;
 		};
 		const auto icons      = paint();
-		const auto marks      = qt::feedback_mark_preview::labels();
-		const auto issueIndex = std::distance(marks.begin(), std::ranges::find(marks, qt::feedback_mark_preview::blocking_label()));
-		const auto issueX     = 1 + static_cast<int>(issueIndex) * (static_cast<int>(qt::feedback_mark_size) + 6);
+		const auto issueIndex = std::distance(entries.begin(), std::ranges::find_if(entries, [](const auto& aEntry) { return aEntry.Emphasis == qt::feedback_mark_emphasis::blocking; }));
+		const auto issueX     = static_cast<int>(preview->entry_rect(static_cast<std::size_t>(issueIndex)).left());
 		const auto issueTint  = window.label_marks().Tints[static_cast<std::size_t>(core::feedback_label::issue)];
 		const auto corner     = icons.pixelColor(issueX + 3, (preview->height() / 2) - 5);
 		expect(std::abs(corner.red() - issueTint.red()) < 24 && std::abs(corner.green() - issueTint.green()) < 24 && std::abs(corner.blue() - issueTint.blue()) < 24,
@@ -314,7 +397,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_cards_mark_every_post_under_its_avatar();
-	test_compact_entries_carry_the_root_rail();
+	test_compact_entries_lead_with_the_root_mark();
 	test_the_post_list_and_the_body_reader();
 	test_the_mark_style_setting_reaches_every_surface();
 	test_the_mark_style_preview_follows_the_setting();

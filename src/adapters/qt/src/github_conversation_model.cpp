@@ -188,6 +188,7 @@ namespace bpr::qt {
 				github_conversation_model::feedback_blocking_role,
 				github_conversation_model::feedback_name_role,
 				github_conversation_model::feedback_subject_role,
+				github_conversation_model::feedback_emphasis_role,
 				github_conversation_model::path_role,
 				github_conversation_model::line_role,
 				github_conversation_model::original_line_role,
@@ -333,7 +334,8 @@ namespace bpr::qt {
 		case feedback_label_role:
 		case feedback_blocking_role:
 		case feedback_name_role:
-		case feedback_subject_role:  {
+		case feedback_subject_role:
+		case feedback_emphasis_role: {
 			if (!value->Mark.has_value()) {
 				value->Mark = conversation.Deleted ? feedback_body_mark{ } : feedback_body_mark_of(conversation.ReviewerProse.value_or(conversation.Body));
 			}
@@ -342,7 +344,10 @@ namespace bpr::qt {
 				return mark.Label.has_value() ? QVariant{ static_cast<int>(*mark.Label) } : QVariant{ };
 			}
 			if (aRequestedRole == feedback_blocking_role) {
-				return mark.Blocking;
+				return mark.Emphasis == feedback_mark_emphasis::blocking;
+			}
+			if (aRequestedRole == feedback_emphasis_role) {
+				return static_cast<int>(mark.Emphasis);
 			}
 			if (aRequestedRole == feedback_name_role) {
 				return mark.Name;

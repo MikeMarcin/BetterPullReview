@@ -59,13 +59,34 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
   a soft fill: the tint at 22% over the panel in light and 30% in dark. Labels
   are square and states are round, so the two never share a shape.
 - **Blocking** (owner). The mark is filled with the full tint, and the glyph
-  turns white or `#111418`, whichever contrasts more. "(non-blocking)" and an
-  undecorated label look the same.
-- **When the fill applies** (derived). Only when the annotation's
-  `Expectation` is `blocking`. `if_minor`, `non_blocking`, `unspecified` and
-  `conflicting` keep the soft mark. Built-in guidance, such as a todo's
-  `necessary_change`, never fills a mark: it is not an explicit decoration
-  (RFC-BPR-0048).
+  turns white or `#111418`, whichever contrasts more. Its rail is 4 px.
+- **Non-blocking and if-minor** (owner amendment, BPR-1083 `chip-menu-v002`,
+  2026-10-05, verbatim: "I notice we have style for blocking but noting for
+  non-blocking or if-minor"; the treatments are BPR-1083 v003's, designed
+  with the `frontend-design` skill, and await the owner's
+  `decorations-v003`). Until then BPR-1079 had "(non-blocking)" and an
+  undecorated label look the same. The decorations now form a scale of
+  weight, heaviest first, and the rails borrow road markings: a solid line
+  is not crossed, a broken one may be.
+
+  | Decoration | Mark | Rail |
+  |---|---|---|
+  | `(blocking)` | filled with the tint | 4 px solid |
+  | none | soft fill, solid 1.5 px border | 2 px solid |
+  | `(if-minor)` | soft fill, top-left corner squared off and filled in the tint (6 px along each edge) | 2 px dotted: 2 px dots, 2 px apart |
+  | `(non-blocking)` | open: the panel shows inside a dashed border (2.5 px dashes, 1.5 px gaps) | 2 px dashed: 6 px dashes, 3 px apart |
+
+  Each differs by shape as well as colour, so it reads in greyscale. The
+  corner clears every glyph and both letters, and an open mark keeps its
+  glyph in ink on the panel, so glyph contrast is at least the soft mark's.
+  `qt_feedback_label_marks` checks all four at 16 px in the four built-in
+  variants, in icons and letters.
+- **Which emphasis applies** (derived). The annotation's `Expectation`:
+  `blocking`, `non_blocking` and `if_minor` each have their own; `unspecified`
+  and `conflicting` are undecorated. Built-in guidance, such as a todo's
+  `necessary_change`, never decorates a mark: it is not an explicit
+  decoration (RFC-BPR-0048). Code: `feedback_mark_emphasis` in
+  `feedback_label_marks`.
 - **Which bodies get a mark** (derived from the owner's "plain posts get a
   grey rail"). Only a `recognized` prefix gets a mark. `plain`,
   `unknown_label` (a custom label), `malformed` and `limited` bodies get no
@@ -91,9 +112,12 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
   same mark, with the same tints, blocking fill, size and accessible names.
   The choice is the Label marks row of Reviews & queue › Comment labels, kept
   with the profile's review behaviour (workbench settings store, schema 12),
-  with six marks beside it (praise, suggestion, issue blocking, question,
-  nitpick, todo) drawn in the published style and the theme's tints (owner,
-  `mark-style-v001`: "it'd be nice to see a preview"),
+  with six marks beside it (praise, suggestion if-minor, issue blocking,
+  question, nitpick non-blocking, todo) drawn in the published style and the
+  theme's tints (owner, `mark-style-v001`: "it'd be nice to see a preview"),
+  each with its own tooltip, its name and catalog description (owner,
+  `mark-preview-v002`: "There should be individual tooltips instead of one
+  giant tooltip."),
   and it applies everywhere a mark is drawn: threads, the chip and its menu,
   completion, and the Overview chips and Label key when BPR-1087 and BPR-1089
   draw them through `feedback_mark_theme`.
@@ -183,8 +207,12 @@ Consumers: the inline composition page and reply drafts
   only and never a window shortcut (derived).
 - **Shortcodes** (owner, v2). They work only at the very start of the
   comment:
-  - A colon and one letter open completion, codes first. ↑ and ↓ move through
-    it, and Tab or Enter takes the highlighted label.
+  - A colon alone opens completion with all twelve labels in catalog order
+    (owner, `shortcodes-v002`, verbatim: "I feel like since it's only the
+    first character that does this replacement just typing : should be
+    enough to open suggestions."). Each letter typed after it narrows the
+    list, codes first. ↑ and ↓ move through it, and Tab or Enter takes the
+    highlighted label. Before v003 a colon and one letter opened it.
   - The closing colon of an exact code replaces the code at once.
   - A code in front of an existing label replaces that label; it never adds a
     second prefix.
@@ -264,7 +292,8 @@ selected thread's detail (`markdown_body_view`).
     the avatar, in the card's existing padding or the reply's indent. It adds
     no width. Plain posts get a grey rail.
   - Blocking makes the rail 4 px instead of 2 px, growing outward, so the text
-    does not move.
+    does not move. Non-blocking breaks it into dashes and if-minor into dots
+    (BPR-1083 v003, above).
   - No card header holds a mark.
 - **Reading** (owner, v1 and v4). The mark stands in for the recognized
   prefix, so the body starts at the subject. Copy source and View source keep
@@ -284,7 +313,10 @@ selected thread's detail (`markdown_body_view`).
   mark under the avatar and the rail exactly as above. The application's
   Discuss and Read drawers show compact entries, the selected conversation's
   post list and its body, so: a compact entry carries its root's rail in its
-  own padding and no mark; each row of the post list
+  own padding, and its root's 16 px mark leads its first line, with the text
+  after it (owner, rejecting `thread-marks-v002`: "Marks don't show on inline
+  comments."; built in v003, inline threads and my draft's entry alike, with
+  the root post's name as the mark's tooltip); each row of the post list
   (`github_conversation_delegate`) has its rail in the row's padding and its
   16 px mark leading the heading, with the body from the subject; the body
   reader (`markdown_body_view`, in the conversation panel only) renders from

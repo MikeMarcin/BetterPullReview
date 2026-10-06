@@ -103,7 +103,8 @@ namespace bpr::qt {
 		/// recognized Conventional Comments prefix. `Body` then starts at the
 		/// subject: the mark stands in for the prefix (owner, v1 and v4).
 		std::optional<core::feedback_label> Label;
-		bool                                Blocking = false;
+		/// The label's standard decoration, as its mark and rail show it.
+		feedback_mark_emphasis Emphasis = feedback_mark_emphasis::undecorated;
 		/// "tbutler, issue (blocking)": the author, then the mark's name.
 		QString Name;
 		/// Where the post was drawn, in content coordinates.
@@ -267,8 +268,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto label_marks() const noexcept -> const feedback_mark_theme&;
 		/// \brief Where one post's 16 px mark is drawn, in content coordinates:
 		/// centred under its 18 px avatar, 3 px below it. Empty for a plain post
-		/// and in compact entries.
+		/// and in compact entries, which draw their root's mark instead.
 		[[nodiscard]] auto mark_rect(const card_post& aPost) const -> QRect;
+		/// \brief Where a compact entry draws its root's 16 px mark, in content
+		/// coordinates: leading the entry's first line, whose text starts after
+		/// it (owner, `thread-marks-v002`: "Marks don't show on inline
+		/// comments"). Empty for a plain root and outside compact entries.
+		[[nodiscard]] auto compact_mark_rect(const thread_card& aCard) const -> QRect;
 		/// \brief Where one post's rail is drawn, in content coordinates: down its
 		/// left edge, 3 px left of the avatar, 2 px wide or 4 px when blocking,
 		/// growing outward. A compact entry's rail runs down the card's own
@@ -314,7 +320,7 @@ namespace bpr::qt {
 			int                                        Height = 0;
 			std::vector<std::pair<card_action, QRect>> Actions;
 		};
-		using compact_measurements = std::map<std::tuple<QString, bool, bool, bool, bool, bool>, compact_measurement>;
+		using compact_measurements = std::map<std::tuple<QString, bool, bool, bool, bool, bool, bool>, compact_measurement>;
 		void               measure_cached(thread_card& aCard, int aWidth, compact_measurements* aCompact = nullptr);
 		void               clear_measurements();
 		void               forget_measurements_if(const std::function<bool(const std::string&)>& aForget);

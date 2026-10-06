@@ -90,23 +90,62 @@ colon's edit was still with the draft owner; the editor now holds it until
 the answer. Reviews & queue shows six marks beside Label marks. Details and
 checks are in the [execution ledger](../../verification/RFC-BPR-0047-0051.md).
 
-## Pending owner decisions
+## Owner verdicts, session `c2a2442c` (v002), 2026-10-05
 
-One attended session asks, one Accept or Reject each, on a frozen build of
-the product tree at `163cad3b1` (`/Users/jaeger/bpr1083-authoring-review-v002.nvkpPZ`, archived from `5aeabec7a`,
-executable SHA-256 `7110dd47…8c1c20a5`). `python3 /Users/jaeger/bpr1083-authoring-review-v002.nvkpPZ/launch.py` opens
-`src/engine/renderer.cpp` in Read signed in as the fixture's account;
-`--no-file` opens the pull request with no file chosen. Session
-`c2a2442c5ce16c3fbb77598fc87360bb`, state `/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v002`, cursor 20:
+Handed back at sequence 27 (cursor 20 to 27 read). Verbatim, line breaks
+shown as " / ":
 
-1. `BPR-1083-chip-menu-v002`: the chip, its menu and the toggles label a
-   comment, and Publish posts it.
-2. `BPR-1083-shortcodes-v002`: the leading shortcodes and completion.
-3. `BPR-1083-thread-marks-v002`: thread marks and rails.
-4. `BPR-1083-mark-preview-v002`: the preview beside Label marks.
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1083-chip-menu-v002` | Accept (`0df6d634`) | "Functionality works as expected. / I hate this full screen comment page being the default. I want to be able to still see the code I'm commenting on. Maybe it has an expand button to get something similar to this. / I notice we have style for blocking but noting for non-blocking or if-minor" |
+| `BPR-1083-mark-preview-v002` | Accept (`d53987f5`) | "There should be individual tooltips instead of one giant tooltip." |
+| `BPR-1083-shortcodes-v002` | Accept (`2963585b`, superseding an earlier Accept with no note, `8ad550bc`) | "I feel like since it's only the first character that does this replacement just typing : should be enough to open suggestions." |
+| `BPR-1083-thread-marks-v002` | **Reject** (`d077b020`) | "Marks don't show on inline comments. / I also think I've identified why comments drawer feels so clunky, that one tab is trying to serve 2 masters. I think we need to split the inline comments and the comment tree into separate ttabs in the drawer." |
+| `BPR-1287-read-empty-v001` | Accept (`bb63ddaf`) | (none); [[BPR-1287]] is Done |
 
-The same session asks `BPR-1287-read-empty-v001` for [[BPR-1287]].
+The two screenshots are
+[`BPR-1083-owner-ref-full-page-composer.png`](../../design/owner-refs/BPR-1083-owner-ref-full-page-composer.png)
+(chip-menu: the comment page filling the comparison area) and
+[`BPR-1083-owner-ref-drawer-thread-cards.png`](../../design/owner-refs/BPR-1083-owner-ref-drawer-thread-cards.png)
+(thread-marks: the drawer's "Inline thread · @tbutler" entries with a rail
+and no mark), downscaled to 1392 px with metadata dropped.
 
-Limitations: macOS only (Linux and Windows station runs owed); R33's native
-matrix is not run; the Overview chips and Label key (BPR-1087, BPR-1089) must
-draw through `feedback_mark_theme`; the helper's Settings row is BPR-1088.
+Where each part goes:
+
+- **The composer inline beside the code, with an expand button** is
+  [[BPR-1212]]'s "new inline comment" flow; it is recorded there as owner
+  amendment AC5, not as a new card.
+- **Splitting the drawer** into an inline comments tab and a comment tree tab
+  belongs to [[BPR-1290]], whose implementer records it on that card. This
+  card does not split the drawer.
+- **Marks on the drawer's entries, the decorations, the lone colon and the
+  preview's tooltips** are built here, as round v003.
+
+## Round v003, 2026-10-05
+
+Designed with the `frontend-design` skill (coordinator, relaying the owner).
+The [delivery contract](../../ux/conventional-comments-feedback.md) records
+each rule.
+
+- **Marks on inline comments** (`thread-marks-v002` Reject). The drawer's
+  entries are compact cards, which drew their root's rail but no mark. Each
+  now leads its first line with the root post's 16 px mark, right of the
+  rail, with the text after it; inline threads and my draft's entry alike.
+  The mark's tooltip is the root post's name ("tbutler, issue (blocking)").
+- **Non-blocking and if-minor** (`chip-menu-v002` note). The decorations form
+  a scale of weight, and the rails borrow road markings: a solid line is not
+  crossed, a broken one may be. Blocking: filled mark, 4 px solid rail.
+  Undecorated: soft mark, 2 px solid rail. If-minor: the soft mark with its
+  top-left corner squared off and filled in the tint, 2 px dotted rail.
+  Non-blocking: an open mark (the panel inside a dashed border), 2 px dashed
+  rail. All four differ by shape as well as colour. The corner clears every
+  glyph and both letters. They apply on every surface: thread cards and
+  drawer entries, the post list, the reader, the chip and the preview.
+- **A colon alone** (`shortcodes-v002` note) opens completion with all twelve
+  labels in catalog order at the start of a comment; letters narrow it. Esc,
+  a colon anywhere else, and pasted text behave as before.
+- **One tooltip per preview mark** (`mark-preview-v002` note). Each of the six
+  marks shows its own name and catalog description, and the gaps show none.
+  The preview now also shows suggestion (if-minor) and nitpick
+  (non-blocking).
+

@@ -48,10 +48,24 @@ namespace bpr::qt {
 		constexpr int mark_gap         = 3;
 		constexpr int marked_post_size = avatar_size + mark_gap + 16;
 		constexpr int rail_gap         = 3;
+		/// A compact entry's root mark and the gap before its text.
+		constexpr int compact_mark_lead = 16 + 6;
 
 		[[nodiscard]] auto mark_code(const card_post& aPost) -> int
 		{
-			return aPost.Label.has_value() ? static_cast<int>(*aPost.Label) * 2 + (aPost.Blocking ? 1 : 0) : -1;
+			return aPost.Label.has_value() ? (static_cast<int>(*aPost.Label) * 4) + static_cast<int>(aPost.Emphasis) : -1;
+		}
+
+		/// \brief Whether a compact entry leads with its root's mark.
+		[[nodiscard]] auto compact_marked(const thread_card& aCard) -> bool
+		{
+			return !aCard.Posts.empty() && aCard.Posts.front().Label.has_value();
+		}
+
+		/// \brief Where a compact entry's text starts after its padding.
+		[[nodiscard]] auto compact_lead(const thread_card& aCard) -> int
+		{
+			return compact_marked(aCard) ? compact_mark_lead : 0;
 		}
 
 		[[nodiscard]] auto has_code_anchor(const thread_card& aCard) -> bool
@@ -738,7 +752,8 @@ namespace bpr::qt {
 		const auto bodyWidth = std::max(40, aWidth - 2 * card_padding - avatar_column);
 		auto       y         = card_padding;
 		if (Compact) {
-			y += metrics.boundingRect(QRect{ 0, 0, std::max(1, aWidth - 2 * card_padding), 100'000 }, Qt::TextWordWrap | Qt::TextWrapAnywhere, compact_label(aCard)).height() + post_gap;
+			const auto text = metrics.boundingRect(QRect{ 0, 0, std::max(1, aWidth - 2 * card_padding - compact_lead(aCard)), 100'000 }, Qt::TextWordWrap | Qt::TextWrapAnywhere, compact_label(aCard)).height();
+			y += std::max(text, compact_marked(aCard) ? 16 : 0) + post_gap;
 		}
 		if (!Compact && (aCard.Resolved || aCard.Outdated || aCard.Draft)) {
 			y += header_height;
@@ -870,7 +885,7 @@ namespace bpr::qt {
 		// flags explicitly: provider-authored text can mimic a label's suffix.
 		if (Compact && aCompact) {
 			const auto [found, inserted] = aCompact->try_emplace({ label, has_code_anchor(aCard), aCard.Draft,
-																   aCard.Resolved, aCard.UnreadCount > 0U, aCard.Kind == QStringLiteral("Inline thread") });
+																   aCard.Resolved, aCard.UnreadCount > 0U, aCard.Kind == QStringLiteral("Inline thread"), compact_marked(aCard) });
 			if (inserted) {
 				measure(aCard, aWidth);
 				found->second = { aCard.Rect.height(), aCard.Actions };
@@ -1013,7 +1028,7 @@ namespace bpr::qt {
 					: QStringLiteral("reviewer"),
 				.ReplyingTo = replyingTo,
 				.Label      = mark.Label,
-				.Blocking   = mark.Blocking,
+				.Emphasis   = mark.Emphasis,
 				.Name       = feedback_post_name(author, mark),
 			});
 		}
@@ -1046,7 +1061,7 @@ namespace bpr::qt {
 				.Body     = text(Draft->Body).mid(mark.SubjectOffset),
 				.Mine     = true,
 				.Label    = mark.Label,
-				.Blocking = mark.Blocking,
+				.Emphasis = mark.Emphasis,
 				.Name     = feedback_post_name(QStringLiteral("Your note, not published"), mark),
 			});
 			Cards.push_back(std::move(card));
@@ -1216,16 +1231,20 @@ namespace bpr::qt {
 			// root, inside the card's own padding: it adds no width.
 			if (!card.Posts.empty()) {
 				const auto& root = card.Posts.front();
-				painter.save();
-				painter.setPen(Qt::NoPen);
-				painter.setBrush(root.Label.has_value() ? MarkTheme.Tints[static_cast<std::size_t>(*root.Label)] : rule);
-				painter.drawRoundedRect(rail_rect(card, root), 1.0, 1.0);
-				painter.restore();
+				const auto  rail = rail_rect(card, root);
+				paint_feedback_rail(painter, rail.right(), rail.top(), rail.bottom(), root.Label.has_value() ? MarkTheme.Tints[static_cast<std::size_t>(*root.Label)] : rule, root.Emphasis);
 			}
 			if (Compact) {
+				// The root's mark leads the entry, inline thread and draft
+				// alike, and the text starts after it.
+				if (const auto mark = compact_mark_rect(card); !mark.isEmpty()) {
+					const auto& root = card.Posts.front();
+					paint_feedback_mark(painter, QRectF{ mark }, *root.Label, root.Emphasis,
+										feedback_mark_colours{ .Tint = MarkTheme.Tints[static_cast<std::size_t>(*root.Label)], .Panel = surface, .Ink = ink, .Style = MarkTheme.Style });
+				}
 				painter.setFont(font());
 				painter.setPen(ink);
-				painter.drawText(card.Rect.adjusted(card_padding, card_padding, -card_padding, -card_padding),
+				painter.drawText(card.Rect.adjusted(card_padding + compact_lead(card), card_padding, -card_padding, -card_padding),
 								 Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap | Qt::TextWrapAnywhere, compact_label(card));
 				painter.setFont(small);
 				painter.setPen(Accent);
@@ -1278,9 +1297,8 @@ namespace bpr::qt {
 				// the root's is the card's, drawn above. A reply's mark may
 				// differ from its root's.
 				if (&post != &card.Posts.front()) {
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(post.Label.has_value() ? MarkTheme.Tints[static_cast<std::size_t>(*post.Label)] : rule);
-					painter.drawRoundedRect(rail_rect(card, post), 1.0, 1.0);
+					const auto rail = rail_rect(card, post);
+					paint_feedback_rail(painter, rail.right(), rail.top(), rail.bottom(), post.Label.has_value() ? MarkTheme.Tints[static_cast<std::size_t>(*post.Label)] : rule, post.Emphasis);
 				}
 				painter.setPen(Qt::NoPen);
 				painter.setBrush(post.Mine ? Accent : rule);
@@ -1289,7 +1307,7 @@ namespace bpr::qt {
 				painter.setPen(post.Mine ? surface : ink);
 				painter.drawText(avatar, Qt::AlignCenter, post.Author.left(1).toUpper());
 				if (post.Label.has_value()) {
-					paint_feedback_mark(painter, QRectF{ mark_rect(post) }, *post.Label, post.Blocking,
+					paint_feedback_mark(painter, QRectF{ mark_rect(post) }, *post.Label, post.Emphasis,
 										feedback_mark_colours{ .Tint = MarkTheme.Tints[static_cast<std::size_t>(*post.Label)], .Panel = surface, .Ink = ink, .Style = MarkTheme.Style });
 				}
 				const auto textLeft  = post.Rect.left() + avatar_column;
@@ -1367,9 +1385,19 @@ namespace bpr::qt {
 		return QRect{ aPost.Rect.left() + (avatar_size - 16) / 2, aPost.Rect.top() + avatar_size + mark_gap, 16, 16 };
 	}
 
+	auto conversation_cards_view::compact_mark_rect(const thread_card& aCard) const -> QRect
+	{
+		if (!Compact || !compact_marked(aCard) || aCard.Rect.isEmpty()) {
+			return { };
+		}
+		// Centred on the first line of the entry's text.
+		const auto line = QFontMetrics{ font() }.height();
+		return QRect{ aCard.Rect.left() + card_padding, aCard.Rect.top() + card_padding + std::max(0, (line - 16) / 2), 16, 16 };
+	}
+
 	auto conversation_cards_view::rail_rect(const thread_card& aCard, const card_post& aPost) const -> QRectF
 	{
-		const auto width = aPost.Blocking ? 4.0 : 2.0;
+		const auto width = feedback_rail_width(aPost.Emphasis);
 		if (Compact || aPost.Rect.isEmpty()) {
 			const auto right = static_cast<qreal>(aCard.Rect.left() + card_padding - rail_gap);
 			return QRectF{ right - width, static_cast<qreal>(aCard.Rect.top()) + card_padding / 2.0, width, static_cast<qreal>(std::max(0, aCard.Rect.height() - card_padding)) };
@@ -1388,6 +1416,10 @@ namespace bpr::qt {
 			for (const auto& card : Cards) {
 				if (!card.Rect.contains(point) || card.Posts.empty()) {
 					continue;
+				}
+				if (compact_mark_rect(card).contains(point)) {
+					QToolTip::showText(help->globalPos(), card.Posts.front().Name, viewport());
+					return true;
 				}
 				for (const auto& post : card.Posts) {
 					if (mark_rect(post).contains(point) || rail_rect(card, post).adjusted(-3.0, 0.0, 3.0, 0.0).contains(QPointF{ point })) {

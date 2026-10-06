@@ -6,11 +6,14 @@
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QFrame>
+#include <QPointF>
+#include <QRectF>
 #include <QSize>
 #include <QString>
 #include <QWidget>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -181,20 +184,38 @@ namespace bpr::qt {
 	/// Letters before meeting them in a thread (owner, mark-style-v001: "it'd
 	/// be nice to see a preview").
 	/// \details Presentation only: it paints what `set_theme` hands it and
-	/// dispatches nothing. One mark is blocking, so the full fill shows too.
+	/// dispatches nothing. One mark is blocking, one non-blocking and one
+	/// if-minor, so each decoration's look shows too. Each mark has its own
+	/// tooltip, its name and catalog description (owner, `mark-preview-v002`:
+	/// "There should be individual tooltips instead of one giant tooltip.").
 	class feedback_mark_preview final : public QWidget
 	{
 	public:
+		/// \brief One mark of the preview.
+		struct entry
+		{
+			core::feedback_label   Label;
+			feedback_mark_emphasis Emphasis = feedback_mark_emphasis::undecorated;
+		};
+
 		explicit feedback_mark_preview(QWidget* aParent = nullptr);
 
 		void               set_theme(const feedback_mark_theme& aTheme);
 		[[nodiscard]] auto theme() const noexcept -> const feedback_mark_theme&;
-		/// \brief The labels drawn, in order, and which of them is blocking.
-		[[nodiscard]] static auto labels() noexcept -> std::span<const core::feedback_label>;
-		[[nodiscard]] static auto blocking_label() noexcept -> core::feedback_label;
+		/// \brief The marks drawn, in order.
+		[[nodiscard]] static auto entries() noexcept -> std::span<const entry>;
+		/// \brief Where one entry's mark is drawn, in the widget.
+		[[nodiscard]] auto entry_rect(std::size_t aIndex) const -> QRectF;
+		/// \brief The entry whose mark is under a point, if any; the gaps
+		/// between marks belong to none.
+		[[nodiscard]] auto entry_at(QPointF aPoint) const -> std::optional<std::size_t>;
+		/// \brief One entry's tooltip: its name, as in "issue (blocking)", and
+		/// its catalog description.
+		[[nodiscard]] static auto entry_tooltip(const entry& aEntry) -> QString;
 		[[nodiscard]] auto        sizeHint() const -> QSize override;
 
 	protected:
+		auto event(QEvent* aEvent) -> bool override;
 		void paintEvent(QPaintEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
 

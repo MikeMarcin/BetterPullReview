@@ -24398,10 +24398,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			// renderer.cpp's two threads: issue (blocking), question, praise and
 			// a plain reply; suggestion (non-blocking) and todo.
-			const auto marked = rootLabel(first) == core::feedback_label::issue && first->Posts.front().Blocking
+			const auto marked = rootLabel(first) == core::feedback_label::issue && (first->Posts.front().Emphasis == qt::feedback_mark_emphasis::blocking)
 				&& first->Posts.size() == 4U && first->Posts[1].Label == core::feedback_label::question
 				&& first->Posts[2].Label == core::feedback_label::praise && !first->Posts[3].Label.has_value()
-				&& rootLabel(second) == core::feedback_label::suggestion && !second->Posts.front().Blocking;
+				&& rootLabel(second) == core::feedback_label::suggestion && second->Posts.front().Emphasis == qt::feedback_mark_emphasis::non_blocking
+				// The drawer's entries lead with their root's mark (owner,
+				// thread-marks-v002: "Marks don't show on inline comments").
+				&& !cards->compact_mark_rect(*first).isEmpty() && !cards->compact_mark_rect(*second).isEmpty();
 			if (!marked) {
 				return fail("thread-marks-not-drawn");
 			}
@@ -24523,8 +24526,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (card == nullptr) {
 				return result::pending;
 			}
-			probe.Evidence.PublishedMarked = rootLabel(card) == core::feedback_label::issue && !card->Posts.front().Blocking
-				&& card->Posts.front().Name.endsWith(QStringLiteral(", issue"));
+			probe.Evidence.PublishedMarked = rootLabel(card) == core::feedback_label::issue && card->Posts.front().Emphasis == qt::feedback_mark_emphasis::undecorated
+				&& card->Posts.front().Name.endsWith(QStringLiteral(", issue")) && !cards->compact_mark_rect(*card).isEmpty();
 			render("published-marked");
 			if (!probe.Evidence.PublishedMarked) {
 				return fail("published-thread-unmarked name=" + card->Posts.front().Name.toStdString());

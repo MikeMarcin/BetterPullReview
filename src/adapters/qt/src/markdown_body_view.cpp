@@ -488,7 +488,7 @@ namespace bpr::qt {
 	{
 		if (BodyMark.Label.has_value() && MarkTheme.has_value()) {
 			const auto colours = feedback_mark_colours_for(*MarkTheme, *BodyMark.Label, palette());
-			Mark->setPixmap(feedback_mark_pixmap(*BodyMark.Label, BodyMark.Blocking, colours, devicePixelRatioF()));
+			Mark->setPixmap(feedback_mark_pixmap(*BodyMark.Label, BodyMark.Emphasis, colours, devicePixelRatioF()));
 			Mark->setAccessibleName(BodyMark.Name);
 			Mark->setToolTip(BodyMark.Name);
 		}

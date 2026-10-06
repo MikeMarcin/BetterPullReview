@@ -7,6 +7,7 @@
 #include <QEvent>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QHelpEvent>
 #include <QIcon>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -25,11 +26,13 @@
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QToolButton>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -316,7 +319,7 @@ namespace bpr::qt {
 		const auto ratio = devicePixelRatioF();
 		if (State.Label.has_value()) {
 			const auto colours = feedback_mark_colours_for(Theme, *State.Label, palette());
-			Chip->setIcon(QIcon{ feedback_mark_pixmap(*State.Label, State.Expectation == core::feedback_expectation::blocking, colours, ratio) });
+			Chip->setIcon(QIcon{ feedback_mark_pixmap(*State.Label, feedback_mark_emphasis_of(State.Expectation), colours, ratio) });
 		} else {
 			Chip->setIcon(QIcon{ feedback_plain_mark_pixmap(palette(), ratio) });
 		}
@@ -425,7 +428,8 @@ namespace bpr::qt {
 			}
 			return;
 		}
-		if (!closing && letters >= 1 && caret == 1 + letters && !Dismissed) {
+		// A colon alone opens completion with every label; letters narrow it.
+		if (!closing && caret == 1 + letters && !Dismissed) {
 			show_completion(feedback_shortcode_matches(fragment));
 			return;
 		}
@@ -491,7 +495,7 @@ namespace bpr::qt {
 			const auto code    = feedback_shortcode(label);
 			auto*      item    = new QListWidgetItem{ Completion };
 			const auto colours = feedback_mark_colours_for(Theme, label, Completion->palette());
-			item->setIcon(QIcon{ feedback_mark_pixmap(label, false, colours, devicePixelRatioF()) });
+			item->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis::undecorated, colours, devicePixelRatioF()) });
 			item->setText(QStringLiteral(":%1:  %2").arg(QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size())), feedback_label_text(label)));
 			item->setToolTip(feedback_label_description(label));
 			item->setData(Qt::AccessibleTextRole, feedback_label_text(label));
@@ -674,7 +678,7 @@ namespace bpr::qt {
 		for (std::size_t index = 0U; index < Labels.size(); ++index) {
 			const auto label = label_at(index);
 			Labels[index]->setChecked(aState.Label == label);
-			Labels[index]->setIcon(QIcon{ feedback_mark_pixmap(label, false, feedback_mark_colours_for(aTheme, label, palette()), ratio) });
+			Labels[index]->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis::undecorated, feedback_mark_colours_for(aTheme, label, palette()), ratio) });
 		}
 		const auto written = std::array{ aState.Blocking, aState.NonBlocking, aState.IfMinor };
 		for (std::size_t index = 0U; index < Decorations.size(); ++index) {
@@ -787,17 +791,33 @@ namespace bpr::qt {
 	}
 
 	namespace {
-		/// Five soft marks and one blocking: enough to show the shapes or the
-		/// letters, the tints and the fill without becoming a second key.
-		constexpr auto preview_labels = std::array{
-			core::feedback_label::praise,
-			core::feedback_label::suggestion,
-			core::feedback_label::issue,
-			core::feedback_label::question,
-			core::feedback_label::nitpick,
-			core::feedback_label::todo,
+		/// Three undecorated marks and one of each decoration: enough to show
+		/// the shapes or the letters, the tints, the blocking fill and the two
+		/// quieter decorations without becoming a second key.
+		constexpr auto preview_entries = std::array{
+			feedback_mark_preview::entry{ .Label = core::feedback_label::praise },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::suggestion, .Emphasis = feedback_mark_emphasis::if_minor },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::issue, .Emphasis = feedback_mark_emphasis::blocking },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::question },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::nitpick, .Emphasis = feedback_mark_emphasis::non_blocking },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::todo },
 		};
 		constexpr auto preview_gap = 6;
+
+		[[nodiscard]] auto emphasis_words(const feedback_mark_emphasis aEmphasis) -> QString
+		{
+			switch (aEmphasis) {
+			case feedback_mark_emphasis::blocking:
+				return QStringLiteral(" (blocking)");
+			case feedback_mark_emphasis::non_blocking:
+				return QStringLiteral(" (non-blocking)");
+			case feedback_mark_emphasis::if_minor:
+				return QStringLiteral(" (if-minor)");
+			case feedback_mark_emphasis::undecorated:
+				return { };
+			}
+			return { };
+		}
 	} // namespace
 
 	feedback_mark_preview::feedback_mark_preview(QWidget* const aParent)
@@ -822,21 +842,54 @@ namespace bpr::qt {
 		return Theme;
 	}
 
-	auto feedback_mark_preview::labels() noexcept -> std::span<const core::feedback_label>
+	auto feedback_mark_preview::entries() noexcept -> std::span<const entry>
 	{
-		return preview_labels;
+		return preview_entries;
 	}
 
-	auto feedback_mark_preview::blocking_label() noexcept -> core::feedback_label
+	auto feedback_mark_preview::entry_rect(const std::size_t aIndex) const -> QRectF
 	{
-		return core::feedback_label::issue;
+		const auto mark = feedback_mark_size;
+		const auto left = 1.0 + (static_cast<qreal>(aIndex) * (mark + preview_gap));
+		return QRectF{ left, (static_cast<qreal>(height()) - mark) / 2.0, mark, mark };
+	}
+
+	auto feedback_mark_preview::entry_at(const QPointF aPoint) const -> std::optional<std::size_t>
+	{
+		for (std::size_t index = 0U; index < preview_entries.size(); ++index) {
+			if (entry_rect(index).contains(aPoint)) {
+				return index;
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto feedback_mark_preview::entry_tooltip(const entry& aEntry) -> QString
+	{
+		return feedback_label_text(aEntry.Label) + emphasis_words(aEntry.Emphasis) + QLatin1Char{ '\n' } + feedback_label_description(aEntry.Label);
 	}
 
 	auto feedback_mark_preview::sizeHint() const -> QSize
 	{
 		const auto mark  = static_cast<int>(feedback_mark_size);
-		const auto count = static_cast<int>(preview_labels.size());
+		const auto count = static_cast<int>(preview_entries.size());
 		return QSize{ (count * mark) + ((count - 1) * preview_gap) + 2, mark + 2 };
+	}
+
+	auto feedback_mark_preview::event(QEvent* const aEvent) -> bool
+	{
+		if (aEvent->type() == QEvent::ToolTip) {
+			// One tooltip per mark; the gaps between marks show none.
+			const auto* const help = static_cast<QHelpEvent*>(aEvent);
+			if (const auto index = entry_at(QPointF{ help->pos() }); index.has_value()) {
+				QToolTip::showText(help->globalPos(), entry_tooltip(preview_entries[*index]), this, entry_rect(*index).toAlignedRect());
+				return true;
+			}
+			QToolTip::hideText();
+			aEvent->ignore();
+			return true;
+		}
+		return QWidget::event(aEvent);
 	}
 
 	void feedback_mark_preview::paintEvent(QPaintEvent* const aEvent)
@@ -844,12 +897,9 @@ namespace bpr::qt {
 		static_cast<void>(aEvent);
 		auto painter = QPainter{ this };
 		painter.setRenderHint(QPainter::Antialiasing);
-		const auto mark = feedback_mark_size;
-		auto       left = 1.0;
-		const auto top  = (static_cast<qreal>(height()) - mark) / 2.0;
-		for (const auto label : preview_labels) {
-			paint_feedback_mark(painter, QRectF{ left, top, mark, mark }, label, label == blocking_label(), feedback_mark_colours_for(Theme, label, palette()));
-			left += mark + preview_gap;
+		for (std::size_t index = 0U; index < preview_entries.size(); ++index) {
+			const auto& shown = preview_entries[index];
+			paint_feedback_mark(painter, entry_rect(index), shown.Label, shown.Emphasis, feedback_mark_colours_for(Theme, shown.Label, palette()));
 		}
 	}
 
@@ -866,11 +916,11 @@ namespace bpr::qt {
 		const auto style = Theme.Style == feedback_mark_style::letters ? QStringLiteral("letters") : QStringLiteral("icons");
 		setAccessibleName(QStringLiteral("Label marks preview, %1").arg(style));
 		auto names = QStringList{ };
-		for (const auto label : preview_labels) {
-			names.push_back(label == blocking_label() ? feedback_label_text(label) + QStringLiteral(" (blocking)") : feedback_label_text(label));
+		for (const auto& shown : preview_entries) {
+			names.push_back(feedback_label_text(shown.Label) + emphasis_words(shown.Emphasis));
 		}
-		const auto description = QStringLiteral("Marks as threads show them, in %1: %2").arg(style, names.join(QStringLiteral(", ")));
-		setAccessibleDescription(description);
-		setToolTip(description);
+		// The whole list is the accessible description only; the pointer gets
+		// one tooltip per mark.
+		setAccessibleDescription(QStringLiteral("Marks as threads show them, in %1: %2").arg(style, names.join(QStringLiteral(", "))));
 	}
 } // namespace bpr::qt

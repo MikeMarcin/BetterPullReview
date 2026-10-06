@@ -471,6 +471,10 @@ namespace bpr::qt {
 	{
 		auto matches = std::vector<core::feedback_label>{ };
 		if (aFragment.empty()) {
+			// A colon alone offers every label (owner, shortcodes-v002).
+			for (std::size_t index = 0U; index < shortcodes.size(); ++index) {
+				matches.push_back(label_at(index));
+			}
 			return matches;
 		}
 		for (std::size_t index = 0U; index < shortcodes.size(); ++index) {
@@ -570,19 +574,66 @@ namespace bpr::qt {
 		aPainter.restore();
 	}
 
-	void paint_feedback_mark(QPainter& aPainter, const QRectF& aMark, const core::feedback_label aLabel, const bool aBlocking, const feedback_mark_colours& aColours)
+	auto feedback_mark_emphasis_of(const core::feedback_expectation aExpectation) noexcept -> feedback_mark_emphasis
+	{
+		switch (aExpectation) {
+		case core::feedback_expectation::blocking:
+			return feedback_mark_emphasis::blocking;
+		case core::feedback_expectation::non_blocking:
+			return feedback_mark_emphasis::non_blocking;
+		case core::feedback_expectation::if_minor:
+			return feedback_mark_emphasis::if_minor;
+		case core::feedback_expectation::unspecified:
+		case core::feedback_expectation::conflicting:
+			return feedback_mark_emphasis::undecorated;
+		}
+		return feedback_mark_emphasis::undecorated;
+	}
+
+	auto feedback_rail_width(const feedback_mark_emphasis aEmphasis) noexcept -> qreal
+	{
+		return aEmphasis == feedback_mark_emphasis::blocking ? 4.0 : 2.0;
+	}
+
+	void paint_feedback_mark(QPainter& aPainter, const QRectF& aMark, const core::feedback_label aLabel, const feedback_mark_emphasis aEmphasis, const feedback_mark_colours& aColours)
 	{
 		aPainter.save();
 		aPainter.setRenderHint(QPainter::Antialiasing, true);
-		const auto inset = feedback_mark_border / 2.0;
-		const auto frame = aMark.adjusted(inset, inset, -inset, -inset);
-		aPainter.setPen(QPen{ aColours.Tint, feedback_mark_border });
-		aPainter.setBrush(aBlocking ? aColours.Tint : feedback_mark_soft_fill(aColours.Tint, aColours.Panel));
-		aPainter.drawRoundedRect(frame, feedback_mark_corner - inset, feedback_mark_corner - inset);
-		const auto scale = aMark.width() / feedback_mark_size;
-		const auto side  = feedback_mark_glyph_size * scale;
-		const auto box   = QRectF{ aMark.center().x() - side / 2.0, aMark.center().y() - side / 2.0, side, side };
-		const auto ink   = aBlocking ? feedback_mark_blocking_ink(aColours.Tint) : aColours.Ink;
+		const auto scale    = aMark.width() / feedback_mark_size;
+		const auto inset    = feedback_mark_border * scale / 2.0;
+		const auto frame    = aMark.adjusted(inset, inset, -inset, -inset);
+		const auto corner   = (feedback_mark_corner * scale) - inset;
+		const auto blocking = aEmphasis == feedback_mark_emphasis::blocking;
+		auto       border   = QPen{ aColours.Tint, feedback_mark_border * scale };
+		auto       fill     = blocking ? aColours.Tint : feedback_mark_soft_fill(aColours.Tint, aColours.Panel);
+		if (aEmphasis == feedback_mark_emphasis::non_blocking) {
+			// Open: the panel shows through, and the border is broken into
+			// dashes, so the mark reads as lighter than an undecorated one.
+			fill = aColours.Panel;
+			border.setCapStyle(Qt::FlatCap);
+			border.setDashPattern({ feedback_mark_dash / feedback_mark_border, feedback_mark_dash_gap / feedback_mark_border });
+		}
+		aPainter.setPen(Qt::NoPen);
+		aPainter.setBrush(fill);
+		aPainter.drawRoundedRect(frame, corner, corner);
+		aPainter.setPen(border);
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.drawRoundedRect(frame, corner, corner);
+		if (aEmphasis == feedback_mark_emphasis::if_minor) {
+			// The top-left corner squared off and filled in the tint, over the
+			// rounded border: the silhouette changes, so it reads in greyscale
+			// and at 16 px. It covers x + y <= tab from the corner.
+			auto       tab  = QPainterPath{ };
+			const auto side = feedback_mark_corner_tab * scale;
+			tab.moveTo(aMark.topLeft());
+			tab.lineTo(aMark.left() + side, aMark.top());
+			tab.lineTo(aMark.left(), aMark.top() + side);
+			tab.closeSubpath();
+			aPainter.fillPath(tab, aColours.Tint);
+		}
+		const auto side = feedback_mark_glyph_size * scale;
+		const auto box  = QRectF{ aMark.center().x() - side / 2.0, aMark.center().y() - side / 2.0, side, side };
+		const auto ink  = blocking ? feedback_mark_blocking_ink(aColours.Tint) : aColours.Ink;
 		if (aColours.Style == feedback_mark_style::letters) {
 			paint_feedback_letters(aPainter, box, aLabel, ink);
 		} else {
@@ -591,7 +642,7 @@ namespace bpr::qt {
 		aPainter.restore();
 	}
 
-	auto feedback_mark_pixmap(const core::feedback_label aLabel, const bool aBlocking, const feedback_mark_colours& aColours, const qreal aDevicePixelRatio) -> QPixmap
+	auto feedback_mark_pixmap(const core::feedback_label aLabel, const feedback_mark_emphasis aEmphasis, const feedback_mark_colours& aColours, const qreal aDevicePixelRatio) -> QPixmap
 	{
 		const auto ratio  = std::max<qreal>(1.0, aDevicePixelRatio);
 		const auto pixels = static_cast<int>(std::ceil(feedback_mark_size * ratio));
@@ -600,7 +651,7 @@ namespace bpr::qt {
 		image.setDevicePixelRatio(ratio);
 		{
 			auto painter = QPainter{ &image };
-			paint_feedback_mark(painter, QRectF{ 0.0, 0.0, feedback_mark_size, feedback_mark_size }, aLabel, aBlocking, aColours);
+			paint_feedback_mark(painter, QRectF{ 0.0, 0.0, feedback_mark_size, feedback_mark_size }, aLabel, aEmphasis, aColours);
 		}
 		return QPixmap::fromImage(std::move(image));
 	}
@@ -623,13 +674,27 @@ namespace bpr::qt {
 		return QPixmap::fromImage(std::move(image));
 	}
 
-	void paint_feedback_rail(QPainter& aPainter, const qreal aRight, const qreal aTop, const qreal aBottom, const QColor& aColour, const bool aBlocking)
+	void paint_feedback_rail(QPainter& aPainter, const qreal aRight, const qreal aTop, const qreal aBottom, const QColor& aColour, const feedback_mark_emphasis aEmphasis)
 	{
-		const auto width = aBlocking ? 4.0 : 2.0;
+		const auto width  = feedback_rail_width(aEmphasis);
+		const auto length = std::max(0.0, aBottom - aTop);
 		aPainter.save();
 		aPainter.setPen(Qt::NoPen);
 		aPainter.setBrush(aColour);
-		aPainter.drawRoundedRect(QRectF{ aRight - width, aTop, width, std::max(0.0, aBottom - aTop) }, width / 2.0, width / 2.0);
+		if (aEmphasis != feedback_mark_emphasis::non_blocking && aEmphasis != feedback_mark_emphasis::if_minor) {
+			aPainter.drawRoundedRect(QRectF{ aRight - width, aTop, width, length }, width / 2.0, width / 2.0);
+			aPainter.restore();
+			return;
+		}
+		// Broken rails: runs from the top, the last one cut at the bottom so
+		// the rail never reaches past its post.
+		const auto dotted = aEmphasis == feedback_mark_emphasis::if_minor;
+		const auto run    = dotted ? feedback_rail_dot : feedback_rail_dash;
+		const auto gap    = dotted ? feedback_rail_dot_gap : feedback_rail_dash_gap;
+		for (auto y = aTop; y < aBottom; y += run + gap) {
+			const auto piece = std::min(run, aBottom - y);
+			aPainter.drawRoundedRect(QRectF{ aRight - width, y, width, piece }, width / 2.0, std::min(width, piece) / 2.0);
+		}
 		aPainter.restore();
 	}
 
@@ -661,7 +726,7 @@ namespace bpr::qt {
 		}
 		return feedback_body_mark{
 			.Label         = annotation.Label,
-			.Blocking      = annotation.Expectation == core::feedback_expectation::blocking,
+			.Emphasis      = feedback_mark_emphasis_of(annotation.Expectation),
 			.Name          = feedback_mark_name(annotation),
 			.SubjectOffset = feedback_text_index(aBody, annotation.Subject->Begin),
 			.SubjectByte   = annotation.Subject->Begin,

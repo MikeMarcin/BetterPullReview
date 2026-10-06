@@ -28,6 +28,8 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -231,7 +233,8 @@ namespace {
 		expect(qt::feedback_shortcode_matches("is") == std::vector{ L::issue }, ":is offers issue");
 		expect(qt::feedback_shortcode_matches("su") == std::vector{ L::suggestion }, ":su offers suggestion");
 		expect(qt::feedback_shortcode_matches("nit") == std::vector{ L::nitpick }, "a name prefix that is not a code is offered after the codes");
-		expect(qt::feedback_shortcode_matches("x").empty() && qt::feedback_shortcode_matches("").empty(), "nothing matches x, and an empty fragment offers nothing");
+		expect(qt::feedback_shortcode_matches("x").empty(), "nothing matches x");
+		expect(qt::feedback_shortcode_matches("") == std::vector<L>(labels.begin(), labels.end()), "a colon alone offers all twelve in catalog order");
 	}
 
 	void test_the_tints_come_from_the_label_roles()
@@ -253,13 +256,13 @@ namespace {
 		}
 	}
 
-	[[nodiscard]] auto render(const core::feedback_label aLabel, const bool aBlocking, const qt::feedback_mark_colours& aColours, const int aScale) -> QImage
+	[[nodiscard]] auto render(const core::feedback_label aLabel, const qt::feedback_mark_emphasis aEmphasis, const qt::feedback_mark_colours& aColours, const int aScale) -> QImage
 	{
 		auto image = QImage{ 16 * aScale, 16 * aScale, QImage::Format_ARGB32_Premultiplied };
 		image.fill(aColours.Panel);
 		auto painter = QPainter{ &image };
 		painter.scale(aScale, aScale);
-		qt::paint_feedback_mark(painter, QRectF{ 0.0, 0.0, 16.0, 16.0 }, aLabel, aBlocking, aColours);
+		qt::paint_feedback_mark(painter, QRectF{ 0.0, 0.0, 16.0, 16.0 }, aLabel, aEmphasis, aColours);
 		painter.end();
 		return image;
 	}
@@ -296,14 +299,14 @@ namespace {
 				const auto fill    = qt::feedback_mark_soft_fill(tints[index], entry.Panel);
 				soft               = std::min(soft, ratio(entry.Ink, fill));
 				filled             = std::min(filled, ratio(qt::feedback_mark_blocking_ink(tints[index]), tints[index]));
-				const auto plain   = render(labels[index], false, colours, 4);
-				const auto heavy   = render(labels[index], true, colours, 4);
+				const auto plain   = render(labels[index], qt::feedback_mark_emphasis::undecorated, colours, 4);
+				const auto heavy   = render(labels[index], qt::feedback_mark_emphasis::blocking, colours, 4);
 				expect(QColor{ plain.pixel(32, 1) } == tints[index], "a soft mark's border is its tint");
 				expect(QColor{ plain.pixel(7, 32) } == fill, "inside the border a soft mark is the soft fill");
 				expect(QColor{ heavy.pixel(7, 32) } == tints[index], "a blocking mark is filled with its tint");
 				expect(plain != heavy, "blocking changes the mark");
 				if (entry.Variant == core::appearance_variant::light) {
-					renders.push_back(render(labels[index], false, { .Tint = QColor{ 0x80, 0x80, 0x80 }, .Panel = entry.Panel, .Ink = entry.Ink }, 4));
+					renders.push_back(render(labels[index], qt::feedback_mark_emphasis::undecorated, { .Tint = QColor{ 0x80, 0x80, 0x80 }, .Panel = entry.Panel, .Ink = entry.Ink }, 4));
 				}
 			}
 			const auto lightPanel = entry.Panel.lightnessF() >= 0.5;
@@ -324,8 +327,8 @@ namespace {
 		auto lettered = std::vector<QImage>{ };
 		for (const auto label : labels) {
 			const auto colours = qt::feedback_mark_colours{ .Tint = QColor{ 0x80, 0x80, 0x80 }, .Panel = QColor{ 0xFF, 0xFF, 0xFF }, .Ink = QColor{ 0x1F, 0x23, 0x28 }, .Style = qt::feedback_mark_style::letters };
-			lettered.push_back(render(label, false, colours, 4));
-			const auto blocking = render(label, true, { .Tint = QColor{ 0xD1, 0x24, 0x2F }, .Panel = QColor{ 0xFF, 0xFF, 0xFF }, .Ink = QColor{ 0x1F, 0x23, 0x28 }, .Style = qt::feedback_mark_style::letters }, 4);
+			lettered.push_back(render(label, qt::feedback_mark_emphasis::undecorated, colours, 4));
+			const auto blocking = render(label, qt::feedback_mark_emphasis::blocking, { .Tint = QColor{ 0xD1, 0x24, 0x2F }, .Panel = QColor{ 0xFF, 0xFF, 0xFF }, .Ink = QColor{ 0x1F, 0x23, 0x28 }, .Style = qt::feedback_mark_style::letters }, 4);
 			expect(QColor{ blocking.pixel(7, 32) } == QColor{ 0xD1, 0x24, 0x2F } && QColor{ lettered.back().pixel(32, 1) } == QColor{ 0x80, 0x80, 0x80 },
 				   "a letters mark keeps the tinted border and the blocking fill");
 		}
@@ -339,16 +342,131 @@ namespace {
 			   "the blocking glyph is white or #111418, whichever contrasts more");
 	}
 
+	/// \brief BPR-1083 v003 (owner, chip-menu-v002: "I notice we have style
+	/// for blocking but noting for non-blocking or if-minor"). Non-blocking is
+	/// an open mark with a dashed border; if-minor is the soft mark with its
+	/// top-left corner in the tint. Neither touches a glyph or the letters, and
+	/// both read without colour.
+	void test_non_blocking_and_if_minor_marks()
+	{
+		using E           = qt::feedback_mark_emphasis;
+		const auto panels = std::array{ std::pair{ core::appearance_variant::light, QColor{ 0xFF, 0xFF, 0xFF } }, std::pair{ core::appearance_variant::dark, QColor{ 0x24, 0x29, 0x30 } },
+										std::pair{ core::appearance_variant::high_contrast_light, QColor{ 0xFF, 0xFF, 0xFF } }, std::pair{ core::appearance_variant::high_contrast_dark, QColor{ 0x00, 0x00, 0x00 } } };
+		expect(qt::feedback_mark_emphasis_of(core::feedback_expectation::blocking) == E::blocking && qt::feedback_mark_emphasis_of(core::feedback_expectation::non_blocking) == E::non_blocking
+				   && qt::feedback_mark_emphasis_of(core::feedback_expectation::if_minor) == E::if_minor && qt::feedback_mark_emphasis_of(core::feedback_expectation::conflicting) == E::undecorated
+				   && qt::feedback_mark_emphasis_of(core::feedback_expectation::unspecified) == E::undecorated,
+			   "an expectation maps to its emphasis; conflicting and unspecified are undecorated");
+		for (const auto& [variant, panel] : panels) {
+			const auto tints = qt::feedback_label_tints_of(qt::builtin_appearance_palette(variant));
+			const auto ink   = panel.lightnessF() < 0.5 ? QColor{ 0xE6, 0xED, 0xF3 } : QColor{ 0x1F, 0x23, 0x28 };
+			for (const auto style : { qt::feedback_mark_style::icons, qt::feedback_mark_style::letters }) {
+				for (std::size_t index = 0U; index < labels.size(); ++index) {
+					const auto colours = qt::feedback_mark_colours{ .Tint = tints[index], .Panel = panel, .Ink = ink, .Style = style };
+					const auto soft    = render(labels[index], E::undecorated, colours, 4);
+					const auto open    = render(labels[index], E::non_blocking, colours, 4);
+					const auto minor   = render(labels[index], E::if_minor, colours, 4);
+					// Non-blocking: no fill, so the panel shows inside the border.
+					expect(QColor{ open.pixel(7, 32) } == panel && QColor{ soft.pixel(7, 32) } != panel, "a non-blocking mark is open: the panel shows inside its border");
+					// Its top edge alternates tint and panel: a dashed border.
+					auto runs = 0;
+					auto last = QColor{ open.pixel(16, 1) } == tints[index];
+					for (auto x = 16; x < 48; ++x) {
+						const auto tinted = QColor{ open.pixel(x, 1) } == tints[index];
+						runs += tinted != last ? 1 : 0;
+						last = tinted;
+					}
+					expect(runs >= 3 && QColor{ soft.pixel(32, 1) } == tints[index], "its border is broken into dashes along each side");
+					// If-minor: the top-left corner is the full tint.
+					expect(QColor{ minor.pixel(10, 10) } == tints[index] && QColor{ soft.pixel(10, 10) } != tints[index], "an if-minor mark fills its top-left corner with the tint");
+					expect(QColor{ minor.pixel(1, 1) } == tints[index] && QColor{ soft.pixel(1, 1) } == panel, "and squares that corner off, so its outline differs in greyscale");
+					expect(QColor{ minor.pixel(7, 32) } == QColor{ soft.pixel(7, 32) }, "and keeps the soft fill elsewhere");
+					// Outside the corner, if-minor and non-blocking draw the glyph
+					// or the letters exactly as the undecorated mark does.
+					for (auto y = 8; y < 56; ++y) {
+						for (auto x = 8; x < 56; ++x) {
+							if (x + y > 6 * 4 + 4) {
+								expect(minor.pixel(x, y) == soft.pixel(x, y), "the if-minor corner never touches a glyph or the letters");
+							}
+						}
+					}
+					expect(open != soft && minor != soft && open != minor, "the three treatments differ");
+				}
+			}
+		}
+		// A sheet of the four treatments in the four variants, at 1x and 3x,
+		// when BPR_FEEDBACK_RENDER_DIR names a folder: layout evidence only.
+		if (const auto folder = qEnvironmentVariable("BPR_FEEDBACK_RENDER_DIR"); !folder.isEmpty()) {
+			for (const auto scale : { 1, 3 }) {
+				auto sheet = QImage{ (4 * 3 * 30 + 10) * scale, (4 * 40 + 10) * scale, QImage::Format_ARGB32_Premultiplied };
+				sheet.fill(Qt::gray);
+				auto painter = QPainter{ &sheet };
+				painter.scale(scale, scale);
+				for (std::size_t row = 0U; row < panels.size(); ++row) {
+					const auto& [variant, panel] = panels[row];
+					const auto tints             = qt::feedback_label_tints_of(qt::builtin_appearance_palette(variant));
+					const auto ink               = panel.lightnessF() < 0.5 ? QColor{ 0xE6, 0xED, 0xF3 } : QColor{ 0x1F, 0x23, 0x28 };
+					const auto top               = 5.0 + (static_cast<double>(row) * 40.0);
+					painter.fillRect(QRectF{ 5.0, top, 4.0 * 3.0 * 30.0, 36.0 }, panel);
+					auto column = 0;
+					for (const auto emphasis : { E::undecorated, E::blocking, E::non_blocking, E::if_minor }) {
+						for (const auto label : { core::feedback_label::issue, core::feedback_label::suggestion, core::feedback_label::chore }) {
+							const auto tint = tints[static_cast<std::size_t>(label)];
+							const auto left = 12.0 + (column * 30.0);
+							qt::paint_feedback_rail(painter, left + 2.0, top + 4.0, top + 32.0, tint, emphasis);
+							qt::paint_feedback_mark(painter, QRectF{ left + 6.0, top + 10.0, 16.0, 16.0 }, label, emphasis, { .Tint = tint, .Panel = panel, .Ink = ink });
+							++column;
+						}
+					}
+				}
+				painter.end();
+				static_cast<void>(sheet.save(folder + QStringLiteral("/decorations-%1x.png").arg(scale)));
+			}
+		}
+		// Rails: 4 px solid when blocking, 2 px solid, 2 px dashed, 2 px dotted.
+		const auto rail = [](const E aEmphasis) {
+			auto image = QImage{ 8, 60, QImage::Format_ARGB32_Premultiplied };
+			image.fill(Qt::white);
+			auto painter = QPainter{ &image };
+			qt::paint_feedback_rail(painter, 6.0, 0.0, 60.0, QColor{ 0xD1, 0x24, 0x2F }, aEmphasis);
+			painter.end();
+			auto inked  = 0;
+			auto gaps   = 0;
+			auto wasInk = true;
+			// The rows between the rounded ends.
+			for (auto y = 3; y < 57; ++y) {
+				const auto ink = QColor{ image.pixel(5, y) }.red() - QColor{ image.pixel(5, y) }.green() > 0x30;
+				inked += ink ? 1 : 0;
+				gaps += !ink && wasInk ? 1 : 0;
+				wasInk = ink;
+			}
+			const auto wide = QColor{ image.pixel(3, 30) }.red() - QColor{ image.pixel(3, 30) }.green() > 0x30;
+			return std::tuple{ inked, gaps, wide };
+		};
+		const auto [blockingInk, blockingGaps, blockingWide] = rail(E::blocking);
+		const auto [softInk, softGaps, softWide]             = rail(E::undecorated);
+		const auto [dashInk, dashGaps, dashWide]             = rail(E::non_blocking);
+		const auto [dotInk, dotGaps, dotWide]                = rail(E::if_minor);
+		expect(blockingWide && !softWide && !dashWide && !dotWide && qt::feedback_rail_width(E::blocking) == 4.0 && qt::feedback_rail_width(E::if_minor) == 2.0,
+			   "only blocking widens the rail to 4 px");
+		expect(blockingGaps == 0 && softGaps == 0 && softInk == 54, "blocking and undecorated rails are solid");
+		expect(dashGaps >= 5 && dotGaps >= 12 && dashInk > dotInk && dashInk < softInk, "non-blocking's rail is dashed and if-minor's dotted, each lighter than solid");
+	}
+
 	void test_names_and_subjects_follow_the_annotation()
 	{
 		const auto blocking = qt::feedback_body_mark_of("issue (blocking): LightScale ignores the view.");
-		expect(blocking.Label == core::feedback_label::issue && blocking.Blocking && blocking.Name == QStringLiteral("issue (blocking)"),
+		expect(blocking.Label == core::feedback_label::issue && blocking.Emphasis == qt::feedback_mark_emphasis::blocking && blocking.Name == QStringLiteral("issue (blocking)"),
 			   "an issue (blocking) body has a filled issue mark named issue (blocking)");
 		expect(blocking.SubjectOffset == QStringLiteral("issue (blocking): ").size(), "the subject starts after the prefix");
 		expect(qt::feedback_post_name(QStringLiteral("tbutler"), blocking) == QStringLiteral("tbutler, issue (blocking)"), "a post is named with its author first");
 		const auto several = qt::feedback_body_mark_of("nitpick (if-minor, non-blocking, security): spacing");
-		expect(several.Name == QStringLiteral("nitpick (if-minor, non-blocking)") && !several.Blocking,
-			   "standard decorations are named in written order, custom ones are left in the text, and only blocking fills");
+		expect(several.Name == QStringLiteral("nitpick (if-minor, non-blocking)") && several.Emphasis == qt::feedback_mark_emphasis::undecorated,
+			   "standard decorations are named in written order, custom ones are left in the text, and a conflicting set is undecorated");
+		expect(qt::feedback_body_mark_of("nitpick (non-blocking): spacing").Emphasis == qt::feedback_mark_emphasis::non_blocking
+				   && qt::feedback_body_mark_of("suggestion (if-minor): rename").Emphasis == qt::feedback_mark_emphasis::if_minor
+				   && qt::feedback_body_mark_of("todo: add a test").Emphasis == qt::feedback_mark_emphasis::undecorated
+				   && qt::feedback_body_mark_of("note (security): fine").Emphasis == qt::feedback_mark_emphasis::undecorated,
+			   "each standard decoration has its own emphasis; guidance and custom decorations have none");
 		const auto strong = qt::feedback_body_mark_of("**Question:** é then more");
 		expect(strong.Label == core::feedback_label::question && strong.Name == QStringLiteral("question") && strong.SubjectOffset == QStringLiteral("**Question:** ").size(),
 			   "a strong header names the canonical label");
@@ -375,6 +493,7 @@ auto main(int argc, char** argv) -> int
 	test_shortcodes_are_the_contract_table();
 	test_the_tints_come_from_the_label_roles();
 	test_marks_are_soft_or_filled_and_legible();
+	test_non_blocking_and_if_minor_marks();
 	test_names_and_subjects_follow_the_annotation();
 	std::cout << "feedback-label-marks-tests:pass\n";
 	return EXIT_SUCCESS;

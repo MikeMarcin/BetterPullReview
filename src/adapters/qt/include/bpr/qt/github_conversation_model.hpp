@@ -56,6 +56,8 @@ namespace bpr::qt {
 			feedback_name_role,
 			/// Where the subject starts in `body_role`'s text.
 			feedback_subject_role,
+			/// The label's standard decoration as `feedback_mark_emphasis`.
+			feedback_emphasis_role,
 		};
 
 		explicit github_conversation_model(QObject* aParent = nullptr);

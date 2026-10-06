@@ -385,10 +385,45 @@ namespace {
 	{
 		auto f = fixture{ "Fix it." };
 		f.Editor->set_label_helper(true);
+		auto* const completion = f.controls()->completion();
+		// The owner, shortcodes-v002: "just typing : should be enough to open
+		// suggestions." A colon alone at the start offers all twelve.
+		caret_at(f.body(), 0);
+		type(f.body(), QStringLiteral(":"));
+		settle();
+		auto everyLabel = std::vector<core::feedback_label>{ };
+		for (std::size_t index = 0U; index < core::feedback_label_count; ++index) {
+			everyLabel.push_back(static_cast<core::feedback_label>(index));
+		}
+		expect(completion->isVisible() && f.controls()->completion_labels() == everyLabel && completion->currentRow() == 0,
+			   "a colon alone at the start opens completion with every label, in catalog order");
+		save_render(*completion, "completion-colon");
+		key(f.body(), Qt::Key_Down);
+		key(f.body(), Qt::Key_Down);
+		key(f.body(), Qt::Key_Down);
+		key(f.body(), Qt::Key_Tab);
+		settle();
+		expect(f.text() == "issue: Fix it." && !completion->isVisible(), "arrows and Tab take a label from the colon alone in one edit");
+		f.body()->undo();
+		settle();
+		expect(f.text() == ":Fix it.", "and one undo restores the colon");
+		f.body()->setPlainText(QStringLiteral("Fix it."));
+		caret_at(f.body(), 0);
+		type(f.body(), QStringLiteral(":"));
+		settle();
+		key(f.body(), Qt::Key_Escape);
+		settle();
+		expect(!completion->isVisible() && f.text() == ":Fix it.", "Esc after a colon alone leaves the text alone");
+		f.body()->setPlainText(QStringLiteral("Fix it "));
+		caret_at(f.body(), 7);
+		type(f.body(), QStringLiteral(":"));
+		settle();
+		expect(!completion->isVisible(), "a colon anywhere but the start opens nothing");
+
+		f.body()->setPlainText(QStringLiteral("Fix it."));
 		caret_at(f.body(), 0);
 		type(f.body(), QStringLiteral(":q"));
 		settle();
-		auto* const completion = f.controls()->completion();
 		save_render(*completion, "completion");
 		expect(completion->isVisible() && f.controls()->completion_labels() == std::vector{ core::feedback_label::question, core::feedback_label::quibble },
 			   "a colon and one letter open completion, codes first");
@@ -445,7 +480,7 @@ namespace {
 		type(f.body(), QStringLiteral(":is:"));
 		settle();
 		expect(f.text() == "Fix it :is:", "a code that is not at the very start, like GitHub's own :emoji:, is never touched");
-		expect(f.controls()->statistics().Shortcodes == 3U, "three codes were replaced");
+		expect(f.controls()->statistics().Shortcodes == 4U, "four codes were replaced");
 
 		auto off = fixture{ "Fix it." };
 		caret_at(off.body(), 0);

@@ -697,6 +697,13 @@ endfunction()
 # place before it selects its file. Fixture-only: no grant,
 # target, provider, credential, mutation or publication path changes;
 # mutation pin unchanged; no new src/app source. Reviewed on BPR-1287.
+# BPR-1083 v003 reseal: over the BPR-1287 reseal above. The tests-on
+# label-authoring course reads each card's decoration as the Qt adapter's
+# feedback_mark_emphasis (was a blocking flag), expects the second root's
+# non-blocking emphasis and the drawer entries' root marks
+# (compact_mark_rect), and the published thread's undecorated mark. Fixture-
+# only: no grant, target, provider, credential, mutation or publication path
+# changes; mutation pin unchanged; no new src/app source. Reviewed on BPR-1083.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -715,7 +722,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"11bea7105a2faa9d14033c9a28c427d2d5cfd5c55aab2bc740aef1a20dd274df"
+		"d13b34f5da5d1d8fb8602b69de1d7db6387f4edbccc361252f6f2b191e5ba771"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -913,7 +920,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "ae8ecde841981ecfdeb2a13e7ce2d0bd45342c1130e83f5674c09f845798c758"
+        "d0349eb21c0966df20bf38df3c0bec75dee026af66b8513072a94ad0eeed9ec4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

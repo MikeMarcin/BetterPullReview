@@ -30,9 +30,9 @@ namespace bpr::qt {
 			QString Heading;
 			QString Body;
 			QString Facts;
-			/// [[BPR-1083]]. The post's label, or -1; and whether it blocks.
-			int  Label    = -1;
-			bool Blocking = false;
+			/// [[BPR-1083]]. The post's label, or -1; and its decoration.
+			int                    Label    = -1;
+			feedback_mark_emphasis Emphasis = feedback_mark_emphasis::undecorated;
 		};
 
 		/// \brief The room a mark takes at the start of the heading line.
@@ -125,7 +125,7 @@ namespace bpr::qt {
 			// body starts at the subject; Copy source keeps the prefix.
 			if (const auto label = aIndex.data(github_conversation_model::feedback_label_role); label.isValid()) {
 				result.Label    = label.toInt();
-				result.Blocking = aIndex.data(github_conversation_model::feedback_blocking_role).toBool();
+				result.Emphasis = static_cast<feedback_mark_emphasis>(aIndex.data(github_conversation_model::feedback_emphasis_role).toInt());
 				result.Body     = result.Body.mid(aIndex.data(github_conversation_model::feedback_subject_role).toLongLong());
 			}
 
@@ -411,7 +411,8 @@ namespace bpr::qt {
 		aPainter->save();
 		aPainter->setClipRect(aOption.rect);
 		// [[BPR-1083]]. A rail down the post's left edge in its label's tint,
-		// grey for a plain post, 2 px or 4 px when blocking, in the padding
+		// grey for a plain post, 2 px, 4 px when blocking, dashed or dotted
+		// when non-blocking or if-minor, in the padding
 		// the row already had; and the 16 px mark leading the heading.
 		const auto marked = presentation.Label >= 0 && static_cast<std::size_t>(presentation.Label) < core::feedback_label_count;
 		const auto label  = static_cast<core::feedback_label>(static_cast<std::uint8_t>(std::max(0, presentation.Label)));
@@ -419,11 +420,11 @@ namespace bpr::qt {
 		const auto post   = static_cast<application::github_conversation_kind>(aIndex.data(github_conversation_model::kind_role).toInt())
 			!= application::github_conversation_kind::review_thread;
 		if (post) {
-			paint_feedback_rail(*aPainter, contentRect.left() - 2.0, static_cast<qreal>(aOption.rect.top()) + 2.0, static_cast<qreal>(aOption.rect.bottom()) - 1.0, rail, marked && presentation.Blocking);
+			paint_feedback_rail(*aPainter, contentRect.left() - 2.0, static_cast<qreal>(aOption.rect.top()) + 2.0, static_cast<qreal>(aOption.rect.bottom()) - 1.0, rail, marked ? presentation.Emphasis : feedback_mark_emphasis::undecorated);
 		}
 		set_text_pen(aPainter, nativeOption, primaryRole);
 		if (marked) {
-			paint_feedback_mark(*aPainter, QRectF{ contentRect.left(), y, 16.0, 16.0 }, label, presentation.Blocking,
+			paint_feedback_mark(*aPainter, QRectF{ contentRect.left(), y, 16.0, 16.0 }, label, presentation.Emphasis,
 								feedback_mark_colours{ .Tint = Theme.Tints[static_cast<std::size_t>(presentation.Label)], .Panel = nativeOption.palette.color(QPalette::Base), .Ink = nativeOption.palette.color(QPalette::Text), .Style = Theme.Style });
 			set_text_pen(aPainter, nativeOption, primaryRole);
 		}
@@ -479,7 +480,7 @@ namespace bpr::qt {
 			.Body             = presentation.Body,
 			.Facts            = presentation.Facts,
 			.DisplayText      = nativeOption.text,
-			.Mark             = presentation.Label * 2 + (presentation.Blocking ? 1 : 0),
+			.Mark             = (presentation.Label * 4) + static_cast<int>(presentation.Emphasis),
 			.Font             = nativeOption.font,
 			.Width            = nativeOption.rect.width(),
 			.Reply            = aIndex.parent().isValid(),
