@@ -167,3 +167,15 @@ the accepted reading`. With the fix the whole course passes.
 **Owed before Done:** the change is portable, but this card's acceptance
 asks for macOS and Linux runs of the row, and neither has been run with the
 fix yet.
+
+**Note: Linux verification at `240a49688` (holds `cf5e3d7c4`; station
+`bpr-main-linux`, WSL2, GCC 15.2.0, `build/dev` rebuilt whole with no
+warnings, `-j1`).** 6 of 6 passed:
+`application_profile_window_review_restoration_public_path` (108.6 s),
+`application_document_tabs_restoration_public_path` (15.6 s),
+`qt_document_tabs_scale_{100,125,200}` and
+`application_review_round_trip_composition_contract`. The restoration row
+passed 3 of 3 (108.6, 109.6 and 107.7 s). Before the fix it failed
+intermittently on Linux with "failed reading restoration preserves exact
+recorded identities and sibling": at `1d8b92642`, and once at `ac0d9d1d4`
+after passing once there.
