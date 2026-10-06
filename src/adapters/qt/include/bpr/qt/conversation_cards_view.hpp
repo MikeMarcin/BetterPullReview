@@ -4,6 +4,7 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QAbstractScrollArea>
@@ -152,6 +153,9 @@ namespace bpr::qt {
 		/// The code at the thread's line, when Discuss can read it
 		/// ([[BPR-0649]]); empty otherwise.
 		QString Excerpt;
+		/// [[BPR-1084]]. What a reply in this thread is attached to on
+		/// GitHub, which decides whether a suggested change in it is native.
+		core::suggestion_placement_observation Suggestion;
 		/// True while the thread's line is on the comparison and locatable.
 		bool Placed = false;
 		/// Stable projection order breaks geometry ties across comparison frames.
@@ -162,6 +166,12 @@ namespace bpr::qt {
 		QRect                  Rect;
 		std::vector<card_post> Posts;
 	};
+
+	/// \brief [[BPR-1084]]. What a reply in this conversation would be attached
+	/// to on GitHub, from its accepted projection: a file comment (also one its
+	/// code link places at a line), an outdated line, no current line, the pull
+	/// request's own conversation, or a current line on its side.
+	[[nodiscard]] auto suggestion_placement_of(const application::github_conversation_projection& aNode) -> core::suggestion_placement_observation;
 
 	/// \brief [[BPR-1290]]. One thread's marker in the code's gutter and its
 	/// tick on the code's scroll bar.

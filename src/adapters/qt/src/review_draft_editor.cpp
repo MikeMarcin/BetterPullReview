@@ -1,6 +1,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/suggestion_mark.hpp"
 
 #include <QAction>
 #include <QHBoxLayout>
@@ -150,6 +151,7 @@ namespace bpr::qt {
 		layout->addWidget(Members.Labels);
 		layout->addWidget(Members.Body);
 		connect(Members.Body, &QPlainTextEdit::textChanged, this, [this] {
+			refresh_suggestion_mark();
 			if (!Members.ApplyingPresentation) {
 				emit_draft(core::review_draft_command_kind::edit);
 			}
@@ -190,6 +192,11 @@ namespace bpr::qt {
 			button->setFocusPolicy(Qt::StrongFocus);
 			publicationControls->addWidget(button);
 		}
+		// [[BPR-1084]]. A small mark, not a sentence: its tooltip and
+		// accessible description say what GitHub will do with the change.
+		Members.Suggestion = new suggestion_mark{ this };
+		Members.Suggestion->setObjectName(QStringLiteral("reviewSuggestionMark"));
+		publicationControls->addWidget(Members.Suggestion);
 		publicationControls->addStretch();
 		layout->insertLayout(2, publicationControls);
 
@@ -599,6 +606,50 @@ namespace bpr::qt {
 			&& Members.ShownDraft->ReplyToThread.has_value());
 	}
 
+	void review_draft_editor::describe_reply_placement(std::optional<core::suggestion_placement_observation> aPlacement)
+	{
+		if (Members.ReplyPlacement == aPlacement) {
+			return;
+		}
+		Members.ReplyPlacement = aPlacement;
+		refresh_suggestion_mark();
+	}
+
+	auto review_draft_editor::suggestion_mark_widget() const noexcept -> suggestion_mark*
+	{
+		return Members.Suggestion;
+	}
+
+	void review_draft_editor::refresh_suggestion_mark()
+	{
+		if (Members.Suggestion == nullptr) {
+			return;
+		}
+		const auto& draft = Members.ShownDraft;
+		if (!draft || draft->State == core::review_draft_state::published || draft->State == core::review_draft_state::discarded) {
+			Members.Suggestion->present({ });
+			return;
+		}
+		// A root comment goes on its own line; a reply goes where its thread
+		// is, which only the accepted conversation projection knows.
+		auto placement = std::optional<core::suggestion_placement_observation>{ };
+		if (draft->ReplyToThread) {
+			placement = Members.ReplyPlacement;
+		} else {
+			placement = core::suggestion_placement_observation{ .Subject = core::suggestion_subject::current_line, .Side = draft->Anchor.Side };
+			if (Members.RefusedLine == draft->Anchor) {
+				placement->Placement         = core::review_placement::off_hunk;
+				placement->Capability        = core::off_hunk_creation_capability::unsupported;
+				placement->CapabilityCurrent = true;
+			}
+		}
+		if (!placement) {
+			Members.Suggestion->present({ });
+			return;
+		}
+		Members.Suggestion->present(core::decide_suggestion_applicability(Members.Body->toPlainText().toStdString(), *placement));
+	}
+
 	void review_draft_editor::present(const core::review_comment_draft& aDraft)
 	{
 		if (Members.Revisioned.Dispatch) {
@@ -849,6 +900,13 @@ namespace bpr::qt {
 		case application::review_mutation_failure::incompatible_body:
 			Members.MutationStatus->setText(QStringLiteral(
 				"This comment needs a supported inline line anchor. Your draft text is kept."));
+			// [[BPR-1084]]. GitHub refused an inline comment on this line and
+			// a suggestion cannot go as a file comment: the mark says so
+			// before the next Publish.
+			if (Members.ShownDraft && !Members.ShownDraft->ReplyToThread) {
+				Members.RefusedLine = Members.ShownDraft->Anchor;
+			}
+			refresh_suggestion_mark();
 			break;
 		case application::review_mutation_failure::unsupported:
 			Members.MutationStatus->setText(QStringLiteral(
@@ -901,6 +959,8 @@ namespace bpr::qt {
 		case review_draft_editor_clear_reason::composition_retired:
 			Members.TargetLabel->clear();
 			Members.MutationStatus->clear();
+			Members.RefusedLine.reset();
+			Members.ReplyPlacement.reset();
 			break;
 		}
 		refresh_enablement();
@@ -982,6 +1042,7 @@ namespace bpr::qt {
 		Members.WorkshopOriginal->setVisible(proposed);
 		Members.WorkshopProposal->setVisible(proposed);
 		Members.WorkshopOperation->setVisible(proposed || Members.WorkshopAsked);
+		refresh_suggestion_mark();
 		if (Members.PresentationObserver) {
 			Members.PresentationObserver();
 		}

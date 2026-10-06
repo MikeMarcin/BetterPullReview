@@ -328,6 +328,28 @@ namespace bpr::qt {
 		};
 	} // namespace
 
+	auto suggestion_placement_of(const application::github_conversation_projection& aNode) -> core::suggestion_placement_observation
+	{
+		using subject = core::suggestion_subject;
+		if (aNode.Kind == application::github_conversation_kind::issue_comment || aNode.Kind == application::github_conversation_kind::review) {
+			return { .Subject = subject::conversation };
+		}
+		// GitHub's own facts, not the selected comparison's: a thread GitHub
+		// stores as a file comment, or marks outdated, takes no suggestion,
+		// wherever BPR draws it.
+		if (aNode.RemoteSubject == application::github_conversation_remote_subject::file) {
+			return { .Subject = subject::file };
+		}
+		if (aNode.Outdated || aNode.AnchorAvailability == application::github_conversation_anchor_availability::outdated_revision) {
+			return { .Subject = subject::outdated_line };
+		}
+		const auto side = side_of(aNode);
+		if (!side || !aNode.Line || *aNode.Line == 0U) {
+			return { .Subject = subject::unavailable };
+		}
+		return { .Subject = subject::current_line, .Side = *side };
+	}
+
 	conversation_cards_view::conversation_cards_view(QWidget* const aParent)
 		: QAbstractScrollArea{ aParent }
 		, CodeFont{ to_presentation_font(default_typography_settings().Code) }
@@ -1172,6 +1194,7 @@ namespace bpr::qt {
 			card.AnchorUnavailable = !node.Path.empty() && node.AnchorAvailability != application::github_conversation_anchor_availability::current;
 			card.Outdated          = node.Outdated || card.AnchorUnavailable;
 			card.FileLevel         = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
+			card.Suggestion        = suggestion_placement_of(node);
 			if (!isThread) {
 				const auto& mark   = RetainedMarks[index];
 				const auto  author = text(node.AuthorLogin);

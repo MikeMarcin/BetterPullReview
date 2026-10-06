@@ -1,5 +1,6 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/suggestion_mark.hpp"
 
 #include "bpr/core/diff_model.hpp"
 
@@ -25,6 +26,7 @@
 #include <glaze/json.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -1248,6 +1250,92 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	// [[BPR-1084]]. The reply written in place shows a small mark when its
+	// body carries a suggested change: native in a thread on a current head
+	// line, text only in an outdated thread, a file comment or on the base
+	// side, each from the accepted projection's own facts. The mark changes
+	// nothing in the text and is not shown for prose.
+	void test_a_reply_suggestion_is_marked_native_or_text_only()
+	{
+		using availability          = application::github_conversation_anchor_availability;
+		auto outdated               = thread("t-outdated", "src/b.cpp", 4U);
+		outdated.Line               = std::nullopt;
+		outdated.OriginalLine       = 4U;
+		outdated.AnchorAvailability = availability::outdated_revision;
+		outdated.Outdated           = true;
+		auto file                   = thread("t-file", "src/c.cpp", 7U);
+		file.RemoteSubject          = application::github_conversation_remote_subject::file;
+		file.SemanticAnchor         = core::source_line_ref{ .Side = core::diff_side::right, .Line = 6U };
+		auto left                   = thread("t-left", "src/d.cpp", 5U);
+		left.DiffSide               = application::github_conversation_diff_side::left;
+		const auto line             = thread("t-line", "src/a.cpp", 10U);
+
+		using subject = core::suggestion_subject;
+		expect(qt::suggestion_placement_of(line) == core::suggestion_placement_observation{ .Subject = subject::current_line, .Side = core::diff_side::right }, "a current line thread is a line");
+		expect(qt::suggestion_placement_of(outdated).Subject == subject::outdated_line, "an outdated thread");
+		expect(qt::suggestion_placement_of(file).Subject == subject::file, "a file comment its link places at a line is still a file comment");
+		expect(qt::suggestion_placement_of(left) == core::suggestion_placement_observation{ .Subject = subject::current_line, .Side = core::diff_side::left }, "a base-side thread keeps its side");
+		auto missing = line;
+		missing.Line = std::nullopt;
+		expect(qt::suggestion_placement_of(missing).Subject == subject::unavailable, "no line, no claim of one");
+		auto general = conversation{ .Id = "i-1", .Kind = application::github_conversation_kind::issue_comment };
+		expect(qt::suggestion_placement_of(general).Subject == subject::conversation, "a pull request comment has no line");
+
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.show();
+		QApplication::processEvents();
+		view.adopt({ line, reply("c-line", "t-line", "a", "first"), outdated, reply("c-outdated", "t-outdated", "b", "second"),
+					 file, reply("c-file", "t-file", "c", "third"), left, reply("c-left", "t-left", "d", "fourth") });
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		view.set_action_dispatch([&view](const qt::card_action aAction, const std::string& aId) {
+			if (aAction == qt::card_action::reply) {
+				view.begin_reply(aId);
+			}
+		});
+		QApplication::processEvents();
+		const auto                                               patch = QStringLiteral("issue: Clamp it.\n\n```suggestion:-1+0\n\tclamp(width, 1);\n```\n");
+		const auto                                               prose = QStringLiteral("suggestion: Consider clamping the width.");
+		const std::array<std::pair<std::string, std::string>, 4> expected{ {
+			{ "t-line", "native" },
+			{ "t-outdated", "textual_only" },
+			{ "t-file", "textual_only" },
+			{ "t-left", "textual_only" },
+		} };
+		for (const auto& [identity, state] : expected) {
+			view.open_thread(identity);
+			view.begin_reply(identity);
+			QApplication::processEvents();
+			auto* const editor = view.reply_editor();
+			expect(editor != nullptr && view.open_card() != nullptr, identity + ": the reply opens in place");
+			auto* const mark = dynamic_cast<qt::suggestion_mark*>(view.open_card()->findChild<QWidget*>(QStringLiteral("threadReplySuggestionMark")));
+			expect(mark != nullptr && !mark->isVisibleTo(view.open_card()), identity + ": an empty reply shows no mark");
+			editor->setPlainText(prose);
+			expect(!mark->isVisibleTo(view.open_card()) && mark->decision() == core::suggestion_applicability_decision{ }, identity + ": prose, even a suggestion label, shows no mark");
+			editor->setPlainText(patch);
+			QApplication::processEvents();
+			expect(mark->isVisibleTo(view.open_card()) && mark->property("suggestionApplicability").toString().toStdString() == state, identity + ": the mark says " + state);
+			expect(!mark->toolTip().isEmpty() && mark->accessibleDescription() == mark->toolTip() && mark->accessibleName().startsWith(QStringLiteral("Suggested change, ")),
+				   identity + ": named, and its tooltip says what GitHub will do");
+			expect(editor->toPlainText() == patch, identity + ": the mark leaves every byte of the text as written");
+			editor->clear();
+			view.close_thread();
+			QApplication::processEvents();
+		}
+		view.open_thread("t-outdated");
+		view.begin_reply("t-outdated");
+		view.reply_editor()->setPlainText(patch);
+		auto* const mark = dynamic_cast<qt::suggestion_mark*>(view.open_card()->findChild<QWidget*>(QStringLiteral("threadReplySuggestionMark")));
+		expect(mark->decision().Reason == core::suggestion_text_reason::outdated_line && mark->toolTip().contains(QStringLiteral("outdated"))
+				   && mark->toolTip().contains(QStringLiteral("nothing moves to another line")),
+			   "text only says why, and that nothing is moved");
+		expect(mark->sizeHint() == QSize{ 16, 16 } && mark->focusPolicy() == Qt::NoFocus, "a 16 px mark, not a control");
+		view.reply_editor()->clear();
+		view.hide();
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -1262,6 +1350,7 @@ auto main(int argc, char** argv) -> int
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_helper();
+	test_a_reply_suggestion_is_marked_native_or_text_only();
 	test_unchanged_refresh_retains_measured_notes();
 	test_alternating_widths_keep_both_widths_measured();
 	test_discuss_geometry_refresh_updates_excerpts();

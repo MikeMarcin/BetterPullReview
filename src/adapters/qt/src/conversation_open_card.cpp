@@ -4,6 +4,7 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/suggestion_mark.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QFontMetrics>
@@ -997,6 +998,12 @@ namespace bpr::qt {
 			Labels->set_theme(Style.Marks);
 			style_reply_chip(*Labels->chip(), Style);
 			controls->addWidget(Labels);
+			// [[BPR-1084]]. A small mark beside the chip, shown only for a
+			// suggested change; its tooltip says what GitHub will do with it.
+			Placement  = aCard.Suggestion;
+			Suggestion = new suggestion_mark{ Editor };
+			Suggestion->setObjectName(QStringLiteral("threadReplySuggestionMark"));
+			controls->addWidget(Suggestion);
 			controls->addStretch(1);
 			auto* const cancel = new QToolButton{ Editor };
 			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
@@ -1109,6 +1116,9 @@ namespace bpr::qt {
 		if (Publish != nullptr && ReplyBox != nullptr) {
 			Publish->setEnabled(Publishable && !ReplyBox->toPlainText().trimmed().isEmpty());
 		}
+		if (Suggestion != nullptr && ReplyBox != nullptr) {
+			Suggestion->present(core::decide_suggestion_applicability(ReplyBox->toPlainText().toStdString(), Placement));
+		}
 	}
 
 	auto open_thread_card::reply_editor() const noexcept -> QPlainTextEdit*
@@ -1119,6 +1129,11 @@ namespace bpr::qt {
 	auto open_thread_card::label_controls() const noexcept -> feedback_label_controls*
 	{
 		return Labels;
+	}
+
+	auto open_thread_card::suggestion_mark_widget() const noexcept -> suggestion_mark*
+	{
+		return Suggestion;
 	}
 
 	auto open_thread_card::reply_field() const noexcept -> QAbstractButton*

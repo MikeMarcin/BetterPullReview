@@ -10,6 +10,7 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/suggestion_mark.hpp"
 #include "github_cli_runtime.hpp"
 #include "github_release_update.hpp"
 #include "platform_credential_vault.hpp"
@@ -15561,13 +15562,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_shortcut,
 				awaiting_published,
 				awaiting_refreshed,
+				// [[BPR-1084]]. Suggested changes in the same composition.
+				awaiting_patch_draft,
+				awaiting_patch_body,
+				awaiting_patch_published,
+				awaiting_prose_draft,
+				awaiting_prose_body,
+				awaiting_prose_published,
+				awaiting_refused_draft,
+				awaiting_refused_body,
+				awaiting_refused,
+				awaiting_reply_open,
+				awaiting_reply_draft,
+				awaiting_reply_body,
 				passed,
 				failed,
 			};
 			detail::label_authoring_probe_evidence Evidence;
-			phase                                  Phase = phase::awaiting_read_empty;
-			std::string                            Diagnostic;
-			std::size_t                            Renders = 0U;
+			/// [[BPR-1084]]. The line the current root comment is on, and the
+			/// fixture's native post count before it was published.
+			std::optional<core::source_line_ref> Anchor;
+			std::size_t                          NativeBefore = 0U;
+			/// The free line chosen for the next root comment, chosen once.
+			std::optional<std::uint32_t> Line;
+			phase                        Phase = phase::awaiting_read_empty;
+			std::string                  Diagnostic;
+			std::size_t                  Renders = 0U;
 			/// Characters still to type, one a tick once the draft has the
 			/// text on screen, as a person's keystrokes arrive.
 			QString Typing;
@@ -24380,6 +24400,110 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		constexpr auto path      = std::string_view{ "src/engine/renderer.cpp" };
 		constexpr auto subject   = std::string_view{ "Should the width be clamped to one pixel?" };
 		constexpr auto published = std::string_view{ "issue: Should the width be clamped to one pixel?" };
+		// [[BPR-1084]]. The suggested-change bodies: a multiline replacement
+		// with tabs, prose with no patch, a patch the fixture's GitHub refuses
+		// an inline comment for, and a reply with a patch.
+		const auto patchBody   = QStringLiteral("issue: Clamp the width to one pixel.\n\n```suggestion\n\tconst auto width = std::max(1, requested);\n\treturn width;\n```\n");
+		const auto proseBody   = QStringLiteral("suggestion: Consider clamping the width to one pixel.");
+		const auto refusedBody = QStringLiteral("issue: BPR-1084 off-hunk suggestion.\n\n```suggestion\n\tclamp(width, 1);\n```\n");
+		const auto replyBody   = QStringLiteral("question: Would this read better?\n\n```suggestion:-1+0\n\tdraw_scene(view);\n```\n");
+		const auto markState   = [editor]() -> std::string {
+			const auto* const mark = editor->suggestion_mark_widget();
+			if (mark == nullptr) {
+				return "-";
+			}
+			return mark->isVisibleTo(editor) ? mark->property("suggestionApplicability").toString().toStdString() : std::string{ "hidden" };
+		};
+		// A root comment on the next current-head line no thread is on.
+		const auto rootDraft = [&](const QString& aBody, const state_type::phase aNext) -> result {
+			// Back from the last comment's page to the code, in Read.
+			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+			if (inlinePage != nullptr && inlinePage->isVisibleTo(window)) {
+				auto* const back = inlinePage->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
+				if (back == nullptr) {
+					return fail("no-back");
+				}
+				back->click();
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			if (window->current_modality() != qt::review_modality::read) {
+				window->choose_modality(qt::review_modality::read);
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			// Chosen once and then kept selected: choosing again each tick
+			// would move the selection away and back before its draft arrives.
+			if (!probe.Line) {
+				for (auto candidate = std::uint32_t{ 0U }; candidate < 64U && !probe.Line; ++candidate) {
+					if (window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate)
+						&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
+						probe.Line = candidate;
+					}
+				}
+			} else if (const auto selected = window->comparison_surface()->selection();
+					   !selected || selected->PreferredLine.Side != core::diff_side::right || selected->PreferredLine.Line != *probe.Line) {
+				static_cast<void>(window->comparison_surface()->select_conversation_line(core::diff_side::right, *probe.Line));
+			}
+			const auto  line  = probe.Line;
+			const auto& draft = implementation->ReviewDraft;
+			note("line=" + std::to_string(line.value_or(0U)) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) + ":" + std::string{ core::name(draft->State) } : std::string{ "-" })
+				 + " comment=" + std::to_string(window->comment_action()->isEnabled() ? 1 : 0));
+			if (!line || !draft || draft->ReplyToThread || draft->Anchor.Line != *line || draft->State != core::review_draft_state::drafting
+				|| !window->comment_action()->isEnabled()) {
+				return result::pending;
+			}
+			window->comment_action()->trigger();
+			QCoreApplication::processEvents();
+			if (body->isReadOnly()) {
+				return fail("suggestion-page-not-editable");
+			}
+			probe.Anchor = draft->Anchor;
+			probe.Line.reset();
+			probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
+			body->setPlainText(aBody);
+			probe.Phase = aNext;
+			return result::pending;
+		};
+		// The draft holds the body; the mark beside Publish is checked before
+		// Publish is pressed.
+		const auto rootBody = [&](const QString& aBody, const std::string_view aMark, bool& aEvidence, const char* const aRender, const state_type::phase aNext) -> result {
+			const auto& draft = implementation->ReviewDraft;
+			note("draft=" + (draft ? draft->Body : std::string{ "-" }) + " publish=" + std::to_string(editor->publish_action()->isEnabled() ? 1 : 0) + " mark=" + markState());
+			if (!draft || draft->Body != aBody.toStdString() || !editor->publish_action()->isEnabled() || text() != aBody) {
+				return result::pending;
+			}
+			aEvidence = markState() == aMark && probe.Anchor && draft->Anchor == *probe.Anchor;
+			render(aRender);
+			if (!aEvidence) {
+				return fail("mark-before-publish expected=" + std::string{ aMark } + " shown=" + markState());
+			}
+			editor->publish_action()->trigger();
+			probe.Phase = aNext;
+			return result::pending;
+		};
+		// One native post, received exactly as drafted on the drafted line,
+		// and its thread back from the application's own refresh.
+		const auto rootPublished = [&](const QString& aBody, const core::feedback_label aLabel, bool& aEvidence, const bool aCombine, const state_type::phase aNext) -> result {
+			const auto mutations = implementation->Fixture->review_mutation_evidence();
+			const auto found     = std::ranges::find_if(cards->cards(), [&](const qt::thread_card& aCard) { return !aCard.Posts.empty() && aCard.Posts.front().Body == aBody; });
+			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0) + " native=" + std::to_string(mutations.NativePosts)
+				 + " lastLine=" + std::to_string(mutations.LastLine.value_or(0U)) + " anchor=" + std::to_string(probe.Anchor ? probe.Anchor->Line : 0U)
+				 + " side=" + mutations.LastSide + " card=" + std::to_string(found != cards->cards().end() ? 1 : 0) + " status=" + editor->mutation_status_label()->text().toStdString());
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || found == cards->cards().end()) {
+				return result::pending;
+			}
+			const auto bytes = aBody.toStdString();
+			// The prose case also carries its before-Publish check.
+			aEvidence = (!aCombine || aEvidence) && mutations.NativePosts == probe.NativeBefore + 1U && mutations.FilePosts == 0U && !mutations.LastFile
+				&& mutations.LastBody == bytes && mutations.LastPath == path && mutations.LastSide == "RIGHT" && probe.Anchor && mutations.LastLine == probe.Anchor->Line + 1U
+				&& found->Posts.front().Label == aLabel;
+			if (!aEvidence) {
+				return fail("published-not-exact body=" + mutations.LastBody + " path=" + mutations.LastPath);
+			}
+			probe.Phase = aNext;
+			return result::pending;
+		};
 		switch (probe.Phase) {
 		case state_type::phase::awaiting_read_empty: {
 			// [[BPR-1287]]. Read before any file is chosen.
@@ -24577,11 +24701,122 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.PublishedMarked) {
 				return fail("published-thread-unmarked name=" + card->Posts.front().Name.toStdString());
 			}
+			probe.Phase = state_type::phase::awaiting_patch_draft;
+			return result::pending;
+		}
+		// [[BPR-1084]]. Suggested changes through the same public path: an
+		// issue with a patch, a suggestion with none, a patch on a line GitHub
+		// refuses an inline comment on, and a reply in place with a patch.
+		case state_type::phase::awaiting_patch_draft:
+			return rootDraft(patchBody, state_type::phase::awaiting_patch_body);
+		case state_type::phase::awaiting_patch_body:
+			return rootBody(patchBody, "native", probe.Evidence.PatchMarkedNative, "editor-patch-native", state_type::phase::awaiting_patch_published);
+		case state_type::phase::awaiting_patch_published:
+			return rootPublished(patchBody, core::feedback_label::issue, probe.Evidence.PatchPublishedExact, false, state_type::phase::awaiting_prose_draft);
+		case state_type::phase::awaiting_prose_draft:
+			return rootDraft(proseBody, state_type::phase::awaiting_prose_body);
+		case state_type::phase::awaiting_prose_body:
+			return rootBody(proseBody, "hidden", probe.Evidence.ProseUnmarkedExact, "editor-prose-unmarked", state_type::phase::awaiting_prose_published);
+		case state_type::phase::awaiting_prose_published:
+			return rootPublished(proseBody, core::feedback_label::suggestion, probe.Evidence.ProseUnmarkedExact, true, state_type::phase::awaiting_refused_draft);
+		case state_type::phase::awaiting_refused_draft:
+			return rootDraft(refusedBody, state_type::phase::awaiting_refused_body);
+		case state_type::phase::awaiting_refused_body: {
+			// Before the first attempt nothing says GitHub will refuse this
+			// line, so the mark says native: GitHub is asked for an inline
+			// comment, and a refused suggestion never becomes a file comment.
+			auto asked = false;
+			return rootBody(refusedBody, "native", asked, "editor-refused-before", state_type::phase::awaiting_refused);
+		}
+		case state_type::phase::awaiting_refused: {
+			const auto  mutations = implementation->Fixture->review_mutation_evidence();
+			const auto& draft     = implementation->ReviewDraft;
+			const auto  status    = editor->mutation_status_label()->text();
+			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0) + " native=" + std::to_string(mutations.NativePosts)
+				 + " file=" + std::to_string(mutations.FilePosts) + " lastLine=" + std::to_string(mutations.LastLine.value_or(0U)) + " anchor=" + std::to_string(probe.Anchor ? probe.Anchor->Line : 0U)
+				 + " state=" + (draft ? std::string{ core::name(draft->State) } : std::string{ "-" }) + " mark=" + markState() + " status=" + status.toStdString());
+			if (implementation->PendingReviewMutation.has_value() || !status.contains(QStringLiteral("needs a supported inline line anchor"))
+				|| !draft || draft->State != core::review_draft_state::drafting) {
+				return result::pending;
+			}
+			probe.Evidence.RefusedTextKept = mutations.NativePosts == probe.NativeBefore + 1U && mutations.FilePosts == 0U && !mutations.LastFile
+				&& mutations.LastBody == refusedBody.toStdString() && probe.Anchor && mutations.LastLine == probe.Anchor->Line + 1U && mutations.LastSide == "RIGHT"
+				&& draft->Anchor == *probe.Anchor && draft->Body == refusedBody.toStdString() && text() == refusedBody
+				&& std::ranges::none_of(cards->cards(), [&](const qt::thread_card& aCard) { return !aCard.Posts.empty() && aCard.Posts.front().Body == refusedBody; });
+			const auto* const mark               = editor->suggestion_mark_widget();
+			probe.Evidence.RefusedMarkedTextOnly = markState() == "textual_only" && mark->decision().Reason == core::suggestion_text_reason::inline_comment_unsupported;
+			render("editor-refused-text-only");
+			if (!probe.Evidence.RefusedTextKept || !probe.Evidence.RefusedMarkedTextOnly) {
+				return fail("refused-patch kept=" + std::to_string(probe.Evidence.RefusedTextKept ? 1 : 0) + " marked=" + std::to_string(probe.Evidence.RefusedMarkedTextOnly ? 1 : 0));
+			}
+			probe.Phase = state_type::phase::awaiting_reply_open;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_open: {
+			// A reply written in place in renderer.cpp's first thread, beside
+			// the code in Read, where the drawer writes replies in place.
+			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+			note("page=" + std::to_string(inlinePage != nullptr && inlinePage->isVisibleTo(window) ? 1 : 0) + " modality=" + std::to_string(static_cast<int>(window->current_modality())));
+			if (inlinePage != nullptr && inlinePage->isVisibleTo(window)) {
+				auto* const back = inlinePage->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
+				if (back == nullptr) {
+					return fail("no-back");
+				}
+				back->click();
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			if (window->current_modality() != qt::review_modality::read) {
+				window->choose_modality(qt::review_modality::read);
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			cards->open_thread("review-thread:PRRT_cc_1");
+			auto* const card  = cards->open_card();
+			auto* const field = card != nullptr ? card->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) : nullptr;
+			if (field == nullptr || !field->isEnabled()) {
+				return fail("no-reply-field");
+			}
+			field->click();
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_reply_draft;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_draft: {
+			const auto& draft = implementation->ReviewDraft;
+			note("reply=" + (draft && draft->ReplyToThread ? *draft->ReplyToThread : std::string{ "-" }) + " editor=" + std::to_string(cards->reply_editor() != nullptr ? 1 : 0));
+			if (!draft || draft->ReplyToThread != std::optional<std::string>{ "PRRT_cc_1" } || cards->reply_editor() == nullptr) {
+				return result::pending;
+			}
+			cards->reply_editor()->setPlainText(replyBody);
+			probe.Phase = state_type::phase::awaiting_reply_body;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_body: {
+			const auto& draft   = implementation->ReviewDraft;
+			auto* const card    = cards->open_card();
+			auto* const mark    = card != nullptr ? dynamic_cast<qt::suggestion_mark*>(card->findChild<QWidget*>(QStringLiteral("threadReplySuggestionMark"))) : nullptr;
+			const auto  inPlace = mark == nullptr ? std::string{ "-" } : !mark->isVisibleTo(card) ? std::string{ "hidden" }
+																								  : mark->property("suggestionApplicability").toString().toStdString();
+			note("body=" + (draft ? draft->Body : std::string{ "-" }) + " inPlace=" + inPlace + " editorMark=" + markState());
+			if (!draft || draft->Body != replyBody.toStdString()) {
+				return result::pending;
+			}
+			// The draft editor reads the thread's projected facts through the
+			// window, the reply editor from its own card: both say native.
+			const auto* const editorMark     = editor->suggestion_mark_widget();
+			probe.Evidence.ReplyMarkedNative = inPlace == "native" && editorMark->decision().Applicability == core::suggestion_applicability::native
+				&& cards->reply_editor() != nullptr && cards->reply_editor()->toPlainText() == replyBody;
+			render("reply-in-place-native");
 			const auto& evidence = probe.Evidence;
 			const auto  all      = evidence.ReadEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
-				&& evidence.ChipApplied && evidence.ShortcutApplied && evidence.Published && evidence.PublishedMarked;
-			probe.Phase = all ? state_type::phase::passed : state_type::phase::failed;
-			return all ? result::passed : result::failed;
+				&& evidence.ChipApplied && evidence.ShortcutApplied && evidence.Published && evidence.PublishedMarked && evidence.PatchMarkedNative
+				&& evidence.PatchPublishedExact && evidence.ProseUnmarkedExact && evidence.RefusedTextKept && evidence.RefusedMarkedTextOnly && evidence.ReplyMarkedNative;
+			if (!all) {
+				return fail("reply-mark inPlace=" + inPlace + " editorMark=" + markState());
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
 		}
 		case state_type::phase::passed:
 		case state_type::phase::failed:

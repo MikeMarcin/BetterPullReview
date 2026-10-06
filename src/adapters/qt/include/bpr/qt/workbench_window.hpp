@@ -1245,6 +1245,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1290]]. Tells the notes what the draft editor holds
 		/// for the reply in place.
 		void present_inline_reply();
+		/// [[BPR-1084]]. Tells the draft editor where the reply it shows is attached.
+		void present_reply_placement();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
 		/// \brief Selects the overview entry file and enters its semantic modality.

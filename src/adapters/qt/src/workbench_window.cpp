@@ -1542,7 +1542,10 @@ namespace bpr::qt {
 		ComparisonSurface->set_thread_markers(true);
 		ComparisonSurface->set_line_mark_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { toggle_thread_at(aSide, aLine); });
 		ComparisonSurface->set_thread_tick_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { go_to_thread_at(aSide, aLine); });
-		ConversationPanel->cards()->set_marks_observer([this] { apply_thread_marks(); });
+		ConversationPanel->cards()->set_marks_observer([this] {
+			apply_thread_marks();
+			present_reply_placement();
+		});
 		ConversationPanel->cards()->set_scroll_forward([this](QWheelEvent& aEvent) {
 			return ComparisonSurface != nullptr && ComparisonSurface->scroll_by_wheel(aEvent);
 		});
@@ -5735,11 +5738,33 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::present_reply_placement()
+	{
+		// [[BPR-1084]]. The draft editor's suggested-change mark reads what the
+		// thread a reply answers is attached to, from the card the accepted
+		// projection built; with no such card it claims nothing.
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || ReviewEditor == nullptr) {
+			return;
+		}
+		auto        placement = std::optional<core::suggestion_placement_observation>{ };
+		const auto& draft     = ReviewEditor->shown_draft();
+		if (draft.has_value() && draft->ReplyToThread.has_value()) {
+			const auto  identity = "review-thread:" + *draft->ReplyToThread;
+			const auto& cards    = ConversationPanel->cards()->cards();
+			const auto  found    = std::ranges::find(cards, identity, &thread_card::Id);
+			if (found != cards.end()) {
+				placement = found->Suggestion;
+			}
+		}
+		ReviewEditor->describe_reply_placement(placement);
+	}
+
 	void workbench_window::present_inline_reply()
 	{
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || ReviewEditor == nullptr) {
 			return;
 		}
+		present_reply_placement();
 		const auto& draft = ReviewEditor->shown_draft();
 		if (!draft.has_value() || !draft->ReplyToThread.has_value() || draft->shared()) {
 			ConversationPanel->cards()->present_reply(std::nullopt);

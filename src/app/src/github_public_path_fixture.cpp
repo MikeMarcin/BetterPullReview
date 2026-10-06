@@ -3650,7 +3650,19 @@ namespace bpr::app::detail {
 					} else {
 						++Evidence.NativePosts;
 					}
-					if (!file && request.Proposal.Body == "BPR-0571 off-hunk publication.") {
+					// [[BPR-1084]]. The decoded bytes and the line of each attempt
+					// as the fixture server receives them, refused or not.
+					{
+						const auto sent   = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
+						Evidence.LastBody = sent.value("body").toString().toStdString();
+						Evidence.LastPath = sent.value("path").toString().toStdString();
+						Evidence.LastSide = sent.value("side").toString().toStdString();
+						Evidence.LastLine = sent.value("line").isDouble() ? std::optional<std::uint32_t>{ static_cast<std::uint32_t>(sent.value("line").toInt()) } : std::nullopt;
+						Evidence.LastFile = file;
+					}
+					// [[BPR-1084]]. A suggested change the label-authoring course
+					// writes on a line GitHub will not take an inline comment on.
+					if (!file && (request.Proposal.Body == "BPR-0571 off-hunk publication." || request.Proposal.Body.find("BPR-1084 off-hunk") != std::string::npos)) {
 						return github_mutation_wire_success{ .Response = { .Status = 422, .Headers = response.Headers, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"line","code":"fixture_off_hunk_unsupported","message":"Fixture: no comment created for off-hunk line"}]})" } };
 					}
 					object        = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();

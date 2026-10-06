@@ -366,6 +366,14 @@ namespace bpr::app::detail {
 		/// resolutions asked of the provider.
 		std::size_t Replies     = 0U;
 		std::size_t Resolutions = 0U;
+		/// [[BPR-1084]]. The last created comment's decoded body, path, side
+		/// and line exactly as the fixture server received them, and whether
+		/// it was a file comment.
+		std::string                  LastBody;
+		std::string                  LastPath;
+		std::string                  LastSide;
+		std::optional<std::uint32_t> LastLine;
+		bool                         LastFile = false;
 
 		auto operator<=>(const review_mutation_fixture_evidence&) const = default;
 	};
@@ -589,6 +597,25 @@ namespace bpr::app::detail {
 		bool Published = false;
 		/// After a refresh, the new thread's card carries its mark.
 		bool PublishedMarked = false;
+		/// [[BPR-1084]]. An issue with a suggested change on a free line: the
+		/// mark beside Publish said native before Publish.
+		bool PatchMarkedNative = false;
+		/// It published once as a native line comment whose decoded body and
+		/// line the fixture server received exactly as drafted, and its thread
+		/// came back as an issue with the fence in its body.
+		bool PatchPublishedExact = false;
+		/// A suggestion with no patch showed no mark and published exactly its
+		/// prose: no fence was invented.
+		bool ProseUnmarkedExact = false;
+		/// A suggested change on a line GitHub will not take an inline comment
+		/// on was refused (incompatible_body): one native attempt on the exact
+		/// line, no file comment, no other line, the text kept as written.
+		bool RefusedTextKept = false;
+		/// After that refusal the mark says text only before the next Publish.
+		bool RefusedMarkedTextOnly = false;
+		/// A reply written in place in a thread on a current line: the reply
+		/// editor's mark and the draft editor's both say native.
+		bool ReplyMarkedNative = false;
 
 		auto operator<=>(const label_authoring_probe_evidence&) const = default;
 	};

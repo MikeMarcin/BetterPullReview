@@ -1,6 +1,7 @@
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/suggestion_mark.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -1089,7 +1090,7 @@ namespace {
 	/// out of this widget is a semantic command" a property of the type.
 	void test_the_editor_holds_no_provider_endpoint_store_or_process()
 	{
-		const auto members                   = qt::review_draft_editor_members{ };
+		const auto members                                    = qt::review_draft_editor_members{ };
 		const auto& [applying,
 					 workshopAsked,
 					 draftDispatch,
@@ -1115,7 +1116,13 @@ namespace {
 					 shownDraft,
 					 shownReceipt,
 					 shownProposal,
-					 statistics, revisioned] = members;
+					 statistics, revisioned,
+					 suggestion, replyPlacement, refusedLine] = members;
+		// [[BPR-1084]]. The suggested-change mark, the reply's projected
+		// placement and the line a refusal named: presentation and facts.
+		static_assert(std::is_same_v<decltype(suggestion), qt::suggestion_mark* const>);
+		static_assert(std::is_same_v<decltype(replyPlacement), const std::optional<core::suggestion_placement_observation>>);
+		static_assert(std::is_same_v<decltype(refusedLine), const std::optional<core::source_line_ref>>);
 		static_assert(std::is_same_v<decltype(revisioned), const qt::revisioned_draft_editor_state>);
 		static_assert(std::is_same_v<decltype(retryPublication), const bool>);
 		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void()>>);
@@ -1192,7 +1199,8 @@ namespace {
 					[](const QAction* aControl) { return aControl == nullptr; })
 				&& !shownDraft.has_value() && !shownReceipt.has_value()
 				&& !shownProposal.has_value()
-				&& statistics == qt::review_draft_editor_statistics{ },
+				&& statistics == qt::review_draft_editor_statistics{ }
+				&& suggestion == nullptr && !replyPlacement && !refusedLine,
 			"the editor's complete member set is three dispatch callbacks, the "
 			"accepted projections, seven counters, and the widgets that show "
 			"them - there is no provider to hold, no agent to ask, nowhere to "
@@ -1308,6 +1316,81 @@ namespace {
 
 		delete editor;
 	}
+
+	// [[BPR-1084]]. Before Publish, a small mark beside it says whether the
+	// body's suggested change is GitHub's native suggestion on this line or
+	// text only, from `core::decide_suggestion_applicability`. Prose shows
+	// nothing; the mark gates nothing, emits nothing and changes no byte.
+	void test_a_suggested_change_is_marked_before_publish()
+	{
+		auto        log    = intent_log{ };
+		auto* const editor = editor_for(log);
+		auto* const mark   = editor->suggestion_mark_widget();
+		const auto  state  = [mark] { return mark->property("suggestionApplicability").toString().toStdString(); };
+		const auto  shown  = [editor, mark] { return mark->isVisibleTo(editor); };
+		expect(mark != nullptr && !shown(), "no draft, no mark");
+
+		const auto patch = std::string{ "issue (blocking): Clamp the width.\n\n```suggestion\n\tconst auto width = std::max(1, requested);\n```\n" };
+		const auto prose = std::string{ "suggestion: Consider clamping the width to one pixel." };
+		editor->present(a_draft(prose));
+		expect(!shown(), "a suggestion label with no patch shows no mark");
+		editor->present(a_draft(patch));
+		expect(shown() && state() == "native" && mark->accessibleName() == QStringLiteral("Suggested change, native")
+				   && mark->toolTip().contains(QStringLiteral("GitHub's own suggestion")),
+			   "a patch on a new right-side line is native, said in the tooltip");
+		expect(editor->publish_action()->isEnabled() && editor->body_editor()->toPlainText().toStdString() == patch, "the mark gates nothing and keeps every byte");
+
+		// Typing takes the mark with the text, before any projection.
+		const auto drafts = log.Drafts.size();
+		editor->body_editor()->setPlainText(QString::fromStdString(prose));
+		expect(!shown(), "removing the fence removes the mark");
+		editor->body_editor()->setPlainText(QString::fromStdString(patch));
+		expect(shown() && state() == "native", "typing it back brings the mark back");
+		expect(log.Drafts.size() == drafts + 2U && std::ranges::all_of(log.Drafts, [](const auto& aCommand) { return aCommand.Kind == core::review_draft_command_kind::edit; }),
+			   "the mark emits nothing of its own: only the typed edits went out");
+
+		// GitHub refused an inline comment on this line: the next Publish is
+		// refused for a suggestion, and the mark says so first.
+		editor->present(application::review_mutation_failure::incompatible_body);
+		expect(shown() && state() == "textual_only" && mark->property("suggestionReason").toString() == QStringLiteral("inline_comment_unsupported")
+				   && mark->accessibleName() == QStringLiteral("Suggested change, text only") && mark->toolTip().contains(QStringLiteral("refused an inline comment")),
+			   "after a refused inline comment the same line is text only");
+		expect(editor->body_editor()->toPlainText().toStdString() == patch, "the refused text is kept as written");
+		auto other        = a_draft(patch);
+		other.Anchor.Line = 9U;
+		editor->present(other);
+		expect(state() == "native", "another line is asked again; the refusal named one line");
+		editor->present(a_draft(patch));
+		expect(state() == "textual_only", "back on the refused line it is still text only");
+
+		auto base        = a_draft(patch);
+		base.Anchor.Side = core::diff_side::left;
+		base.Anchor.Line = 3U;
+		editor->present(base);
+		expect(shown() && state() == "textual_only" && mark->property("suggestionReason").toString() == QStringLiteral("base_side"), "the base side is text only");
+
+		// A reply goes where its thread is; with no projected fact nothing is claimed.
+		auto reply          = a_draft(patch);
+		reply.Anchor.Line   = 20U;
+		reply.ReplyToThread = "PRRT_fixture_1";
+		editor->present(reply);
+		expect(!shown(), "a reply with no projected thread facts claims nothing");
+		editor->describe_reply_placement(core::suggestion_placement_observation{ .Subject = core::suggestion_subject::outdated_line });
+		expect(shown() && state() == "textual_only" && mark->toolTip().contains(QStringLiteral("outdated")), "a reply in an outdated thread is text only");
+		editor->describe_reply_placement(core::suggestion_placement_observation{ .Subject = core::suggestion_subject::file });
+		expect(state() == "textual_only" && mark->property("suggestionReason").toString() == QStringLiteral("file_subject"), "a reply to a file comment is text only");
+		editor->describe_reply_placement(core::suggestion_placement_observation{ .Subject = core::suggestion_subject::current_line, .Side = core::diff_side::right });
+		expect(state() == "native", "a reply in a thread on a current line is native");
+		expect(editor->body_editor()->toPlainText().toStdString() == patch, "no presentation changed the text");
+
+		auto published  = reply;
+		published.State = core::review_draft_state::published;
+		editor->present(published);
+		expect(!shown(), "a published comment shows no pre-publish mark");
+		editor->present(qt::review_draft_editor_clear_reason::selection_cleared);
+		expect(!shown(), "cleared, no mark");
+		delete editor;
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -1328,6 +1411,7 @@ auto main(int argc, char** argv) -> int
 	test_every_action_and_widget_is_distinctly_named();
 	test_left_new_comment_keeps_text_without_offering_publish();
 	test_target_and_server_failures_are_distinct();
+	test_a_suggested_change_is_marked_before_publish();
 	test_typed_clear_removes_stale_selection_bound_state();
 	test_retry_preserves_the_frozen_publication_revision();
 	test_the_workshop_shows_both_texts_at_once_on_two_surfaces();

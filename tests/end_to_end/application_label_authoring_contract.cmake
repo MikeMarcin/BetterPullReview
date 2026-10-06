@@ -8,6 +8,14 @@ cmake_minimum_required(VERSION 4.4.2)
 # `:qu:` typed into the empty body becomes `question: `, the chip's menu
 # makes it a suggestion and ⌘L's menu an issue, Publish posts it, and after
 # a refresh the new thread carries the issue mark.
+# [[BPR-1084]]. Then suggested changes on the same path: an issue with a
+# multiline suggestion on a free line is marked native before Publish and the
+# fixture server receives its exact bytes and line; a suggestion with no patch
+# shows no mark and publishes exactly its prose; a patch on a line the
+# fixture's GitHub refuses an inline comment for is refused (incompatible_body)
+# after one native attempt on that exact line, with no file comment, its text
+# kept and the mark then saying text only; and a reply written in place in a
+# thread on a current line is marked native in both editors.
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -44,7 +52,7 @@ endif()
 foreach(marker IN ITEMS
     PUBLIC_PATH_OK
     LABEL_AUTHORING_OK
-    LABEL_AUTHORING_EVIDENCE:111111111
+    LABEL_AUTHORING_EVIDENCE:111111111111111
 )
     string(FIND "${probe_output}" "${marker}" found)
     if(found EQUAL -1)

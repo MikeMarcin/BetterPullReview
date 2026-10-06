@@ -7,6 +7,7 @@
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
+#include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QString>
@@ -26,6 +27,7 @@ class QPlainTextEdit;
 
 namespace bpr::qt {
 	class feedback_label_controls;
+	class suggestion_mark;
 
 	/// \brief Names why no review-draft projection remains presentable.
 	enum class review_draft_editor_clear_reason : std::uint8_t {
@@ -223,6 +225,18 @@ namespace bpr::qt {
 		std::optional<comment_workshop_proposal>  ShownProposal;
 		review_draft_editor_statistics            Statistics;
 		revisioned_draft_editor_state             Revisioned;
+
+		/// [[BPR-1084]]. Beside Publish: whether the body's suggested change
+		/// would be GitHub's native suggestion here or text only, decided by
+		/// `core::decide_suggestion_applicability`. Hidden with no patch.
+		suggestion_mark* Suggestion = nullptr;
+		/// What the thread a reply answers is attached to, as the accepted
+		/// conversation projection says; absent claims nothing for a reply.
+		std::optional<core::suggestion_placement_observation> ReplyPlacement;
+		/// The line GitHub refused an inline comment on, as the accepted
+		/// `incompatible_body` refusal said, so the shown draft's mark says
+		/// text only there before the next Publish.
+		std::optional<core::source_line_ref> RefusedLine;
 	};
 
 	/// \brief Composes a review comment and asks for it to be published.
@@ -325,6 +339,13 @@ namespace bpr::qt {
 		/// \brief [[BPR-0657]]. Names the thread the shown draft answers; shown only while it does.
 		[[nodiscard]] auto reply_target_label() const noexcept -> QLabel*;
 		void               describe_reply_target(const QString& aDescription);
+		/// \brief [[BPR-1084]]. What the thread the shown reply answers is
+		/// attached to, from the accepted conversation projection, or none.
+		/// \details Only the mark beside Publish reads it. A reply with none
+		/// shows no claim; a root comment's placement is its own line.
+		void describe_reply_placement(std::optional<core::suggestion_placement_observation> aPlacement);
+		/// \brief [[BPR-1084]]. The suggested-change mark beside Publish.
+		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
 		[[nodiscard]] auto mutation_status_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto mutation_status_text() const -> QString;
 		[[nodiscard]] auto publish_action() const noexcept -> QAction*;
@@ -391,6 +412,7 @@ namespace bpr::qt {
 		void request_workshop(core::workshop_operation aOperation);
 		void clear_workshop();
 		void refresh_enablement();
+		void refresh_suggestion_mark();
 
 		review_draft_editor_members Members;
 	};

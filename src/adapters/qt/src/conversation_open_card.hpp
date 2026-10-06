@@ -24,6 +24,7 @@ class QToolButton;
 
 namespace bpr::qt {
 	class feedback_label_controls;
+	class suggestion_mark;
 
 	/// \brief [[BPR-1290]]. The colours the notes are drawn in, derived from
 	/// the palette on screen and the appearance profile's unread and marker
@@ -161,6 +162,9 @@ namespace bpr::qt {
 		/// own [[BPR-1083]] controls on the reply's text. Null on a card that
 		/// takes no reply.
 		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
+		/// \brief [[BPR-1084]]. Beside the reply's label chip: whether a
+		/// suggested change in the reply is native in this thread or text only.
+		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
 		[[nodiscard]] auto posts() const -> std::vector<thread_post_view*>;
 		/// \brief The vertical centre of the notch, from the card's top.
 		void               set_notch(int aY);
@@ -198,7 +202,10 @@ namespace bpr::qt {
 		feedback_label_controls*       Labels      = nullptr;
 		QLabel*                        ReplyStatus = nullptr;
 		note_button*                   Publish     = nullptr;
-		std::vector<thread_post_view*> Posts;
+		suggestion_mark*               Suggestion  = nullptr;
+		/// What a reply here is attached to on GitHub ([[BPR-1084]]).
+		core::suggestion_placement_observation Placement;
+		std::vector<thread_post_view*>         Posts;
 	};
 } // namespace bpr::qt
 
