@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1294"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Owner chat 2026-10-06 (BPR-1290): find a better home for PR-wide comments that aren't on a file",
+  "created": "2026-10-06T07:31:19.389230+00:00",
+  "base": "fbbabb3ef97c70c7e9521aae02658f59daf1765e"
+}
