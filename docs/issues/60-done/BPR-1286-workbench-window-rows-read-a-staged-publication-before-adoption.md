@@ -79,3 +79,27 @@ with `tempfile.mkdtemp(dir=Path.home())`. [[BPR-0394]]'s gate forbids
   `DOCUMENTATION_OK`.
 - **Owed.** Linux and Windows station runs of the same rows. Both changes
   are portable, and the course runs only on macOS.
+
+**Note: Linux run at `1b47f1bac` (station `bpr-main-linux`, WSL2, GCC 15.2.0,
+offscreen).**
+
+- **Dev tree** (rebuilt whole, no warnings):
+  `contained_temporary_usage_contract` passes.
+  `qt_workbench_window_scale_{100,125,200}` still fail on Linux, but at the
+  earlier, known [[BPR-1255]] check ("no review-bar control folds into an
+  overflow menu at any width"). That check stops the row before it reaches
+  this card's publication check, which is why the [[BPR-1264]] regression was
+  not visible in this station's run of it. With only that overflow assertion
+  bypassed, locally and not committed, all three rows pass (24.5, 26.0 and
+  29.5 s), including "the composed surface accepts its exact publication".
+  The test was restored and rebuilt.
+- **Optimized tests-on tree** (`app-release`, `BUILD_TESTING=ON`, GCC
+  `-O3`, run with `-j1` once the station was idle): 18 of 18 large-review
+  rows pass in 93.6 s. Every report has `BudgetsEnforced` true,
+  `KnownInputMisses` empty and no input failure. Largest gaps in ms:
+  `large_file_selection` 23.7–28.7, `large_source_revisit_render` 18.4 and
+  24.1, `approximate_file_selection` 27.9, `first_tab_file` 25.5. The
+  largest gated gap is 56.2 (`first_tab_base`). The only build warning is
+  the vendored SQLite `-Wstringop-overread`.
+
+`build/app-release-tests` was removed. Done is not reopened.
