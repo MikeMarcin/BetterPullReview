@@ -211,31 +211,17 @@ namespace bpr::qt {
 				};
 			}
 
-			[[nodiscard]] auto set_document_origin(
-				const qreal aOrigin, const qreal aMaximumOrigin) -> qreal
+			/// \brief Scrolls so a line is at the top.
+			///
+			/// \details The pane does not wrap, so its native bar counts
+			/// lines. [[BPR-1291]]: the pane scrolls on centre, which lets its
+			/// bar reach the last line, as scroll-past-end needs.
+			void set_top_line(const std::size_t aLine)
 			{
 				auto* const bar = verticalScrollBar();
-				if (bar == nullptr || aMaximumOrigin <= 0.0 || bar->maximum() <= bar->minimum()) {
-					if (bar != nullptr) {
-						bar->setValue(bar->minimum());
-					}
-					return 0.0;
+				if (bar != nullptr) {
+					bar->setValue(static_cast<int>(std::min<std::size_t>(aLine, std::numeric_limits<int>::max())));
 				}
-				const auto fraction = std::clamp(aOrigin / aMaximumOrigin, 0.0, 1.0);
-				const auto value    = std::lerp(
-					static_cast<qreal>(bar->minimum()),
-					static_cast<qreal>(bar->maximum()),
-					fraction);
-				bar->setValue(static_cast<int>(std::llround(value)));
-				// An estimate, and known to be one: the bar counts blocks, so
-				// the fraction between its minimum and maximum is not the
-				// fraction of the document above the viewport. BPR-0208 records
-				// the drift this causes in the ribbons and why fixing it needs
-				// the measured boundaries rather than a local change here.
-				const auto appliedFraction = static_cast<qreal>(
-												 bar->value() - bar->minimum())
-					/ static_cast<qreal>(bar->maximum() - bar->minimum());
-				return appliedFraction * aMaximumOrigin;
 			}
 
 		protected:
@@ -971,6 +957,9 @@ namespace bpr::qt {
 		for (auto* const source : { Left, Right }) {
 			source->setReadOnly(true);
 			source->setLineWrapMode(QPlainTextEdit::NoWrap);
+			// [[BPR-1291]]. Lets the pane scroll until its last line is at the
+			// top. Without it Qt stops a pane with its last line at the bottom.
+			source->setCenterOnScroll(true);
 			source->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			source->setFocusPolicy(Qt::StrongFocus);
 			source->viewport()->installEventFilter(this);
@@ -993,6 +982,7 @@ namespace bpr::qt {
 		Unified->setAccessibleDescription(QStringLiteral("Base and head line numbers; removed lines followed by added lines in each change"));
 		Unified->setReadOnly(true);
 		Unified->setLineWrapMode(QPlainTextEdit::NoWrap);
+		Unified->setCenterOnScroll(true);
 		Unified->setFocusPolicy(Qt::StrongFocus);
 		pane(Unified)->set_unified_rows(&UnifiedPresentation->Rows);
 		Unified->viewport()->installEventFilter(this);
@@ -1966,25 +1956,18 @@ namespace bpr::qt {
 		const auto* const axis = AxisCache.axis();
 		if (axis != nullptr && axis->comparison() == aFrame.Comparison) {
 			auto rendered = aFrame;
-			// Set the bar, then read the origin back off the same per-line
-			// measurement the ribbon endpoints are built from. The value the
-			// setter returns is a fraction of the scrollbar's travel, and
-			// `QPlainTextEdit` scrolls in blocks with a last page it cannot
-			// scroll past, so that fraction is not the fraction of the document
-			// above the viewport. It agreed at the top of a file and drifted
-			// down it, which put every ribbon out by the difference - BPR-0208.
-			const auto leftEstimate = pane(Left)->set_document_origin(
-				aFrame.Left.DocumentOriginY,
-				std::max(
-					0.0,
-					axis->left_document_extent()
-						- axis->left_viewport_extent()));
-			const auto rightEstimate = pane(Right)->set_document_origin(
-				aFrame.Right.DocumentOriginY,
-				std::max(
-					0.0,
-					axis->right_document_extent()
-						- axis->right_viewport_extent()));
+			// Put the line nearest the frame's origin at the top, then read the
+			// origin back off the same per-line measurement the ribbon
+			// endpoints are built from, so the two cannot drift apart
+			// (BPR-0208). The pane scrolls by whole lines.
+			const auto place = [axis](source_pane& aPane, const core::diff_side aSide, const qreal aOrigin) {
+				const auto line = axis->top_line_for_origin(aSide, aOrigin);
+				aPane.set_top_line(line);
+				const auto top = aSide == core::diff_side::left ? axis->left_line_origin(line) : axis->right_line_origin(line);
+				return line == 0U ? 0.0 : top.value_or(aOrigin);
+			};
+			const auto leftEstimate  = place(*pane(Left), core::diff_side::left, aFrame.Left.DocumentOriginY);
+			const auto rightEstimate = place(*pane(Right), core::diff_side::right, aFrame.Right.DocumentOriginY);
 			if (!OnePaneEnabled && PresentationReadingLine) {
 				// A presentation flip carries an exact top row. These panes do
 				// not wrap, so their native bar counts those rows directly; using
@@ -2221,19 +2204,10 @@ namespace bpr::qt {
 			return false;
 		}
 		if (aAtTop) {
-			// The linked controller positions its rail, not its viewport top.
-			// Offset by that rail before projecting so a presentation flip does
-			// not move the former top line down to the middle of the document.
-			const auto viewport      = aLine.Side == core::diff_side::left ? axis->left_viewport_extent() : axis->right_viewport_extent();
-			const auto target        = *origin + comparison_scroll_configuration{ }.SynchronizationRailFraction * viewport;
-			const auto endForSide    = [aLine](const measured_alignment_segment& aSegment) { return aLine.Side == core::diff_side::left ? aSegment.LeftEnd : aSegment.RightEnd; };
-			auto       targetSegment = std::ranges::upper_bound(axis->segments(), target, { }, endForSide);
-			if (targetSegment == axis->segments().end()) {
-				targetSegment = std::prev(targetSegment);
-			}
-			const auto begin = aLine.Side == core::diff_side::left ? targetSegment->LeftBegin : targetSegment->RightBegin;
-			const auto end   = endForSide(*targetSegment);
-			return Controller->reveal_segment(targetSegment->Id, end > begin ? (target - begin) / (end - begin) : 0.0);
+			// The linked controller positions its rail, not its viewport top,
+			// so a presentation flip asks for the viewport top directly. It
+			// would otherwise move the former top line down to the rail.
+			return Controller->reveal_pane_origin(aLine.Side, aLine.Line == 0U ? 0.0 : *origin);
 		}
 		const auto begin    = aLine.Side == core::diff_side::left
 			? measured->LeftBegin

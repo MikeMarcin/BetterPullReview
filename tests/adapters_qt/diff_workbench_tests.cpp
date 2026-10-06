@@ -2303,8 +2303,12 @@ namespace {
 			// so a painter that scanned from the front and one that searched
 			// would be indistinguishable — which is exactly how a scan-shaped
 			// cost hides from a measurement taken on arrival.
+			// [[BPR-1291]]: the bar's maximum shows only the last line, so step
+			// back a page to have a full window of the file's end in view.
+			settle_geometry(workbench);
 			auto* const bar = workbench.shared_scrollbar();
 			bar->setValue(bar->maximum());
+			workbench.scroll_controller()->page_up();
 			process_events();
 
 			// One repaint, forced by a palette the panes do not already carry.
@@ -3368,6 +3372,204 @@ namespace {
 	/// reference lines, side by side with one change, in each of the four themes
 	/// and each white space choice. Written only when a directory is named, as
 	/// the other capture courses do; the assertions run either way.
+	/// \brief The block at a pane's top edge, read off the pane, not its bar.
+	[[nodiscard]] auto top_line(QPlainTextEdit& aPane) -> int
+	{
+		return aPane.cursorForPosition(QPoint{ 0, 1 }).block().blockNumber();
+	}
+
+	/// \brief The viewport y of a pane's last line.
+	[[nodiscard]] auto last_line_y(QPlainTextEdit& aPane) -> int
+	{
+		return aPane.cursorRect(QTextCursor{ aPane.document()->lastBlock() }).top();
+	}
+
+	struct ribbon_check
+	{
+		std::size_t Checked    = 0U;
+		std::size_t Mismatched = 0U;
+	};
+
+	/// \brief Whether each visible ribbon edge meets the pane at the top of the
+	/// line it names, on both sides. Exact, as in
+	/// `test_link_map_endpoints_meet_their_blocks`.
+	[[nodiscard]] auto check_ribbons(qt::diff_workbench& aWorkbench, const core::computed_file_diff& aDiff) -> ribbon_check
+	{
+		auto* const map    = aWorkbench.link_map();
+		auto* const parent = map->parentWidget();
+		const auto  mapTop = map->mapTo(parent, QPoint{ 0, 0 }).y();
+		auto        result = ribbon_check{ };
+		const auto  edge   = [&](QPlainTextEdit& aPane, const std::uint32_t aLine, const qreal aRibbon) {
+			const auto block = aPane.document()->findBlockByNumber(static_cast<int>(aLine));
+			if (!block.isValid()) {
+				return;
+			}
+			const auto blockTop = aPane.cursorRect(QTextCursor{ block }).top();
+			if (blockTop < 0 || blockTop > aPane.viewport()->height()) {
+				return;
+			}
+			++result.Checked;
+			if (qRound(aRibbon) + mapTop != blockTop + aPane.viewport()->mapTo(parent, QPoint{ 0, 0 }).y()) {
+				++result.Mismatched;
+			}
+		};
+		for (const auto& link : map->visible_links()) {
+			const auto segment = std::ranges::find_if(aDiff.Alignment.Segments, [&link](const core::alignment_segment& aSegment) {
+				return aSegment.Id == link.Identity.Segment;
+			});
+			if (segment == aDiff.Alignment.Segments.end()) {
+				continue;
+			}
+			edge(*aWorkbench.left_pane(), segment->Left.Begin, link.LeftTop);
+			edge(*aWorkbench.left_pane(), segment->Left.End, link.LeftBottom);
+			edge(*aWorkbench.right_pane(), segment->Right.Begin, link.RightTop);
+			edge(*aWorkbench.right_pane(), segment->Right.End, link.RightBottom);
+		}
+		return result;
+	}
+
+	/// \brief [[BPR-1291]]. The owner's `renderer.cpp` (7 lines against 14,
+	/// each pane showing an empty last line) in a workbench taller than
+	/// either. Before, the shared bar travelled the whole comparison while
+	/// both panes stayed at their top, and no pane could scroll past its end.
+	void test_the_panes_scroll_past_their_end_and_the_bar_agrees()
+	{
+		constexpr auto base = "#include \"renderer.h\"\n\nvoid Renderer::draw()\n{\n\tclear();\n\tpresent();\n}\n";
+		constexpr auto head = "#include \"renderer.h\"\n\nvoid Renderer::draw()\n{\n\tclear();\n\tdraw_scene();\n\tpresent();\n}\n\n"
+							  "void Renderer::resize(const int aWidth, const int aHeight)\n{\n\tWidth  = aWidth;\n\tHeight = aHeight;\n}\n";
+		const auto     diff = computed(base, head, { }, 53U);
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'260, 820);
+		workbench.show();
+		process_events();
+		const auto selected = context(diff, 95U, 95U);
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		}));
+		settle_geometry(workbench);
+
+		auto&       left       = *workbench.left_pane();
+		auto&       right      = *workbench.right_pane();
+		auto* const bar        = workbench.shared_scrollbar();
+		auto* const controller = workbench.scroll_controller();
+		const auto  lastLeft   = left.document()->blockCount() - 1;
+		const auto  lastRight  = right.document()->blockCount() - 1;
+		expect(lastLeft == 7 && lastRight == 14, "each pane ends in the empty line after its final line break");
+		bar->triggerAction(QAbstractSlider::SliderToMinimum);
+		process_events();
+		expect(last_line_y(right) < right.viewport()->height() / 2,
+			   "the file is shorter than half the viewport, so nothing is hidden at the top");
+		expect(top_line(left) == 0 && top_line(right) == 0, "the bar's minimum shows both files from their first line");
+		expect(bar->isEnabled() && bar->maximum() > bar->minimum(), "a file shorter than the viewport still has travel");
+
+		bar->triggerAction(QAbstractSlider::SliderToMaximum);
+		process_events();
+		expect(top_line(left) == lastLeft && top_line(right) == lastRight && last_line_y(left) <= 0 && last_line_y(right) <= 0,
+			   "the bar's maximum puts each side's last line at the top, as VS Code does");
+
+		// The right side leaves its top first and moves one to one with the
+		// position, so one line of travel is one line of the right pane.
+		const auto lineHeight = static_cast<qreal>(right.cursorRect(QTextCursor{ right.document()->findBlockByNumber(2) }).top()
+												   - right.cursorRect(QTextCursor{ right.document()->findBlockByNumber(1) }).top());
+		const auto span       = controller->maximum_position() - controller->minimum_position();
+		expect(lineHeight > 0.0 && span > lineHeight * (lastRight - 1), "the travel is the right file's height less its last line");
+		auto previous = std::pair{ -1, -1 };
+		auto level    = 0;
+		auto ribbons  = std::size_t{ 0U };
+		for (auto step = 0; step <= lastRight; ++step) {
+			const auto value = static_cast<int>(std::llround(std::min(1.0, static_cast<qreal>(step) * lineHeight / span) * bar->maximum()));
+			bar->setValue(value);
+			process_events();
+			const auto tops = std::pair{ top_line(left), top_line(right) };
+			expect(tops.first >= previous.first && tops.second >= previous.second && tops != previous,
+				   "each line of bar travel moves a pane, and neither pane moves back");
+			const auto check = check_ribbons(workbench, diff);
+			expect(check.Mismatched == 0U, "every visible ribbon meets both panes at the lines it names");
+			ribbons += check.Checked;
+			if (tops.first > 0) {
+				expect(last_line_y(left) == last_line_y(right), "once both panes move, the two files' last lines are level");
+				++level;
+			}
+			previous = tops;
+		}
+		expect(previous == std::pair{ lastLeft, lastRight } && level > 2 && ribbons > 10U,
+			   "the sweep reached the end, past both files' ends, with ribbons in view");
+
+		// Negative control: a pane moved behind the bar's back. The same checks
+		// see it: the ribbons no longer meet the right pane, and the ends are
+		// no longer level.
+		bar->setValue(bar->maximum() / 2);
+		process_events();
+		expect(check_ribbons(workbench, diff).Mismatched == 0U, "the control starts aligned");
+		right.verticalScrollBar()->setValue(right.verticalScrollBar()->value() + 1);
+		process_events();
+		const auto moved = check_ribbons(workbench, diff);
+		expect(moved.Checked > 0U && moved.Mismatched > 0U, "a pane moved behind the bar's back is seen as out of line");
+		expect(top_line(left) == 0 || last_line_y(left) != last_line_y(right), "and its end as out of level");
+		bar->triggerAction(QAbstractSlider::SliderToMinimum);
+		process_events();
+
+		// The wheel and End reach the same end, and go no further.
+		for (auto turn = 0; turn < 60; ++turn) {
+			static_cast<void>(send_wheel(*right.viewport(), QPoint{ 0, -40 }));
+		}
+		process_events();
+		expect(top_line(right) == lastRight && top_line(left) == lastLeft && close(controller->position(), controller->maximum_position()),
+			   "the wheel scrolls the short file until its last line is at the top, and no further");
+		send_key(right, Qt::Key_Home);
+		process_events();
+		expect(top_line(left) == 0 && top_line(right) == 0, "Home returns both files to their first line");
+		send_key(right, Qt::Key_End);
+		process_events();
+		expect(top_line(left) == lastLeft && top_line(right) == lastRight, "End puts each last line at the top");
+
+		// A file longer than the viewport scrolls past its end the same way.
+		auto longBase = std::string{ };
+		auto longHead = std::string{ };
+		for (auto line = 0; line < 160; ++line) {
+			longBase += "line-" + std::to_string(line) + '\n';
+			longHead += (line == 80 ? std::string{ "changed-80" } : "line-" + std::to_string(line)) + '\n';
+		}
+		const auto longDiff    = computed(longBase, longHead, { }, 54U);
+		const auto longContext = context(longDiff, 96U, 96U);
+		workbench.set_loading(longContext);
+		workbench.publish(bpr::qt::test::prepare_publication({
+			.Context = longContext,
+			.Result  = std::make_shared<const core::computed_file_diff>(longDiff),
+		}));
+		settle_geometry(workbench);
+		send_key(right, Qt::Key_End);
+		process_events();
+		expect(top_line(left) == 160 && top_line(right) == 160 && last_line_y(left) <= 0 && last_line_y(right) <= 0,
+			   "End puts a long file's last line at the top");
+		send_key(right, Qt::Key_Home);
+		process_events();
+		expect(top_line(left) == 0 && top_line(right) == 0, "Home returns a long file to its first line");
+		previous = { -1, -1 };
+		for (auto step = 0; step <= 50; ++step) {
+			bar->setValue(bar->maximum() * step / 50);
+			process_events();
+			const auto tops = std::pair{ top_line(left), top_line(right) };
+			expect(tops.first > previous.first && tops.second > previous.second,
+				   "each fiftieth of the bar moves a long file's panes together");
+			expect(check_ribbons(workbench, longDiff).Mismatched == 0U, "a long file's ribbons meet both panes");
+			previous = tops;
+		}
+
+		// One pane scrolls past its end as well.
+		workbench.set_one_pane_enabled(true);
+		settle_geometry(workbench);
+		auto* const unified = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+		expect(unified != nullptr && workbench.shared_scrollbar() == unified->verticalScrollBar()
+				   && unified->verticalScrollBar()->maximum() == unified->document()->blockCount() - 1,
+			   "the one-pane view's bar reaches its last line at the top");
+		workbench.set_one_pane_enabled(false);
+		settle_geometry(workbench);
+	}
+
 	void test_white_space_design_captures()
 	{
 		// The owner's example from his note of 2026-09-25, byte for byte, with
@@ -3405,6 +3607,12 @@ namespace {
 				// The reader on the first line, so Selection has a
 				// selected line to draw on.
 				static_cast<void>(workbench.select_conversation_line(core::diff_side::right, 0U));
+				// The first change is revealed on the rail, and since
+				// [[BPR-1291]] a file shorter than the viewport scrolls to put
+				// it there too. Back to the top, where the reader is, once the
+				// new font's geometry is in.
+				settle_geometry(workbench);
+				workbench.scroll_controller()->home();
 				QApplication::processEvents();
 				const auto before = workbench.statistics().WhiteSpacePainted;
 				workbench.left_pane()->viewport()->repaint();
@@ -3467,6 +3675,7 @@ auto main(int argc, char** argv) -> int
 	test_intraline_ranges_are_painted_on_the_removed_side();
 	test_group_boundaries_are_painted();
 	test_link_map_endpoints_meet_their_blocks();
+	test_the_panes_scroll_past_their_end_and_the_bar_agrees();
 	test_selected_rows_derive_their_intraline_fill();
 	test_dark_intraline_preserves_readable_syntax_hues();
 	test_group_selection_washes_every_line();

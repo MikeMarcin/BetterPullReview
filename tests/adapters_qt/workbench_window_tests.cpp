@@ -4750,7 +4750,10 @@ namespace {
 		const auto  leftBefore = surface->left_pane()->verticalScrollBar()->value();
 		const auto  rightBefore
 			= surface->right_pane()->verticalScrollBar()->value();
+		// [[BPR-1291]]. The bar's maximum leaves only the last line at the
+		// top, so step back a page to have the file's last page in view.
 		shared->setValue(shared->maximum());
+		shared->triggerAction(QAbstractSlider::SliderPageStepSub);
 		process_events();
 		expect(surface->left_pane()->verticalScrollBar()->value() != leftBefore
 				   && surface->right_pane()->verticalScrollBar()->value()

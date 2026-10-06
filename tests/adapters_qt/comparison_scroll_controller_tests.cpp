@@ -335,11 +335,12 @@ namespace {
 				   && controller.position() > 0.0,
 			   "key-first binding survives wheel-surface replacement");
 		controller.home();
+		const auto home = controller.minimum_position();
 		expect(!send_wheel(combinedSurface, QPoint{ 0, -2 })
-				   && close(controller.position(), 0.0),
+				   && close(controller.position(), home),
 			   "replaced wheel surface no longer routes vertical input");
 		expect(send_wheel(newViewport, QPoint{ 0, -2 })
-				   && close(controller.position(), 2.0),
+				   && close(controller.position(), home + 2.0),
 			   "replacement wheel surface routes vertical input");
 		const auto beforeKey = controller.position();
 		expect(!send_key(newViewport, Qt::Key_PageDown)
@@ -419,22 +420,26 @@ namespace {
 					   20.0),
 			   "7:4 replacement motion preserves proportional progress");
 
+		// [[BPR-1291]]. Dead travel is a step that moves no pane's origin,
+		// not merely one that moves no projection: the rail can cross the
+		// comparison while both panes stay clamped, which is the bar moving
+		// while nothing scrolls.
 		harness.Controller.set_axis(insertion_axis());
-		harness.Controller.set_position(0.0);
+		harness.Controller.home();
 		auto       previous    = *harness.Controller.current_frame();
+		const auto start       = harness.Controller.minimum_position();
 		const auto sampleCount = static_cast<std::size_t>(
-			std::floor(harness.Controller.maximum_position() * 4.0));
-		for (std::size_t sample = 1U; sample < sampleCount; ++sample) {
-			const auto position = static_cast<qreal>(sample) / 4.0;
+			std::floor((harness.Controller.maximum_position() - start) * 4.0));
+		expect(sampleCount > 8U, "the live range has room to sample");
+		for (std::size_t sample = 1U; sample <= sampleCount; ++sample) {
+			const auto position = start + static_cast<qreal>(sample) / 4.0;
 			harness.Controller.set_position(position);
 			const auto current = *harness.Controller.current_frame();
 			expect(current.Position > previous.Position,
 				   "each positive comparison sample advances retained position");
-			expect(!close(current.Left.ProjectedDocumentY,
-						  previous.Left.ProjectedDocumentY)
-					   || !close(current.Right.ProjectedDocumentY,
-								 previous.Right.ProjectedDocumentY),
-				   "each positive comparison sample advances at least one pane");
+			expect(current.Left.DocumentOriginY > previous.Left.DocumentOriginY
+					   || current.Right.DocumentOriginY > previous.Right.DocumentOriginY,
+				   "each positive comparison sample moves at least one pane");
 			previous = current;
 		}
 	}
@@ -454,20 +459,22 @@ namespace {
 		expect(harness.Controller.statistics().ScrollbarInputs == 0U,
 			   "frame projection never feeds integer scrollbar values back into q");
 
-		harness.Controller.set_position(5.0);
+		harness.Controller.set_position(6.0);
 		expect(send_wheel(
 				   harness.Left, QPoint{ 0, -4 }, QPoint{ 0, -120 }),
 			   "pixel wheel event is consumed");
-		expect(close(harness.Controller.position(), 9.0),
+		expect(close(harness.Controller.position(), 10.0),
 			   "pixel delta takes precedence over angle fallback");
-		harness.Controller.set_position(5.0);
+		harness.Controller.set_position(6.0);
 		expect(send_wheel(harness.Left, { }, QPoint{ 0, -120 }),
 			   "angle wheel fallback is consumed");
 		const auto lines = std::max(
 			1, QGuiApplication::styleHints()->wheelScrollLines());
 		expect(close(
 				   harness.Controller.position(),
-				   std::min(60.0, 5.0 + static_cast<qreal>(lines) * 16.0)),
+				   std::min(
+					   harness.Controller.maximum_position(),
+					   6.0 + static_cast<qreal>(lines) * 16.0)),
 			   "angle wheel fallback uses platform scroll-line policy");
 		harness.Controller.set_position(10.0);
 		expect(send_wheel(harness.Left, { }, QPoint{ 0, -1 }),
@@ -527,31 +534,39 @@ namespace {
 		harness.Controller.page_up();
 		expect(close(harness.Controller.position(), 20.0),
 			   "Page Up reverses the page step without integer round-trip");
+		// [[BPR-1291]]. The ends are where the panes stop, not where the
+		// rail does: End puts each side's last line (20 and 50) at the top,
+		// Home puts both first lines there, and neither end is clamped
+		// travel, because the range holds no position at which no pane moves.
+		const auto rail = 0.43 * 12.0;
+		expect(close(harness.Controller.minimum_position(), rail)
+				   && close(harness.Controller.maximum_position(), 50.0 + rail),
+			   "the live range runs from the first pane leaving its top to the last line at the top");
 		harness.Controller.end();
-		expect(close(harness.Controller.position(), 60.0)
+		expect(close(harness.Controller.position(), harness.Controller.maximum_position())
 				   && close(harness.Controller.current_frame()
-								->Left.ProjectedDocumentY,
-							30.0)
+								->Left.DocumentOriginY,
+							20.0)
 				   && close(harness.Controller.current_frame()
-								->Right.ProjectedDocumentY,
-							60.0)
-				   && harness.Controller.current_frame()->Left.TrailingClamped
-				   && harness.Controller.current_frame()->Right.TrailingClamped,
-			   "End reaches the final legal endpoint");
+								->Right.DocumentOriginY,
+							50.0)
+				   && !harness.Controller.current_frame()->Left.TrailingClamped
+				   && !harness.Controller.current_frame()->Right.TrailingClamped,
+			   "End puts each side's last line at the top");
 		harness.Controller.home();
-		expect(close(harness.Controller.position(), 0.0)
+		expect(close(harness.Controller.position(), harness.Controller.minimum_position())
 				   && close(harness.Controller.current_frame()
-								->Left.ProjectedDocumentY,
+								->Left.DocumentOriginY,
 							0.0)
 				   && close(harness.Controller.current_frame()
-								->Right.ProjectedDocumentY,
+								->Right.DocumentOriginY,
 							0.0)
-				   && harness.Controller.current_frame()->Left.LeadingClamped
-				   && harness.Controller.current_frame()->Right.LeadingClamped,
-			   "Home reaches the first legal endpoint");
+				   && !harness.Controller.current_frame()->Left.LeadingClamped
+				   && !harness.Controller.current_frame()->Right.LeadingClamped,
+			   "Home puts both first lines at the top");
 
 		harness.Shared.setValue(25'000);
-		expect(close(harness.Controller.position(), 15.0),
+		expect(close(harness.Controller.position(), rail + 0.25 * 50.0),
 			   "scrollbar drag projects into retained comparison position");
 		const auto beforeSingle = harness.Controller.position();
 		harness.Shared.triggerAction(QAbstractSlider::SliderSingleStepAdd);
@@ -564,10 +579,10 @@ namespace {
 			   "scrollbar page action advances comparison position");
 		harness.Shared.triggerAction(QAbstractSlider::SliderPageStepSub);
 		harness.Shared.triggerAction(QAbstractSlider::SliderToMaximum);
-		expect(close(harness.Controller.position(), 60.0),
+		expect(close(harness.Controller.position(), harness.Controller.maximum_position()),
 			   "scrollbar maximum action reaches final endpoint");
 		harness.Shared.triggerAction(QAbstractSlider::SliderToMinimum);
-		expect(close(harness.Controller.position(), 0.0),
+		expect(close(harness.Controller.position(), harness.Controller.minimum_position()),
 			   "scrollbar minimum action reaches first endpoint");
 		expect(harness.Controller.reveal_segment(inserted.Id, 0.25),
 			   "programmatic reveal resolves stable segment identity");
@@ -723,7 +738,7 @@ namespace {
 			24.0,
 			7U);
 		harness.Controller.set_axis(std::move(differentComparison));
-		expect(close(harness.Controller.position(), 0.0),
+		expect(close(harness.Controller.position(), harness.Controller.minimum_position()),
 			   "different-comparison geometry begins at its legal start");
 		harness.Controller.set_axis(insertion_axis());
 		harness.Controller.set_position(35.0);
@@ -746,18 +761,21 @@ namespace {
 					harness.Controller.set_axis(std::move(reentrantAxis));
 				}
 			});
+		// Rail 0.43 * 18; the right side's last line is at 150.
+		const auto reentrantRail = 0.43 * 18.0;
 		expect(!replaceOnce
 				   && harness.Controller.current_frame()->Segment
 					   == reentrantInsertion.Id
 				   && close(harness.Controller.position(), 105.0)
-				   && close(harness.Controller.maximum_position(), 180.0)
+				   && close(harness.Controller.maximum_position(), 150.0 + reentrantRail)
 				   && close(
 					   harness.Controller.current_frame()->Left.ProjectedDocumentY,
 					   30.0)
 				   && close(
 					   harness.Controller.current_frame()->Right.ProjectedDocumentY,
 					   105.0)
-				   && harness.Shared.value() == 58'333,
+				   && harness.Shared.value()
+					   == static_cast<int>(std::llround((105.0 - reentrantRail) / 150.0 * 100'000.0)),
 			   "reentrant axis replacement is serialized into one coherent frame");
 
 		harness.Controller.set_frame_sink(
@@ -828,6 +846,90 @@ namespace {
 		QApplication::processEvents();
 		expect(repaintController == nullptr,
 			   "repaint sink may destroy the controller without post-callback access");
+	}
+
+	/// \brief [[BPR-1291]]. The owner's `renderer.cpp`: 7 lines against 14,
+	/// both ending in a line break, so each pane shows an empty last line, in
+	/// a viewport taller than either. Before, the bar travelled the whole
+	/// comparison with both panes clamped at their top.
+	auto test_short_files_scroll_past_their_end_and_the_bar_agrees() -> void
+	{
+		constexpr auto base = std::string_view{
+			"#include \"renderer.h\"\n\nvoid Renderer::draw()\n{\n\tclear();\n\tpresent();\n}\n"
+		};
+		constexpr auto head = std::string_view{
+			"#include \"renderer.h\"\n\nvoid Renderer::draw()\n{\n\tclear();\n\tdraw_scene();\n\tpresent();\n}\n\n"
+			"void Renderer::resize(const int aWidth, const int aHeight)\n{\n\tWidth  = aWidth;\n\tHeight = aHeight;\n}\n"
+		};
+		const auto lines = [](const std::size_t aCount) {
+			auto boundaries = std::vector<qreal>{ };
+			for (std::size_t line = 0U; line <= aCount; ++line) {
+				boundaries.push_back(10.0 * static_cast<qreal>(line));
+			}
+			auto pane                = measurements(std::move(boundaries), 400.0);
+			pane.TrailingVisualBlock = true;
+			return pane;
+		};
+		const auto diff  = computed(base, head, 3U);
+		auto       built = qt::build_measured_alignment_axis(diff.Alignment, lines(7U), lines(14U));
+		expect(built.valid(), "the short comparison's axis builds");
+		expect(close(built.Axis->last_line_origin(core::diff_side::left), 70.0)
+				   && close(built.Axis->last_line_origin(core::diff_side::right), 140.0),
+			   "each side's last line is the empty line after its final line break");
+
+		auto harness = controller_harness{ };
+		harness.Controller.set_axis(std::move(*built.Axis));
+		const auto rail = 0.43 * 400.0;
+		expect(harness.Shared.isEnabled()
+				   && close(harness.Controller.minimum_position(), rail)
+				   && close(harness.Controller.maximum_position(), 140.0 + rail),
+			   "a file shorter than the viewport has exactly its last line's origin to scroll");
+
+		const auto origins = [&harness] {
+			const auto& frame = *harness.Controller.current_frame();
+			return std::pair{ frame.Left.DocumentOriginY, frame.Right.DocumentOriginY };
+		};
+		harness.Shared.triggerAction(QAbstractSlider::SliderToMinimum);
+		expect(origins() == std::pair{ 0.0, 0.0 }, "the bar's minimum shows both files from their first line");
+		harness.Shared.triggerAction(QAbstractSlider::SliderToMaximum);
+		expect(close(origins().first, 70.0) && close(origins().second, 140.0),
+			   "the bar's maximum puts each side's last line at the top");
+
+		// Every bar value moves a pane; the ends of the two files stay level
+		// once both are moving.
+		auto previous = std::pair{ -1.0, -1.0 };
+		auto level    = 0U;
+		for (auto value = 0; value <= 100'000; value += 500) {
+			harness.Shared.setValue(value);
+			const auto [left, right] = origins();
+			expect(left > previous.first || right > previous.second,
+				   "no bar step leaves both panes still");
+			if (left > 0.0) {
+				expect(close(70.0 - left, 140.0 - right, 0.000'001),
+					   "once both panes move, the ends of the two files are level");
+				++level;
+			}
+			previous = { left, right };
+		}
+		expect(level > 10U, "the sweep reached the part where both panes move");
+
+		harness.Controller.home();
+		for (auto turn = 0; turn < 100; ++turn) {
+			static_cast<void>(send_wheel(harness.Right, QPoint{ 0, -40 }));
+		}
+		expect(close(harness.Controller.position(), harness.Controller.maximum_position())
+				   && close(origins().second, 140.0),
+			   "the wheel scrolls the short file until its last line is at the top, and no further");
+
+		// Negative control: one line a side has nothing to scroll, so the bar
+		// has no travel and End moves nothing.
+		auto single = build_axis("alpha", "bravo", { 0.0, 10.0 }, { 0.0, 10.0 }, 400.0, 400.0, 4U);
+		harness.Controller.set_axis(std::move(single));
+		harness.Controller.end();
+		expect(!harness.Shared.isEnabled()
+				   && close(harness.Controller.minimum_position(), harness.Controller.maximum_position())
+				   && origins() == std::pair{ 0.0, 0.0 },
+			   "a one-line comparison offers no travel");
 	}
 
 	auto test_live_text_viewport_keyboard_and_scale() -> void
@@ -937,6 +1039,7 @@ auto main(int argc, char** argv) -> int
 	test_precision_wheel_phases_and_coalescing();
 	test_navigation_reveal_feedback_and_horizontal_isolation();
 	test_same_comparison_remeasurement_and_reentrant_sinks();
+	test_short_files_scroll_past_their_end_and_the_bar_agrees();
 	test_live_text_viewport_keyboard_and_scale();
 
 	std::cout << "comparison-scroll-controller-tests:pass\n";

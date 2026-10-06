@@ -66,6 +66,10 @@ namespace bpr::qt {
 		qreal              DocumentExtent   = 0.0;
 		qreal              ViewportExtent   = 0.0;
 		qreal              DevicePixelRatio = 1.0;
+		/// Whether the pane shows Qt's empty block after a final line break.
+		/// It is the pane's last line, so it is the line [[BPR-1291]]'s
+		/// scroll-past-end can bring to the top.
+		bool TrailingVisualBlock = false;
 
 		auto operator<=>(const pane_line_measurements&) const = default;
 	};
@@ -213,6 +217,21 @@ namespace bpr::qt {
 			-> std::optional<qreal>;
 		[[nodiscard]] auto right_line_origin(std::size_t aLine) const noexcept
 			-> std::optional<qreal>;
+		/// \brief The scroll origin that puts a side's last line at the top.
+		///
+		/// \details [[BPR-1291]]. The panes scroll past their end the way VS
+		/// Code does, until only the last line shows, so this, not the
+		/// document's height less the viewport's, is the furthest a pane
+		/// scrolls. Zero for a pane with one line or none.
+		[[nodiscard]] auto last_line_origin(core::diff_side aSide) const noexcept
+			-> qreal;
+		/// \brief The line a pane puts at its top to come nearest an origin.
+		///
+		/// \details A pane that does not wrap scrolls by whole lines, and line
+		/// 0's origin is 0 (the document margin shows above it), every other
+		/// line's is its measured top. Clamped to the side's last line.
+		[[nodiscard]] auto top_line_for_origin(
+			core::diff_side aSide, qreal aOrigin) const noexcept -> std::size_t;
 
 		[[nodiscard]] auto clamp(qreal aPosition) const noexcept -> qreal;
 		[[nodiscard]] auto project(qreal aPosition) const noexcept
@@ -231,13 +250,17 @@ namespace bpr::qt {
 		/// segments are built, because the scroll origin needs them too.
 		std::vector<qreal> LeftBoundaries;
 		std::vector<qreal> RightBoundaries;
-		qreal              ComparisonExtent    = 0.0;
-		qreal              LeftDocumentBegin   = 0.0;
-		qreal              LeftDocumentExtent  = 0.0;
-		qreal              RightDocumentBegin  = 0.0;
-		qreal              RightDocumentExtent = 0.0;
-		qreal              LeftViewportExtent  = 0.0;
-		qreal              RightViewportExtent = 0.0;
+		/// The index of each side's last line: the trailing visual block
+		/// when the pane shows one.
+		std::size_t LeftLastLine        = 0U;
+		std::size_t RightLastLine       = 0U;
+		qreal       ComparisonExtent    = 0.0;
+		qreal       LeftDocumentBegin   = 0.0;
+		qreal       LeftDocumentExtent  = 0.0;
+		qreal       RightDocumentBegin  = 0.0;
+		qreal       RightDocumentExtent = 0.0;
+		qreal       LeftViewportExtent  = 0.0;
+		qreal       RightViewportExtent = 0.0;
 	};
 
 	/// \brief Identifies why measured-axis construction failed closed.

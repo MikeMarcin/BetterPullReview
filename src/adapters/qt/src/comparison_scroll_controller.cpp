@@ -157,16 +157,17 @@ namespace bpr::qt {
 		for (std::size_t index = 0U; index < segments.size(); ++index) {
 			SegmentIndexes.emplace(segments[index].Id, index);
 		}
+		update_live_range();
 		if (SharedScrollBar != nullptr) {
-			SharedScrollBar->setEnabled(Axis->comparison_extent() > 0.0);
+			SharedScrollBar->setEnabled(MaximumQ > MinimumQ);
 		}
 		const auto anchoredPosition = anchor.has_value()
 			? position_for_anchor(*anchor)
 			: std::nullopt;
 		apply_position(
 			sameComparison
-				? anchoredPosition.value_or(Axis->clamp(previousPosition))
-				: 0.0,
+				? anchoredPosition.value_or(clamp_position(previousPosition))
+				: MinimumQ,
 			true);
 	}
 
@@ -195,7 +196,9 @@ namespace bpr::qt {
 		Axis.reset();
 		SegmentIndexes.clear();
 		CurrentFrame.reset();
-		Q = 0.0;
+		Q        = 0.0;
+		MinimumQ = 0.0;
+		MaximumQ = 0.0;
 		if (SharedScrollBar != nullptr) {
 			const auto blocker = QSignalBlocker{ SharedScrollBar };
 			SharedScrollBar->setValue(0);
@@ -254,6 +257,17 @@ namespace bpr::qt {
 		return true;
 	}
 
+	auto comparison_scroll_controller::reveal_pane_origin(
+		const core::diff_side aSide,
+		const qreal           aOrigin) -> bool
+	{
+		if (AxisSuspended || !Axis.has_value() || !std::isfinite(aOrigin)) {
+			return false;
+		}
+		set_position(position_reaching(aSide, aOrigin + rail_extent(aSide)));
+		return true;
+	}
+
 	auto comparison_scroll_controller::position() const noexcept -> qreal
 	{
 		return Q;
@@ -261,12 +275,12 @@ namespace bpr::qt {
 
 	auto comparison_scroll_controller::minimum_position() const noexcept -> qreal
 	{
-		return 0.0;
+		return MinimumQ;
 	}
 
 	auto comparison_scroll_controller::maximum_position() const noexcept -> qreal
 	{
-		return Axis.has_value() ? Axis->comparison_extent() : 0.0;
+		return MaximumQ;
 	}
 
 	auto comparison_scroll_controller::current_frame() const noexcept
@@ -357,6 +371,7 @@ namespace bpr::qt {
 			.Fraction = extent > 0.0
 				? std::clamp((Q - segment.ComparisonBegin) / extent, 0.0, 1.0)
 				: 0.0,
+			.PastEnd  = std::max(0.0, Q - Axis->comparison_extent()),
 		};
 	}
 
@@ -373,9 +388,10 @@ namespace bpr::qt {
 		}
 		const auto& segment = Axis->segments()[found->second];
 		return std::lerp(
-			segment.ComparisonBegin,
-			segment.ComparisonEnd,
-			std::clamp(aAnchor.Fraction, 0.0, 1.0));
+				   segment.ComparisonBegin,
+				   segment.ComparisonEnd,
+				   std::clamp(aAnchor.Fraction, 0.0, 1.0))
+			+ aAnchor.PastEnd;
 	}
 
 	auto comparison_scroll_controller::make_frame(
@@ -389,33 +405,35 @@ namespace bpr::qt {
 		if (!projected.has_value()) {
 			return std::nullopt;
 		}
+		// Past the comparison's end there is nothing left to align, so both
+		// sides advance together and their ends stay level.
+		const auto pastEnd = std::max(0.0, aPosition - Axis->comparison_extent());
 		return comparison_scroll_frame{
 			.Comparison = Axis->comparison(),
-			.Position   = projected->ComparisonPosition,
+			.Position   = projected->ComparisonPosition + pastEnd,
 			.Segment    = projected->Segment,
 			.Left       = make_pane_frame(
-				projected->LeftDocumentY,
-				Axis->left_document_extent(),
+				projected->LeftDocumentY + pastEnd,
+				Axis->last_line_origin(core::diff_side::left),
 				Axis->left_viewport_extent()),
 			.Right = make_pane_frame(
-				projected->RightDocumentY,
-				Axis->right_document_extent(),
+				projected->RightDocumentY + pastEnd,
+				Axis->last_line_origin(core::diff_side::right),
 				Axis->right_viewport_extent()),
 		};
 	}
 
 	auto comparison_scroll_controller::make_pane_frame(
 		const qreal aProjectedY,
-		const qreal aDocumentExtent,
+		const qreal aMaximumOrigin,
 		const qreal aViewportExtent) const noexcept
 		-> comparison_pane_scroll_frame
 	{
 		const auto rail = Configuration.SynchronizationRailFraction
 			* aViewportExtent;
 		const auto desiredOrigin = aProjectedY - rail;
-		const auto maximumOrigin = std::max(
-			0.0, aDocumentExtent - aViewportExtent);
-		const auto origin = std::clamp(
+		const auto maximumOrigin = std::max(0.0, aMaximumOrigin);
+		const auto origin        = std::clamp(
 			desiredOrigin, 0.0, maximumOrigin);
 		return {
 			.ProjectedDocumentY = aProjectedY,
@@ -424,6 +442,88 @@ namespace bpr::qt {
 			.LeadingClamped     = (desiredOrigin < 0.0),
 			.TrailingClamped    = (desiredOrigin > maximumOrigin),
 		};
+	}
+
+	auto comparison_scroll_controller::rail_extent(
+		const core::diff_side aSide) const noexcept -> qreal
+	{
+		if (!Axis.has_value()) {
+			return 0.0;
+		}
+		return Configuration.SynchronizationRailFraction
+			* (aSide == core::diff_side::left ? Axis->left_viewport_extent()
+											  : Axis->right_viewport_extent());
+	}
+
+	/// The least position at which a side's projection reaches a document y.
+	/// Past the comparison's end the projection carries on one to one, as
+	/// `make_frame` extends it.
+	auto comparison_scroll_controller::position_reaching(
+		const core::diff_side aSide,
+		const qreal           aDocumentY) const noexcept -> qreal
+	{
+		if (!Axis.has_value() || !std::isfinite(aDocumentY)) {
+			return 0.0;
+		}
+		const auto left   = aSide == core::diff_side::left;
+		const auto extent = Axis->comparison_extent();
+		const auto ending = Axis->project(extent);
+		const auto endY   = ending.has_value() ? (left ? ending->LeftDocumentY : ending->RightDocumentY) : 0.0;
+		if (aDocumentY >= endY) {
+			return extent + (aDocumentY - endY);
+		}
+		const auto segments = Axis->segments();
+		const auto found    = std::ranges::lower_bound(
+			segments,
+			aDocumentY,
+			std::ranges::less{ },
+			[left](const measured_alignment_segment& aSegment) {
+				return left ? aSegment.LeftEnd : aSegment.RightEnd;
+			});
+		if (found == segments.end()) {
+			return extent;
+		}
+		const auto begin = left ? found->LeftBegin : found->RightBegin;
+		const auto end   = left ? found->LeftEnd : found->RightEnd;
+		if (aDocumentY <= begin || end <= begin) {
+			return found->ComparisonBegin;
+		}
+		return std::lerp(
+			found->ComparisonBegin,
+			found->ComparisonEnd,
+			(aDocumentY - begin) / (end - begin));
+	}
+
+	auto comparison_scroll_controller::clamp_position(
+		const qreal aPosition) const noexcept -> qreal
+	{
+		return std::isfinite(aPosition)
+			? std::clamp(aPosition, MinimumQ, MaximumQ)
+			: MinimumQ;
+	}
+
+	/// The range runs from the first position at which a pane leaves its
+	/// top to the last at which a pane is still short of its last line.
+	/// Outside it the rail would move with every pane clamped, which is the
+	/// bar moving while nothing scrolls. A pane with one line never moves, so
+	/// it sets neither end; with no pane that moves the range is one point.
+	void comparison_scroll_controller::update_live_range() noexcept
+	{
+		MinimumQ   = 0.0;
+		MaximumQ   = 0.0;
+		auto found = false;
+		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+			const auto last = Axis.has_value() ? Axis->last_line_origin(side) : 0.0;
+			if (last <= 0.0) {
+				continue;
+			}
+			const auto rail    = rail_extent(side);
+			const auto leaves  = position_reaching(side, rail);
+			const auto arrives = position_reaching(side, last + rail);
+			MinimumQ           = found ? std::min(MinimumQ, leaves) : leaves;
+			MaximumQ           = found ? std::max(MaximumQ, arrives) : arrives;
+			found              = true;
+		}
 	}
 
 	void comparison_scroll_controller::apply_position(
@@ -437,7 +537,7 @@ namespace bpr::qt {
 			return;
 		}
 
-		const auto next = Axis->clamp(aPosition);
+		const auto next = clamp_position(aPosition);
 		if (!aForce && same_position(next, Q)) {
 			return;
 		}
@@ -478,7 +578,7 @@ namespace bpr::qt {
 		}
 		const auto blocker = QSignalBlocker{ SharedScrollBar };
 		SharedScrollBar->setRange(0, Configuration.ScrollbarPrecision);
-		const auto total = maximum_position();
+		const auto total = MaximumQ - MinimumQ;
 		const auto page  = total > 0.0
 			? std::clamp(
 				  static_cast<int>(std::llround(
@@ -673,16 +773,16 @@ namespace bpr::qt {
 		auto target = std::optional<qreal>{ };
 		switch (static_cast<QAbstractSlider::SliderAction>(aAction)) {
 		case QAbstractSlider::SliderSingleStepAdd:
-			target = Axis->clamp(Q + single_step_extent());
+			target = clamp_position(Q + single_step_extent());
 			break;
 		case QAbstractSlider::SliderSingleStepSub:
-			target = Axis->clamp(Q - single_step_extent());
+			target = clamp_position(Q - single_step_extent());
 			break;
 		case QAbstractSlider::SliderPageStepAdd:
-			target = Axis->clamp(Q + page_extent());
+			target = clamp_position(Q + page_extent());
 			break;
 		case QAbstractSlider::SliderPageStepSub:
-			target = Axis->clamp(Q - page_extent());
+			target = clamp_position(Q - page_extent());
 			break;
 		case QAbstractSlider::SliderToMinimum:
 			target = minimum_position();
@@ -772,10 +872,10 @@ namespace bpr::qt {
 	auto comparison_scroll_controller::scrollbar_value_for(
 		const qreal aPosition) const noexcept -> int
 	{
-		const auto total = maximum_position();
+		const auto total = MaximumQ - MinimumQ;
 		return total > 0.0
 			? static_cast<int>(std::llround(
-				  Axis->clamp(aPosition) / total
+				  (clamp_position(aPosition) - MinimumQ) / total
 				  * static_cast<qreal>(Configuration.ScrollbarPrecision)))
 			: 0;
 	}
@@ -783,7 +883,8 @@ namespace bpr::qt {
 	auto comparison_scroll_controller::position_for_scrollbar_value(
 		const int aValue) const noexcept -> qreal
 	{
-		return maximum_position()
+		return MinimumQ
+			+ (MaximumQ - MinimumQ)
 			* static_cast<qreal>(std::clamp(
 				aValue, 0, Configuration.ScrollbarPrecision))
 			/ static_cast<qreal>(Configuration.ScrollbarPrecision);

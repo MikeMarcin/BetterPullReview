@@ -79,6 +79,8 @@
 	#include <QStyle>
 	#include <QStyleHints>
 	#include <QSystemTrayIcon>
+	#include <QTextBlock>
+	#include <QTextCursor>
 	#include <QTreeView>
 	#include <QWheelEvent>
 #endif
@@ -2689,6 +2691,15 @@ namespace {
 			return fail(QStringLiteral("capture-divider-resized"));
 		}
 
+		// [[BPR-1291]]. The ends of the shared bar are where the panes stop:
+		// both first lines at the top, then each last line at the top, as
+		// VS Code scrolls past the end.
+		const auto topLine = [](QPlainTextEdit& aPane) {
+			return aPane.cursorForPosition(QPoint{ 0, 1 }).block().blockNumber();
+		};
+		const auto lastLine = [](QPlainTextEdit& aPane) {
+			return aPane.document()->blockCount() - 1;
+		};
 		controller->home();
 		if (std::abs(controller->position() - controller->minimum_position())
 			> 0.000'001) {
@@ -2697,6 +2708,9 @@ namespace {
 		if (!capture("18-comparison-start")) {
 			return fail(QStringLiteral("capture-comparison-start"));
 		}
+		if (topLine(*workbench->left_pane()) != 0 || topLine(*workbench->right_pane()) != 0) {
+			return fail(QStringLiteral("comparison-start-not-first-line"));
+		}
 		controller->end();
 		if (std::abs(controller->position() - controller->maximum_position())
 			> 0.000'001) {
@@ -2704,6 +2718,10 @@ namespace {
 		}
 		if (!capture("19-comparison-end")) {
 			return fail(QStringLiteral("capture-comparison-end"));
+		}
+		if (topLine(*workbench->left_pane()) != lastLine(*workbench->left_pane())
+			|| topLine(*workbench->right_pane()) != lastLine(*workbench->right_pane())) {
+			return fail(QStringLiteral("comparison-end-last-line-not-at-top"));
 		}
 
 		const auto finalStats = workbench->statistics();

@@ -82,6 +82,14 @@ namespace bpr::qt {
 	using comparison_scroll_repaint_sink = std::function<void()>;
 
 	/// \brief Owns the sole retained vertical position for a linked comparison.
+	///
+	/// \details The position is where the synchronization rail crosses the
+	/// comparison. [[BPR-1291]]: its range is only the positions at which some
+	/// pane moves. It starts where the first pane would leave its top and ends
+	/// where the last pane has its last line at the top, so the panes scroll
+	/// past their end as VS Code's do and no step of the shared bar leaves
+	/// both still. Past the comparison's end both sides advance together, so
+	/// their ends stay joined through the connector.
 	class comparison_scroll_controller final : public QObject
 	{
 	public:
@@ -123,6 +131,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto reveal_segment(
 			core::alignment_segment_id aSegment,
 			qreal                      aFraction = 0.0) -> bool;
+		/// \brief Scrolls so one side's viewport top sits at a document origin.
+		[[nodiscard]] auto reveal_pane_origin(
+			core::diff_side aSide,
+			qreal           aOrigin) -> bool;
 
 		[[nodiscard]] auto position() const noexcept -> qreal;
 		[[nodiscard]] auto minimum_position() const noexcept -> qreal;
@@ -148,6 +160,8 @@ namespace bpr::qt {
 		{
 			core::alignment_segment_id Segment;
 			qreal                      Fraction = 0.0;
+			/// How far past the comparison's end the position was.
+			qreal PastEnd = 0.0;
 		};
 		struct pending_scrollbar_target
 		{
@@ -170,9 +184,17 @@ namespace bpr::qt {
 			-> std::optional<comparison_scroll_frame>;
 		[[nodiscard]] auto make_pane_frame(
 			qreal aProjectedY,
-			qreal aDocumentExtent,
+			qreal aMaximumOrigin,
 			qreal aViewportExtent) const noexcept
 			-> comparison_pane_scroll_frame;
+		[[nodiscard]] auto rail_extent(core::diff_side aSide) const noexcept
+			-> qreal;
+		[[nodiscard]] auto position_reaching(
+			core::diff_side aSide,
+			qreal           aDocumentY) const noexcept -> qreal;
+		[[nodiscard]] auto clamp_position(qreal aPosition) const noexcept
+			-> qreal;
+		void               update_live_range() noexcept;
 		void               apply_position(qreal aPosition, bool aForce);
 		void               update_scrollbar_projection();
 		void               schedule_repaint();
@@ -206,6 +228,8 @@ namespace bpr::qt {
 		std::optional<measured_alignment_axis>            PendingAxis;
 		std::optional<pending_scrollbar_target>           PendingScrollbarTarget;
 		qreal                                             Q                   = 0.0;
+		qreal                                             MinimumQ            = 0.0;
+		qreal                                             MaximumQ            = 0.0;
 		bool                                              AxisSuspended       = false;
 		bool                                              ApplyingFrame       = false;
 		bool                                              RepaintPending      = false;

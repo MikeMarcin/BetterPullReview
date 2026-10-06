@@ -27,6 +27,7 @@
 #include <iterator>
 #include <limits>
 #include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -560,9 +561,10 @@ namespace bpr::qt {
 		value.TabDistance  = aPane.tabStopDistance();
 		value.LineCount    = aLogicalLineCount;
 		value.Measurer     = pane_block_measurer{ *layout, aPane.lineWrapMode() == QPlainTextEdit::NoWrap };
-		value.Measurements = { .DocumentExtent   = layout->documentSize().height(),
-							   .ViewportExtent   = static_cast<qreal>(viewport->height()),
-							   .DevicePixelRatio = aPane.devicePixelRatioF() };
+		value.Measurements = { .DocumentExtent      = layout->documentSize().height(),
+							   .ViewportExtent      = static_cast<qreal>(viewport->height()),
+							   .DevicePixelRatio    = aPane.devicePixelRatioF(),
+							   .TrailingVisualBlock = count == aLogicalLineCount + 1U };
 		value.Measurements.Boundaries.reserve(static_cast<std::size_t>(aLogicalLineCount) + 1U);
 		value.Measurements.Boundaries.push_back(value.Margin);
 		value.Progress = pane_measurement_progress::pending;
@@ -663,9 +665,10 @@ namespace bpr::qt {
 		}
 
 		auto measurements = pane_line_measurements{
-			.DocumentExtent   = layout->documentSize().height(),
-			.ViewportExtent   = static_cast<qreal>(viewport->height()),
-			.DevicePixelRatio = aPane.devicePixelRatioF(),
+			.DocumentExtent      = layout->documentSize().height(),
+			.ViewportExtent      = static_cast<qreal>(viewport->height()),
+			.DevicePixelRatio    = aPane.devicePixelRatioF(),
+			.TrailingVisualBlock = blockCount == aLogicalLineCount + 1U,
 		};
 		measurements.Boundaries.reserve(
 			static_cast<std::size_t>(aLogicalLineCount) + 1U);
@@ -705,6 +708,39 @@ namespace bpr::qt {
 		return aLine < RightBoundaries.size()
 			? std::optional<qreal>{ RightBoundaries[aLine] }
 			: std::nullopt;
+	}
+
+	auto measured_alignment_axis::last_line_origin(
+		const core::diff_side aSide) const noexcept -> qreal
+	{
+		const auto& boundaries = aSide == core::diff_side::left ? LeftBoundaries : RightBoundaries;
+		const auto  last       = aSide == core::diff_side::left ? LeftLastLine : RightLastLine;
+		return last == 0U || last >= boundaries.size() ? 0.0 : boundaries[last];
+	}
+
+	auto measured_alignment_axis::top_line_for_origin(
+		const core::diff_side aSide, const qreal aOrigin) const noexcept -> std::size_t
+	{
+		const auto& boundaries = aSide == core::diff_side::left ? LeftBoundaries : RightBoundaries;
+		const auto  last       = std::min(
+			aSide == core::diff_side::left ? LeftLastLine : RightLastLine,
+			boundaries.empty() ? std::size_t{ 0U } : boundaries.size() - 1U);
+		if (last == 0U || !std::isfinite(aOrigin)) {
+			return 0U;
+		}
+		const auto origin = [&boundaries](const std::size_t aLine) {
+			return aLine == 0U ? 0.0 : boundaries[aLine];
+		};
+		// The last line whose origin is at or above the target, then whichever
+		// of it and the line after is nearer.
+		const auto lines = std::span{ boundaries }.subspan(1U, last);
+		const auto above = static_cast<std::size_t>(
+			std::ranges::upper_bound(lines, aOrigin) - lines.begin());
+		if (above >= last) {
+			return last;
+		}
+		const auto after = above + 1U;
+		return aOrigin - origin(above) <= origin(after) - aOrigin ? above : after;
 	}
 
 	auto measured_alignment_segment::positive_extent() const noexcept -> bool
@@ -822,6 +858,11 @@ namespace bpr::qt {
 		axis.RightDocumentExtent = aRight.DocumentExtent;
 		axis.LeftViewportExtent  = aLeft.ViewportExtent;
 		axis.RightViewportExtent = aRight.ViewportExtent;
+		const auto lastLine      = [](const pane_line_measurements& aPane, const std::uint32_t aLines) -> std::size_t {
+			return aPane.TrailingVisualBlock || aLines == 0U ? aLines : aLines - 1U;
+		};
+		axis.LeftLastLine  = lastLine(aLeft, aAlignment.LeftLineCount);
+		axis.RightLastLine = lastLine(aRight, aAlignment.RightLineCount);
 		axis.Segments.reserve(aAlignment.Segments.size());
 		axis.PositiveSegments.reserve(aAlignment.Segments.size());
 
