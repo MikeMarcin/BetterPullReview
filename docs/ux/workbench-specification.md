@@ -1035,9 +1035,10 @@ mark, rail, unread dot and complete body as written, a New rule before the
 first unread post, and a reply that answers anything but the thread's first
 post names whom it answers. Its header row has Show line, Resolve or
 Unresolve, Mark read, More (the thread menu) and Close; my draft has Publish,
-Edit and Delete instead. Reply opens an editor in place at the foot of the
-thread; the reply is the same draft the composition entry writes, and nothing
-is published until Publish (Command+Return). A file-level compatibility
+Edit and Delete instead. Reply (the field, or R) opens an editor in place at
+the foot of the thread; the reply is the same draft the composition entry
+writes, and nothing is published until Publish (Command+Return). Comment
+(Option-C) still opens the composition page, whose inside is [[BPR-1212]]'s. A file-level compatibility
 comment states in the open thread why it is placed at its line (RFC-BPR-0022).
 
 Threads above or below what the drawer shows are chips on its top and bottom

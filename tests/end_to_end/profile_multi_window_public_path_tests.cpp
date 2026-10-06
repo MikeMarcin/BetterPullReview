@@ -20,6 +20,7 @@
 #include "bpr/qt/workbench_landing.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -285,21 +286,12 @@ namespace {
 	}
 	void mark_conversation_read(qt::conversation_cards_view& aCards, const std::string& aIdentity)
 	{
-		for (const auto& card : aCards.cards()) {
-			if (card.Id != aIdentity) {
-				continue;
-			}
-			for (const auto& [kind, rect] : card.Actions) {
-				if (kind != qt::card_action::mark_read) {
-					continue;
-				}
-				const auto  point = rect.center() - QPoint{ 0, aCards.verticalScrollBar()->value() };
-				QMouseEvent press{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ aCards.viewport()->mapToGlobal(point) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-				QApplication::sendEvent(aCards.viewport(), &press);
-				return;
-			}
-		}
-		expect(false, "recorded unread conversation offers its public mark-read gesture");
+		// [[BPR-1290]]. The thread opens in place; Mark read is in its header.
+		aCards.open_thread(aIdentity);
+		QApplication::processEvents();
+		auto* const markRead = aCards.open_card() != nullptr ? aCards.open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMarkRead")) : nullptr;
+		expect(markRead != nullptr && markRead->isEnabled(), "recorded unread conversation offers its public mark-read gesture");
+		markRead->click();
 	}
 }
 

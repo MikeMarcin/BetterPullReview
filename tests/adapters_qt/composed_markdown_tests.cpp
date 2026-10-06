@@ -8,6 +8,8 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include <QMouseEvent>
+#include <QTextCursor>
 
 #include <QAccessible>
 #include <QAction>
@@ -289,24 +291,50 @@ int main(int argc, char** argv)
 	auto* panel = window.conversation_panel();
 	window.choose_modality(qt::review_modality::discuss);
 	settle();
-	panel->cards()->setFocus();
-	key(panel->cards(), Qt::Key_Return);
-	expect(panel->body_view()->isVisible(), "explicit conversation activation opens its full reader in Discuss");
+	// [[BPR-1290]]. Every public post reads in place in its open thread, as
+	// written, with its web links admitted through the same host.
+	const auto postBody = [panel](const std::string& aPost) -> QTextEdit* {
+		const auto& cards = panel->cards()->cards();
+		const auto  card  = std::ranges::find_if(cards, [&aPost](const qt::thread_card& aCard) {
+			return std::ranges::any_of(aCard.Posts, [&aPost](const qt::card_post& aEntry) { return aEntry.Id == aPost; });
+		});
+		if (card == cards.end()) {
+			return nullptr;
+		}
+		panel->cards()->open_thread(card->Id);
+		QApplication::processEvents();
+		auto* const open = panel->cards()->open_card();
+		if (open == nullptr) {
+			return nullptr;
+		}
+		for (auto* const post : open->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+			if (post->property("postIdentity").toString() == QString::fromStdString(aPost)) {
+				return post->findChild<QTextEdit*>(QStringLiteral("threadPostBody"));
+			}
+		}
+		return nullptr;
+	};
+	const auto pressLink = [](QTextEdit& aBody, const QString& aTarget) {
+		const auto found = aBody.document()->find(aTarget);
+		expect(!found.isNull(), "the link's address is in the post as written");
+		auto cursor = QTextCursor{ aBody.document() };
+		cursor.setPosition(found.selectionStart() + 2);
+		const auto point   = QPointF{ aBody.cursorRect(cursor).center() };
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, point, aBody.viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, point, aBody.viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(aBody.viewport(), &press);
+		QApplication::sendEvent(aBody.viewport(), &release);
+	};
 	const std::vector<std::string> ids{ "review:summary", "review-comment:root", "review-comment:reply", "public-preview-comment:rest-root", "public-preview-comment:rest-reply", "issue-comment:issue" };
 	for (const auto& id : ids) {
-		const auto index = panel->model()->index_for_id(id);
-		expect(index.isValid(), "every public body and reply is reachable");
-		panel->view()->setCurrentIndex(index);
+		expect(panel->model()->index_for_id(id).isValid(), "every public body and reply is in the conversation model");
+		auto* const body = postBody(id);
+		expect(body != nullptr && body->isVisible(), "every public body and reply reads in place in its open thread");
+		expect(body->toPlainText().trimmed().endsWith(QStringLiteral("Final content: Ω 日本語 🦊")) && body->toPlainText().contains(QStringLiteral("Native review content")),
+			   "each post reads complete, to its final content");
+		pressLink(*body, QStringLiteral("https://example.invalid/review"));
 		settle();
-		panel->view()->setFocus();
-		key(panel->view(), Qt::Key_Tab);
-		expect(panel->body_view()->isAncestorOf(QApplication::focusWidget()), "Tab from the selected post reaches its native reader controls or text");
-		structures(*panel->body_view());
-		expect(panel->body_view()->original_body() == corpus, "each selected post preserves full source");
-		reach_end(panel->body_view()->rendered_view());
-		expect(panel->body_view()->rendered_view()->toPlainText().endsWith(QStringLiteral("Final content: Ω 日本語 🦊")), "each public post reaches final content");
-		activate(*panel->body_view(), QStringLiteral("https://example.invalid/review"));
-		expect(lastGesture->Body == id, "link gesture carries exact selected public post identity");
+		expect(lastGesture.has_value() && lastGesture->Body == id, "a link gesture carries the exact public post identity");
 	}
 	// Shared signed-out status is not a window body publication.
 	application::public_preview_presentation sibling;
@@ -315,7 +343,8 @@ int main(int argc, char** argv)
 	sibling.ReviewCommentGroups = { { .Root = { .Id = "foreign", .Body = "SIBLING BODY", .Path = "foreign.cpp" } } };
 	window.publish(sibling);
 	settle();
-	expect(panel->body_view()->original_body() == corpus, "sibling profile metadata cannot replace this window's accepted body");
+	expect(std::ranges::none_of(panel->cards()->cards(), [](const qt::thread_card& aCard) { return aCard.Id == "foreign"; }),
+		   "sibling profile metadata cannot replace this window's accepted conversation");
 	window.publish(application::public_preview_presentation{ });
 	settle();
 	for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
@@ -325,24 +354,22 @@ int main(int argc, char** argv)
 		overview->adopt_appearance(appearance);
 		panel->adopt_appearance(appearance);
 		settle();
-		expect(panel->body_view()->source_view()->font() == appearance.code_font(), "composed source/code typography comes from appearance profile");
-		standard_key(panel->body_view()->rendered_view(), QKeySequence::MoveToStartOfDocument);
+		expect(panel->cards()->code_font() == appearance.code_font(), "composed code typography comes from appearance profile");
 		capture(window, QStringLiteral("conversation-%1").arg(static_cast<int>(mode)));
 	}
-	// Same accepted content and new publication preserve native selection and position.
-	auto* text   = panel->body_view()->rendered_view();
+	// Same accepted content and new publication preserve the reader's selection.
+	auto* text   = postBody("issue-comment:issue");
 	auto  cursor = text->textCursor();
 	cursor.setPosition(10);
 	cursor.setPosition(20, QTextCursor::KeepAnchor);
 	text->setTextCursor(cursor);
-	text->verticalScrollBar()->setValue(80);
-	const auto scroll   = text->verticalScrollBar()->value();
-	auto*      document = text->document();
+	auto* document = text->document();
 	host.dispatch(core::refresh_pull_request_intent{ });
 	reads.Complete(application::github_pull_request_success{ reads.Request, snapshot(reads.Request) });
 	lane.drain();
 	settle();
-	expect(text->document() == document && text->textCursor().anchor() == 10 && text->textCursor().position() == 20 && text->verticalScrollBar()->value() == scroll, "unchanged accepted refresh preserves exact selected body reading state");
+	expect(text->document() == document && text->textCursor().anchor() == 10 && text->textCursor().position() == 20,
+		   "unchanged accepted refresh preserves the selection in the post being read");
 	expect(host.open_markdown_link(stale, &opener) == core::markdown_link_result::stale, "old composed gesture is invalid after new publication");
 	window.choose_modality(qt::review_modality::overview);
 	settle();
@@ -426,7 +453,7 @@ int main(int argc, char** argv)
 	expect(reader->original_body().empty() && overview->findChild<QLabel*>(QStringLiteral("overviewNoDescription"))->isVisible(), "empty overview exposes its explicit empty state");
 	host.dispatch(core::open_pull_request_intent{ { "owner", "other" }, core::pull_request_number{ 43 } });
 	settle();
-	expect(reader->original_body().empty() && panel->body_view()->original_body().empty(), "authority invalidation clears both native bodies before new completion");
+	expect(reader->original_body().empty() && panel->cards()->cards().empty(), "authority invalidation clears the overview body and every conversation before new completion");
 	host.shutdown();
 	reads.Complete(application::github_pull_request_cancelled{ reads.Request });
 	lane.drain();

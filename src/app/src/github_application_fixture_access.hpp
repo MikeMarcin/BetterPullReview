@@ -61,6 +61,10 @@ namespace bpr::app::detail {
 		/// whose posts carry every Conventional Comments label, for judging the
 		/// thread marks, the label chip and the shortcodes in the application.
 		conventional_comments_v1,
+		/// [[BPR-1290]]. conventional-comments-v1's files and threads plus a
+		/// 1557-line file with eight threads, for judging the inline drawer
+		/// against its prototype.
+		inline_drawer_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

@@ -1,0 +1,164 @@
+[
+	{
+		"additions": 2,
+		"changes": 3,
+		"deletions": 1,
+		"filename": "README.md",
+		"patch": "@@ -2,4 +2,5 @@\n \n A synthetic project for review fixtures.\n \n-Build with `tools/build/scripts/package.py`.\n+Build with `tools/build/scripts/package.py --release`.\n+Run the tests from `tests/`.",
+		"sha": "d86fd4874cefc1ab0418df0dc44a9ee5b2764450",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "docs/api/reference.md",
+		"patch": "@@ -3,3 +3,4 @@\n ## Renderer\n \n `Renderer::draw()` draws one frame.\n+`Renderer::resize(width, height)` changes the target size.",
+		"sha": "d6a3404d563eb9528f18cbb221c71de9b7278bdc",
+		"status": "modified"
+	},
+	{
+		"additions": 4,
+		"changes": 4,
+		"deletions": 0,
+		"filename": "docs/api/v2/endpoints.md",
+		"patch": "@@ -0,0 +1,4 @@\n+# Version 2 endpoints\n+\n+- `GET /frames` lists recent frames.\n+- `GET /frames/{id}` returns one frame.",
+		"sha": "2a9d461182ba9126426f61d7c249301fbf00f0d1",
+		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "docs/guide.md",
+		"patch": "@@ -1,3 +1,4 @@\n # Guide\n \n Open the main window and choose a scene.\n+Press F to show the frame counter.",
+		"sha": "bb3b3a29ca1d36a2b79cb861178d8ad96250788a",
+		"status": "modified"
+	},
+	{
+		"additions": 7,
+		"changes": 7,
+		"deletions": 0,
+		"filename": "src/engine/renderer.cpp",
+		"patch": "@@ -3,5 +3,12 @@\n void Renderer::draw()\n {\n \tclear();\n+\tdraw_scene();\n \tpresent();\n }\n+\n+void Renderer::resize(const int aWidth, const int aHeight)\n+{\n+\tWidth  = aWidth;\n+\tHeight = aHeight;\n+}",
+		"sha": "d4ca47188030aaeb563fd92fb9fd174e48934198",
+		"status": "modified"
+	},
+	{
+		"additions": 5,
+		"changes": 5,
+		"deletions": 0,
+		"filename": "src/engine/renderer.h",
+		"patch": "@@ -4,8 +4,13 @@\n {\n public:\n \tvoid draw();\n+\tvoid resize(int aWidth, int aHeight);\n \n private:\n \tvoid clear();\n+\tvoid draw_scene();\n \tvoid present();\n+\n+\tint Width  = 0;\n+\tint Height = 0;\n };",
+		"sha": "11c5e3de47a7447652346d89b47eb82bbc5f99e6",
+		"status": "modified"
+	},
+	{
+		"additions": 2,
+		"changes": 3,
+		"deletions": 1,
+		"filename": "src/engine/shaders/basic.frag",
+		"patch": "@@ -1,4 +1,5 @@\n #version 330 core\n in vec4 vColour;\n+uniform float uExposure;\n out vec4 fragColour;\n-void main() { fragColour = vColour; }\n+void main() { fragColour = vColour * uExposure; }",
+		"sha": "db70c9b577d4946c133beab69fa143dc43ad1d4b",
+		"status": "modified"
+	},
+	{
+		"additions": 2,
+		"changes": 3,
+		"deletions": 1,
+		"filename": "src/engine/shaders/basic.vert",
+		"patch": "@@ -1,3 +1,4 @@\n #version 330 core\n layout(location = 0) in vec3 aPosition;\n-void main() { gl_Position = vec4(aPosition, 1.0); }\n+uniform mat4 uProjection;\n+void main() { gl_Position = uProjection * vec4(aPosition, 1.0); }",
+		"sha": "d3606eb92be1a8916f808eddb576f38d9d6bc5b5",
+		"status": "modified"
+	},
+	{
+		"additions": 5,
+		"changes": 5,
+		"deletions": 0,
+		"filename": "src/engine/shaders/post/bloom.frag",
+		"patch": "@@ -0,0 +1,5 @@\n+#version 330 core\n+uniform sampler2D uScene;\n+in vec2 vUv;\n+out vec4 fragColour;\n+void main() { fragColour = texture(uScene, vUv) * 1.2; }",
+		"sha": "0807494990d8cc91bc955ce65763589a8dddcc3c",
+		"status": "added"
+	},
+	{
+		"additions": 5,
+		"changes": 5,
+		"deletions": 0,
+		"filename": "src/engine/shaders/post/tonemap.frag",
+		"patch": "@@ -0,0 +1,5 @@\n+#version 330 core\n+uniform sampler2D uScene;\n+in vec2 vUv;\n+out vec4 fragColour;\n+void main() { vec4 c = texture(uScene, vUv); fragColour = c / (c + vec4(1.0)); }",
+		"sha": "0e4f2743c6bcdc149a9891668128e45881ff94bd",
+		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "src/main.cpp",
+		"patch": "@@ -3,6 +3,7 @@\n int main()\n {\n \tRenderer renderer;\n+\trenderer.resize(1280, 720);\n \trenderer.draw();\n \treturn 0;\n }",
+		"sha": "803cd0d7ebfe61e18e1fcd6549b8ddbaa9029dfb",
+		"status": "modified"
+	},
+	{
+		"additions": 93,
+		"changes": 93,
+		"deletions": 0,
+		"filename": "src/ui/conversation_cards_view.cpp",
+		"patch": "@@ -598,6 +598,36 @@\n \t\treturn previous;\n \t}\n \n+\tauto conversation_cards_view::unread_threads_in_file_order() const -> const std::vector<std::string>&\n+\t{\n+\t\tif (UnreadThreads.has_value()) {\n+\t\t\treturn *UnreadThreads;\n+\t\t}\n+\t\t// Every thread of the pull request, whatever the scope shows, so the\n+\t\t// strip's next new comment walks the whole review in file order.\n+\t\tauto threads = std::vector<const application::github_conversation_projection*>{ };\n+\t\tfor (const auto& node : Retained) {\n+\t\t\tif (node.Kind != application::github_conversation_kind::review_thread\n+\t\t\t\t|| node.ParentId.has_value()) {\n+\t\t\t\tcontinue;\n+\t\t\t}\n+\t\t\tconst auto state = ReadStateByThread.find(node.Id);\n+\t\t\tif (state != ReadStateByThread.end() && !ReadState[state->second].UnreadPosts.empty()) {\n+\t\t\t\tthreads.push_back(&node);\n+\t\t\t}\n+\t\t}\n+\t\tstd::ranges::stable_sort(threads, [](const auto* aLeft, const auto* aRight) {\n+\t\t\treturn std::pair{ aLeft->Path, aLeft->Line.value_or(0U) }\n+\t\t\t< std::pair{ aRight->Path, aRight->Line.value_or(0U) };\n+\t\t});\n+\t\tauto ids = std::vector<std::string>{ };\n+\t\tids.reserve(threads.size());\n+\t\tfor (const auto* thread : threads) {\n+\t\t\tids.push_back(thread->Id);\n+\t\t}\n+\t\tUnreadThreads = std::move(ids);\n+\t\treturn *UnreadThreads;\n+\t}\n \n \tauto conversation_cards_view::unread_marked_lines(const core::diff_side aSide) const\n \t\t-> std::vector<std::uint32_t>\n@@ -623,6 +653,24 @@\n \t\treturn count;\n \t}\n \n+\tvoid conversation_cards_view::set_current_thread(const std::string& aId)\n+\t{\n+\t\t// A reply's identity names its card: the tree may be on a reply.\n+\t\tCurrent = aId;\n+\t\tfor (const auto& card : Cards) {\n+\t\t\tif (card.Draft) {\n+\t\t\t\tcontinue;\n+\t\t\t}\n+\t\t\tif (card.Id == aId) {\n+\t\t\t\tbreak;\n+\t\t\t}\n+\t\t\tif (std::ranges::any_of(card.Posts, [&aId](const card_post& aPost) { return aPost.Id == aId; })) {\n+\t\t\t\tCurrent = card.Id;\n+\t\t\t\tbreak;\n+\t\t\t}\n+\t\t}\n+\t\tviewport()->update();\n+\t}\n \n \tvoid conversation_cards_view::set_colours(const QColor& aAccent, const QColor& aMarker)\n \t{\n@@ -1078,6 +1126,28 @@\n \t\tplace_cards(changed);\n \t}\n \n+\tvoid conversation_cards_view::place_cards(const bool aForce)\n+\t{\n+\t\tconst auto scroll  = verticalScrollBar()->value();\n+\t\tauto       changed = aForce;\n+\t\tfor (auto& card : Cards) {\n+\t\t\tconst auto wasPlaced = card.Placed;\n+\t\t\tconst auto targetY   = card.TargetY;\n+\t\t\tcard.Placed          = false;\n+\t\t\t// The feed is a list in file order, never placed at lines.\n+\t\t\tif (!Feed && Scope == cards_scope::this_file && Locator && card.Side.has_value()\n+\t\t\t\t&& card.Line.has_value() && *card.Line > 0U && !card.Outdated) {\n+\t\t\t\tif (const auto y = Locator(*card.Side, *card.Line); y.has_value()) {\n+\t\t\t\t\tcard.Placed  = true;\n+\t\t\t\t\tcard.TargetY = *y + scroll;\n+\t\t\t\t}\n+\t\t\t}\n+\t\t\tchanged = changed || wasPlaced != card.Placed || (card.Placed && targetY != card.TargetY);\n+\t\t}\n+\t\tif (!changed) {\n+\t\t\treturn;\n+\t\t}\n+\t\t// Placed cards in line order, then the rest; whole PR in file order.\n \t\tstd::ranges::stable_sort(Cards, [this](const thread_card& aLeft, const thread_card& aRight) {\n \t\t\tif (Feed || Scope == cards_scope::whole_pull_request) {\n \t\t\t\treturn std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }\n@@ -1093,6 +1163,29 @@\n \t\t\treturn std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }\n \t\t\t< std::tuple{ aRight.Path, aRight.Line.value_or(0U), aRight.ProjectionOrder };\n \t\t});\n+\t\tauto bottom   = card_margin / 2;\n+\t\tauto lastPath = QString{ };\n+\t\tfor (auto& card : Cards) {\n+\t\t\tif (Scope == cards_scope::whole_pull_request && card.Path != lastPath) {\n+\t\t\t\tbottom += path_row_height;\n+\t\t\t\tlastPath = card.Path;\n+\t\t\t}\n+\t\t\tauto top = bottom + (bottom == card_margin / 2 ? 0 : card_gap);\n+\t\t\tif (card.Placed) {\n+\t\t\t\t// At its line, or beneath the card above: never over it.\n+\t\t\t\ttop = std::max(top, card.TargetY);\n+\t\t\t}\n+\t\t\tconst auto offset = top - card.Rect.top();\n+\t\t\tcard.Rect.moveTop(top);\n+\t\t\tfor (auto& post : card.Posts) {\n+\t\t\t\tpost.Rect.translate(0, offset);\n+\t\t\t}\n+\t\t\tfor (auto& [action, rect] : card.Actions) {\n+\t\t\t\trect.translate(0, offset);\n+\t\t\t}\n+\t\t\tbottom = card.Rect.bottom();\n+\t\t}\n+\t\tContentHeight = bottom + card_margin;\n \t\tverticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));\n \t\tverticalScrollBar()->setPageStep(viewport()->height());\n \t\tverticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());",
+		"sha": "652aa58cc0b84eecdb048a805df37fe9322043aa",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/ui/widgets/button.cpp",
+		"patch": "@@ -2,7 +2,7 @@\n \n void Button::click()\n {\n-\tif (Handler) {\n+\tif (Enabled && Handler) {\n \t\tHandler();\n \t}\n }",
+		"sha": "11ad358b0cf2ae356f8d85ac28695e3926b552dc",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "src/ui/widgets/button.h",
+		"patch": "@@ -8,4 +8,5 @@\n \tvoid click();\n \n \tstd::function<void()> Handler;\n+\tbool                  Enabled = true;\n };",
+		"sha": "fae2d01d61e35edef877da46cbf189355a911d54",
+		"status": "modified"
+	},
+	{
+		"additions": 6,
+		"changes": 6,
+		"deletions": 0,
+		"filename": "src/ui/widgets/slider.cpp",
+		"patch": "@@ -0,0 +1,6 @@\n+#include \"slider.h\"\n+\n+void Slider::set_value(const int aValue)\n+{\n+\tValue = aValue < Minimum ? Minimum : (aValue > Maximum ? Maximum : aValue);\n+}",
+		"sha": "4b4401fbc29ba7bd2ab7f885519578d2eace3873",
+		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "tests/engine/renderer_tests.cpp",
+		"patch": "@@ -3,6 +3,7 @@\n int main()\n {\n \tRenderer renderer;\n+\trenderer.resize(1, 1);\n \trenderer.draw();\n \treturn 0;\n }",
+		"sha": "44ed90dee677e3aa0dceca2770c540ba298fc4e9",
+		"status": "modified"
+	},
+	{
+		"additions": 11,
+		"changes": 11,
+		"deletions": 0,
+		"filename": "tests/ui/widgets/button_tests.cpp",
+		"patch": "@@ -0,0 +1,11 @@\n+#include \"ui/widgets/button.h\"\n+\n+int main()\n+{\n+\tauto clicked = false;\n+\tButton button;\n+\tbutton.Handler = [&] { clicked = true; };\n+\tbutton.Enabled = false;\n+\tbutton.click();\n+\treturn clicked ? 1 : 0;\n+}",
+		"sha": "c4e6aba492ae6bd9cdb74b43d573d8a07d7a025f",
+		"status": "added"
+	},
+	{
+		"additions": 2,
+		"changes": 3,
+		"deletions": 1,
+		"filename": "tools/build/scripts/package.py",
+		"patch": "@@ -1,7 +1,8 @@\n import sys\n \n def main():\n-    print('packaging')\n+    release = '--release' in sys.argv\n+    print('packaging', 'release' if release else 'debug')\n     return 0\n \n sys.exit(main())",
+		"sha": "675d33df2beeb940bd6fb0d30d73d06a46e482f8",
+		"status": "modified"
+	}
+]

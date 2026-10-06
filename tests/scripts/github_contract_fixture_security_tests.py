@@ -166,6 +166,14 @@ FIXTURES = {
         # synthetic pair's full thread field set rather than the empty one.
         "response_fields": {"ListReviewThreads": "synthetic"},
     },
+    # [[BPR-1290]]. conventional-comments-v1's files and threads plus a long
+    # file with eight threads, written by scripts/build_inline_drawer_fixture.py.
+    "inline-drawer-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "inline-drawer", 22),
+        "mirrors": None,
+        "response_fields": {"ListReviewThreads": "synthetic"},
+    },
 }
 
 # The real commits the recording names. They must appear nowhere in a served

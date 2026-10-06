@@ -270,6 +270,15 @@ CONSTRUCTIONS = (
         "Files": 17,
         "Folders": 12,
     },
+    # [[BPR-1290]]. The nested-folders files plus a long one; its served tree
+    # also gains the generator's review threads.
+    {
+        "Directory": "inline-drawer-v1",
+        "Generator": "scripts/build_inline_drawer_fixture.py",
+        "Files": 18,
+        "Folders": 13,
+        "Threads": "scripts/build_inline_drawer_fixture.py",
+    },
 )
 
 
@@ -326,7 +335,7 @@ def check_construction(expected: dict) -> None:
         )
 
 
-def check_generated_contract_matches(name: str, source: str = "recording.json") -> None:
+def check_generated_contract_matches(name: str, source: str = "recording.json", threads: str | None = None) -> None:
     """The served tree must be exactly what the generator writes today.
 
     The contract directory is generated from `recording.json`, so the two can
@@ -358,6 +367,18 @@ def check_generated_contract_matches(name: str, source: str = "recording.json") 
                 f"{result.stderr.strip()}"
             )
             return
+        if threads is not None:
+            # [[BPR-1290]]. A construction whose served tree also carries
+            # threads regenerates them with its own generator.
+            result = subprocess.run(
+                [sys.executable, str(ROOT / threads), "--threads", str(regenerated)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                FAILURES.append(f"{name}: the threads generator fails: {result.stderr.strip()}")
+                return
 
         committed_files = {
             path.relative_to(committed)
@@ -407,7 +428,7 @@ def main() -> int:
         check_pack(expected["Directory"])
     for expected in CONSTRUCTIONS:
         check_construction(expected)
-        check_generated_contract_matches(expected["Directory"], "construction.json")
+        check_generated_contract_matches(expected["Directory"], "construction.json", expected.get("Threads"))
         check_pack(expected["Directory"])
         expect(
             (ROOT / "tests/fixtures/github/contracts/v1" / expected["Directory"]).is_dir(),

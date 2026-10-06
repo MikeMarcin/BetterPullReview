@@ -11,7 +11,6 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
-#include "bpr/qt/github_conversation_delegate.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -42,6 +41,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -138,7 +138,26 @@ namespace {
 		return { .Tints = qt::feedback_label_tints_of(qt::builtin_appearance_palette(core::appearance_variant::light)) };
 	}
 
-	void test_cards_mark_every_post_under_its_avatar()
+	/// \brief Where one post of the open thread draws its 16 px mark, in the
+	/// open card: centred under the 18 px avatar, 3 px below it.
+	[[nodiscard]] auto post_mark(const QWidget& aCard, const QWidget& aPost) -> QRect
+	{
+		return QRect{ aPost.mapTo(&aCard, QPoint{ 12 + 1, 8 + 1 + 18 + 3 }), QSize{ 16, 16 } };
+	}
+
+	[[nodiscard]] auto posts_of(const QWidget& aCard) -> std::vector<QWidget*>
+	{
+		auto posts = std::vector<QWidget*>{ };
+		for (auto* const post : aCard.findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+			posts.push_back(post);
+		}
+		std::ranges::sort(posts, { }, [](const QWidget* aPost) { return aPost->y(); });
+		return posts;
+	}
+
+	/// \brief [[BPR-1083]], [[BPR-1290]]. The open thread draws every post's
+	/// mark under its avatar and its rail in its own tint, its body as written.
+	void test_the_open_thread_marks_every_post_under_its_avatar()
 	{
 		qt::conversation_cards_view view;
 		view.set_label_marks(theme());
@@ -154,108 +173,89 @@ namespace {
 				   && posts[1].Name == QStringLiteral("MikeMarcin, question (if-minor, ux)"),
 			   "each reply shows its own mark, which may differ from its root's, with if-minor's corner and its custom decoration named");
 		expect(!posts[3].Label.has_value() && posts[3].Name == QStringLiteral("tbutler"), "a plain post has no mark");
+		view.open_thread("thread-1");
+		settle();
+		auto* const card  = view.open_card();
+		const auto  shown = card != nullptr ? posts_of(*card) : std::vector<QWidget*>{ };
+		expect(shown.size() == 4U, "the open thread shows its four posts");
 		// [[BPR-1083]] v004 (owner, decorations-v003: "I think we always
 		// display the decorators text out in the comments").
-		expect(posts[0].Body == QStringLiteral("issue (blocking): LightScale ignores the view's post-process settings.")
-				   && posts[1].Body == QStringLiteral("question (if-minor, ux): Can the view settings be null on secondary views?") && posts[2].Body == QStringLiteral("**praise:** Good catch.")
-				   && posts[3].Body == QStringLiteral("Thanks, resolving after CI."),
+		const auto bodyOf = [](const QWidget* aPost) { return aPost->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->toPlainText(); };
+		expect(bodyOf(shown[0]) == QStringLiteral("issue (blocking): LightScale ignores the view's post-process settings.")
+				   && bodyOf(shown[1]) == QStringLiteral("question (if-minor, ux): Can the view settings be null on secondary views?")
+				   && bodyOf(shown[2]) == QStringLiteral("**praise:** Good catch.") && bodyOf(shown[3]) == QStringLiteral("Thanks, resolving after CI."),
 			   "every post reads as written, its label and decorations included");
-		for (const auto& post : posts) {
-			expect(post.Rect.left() == posts.front().Rect.left(), "every post's text keeps the same left edge: the rail adds no width");
-			const auto mark = view.mark_rect(post);
-			if (post.Label.has_value()) {
-				expect(mark.width() == 16 && mark.height() == 16 && mark.left() == post.Rect.left() + 1 && mark.top() == post.Rect.top() + 18 + 3,
-					   "a 16 px mark is centred under the 18 px avatar, 3 px below it");
-				expect(post.Rect.height() >= 18 + 3 + 16, "a marked post is tall enough for its mark");
-			} else {
-				expect(mark.isEmpty(), "a plain post has no mark rect");
-			}
-			const auto rail = view.rail_rect(view.cards().front(), post);
-			expect(rail.right() == post.Rect.left() - 3 && rail.width() == (post.Emphasis.Weight == qt::feedback_mark_weight::blocking ? 4.0 : 2.0) && rail.left() >= view.cards().front().Rect.left(),
-				   "the rail runs 3 px left of the avatar, 2 px or 4 px when blocking, growing outward inside the card");
-		}
-
-		auto image = QImage{ view.viewport()->size(), QImage::Format_ARGB32_Premultiplied };
-		view.viewport()->render(&image);
-		const auto tints  = theme().Tints;
-		const auto issue  = view.mark_rect(posts[0]).translated(0, -view.verticalScrollBar()->value());
-		const auto filled = QColor{ image.pixel(issue.left() + 2, issue.center().y()) };
-		expect(filled == tints[3], "the blocking issue mark is filled with the issue tint on screen");
-		const auto question = view.mark_rect(posts[1]).translated(0, -view.verticalScrollBar()->value());
-		expect(QColor{ image.pixel(question.center().x(), question.top()) } == tints[5], "the question mark's border is the question tint");
-		const auto rail = view.rail_rect(view.cards().front(), posts[1]).translated(0, -view.verticalScrollBar()->value());
-		expect(QColor{ image.pixel(static_cast<int>(rail.center().x()), static_cast<int>(rail.center().y())) } == tints[5], "the reply's rail is in its own tint");
-
-		save_render(view, "cards-icons");
+		const auto left = shown.front()->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->x();
+		expect(std::ranges::all_of(shown, [left](const QWidget* aPost) { return aPost->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->x() == left; }),
+			   "every post's text keeps the same left edge: the rail adds no width");
+		expect(std::ranges::all_of(std::span{ shown }.first(3U), [](const QWidget* aPost) { return aPost->height() >= 8 + 18 + 3 + 16; }),
+			   "a marked post is tall enough for its mark");
+		auto       image = card->grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		const auto pixel = [&image, ratio](const int aX, const int aY) {
+			return QColor{ image.pixel(static_cast<int>(aX * ratio), static_cast<int>(aY * ratio)) };
+		};
+		const auto tints = theme().Tints;
+		const auto issue = post_mark(*card, *shown[0]);
+		expect(pixel(issue.left() + 2, issue.center().y()) == tints[3], "the blocking issue mark is filled with the issue tint on screen");
+		const auto question = post_mark(*card, *shown[1]);
+		expect(pixel(question.center().x(), question.top()) == tints[5], "the question mark's border is the question tint");
+		const auto rail = shown[1]->mapTo(card, QPoint{ 7, shown[1]->height() / 2 });
+		expect(pixel(rail.x(), rail.y()) == tints[5], "the reply's rail is in its own tint");
+		const auto plain = post_mark(*card, *shown[3]);
+		expect(pixel(plain.left() + 2, plain.center().y()) != tints[3], "negative control: a plain post draws no mark under its avatar");
+		save_render(*card, "open-thread-icons");
 		auto letters  = theme();
 		letters.Style = qt::feedback_mark_style::letters;
 		view.set_label_marks(letters);
 		settle();
-		save_render(view, "cards-letters");
-		auto lettered = QImage{ view.viewport()->size(), QImage::Format_ARGB32_Premultiplied };
-		view.viewport()->render(&lettered);
-		expect(lettered.copy(question) != image.copy(question) && QColor{ lettered.pixel(question.center().x(), question.top()) } == tints[5],
+		auto* const lettered = view.open_card();
+		const auto  after    = lettered->grab().toImage();
+		const auto  box      = QRect{ static_cast<int>(question.x() * ratio), static_cast<int>(question.y() * ratio), static_cast<int>(16 * ratio), static_cast<int>(16 * ratio) };
+		expect(after.copy(box) != image.copy(box) && QColor{ after.pixel(static_cast<int>(question.center().x() * ratio), static_cast<int>(question.top() * ratio)) } == tints[5],
 			   "letters change the mark's middle and keep its tint and border");
+		save_render(*lettered, "open-thread-letters");
 	}
 
 	/// \brief The owner, rejecting `thread-marks-v002`: "Marks don't show on
-	/// inline comments." The drawer's entries are compact; each leads with its
-	/// root's mark, inline thread and draft alike, and keeps the root's rail.
-	void test_compact_entries_lead_with_the_root_mark()
+	/// inline comments." [[BPR-1290]]: every closed note carries its root's mark
+	/// under its avatar and its root's rail, thread and draft alike.
+	void test_closed_notes_carry_the_root_mark()
 	{
 		qt::conversation_cards_view view;
-		view.set_compact(true);
 		view.set_label_marks(theme());
 		view.resize(320, 600);
 		view.show();
 		view.adopt(forest());
 		settle();
-		save_render(view, "cards-compact");
+		save_render(view, "notes-closed");
 		const auto& card = view.cards().front();
-		const auto  rail = view.rail_rect(card, card.Posts.front());
-		expect(view.mark_rect(card.Posts.front()).isEmpty() && rail.width() == 4.0 && rail.left() > card.Rect.left() && rail.right() < card.Rect.left() + 10,
-			   "a compact entry has its root's blocking rail in its own padding");
-		const auto mark = view.compact_mark_rect(card);
-		expect(mark.width() == 16 && mark.height() == 16 && mark.left() > rail.right() && card.Rect.contains(mark),
-			   "and its root's 16 px mark leads the entry, right of the rail, inside the card");
-		auto image = QImage{ view.viewport()->size(), QImage::Format_ARGB32_Premultiplied };
+		const auto  rail = view.rail_rect(card);
+		const auto  note = view.note_rect(card.Id);
+		const auto  mark = view.mark_rect(card);
+		expect(rail.width() == 4.0 && rail.left() >= note.left() && rail.right() <= note.left() + 8,
+			   "a note has its root's blocking rail at its left edge");
+		expect(mark.width() == 16 && mark.height() == 16 && mark.left() == note.left() + 13 && mark.top() == note.top() + 6 + 1 + 18 + 3,
+			   "and its root's 16 px mark under the 18 px avatar, 3 px below it");
+		auto image = QImage{ view.viewport()->size() * view.devicePixelRatio(), QImage::Format_ARGB32_Premultiplied };
+		image.setDevicePixelRatio(view.devicePixelRatio());
 		view.viewport()->render(&image);
-		const auto shown = mark.translated(0, -view.verticalScrollBar()->value());
-		expect(QColor{ image.pixel(shown.left() + 2, shown.center().y()) } == theme().Tints[3], "the blocking issue mark is drawn, filled with the issue tint");
-		// The entry's text starts after the mark: nothing of the text is
-		// drawn over it, and the mark leaves the line's first glyph unmoved
-		// relative to the other lines of the entry.
+		const auto ratio = view.devicePixelRatio();
+		expect(QColor{ image.pixel(static_cast<int>((mark.left() + 2) * ratio), static_cast<int>(mark.center().y() * ratio)) } == theme().Tints[3],
+			   "the blocking issue mark is drawn, filled with the issue tint");
+		expect_tooltip_at(*view.viewport(), mark.center(), mark, QStringLiteral("tbutler, issue (blocking)"), "the note's mark");
 		auto plainForest    = forest();
 		plainForest[1].Body = "LightScale ignores the view's post-process settings.";
 		qt::conversation_cards_view plain;
-		plain.set_compact(true);
 		plain.set_label_marks(theme());
 		plain.resize(320, 600);
 		plain.show();
 		plain.adopt(plainForest);
 		settle();
-		expect(plain.compact_mark_rect(plain.cards().front()).isEmpty(), "a plain root's entry has no mark");
-		auto plainImage = QImage{ plain.viewport()->size(), QImage::Format_ARGB32_Premultiplied };
-		plain.viewport()->render(&plainImage);
-		const auto firstInk = [](const QImage& aImage, const QRect& aCard) {
-			const auto background = QColor{ aImage.pixel(aCard.right() - 4, aCard.top() + 4) };
-			for (auto x = aCard.left() + 10; x < aCard.right(); ++x) {
-				for (auto y = aCard.top() + 6; y < aCard.top() + 22; ++y) {
-					const auto colour = QColor{ aImage.pixel(x, y) };
-					if (std::abs(colour.lightness() - background.lightness()) > 60) {
-						return x;
-					}
-				}
-			}
-			return -1;
-		};
-		const auto markedCard = card.Rect.translated(0, -view.verticalScrollBar()->value());
-		const auto plainCard  = plain.cards().front().Rect.translated(0, -plain.verticalScrollBar()->value());
-		expect(firstInk(plainImage, plainCard) >= 0 && firstInk(image, markedCard) == shown.left(),
-			   "the marked entry's first ink is its mark; the plain entry starts with its text");
-		expect_tooltip_at(*view.viewport(), shown.center(), shown, QStringLiteral("tbutler, issue (blocking)"), "the compact entry's mark");
+		expect(plain.mark_rect(plain.cards().front()).isEmpty() && plain.rail_rect(plain.cards().front()).width() == 2.0,
+			   "a plain root's note has no mark and a 2 px grey rail");
 
-		// My draft's entry leads with its own mark, in its own decoration.
+		// My draft's note carries its own mark, in its own decoration.
 		const auto comparison = core::file_comparison_digest{ };
 		view.set_draft(core::review_comment_draft{
 						   .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 11U },
@@ -265,14 +265,14 @@ namespace {
 		settle();
 		const auto draft = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; });
 		expect(draft != view.cards().end() && draft->Posts.front().Label == core::feedback_label::suggestion
-				   && draft->Posts.front().Emphasis == qt::feedback_mark_emphasis{ .Weight = qt::feedback_mark_weight::non_blocking, .IfMinor = true } && !view.compact_mark_rect(*draft).isEmpty()
+				   && draft->Posts.front().Emphasis == qt::feedback_mark_emphasis{ .Weight = qt::feedback_mark_weight::non_blocking, .IfMinor = true } && !view.mark_rect(*draft).isEmpty()
 				   && draft->Posts.front().Body == QStringLiteral("suggestion (non-blocking, if-minor): Clamp the width."),
-			   "a draft entry leads with its non-blocking, if-minor suggestion mark, and its text says so");
-		expect(view.rail_rect(*draft, draft->Posts.front()).width() == 2.0, "and keeps a 2 px rail");
-		save_render(view, "cards-compact-draft");
+			   "a draft note carries its non-blocking, if-minor suggestion mark, and its text says so");
+		expect(view.rail_rect(*draft).width() == 2.0, "and keeps a 2 px rail");
+		save_render(view, "notes-draft");
 	}
 
-	void test_the_post_list_and_the_body_reader()
+	void test_the_model_and_the_overview_reader()
 	{
 		auto model = qt::github_conversation_model{ };
 		model.apply(forest());
@@ -286,40 +286,6 @@ namespace {
 		expect(spoken.startsWith(QStringLiteral("Review comment by @tbutler, issue (blocking)\nissue (blocking): LightScale")), "the post's accessible name is its author and then its mark, and its text is as written");
 		expect(first.data(qt::github_conversation_model::body_role).toString().startsWith(QStringLiteral("issue (blocking): ")), "the body role keeps the prefix");
 		expect(!model.index(3, 0, root).data(qt::github_conversation_model::feedback_label_role).isValid(), "a plain post has no label");
-
-		auto view     = QTreeView{ };
-		auto delegate = new qt::github_conversation_delegate{ &view, true };
-		delegate->set_label_marks(theme());
-		view.setModel(&model);
-		view.setItemDelegate(delegate);
-		// As the conversation panel sets its list up, so wrapped bodies are
-		// measured at the width they paint at.
-		view.setRootIsDecorated(false);
-		view.setIndentation(0);
-		view.setWordWrap(true);
-		view.setUniformRowHeights(false);
-		view.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		view.header()->setSectionResizeMode(QHeaderView::Stretch);
-		view.setTextElideMode(Qt::ElideNone);
-		view.header()->hide();
-		view.expandAll();
-		view.resize(420, 600);
-		view.show();
-		settle();
-		// The rows were measured before the view had its width.
-		view.doItemsLayout();
-		settle();
-		save_render(view, "post-list");
-		auto image = QImage{ view.viewport()->size(), QImage::Format_ARGB32_Premultiplied };
-		view.viewport()->render(&image);
-		const auto row   = view.visualRect(first);
-		auto       found = false;
-		for (auto x = row.left(); x < row.left() + 60 && !found; ++x) {
-			for (auto y = row.top(); y < row.top() + 24 && !found; ++y) {
-				found = QColor{ image.pixel(x, y) } == theme().Tints[3];
-			}
-		}
-		expect(found, "the post list draws the issue mark and rail at the start of the row");
 
 		auto reader = qt::markdown_body_view{ };
 		reader.set_body("issue (blocking): LightScale **ignores** the view.", "c1");
@@ -354,12 +320,15 @@ namespace {
 		view.show();
 		view.adopt(forest());
 		settle();
-		const auto& posts  = view.cards().front().Posts;
-		const auto  scroll = view.verticalScrollBar()->value();
-		const auto  reply  = view.mark_rect(posts[1]).translated(0, -scroll);
-		expect_tooltip_at(*view.viewport(), reply.center(), reply, QStringLiteral("MikeMarcin, question (if-minor, ux)"), "a thread card's mark");
-		const auto rail = view.rail_rect(view.cards().front(), posts[0]).translated(0, -scroll).toAlignedRect();
-		expect_tooltip_at(*view.viewport(), rail.center(), view.mark_rect(posts[0]).translated(0, -scroll), QStringLiteral("tbutler, issue (blocking)"), "a rail, named at its mark");
+		const auto note = view.mark_rect(view.cards().front());
+		expect_tooltip_at(*view.viewport(), note.center(), note, QStringLiteral("tbutler, issue (blocking)"), "a note's mark");
+		const auto rail = view.rail_rect(view.cards().front()).toAlignedRect();
+		expect_tooltip_at(*view.viewport(), rail.center(), note, QStringLiteral("tbutler, issue (blocking)"), "a note's rail, named at its mark");
+		view.open_thread("thread-1");
+		settle();
+		auto* const reply     = posts_of(*view.open_card())[1];
+		const auto  replyMark = QRect{ QPoint{ 13, 30 }, QSize{ 16, 16 } };
+		expect_tooltip_at(*reply, replyMark.center(), replyMark, QStringLiteral("MikeMarcin, question (if-minor, ux)"), "an open thread's reply mark");
 
 		auto reader = qt::markdown_body_view{ };
 		reader.set_feedback_marks(theme());
@@ -484,9 +453,9 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	test_cards_mark_every_post_under_its_avatar();
-	test_compact_entries_lead_with_the_root_mark();
-	test_the_post_list_and_the_body_reader();
+	test_the_open_thread_marks_every_post_under_its_avatar();
+	test_closed_notes_carry_the_root_mark();
+	test_the_model_and_the_overview_reader();
 	test_tooltips_sit_next_to_their_marks();
 	test_the_mark_style_setting_reaches_every_surface();
 	test_the_mark_style_preview_follows_the_setting();

@@ -637,17 +637,32 @@ namespace bpr::qt {
 				}
 			}
 		}
-		Heading->setVisible(expanded);
+		Heading->setVisible(expanded && HeadingShown);
 		Collapse->setVisible(expanded && ControlsShown);
 		Rail->setVisible(!expanded && ControlsShown);
 		if (expanded) {
-			setMinimumWidth(
-				static_cast<int>(application::minimum_workbench_drawer_width));
-			setMaximumWidth(QWIDGETSIZE_MAX);
+			setMinimumWidth(ExpandedMinimum >= 0 ? ExpandedMinimum : static_cast<int>(application::minimum_workbench_drawer_width));
+			setMaximumWidth(ExpandedMaximum >= 0 ? ExpandedMaximum : QWIDGETSIZE_MAX);
 		} else {
 			setFixedWidth(workbench_drawer_rail::width_pixels);
 		}
 		apply_visibility();
+	}
+
+	void workbench_drawer_panel::set_heading_shown(const bool aShown)
+	{
+		HeadingShown = aShown;
+		Heading->setVisible(State == core::workbench_drawer_state::expanded && HeadingShown);
+	}
+
+	void workbench_drawer_panel::set_expanded_width_bounds(const int aMinimum, const int aMaximum)
+	{
+		ExpandedMinimum = aMinimum;
+		ExpandedMaximum = aMaximum;
+		if (State == core::workbench_drawer_state::expanded) {
+			setMinimumWidth(aMinimum);
+			setMaximumWidth(aMaximum);
+		}
 	}
 
 	void workbench_drawer_panel::apply_visibility()

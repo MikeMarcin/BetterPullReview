@@ -1,10 +1,10 @@
-#include "bpr/qt/github_thread_map.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include "conversation_glyphs.hpp"
 #include "github_presentation_text.hpp"
 
 #include "bpr/qt/github_conversation_model.hpp"
@@ -42,6 +42,7 @@
 #include <QDialogButtonBox>
 #include <QFont>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -269,7 +270,79 @@ namespace bpr::qt {
 		/// reviewer can drag it narrower and the host persists what they chose.
 		/// What holds at those narrower widths is that every row is a column, so
 		/// a row cannot put its last control out of reach.
+		/// \brief [[BPR-1290]]. The tray's tab row: the tabs at the left and the
+		/// Comments tab's tools at the right, or on a second row when the drawer
+		/// is too narrow for both, so no tab scrolls out of reach.
+		class tray_header final : public QWidget
+		{
+		public:
+			explicit tray_header(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+				Grid = new QGridLayout{ this };
+				Grid->setContentsMargins(0, 0, 6, 0);
+				Grid->setHorizontalSpacing(1);
+				Grid->setVerticalSpacing(0);
+				Grid->setColumnStretch(1, 1);
+			}
+
+			void set_parts(QWidget* aTabs, QWidget* aTools)
+			{
+				Tabs  = aTabs;
+				Tools = aTools;
+				Grid->addWidget(Tabs, 0, 0, Qt::AlignBottom | Qt::AlignLeft);
+				arrange();
+			}
+
+		protected:
+			void resizeEvent(QResizeEvent* aEvent) override
+			{
+				QWidget::resizeEvent(aEvent);
+				arrange();
+			}
+
+			auto event(QEvent* aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::LayoutRequest || aEvent->type() == QEvent::FontChange) {
+					arrange();
+				}
+				return QWidget::event(aEvent);
+			}
+
+		private:
+			void arrange()
+			{
+				if (Tabs == nullptr || Tools == nullptr) {
+					return;
+				}
+				const auto wrap = width() > 0 && Tabs->sizeHint().width() + Tools->sizeHint().width() + 8 > width();
+				if (wrap == Wrapped && Grid->indexOf(Tools) >= 0) {
+					return;
+				}
+				Wrapped = wrap;
+				// Wrapped, the tabs take the whole row.
+				Grid->setContentsMargins(0, 0, wrap ? 0 : 6, 0);
+				Grid->removeWidget(Tools);
+				if (wrap) {
+					Grid->addWidget(Tools, 1, 0, 1, 3, Qt::AlignRight | Qt::AlignVCenter);
+				} else {
+					Grid->addWidget(Tools, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+				}
+			}
+
+			QGridLayout* Grid    = nullptr;
+			QWidget*     Tabs    = nullptr;
+			QWidget*     Tools   = nullptr;
+			bool         Wrapped = false;
+		};
+
 		constexpr int conversation_drawer_default_width = 375;
+		/// \brief [[BPR-1290]]. The narrowest and widest the conversations
+		/// drawer drags to: the inline drawer prototype's range, which the
+		/// owner kept ("I like it", 2026-10-06). This supersedes [[BPR-0728]]'s
+		/// 160 pixel floor for this drawer.
+		constexpr int conversation_drawer_minimum_width = 280;
+		constexpr int conversation_drawer_maximum_width = 760;
 		/// \brief Narrowest width a drawer is ever presented at when expanded.
 		///
 		/// \details [[BPR-0662]]. The host's floor is 64 pixels, the least it
@@ -1369,6 +1442,11 @@ namespace bpr::qt {
 		Drawers[1].Panel = new workbench_drawer_panel{
 			core::workbench_drawer::conversations
 		};
+		// [[BPR-1290]]. The inline drawer drags from 280 to 760 pixels, the
+		// owner's accepted prototype's range; it opens at 375.
+		Drawers[1].Panel->set_expanded_width_bounds(conversation_drawer_minimum_width, conversation_drawer_maximum_width);
+		// Its header is its tabs: the drawer's name is its accessible name only.
+		Drawers[1].Panel->set_heading_shown(false);
 		// [[BPR-0651]]. The repositories tree: each repository the queue names
 		// with its pull requests of interest; choosing one opens it on its
 		// overview through the same intent the locator sends.
@@ -1457,6 +1535,18 @@ namespace bpr::qt {
 				return ConversationPanel->cards()->viewport()->mapFrom(this, inWindow).y();
 			});
 		ComparisonSurface->set_frame_observer([this] { refresh_cards(); });
+		// [[BPR-1290]]. The gutter's markers and the scroll bar's ticks follow
+		// the open thread and the note under the pointer; a marker or a tick
+		// opens its thread. A wheel over the notes scrolls the code.
+		ComparisonSurface->set_thread_markers(true);
+		ComparisonSurface->set_line_mark_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { toggle_thread_at(aSide, aLine); });
+		ConversationPanel->cards()->set_marks_observer([this] { apply_thread_marks(); });
+		ConversationPanel->cards()->set_scroll_forward([this](QWheelEvent& aEvent) {
+			return ComparisonSurface != nullptr && ComparisonSurface->scroll_by_wheel(aEvent);
+		});
+		ConversationPanel->cards()->set_reply_text_dispatch([this](const std::string& aThread, const QString& aText) {
+			write_inline_reply(aThread, aText);
+		});
 		// [[BPR-0661]]. A file marks itself read once fully seen only when the
 		// preference says so; the shared scrollbar is what says "fully".
 		if (auto* const scrollbar = ComparisonSurface->shared_scrollbar(); scrollbar != nullptr) {
@@ -1518,8 +1608,37 @@ namespace bpr::qt {
 				}
 				case card_action::reply:
 					// [[BPR-1133]]. Beside the code as in Discuss: every card
-					// answers its own thread, through the one Reply path.
-					reply_to_thread(aIdentity);
+					// answers its own thread, through the one Reply path;
+					// [[BPR-1290]] written in place, in the open thread.
+					reply_to_thread(aIdentity, true);
+					break;
+				case card_action::show_line: {
+					// [[BPR-1290]]. Reveal the open thread's line where the
+					// reader is, without changing the modality.
+					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
+					if (index.isValid()) {
+						ConversationPanel->choose(index);
+						synchronize_selected_conversation(index);
+					} else {
+						static_cast<void>(select_thread_line(aIdentity));
+					}
+					break;
+				}
+				case card_action::publish_reply:
+					// [[BPR-1290]]. The reply in place is the draft editor's
+					// draft; nothing publishes but its own Publish.
+					if (ReviewEditor != nullptr && ReviewEditor->publish_action()->isEnabled()) {
+						ReviewEditor->publish_action()->trigger();
+					}
+					break;
+				case card_action::cancel_reply:
+					// Cancel gives up what was typed, through the editor's own Discard.
+					if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()
+						&& ReviewEditor->shown_draft()->ReplyToThread.has_value()
+						&& !ReviewEditor->body_editor()->toPlainText().isEmpty()
+						&& ReviewEditor->discard_action()->isEnabled()) {
+						ReviewEditor->discard_action()->trigger();
+					}
 					break;
 				case card_action::open_in_code: {
 					// [[BPR-0649]]. Back to Read at the thread's line: the
@@ -1626,7 +1745,12 @@ namespace bpr::qt {
 			Drawers[1].Panel,
 		};
 		ReviewEditor->setObjectName(QStringLiteral("workbenchReviewDraftEditor"));
-		ReviewEditor->set_presentation_observer([this] { update_comment_target(); });
+		ReviewEditor->set_presentation_observer([this] {
+			update_comment_target();
+			present_inline_reply();
+		});
+		connect(ReviewEditor->body_editor(), &QPlainTextEdit::textChanged, this, [this] { present_inline_reply(); });
+		connect(ReviewEditor->publish_action(), &QAction::changed, this, [this] { present_inline_reply(); });
 		// [[BPR-1083]]. Marks are drawn from the start, in the built-in tints
 		// until the composition supplies the theme's.
 		apply_label_marks();
@@ -1679,18 +1803,23 @@ namespace bpr::qt {
 		commentsContents->setObjectName(QStringLiteral("workbenchCommentsTab"));
 		auto* const commentsLayout = new QVBoxLayout{ commentsContents };
 		commentsLayout->setContentsMargins(0, 0, 0, 0);
-		auto* const commentsTools = new QHBoxLayout{ };
-		commentsTools->setContentsMargins(4, 2, 4, 2);
-		commentsTools->addStretch(1);
+		// [[BPR-1290]]. Next new reply sits on the tab row with the filters;
+		// the defect queue's row shows only while there are defects.
 		NextNewCommentButton = new QToolButton{ commentsContents };
 		NextNewCommentButton->setObjectName(QStringLiteral("workbenchNextNewCommentButton"));
 		NextNewCommentButton->setDefaultAction(NextNewCommentAction);
-		NextNewCommentButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		NextNewCommentButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		NextNewCommentButton->setAutoRaise(true);
+		NextNewCommentButton->setIconSize(QSize{ 16, 16 });
 		NextNewCommentButton->setFocusPolicy(Qt::StrongFocus);
 		NextNewCommentButton->setAccessibleName(QStringLiteral("Next new comment"));
 		NextNewCommentButton->setAccessibleDescription(QStringLiteral(
 			"Reveal the next thread with a post newer than what you have read"));
-		commentsTools->addWidget(NextNewCommentButton);
+		DefectRow = new QWidget{ commentsContents };
+		DefectRow->setObjectName(QStringLiteral("workbenchDefectRow"));
+		auto* const commentsTools = new QHBoxLayout{ DefectRow };
+		commentsTools->setContentsMargins(4, 2, 4, 2);
+		commentsTools->addStretch(1);
 		DefectCountLabel = new QLabel{ QStringLiteral("Defects 0/0"), commentsContents };
 		DefectCountLabel->setObjectName(QStringLiteral("defectCount"));
 		DefectCountLabel->setAccessibleName(QStringLiteral("Defect queue position"));
@@ -1709,7 +1838,8 @@ namespace bpr::qt {
 			entry.first->setFocusPolicy(Qt::StrongFocus);
 			commentsTools->addWidget(entry.first);
 		}
-		commentsLayout->addLayout(commentsTools);
+		commentsLayout->addWidget(DefectRow);
+		DefectRow->hide();
 		// [[BPR-1132]]. A tab over an older pair places only its own
 		// revisions' threads; this says how many of the file's are on later
 		// updates and routes to them.
@@ -1931,7 +2061,20 @@ namespace bpr::qt {
 		TrayPages->addWidget(notesPage);
 		TourEditor = new review_tour_editor{ conversationShell };
 		TrayPages->addWidget(makeTabColumn(TourEditor, QStringLiteral("workbenchTourScroll")));
-		conversationShellLayout->addWidget(TrayTabs);
+		// [[BPR-1290]]. The tab row carries the Comments tab's tools at its
+		// right: Only new, Hide resolved and Next new reply.
+		auto* const trayHeader = new tray_header{ conversationShell };
+		trayHeader->setObjectName(QStringLiteral("workbenchTrayHeader"));
+		CommentsTools = new QWidget{ trayHeader };
+		CommentsTools->setObjectName(QStringLiteral("workbenchCommentsTools"));
+		auto* const commentsToolsRow = new QHBoxLayout{ CommentsTools };
+		commentsToolsRow->setContentsMargins(0, 0, 0, 0);
+		commentsToolsRow->setSpacing(1);
+		commentsToolsRow->addWidget(ConversationPanel->read_tools());
+		NextNewCommentButton->setParent(CommentsTools);
+		commentsToolsRow->addWidget(NextNewCommentButton);
+		trayHeader->set_parts(TrayTabs, CommentsTools);
+		conversationShellLayout->addWidget(trayHeader);
 		conversationShellLayout->addWidget(TrayPages, 1);
 		AiToolsAction = new QAction{ tr("Notes"), this };
 		AiToolsAction->setObjectName(QStringLiteral("showWorkbenchAiToolsAction"));
@@ -1940,6 +2083,7 @@ namespace bpr::qt {
 			tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
 			TrayPages->setCurrentIndex(aIndex);
+			CommentsTools->setVisible(aIndex == tray_comments_tab);
 			const auto blocker = QSignalBlocker{ AiToolsAction };
 			AiToolsSelected    = aIndex == tray_findings_tab;
 			AiToolsAction->setChecked(AiToolsSelected);
@@ -1950,7 +2094,7 @@ namespace bpr::qt {
 		});
 		connect(AiToolsAction, &QAction::toggled, this, [this](bool aSelected) { TrayTabs->setCurrentIndex(aSelected ? tray_findings_tab : tray_comments_tab); });
 		Drawers[1].Panel->set_content_widget(
-			conversationShell, ConversationPanel->view());
+			conversationShell, ConversationPanel->cards());
 		CentralSplitter->addWidget(Drawers[2].Panel);
 		CentralSplitter->addWidget(Drawers[0].Panel);
 		CentralSplitter->addWidget(CentreSurface);
@@ -5022,6 +5166,9 @@ namespace bpr::qt {
 		PreviousDefect->setEnabled(validIndex && *ShownDefectIndex > 0U);
 		NextDefect->setEnabled(
 			validIndex && *ShownDefectIndex + 1U < Defects.size());
+		if (DefectRow != nullptr) {
+			DefectRow->setVisible(!Defects.empty());
+		}
 		DefectCountLabel->setText(
 			validIndex
 				? tr("Defects %1/%2")
@@ -5495,21 +5642,86 @@ namespace bpr::qt {
 		if (ComparisonSurface == nullptr || ConversationPanel == nullptr) {
 			return;
 		}
-		// Amber for a thread on the line; blue for a thread whose first post
-		// is newer than what the reader has read ([[BPR-0656]]).
+		// Amber for a thread on the line; blue for a thread with a post newer
+		// than what the reader has read ([[BPR-0656]]). [[BPR-1290]]: each
+		// marker shows its first post's label mark, and the open thread's line
+		// is washed and its marker ringed.
+		auto* const cards = ConversationPanel->cards();
+		ComparisonSurface->set_mark_colours(cards->marker(), cards->accent());
 		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
-			auto       marks  = std::vector<diff_line_mark>{ };
-			const auto unread = ConversationPanel->cards()->unread_marked_lines(side);
-			for (const auto line : ConversationPanel->cards()->marked_lines(side)) {
-				// Both line lists are sorted and unique ([[BPR-0972]]).
-				const auto fresh = std::ranges::binary_search(unread, line);
+			auto marks = std::vector<diff_line_mark>{ };
+			for (const auto& mark : cards->line_marks(side)) {
 				marks.push_back(diff_line_mark{
-					.Line = line,
-					.Kind = fresh ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread });
+					.Line        = mark.Line,
+					.Kind        = mark.Unread ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread,
+					.Label       = mark.Label,
+					.Emphasis    = mark.Emphasis,
+					.Resolved    = mark.Resolved,
+					.Draft       = mark.Draft,
+					.Open        = mark.Open,
+					.Hovered     = mark.Hovered,
+					.Description = mark.Description,
+				});
 			}
 			ComparisonSurface->set_line_marks(side, std::move(marks));
 		}
 		update_new_comment_group();
+	}
+
+	void workbench_window::toggle_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		const auto& cards = ConversationPanel->cards()->cards();
+		const auto  card  = std::ranges::find_if(cards, [aSide, aLine](const thread_card& aCard) {
+			return aCard.Side == aSide && aCard.Line == aLine + 1U && !aCard.Outdated;
+		});
+		if (card == cards.end()) {
+			return;
+		}
+		const auto identity = card->Id;
+		// The marker is a gesture on the conversation: the drawer it opens in
+		// is shown, on its Comments tab.
+		if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			Drawers[1].Toggle->trigger();
+		}
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+			TrayTabs->setCurrentIndex(tray_comments_tab);
+		}
+		ConversationPanel->cards()->toggle_thread(identity);
+	}
+
+	void workbench_window::write_inline_reply(const std::string& aThread, const QString& aText)
+	{
+		if (ReviewEditor == nullptr) {
+			return;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || !draft->ReplyToThread.has_value() || "review-thread:" + *draft->ReplyToThread != aThread
+			|| ReviewEditor->body_editor()->isReadOnly()) {
+			return;
+		}
+		if (ReviewEditor->body_editor()->toPlainText() != aText) {
+			ReviewEditor->body_editor()->setPlainText(aText);
+		}
+	}
+
+	void workbench_window::present_inline_reply()
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || ReviewEditor == nullptr) {
+			return;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || !draft->ReplyToThread.has_value() || draft->shared()) {
+			ConversationPanel->cards()->present_reply(std::nullopt);
+			return;
+		}
+		ConversationPanel->cards()->present_reply(thread_reply_presentation{
+			.Thread      = "review-thread:" + *draft->ReplyToThread,
+			.Body        = ReviewEditor->body_editor()->toPlainText(),
+			.Publishable = ReviewEditor->publish_action()->isEnabled() && !ReviewEditor->body_editor()->isReadOnly(),
+		});
 	}
 
 	void workbench_window::set_conversation_read_dispatch(conversation_read_dispatch aDispatch)
@@ -5522,10 +5734,7 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
-		const auto previous = ConversationPanel->cards()->set_thread_read_state(aThread, aUnreadPosts);
-		if (ConversationPanel->thread_map() != nullptr) {
-			ConversationPanel->thread_map()->replace_unread(previous, aUnreadPosts);
-		}
+		static_cast<void>(ConversationPanel->cards()->set_thread_read_state(aThread, std::move(aUnreadPosts)));
 		apply_thread_marks();
 	}
 
@@ -5533,14 +5742,6 @@ namespace bpr::qt {
 	{
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
-		}
-		// [[BPR-0649]]. The map fills the same posts the cards mark.
-		auto unread = std::vector<std::string>{ };
-		for (const auto& thread : aState) {
-			unread.insert(unread.end(), thread.UnreadPosts.begin(), thread.UnreadPosts.end());
-		}
-		if (ConversationPanel->thread_map() != nullptr) {
-			ConversationPanel->thread_map()->set_unread(std::move(unread));
 		}
 		ConversationPanel->cards()->set_read_state(std::move(aState));
 		apply_thread_marks();
@@ -5996,7 +6197,7 @@ namespace bpr::qt {
 		open_review_composition(true);
 	}
 
-	void workbench_window::reply_to_thread(const std::string& aIdentity)
+	void workbench_window::reply_to_thread(const std::string& aIdentity, const bool aInPlace)
 	{
 		// [[BPR-0649]], [[BPR-0657]], [[BPR-1046]]. The thread becomes current
 		// and its line is selected, which composes the draft on that line; only
@@ -6012,10 +6213,11 @@ namespace bpr::qt {
 			ConversationPanel->choose(index);
 		}
 		if (thread_comparison_loading(aIdentity)) {
-			DeferredReply = aIdentity;
+			DeferredReply        = aIdentity;
+			DeferredReplyInPlace = aInPlace;
 			return;
 		}
-		begin_thread_reply(aIdentity);
+		begin_thread_reply(aIdentity, aInPlace);
 	}
 
 	void workbench_window::step_to_next_new_comment()
@@ -6042,6 +6244,10 @@ namespace bpr::qt {
 			ConversationPanel->view()->setCurrentIndex(index);
 		}
 		ConversationPanel->cards()->set_current_thread(next);
+		// [[BPR-1290]]. A thread of this file opens in place.
+		if (std::ranges::any_of(ConversationPanel->cards()->cards(), [&next](const thread_card& aCard) { return aCard.Id == next; })) {
+			ConversationPanel->cards()->open_thread(next);
+		}
 	}
 
 	void workbench_window::apply_modality_surface()
@@ -6210,11 +6416,23 @@ namespace bpr::qt {
 			&& context->Key.File == core::file_identity_of(path.toStdString());
 	}
 
-	void workbench_window::begin_thread_reply(const std::string& aIdentity)
+	void workbench_window::begin_thread_reply(const std::string& aIdentity, const bool aInPlace)
 	{
 		if (select_thread_line(aIdentity) && ReviewReplyDispatch && ReviewEditor != nullptr) {
 			ReviewReplyDispatch(aIdentity);
 			update_comment_target();
+			// [[BPR-1290]]. Beside the code the reply is written in place, at
+			// the foot of the open thread; it is the same draft, and nothing
+			// publishes but its Publish.
+			const auto discuss = Modality != nullptr && Modality->current() == review_modality::discuss;
+			const auto inPlace = aInPlace && !discuss && Drawers[1].Panel->state() == core::workbench_drawer_state::expanded
+				&& TrayTabs != nullptr && TrayTabs->currentIndex() == tray_comments_tab
+				&& std::ranges::any_of(ConversationPanel->cards()->cards(), [&aIdentity](const thread_card& aCard) { return aCard.Id == aIdentity; });
+			if (inPlace) {
+				ConversationPanel->cards()->begin_reply(aIdentity);
+				present_inline_reply();
+				return;
+			}
 			if (CommentAction->isEnabled()) {
 				open_review_composition(true);
 			} else {
@@ -6234,7 +6452,7 @@ namespace bpr::qt {
 			return;
 		}
 		const auto identity = std::exchange(DeferredReply, std::nullopt);
-		begin_thread_reply(*identity);
+		begin_thread_reply(*identity, DeferredReplyInPlace);
 	}
 
 	void workbench_window::set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch)
@@ -6477,6 +6695,9 @@ namespace bpr::qt {
 		}
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_label_marks(theme);
+		}
+		if (ComparisonSurface != nullptr) {
+			ComparisonSurface->set_mark_theme(theme);
 		}
 		if (FeedbackMarksPreview != nullptr) {
 			FeedbackMarksPreview->set_theme(theme);
@@ -10702,7 +10923,7 @@ namespace bpr::qt {
 			: collapsedWidth;
 		const auto conversations
 			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
-			? granted(widths.ConversationsWidth, conversation_drawer_default_width)
+			? std::clamp(granted(widths.ConversationsWidth, conversation_drawer_default_width), conversation_drawer_minimum_width, conversation_drawer_maximum_width)
 			: collapsedWidth;
 		const auto repositories
 			= presented_repositories_state() == core::workbench_drawer_state::expanded
@@ -10778,15 +10999,16 @@ namespace bpr::qt {
 		if (HomeAction != nullptr) {
 			HomeAction->setIcon(strip_icon(strip_glyph::home, ink));
 		}
+		// [[BPR-1290]]. Next new reply's icon on the Comments tab row.
+		if (NextNewCommentAction != nullptr) {
+			NextNewCommentAction->setIcon(conversation_icon(conversation_glyph::next_new, ink));
+		}
 		Drawers[0].Toggle->setIcon(strip_icon(strip_glyph::files_drawer, ink));
 		Drawers[2].Toggle->setIcon(strip_icon(strip_glyph::repositories_drawer, ink));
 		Navigation[0].Action->setIcon(strip_icon(strip_glyph::previous_file, ink));
 		Navigation[1].Action->setIcon(strip_icon(strip_glyph::next_file, ink));
 		Navigation[2].Action->setIcon(strip_icon(strip_glyph::previous_change, ink));
 		Navigation[3].Action->setIcon(strip_icon(strip_glyph::next_change, ink));
-		if (NextNewCommentAction != nullptr) {
-			NextNewCommentAction->setIcon(strip_icon(strip_glyph::new_comment, ink));
-		}
 		ReviewDetailsAction->setIcon(strip_icon(strip_glyph::review_details, ink));
 		ReviewControlsButton->setIcon(strip_icon(strip_glyph::private_progress, ink));
 		if (ComposeReviewAction != nullptr && CommentAction != nullptr) {

@@ -1170,7 +1170,9 @@ namespace bpr::qt {
 		/// thread, or a comment on the current line.
 		void comment_or_reply();
 		/// \brief The one Reply path, from a card or from Comment.
-		void reply_to_thread(const std::string& aIdentity);
+		/// \brief [[BPR-1290]]. In place when the gesture came from the thread's
+		/// note beside the code; on the composition page otherwise.
+		void reply_to_thread(const std::string& aIdentity, bool aInPlace = false);
 		/// \brief [[BPR-1132]]. Gives the strip the words for the published tabs.
 		void present_document_tabs();
 		/// \brief [[BPR-1132]]. The tab keys follow how many tabs there are.
@@ -1224,6 +1226,15 @@ namespace bpr::qt {
 		/// \brief [[BPR-0818]]. Applies the anchor on its own event-loop turn.
 		void schedule_conversation_anchor();
 		void apply_thread_marks();
+		/// \brief [[BPR-1290]]. A thread's gutter marker or scroll-bar tick
+		/// opens or closes the thread it marks.
+		void toggle_thread_at(core::diff_side aSide, std::uint32_t aLine);
+		/// \brief [[BPR-1290]]. The reply written in place is the draft
+		/// editor's text: each edit goes through the editor's one edit path.
+		void write_inline_reply(const std::string& aThread, const QString& aText);
+		/// \brief [[BPR-1290]]. Tells the notes what the draft editor holds
+		/// for the reply in place.
+		void present_inline_reply();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
 		/// \brief Selects the overview entry file and enters its semantic modality.
@@ -1242,7 +1253,7 @@ namespace bpr::qt {
 		/// [[BPR-1046]]. Selects a thread's line and only then names the thread
 		/// to the composition, so the draft on that line answers it; refuses
 		/// with a notice when the line cannot be selected.
-		void begin_thread_reply(const std::string& aIdentity);
+		void begin_thread_reply(const std::string& aIdentity, bool aInPlace);
 		/// [[BPR-1046]]. Completes or refuses a reply that waited for its
 		/// thread's comparison, once a comparison has arrived.
 		void resume_deferred_reply();
@@ -1476,6 +1487,8 @@ namespace bpr::qt {
 		QStackedWidget* TrayPages            = nullptr;
 		QScrollArea*    CommentsScroll       = nullptr;
 		QToolButton*    NextNewCommentButton = nullptr;
+		QWidget*        DefectRow            = nullptr;
+		QWidget*        CommentsTools        = nullptr;
 		QWidget*        TrayCommentsCount    = nullptr;
 		/// [[BPR-0775]]. Where focus was in the review when Home covered it.
 		QPointer<QWidget>                        FocusBeforeHome;
@@ -1663,6 +1676,7 @@ namespace bpr::qt {
 		/// [[BPR-1046]]. A Reply pressed while its thread's comparison was
 		/// loading; the next comparison to arrive completes or refuses it.
 		std::optional<std::string>           DeferredReply;
+		bool                                 DeferredReplyInPlace = false;
 		workbench_thread_resolution_dispatch ThreadResolutionDispatch;
 		bool                                 ProviderResolvesThreads = false;
 		core::github_capabilities            Capabilities;

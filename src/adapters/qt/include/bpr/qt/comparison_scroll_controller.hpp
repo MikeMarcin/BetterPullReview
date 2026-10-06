@@ -136,6 +136,10 @@ namespace bpr::qt {
 			core::diff_side aSide,
 			qreal           aOrigin) -> bool;
 
+		/// \brief [[BPR-1290]]. Where the bar's thumb stands, from 0 to 1, when
+		/// a side's zero-based line is revealed at the rail.
+		[[nodiscard]] auto scrollbar_fraction(core::diff_side aSide, std::uint32_t aLine) const noexcept
+			-> std::optional<qreal>;
 		[[nodiscard]] auto position() const noexcept -> qreal;
 		[[nodiscard]] auto minimum_position() const noexcept -> qreal;
 		[[nodiscard]] auto maximum_position() const noexcept -> qreal;

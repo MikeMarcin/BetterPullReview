@@ -24,7 +24,6 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
-#include "bpr/qt/github_thread_map.hpp"
 #include "live_review_submission_provider.hpp"
 #include "private_review_workflow.hpp"
 #include "review_cycle_desktop.hpp"
@@ -146,6 +145,7 @@
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
 
+#include <QAbstractButton>
 #include <QApplication>
 #include <QByteArray>
 #include <QCheckBox>
@@ -953,6 +953,15 @@ namespace bpr::app {
 						github_com_2022_11_28,
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed Conventional Comments",
+				};
+			case detail::github_public_path_fixture::inline_drawer_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed inline drawer",
 				};
 			}
 			return { };
@@ -14811,10 +14820,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				conversations->cards()->set_code_colours(
 					AppearanceProfile->color(core::appearance_role::code_background),
 					AppearanceProfile->color(core::appearance_role::syntax_normal));
-				if (conversations->thread_map() != nullptr) {
-					conversations->thread_map()->set_unread_colour(
-						AppearanceProfile->color(core::appearance_role::state_unread));
-				}
 			}
 
 			// Read back off the window rather than off the profile. The claim
@@ -24004,25 +24009,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return loaded->isVisibleTo(window->conversation_panel()) && cards->isVisibleTo(window->conversation_panel())
 				&& std::ranges::find(cards->cards(), std::string{ threadIdentity }, &qt::thread_card::Id) != cards->cards().end();
 		};
-		// A press on one of the thread's card actions, as a reviewer's.
+		// A press on one of the thread's actions, as a reviewer's: the thread
+		// opens in place ([[BPR-1290]]) and its button is clicked.
 		const auto press = [cards, threadIdentity](const qt::card_action aAction) {
-			for (const auto& card : cards->cards()) {
-				if (card.Id != threadIdentity) {
-					continue;
-				}
-				for (const auto& [offered, rect] : card.Actions) {
-					if (offered != aAction) {
-						continue;
-					}
-					const auto point   = QPointF{ rect.center() };
-					auto       pressed = QMouseEvent{
-						QEvent::MouseButtonPress, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier
-					};
-					QCoreApplication::sendEvent(cards->viewport(), &pressed);
-					return true;
-				}
+			cards->open_thread(std::string{ threadIdentity });
+			auto* const card = cards->open_card();
+			if (card == nullptr) {
+				return false;
 			}
-			return false;
+			const auto  name   = aAction == qt::card_action::reply ? QStringLiteral("threadReplyField") : QStringLiteral("threadResolve");
+			auto* const button = card->findChild<QAbstractButton*>(name);
+			if (button == nullptr || !button->isEnabled()) {
+				return false;
+			}
+			button->click();
+			return true;
 		};
 		switch (probe.Phase) {
 		case state_type::phase::awaiting_ready: {
@@ -24418,9 +24419,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& second->Posts.front().Body.startsWith(QStringLiteral("suggestion (non-blocking, if-minor): ")) && second->Posts.size() == 3U
 				&& second->Posts[1].Emphasis == qt::feedback_mark_emphasis{ .Weight = weight::blocking, .IfMinor = true } && second->Posts[1].Name.endsWith(QStringLiteral("todo (blocking, if-minor, perf)"))
 				&& second->Posts[2].Label == core::feedback_label::nitpick && second->Posts[2].Emphasis == qt::feedback_mark_emphasis{ } && second->Posts[2].Body.startsWith(QStringLiteral("nitpick (style): "))
-				// The drawer's entries lead with their root's mark (owner,
-				// thread-marks-v002: "Marks don't show on inline comments").
-				&& !cards->compact_mark_rect(*first).isEmpty() && !cards->compact_mark_rect(*second).isEmpty();
+				// The drawer's notes show their root's mark under its avatar
+				// (owner, thread-marks-v002: "Marks don't show on inline
+				// comments").
+				&& !cards->mark_rect(*first).isEmpty() && !cards->mark_rect(*second).isEmpty();
 			if (!marked) {
 				return fail("thread-marks-not-drawn");
 			}
@@ -24557,7 +24559,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.PublishedMarked = rootLabel(card) == core::feedback_label::issue && card->Posts.front().Emphasis == qt::feedback_mark_emphasis{ }
-				&& card->Posts.front().Name.endsWith(QStringLiteral(", issue")) && !cards->compact_mark_rect(*card).isEmpty();
+				&& card->Posts.front().Name.endsWith(QStringLiteral(", issue")) && !cards->mark_rect(*card).isEmpty();
 			render("published-marked");
 			if (!probe.Evidence.PublishedMarked) {
 				return fail("published-thread-unmarked name=" + card->Posts.front().Name.toStdString());

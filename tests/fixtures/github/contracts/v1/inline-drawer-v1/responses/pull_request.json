@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/inline-drawer",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Constructed fixture: the nested-folders files and a long file, with threads on both.\n",
+	"changed_files": 18,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "inline-drawer",
+		"repo": {
+			"full_name": "bpr-fixtures/inline-drawer",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_22",
+	"number": 22,
+	"state": "open",
+	"title": "Keep the conversation cards in the ui folder",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

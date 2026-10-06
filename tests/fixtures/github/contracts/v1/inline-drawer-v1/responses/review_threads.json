@@ -1,0 +1,1027 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_inline-drawer",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "README.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/reference.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/v2/endpoints.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/guide.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.vert",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/bloom.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/tonemap.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/main.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/conversation_cards_view.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/slider.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/engine/renderer_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/ui/widgets/button_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tools/build/scripts/package.py",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/inline-drawer:22:files",
+						"hasNextPage": false
+					},
+					"totalCount": 18
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_22",
+				"reviewThreads": {
+					"nodes": [
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue (blocking): draw_scene() runs before the clear finishes on the second view.",
+										"id": "PRRC_cc_1_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "question (non-blocking): Does the second view share the depth buffer?",
+										"id": "PRRC_cc_1_2",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_1_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "praise: Good catch, this explains the flicker.",
+										"id": "PRRC_cc_1_3",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_1_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Thanks, resolving after CI.",
+										"id": "PRRC_cc_1_4",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_1_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMV80",
+									"hasNextPage": false
+								},
+								"totalCount": 4
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_1",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "suggestion (non-blocking, if-minor): Clamp the width to at least one pixel.",
+										"id": "PRRC_cc_2_1",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "todo (blocking, if-minor, perf): Add the clamp before the next push.",
+										"id": "PRRC_cc_2_2",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_2_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "nitpick (style): std::max reads better than the ternary here.",
+										"id": "PRRC_cc_2_3",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_2_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMl8z",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_2",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 12,
+							"originalLine": 12,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "nitpick (if-minor): 1280 by 720 could be a named constant.",
+										"id": "PRRC_cc_3_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/main.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "thought: A config file may want to own this later.",
+										"id": "PRRC_cc_3_2",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/main.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_3_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfM18y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_3",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/main.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "chore: Rename Handler to OnClick while you are here.",
+										"id": "PRRC_cc_4_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/ui/widgets/button.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "note: The old name is still used by the plugin API.",
+										"id": "PRRC_cc_4_2",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/ui/widgets/button.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_4_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfNF8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_4",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/ui/widgets/button.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "typo: tests/ should be tests/engine/.",
+										"id": "PRRC_cc_5_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "README.md",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "polish: Add a sentence about the release flag.",
+										"id": "PRRC_cc_5_2",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "README.md",
+										"replyTo": {
+											"id": "PRRC_cc_5_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfNV8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_5",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "README.md",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "quibble: 1.2 reads as a magic number.",
+										"id": "PRRC_cc_6_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/engine/shaders/post/bloom.frag",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "security: the shader trusts uScene.",
+										"id": "PRRC_cc_6_2",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/engine/shaders/post/bloom.frag",
+										"replyTo": {
+											"id": "PRRC_cc_6_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfNl8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_6",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/engine/shaders/post/bloom.frag",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "nitpick (non-blocking): `card_gap` and `card_margin` are both 8; one constant would do.",
+										"id": "PRRC_cc_7_1",
+										"line": 38,
+										"originalLine": 38,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "They drift apart at Discuss widths, so I kept both.",
+										"id": "PRRC_cc_7_2",
+										"line": 38,
+										"originalLine": 38,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_7_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "praise: Fair, and the names say why.",
+										"id": "PRRC_cc_7_3",
+										"line": 38,
+										"originalLine": 38,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_7_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfN18z",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_7",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 38,
+							"originalLine": 38,
+							"path": "src/ui/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "question: Who still calls `set_feed()` once Discuss has its own list?",
+										"id": "PRRC_cc_8_1",
+										"line": 430,
+										"originalLine": 430,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfOF8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_8",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 430,
+							"originalLine": 430,
+							"path": "src/ui/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue (blocking): `set_current_thread()` keeps a reply's id when no card holds it, so `Current` can name nothing.",
+										"id": "PRRC_cc_9_1",
+										"line": 656,
+										"originalLine": 656,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "question: Should it clear `Current` instead, or keep the last card?",
+										"id": "PRRC_cc_9_2",
+										"line": 656,
+										"originalLine": 656,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_9_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "praise: Good catch, this explains the lost highlight after a refresh.",
+										"id": "PRRC_cc_9_3",
+										"line": 656,
+										"originalLine": 656,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_9_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Clear it. I'll push the fix with a test.",
+										"id": "PRRC_cc_9_4",
+										"line": 656,
+										"originalLine": 656,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_9_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfOV80",
+									"hasNextPage": false
+								},
+								"totalCount": 4
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_9",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 656,
+							"originalLine": 656,
+							"path": "src/ui/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "suggestion (non-blocking, if-minor): Look the id up in an index instead of walking every card's posts.",
+										"id": "PRRC_cc_10_1",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_author-two",
+											"login": "author-two"
+										},
+										"bodyText": "The index would need rebuilding on every refresh too.",
+										"id": "PRRC_cc_10_2",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_10_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "It's built in `relayout()` already, so the lookup is free here.",
+										"id": "PRRC_cc_10_3",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_10_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "Measured: 0.4 ms against 0.02 at 500 cards. Not urgent.",
+										"id": "PRRC_cc_10_4",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_10_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "todo (if-minor): Leave a comment pointing at the measurement.",
+										"id": "PRRC_cc_10_5",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_10_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMTBfNQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 5
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_10",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 667,
+							"originalLine": 667,
+							"path": "src/ui/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "suggestion: `relayout()` is 200 lines; measuring and placing could be two functions.",
+										"id": "PRRC_cc_11_1",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "They share `compactMeasurements`, so splitting means passing it around.",
+										"id": "PRRC_cc_11_2",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_11_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Passing one struct is fine. The measuring half has no side effects.",
+										"id": "PRRC_cc_11_3",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_11_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "thought: Then the placing half could be tested without fonts.",
+										"id": "PRRC_cc_11_4",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_11_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "Which would have caught the 280 px clipping last week.",
+										"id": "PRRC_cc_11_5",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_11_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "note (perf): `relayout()` runs twice on a scope change; the second pass finds nothing to do.",
+										"id": "PRRC_cc_11_6",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_11_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Splitting after this lands, on its own card.",
+										"id": "PRRC_cc_11_7",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_11_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "praise: Thanks, happy with that.",
+										"id": "PRRC_cc_11_8",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_11_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMTFfOA==",
+									"hasNextPage": false
+								},
+								"totalCount": 8
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_11",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 927,
+							"originalLine": 927,
+							"path": "src/ui/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "Why `width - 2 * card_margin` and not the viewport's `contentsRect()`?",
+										"id": "PRRC_cc_12_1",
+										"line": 1080,
+										"originalLine": 1080,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "The viewport has no margins here, so `contentsRect()` is the same width.",
+										"id": "PRRC_cc_12_2",
+										"line": 1080,
+										"originalLine": 1080,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_12_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "nitpick (non-blocking): Then a comment saying so would stop the next person asking.",
+										"id": "PRRC_cc_12_3",
+										"line": 1080,
+										"originalLine": 1080,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_12_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMTJfMw==",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_12",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 1080,
+							"originalLine": 1080,
+							"path": "src/ui/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "thought (perf): `std::max` here pushes every later card down one by one; does a run of close lines cost a pass each?",
+										"id": "PRRC_cc_13_1",
+										"line": 1176,
+										"originalLine": 1176,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "It's one pass over sorted cards, so linear either way.",
+										"id": "PRRC_cc_13_2",
+										"line": 1176,
+										"originalLine": 1176,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_13_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "Right, I misread the loop.",
+										"id": "PRRC_cc_13_3",
+										"line": 1176,
+										"originalLine": 1176,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_13_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMTNfMw==",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_13",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 1176,
+							"originalLine": 1176,
+							"path": "src/ui/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "chore (non-blocking): Say in a comment that Shift+F10 and the Menu key open the same thread menu.",
+										"id": "PRRC_cc_14_1",
+										"line": 1510,
+										"originalLine": 1510,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "+1, the second half of the condition on 1512 is easy to miss.",
+										"id": "PRRC_cc_14_2",
+										"line": 1510,
+										"originalLine": 1510,
+										"outdated": false,
+										"path": "src/ui/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_14_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMTRfMg==",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_14",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 1510,
+							"originalLine": 1510,
+							"path": "src/ui/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						}
+					],
+					"pageInfo": {
+						"endCursor": "Y3Vyc29yOlBSUlRfY2NfMTQ=",
+						"hasNextPage": false
+					},
+					"totalCount": 14
+				}
+			}
+		}
+	}
+}

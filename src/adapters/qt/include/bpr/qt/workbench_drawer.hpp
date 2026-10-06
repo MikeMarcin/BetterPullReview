@@ -202,6 +202,12 @@ namespace bpr::qt {
 		/// \param aFocusStop The single interactive stop the drawer contributes,
 		/// or `nullptr` to use \p aWidget itself.
 		void set_content_widget(QWidget* aWidget, QWidget* aFocusStop = nullptr);
+		/// \brief [[BPR-1290]]. The narrowest and widest the expanded drawer may
+		/// be dragged; the conversations drawer is 280 to 760 pixels.
+		void set_expanded_width_bounds(int aMinimum, int aMaximum);
+		/// \brief [[BPR-1290]]. Whether the drawer's name is drawn above its
+		/// contents; it stays the drawer's accessible name either way.
+		void set_heading_shown(bool aShown);
 
 		/// \brief Shows \p aWidget in the list's place while keeping the list.
 		///
@@ -249,16 +255,19 @@ namespace bpr::qt {
 
 	private:
 		core::workbench_drawer       Drawer;
-		QLabel*                      Heading       = nullptr;
-		QListView*                   View          = nullptr;
-		workbench_drawer_model*      Contents      = nullptr;
-		QWidget*                     Content       = nullptr;
-		QWidget*                     ContentFocus  = nullptr;
-		bool                         ListRetired   = false;
-		workbench_drawer_rail*       Rail          = nullptr;
-		QToolButton*                 Collapse      = nullptr;
-		bool                         ControlsShown = false;
-		core::workbench_drawer_state State         = core::workbench_drawer_state::expanded;
+		QLabel*                      Heading         = nullptr;
+		QListView*                   View            = nullptr;
+		workbench_drawer_model*      Contents        = nullptr;
+		QWidget*                     Content         = nullptr;
+		QWidget*                     ContentFocus    = nullptr;
+		bool                         ListRetired     = false;
+		workbench_drawer_rail*       Rail            = nullptr;
+		QToolButton*                 Collapse        = nullptr;
+		bool                         ControlsShown   = false;
+		core::workbench_drawer_state State           = core::workbench_drawer_state::expanded;
+		int                          ExpandedMinimum = -1;
+		bool                         HeadingShown    = true;
+		int                          ExpandedMaximum = -1;
 
 		void present();
 		void apply_visibility();

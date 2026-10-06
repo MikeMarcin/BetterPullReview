@@ -273,6 +273,23 @@ namespace bpr::qt {
 		return true;
 	}
 
+	auto comparison_scroll_controller::scrollbar_fraction(
+		const core::diff_side aSide,
+		const std::uint32_t   aLine) const noexcept -> std::optional<qreal>
+	{
+		// [[BPR-1290]]. Where the bar stands when the line is at the rail, as
+		// a reveal would put it.
+		if (!Axis.has_value() || MaximumQ <= MinimumQ) {
+			return std::nullopt;
+		}
+		const auto origin = aSide == core::diff_side::left ? Axis->left_line_origin(aLine) : Axis->right_line_origin(aLine);
+		if (!origin.has_value()) {
+			return std::nullopt;
+		}
+		const auto position = clamp_position(position_reaching(aSide, *origin + rail_extent(aSide)));
+		return (position - MinimumQ) / (MaximumQ - MinimumQ);
+	}
+
 	auto comparison_scroll_controller::position() const noexcept -> qreal
 	{
 		return Q;

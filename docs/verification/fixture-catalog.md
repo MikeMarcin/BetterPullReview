@@ -78,6 +78,19 @@ The construction carries no `recorded_from`, names no URL, and its fixture test
 regenerates it byte for byte. Like `uiforetw-74`, it serves the builder's
 commits, one head, and github.com's capability snapshot.
 
+### `inline-drawer-v1`, conventional comments plus a long file with threads
+
+Added for [[BPR-1290]], so the inline Comments drawer can be judged against its
+prototype on a long file. `scripts/build_inline_drawer_fixture.py` writes the
+nested-folders files plus `src/ui/conversation_cards_view.cpp` (this
+repository's `conversation_cards_view.cpp` at `fbbabb3ef`, 1557 lines, the
+prototype's code) into
+`tests/fixtures/github/pull-requests/inline-drawer-v1/construction.json`; the
+same pack and contract builders serve it, and the script's `--threads` step
+gives the served tree conventional-comments-v1's six threads and the
+prototype's eight on the long file. Constructed, not recorded; its fixture test
+regenerates the construction and the served tree byte for byte.
+
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,
 transport metadata, remote URLs, patches, source content, email addresses,

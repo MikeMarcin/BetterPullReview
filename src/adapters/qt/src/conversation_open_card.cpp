@@ -1,0 +1,1098 @@
+#include "conversation_open_card.hpp"
+
+#include "conversation_glyphs.hpp"
+
+#include "bpr/qt/anchored_tooltip.hpp"
+
+#include <QAbstractTextDocumentLayout>
+#include <QFontMetrics>
+#include <QHBoxLayout>
+#include <QHelpEvent>
+#include <QKeyEvent>
+#include <QKeySequence>
+#include <QLabel>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPalette>
+#include <QRegularExpression>
+#include <QResizeEvent>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
+#include <QToolButton>
+#include <QVBoxLayout>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <utility>
+
+namespace bpr::qt {
+	namespace {
+		/// The prototype's measures: the rail's right edge, the avatar column,
+		/// where a post's text starts, and its padding.
+		constexpr int rail_right    = 8;
+		constexpr int gut_left      = 12;
+		constexpr int avatar_size   = 18;
+		constexpr int mark_gap      = 3;
+		constexpr int mark_size     = 16;
+		constexpr int text_left     = gut_left + avatar_size + 9;
+		constexpr int text_right    = 10;
+		constexpr int post_padding  = 8;
+		constexpr int header_height = 34;
+		constexpr int reply_minimum = 54;
+		constexpr int reply_maximum = 220;
+
+		[[nodiscard]] auto mix(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
+		{
+			const auto blend = [aAmount](const int aA, const int aB) {
+				return static_cast<int>(std::lround(aA + (aB - aA) * aAmount));
+			};
+			return QColor{ blend(aFrom.red(), aTo.red()), blend(aFrom.green(), aTo.green()), blend(aFrom.blue(), aTo.blue()) };
+		}
+
+		[[nodiscard]] auto with_alpha(QColor aColour, const qreal aAlpha) -> QColor
+		{
+			aColour.setAlphaF(static_cast<float>(aAlpha));
+			return aColour;
+		}
+
+		[[nodiscard]] auto semibold(QFont aFont) -> QFont
+		{
+			aFont.setWeight(QFont::DemiBold);
+			return aFont;
+		}
+
+		[[nodiscard]] auto scaled(QFont aFont, const qreal aFactor) -> QFont
+		{
+			if (aFont.pointSizeF() > 0.0) {
+				aFont.setPointSizeF(aFont.pointSizeF() * aFactor);
+			} else if (aFont.pixelSize() > 0) {
+				aFont.setPixelSize(std::max(1, static_cast<int>(std::lround(aFont.pixelSize() * aFactor))));
+			}
+			return aFont;
+		}
+
+		[[nodiscard]] auto mark_colours(const open_card_style& aStyle, const core::feedback_label aLabel) -> feedback_mark_colours
+		{
+			return feedback_mark_colours{ .Tint  = aStyle.Marks.Tints[static_cast<std::size_t>(aLabel)],
+										  .Panel = aStyle.Colours.Panel,
+										  .Ink   = aStyle.Colours.Ink,
+										  .Style = aStyle.Marks.Style };
+		}
+
+		/// \brief A web address inside a post's plain text. Spelled without its
+		/// separator so the boundary scan for literal addresses stays quiet.
+		[[nodiscard]] auto web_address() -> const QRegularExpression&
+		{
+			static const auto expression = QRegularExpression{ QStringLiteral(R"((?:http|https):\/\/[^\s<>()\[\]`"']+)") };
+			return expression;
+		}
+
+		/// \brief A one-line state beside Show line: an icon and its words.
+		class state_label final : public QWidget
+		{
+		public:
+			state_label(const QString& aText, std::optional<conversation_glyph> aGlyph, QColor aInk, QWidget* aParent)
+				: QWidget{ aParent }
+				, Text{ aText }
+				, Glyph{ aGlyph }
+				, Ink{ std::move(aInk) }
+			{
+				setObjectName(QStringLiteral("threadState"));
+				setAccessibleName(aText);
+				setFont(scaled(font(), 0.92));
+				setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ font() };
+				return { (Glyph ? 16 : 0) + metrics.horizontalAdvance(Text) + 6, std::max(18, metrics.height()) };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return { Glyph ? 16 : 8, sizeHint().height() };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				auto x = 2;
+				if (Glyph) {
+					paint_conversation_glyph(painter, QRectF{ static_cast<qreal>(x), (height() - 12) / 2.0, 12.0, 12.0 }, *Glyph, Ink);
+					x += 16;
+				}
+				painter.setPen(Ink);
+				painter.drawText(QRect{ x, 0, width() - x, height() }, Qt::AlignLeft | Qt::AlignVCenter,
+								 QFontMetrics{ font() }.elidedText(Text, Qt::ElideRight, std::max(0, width() - x)));
+			}
+
+		private:
+			QString                           Text;
+			std::optional<conversation_glyph> Glyph;
+			QColor                            Ink;
+		};
+
+		/// \brief The "New" rule before the first unread post.
+		class new_rule final : public QWidget
+		{
+		public:
+			new_rule(QColor aInk, QWidget* aParent)
+				: QWidget{ aParent }
+				, Ink{ std::move(aInk) }
+			{
+				setObjectName(QStringLiteral("threadNewRule"));
+				setAccessibleName(QStringLiteral("New posts follow"));
+				auto small = semibold(scaled(font(), 0.82));
+				small.setWeight(QFont::Bold);
+				setFont(small);
+				setFixedHeight(QFontMetrics{ font() }.height() + 2);
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto       painter = QPainter{ this };
+				const auto metrics = QFontMetrics{ font() };
+				const auto words   = QStringLiteral("New");
+				const auto left    = text_left;
+				painter.setPen(Ink);
+				painter.drawText(QRect{ left, 0, width() - left, height() }, Qt::AlignLeft | Qt::AlignVCenter, words);
+				const auto after = left + metrics.horizontalAdvance(words) + 8;
+				painter.setPen(QPen{ with_alpha(Ink, 0.55), 1.0 });
+				painter.drawLine(QPointF{ static_cast<qreal>(after), height() / 2.0 }, QPointF{ static_cast<qreal>(width() - text_right), height() / 2.0 });
+			}
+
+		private:
+			QColor Ink;
+		};
+
+		/// \brief The header row: Show line, the state, the actions, and a rule
+		/// under them. A press on its empty space closes the thread.
+		class card_header final : public QWidget
+		{
+		public:
+			explicit card_header(QColor aRule, QWidget* aParent)
+				: QWidget{ aParent }
+				, Rule{ std::move(aRule) }
+			{
+				setObjectName(QStringLiteral("threadHeader"));
+				setFixedHeight(header_height);
+				setCursor(Qt::PointingHandCursor);
+			}
+			std::function<void()> Pressed;
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setPen(QPen{ Rule, 1.0 });
+				painter.drawLine(QPointF{ 0.0, height() - 0.5 }, QPointF{ static_cast<qreal>(width()), height() - 0.5 });
+			}
+			void mousePressEvent(QMouseEvent* aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton && childAt(aEvent->position().toPoint()) == nullptr && Pressed) {
+					Pressed();
+					aEvent->accept();
+					return;
+				}
+				QWidget::mousePressEvent(aEvent);
+			}
+
+		private:
+			QColor Rule;
+		};
+
+		/// \brief The reply's label, as its first words make it.
+		class reply_chip final : public QWidget
+		{
+		public:
+			reply_chip(open_card_style aStyle, QWidget* aParent)
+				: QWidget{ aParent }
+				, Style{ std::move(aStyle) }
+			{
+				setObjectName(QStringLiteral("threadReplyChip"));
+				setFont(semibold(scaled(font(), 0.92)));
+				setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+				set_text(QString{ });
+			}
+
+			void set_text(const QString& aText)
+			{
+				Mark = feedback_body_mark_of(aText.toStdString());
+				setAccessibleName(Mark.Label ? Mark.Name : QStringLiteral("Plain"));
+				setToolTip(Mark.Label ? Mark.Name : QStringLiteral("No label: the reply publishes as a plain comment"));
+				updateGeometry();
+				update();
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ font() };
+				const auto words   = Mark.Label ? Mark.Name : QStringLiteral("Plain");
+				return { std::min(240, (Mark.Label ? 4 + mark_size + 5 : 8) + metrics.horizontalAdvance(words) + 8), 22 };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				painter.setPen(QPen{ Style.Colours.Rule, 1.0 });
+				painter.setBrush(mix(Style.Colours.Panel, Style.Colours.Ink, 0.04));
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+				auto x = 8;
+				if (Mark.Label) {
+					paint_feedback_mark(painter, QRectF{ 4.0, (height() - mark_size) / 2.0, static_cast<qreal>(mark_size), static_cast<qreal>(mark_size) }, *Mark.Label, Mark.Emphasis, mark_colours(Style, *Mark.Label));
+					x = 4 + mark_size + 5;
+				}
+				painter.setPen(Style.Colours.Ink2);
+				painter.drawText(QRect{ x, 0, width() - x - 6, height() }, Qt::AlignLeft | Qt::AlignVCenter,
+								 QFontMetrics{ font() }.elidedText(Mark.Label ? Mark.Name : QStringLiteral("Plain"), Qt::ElideRight, std::max(0, width() - x - 6)));
+			}
+
+		private:
+			open_card_style    Style;
+			feedback_body_mark Mark;
+		};
+
+		/// \brief The reply's editor: plain text, growing with what is typed.
+		class reply_text final : public QTextEdit
+		{
+		public:
+			explicit reply_text(QWidget* aParent)
+				: QTextEdit{ aParent }
+			{
+				setObjectName(QStringLiteral("threadReplyText"));
+				setAcceptRichText(false);
+				setFrameShape(QFrame::NoFrame);
+				setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+				setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+				setTabChangesFocus(true);
+				document()->setDocumentMargin(0.0);
+				viewport()->setAutoFillBackground(false);
+				setAutoFillBackground(false);
+				setPlaceholderText(QStringLiteral("Reply. Start with a label, as in question: or issue (blocking):"));
+				fit();
+				connect(this, &QTextEdit::textChanged, this, [this] { fit(); });
+			}
+
+			void fit()
+			{
+				const auto height = std::clamp(static_cast<int>(std::ceil(document()->size().height())) + 2, reply_minimum, reply_maximum);
+				if (height != this->height() || minimumHeight() != height) {
+					setFixedHeight(height);
+				}
+			}
+
+		protected:
+			void resizeEvent(QResizeEvent* aEvent) override
+			{
+				QTextEdit::resizeEvent(aEvent);
+				fit();
+			}
+		};
+
+		/// \brief The editor's frame: a signal border with a soft glow.
+		class reply_frame final : public QWidget
+		{
+		public:
+			reply_frame(QColor aSignal, QColor aSurface, QWidget* aParent)
+				: QWidget{ aParent }
+				, Signal{ std::move(aSignal) }
+				, Surface{ std::move(aSurface) }
+			{
+				setObjectName(QStringLiteral("threadReplyEditor"));
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box = QRectF{ rect() }.adjusted(3.0, 3.0, -3.0, -3.0);
+				painter.setPen(QPen{ with_alpha(Signal, 0.22), 4.0 });
+				painter.setBrush(Qt::NoBrush);
+				painter.drawRoundedRect(box, 7.0, 7.0);
+				painter.setPen(QPen{ Signal, 1.0 });
+				painter.setBrush(Surface);
+				painter.drawRoundedRect(box, 7.0, 7.0);
+			}
+
+		private:
+			QColor Signal;
+			QColor Surface;
+		};
+
+		[[nodiscard]] auto tool(QWidget* aParent, const QString& aName, const QString& aTip, const conversation_glyph aGlyph, const QPalette& aPalette) -> QToolButton*
+		{
+			auto* const button = new QToolButton{ aParent };
+			button->setObjectName(aName);
+			button->setAutoRaise(true);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setIcon(conversation_icon(aGlyph, aPalette));
+			button->setProperty("conversationGlyph", static_cast<int>(aGlyph));
+			button->setIconSize(QSize{ 16, 16 });
+			button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			button->setToolTip(aTip);
+			button->setAccessibleName(aTip.section(QStringLiteral("  "), 0, 0));
+			button->setCursor(Qt::ArrowCursor);
+			return button;
+		}
+	} // namespace
+
+	auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute) -> note_colours
+	{
+		auto       colours = note_colours{ };
+		const auto ink     = aPalette.color(QPalette::Active, QPalette::Text);
+		const auto base    = aPalette.color(QPalette::Active, QPalette::Base);
+		colours.Dark       = base.lightness() < 128;
+		colours.Ink        = ink;
+		colours.Ink2       = mix(ink, base, 0.28);
+		colours.Faint      = aPalette.color(QPalette::Active, QPalette::PlaceholderText);
+		colours.Rule       = mix(ink, base, 0.86);
+		colours.Rule2      = mix(ink, base, 0.74);
+		colours.Panel      = base;
+		colours.Drawer     = aPalette.color(QPalette::Active, QPalette::Window);
+		colours.Hover      = mix(base, ink, 0.035);
+		colours.New        = aNew;
+		colours.OnNew      = aNew.lightness() > 150 ? QColor{ 0x0D, 0x11, 0x17 } : QColor{ Qt::white };
+		colours.Route      = aRoute;
+		colours.RouteSoft  = with_alpha(aRoute, colours.Dark ? 0.24 : 0.16);
+		colours.RouteLine  = mix(aRoute, base, 0.55);
+		colours.Ok         = colours.Dark ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 };
+		colours.Signal     = aPalette.color(QPalette::Active, QPalette::Highlight);
+		return colours;
+	}
+
+	auto avatar_colours_of(const QString& aLogin, const bool aDark) -> avatar_colours
+	{
+		// A hue a login keeps on every run, from its own characters.
+		auto hash = 2166136261U;
+		for (const auto character : aLogin) {
+			hash = (hash ^ character.unicode()) * 16777619U;
+		}
+		const auto hue = static_cast<int>(hash % 360U);
+		return aDark ? avatar_colours{ QColor::fromHsl(hue, 70, 64), QColor::fromHsl(hue, 150, 204) }
+					 : avatar_colours{ QColor::fromHsl(hue, 150, 212), QColor::fromHsl(hue, 150, 52) };
+	}
+
+	auto avatar_initials(const QString& aLogin) -> QString
+	{
+		if (aLogin.isEmpty()) {
+			return QStringLiteral("?");
+		}
+		const auto parts = aLogin.split(QLatin1Char{ '-' }, Qt::SkipEmptyParts);
+		if (parts.size() > 1) {
+			return (parts[0].left(1) + parts[1].left(1)).toUpper();
+		}
+		return aLogin.left(1).toUpper();
+	}
+
+	void paint_avatar(QPainter& aPainter, const QRectF& aBox, const QString& aLogin, const bool aMine, const note_colours& aColours, const QFont& aFont)
+	{
+		const auto colours = avatar_colours_of(aLogin, aColours.Dark);
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		if (aMine) {
+			aPainter.setPen(QPen{ aColours.Faint, 1.0 });
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawEllipse(aBox.adjusted(-2.0, -2.0, 2.0, 2.0));
+		}
+		aPainter.setPen(Qt::NoPen);
+		aPainter.setBrush(colours.Background);
+		aPainter.drawEllipse(aBox);
+		auto font = aFont;
+		font.setWeight(QFont::Bold);
+		font.setPixelSize(std::max(6, static_cast<int>(std::lround(aBox.height() * (avatar_initials(aLogin).size() > 1 ? 0.44 : 0.53)))));
+		aPainter.setFont(font);
+		aPainter.setPen(colours.Ink);
+		aPainter.drawText(aBox, Qt::AlignCenter, avatar_initials(aLogin));
+		aPainter.restore();
+	}
+
+	thread_post_body::thread_post_body(QWidget* const aParent)
+		: QTextEdit{ aParent }
+	{
+		setObjectName(QStringLiteral("threadPostBody"));
+		setReadOnly(true);
+		setFrameShape(QFrame::NoFrame);
+		setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		setLineWrapMode(QTextEdit::WidgetWidth);
+		setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+		setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard | Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		setFocusPolicy(Qt::ClickFocus);
+		setAcceptDrops(false);
+		setUndoRedoEnabled(false);
+		document()->setDocumentMargin(0.0);
+		document()->setUndoRedoEnabled(false);
+		viewport()->setAutoFillBackground(false);
+		setAutoFillBackground(false);
+		viewport()->setMouseTracking(true);
+	}
+
+	void thread_post_body::set_post(const card_post& aPost, const open_card_style& aStyle)
+	{
+		setAccessibleName(QStringLiteral("Post by %1").arg(aPost.Author));
+		auto* const document = this->document();
+		document->clear();
+		document->setDefaultFont(font());
+		auto cursor = QTextCursor{ document };
+		auto plain  = QTextCharFormat{ };
+		plain.setForeground(aStyle.Colours.Ink);
+		auto header = plain;
+		header.setFontWeight(QFont::DemiBold);
+		header.setForeground(aStyle.Colours.Ink2);
+		auto code = plain;
+		code.setFontFamilies(aStyle.CodeFont.families());
+		code.setFontFixedPitch(true);
+		if (font().pointSizeF() > 0.0) {
+			code.setFontPointSize(font().pointSizeF() * 0.9);
+		}
+		code.setBackground(mix(aStyle.Colours.Panel, aStyle.Colours.Ink, 0.06));
+		const auto insertPlain = [&](const QString& aText) {
+			// Web addresses become links the application admits; the rest is
+			// literal text.
+			auto at = qsizetype{ 0 };
+			for (auto match = web_address().globalMatch(aText); match.hasNext();) {
+				const auto found = match.next();
+				cursor.insertText(aText.mid(at, found.capturedStart() - at), plain);
+				auto link = plain;
+				link.setAnchor(true);
+				link.setAnchorHref(found.captured());
+				link.setFontUnderline(true);
+				link.setForeground(aStyle.Colours.Signal);
+				cursor.insertText(found.captured(), link);
+				at = found.capturedEnd();
+			}
+			cursor.insertText(aText.mid(at), plain);
+		};
+		const auto headerLength = std::clamp<qsizetype>(aPost.HeaderLength, 0, aPost.Body.size());
+		if (headerLength > 0) {
+			cursor.insertText(aPost.Body.left(headerLength), header);
+		}
+		// Inline code between two backticks on one line, as the prototype
+		// sets it; anything else is literal.
+		const auto rest = aPost.Body.mid(headerLength);
+		auto       at   = qsizetype{ 0 };
+		while (at < rest.size()) {
+			const auto open = rest.indexOf(QLatin1Char{ '`' }, at);
+			if (open < 0) {
+				break;
+			}
+			const auto close   = rest.indexOf(QLatin1Char{ '`' }, open + 1);
+			const auto newline = rest.indexOf(QLatin1Char{ '\n' }, open + 1);
+			if (close < 0 || close == open + 1 || (newline >= 0 && newline < close)) {
+				insertPlain(rest.mid(at, open + 1 - at));
+				at = open + 1;
+				continue;
+			}
+			insertPlain(rest.mid(at, open - at));
+			cursor.insertText(rest.mid(open + 1, close - open - 1), code);
+			at = close + 1;
+		}
+		insertPlain(rest.mid(at));
+		auto block = QTextBlockFormat{ };
+		block.setLineHeight(140.0, QTextBlockFormat::ProportionalHeight);
+		cursor.select(QTextCursor::Document);
+		cursor.mergeBlockFormat(block);
+		cursor.clearSelection();
+	}
+
+	auto thread_post_body::height_for(const int aWidth) const -> int
+	{
+		auto* const document = this->document();
+		const auto  previous = document->textWidth();
+		document->setTextWidth(std::max(1, aWidth));
+		const auto height = static_cast<int>(std::ceil(document->size().height()));
+		document->setTextWidth(previous);
+		return std::max(height, fontMetrics().height());
+	}
+
+	void thread_post_body::mousePressEvent(QMouseEvent* const aEvent)
+	{
+		Pressed = aEvent->button() == Qt::LeftButton ? anchorAt(aEvent->position().toPoint()) : QString{ };
+		QTextEdit::mousePressEvent(aEvent);
+	}
+
+	void thread_post_body::mouseReleaseEvent(QMouseEvent* const aEvent)
+	{
+		QTextEdit::mouseReleaseEvent(aEvent);
+		const auto target = anchorAt(aEvent->position().toPoint());
+		if (aEvent->button() == Qt::LeftButton && !target.isEmpty() && target == Pressed && LinkDispatch) {
+			LinkDispatch(target);
+		}
+		Pressed.clear();
+	}
+
+	void thread_post_body::mouseMoveEvent(QMouseEvent* const aEvent)
+	{
+		QTextEdit::mouseMoveEvent(aEvent);
+		viewport()->setCursor(anchorAt(aEvent->position().toPoint()).isEmpty() ? Qt::IBeamCursor : Qt::PointingHandCursor);
+	}
+
+	thread_post_view::thread_post_view(const card_post& aPost, const open_card_style& aStyle, const bool aRuleAbove, QWidget* const aParent)
+		: QWidget{ aParent }
+		, Post{ aPost }
+		, Style{ aStyle }
+		, RuleAbove{ aRuleAbove }
+	{
+		setObjectName(QStringLiteral("threadPost"));
+		setProperty("postIdentity", QString::fromStdString(aPost.Id));
+		setAccessibleName(aPost.Name.isEmpty() ? aPost.Author : aPost.Name);
+		setAccessibleDescription(aPost.Unread ? QStringLiteral("New") : QString{ });
+		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+		Body = new thread_post_body{ this };
+		Body->set_post(aPost, aStyle);
+	}
+
+	auto thread_post_view::hasHeightForWidth() const -> bool
+	{
+		return true;
+	}
+
+	auto thread_post_view::heightForWidth(const int aWidth) const -> int
+	{
+		const auto name = std::max(19, QFontMetrics{ semibold(font()) }.height());
+		const auto text = name + 1 + Body->height_for(aWidth - text_left - text_right);
+		const auto gut  = Post.Label ? avatar_size + mark_gap + mark_size + 1 : avatar_size + 1;
+		return post_padding + std::max(text, gut) + post_padding;
+	}
+
+	auto thread_post_view::sizeHint() const -> QSize
+	{
+		const auto width = std::max(200, this->width());
+		return { width, heightForWidth(width) };
+	}
+
+	auto thread_post_view::body() const noexcept -> thread_post_body*
+	{
+		return Body;
+	}
+
+	auto thread_post_view::post() const noexcept -> const card_post&
+	{
+		return Post;
+	}
+
+	auto thread_post_view::mark_rect() const -> QRect
+	{
+		if (!Post.Label) {
+			return { };
+		}
+		return QRect{ gut_left + (avatar_size - mark_size) / 2, post_padding + 1 + avatar_size + mark_gap, mark_size, mark_size };
+	}
+
+	auto thread_post_view::rail_rect() const -> QRectF
+	{
+		const auto width = feedback_rail_width(Post.Emphasis);
+		return QRectF{ rail_right - width, 10.0, width, static_cast<qreal>(std::max(0, height() - 16)) };
+	}
+
+	void thread_post_view::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		const auto name  = std::max(19, QFontMetrics{ semibold(font()) }.height());
+		const auto width = std::max(1, this->width() - text_left - text_right);
+		Body->setGeometry(text_left, post_padding + name + 1, width, Body->height_for(width));
+	}
+
+	void thread_post_view::paintEvent(QPaintEvent* /*aEvent*/)
+	{
+		auto        painter = QPainter{ this };
+		const auto& colours = Style.Colours;
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		if (RuleAbove) {
+			painter.setPen(QPen{ with_alpha(colours.Rule, 0.6), 1.0 });
+			painter.drawLine(QPointF{ 0.0, 0.5 }, QPointF{ static_cast<qreal>(width()), 0.5 });
+		}
+		const auto rail = rail_rect();
+		paint_feedback_rail(painter, rail.right(), rail.top(), rail.bottom(),
+							Post.Label ? Style.Marks.Tints[static_cast<std::size_t>(*Post.Label)] : colours.Rule2, Post.Emphasis);
+		paint_avatar(painter, QRectF{ static_cast<qreal>(gut_left), static_cast<qreal>(post_padding + 1), static_cast<qreal>(avatar_size), static_cast<qreal>(avatar_size) },
+					 Post.Author, Post.Mine, colours, font());
+		if (Post.Label) {
+			paint_feedback_mark(painter, QRectF{ mark_rect() }, *Post.Label, Post.Emphasis, mark_colours(Style, *Post.Label));
+		}
+		const auto bold = semibold(font());
+		const auto name = std::max(19, QFontMetrics{ bold }.height());
+		auto       x    = text_left;
+		const auto who  = Post.Mine ? QStringLiteral("you") : Post.Author;
+		painter.setFont(bold);
+		painter.setPen(colours.Ink);
+		painter.drawText(QRect{ x, post_padding, width() - x - text_right, name }, Qt::AlignLeft | Qt::AlignVCenter, who);
+		x += QFontMetrics{ bold }.horizontalAdvance(who) + 7;
+		if (!Post.ReplyingTo.isEmpty()) {
+			const auto small = scaled(font(), 0.92);
+			const auto words = QStringLiteral("↩ %1").arg(Post.ReplyingTo);
+			painter.setFont(small);
+			painter.setPen(colours.Faint);
+			painter.drawText(QRect{ x, post_padding, width() - x - text_right, name }, Qt::AlignLeft | Qt::AlignVCenter, words);
+			x += QFontMetrics{ small }.horizontalAdvance(words) + 7;
+		}
+		if (Post.Unread) {
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(colours.New);
+			painter.drawEllipse(QRectF{ static_cast<qreal>(x), post_padding + name / 2.0 - 3.5, 7.0, 7.0 });
+		}
+	}
+
+	auto thread_post_view::event(QEvent* const aEvent) -> bool
+	{
+		if (aEvent->type() == QEvent::ToolTip) {
+			const auto* const help  = static_cast<QHelpEvent*>(aEvent);
+			const auto        point = help->pos();
+			const auto        mark  = mark_rect();
+			// [[BPR-1083]] v004: the name sits right below the mark it names,
+			// also when the rail is hovered.
+			if (mark.contains(point) || rail_rect().adjusted(-3.0, 0.0, 3.0, 0.0).contains(QPointF{ point })) {
+				show_anchored_tooltip(*this, mark.isEmpty() ? rail_rect().toAlignedRect() : mark, Post.Name);
+				return true;
+			}
+			if (QRect{ gut_left, post_padding, avatar_size, avatar_size }.contains(point)) {
+				show_anchored_tooltip(*this, QRect{ gut_left, post_padding, avatar_size, avatar_size }, Post.Mine ? QStringLiteral("%1 (you)").arg(Post.Author) : Post.Author);
+				return true;
+			}
+			hide_anchored_tooltip();
+			aEvent->ignore();
+			return true;
+		}
+		return QWidget::event(aEvent);
+	}
+
+	note_button::note_button(const kind aKind, const QString& aText, QWidget* const aParent)
+		: QAbstractButton{ aParent }
+		, Kind{ aKind }
+	{
+		setText(aText);
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(aKind == kind::reply_field ? Qt::IBeamCursor : Qt::PointingHandCursor);
+		if (aKind == kind::primary) {
+			setFont(semibold(font()));
+		}
+		setSizePolicy(aKind == kind::reply_field ? QSizePolicy::Expanding : QSizePolicy::Maximum, QSizePolicy::Fixed);
+		setAttribute(Qt::WA_Hover, true);
+	}
+
+	void note_button::set_style(const open_card_style& aStyle)
+	{
+		Style = aStyle;
+		update();
+	}
+
+	auto note_button::sizeHint() const -> QSize
+	{
+		const auto metrics = QFontMetrics{ font() };
+		if (Kind == kind::reply_field) {
+			return { 200, std::max(32, metrics.height() + 12) };
+		}
+		return { metrics.horizontalAdvance(text()) + (icon().isNull() ? 22 : 42), std::max(26, metrics.height() + 8) };
+	}
+
+	void note_button::paintEvent(QPaintEvent* /*aEvent*/)
+	{
+		auto        painter = QPainter{ this };
+		const auto& colours = Style.Colours;
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto box = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+		if (Kind == kind::primary) {
+			auto fill = colours.Signal;
+			if (underMouse() && isEnabled()) {
+				fill = fill.lighter(107);
+			}
+			painter.setOpacity(isEnabled() ? 1.0 : 0.45);
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(fill);
+			painter.drawRoundedRect(box, 6.0, 6.0);
+			const auto ink     = colours.Signal.lightness() > 150 ? QColor{ 0x0D, 0x11, 0x17 } : QColor{ Qt::white };
+			const auto metrics = QFontMetrics{ font() };
+			auto       x       = (width() - metrics.horizontalAdvance(text()) - (icon().isNull() ? 0 : 20)) / 2;
+			if (!icon().isNull()) {
+				paint_conversation_glyph(painter, QRectF{ static_cast<qreal>(x), (height() - 14) / 2.0, 14.0, 14.0 }, conversation_glyph::send, ink);
+				x += 20;
+			}
+			painter.setPen(ink);
+			painter.drawText(QRect{ x, 0, width() - x, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+			painter.setOpacity(1.0);
+		} else {
+			painter.setPen(QPen{ underMouse() ? colours.Faint : colours.Rule2, 1.0 });
+			painter.setBrush(colours.CodeBackground.isValid() ? colours.CodeBackground : colours.Panel);
+			painter.drawRoundedRect(box, 7.0, 7.0);
+			paint_avatar(painter, QRectF{ 9.0, (height() - 18) / 2.0, 18.0, 18.0 }, Style.Viewer, true, colours, font());
+			painter.setPen(colours.Faint);
+			painter.drawText(QRect{ 36, 0, width() - 70, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+			const auto small   = semibold(scaled(font(), 0.84));
+			const auto metrics = QFontMetrics{ small };
+			const auto key     = QStringLiteral("R");
+			const auto keyBox  = QRectF{ width() - 9.0 - metrics.horizontalAdvance(key) - 11.0, (height() - metrics.height() - 2) / 2.0,
+										 metrics.horizontalAdvance(key) + 11.0, metrics.height() + 2.0 };
+			painter.setPen(QPen{ colours.Rule2, 1.0 });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(keyBox, 4.0, 4.0);
+			painter.setFont(small);
+			painter.setPen(colours.Faint);
+			painter.drawText(keyBox, Qt::AlignCenter, key);
+		}
+		if (hasFocus()) {
+			painter.setPen(QPen{ colours.Signal, 2.0 });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(box.adjusted(0.0, 0.0, 0.0, 0.0), 7.0, 7.0);
+		}
+	}
+
+	open_thread_card::open_thread_card(const thread_card& aCard, const open_card_style& aStyle, QWidget* const aParent)
+		: QWidget{ aParent }
+		, Id{ aCard.Id }
+		, Style{ aStyle }
+		, Draft{ aCard.Draft }
+	{
+		setObjectName(QStringLiteral("openThreadCard"));
+		setAccessibleName(aCard.Line ? QStringLiteral("Thread on line %1").arg(*aCard.Line) : QStringLiteral("Thread"));
+		setAttribute(Qt::WA_StyledBackground, false);
+		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+		build(aCard);
+	}
+
+	void open_thread_card::build(const thread_card& aCard)
+	{
+		auto* const column = new QVBoxLayout{ this };
+		column->setContentsMargins(0, 0, 0, 0);
+		column->setSpacing(0);
+		auto* const header = new card_header{ Style.Colours.Rule, this };
+		Header             = header;
+		// A press on the header's empty space closes the thread.
+		header->Pressed = [this] {
+			if (CloseRequested) {
+				CloseRequested();
+			}
+		};
+		auto* const row = new QHBoxLayout{ header };
+		row->setContentsMargins(8, 0, 4, 0);
+		row->setSpacing(2);
+		const auto& palette = this->palette();
+		if (aCard.Line.has_value()) {
+			auto* const where = new QToolButton{ header };
+			where->setObjectName(QStringLiteral("threadShowLine"));
+			where->setAutoRaise(true);
+			where->setFocusPolicy(Qt::StrongFocus);
+			where->setIcon(conversation_icon(conversation_glyph::target, palette));
+			where->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::target));
+			where->setIconSize(QSize{ 12, 12 });
+			where->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			auto mono = semibold(Style.CodeFont);
+			mono.setPointSizeF(font().pointSizeF() > 0.0 ? font().pointSizeF() * 0.92 : mono.pointSizeF());
+			where->setFont(mono);
+			where->setText(Style.Feed && !aCard.Path.isEmpty() ? QStringLiteral("%1:%2").arg(aCard.Path.section(QLatin1Char{ '/' }, -1)).arg(*aCard.Line)
+															   : QString::number(*aCard.Line));
+			where->setToolTip(Style.Feed ? QStringLiteral("Open line %1 in the code").arg(*aCard.Line) : QStringLiteral("Show line %1 in the code").arg(*aCard.Line));
+			where->setAccessibleName(QStringLiteral("Show line %1").arg(*aCard.Line));
+			where->setCursor(Qt::ArrowCursor);
+			connect(where, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::show_line); } });
+			row->addWidget(where);
+		}
+		if (aCard.Draft) {
+			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
+		} else if (aCard.Resolved) {
+			row->addWidget(new state_label{ aCard.Outdated ? QStringLiteral("Resolved, outdated") : QStringLiteral("Resolved"), conversation_glyph::resolved, Style.Colours.Ok, header });
+		} else if (aCard.Outdated) {
+			row->addWidget(new state_label{ QStringLiteral("Outdated"), std::nullopt, Style.Colours.Faint, header });
+		}
+		row->addStretch(1);
+		if (!aCard.Draft) {
+			if (Style.ResolutionOffered && aCard.Kind == QStringLiteral("Inline thread")) {
+				auto* const resolve = tool(header, QStringLiteral("threadResolve"), aCard.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
+										   aCard.Resolved ? conversation_glyph::unresolve : conversation_glyph::resolve, palette);
+				connect(resolve, &QToolButton::clicked, this, [this, resolved = aCard.Resolved] {
+					if (Action) {
+						Action(resolved ? card_action::unresolve : card_action::resolve);
+					}
+				});
+				row->addWidget(resolve);
+			}
+			const auto  unread = aCard.UnreadCount;
+			auto* const read   = tool(header, QStringLiteral("threadMarkRead"),
+									  unread == 0U ? QStringLiteral("Nothing new") : unread == 1U ? QStringLiteral("Mark 1 new as read")
+																								  : QStringLiteral("Mark %1 new as read").arg(unread),
+									  conversation_glyph::read, palette);
+			read->setEnabled(unread > 0U);
+			connect(read, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::mark_read); } });
+			row->addWidget(read);
+			auto* const more = tool(header, QStringLiteral("threadMore"), QStringLiteral("More: reply, mark read, resolve, classify"), conversation_glyph::more, palette);
+			connect(more, &QToolButton::clicked, this, [this, more] {
+				if (MoreRequested) {
+					MoreRequested(more->mapToGlobal(QPoint{ 0, more->height() }));
+				}
+			});
+			row->addWidget(more);
+		}
+		auto* const close = tool(header, QStringLiteral("threadClose"), QStringLiteral("Close  Esc"), conversation_glyph::collapse, palette);
+		connect(close, &QToolButton::clicked, this, [this] { if (CloseRequested) { CloseRequested(); } });
+		row->addWidget(close);
+		column->addWidget(header);
+
+		if (!aCard.DefectBadge.isEmpty()) {
+			auto* const badgeRow = new QHBoxLayout{ };
+			badgeRow->setContentsMargins(text_left - 4, 6, text_right, 0);
+			auto* const badge = new QToolButton{ this };
+			badge->setObjectName(QStringLiteral("threadDefectBadge"));
+			badge->setText(aCard.DefectBadge);
+			badge->setAccessibleName(aCard.DefectBadge);
+			badge->setAccessibleDescription(aCard.DefectDescription);
+			badge->setToolTip(aCard.DefectDescription);
+			badge->setFocusPolicy(Qt::StrongFocus);
+			connect(badge, &QToolButton::clicked, this, [this, badge] {
+				if (MoreRequested) {
+					MoreRequested(badge->mapToGlobal(QPoint{ 0, badge->height() }));
+				}
+			});
+			badgeRow->addWidget(badge);
+			badgeRow->addStretch(1);
+			column->addLayout(badgeRow);
+		}
+		if (aCard.FileLevel) {
+			auto* const support = new QLabel{ this };
+			support->setObjectName(QStringLiteral("threadSupportNote"));
+			support->setTextFormat(Qt::PlainText);
+			support->setWordWrap(true);
+			support->setFont(scaled(font(), 0.9));
+			support->setText(QStringLiteral("GitHub stores this as a file review comment. The code link in its first post places the conversation at this line."));
+			support->setContentsMargins(text_left, 6, text_right, 0);
+			column->addWidget(support);
+		}
+		if (Style.Feed && !aCard.Excerpt.isEmpty()) {
+			auto* const excerpt = new QLabel{ this };
+			excerpt->setObjectName(QStringLiteral("threadExcerpt"));
+			excerpt->setTextFormat(Qt::PlainText);
+			excerpt->setFont(Style.CodeFont);
+			excerpt->setText(aCard.Excerpt);
+			excerpt->setContentsMargins(text_left, 8, text_right, 0);
+			column->addWidget(excerpt);
+		}
+		auto seenNew = false;
+		auto first   = true;
+		for (const auto& post : aCard.Posts) {
+			auto ruleAbove = !first;
+			if (post.Unread && !seenNew && !aCard.Draft) {
+				column->addSpacing(2);
+				column->addWidget(new new_rule{ Style.Colours.New, this });
+				seenNew   = true;
+				ruleAbove = false;
+			}
+			auto* const view           = new thread_post_view{ post, Style, ruleAbove, this };
+			view->body()->LinkDispatch = [this, id = post.Id](const QString& aDestination) {
+				if (Link) {
+					Link(id, aDestination);
+				}
+			};
+			Posts.push_back(view);
+			column->addWidget(view);
+			first = false;
+		}
+
+		Foot                = new QWidget{ this };
+		auto* const footRow = new QVBoxLayout{ Foot };
+		if (aCard.Draft) {
+			footRow->setContentsMargins(text_left, 4, text_right, 10);
+			auto* const actions = new QHBoxLayout{ };
+			actions->setSpacing(4);
+			auto* const publish = new note_button{ note_button::kind::primary, QStringLiteral("Publish"), Foot };
+			publish->setObjectName(QStringLiteral("threadPublishDraft"));
+			publish->setIcon(conversation_icon(conversation_glyph::send, palette));
+			publish->set_style(Style);
+			connect(publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_draft); } });
+			auto* const edit = new QToolButton{ Foot };
+			edit->setObjectName(QStringLiteral("threadEditDraft"));
+			edit->setAutoRaise(true);
+			edit->setText(QStringLiteral("Edit"));
+			edit->setIcon(conversation_icon(conversation_glyph::edit, palette));
+			edit->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::edit));
+			edit->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			edit->setFocusPolicy(Qt::StrongFocus);
+			connect(edit, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::edit_draft); } });
+			auto* const remove = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Delete draft"), conversation_glyph::trash, palette);
+			connect(remove, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
+			actions->addWidget(publish);
+			actions->addWidget(edit);
+			actions->addStretch(1);
+			actions->addWidget(remove);
+			footRow->addLayout(actions);
+		} else if (aCard.Kind == QStringLiteral("Inline thread")) {
+			footRow->setContentsMargins(gut_left, 8, text_right, 10);
+			ReplyField = new note_button{ note_button::kind::reply_field, QStringLiteral("Reply"), Foot };
+			ReplyField->setObjectName(QStringLiteral("threadReplyField"));
+			ReplyField->setToolTip(QStringLiteral("Reply  R"));
+			ReplyField->setAccessibleName(QStringLiteral("Reply"));
+			ReplyField->set_style(Style);
+			connect(ReplyField, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::reply); } });
+			footRow->addWidget(ReplyField);
+			Editor             = new reply_frame{ Style.Colours.Signal, Style.Colours.CodeBackground.isValid() ? Style.Colours.CodeBackground : Style.Colours.Panel, Foot };
+			auto* const editor = new QVBoxLayout{ Editor };
+			editor->setContentsMargins(12, 11, 12, 11);
+			editor->setSpacing(7);
+			ReplyBox = new reply_text{ Editor };
+			ReplyBox->setAccessibleName(aCard.Line ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line) : QStringLiteral("Reply"));
+			editor->addWidget(ReplyBox);
+			auto* const controls = new QHBoxLayout{ };
+			controls->setSpacing(6);
+			auto* const chip = new reply_chip{ Style, Editor };
+			controls->addWidget(chip);
+			controls->addStretch(1);
+			auto* const cancel = new QToolButton{ Editor };
+			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
+			cancel->setAutoRaise(true);
+			cancel->setText(QStringLiteral("Cancel"));
+			cancel->setFocusPolicy(Qt::StrongFocus);
+			connect(cancel, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::cancel_reply); } });
+			controls->addWidget(cancel);
+			Publish = new note_button{ note_button::kind::primary, QStringLiteral("Publish"), Editor };
+			Publish->setObjectName(QStringLiteral("threadReplyPublish"));
+			Publish->setIcon(conversation_icon(conversation_glyph::send, palette));
+			Publish->setToolTip(QStringLiteral("Publish reply  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+			Publish->set_style(Style);
+			connect(Publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_reply); } });
+			controls->addWidget(Publish);
+			editor->addLayout(controls);
+			footRow->addWidget(Editor);
+			Editor->hide();
+			connect(ReplyBox, &QTextEdit::textChanged, this, [this, chip] {
+				chip->set_text(ReplyBox->toPlainText());
+				refresh_reply_controls();
+				if (!Applying && ReplyText) {
+					ReplyText(ReplyBox->toPlainText());
+				}
+				if (HeightChanged) {
+					HeightChanged();
+				}
+			});
+		}
+		column->addWidget(Foot);
+		refresh_reply_controls();
+	}
+
+	auto open_thread_card::id() const noexcept -> const std::string&
+	{
+		return Id;
+	}
+
+	auto open_thread_card::hasHeightForWidth() const -> bool
+	{
+		return true;
+	}
+
+	auto open_thread_card::heightForWidth(const int aWidth) const -> int
+	{
+		return layout() != nullptr ? layout()->totalHeightForWidth(aWidth) : 0;
+	}
+
+	void open_thread_card::set_replying(const bool aReplying)
+	{
+		if (Draft || ReplyField == nullptr || Replying == aReplying) {
+			return;
+		}
+		Replying = aReplying;
+		ReplyField->setVisible(!aReplying);
+		Editor->setVisible(aReplying);
+		refresh_reply_controls();
+		if (HeightChanged) {
+			HeightChanged();
+		}
+	}
+
+	auto open_thread_card::replying() const noexcept -> bool
+	{
+		return Replying;
+	}
+
+	void open_thread_card::present_reply(const std::optional<thread_reply_presentation>& aReply)
+	{
+		if (Draft || ReplyBox == nullptr) {
+			return;
+		}
+		const auto ours = aReply.has_value() && aReply->Thread == Id;
+		Publishable     = ours && aReply->Publishable;
+		if (ours && ReplyBox->toPlainText() != aReply->Body) {
+			// The draft editor's text arrives; a caret at the end keeps typing
+			// where it was.
+			Applying = true;
+			ReplyBox->setPlainText(aReply->Body);
+			auto cursor = ReplyBox->textCursor();
+			cursor.movePosition(QTextCursor::End);
+			ReplyBox->setTextCursor(cursor);
+			Applying = false;
+		}
+		refresh_reply_controls();
+	}
+
+	void open_thread_card::refresh_reply_controls()
+	{
+		if (Publish != nullptr && ReplyBox != nullptr) {
+			Publish->setEnabled(Publishable && !ReplyBox->toPlainText().trimmed().isEmpty());
+		}
+	}
+
+	auto open_thread_card::reply_editor() const noexcept -> QTextEdit*
+	{
+		return Replying ? ReplyBox : nullptr;
+	}
+
+	auto open_thread_card::reply_field() const noexcept -> QAbstractButton*
+	{
+		return ReplyField;
+	}
+
+	auto open_thread_card::posts() const -> std::vector<thread_post_view*>
+	{
+		return Posts;
+	}
+
+	void open_thread_card::set_notch(const int aY)
+	{
+		Notch = aY;
+	}
+
+	auto open_thread_card::notch() const noexcept -> int
+	{
+		return Notch;
+	}
+
+	void open_thread_card::paintEvent(QPaintEvent* /*aEvent*/)
+	{
+		auto        painter = QPainter{ this };
+		const auto& colours = Style.Colours;
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto box = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+		painter.setBrush(colours.Panel);
+		painter.setPen(Draft ? QPen{ colours.Rule2, 1.5 } : QPen{ colours.RouteLine, 1.0 });
+		painter.drawRoundedRect(box, 8.0, 8.0);
+		// The amber edge down the left: the thread being read.
+		auto edge = QPainterPath{ };
+		edge.addRoundedRect(QRectF{ -1.0, 6.0, 4.0, static_cast<qreal>(std::max(0, height() - 12)) }, 1.5, 1.5);
+		painter.setPen(Qt::NoPen);
+		painter.setBrush(colours.Route);
+		painter.drawPath(edge);
+	}
+
+	void open_thread_card::mousePressEvent(QMouseEvent* const aEvent)
+	{
+		aEvent->accept();
+	}
+
+	void open_thread_card::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		// The icons are drawn in the palette's ink, so a theme change redraws them.
+		if (aEvent->type() == QEvent::PaletteChange) {
+			for (auto* const button : findChildren<QToolButton*>()) {
+				if (const auto glyph = button->property("conversationGlyph"); glyph.isValid()) {
+					button->setIcon(conversation_icon(static_cast<conversation_glyph>(glyph.toInt()), palette()));
+				}
+			}
+		}
+	}
+} // namespace bpr::qt

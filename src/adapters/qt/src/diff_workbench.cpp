@@ -1,5 +1,6 @@
 #include "bpr/qt/diff_workbench.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 
 #include <QAbstractTextDocumentLayout>
@@ -10,6 +11,7 @@
 #include <QFont>
 #include <QFontMetricsF>
 #include <QHBoxLayout>
+#include <QHelpEvent>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -24,6 +26,7 @@
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QStackedLayout>
+#include <QStyleOptionSlider>
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextCursor>
@@ -31,6 +34,7 @@
 #include <QTextLayout>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <cmath>
@@ -52,6 +56,97 @@ namespace bpr::qt {
 		constexpr auto GutterPadding = 6;
 		/// A one-glyph column reads as a margin, not as a column of numbers.
 		constexpr auto GutterMinimumDigits = 2;
+		/// [[BPR-1290]]. The gutter's column for thread markers, right of the
+		/// numbers, and the marker's box in it.
+		constexpr auto MarkerColumnWidth = 22;
+		constexpr auto MarkerBox         = 18;
+
+		/// \brief [[BPR-1290]]. The code's scroll bar with a tick per thread:
+		/// amber for the open one, blue for a new one, outlined for my draft.
+		/// A press on a tick opens its thread; anywhere else scrolls.
+		class thread_tick_scroll_bar final : public QScrollBar
+		{
+		public:
+			thread_tick_scroll_bar(const Qt::Orientation aOrientation, QWidget* const aParent)
+				: QScrollBar{ aOrientation, aParent }
+			{
+			}
+
+			std::function<void(core::diff_side, std::uint32_t)> Dispatch;
+			QColor                                              Thread{ 0xD2, 0x99, 0x22 };
+			QColor                                              New{ 0x09, 0x69, 0xDA };
+
+			void set_ticks(std::vector<diff_thread_tick> aTicks)
+			{
+				if (Ticks == aTicks) {
+					return;
+				}
+				Ticks = std::move(aTicks);
+				update();
+			}
+
+			[[nodiscard]] auto ticks() const noexcept -> const std::vector<diff_thread_tick>&
+			{
+				return Ticks;
+			}
+
+			/// \brief A tick's rectangle in the bar's coordinates.
+			[[nodiscard]] auto tick_rect(const diff_thread_tick& aTick) const -> QRect
+			{
+				auto option = QStyleOptionSlider{ };
+				initStyleOption(&option);
+				const auto groove = style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarGroove, this);
+				const auto slider = style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, this);
+				const auto travel = std::max(0, groove.height() - slider.height());
+				const auto centre = groove.top() + static_cast<int>(std::lround(std::clamp(aTick.Fraction, 0.0, 1.0) * travel)) + slider.height() / 2;
+				const auto height = aTick.Open ? 6 : 4;
+				return QRect{ groove.left() + 2, centre - height / 2, std::max(2, groove.width() - 4), height };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				QScrollBar::paintEvent(aEvent);
+				if (Ticks.empty()) {
+					return;
+				}
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto faint = palette().color(QPalette::Active, QPalette::PlaceholderText);
+				for (const auto& tick : Ticks) {
+					const auto rect = QRectF{ tick_rect(tick) };
+					painter.setOpacity(tick.Resolved && !tick.Open ? 0.45 : 1.0);
+					if (tick.Draft && !tick.Open) {
+						painter.setPen(QPen{ faint, 1.0 });
+						painter.setBrush(Qt::NoBrush);
+						painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 2.0, 2.0);
+						continue;
+					}
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(tick.Open ? Thread : tick.Unread ? New
+																	  : faint);
+					painter.drawRoundedRect(rect, 2.0, 2.0);
+				}
+			}
+
+			void mousePressEvent(QMouseEvent* const aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton && Dispatch) {
+					for (const auto& tick : Ticks) {
+						if (tick_rect(tick).adjusted(0, -3, 0, 3).contains(aEvent->position().toPoint())) {
+							const auto pressed = tick;
+							Dispatch(pressed.Side, pressed.Line);
+							aEvent->accept();
+							return;
+						}
+					}
+				}
+				QScrollBar::mousePressEvent(aEvent);
+			}
+
+		private:
+			std::vector<diff_thread_tick> Ticks;
+		};
 
 		struct unified_source_row
 		{
@@ -108,6 +203,7 @@ namespace bpr::qt {
 			void               set_line_numbers_visible(bool aVisible);
 			void               set_gutter_colors(const QColor& aBackground, const QColor& aText);
 			void               paint_line_numbers(QPaintEvent* aEvent);
+			void               paint_markers(QPainter& aPainter);
 			[[nodiscard]] auto painted_line_numbers() const noexcept -> std::uint64_t
 			{
 				return PaintedLineNumbers;
@@ -164,9 +260,85 @@ namespace bpr::qt {
 			/// \brief [[BPR-0648]]. The lines carrying a thread, painted at the edge.
 			void set_line_marks(std::vector<diff_line_mark> aMarks)
 			{
-				std::ranges::sort(aMarks);
+				std::ranges::stable_sort(aMarks, { }, &diff_line_mark::Line);
+				if (Marks == aMarks) {
+					return;
+				}
 				Marks = std::move(aMarks);
 				viewport()->update();
+				update_gutter();
+			}
+
+			/// \brief [[BPR-1290]]. A column in the gutter for thread markers.
+			void set_marker_column(const bool aEnabled)
+			{
+				if (MarkerColumn == aEnabled) {
+					return;
+				}
+				MarkerColumn = aEnabled;
+				refresh_gutter_width();
+				place_gutter();
+				viewport()->update();
+				update_gutter();
+			}
+
+			[[nodiscard]] auto marker_column_width() const -> int
+			{
+				return MarkerColumn && LineNumbersVisible ? MarkerColumnWidth : 0;
+			}
+
+			void set_mark_theme(const feedback_mark_theme& aTheme)
+			{
+				MarkTheme = aTheme;
+				update_gutter();
+			}
+
+			void set_mark_dispatch(std::function<void(const diff_line_mark&)> aDispatch)
+			{
+				MarkDispatch = std::move(aDispatch);
+			}
+
+			/// \brief Where a mark's marker sits, in the gutter's coordinates.
+			[[nodiscard]] auto marker_rect(const diff_line_mark& aMark) const -> QRect
+			{
+				if (marker_column_width() == 0) {
+					return { };
+				}
+				const auto row = line_row_rect(aMark.Line);
+				if (row.isEmpty()) {
+					return { };
+				}
+				const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+				const auto left   = gutter_width() - MarkerColumnWidth + (MarkerColumnWidth - MarkerBox) / 2;
+				return QRect{ left, row.top() + header + (row.height() - MarkerBox) / 2, MarkerBox, MarkerBox };
+			}
+
+			/// \brief The mark whose marker is under a point of the gutter.
+			[[nodiscard]] auto mark_at(const QPoint aGutterPoint) const -> const diff_line_mark*
+			{
+				for (const auto& mark : Marks) {
+					if (marker_rect(mark).adjusted(-2, -2, 2, 2).contains(aGutterPoint)) {
+						return &mark;
+					}
+				}
+				return nullptr;
+			}
+
+			void press_mark(const diff_line_mark& aMark)
+			{
+				if (MarkDispatch) {
+					MarkDispatch(aMark);
+				}
+			}
+
+			[[nodiscard]] auto thread_colour() const noexcept -> const QColor&
+			{
+				return ThreadMarkColor;
+			}
+
+			[[nodiscard]] auto new_colour() const noexcept -> const QColor&
+			{
+				return NewThreadMarkColor;
 			}
 
 			[[nodiscard]] auto line_marks() const noexcept -> const std::vector<diff_line_mark>&
@@ -176,9 +348,13 @@ namespace bpr::qt {
 
 			void set_mark_colors(const QColor& aThread, const QColor& aNewThread)
 			{
+				if (ThreadMarkColor == aThread && NewThreadMarkColor == aNewThread) {
+					return;
+				}
 				ThreadMarkColor    = aThread;
 				NewThreadMarkColor = aNewThread;
 				viewport()->update();
+				update_gutter();
 			}
 
 			[[nodiscard]] auto painted_rules() const noexcept -> std::uint64_t
@@ -270,13 +446,24 @@ namespace bpr::qt {
 				}
 				// [[BPR-0648]]. A thread's line carries a mark at the edge:
 				// amber for a thread, blue for a new one, beneath the anchor
-				// marker so the current line's marker still reads.
+				// marker so the current line's marker still reads. [[BPR-1290]]:
+				// with a marker column the marker is in the gutter instead, and
+				// the open thread's line is washed amber (the note under the
+				// pointer, lightly).
 				for (const auto& mark : Marks) {
 					const auto row = line_row_rect(mark.Line);
 					if (row.isEmpty() || row.top() > viewport()->height() || row.bottom() < 0) {
 						continue;
 					}
 					painter.setPen(Qt::NoPen);
+					if (mark.Open || mark.Hovered) {
+						auto wash = ThreadMarkColor;
+						wash.setAlphaF(mark.Open ? 0.18F : 0.08F);
+						painter.fillRect(QRect{ 0, row.top(), viewport()->width(), row.height() }, wash);
+					}
+					if (marker_column_width() > 0) {
+						continue;
+					}
 					painter.setBrush(mark.Kind == diff_line_mark_kind::new_thread
 										 ? NewThreadMarkColor
 										 : ThreadMarkColor);
@@ -337,6 +524,8 @@ namespace bpr::qt {
 			void showEvent(QShowEvent* aEvent) override;
 
 		private:
+			void                                   update_gutter();
+			void                                   place_gutter();
 			void                                   refresh_gutter_width();
 			void                                   restore_viewport_fill();
 			bool                                   LineNumbersVisible = true;
@@ -348,20 +537,23 @@ namespace bpr::qt {
 
 			class gutter_area;
 
-			gutter_area*                   Gutter = nullptr;
-			QColor                         GutterBackground;
-			QColor                         GutterText;
-			std::vector<std::uint32_t>     Boundaries;
-			QColor                         RuleColor;
-			std::optional<std::uint32_t>   ConversationAnchor;
-			std::vector<diff_line_mark>    Marks;
-			QColor                         ThreadMarkColor{ 0xD2, 0x99, 0x22 };
-			QColor                         NewThreadMarkColor{ 0x09, 0x69, 0xDA };
-			std::uint64_t                  PaintedRules       = 0U;
-			std::uint64_t                  PaintedLineNumbers = 0U;
-			std::uint64_t                  PaintedWhiteSpace  = 0U;
-			std::optional<core::line_span> SelectedLines;
-			core::white_space_drawing      WhiteSpace = core::white_space_drawing::none;
+			gutter_area*                               Gutter = nullptr;
+			QColor                                     GutterBackground;
+			QColor                                     GutterText;
+			std::vector<std::uint32_t>                 Boundaries;
+			QColor                                     RuleColor;
+			std::optional<std::uint32_t>               ConversationAnchor;
+			std::vector<diff_line_mark>                Marks;
+			bool                                       MarkerColumn = false;
+			feedback_mark_theme                        MarkTheme;
+			std::function<void(const diff_line_mark&)> MarkDispatch;
+			QColor                                     ThreadMarkColor{ 0xD2, 0x99, 0x22 };
+			QColor                                     NewThreadMarkColor{ 0x09, 0x69, 0xDA };
+			std::uint64_t                              PaintedRules       = 0U;
+			std::uint64_t                              PaintedLineNumbers = 0U;
+			std::uint64_t                              PaintedWhiteSpace  = 0U;
+			std::optional<core::line_span>             SelectedLines;
+			core::white_space_drawing                  WhiteSpace = core::white_space_drawing::none;
 		};
 
 		/// \brief Paints one pane's own line numbers beside its own text.
@@ -385,6 +577,7 @@ namespace bpr::qt {
 				// would bury it. The pane keeps the accessible name.
 				setAccessibleName(QStringLiteral("Line numbers"));
 				setFocusPolicy(Qt::NoFocus);
+				setMouseTracking(true);
 			}
 
 			[[nodiscard]] auto sizeHint() const -> QSize override
@@ -397,10 +590,53 @@ namespace bpr::qt {
 			{
 				Pane->paint_line_numbers(aEvent);
 			}
+			/// [[BPR-1290]]. A thread's marker opens or closes it.
+			void mousePressEvent(QMouseEvent* const aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton) {
+					if (const auto* const mark = Pane->mark_at(aEvent->position().toPoint()); mark != nullptr) {
+						const auto pressed = *mark;
+						Pane->press_mark(pressed);
+						aEvent->accept();
+						return;
+					}
+				}
+				QWidget::mousePressEvent(aEvent);
+			}
+			void mouseMoveEvent(QMouseEvent* const aEvent) override
+			{
+				setCursor(Pane->mark_at(aEvent->position().toPoint()) != nullptr ? Qt::PointingHandCursor : Qt::ArrowCursor);
+				QWidget::mouseMoveEvent(aEvent);
+			}
+			auto event(QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::ToolTip) {
+					const auto* const help = static_cast<QHelpEvent*>(aEvent);
+					if (const auto* const mark = Pane->mark_at(help->pos()); mark != nullptr && !mark->Description.isEmpty()) {
+						show_anchored_tooltip(*this, Pane->marker_rect(*mark), mark->Description);
+						return true;
+					}
+					hide_anchored_tooltip();
+					aEvent->ignore();
+					return true;
+				}
+				return QWidget::event(aEvent);
+			}
 
 		private:
 			source_pane* Pane = nullptr;
 		};
+
+		void source_pane::update_gutter()
+		{
+			Gutter->update();
+		}
+
+		void source_pane::place_gutter()
+		{
+			const auto area = contentsRect();
+			Gutter->setGeometry(QRect{ area.left(), area.top(), gutter_width(), area.height() });
+		}
 
 		void source_pane::set_row_colors(const QColor& aRemoved, const QColor& aAdded)
 		{
@@ -448,7 +684,8 @@ namespace bpr::qt {
 			for (auto count = std::max(1, blockCount()); count >= 10; count /= 10) {
 				++digits;
 			}
-			return (UnifiedRows != nullptr ? 2 : 1) * (2 * GutterPadding + fontMetrics().horizontalAdvance(QLatin1Char('9')) * std::max(digits, UnifiedRows != nullptr ? 4 : GutterMinimumDigits));
+			return (UnifiedRows != nullptr ? 2 : 1) * (2 * GutterPadding + fontMetrics().horizontalAdvance(QLatin1Char('9')) * std::max(digits, UnifiedRows != nullptr ? 4 : GutterMinimumDigits))
+				+ marker_column_width();
 		}
 
 		void source_pane::refresh_gutter_width()
@@ -543,8 +780,9 @@ namespace bpr::qt {
 							   ? GutterText
 							   : palette().color(QPalette::WindowText));
 			const auto headerHeight = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+			const auto numbers      = Gutter->width() - marker_column_width();
 			if (UnifiedRows != nullptr) {
-				const auto column = Gutter->width() / 2;
+				const auto column = numbers / 2;
 				painter.drawText(0, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("base"));
 				painter.drawText(column, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("head"));
 				painter.setClipRect(QRect{ 0, headerHeight, Gutter->width(), Gutter->height() - headerHeight });
@@ -554,7 +792,7 @@ namespace bpr::qt {
 						   .top()
 				+ headerHeight;
 			const auto limit = static_cast<qreal>(aEvent->rect().bottom());
-			const auto right = Gutter->width() - GutterPadding;
+			const auto right = numbers - GutterPadding;
 			// Only the blocks the exposed rect can show, so the work follows the
 			// visible rows rather than the file's length.
 			while (block.isValid() && top <= limit) {
@@ -581,7 +819,7 @@ namespace bpr::qt {
 								wash.setAlpha(core::selection_wash_alpha);
 								painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(Gutter->width()), height }, wash);
 							}
-							const auto columnWidth = Gutter->width() / 2;
+							const auto columnWidth = numbers / 2;
 							for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 								const auto number = side == core::diff_side::left ? row.Base : row.Head;
 								if (number) {
@@ -604,6 +842,66 @@ namespace bpr::qt {
 				top += height;
 				block = block.next();
 			}
+			paint_markers(painter);
+		}
+
+		void source_pane::paint_markers(QPainter& aPainter)
+		{
+			// [[BPR-1290]]. A thread's marker: its first post's label mark, a
+			// plain square, or a dashed one for my draft; a blue dot when it is
+			// new, faded when resolved, ringed amber while it is open.
+			if (marker_column_width() == 0) {
+				return;
+			}
+			aPainter.save();
+			aPainter.setClipping(false);
+			aPainter.setRenderHint(QPainter::Antialiasing, true);
+			const auto panel  = palette().color(QPalette::Active, QPalette::Base);
+			const auto ink    = palette().color(QPalette::Active, QPalette::Text);
+			const auto faint  = palette().color(QPalette::Active, QPalette::PlaceholderText);
+			const auto gutter = GutterBackground.isValid() ? GutterBackground : palette().color(QPalette::Window);
+			for (const auto& mark : Marks) {
+				const auto box = marker_rect(mark);
+				if (box.isEmpty() || box.bottom() < 0 || box.top() > Gutter->height()) {
+					continue;
+				}
+				if (mark.Open) {
+					const auto row    = line_row_rect(mark.Line);
+					const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+					auto       wash   = ThreadMarkColor;
+					wash.setAlphaF(0.18F);
+					aPainter.fillRect(QRect{ 0, row.top() + header, Gutter->width(), row.height() }, wash);
+					aPainter.fillRect(QRect{ 0, row.top() + header, 3, row.height() }, ThreadMarkColor);
+				}
+				aPainter.setOpacity(mark.Resolved && !mark.Open ? 0.5 : 1.0);
+				if (mark.Open) {
+					aPainter.setPen(QPen{ ThreadMarkColor, 2.0 });
+					aPainter.setBrush(panel);
+					aPainter.drawRoundedRect(QRectF{ box }.adjusted(0.0, 0.0, 0.0, 0.0), 5.0, 5.0);
+				}
+				const auto face = QRectF{ box }.adjusted(2.0, 2.0, -2.0, -2.0);
+				if (mark.Label.has_value()) {
+					paint_feedback_mark(aPainter, face, *mark.Label, mark.Emphasis,
+										feedback_mark_colours{ .Tint = MarkTheme.Tints[static_cast<std::size_t>(*mark.Label)], .Panel = panel, .Ink = ink, .Style = MarkTheme.Style });
+				} else if (mark.Draft) {
+					aPainter.setPen(QPen{ faint, 1.5, Qt::DashLine });
+					aPainter.setBrush(Qt::NoBrush);
+					aPainter.drawRoundedRect(face.adjusted(1.0, 1.0, -1.0, -1.0), 3.0, 3.0);
+				} else {
+					auto fill = faint;
+					fill.setAlphaF(0.18F);
+					aPainter.setPen(QPen{ faint, 1.5 });
+					aPainter.setBrush(fill);
+					aPainter.drawRoundedRect(face.adjusted(1.5, 1.5, -1.5, -1.5), 3.0, 3.0);
+				}
+				if (mark.Kind == diff_line_mark_kind::new_thread) {
+					aPainter.setOpacity(1.0);
+					aPainter.setPen(QPen{ gutter, 1.5 });
+					aPainter.setBrush(NewThreadMarkColor);
+					aPainter.drawEllipse(QPointF{ box.right() - 1.0, box.top() + 2.0 }, 3.0, 3.0);
+				}
+			}
+			aPainter.restore();
 		}
 
 		[[nodiscard]] auto pane(QPlainTextEdit* const aPane) noexcept
@@ -967,7 +1265,7 @@ namespace bpr::qt {
 		Comparison->addWidget(Left);
 		Comparison->addWidget(Right);
 		Comparison->setSizes({ 500, 500 });
-		SharedScroll = new QScrollBar{ Qt::Vertical, top };
+		SharedScroll = new thread_tick_scroll_bar{ Qt::Vertical, top };
 		SharedScroll->setObjectName(QStringLiteral("diffSharedScrollBar"));
 		SharedScroll->setAccessibleName(QStringLiteral("Shared comparison position"));
 		SharedScroll->setAccessibleDescription(QStringLiteral(
@@ -977,6 +1275,7 @@ namespace bpr::qt {
 		topLayout->addWidget(SharedScroll);
 		UnifiedMap = new one_pane_diff_link_map{ top };
 		Unified    = new source_pane{ top };
+		Unified->setVerticalScrollBar(new thread_tick_scroll_bar{ Qt::Vertical, Unified });
 		Unified->setObjectName(QStringLiteral("diffUnifiedSource"));
 		Unified->setAccessibleName(QStringLiteral("Unified source comparison"));
 		Unified->setAccessibleDescription(QStringLiteral("Base and head line numbers; removed lines followed by added lines in each change"));
@@ -1411,10 +1710,145 @@ namespace bpr::qt {
 
 	void diff_workbench::set_line_marks(const core::diff_side aSide, std::vector<diff_line_mark> aMarks)
 	{
+		for (auto& mark : aMarks) {
+			mark.Side       = aSide;
+			mark.SourceLine = mark.Line;
+		}
 		pane(aSide == core::diff_side::left ? Left : Right)->set_line_marks(std::move(aMarks));
 		if (OnePaneEnabled) {
 			update_unified_paint();
 		}
+		refresh_thread_ticks();
+	}
+
+	void diff_workbench::set_thread_markers(const bool aEnabled)
+	{
+		if (ThreadMarkers == aEnabled) {
+			return;
+		}
+		ThreadMarkers = aEnabled;
+		for (auto* const source : { Left, Right, Unified }) {
+			pane(source)->set_marker_column(aEnabled);
+		}
+		refresh_thread_ticks();
+	}
+
+	auto diff_workbench::thread_markers() const noexcept -> bool
+	{
+		return ThreadMarkers;
+	}
+
+	void diff_workbench::set_mark_theme(const feedback_mark_theme& aTheme)
+	{
+		for (auto* const source : { Left, Right, Unified }) {
+			pane(source)->set_mark_theme(aTheme);
+		}
+	}
+
+	void diff_workbench::set_mark_colours(const QColor& aThread, const QColor& aNew)
+	{
+		for (auto* const source : { Left, Right, Unified }) {
+			pane(source)->set_mark_colors(aThread, aNew);
+		}
+		for (auto* const bar : { static_cast<QScrollBar*>(SharedScroll), Unified->verticalScrollBar() }) {
+			if (auto* const ticked = dynamic_cast<thread_tick_scroll_bar*>(bar); ticked != nullptr && (ticked->Thread != aThread || ticked->New != aNew)) {
+				ticked->Thread = aThread;
+				ticked->New    = aNew;
+				ticked->update();
+			}
+		}
+	}
+
+	void diff_workbench::set_line_mark_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch)
+	{
+		LineMarkDispatch   = std::move(aDispatch);
+		const auto forward = [this](const diff_line_mark& aMark) {
+			if (LineMarkDispatch) {
+				LineMarkDispatch(aMark.Side, aMark.SourceLine);
+			}
+		};
+		for (auto* const source : { Left, Right, Unified }) {
+			pane(source)->set_mark_dispatch(forward);
+		}
+		for (auto* const bar : { static_cast<QScrollBar*>(SharedScroll), Unified->verticalScrollBar() }) {
+			if (auto* const ticked = dynamic_cast<thread_tick_scroll_bar*>(bar); ticked != nullptr) {
+				ticked->Dispatch = [this](const core::diff_side aSide, const std::uint32_t aLine) {
+					if (LineMarkDispatch) {
+						LineMarkDispatch(aSide, aLine);
+					}
+				};
+			}
+		}
+	}
+
+	void diff_workbench::refresh_thread_ticks()
+	{
+		auto shared  = std::vector<diff_thread_tick>{ };
+		auto unified = std::vector<diff_thread_tick>{ };
+		if (ThreadMarkers) {
+			const auto rows = static_cast<qreal>(std::max(1, Unified->document()->blockCount() - 1));
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				for (const auto& mark : line_marks(side)) {
+					auto tick = diff_thread_tick{ .Side = side, .Line = mark.Line, .Unread = mark.Kind == diff_line_mark_kind::new_thread, .Resolved = mark.Resolved, .Draft = mark.Draft, .Open = mark.Open };
+					if (const auto fraction = Controller->scrollbar_fraction(side, mark.Line); fraction.has_value()) {
+						tick.Fraction = *fraction;
+						shared.push_back(tick);
+					}
+					if (const auto row = unified_row_for(side, mark.Line); row.has_value()) {
+						tick.Fraction = static_cast<qreal>(*row) / rows;
+						unified.push_back(tick);
+					}
+				}
+			}
+		}
+		if (auto* const bar = dynamic_cast<thread_tick_scroll_bar*>(SharedScroll); bar != nullptr) {
+			bar->set_ticks(std::move(shared));
+		}
+		if (auto* const bar = dynamic_cast<thread_tick_scroll_bar*>(Unified->verticalScrollBar()); bar != nullptr) {
+			bar->set_ticks(std::move(unified));
+		}
+	}
+
+	auto diff_workbench::scroll_by_wheel(const QWheelEvent& aEvent) -> bool
+	{
+		if (!CurrentResult) {
+			return false;
+		}
+		auto* const target = OnePaneEnabled ? Unified->viewport() : Right->viewport();
+		const auto  centre = QPointF{ target->rect().center() };
+		auto        wheel  = QWheelEvent{ centre, target->mapToGlobal(centre), aEvent.pixelDelta(), aEvent.angleDelta(),
+										  aEvent.buttons(), aEvent.modifiers(), aEvent.phase(), aEvent.inverted(), aEvent.source() };
+		if (OnePaneEnabled) {
+			const auto before = Unified->verticalScrollBar()->value();
+			QCoreApplication::sendEvent(target, &wheel);
+			return Unified->verticalScrollBar()->value() != before;
+		}
+		const auto before = Controller->position();
+		QCoreApplication::sendEvent(target, &wheel);
+		return std::abs(Controller->position() - before) > 0.01;
+	}
+
+	auto diff_workbench::thread_ticks() const -> std::vector<diff_thread_tick>
+	{
+		auto* const bar = dynamic_cast<thread_tick_scroll_bar*>(OnePaneEnabled ? Unified->verticalScrollBar() : SharedScroll);
+		return bar != nullptr ? bar->ticks() : std::vector<diff_thread_tick>{ };
+	}
+
+	auto diff_workbench::line_mark_rect(const core::diff_side aSide, const std::uint32_t aLine) const -> QRect
+	{
+		auto* const source = pane(OnePaneEnabled ? Unified : aSide == core::diff_side::left ? Left
+																							: Right);
+		for (const auto& mark : source->line_marks()) {
+			if (mark.Side == aSide && mark.SourceLine == aLine) {
+				const auto box = source->marker_rect(mark);
+				if (box.isEmpty()) {
+					return { };
+				}
+				auto* const gutter = source->findChild<QWidget*>(QStringLiteral("diffSourceLineNumbers"));
+				return gutter == nullptr ? QRect{ } : QRect{ gutter->mapTo(this, box.topLeft()), box.size() };
+			}
+		}
+		return { };
 	}
 
 	auto diff_workbench::line_marks(const core::diff_side aSide) const -> const std::vector<diff_line_mark>&
@@ -1932,6 +2366,7 @@ namespace bpr::qt {
 		GeometryRevealPending   = false;
 		LinkMap->set_geometry(axis, CurrentResult->Alignment.Moves);
 		Controller->set_axis(axis);
+		refresh_thread_ticks();
 		++Statistics.GeometryRebuilds;
 		if (Statistics.GeometryRebuildHistorySize
 			< Statistics.GeometryRebuildHistory.size()) {
@@ -2501,7 +2936,9 @@ namespace bpr::qt {
 		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 			for (const auto& mark : line_marks(side)) {
 				if (const auto row = unified_row_for(side, mark.Line)) {
-					marks.push_back({ *row, mark.Kind });
+					auto unified = mark;
+					unified.Line = *row;
+					marks.push_back(std::move(unified));
 				}
 			}
 		}

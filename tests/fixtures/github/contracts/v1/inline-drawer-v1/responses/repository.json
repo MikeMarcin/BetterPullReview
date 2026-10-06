@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/inline-drawer",
+	"id": 2,
+	"name": "inline-drawer",
+	"node_id": "R_inline-drawer",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

@@ -8147,6 +8147,31 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 6,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "inline-drawer-v1") {
+				// [[BPR-1290]]. conventional-comments-v1's threads plus a long
+				// file with eight; see `scripts/build_inline_drawer_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::inline_drawer_v1;
+				fixtureName            = "inline-drawer-v1";
+				expectedActiveHostText = "github.com";
+				// Fourteen threads, each its root then its posts in order.
+				auto identities = std::vector<std::string>{ };
+				for (auto thread = 1; const auto posts : { 4, 3, 2, 2, 2, 2, 3, 1, 4, 5, 8, 3, 3, 2 }) {
+					identities.push_back("review-thread:PRRT_cc_" + std::to_string(thread));
+					for (auto post = 1; post <= posts; ++post) {
+						identities.push_back("review-comment:PRRC_cc_" + std::to_string(thread) + "_" + std::to_string(post));
+					}
+					++thread;
+				}
+				fixtureExpectations = {
+					.Owner                          = "bpr-fixtures",
+					.Repository                     = "inline-drawer",
+					.Number                         = 22,
+					.ExpectedTitle                  = "Keep the conversation cards in the ui folder",
+					.ExpectedAccountText            = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows       = 14,
+					.ExpectedConversationIdentities = std::move(identities),
+					.ExpectedThreadId               = std::nullopt,
+				};
 			} else {
 				QTextStream{ stdout } << "PUBLIC_PATH_FAILED\n";
 				return EXIT_FAILURE;

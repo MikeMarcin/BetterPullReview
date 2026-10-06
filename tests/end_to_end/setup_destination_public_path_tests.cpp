@@ -3,6 +3,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -41,6 +42,7 @@
 #include <QStyleOptionViewItem>
 #include <QTemporaryDir>
 #include <QTextBlock>
+#include <QTextEdit>
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
@@ -1034,13 +1036,24 @@ namespace {
 					   && index.data(qt::github_conversation_model::path_role).toString() == aPath
 					   && index.data(qt::github_conversation_model::body_role).toString() == aBody,
 				   "Discuss admits the exact recorded conversation identity, kind, path and body");
-			panel->view()->setCurrentIndex(index);
-			panel->view()->expandAll();
-			panel->view()->scrollTo(index);
+			// [[BPR-1290]]. Discuss lists the conversation as a note that opens
+			// in place to its posts as written.
+			auto* const cards = panel->cards();
+			const auto  note  = std::ranges::find_if(cards->cards(), [aId](const qt::thread_card& aCard) {
+				return std::ranges::any_of(aCard.Posts, [aId](const qt::card_post& aPost) { return aPost.Id == aId; });
+			});
+			expect(note != cards->cards().end(), "the recorded conversation is a note in Discuss");
+			cards->open_thread(note->Id);
 			QApplication::processEvents();
-			expect(panel->view()->isVisible() && !panel->view()->isRowHidden(index.row(), index.parent())
-					   && panel->view()->viewport()->rect().intersects(panel->view()->visualRect(index)),
-				   "recorded conversation body is reachable in the visible selected detail");
+			auto* const open = cards->open_card();
+			auto*       body = static_cast<QTextEdit*>(nullptr);
+			for (auto* const post : open != nullptr ? open->findChildren<QWidget*>(QStringLiteral("threadPost")) : QList<QWidget*>{ }) {
+				if (post->property("postIdentity").toString() == QString::fromUtf8(aId.data(), static_cast<qsizetype>(aId.size()))) {
+					body = post->findChild<QTextEdit*>(QStringLiteral("threadPostBody"));
+				}
+			}
+			expect(body != nullptr && body->isVisible() && body->toPlainText() == aBody,
+				   "recorded conversation body is reachable in the visible open thread");
 		};
 		expectConversation("issue-comment:IC_fixture_1", application::github_conversation_kind::issue_comment,
 						   { }, QStringLiteral("Fixture follow-up: validation is complete."));

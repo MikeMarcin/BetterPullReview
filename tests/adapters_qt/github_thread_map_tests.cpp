@@ -208,22 +208,6 @@ namespace {
 		return aImage.copy(rect);
 	}
 
-	/// \brief Returns the part of the map a reviewer can actually see.
-	///
-	/// \details The map scrolls, so "the branch is highlighted" and "the branch
-	/// is visible" are different claims, and only the second is what the owner
-	/// asked for.
-	[[nodiscard]] auto visible_content(const qt::github_thread_map& aMap)
-		-> QRectF
-	{
-		return QRectF{
-			static_cast<qreal>(aMap.horizontalScrollBar()->value()),
-			static_cast<qreal>(aMap.verticalScrollBar()->value()),
-			static_cast<qreal>(aMap.viewport()->width()),
-			static_cast<qreal>(aMap.viewport()->height()),
-		};
-	}
-
 	/// \brief Returns the sliver an edge passes through to reach one node.
 	///
 	/// \details Every edge ends at its child's top centre, so the few pixels
@@ -685,19 +669,15 @@ namespace {
 			   "the full anchored path is spoken even though the box is short");
 	}
 
-	void test_the_shipped_workbench_composes_the_map()
+	/// \brief [[BPR-1290]]. The owner kept the inline drawer ("I like it",
+	/// 2026-10-06): the shipped window no longer composes the map. The widget
+	/// and its tests stay for [[BPR-1293]], the PR-wide finder, to reuse.
+	void test_the_shipped_workbench_no_longer_composes_the_map()
 	{
-		// BPR-0225's rule: a component test is evidence for the component, not
-		// for reachability. This one drives the window the application opens,
-		// through the same adopt path the production host uses.
 		auto window = qt::workbench_window{ };
 		window.resize(1'400, 900);
 		window.show();
 		process_events();
-
-		// Published through `github_projection_port`, which is the port the
-		// application host itself writes to. Nothing here reaches past the
-		// public surface to place the content it then measures.
 		auto pullRequest                   = application::github_pull_request_projection{ };
 		pullRequest.Conversations          = fixture_case("valid-deep-wide-tree");
 		pullRequest.ReviewThreadsAvailable = true;
@@ -706,99 +686,12 @@ namespace {
 			.PullRequest = pullRequest,
 		});
 		process_events();
-
-		auto* const panel = window.conversation_panel();
-		expect(panel != nullptr, "the shipped window still owns the drawer");
-		auto* const map = panel->thread_map();
-		expect(map != nullptr,
-			   "the shipped conversation drawer composes the thread map");
-		expect(map->nodes().size() == pullRequest.Conversations.size(),
-			   "the composed map holds the conversation the window adopted");
-		expect(panel->thread_map_summary()->text()
-				   == QStringLiteral("8 comments · depth 5"),
-			   "the drawer states the mapped thread's real size");
-
-		// A press on the map has to move the drawer's own selection, because
-		// that selection is what the code reveal, the anchor marker, and the
-		// defect surface already read.
-		const auto* const target
-			= map->node_for("review-comment:deep-thread-v1-c04");
-		expect(target != nullptr, "the composed map holds the deep reply");
-		// The drawer's band is short, so a deep node is reached by scrolling to
-		// it - which is a gesture, not a workaround. What must not happen is
-		// what happened before this was measured: a press delivered at a point
-		// outside the viewport, proving the sink is wired and nothing about
-		// whether a pointer could ever be there.
-		map->verticalScrollBar()->setValue(
-			static_cast<int>(std::floor(target->Bounds.top())));
-		process_events();
-		expect(visible_content(*map).contains(target->Bounds),
-			   "the node about to be pressed is inside the visible map");
-		const auto centre = target->Bounds.center()
-			- QPointF{ static_cast<qreal>(map->horizontalScrollBar()->value()),
-					   static_cast<qreal>(map->verticalScrollBar()->value()) };
-		auto press = QMouseEvent{ QEvent::MouseButtonPress,
-								  centre,
-								  map->viewport()->mapToGlobal(centre),
-								  Qt::LeftButton,
-								  Qt::LeftButton,
-								  Qt::NoModifier };
-		QApplication::sendEvent(map->viewport(), &press);
-		process_events();
-		expect(panel->model()->id_for_index(panel->view()->currentIndex())
-				   == "review-comment:deep-thread-v1-c04",
-			   "pressing a map node selects that comment in the shipped "
-			   "drawer");
-		expect(panel->thread_map_branch()->text().contains(
-				   QStringLiteral("Path to this reply")),
-			   "the drawer shows the path to the reply that was pressed");
-	}
-
-	void test_selecting_in_the_drawer_moves_the_map()
-	{
-		auto window = qt::workbench_window{ };
-		window.resize(1'400, 900);
-		window.show();
-		process_events();
-
-		auto pullRequest                   = application::github_pull_request_projection{ };
-		pullRequest.Conversations          = fixture_case("valid-deep-wide-tree");
-		pullRequest.ReviewThreadsAvailable = true;
-		pullRequest.ReviewThreadCount      = 1U;
-		window.publish(application::github_presentation_update{
-			.PullRequest = pullRequest,
-		});
-		process_events();
-
-		auto* const panel = window.conversation_panel();
-		const auto  deep
-			= panel->model()->index_for_id("review-comment:deep-thread-v1-c05");
-		expect(deep.isValid(), "the drawer's own tree reaches the deep reply");
-		panel->view()->setCurrentIndex(deep);
-		process_events();
-
-		auto* const map = panel->thread_map();
-		expect(map->focus_identity() == "review-comment:deep-thread-v1-c05",
-			   "a drawer selection puts the same node in focus on the map");
-		expect(relation_of(*map, "review-comment:deep-thread-v1-c02")
-				   == qt::thread_map_relation::ancestor,
-			   "the map draws the branch of the comment the reviewer opened");
-
-		// The half that state assertions cannot reach. Before this was measured,
-		// the drawer highlighted a branch whose selected end sat below the
-		// visible band at every ordinary window height, and every signal test
-		// still passed.
-		const auto        visible = visible_content(*map);
-		const auto* const focused
-			= map->node_for("review-comment:deep-thread-v1-c05");
-		const auto* const parent
-			= map->node_for("review-comment:deep-thread-v1-c04");
-		expect(focused != nullptr && visible.contains(focused->Bounds),
-			   "the node the reviewer selected is on screen in the map, not "
-			   "merely highlighted somewhere inside it");
-		expect(parent != nullptr && visible.contains(parent->Bounds),
-			   "the comment that was replied to is on screen with it, so the "
-			   "drawer's narrow band still reads as a path and not a peephole");
+		expect(window.conversation_panel() != nullptr && window.conversation_panel()->cards()->thread_count() == 1U,
+			   "the drawer shows the conversation as a note");
+		expect(window.findChild<QWidget*>(QStringLiteral("githubThreadMap")) == nullptr
+				   && window.findChild<QWidget*>(QStringLiteral("threadMapBranch")) == nullptr,
+			   "no thread map and no path line are composed in the window");
+		window.close();
 	}
 } // namespace
 
@@ -819,8 +712,7 @@ auto main(int argc, char** argv) -> int
 	test_unread_nodes_are_filled_from_the_ledger_state();
 	test_the_keyboard_walks_the_tree();
 	test_the_map_says_where_it_is_to_a_screen_reader();
-	test_the_shipped_workbench_composes_the_map();
-	test_selecting_in_the_drawer_moves_the_map();
+	test_the_shipped_workbench_no_longer_composes_the_map();
 	std::cout << "thread-map-tests:pass\n";
 	return EXIT_SUCCESS;
 }

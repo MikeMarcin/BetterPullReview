@@ -1,10 +1,6 @@
 #include "bpr/qt/github_conversation_panel.hpp"
-#include "bpr/qt/markdown_body_view.hpp"
-#include <QTextEdit>
 
-#include "bpr/qt/github_conversation_delegate.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
-#include "bpr/qt/github_thread_map.hpp"
 
 #include <QAccessible>
 #include <QApplication>
@@ -12,6 +8,7 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
 #include <QToolButton>
@@ -106,50 +103,10 @@ namespace {
 		}
 	}
 
-	/// \brief Returns how far in from a row's left edge its content starts.
-	///
-	/// \details Measured from pixels rather than from the view's indentation
-	/// setting, because the claim is about what a reviewer sees. The first
-	/// column differing from the row's own left-edge background is where the
-	/// delegate began drawing.
-	[[nodiscard]] auto painted_inset(const QImage& aRaster, const QRect& aRow)
-		-> int
-	{
-		const auto ratio = aRaster.devicePixelRatio();
-		const auto left  = static_cast<int>(aRow.left() * ratio);
-		const auto right = std::min(static_cast<int>(aRow.right() * ratio),
-									aRaster.width() - 1);
-		const auto first = std::max(0, static_cast<int>(aRow.top() * ratio));
-		const auto last  = std::min(static_cast<int>(aRow.bottom() * ratio),
-									aRaster.height() - 1);
-		// The nearest painted pixel anywhere in the row, not on one chosen
-		// scanline: a row's text does not occupy its full height, and sampling
-		// a single line finds blank space as often as content.
-		auto nearest = -1;
-		for (auto y = first; y <= last; ++y) {
-			const auto background = aRaster.pixel(left, y);
-			for (auto x = left; x <= right; ++x) {
-				if (aRaster.pixel(x, y) != background) {
-					const auto inset = static_cast<int>(
-						static_cast<qreal>(x - left) / ratio);
-					nearest = nearest < 0 ? inset : std::min(nearest, inset);
-					break;
-				}
-			}
-		}
-		return nearest;
-	}
-
-	/// \brief Proves depth no longer costs horizontal room.
-	///
-	/// \details The owner's direction on the BPR-0414 verdict: a linear reply
-	/// feed grouped by root, because the staircase spends the width the
-	/// comment text needs. Depth is still in the model, and BPR-0418's thread
-	/// map is where it is read.
-	// [[BPR-0649]]. Discuss moves the same widgets: the tree above the map
-	// at the left, the feed at the right, the filters over it and the
-	// summary beneath; leaving Discuss puts them back.
-	auto test_discuss_widens_into_list_map_and_feed() -> void
+	/// \brief [[BPR-1290]]. Beside the code the drawer is the notes, with Only
+	/// new and Hide resolved as two icons; Discuss lists the same notes in file
+	/// order under its scope, file and filter row.
+	auto test_discuss_lists_the_notes_with_its_controls() -> void
 	{
 		auto panel = qt::github_conversation_panel{ };
 		panel.resize(1400, 900);
@@ -158,98 +115,39 @@ namespace {
 		panel.adopt({ root("thread", "src/file.cpp"), reply("c1", "thread") },
 					QStringLiteral("1 review thread available."));
 		process_events();
-		expect(!panel.discuss() && !panel.cards()->feed()
-				   && !panel.discuss_column()->isAncestorOf(panel.view()),
-			   "the drawer opens in the Read arrangement");
-		expect(panel.filter_unread_button() != nullptr && panel.filter_unresolved_button() != nullptr
-				   && panel.filter_unread_button()->isCheckable() && !panel.filter_unread_button()->isChecked(),
-			   "the Unread and Unresolved filters are checkable and off");
+		expect(!panel.discuss() && !panel.cards()->feed() && !panel.discuss_controls()->isVisibleTo(&panel)
+				   && !panel.view()->isVisibleTo(&panel) && panel.cards()->isVisibleTo(&panel)
+				   && panel.read_tools()->isAncestorOf(panel.filter_unread_button())
+				   && panel.filter_unread_button()->toolButtonStyle() == Qt::ToolButtonIconOnly,
+			   "beside the code the drawer is the notes, its filters two icons, and the selection tree is never shown");
+		expect(panel.findChild<QWidget*>(QStringLiteral("githubThreadMap")) == nullptr
+				   && panel.findChild<QWidget*>(QStringLiteral("threadMapBranch")) == nullptr
+				   && panel.findChild<QWidget*>(QStringLiteral("conversationMarkdownBody")) == nullptr,
+			   "no thread map, path line or body pane is composed");
+		expect(panel.filter_unread_button()->isCheckable() && !panel.filter_unread_button()->isChecked()
+				   && panel.filter_unresolved_button()->accessibleName() == QStringLiteral("Hide resolved"),
+			   "Only new and Hide resolved are checkable and off");
 
 		panel.set_discuss(true);
 		process_events();
-		expect(panel.discuss() && panel.cards()->feed()
-				   && panel.discuss_column()->isAncestorOf(panel.view())
-				   && panel.discuss_column()->isAncestorOf(panel.thread_map())
-				   && !panel.discuss_column()->isAncestorOf(panel.cards())
-				   && panel.cards()->isVisibleTo(&panel) && panel.view()->isVisibleTo(&panel),
-			   "Discuss puts the tree and the map in the left column and the feed beside them");
+		expect(panel.discuss() && panel.cards()->feed() && panel.discuss_controls()->isVisibleTo(&panel)
+				   && panel.discuss_controls()->isAncestorOf(panel.filter_unread_button())
+				   && panel.filter_unread_button()->toolButtonStyle() == Qt::ToolButtonTextOnly
+				   && panel.cards()->isVisibleTo(&panel) && !panel.view()->isVisibleTo(&panel),
+			   "Discuss shows its scope, file and filter row above the same notes");
 		expect(panel.discuss_summary()->isVisibleTo(&panel)
 				   && panel.discuss_summary()->text() == QStringLiteral("1 conversations, 1 unresolved, 0 new"),
-			   "the summary restates the feed's counts");
+			   "the summary restates the counts");
 		panel.filter_unread_button()->setChecked(true);
 		process_events();
 		expect(panel.cards()->filters().UnreadOnly && panel.cards()->cards().empty(),
-			   "Unread filters the feed to what has a post newer than what I read");
+			   "Unread filters the list to what has a post newer than what I read");
 		panel.filter_unread_button()->setChecked(false);
 		panel.set_discuss(false);
 		process_events();
-		expect(!panel.discuss() && !panel.cards()->feed()
-				   && !panel.discuss_column()->isAncestorOf(panel.view())
-				   && !panel.discuss_summary()->isVisibleTo(&panel)
-				   && panel.view()->isVisibleTo(&panel) && panel.cards()->isVisibleTo(&panel),
-			   "leaving Discuss restores the Read arrangement");
-	}
-
-	auto test_replies_are_a_flat_feed_under_their_root() -> void
-	{
-		auto panel = qt::github_conversation_panel{ };
-		panel.resize(360, 1'400);
-		panel.show();
-		process_events();
-
-		// A chain five replies deep, which under a per-depth indent would push
-		// the deepest comment five steps off the left edge.
-		auto conversations = std::vector<conversation>{
-			root("thread", "src/file.cpp"),
-		};
-		auto parent = std::string{ "thread" };
-		for (auto depth = 1; depth <= 5; ++depth) {
-			auto id = "c" + std::to_string(depth);
-			conversations.push_back(reply(id, parent));
-			parent = std::move(id);
-		}
-		panel.adopt(conversations, QStringLiteral("1 review thread available."));
-		process_events();
-
-		auto* const view = panel.view();
-		expect(view->indentation() == 0 && !view->rootIsDecorated(),
-			   "the view no longer indents rows by their depth");
-
-		const auto rowOf = [&](const std::string_view aIdentity) {
-			const auto index = panel.model()->index_for_id(aIdentity);
-			expect(index.isValid(), "the row being measured is in the model");
-			view->scrollTo(index, QAbstractItemView::PositionAtCenter);
-			process_events();
-			const auto rect = view->visualRect(index);
-			// A row scrolled out of view has nothing to measure, and a check
-			// that silently measured blank pixels would pass for any layout.
-			expect(!rect.isEmpty()
-					   && view->viewport()->rect().contains(rect.center()),
-				   "the row being measured is actually on screen");
-			return rect;
-		};
-		const auto shallow = rowOf("c1");
-		const auto deep    = rowOf("c5");
-		expect(shallow.left() == deep.left() && shallow.width() == deep.width(),
-			   "a reply five deep occupies the same horizontal extent as a reply "
-			   "one deep");
-
-		// Pixels, not settings. A view that stopped indenting while the
-		// delegate kept a depth-scaled inset would pass the check above.
-		const auto inset = [&](const std::string_view aIdentity) {
-			const auto rect = rowOf(aIdentity);
-			return painted_inset(view->viewport()->grab().toImage(), rect);
-		};
-		const auto rootInset    = inset("thread");
-		const auto shallowInset = inset("c1");
-		const auto deepInset    = inset("c5");
-		expect(rootInset >= 0 && shallowInset >= 0 && deepInset >= 0,
-			   "every measured row actually painted something");
-		expect(shallowInset == deepInset,
-			   "replies start at the same place whatever their depth");
-		expect(rootInset < shallowInset,
-			   "a reply is still visibly grouped under its root rather than flush "
-			   "with it");
+		expect(!panel.discuss() && !panel.cards()->feed() && !panel.discuss_summary()->isVisibleTo(&panel)
+				   && panel.read_tools()->isAncestorOf(panel.filter_unread_button()) && panel.cards()->isVisibleTo(&panel),
+			   "leaving Discuss gives the filters back to the tab row");
 	}
 
 	auto test_anchoring_keeps_one_file() -> void
@@ -314,8 +212,7 @@ namespace {
 		panel.adopt(projection, QStringLiteral("available"));
 		panel.view()->setCurrentIndex(panel.model()->index_for_id("p"));
 		panel.view()->collapse(panel.model()->index_for_id("t"));
-		const auto measurements  = panel.cards()->measurements();
-		const auto mapStatistics = panel.thread_map()->statistics();
+		const auto measurements = panel.cards()->measurements();
 		for (auto refresh = 0; refresh < 4; ++refresh) {
 			panel.set_anchor_file(core::file_identity_of("src/a.cpp"));
 			panel.set_anchor_file(std::nullopt);
@@ -325,8 +222,6 @@ namespace {
 				   && !panel.view()->isExpanded(panel.model()->index_for_id("t"))
 				   && panel.cards()->current_thread() == "t",
 			   "equivalent anchor projections retain measurements, selected reply and expansion");
-		expect(panel.thread_map()->statistics().Layouts == mapStatistics.Layouts,
-			   "equivalent anchor projections do not rebuild the thread map");
 		panel.clear(QStringLiteral("stale"));
 		panel.set_anchor_file(core::file_identity_of("src/a.cpp"));
 		expect(panel.model()->rowCount() == 0 && panel.cards()->cards().empty(),
@@ -557,26 +452,22 @@ namespace {
 		expect(panel.reveal_button() == nullptr, "focus-only reveal control is removed");
 		panel.view()->setCurrentIndex(panel.model()->index_for_id("right-reply"));
 		process_events();
-		expect(panel.cards()->current_thread() == "right-root" && panel.thread_map()->focus_identity() == "right-reply",
-			   "exact post selection highlights its owning compact index entry and graph node");
-		for (auto row = 0; row < panel.model()->rowCount(); ++row) {
-			const auto id = panel.model()->id_for_index(panel.model()->index(row, 0));
-			expect(panel.view()->isRowHidden(row, { }) == (id != "right-root"), "only selected conversation has full bodies in detail");
-		}
-		for (const auto& card : panel.cards()->cards()) {
-			expect(std::ranges::none_of(card.Actions, [](const auto& aAction) { return aAction.first == qt::card_action::open_in_code; }),
-				   "unavailable exact endpoints never offer open in code");
-		}
+		expect(panel.cards()->current_thread() == "right-root",
+			   "exact post selection makes its owning thread current");
+		panel.cards()->set_action_dispatch([](const qt::card_action, const std::string&) { });
+		const auto openInCode = [&panel] {
+			auto* const menu    = panel.cards()->thread_menu("right-root");
+			const auto  offered = menu != nullptr && menu->actions().size() > 3 && menu->actions()[3]->isEnabled();
+			delete menu;
+			return offered;
+		};
+		expect(!openInCode(), "unavailable exact endpoints never offer Open in code");
 		panel.set_current_endpoint_placement(true, true);
-		expect(std::ranges::any_of(panel.cards()->cards(), [](const qt::thread_card& aCard) {
-				   return aCard.Id == "right-root" && std::ranges::any_of(aCard.Actions, [](const auto& aAction) { return aAction.first == qt::card_action::open_in_code; });
-			   }),
-			   "restored exact endpoints invalidate cached action geometry and offer open in code");
+		expect(openInCode(), "restored exact endpoints offer Open in code");
 		panel.set_current_endpoint_placement(false, false);
-		expect(std::ranges::all_of(panel.cards()->cards(), [](const qt::thread_card& aCard) {
-				   return std::ranges::none_of(aCard.Actions, [](const auto& aAction) { return aAction.first == qt::card_action::open_in_code; });
-			   }),
-			   "losing exact endpoint facts removes cached open-in-code actions");
+		expect(!openInCode(), "losing exact endpoint facts withdraws Open in code");
+		// A thread's menu makes its thread current; read the reply again.
+		panel.view()->setCurrentIndex(panel.model()->index_for_id("right-reply"));
 		panel.scope_this_file_button()->setChecked(true);
 		process_events();
 		expect(panel.cards()->thread_count() == 1U && panel.discuss_summary()->text().contains(QStringLiteral("pathless")),
@@ -588,7 +479,7 @@ namespace {
 		panel.set_discuss(true);
 		expect(panel.model()->id_for_index(panel.view()->currentIndex()) == "right-reply", "Discuss round trip restores exact selected post");
 		panel.clear(QStringLiteral("Loading replacement"));
-		expect(panel.model()->rowCount() == 0 && panel.cards()->cards().empty() && panel.thread_map()->focus_identity().empty(),
+		expect(panel.model()->rowCount() == 0 && panel.cards()->cards().empty() && panel.cards()->current_thread().empty(),
 			   "authority clear removes every prior conversation identity");
 	}
 
@@ -609,303 +500,6 @@ namespace {
 		expect(panel.cards()->thread_count() == 1U, "returning to Read restores contextual scope");
 		panel.set_discuss(true);
 		expect(panel.cards()->thread_count() == 2U, "returning to Discuss preserves independent PR-wide scope");
-	}
-
-	void test_index_arrows_retain_focus_until_explicit_activation()
-	{
-		qt::github_conversation_panel panel;
-		// [[BPR-1041]]. Narrow in the unit the panel's own rule uses, fewer
-		// than 85 average characters, rather than a fixed 500 pixels. The
-		// Windows default font averages 5 pixels, and at that size 500 pixels
-		// is wide enough for both panes.
-		const auto characters = panel.fontMetrics().averageCharWidth();
-		panel.resize(characters * 60, 900);
-		panel.adopt(two_files(), QStringLiteral("Accepted conversations"));
-		panel.set_discuss(true);
-		panel.show();
-		panel.activateWindow();
-		panel.cards()->setFocus(Qt::OtherFocusReason);
-		panel.cards()->set_current_thread("left-root");
-		process_events();
-		expect(panel.width() < characters * 85, "the panel is narrower than 85 average characters, which is narrow by its own rule");
-
-		expect(panel.cards()->isVisible() && !panel.discuss_column()->isVisible()
-				   && panel.cards()->hasFocus(),
-			   "narrow Discuss begins in the focused conversation index");
-		auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
-		QApplication::sendEvent(panel.cards(), &down);
-		process_events();
-		expect(panel.cards()->current_thread() == "right-root"
-				   && panel.cards()->isVisible() && !panel.discuss_column()->isVisible()
-				   && panel.cards()->hasFocus(),
-			   "Down advances the index without stealing focus or opening detail");
-		QApplication::sendEvent(panel.cards(), &down);
-		process_events();
-		expect(panel.cards()->current_thread() == "left-root"
-				   && panel.cards()->isVisible() && !panel.discuss_column()->isVisible()
-				   && panel.cards()->hasFocus(),
-			   "repeated arrow navigation remains in the index and wraps by identity");
-
-		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-		QApplication::sendEvent(panel.cards(), &enter);
-		process_events();
-		expect(!panel.cards()->isVisible() && panel.discuss_column()->isVisible()
-				   && panel.view()->hasFocus(),
-			   "Return explicitly opens the selected full-body detail and moves focus once");
-	}
-
-	// Re-measure Qt's own size request at its painted width. A paint option
-	// can carry different native padding and is not a size-request template.
-	class observed_compact_delegate final : public QStyledItemDelegate
-	{
-	public:
-		observed_compact_delegate(QAbstractItemDelegate& aDelegate, QObject* aParent)
-			: QStyledItemDelegate{ aParent }
-			, Delegate{ aDelegate }
-		{ }
-		auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
-		{
-			if (aIndex.parent().isValid()) {
-				ReplyMeasure = aOption;
-			}
-			return Delegate.sizeHint(aOption, aIndex);
-		}
-		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
-		{
-			if (aIndex.parent().isValid()) {
-				ReplyOption = aOption;
-			}
-			Delegate.paint(aPainter, aOption, aIndex);
-		}
-		mutable std::optional<QStyleOptionViewItem> ReplyOption;
-		mutable std::optional<QStyleOptionViewItem> ReplyMeasure;
-
-	private:
-		QAbstractItemDelegate& Delegate;
-	};
-
-	void test_compact_last_reply_has_its_complete_measured_extent()
-	{
-		for (const auto width : { 360, 260 }) {
-			qt::github_conversation_panel panel;
-			auto*                         observed = new observed_compact_delegate{ *panel.view()->itemDelegate(), panel.view() };
-			panel.view()->setItemDelegate(observed);
-			panel.resize(width, 700);
-			auto data               = std::vector<conversation>{ root("thread", "review.cpp"), reply("reply", "thread") };
-			data.back().AuthorLogin = "octo-author";
-			data.back().Body        = "The exact current-head follow-up is ready to verify.";
-			data.back().Path        = "review.cpp";
-			data.back().Line        = 60U;
-			panel.adopt(data, QStringLiteral("Available"));
-			panel.show();
-			process_events();
-			auto* thisFile = panel.findChild<QToolButton*>(QStringLiteral("conversationScopeThisFile"));
-			auto* all      = panel.findChild<QToolButton*>(QStringLiteral("conversationScopeWholePullRequest"));
-			auto* clear    = panel.findChild<QToolButton*>(QStringLiteral("conversationClearFilters"));
-			expect(thisFile->y() == all->y() && panel.filter_unread_button()->y() == panel.filter_unresolved_button()->y()
-					   && clear->y() == panel.filter_unread_button()->y(),
-				   "scope and filters occupy two compact rows");
-			expect(panel.cards()->viewport()->height() >= panel.fontMetrics().lineSpacing() * 5,
-				   "the drawer keeps several readable lines for its conversation index");
-			auto*      view  = panel.view();
-			const auto index = panel.model()->index_for_id("reply");
-			view->setCurrentIndex(index);
-			process_events();
-			view->verticalScrollBar()->setValue(view->verticalScrollBar()->maximum());
-			process_events();
-			const auto rect = view->visualRect(index);
-			expect(observed->ReplyOption.has_value() && observed->ReplyMeasure.has_value(), "the final reply was measured and actually painted");
-			auto option = *observed->ReplyMeasure;
-			option.rect.setWidth(rect.width());
-			const auto required = qt::github_conversation_delegate{ nullptr, true }.sizeHint(option, index);
-			std::cout << "compact-last-reply width=" << width << " rect=" << rect.x() << ',' << rect.y() << ',' << rect.width() << ',' << rect.height()
-					  << " required=" << required.height() << " viewport=" << view->viewport()->height() << " maximum=" << view->verticalScrollBar()->maximum() << '\n';
-			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
-				expect(panel.grab().save(path + QStringLiteral("-drawer-%1.png").arg(width)), "drawer rendered for inspection");
-			}
-			expect(rect.height() >= required.height() && rect.bottom() < view->viewport()->height(), "the final compact reply's complete measured content is reachable at the scroll limit");
-		}
-	}
-
-	void test_long_detail_scroll_routes()
-	{
-		for (const auto points : { 13, 20 }) {
-			for (const auto width : { 900, 1400 }) {
-				qt::github_conversation_panel panel;
-				auto                          font = panel.font();
-				font.setPointSize(points);
-				panel.setFont(font);
-				panel.resize(width, 900);
-				auto data = two_files();
-				data[1].Body.clear();
-				for (auto line = 0; line < 120; ++line) {
-					data[1].Body += "A complete long comment line with a stable reading position.\n\n";
-				}
-				data[1].Body += "FINAL SENTINEL";
-				panel.adopt(data, QStringLiteral("Accepted"));
-				panel.set_discuss(true);
-				panel.show();
-				process_events();
-				// Enter detail through the index, including the narrow page route.
-				auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-				QApplication::sendEvent(panel.cards(), &enter);
-				panel.view()->setCurrentIndex(panel.model()->index_for_id("left-reply"));
-				process_events();
-				auto* const view = panel.body_view()->rendered_view();
-				auto* const bar  = view->verticalScrollBar();
-				expect(bar->maximum() > view->viewport()->height(),
-					   "one long post has a pixel reading range beyond a viewport");
-				const auto compactHeight = panel.cards()->cards().front().Rect.height();
-				expect(compactHeight < 400, "compact index height is independent of long body length");
-				bar->setValue(0);
-				for (const auto key : { Qt::Key_PageDown, Qt::Key_PageDown }) {
-					const auto before = bar->value();
-					auto       event  = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
-					QApplication::sendEvent(view, &event);
-					expect(bar->value() > before, "paging scrolls within the same long comment");
-				}
-				const auto saved = bar->value();
-				data.back().Body += " refreshed";
-				panel.adopt(data, QStringLiteral("Refreshed"));
-				process_events();
-				expect(bar->value() == saved && panel.model()->id_for_index(panel.view()->currentIndex()) == "left-reply", "refresh preserves reading offset and exact post");
-				panel.set_discuss(false);
-				panel.set_discuss(true);
-				process_events();
-				expect(bar->value() == saved && panel.model()->id_for_index(panel.view()->currentIndex()) == "left-reply", "mode round trip preserves reading offset and exact post");
-				const auto readingPost = panel.model()->id_for_index(panel.view()->currentIndex());
-				panel.resize(width + 100, 900);
-				process_events();
-				expect(panel.model()->id_for_index(panel.view()->currentIndex()) == readingPost, "resize retains the logical post being read");
-				auto end = QKeyEvent{ QEvent::KeyPress, Qt::Key_End, Qt::ControlModifier };
-				QApplication::sendEvent(view, &end);
-				expect(view->textCursor().position() == view->document()->characterCount() - 1 && bar->maximum() - bar->value() <= view->document()->documentMargin(), "End reaches the final full-body extent with only native document margin below");
-				expect(view->cursorRect().bottom() <= view->viewport()->height() && view->toPlainText().endsWith(QStringLiteral("FINAL SENTINEL")), "the complete selected post reaches its final content");
-				bar->setValue(bar->maximum());
-				auto boundary = QWheelEvent{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, QPoint{ 0, -45 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
-				QApplication::sendEvent(view->viewport(), &boundary);
-				expect(boundary.isAccepted() && bar->value() == bar->maximum(), "the detail consumes boundary wheel input without transferring ownership");
-				auto pageUp = QKeyEvent{ QEvent::KeyPress, Qt::Key_PageUp, Qt::NoModifier };
-				QApplication::sendEvent(view, &pageUp);
-				expect(bar->value() < bar->maximum(), "PageUp moves backward inside the long post");
-				auto home = QKeyEvent{ QEvent::KeyPress, Qt::Key_Home, Qt::ControlModifier };
-				QApplication::sendEvent(view, &home);
-				for (const auto pixels : { false, true }) {
-					const auto before = bar->value();
-					auto       wheel  = QWheelEvent{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, pixels ? QPoint{ 0, -45 } : QPoint{ }, pixels ? QPoint{ } : QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
-					QApplication::sendEvent(view->viewport(), &wheel);
-					expect(wheel.isAccepted() && bar->value() > before, "angle and pixel wheel events advance the detail owner");
-				}
-				std::cout << "long-detail width=" << width << " font=" << points << " scale=" << panel.devicePixelRatioF() << " range=" << bar->maximum() << '\n';
-			}
-		}
-	}
-	/// [[BPR-1043]]. The delegate remembers the sizes it has measured, so a
-	/// relayout of the whole list does not shape every post again. A
-	/// remembered size must still follow everything that decides it: new text
-	/// under the same identity, a narrower width and a larger font each give
-	/// the size a delegate that has never measured anything gives. The panel's
-	/// list delegate is the compact one, so the fresh delegate is too.
-	void test_row_sizes_follow_text_width_and_font()
-	{
-		qt::github_conversation_panel panel;
-		panel.resize(420, 520);
-		panel.show();
-		auto thread = root("sized-root", "src/sized.cpp");
-		panel.adopt({ thread }, QStringLiteral("available"));
-		process_events();
-		auto* const view     = panel.view();
-		auto* const delegate = view->itemDelegate();
-		const auto  option   = [&](const int aWidth, const qreal aScale) {
-			auto result = QStyleOptionViewItem{ };
-			result.initFrom(view);
-			result.widget = view;
-			result.rect   = QRect{ 0, 0, aWidth, 20 };
-			if (aScale != 1.0) {
-				result.font.setPointSizeF(result.font.pointSizeF() * aScale);
-			}
-			return result;
-		};
-		const auto measured = [&](const int aWidth, const qreal aScale) {
-			const auto index = panel.model()->index_for_id("sized-root");
-			expect(index.isValid(), "the sized thread is shown");
-			const auto remembered = delegate->sizeHint(option(aWidth, aScale), index);
-			const auto again      = delegate->sizeHint(option(aWidth, aScale), index);
-			const auto fresh      = qt::github_conversation_delegate{ nullptr, true }.sizeHint(option(aWidth, aScale), index);
-			expect(remembered == again && remembered == fresh,
-				   "a remembered row size is the size a fresh delegate measures");
-			return remembered;
-		};
-		const auto shortText = measured(300, 1.0);
-		thread.Body          = std::string(600, 'w') + " and a long remark that wraps";
-		panel.adopt({ thread }, QStringLiteral("available"));
-		process_events();
-		const auto longText = measured(300, 1.0);
-		expect(longText.height() > shortText.height(), "new text under the same identity is measured afresh");
-		const auto narrow = measured(140, 1.0);
-		expect(narrow.height() > longText.height(), "a narrower width wraps into more lines");
-		const auto larger = measured(300, 2.0);
-		expect(larger.height() > longText.height(), "a larger font is measured afresh");
-	}
-
-	class observed_detail_delegate final : public QStyledItemDelegate
-	{
-	public:
-		observed_detail_delegate(QAbstractItemDelegate& aDelegate, QObject* aParent)
-			: QStyledItemDelegate{ aParent }
-			, Delegate{ aDelegate }
-		{ }
-		auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
-		{
-			auto rootIndex = aIndex;
-			while (rootIndex.parent().isValid()) {
-				rootIndex = rootIndex.parent();
-			}
-			Roots.insert(rootIndex.data(qt::github_conversation_model::identity_role).toString());
-			return Delegate.sizeHint(aOption, aIndex);
-		}
-		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
-		{
-			Delegate.paint(aPainter, aOption, aIndex);
-		}
-		mutable std::set<QString> Roots;
-
-	private:
-		QAbstractItemDelegate& Delegate;
-	};
-
-	void test_initial_detail_measures_only_selected_thread()
-	{
-		qt::github_conversation_panel panel;
-		panel.resize(420, 520);
-		panel.show();
-		process_events();
-		auto* view     = panel.view();
-		auto* observed = new observed_detail_delegate{ *view->itemDelegate(), view };
-		view->setItemDelegate(observed);
-		auto conversations = std::vector<conversation>{ };
-		for (auto ordinal = 0; ordinal < 1000; ++ordinal) {
-			const auto id = "thread-" + std::to_string(ordinal);
-			conversations.push_back(root(id, "src/file.cpp"));
-			conversations.push_back(reply("post-" + std::to_string(ordinal), id));
-		}
-		panel.adopt(conversations, QStringLiteral("available"));
-		process_events();
-		expect(observed->Roots == std::set<QString>{ QStringLiteral("thread-0") },
-			   "initial detail measures only the selected thread, never the entire review");
-		expect(panel.model()->rowCount() == 1000, "every conversation remains in the incremental model");
-		panel.choose(panel.model()->index_for_id("post-999"));
-		process_events();
-		expect(observed->Roots == std::set<QString>{ QStringLiteral("thread-0"), QStringLiteral("thread-999") },
-			   "selecting the last thread measures that thread and preserves access to its post");
-		expect(panel.model()->id_for_index(view->currentIndex()) == "post-999", "last post remains exactly selected");
-		conversations.insert(conversations.begin(), root("new-root", "src/another.cpp"));
-		panel.adopt(conversations, QStringLiteral("available"));
-		process_events();
-		expect(observed->Roots == std::set<QString>{ QStringLiteral("thread-0"), QStringLiteral("thread-999") }
-				   && panel.model()->id_for_index(view->currentIndex()) == "post-999"
-				   && panel.model()->statistics().ModelResets == 0U,
-			   "incremental insertion preserves selected detail without measuring the new hidden root or resetting the model");
 	}
 
 	// [[BPR-0972]]. Choosing a file re-filters the retained forest by the
@@ -962,21 +556,15 @@ namespace {
 		panel.view()->setCurrentIndex(index);
 		process_events();
 		expect(index.data(qt::github_conversation_model::body_role).toString() == QStringLiteral("Only the reviewer prose"), "normal comment reader projects prose without representation syntax");
-		expect(panel.thread_map()->focus_identity() == "file-comment", "compatibility reply selects the canonical map node");
-		auto* const support     = panel.findChild<QToolButton*>(QStringLiteral("conversationSupportDetails"));
-		auto* const description = panel.findChild<QLabel*>(QStringLiteral("conversationSupportDescription"));
-		expect(support && description && support->isVisible() && !description->isVisible()
-				   && !support->isChecked(),
-			   "representation is disclosed only after expanding Support details");
-		auto* const accessible = QAccessible::queryAccessibleInterface(support);
-		expect(accessible && accessible->text(QAccessible::Name) == QStringLiteral("Conversation support details"), "support disclosure has an accessible name");
-		support->setFocus(Qt::TabFocusReason);
-		auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
-		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
-		QApplication::sendEvent(support, &press);
-		QApplication::sendEvent(support, &release);
+		expect(panel.cards()->current_thread() == "file-thread", "the compatibility reply makes its thread current");
+		panel.cards()->open_thread("file-thread");
 		process_events();
-		expect(support->isChecked() && description->isVisible() && support->hasFocus(), "keyboard expansion retains focus and reveals the honest server representation");
+		const auto supportShown = [&panel] {
+			auto* const card = panel.cards()->open_card();
+			auto* const note = card != nullptr ? card->findChild<QLabel*>(QStringLiteral("threadSupportNote")) : nullptr;
+			return note != nullptr && note->isVisible() && note->text().contains(QStringLiteral("file review comment"));
+		};
+		expect(supportShown(), "the open thread states the honest server representation");
 		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
 			expect(panel.grab().save(path + QStringLiteral("-semantic-support.png")), "semantic support detail rendered for inspection");
 		}
@@ -996,7 +584,9 @@ namespace {
 		post.ReviewerProse.reset();
 		panel.adopt({ thread, post }, QStringLiteral("available"));
 		expect(!panel.model()->semantic_anchor(panel.model()->index_for_id("file-thread")), "external removal clears semantic placement without changing identity");
-		expect(!support->isVisible() && !description->isVisible(), "an external edit withdraws stale support information");
+		panel.cards()->open_thread("file-thread");
+		process_events();
+		expect(!supportShown(), "an external edit withdraws stale support information");
 		panel.close();
 	}
 
@@ -1009,9 +599,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationPanelTests"));
 	test_compatibility_anchor_refresh();
-	test_initial_detail_measures_only_selected_thread();
-	test_replies_are_a_flat_feed_under_their_root();
-	test_discuss_widens_into_list_map_and_feed();
+	test_discuss_lists_the_notes_with_its_controls();
 	test_anchoring_keeps_one_file();
 	test_replies_have_no_anchor_of_their_own();
 	test_changing_the_anchor_follows_immediately();
@@ -1025,10 +613,6 @@ auto main(int argc, char** argv) -> int
 	test_invalid_projected_side_is_never_guessed_as_right();
 	test_pr_wide_index_and_selected_detail();
 	test_contextual_scope_survives_clear_and_refresh();
-	test_index_arrows_retain_focus_until_explicit_activation();
-	test_compact_last_reply_has_its_complete_measured_extent();
-	test_long_detail_scroll_routes();
-	test_row_sizes_follow_text_width_and_font();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

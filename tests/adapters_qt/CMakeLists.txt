@@ -188,6 +188,30 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+# [[BPR-1290]]. The inline drawer on a long file through the composed window:
+# notes at their lines, a thread opened in place, the gutter's markers and the
+# scroll bar's ticks, chips, keys, filters and the drawer's range, rendered at
+# each of the three scales.
+foreach(bpr_inline_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_inline_whole "${bpr_inline_scale} / 100")
+    math(EXPR bpr_inline_fraction "${bpr_inline_scale} % 100")
+    if(bpr_inline_fraction LESS 10)
+        set(bpr_inline_fraction "0${bpr_inline_fraction}")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_composed_inline_drawer_scale_${bpr_inline_scale}
+        COMMAND test_better_pull_review_qt_github_tests --inline-drawer
+    )
+    set_tests_properties(
+        qt_composed_inline_drawer_scale_${bpr_inline_scale}
+        PROPERTIES
+            ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_inline_whole}.${bpr_inline_fraction};BPR_EXPECTED_QT_SCALE=${bpr_inline_whole}.${bpr_inline_fraction};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-inline-drawer-${bpr_inline_scale}.png"
+            PASS_REGULAR_EXPRESSION "inline-drawer:pass"
+            RUN_SERIAL TRUE
+            TIMEOUT 60
+    )
+endforeach()
+
 # [[BPR-0981]]. RFC-BPR-0025 AC-02 through the composed window, alone.
 bpr_add_network_isolated_test(
     NAME qt_composed_resident_drawer_filters

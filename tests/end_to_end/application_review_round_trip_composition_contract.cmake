@@ -732,6 +732,16 @@ endfunction()
 # selection at once no longer records a tab without it. No grant, target,
 # provider, credential, mutation or publication path changes; mutation pin
 # unchanged; no new src/app source. Reviewed on BPR-1236.
+# BPR-1290 reseal: over the BPR-1236 reseal above; no intervening
+# pinned-scope commit. The conversations drawer is inline only (owner verdict
+# on the inline-drawer prototype, 2026-10-06: "I like it"): the composition no
+# longer hands the thread map an unread colour, and the tests-on reply and
+# resolve probe opens the thread in place and clicks its button instead of
+# pressing a card action rectangle; the label probes read the note's mark.
+# main.cpp and the fixture table add the constructed inline-drawer-v1 pull
+# request. Presentation and fixture only: no grant, target, provider,
+# credential, mutation or publication path changes; mutation pin unchanged;
+# no new src/app source. Reviewed on BPR-1290.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -750,7 +760,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"ffc1c7babe69e744ee3cf0f185d0d6bcaddc017d36e787d2098b89eb159e6cc8"
+		"46c89a78bf09fa32ae02a0f9707f4262b325bc7491666aaa117efc68b9228488"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -948,7 +958,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b95540399129d3bb74bfcfb2f349935ab63a961901a2607aae25188104e140a4"
+        "d0f088a611680e78590a0535bbc67dfccb5f8476760cfe951b9ddece299cac4f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

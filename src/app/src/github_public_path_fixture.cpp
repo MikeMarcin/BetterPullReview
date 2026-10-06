@@ -443,6 +443,29 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "nested-folders-v1/objects.pack" },
 				};
+			// [[BPR-1290]]. Constructed by `scripts/build_inline_drawer_fixture.py`:
+			// the conventional-comments files and threads plus a long file with
+			// threads at its lines, its own pack and one head.
+			case github_public_path_fixture::inline_drawer_v1:
+				return {
+					.ContractDirectory   = "inline-drawer-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 22U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "inline-drawer",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "916aad158d0a7cd7aaf15d6ca64123c71deaea2d",
+					.HeadOneOid          = "89df5e592e5db97a526a05a445735733395e4832",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "inline-drawer-v1/objects.pack" },
+				};
 			case github_public_path_fixture::nested_folders_v1:
 				return {
 					.ContractDirectory   = "nested-folders-v1",

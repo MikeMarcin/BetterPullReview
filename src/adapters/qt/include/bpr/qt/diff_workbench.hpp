@@ -6,6 +6,7 @@
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_link_map.hpp"
+#include "bpr/qt/feedback_label_marks.hpp"
 #include <QColor>
 #include <QList>
 #include <QRect>
@@ -32,6 +33,7 @@ class QResizeEvent;
 class QScrollBar;
 class QSplitter;
 class QStackedLayout;
+class QWheelEvent;
 
 namespace bpr::qt {
 	/// \brief Identifies the Qt-facing source that requested a geometry rebuild.
@@ -148,8 +150,41 @@ namespace bpr::qt {
 	{
 		std::uint32_t       Line = 0U;
 		diff_line_mark_kind Kind = diff_line_mark_kind::thread;
+		/// [[BPR-1290]]. The thread's first post's label mark, which the
+		/// gutter's marker shows; a plain square without one.
+		std::optional<core::feedback_label> Label;
+		feedback_mark_emphasis              Emphasis;
+		bool                                Resolved = false;
+		/// My unpublished note: a dashed square.
+		bool Draft = false;
+		/// The open thread: its line is washed amber and its marker ringed.
+		bool Open = false;
+		/// The note under the pointer: its line is washed lightly.
+		bool Hovered = false;
+		/// What the marker's tooltip and accessible name say.
+		QString Description;
+		/// The side and zero-based source line the mark answers for; a unified
+		/// pane's `Line` is its row.
+		core::diff_side Side       = core::diff_side::right;
+		std::uint32_t   SourceLine = 0U;
 
-		auto operator<=>(const diff_line_mark&) const = default;
+		auto operator==(const diff_line_mark&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1290]]. One thread's tick on the code's scroll bar.
+	struct diff_thread_tick
+	{
+		core::diff_side Side = core::diff_side::right;
+		std::uint32_t   Line = 0U;
+		/// Where the thumb's centre is when the line is in view, from the
+		/// groove's top (0) to its bottom (1).
+		qreal Fraction = 0.0;
+		bool  Unread   = false;
+		bool  Resolved = false;
+		bool  Draft    = false;
+		bool  Open     = false;
+
+		auto operator==(const diff_thread_tick&) const -> bool = default;
 	};
 
 	class diff_workbench final
@@ -248,6 +283,25 @@ namespace bpr::qt {
 		/// \brief Marks lines that carry a thread (amber) or a new one (blue).
 		void               set_line_marks(core::diff_side aSide, std::vector<diff_line_mark> aMarks);
 		[[nodiscard]] auto line_marks(core::diff_side aSide) const -> const std::vector<diff_line_mark>&;
+		/// \brief [[BPR-1290]]. Gives each pane's gutter a column for thread
+		/// markers, drawn with the theme's label marks, and the code's scroll
+		/// bar a tick per thread. Off, a mark is the 4 px bar at the code's edge.
+		void               set_thread_markers(bool aEnabled);
+		[[nodiscard]] auto thread_markers() const noexcept -> bool;
+		void               set_mark_theme(const feedback_mark_theme& aTheme);
+		/// \brief The amber of a thread and the blue of a new one.
+		void set_mark_colours(const QColor& aThread, const QColor& aNew);
+		/// \brief Told when a thread's marker or tick is pressed, with its side
+		/// and zero-based source line.
+		void set_line_mark_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch);
+		/// \brief [[BPR-1290]]. Scrolls the code as a wheel over it would.
+		/// \returns Whether the code moved.
+		[[nodiscard]] auto scroll_by_wheel(const QWheelEvent& aEvent) -> bool;
+		/// \brief The scroll bar's ticks, as last placed.
+		[[nodiscard]] auto thread_ticks() const -> std::vector<diff_thread_tick>;
+		/// \brief Where one pane's marker for a zero-based line is, in this
+		/// widget's coordinates; empty while not shown.
+		[[nodiscard]] auto line_mark_rect(core::diff_side aSide, std::uint32_t aLine) const -> QRect;
 		/// \brief Told after every applied scroll frame and geometry rebuild.
 		void set_frame_observer(std::function<void()> aObserver);
 
@@ -510,6 +564,10 @@ namespace bpr::qt {
 		bool                                GeometryScheduled     = false;
 		bool                                ApplyingFrame         = false;
 		bool                                OnePaneEnabled        = false;
+		/// [[BPR-1290]]. Thread markers in the gutter and ticks on the bar.
+		bool                                                ThreadMarkers = false;
+		std::function<void(core::diff_side, std::uint32_t)> LineMarkDispatch;
+		void                                                refresh_thread_ticks();
 	};
 } // namespace bpr::qt
 

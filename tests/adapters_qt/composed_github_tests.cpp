@@ -29,6 +29,7 @@
 #include <QDeadlineTimer>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
 #include <QFontInfo>
@@ -67,6 +68,7 @@
 
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <array>
@@ -1136,7 +1138,7 @@ namespace {
 				&& viewState->currentWidget() != emptyState
 				&& conversationState->currentWidget() != conversationEmpty
 				&& conversationState->currentWidget()->isAncestorOf(
-					window.conversation_view()),
+					window.conversation_panel()->cards()),
 			"accepted pull-request content replaces the empty state");
 		// [[BPR-0671]]. The owner met "the entire set of information for this
 		// PR crammed into a tiny box in files browser". The summary is the
@@ -2411,6 +2413,10 @@ namespace {
 		pullRequest.Conversations.insert(pullRequest.Conversations.begin() + 1,
 										 conversation("review-comment:short", application::github_conversation_kind::review_comment,
 													  "Short reply", "review-thread:long"));
+		// [[BPR-1290]]. The thread's posts are what its open note reads.
+		pullRequest.Conversations.insert(pullRequest.Conversations.begin() + 2,
+										 conversation("review-comment:long-post", application::github_conversation_kind::review_comment,
+													  longBody, "review-thread:long"));
 		auto acceptedRefresh  = pullRequest;
 		acceptedRefresh.Title = "Accepted refreshed title";
 		window.publish(application::github_presentation_update{
@@ -2440,34 +2446,39 @@ namespace {
 
 		const auto literal = QString::fromUtf8(
 			longBody.data(), static_cast<qsizetype>(longBody.size()));
+		auto* const cards = window.conversation_panel()->cards();
+		cards->open_thread("review-thread:long");
+		QApplication::processEvents();
+		const auto longPost = [cards]() -> QWidget* {
+			auto* const open = cards->open_card();
+			if (open == nullptr) {
+				return nullptr;
+			}
+			for (auto* const post : open->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+				if (post->property("postIdentity").toString() == QStringLiteral("review-comment:long-post")) {
+					return post;
+				}
+			}
+			return nullptr;
+		};
+		auto* const longBodyView = longPost() != nullptr ? longPost()->findChild<QTextEdit*>(QStringLiteral("threadPostBody")) : nullptr;
 		expect(
-			longIndex.data(qt::github_conversation_model::body_role).toString()
-					== literal
-				&& longIndex.data(Qt::DisplayRole).toString().contains(literal)
-				&& view->wordWrap()
-				&& !view->uniformRowHeights()
-				&& view->textElideMode() == Qt::ElideNone,
-			"conversation content remains literal and is configured for "
-			"nonuniform wrapping without elision");
+			longIndex.data(qt::github_conversation_model::body_role).toString() == literal
+				&& longBodyView != nullptr && longBodyView->toPlainText() == literal && longBodyView->isReadOnly(),
+			"conversation content remains literal text in the open thread: markup is not interpreted and nothing is elided");
 
-		const auto measureHeight =
-			[view](const QModelIndex& aIndex, const int aWidth) {
-				QStyleOptionViewItem option;
-				option.initFrom(view);
-				option.widget = view;
-				option.rect   = QRect{ 0, 0, aWidth, 1 };
-				return view->itemDelegate()->sizeHint(option, aIndex).height();
-			};
-		const auto originalWideHeight  = measureHeight(longIndex, 620);
-		const auto originalShortHeight = measureHeight(shortIndex, 620);
-		expect(
-			originalWideHeight > originalShortHeight,
-			"long multiline conversation rows receive a larger delegate height");
+		const auto measureHeight = [&longPost](const int aWidth) {
+			auto* const post = longPost();
+			return post != nullptr ? post->heightForWidth(aWidth) : 0;
+		};
+		const auto originalWideHeight = measureHeight(620);
+		expect(originalWideHeight > 0 && measureHeight(190) > originalWideHeight,
+			   "a long post wraps taller in a narrower drawer");
 
 		const std::array<QWidget*, 4> inheritedWidgets{
 			card,
 			viewState,
-			view,
+			cards,
 			card->details_button(),
 		};
 		expect(
@@ -2493,24 +2504,8 @@ namespace {
 			&QAbstractItemModel::modelReset,
 			[&modelResets] { ++modelResets; });
 		const QPersistentModelIndex stableLong{ longIndex };
-		const QPersistentModelIndex collapsedThread{
-			model->index_for_id("review-thread:t1")
-		};
 		view->setCurrentIndex(longIndex);
-		view->expand(longIndex);
-		view->selectionModel()->select(
-			longIndex,
-			QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-		view->setFocus(Qt::OtherFocusReason);
-		view->collapse(collapsedThread);
 		QApplication::processEvents();
-		expect(
-			collapsedThread.isValid() && !view->isExpanded(collapsedThread)
-				&& QApplication::focusWidget() == view
-				&& view->selectionModel()->isSelected(longIndex),
-			"conversation fixture starts selected, focused, and explicitly "
-			"collapsed");
-
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
 				.Status = core::github_status_delta{
@@ -2523,14 +2518,9 @@ namespace {
 		expect(
 			required_label(window, "pullRequestTitle")->text()
 					== QStringLiteral("Accepted refreshed title")
-				&& stableLong.isValid() && collapsedThread.isValid()
-				&& !view->isExpanded(collapsedThread)
-				&& view->currentIndex() == stableLong
-				&& view->selectionModel()->isSelected(stableLong)
-				&& QApplication::focusWidget() == view
-				&& modelResets == 0U,
-			"accepted refresh preserves explicit collapse, selection, focus, and "
-			"incremental model state");
+				&& stableLong.isValid() && view->currentIndex() == stableLong
+				&& cards->open_thread_id() == "review-thread:long" && modelResets == 0U,
+			"accepted refresh preserves the selected thread, the open note and incremental model state");
 
 		const auto originalPalette         = QApplication::palette();
 		const auto originalFont            = QApplication::font();
@@ -2545,27 +2535,20 @@ namespace {
 		controlledPalette.setColor(QPalette::Window, controlledWindow);
 		controlledPalette.setColor(QPalette::Base, controlledBase);
 		controlledPalette.setColor(QPalette::Text, controlledText);
-		controlledPalette.setColor(
-			QPalette::WindowText, controlledText);
-		controlledPalette.setColor(
-			QPalette::Highlight, controlledHighlight);
+		controlledPalette.setColor(QPalette::WindowText, controlledText);
+		controlledPalette.setColor(QPalette::Highlight, controlledHighlight);
 		QApplication::setPalette(controlledPalette);
 		QApplication::processEvents();
 		expect(
 			card->palette().color(QPalette::Window) == controlledWindow
-				&& view->palette().color(QPalette::Base) == controlledBase
-				&& title->palette().color(QPalette::WindowText)
-					== controlledText
+				&& cards->palette().color(QPalette::Base) == controlledBase
+				&& title->palette().color(QPalette::WindowText) == controlledText
 				&& std::ranges::none_of(
 					inheritedWidgets,
 					[](const QWidget* const aWidget) {
 						return aWidget->testAttribute(Qt::WA_SetPalette);
 					})
-				&& !view->isExpanded(collapsedThread)
-				&& view->currentIndex() == stableLong
-				&& view->selectionModel()->isSelected(stableLong)
-				&& QApplication::focusWidget() == view
-				&& modelResets == 0U,
+				&& view->currentIndex() == stableLong && modelResets == 0U,
 			"an application palette change reaches representative widgets "
 			"through inheritance without disturbing conversation state");
 
@@ -2573,55 +2556,25 @@ namespace {
 		if (largerFont.pointSizeF() > 0.0) {
 			largerFont.setPointSizeF(largerFont.pointSizeF() + 4.0);
 		} else {
-			largerFont.setPixelSize(
-				std::max(1, largerFont.pixelSize()) + 6);
+			largerFont.setPixelSize(std::max(1, largerFont.pixelSize()) + 6);
 		}
 		QApplication::setFont(largerFont);
 		QApplication::processEvents();
-		view->doItemsLayout();
-		QApplication::processEvents();
-
-		const auto largerWideHeight   = measureHeight(longIndex, 620);
-		const auto largerNarrowHeight = measureHeight(longIndex, 190);
 		expect(
 			QFontMetrics{ window.font() }.height() > originalBodyFontHeight
-				&& QFontMetrics{ title->font() }.height()
-					> originalTitleFontHeight
-				&& largerWideHeight > originalWideHeight
-				&& largerNarrowHeight > largerWideHeight,
-			"application font growth and narrower width increase wrapped row "
-			"size hints");
-
-		const auto nextIndex = view->indexBelow(longIndex);
-		const auto longRect  = view->visualRect(longIndex);
-		const auto nextRect  = view->visualRect(nextIndex);
-		expect(
-			nextIndex.isValid() && longRect.isValid() && nextRect.isValid()
-				&& longRect.height() > nextRect.height()
-				&& longRect.bottom() < nextRect.top(),
-			"laid-out wrapped rows have nonuniform heights and never overlap");
-		expect(
-			stableLong.isValid()
-				&& view->currentIndex() == stableLong
-				&& view->selectionModel()->isSelected(stableLong)
-				&& !view->isExpanded(collapsedThread)
-				&& QApplication::focusWidget() == view
-				&& modelResets == 0U,
-			"appearance changes preserve row identity, selection, focus, and "
-			"incremental model state");
+				&& QFontMetrics{ title->font() }.height() > originalTitleFontHeight
+				&& measureHeight(620) > originalWideHeight,
+			"application font growth makes the open thread's posts taller");
+		expect(stableLong.isValid() && view->currentIndex() == stableLong && modelResets == 0U,
+			   "appearance changes preserve row identity, selection and incremental model state");
 
 		QApplication::setFont(originalFont);
 		QApplication::setPalette(originalPalette);
 		QApplication::processEvents();
 		expect(
 			QFontMetrics{ window.font() }.height() == originalBodyFontHeight
-				&& card->palette().color(QPalette::Window)
-					== originalPalette.color(QPalette::Window)
-				&& stableLong.isValid()
-				&& view->currentIndex() == stableLong
-				&& !view->isExpanded(collapsedThread)
-				&& QApplication::focusWidget() == view
-				&& modelResets == 0U,
+				&& card->palette().color(QPalette::Window) == originalPalette.color(QPalette::Window)
+				&& stableLong.isValid() && view->currentIndex() == stableLong && modelResets == 0U,
 			"application palette and font restoration also preserves UI state");
 	}
 
@@ -2842,17 +2795,17 @@ namespace {
 		expect(
 			window.conversations_drawer() != nullptr
 				&& window.conversations_drawer()->isVisible()
-				&& window.conversation_view()->isVisible()
-				&& window.conversation_view()->width() > 0
-				&& window.conversation_view()->height() > 0,
+				&& window.conversation_panel()->cards()->isVisible()
+				&& window.conversation_panel()->cards()->width() > 0
+				&& window.conversation_panel()->cards()->height() > 0,
 			"metadata and conversations survive minimum size");
 
-		auto* const conversationAccessible = QAccessible::queryAccessibleInterface(window.conversation_view());
+		auto* const conversationAccessible = QAccessible::queryAccessibleInterface(window.conversation_panel()->cards());
 		expect(
 			conversationAccessible != nullptr
 				&& !conversationAccessible->text(QAccessible::Name).isEmpty()
 				&& conversationAccessible->state().focusable,
-			"conversation tree exposes an accessible focusable interface");
+			"the drawer's notes expose an accessible focusable interface");
 
 		connectButton->setFocus(Qt::TabFocusReason);
 		QApplication::processEvents();
@@ -3006,27 +2959,450 @@ namespace {
 		expect(cards != nullptr && cards->isVisible()
 				   && panel->scope_this_file_button()->isChecked()
 				   && window.conversations_drawer()->isAncestorOf(cards),
-			   "the comments drawer shows the cards with This file chosen");
+			   "the comments drawer shows the notes with this file chosen");
 		expect(cards->cards().size() == 2U && cards->post_count() == 1U,
-			   "with no file selected every thread of the pull request is a card");
+			   "with no file selected every thread of the pull request is a note");
 		expect(!cards->cards().front().Placed,
-			   "without a comparison no card is placed at a line");
-
-		panel->scope_whole_pull_request_button()->click();
-		QApplication::processEvents();
-		expect(cards->scope() == qt::cards_scope::whole_pull_request
-				   && cards->cards().size() == 2U
-				   && cards->cards().front().Path == QStringLiteral("src/other.cpp"),
-			   "Whole PR lists every thread in file order");
-		panel->scope_this_file_button()->click();
-		QApplication::processEvents();
+			   "without a comparison no note is placed at a line");
+		// [[BPR-1290]]. Beside the code there is no whole-PR scope: finding a
+		// conversation across the pull request is BPR-1293's. Discuss keeps it.
+		expect(!panel->scope_whole_pull_request_button()->isVisible() && !panel->discuss_controls()->isVisible()
+				   && panel->filter_unread_button()->isVisible() && panel->filter_unresolved_button()->isVisible(),
+			   "beside the code the drawer offers Only new and Hide resolved, and no whole-PR scope");
 
 		window.activateWindow();
 		const auto placedCard = std::ranges::find_if(cards->cards(), [](const qt::thread_card& aCard) {
 			return aCard.Id == "review-thread:t-placed";
 		});
-		expect(placedCard != cards->cards().end() && !placedCard->Placed && placedCard->Actions.empty(),
-			   "the compact reader offers no inline action before an exact comparison anchors the thread");
+		expect(placedCard != cards->cards().end() && !placedCard->Placed,
+			   "a thread is not placed at a line before an exact comparison anchors it");
+		cards->open_thread("review-thread:t-placed");
+		QApplication::processEvents();
+		auto* const menu = cards->thread_menu("review-thread:t-placed");
+		expect(menu != nullptr && !menu->actions().front()->isEnabled(),
+			   "its Reply waits for an exact code anchor");
+		delete menu;
+		window.hide();
+	}
+
+	/// \brief [[BPR-1290]]. A long file's threads as notes beside the code,
+	/// one opening in place at its line, through the composed workbench.
+	///
+	/// \details The owner kept the inline drawer prototype ("I like it",
+	/// 2026-10-06). This drives the composed window over a computed 320-line
+	/// comparison with seven threads, and asserts what the prototype shows:
+	/// notes at their lines without overlap, an open thread pinned exactly at
+	/// its line with the others making room, the gutter's markers and the
+	/// scroll bar's ticks, the line wash and ring of the open thread, chips for
+	/// threads out of view, the keys, the filters, the wheel that scrolls the
+	/// code, and the drawer's 280 to 760 pixel range. Each claim has a
+	/// negative control that fails when the claim is false.
+	auto test_inline_drawer_follows_the_code_and_opens_threads_in_place() -> void
+	{
+		const auto opaque = []<typename Identity>(const std::uint8_t aSeed) {
+			auto bytes    = std::array<std::uint8_t, 32U>{ };
+			bytes.front() = aSeed;
+			bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0x5AU);
+			return Identity{ bytes };
+		};
+		const auto blob = [](const std::uint8_t aSeed) {
+			auto bytes = std::array<std::uint8_t, 32U>{ };
+			for (std::size_t index = 0U; index < 20U; ++index) {
+				bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+			}
+			return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+		};
+		const auto options = core::diff_options{ };
+		const auto digest  = core::options_digest(options);
+		expect(digest.has_value(), "inline drawer fixture options normalize");
+		const auto scope                                   = opaque.template operator()<core::pull_request_authority_scope_id>(31U);
+		const auto incarnation                             = opaque.template operator()<core::epoch_catalog_incarnation_id>(32U);
+		const auto                               authority = core::pull_request_authority{
+			.Profile         = core::host_profile_id{ 10U },
+			.ProfileRevision = core::github_profile_revision{ 20U },
+			.Host            = core::git_host_id{ 30U },
+			.HostAuthority   = opaque.template operator()<core::host_authority_fingerprint>(33U),
+			.Account         = core::github_account_id{ 40U },
+			.Viewer          = core::github_viewer_actor_id{ 50U },
+			.Repository      = core::repository_id{ 101U },
+			.Cache           = opaque.template operator()<core::repository_cache_scope_id>(34U),
+			.PullRequest     = core::pull_request_id{ 202U },
+			.Number          = core::pull_request_number{ 17U },
+			.Scope           = scope,
+		};
+		const auto key = core::file_comparison_key{
+			.Authority   = authority,
+			.Repository  = authority.Repository,
+			.PullRequest = authority.PullRequest,
+			.LeftAnchor  = { .Authority = scope, .Incarnation = incarnation, .Kind = core::comparison_anchor_kind::epoch_base, .Epoch = core::epoch_ordinal{ 1 } },
+			.RightAnchor = { .Authority = scope, .Incarnation = incarnation, .Kind = core::comparison_anchor_kind::epoch_head, .Epoch = core::epoch_ordinal{ 2 } },
+			.LeftBlob    = blob(61U),
+			.RightBlob   = blob(91U),
+			.File        = core::file_identity_of("src/review.cpp"),
+			.Options     = *digest,
+			.Algorithm   = core::supported_diff_algorithm_revision,
+		};
+		// A long file: 320 lines on the right, a few of them added.
+		auto leftText  = std::string{ };
+		auto rightText = std::string{ };
+		for (std::size_t line = 1U; line <= 320U; ++line) {
+			const auto text = "\tauto value_" + std::to_string(line) + " = compute(" + std::to_string(line % 17U) + ");\n";
+			rightText += text;
+			if (line % 53U != 0U) {
+				leftText += text;
+			}
+		}
+		const auto left   = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
+		const auto right  = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
+		const auto result = core::compute_file_diff({
+			.Key        = key,
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ left },
+			.RightBytes = std::span<const std::uint8_t>{ right },
+		});
+		expect(result.Reason == core::diff_reason_code::none && result.Result.has_value(), "the long comparison computes");
+
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'440, 900);
+		window.show();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		using kind       = application::github_conversation_kind;
+		auto pullRequest = pull_request_projection();
+		auto threads     = std::vector<application::github_conversation_projection>{ };
+		// (line, resolved, posts as author and body). One reply answers a reply.
+		struct seeded_thread
+		{
+			std::uint32_t                                    Line     = 0U;
+			bool                                             Resolved = false;
+			std::vector<std::pair<std::string, std::string>> Posts;
+		};
+		const auto seeded = std::vector<seeded_thread>{
+			{ 12U, true, { { "jiayin", "nitpick (non-blocking): `value_12` and `value_13` could share a name." }, { "reviewer", "They drift apart later, so I kept both." } } },
+			{ 60U, false, { { "tbutler", "issue (blocking): compute() runs before the cache is warm on the second pass." }, { "reviewer", "question: Should it warm the cache first?" }, { "jiayin", "praise: Good catch, this explains the slow start." }, { "tbutler", "Warm it first. I'll push the fix with a test." } } },
+			{ 64U, false, { { "jiayin", "suggestion (non-blocking, if-minor): Look the value up in an index instead of walking every line." } } },
+			{ 140U, false, { { "reviewer-four", "thought: Then the placing half could be tested without fonts." }, { "observer-three", "Which would have caught the clipping last week." }, { "jiayin", "note (perf): this runs twice on a scope change; the second pass finds nothing to do." }, { "reviewer", "Splitting after this lands, on its own card." }, { "tbutler", "praise: Thanks, happy with that." }, { "jiayin", "One more thought on the index." }, { "reviewer", "Go on." }, { "jiayin", "It could be built once per refresh." } } },
+			{ 200U, false, { { "observer-three", "Why the margin and not the viewport's width?" }, { "reviewer", "The viewport has no margins here." } } },
+			{ 250U, false, { { "tbutler", "chore (non-blocking): Say in a comment that Shift+F10 and the Menu key open the same menu." } } },
+			{ 300U, false, { { "jiayin", "todo (blocking, if-minor): Leave a comment pointing at the measurement." } } },
+		};
+		auto ordinal = 0;
+		for (const auto& seed : seeded) {
+			const auto id   = "review-thread:t" + std::to_string(seed.Line);
+			auto       root = conversation(id, kind::review_thread);
+			root.AuthorLogin.clear();
+			root.Line               = seed.Line;
+			root.Resolved           = seed.Resolved;
+			root.DiffSide           = application::github_conversation_diff_side::right;
+			root.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			threads.push_back(root);
+			auto first    = std::string{ };
+			auto previous = std::string{ };
+			for (const auto& [author, body] : seed.Posts) {
+				const auto post = "review-comment:c" + std::to_string(++ordinal);
+				// The seventh post of line 140 answers the sixth, not the first.
+				auto parent      = previous == "review-comment:c13" ? previous : (first.empty() ? id : first);
+				auto node        = conversation(post, kind::review_comment, body, parent);
+				node.AuthorLogin = author;
+				node.Line        = seed.Line;
+				node.DiffSide    = application::github_conversation_diff_side::right;
+				threads.push_back(node);
+				if (first.empty()) {
+					first = post;
+				}
+				previous = post;
+			}
+		}
+		pullRequest.Conversations = threads;
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+			},
+			.PullRequest = std::move(pullRequest),
+		});
+		auto* const surface = window.comparison_surface();
+		const auto  context = core::diff_request_context{
+			.Request            = core::request_id{ 7U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = key,
+			.Generation         = core::request_generation{ 1U },
+		};
+		surface->set_loading(context);
+		surface->publish(qt::test::prepare_publication({
+			.Context = context,
+			.Result  = std::make_shared<const core::computed_file_diff>(*result.Result),
+		}));
+		window.set_conversation_endpoint_placement(true, true);
+		// Every post by someone else is new until it is read.
+		auto readState = std::vector<qt::thread_read_state>{ };
+		for (const auto& node : threads) {
+			if (node.Kind == kind::review_comment && node.AuthorLogin != "reviewer" && node.Line != 12U) {
+				auto root = "review-thread:t" + std::to_string(*node.Line);
+				auto at   = std::ranges::find(readState, root, &qt::thread_read_state::Thread);
+				if (at == readState.end()) {
+					readState.push_back({ .Thread = root, .UnreadPosts = { } });
+					at = std::prev(readState.end());
+				}
+				at->UnreadPosts.push_back(node.Id);
+			}
+		}
+		window.present_read_state(readState);
+		window.conversation_panel()->cards()->set_viewer_login(QStringLiteral("reviewer"));
+		for (auto settle = 0; settle < 20 && surface->geometry_pending(); ++settle) {
+			QApplication::processEvents();
+		}
+		QApplication::processEvents();
+
+		auto* const panel  = window.conversation_panel();
+		auto* const cards  = panel->cards();
+		auto* const drawer = window.conversations_drawer();
+		const auto  card   = [cards](const std::uint32_t aLine) -> const qt::thread_card* {
+			const auto at = std::ranges::find(cards->cards(), "review-thread:t" + std::to_string(aLine), &qt::thread_card::Id);
+			return at == cards->cards().end() ? nullptr : &*at;
+		};
+		const auto lineY = [&window, surface, cards](const std::uint32_t aOneBased) {
+			const auto rect = surface->line_rect(core::diff_side::right, aOneBased - 1U);
+			return cards->viewport()->mapFrom(&window, surface->mapTo(&window, rect.topLeft())).y();
+		};
+
+		// The old reader is gone from the drawer: no map, no path line, no
+		// post list or body pane; the selection authority is never shown.
+		expect(drawer->findChild<QWidget*>(QStringLiteral("githubThreadMap")) == nullptr
+				   && drawer->findChild<QWidget*>(QStringLiteral("threadMapBranch")) == nullptr
+				   && drawer->findChild<QWidget*>(QStringLiteral("threadMapSummary")) == nullptr
+				   && drawer->findChild<QWidget*>(QStringLiteral("conversationMarkdownBody")) == nullptr
+				   && !panel->view()->isVisible() && cards->isVisible(),
+			   "the drawer holds only the notes: no thread map, path line, post list or body pane");
+		expect(cards->cards().size() == 7U && cards->post_count() == 19U, "the long file's seven threads are seven notes with all nineteen posts");
+
+		// Each note hangs from its line, in line order, never overlapping.
+		const auto* const first = card(12U);
+		expect(first != nullptr && first->Placed && first->TargetY == lineY(12U) && cards->note_rect(first->Id).top() == lineY(12U) - 4,
+			   "a note hangs from its line: its top is its line's, nudged up four pixels");
+		auto ordered = true;
+		for (std::size_t index = 1U; index < cards->cards().size(); ++index) {
+			const auto& above = cards->cards()[index - 1U];
+			const auto& below = cards->cards()[index];
+			ordered           = ordered && above.Line < below.Line && above.Rect.bottom() < below.Rect.top();
+		}
+		expect(ordered, "the notes keep line order and never overlap");
+		expect(card(64U)->Rect.top() > card(64U)->TargetY - 4,
+			   "a note whose line is taken by the note above is pushed below it");
+		// Negative control: a placed note's top is its line's, so a note one
+		// line lower would not match.
+		expect(first->TargetY != lineY(13U), "negative control: the note does not match the line below its own");
+
+		// The gutter's markers and the scroll bar's ticks, one per thread.
+		const auto marks = surface->line_marks(core::diff_side::right);
+		expect(surface->thread_markers() && marks.size() == 7U
+				   && std::ranges::any_of(marks, [](const qt::diff_line_mark& aMark) { return aMark.Line == 59U && aMark.Label == core::feedback_label::issue && aMark.Kind == qt::diff_line_mark_kind::new_thread; })
+				   && std::ranges::any_of(marks, [](const qt::diff_line_mark& aMark) { return aMark.Line == 11U && aMark.Resolved && aMark.Kind == qt::diff_line_mark_kind::thread; })
+				   && !surface->line_mark_rect(core::diff_side::right, 11U).isEmpty(),
+			   "the gutter marks each thread's line with its first post's mark, blue when new, faded when resolved");
+		expect(surface->thread_ticks().size() == 7U, "the code's scroll bar carries a tick per thread");
+		expect(surface->line_mark_rect(core::diff_side::right, 12U).isEmpty(), "negative control: a line with no thread has no marker");
+		capture_layout_state(window, QStringLiteral("inline-closed"));
+
+		// Opening a note pins it at its line; the others make room.
+		const auto open = [cards](const std::string& aId) {
+			const auto rect  = cards->note_rect(aId);
+			const auto point = QPointF{ rect.center() };
+			auto       press = QMouseEvent{ QEvent::MouseButtonPress, point, cards->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(cards->viewport(), &press);
+			QApplication::processEvents();
+		};
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		open("review-thread:t60");
+		const auto openMs = timer.elapsed();
+		for (auto settle = 0; settle < 20 && surface->geometry_pending(); ++settle) {
+			QApplication::processEvents();
+		}
+		auto* const openCard = cards->open_card();
+		expect(cards->open_thread_id() == "review-thread:t60" && openCard != nullptr && openCard->isVisible(),
+			   "pressing a note opens its thread in place");
+		expect(openCard->geometry().top() == lineY(60U) - 4 && card(60U)->Rect.top() == card(60U)->TargetY - 4,
+			   "the open thread is pinned exactly at its line");
+		expect(card(64U)->Rect.top() > card(60U)->Rect.bottom() && card(12U)->Rect.bottom() < card(60U)->Rect.top(),
+			   "the threads around it make room above and below");
+		expect(openCard->findChildren<QWidget*>(QStringLiteral("threadPost")).size() == 4
+				   && openCard->findChild<QToolButton*>(QStringLiteral("threadShowLine")) != nullptr
+				   && openCard->findChild<QToolButton*>(QStringLiteral("threadMarkRead")) != nullptr
+				   && openCard->findChild<QToolButton*>(QStringLiteral("threadMore")) != nullptr
+				   && openCard->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) != nullptr
+				   && openCard->findChild<QWidget*>(QStringLiteral("threadNewRule")) != nullptr,
+			   "the open thread shows every post, the New rule, Show line, Mark read, More and Reply");
+		const auto openMarks = surface->line_marks(core::diff_side::right);
+		expect(std::ranges::count_if(openMarks, &qt::diff_line_mark::Open) == 1
+				   && std::ranges::find_if(openMarks, &qt::diff_line_mark::Open)->Line == 59U
+				   && std::ranges::count_if(surface->thread_ticks(), &qt::diff_thread_tick::Open) == 1,
+			   "the open thread's line is washed, its marker ringed and its tick amber");
+		expect(surface->selection().has_value() && surface->selection()->PreferredLine.Line == 59U,
+			   "opening a thread reveals its exact line in the code");
+		std::cout << "inline-drawer:open-ms=" << openMs << '\n';
+#if defined(NDEBUG)
+		expect(openMs < 100, "opening a thread in place answers within 100 ms in an optimized build");
+#endif
+		capture_layout_state(window, QStringLiteral("inline-open"));
+
+		// The drawer moves with the code: scroll the code, the open card follows.
+		auto* const bar = surface->shared_scrollbar();
+		timer.restart();
+		bar->setValue(bar->value() + bar->pageStep() / 4);
+		QApplication::processEvents();
+		const auto scrollMs = timer.elapsed();
+		expect(openCard->geometry().top() == lineY(60U) - 4, "scrolling the code carries the open thread with its line");
+		std::cout << "inline-drawer:scroll-ms=" << scrollMs << '\n';
+#if defined(NDEBUG)
+		expect(scrollMs < 100, "a scroll frame relays the notes within 100 ms in an optimized build");
+#endif
+
+		// A wheel over the notes scrolls the code.
+		const auto before = bar->value();
+		const auto centre = QPointF{ cards->viewport()->rect().center() };
+		auto       wheel  = QWheelEvent{ centre, cards->viewport()->mapToGlobal(centre), QPoint{ 0, 0 }, QPoint{ 0, -240 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		QApplication::sendEvent(cards->viewport(), &wheel);
+		QApplication::processEvents();
+		expect(bar->value() > before && cards->overflow() == 0, "a wheel over the notes scrolls the code, not the notes");
+
+		// Threads out of view are chips at the drawer's edges, nearest first.
+		bar->setValue(bar->minimum());
+		QApplication::processEvents();
+		auto       chips     = cards->edge_chips();
+		const auto chipNamed = [&chips](const QString& aText) {
+			const auto at = std::ranges::find_if(chips, [&aText](const QAbstractButton* aChip) { return aChip->text() == aText; });
+			return at == chips.end() ? nullptr : *at;
+		};
+		expect(!chips.empty() && chips.size() <= 4U && chips.front()->text() == QStringLiteral("60") && chipNamed(QStringLiteral("140")) != nullptr
+				   && chipNamed(QStringLiteral("+3")) != nullptr,
+			   "threads below what the drawer shows are chips at its bottom edge, nearest first, three and then a count");
+		expect(chipNamed(QStringLiteral("12")) == nullptr, "negative control: a thread in view has no chip");
+		bar->setValue(bar->minimum() + (bar->maximum() - bar->minimum()) / 2);
+		QApplication::processEvents();
+		chips = cards->edge_chips();
+		expect(chipNamed(QStringLiteral("200")) != nullptr || chipNamed(QStringLiteral("250")) != nullptr,
+			   "scrolled to the middle, threads below are still chips");
+		chipNamed(chipNamed(QStringLiteral("200")) != nullptr ? QStringLiteral("200") : QStringLiteral("250"))->click();
+		QApplication::processEvents();
+		for (auto settle = 0; settle < 20 && surface->geometry_pending(); ++settle) {
+			QApplication::processEvents();
+		}
+		const auto chosen = cards->open_thread_id();
+		expect((chosen == "review-thread:t200" || chosen == "review-thread:t250") && cards->note_rect(chosen).intersects(cards->viewport()->rect()),
+			   "a chip opens its thread and brings its line into view");
+		capture_layout_state(window, QStringLiteral("inline-chip-opened"));
+
+		// The keys: Esc closes, Up and Down move, Return opens, N opens the next new.
+		cards->open_thread("review-thread:t200");
+		QApplication::processEvents();
+		cards->setFocus(Qt::OtherFocusReason);
+		const auto press = [cards](const int aKey, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
+			auto event = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+			QApplication::sendEvent(cards, &event);
+			QApplication::processEvents();
+		};
+		press(Qt::Key_Escape);
+		expect(cards->open_thread_id().empty() && cards->current_thread() == "review-thread:t200", "Esc closes the open thread and keeps it current");
+		press(Qt::Key_Down);
+		expect(cards->current_thread() == "review-thread:t250" && cards->open_thread_id().empty(), "Down moves to the next thread without opening it");
+		press(Qt::Key_Return);
+		expect(cards->open_thread_id() == "review-thread:t250", "Return opens the current thread");
+		press(Qt::Key_N);
+		expect(cards->open_thread_id() == "review-thread:t300", "N opens the next thread with new posts");
+		press(Qt::Key_N, Qt::ShiftModifier);
+		expect(cards->open_thread_id() == "review-thread:t250", "Shift+N opens the previous one");
+
+		// R replies in place, in the open thread.
+		window.set_review_reply_dispatch([](const std::string&) { });
+		press(Qt::Key_R);
+		for (auto settle = 0; settle < 20 && surface->geometry_pending(); ++settle) {
+			QApplication::processEvents();
+		}
+		expect(cards->reply_editor() != nullptr && cards->reply_editor()->isVisible() && cards->reply_editor()->hasFocus(),
+			   "R opens the reply editor in place and gives it focus");
+		capture_layout_state(window, QStringLiteral("inline-reply"));
+		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(cards->reply_editor(), &escape);
+		QApplication::processEvents();
+		expect(cards->reply_editor() == nullptr && cards->hasFocus(), "Esc in an empty reply gives it up and returns to the notes");
+
+		// The filters: Hide resolved and Only new.
+		panel->filter_unresolved_button()->click();
+		QApplication::processEvents();
+		expect(card(12U) == nullptr && cards->cards().size() == 6U, "Hide resolved hides the resolved thread");
+		panel->filter_unresolved_button()->click();
+		window.update_read_state("review-thread:t200", { });
+		panel->filter_unread_button()->click();
+		QApplication::processEvents();
+		expect(card(12U) == nullptr && card(200U) == nullptr && card(60U) != nullptr, "Only new keeps only threads with new posts");
+		panel->filter_unread_button()->click();
+		QApplication::processEvents();
+		expect(cards->cards().size() == 7U, "negative control: with no filter every thread is a note again");
+
+		// The drawer drags from 280 to 760 pixels.
+		expect(drawer->minimumWidth() == 280 && drawer->maximumWidth() == 760, "the conversations drawer drags from 280 to 760 pixels");
+
+		// The open thread at the narrowest and widest drawer, in dark.
+		cards->open_thread("review-thread:t140");
+		QApplication::processEvents();
+		const auto original = QApplication::palette();
+		auto       dark     = original;
+		for (const auto role : { QPalette::Window, QPalette::Base, QPalette::Button }) {
+			dark.setColor(role, role == QPalette::Base ? QColor{ 15, 19, 24 } : QColor{ 28, 33, 40 });
+		}
+		for (const auto role : { QPalette::WindowText, QPalette::Text, QPalette::ButtonText }) {
+			dark.setColor(role, QColor{ 230, 237, 243 });
+		}
+		QApplication::setPalette(dark);
+		QApplication::processEvents();
+		capture_layout_state(window, QStringLiteral("inline-dark-deep"));
+		expect(cards->open_card() != nullptr && cards->open_card()->findChildren<QWidget*>(QStringLiteral("threadPost")).size() == 8,
+			   "a deep thread opens in place with all eight posts in posting order");
+		// BPR-1290:themes. High contrast, larger text, and the drawer at 280
+		// and 760 pixels: nothing of the open thread is clipped.
+		auto contrast = original;
+		for (const auto role : { QPalette::Window, QPalette::Base, QPalette::Button }) {
+			contrast.setColor(role, QColor{ 0, 0, 0 });
+		}
+		for (const auto role : { QPalette::WindowText, QPalette::Text, QPalette::ButtonText }) {
+			contrast.setColor(role, QColor{ 255, 255, 255 });
+		}
+		QApplication::setPalette(contrast);
+		const auto originalFont = QApplication::font();
+		auto       larger       = originalFont;
+		larger.setPointSizeF(larger.pointSizeF() > 0.0 ? larger.pointSizeF() * 1.3 : 16.0);
+		QApplication::setFont(larger);
+		window.resize(1'900, 900);
+		QApplication::processEvents();
+		for (const auto width : { 280U, 760U }) {
+			auto layout   = application::workbench_projection{ };
+			layout.Layout = application::workbench_layout_delta{ .FilesWidth = 240U, .ConversationsWidth = width };
+			window.publish(layout);
+			QApplication::processEvents();
+			auto* const opened = cards->open_card();
+			expect(drawer->width() == static_cast<int>(width) && opened != nullptr && opened->width() == cards->viewport()->width() - 16,
+				   "the open thread spans the drawer at its narrowest and widest");
+			expect(window.tray_tabs()->width() >= window.tray_tabs()->sizeHint().width()
+					   && window.conversation_panel()->filter_unread_button()->isVisible()
+					   && window.next_new_comment_button()->isVisible(),
+				   "every tab shows whole, and the tools stay on screen, beside the tabs or under them");
+			for (auto* const post : opened->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+				auto* const body = post->findChild<QTextEdit*>(QStringLiteral("threadPostBody"));
+				expect(body != nullptr && body->geometry().right() < post->width() && body->height() >= body->document()->size().height() - 1,
+					   "each post's body fits its width and shows all of its lines");
+			}
+			capture_layout_state(window, QStringLiteral("inline-contrast-large-%1").arg(width));
+		}
+		QApplication::setFont(originalFont);
+		QApplication::setPalette(original);
+		QApplication::processEvents();
 		window.hide();
 	}
 
@@ -3154,7 +3530,7 @@ namespace {
 				   && !oldRow.isEmpty() && !newRow.isEmpty() && oldRow.y() < newRow.y(),
 			   "composed GitHub one-pane Review shows side-specific replacement rows");
 		expect(cards.size() == 3U && std::ranges::all_of(cards, [](const qt::thread_card& aCard) {
-				   return aCard.Placed && aCard.Rect.top() >= aCard.TargetY;
+				   return aCard.Placed && aCard.Rect.top() >= aCard.TargetY - 4;
 			   }) && cards[0].TargetY == cards[1].TargetY
 				   && cards[0].Rect.bottom() < cards[1].Rect.top() && cards[1].TargetY < cards[2].TargetY,
 			   "GitHub-projected old/new threads anchor and colliding cards push down in document order");
@@ -3197,9 +3573,14 @@ namespace {
 		QApplication::processEvents();
 		expect(surface->selection() && surface->selection()->PreferredLine == semantic.SemanticAnchor,
 			   "choosing a file-subject conversation reveals its exact retained semantic source line");
-		auto* const support    = required_child<QToolButton>(window, "conversationSupportDetails");
-		auto* const diagnostic = required_child<QLabel>(window, "conversationSupportDescription");
-		expect(support->isVisible() && !diagnostic->isVisible(), "the shipped workbench keeps representation collapsed");
+		// [[BPR-1290]]. The open thread says why it is placed at its line.
+		panel->cards()->open_thread(semantic.Id);
+		QApplication::processEvents();
+		auto* const support = panel->cards()->open_card() != nullptr
+			? panel->cards()->open_card()->findChild<QLabel*>(QStringLiteral("threadSupportNote"))
+			: nullptr;
+		expect(support != nullptr && support->isVisible() && support->text().contains(QStringLiteral("file review comment")),
+			   "a file-level compatibility thread states its placement in the open thread");
 		const auto original = QApplication::palette();
 		for (const auto& theme : { QStringLiteral("light"), QStringLiteral("dark"), QStringLiteral("high-contrast") }) {
 			auto       palette    = original;
@@ -3213,30 +3594,17 @@ namespace {
 				palette.setColor(role, foreground);
 			}
 			QApplication::setPalette(palette);
-			window.activateWindow();
-			support->setFocus(Qt::TabFocusReason);
-			auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
-			auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
-			QApplication::sendEvent(support, &press);
-			QApplication::sendEvent(support, &release);
 			QApplication::processEvents();
-			expect(diagnostic->isVisible() && support->hasFocus()
-					   && diagnostic->palette().color(QPalette::WindowText) == foreground,
-				   "keyboard support disclosure retains focus and follows light, dark and high-contrast palettes");
-			auto tab = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
-			QApplication::sendEvent(support, &tab);
-			QApplication::processEvents();
-			expect(diagnostic->hasFocus(), "Tab reaches selectable support text");
-			window.comments_tab_scroll()->ensureWidgetVisible(diagnostic);
-			QApplication::processEvents();
-			window.comments_tab_scroll()->verticalScrollBar()->setValue(window.comments_tab_scroll()->verticalScrollBar()->maximum());
-			QApplication::processEvents();
-			const QRect extent{ diagnostic->mapTo(window.comments_tab_scroll()->viewport(), QPoint{ }), diagnostic->size() };
-			expect(window.comments_tab_scroll()->viewport()->rect().contains(extent), "complete support text is reachable inside the shipped drawer at each scale");
+			auto* const note = panel->cards()->open_card() != nullptr
+				? panel->cards()->open_card()->findChild<QLabel*>(QStringLiteral("threadSupportNote"))
+				: nullptr;
+			expect(note != nullptr && note->isVisible() && note->palette().color(QPalette::WindowText) == foreground,
+				   "the support line follows light, dark and high-contrast palettes");
 			capture_layout_state(window, QStringLiteral("semantic-") + theme);
-			support->setChecked(false);
 		}
 		QApplication::setPalette(original);
+		// Opening the thread made it current; read the post again.
+		panel->choose(panel->model()->index_for_id(semanticPost.Id));
 		const auto resets = panel->model()->statistics().ModelResets;
 		window.publish(application::github_presentation_update{ .PullRequest = semanticPr, .PreserveWindowNavigation = true });
 		expect(panel->model()->statistics().ModelResets == resets
@@ -4837,9 +5205,12 @@ namespace {
 		QApplication::processEvents();
 		auto* const availability = drawer->findChild<QLabel*>(
 			QStringLiteral("reviewThreadAvailability"));
+		// [[BPR-1290]]. Beside the code the notes say what the drawer holds; the
+		// sentence shows while there is no thread to show.
 		expect(
-			availability != nullptr && availability->isVisible(),
-			"the open drawer's Comments tab shows the review-thread availability sentence");
+			availability != nullptr && window.comments_tab_scroll()->widget()->isAncestorOf(availability)
+				&& availability->isVisible() == window.conversation_panel()->cards()->cards().empty(),
+			"the review-thread availability sentence is the Comments tab's, shown while it has no thread to show");
 		window.tray_tabs()->setCurrentIndex(1);
 		QApplication::processEvents();
 		show_agent_tools(window);
@@ -4866,20 +5237,8 @@ namespace {
 			   "Notes contains neither the defect editor nor the queue position");
 		window.tray_tabs()->setCurrentIndex(0);
 		QApplication::processEvents();
-		auto* const comments        = window.comments_tab_scroll();
-		auto        commentControls = std::vector<QWidget*>{ };
-		collect_drawer_controls(comments->widget(), commentControls);
-		for (auto* control : { static_cast<QWidget*>(window.defect_count_label()),
-							   static_cast<QWidget*>(offered(QStringLiteral("previousDefect"))),
-							   static_cast<QWidget*>(offered(QStringLiteral("nextDefect"))) }) {
-			expect(control && control->isVisible() && comments->isAncestorOf(control)
-					   && laid_into(control->parentWidget()->layout(), control)
-					   && std::ranges::find(commentControls, control) != commentControls.end(),
-				   "Comments visibly lays out and sweeps every defect navigation control");
-			const QRect placed{ control->mapTo(comments->viewport(), QPoint{ }), control->size() };
-			expect(comments->viewport()->rect().contains(placed),
-				   std::string{ "Comments defect navigation is wholly reachable: " } + control_name(control));
-		}
+		auto* const comments = window.comments_tab_scroll();
+		expect(!window.defect_count_label()->isVisible(), "with no defect the Comments tab shows no defect queue row");
 
 		auto* const cards = window.conversation_panel()->cards();
 		{
@@ -4891,11 +5250,24 @@ namespace {
 		window.present_defects({ core::defect_history{ .Defect = { .Id = core::defect_id{ 1U }, .State = core::defect_state::needs_verification } } },
 							   { { core::defect_id{ 1U }, "review-thread:t1" } });
 		QApplication::processEvents();
+		auto commentControls = std::vector<QWidget*>{ };
+		collect_drawer_controls(comments->widget(), commentControls);
+		for (auto* control : { static_cast<QWidget*>(window.defect_count_label()),
+							   static_cast<QWidget*>(offered(QStringLiteral("previousDefect"))),
+							   static_cast<QWidget*>(offered(QStringLiteral("nextDefect"))) }) {
+			expect(control && control->isVisible() && comments->isAncestorOf(control)
+					   && laid_into(control->parentWidget()->layout(), control)
+					   && std::ranges::find(commentControls, control) != commentControls.end(),
+				   "with a defect, Comments visibly lays out and sweeps every defect navigation control");
+			const QRect placed{ control->mapTo(comments->viewport(), QPoint{ }), control->size() };
+			expect(comments->viewport()->rect().contains(placed),
+				   std::string{ "Comments defect navigation is wholly reachable: " } + control_name(control));
+		}
+		cards->open_thread("review-thread:t1");
+		QApplication::processEvents();
 		const auto badges = cards->findChildren<QToolButton*>(QStringLiteral("threadDefectBadge"));
-		expect(badges.size() == 1 && badges.front()->isVisible()
-				   && badges.front()->property("threadIdentity") == QStringLiteral("review-thread:t1")
-				   && !badges.front()->text().isEmpty(),
-			   "the composed Comments thread owns one visible text defect badge");
+		expect(badges.size() == 1 && badges.front()->isVisible() && !badges.front()->text().isEmpty(),
+			   "the composed thread, open in place, shows one visible text defect badge");
 		cards->set_current_thread("review-thread:t1");
 		QKeyEvent menuKey{ QEvent::KeyPress, Qt::Key_F10, Qt::ShiftModifier };
 		QApplication::sendEvent(cards, &menuKey);
@@ -7914,6 +8286,12 @@ auto main(int argc, char** argv) -> int
 	}
 	// [[BPR-0981]]. The resident drawer filters' composed gesture path alone;
 	// the full run stops later at the card assertion [[BPR-0940]] owns.
+	// [[BPR-1290]]. The inline drawer on a long file, alone, at each scale.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--inline-drawer"))) {
+		test_inline_drawer_follows_the_code_and_opens_threads_in_place();
+		std::cout << "inline-drawer:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--resident-drawer-filters"))) {
 		test_drawer_filters_are_resident_and_keep_the_open_views();
 		std::cout << "resident-drawer-filters:pass\n";

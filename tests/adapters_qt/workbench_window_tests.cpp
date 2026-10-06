@@ -1374,7 +1374,7 @@ namespace {
 									   core::workbench_drawer_state::expanded);
 		opened.Layout  = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		opened.Behaviour = drawer_controls_shown();
 		// [[BPR-0651]]. Wide enough for three open drawers and a centre above
@@ -1387,7 +1387,7 @@ namespace {
 
 		auto* const centre = window.comparison_surface();
 		expect(window.files_drawer()->width() == 320
-				   && window.conversations_drawer()->width() == 260,
+				   && window.conversations_drawer()->width() == 300,
 			   "each drawer takes exactly the width the host published");
 		const auto openCentre = centre->width();
 		expect(openCentre > 0, "the centre has a measurable width when open");
@@ -1412,7 +1412,7 @@ namespace {
 				   && window.files_drawer()->rail()->focusPolicy() == Qt::StrongFocus
 				   && window.focus_order().contains(window.files_drawer()->rail()),
 			   "the rail is a named, focusable stop");
-		expect(window.conversations_drawer()->width() == 260,
+		expect(window.conversations_drawer()->width() == 300,
 			   "collapsing one drawer leaves the other drawer's width alone");
 
 		auto reopened    = application::workbench_projection{ };
@@ -1433,13 +1433,24 @@ namespace {
 		auto widened   = application::workbench_projection{ };
 		widened.Layout = application::workbench_layout_delta{
 			.FilesWidth         = 420U,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		window.publish(widened);
 		window.publish(reopened);
 		QApplication::processEvents();
 		expect(window.files_drawer()->width() == 420,
 			   "reopening restores the width persisted while it was collapsed");
+		// [[BPR-1290]]. The conversations drawer drags from 280 to 760 pixels:
+		// a persisted width outside that range opens at its nearest bound.
+		window.resize(2'400, 720);
+		for (const auto& [persisted, shown] : { std::pair{ 200U, 280 }, std::pair{ 900U, 760 }, std::pair{ 300U, 300 } }) {
+			auto bounded   = application::workbench_projection{ };
+			bounded.Layout = application::workbench_layout_delta{ .FilesWidth = 420U, .ConversationsWidth = persisted };
+			window.publish(bounded);
+			QApplication::processEvents();
+			expect(window.conversations_drawer()->width() == shown,
+				   "a persisted conversations width opens inside the drawer's 280 to 760 pixel range");
+		}
 
 		expect(log.Width.empty(),
 			   "applying a published layout reports no width back to the host");
@@ -1806,7 +1817,7 @@ namespace {
 										  core::workbench_drawer_state::collapsed);
 		collapsed.Layout  = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		collapsed.Behaviour = drawer_controls_shown();
 		window.resize(1'280, 720);
@@ -2530,7 +2541,7 @@ namespace {
 									   core::workbench_drawer_state::expanded);
 		opened.Layout  = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		window.resize(1'280, 720);
 		window.show();
@@ -2683,6 +2694,9 @@ namespace {
 
 	void test_the_conversations_drawer_narrows_below_its_default_in_read()
 	{
+		// [[BPR-1290]] supersedes [[BPR-0728]]'s floor for this drawer: it
+		// opens at 375 and drags from 280 to 760, the inline drawer
+		// prototype's range the owner kept ("I like it", 2026-10-06).
 		// [[BPR-0728]]. 375 is the width the drawer opens at, not a floor: the
 		// owner found Read short of horizontal room for the code, so the
 		// handle drags the drawer down to the presented floor the other
@@ -2715,27 +2729,27 @@ namespace {
 		expect(window.conversations_drawer()->width() == 375,
 			   "Read opens the conversations drawer at its default width");
 
-		drag_conversations_handle(window, 200);
+		drag_conversations_handle(window, 280);
 		process_events();
-		expect(window.conversations_drawer()->width() == 200,
-			   "the handle drags the conversations drawer below 375");
+		expect(window.conversations_drawer()->width() == 280,
+			   "the handle drags the conversations drawer below 375, to 280");
 		expect(!log.Width.empty()
 				   && log.Width.back().Drawer == core::workbench_drawer::conversations
-				   && log.Width.back().Width == 200U,
+				   && log.Width.back().Width == 280U,
 			   "the host hears the dragged conversations width");
 		expect(every_control_is_reachable(window),
-			   "no Comments tab control is clipped at 200 pixels; the column scrolls");
+			   "no Comments tab control is clipped at 280 pixels; the column scrolls");
 		window.tray_tabs()->setCurrentIndex(1);
 		process_events();
 		expect(every_control_is_reachable(window),
-			   "no Notes tab control is clipped at 200 pixels; the column scrolls");
+			   "no Notes tab control is clipped at 280 pixels; the column scrolls");
 		auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
 		expect(notesPages != nullptr && notesPages->count() == 2,
 			   "the Notes tab has its Private history and Agent tools pages");
 		notesPages->setCurrentWidget(window.findings_tab_scroll());
 		process_events();
 		expect(every_control_is_reachable(window),
-			   "no Agent tools control is clipped at 200 pixels; the column scrolls");
+			   "no Agent tools control is clipped at 280 pixels; the column scrolls");
 		notesPages->setCurrentIndex(0);
 		process_events();
 		window.tray_tabs()->setCurrentIndex(0);
@@ -2743,18 +2757,20 @@ namespace {
 
 		drag_conversations_handle(window, 100);
 		process_events();
-		expect(window.conversations_drawer()->width() == 100
-				   && window.conversations_drawer()->minimumWidth()
-					   == static_cast<int>(application::minimum_workbench_drawer_width)
-				   && log.Width.back().Width == 100U,
-			   "beneath the presented floor the drawer stops where the other drawers do, "
-			   "and the host hears that too; the next launch lifts it to the design width");
+		expect(window.conversations_drawer()->width() == 280
+				   && window.conversations_drawer()->minimumWidth() == 280
+				   && log.Width.back().Width == 280U,
+			   "the drawer stops at 280 pixels, and the host hears where it stopped");
+		drag_conversations_handle(window, 900);
+		process_events();
+		expect(window.conversations_drawer()->width() == 760 && window.conversations_drawer()->maximumWidth() == 760,
+			   "and it widens no further than 760 pixels");
 
-		// The host persists 200 and republishes it; Home and back present it.
+		// The host persists 300 and republishes it; Home and back present it.
 		auto persisted   = application::workbench_projection{ };
 		persisted.Layout = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
-			.ConversationsWidth = 200U,
+			.ConversationsWidth = 300U,
 		};
 		window.publish(persisted);
 		process_events();
@@ -2763,8 +2779,8 @@ namespace {
 		expect(window.showing_home(), "Home shows over the open review");
 		window.choose_modality(qt::review_modality::read);
 		process_events();
-		expect(!window.showing_home() && window.conversations_drawer()->width() == 200,
-			   "back in Read the drawer keeps the persisted 200 rather than lifting to 375");
+		expect(!window.showing_home() && window.conversations_drawer()->width() == 300,
+			   "back in Read the drawer keeps the persisted 300 rather than lifting to 375");
 		window.hide();
 	}
 
@@ -3366,11 +3382,11 @@ namespace {
 		window.conversations_drawer()->adopt(
 			core::workbench_drawer_state::expanded);
 
-		// The declared focus order names one stop per drawer. For the files
-		// drawer that is still its list; for this one it is the tree, and the
-		// window must not be reaching past the drawer to find it.
-		expect(window.conversations_drawer()->focus_stop() == panel->view(),
-			   "the drawer's one interactive stop is the conversation tree");
+		// The declared focus order names one stop per drawer. For this one it
+		// is the notes ([[BPR-1290]]: the selection tree is never shown), and
+		// the window must not be reaching past the drawer to find it.
+		expect(window.conversations_drawer()->focus_stop() == panel->cards(),
+			   "the drawer's one interactive stop is the notes");
 		// [[BPR-0658]]. The files drawer's stop is its tree; the list it
 		// keeps as its authority is hidden.
 		expect(window.files_drawer()->focus_stop() == window.files_tree()
@@ -3379,7 +3395,7 @@ namespace {
 
 		const auto order = window.focus_order();
 		expect(std::find(order.begin(), order.end(),
-						 static_cast<QWidget*>(panel->view()))
+						 static_cast<QWidget*>(panel->cards()))
 				   != order.end(),
 			   "and the declared focus order names it");
 		expect(std::find(order.begin(), order.end(), nullptr) == order.end(),
@@ -3862,13 +3878,13 @@ namespace {
 		const auto selected = window.conversation_model()->index_for_id("old-thread-b");
 		window.conversation_view()->setCurrentIndex(selected);
 		process_events();
-		const auto hiddenDetail = [&](const std::string& aIdentity) {
-			const auto index = window.conversation_model()->index_for_id(aIdentity);
-			return !index.isValid() || window.conversation_view()->isRowHidden(index.row(), { });
-		};
+		// [[BPR-1290]]. The selected root is the one that opens in place.
+		window.conversation_panel()->cards()->open_thread("old-thread-b");
+		process_events();
 		expect(window.conversation_panel()->cards()->current_thread() == "old-thread-b"
-				   && !hiddenDetail("old-thread-b") && hiddenDetail("old-thread-a") && hiddenDetail("new-thread"),
-			   "the exact selected root owns the single detail while other roots have no duplicate detail");
+				   && window.conversation_panel()->cards()->open_thread_id() == "old-thread-b"
+				   && window.conversation_panel()->cards()->open_card() != nullptr,
+			   "the exact selected root is the one open thread; the others stay notes");
 		const auto rendered = window.grab();
 		expect(!rendered.isNull(), "the one-pane thread state renders in the composed window");
 		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
@@ -4924,7 +4940,7 @@ namespace {
 									   core::workbench_drawer_state::expanded);
 		opened.Layout  = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		opened.Behaviour = drawer_controls_shown();
 		window.publish(opened);
@@ -5186,7 +5202,7 @@ namespace {
 									   core::workbench_drawer_state::expanded);
 		opened.Layout  = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		window.publish(opened);
 		process_events();
@@ -6036,27 +6052,23 @@ namespace {
 		}
 		menu->hide();
 		process_events();
-		// [[BPR-1255]]. Opening and closing the menu can rebuild the cards, so
-		// the iterator found before it is stale; MSVC's checked iterators stop
-		// on it. The card is found again.
-		const auto shown = std::ranges::find(cards, std::string{ "review-thread:t22" }, &qt::thread_card::Id);
-		expect(shown != cards.end(), "the thread's card is still beside the code after the menu");
-		const auto reply = std::ranges::find(shown->Actions, qt::card_action::reply, &std::pair<qt::card_action, QRect>::first);
-		expect(reply != shown->Actions.end()
-				   && std::ranges::all_of(shown->Actions, [](const auto& aAction) {
-						  return aAction.first == qt::card_action::reply || aAction.first == qt::card_action::mark_read
-							  || aAction.first == qt::card_action::resolve || aAction.first == qt::card_action::unresolve;
-					  }),
-			   "the card beside the code offers Reply and nothing that starts a second thread");
-		const auto replyPoint = reply->second.center()
-			- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
-		auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ replyPoint }, QPointF{ replyPoint }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-		QApplication::sendEvent(window.conversation_panel()->cards()->viewport(), &press);
+		// [[BPR-1290]]. The thread opens in place; its Reply is written there.
+		auto* const notes = window.conversation_panel()->cards();
+		notes->open_thread("review-thread:t22");
 		process_events();
-		expect(replies == std::vector<std::string>{ "review-thread:t22", "review-thread:t22" } && stack->currentWidget() == page
+		auto* const replyField   = notes->open_card() != nullptr ? notes->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) : nullptr;
+		auto* const menuOfThread = notes->thread_menu("review-thread:t22");
+		expect(replyField != nullptr && menuOfThread != nullptr
+				   && std::ranges::none_of(menuOfThread->actions(), [](const QAction* aAction) { return aAction->text().contains(QStringLiteral("thread"), Qt::CaseInsensitive) && aAction->text().contains(QStringLiteral("New")); }),
+			   "the open thread offers Reply and nothing that starts a second thread");
+		delete menuOfThread;
+		replyField->click();
+		process_events();
+		expect(replies == std::vector<std::string>{ "review-thread:t22", "review-thread:t22" } && stack->currentWidget() != page
+				   && notes->reply_editor() != nullptr && notes->reply_editor()->isVisible()
 				   && window.comparison_surface()->selection().has_value()
 				   && window.comparison_surface()->selection()->PreferredLine.Line == 21U,
-			   "the card's Reply selects its own thread's line and answers that thread on the inline page");
+			   "the thread's Reply selects its own thread's line and answers that thread in place, not on the page");
 		back();
 		window.set_conversation_endpoint_placement(true, true);
 		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 12U), "the changed left-side line is selectable");
@@ -6147,8 +6159,8 @@ namespace {
 		admit(window.comparison_surface()->selection());
 		process_events();
 		expect(shows() && panel->anchor_line().has_value() && window.conversation_model()->rowCount() == 0
-				   && !panel->thread_map()->isVisible() && !panel->view()->isVisible(),
-			   "a line no thread is on keeps the cards; only the empty map and detail step aside");
+				   && !panel->view()->isVisible(),
+			   "a line no thread is on keeps the notes, and the selection tree is never shown");
 		auto* const comment = window.comment_action();
 		auto* const stack   = window.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
 		auto* const page    = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
@@ -6176,8 +6188,8 @@ namespace {
 		// The thread's own line still filters to it and shows its detail.
 		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 21U), "line 22, the thread's line, is selected");
 		process_events();
-		expect(shows() && window.conversation_model()->rowCount() == 1 && panel->thread_map()->isVisible() && panel->view()->isVisible(),
-			   "the thread's line filters to it with its map and detail");
+		expect(shows() && window.conversation_model()->rowCount() == 1 && !panel->view()->isVisible(),
+			   "the thread's line filters the selection authority to it; the drawer still shows the notes");
 		// Negative control: a snapshot with no conversation keeps the empty page.
 		panel->adopt({ }, QStringLiteral("no conversations"));
 		process_events();
@@ -6993,7 +7005,7 @@ namespace {
 										  core::workbench_drawer_state::expanded);
 		persisted.Layout  = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		window->publish(persisted);
 		process_events();
@@ -7062,7 +7074,7 @@ namespace {
 										 core::workbench_drawer_state::collapsed);
 		reloaded.Layout  = application::workbench_layout_delta{
 			.FilesWidth         = persistedWidth,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		reloaded.Behaviour = drawer_controls_shown();
 		restarted.publish(reloaded);
@@ -7459,17 +7471,19 @@ namespace {
 				   && sameFile->Excerpt == QStringLiteral("line 20\nline 21\nline 22")
 				   && offFile->Excerpt.isEmpty(),
 			   "the PR-wide index carries code only for the currently compared file");
-		const auto selectionBeforeReply = window.comparison_surface()->selection();
-		const auto reply                = std::ranges::find(offFile->Actions, qt::card_action::reply,
-															&std::pair<qt::card_action, QRect>::first);
-		expect(reply != offFile->Actions.end(), "the off-file conversation still offers a reply gesture");
-		const auto replyPoint = reply->second.center()
-			- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
-		auto replyPress = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ replyPoint },
-									   QPointF{ replyPoint }, Qt::LeftButton, Qt::LeftButton,
-									   Qt::NoModifier };
-		QApplication::sendEvent(window.conversation_panel()->cards()->viewport(), &replyPress);
-		process_events();
+		const auto  selectionBeforeReply = window.comparison_surface()->selection();
+		auto* const notes                = window.conversation_panel()->cards();
+		const auto  clickIn              = [notes](const std::string& aThread, const char* aButton) {
+			notes->open_thread(aThread);
+			process_events();
+			auto* const found = notes->open_card() != nullptr ? notes->open_card()->findChild<QAbstractButton*>(QString::fromLatin1(aButton)) : nullptr;
+			if (found != nullptr) {
+				found->click();
+				process_events();
+			}
+			return found != nullptr;
+		};
+		expect(clickIn("review-thread:off-file", "threadReplyField"), "the off-file conversation still offers a reply gesture");
 		expect(replies.empty()
 				   && window.comparison_surface()->selection() == selectionBeforeReply
 				   && window.current_modality() == qt::review_modality::discuss
@@ -7477,21 +7491,12 @@ namespace {
 					   QStringLiteral("Open this thread in code")),
 			   "Reply refuses an off-file anchor without dispatching or changing the retained code selection");
 
-		// [[BPR-1029]]. The reply's dispatch relays the feed out, which rebuilds
-		// its cards, so the iterators taken before the press are spent. MSVC's
-		// debug iterators abort on them; elsewhere they silently point at
-		// whichever card was rebuilt in that slot.
+		// [[BPR-1029]]. The reply's dispatch relays the list out, which rebuilds
+		// its notes; the same-file conversation is found again by identity.
 		const auto sameFileAfterReply = std::ranges::find(cards, std::string{ "review-thread:late" },
 														  &qt::thread_card::Id);
 		expect(sameFileAfterReply != cards.end(), "the same-file conversation survives the refused reply");
-		const auto open = std::ranges::find(sameFileAfterReply->Actions, qt::card_action::open_in_code,
-											&std::pair<qt::card_action, QRect>::first);
-		expect(open != sameFileAfterReply->Actions.end(), "the feed offers Open in code");
-		const auto point = open->second.center()
-			- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
-		auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
-								  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-		QApplication::sendEvent(window.conversation_panel()->cards()->viewport(), &press);
+		expect(clickIn("review-thread:late", "threadShowLine"), "Discuss offers Open in code on the open thread");
 		process_events();
 		expect(window.current_modality() == qt::review_modality::read
 				   && !window.conversation_panel()->discuss()
@@ -7591,14 +7596,12 @@ namespace {
 			const auto& cards = window.conversation_panel()->cards()->cards();
 			const auto  card  = std::ranges::find(cards, std::string{ "review-thread:late" }, &qt::thread_card::Id);
 			expect(card != cards.end(), "the loading thread's card is in the feed");
-			const auto reply = std::ranges::find(card->Actions, qt::card_action::reply,
-												 &std::pair<qt::card_action, QRect>::first);
-			expect(reply != card->Actions.end(), "the card offers Reply while its comparison loads");
-			const auto point = reply->second.center()
-				- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
-			auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
-									  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-			QApplication::sendEvent(window.conversation_panel()->cards()->viewport(), &press);
+			auto* const notes = window.conversation_panel()->cards();
+			notes->open_thread("review-thread:late");
+			process_events();
+			auto* const replyField = notes->open_card() != nullptr ? notes->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) : nullptr;
+			expect(replyField != nullptr, "the open thread offers Reply while its comparison loads");
+			replyField->click();
 			process_events();
 			expect(replies.empty()
 					   && !window.conversation_panel()->notice_label()->text().contains(
@@ -7711,15 +7714,24 @@ namespace {
 		expect(window.comments_count_text() == QStringLiteral("2")
 				   && tabs->accessibleTabName(0).contains(QStringLiteral("2 threads with new comments")),
 			   "the Comments tab carries the new-comment count and says it");
+		// [[BPR-1290]]. Next new reply and the filters sit on the tab row, at
+		// its right; the defect queue's row shows only while there are defects.
+		const auto onTabRow = [&window, tabs](const QWidget* const aWidget) {
+			const auto top    = aWidget->mapTo(&window, QPoint{ 0, 0 }).y();
+			const auto tabTop = tabs->mapTo(&window, QPoint{ 0, 0 }).y();
+			return top >= tabTop - 4 && top < tabTop + tabs->height();
+		};
 		const auto below = [&window, tabs](const QWidget* const aWidget) {
 			return aWidget->mapTo(&window, QPoint{ 0, 0 }).y() >= tabs->mapTo(&window, QPoint{ 0, tabs->height() }).y();
 		};
+		auto* const onlyNew = window.conversation_panel()->filter_unread_button();
 		expect(comments->isVisible() && !findings->isVisible() && window.conversation_panel()->isVisible()
-				   && window.next_new_comment_button()->isVisible() && below(window.next_new_comment_button())
+				   && window.next_new_comment_button()->isVisible() && onTabRow(window.next_new_comment_button())
+				   && onlyNew->isVisible() && onTabRow(onlyNew)
 				   && window.next_new_comment_button()->defaultAction() == window.next_new_comment_action()
 				   && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
-				   && !window.finding_queue()->isVisible() && window.defect_count_label()->isVisible(),
-			   "the Comments tab shows the conversation and Next new beneath the tabs, and nothing of Notes");
+				   && !window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible(),
+			   "the Comments tab shows the notes with Only new, Hide resolved and Next new on the tab row, and nothing of Notes");
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();
 			expect(!rendered.isNull(), "the right tray renders in the composed window");
@@ -7866,8 +7878,10 @@ namespace {
 			qt::thread_read_state{ .Thread = "review-thread:early", .UnreadPosts = { "review-comment:early-2" } },
 		});
 		process_events();
-		expect(kinds() == std::vector{ qt::diff_line_mark_kind::thread, qt::diff_line_mark_kind::new_thread },
-			   "the thread whose first post is unread is marked blue, the other stays amber");
+		// [[BPR-1290]]. As the prototype marks them: a thread with any post newer
+		// than what I have read carries the blue dot, its first post or a later one.
+		expect(kinds() == std::vector{ qt::diff_line_mark_kind::new_thread, qt::diff_line_mark_kind::new_thread },
+			   "a thread with a new post, first or later, is marked new");
 		const auto countedWidth = commentsToggle->sizeHint().width();
 		expect(strip->isEnabled() && badge() == QStringLiteral("2")
 				   && commentsToggle->accessibleDescription().contains(QStringLiteral("2 threads with new comments")),
@@ -7886,14 +7900,11 @@ namespace {
 		process_events();
 		expect(cards->current_thread() == "review-thread:early", "and wraps to the first");
 
-		const auto late = std::ranges::find(cards->cards(), "review-thread:late", &qt::thread_card::Id);
-		expect(late != cards->cards().end() && late->Actions.size() == 2U
-				   && late->Actions.back().first == qt::card_action::mark_read,
-			   "the unread card offers Mark read");
-		const auto point = late->Actions.back().second.center() - QPoint{ 0, cards->verticalScrollBar()->value() };
-		auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
-										Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-		QApplication::sendEvent(cards->viewport(), &press);
+		cards->open_thread("review-thread:late");
+		process_events();
+		auto* const markRead = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMarkRead")) : nullptr;
+		expect(markRead != nullptr && markRead->isEnabled(), "the unread thread offers Mark read");
+		markRead->click();
 		expect(marked == std::vector<std::string>{ "review-thread:late" },
 			   "Mark read leaves through the conversation read dispatch with the thread");
 
@@ -8351,7 +8362,7 @@ namespace {
 													core::workbench_drawer_state::expanded);
 		opened.Layout               = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
-			.ConversationsWidth = 260U,
+			.ConversationsWidth = 300U,
 		};
 		window.resize(1'280, 720);
 		window.show();

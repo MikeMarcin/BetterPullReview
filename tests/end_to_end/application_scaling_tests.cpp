@@ -11,6 +11,7 @@
 #include "bpr/qt/workbench_landing.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
@@ -336,33 +337,26 @@ try {
 				   "Mark read writes and projects one receipt without rereads, Overview reconstruction or model reset");
 			auto* cards = window->conversation_panel()->cards();
 			wait_for([&] { return !cards->cards().empty(); }, "selected file conversation cards");
-			auto button = std::optional<QRect>{ };
-			for (const auto& card : cards->cards()) {
-				for (const auto& action : card.Actions) {
-					if (action.first == qt::card_action::mark_read) {
-						button = action.second;
-						break;
-					}
-				}
-				if (button) {
-					break;
-				}
-			}
-			if (!button) {
+			// [[BPR-1290]]. An unread thread opens in place; Mark read is in its header.
+			const auto unread = std::ranges::find_if(cards->cards(), [](const qt::thread_card& aCard) { return aCard.UnreadCount > 0U; });
+			if (unread == cards->cards().end()) {
 				for (const auto& card : cards->cards()) {
-					std::cerr << "card=" << card.Id << " posts=" << card.Posts.size() << " unread=" << card.UnreadCount << " actions=" << card.Actions.size() << '\n';
+					std::cerr << "card=" << card.Id << " posts=" << card.Posts.size() << " unread=" << card.UnreadCount << '\n';
 				}
 			}
-			expect(button.has_value(), "real card offers Mark read");
-			cards->verticalScrollBar()->setValue(button->top());
-			const auto point = QPointF{ button->center() - QPoint{ 0, cards->verticalScrollBar()->value() } };
+			expect(unread != cards->cards().end(), "a real thread has unread posts");
+			cards->open_thread(unread->Id);
+			QApplication::processEvents();
+			auto* const button = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMarkRead")) : nullptr;
+			expect(button != nullptr && button->isEnabled(), "real open thread offers Mark read");
+			const auto point = QPointF{ button->rect().center() };
 			before           = access::scaling_evidence(*owner);
 			treeBefore       = tree->work_statistics();
 			Measurement      = gesture_measurement{ };
-			QMouseEvent press{ QEvent::MouseButtonPress, point, cards->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-			QApplication::sendEvent(cards->viewport(), &press);
-			QMouseEvent release{ QEvent::MouseButtonRelease, point, cards->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
-			QApplication::sendEvent(cards->viewport(), &release);
+			QMouseEvent press{ QEvent::MouseButtonPress, point, button->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(button, &press);
+			QMouseEvent release{ QEvent::MouseButtonRelease, point, button->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(button, &release);
 			wait_for([&] { return access::scaling_evidence(*owner).Ledger.ConversationWrites > before.Ledger.ConversationWrites; }, "public card commits read cursor");
 			settle([&] { return access::scaling_evidence(*owner); });
 			report("conversation-read-one", before, access::scaling_evidence(*owner), treeBefore, tree->work_statistics());
