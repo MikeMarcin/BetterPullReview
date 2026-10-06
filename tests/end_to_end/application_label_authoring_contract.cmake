@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 4.4.2)
 
 # [[BPR-1083]]. Conventional Comments labels in the composed application over
 # the constructed conventional-comments-v1 pull request, signed in with the
-# fixture's account: src/engine/renderer.cpp opens in Read with its labelled
+# fixture's account: Read with no file chosen shows the direction to open one
+# ([[BPR-1287]]), src/engine/renderer.cpp opens in Read with its labelled
 # threads marked, Comment opens an editable page on a line no thread is on,
 # `:qu:` typed into the empty body becomes `question: `, the chip's menu
 # makes it a suggestion and ⌘L's menu an issue, Publish posts it, and after
@@ -43,7 +44,7 @@ endif()
 foreach(marker IN ITEMS
     PUBLIC_PATH_OK
     LABEL_AUTHORING_OK
-    LABEL_AUTHORING_EVIDENCE:11111111
+    LABEL_AUTHORING_EVIDENCE:111111111
 )
     string(FIND "${probe_output}" "${marker}" found)
     if(found EQUAL -1)

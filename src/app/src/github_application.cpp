@@ -15526,6 +15526,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		struct label_authoring_probe_state
 		{
 			enum class phase {
+				awaiting_read_empty,
 				awaiting_file,
 				awaiting_marks,
 				awaiting_line_draft,
@@ -15538,7 +15539,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				failed,
 			};
 			detail::label_authoring_probe_evidence Evidence;
-			phase                                  Phase = phase::awaiting_file;
+			phase                                  Phase = phase::awaiting_read_empty;
 			std::string                            Diagnostic;
 			std::size_t                            Renders = 0U;
 			/// Characters still to type, one a tick once the draft has the
@@ -21338,12 +21339,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail();
 			}
 			// The comparison is shown; this course reads both of its panes.
+			// [[BPR-1287]]. With no file chosen yet the comparison shows its
+			// direction to open one in the panes' place; the panes return
+			// with the file this course selects next.
 			auto* const left  = workbench == nullptr ? nullptr
 													 : workbench->left_pane();
 			auto* const right = workbench == nullptr ? nullptr
 													 : workbench->right_pane();
-			if (left == nullptr || right == nullptr || !left->isVisible()
-				|| !right->isVisible()) {
+			const auto  idle  = workbench != nullptr && workbench->idle() && workbench->idle_page()->isVisible();
+			if (left == nullptr || right == nullptr || (!idle && (!left->isVisible() || !right->isVisible()))) {
 				if (++probe.Waits <= uiforetw_review_panes_waits) {
 					return result::pending;
 				}
@@ -24355,6 +24359,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		constexpr auto subject   = std::string_view{ "Should the width be clamped to one pixel?" };
 		constexpr auto published = std::string_view{ "issue: Should the width be clamped to one pixel?" };
 		switch (probe.Phase) {
+		case state_type::phase::awaiting_read_empty: {
+			// [[BPR-1287]]. Read before any file is chosen.
+			auto* const surface = window->comparison_surface();
+			note("files=" + std::to_string(drawer_row(*window, path).isValid() ? 1 : 0) + " idle=" + std::to_string(surface->idle() ? 1 : 0));
+			if (implementation->WorkbenchHost->outstanding_requests() != 0U || !drawer_row(*window, path).isValid() || window->showing_home()) {
+				return result::pending;
+			}
+			window->choose_modality(qt::review_modality::read);
+			QCoreApplication::processEvents();
+			probe.Evidence.ReadEmptyDirected = window->current_modality() == qt::review_modality::read && surface->idle()
+				&& surface->idle_page()->isVisibleTo(window) && !surface->left_pane()->isVisibleTo(window)
+				&& surface->idle_open_first_button()->isEnabled();
+			render("read-no-file");
+			probe.Phase = state_type::phase::awaiting_file;
+			return result::pending;
+		}
 		case state_type::phase::awaiting_file: {
 			const auto revealed = reveal_fixture_file(aApplication, path);
 			note("reveal=" + std::to_string(static_cast<int>(revealed)));
@@ -24510,7 +24530,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail("published-thread-unmarked name=" + card->Posts.front().Name.toStdString());
 			}
 			const auto& evidence = probe.Evidence;
-			const auto  all      = evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
+			const auto  all      = evidence.ReadEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
 				&& evidence.ChipApplied && evidence.ShortcutApplied && evidence.Published && evidence.PublishedMarked;
 			probe.Phase = all ? state_type::phase::passed : state_type::phase::failed;
 			return all ? result::passed : result::failed;

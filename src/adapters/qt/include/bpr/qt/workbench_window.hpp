@@ -1148,6 +1148,7 @@ namespace bpr::qt {
 		void configure_tool_buttons();
 		void refresh_toolbar_icons();
 		void update_strip_positions();
+		void update_idle_direction();
 		void update_strip_identity();
 		void update_account_action();
 		void apply_strip_width();

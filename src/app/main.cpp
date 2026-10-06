@@ -4694,7 +4694,7 @@ namespace {
 		if (aRun.LabelAuthoringProbe) {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
 			stream << (aRun.LabelAuthoringPassed ? "LABEL_AUTHORING_OK\n" : "LABEL_AUTHORING_FAILED\n")
-				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
+				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.ReadEmptyDirected << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
 				   << evidence.ShortcodeApplied << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
 				   << evidence.PublishedMarked << '\n';
 			stream << "LABEL_AUTHORING_DIAGNOSTIC:" << QString::fromStdString(aRun.LabelAuthoringDiagnostic) << '\n';
@@ -5116,7 +5116,8 @@ namespace {
 	// fixture's account signs in, the pull request opens from the Home bar and
 	// the named file is selected in Read, the way a reviewer would get there.
 	// It then leaves the window to the person and prints one line saying
-	// whether it got there.
+	// whether it got there. [[BPR-1287]]. With no path
+	// (`--attended-open-pull-request`) it stops once the pull request is open.
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
 		std::string                   aPath,
@@ -5164,6 +5165,12 @@ namespace {
 				}
 				return;
 			case step::reveal:
+				if (path.empty()) {
+					if (!window.showing_home()) {
+						finish(QStringLiteral("ATTENDED_PULL_REQUEST_OPENED"));
+					}
+					return;
+				}
 				switch (bpr::app::detail::github_application_fixture_access::reveal_fixture_file(aApplication, path)) {
 				case bpr::app::detail::fixture_file_reveal_result::pending:
 					return;
@@ -8602,7 +8609,11 @@ auto main(int argc, char** argv) -> int
 		// with the fixture's account: without it the window opens on Home,
 		// where the Home bar's public-preview reading is read-only.
 		const auto attendedOpenFile = argument_value(argc, argv, "--attended-open-file");
-		if (attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty())) {
+		// [[BPR-1287]]. The same, stopping at the pull request's own opening
+		// page, so a person can go to Read with no file chosen.
+		const auto attendedOpenPullRequest = has_argument(argc, argv, "--attended-open-pull-request");
+		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
+			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -8968,8 +8979,8 @@ auto main(int argc, char** argv) -> int
 							}));
 				}
 #if defined(BPR_BUILD_TESTING)
-				if (heldOpenForInspection && attendedOpenFile.has_value()) {
-					schedule_attended_reveal(*application, std::string{ *attendedOpenFile }, attendedPullRequest);
+				if (heldOpenForInspection && (attendedOpenFile.has_value() || attendedOpenPullRequest)) {
+					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest);
 				}
 #endif
 

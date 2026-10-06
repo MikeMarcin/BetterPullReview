@@ -10868,6 +10868,66 @@ namespace {
 		expect(recorder.shown() == QStringList{ QStringLiteral("drawerHost"), QStringLiteral("drawerHost"), QStringLiteral("drawerHost") },
 			   "only the three hosts were shown as windows; shown: " + recorder.described());
 	}
+
+	/// \brief [[BPR-1287]]. The owner, 2026-10-06: "this is what happens when
+	/// you go to Read without a file open. We need to not show a blank diff
+	/// here and instead have some clear direction to open a file."
+	void test_read_without_a_file_gives_direction_not_a_blank_diff()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) { log.Workbench.push_back(aIntent); },
+			[&log](core::navigate_diff_change_intent aIntent) { log.Change.push_back(aIntent); }
+		};
+		window.resize(1'280, 852);
+		window.show();
+		window.choose_modality(qt::review_modality::read);
+		auto projection      = every_primary_command_offered();
+		projection.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .ActionableCount = 17U } };
+		window.publish(projection);
+		process_events();
+		auto* const surface = window.comparison_surface();
+		auto* const idle    = surface->idle_page();
+		expect(surface->idle() && idle->isVisible() && !surface->left_pane()->isVisible() && !surface->right_pane()->isVisible()
+				   && !surface->findChild<QLabel*>(QStringLiteral("diffWorkbenchStatus"))->isVisible(),
+			   "with no file chosen Read shows no empty panes, no line numbers and no bare status");
+		const auto* const title  = idle->findChild<QLabel*>(QStringLiteral("diffWorkbenchIdleTitle"));
+		const auto* const detail = idle->findChild<QLabel*>(QStringLiteral("diffWorkbenchIdleDetail"));
+		expect(title != nullptr && title->text() == QStringLiteral("No file open") && detail != nullptr
+				   && detail->text().contains(QStringLiteral("17 files in Files")) && idle->accessibleName() == QStringLiteral("No file open"),
+			   "it says no file is open and how to open one");
+		expect(window.status_text().contains(QStringLiteral("No file is open. Choose one of the 17 actionable file(s).")),
+			   "the status bar says nothing is chosen, not that a file is outside the list");
+		save_render(window, QStringLiteral("read-no-file"));
+		auto* const openFirst = surface->idle_open_first_button();
+		auto* const showFiles = surface->idle_show_files_button();
+		expect(openFirst->isVisible() && openFirst->isEnabled() && openFirst->focusPolicy() != Qt::NoFocus && showFiles->isVisible()
+				   && showFiles->focusPolicy() != Qt::NoFocus,
+			   "Open first file and Show files are offered and reachable by keyboard");
+		const auto before = log.Workbench.size();
+		openFirst->click();
+		expect(log.Workbench.size() == before + 1U && file_direction(log.Workbench.back()) == core::change_navigation_direction::next,
+			   "Open first file is Next file's own intent, which from no file opens the first");
+		const auto noFiles = command_delta(offered(core::workbench_command_id::previous_file),
+										   refused(core::workbench_command_id::next_file, core::workbench_reason_code::no_actionable_files),
+										   offered(core::workbench_command_id::previous_change), offered(core::workbench_command_id::next_change));
+		window.publish({ .Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ } }, .Commands = noFiles });
+		process_events();
+		expect(title->text() == QStringLiteral("No files to read") && openFirst->isHidden(),
+			   "a pull request with no actionable file says that instead and offers no Open first file");
+		surface->set_loading(request_context(computed_comparison("old\n", "new\n", 0U, core::file_identity_of("src/file.cpp"))));
+		process_events();
+		expect(!surface->idle() && idle->isHidden() && surface->left_pane()->isVisible(),
+			   "a chosen file's comparison takes the area back");
+		surface->clear();
+		process_events();
+		expect(surface->idle() && idle->isVisible(), "clearing the choice brings the direction back");
+		surface->clear(QStringLiteral("The comparison could not be read."));
+		process_events();
+		expect(!surface->idle() && surface->status_text() == QStringLiteral("The comparison could not be read."),
+			   "a reason the host gives is shown as before, not hidden behind the direction");
+		expect(log.Change.empty() && log.Workbench.size() == before + 1U, "the direction itself dispatches nothing else");
+	}
 }
 
 void test_native_geometry_fits_current_displays_and_observes_only_after_restore()
@@ -11008,6 +11068,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_share_only_offered_agent_context_and_maintenance_actions();
 	test_all_four_primary_actions_follow_one_core_projection();
 	test_every_primary_action_translates_to_a_semantic_intent();
+	test_read_without_a_file_gives_direction_not_a_blank_diff();
 	test_action_state_follows_core_command_projections();
 	test_compact_icon_row_preserves_exact_order_and_edges();
 	test_shell_accessibility_status_and_scale();

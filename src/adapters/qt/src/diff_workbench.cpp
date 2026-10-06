@@ -7,7 +7,9 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QFont>
 #include <QFontMetricsF>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -15,11 +17,13 @@
 #include <QPalette>
 #include <QPen>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QShowEvent>
 #include <QSignalBlocker>
 #include <QSplitter>
+#include <QStackedLayout>
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextCursor>
@@ -1018,12 +1022,80 @@ namespace bpr::qt {
 		Detail->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Detail->setPlainText(QStringLiteral("No change selected"));
 		Detail->setMaximumHeight(96);
-		Vertical->addWidget(top);
+		// [[BPR-1287]]. The panes share their splitter slot with the idle
+		// direction, one shown at a time, so the splitter keeps its two
+		// children and the review details still open below either.
+		auto* const slot = new QWidget{ Vertical };
+		PanesSlot        = new QStackedLayout{ slot };
+		PanesSlot->setContentsMargins(0, 0, 0, 0);
+		PanesSlot->addWidget(top);
+		PanesTop = top;
+		Vertical->addWidget(slot);
 		Vertical->addWidget(Detail);
 		Vertical->setStretchFactor(0, 4);
 		Vertical->setStretchFactor(1, 1);
 		Vertical->setSizes({ 500, 150 });
 		root->addWidget(Vertical, 1);
+
+		// [[BPR-1287]]. What the area says while no file comparison is chosen,
+		// in place of two empty panes and a bare status.
+		IdlePage = new QWidget{ slot };
+		IdlePage->setObjectName(QStringLiteral("diffWorkbenchIdle"));
+		IdlePage->setAccessibleName(QStringLiteral("No file open"));
+		auto* const idleColumn = new QVBoxLayout{ IdlePage };
+		idleColumn->setContentsMargins(24, 24, 24, 24);
+		idleColumn->setSpacing(8);
+		idleColumn->addStretch(2);
+		// Interface text, not code: the workbench's own font is the code
+		// typography, which the panes inherit.
+		auto interfaceFont = QApplication::font();
+		interfaceFont.setFamilies(interfaceFont.families());
+		interfaceFont.setPointSizeF(interfaceFont.pointSizeF());
+		interfaceFont.setStyleHint(interfaceFont.styleHint());
+		interfaceFont.setWeight(interfaceFont.weight());
+		IdlePage->setFont(interfaceFont);
+		IdleTitle = new QLabel{ IdlePage };
+		IdleTitle->setObjectName(QStringLiteral("diffWorkbenchIdleTitle"));
+		IdleTitle->setTextFormat(Qt::PlainText);
+		IdleTitle->setAlignment(Qt::AlignHCenter);
+		auto titleFont = interfaceFont;
+		titleFont.setPointSizeF(interfaceFont.pointSizeF() * 1.35);
+		titleFont.setWeight(QFont::DemiBold);
+		IdleTitle->setFont(titleFont);
+		IdleDetail = new QLabel{ IdlePage };
+		IdleDetail->setObjectName(QStringLiteral("diffWorkbenchIdleDetail"));
+		IdleDetail->setTextFormat(Qt::PlainText);
+		IdleDetail->setAlignment(Qt::AlignHCenter);
+		IdleDetail->setWordWrap(true);
+		IdleDetail->setForegroundRole(QPalette::PlaceholderText);
+		idleColumn->addWidget(IdleTitle);
+		idleColumn->addWidget(IdleDetail);
+		auto* const idleActions = new QHBoxLayout{ };
+		idleActions->setSpacing(8);
+		idleActions->addStretch(1);
+		IdleOpenFirst = new QPushButton{ QStringLiteral("Open first file"), IdlePage };
+		IdleOpenFirst->setObjectName(QStringLiteral("diffWorkbenchIdleOpenFirst"));
+		IdleOpenFirst->setDefault(true);
+		IdleShowFiles = new QPushButton{ QStringLiteral("Show files"), IdlePage };
+		IdleShowFiles->setObjectName(QStringLiteral("diffWorkbenchIdleShowFiles"));
+		idleActions->addWidget(IdleOpenFirst);
+		idleActions->addWidget(IdleShowFiles);
+		idleActions->addStretch(1);
+		idleColumn->addLayout(idleActions);
+		idleColumn->addStretch(3);
+		PanesSlot->addWidget(IdlePage);
+		connect(IdleOpenFirst, &QPushButton::clicked, this, [this] {
+			if (IdleDirection.OpenFirst) {
+				IdleDirection.OpenFirst();
+			}
+		});
+		connect(IdleShowFiles, &QPushButton::clicked, this, [this] {
+			if (IdleDirection.ShowFiles) {
+				IdleDirection.ShowFiles();
+			}
+		});
+		set_idle_direction({ .Title = QStringLiteral("No file open"), .Detail = QStringLiteral("Choose a file to see its changes.") });
+		set_idle(true);
 
 		LinkMap = Comparison->link_map();
 		LinkMap->set_selection_announcements_enabled(false);
@@ -1202,6 +1274,7 @@ namespace bpr::qt {
 			return;
 		}
 		++Statistics.Failures;
+		set_idle(false);
 		clear_projection(reason_text(aFailure.Reason));
 		CurrentContext.reset();
 	}
@@ -1217,6 +1290,7 @@ namespace bpr::qt {
 		++Statistics.Invalidations;
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
+		set_idle(false);
 		clear_projection(QStringLiteral("Comparison invalidated"));
 		if (!hadSelection) {
 			emit_selection_observer(false);
@@ -1230,6 +1304,7 @@ namespace bpr::qt {
 		}
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext          = aContext;
+		set_idle(false);
 		clear_projection(QStringLiteral("Loading selected file comparison…"));
 		if (!hadSelection) {
 			emit_selection_observer(false);
@@ -1240,7 +1315,11 @@ namespace bpr::qt {
 	{
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
-		clear_projection(aStatus.isEmpty() ? QStringLiteral("Select a file comparison") : std::move(aStatus));
+		// Only the plain "nothing chosen" is idle; a reason the host gives is
+		// shown as before.
+		const auto idle = aStatus.isEmpty();
+		set_idle(idle);
+		clear_projection(idle ? QStringLiteral("Select a file comparison") : std::move(aStatus));
 		if (!hadSelection) {
 			emit_selection_observer(false);
 		}
@@ -3009,7 +3088,46 @@ namespace bpr::qt {
 
 	void diff_workbench::set_status_shown(const bool aShown)
 	{
-		Status->setVisible(aShown);
+		StatusShown = aShown;
+		Status->setVisible(StatusShown && !Idle);
+	}
+
+	void diff_workbench::set_idle_direction(idle_direction aDirection)
+	{
+		IdleDirection = std::move(aDirection);
+		IdleTitle->setText(IdleDirection.Title);
+		IdleDetail->setText(IdleDirection.Detail);
+		IdlePage->setAccessibleName(IdleDirection.Title);
+		IdlePage->setAccessibleDescription(IdleDirection.Detail);
+		IdleOpenFirst->setVisible(static_cast<bool>(IdleDirection.OpenFirst));
+		IdleShowFiles->setVisible(static_cast<bool>(IdleDirection.ShowFiles));
+	}
+
+	void diff_workbench::set_idle(const bool aIdle)
+	{
+		Idle = aIdle;
+		PanesSlot->setCurrentWidget(Idle ? IdlePage : PanesTop);
+		Status->setVisible(StatusShown && !Idle);
+	}
+
+	auto diff_workbench::idle() const noexcept -> bool
+	{
+		return Idle;
+	}
+
+	auto diff_workbench::idle_page() const noexcept -> QWidget*
+	{
+		return IdlePage;
+	}
+
+	auto diff_workbench::idle_open_first_button() const noexcept -> QPushButton*
+	{
+		return IdleOpenFirst;
+	}
+
+	auto diff_workbench::idle_show_files_button() const noexcept -> QPushButton*
+	{
+		return IdleShowFiles;
 	}
 
 	void diff_workbench::set_status_observer(std::function<void(const QString&, bool)> aObserver)

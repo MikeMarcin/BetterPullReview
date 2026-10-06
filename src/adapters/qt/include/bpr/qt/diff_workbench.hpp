@@ -25,11 +25,13 @@
 
 class QEvent;
 class QLabel;
+class QPushButton;
 class QPlainTextEdit;
 class QTextDocument;
 class QResizeEvent;
 class QScrollBar;
 class QSplitter;
+class QStackedLayout;
 
 namespace bpr::qt {
 	/// \brief Identifies the Qt-facing source that requested a geometry rebuild.
@@ -192,6 +194,28 @@ namespace bpr::qt {
 		void set_status_observer(std::function<void(const QString&, bool)> aObserver);
 		/// \brief Whether the status says more than that the diff is ready.
 		[[nodiscard]] auto status_notable() const noexcept -> bool;
+		/// \brief [[BPR-1287]]. What the comparison area says while no file
+		/// comparison is chosen, and the gestures it offers to choose one.
+		struct idle_direction
+		{
+			QString Title;
+			QString Detail;
+			/// "Open first file" when set; the composition's own gesture.
+			std::function<void()> OpenFirst;
+			/// "Show files" when set; the composition's own gesture.
+			std::function<void()> ShowFiles;
+		};
+		/// \brief [[BPR-1287]]. With no file comparison chosen the workbench
+		/// shows this direction instead of two empty panes (owner, BPR-1083
+		/// chip-menu-v001 aside: "We need to not show a blank diff here and
+		/// instead have some clear direction to open a file.").
+		void set_idle_direction(idle_direction aDirection);
+		/// \brief True while no file comparison is chosen: no context is
+		/// loading, shown, refused or invalidated.
+		[[nodiscard]] auto idle() const noexcept -> bool;
+		[[nodiscard]] auto idle_page() const noexcept -> QWidget*;
+		[[nodiscard]] auto idle_open_first_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto idle_show_files_button() const noexcept -> QPushButton*;
 		/// \brief Selects and reveals one exact zero-based conversation anchor.
 		/// \brief [[BPR-0657]]. Selects a conversation's line as a click on it
 		/// would, so a draft started from its card anchors there; the anchor the
@@ -409,8 +433,20 @@ namespace bpr::qt {
 		void emit_reading_gesture() noexcept;
 		void emit_selection_observer(bool aInteractive) noexcept;
 		void clear_projection(QString aStatus);
+		void set_idle(bool aIdle);
 
-		QLabel*                   Status     = nullptr;
+		QLabel* Status      = nullptr;
+		bool    StatusShown = true;
+		// [[BPR-1287]]. The direction shown in place of the panes while idle.
+		QWidget*                  IdlePage      = nullptr;
+		QWidget*                  PanesTop      = nullptr;
+		QStackedLayout*           PanesSlot     = nullptr;
+		QLabel*                   IdleTitle     = nullptr;
+		QLabel*                   IdleDetail    = nullptr;
+		QPushButton*              IdleOpenFirst = nullptr;
+		QPushButton*              IdleShowFiles = nullptr;
+		idle_direction            IdleDirection;
+		bool                      Idle       = true;
 		diff_comparison_splitter* Comparison = nullptr;
 		QPlainTextEdit*           Left       = nullptr;
 		QPlainTextEdit*           Right      = nullptr;

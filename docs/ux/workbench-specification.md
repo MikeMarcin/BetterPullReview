@@ -1058,6 +1058,16 @@ authorization-required cache, and retry states. Cached private content never
 opens for an unauthenticated or different account. No spinner may conceal a
 permanent error.
 
+**No file open** ([[BPR-1287]]). With a pull request open and no file
+comparison chosen, the comparison area shows no empty panes and no line
+numbers. It says "No file open", how many files there are to choose from in
+Files, and that ⌥↓ (Next file) opens the next one, with two buttons: Open first
+file, which is Next file's own gesture, and Show files, which opens the Files
+drawer and focuses it. A pull request with no actionable file says "No files to
+read" and offers no Open first file. The comparison tab and the status line say
+the same; a reason the host gives (a refusal, an invalidated comparison) is
+still shown as before. The review details still open below on request.
+
 Owner hand-back 49 amends the review bar's last width yield: when compact
 positions still cannot fit, their numbers yield into the tooltips. File and
 Changes remain before their arrows, joined by a separate accent rail.

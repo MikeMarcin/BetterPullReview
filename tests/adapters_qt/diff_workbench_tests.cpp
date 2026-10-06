@@ -553,6 +553,9 @@ namespace {
 	void test_the_viewport_fill_survives_a_style_clearing_it()
 	{
 		auto workbench = qt::diff_workbench{ };
+		// [[BPR-1287]]. The panes are shown once a comparison is chosen;
+		// before that the workbench shows its idle direction instead.
+		workbench.set_loading(context(computed("a\n", "b\n", core::diff_options{ }, 0U), 1U, 1U));
 		workbench.resize(1'260, 820);
 		workbench.show();
 		process_events();

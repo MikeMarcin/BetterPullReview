@@ -54,3 +54,32 @@ one, with the gesture to do it in the same place.
 Presentation only, in the Qt adapter; the core decides nothing new. Review's
 own empty comparison may share the surface if it has the same gap. macOS first;
 Linux and Windows runs follow the usual station requests.
+
+## Implementation, 2026-10-05
+
+Built in the same worktree as BPR-1083 round v002 (`claude/bpr1083-v002`),
+right after it, because the owner's aside came in that session.
+
+- **`diff_workbench`.** The panes share their splitter slot with an idle page,
+  one shown at a time, so the splitter keeps its two children and the review
+  details still open below either. The page shows while no comparison is
+  chosen: from construction, and after `clear()` with no reason. Loading, a
+  failure, an invalidation or a host reason (`clear(reason)`) show the panes
+  and status as before. The page uses the interface font, not the code
+  typography the panes inherit. `set_idle_direction` takes its title, detail
+  and the two gestures from the composition.
+- **`workbench_window`.** "No file open" with "Choose one of the N files in
+  Files, or open the first one. ⌥↓ opens the next file."; Open first file is
+  Next file's action (the core enters the order at the first actionable file
+  when none is chosen) and is enabled exactly when it is; Show files expands the
+  Files drawer when collapsed and focuses the tree. With no actionable file:
+  "No files to read", no Open first file. The comparison tab says the title,
+  and the status line says "No file is open. Choose one of the N actionable
+  file(s)." instead of "The selected file is outside the N actionable file(s)."
+  (which it said with nothing chosen).
+- **Courses.** The label-authoring course opens Read with no file before its
+  file and checks the idle page (`ReadEmptyDirected`, the first bit of
+  `LABEL_AUTHORING_EVIDENCE`). The UIforETW selected-diff course accepted only
+  visible panes before its first selection; it now also accepts the idle page
+  there. `--attended-open-pull-request` opens the fixture pull request signed
+  in and stops on its opening page, for the owner's look.

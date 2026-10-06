@@ -839,6 +839,13 @@ namespace bpr::qt {
 					this,
 					[this, index] { dispatch_navigation(index); });
 		}
+		// [[BPR-1287]]. Open first file is Next file's gesture, so it is
+		// offered exactly when Next file is.
+		connect(Navigation[1].Action, &QAction::changed, this, [this] {
+			if (ComparisonSurface != nullptr) {
+				ComparisonSurface->idle_open_first_button()->setEnabled(Navigation[1].Action->isEnabled());
+			}
+		});
 
 		for (std::size_t index = 0U; index < Drawers.size(); ++index) {
 			connect(Drawers[index].Toggle,
@@ -1327,9 +1334,12 @@ namespace bpr::qt {
 		});
 		comparisonColumn->addWidget(DocumentTabs);
 		comparisonColumn->addWidget(ComparisonSurface, 1);
+		update_idle_direction();
 		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
 			if (DocumentTabs != nullptr) {
-				DocumentTabs->set_status(aText, aNotable);
+				// [[BPR-1287]]. With nothing chosen the tab says so in the
+				// empty state's words, not "Select a file comparison".
+				DocumentTabs->set_status(ComparisonSurface->idle() ? ComparisonSurface->idle_page()->accessibleName() : aText, aNotable);
 			}
 			// [[BPR-1197]]. With no source text to read, the empty comparison
 			// keeps the complete, wrapping and copyable explanation. The compact
@@ -7210,6 +7220,46 @@ namespace bpr::qt {
 		}
 		ChangePositionLabel->setText(ReviewBarPositionsShown ? changeText : QStringLiteral("Changes"));
 		ChangePositionLabel->setToolTip(changeWords);
+		update_idle_direction();
+	}
+
+	// [[BPR-1287]]. The owner, 2026-10-06: "this is what happens when you go
+	// to Read without a file open. We need to not show a blank diff here and
+	// instead have some clear direction to open a file." The comparison area
+	// says so and offers the window's own gestures: Next file, which from no
+	// file opens the first, and the Files drawer.
+	void workbench_window::update_idle_direction()
+	{
+		if (ComparisonSurface == nullptr || Navigation[1].Action == nullptr) {
+			return;
+		}
+		const auto actionable = Cursor.has_value() ? Cursor->ActionableCount : std::size_t{ 0U };
+		const auto next       = Navigation[1].Action->shortcut().toString(QKeySequence::NativeText);
+		auto       direction  = diff_workbench::idle_direction{ };
+		if (Cursor.has_value() && actionable == 0U) {
+			direction.Title  = QStringLiteral("No files to read");
+			direction.Detail = QStringLiteral("This pull request has no file this comparison can show.");
+		} else {
+			direction.Title     = QStringLiteral("No file open");
+			direction.Detail    = actionable > 0U
+				? QStringLiteral("Choose one of the %1 files in Files, or open the first one. %2 opens the next file.").arg(actionable).arg(next)
+				: QStringLiteral("Choose a file in Files, or open the first one. %1 opens the next file.").arg(next);
+			direction.OpenFirst = [this] {
+				if (Navigation[1].Action->isEnabled()) {
+					Navigation[1].Action->trigger();
+				}
+			};
+		}
+		direction.ShowFiles = [this] {
+			if (Drawers[0].Panel != nullptr && Drawers[0].Panel->state() != core::workbench_drawer_state::expanded && Drawers[0].Toggle != nullptr) {
+				Drawers[0].Toggle->trigger();
+			}
+			if (FilesTree != nullptr) {
+				FilesTree->setFocus(Qt::OtherFocusReason);
+			}
+		};
+		ComparisonSurface->set_idle_direction(std::move(direction));
+		ComparisonSurface->idle_open_first_button()->setEnabled(Navigation[1].Action->isEnabled());
 	}
 
 	void workbench_window::update_strip_identity()
@@ -11029,6 +11079,10 @@ namespace bpr::qt {
 			status = QStringLiteral("No pull request is open in the workbench.");
 		} else if (Cursor->ActionableCount == 0U) {
 			status = QStringLiteral("This pull request has no actionable files.");
+		} else if (Cursor->Ordinal == 0U && !Cursor->File.has_value()) {
+			// [[BPR-1287]]. Nothing is chosen, which is not a file outside the list.
+			status = QStringLiteral("No file is open. Choose one of the %1 actionable file(s).")
+						 .arg(Cursor->ActionableCount);
 		} else if (Cursor->Ordinal == 0U) {
 			status = QStringLiteral(
 						 "The selected file is outside the %1 actionable file(s).")

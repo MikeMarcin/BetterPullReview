@@ -688,6 +688,15 @@ endfunction()
 # the Home bar's open, then the reveal). Fixture-only: no grant, target,
 # provider, credential, mutation or publication path changes; mutation pin
 # unchanged; no new src/app source. Reviewed on BPR-1083.
+# BPR-1287 reseal: over the BPR-1083 v002 reseal above. The tests-on
+# label-authoring course first opens Read with no file chosen and checks the
+# comparison area's new idle direction (diff_workbench, Qt) before revealing
+# its file; main.cpp prints that evidence bit and adds the attended
+# --attended-open-pull-request, which stops after the Home bar's open. The
+# UIforETW selected-diff course accepts that idle direction in the panes'
+# place before it selects its file. Fixture-only: no grant,
+# target, provider, credential, mutation or publication path changes;
+# mutation pin unchanged; no new src/app source. Reviewed on BPR-1287.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -706,7 +715,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"89e4a7dea797de809fbe58f685b51ae8b2e3927d725d18aebcfd78da89ce70b5"
+		"11bea7105a2faa9d14033c9a28c427d2d5cfd5c55aab2bc740aef1a20dd274df"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -904,7 +913,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "1379faa290ca0757b733d065808ae0e722013875fdae00cf2fd95717174b2444"
+        "ae8ecde841981ecfdeb2a13e7ce2d0bd45342c1130e83f5674c09f845798c758"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
