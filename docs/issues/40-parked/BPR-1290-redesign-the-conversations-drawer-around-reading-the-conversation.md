@@ -784,3 +784,13 @@ candidate. Linux and Windows have not run v002's rows.
   `BudgetsEnforced` true, an empty `KnownInputMisses` and no limit miss. The
   largest gap in a gated course is 62.8 ms (`paged_review_and_git_load`), and
   `files_drawer_open` takes 66.1 ms as a whole phase.
+
+**Note: Windows Shift-click rerun at `3036a08af`** (holds `b109295f4`, which
+lets a Shift-click on a scroll-bar tick go to its thread; station
+`bpr-main-win`, MSVC 14.51). Both trees were rebuilt with no `warning C`
+line. `qt_composed_inline_drawer_scale_{100,125,200}` pass 3 of 3 in each
+with `-j1`:
+
+- `windows-dev` Debug: 7.1, 7.9 and 11.2 s;
+- the optimized tests-on tree (`build/bpr0967-release`, MSVC `/O2`), where
+  the 100 ms open and scroll checks apply: 3.7, 1.3 and 2.2 s.
