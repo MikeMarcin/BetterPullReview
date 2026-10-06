@@ -40,8 +40,12 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
-import tempfile
+import sys
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
 
 AGENT_NAMES = ("claude", "codex", "gemini", "aider", "copilot", "cursor-agent", "ollama", "llm", "openai")
 VARIANTS = (
@@ -130,7 +134,7 @@ def main() -> None:
     packages = {name: args.package_root / f"bpr1182-{name}" / "BetterPullReview.app" for name, _, _ in VARIANTS}
     for name, app in packages.items():
         require((app / "Contents/MacOS/BetterPullReview").is_file(), f"{name}: no package at {app}")
-    root = Path(tempfile.mkdtemp(prefix="bpr1182-installed-", dir=Path.home())).resolve()
+    root = make_contained_temporary_directory(prefix="bpr1182-installed-", parent=Path.home()).resolve()
     try:
         os.chmod(root, 0o700)
         home, run, installed, canaries = root / "home", root / "run", root / "Applications", root / "agent-canaries"

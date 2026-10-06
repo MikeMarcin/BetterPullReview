@@ -3785,15 +3785,21 @@ namespace {
 		const std::source_location      aCaller = std::source_location::current()) -> qt::diff_workbench*
 	{
 		auto* const surface = aWindow.comparison_surface();
+		const auto  result  = std::make_shared<const core::computed_file_diff>(aDiff);
 		surface->set_loading(request_context(aDiff));
 		surface->publish(bpr::qt::test::prepare_publication({
 			.Context = request_context(aDiff),
-			.Result  = std::make_shared<const core::computed_file_diff>(aDiff),
+			.Result  = result,
 		}));
 		process_events();
-		expect(surface->current_result() != nullptr,
-			   "the composed surface accepts its exact publication");
+		// [[BPR-1286]]. A publication of more than 4,096 lines fills detached
+		// documents over several turns and is adopted only then
+		// ([[BPR-1264]]), with geometry_pending() true until it is. So the
+		// surface's result is read once the geometry settles, not straight
+		// after the publish.
 		settle_geometry(*surface, "published at line " + std::to_string(aCaller.line()));
+		expect(surface->current_result() == result,
+			   "the composed surface accepts its exact publication");
 		return surface;
 	}
 
