@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QTextCursor>
 #include <QToolButton>
 
 #include <algorithm>
@@ -113,6 +114,45 @@ namespace {
 		expect(editor->rejected_candidate().has_value(), "observation alone retains the candidate");
 		editor->acknowledge(commands.front(), committed);
 		expect(!editor->rejected_candidate() && editor->shown_draft() && editor->shown_draft()->Body == "after", "explicit acknowledgement resolves own earlier observation");
+		delete editor;
+	}
+
+	/// \brief [[BPR-1298]]. A CRLF body written elsewhere keeps its line
+	/// endings through the editor: unedited, typed in, and relabelled by the
+	/// label controls' typed edit and toggle.
+	void test_a_crlf_body_keeps_its_line_endings()
+	{
+		intent_log                                         legacy;
+		auto*                                              editor = editor_for(legacy);
+		std::vector<core::revisioned_review_draft_command> commands;
+		editor->set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
+		const auto body    = std::string{ "question: Why copy here?\r\n\r\n```suggestion\r\n\tcopy(a, b);\r\n```\r\ntail\nmixed" };
+		const auto initial = core::revisioned_review_draft{ a_draft(body), 1, core::review_draft_scope_id{ 1 } };
+		editor->present(initial);
+		expect(editor->body_text() == body && commands.empty(), "a presented CRLF body reads back byte for byte, and presenting sends nothing");
+
+		auto* const labels = editor->label_controls();
+		expect(labels != nullptr && labels->apply(core::feedback_header_edit{ .Change = core::feedback_label_change::set, .Label = core::feedback_label::issue }),
+			   "the label controls relabel the draft");
+		expect(!commands.empty() && commands.back().Command.Body == "issue: Why copy here?\r\n\r\n```suggestion\r\n\tcopy(a, b);\r\n```\r\ntail\nmixed",
+			   "a relabel keeps every CR after the header, mixed endings included");
+
+		auto accepted       = initial;
+		accepted.Revision   = 2;
+		accepted.Draft.Body = commands.back().Command.Body;
+		editor->acknowledge(commands.back(), accepted);
+		labels->blocking_toggle()->click();
+		expect(commands.back().Command.Body == "issue (blocking): Why copy here?\r\n\r\n```suggestion\r\n\tcopy(a, b);\r\n```\r\ntail\nmixed",
+			   "the blocking toggle keeps every CR");
+
+		accepted.Revision   = 3;
+		accepted.Draft.Body = commands.back().Command.Body;
+		editor->acknowledge(commands.back(), accepted);
+		auto cursor = editor->body_editor()->textCursor();
+		cursor.movePosition(QTextCursor::End);
+		cursor.insertText(QStringLiteral(" text\nnew line"));
+		expect(commands.back().Command.Body == "issue (blocking): Why copy here?\r\n\r\n```suggestion\r\n\tcopy(a, b);\r\n```\r\ntail\nmixed text\r\nnew line",
+			   "typed lines keep the unchanged lines' endings and take the body's own");
 		delete editor;
 	}
 
@@ -1092,6 +1132,7 @@ namespace {
 	{
 		const auto members                                    = qt::review_draft_editor_members{ };
 		const auto& [applying,
+					 loadedBody,
 					 workshopAsked,
 					 draftDispatch,
 					 receiptDispatch,
@@ -1128,6 +1169,8 @@ namespace {
 		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void()>>);
 
 		static_assert(std::is_same_v<decltype(applying), const bool>);
+		// [[BPR-1298]]. The body last presented, for its line endings: text.
+		static_assert(std::is_same_v<decltype(loadedBody), const std::string>);
 		static_assert(std::is_same_v<decltype(workshopAsked), const bool>);
 		static_assert(
 			std::is_same_v<
@@ -1399,6 +1442,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	test_empty_panels_wait_for_draft_or_proposal();
 	test_own_observation_can_precede_edit_acknowledgement();
+	test_a_crlf_body_keeps_its_line_endings();
 	test_confirmed_publication_retires_only_matching_candidate();
 	test_revision_conflicts_retain_exact_candidate();
 

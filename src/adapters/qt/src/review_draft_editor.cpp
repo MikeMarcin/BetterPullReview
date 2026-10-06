@@ -1,5 +1,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 
+#include "bpr/core/line_endings.hpp"
+
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 
@@ -470,7 +472,7 @@ namespace bpr::qt {
 				revisioned.Flush->start();
 				return;
 			}
-			auto body = Members.Body->toPlainText().toStdString();
+			auto body = body_text();
 			if (body.size() > core::maximum_shared_draft_body_bytes) {
 				Members.MutationStatus->setText(tr("Draft text exceeds the size limit."));
 				return;
@@ -491,7 +493,7 @@ namespace bpr::qt {
 		Members.DraftDispatch(core::review_draft_command{
 			.Id   = Members.ShownDraft->Id,
 			.Kind = aKind,
-			.Body = Members.Body->toPlainText().toStdString(),
+			.Body = body_text(),
 		});
 	}
 
@@ -647,7 +649,7 @@ namespace bpr::qt {
 			Members.Suggestion->present({ });
 			return;
 		}
-		Members.Suggestion->present(core::decide_suggestion_applicability(Members.Body->toPlainText().toStdString(), *placement));
+		Members.Suggestion->present(core::decide_suggestion_applicability(body_text(), *placement));
 	}
 
 	void review_draft_editor::present(const core::review_comment_draft& aDraft)
@@ -738,7 +740,7 @@ namespace bpr::qt {
 		settle_in_flight();
 		// The text typed while this edit was answered goes next, on the
 		// revision just accepted; showing the accepted body would undo it.
-		if (deferred && Members.Body->toPlainText().toStdString() != aAccepted.Draft.Body) {
+		if (deferred && body_text() != aAccepted.Draft.Body) {
 			Members.ShownDraft = aAccepted.Draft;
 			emit_draft(core::review_draft_command_kind::edit);
 			refresh_enablement();
@@ -781,6 +783,11 @@ namespace bpr::qt {
 		}
 	}
 
+	auto review_draft_editor::body_text() const -> std::string
+	{
+		return core::restore_line_endings(Members.Body->toPlainText().toStdString(), Members.LoadedBody);
+	}
+
 	void review_draft_editor::render_draft(const core::review_comment_draft& aDraft)
 	{
 		++Members.Statistics.Presentations;
@@ -788,11 +795,12 @@ namespace bpr::qt {
 		// [[BPR-0657]]. The thread named is shown only while the draft answers one.
 		Members.ReplyTarget->setVisible(
 			aDraft.ReplyToThread.has_value() && !Members.ReplyTarget->text().isEmpty());
-		if (Members.Body->toPlainText().toStdString() != aDraft.Body) {
+		if (body_text() != aDraft.Body) {
 			Members.ApplyingPresentation = true;
 			Members.Body->setPlainText(QString::fromStdString(aDraft.Body));
 			Members.ApplyingPresentation = false;
 		}
+		Members.LoadedBody = aDraft.Body;
 		refresh_enablement();
 	}
 

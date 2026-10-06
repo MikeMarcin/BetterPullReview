@@ -172,6 +172,10 @@ namespace bpr::qt {
 		/// editor, so presenting never looks like the reviewer typing.
 		bool ApplyingPresentation = false;
 
+		/// [[BPR-1298]]. The body last written into the editor, whose line
+		/// endings the editor's LF-only text is read back through.
+		std::string LoadedBody;
+
 		/// True from a workshop press until that press is answered, cleared,
 		/// or its draft goes away. One press, one turn: while it is true the
 		/// six controls are disabled and say why, so a second press is refused
@@ -326,6 +330,9 @@ namespace bpr::qt {
 		void describe_target(const QString& aDescription);
 
 		[[nodiscard]] auto body_editor() const noexcept -> QPlainTextEdit*;
+		/// \brief [[BPR-1298]]. The editor's text with the loaded body's own
+		/// line endings, so a CRLF body keeps its CRs.
+		[[nodiscard]] auto body_text() const -> std::string;
 		/// \brief [[BPR-1083]]. The label chip, menu, toggles and shortcodes.
 		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
 		/// \brief The label tints of the theme on screen and the mark style.
