@@ -326,6 +326,36 @@ Consumers: the inline composition page and reply drafts
   `--label-authoring-probe` course drives the same path through Comment,
   `:qu:`, the chip, ⌘L, Publish and the refreshed thread's mark.
 
+- **Suggested changes** (BPR-1084; RFC-BPR-0048 R12, R13; RFC-BPR-0050
+  R32). A label and a suggested change are independent: an `issue` may carry
+  one, a `suggestion` may be prose only, and no label is read from a fence or
+  writes one. Every chip, menu, decoration and shortcode edit replaces only
+  the header's bytes; the fence, its range, the replacement, tabs, empty
+  (deletion) fences and two fences in one body stay byte for byte, and the
+  draft's line and thread do not move (`core_feedback_suggestion_preservation`).
+  - Before Publish, the comment editor shows a 16 px mark beside Publish, and
+    the reply written in place shows it beside its label chip, only when the
+    body carries a suggested change (owner: minimal text, icons and tooltips,
+    coordinator 2026-10-06). A plus over a minus in a box means GitHub's own
+    suggestion on this exact line, applied on GitHub; the same glyph struck
+    through with a dashed box means text only here. The shape, not only the
+    colour, tells them apart. The tooltip and accessible description say
+    what GitHub will do and, for text only, why: the base side, a file
+    comment, an outdated thread, no current line, a pull request comment, or
+    an inline comment GitHub refused on this line. The mark offers no action
+    and BPR applies nothing; it never restyles the fence.
+  - The decision is `core::decide_suggestion_applicability`, the publication
+    policy's own first step: a root comment is asked of GitHub as an inline
+    comment on its line, a reply follows its thread's projected facts, and a
+    suggestion is never sent as a file comment or moved to a nearby line. A
+    line GitHub refuses an inline comment for is refused for a suggestion
+    (`incompatible_body`, "This comment needs a supported inline line anchor.
+    Your draft text is kept."), and the mark then says text only for that
+    line. Removing the fence publishes the prose as before.
+  - BPR has no apply action and no per-comment browser handoff; applying a
+    native suggestion is GitHub's, on the pull request's page (derived;
+    RFC-BPR-0048 allows a precise GitHub handoff and forbids a fake apply).
+
 ### Thread cards and detail (BPR-1083; RFC-BPR-0050)
 
 Consumers: `conversation_cards_view`, `github_conversation_delegate` and the

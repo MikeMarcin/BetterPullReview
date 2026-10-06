@@ -759,6 +759,21 @@ endfunction()
 # 2026-10-06): no grant, target, provider, credential, mutation or publication
 # path changes; mutation pin unchanged; no new src/app source. Reviewed on
 # BPR-1210.
+# BPR-1084 reseal (2026-10-06): over the BPR-1210 reseal above; no
+# intervening pinned-scope commit. github_application.cpp includes the Qt
+# suggestion_mark header, and the tests-on label-authoring course continues
+# after its labelled comment: an issue with a suggested change, a suggestion
+# with no patch, a suggested change on a line the fixture refuses an inline
+# comment for, and a reply written in place, each checked through the
+# editors' suggested-change marks and the fixture's received bytes. main.cpp
+# prints six more evidence bits. github_public_path_fixture.cpp records each
+# created comment's decoded body, path, side and line in the fixture's
+# evidence (github_application_fixture_access.hpp), and its synthetic
+# off-hunk 422 also answers a body containing "BPR-1084 off-hunk". The
+# production composition is unchanged: the pre-publish mark is Qt
+# presentation fed by the accepted conversation projection. No grant,
+# target, provider, credential, mutation or publication path changes;
+# mutation pin unchanged; no new src/app source. Reviewed on BPR-1084.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -777,7 +792,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fb94bd1198c513cf1605b76e46d16a38bb7b9ca2509ee9d66e31ab727f88f4f0"
+		"95fa625f5cd53bd8cd0390c5056051ef7f9777e036183eed738a65ccc11f7a7d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -975,7 +990,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "cdde4e47fe1b3cee4e1f3d61e4658782c05e2fb16a9da9b9bb70bc83f18e67fc"
+        "2aeb3eba915d29cdfe606982c490b96f4523ed9865e76ead805181a508b1c8b4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -1182,6 +1182,10 @@ selects the canonical returned conversation at its exact semantic source line
 after refresh. The reviewer does not select a representation. A required file
 fallback for line-only suggestion syntax reports typed incompatibility before
 any file POST; it does not silently remove suggestion semantics.
+Before Publish, a small mark beside it says whether a body's suggested change
+goes to GitHub as its own suggestion on this line or is text only there, and
+after such a refusal it marks that exact line text only (BPR-1084; the
+Conventional Comments delivery contract, "Suggested changes").
 
 A compatibility conversation normally shows reviewer prose. Its collapsed
 **Support details** explains that GitHub stores a file review comment and the

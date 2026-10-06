@@ -187,22 +187,22 @@ namespace bpr::qt {
 		void build(const thread_card& aCard);
 		void refresh_reply_controls();
 
-		std::string                    Id;
-		open_card_style                Style;
-		bool                           Draft       = false;
-		bool                           Replying    = false;
-		bool                           Applying    = false;
-		bool                           Publishable = false;
-		int                            Notch       = 14;
-		QWidget*                       Header      = nullptr;
-		QWidget*                       Foot        = nullptr;
-		note_button*                   ReplyField  = nullptr;
-		QWidget*                       Editor      = nullptr;
-		QPlainTextEdit*                ReplyBox    = nullptr;
-		feedback_label_controls*       Labels      = nullptr;
-		QLabel*                        ReplyStatus = nullptr;
-		note_button*                   Publish     = nullptr;
-		suggestion_mark*               Suggestion  = nullptr;
+		std::string              Id;
+		open_card_style          Style;
+		bool                     Draft       = false;
+		bool                     Replying    = false;
+		bool                     Applying    = false;
+		bool                     Publishable = false;
+		int                      Notch       = 14;
+		QWidget*                 Header      = nullptr;
+		QWidget*                 Foot        = nullptr;
+		note_button*             ReplyField  = nullptr;
+		QWidget*                 Editor      = nullptr;
+		QPlainTextEdit*          ReplyBox    = nullptr;
+		feedback_label_controls* Labels      = nullptr;
+		QLabel*                  ReplyStatus = nullptr;
+		note_button*             Publish     = nullptr;
+		suggestion_mark*         Suggestion  = nullptr;
 		/// What a reply here is attached to on GitHub ([[BPR-1084]]).
 		core::suggestion_placement_observation Placement;
 		std::vector<thread_post_view*>         Posts;
