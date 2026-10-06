@@ -9688,6 +9688,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			}
 			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory));
+			observe_review_preflight();
+		}
+
+		/// [[BPR-1085]]. The accepted snapshot's published feedback, read once
+		/// per snapshot for the review preflight. Context only: no request is
+		/// made and the review draft is not touched.
+		void observe_review_preflight()
+		{
+			if (!ReviewSubmission || !WindowRead || !WindowRead->accepted_snapshot() || !LastAcceptedHandoff) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto& handoff  = *LastAcceptedHandoff;
+			if (PreflightSnapshot == std::pair{ snapshot.Snapshot, handoff.Account }) {
+				return;
+			}
+			PreflightSnapshot = std::pair{ snapshot.Snapshot, handoff.Account };
+			ReviewSubmission->observe_preflight(application::observe_review_preflight(
+				core::cached_review_key{ handoff.HostAuthority.bytes(), handoff.Profile, handoff.Host, handoff.Account, handoff.Locator, handoff.Number }, snapshot));
 		}
 
 		[[nodiscard]] auto current(const core::bpr_window_context& aContext) const noexcept -> bool override
@@ -9707,6 +9726,30 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->review_editor()->allow_publication_retry(PrivateReview && !PendingReviewMutation && aAccepted.Draft.State == core::review_draft_state::publishing);
 			}
 			refresh_agent_private_context_choices();
+			publish_preflight_selection();
+		}
+
+		/// [[BPR-1085]]. My unsent comment, as the review preflight's selected
+		/// draft: a new comment (a reply does not make a conversation blocking)
+		/// still being written or being published. Context only.
+		void publish_preflight_selection()
+		{
+			if (!ReviewSubmission) {
+				return;
+			}
+			auto selection  = std::vector<core::review_preflight_draft>{ };
+			auto references = std::map<std::string, qt::review_submission_preflight_reference>{ };
+			if (ReviewDraft && !ReviewDraft->ReplyToThread && !ReviewDraft->Body.empty()
+				&& (ReviewDraft->State == core::review_draft_state::drafting || ReviewDraft->State == core::review_draft_state::publishing)) {
+				const auto  id         = "draft:" + std::to_string(ReviewDraft->Id.value());
+				const auto& body       = ReviewDraft->Body;
+				const auto  annotation = core::recognize_feedback_prefix(body);
+				auto        subject    = annotation.Subject ? core::feedback_text(body, *annotation.Subject) : std::string_view{ body };
+				subject                = subject.substr(0U, subject.find('\n'));
+				selection.push_back({ .Id = id, .Body = body, .Selected = true });
+				references.emplace(id, qt::review_submission_preflight_reference{ .Where = QStringLiteral("Line %1").arg(ReviewDraft->Anchor.Line + 1U), .Subject = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size())).trimmed() });
+			}
+			ReviewSubmission->observe_selection(std::move(selection), std::move(references));
 		}
 
 		[[nodiscard]] auto ensure_shared_drafts(const application::accepted_pull_request_handoff& aHandoff) -> bool
@@ -9845,6 +9888,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			Window->publish(aUpdate);
 			select_published_conversation();
+			if (aUpdate.PullRequest) {
+				observe_review_preflight();
+			}
 		}
 
 		void refresh_review_conversations()
@@ -9914,6 +9960,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			ReviewDraftRevision = 0U;
 			SelectedSemanticSelection.reset();
 			refresh_agent_private_context_choices();
+			publish_preflight_selection();
 			ReviewProjection.clear();
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr || Window == nullptr
@@ -10473,6 +10520,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PendingPrivateReply.reset();
 			ReviewDraft.reset();
 			ReviewDraftRevision = 0U;
+			publish_preflight_selection();
 			if (Window != nullptr && Window->review_editor() != nullptr) {
 				auto* const editor = Window->review_editor();
 				editor->present(aReason);
@@ -11798,6 +11846,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewDraft.reset();
 				ReviewDraftRevision = 0U;
 				ReviewProjection.clear();
+				publish_preflight_selection();
 			}
 			EpochHost->invalidate(std::move(aInvalidation));
 		}
@@ -15696,6 +15745,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-1211]]. Advances whenever a ledger is composed or retired, so
 		/// an answer from a retired ledger never reaches its successor.
 		std::uint64_t ReviewLedgerGeneration = 0U;
+
+		/// [[BPR-1085]]. The snapshot and account the preflight last read.
+		std::optional<std::pair<core::provider_snapshot_id, core::github_account_id>> PreflightSnapshot;
 		/// Conversation receipts are being loaded for this ledger.
 		bool ConversationReceiptsLoading = false;
 		/// The overview asked for receipts it does not hold.
@@ -17481,6 +17533,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	{
 		if (aApplication.Implementation->Fixture) {
 			aApplication.Implementation->Fixture->stage_server_conversation(std::move(aThread), aAddedAndResolved);
+		}
+	}
+	void detail::github_application_fixture_access::stage_server_root(github_application& aApplication, std::string aThread, std::optional<std::string> aRootBody,
+																	  std::optional<bool> aResolved, std::optional<std::pair<std::string, std::string>> aRootAuthor)
+	{
+		if (aApplication.Implementation->Fixture) {
+			aApplication.Implementation->Fixture->stage_server_root(std::move(aThread), std::move(aRootBody), aResolved, std::move(aRootAuthor));
 		}
 	}
 	void detail::github_application_fixture_access::set_cycle_publication_account(github_application& aApplication, const core::bpr_window_context aContext,

@@ -2,9 +2,9 @@
 
 #include <QAction>
 #include <QApplication>
-#include <QComboBox>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QTextEdit>
 #include <QToolButton>
@@ -52,7 +52,18 @@ auto main(int argc, char** argv) -> int
 			   && editor.target_editor()->wordWrapMode() == QTextOption::WrapAtWordBoundaryOrAnywhere
 			   && editor.target_editor()->toPlainText() == projection.TargetDescription,
 		   "full identity wraps without modifying copied text");
-	expect(editor.body_editor()->accessibleName() == QStringLiteral("Review summary") && editor.disposition_editor()->accessibleName() == QStringLiteral("Review type"), "named accessible inputs");
+	expect(editor.body_editor()->accessibleName() == QStringLiteral("Review summary")
+			   && editor.disposition_button(core::review_disposition::comment)->accessibleName() == QStringLiteral("Comment")
+			   && editor.disposition_button(core::review_disposition::approve)->accessibleName() == QStringLiteral("Approve")
+			   && editor.disposition_button(core::review_disposition::request_changes)->accessibleName() == QStringLiteral("Request changes")
+			   && editor.preflight_button()->accessibleName() == QStringLiteral("Your blocking feedback"),
+		   "named accessible inputs");
+	// [[BPR-1085]]. Three explicit decisions, the draft's one checked.
+	expect(editor.disposition_button(core::review_disposition::comment)->isChecked() && !editor.disposition_button(core::review_disposition::approve)->isChecked()
+			   && editor.disposition_button(core::review_disposition::approve)->isCheckable(),
+		   "the draft's decision is the one checked");
+	expect(editor.preflight_button()->isVisible() && editor.preflight_button()->toolTip() == QStringLiteral("Your feedback on this revision has not been read: unknown, not none."),
+		   "an unread preflight says unknown, never none");
 	expect(editor.status_label()->textFormat() == Qt::PlainText && editor.status_label()->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard), "outcomes are literal and keyboard copyable");
 	editor.body_editor()->setFocus();
 	editor.body_editor()->moveCursor(QTextCursor::End);
@@ -62,8 +73,75 @@ auto main(int argc, char** argv) -> int
 	editor.body_editor()->setPlainText(QStringLiteral("Edited summary"));
 	expect(intents.size() == 1U && intents.back().Command.Kind == core::review_submission_command_kind::edit && intents.back().Command.Body == "Edited summary", "summary emits exact semantic edit");
 	expect(editor.shown_draft() == draft, "editing does not optimistically replace decided draft");
-	editor.disposition_editor()->setCurrentIndex(1);
-	expect(intents.back().Command.Disposition == core::review_disposition::approve, "choice emits typed disposition");
+	editor.disposition_button(core::review_disposition::approve)->click();
+	expect(intents.back().Command.Kind == core::review_submission_command_kind::choose_disposition && intents.back().Command.Disposition == core::review_disposition::approve, "choice emits typed disposition");
+	editor.disposition_button(core::review_disposition::request_changes)->click();
+	expect(intents.back().Command.Disposition == core::review_disposition::request_changes, "each decision button emits its own native disposition");
+
+	// [[BPR-1085]]. The preflight: my blockers, my unsent blocking draft,
+	// guidance, uncertainty and others, apart; rows link to their items.
+	auto approved           = draft;
+	approved.Disposition    = core::review_disposition::approve;
+	auto withPreflight      = projection;
+	withPreflight.Draft     = approved;
+	withPreflight.Controls  = core::controls(approved);
+	withPreflight.Prepared  = core::prepare_review_decision(approved, { });
+	withPreflight.Preflight = core::review_preflight{
+		.Blockers  = { { .Conversation = "review-thread:T1", .Label = core::feedback_label::issue, .Resolution = core::feedback_resolution::unresolved },
+					   { .Conversation = "review-thread:T2", .Label = core::feedback_label::todo, .Resolution = core::feedback_resolution::unknown } },
+		.Pending   = { { .Draft = "draft:9", .Label = core::feedback_label::issue } },
+		.Guidance  = { { .Label = core::feedback_label::chore, .Guidance = core::feedback_label_guidance::required_before_acceptance, .Published = 1U } },
+		.Uncertain = { .ResolutionUnknown = 1U },
+		.Others    = 2U,
+	};
+	withPreflight.References = { { "review-thread:T1", { QStringLiteral("src/a.cpp:12"), QStringLiteral("The cache is never invalidated.") } },
+								 { "review-thread:T2", { QStringLiteral("src/b.cpp:3"), QStringLiteral("Add the clamp.") } },
+								 { "draft:9", { QStringLiteral("Line 40"), QStringLiteral("Not sent yet.") } } };
+	auto revealed            = std::vector<std::string>{ };
+	editor.set_item_reveal([&](const std::string& aId) { revealed.push_back(aId); });
+	const auto beforePreflight = intents.size();
+	editor.present(withPreflight);
+	expect(intents.size() == beforePreflight, "presenting the preflight emits no gesture and no decision");
+	expect(editor.disposition_button(core::review_disposition::approve)->isChecked(), "Approve stays the reviewer's explicit choice while blocking feedback is open");
+	const auto chipWords = QStringLiteral("Yours on GitHub: 2 open blocking\nYours, not sent: 1 blocking\n1 chore, not marked blocking\n1 of yours: GitHub didn't say if resolved\nOthers: 2 open blocking (not yours)");
+	expect(editor.preflight_button()->toolTip() == chipWords && editor.preflight_button()->accessibleDescription() == chipWords, "the chip's tooltip and accessible description name each group");
+	auto* approve = editor.disposition_button(core::review_disposition::approve);
+	expect(!approve->icon().isNull() && approve->toolTip() == QStringLiteral("Approve. You have 3 open blocking comment(s) of your own; approving does not resolve them.")
+			   && approve->accessibleDescription() == approve->toolTip() && approve->isEnabled(),
+		   "Approve carries the amber dot and says approving does not resolve my blockers, and stays available");
+	auto rows = QStringList{ };
+	for (auto* action : editor.preflight_menu()->actions()) {
+		rows.push_back(action->isSeparator() ? (action->text().isEmpty() ? QStringLiteral("--") : QStringLiteral("## ") + action->text())
+											 : action->text() + (action->isEnabled() ? QString{ } : QStringLiteral(" [info]")));
+	}
+	const auto expectedRows = QStringList{ QStringLiteral("## Yours, on GitHub"), QStringLiteral("src/a.cpp:12 · The cache is never invalidated."), QStringLiteral("src/b.cpp:3 · Add the clamp. · state unknown"),
+										   QStringLiteral("## Yours, not sent"), QStringLiteral("Line 40 · Not sent yet."), QStringLiteral("--"),
+										   QStringLiteral("1 chore, not marked blocking [info]"), QStringLiteral("1 of yours: GitHub didn't say if resolved [info]"), QStringLiteral("Others: 2 open blocking (not yours) [info]") };
+	if (rows != expectedRows) {
+		std::cerr << rows.join(QStringLiteral(" | ")).toStdString() << '\n';
+	}
+	expect(rows == expectedRows, "the list keeps mine, my unsent drafts, guidance, uncertainty and others apart");
+	editor.preflight_menu()->actions().at(2)->trigger();
+	editor.preflight_menu()->actions().at(4)->trigger();
+	expect(revealed == std::vector<std::string>{ "review-thread:T2", "draft:9" } && intents.size() == beforePreflight, "a row reveals its exact item and nothing else");
+	auto none      = withPreflight;
+	none.Preflight = core::review_preflight{ .Exact = true };
+	editor.present(none);
+	expect(editor.preflight_button()->toolTip() == QStringLiteral("Yours on GitHub: 0 open blocking") && approve->icon().isNull()
+			   && approve->toolTip() == QStringLiteral("Approve this pull request."),
+		   "an exact zero is said as zero, and Approve carries no dot");
+	editor.present(withPreflight);
+	QApplication::processEvents();
+	for (auto* button : { editor.disposition_button(core::review_disposition::approve), editor.preflight_button() }) {
+		expect(button->width() >= button->sizeHint().width() && editor.rect().contains(button->geometry()), "the dotted Approve and the chip keep their full width in a narrow editor");
+	}
+	if (argc == 2) {
+		expect(editor.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-preflight.png")), "preflight render saved");
+	}
+	editor.submit_action()->trigger();
+	expect(intents.back().Command.Kind == core::review_submission_command_kind::begin_submit && intents.back().Prepared == withPreflight.Prepared,
+		   "Submit carries the decision the editor showed");
+	editor.present(projection);
 	auto* submit = static_cast<QToolButton*>(nullptr);
 	for (auto* button : editor.findChildren<QToolButton*>()) {
 		expect(button->isVisible() && editor.rect().contains(button->geometry()) && button->focusPolicy() == Qt::StrongFocus, "all buttons fit narrow editor and support focus");

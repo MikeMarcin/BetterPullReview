@@ -1930,6 +1930,16 @@ namespace bpr::qt {
 		centre->insertWidget(centre->indexOf(CentreStack), WorkshopHeader);
 		// [[BPR-1129]]. The kept-draft mark follows what the workflow presents.
 		ReviewSubmissionEditor->set_presentation_observer([this] { update_compose_mark(); });
+		// [[BPR-1085]]. A preflight row links back to its exact item: my unsent
+		// draft opens its page; a conversation is revealed in Discuss.
+		ReviewSubmissionEditor->set_item_reveal([this](const std::string& aIdentity) {
+			if (aIdentity.starts_with("draft:")) {
+				open_review_composition(true);
+				return;
+			}
+			close_review_composition();
+			static_cast<void>(reveal_conversation(aIdentity));
+		});
 		auto* const notesPage       = new QWidget{ Drawers[1].Panel };
 		auto* const notesPageLayout = new QVBoxLayout{ notesPage };
 		notesPageLayout->setContentsMargins(0, 0, 0, 0);
@@ -6746,6 +6756,9 @@ namespace bpr::qt {
 		const auto theme = label_marks();
 		if (ReviewEditor != nullptr) {
 			ReviewEditor->set_label_marks(theme);
+		}
+		if (ReviewSubmissionEditor != nullptr) {
+			ReviewSubmissionEditor->set_label_marks(theme);
 		}
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_label_marks(theme);

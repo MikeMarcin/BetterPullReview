@@ -73,7 +73,11 @@ namespace bpr::app::detail {
 			-> const std::filesystem::path&;
 		void prepare_review_mutation(core::review_mutation_target aTarget);
 		/// Change only the fake server's next read, never the accepted host state.
-		void               stage_server_conversation(std::string aThread, bool aAddedAndResolved);
+		void stage_server_conversation(std::string aThread, bool aAddedAndResolved);
+		/// [[BPR-1085]]. Change one thread's root body, resolution or root author
+		/// on the fake server's next read; an absent field keeps its value.
+		void               stage_server_root(std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,
+											 std::optional<std::pair<std::string, std::string>> aRootAuthor = std::nullopt);
 		void               report_review_mutation_target(core::review_mutation_target aTarget);
 		void               set_private_lineage(std::shared_ptr<application::review_publication_lineage_port>);
 		[[nodiscard]] auto review_mutation_provider() noexcept

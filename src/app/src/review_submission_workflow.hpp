@@ -2,6 +2,7 @@
 #define BPR_SRC_APP_SRC_REVIEW_SUBMISSION_WORKFLOW_HPP
 
 #include "bpr/application/github_epoch_handoff.hpp"
+#include "bpr/application/review_preflight_observation.hpp"
 #include "bpr/application/review_submission_application_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -24,7 +25,16 @@ namespace bpr::app {
 		[[nodiscard]] auto is_quiescent() const -> bool;
 		void               publish(const application::review_submission_host_terminal&) override;
 
+		/// [[BPR-1085]]. The published feedback of the accepted snapshot. It is
+		/// context only: it never changes the draft, its disposition or its
+		/// attempt, and never submits.
+		void observe_preflight(application::review_preflight_observation);
+		/// [[BPR-1085]]. My unsent comment drafts and where each is. Selected
+		/// drafts bind a prepared decision.
+		void observe_selection(std::vector<core::review_preflight_draft>, std::map<std::string, qt::review_submission_preflight_reference>);
+
 	private:
+		using preflight_key = std::pair<std::uint64_t, application::review_submission_live_binding>;
 		struct selection
 		{
 			application::review_submission_live_binding     Binding;
@@ -39,6 +49,7 @@ namespace bpr::app {
 		void                                                                          present();
 		void                                                                          complete(core::review_submission_command_kind);
 		[[nodiscard]] auto                                                            decided_controls() const -> core::review_submission_controls;
+		void                                                                          project_preflight();
 		application::effect_executor&                                                 Effects;
 		application::decision_executor&                                               Decisions;
 		qt::review_submission_editor&                                                 Editor;
@@ -53,6 +64,13 @@ namespace bpr::app {
 		std::optional<application::review_submission_request>                         Pending;
 		std::optional<application::review_submission_host_context>                    Context;
 		std::vector<application::review_submission_request>                           Unresolved;
+		std::optional<application::review_preflight_observation>                      Observation;
+		std::vector<core::review_preflight_draft>                                     Selection;
+		std::map<std::string, qt::review_submission_preflight_reference>              SelectionReferences;
+		std::optional<core::review_preflight>                                         Preflight;
+		std::map<std::string, qt::review_submission_preflight_reference>              PreflightReferences;
+		std::uint64_t                                                                 PreflightInputs = 0U;
+		std::optional<preflight_key>                                                  PreflightProjected;
 		core::request_generation                                                      Generation;
 		std::uint64_t                                                                 NextDraft = 1U;
 		QString                                                                       Status;

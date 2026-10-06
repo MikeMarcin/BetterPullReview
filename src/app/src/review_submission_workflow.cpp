@@ -12,6 +12,29 @@ namespace bpr::app {
 	using command_kind = core::review_submission_command_kind;
 	using draft_state  = core::review_submission_state;
 
+	namespace {
+		/// [[BPR-1085]]. Why a Submit gesture was refused, naming what changed.
+		[[nodiscard]] auto changed_status(const std::vector<core::review_preflight_change>& aChanges) -> QString
+		{
+			if (aChanges.empty()) {
+				return QStringLiteral("Not submitted: the review shown could not be confirmed. Check it and submit again.");
+			}
+			auto words = QStringList{ };
+			for (const auto change : aChanges) {
+				switch (change) {
+				case core::review_preflight_change::draft:       words.push_back(QStringLiteral("review draft")); break;
+				case core::review_preflight_change::account:     words.push_back(QStringLiteral("account")); break;
+				case core::review_preflight_change::target:      words.push_back(QStringLiteral("pull request")); break;
+				case core::review_preflight_change::head:        words.push_back(QStringLiteral("pull request revision")); break;
+				case core::review_preflight_change::summary:     words.push_back(QStringLiteral("summary")); break;
+				case core::review_preflight_change::disposition: words.push_back(QStringLiteral("review type")); break;
+				case core::review_preflight_change::selection:   words.push_back(QStringLiteral("unsent comments")); break;
+				}
+			}
+			return QStringLiteral("Not submitted: the %1 changed after you chose Submit review. Check the review and submit again.").arg(words.join(QStringLiteral(", ")));
+		}
+	}
+
 	review_submission_workflow::review_submission_workflow(application::effect_executor&   aEffects,
 														   application::decision_executor& aDecisions, qt::review_submission_editor& aEditor, grant_factory aIssueGrant, write_confirmation aConfirmWrite)
 		: Effects{ aEffects }
@@ -157,6 +180,65 @@ namespace bpr::app {
 		return result;
 	}
 
+	void review_submission_workflow::observe_preflight(application::review_preflight_observation aObservation)
+	{
+		if (Closing) {
+			return;
+		}
+		Observation = std::move(aObservation);
+		++PreflightInputs;
+		present();
+	}
+
+	void review_submission_workflow::observe_selection(std::vector<core::review_preflight_draft>                        aSelection,
+													   std::map<std::string, qt::review_submission_preflight_reference> aReferences)
+	{
+		if (Closing || (aSelection == Selection && aReferences == SelectionReferences)) {
+			return;
+		}
+		Selection           = std::move(aSelection);
+		SelectionReferences = std::move(aReferences);
+		++PreflightInputs;
+		present();
+	}
+
+	void review_submission_workflow::project_preflight()
+	{
+		if (!DraftBinding) {
+			Preflight.reset();
+			PreflightReferences.clear();
+			PreflightProjected.reset();
+			return;
+		}
+		if (PreflightProjected && PreflightProjected->first == PreflightInputs && PreflightProjected->second == *DraftBinding) {
+			return;
+		}
+		PreflightProjected = std::pair{ PreflightInputs, *DraftBinding };
+		Preflight.reset();
+		PreflightReferences.clear();
+		// [[BPR-1085]]. Only a read of this draft's account and revision is
+		// its context; any other is unknown, never "none".
+		if (!Observation || Observation->Account != DraftBinding->ActingIdentity.Account
+			|| Observation->Head != core::canonical_hex(DraftBinding->Target.Semantic.ExpectedHead).view()) {
+			return;
+		}
+		Preflight = application::project_review_preflight(*Observation, Selection);
+		if (!Preflight) {
+			return;
+		}
+		const auto text = [](const std::string& aText) { return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size())); };
+		for (const auto& blocker : Preflight->Blockers) {
+			if (const auto found = Observation->References.find(blocker.Conversation); found != Observation->References.end()) {
+				PreflightReferences.emplace(blocker.Conversation, qt::review_submission_preflight_reference{ text(found->second.Where), text(found->second.Subject) });
+			}
+		}
+		for (const auto& pending : Preflight->Pending) {
+			if (const auto found = SelectionReferences.find(pending.Draft); found != SelectionReferences.end()) {
+				PreflightReferences.emplace(pending.Draft, found->second);
+			}
+		}
+	}
+
 	void review_submission_workflow::present()
 	{
 		QString target;
@@ -175,7 +257,14 @@ namespace bpr::app {
 		if (Ready && Draft && Draft->State == draft_state::drafting && Current && DraftBinding != std::optional{ Current->Binding }) {
 			status = QStringLiteral("The pull request revision changed. Discard this frozen draft and start a new review.");
 		}
-		Editor.present({ .Draft = Draft, .Controls = decided_controls(), .TargetDescription = std::move(target), .Status = std::move(status) });
+		project_preflight();
+		Editor.present({ .Draft             = Draft,
+						 .Controls          = decided_controls(),
+						 .TargetDescription = std::move(target),
+						 .Status            = std::move(status),
+						 .Preflight         = Preflight,
+						 .References        = PreflightReferences,
+						 .Prepared          = Draft ? core::prepare_review_decision(*Draft, Selection) : std::nullopt });
 	}
 
 	void review_submission_workflow::complete(command_kind aKind)
@@ -228,16 +317,37 @@ namespace bpr::app {
 			if (!allowed) {
 				return;
 			}
-			if (kind == command_kind::begin_submit && ConfirmWrite) {
-				if (!DraftBinding) {
+			if (kind == command_kind::begin_submit) {
+				// [[BPR-1085]]. Submit binds what the editor showed when it was
+				// pressed: the draft, its account and revision, the summary, the
+				// decision and the selected drafts. A change to any of them since
+				// refuses this gesture; context (a resolution, another label)
+				// binds nothing and refuses nothing.
+				const auto shown   = aIntent.Prepared;
+				const auto current = core::prepare_review_decision(*Draft, Selection);
+				const auto changes = shown && current ? core::review_decision_changes(*shown, *current) : std::vector<core::review_preflight_change>{ };
+				if (!shown || !current || !changes.empty()) {
+					Status = changed_status(changes);
+					present();
 					return;
 				}
-				const auto confirmedDraft   = *Draft;
-				const auto confirmedBinding = *DraftBinding;
-				if (!ConfirmWrite(confirmedBinding, confirmedDraft.Disposition)
-					|| !Draft || *Draft != confirmedDraft || !Current
-					|| DraftBinding != confirmedBinding || !decided_controls().Submit) {
-					return;
+				if (ConfirmWrite) {
+					if (!DraftBinding) {
+						return;
+					}
+					const auto confirmedDraft   = *Draft;
+					const auto confirmedBinding = *DraftBinding;
+					if (!ConfirmWrite(confirmedBinding, confirmedDraft.Disposition)
+						|| !Draft || *Draft != confirmedDraft || !Current
+						|| DraftBinding != confirmedBinding || !decided_controls().Submit) {
+						return;
+					}
+					const auto confirmed = core::prepare_review_decision(*Draft, Selection);
+					if (!confirmed || !core::review_decision_changes(*shown, *confirmed).empty()) {
+						Status = changed_status(confirmed ? core::review_decision_changes(*shown, *confirmed) : std::vector<core::review_preflight_change>{ });
+						present();
+						return;
+					}
 				}
 			}
 			auto outcome = core::apply(*Draft, aIntent.Command);

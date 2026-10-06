@@ -774,6 +774,20 @@ endfunction()
 # presentation fed by the accepted conversation projection. No grant,
 # target, provider, credential, mutation or publication path changes;
 # mutation pin unchanged; no new src/app source. Reviewed on BPR-1084.
+# BPR-1085 reseal (2026-10-06): over the BPR-1084 reseal above; no
+# intervening pinned-scope commit. github_application.cpp reads each
+# accepted snapshot once through application::observe_review_preflight
+# into the review submission workflow (observe_review_preflight), hands it
+# the window's unsent comment draft as the selected draft
+# (publish_preflight_selection), and adds the tests-on stage_server_root
+# fixture accessor. review_submission_workflow.cpp presents the preflight
+# and the prepared decision, and refuses a Submit whose shown prepared
+# decision no longer matches the draft, account, head, summary, decision or
+# selected drafts, before and after the existing write confirmation. The
+# request, idempotency key, grant, journal, host and provider are
+# unchanged; the begin_submit gate only adds refusals. No grant, target,
+# provider, credential, mutation or publication path changes; mutation pin
+# unchanged; no new src/app source. Reviewed on BPR-1085.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -792,7 +806,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"95fa625f5cd53bd8cd0390c5056051ef7f9777e036183eed738a65ccc11f7a7d"
+		"4495b3e97278d8af38771aacc923be5fc964363b2df64d03657d4754990421c2"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -990,7 +1004,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2aeb3eba915d29cdfe606982c490b96f4523ed9865e76ead805181a508b1c8b4"
+        "76a9c3520c3b839e2c49d9e689b4ce948bf2a6b30ec48bbb4ca36b9f39b7c26e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

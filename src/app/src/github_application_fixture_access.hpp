@@ -996,6 +996,10 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication, core::bpr_window_context aContext) -> std::optional<application::github_pull_request_snapshot>;
 		/// Change fake remote records; the course must still issue a public Refresh.
 		static void stage_server_conversation(github_application& aApplication, std::string aThread, bool aAddedAndResolved);
+		/// [[BPR-1085]]. Change one thread's root body, resolution or root author
+		/// on the fake server; the course must still issue a public Refresh.
+		static void stage_server_root(github_application& aApplication, std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,
+									  std::optional<std::pair<std::string, std::string>> aRootAuthor = std::nullopt);
 		/// \brief [[BPR-1177]]. A course's account for Publish as Pull Request in
 		/// one window, in place of the session's: a simulated GitHub behind the
 		/// publication catalog's port. Nothing else of the composition changes.

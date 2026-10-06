@@ -1509,6 +1509,8 @@ namespace bpr::app::detail {
 				std::vector<std::pair<std::string, std::string>> Replies;
 				std::optional<bool>                              Resolved;
 				std::optional<std::string>                       RootBody;
+				/// [[BPR-1085]]. The root post's author, as GitHub's identity and login.
+				std::optional<std::pair<std::string, std::string>> RootAuthor;
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
 			std::vector<QJsonObject>              CreatedReviewThreads;
@@ -1968,6 +1970,11 @@ namespace bpr::app::detail {
 				if (!posts.isEmpty() && overlay->second.RootBody) {
 					auto rootPost = posts.first().toObject();
 					rootPost.insert(QStringLiteral("bodyText"), QString::fromStdString(*overlay->second.RootBody));
+					posts.replace(0, rootPost);
+				}
+				if (!posts.isEmpty() && overlay->second.RootAuthor) {
+					auto rootPost = posts.first().toObject();
+					rootPost.insert(QStringLiteral("author"), QJsonObject{ { QStringLiteral("id"), QString::fromStdString(overlay->second.RootAuthor->first) }, { QStringLiteral("login"), QString::fromStdString(overlay->second.RootAuthor->second) } });
 					posts.replace(0, rootPost);
 				}
 				const auto rootId = posts.isEmpty()
@@ -4304,6 +4311,22 @@ namespace bpr::app::detail {
 		overlay.Replies.clear();
 		if (aAddedAndResolved) {
 			overlay.Replies.emplace_back("PRRC_shared_server_reply", "New server reply");
+		}
+	}
+
+	void github_public_path_fixture_components::stage_server_root(std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,
+																  std::optional<std::pair<std::string, std::string>> aRootAuthor)
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		auto&                  overlay = Implementation->Recording->ThreadOverlays[std::move(aThread)];
+		if (aRootBody) {
+			overlay.RootBody = std::move(aRootBody);
+		}
+		if (aResolved) {
+			overlay.Resolved = aResolved;
+		}
+		if (aRootAuthor) {
+			overlay.RootAuthor = std::move(aRootAuthor);
 		}
 	}
 

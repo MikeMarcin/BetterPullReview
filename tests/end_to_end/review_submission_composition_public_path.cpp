@@ -14,6 +14,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -92,11 +93,11 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	auto server = std::make_shared<app::detail::review_submission_fixture_state>();
-	auto make   = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com) {
+	auto make   = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, bool aRepeatReads = false) {
 		std::unique_ptr<app::github_application> started;
 		auto                                     startupTerminal = false;
 		auto                                     startup         = access::start(aFixture,
-																				 app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server },
+																				 app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads },
 																				 [&](auto aResult) {
 										 startupTerminal = true;
 										 if (aResult) {
@@ -126,7 +127,7 @@ auto main(int argc, char** argv) -> int
 			if (editor.new_review_action()->isEnabled()) {
 				editor.new_review_action()->trigger();
 			}
-			editor.disposition_editor()->setCurrentIndex(editor.disposition_editor()->findData(static_cast<int>(disposition)));
+			editor.disposition_button(disposition)->click();
 			const auto body = disposition == core::review_disposition::approve ? QString{ } : QStringLiteral("Whole review <literal> summary.");
 			editor.body_editor()->setPlainText(body);
 			expect(editor.submit_action()->isEnabled(), "ready disposition enables submit");
@@ -415,6 +416,150 @@ auto main(int argc, char** argv) -> int
 		{
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->Submissions == 6U, "explanation and closed review perform zero additional publications");
+		}
+		shutdown(*application);
+		application.reset();
+		// The preflight course re-reads the fake server through the public
+		// Refresh, so its recorded read script replays.
+		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true);
+		open(*application);
+		{
+			auto& course   = application->window();
+			auto& composer = *course.review_submission_editor_view();
+			// [[BPR-1085]]. My own feedback before a native decision (RFC-BPR-0048
+			// R14, R15, R42; pack cases approve-with-open-feedback and
+			// native-request-changes). The fake server changes only through its
+			// next read, which a public Refresh asks for. No label or resolution
+			// submits a review or changes the reviewer's decision, and each
+			// explicit decision submits its exact native event once.
+			const auto submissions = [&] {
+				std::scoped_lock lock{ server->Mutex };
+				return server->Submissions;
+			};
+			const auto chip          = [&] { return composer.preflight_button()->toolTip(); };
+			const auto refresh_until = [&](const QString& aWords, const char* aWhy) {
+				course.github_refresh_action()->trigger();
+				if (!e2e::wait_until_plain([&] { return chip() == aWords; }, e2e::default_queue_budget)) {
+					std::cerr << "review-submission-composition: the chip says \"" << chip().toStdString() << "\" (" << course.github_status_text() << ")\n";
+					throw std::runtime_error{ aWhy };
+				}
+			};
+			const auto approve = composer.disposition_button(core::review_disposition::approve);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->Submissions == 6U, "the preflight course starts after six submissions");
+			}
+			composer.new_review_action()->trigger();
+			expect(composer.shown_draft() && composer.shown_draft()->State == state::drafting, "a new review to decide");
+			wait([&] { return chip() == QStringLiteral("Yours on GitHub: 0 open blocking"); }, "the fixture's own threads are plain, read exactly, and none blocks");
+			const auto quiet = submissions();
+
+			access::stage_server_root(*application, "PRRT_fixture_1", "issue (blocking): Please preserve snapshot identity across refreshes.", std::nullopt);
+			access::stage_server_root(*application, "PRRT_fixture_2", "issue (blocking): Another reviewer's blocker.", std::nullopt, std::pair{ std::string{ "U_fixture_author" }, std::string{ "octo-author" } });
+			refresh_until(QStringLiteral("Yours on GitHub: 1 open blocking\nOthers: 1 open blocking (not yours)"),
+						  "my labelled root is mine; another reviewer's blocker is counted apart, never as mine");
+			expect(submissions() == quiet && composer.shown_draft()->Disposition == core::review_disposition::comment && composer.shown_draft()->State == state::drafting,
+				   "a label read from GitHub submits nothing and chooses no decision");
+			approve->click();
+			expect(composer.shown_draft()->Disposition == core::review_disposition::approve && approve->isChecked() && !approve->icon().isNull()
+					   && approve->toolTip().contains(QStringLiteral("approving does not resolve")),
+				   "Approve stays available and chosen explicitly while my blocking feedback is open, with its dot and tooltip");
+			auto* const menu = composer.preflight_menu();
+			expect(menu->actions().size() >= 2 && menu->actions().at(1)->text() == QStringLiteral("review.cpp:42 · Please preserve snapshot identity across refreshes."),
+				   "the list names my blocker where it is, by its subject");
+			menu->actions().at(1)->trigger();
+			auto* const composePage = course.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"));
+			expect(course.current_modality() == qt::review_modality::discuss && !composePage->isVisible() && submissions() == quiet,
+				   "a row reveals the exact conversation in Discuss and submits nothing");
+			course.open_review_composition();
+			QApplication::processEvents();
+
+			access::stage_server_root(*application, "PRRT_fixture_1", std::nullopt, true);
+			refresh_until(QStringLiteral("Yours on GitHub: 0 open blocking\nOthers: 1 open blocking (not yours)"), "resolving my last blocker clears it");
+			expect(submissions() == quiet && composer.shown_draft()->Disposition == core::review_disposition::approve && composer.shown_draft()->State == state::drafting && approve->icon().isNull(),
+				   "the last resolution approves nothing and leaves my explicit choice as it was");
+			access::stage_server_root(*application, "PRRT_fixture_3", "todo: Keep the second current-head anchor exact.", std::nullopt);
+			refresh_until(QStringLiteral("Yours on GitHub: 0 open blocking\n1 todo, not marked blocking\nOthers: 1 open blocking (not yours)"),
+						  "an undecorated todo is guidance, never a blocker");
+			access::stage_server_root(*application, "PRRT_fixture_3", "todo (blocking): Keep the second current-head anchor exact.", std::nullopt);
+			refresh_until(QStringLiteral("Yours on GitHub: 1 open blocking\nOthers: 1 open blocking (not yours)"), "a label edit to blocking is mine again");
+			expect(submissions() == quiet && composer.shown_draft()->Disposition == core::review_disposition::approve && !approve->icon().isNull(),
+				   "a label change requests no changes and submits nothing");
+
+			// approve-with-open-feedback: the explicit Approve is submitted as chosen.
+			composer.body_editor()->setPlainText(QStringLiteral("Approving while my own blocking comment is still open."));
+			composer.submit_action()->trigger();
+			submitted(composer);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->Submissions == quiet + 1U && server->Reviews.back().Proposal.Disposition == core::review_disposition::approve
+						   && server->Reviews.back().Proposal.Body == "Approving while my own blocking comment is still open.",
+					   "Approve with my open blocking feedback submits exactly the native approval, once");
+			}
+			// native-request-changes: inspect my blocking feedback, then choose.
+			composer.new_review_action()->trigger();
+			expect(chip().startsWith(QStringLiteral("Yours on GitHub: 1 open blocking")) && composer.preflight_menu()->actions().at(1)->text().contains(QStringLiteral("Keep the second current-head anchor exact.")),
+				   "my blocking feedback is there to inspect before deciding");
+			composer.disposition_button(core::review_disposition::request_changes)->click();
+			composer.body_editor()->setPlainText(QStringLiteral("Requesting changes after reading my own blocking feedback."));
+			composer.submit_action()->trigger();
+			submitted(composer);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->Submissions == quiet + 2U && server->Reviews.back().Proposal.Disposition == core::review_disposition::request_changes,
+					   "Request changes submits exactly the native event once, with no second label-made event");
+			}
+
+			// A selected unsent draft binds the decision; a stale view of it is refused.
+			composer.new_review_action()->trigger();
+			composer.body_editor()->setPlainText(QStringLiteral("Comment with a pending inline draft."));
+			course.close_review_composition();
+			course.choose_modality(qt::review_modality::review);
+			auto* const files = course.files_drawer()->contents_view();
+			wait([&] { return files->model()->rowCount() > 0; }, "a file to comment on");
+			const auto selections = course.statistics().FileSelections;
+			files->setCurrentIndex(files->model()->index(0, 0));
+			wait([&] { return course.statistics().FileSelections > selections; }, "the file is selected");
+			wait([&] { return course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U); }, "select a current-head line for the pending draft");
+			wait([&] { return course.comment_action()->isEnabled(); }, "Comment is offered on the current-head line");
+			course.comment_action()->trigger();
+			auto* const inlineDraft = course.review_editor();
+			wait([&] { return inlineDraft->body_editor()->isVisible() && !inlineDraft->body_editor()->isReadOnly(); }, "the inline draft opens");
+			inlineDraft->body_editor()->setPlainText(QStringLiteral("issue (blocking): Pending inline draft."));
+			wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "issue (blocking): Pending inline draft."; }, "the inline draft is kept locally");
+			course.close_review_composition();
+			course.open_review_composition();
+			QApplication::processEvents();
+			wait([&] { return chip().contains(QStringLiteral("Yours, not sent: 1 blocking")); }, "my selected unsent blocking draft is pending, apart from what GitHub has");
+			const auto shownSelection = composer.shown_projection();
+			course.close_review_composition();
+			course.open_review_composition(true);
+			inlineDraft->body_editor()->setPlainText(QStringLiteral("issue (blocking): Pending inline draft, relabelled."));
+			wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "issue (blocking): Pending inline draft, relabelled."; }, "the selected draft changes");
+			course.close_review_composition();
+			course.open_review_composition();
+			QApplication::processEvents();
+			expect(composer.shown_projection().Prepared != shownSelection.Prepared, "the editor now shows the changed selection");
+			const auto beforeStale = submissions();
+			composer.present(shownSelection);
+			composer.submit_action()->trigger();
+			expect(submissions() == beforeStale && composer.shown_draft()->State == state::drafting
+					   && composer.status_label()->text().contains(QStringLiteral("unsent comments changed after you chose Submit review")),
+				   "Submit from a view of the old selection is refused and says what changed");
+			const auto shownSummary = composer.shown_projection();
+			composer.body_editor()->setPlainText(QStringLiteral("Comment with a pending inline draft, revised."));
+			composer.present(shownSummary);
+			composer.submit_action()->trigger();
+			expect(submissions() == beforeStale && composer.status_label()->text().contains(QStringLiteral("the summary changed")),
+				   "Submit from a view of the old summary is refused; the revised summary is never bound to the old action");
+			composer.submit_action()->trigger();
+			submitted(composer);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->Submissions == beforeStale + 1U && server->Reviews.back().Proposal.Body == "Comment with a pending inline draft, revised."
+						   && server->Reviews.back().Proposal.Disposition == core::review_disposition::comment,
+					   "the current view submits the revised summary once");
+			}
 		}
 		shutdown(*application);
 		std::cout << "review-submission-composition:pass\n";
