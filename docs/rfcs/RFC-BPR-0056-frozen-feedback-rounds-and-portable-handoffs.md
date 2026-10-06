@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0056"
 title: "Frozen Feedback Rounds and Portable Handoffs"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review Cycles"
 depends_on: ["RFC-BPR-0053", "RFC-BPR-0054", "RFC-BPR-0055"]
