@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1296"
 title: "macOS: the large-review byte-pressure course intermittently misses its 184 MiB memory limit"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
