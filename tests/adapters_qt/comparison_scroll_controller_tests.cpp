@@ -861,12 +861,12 @@ namespace {
 			"#include \"renderer.h\"\n\nvoid Renderer::draw()\n{\n\tclear();\n\tdraw_scene();\n\tpresent();\n}\n\n"
 			"void Renderer::resize(const int aWidth, const int aHeight)\n{\n\tWidth  = aWidth;\n\tHeight = aHeight;\n}\n"
 		};
-		const auto lines = [](const std::size_t aCount) {
+		const auto lines = [](const std::size_t aCount, const qreal aViewport = 400.0) {
 			auto boundaries = std::vector<qreal>{ };
 			for (std::size_t line = 0U; line <= aCount; ++line) {
 				boundaries.push_back(10.0 * static_cast<qreal>(line));
 			}
-			auto pane                = measurements(std::move(boundaries), 400.0);
+			auto pane                = measurements(std::move(boundaries), aViewport);
 			pane.TrailingVisualBlock = true;
 			return pane;
 		};
@@ -920,6 +920,29 @@ namespace {
 		expect(close(harness.Controller.position(), harness.Controller.maximum_position())
 				   && close(origins().second, 140.0),
 			   "the wheel scrolls the short file until its last line is at the top, and no further");
+
+		// A remeasurement moves the rail with the viewport. At an end the
+		// panes stay at that end; elsewhere the line on the rail stays there.
+		const auto remeasured = [&](const qreal aViewport) {
+			auto axis = qt::build_measured_alignment_axis(diff.Alignment, lines(7U, aViewport), lines(14U, aViewport));
+			expect(axis.valid(), "the remeasured axis builds");
+			harness.Controller.set_axis(std::move(*axis.Axis));
+		};
+		harness.Controller.home();
+		remeasured(300.0);
+		expect(close(harness.Controller.position(), harness.Controller.minimum_position()) && origins() == std::pair{ 0.0, 0.0 },
+			   "a comparison shown from its top stays at its top when the viewport shrinks");
+		harness.Controller.end();
+		remeasured(500.0);
+		expect(close(harness.Controller.position(), harness.Controller.maximum_position()) && close(origins().first, 70.0)
+				   && close(origins().second, 140.0),
+			   "a comparison at its end keeps its last lines at the top when the viewport grows");
+		harness.Controller.set_position(harness.Controller.minimum_position() + 40.0);
+		const auto railLine = harness.Controller.current_frame()->Right.ProjectedDocumentY;
+		remeasured(400.0);
+		expect(close(harness.Controller.current_frame()->Right.ProjectedDocumentY, railLine)
+				   && close(origins().second, railLine - rail),
+			   "between the ends, the line on the rail stays on the rail");
 
 		// Negative control: one line a side has nothing to scroll, so the bar
 		// has no travel and End moves nothing.

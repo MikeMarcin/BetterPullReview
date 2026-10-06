@@ -148,6 +148,12 @@ namespace bpr::qt {
 			&& Axis->comparison() == aAxis.comparison();
 		const auto anchor           = sameComparison ? retained_anchor() : std::nullopt;
 		const auto previousPosition = Q;
+		// [[BPR-1291]]. A remeasurement keeps the line on the rail where it
+		// is, except at an end: a comparison shown from its top, or with its
+		// last lines at the top, stays so when the rail moves with the
+		// viewport.
+		const auto atStart = sameComparison && same_position(Q, MinimumQ);
+		const auto atEnd   = sameComparison && !atStart && same_position(Q, MaximumQ);
 		PendingAxis.reset();
 		ClearAxisPending = false;
 		AxisSuspended    = false;
@@ -164,11 +170,10 @@ namespace bpr::qt {
 		const auto anchoredPosition = anchor.has_value()
 			? position_for_anchor(*anchor)
 			: std::nullopt;
-		apply_position(
-			sameComparison
-				? anchoredPosition.value_or(clamp_position(previousPosition))
-				: MinimumQ,
-			true);
+		const auto retained         = atEnd
+			? MaximumQ
+			: anchoredPosition.value_or(clamp_position(previousPosition));
+		apply_position(sameComparison && !atStart ? retained : MinimumQ, true);
 	}
 
 	void comparison_scroll_controller::suspend_axis()
