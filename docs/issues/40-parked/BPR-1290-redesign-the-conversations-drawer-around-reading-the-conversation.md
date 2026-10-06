@@ -764,3 +764,23 @@ scroll-bar markers."
 Next: read the session's decision. Accept satisfies :owner-look and the card
 finishes; Reject comes back with what differs in its note, for a v003
 candidate. Linux and Windows have not run v002's rows.
+||||||| parent of a8ea68098 (BPR-1290: Windows passes 21 of 21 drawer rows and the enforced large-review rows 18 of 18)
+**Note: Windows run at `1fecfaef5` (station `bpr-main-win`, MSVC 14.51, Qt
+6.11.2; no remote mutation).**
+
+- **`windows-dev` Debug, whole tree.** It built with no `warning C` or
+  `warning LNK` line, and the named selection passes 21 of 21 under `-j4`:
+  - `qt_composed_inline_drawer_scale_{100,125,200}`;
+  - `qt_conversation_cards_view`, `qt_github_conversation_panel` and
+    `qt_github_thread_map_scale_{100,125,200}`;
+  - `qt_feedback_label_threads`, `qt_composed_markdown_{1_0,1_25,2_0}` and
+    `qt_composed_github_scale_{100,125,200}`;
+  - `qt_workbench_window_scale_{100,125,200}` (171.8–187.7 s);
+  - `application_composition_contract` (996.8 s),
+    `application_review_round_trip_composition_contract` and
+    `architecture_boundaries`.
+- **Optimized tests-on tree** (`build/bpr0967-release`, MSVC `/O2`). The 18
+  large-review rows pass 18 of 18 with `-j1` in 586.1 s. All 14 reports have
+  `BudgetsEnforced` true, an empty `KnownInputMisses` and no limit miss. The
+  largest gap in a gated course is 62.8 ms (`paged_review_and_git_load`), and
+  `files_drawer_open` takes 66.1 ms as a whole phase.
