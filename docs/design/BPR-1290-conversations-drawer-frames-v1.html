@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 Conversations drawer frames v1</title>
+<!--
+  [[BPR-1290]] Conversations drawer, round v1. The owner, 2026-10-06: "I don't understand the
+  conversations drawer at all.. the useful part is this tiny little section at the bottom i can
+  barely see and the rest I dont get." Three candidates, one per way of choosing a thread:
+    A  Switcher   one row of thread chips above the conversation
+    B  Stack      threads as one-line rows; the open one expands in place to full height
+    C  Line rail  a thin strip whose ticks sit at the threads' lines; the conversation beside it
+  Shared by all three: the conversation fills the drawer; every post has the 18 px avatar, the
+  16 px mark 3 px under it and the rail 3 px left of it (BPR-1083 v4, blocking = filled mark and
+  4 px rail); a reply that answers something other than the post above it says whom; branches
+  fold; the reply field sits at the foot of the conversation. The map and the path caption are gone.
+
+  Content: tests/fixtures/github/contracts/v1/conventional-comments-v1 (renderer.cpp threads, the
+  viewer fixture-author, the whole PR's six threads) and
+  tests/fixtures/github/conversations/branching-thread-v1 (the deep frames). The draft's body is
+  illustrative: the owner's screenshot shows the draft card but not its text. Unread counts are
+  the screenshot's. Icons: BPR-1080's selected glyphs, copied from BPR-1080-label-icons-selected.html.
+
+  Query parameters:  f = frame id (none draws the index)   theme = light (default) | dark
+  Static design frames, not the product. Nothing here is implemented.
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#EEF1F5; --rule:#D9DEE5; --rule-2:#C3CAD3;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#6B7480; --signal:#2F6FD6; --signal-soft:#DCE8F9; --on-signal:#FFFFFF;
+  --open:#D29922; --ok:#1A7F37; --new:#2F6FD6; --hover:#F3F5F8;
+  --code:#FFFFFF; --gutter:#F0F2F5; --lnum:#5B6570; --add:#E6FFEC; --add-g:#CCFFD8; --del:#FFEBE9;
+  --field:#FFFFFF; --shadow:0 10px 28px rgba(31,35,40,.18); --tip:#1F2328; --tip-ink:#F6F7F9;
+  --kw:#B51D27; --fn:#6639BA; --ty:#6E3EC8;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"JetBrains Mono NL", "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+body.dark {
+  --bg:#1C2026; --side:#20252C; --panel:#242930; --panel-2:#2E343D; --rule:#343A44; --rule-2:#454D59;
+  --ink:#E6EDF3; --ink-2:#A0A8B2; --ink-3:#8B949E; --signal:#7FB0E8; --signal-soft:#26374F; --on-signal:#0D1117;
+  --open:#E0B15A; --ok:#3FB950; --new:#7FB0E8; --hover:#2A3038;
+  --code:#0D1117; --gutter:#141921; --lnum:#8B949E; --add:#12301D; --add-g:#1A4A2A; --del:#3E1F1F;
+  --field:#1A1F26; --shadow:0 12px 32px rgba(0,0,0,.55); --tip:#E6EDF3; --tip-ink:#1C2026;
+  --kw:#6DA9DB; --fn:#FF8000; --ty:#FFD700;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--ink); font:12px/1.4 var(--ui); -webkit-font-smoothing:antialiased; }
+body.index { overflow:auto; padding:20px; }
+svg.i { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; display:block; }
+svg.i.s { width:13px; height:13px; }
+.sp { flex:1; }
+
+/* window chrome, simplified from the owner's screenshot */
+.win { width:100vw; height:100vh; display:flex; flex-direction:column; }
+.title { flex:0 0 32px; display:flex; align-items:center; gap:8px; padding:0 10px 0 0; background:var(--panel); border-bottom:1px solid var(--rule-2); }
+.lights { display:flex; gap:8px; padding-left:12px; width:84px; flex:none; }
+.lights i { width:12px; height:12px; border-radius:50%; background:#FF5F57; display:block; }
+.lights i:nth-child(2) { background:#FEBC2E; } .lights i:nth-child(3) { background:#28C840; }
+.seg { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; }
+.seg > span { display:inline-flex; align-items:center; gap:5px; padding:0 10px; height:21px; color:var(--ink-2); border-right:1px solid var(--rule-2); white-space:nowrap; }
+.seg > span:last-child { border-right:0; }
+.seg > span.on { background:var(--signal-soft); color:var(--ink); font-weight:600; }
+.seg kbd { font:11px var(--ui); color:var(--ink-3); }
+.tb { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:22px; min-width:24px; padding:0 4px; border-radius:5px; color:var(--ink-2); white-space:nowrap; }
+.tb.on { background:var(--signal-soft); color:var(--ink); }
+.bar { flex:0 0 30px; display:flex; align-items:center; gap:10px; padding:0 10px; background:var(--panel); border-bottom:1px solid var(--rule); white-space:nowrap; color:var(--ink-2); }
+.bar b { color:var(--ink); font-weight:600; }
+.status { flex:0 0 24px; display:flex; align-items:center; padding:0 12px; background:var(--panel); border-top:1px solid var(--rule); color:var(--ink-2); font-size:11.5px; }
+.main { flex:1; display:flex; min-height:0; }
+
+/* code */
+.cmp { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--code); }
+.fh { flex:0 0 24px; display:flex; align-items:center; justify-content:center; background:var(--side); border-bottom:1px solid var(--rule); color:var(--ink); font-size:12px; }
+.panes { flex:1; display:flex; min-height:0; }
+.pane { flex:1; padding-top:8px; font:12px/19px var(--mono); overflow:hidden; border-right:1px solid var(--rule); min-width:0; }
+.pane:last-child { border-right:0; }
+.ln { display:flex; white-space:pre; position:relative; }
+.ln .g { flex:0 0 40px; text-align:right; padding-right:9px; color:var(--lnum); background:var(--gutter); }
+.ln .t { padding-left:10px; flex:1; }
+.ln.add .t { background:var(--add); } .ln.add .g { background:var(--add-g); }
+.ln.cur .t { box-shadow:inset 0 0 0 1px var(--signal); }
+.ln .gm { position:absolute; left:40px; top:2px; bottom:2px; width:4px; border-radius:1px; }
+.k { color:var(--kw); } .fn { color:var(--fn); } .ty { color:var(--ty); }
+
+/* drawer */
+.drawer { flex:none; display:flex; flex-direction:column; background:var(--panel); border-left:1px solid var(--rule-2); min-height:0; position:relative; }
+.solo { position:relative; overflow:hidden; }
+.solo .drawer { width:100%; height:100%; border-left:0; }
+.tabs { flex:0 0 30px; display:flex; align-items:stretch; padding:0 6px; border-bottom:1px solid var(--rule); }
+.tab { display:flex; align-items:center; gap:6px; padding:0 10px; color:var(--ink-2); }
+.tab.on { color:var(--ink); font-weight:600; box-shadow:inset 0 -2px 0 var(--signal); }
+.pillc { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 5px; border-radius:8px; background:var(--new); color:var(--on-signal); font-size:10.5px; font-weight:700; }
+.dbody { flex:1; display:flex; min-height:0; position:relative; }
+.conv { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+
+/* navigation rows */
+.nav { flex:0 0 34px; display:flex; align-items:center; gap:4px; padding:0 6px; border-bottom:1px solid var(--rule); }
+.ic { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:5px; color:var(--ink-2); flex:none; position:relative; }
+.ic.on { background:var(--signal-soft); color:var(--ink); }
+.ic.hot { box-shadow:0 0 0 2px var(--signal); }
+.ic .bdg { position:absolute; right:1px; top:2px; width:6px; height:6px; border-radius:50%; background:var(--new); }
+.vsep { width:1px; height:16px; background:var(--rule); margin:0 2px; flex:none; }
+.scopes { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; flex:none; }
+.scopes .ic { border-radius:0; width:26px; height:22px; }
+
+/* A: chips */
+.chips { flex:1; display:flex; gap:4px; overflow:hidden; min-width:0; -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent); }
+.chip { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 7px 0 4px; border-radius:6px; border:1px solid var(--rule); color:var(--ink); white-space:nowrap; flex:none; font-variant-numeric:tabular-nums; }
+.chip.on { border-color:var(--signal); background:var(--signal-soft); box-shadow:0 0 0 1px var(--signal); }
+.chip.draft { border-style:dashed; color:var(--ink-2); }
+.chip .n { min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--new); color:var(--on-signal); font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+
+/* thread header shared by A and C */
+.thead { flex:none; display:flex; align-items:center; gap:4px; padding:6px 6px 6px 12px; border-bottom:1px solid var(--rule); }
+.loc { display:inline-flex; align-items:center; gap:6px; min-width:0; color:var(--ink); font-weight:600; white-space:nowrap; overflow:hidden; }
+.loc .p { overflow:hidden; text-overflow:ellipsis; }
+.loc .p span { color:var(--ink-3); font-weight:400; }
+.st { width:9px; height:9px; border-radius:50%; background:var(--open); flex:none; }
+.st.res { background:var(--ok); }
+
+/* the conversation */
+.feed { flex:1; overflow:hidden; padding:4px 0 10px; position:relative; }
+.post { position:relative; display:grid; grid-template-columns:18px 1fr; column-gap:9px; padding:9px 14px 9px 16px; }
+.post.reply { padding-left:28px; }
+.post .rail { position:absolute; left:11px; top:9px; bottom:9px; width:2px; border-radius:1px; background:var(--t, var(--rule-2)); }
+.post.reply .rail { left:23px; }
+.post.blk .rail { left:9px; width:4px; }
+.post.reply.blk .rail { left:21px; }
+.post.plain .rail { background:var(--rule-2); }
+.gut { display:flex; flex-direction:column; align-items:center; gap:3px; }
+.av { width:18px; height:18px; border-radius:50%; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; text-transform:uppercase; }
+.av.me { background:var(--signal); border-color:var(--signal); color:var(--on-signal); }
+.lm { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:4px; border:1.5px solid var(--t); color:var(--ink); background:color-mix(in srgb, var(--t) 22%, var(--panel)); flex:none; }
+body.dark .lm { background:color-mix(in srgb, var(--t) 30%, var(--panel)); }
+.lm.blk { background:var(--t); color:var(--on-t); }
+.lm svg { display:block; width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+.lm.sm { width:14px; height:14px; border-radius:3.5px; } .lm.sm svg { width:10px; height:10px; }
+.pb { min-width:0; }
+.nm { display:flex; align-items:center; gap:6px; min-height:18px; white-space:nowrap; }
+.nm b { font-weight:600; }
+.nm .dot { width:7px; height:7px; border-radius:50%; background:var(--new); }
+.post.read .nm b { font-weight:500; color:var(--ink-2); }
+.tx { margin:2px 0 0; font-size:13px; line-height:1.5; color:var(--ink); overflow-wrap:anywhere; }
+.post.read .tx { color:color-mix(in srgb, var(--ink) 82%, var(--panel)); }
+.tx code { font:12px var(--mono); background:var(--panel-2); padding:0 3px; border-radius:3px; }
+.post.sel { background:color-mix(in srgb, var(--signal-soft) 55%, transparent); }
+.newline { display:flex; align-items:center; gap:8px; margin:2px 14px 0 16px; color:var(--new); font-size:11px; font-weight:600; }
+.newline::after { content:""; flex:1; height:1px; background:var(--new); opacity:.55; }
+.re { display:inline-flex; align-items:center; gap:4px; max-width:100%; margin-top:1px; padding:1px 7px 1px 4px; border-radius:5px; background:var(--panel-2); color:var(--ink-2); font-size:11.5px; white-space:nowrap; overflow:hidden; }
+.re b { color:var(--ink); font-weight:600; }
+.re .q { overflow:hidden; text-overflow:ellipsis; }
+.fork { display:inline-flex; align-items:center; gap:4px; height:20px; margin-top:5px; padding:0 7px 0 5px; border-radius:10px; border:1px solid var(--rule-2); color:var(--ink-2); font-size:11px; font-variant-numeric:tabular-nums; }
+.fold { display:flex; align-items:center; gap:7px; margin:0 14px 0 28px; padding:6px 8px; border-radius:6px; border:1px dashed var(--rule-2); color:var(--ink-2); font-size:11.5px; }
+.stack { display:inline-flex; }
+.chip .av, .row .av, .tick .av { width:16px; height:16px; font-size:9px; }
+.stack .av { width:16px; height:16px; font-size:9px; margin-left:-4px; box-shadow:0 0 0 1.5px var(--panel); }
+.stack .av:first-child { margin-left:0; }
+.draftpost { margin:6px 10px; border:1px dashed var(--rule-2); border-radius:7px; padding-top:2px; }
+.draftpost .post { padding-left:12px; }
+.draftpost .post .rail { left:7px; }
+.dacts { display:flex; gap:2px; align-items:center; padding:0 6px 6px 37px; }
+.btn { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 10px; border-radius:6px; border:1px solid var(--rule-2); color:var(--ink); background:var(--panel); white-space:nowrap; font-weight:500; }
+.btn.pri { background:var(--signal); border-color:var(--signal); color:var(--on-signal); }
+.priv { font-size:11px; color:var(--ink-3); display:inline-flex; align-items:center; gap:4px; }
+
+/* reply in place */
+.rbox { flex:none; border-top:1px solid var(--rule); padding:8px 10px 10px; display:flex; flex-direction:column; gap:7px; background:var(--panel); }
+.rf { display:flex; align-items:center; gap:8px; }
+.field { flex:1; min-height:30px; border:1px solid var(--rule-2); border-radius:7px; background:var(--field); padding:6px 9px; color:var(--ink-3); font-size:13px; line-height:1.45; display:flex; align-items:center; gap:6px; }
+.field.on { border-color:var(--signal); box-shadow:0 0 0 2px color-mix(in srgb, var(--signal) 30%, transparent); color:var(--ink); align-items:flex-start; min-height:78px; flex-direction:column; }
+.field .caret { display:inline-block; width:1px; height:15px; background:var(--ink); vertical-align:-3px; }
+.lab { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 6px 0 3px; border-radius:5px; background:color-mix(in srgb, var(--t) 18%, var(--panel)); color:var(--ink); font-size:12px; }
+.ract { display:flex; align-items:center; gap:4px; }
+
+/* B: stacked rows */
+.rows { flex:none; }
+.row { display:flex; align-items:center; gap:7px; height:32px; padding:0 8px 0 6px; border-bottom:1px solid var(--rule); color:var(--ink); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.row .chev { color:var(--ink-3); }
+.row .ln2 { font-weight:600; } .ln2::before, .chip .lnum::before { content:":"; color:var(--ink-3); font-weight:400; }
+.row .first { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; color:var(--ink-2); }
+.row .cnt { color:var(--ink-3); font-size:11px; display:inline-flex; align-items:center; gap:3px; }
+.row.open { background:var(--panel-2); border-bottom-color:var(--rule-2); height:34px; }
+.row.open .first { color:var(--ink-2); }
+.row.draft .first { font-style:normal; }
+.row.draft { color:var(--ink-2); }
+.row .n { min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--new); color:var(--on-signal); font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+.row .dash { width:14px; height:14px; border:1.5px dashed var(--ink-3); border-radius:3.5px; display:inline-flex; align-items:center; justify-content:center; }
+.fgroup { height:22px; display:flex; align-items:center; padding:0 10px; color:var(--ink-3); font-size:11px; background:var(--side); border-bottom:1px solid var(--rule); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* C: line rail */
+.lrail { flex:0 0 24px; position:relative; background:var(--side); border-right:1px solid var(--rule); }
+.tick { position:absolute; left:3px; width:18px; height:18px; transform:translateY(-50%); border-radius:4px; display:flex; align-items:center; justify-content:center; }
+.tick .lm { width:16px; height:16px; }
+.tick.on::after { content:""; position:absolute; right:-6px; top:50%; width:7px; height:2px; background:var(--signal); }
+.tick.on { box-shadow:0 0 0 2px var(--signal); background:var(--panel); }
+.tick .u { position:absolute; right:-2px; top:-2px; width:7px; height:7px; border-radius:50%; background:var(--new); box-shadow:0 0 0 1.5px var(--side); }
+.tick .dash { width:14px; height:14px; border:1.5px dashed var(--ink-3); border-radius:3.5px; display:flex; align-items:center; justify-content:center; color:var(--ink-3); }
+.tick.out { opacity:.55; }
+.span { position:absolute; left:11px; width:2px; background:var(--rule-2); border-radius:1px; }
+
+/* popover and tooltip */
+.pop { position:absolute; z-index:15; background:var(--panel); border:1px solid var(--rule-2); border-radius:8px; box-shadow:var(--shadow); padding:4px 0; overflow:hidden; }
+.pop .row { border-bottom:0; height:30px; }
+.pop .row.on { background:var(--signal-soft); }
+.pop .fgroup { background:transparent; border-bottom:0; height:22px; padding-top:4px; }
+.tip { position:absolute; z-index:20; background:var(--tip); color:var(--tip-ink); border-radius:5px; padding:4px 8px; font-size:11.5px; line-height:1.35; box-shadow:var(--shadow); white-space:nowrap; }
+.tip kbd { font:11px var(--ui); opacity:.7; margin-left:6px; }
+
+/* index */
+.idx a { display:block; margin:2px 0; color:var(--signal); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+"use strict";
+const Q = new URLSearchParams(location.search);
+const DARK = Q.get("theme") === "dark";
+if (DARK) document.body.classList.add("dark");
+const ME = "fixture-author";
+
+/* BPR-1080's selected glyphs and tints (light, dark, on-tint for blocking). */
+const L = {
+  issue:{lt:"#D1242F",dk:"#FF7B72",ol:"#FFFFFF",od:"#111418",g:'<path d="M12 4 L12 14"/><circle cx="12" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  question:{lt:"#8250DF",dk:"#C29BFF",g:'<path d="M8.4 8.6 C8.4 5.9 10 4.2 12.2 4.2 C14.4 4.2 15.9 5.7 15.9 7.7 C15.9 10.6 12.2 11.1 12.2 14.3"/><circle cx="12.2" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  praise:{lt:"#BF3989",dk:"#F778BA",g:'<path d="M12 19.5 C6.2 15.6 3.5 12.6 3.5 9.2 C3.5 6.6 5.4 4.8 7.7 4.8 C9.6 4.8 11 5.9 12 7.6 C13 5.9 14.4 4.8 16.3 4.8 C18.6 4.8 20.5 6.6 20.5 9.2 C20.5 12.6 17.8 15.6 12 19.5 Z"/>'},
+  suggestion:{lt:"#1F6FD0",dk:"#6CB0FF",g:'<path d="M9.2 15.6 C7 14.3 5.5 12.2 5.5 9.6 C5.5 6 8.4 3.5 12 3.5 C15.6 3.5 18.5 6 18.5 9.6 C18.5 12.2 17 14.3 14.8 15.6 L14.8 17 L9.2 17 Z"/><path d="M9.8 20.3 L14.2 20.3"/>'},
+  todo:{lt:"#C24E00",dk:"#FFA05A",g:'<path d="M15.5 12.5 L15.5 18.5 C15.5 19.05 15.05 19.5 14.5 19.5 L5.5 19.5 C4.95 19.5 4.5 19.05 4.5 18.5 L4.5 9.5 C4.5 8.95 4.95 8.5 5.5 8.5 L11 8.5"/><path d="M7.8 13 L10.6 15.8 L19.8 5"/>'},
+  nitpick:{lt:"#6E7781",dk:"#9BA4AE",g:'<path d="M15.5 9.5 C15.5 12.81 12.81 15.5 9.5 15.5 C6.19 15.5 3.5 12.81 3.5 9.5 C3.5 6.19 6.19 3.5 9.5 3.5 C12.81 3.5 15.5 6.19 15.5 9.5 Z"/><path d="M12.43 15.62 L15.62 12.43 L21.63 18.44 C23.75 20.57 20.57 23.75 18.44 21.63 Z" fill="currentColor" stroke="none"/>'},
+  thought:{lt:"#4F5BD5",dk:"#9AA5FF",g:'<path d="M7.2 14 C5 14 3.6 12.6 3.6 11 C3.6 9.4 5 8.2 6.8 8.4 C7.2 5.8 9.3 4 12 4 C14.6 4 16.6 5.7 17 8 C19 7.9 20.5 9.3 20.5 11 C20.5 12.7 19.2 14 17.3 14 Z"/><circle cx="7.6" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="4.4" cy="20.9" r="1.3" fill="currentColor" stroke="none"/>'},
+  chore:{lt:"#8A5A2B",dk:"#D2A26E",g:'<path d="M22 3 L15.75 9.25" stroke-width="2.2"/><path d="M14 7 L18 11 L16.5 13.5 L11.5 8.5 Z" fill="currentColor" stroke="none"/><path d="M16 15 L10 9 L1.5 12.5 L4 15 L8 11 L9 12 L5 16 L9 20 L13 16 L14 17 L10 21 L12.5 23.5 Z" fill="currentColor" stroke="none"/>'},
+  typo:{lt:"#6F7A00",dk:"#C3CE4A",g:'<path d="M0.5 14 L4 2 L6 2 L9.5 14 L7.1 14 L6.52 12 L3.48 12 L2.9 14 Z M4.07 10 L5.93 10 L5 6.8 Z" fill="currentColor" stroke="none"/><path d="M10 2 L12 2 L12 6 L13.5 6 C14.88 6 16 7.12 16 8.5 L16 11.5 C16 12.88 14.88 14 13.5 14 L10 14 Z M12 8 L12 12 L13.5 12 C13.78 12 14 11.78 14 11.5 L14 8.5 C14 8.22 13.78 8 13.5 8 Z" fill="currentColor" stroke="none"/><path d="M23.5 6 L21 6 C19.34 6 18 7.34 18 9 L18 11 C18 12.66 19.34 14 21 14 L23.5 14 L23.5 12 L21 12 C20.45 12 20 11.55 20 11 L20 9 C20 8.45 20.45 8 21 8 L23.5 8 Z" fill="currentColor" stroke="none"/><path d="M1.5 20.8 C2.59 20.8 3.41 18.2 4.5 18.2 C5.59 18.2 6.41 20.8 7.5 20.8 C8.59 20.8 9.41 18.2 10.5 18.2 C11.59 18.2 12.41 20.8 13.5 20.8 C14.59 20.8 15.41 18.2 16.5 18.2 C17.59 18.2 18.41 20.8 19.5 20.8 C20.59 20.8 21.41 18.2 22.5 18.2" stroke-width="2"/>'},
+  quibble:{lt:"#9A5B7A",dk:"#D99BBB",g:'<path d="M3 17.2 C3.5 18.8 4.4 19.8 5.7 19.8 C8.3 19.8 9.4 13.8 12 13.8 C14.6 13.8 15.7 19.8 18.3 19.8 C19.6 19.8 20.5 18.8 21 17.2"/><path d="M12 7.8 L12 4.4 M7.72 9.04 L5.71 6.81 M16.28 9.04 L18.29 6.81"/>'},
+};
+const tint = (l) => (DARK ? L[l].dk : L[l].lt);
+const mark = (l, blk, cls = "") => {
+  const name = l + (blk ? " (blocking)" : "");
+  const on = DARK ? (L[l].od || "#111418") : (L[l].ol || "#FFFFFF");
+  return `<span class="lm ${blk ? "blk" : ""} ${cls}" style="--t:${tint(l)};--on-t:${on}" role="img" aria-label="${name}" title="${name}"><svg viewBox="0 0 24 24" aria-hidden="true">${L[l].g}</svg></span>`;
+};
+
+const I = {
+  file:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
+  pr:'<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M6 8.2v7.6"/><path d="M18 15.8V10a3 3 0 0 0-3-3h-4"/><path d="M12.5 4.5 10 7l2.5 2.5"/>',
+  filter:'<path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/>',
+  resolve:'<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 5-5.4"/>',
+  read:'<path d="M2.5 12.5l3.6 3.6L13 9"/><path d="M10.6 16.1l.8.8L20.5 8"/>',
+  code:'<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
+  more:'<circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+  left:'<path d="M14.5 6l-6 6 6 6"/>', right:'<path d="M9.5 6l6 6-6 6"/>',
+  down:'<path d="M6 9.5l6 6 6-6"/>', chev:'<path d="M9.5 6l6 6-6 6"/>', chevd:'<path d="M6 9.5l6 6 6-6"/>',
+  list:'<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/>',
+  re:'<path d="M9.5 7 5 11.5 9.5 16"/><path d="M5 11.5h9a5 5 0 0 1 5 5V18"/>',
+  fork:'<circle cx="6" cy="5.5" r="2"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7.5v9"/><path d="M18 11c0 3.5-5 3-10.6 6.3"/>',
+  pencil:'<path d="M4.5 19.5l1-4.2L15.8 5a2 2 0 0 1 2.9 0l.3.3a2 2 0 0 1 0 2.9L8.7 18.5z"/>',
+  send:'<path d="M4 11.8 20 4.5l-6.2 15.5-2.7-6.5z"/><path d="M11.1 13.5 20 4.5"/>',
+  trash:'<path d="M5 7h14M10 7V4.5h4V7M7 7l1 12.5h8L17 7"/>',
+  tag:'<path d="M3.5 12V4.5H11l9.5 9.5-7.5 7.5z"/><circle cx="7.6" cy="8.6" r="1.3" fill="currentColor" stroke="none"/>',
+  next:'<circle cx="12" cy="7" r="3" fill="currentColor" stroke="none"/><path d="M12 12.5v8M8.5 17l3.5 3.5 3.5-3.5"/>',
+  x:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  lock:'<rect x="5.5" y="11" width="13" height="9" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/>',
+  home:'<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/>',
+  refresh:'<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+  drawer:'<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/>',
+  user:'<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/>',
+  sun:'<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+};
+const ic = (n, s = "") => `<svg class="i ${s}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const btn = (n, tip, cls = "") => `<span class="ic ${cls}" role="button" aria-label="${tip}" title="${tip}">${ic(n)}</span>`;
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const body = (s) => esc(s).replace(/(\w+\(\))/g, "<code>$1</code>");
+
+/* conventional-comments-v1: the renderer.cpp threads, the draft from the screenshot, the rest of the PR. */
+const T = {
+  t6:{path:"src/engine/renderer.cpp",line:6,posts:[
+    {a:"tbutler",l:"issue",blk:1,b:"draw_scene() runs before the clear finishes on the second view."},
+    {a:ME,l:"question",b:"Does the second view share the depth buffer?",u:1},
+    {a:"jiayin",l:"praise",b:"Good catch, this explains the flicker.",u:1},
+    {a:"tbutler",b:"Thanks, resolving after CI.",u:1}]},
+  d12:{path:"src/engine/renderer.cpp",line:12,draft:1,posts:[{a:ME,l:"nitpick",b:"Height wants the same clamp as Width."}]},
+  t12:{path:"src/engine/renderer.cpp",line:12,posts:[
+    {a:"jiayin",l:"suggestion",b:"Clamp the width to at least one pixel."},
+    {a:ME,l:"todo",b:"I will add the clamp in the next push.",u:1}]},
+  r6:{path:"README.md",line:6,posts:[{a:"tbutler",l:"typo",b:"tests/ should be tests/engine/."},{a:"jiayin",l:"polish",b:"Add a sentence about the release flag.",u:1}]},
+  b5:{path:"src/engine/shaders/post/bloom.frag",line:5,posts:[{a:"jiayin",l:"quibble",b:"1.2 reads as a magic number."},{a:"tbutler",b:"security: the shader trusts uScene.",u:1}]},
+  m6:{path:"src/main.cpp",line:6,posts:[{a:"tbutler",l:"nitpick",b:"1280 by 720 could be a named constant."},{a:"jiayin",l:"thought",b:"A config file may want to own this later.",u:1}]},
+  w5:{path:"src/ui/widgets/button.cpp",line:5,posts:[{a:"jiayin",l:"chore",b:"Rename Handler to OnClick while you are here."},{a:"tbutler",b:"note: The old name is still used by the plugin API.",u:1}]},
+};
+const FILE = ["t6", "d12", "t12"];
+const PR = [["README.md", ["r6"]], ["src/engine/renderer.cpp", ["t6", "d12", "t12"]], ["src/engine/shaders/post/bloom.frag", ["b5"]], ["src/main.cpp", ["m6"]], ["src/ui/widgets/button.cpp", ["w5"]]];
+const unread = (k) => T[k].posts.filter((p) => p.u).length;
+const base = (p) => p.split("/").pop();
+
+/* branching-thread-v1: one thread, a first comment, three branches, an aside. */
+const DEEP = (() => {
+  const P = [{id:"c01",p:null,a:"reviewer-one",b:"Should this traversal retain the selected node when the parent list is rebuilt?"}];
+  const A = "the rebuild keeps the identity because the map answers by identity, not by row.";
+  const B = "what about a parent that arrives after its child in the next page?";
+  const C = "the hostile fixtures cover that; this one is about depth and width together.";
+  const who = ["author-two", "observer-three", "reviewer-four", "reviewer-one"];
+  for (let i = 1; i <= 8; i++) P.push({id:"a0" + i, p:i === 1 ? "c01" : "a0" + (i - 1), a:who[(i - 1) % 4], b:`Branch A, reply ${i}: ${A}`});
+  const wb = ["observer-three", "reviewer-four", "reviewer-one", "author-two"];
+  for (let i = 1; i <= 7; i++) P.push({id:"b0" + i, p:i === 1 ? "c01" : "b0" + (i - 1), a:wb[(i - 1) % 4], b:`Branch B, reply ${i}: ${B}`, u:i >= 5 ? 1 : 0});
+  const wc = ["reviewer-four", "reviewer-one", "author-two", "observer-three"];
+  for (let i = 1; i <= 7; i++) P.push({id:"cc0" + i, p:i === 1 ? "c01" : "cc0" + (i - 1), a:wc[(i - 1) % 4], b:`Branch C, reply ${i}: ${C}`});
+  P.push({id:"aside", p:"cc03", a:"observer-three", b:"An aside off the third reply of branch C, so one branch itself forks."});
+  return {path:"src/core/thread_map.cpp", line:42, posts:P};
+})();
+
+const rootGlyph = (r, sm) => (r.l ? mark(r.l, r.blk, sm ? "sm" : "") : avatar(r.a));
+const avatar = (a) => `<span class="av ${a === ME ? "me" : ""}" title="${a}${a === ME ? " (you, author)" : ""}">${a[0]}</span>`;
+
+function post(p, o = {}) {
+  const cls = ["post", o.reply ? "reply" : "", p.blk ? "blk" : "", p.l ? "" : "plain", p.u ? "" : "read", o.sel ? "sel" : ""].join(" ");
+  const re = o.re ? `<div class="re" title="Replying to ${o.re.a}. Click to show that post.">${ic("re", "s")}<b>${o.re.a}</b><span class="q">${esc(o.re.b)}</span></div>` : "";
+  const fork = o.fork ? `<div><span class="fork" role="button" title="${o.fork} replies branch from here. Click to fold or unfold them.">${ic("fork", "s")}${o.fork}</span></div>` : "";
+  return `<div class="${cls}" style="${p.l ? "--t:" + tint(p.l) : ""}" role="article" aria-label="${p.a}${p.l ? ", " + p.l + (p.blk ? " (blocking)" : "") : ""}">
+    <i class="rail"></i><div class="gut">${avatar(p.a)}${p.l ? mark(p.l, p.blk) : ""}</div>
+    <div class="pb"><div class="nm"><b>${p.a}</b>${p.u ? '<i class="dot" title="New since you last read"></i>' : ""}</div>${re}<p class="tx">${body(p.b)}</p>${fork}</div></div>`;
+}
+
+/* One thread's posts as a flat feed: replies one step in, "New" before the first unread. */
+function feed(key, o = {}) {
+  const t = T[key];
+  if (t.draft) return draftCard(t);
+  let h = "", seen = false;
+  t.posts.forEach((p, i) => {
+    if (p.u && !seen && !o.noNew) { h += `<div class="newline">New</div>`; seen = true; }
+    h += post(p, {reply:i > 0, sel:o.sel === i});
+  });
+  return h;
+}
+function draftCard(t, compact) {
+  return `<div class="draftpost">${post({...t.posts[0], u:1}, {})}
+    <div class="dacts"><span class="priv">${ic("lock", "s")}Only you</span><span class="sp"></span>${btn("pencil", "Edit draft")}${btn("trash", "Delete draft")}<span class="btn pri" title="Publish to GitHub">${ic("send", "s")}Publish</span></div></div>`;
+}
+/* The deep thread: pre-order, branches announced on their first reply, A folded. */
+function deepFeed(o = {}) {
+  const P = DEEP.posts, by = Object.fromEntries(P.map((p) => [p.id, p]));
+  const kids = (id) => P.filter((p) => p.p === id).length;
+  let h = "", prev = null, seen = false;
+  for (const p of P) {
+    if (o.foldA && /^a0[2-8]$/.test(p.id)) { continue; }
+    if (p.u && !seen) { h += `<div class="newline">New</div>`; seen = true; }
+    const re = p.p && prev && p.p !== prev.id ? by[p.p] : null;
+    h += post(p, {reply:!!p.p, re, fork:kids(p.id) > 1 ? kids(p.id) : 0});
+    if (o.foldA && p.id === "a01") {
+      h += `<div class="fold" role="button" title="7 more replies on this branch. Click to show them.">${ic("chev", "s")}<span class="stack">${["observer-three", "reviewer-four", "reviewer-one", "author-two"].map(avatar).join("")}</span>7 more</div>`;
+      prev = by.a08; continue;
+    }
+    prev = p;
+  }
+  return h;
+}
+
+/* Reply in place, at the foot of the conversation. Its inside is BPR-1212's. */
+function replyBox(state) {
+  if (state === "typing") {
+    return `<div class="rbox"><div class="field on"><div><span class="lab" style="--t:${tint("suggestion")}">${mark("suggestion", 0, "sm")}suggestion</span></div><div>Wait on the clear's fence before draw_scene()<span class="caret"></span></div></div>
+      <div class="ract">${btn("tag", "Label ⌘L")}<span class="priv" style="margin-left:4px">${ic("lock", "s")}Kept as your draft</span><span class="sp"></span>${btn("trash", "Discard")}<span class="btn pri" title="Publish reply ⌘↩">${ic("send", "s")}Publish</span></div></div>`;
+  }
+  return `<div class="rbox"><div class="rf">${avatar(ME)}<div class="field">Reply</div></div></div>`;
+}
+
+const headActs = (key) => {
+  const u = unread(key);
+  return `${btn("resolve", "Resolve thread")}${btn("read", u ? `Mark ${u} new as read` : "Nothing new")}${btn("more", "More: copy link, view source, classify")}`;
+};
+function thead(key, extra = "") {
+  const t = T[key];
+  return `<div class="thead"><span class="loc" title="Show line ${t.line} in the code"><i class="st" title="Open"></i><span class="p">${base(t.path)}<span>:${t.line}</span></span></span>${btn("code", `Show line ${t.line} in the code`)}<span class="sp"></span>${extra}${headActs(key)}</div>`;
+}
+const tabs = () => `<div class="tabs" role="tablist"><span class="tab on">Comments <span class="pillc" title="6 threads with new comments">6</span></span><span class="tab">Notes</span><span class="tab">Tour</span></div>`;
+const scopes = (pr) => `<span class="scopes">${btn("file", "This file", pr ? "" : "on")}${btn("pr", "Whole pull request", pr ? "on" : "")}</span>`;
+const filterBtn = () => btn("filter", "Filter: new, unresolved, drafts, defects");
+const nextNew = () => btn("next", "Next new comment ⌥N");
+
+/* ---------- Candidate A: Switcher ---------- */
+function chip(k, on) {
+  const t = T[k], r = t.posts[0], u = unread(k);
+  if (t.draft) return `<span class="chip draft ${on ? "on" : ""}" title="Your draft at line ${t.line}">${ic("pencil", "s")}<span class="lnum">${t.line}</span></span>`;
+  return `<span class="chip ${on ? "on" : ""}" title="Line ${t.line}: ${r.a}, ${t.posts.length} posts${u ? ", " + u + " new" : ""}">${rootGlyph(r, 1)}<span class="lnum">${t.line}</span>${u ? `<span class="n">${u}</span>` : ""}</span>`;
+}
+function navA(sel, o = {}) {
+  return `<div class="nav">${scopes(o.pr)}<div class="chips">${FILE.map((k) => chip(k, k === sel)).join("")}</div>${nextNew()}${btn("list", "All threads", o.list ? "on" : "")}${filterBtn()}</div>`;
+}
+function listPop(sel, w, top, scope) {
+  const groups = scope === "file" ? [["src/engine/renderer.cpp", FILE]] : PR;
+  let h = "";
+  for (const [f, ks] of groups) {
+    h += `<div class="fgroup" title="${f}">${f}</div>`;
+    for (const k of ks) h += listRow(k, k === sel);
+  }
+  return `<div class="pop" style="left:6px;right:6px;top:${top}px">${h}</div>`;
+}
+function listRow(k, on, extra = "") {
+  const t = T[k], r = t.posts[0], u = unread(k);
+  if (t.draft) return `<div class="row draft ${on ? "on" : ""}"><span class="dash">${ic("pencil", "s")}</span><span class="ln2">${t.line}</span><span class="first">${esc(r.b)}</span><span class="priv">${ic("lock", "s")}</span></div>`;
+  return `<div class="row ${on ? "on" : ""}">${rootGlyph(r, 1)}<span class="ln2">${t.line}</span><span class="first">${esc(r.b)}</span>${extra}${u ? `<span class="n" title="${u} new">${u}</span>` : ""}</div>`;
+}
+
+/* ---------- Candidate B: Stack ---------- */
+function rowB(k, open) {
+  const t = T[k], r = t.posts[0], u = unread(k);
+  const people = [...new Set(t.posts.map((p) => p.a))];
+  if (t.draft) return `<div class="row draft ${open ? "open" : ""}">${ic(open ? "chevd" : "chev", "s")}<span class="dash">${ic("pencil", "s")}</span><span class="ln2">${t.line}</span><span class="first">${esc(r.b)}</span><span class="priv" title="Only you">${ic("lock", "s")}</span></div>`;
+  const tail = open ? `<span class="sp"></span>${btn("code", `Show line ${t.line} in the code`)}${headActs(k)}` :
+    `<span class="stack" title="${people.join(", ")}">${people.map(avatar).join("")}</span>${u ? `<span class="n" title="${u} new">${u}</span>` : ""}`;
+  return `<div class="row ${open ? "open" : ""}" title="${open ? "" : `Line ${t.line}: ${r.a}, ${t.posts.length} posts`}"><span class="chev">${ic(open ? "chevd" : "chev", "s")}</span>${rootGlyph(r, 1)}<span class="ln2">${t.line}</span>${open ? "" : `<span class="first">${esc(r.b)}</span>`}${tail}</div>`;
+}
+function navB(o = {}) {
+  return `<div class="nav">${scopes(o.pr)}<span class="sp"></span>${nextNew()}${filterBtn()}</div>`;
+}
+
+/* ---------- Candidate C: Line rail ---------- */
+/* The rail's ticks sit at the code lines' height: file header 24 + pane padding 8 + 19 per line, less the tab row. */
+const lineY = (n) => 24 + 8 + (n - 1) * 19 + 9.5 - 30;
+function railC(sel, o = {}) {
+  let h = "";
+  const at = (k) => lineY(T[k].line);
+  // a thread on the same line as another stacks beneath it
+  const used = [];
+  for (const k of FILE) {
+    let y = at(k);
+    while (used.some((u) => Math.abs(u - y) < 21)) y += 21;
+    used.push(y);
+    const t = T[k], r = t.posts[0], u = unread(k);
+    const inner = t.draft ? `<span class="dash">${ic("pencil", "s")}</span>` : rootGlyph(r);
+    h += `<span class="tick ${k === sel ? "on" : ""}" style="top:${y}px" title="${t.draft ? "Your draft at line " + t.line : `Line ${t.line}: ${r.a}, ${t.posts.length} posts${u ? ", " + u + " new" : ""}`}">${inner}${u && !t.draft ? '<i class="u"></i>' : ""}</span>`;
+  }
+  return `<div class="lrail" aria-label="Threads by line">${h}</div>`;
+}
+function headC(key) {
+  return thead(key, `${btn("left", "Previous thread ⌥↑")}${btn("right", "Next thread ⌥↓")}<span class="vsep"></span>`);
+}
+
+/* ---------- drawers ---------- */
+function drawer(cand, st) {
+  const sel = st.sel || "t6";
+  const deep = st.deep;
+  const conv = (head) => {
+    const f = deep ? deepFeed({foldA:true}) : feed(sel);
+    return `<div class="conv">${head}<div class="feed">${f}</div>${T[sel] && T[sel].draft ? "" : replyBox(st.reply)}</div>`;
+  };
+  const deepHead = `<div class="thead"><span class="loc"><i class="st"></i><span class="p">thread_map.cpp<span>:42</span></span></span>${btn("code", "Show line 42 in the code")}<span class="sp"></span>${btn("resolve", "Resolve thread")}${btn("read", "Mark 3 new as read")}${btn("more", "More")}</div>`;
+  let inner = "";
+  if (cand === "a") {
+    const nav = deep ? `<div class="nav">${scopes(false)}<div class="chips"><span class="chip on">${avatar("reviewer-one")}<span class="lnum">42</span><span class="n">3</span></span></div>${btn("list", "All threads")}${filterBtn()}</div>` : navA(sel, st);
+    inner = `<div class="conv">${nav}${(deep ? deepHead : thead(sel))}<div class="feed">${deep ? deepFeed({foldA:true}) : feed(sel)}</div>${replyBox(st.reply)}</div>`;
+    if (st.list) inner += listPop(sel, 0, 64, st.pr ? "pr" : "file");
+  } else if (cand === "b") {
+    if (deep) {
+      inner = `<div class="conv">${navB()}<div class="row open"><span class="chev">${ic("chevd", "s")}</span>${avatar("reviewer-one")}<span class="ln2">42</span><span class="sp"></span>${btn("code", "Show line 42 in the code")}${btn("resolve", "Resolve thread")}${btn("read", "Mark 3 new as read")}${btn("more", "More")}</div><div class="feed">${deepFeed({foldA:true})}</div>${replyBox(st.reply)}</div>`;
+    } else {
+      const ks = st.pr ? null : FILE;
+      let above = "", below = "", after = false;
+      if (st.pr) {
+        for (const [f, kk] of PR) {
+          const g = `<div class="fgroup">${f}</div>` + kk.filter((k) => k !== sel).map((k) => rowB(k, false)).join("");
+          if (kk.includes(sel)) { above += `<div class="fgroup">${f}</div>` + kk.slice(0, kk.indexOf(sel)).map((k) => rowB(k, false)).join(""); below += kk.slice(kk.indexOf(sel) + 1).map((k) => rowB(k, false)).join(""); after = true; }
+          else if (after) below += g; else above += g;
+        }
+      } else {
+        for (const k of ks) { if (k === sel) { after = true; continue; } (after ? (below += rowB(k, false)) : (above += rowB(k, false))); }
+      }
+      inner = `<div class="conv">${navB(st)}<div class="rows">${above}${rowB(sel, true)}</div><div class="feed">${feed(sel)}</div>${replyBox(st.reply)}<div class="rows" style="border-top:1px solid var(--rule)">${below}</div></div>`;
+    }
+  } else {
+    const nav = `<div class="nav">${scopes(st.pr)}<span class="sp"></span>${nextNew()}${btn("list", "All threads", st.list ? "on" : "")}${filterBtn()}</div>`;
+    if (deep) {
+      inner = `<div class="lrail">${`<span class="tick on" style="top:${lineY(42) > 600 ? 300 : lineY(42)}px"><span class="lm" style="--t:var(--ink-3);border-style:dashed"></span><i class="u"></i></span>`}</div>`;
+      inner = `${railDeep()}<div class="conv">${nav}${deepHead}<div class="feed">${deepFeed({foldA:true})}</div>${replyBox(st.reply)}</div>`;
+    } else {
+      inner = `${railC(sel)}<div class="conv">${nav}${headC(sel)}<div class="feed">${feed(sel)}</div>${replyBox(st.reply)}</div>`;
+      if (st.list) inner += listPop(sel, 0, 34, st.pr ? "pr" : "file");
+    }
+  }
+  return `${tabs()}<div class="dbody">${inner}${st.tip ? `<div class="tip" style="${st.tip.pos}">${st.tip.text}</div>` : ""}</div>`;
+}
+/* The deep thread's file is not the screenshot's, so its one tick sits at an illustrative height. */
+function railDeep() { return `<div class="lrail"><span class="tick on" style="top:180px" title="Line 42: reviewer-one, 24 posts, 3 new">${avatar("reviewer-one")}<i class="u"></i></span></div>`; }
+
+/* ---------- the window around the drawer ---------- */
+const LEFT = [["#include \"renderer.h\""], [""], ['<span class="k">void</span> <span class="ty">Renderer</span>::<span class="fn">draw</span>()'], ["{"], ['    <span class="fn">clear</span>();'], ['    <span class="fn">present</span>();'], ["}"], [""]];
+const RIGHT = [["#include \"renderer.h\""], [""], ['<span class="k">void</span> <span class="ty">Renderer</span>::<span class="fn">draw</span>()'], ["{"], ['    <span class="fn">clear</span>();'], ['    <span class="fn">draw_scene</span>();', "add"], ['    <span class="fn">present</span>();'], ["}"], ["", "add"],
+  ['<span class="k">void</span> <span class="ty">Renderer</span>::<span class="fn">resize</span>(<span class="k">const int</span> aWidth, <span class="k">const int</span> aHeight)', "add"], ["{", "add"], ["    Width  = aWidth;", "add"], ["    Height = aHeight;", "add"], ["}", "add"], [""]];
+function pane(lines, marks = {}, cur) {
+  return `<div class="pane">${lines.map(([t, c], i) => `<div class="ln ${c || ""} ${cur === i + 1 ? "cur" : ""}"><span class="g">${i + 1}</span>${marks[i + 1] ? `<i class="gm" style="background:${marks[i + 1]}"></i>` : ""}<span class="t">${t}</span></div>`).join("")}</div>`;
+}
+function windowFrame(cand, st, dw) {
+  const cur = T[st.sel || "t6"].line;
+  return `<div class="win"><div class="title"><span class="lights"><i></i><i></i><i></i></span><span class="tb">${ic("home")}</span><span class="tb">${ic("drawer")}</span><span class="sp"></span>
+      <span class="seg"><span>Overview <kbd>⌘1</kbd></span><span class="on">Read <kbd>⌘2</kbd></span><span>Review <kbd>⌘3</kbd></span><span>Discuss <kbd>⌘4</kbd></span></span>
+      <span class="tb">${ic("refresh")}</span><span class="tb on">${ic("drawer")}<span class="pillc">6</span></span><span class="tb">${ic("user")}</span><span class="tb">${ic("sun")}</span></div>
+    <div class="bar"><span>Comparing whole PR, Oct 5 → Oct 5</span><span><b>File 5 of 17</b></span><span><b>Changes 1 of 2</b></span><span class="sp"></span></div>
+    <div class="main"><div class="cmp"><div class="fh">renderer.cpp</div><div class="panes">${pane(LEFT, {}, null)}${pane(RIGHT, {6:"var(--open)", 12:"var(--signal)"}, cur)}</div></div>
+      <div class="drawer" style="width:${dw}px">${drawer(cand, st)}</div></div>
+    <div class="status">Actionable file 5 of 17. Private progress: unread, not accepted.</div></div>`;
+}
+
+/* ---------- frames ---------- */
+const FRAMES = {};
+const add = (id, cap, w, h, kind, cand, st = {}, dw = 375) => (FRAMES[id] = {cap, w, h, kind, cand, st, dw});
+for (const c of ["a", "b", "c"]) {
+  add(`${c}-window`, "Read, the owner's view: thread at line 6 open", 1440, 820, "window", c, {});
+  add(`${c}-reply`, "Replying in place, 375 px", 375, 760, "solo", c, {reply:"typing"});
+  add(`${c}-narrow`, "280 px, whole pull request", 280, 760, "solo", c, c === "b" ? {pr:true, sel:"t6"} : {pr:true, list:true});
+  add(`${c}-deep`, "branching-thread-v1: 24 posts, three branches, 375 px", 375, 760, "solo", c, {deep:true});
+}
+FRAMES["a-reply"].st.tip = {pos:"left:150px;top:64px", text:"Line 12: jiayin, 2 posts, 1 new"};
+FRAMES["b-reply"].st.tip = {pos:"right:44px;top:72px", text:"Mark 3 new as read"};
+FRAMES["c-window"].st.tip = {pos:"left:-184px;top:233px", text:"Line 12: jiayin, 2 posts, 1 new"};
+FRAMES["c-window"].dw = 375;
+
+const f = Q.get("f");
+const root = document.getElementById("root");
+if (!f || !FRAMES[f]) {
+  document.body.classList.add("index");
+  root.innerHTML = `<div class="idx"><h3>BPR-1290 frames v1</h3>${Object.entries(FRAMES).map(([k, v]) => `<a href="?f=${k}">${k}: ${v.cap}</a><a href="?f=${k}&theme=dark">${k}, dark</a>`).join("")}</div>`;
+} else {
+  const F = FRAMES[f];
+  if (F.kind === "window") root.innerHTML = windowFrame(F.cand, F.st, F.dw);
+  else { document.body.classList.add("solo"); root.innerHTML = `<div class="solo" style="width:${F.w}px;height:${F.h}px"><div class="drawer">${drawer(F.cand, F.st)}</div></div>`; }
+}
+</script>
+</body>
+</html>

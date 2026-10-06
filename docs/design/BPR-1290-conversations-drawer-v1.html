@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 Conversations drawer, round v1</title>
+<!--
+  [[BPR-1290]] Conversations drawer, round v1: three candidates for the owner to choose between.
+  Frames live in BPR-1290-conversations-drawer-frames-v1.html. Nothing on this page is implemented.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1400px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:230px; font-weight:600; }
+blockquote { margin:0 0 12px; padding:0 0 0 10px; border-left:3px solid var(--rule-2); color:var(--ink-2); max-width:84ch; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; align-items:flex-start; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Conversations drawer, round v1</h1>
+<div class="by">BPR-1290, 2026-10-06. Frames: <a href="BPR-1290-conversations-drawer-frames-v1.html">BPR-1290-conversations-drawer-frames-v1.html</a>, light and dark. The drawer is 375 px (its default) and 280 px. Content comes from the <code>conventional-comments-v1</code> fixture, and the deep thread from <code>branching-thread-v1</code>.</div>
+
+<blockquote>I don't understand the conversations drawer at all.. the useful part is this tiny little section at the bottom i can barely see and the rest I dont get.<br>— the owner, 2026-10-06 (<a href="owner-refs/BPR-1290-owner-ref-conversations-drawer.webp">screenshot</a>)</blockquote>
+
+<p><b>None of this is implemented.</b> All three candidates make the conversation the drawer. They differ only in how you pick a thread.</p>
+
+<h2>Common to all three</h2>
+<table><tbody>
+<tr><th>The conversation</th><td>The selected thread fills the drawer under one header row: where it is (click it, or the target icon, to show the line), then icons for Resolve, Mark read and More. Every post has its full body. There is no separate post list and no separate body pane.</td></tr>
+<tr><th>Posts</th><td>BPR-1083 v4, unchanged: an 18 px avatar, the 16 px mark 3 px under it, and the rail 3 px left of it in the label's tint. The rail is grey for a plain post. A blocking post has a filled mark and a 4 px rail. The body starts at the subject. Replies sit one step in.</td></tr>
+<tr><th>New</th><td>A "New" rule above the first unread post, a blue dot by each unread author, and read authors in grey.</td></tr>
+<tr><th>Depth, without the map</th><td>Posts are listed in order. A reply that answers anything other than the post above it shows a "↩ name: first words" chip, and clicking the chip goes to that post. A post that starts several branches has a ⑂ count, which folds and unfolds them. A folded run becomes one row, "7 more", with its people. The map and the "Path to this reply" caption are gone.</td></tr>
+<tr><th>Reply in place</th><td>A one-line Reply field at the foot of the conversation. Focusing it opens the editor, with the label chip (⌘L), a note that it is kept as your draft, Discard and Publish. What goes inside the editor is BPR-1212's to settle, and this drawer takes whatever it decides.</td></tr>
+<tr><th>Drafts</th><td>A draft is dashed and marked "Only you", with Edit, Delete and Publish. Publish keeps its word because it publishes.</td></tr>
+<tr><th>Scope and filters</th><td>Two icons, This file and Whole pull request, plus a filter icon whose menu holds New, Unresolved, Drafts and Defects. Every icon has a tooltip.</td></tr>
+<tr><th>Removed</th><td>The "Conversations drawer" caption (the tabs are the header, as the specification says), the cards that repeated the posts, the thread map, the path caption, and the seven-line post list.</td></tr>
+</tbody></table>
+
+<h2>A. Switcher</h2>
+<p>One row of chips, one per thread on this file. Each chip shows the root's mark (or its author's avatar when the root has no label), the line, and the new count. Drafts are dashed. The list icon opens every thread, grouped by file. The conversation takes everything below the row.</p>
+<div class="frames" id="fa"></div>
+
+<h2>B. Stack</h2>
+<p>Every thread is a one-line row: the root's mark, the line, the first words, who took part and the new count. The open thread expands in place to the full height between the rows above it and the rows below it, and its row carries the thread's actions. Scope and filters work the same way, and Whole pull request adds file headings.</p>
+<div class="frames" id="fb"></div>
+
+<h2>C. Line rail</h2>
+<p>A 24 px strip down the drawer's left edge. Each thread is a tick at its line's height, next to the code, so it keeps the line alignment that RFC-BPR-0028 AC-05 asks for. The selected tick is ringed, and a tick's tooltip names the thread. Arrows step to the previous and next thread, and the list icon opens the same grouped list as A. The strip costs 24 px of width.</p>
+<div class="frames" id="fc"></div>
+
+<h2>Trade-offs</h2>
+<table>
+<thead><tr><th>Question</th><th>A. Switcher</th><th>B. Stack</th><th>C. Line rail</th></tr></thead>
+<tbody>
+<tr><th>Room left for the conversation</th><td>All but one row</td><td>All but one row per other thread, so less as threads add up</td><td>All but 24 px of width</td></tr>
+<tr><th>Line alignment (AC-05)</th><td>Line numbers only, so AC-05 needs amending</td><td>Line order only, so AC-05 needs amending</td><td>Kept, as ticks</td></tr>
+<tr><th>Whole pull request</th><td>The list popover</td><td>Inline, with file headings</td><td>The list popover</td></tr>
+<tr><th>At 280 px</th><td>Chips scroll; the list carries the rest</td><td>Rows truncate their first words</td><td>The narrowest conversation of the three</td></tr>
+</tbody>
+</table>
+
+<h2>Inventory</h2>
+<p>The BPR-1290 card lists what each part of today's drawer does and which card or RFC asked for it. All three candidates keep the tabs, scope, filters, Reply, Resolve, Mark read, Next new comment, drafts, defect actions (under More), label marks and rails, Support details (under More) and the two-way line reveal. Discuss would be redrawn in the chosen language.</p>
+</main>
+<script>
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [f, w, h, cap, theme, s] of list) {
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="BPR-1290-conversations-drawer-frames-v1.html?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+for (const c of ["a", "b", "c"]) {
+  put("f" + c, [[`${c}-window`, 1440, 820, "Read, light", "", 0.62], [`${c}-window`, 1440, 820, "Read, dark", "dark", 0.62],
+    [`${c}-reply`, 375, 760, "Replying, 375 px", "", 0.8], [`${c}-reply`, 375, 760, "Replying, dark", "dark", 0.8],
+    [`${c}-narrow`, 280, 760, "Whole PR, 280 px", "", 0.8], [`${c}-narrow`, 280, 760, "Whole PR, dark", "dark", 0.8],
+    [`${c}-deep`, 375, 760, "24 posts, three branches", "", 0.8], [`${c}-deep`, 375, 760, "Deep, dark", "dark", 0.8]]);
+}
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1290"
 title: "Redesign the Conversations drawer around reading the conversation"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -139,3 +139,27 @@ Presentation in the Qt adapter (`github_conversation_panel`,
 `github_thread_map`, `markdown_body_view`). No new authority: reading,
 replying, resolving, marking read and publishing keep their existing core and
 host paths. The frames are design evidence, not the product.
+
+## Design round v1, 2026-10-06
+
+[Round v1](../../design/BPR-1290-conversations-drawer-v1.html) with
+[frames](../../design/BPR-1290-conversations-drawer-frames-v1.html), drawn
+with `frontend-design` on the product palette. The drawer is shown at 375 px
+and 280 px, in light and dark, with the fixture's renderer.cpp threads, the
+whole pull request and `branching-thread-v1`. All three candidates share the
+conversation: one header row (location, show in code, Resolve, Mark read,
+More), the posts per BPR-1083 v4 with complete bodies, a "New" rule, a
+"↩ name" chip on a reply that answers something other than the post above it,
+a ⑂ count that folds branches, and a Reply field at the foot. They differ in
+how a thread is chosen:
+
+- **A. Switcher.** A row of chips (root mark, line, new count; drafts dashed)
+  and a list popover for the whole pull request.
+- **B. Stack.** One-line rows for the other threads above and below the open
+  one, which expands in place.
+- **C. Line rail.** A 24 px strip whose ticks sit at their lines' height, so
+  it keeps AC-05's alignment, with previous and next arrows and the list.
+
+The draft's body in the frames is illustrative (the screenshot does not show
+it). Choosing A or B means amending RFC-BPR-0028 AC-05's "aligned to their
+lines".
