@@ -73,3 +73,12 @@ Owed, not gating: on Windows, the two-round course with BPR-1272's words
 (command in the ledger).
 
 RFC-BPR-0056 is Auto-Verified. Docs and board only; no product file changed.
+
+**Note: Windows non-gating rerun after [[BPR-1272]]'s wording change, at
+`d180380e0`** (station `bpr-main-win`, MSVC 14.51, Qt 6.11.2,
+`build/windows-dev-tour-cli` Debug with `BPR_BUILD_TOUR_CLI=ON`, whole tree
+with no `warning C` line; no remote mutation). 5 of 5 pass with `-j4`:
+`application_review_cycle_desktop_public_path` (12.7 s),
+`application_review_cycle_two_round_public_path` (20.3 s),
+`qt_review_cycle_view_1_0` (23.4 s), `qt_review_cycle_view_2_0` (34.0 s) and
+`test_network_isolation_manifest`.
