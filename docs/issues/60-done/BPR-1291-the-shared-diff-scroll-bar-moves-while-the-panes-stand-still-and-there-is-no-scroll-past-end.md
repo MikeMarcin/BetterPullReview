@@ -205,3 +205,27 @@ MSVC 14.51, Qt 6.11.2; no remote mutation).**
   `KnownInputMisses` and no limit miss. The largest gap in a gated course is
   59.0 ms (`paged_review_and_git_load`); `approximate_file_selection` is
   23.4 ms and `large_file_selection` 28.3 ms.
+
+**Note: Linux run at `68c1fe9b7` (station `bpr-main-linux`, WSL2, GCC 15.2.0,
+offscreen).**
+
+- **Dev tree** (rebuilt whole, no warnings), `-j1`: 17 of 20 pass. Passing:
+  `qt_comparison_scroll_controller_scale_{100,125,200}`,
+  `qt_diff_workbench_scale_{100,125,200}`,
+  `qt_diff_link_map_scale_{100,125,200}`,
+  `qt_diff_axis_scale_{100,125,150,200}`, `qt_syntax_pane_composition`,
+  `qt_workbench_conversation_reveal`,
+  `application_diff_workbench_public_path` and `architecture_boundaries`.
+  `qt_workbench_window_scale_{100,125,200}` stop at the known [[BPR-1255]]
+  check, as expected. With only that one assertion bypassed, locally and not
+  committed, all three pass (24.4, 26.1 and 28.9 s). The test was restored and
+  rebuilt.
+- **Optimized tests-on tree** (`app-release`, `BUILD_TESTING=ON`, GCC
+  `-O3`, `-j1`, idle): the 18 large-review rows pass 18/18 in 99.7 s. Every
+  report has `BudgetsEnforced` true, `KnownInputMisses` empty and no input
+  failure. Largest gaps in ms: `large_file_selection` 23.1–29.7,
+  `large_source_revisit_render` 20.6 and 21.1, `approximate_file_selection`
+  40.5, `first_tab_file` 19.1. The largest gated gap is 49.6
+  (`first_tab_head`).
+
+`build/app-release-tests` was removed. Done is not reopened.
