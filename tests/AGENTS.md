@@ -65,6 +65,10 @@ Tests are direct evidence, not naming evidence.
 - Bind range-for elements by reference (`const auto& [a, b]`). GCC's
   `-Werror=range-loop-construct` rejects a by-value copy that Clang accepts,
   so the Mac build does not catch it (BPR-1078 broke the Linux build this way).
+- Do not hold an iterator, pointer or reference into a widget's model or card
+  list across `processEvents`, a menu popup or a refresh; look the item up
+  again afterwards. MSVC's checked iterators abort on the stale one, while
+  GCC and Clang read it silently (BPR-1255's Windows run hit this).
 - Fixtures are sanitized and deterministic; never include credentials or
   private repository content.
 - Native credential fixtures use an adapter-owned integration service and
