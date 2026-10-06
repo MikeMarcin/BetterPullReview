@@ -46,3 +46,24 @@ All owned acceptance criteria remain **Not run** at intake.
 | **RC58-08:** The thin bpr-cycle skill uses the active harness, no second model/orchestrator, no direct provider publisher, and no silent skill installation. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
 | **RC58-09:** Response-only automation appends reports but cannot verify, alter original instructions, export other history or publish. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
 | **RC58-10:** Manual terminal/Markdown and observed supported harness paths remain useful; missing skill support/reachability does not block the cycle. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
+
+## Owner answer (2026-10-06): amend and close
+
+RFC-BPR-0058's closure dependencies included RFC-BPR-0044, 0045 and 0046,
+which are Proposed and close together on [[BPR-1071]]. The coordinator put
+the question to the owner in chat: "RFC-0058 … formally depends on
+RFC-0044/0045/0046 … amend its dependency and close on its own evidence?" The
+owner answered, verbatim:
+
+> Amend and close (Recommended)
+
+The answer came in chat. No attended candidate was prepared for it, and
+session `cbd48b91000b00f1e72e1ad62c7c384c` was not used.
+
+The amendment is recorded in RFC-BPR-0058's
+[owner amendment](../../rfcs/RFC-BPR-0058-headless-cycle-cli-and-portable-consumer-skill.md#owner-amendment-2026-10-06-dependencies-are-what-this-rfc-uses)
+section and in the [RFC index](../../rfcs/README.md): RFC-BPR-0058 depends on
+what it uses, all of it landed ([[BPR-1054]] and [[BPR-1057]] of
+RFC-BPR-0044, [[BPR-1061]] of RFC-BPR-0045), not on the closure of
+RFC-BPR-0044, 0045 and 0046. Its `depends_on` is now RFC-BPR-0053, 0056 and
+0057, all Auto-Verified. Those three RFCs are not closed by the amendment.
