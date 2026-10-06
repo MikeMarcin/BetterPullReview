@@ -114,7 +114,7 @@ Read from the code and the screenshot, not from the owner:
   owner chooses one of the whole-window concepts (or rejects all) in chat, and
   the chosen one is then prototyped; the choice and note are recorded here.
 - **BPR-1290:reading.** In Read, the selected conversation fills the drawer's
-  height under the tabs and its navigation: every post shows its author,
+  height under the tabs and its navigation (Read is Review since [[BPR-1295]]): every post shows its author,
   avatar, mark and rail per BPR-1083 v4, unread state and complete body, with
   no nested scroll area; Reply opens the editor in place, in the conversation.
 - **BPR-1290:navigation.** Choosing a thread is one compact control that keeps

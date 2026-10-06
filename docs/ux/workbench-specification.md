@@ -31,7 +31,7 @@ authored and directly requested pull requests of the saved repositories
 ## Primary layout
 
 ```text
-┌ Title row: Home | Repositories | Files | name ········ Overview Read Review Discuss | Refresh | Comments (n) | Account | Settings ┐
+┌ Title row: Home | Repositories | Files | name ········ Overview Review Discuss | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
 ├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ ········ Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
@@ -47,8 +47,20 @@ in order, the title row, the review bar and, while it is open, the Updates
 line's timeline, with no scroll area and no separate title bar. The **title row** carries the window, the pull
 request and the modality: Home, the repositories and files toggles and the pull
 request's name at its left; the modality at its right beside refresh, the
-comments toggle (which carries the count of threads with new comments),
-account and settings; on Windows the application menu and the caption buttons.
+comments toggle (which carries the count of threads with new comments), the
+hide-drawers icon, account and settings; on Windows the application menu and
+the caption buttons.
+
+**Modalities** ([[BPR-1295]], owner direction 2026-10-06). The modalities are
+Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3; proposed, and
+confirmed at the built UI). Read is merged into Review: every path that entered
+Read (an Overview file row, Continue review, Open in code, Resume, a link to a
+file, a tour) enters Review. Review remembers the drawer arrangement it last
+had in the window, hidden drawers included, and applies its preset (Files and
+Comments open, Repositories as they were) only on the window's first entry and
+when ⌘2 is pressed while already in Review. BPR-1295 is Ready and is built
+after [[BPR-1290]]; until then the window still offers Read on ⌘2, Review on
+⌘3 and Discuss on ⌘4.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
@@ -133,8 +145,8 @@ Comparison**, and **Make New Tabs Use This Comparison**. Ctrl+Tab and
 Ctrl+Shift+Tab step between tabs on every platform; Cmd-W (Ctrl+W elsewhere)
 closes the active tab, choosing the next neighbour or the previous one at the
 end. Closing the last tab leaves the pull request and its file chooser open.
-Overview and Discuss show the window's comparison; Read and Review show the
-active tab's. When no tab is open, changing the comparison sets the window's
+Overview and Discuss show the window's comparison; Review shows the active
+tab's. When no tab is open, changing the comparison sets the window's
 pair; the first file opened takes that pair. Resume restores the retained tab order, active tab, exact pairs
 and reading positions. Unavailable material stays unavailable on its own tab.
 
@@ -160,6 +172,20 @@ comparison fails that course, whose failure line names every row stacked with
 the comparison, folded and open ([[BPR-1036]]).
 
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
+
+**Hide and show every drawer** ([[BPR-1295]]). One checkable window command,
+Hide Drawers, on `Ctrl+B` (⌘B on macOS) and an icon immediately right of the
+comments toggle. While any drawer is open it closes every open drawer
+(repositories, files and comments) and remembers which were open; pressed
+again it reopens exactly that set at the saved widths, or Review's preset when
+nothing is remembered. Opening a drawer by hand while they are hidden, or ⌘2 in
+Review, drops the remembered set; leaving Review and coming back keeps it. The
+core decides it, as it decides every drawer gesture. Overview refuses it with
+its existing reason and Discuss disables it, because there the conversation is
+the page. The icon is a window outline with a column on each side, filled while
+the drawers show and outlined and checked while they are hidden; its tooltip
+names what it hides or brings back with the key ("Show Files and Comments
+(⌘B)").
 
 ## Overview files
 
@@ -219,7 +245,7 @@ column, and RFC-BPR-0032 gives it one job per row.
   returns to its review and keeps its view, and a Recently viewed row of that
   pull request lands on Overview the same way. `/files` and `/commits` are
   views of the whole pull request and say nothing. A file fragment
-  (`#diff-<SHA-256 of the path>`) selects exactly that changed file in Read;
+  (`#diff-<SHA-256 of the path>`) selects exactly that changed file in Review;
   its `R<n>` line is selected when the comparison on screen ends at the pull
   request's head. `#pullrequestreview-<id>` reveals that review in Discuss, and
   `#discussion_r<id>` reveals the comment when the read identified it by that
@@ -512,7 +538,8 @@ flow from the mounted control reaches the device host is proven end to end
 Previous/next change and previous/next file are always visible on the review
 bar ([[BPR-1129]]), in that semantic order after the comparison's menu, each
 pair followed by its position; private progress follows them. Files and
-Conversations are the title row's toggles. The navigation, drawer and
+Conversations are the title row's toggles, and Hide drawers sits after the
+Conversations toggle ([[BPR-1295]]). The navigation, drawer and
 private-progress presenters are icon-only, but each retains a stable visible
 tooltip, accessible name and description, strong-focus stop, and keyboard
 shortcut. No text toolbar appears at a narrower width: as the window narrows
@@ -578,6 +605,8 @@ never invents enabled state.
 | Compose review | `Alt+R` (Option-R) |
 | Comment, or Reply to the selected thread | `Alt+C` (Option-C) |
 | Back from a composition page | `Esc` |
+| Hide or show every drawer ([[BPR-1295]]) | `Ctrl+B` (⌘B) |
+| Overview, Review, Discuss ([[BPR-1295]], proposed) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
 the composed epoch control already holds `Alt+1` through `Alt+3` with
@@ -585,6 +614,15 @@ widget-with-children context. Both bindings match whenever that control has
 focus, and Qt resolves an ambiguous shortcut by triggering neither, so the
 plain-`Alt` form produced two silently dead toggles. No key sequence may be
 duplicated anywhere in the assembled window.
+
+`Ctrl+B` is Qt's standard Bold key, which no Qt text widget acts on, so a
+window shortcut would fire inside a composer. An editable multi-line editor
+(a comment, reply, review or note composer, the suggestion editor, the tour
+editor) therefore claims `Ctrl+B` in `ShortcutOverride` and does nothing with
+it, as the label body claims ⌘L. Hiding the drawers never takes a composer away
+mid-sentence, and the key stays free for Markdown Bold. Single-line fields do
+not claim it; when hiding removes the focused field, focus moves to the
+comparison ([[BPR-1295]]).
 
 The bar contains one presenter for each semantic action at every supported
 width. Review details is an item of the comparison's menu. Seen, Reviewed, Accepted, and
@@ -815,7 +853,7 @@ keeps it because it is followed, and **Save Repository**, offered while its
 repository is not saved for the account. Neither reaches GitHub; a pull
 request opened by link is only Recently viewed until one of them is used,
 and one read signed out offers neither. **View** holds the line-number toggle, the
-one-pane toggle and, after a separator, Settings…. The bar was added by
+one-pane toggle, Hide Drawers ([[BPR-1295]]) and, after a separator, Settings…. The bar was added by
 BPR-0457 because the owner asked for a "view menu option" and, offered the
 choice between a real menu bar and a checkable entry in the existing toolbar
 popup, chose the menu bar. On macOS it merges into the system menu bar and
@@ -853,7 +891,7 @@ for itself, so both answers are drivable on one host:
   carries the same menus a window's bar carries, so the close subtracts nothing
   a reviewer can see: a File menu holding Quit, a Profiles menu listing the
   profiles and then New Window and Manage Profiles…, and the window's own
-  **View** — Line numbers, One pane and Settings… — offered and disabled,
+  **View** — Line numbers, One pane, Hide Drawers ([[BPR-1295]]) and Settings… — offered and disabled,
   because no window's presentation is theirs to change. That is what macOS
   applications offer with no document open, and Settings keeping the
   preferences role is what keeps the merged Preferences item in the application

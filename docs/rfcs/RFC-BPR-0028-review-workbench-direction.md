@@ -158,7 +158,17 @@ in Settings. A collapsed drawer's presentation follows the drawer-controls
 setting ([[BPR-0721]], owner direction 2026-09-10): with the controls shown it
 is an 18-pixel rail with a vertical label and an unread count; with them
 hidden, the default, it leaves no column at all and the strip's toggle is the
-way back.
+way back. Amended 2026-10-06 by the owner's direction on [[BPR-1295]]: Read
+merges into Review, leaving three modalities, Overview, Review and Discuss, on
+⌘1 to ⌘3 (the keys are proposed and confirmed at the built UI). Every path that
+entered Read enters Review, which keeps comments beside the code and offers
+both presentations. Review remembers the drawer arrangement it last had in each
+window, hidden drawers included, and applies its preset (files and comments
+open) only on a window's first entry and when ⌘2 is pressed while already in
+Review. One command, ⌘B (Ctrl+B elsewhere) and an icon beside the comments
+toggle, hides every open drawer, and a second press restores exactly the
+drawers that were open at their saved widths; Overview refuses it and Discuss
+disables it. A focused composer keeps ⌘B to itself.
 
 **Overview.** A pull request opens on an overview: title, author and branches,
 description, a files table grouped by folder with operation, added and removed
@@ -167,9 +177,9 @@ comment badges and my note; participants with their sign-off state; a
 "since my last review" summary (uploads, files changed, new comments, replies to
 me, my unresolved threads, checks); my review progress; and one action,
 Continue review (Start review on first visit), which enters Read at the first
-unseen change.
+unseen change. Amended 2026-10-06 ([[BPR-1295]]): both enter Review.
 
-**Read.** Side-by-side diff with the product theme and the DiffLinkMap between
+**Read** (Review since 2026-10-06, [[BPR-1295]]). Side-by-side diff with the product theme and the DiffLinkMap between
 the panes. Gutter marks: amber for a line with a thread, blue for a new one.
 The comments drawer lists this file's threads aligned to their lines as cards
 on an avatar rail with a thread line; a whole-PR filter lists every thread in
@@ -201,7 +211,10 @@ the drawer controls are shown, a Hide button and an 18-pixel rail with a label
 and count; with the controls hidden (the default since [[BPR-0721]]) a
 collapsed drawer is absent and an expanded one has no Hide button. Collapsing
 one never moves the other; a modality sets both, a manual toggle overrides
-until the next modality change.
+until the next modality change. Amended 2026-10-06 ([[BPR-1295]]): Review
+restores the arrangement it last had rather than setting the drawers, and ⌘B
+hides every open drawer and brings back the same set; opening a drawer by hand
+while they are hidden drops that set.
 
 **Settings.** RFC-BPR-0018's window and sidebar, with these pages fixed by the
 asset: Accounts & hosts (one card per server, device-grant sessions shown as
@@ -213,7 +226,9 @@ installed, code size and tab stops, ligatures, per-role colour customisation
 with preview, theme import and export, the tuned diff colours untouched), and
 Reviews & queue (modality rules, none on by default; reading behaviour;
 drawer controls, off by default; observer rules; saved repositories). The other four pages remain as
-RFC-BPR-0018 describes them.
+RFC-BPR-0018 describes them. Amended 2026-10-06 ([[BPR-1295]]): the modality
+rules offer Overview, Review or the last used modality for opening a pull
+request, and Continue review always enters Review.
 
 **Home.** An action list: grouped rows (needs you, waiting on others,
 following) with pull request, title, why the row is here, my progress, author,
@@ -273,7 +288,12 @@ design rounds.
   a drawer gesture is refused with a stated reason and every drawer stays
   collapsed until another modality is chosen ([[BPR-0727]]); a collapsed
   drawer is its rail while the drawer controls are shown and no column while
-  they are hidden ([[BPR-0721]]).
+  they are hidden ([[BPR-0721]]). Amended 2026-10-06 ([[BPR-1295]]): there are
+  three modalities, Overview, Review and Discuss; Review restores the
+  arrangement it last had in the window, hidden drawers included, and its
+  preset only on the window's first entry or ⌘2 in Review; ⌘B and its icon hide
+  every open drawer and restore exactly the same set, refused in Overview,
+  disabled in Discuss, and yielded to a focused composer.
 - AC-04 The overview shows every file with the listed columns from projections
   the host already publishes, plus participants and the since-my-last-review
   summary, and Continue review lands on the first unseen change.
@@ -736,6 +756,31 @@ Three of them bear on this RFC.
 Windows build at or after `e08a0409`. The owner also answered
 `RFC-0039-0051-start-v001` with "Not yet: finish RFC-0028 to RFC-0038 first",
 recorded in the [RFC index](README.md).
+
+## Owner direction, 2026-10-06: Read merges into Review
+
+Placed here, ahead of the 2026-09-24 scaffolding decision, only so it does not
+collide with [[BPR-1290]]'s in-flight amendment at this document's end.
+
+The owner, in chat on 2026-10-06, verbatim: "Okay what if we merge read and
+review modalities into just review, and we have a hotkey/icon to quickly hide
+and restore open drawers. That should basically give read but be a little less
+awkward I think." Asked three questions on [[BPR-1295]], the owner answered,
+verbatim: "Every drawer (Recommended)"; "Yes, remember (Recommended)"; and,
+about the proposed ⌘\ and a title-row button beside the modality, "Those
+hotkeys and that button location don't sound very good. I want something for
+this toggle I can hit with my left hand easily. A quick google shows maybe
+cmd+b is a reasonable option on mac for hiding clutter."
+
+The Modalities, Overview, Read, Drawers and Settings paragraphs and AC-03
+above carry dated amendments that cite this; their original wording is kept
+beside each. **AC-05 and AC-08 say Read; from 2026-10-06 that means Review.**
+They are not edited in place while [[BPR-1290]]'s amendment to the same
+criteria is in flight; whichever change lands second words them with Review.
+Elsewhere in this document, too, where Read is named, read Review. The amendment
+changes the modalities and the drawer commands, not this RFC's closeout
+dependencies. [[BPR-1295]] builds it after [[BPR-1290]] lands, and the owner
+confirms the icon's place and the ⌘1-⌘3 keys at the built UI.
 
 ## Owner decision, 2026-09-24: the scaffolding moves to RFC-BPR-0052
 

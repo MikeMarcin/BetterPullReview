@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1295"
 title: "Merge Read into Review, with one command to hide and restore the open drawers"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1295--BPR-1295--47ff1149b806.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0052","RFC-BPR-0005"],"related_cards":["BPR-1290","BPR-1293","BPR-1294","BPR-1021","BPR-0661","BPR-0721","BPR-0724","BPR-0727","BPR-0729","BPR-0649","BPR-0796","BPR-1132"],"open_questions":["hide scope: every open drawer or only Files and Repositories","entering Review: reapply its preset or keep the window's last arrangement","keyboard map: Cmd-1 Overview, Cmd-2 Review, Cmd-3 Discuss, Cmd-backslash hide and restore"],"acceptance":["BPR-1295:owner-answers","BPR-1295:three-modalities","BPR-1295:entries","BPR-1295:hide-restore","BPR-1295:keys-and-icon","BPR-1295:migration","BPR-1295:governing-text","BPR-1295:tests","BPR-1295:owner-look"]}
+metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1295--BPR-1295--47ff1149b806.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0052","RFC-BPR-0005"],"related_cards":["BPR-1290","BPR-1293","BPR-1294","BPR-1021","BPR-0661","BPR-0721","BPR-0724","BPR-0727","BPR-0729","BPR-0649","BPR-0796","BPR-1132"],"acceptance":["BPR-1295:owner-answers","BPR-1295:three-modalities","BPR-1295:entries","BPR-1295:hide-restore","BPR-1295:keys-and-icon","BPR-1295:migration","BPR-1295:governing-text","BPR-1295:tests","BPR-1295:owner-look"],"owner_answers":{"date":"2026-10-06","hide_scope":"every drawer","entering_review":"remember the last arrangement","keys":"Cmd-B (Ctrl+B); Cmd-1/2/3 proposed, confirm at owner-look","icon":"beside the Comments toggle"},"sequence_after":"BPR-1290 (its src/ change is in flight; this card's code waits for it)"}
 ---
 
 # BPR-1295: Merge Read into Review, with one command to hide and restore the open drawers
@@ -28,9 +28,10 @@ Earlier the same day, during [[BPR-1290]]:
 ## Outcome
 
 Three modalities: Overview, Review and Discuss. Every path that lands in Read
-today lands in Review. One command, with a key and a title-row icon, closes
-every open drawer and a second press brings back exactly the drawers that were
-open. Discuss is kept as it is for now. Whether it stays is [[BPR-1293]]'s
+today lands in Review, and Review keeps the arrangement it last had. One
+command, on ⌘B (Ctrl+B) and an icon beside the Comments toggle, closes every
+open drawer and a second press brings back exactly the drawers that were open.
+Discuss is kept as it is for now. Whether it stays is [[BPR-1293]]'s
 question and the owner's, not this card's.
 
 ## How Read and Review differ today
@@ -106,6 +107,21 @@ marks. Question 1 below asks which the owner wants.
   Last used.
 - The modality inference's Read branch.
 
+### Entering Review (question 2, owner: remember)
+
+- **Review remembers its arrangement.** Each window keeps the drawer
+  arrangement Review last had, hidden drawers included. Entering Review from
+  Overview, Discuss, a link, Resume, Open in code, Continue review or a tour
+  stop restores that arrangement rather than a preset.
+- **When the preset applies.** Review's preset (Files and Comments open,
+  Repositories as they were) applies on a window's first entry to Review, and
+  when ⌘2 is pressed while the window is already in Review. That second press
+  is the way back to the preset.
+- **Where it lives.** The remembered arrangement is core interaction state, as
+  the drawer states are. It is window state and is not stored: a restored
+  window's drawers are already stored per window, and they are Review's
+  arrangement when the window restores in Review.
+
 ### Hide and restore the drawers
 
 - **Command.** Hide Drawers / Show Drawers, a checkable window action
@@ -114,9 +130,12 @@ marks. Question 1 below asks which the owner wants.
   remembers which were open. If none is open, it reopens the remembered set at
   their saved widths. With nothing remembered (a new window, or after a
   restart), it opens Review's preset.
-- **When the memory is dropped.** Opening a drawer by hand, or choosing a
-  modality, while the drawers are hidden. The restore then cannot undo what the
-  reviewer just did.
+- **When the memory is dropped.** Opening a drawer by hand while the drawers
+  are hidden, or pressing ⌘2 while already in Review (which applies the
+  preset). The restore then cannot undo what the reviewer just did. Leaving
+  Review and coming back keeps it: the remembered set is part of the
+  arrangement Review remembers (question 2), so a window that left Review with
+  its drawers hidden comes back hidden, and ⌘B still restores the same set.
 - **Where it works.** Overview refuses it with the existing
   `overview_keeps_drawers_collapsed`. Discuss disables it, because there the
   conversation is the page, not a drawer.
@@ -129,29 +148,68 @@ marks. Question 1 below asks which the owner wants.
 - **Gutter marks while hidden.** Clicking a thread mark in the gutter opens
   Conversations alone (a manual open), as in BPR-1290's prototype.
 
-### Hotkey
+### Hotkey (question 3, owner: ⌘B)
 
-**⌘\ on macOS, Ctrl+\ on Windows and Linux** (`Ctrl+\\` in Qt), with
-**Alt+Shift+0** as a second binding on the same action.
+**⌘B on macOS, Ctrl+B on Windows and Linux** (`Ctrl+B` in Qt), one binding,
+window context. The owner chose it: a left-hand key, and the one VS Code uses
+to toggle its side bar. The earlier proposal, ⌘\ with Alt+Shift+0, is
+withdrawn. Alt+Shift+0 existed only because backslash needs AltGr on German
+and Nordic layouts. B is a plain letter on every Latin layout, so no second
+binding is proposed.
 
-- ⌘\ is unbound in the application. ⌘0 is Home, ⌘1-⌘4 are the modalities,
-  ⌘, is Settings, ⌘L focuses the Home bar, ⌘W closes a tab and ⌘N opens a
-  window. The Alt and Alt+Shift chords are listed in
-  `tests/adapters_qt/workbench_window_tests.cpp:2309-2324`.
-- No standard Qt key is bound to it on any of the three platforms.
-- On German and Nordic layouts, backslash needs AltGr or ⌥⇧7, so a second
-  binding is needed. Alt+Shift+0 is free and belongs to the drawer family:
-  Alt+Shift+1, 2 and R are the drawers, and 3, 4 and 5 are taken by details,
-  progress and line numbers. Read "0" as "no drawers".
+**Modality keys, proposed.** ⌘1 Overview, ⌘2 Review, ⌘3 Discuss (moved from
+⌘4). The owner objected only to the toggle's keys and the button, not to
+these. They are set explicitly rather than by strip position, and are
+confirmed at the built-UI review (BPR-1295:owner-look).
 
-### Icon
+#### Every B binding, and how each collision is resolved
 
-- **Placement.** An icon-only tool button on the title row, directly right of
-  the modality segment and before Refresh, where Read's segment was.
-- **Glyph.** A window frame with a column on each side: filled while drawers
-  are shown, outlined while they are hidden. It is checked while hidden.
-- **Tooltip.** "Hide drawers (⌘\)", or "Show Files and Comments (⌘\)",
-  naming what returns.
+Searched on 2026-10-06 at `e0dd7301d`: every `QKeySequence`, `setShortcut`,
+`QShortcut`, `Qt::Key_*` handler and menu mnemonic in `src/`, the chord table
+in the window tests, and `docs/` for ⌘B, Ctrl+B and Bold. Qt's tables were
+read from the bundled Qt 6.11.2 with a scratch probe (`QKeySequence::keyBindings`
+under the cocoa and offscreen platforms), and a second probe put a
+window-context `Ctrl+B` action beside a focused `QPlainTextEdit`, plain-text
+`QTextEdit` and `QLineEdit`.
+
+| Where | Binding today | Finding | Resolution |
+|---|---|---|---|
+| Application shortcuts and menus | None | No action, shortcut, key handler or mnemonic in `src/` uses B with any modifier. The menus are File, View, Pull Request, Profiles and Help; none has an `&B` mnemonic. The test chord table (`workbench_window_tests.cpp:2309-2324`) has no B. | Free. The toggle takes it. |
+| Qt standard key `QKeySequence::Bold` | Ctrl+B, shown ⌘B on macOS | It is Bold on cocoa and on Qt's generic table. Nothing in Qt acts on it: with each of the three editors focused, ⌘B inserted nothing and the window's action fired, on cocoa and offscreen. The product never binds Bold. | No collision today. It also means a window shortcut fires inside an editor unless the editor claims the key, which the next row does. |
+| Comment, reply, review and note composers; the suggestion editor; the tour editor; Review Cycle note fields | None | Plain-text Markdown (`setAcceptRichText(false)`), with no formatting command or toolbar. GitHub's web composer binds ⌘B to wrap the selection in `**`, so a reviewer's hand may expect Bold here. Some editors live in the Conversations drawer (Notes, side chat, and the in-place Reply of [[BPR-1290]]), so a toggle that won there would hide the text being written. | **Recommended: yield.** Each editable multi-line editor claims ⌘B in `ShortcutOverride`, as the label body already claims ⌘L from Home's Open bar (`feedback_label_controls.cpp:561`) and the label menu claims ⌘0. It does nothing with the key for now. Markdown Bold in composers would be its own card. Esc or a click in the code, then ⌘B, hides the drawers. |
+| Single-line fields: the Files and Repositories filters, Home's Open bar | None | No meaning for ⌘B. | The toggle wins. If hiding removes the focused field, focus moves to the comparison. Home has no review, so the command is disabled there. |
+| macOS text fields: Control-B | `Meta+B` (⌃B), `QKeySequence::MoveToPreviousChar` on cocoa | The Emacs caret move. It is a different key from ⌘B. The suggestion editor maps it. | No collision. |
+| The macOS menu bar | View → Hide Drawers, ⌘B | A native key equivalent on the menu item. | Implementation check: with a composer focused on macOS, ⌘B must not trigger the menu item. Prove it in the window course, and on the composed window with the native menu bar. |
+| The platforms | — | ⌘B is not a macOS system shortcut, and Ctrl+B is not reserved by Windows or by GNOME or KDE. | Free. |
+
+**The alternative, the toggle winning everywhere,** is not recommended. It
+would hide a drawer-hosted composer mid-sentence, and it would answer GitHub's
+Bold habit with a layout change.
+
+### Icon (owner: not on the title row's old spot)
+
+The owner rejected the earlier placement, directly right of the modality
+segment where Read's segment was. Proposed instead, for the owner's look at
+the built UI:
+
+- **Placement.** One icon-only tool button **immediately right of the Comments
+  toggle** (the one carrying the count), before the divider that sets off
+  Account and Settings. The title row's right end then reads:
+
+  ```text
+  … Overview  Review  Discuss │ Comments (3) │ [hide drawers] ┆ Account  Settings
+  ```
+
+  It closes the cluster of drawer controls at the right edge, next to the
+  drawer it hides most often, and away from the modality segment.
+- **Style.** The same size, frame and checked look as the drawer toggles
+  (16-pixel glyph, icon only).
+- **Glyph.** A window outline with a column on each side. Both columns are
+  filled while drawers are shown; outlined while they are hidden, and the
+  button is checked.
+- **Tooltip.** "Hide drawers (⌘B)", or "Show Files and Comments (⌘B)", naming
+  what returns. Disabled in Overview ("Overview keeps every drawer closed") and
+  in Discuss ("In Discuss the conversation is the page").
 - **Accessibility.** The same text as the accessible name and description, and
   a strong-focus stop.
 - **Narrow windows.** It stays at every width, under the specification's rule
@@ -159,8 +217,9 @@ marks. Question 1 below asks which the owner wants.
 - **Menus.** It is also in the View menu, after One pane. The windowless
   desktop menu bar carries the same item, disabled, to keep [[BPR-0796]]'s
   parity.
-- **Considered and not proposed.** The review bar's right end. That bar holds
-  review commands, not window layout.
+- **Considered and not proposed.** Left of the Comments toggle (it would read
+  as part of the modality segment, the rejected spot), and the review bar's
+  right end (that bar holds review commands, not window layout).
 
 ### Migration of stored settings and restored windows
 
@@ -183,6 +242,36 @@ marks. Question 1 below asks which the owner wants.
 
 These are recorded as dated owner amendments. Historical verdict records stay
 as written.
+
+**Landed 2026-10-06, ahead of the code** (docs only, while [[BPR-1290]]
+changes `src/`):
+
+- RFC-BPR-0028: dated amendments on the Modalities, Overview, Read, Drawers and
+  Settings paragraphs and AC-03, each keeping its original wording, "Review
+  since 2026-10-06" on the Read heading, and the owner's words in a new
+  section, "Owner direction, 2026-10-06: Read merges into Review". That
+  section states that AC-05's and AC-08's "Read" means Review. They are not
+  edited in place: BPR-1290's branch (`claude/bpr1290-inline-drawer`) amends
+  both, and the documentation gate requires [[BPR-1021]]'s closeout rows to
+  match each criterion verbatim, so an edit here would collide with that
+  branch's. For the same reason the new section sits before the 2026-09-24
+  scaffolding section rather than at the end, where that branch appends.
+  [[BPR-1021]]'s AC-03 row carries the amended AC-03. `git merge-tree` of this
+  change with that branch is clean.
+- The workbench specification: the title-row diagram and text, a Modalities
+  paragraph that says the window still offers Read until this card is built,
+  Tabs, the `#diff-` link, the hide-and-show paragraph under the drawers, the
+  primary actions, the shortcut table and the ⌘B yield rule, the View menu and
+  the windowless View menu.
+- [[BPR-1290]]'s :reading and [[BPR-1294]]'s inventory now say Review.
+
+**Still owed when the code lands:** `docs/architecture/native-markdown.md`
+and `docs/ux/conventional-comments-feedback.md` (they describe what the
+window does today), [[BPR-1293]]'s outcome (it is Parked for
+the owner on its finder prototype, and another writer holds it), and AC-05's and AC-08's in-place wording with their
+[[BPR-1021]] rows, once BPR-1290's amendments to them are on main.
+
+The original list:
 
 - **RFC-BPR-0028.**
   - The Modalities paragraph (lines 136-157): three modalities on ⌘1-⌘3, and
@@ -222,8 +311,9 @@ at `fc03ddccf`.
 
 - `tests/adapters_qt/workbench_window_tests.cpp` (58): the modality presets
   (around 9275-9343), the settings rows (8190-8194), the chord table
-  (2309-2324, which gains ⌘\ and Alt+Shift+0), and the Overview file row
-  (9636).
+  (2309-2324; ⌘B is not an Alt chord, so it gets its own case: it toggles from
+  the code, a drawer list and a filter field, and does nothing with a composer
+  focused), and the Overview file row (9636).
 - `tests/sqlite_contract/workbench_settings_storage_tests.cpp` (10):
   `open_modality` and `continue_modality` round trips and old-row rebuilds.
 - `tests/application/workbench_preferences_consumers_tests.cpp` (6) and
@@ -247,12 +337,14 @@ at `fc03ddccf`.
 
 ## Relation to other cards
 
-- **[[BPR-1290]]** (Parked, owner design discussion). The inline-only drawer
-  is the Conversations drawer of Review. Its prototype is drawn "Read on …"
-  and its :reading criterion names Read; both become Review. With hide and
-  restore, the inline drawer is one key away from the whole width going to the
-  code. Neither card blocks the other, but land this card's text amendments
-  first, so BPR-1290 is built and accepted against Review.
+- **[[BPR-1290]]** (being built, 2026-10-06). The inline-only drawer is the
+  Conversations drawer of Review. Its :reading criterion named Read and now
+  names Review; its prototype captions ("Read on …") label historical frames
+  and stay. With hide and restore, the inline drawer is one key away from the
+  whole width going to the code. This card's text amendments land first, so
+  BPR-1290 is built and accepted against Review. **This card's code waits for
+  BPR-1290 to land**: both change `workbench_window.cpp` and the window tests,
+  and BPR-1290's src/ change is in flight.
 - **[[BPR-1293]]** (Backlog). The PR-wide finder opens a conversation in Read
   today; it opens it in Review. Discuss's fate, which the owner's "beyond
   overview and review" puts in doubt, stays with BPR-1293. This card keeps
@@ -277,24 +369,55 @@ at `fc03ddccf`.
    Alt+Shift+0) to hide and restore. Accept or Reject; put any change in the
    note.
 
+## Owner answers, 2026-10-06
+
+In chat, relayed by the coordinator, verbatim:
+
+1. Hide scope: "Every drawer (Recommended)".
+2. Entering Review: "Yes, remember (Recommended)".
+3. Keys and icon: "Those hotkeys and that button location don't sound very
+   good. I want something for this toggle I can hit with my left hand easily.
+   A quick google shows maybe cmd+b is a reasonable option on mac for hiding
+   clutter."
+
+What follows from them:
+
+- **1.** The command hides every open drawer: Repositories, Files and
+  Comments. Alt+Shift+2 brings Comments back alone.
+- **2.** Review remembers its last arrangement, hidden drawers included; the
+  preset applies on a window's first entry and on ⌘2 in Review (see
+  [Entering Review](#entering-review-question-2-owner-remember)).
+- **3.** The toggle is ⌘B (Ctrl+B), with a composer yielding it (see
+  [Hotkey](#hotkey-question-3-owner-b)). The title-row spot beside the
+  modality segment is dropped for one beside the Comments toggle (see
+  [Icon](#icon-owner-not-on-the-title-rows-old-spot)), shown to the owner at
+  the built UI. ⌘1, ⌘2 and ⌘3 drew no objection and stay proposed, to be
+  confirmed at the same look.
+
+The card is Ready on these answers. Its code waits for [[BPR-1290]] to land.
+
 ## Acceptance
 
 - **BPR-1295:owner-answers.** The three questions are answered by the owner
-  and recorded here, verbatim.
+  and recorded here, verbatim. Recorded 2026-10-06 (above).
 - **BPR-1295:three-modalities.** The strip offers Overview, Review and Discuss.
   No Read remains in the core, the Qt adapter, settings, tooltips or
   accessible names.
 - **BPR-1295:entries.** Every path in the inventory that entered Read enters
-  Review, with the arrangement question 2 settles.
-- **BPR-1295:hide-restore.** Hide closes every drawer in scope and Show
-  restores exactly the remembered set at its saved widths. A hand toggle or a
-  modality choice drops the memory. Overview refuses with its reason and
+  Review in the arrangement Review last had in that window; the preset applies
+  on the window's first entry and on ⌘2 in Review.
+- **BPR-1295:hide-restore.** Hide closes every open drawer (Repositories,
+  Files and Comments) and Show restores exactly the remembered set at its
+  saved widths. A hand toggle while hidden, or ⌘2 in Review, drops the memory;
+  leaving Review and returning keeps it. Overview refuses with its reason and
   Discuss disables the command. The core decides it, and core tests cover it.
 - **BPR-1295:keys-and-icon.**
-  - The keys in question 3 work from anywhere in the window and collide with
-    nothing in the chord table.
-  - The title-row icon shows its state and carries tooltip, accessible name
-    and focus stop.
+  - ⌘B (Ctrl+B) toggles from the code, the drawers' lists and single-line
+    fields, and does nothing while an editable multi-line editor has focus,
+    the native macOS menu item included. ⌘1, ⌘2 and ⌘3 choose Overview,
+    Review and Discuss. No key sequence is duplicated in the assembled window.
+  - The icon sits immediately right of the Comments toggle, shows its state,
+    and carries tooltip, accessible name and focus stop.
   - It stays at the platform's narrowest width.
   - The View menu, and the windowless menu bar (disabled), carry the item.
 - **BPR-1295:migration.** Stored `open_modality` 1 opens in Review. Stored
@@ -307,8 +430,9 @@ at `fc03ddccf`.
   core, SQLite and end-to-end selectors pass. `qt_composed_github` is
   included, per the board's selector trap.
 - **BPR-1295:owner-look.** The owner uses the merged Review and the
-  hide-and-restore command in an attended session and accepts it. Required,
-  not self-certified.
+  hide-and-restore command in an attended session and accepts it, with one
+  question each for the icon's placement and the ⌘1-⌘3 keys. Required, not
+  self-certified.
 
 ## Boundaries
 

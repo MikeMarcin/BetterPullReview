@@ -64,9 +64,11 @@ Read from the code at `fbbabb3ef`:
   `ScopeWholePr`; [[BPR-0648]], RFC-BPR-0028 AC-05). In compact mode,
   `conversation_cards_view` admits every top-level kind, so pull request
   comments and reviews appear as entries in file order, among the threads.
-  "This file" admits only the file's own threads, so in Read the only way to
-  reach a pull request comment is to switch the scope. BPR-1290 removes the
-  scope from the drawer (inline only), which leaves these with no home in Read.
+  "This file" admits only the file's own threads, so in Review the only way
+  to reach a pull request comment is to switch the scope. BPR-1290 removes the
+  scope from the drawer (inline only), which leaves these with no home in
+  Review. (Read merges into Review under [[BPR-1295]]; at `fbbabb3ef` this was
+  Read.)
 - **Discuss** ([[BPR-0649]]). The same list, widened; the selected post's feed
   (`github_conversation_model`) heads each one "Pull request comment by
   @name" or "Review by @name", with no file or line
