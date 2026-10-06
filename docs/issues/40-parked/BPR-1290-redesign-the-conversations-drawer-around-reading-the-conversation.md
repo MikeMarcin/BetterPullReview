@@ -824,3 +824,93 @@ first shown post is already new, the header says the thread is new and the
 posts' unread dots carry the rest; the rule stays only between a read post and
 the first new one, clearly inside the card. Nothing else in v002 was rejected,
 and BPR-1290:owner-look is asked again on v003.
+
+## Built drawer v003, 2026-10-06
+
+Candidate `033da0859` ("a thread opens with its new count in the header,
+never a New rule; Shift shows a tick's tooltip at once"), on `origin/main` at
+`b689fd303`: the two changes the v002 Reject asked for and nothing else.
+Presentation in the Qt adapter only, drawn with `frontend-design`:
+
+- **New in the header.** An open thread with new posts carries a blue "N new"
+  beside its line number (`conversation_open_card`'s `new_pill`, the closed
+  note's count kept while the thread is open; accessible name "N new posts").
+  Each new post keeps its unread dot.
+- **The New rule.** It is never a thread's first element: it stands only where
+  a read post is followed by the first new one, in place of the hairline
+  between them, from the avatar column to short of the word "New" at its right
+  end, so the card's border and amber edge run past it unbroken. A thread whose
+  first post is new has the header count and no rule anywhere, also when a read
+  post later sits between new ones.
+- **Shift tooltip.** With Shift held over a scroll-bar tick, its tooltip shows
+  at once, as the ring and the hand do (`diff_workbench`'s tick bar); without
+  Shift a tick's tooltip keeps the hover delay. The tooltip is anchored to the
+  band across the bar in which the pointer finds that tick, so it stays while a
+  press would still choose it. An anchored tooltip no longer goes away on a
+  modifier key alone, as `QToolTip`'s does not; another key still dismisses it.
+
+The specification's [Conversation drawer](../../ux/workbench-specification.md#conversation-drawer)
+section is amended with both.
+
+### Verification on the candidate
+
+- `qt_conversation_cards_view`: a new test opens one thread in each state.
+  All new: "3 new posts" and no rule. First read, then new: "2 new posts", the
+  rule between the read post and the first new one, its line from x 12 to 332
+  of 344 and the card's left edge pixels the same on the rule's row as beside a
+  post. All read, and a single read post: neither. A single new post: "1 new
+  post", no rule. Negative control, new, read, new: the count and no rule, and
+  no row of the card carries a long line in the New colour.
+- `qt_composed_inline_drawer_scale_{100,125,200}` through the composed window:
+  line 60's thread, first post new, has "3 new posts" and no rule; read up to
+  the reviewer's reply, the rule sits between that reply and the first new
+  post with "2 new posts". Shift moving onto a tick shows "Shift-click to go to
+  line 250: 1 post, 1 new" at once; moving with Shift to crowded ticks names
+  the nearer; pressing Shift while resting shows it; Control leaves it.
+  Negative controls: resting without Shift shows nothing before the delay;
+  Shift away from every tick shows nothing; a letter key still dismisses it.
+- Mutations, each failing its row: a rule before the first post, no header
+  count, a rule from the card's edge, a rule before a later new post, no
+  immediate tooltip, a modifier dismissing the tooltip.
+- Debug, 48 rows (`qt_composed*`, `qt_conversation*`,
+  `qt_github_conversation*`, `qt_github_thread_map*`, `qt_feedback_label*`,
+  `qt_workbench_window*`, `qt_diff*`, `architecture_boundaries` and every
+  `*composition_contract`): passed before the rebase; after it, the drawer
+  rows, `qt_conversation_cards_view`, `qt_github_conversation_panel`,
+  `qt_feedback_label_{controls,threads}` and `architecture_boundaries` again
+  (the base added only benchmark and documentation-gate changes).
+- Optimized (`app-release` with `BUILD_TESTING=ON`, Release): the three
+  drawer rows and `qt_conversation_cards_view` passed; opening in place 9, 11
+  and 14 ms, Shift-click 5 to 7 ms (limit 100, enforced).
+- Format check and clang-tidy on the changed units: clean.
+  `DOCUMENTATION_OK`. Linux and Windows have not run v003's rows.
+
+### Owner look, session v003
+
+Pending: BPR-1290:owner-look is the owner's, not self-certified. One
+question, Accept or Reject: "Drawer v003: the new-post marking and the Shift
+tooltip are right."
+
+- Session `ad892b9ca0cff2ad4b6faccc02fdc093`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-built-v003`,
+  candidate `BPR-1290-built-drawer-v003` (revision `frozen-033da0859-v003`,
+  fingerprint `14f2486d66da…`), ready at event cursor 3. It carries the frozen
+  build's own 2x render of both states, because every fixture thread starts
+  with someone else's post and the live build only shows "first post new".
+- Frozen root `/Users/jaeger/bpr1290-inline-drawer-review-v003.fAs2jw`: the
+  `git archive` of `033da0859` built there with the dev preset (tests on),
+  source read-only; executable SHA-256 `0db09c74a9a6…`. Offscreen on it,
+  `--attended-open-file` showed both `src/ui/conversation_cards_view.cpp` and
+  `src/engine/renderer.cpp`, and the three inline rows passed from its build
+  tree.
+- Launch: `python3 /Users/jaeger/bpr1290-inline-drawer-review-v003.fAs2jw/launch.py`
+  (v002's launcher: `--renderer` for renderer.cpp, `--prototype` for the kept
+  prototype; it checks the build and fixture tree first and reports an early
+  exit within seconds).
+- v002's session was released (`resume-development --all`, sequence 5) and
+  its frozen root `/Users/jaeger/bpr1290-inline-drawer-review-v002.GSNSiu`
+  deleted.
+
+Next: read the session's decision. Accept satisfies :owner-look and the card
+finishes; Reject comes back with what differs in its note, for a v004
+candidate.
