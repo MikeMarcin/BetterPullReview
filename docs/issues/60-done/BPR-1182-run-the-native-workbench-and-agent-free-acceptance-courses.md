@@ -148,3 +148,74 @@ Both builds printed no `warning C` or `warning LNK` line.
 - **Owed, waiting for the owner to clear the desktop:** the native Windows
   two-round run (`QT_QPA_PLATFORM=windows`), and installing the MSI over a
   full one and back with the profile's cycles reopened.
+
+**Note: the owed desktop items, Windows (bpr-main-win, 2026-10-05).**
+
+**Native two-round course.** It ran on the desktop with
+`QT_QPA_PLATFORM=windows`, in `build/windows-bpr1182-free` (agent-free tour
+CLI, Debug) rebuilt at `bd2f41995` with no `warning C` line. It printed
+`REVIEW_CYCLE_TWO_ROUND_OK`.
+
+- Three desktop starts, each `DESKTOP_n_READY windows qt=6.11.2 active=1
+  size=1280x820 screen=2560x1392` (a 4K panel at 150 %).
+- F1: 8 items, 2,675 bytes, `0de38cb0…`.
+- R1→R2 compared 13 changed rows. The next round carried 2, added 2,
+  resolved 6 and archived 0.
+- F2: 3 items, 1,530 bytes, `94c793bc…`.
+- R2→R3, R1→R3 and the chosen pairs compared 22 changed rows.
+- None of the agent-named PATH canaries ran.
+- The course itself does not observe the owner command pipe or sample
+  children on Windows. The installed-package run below checks both on the
+  packaged builds.
+
+**Install over a full MSI and back.** The owner cleared the JaegAW desktop on
+2026-10-05 and approved the installs on the station. The packages were built
+at `bd2f41995` (clean tree, WiX 5.0.2), and each passed the release-package
+audit with `RELEASE_PACKAGE_OK`:
+
+- full `BetterPullReview-0.1.3-windows-x64.msi`: 22,134,784 bytes, SHA-256
+  `7b3ee013429b2e1cac68ab873f7165a92b2394c1689042c36b461a45dae3e043`, with
+  the MCP helper, `agent_integrations: true`;
+- agent-free `BetterPullReview-0.1.3-windows-x64-agent-free.msi`: 21,929,984
+  bytes, SHA-256
+  `0b11c09b6b881ef5e602848937ce93796f869578d1f456fc0b9b49c0217bab4a`, with
+  no MCP helper, `agent_integrations: false`, `local_automation: true`.
+
+Neither is signed or published.
+
+A station driver mirrored `installed_cycle_package_course.py`. Before
+starting it found no BetterPullReview product, so there was no prior install
+to restore. It moved the account's existing `%LOCALAPPDATA%\BetterPullReview`
+aside, so no installed build opened it, and moved it back at the end (10
+files, 389,120 bytes, as before). Each package was installed per user with
+`msiexec /i … /qn` into `%LOCALAPPDATA%\Programs\BetterPullReview` and
+started natively. After each install Windows Installer listed exactly one
+product with the package's upgrade code.
+
+| State | Product code | Files | MCP helper | Desktop start |
+|---|---|---|---|---|
+| 1. full | `{0BB017D9-…}` | 24 | present | composed in 0.97 s |
+| 2. agent-free over it | `{BBA74A4A-…}` | 23 | gone | composed in 1.68 s |
+| 3. full again | `{0BB017D9-…}` | 24, the same bytes as state 1 | back | composed in 0.72 s |
+
+`better_pull_review_agent_supervisor.exe` is in every state, as the
+packaging guide's compatibility decision says.
+
+Every start passed the same checks:
+
+- it composed the profile, with a window titled "BetterPullReview — Default
+  profile";
+- it started no child process (sampled every 50 ms) and held no socket;
+- it bound both its activation pipe and its owner command pipe;
+- it closed on `WM_CLOSE` with exit 0 and left no pipe behind;
+- none of the agent-named PATH canaries ran.
+
+A cycle made after the first start, with `bpr cycle open`, a note on line 3
+and a frozen F1, read back byte for byte after the agent-free start and
+after the second full start: `show` and F1's export, using a
+tests-on Release `bpr` from the tour-cli tree.
+
+`msiexec /x` then removed the program files and the installer's
+`HKCU\Software\GameCoreTech\BetterPullReview` key and kept the profile.
+
+With these, nothing desktop-attended is owed on Windows for this card.
