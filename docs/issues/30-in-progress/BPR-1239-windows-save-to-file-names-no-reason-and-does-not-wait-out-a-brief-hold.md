@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1239"
 title: "Windows: Save to file fails as 'unavailable' for a read-only or held destination, with no reason and no wait for a brief hold"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
