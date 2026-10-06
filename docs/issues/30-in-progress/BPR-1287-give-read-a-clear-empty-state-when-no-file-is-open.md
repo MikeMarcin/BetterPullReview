@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1287"
 title: "Give Read a clear empty state when no file is open"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
