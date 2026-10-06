@@ -332,3 +332,20 @@ Activated 2026-10-06 (above). Before that: Backlog, explicitly for later
 activation. No new predecessor status, remote mutation, installed-package or
 release approval follows from this card. The design round neither builds
 anything in `src/` nor claims a native or human result.
+
+## Owner answers, 2026-10-06 (chat)
+
+Asked by the coordinator on the BPR-1212 prototype
+(`docs/design/BPR-1212-compose-v1/`):
+
+- Q1, Return comments and Shift+Return suggests a change on the selected
+  lines in both flows, only while the code pane has focus with a line
+  selected; Up/Down move the line and Shift extends it: "Accept".
+- Q2, Suggest change in a local project: "B: whole-file editor". The local
+  project keeps today's whole-file editor in the main pane; only pull
+  request review drafts a suggestion block in the drawer.
+- Q3, the whole-review summary composer (⌥R): "A: move to Discuss". No
+  full-page composer remains.
+
+Build order: after BPR-1290 (owner-look pending) and BPR-1295. The first
+build slice is the multi-line draft anchor and the keyboard line cursor.
