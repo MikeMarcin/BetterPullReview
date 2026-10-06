@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1229"
 title: "Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json","related_cards":["BPR-1128","BPR-1139"]}
-parked_on: "human-review"
 ---
 
 # BPR-1229: Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer
@@ -77,3 +76,12 @@ The station recommends option 2. Its launch courses are the ones whose
 network boundary matters, and the durable course is the only part that
 needs a private SQLite store, which the container refuses. That is the same
 refusal as the other store rows pinned `dos-volume-name`.
+
+## Decided: option 2 (coordinator, 2026-10-06)
+
+The integrating coordinator decided option 2 on 2026-10-06, as test
+configuration rather than an owner decision. The durable child course
+becomes its own row, `qt_agent_launch_canary_durable_course`, on every
+platform. On Windows it is pinned `WINDOWS_UNCONTAINED` with its measured
+line, like the other private-store rows. `qt_agent_launch_canary` keeps its
+launch courses contained. The card is un-parked.
