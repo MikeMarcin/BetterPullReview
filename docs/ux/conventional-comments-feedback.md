@@ -468,6 +468,57 @@ Consumer: `review_submission_editor`.
 - **No automatic decisions.** No label or resolution sends a review or picks
   a disposition.
 
+BPR-1085 built this surface. The rules below that are not marked owner are
+derived and may be revised with a recorded reason.
+
+- **Decisions** (owner). `wholeReviewComment`, `wholeReviewApprove` and
+  `wholeReviewRequestChanges` are checkable, exclusive buttons in one row,
+  named "Comment", "Approve" and "Request changes". The draft's own
+  disposition is the one checked. Nothing but a click changes it.
+- **Chip** (derived layout). `wholeReviewPreflight` sits on its own row under
+  the decisions, so the row fits a 300 px editor. Its accessible name is
+  "Your blocking feedback". It draws up to three marks, each with a count:
+  - the filled blocking `issue` mark, with my open blocking comments on
+    GitHub (always shown, 0 included);
+  - a dashed square with a pencil stroke, with my unsent blocking drafts
+    (shown only when there are some);
+  - a round "?", with the uncertain items (shown whenever the read is not
+    exact, even at 0).
+
+  An unread preflight shows only "?" and the tooltip "Your feedback on this
+  revision has not been read: unknown, not none."
+- **Tooltip and accessible description** (derived). One line per group, as
+  in "Yours on GitHub: 2 open blocking", "Yours, not sent: 1 blocking",
+  "1 chore, not marked blocking", "1 of yours: GitHub didn't say if
+  resolved", "1 of yours: label not readable", "1 blocking or unreadable,
+  author unknown", "Not every comment was read" and "Others: 2 open
+  blocking (not yours)".
+- **List** (derived layout). The chip's menu has these parts:
+  - a "Yours, on GitHub" section with one row per blocker, as in
+    "review.cpp:42 · subject", or "· state unknown" when GitHub did not say;
+  - a "Yours, not sent" section with one row per draft, as in "Line 29 ·
+    subject";
+  - after a separator, rows for guidance, uncertainty and Others. These rows
+    are informational and disabled.
+
+  A blocker row reveals its conversation in Discuss
+  (`workbench_window::reveal_conversation`). A draft row opens the inline
+  draft page. Neither row does anything else.
+- **Approve** (owner). The dot is GitHub's attention amber: `#BF8700` on a
+  light panel, `#D29922` on a dark one. No palette role exists for it yet.
+  The tooltip and accessible description say "Approve. You have N open
+  blocking comment(s) of your own; approving does not resolve them." With
+  none, the tooltip is "Approve this pull request." The button stays enabled.
+- **What counts as blocking** (derived from grammar revision 1). Only a
+  catalog label with a written `(blocking)` counts. A custom label declares
+  no expectation, so `security (blocking):` is not counted. A reply never
+  makes a conversation blocking. A file-level comment whose body begins with
+  a link may be a permalink envelope, so its label counts as not readable
+  rather than guessed.
+- **Open: owner look.** The chip's marks, the menu and the dot are built
+  from existing patterns. The frontend-design skill is not installed on the
+  building station. R33's native matrix has not been run.
+
 ### Settings (BPR-1088; RFC-BPR-0049)
 
 Consumer: `settings_window`, page Reviews & queue, section Comment labels
