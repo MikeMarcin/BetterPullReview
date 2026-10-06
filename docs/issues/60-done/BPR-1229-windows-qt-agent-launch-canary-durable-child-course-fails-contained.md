@@ -130,3 +130,10 @@ nothing on Windows, are gone with them.
 
 **Owed:** macOS and Linux runs of both rows. The split is the same there; on
 those platforms the durable course moves to its own row, contained as before.
+
+## macOS run (coordinator, 2026-10-06)
+
+At 4cf46a609 on macOS arm64 Debug (build/dev in a clean worktree): 12/12 of the
+canary (contained launch courses and the durable-course row), agent parent death,
+cycle export/bundle/publish-desk/workbench, git cache and process contracts,
+architecture boundaries and the network isolation manifest passed.

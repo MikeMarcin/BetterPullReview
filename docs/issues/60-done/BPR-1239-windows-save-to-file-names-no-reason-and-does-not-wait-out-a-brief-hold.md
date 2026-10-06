@@ -129,3 +129,10 @@ Results:
 
 macOS and Linux build the new enum values and words. Their move path is
 unchanged.
+
+## macOS run (coordinator, 2026-10-06)
+
+At 4cf46a609 on macOS arm64 Debug (build/dev in a clean worktree): 12/12 of the
+canary (contained launch courses and the durable-course row), agent parent death,
+cycle export/bundle/publish-desk/workbench, git cache and process contracts,
+architecture boundaries and the network isolation manifest passed.
