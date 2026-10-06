@@ -586,6 +586,20 @@ bpr_enable_hardening(test_feedback_draft_edit)
 bpr_enable_warnings(test_feedback_draft_edit)
 bpr_add_network_isolated_test(NAME core_feedback_draft_edit COMMAND test_feedback_draft_edit)
 
+# [[BPR-1084]]. Every label and prefix edit keeps a native suggested change byte for byte, through all four entry points.
+bpr_add_executable(test_feedback_suggestion_preservation feedback_suggestion_preservation_tests.cpp)
+target_link_libraries(test_feedback_suggestion_preservation PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_suggestion_preservation)
+bpr_enable_warnings(test_feedback_suggestion_preservation)
+bpr_add_network_isolated_test(NAME core_feedback_suggestion_preservation COMMAND test_feedback_suggestion_preservation "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
+
+# [[BPR-1084]]. Native or text-only suggested changes, decided before Publish from the publication policy's own facts.
+bpr_add_executable(test_suggestion_applicability suggestion_applicability_tests.cpp)
+target_link_libraries(test_suggestion_applicability PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_suggestion_applicability)
+bpr_enable_warnings(test_suggestion_applicability)
+bpr_add_network_isolated_test(NAME core_suggestion_applicability COMMAND test_suggestion_applicability "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
+
 # [[BPR-1077]]. Root-post classification and the scoped derived annotation set, against the pack's counter units.
 bpr_add_executable(test_feedback_conversation feedback_conversation_tests.cpp)
 target_link_libraries(test_feedback_conversation PRIVATE BetterPullReview::Core)

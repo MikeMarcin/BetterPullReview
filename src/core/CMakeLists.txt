@@ -79,6 +79,7 @@ add_library(
         src/feedback_header_edit.cpp
         src/feedback_conversation.cpp
         src/feedback_partition.cpp
+        src/suggestion_applicability.cpp
         src/review_tour_reconciliation.cpp
     src/review_tour_revision.cpp
         src/review_tour_update.cpp
