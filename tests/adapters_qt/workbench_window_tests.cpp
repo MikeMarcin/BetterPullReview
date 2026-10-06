@@ -6036,9 +6036,14 @@ namespace {
 		}
 		menu->hide();
 		process_events();
-		const auto reply = std::ranges::find(card->Actions, qt::card_action::reply, &std::pair<qt::card_action, QRect>::first);
-		expect(reply != card->Actions.end()
-				   && std::ranges::all_of(card->Actions, [](const auto& aAction) {
+		// [[BPR-1255]]. Opening and closing the menu can rebuild the cards, so
+		// the iterator found before it is stale; MSVC's checked iterators stop
+		// on it. The card is found again.
+		const auto shown = std::ranges::find(cards, std::string{ "review-thread:t22" }, &qt::thread_card::Id);
+		expect(shown != cards.end(), "the thread's card is still beside the code after the menu");
+		const auto reply = std::ranges::find(shown->Actions, qt::card_action::reply, &std::pair<qt::card_action, QRect>::first);
+		expect(reply != shown->Actions.end()
+				   && std::ranges::all_of(shown->Actions, [](const auto& aAction) {
 						  return aAction.first == qt::card_action::reply || aAction.first == qt::card_action::mark_read
 							  || aAction.first == qt::card_action::resolve || aAction.first == qt::card_action::unresolve;
 					  }),

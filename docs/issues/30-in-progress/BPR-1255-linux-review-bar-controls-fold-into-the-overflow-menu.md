@@ -178,3 +178,34 @@ and full window rows):
 **Owed:** a Windows run (the six rows failed there at the same check) and a
 macOS run, to confirm the 3× rise and that the default and doubled fonts keep
 the floor. The card stays In Progress until they are in.
+
+**Note: Windows run at `9bed0a21a` (holds `012eb89c0`; station `bpr-main-win`,
+MSVC 14.51, Qt 6.11.2, `windows-dev` Debug, offscreen; no remote
+mutation).** The whole tree built with no `warning C` or `warning LNK` line.
+The six rows run with `-j1`:
+
+- `qt_workbench_title_row_scale_{100,125,200}` passed (23.6, 26.4, 29.6 s).
+- `qt_workbench_window_scale_{100,125,200}` first stopped at an MSVC
+  checked-iterator assertion, "can't dereference invalidated vector
+  iterator" (`0xC0000409`), in [[BPR-1133]]'s
+  `test_comment_names_its_target_and_every_card_replies`. The test found
+  `review-thread:t22`'s card in the cards list, then opened and closed the
+  Comment menu with events processed. That rebuilds the cards, and the test
+  then read `card->Actions` through the stale iterator. GCC does not check
+  iterators, so on Linux the read went unseen. The test now looks the card up
+  again after the menu closes. Only the test changed, no product code.
+- With that, all six pass: the window rows in 134.7, 141.5 and 151.5 s.
+
+**The floor on Windows**, read once with a temporary print (not committed)
+in `test_restored_geometry_accepts_the_raised_floor`. It is the same at
+100, 125 and 200 %:
+
+| Review bar font | Window minimum width |
+|---|---|
+| Default | 902, the platform floor |
+| Doubled | 917 |
+
+So the default font keeps the platform's floor of 902. The doubled font
+raises it to 917; Linux measured 983, with a wider default font. The 3×
+rise passes in `test_the_floor_follows_the_review_bar`. The macOS run is
+still owed.
