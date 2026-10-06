@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1269"
 title: "Overview: collapse all and expand all folders"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
