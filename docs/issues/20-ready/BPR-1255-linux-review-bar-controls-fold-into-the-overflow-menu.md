@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1255"
 title: "Linux: a review-bar control folds into the overflow menu in the title-row and workbench-window scale rows"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["linux", "win"]
 metadata: {"found_by":"bpr-main-linux triage of the BPR-0905 Linux full suite, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1255--BPR-1258--f86522aa8587.json","related_cards":["BPR-1251","BPR-1256","BPR-0905"]}
-parked_on: "human-review"
 acceptance: [{"criterion":"The six rows pass on Linux","outcome":"pending","revision":"2ac99c816","evidence":{"kind":"observation","detail":"Waits on the owner's choice among the card's three options. With only the overflow check bypassed (not committed), all six rows pass on Linux at this revision."}},{"criterion":"The card names the cause","outcome":"pass","revision":"2ac99c816","evidence":{"kind":"observation","detail":"Card 'Cause': at the course's doubled font, 18 pt Sans Serif (DejaVu Sans), the fully yielded review bar needs 983 px against the 900 px floor. Every yield (dates, words, numbers) has already fired, and the last control, Comment, folds at 982 px. At the default font the bar is 843 px and fits."}}]
 ---
 
@@ -117,3 +116,14 @@ All six rows fail at the same check in a `-j4` run:
 `FAILED: no review-bar control folds into an overflow menu at any width`
 (`tests/adapters_qt/workbench_window_tests.cpp`, about line 5516). Recorded
 only; the card stays parked for the owner.
+
+## Owner decision — 2026-10-06
+
+The owner chose option 1, **the floor follows the bar**, in chat, through the
+integrator's question on 2026-10-06. When the fully yielded review bar needs
+more than the platform floor, the window's minimum width rises to fit it. It
+returns to the floor at normal fonts, and it is recomputed on font, scale and
+theme changes. Window-geometry restore accepts the moving floor. The rule "no
+control folds into an overflow menu" stays, amended to say that the floor
+follows the bar. The minimum is a Qt layout fact; the core is unchanged.
+Claimed for Linux; the Windows run follows.
