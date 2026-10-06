@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1084"
 title: "Preserve and compose native suggested changes"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0050"]
 depends_on: ["BPR-1082", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-10","milestone":"authoring","acceptance":["R12","R13","R32"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"R12","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"core_feedback_suggestion_preservation: 25 header edits x 9 fence bodies (multiline, deletion, range, CRLF/tab, Unicode, two fences) x 6 headers through header edit, composition edit, draft plan and tour-stop plan (6,750 runs) plus the pack header-edit cases keep every byte after the header and every anchor; control (CR stripped after the header) fails. application_label_authoring_contract: issue-with-patch reaches the fixture with the exact body, path, side and line. Limitation, recorded on the card for its own card: the desktop QPlainTextEdit draft and reply editors read a CRLF body back as LF, so a CRLF body written elsewhere loses CRs on its first desktop edit; the core keeps CRLF."}},{"criterion":"R13","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"decide_suggestion_applicability (core, pure): no_patch / native / textual_only with reason, from classify_review_body and plan_review_publication, never relocating; core_suggestion_applicability covers all 18 placement x capability x currency cases and the pack's issue-with-suggestion, suggestion-without-patch and unsupported-native-patch cases; the composed course shows suggestion-without-patch publishing prose only and an unsupported line refused incompatible_body with no file post, text kept and then marked text only. Controls fail."}},{"criterion":"R32","outcome":"pending","revision":"cc094c1d4","evidence":{"kind":"observation","detail":"The suggested-change mark (16 px glyph, tooltip, accessible name) in the comment draft editor and BPR-1290's in-place reply editor keeps the suggestion's meaning; qt_review_draft_editor and qt_conversation_cards_view pass with controls. Awaits the owner's look on macOS (UI-visible; frontend-design not installed on bpr-main-linux)."}}]
 ---
 
 # BPR-1084: Preserve and compose native suggested changes
