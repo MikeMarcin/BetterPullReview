@@ -167,3 +167,28 @@ WSL2, GCC 15.2.0, `build/dev` rebuilt with no warnings).** 6 of 6 passed:
 `github_cli_process_runner` (1.5 s), `gh_cli_transport`,
 `architecture_boundaries` (26.7 s) and `architecture_boundary_contract`
 (191.0 s).
+||||||| parent of feb0726c2 (BPR-1265: the byte-pressure course runs only in optimized builds; a Debug run reports Skipped with its reason)
+## The Debug row: optimized builds only (coordinator decision, 2026-10-06)
+
+The coordinator chose option (a), on every platform for consistency:
+`application_large_review_cache_bytes` runs only in an optimized build. This
+matches the course's own `TimingScope`, "Debug is diagnostic only".
+
+- `large_review_benchmark.cpp`: in a non-optimized build the `--cache-bytes`
+  course prints `LARGE_REVIEW_CACHE_BYTES_SKIPPED: the byte-pressure course
+  runs only in an optimized build; a Debug build is diagnostic only` and exits
+  77 before it makes a data root.
+- `tests/end_to_end/CMakeLists.txt`: the row sets `SKIP_RETURN_CODE 77`. So a
+  Debug run reports **Skipped**, which CTest's summary lists separately, not
+  as a pass. This is the same mechanism `coding_format_check` uses.
+
+Windows (`bpr-main-win`):
+
+- `windows-dev` Debug: the row reports Skipped in 0.05 s with that line.
+- The optimized tests-on tree (`build/bpr0967-release`, MSVC `/O2`): the row
+  passes in 287.0 s.
+
+The Debug presentation cost behind the decision goes to its own card,
+recorded at low priority. A Debug `cache_byte_selection` ran 3,315
+event-loop pulses over 135.7 s, only 528 of them with diff work. That is
+GUI-thread presentation of the 20,000-line file, not the diff.

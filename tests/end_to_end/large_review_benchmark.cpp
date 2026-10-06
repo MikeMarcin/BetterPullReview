@@ -85,8 +85,10 @@ namespace bpr::e2e::large_review {
 	/// on macOS the historical Debug limits ([[BPR-1247]]), elsewhere none.
 	/// Exact source, cache, eviction, release and lifecycle assertions are
 	/// enforced on every platform and configuration.
-	inline constexpr bool          OptimizedBuild = std::string_view{ BPR_BENCH_BUILD_CONFIGURATION } != "Debug";
-	inline constexpr std::uint64_t MiB            = 1024U * 1024U;
+	inline constexpr bool OptimizedBuild = std::string_view{ BPR_BENCH_BUILD_CONFIGURATION } != "Debug";
+	// [[BPR-1265]]. The exit code the cache-bytes row reads as Skipped (SKIP_RETURN_CODE).
+	inline constexpr int           cache_bytes_debug_skip_exit_code = 77;
+	inline constexpr std::uint64_t MiB                              = 1024U * 1024U;
 #if defined(__APPLE__)
 	inline constexpr bool             PlatformBudgetsEnforced                    = true;
 	inline constexpr std::string_view PlatformLimitBasis                         = "macOS arm64 M4 Pro 48 GiB, Qt 6.11.2, Apple clang 21 Release at 5a26d6b1";
@@ -1584,6 +1586,17 @@ namespace bpr::e2e::large_review {
 		}
 		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness" && std::string_view{ argv[4] } != "--active-work" && std::string_view{ argv[4] } != "--pathological" && std::string_view{ argv[4] } != "--provider-cancel" && std::string_view{ argv[4] } != "--allocation-profile"))) {
 			return EXIT_FAILURE;
+		}
+		// [[BPR-1265]]. The byte-pressure course runs only in an optimized
+		// build, on every platform. A Debug build is diagnostic only (see
+		// TimingScope), and on the Windows station its presentation of the
+		// 20,000-line file under cache pressure takes 135-372 s per selection,
+		// so the course cannot finish within any reasonable clock. The row
+		// reports Skipped, with this reason, not a pass.
+		if (!OptimizedBuild && argc == 5 && std::string_view{ argv[4] } == "--cache-bytes") {
+			std::cout << "LARGE_REVIEW_CACHE_BYTES_SKIPPED: the byte-pressure course runs only in an optimized build; "
+					  << "a " << BPR_BENCH_BUILD_CONFIGURATION << " build is diagnostic only\n";
+			return cache_bytes_debug_skip_exit_code;
 		}
 		QTemporaryDir data;
 		if (!data.isValid()) {

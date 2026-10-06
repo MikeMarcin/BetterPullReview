@@ -1257,9 +1257,13 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.png"
             --cache-bytes)
+    # [[BPR-1265]]. The byte-pressure course runs only in an optimized build; a
+    # Debug build exits 77 with LARGE_REVIEW_CACHE_BYTES_SKIPPED and its reason,
+    # and the row reports Skipped rather than a pass.
     set_tests_properties(application_large_review_cache_bytes PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 900
-        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_BYTES_OK")
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_BYTES_OK"
+        SKIP_RETURN_CODE 77)
     # [[BPR-0967]]. Contained on Windows: measured 2026-10-02, it passes inside
     # the container (LARGE_REVIEW_HISTORY_SESSION_RACE_OK); it opens no data root.
     bpr_add_network_isolated_test(
