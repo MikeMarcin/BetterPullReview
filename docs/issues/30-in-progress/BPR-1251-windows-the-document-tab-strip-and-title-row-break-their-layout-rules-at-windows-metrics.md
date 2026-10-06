@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1251"
 title: "Windows: the document tab strip is narrower than one tab, and the title returns at a narrower width"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
