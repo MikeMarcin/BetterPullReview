@@ -58,6 +58,10 @@ network, or process effects.
   note. Keep option lists for a choice between named alternatives. The owner
   asked for this on 2026-09-25, when most of fourteen RFC-BPR-0052 questions
   came as "Keep / Revise / Other" lists (session 06ad5734).
+- Any UX or visual work (mockups, design candidates, icons, layout, Qt
+  surfaces the owner will look at) loads the `frontend-design:frontend-design`
+  skill first and says so in its report. The owner asked on 2026-10-06 after
+  several design rounds ran without it.
 - Commit each completed issue slice intentionally.
 - For release work, use the existing `publish-release` skill and package paths.
   Bind the separate versioned corresponding-source asset as well as the binary,
