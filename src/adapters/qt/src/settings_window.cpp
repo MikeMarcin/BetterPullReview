@@ -5,31 +5,41 @@
 #include "bpr/qt/resident_filter.hpp"
 
 #include <QAbstractButton>
+#include <QAbstractItemView>
 #include <QAbstractSlider>
 #include <QAbstractSpinBox>
 #include <QApplication>
-#include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QFontMetrics>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
-#include <QRadioButton>
+#include <QPainter>
+#include <QPen>
+#include <QPixmap>
+#include <QPoint>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QStackedWidget>
-#include <QToolButton>
+#include <QStyle>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
+#include <QTextCharFormat>
+#include <QTextLayout>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <map>
 #include <optional>
 #include <set>
@@ -251,34 +261,200 @@ namespace bpr::qt {
 		inline constexpr std::int32_t section_field_offset     = 20'000;
 		inline constexpr std::int32_t description_field_offset = 40'000;
 
-		/// \brief An entry's best match over its fields.
-		[[nodiscard]] auto match_entry(const std::string& aQuery, const search_entry& aEntry)
-			-> std::optional<core::fuzzy_match_result>
+		/// \brief Which of an entry's texts a query matched.
+		enum class search_field : std::uint8_t {
+			name,
+			section,
+			description,
+		};
+
+		/// \brief An entry's best match and the text it was found in.
+		struct entry_match
 		{
-			auto       best     = std::optional<core::fuzzy_match_result>{ };
-			const auto consider = [&](const QString& aText, const std::int32_t aOffset, const bool aWordsOnly) {
+			core::fuzzy_match_result Match;
+			search_field             Field = search_field::name;
+		};
+
+		/// \brief An entry's best match over its fields.
+		[[nodiscard]] auto match_entry(const std::string& aQuery, const search_entry& aEntry) -> std::optional<entry_match>
+		{
+			auto       best     = std::optional<entry_match>{ };
+			const auto consider = [&](const QString& aText, const search_field aField, const std::int32_t aOffset) {
 				if (aText.isEmpty()) {
 					return;
 				}
 				// A section or a description is a sentence, which scattered
 				// letters of almost any query fall into; it counts only where
 				// the query starts one of its words.
+				const auto wordsOnly = aField != search_field::name;
 				if (auto match = core::fuzzy_match(aQuery, aText.toStdString());
-					match.has_value() && (!aWordsOnly || match->Kind <= core::fuzzy_match_kind::word_prefix)) {
+					match.has_value() && (!wordsOnly || match->Kind <= core::fuzzy_match_kind::word_prefix)) {
 					match->Score -= aOffset;
-					if (!best.has_value() || match->Score > best->Score) {
-						best = match;
+					if (!best.has_value() || match->Score > best->Match.Score) {
+						best = entry_match{ .Match = std::move(*match), .Field = aField };
 					}
 				}
 			};
-			consider(aEntry.Name, 0, false);
+			consider(aEntry.Name, search_field::name, 0);
 			// A page's own result stands for its page; its settings are found by
 			// their names, sections and descriptions, not listed wholesale.
 			if (!aEntry.PageEntry && !aEntry.SectionEntry) {
-				consider(aEntry.Section, section_field_offset, true);
-				consider(aEntry.Description, description_field_offset, true);
+				consider(aEntry.Section, search_field::section, section_field_offset);
+				consider(aEntry.Description, search_field::description, description_field_offset);
 			}
 			return best;
+		}
+
+		/// \brief The core's matched byte runs of `aText` as UTF-16 runs,
+		/// moved along by `aOffset` characters.
+		[[nodiscard]] auto utf16_spans(const QString& aText, const std::vector<core::fuzzy_match_span>& aSpans, const qsizetype aOffset)
+			-> QVariantList
+		{
+			const auto utf8   = aText.toUtf8();
+			auto       result = QVariantList{ };
+			for (const auto& span : aSpans) {
+				const auto begin = QString::fromUtf8(utf8.first(static_cast<qsizetype>(span.Begin))).size();
+				const auto end   = QString::fromUtf8(utf8.first(static_cast<qsizetype>(span.Begin) + static_cast<qsizetype>(span.Length))).size();
+				result.push_back(QPoint{ static_cast<int>(aOffset + begin), static_cast<int>(end - begin) });
+			}
+			return result;
+		}
+
+		/// [[BPR-1289]]. A result's location is set a little smaller than its
+		/// name, as Home's second line is.
+		constexpr auto secondary_scale = 0.92;
+		/// Above and below a result's lines, and between them.
+		constexpr auto result_padding  = 5;
+		constexpr auto result_line_gap = 1;
+
+		[[nodiscard]] auto secondary_font(const QFont& aFont) -> QFont
+		{
+			auto font = aFont;
+			if (font.pointSizeF() > 0.0) {
+				font.setPointSizeF(font.pointSizeF() * secondary_scale);
+			} else if (font.pixelSize() > 0) {
+				font.setPixelSize(std::max(1, static_cast<int>(std::lround(font.pixelSize() * secondary_scale))));
+			}
+			return font;
+		}
+
+		/// \brief Draws one line of a result, elided to its width, with its
+		/// matched runs set heavier and in `aMatchInk`.
+		void draw_result_line(QPainter&           aPainter,
+							  const QString&      aText,
+							  const QVariantList& aSpans,
+							  const QFont&        aFont,
+							  const QColor&       aInk,
+							  const QColor&       aMatchInk,
+							  const QPoint        aTopLeft,
+							  const int           aWidth)
+		{
+			auto heavy = aFont;
+			heavy.setWeight(QFont::DemiBold);
+			// Elided by the heavier face, so a highlighted line still fits.
+			const auto shown = QFontMetrics{ heavy }.elidedText(aText, Qt::ElideRight, aWidth);
+			const auto kept  = shown == aText ? shown.size() : shown.size() - 1;
+			auto       runs  = QList<QTextLayout::FormatRange>{ };
+			for (const auto& value : aSpans) {
+				const auto span  = value.toPoint();
+				const auto begin = std::min<qsizetype>(span.x(), kept);
+				const auto end   = std::min<qsizetype>(span.x() + span.y(), kept);
+				if (end <= begin) {
+					continue;
+				}
+				auto format = QTextCharFormat{ };
+				format.setFontWeight(QFont::DemiBold);
+				format.setForeground(aMatchInk);
+				runs.push_back({ .start = static_cast<int>(begin), .length = static_cast<int>(end - begin), .format = format });
+			}
+			auto layout = QTextLayout{ shown, aFont };
+			layout.setFormats(runs);
+			layout.beginLayout();
+			auto line = layout.createLine();
+			line.setLineWidth(aWidth);
+			layout.endLayout();
+			aPainter.setPen(aInk);
+			layout.draw(&aPainter, aTopLeft);
+		}
+
+		/// \brief [[BPR-1289]]. Paints a search result: the setting's name, and
+		/// under it where it lives, smaller and quieter. Matched letters keep
+		/// their line's ink and are set heavier; in the quiet line they rise
+		/// to the name's ink. The style paints the row's ground, so hover and
+		/// selection stay native.
+		class search_result_delegate final : public QStyledItemDelegate
+		{
+		public:
+			using QStyledItemDelegate::QStyledItemDelegate;
+
+			void paint(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+			{
+				auto option = aOption;
+				initStyleOption(&option, aIndex);
+				auto* const style  = option.widget != nullptr ? option.widget->style() : QApplication::style();
+				const auto  text   = style->subElementRect(QStyle::SE_ItemViewItemText, &option, option.widget);
+				auto        ground = option;
+				ground.text.clear();
+				ground.features &= ~QStyleOptionViewItem::HasDisplay;
+				style->drawControl(QStyle::CE_ItemViewItem, &ground, aPainter, option.widget);
+
+				const auto selected = option.state.testFlag(QStyle::State_Selected);
+				const auto group    = !option.state.testFlag(QStyle::State_Enabled) ? QPalette::Disabled
+					: option.state.testFlag(QStyle::State_Active)                   ? QPalette::Active
+																					: QPalette::Inactive;
+				const auto ink      = option.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text);
+				const auto quiet    = option.palette.color(group, selected ? QPalette::HighlightedText : QPalette::PlaceholderText);
+				const auto left     = text.left();
+				const auto width    = std::max(0, option.rect.right() - left - (left - option.rect.left()));
+				auto       top      = option.rect.top() + result_padding;
+				aPainter->save();
+				aPainter->setClipRect(option.rect);
+				draw_result_line(*aPainter, aIndex.data(Qt::DisplayRole).toString(), aIndex.data(settings_search_name_spans_role).toList(),
+								 option.font, ink, ink, QPoint{ left, top }, width);
+				const auto location = aIndex.data(settings_search_location_role).toString();
+				if (!location.isEmpty()) {
+					top += QFontMetrics{ option.font }.height() + result_line_gap;
+					draw_result_line(*aPainter, location, aIndex.data(settings_search_location_spans_role).toList(),
+									 secondary_font(option.font), quiet, ink, QPoint{ left, top }, width);
+				}
+				aPainter->restore();
+			}
+
+			[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
+			{
+				auto option = aOption;
+				initStyleOption(&option, aIndex);
+				auto height = (2 * result_padding) + QFontMetrics{ option.font }.height();
+				if (!aIndex.data(settings_search_location_role).toString().isEmpty()) {
+					height += result_line_gap + QFontMetrics{ secondary_font(option.font) }.height();
+				}
+				return { std::max(0, option.rect.width()), height };
+			}
+		};
+
+		/// \brief A magnifier for the search field, drawn in `aInk` at the
+		/// sizes and scales the field may ask for.
+		[[nodiscard]] auto magnifier_icon(const QColor& aInk) -> QIcon
+		{
+			auto icon = QIcon{ };
+			for (const auto logical : { 14, 16 }) {
+				for (const auto scale : { 1.0, 1.25, 1.5, 2.0 }) {
+					auto pixmap = QPixmap{ QSize{ logical, logical } * scale };
+					pixmap.setDevicePixelRatio(scale);
+					pixmap.fill(Qt::transparent);
+					auto painter = QPainter{ &pixmap };
+					painter.setRenderHint(QPainter::Antialiasing, true);
+					const auto unit = logical / 16.0;
+					auto       pen  = QPen{ aInk, 1.5 * unit };
+					pen.setCapStyle(Qt::RoundCap);
+					painter.setPen(pen);
+					painter.drawEllipse(QPointF{ 6.75 * unit, 6.75 * unit }, 4.5 * unit, 4.5 * unit);
+					painter.drawLine(QPointF{ 10.2 * unit, 10.2 * unit }, QPointF{ 13.75 * unit, 13.75 * unit });
+					painter.end();
+					icon.addPixmap(pixmap);
+				}
+			}
+			return icon;
 		}
 	} // namespace
 
@@ -336,11 +512,14 @@ namespace bpr::qt {
 		Search->setObjectName(QStringLiteral("settingsSearch"));
 		Search->setAccessibleName(QStringLiteral("Search settings"));
 		Search->setAccessibleDescription(QStringLiteral(
-			"Find a setting by its name, section, page or description; Down moves to the results, "
-			"Return opens the first, Escape clears"));
+			"Find a setting by its name, section, page or description; Up and Down choose a result, "
+			"Return opens it, Escape clears"));
 		Search->setPlaceholderText(QStringLiteral("Search settings"));
 		Search->setClearButtonEnabled(true);
 		Search->installEventFilter(this);
+		SearchIcon = Search->addAction(QIcon{ }, QLineEdit::LeadingPosition);
+		SearchIcon->setObjectName(QStringLiteral("settingsSearchIcon"));
+		refresh_search_icon();
 		sidebarLayout->addWidget(Search);
 
 		Sidebar = new QListWidget{ SidebarColumn };
@@ -354,11 +533,12 @@ namespace bpr::qt {
 		Results->setObjectName(QStringLiteral("settingsSearchResults"));
 		Results->setAccessibleName(QStringLiteral("Matching settings"));
 		Results->setAccessibleDescription(QStringLiteral(
-			"Each result names a setting, then its page and section; Return opens it"));
+			"Each result names a setting, then its page and section; Return opens it, Escape returns to the search"));
 		Results->setFrameShape(QFrame::NoFrame);
 		Results->setSelectionMode(QAbstractItemView::SingleSelection);
-		Results->setWordWrap(true);
-		Results->setTextElideMode(Qt::ElideRight);
+		Results->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		Results->setItemDelegate(new search_result_delegate{ Results });
+		Results->installEventFilter(this);
 		Results->hide();
 		sidebarLayout->addWidget(Results, 1);
 
@@ -541,46 +721,106 @@ namespace bpr::qt {
 		}
 		struct scored
 		{
-			const search_entry*      Entry = nullptr;
-			core::fuzzy_match_result Match;
+			const search_entry* Entry = nullptr;
+			entry_match         Match;
 		};
 		const auto utf8    = query.toStdString();
 		auto       matches = std::vector<scored>{ };
 		for (const auto& entry : entries) {
-			if (const auto match = match_entry(utf8, entry); match.has_value()) {
-				matches.push_back({ &entry, *match });
+			if (auto match = match_entry(utf8, entry); match.has_value()) {
+				matches.push_back({ .Entry = &entry, .Match = std::move(*match) });
 			}
 		}
-		// Typo tolerance is the core's rescue: it answers only when nothing
-		// matched directly.
-		if (std::ranges::any_of(matches, [](const scored& aMatch) { return aMatch.Match.Kind != core::fuzzy_match_kind::typo; })) {
-			std::erase_if(matches, [](const scored& aMatch) { return aMatch.Match.Kind == core::fuzzy_match_kind::typo; });
+		// The core's rescues: scattered letters answer only when no entry
+		// holds the query as a run, and typos only when none holds its letters.
+		// A description is not shown, so a match found only there answers
+		// only when no name, section or page holds the query as near.
+		const auto reach = [](const scored& aMatch) {
+			return std::pair{ core::fuzzy_reach(aMatch.Match.Match.Kind), aMatch.Match.Field == search_field::description };
+		};
+		if (!matches.empty()) {
+			const auto nearest = reach(std::ranges::min(matches, { }, reach));
+			std::erase_if(matches, [&](const scored& aMatch) { return reach(aMatch) != nearest; });
 		}
-		// Grouped by page in sidebar order; within a page, the page itself,
-		// then by score, then in the page's own order.
-		std::ranges::stable_sort(matches, [](const scored& aLeft, const scored& aRight) {
-			return std::tuple{ page_index(aLeft.Entry->Page), !aLeft.Entry->PageEntry, -aLeft.Match.Score, aLeft.Entry->Order }
-			< std::tuple{ page_index(aRight.Entry->Page), !aRight.Entry->PageEntry, -aRight.Match.Score, aRight.Entry->Order };
-		});
+		// Grouped by page in sidebar order, then by section in the page's
+		// order, a page or section ahead of its settings; within a section by
+		// score, then in the page's own order.
+		auto sectionOrder = std::map<std::pair<settings_page, QString>, int>{ };
+		for (const auto& entry : entries) {
+			if (entry.SectionEntry) {
+				sectionOrder.emplace(std::pair{ entry.Page, entry.Name }, entry.Order);
+			}
+		}
+		const auto key = [&sectionOrder](const scored& aMatch) {
+			const auto& entry   = *aMatch.Entry;
+			const auto  section = sectionOrder.find(std::pair{ entry.Page, entry.SectionEntry ? entry.Name : entry.Section });
+			const auto  group   = entry.PageEntry || section == sectionOrder.end() ? -1 : section->second;
+			return std::tuple{ page_index(entry.Page), !entry.PageEntry, group, !entry.SectionEntry, -aMatch.Match.Match.Score, entry.Order };
+		};
+		std::ranges::stable_sort(matches, [&key](const scored& aLeft, const scored& aRight) { return key(aLeft) < key(aRight); });
+		auto best = std::optional<std::pair<std::int32_t, int>>{ };
 		for (const auto& match : matches) {
 			const auto& entry    = *match.Entry;
 			const auto  page     = settings_page_title(entry.Page);
-			const auto  location = entry.PageEntry ? QStringLiteral("Settings page")
+			const auto  location = entry.PageEntry ? QString{ }
 				: entry.SectionEntry || entry.Section.isEmpty()
 				? page
 				: QStringLiteral("%1 · %2").arg(page, entry.Section);
-			auto* const item     = new QListWidgetItem{ QStringLiteral("%1\n%2").arg(entry.Name, location), Results };
-			item->setData(Qt::AccessibleTextRole, QStringLiteral("%1, %2").arg(entry.Name, location));
-			item->setToolTip(entry.Description.isEmpty() ? location : entry.Description);
+			const auto& found    = match.Match;
+			auto* const item     = new QListWidgetItem{ entry.Name, Results };
+			item->setData(settings_search_location_role, location);
+			if (found.Field == search_field::name) {
+				item->setData(settings_search_name_spans_role, utf16_spans(entry.Name, found.Match.Spans, 0));
+			} else if (found.Field == search_field::section) {
+				item->setData(settings_search_location_spans_role, utf16_spans(entry.Section, found.Match.Spans, location.size() - entry.Section.size()));
+			}
+			item->setData(Qt::AccessibleTextRole, entry.PageEntry ? QStringLiteral("%1, settings page").arg(entry.Name) : QStringLiteral("%1, %2").arg(entry.Name, location));
+			auto tip = QStringList{ entry.Name };
+			for (const auto& line : { location, entry.Description }) {
+				if (!line.isEmpty()) {
+					tip.push_back(line);
+				}
+			}
+			item->setToolTip(tip.join(QLatin1Char('\n')));
+			const auto row = static_cast<int>(Hits.size());
+			if (!best.has_value() || found.Match.Score > best->first) {
+				best = std::pair{ found.Match.Score, row };
+			}
 			Hits.push_back({ .Page = entry.Page, .Name = entry.Name, .Location = location, .Target = entry.Target });
 		}
 		Sidebar->hide();
 		Results->setVisible(!Hits.empty());
 		SearchNotice->setVisible(Hits.empty());
-		if (Hits.empty()) {
+		if (!best.has_value()) {
 			SearchNotice->set_filter(query);
-		} else {
-			Results->setCurrentRow(0);
+			return;
+		}
+		// The list keeps the pages' grouping; Return takes the best match.
+		Results->setCurrentRow(best->second);
+		Results->scrollToItem(Results->currentItem());
+	}
+
+	void settings_window::step_search_result(const int aDelta)
+	{
+		if (!Results->isVisible() || Results->count() == 0) {
+			return;
+		}
+		Results->setCurrentRow(std::clamp(Results->currentRow() + aDelta, 0, Results->count() - 1));
+		Results->scrollToItem(Results->currentItem());
+	}
+
+	void settings_window::refresh_search_icon()
+	{
+		if (SearchIcon != nullptr) {
+			SearchIcon->setIcon(magnifier_icon(palette().color(QPalette::Active, QPalette::PlaceholderText)));
+		}
+	}
+
+	void settings_window::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::PaletteChange) {
+			refresh_search_icon();
 		}
 	}
 
@@ -598,34 +838,60 @@ namespace bpr::qt {
 		if (auto* const layout = scroll->widget()->layout(); layout != nullptr) {
 			layout->activate();
 		}
-		// Bring it into view and give it focus; choosing changes no setting.
+		// Bring it into view and give it focus; choosing changes no setting. A
+		// setting that cannot take the keyboard now (unavailable, or a
+		// section's heading) is shown, and its page takes the keyboard.
 		if (hit.Target != nullptr && hit.Target->isVisibleTo(scroll->widget())) {
 			scroll->ensureWidgetVisible(hit.Target, 24, 24);
-			hit.Target->setFocus(Qt::OtherFocusReason);
-			return;
+			if (hit.Target->isEnabled() && hit.Target->focusPolicy() != Qt::NoFocus) {
+				hit.Target->setFocus(Qt::OtherFocusReason);
+				return;
+			}
+		} else {
+			scroll->verticalScrollBar()->setValue(0);
 		}
-		scroll->verticalScrollBar()->setValue(0);
 		scroll->setFocus(Qt::OtherFocusReason);
 	}
 
 	auto settings_window::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
 	{
-		if (aWatched == Search && aEvent->type() == QEvent::KeyPress) {
-			const auto* const key = static_cast<QKeyEvent*>(aEvent);
-			if (key->key() == Qt::Key_Escape && !Search->text().isEmpty()) {
-				// Escape clears a search; an empty field lets it close the window.
-				Search->clear();
+		if (aEvent->type() != QEvent::KeyPress || (aWatched != Search && aWatched != Results)) {
+			return QWidget::eventFilter(aWatched, aEvent);
+		}
+		const auto* const key = static_cast<QKeyEvent*>(aEvent);
+		if (aWatched == Results) {
+			// Escape from the results returns to the query, which it keeps.
+			if (key->key() == Qt::Key_Escape) {
+				Search->setFocus(Qt::OtherFocusReason);
 				return true;
 			}
-			if (key->key() == Qt::Key_Down && Results->isVisible() && Results->count() > 0) {
-				Results->setFocus(Qt::TabFocusReason);
-				Results->setCurrentRow(std::max(0, Results->currentRow()));
-				return true;
+			return QWidget::eventFilter(aWatched, aEvent);
+		}
+		switch (key->key()) {
+		case Qt::Key_Escape:
+			// Escape clears a search; an empty field lets it close the window.
+			if (Search->text().isEmpty()) {
+				break;
 			}
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && Results->isVisible() && Results->count() > 0) {
-				go_to_search_result(std::max(0, Results->currentRow()));
-				return true;
+			Search->clear();
+			return true;
+		case Qt::Key_Down:
+		case Qt::Key_Up:
+			// The caret stays in the field while the arrows choose a result.
+			if (!Results->isVisible()) {
+				break;
 			}
+			step_search_result(key->key() == Qt::Key_Down ? 1 : -1);
+			return true;
+		case Qt::Key_Return:
+		case Qt::Key_Enter:
+			if (!Results->isVisible() || Results->currentRow() < 0) {
+				break;
+			}
+			go_to_search_result(Results->currentRow());
+			return true;
+		default:
+			break;
 		}
 		return QWidget::eventFilter(aWatched, aEvent);
 	}

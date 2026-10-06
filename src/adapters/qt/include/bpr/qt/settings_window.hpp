@@ -10,6 +10,7 @@
 #include <functional>
 #include <vector>
 
+class QAction;
 class QLabel;
 class QLineEdit;
 class QListWidgetItem;
@@ -38,6 +39,17 @@ namespace bpr::qt {
 	};
 
 	inline constexpr std::size_t settings_page_count = 7U;
+
+	/// \brief [[BPR-1289]]. What a Settings search result holds besides the
+	/// name it shows (`Qt::DisplayRole`).
+	enum settings_search_role : int {
+		/// Where the setting lives, "Page · Section"; empty for a page.
+		settings_search_location_role = Qt::UserRole + 1,
+		/// The name's matched runs, as `QPoint{ start, length }` in UTF-16.
+		settings_search_name_spans_role,
+		/// The location's matched runs, likewise.
+		settings_search_location_spans_role,
+	};
 
 	/// \brief Modeless singleton Settings window with a stable sidebar.
 	///
@@ -86,6 +98,7 @@ namespace bpr::qt {
 		void go_to_search_result(int aRow);
 
 	protected:
+		void changeEvent(QEvent* aEvent) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
 		void closeEvent(QCloseEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
@@ -103,13 +116,18 @@ namespace bpr::qt {
 
 		void select_page(int aRow);
 		/// \brief Lists what matches the search field, or the page list when empty.
-		void               refresh_search();
+		void refresh_search();
+		/// \brief Moves the chosen result while the caret stays in the field.
+		void step_search_result(int aDelta);
+		/// \brief Draws the field's magnifier in the palette's quiet ink.
+		void               refresh_search_icon();
 		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 		std::function<void()>   CloseHandler;
 		QPointer<QWidget>       ReturnFocus;
 		QWidget*                SidebarColumn = nullptr;
 		QLineEdit*              Search        = nullptr;
+		QAction*                SearchIcon    = nullptr;
 		QListWidget*            Sidebar       = nullptr;
 		QListWidget*            Results       = nullptr;
 		filter_empty_notice*    SearchNotice  = nullptr;

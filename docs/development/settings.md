@@ -14,17 +14,25 @@ unhandled Escape closes Settings and returns focus to the invoking window.
 To find a setting, type in **Search settings** at the top of the sidebar, or
 press `Command+F` on macOS (`Ctrl+F` on Windows and Linux) ([[BPR-1289]]).
 While the field holds text, the page list becomes the matching settings,
-grouped by page in sidebar order. Each result names the setting and, under it,
-its page and section. A page or a section that matches is a result of its own.
-A setting is found by its name, as letters in order, with word starts and
-adjacent letters ranking first. It is also found by its section or description
-where the search starts one of their words. With nothing else found, a small
-typing slip is forgiven. Down moves into the results. Return or a click opens
-the result's page, scrolls the setting into view and focuses it, and changes
-nothing. Escape clears the field; with the field empty, Escape closes Settings
-as before. When nothing matches, the sidebar says so and offers Clear. The
-search reads the pages as they are shown, so a withdrawn page is never
-searched. The ranking is the core's `fuzzy_match`; its provenance is in
+grouped by page in sidebar order and by section within a page. Each result
+names the setting and, under it in smaller, quieter type, its page and section.
+A page or a section that matches is a result of its own, on one line. The
+letters the search matched are set heavier; where the section matched, it
+rises to the name's ink. A setting is found by its name: as the search's text,
+at the start of a word or inside one, or failing that as its letters in order
+where each word they enter is entered at its start ("lnum" finds Code line
+number text). It is also found by its section, or by its description where the
+search starts one of its words; a description, which the list does not show,
+counts only when no name, section or page holds the search. With nothing else
+found, a small typing slip is forgiven. The best match starts chosen; Up and
+Down choose another while the caret stays in the field, and Tab moves into the
+list. Return or a click opens the result's page, scrolls the setting into view
+and focuses it, and changes nothing; a setting that cannot take the keyboard
+is shown and its page takes it. Escape clears the field, or, from the list,
+returns to the field; with the field empty, Escape closes Settings as before.
+When nothing matches, the sidebar says so and offers Clear. The search reads
+the pages as they are shown, so a withdrawn page is never searched. The
+ranking is the core's `fuzzy_match`; its provenance is in
 [Ported code provenance](ported-code-provenance.md).
 
 Ordinary changes apply immediately after their owning host accepts them; there

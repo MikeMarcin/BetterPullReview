@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QPoint>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -243,6 +244,18 @@ namespace {
 		QApplication::sendEvent(aTarget, &press);
 	}
 
+	/// \brief [[BPR-1289]]. Saves the Settings window with a search showing,
+	/// when `BPR_SETTINGS_RENDER_ROOT` names a directory for evidence.
+	void save_search_render(qt::settings_window& aSettings, const QString& aName)
+	{
+		const auto root = qEnvironmentVariable("BPR_SETTINGS_RENDER_ROOT");
+		if (root.isEmpty()) {
+			return;
+		}
+		QApplication::processEvents();
+		expect(aSettings.grab().save(root + QStringLiteral("/search-%1.png").arg(aName)), "save Settings search evidence");
+	}
+
 	/// \brief [[BPR-1289]]. The search field filters the settings the pages
 	/// show, lists them by page and section, and goes to one without changing it.
 	void test_settings_search_finds_and_goes_to_a_setting()
@@ -265,11 +278,16 @@ namespace {
 		expect(findBound, "the platform's find key reaches the search field");
 
 		search->setText(QStringLiteral("code font"));
+		save_search_render(*settings, QStringLiteral("code-font"));
 		expect(!settings->sidebar()->isVisibleTo(settings) && settings->search_results()->isVisibleTo(settings),
 			   "results replace the page list while the field holds text");
+		auto* const first = settings->search_results()->item(0);
 		expect(!result_names(*settings).isEmpty() && result_names(*settings).front() == QStringLiteral("Code font")
-				   && settings->search_results()->item(0)->text() == QStringLiteral("Code font\nAppearance · Type"),
+				   && first->data(qt::settings_search_location_role).toString() == QStringLiteral("Appearance · Type")
+				   && first->data(Qt::AccessibleTextRole).toString() == QStringLiteral("Code font, Appearance · Type"),
 			   "a result names the setting, then its page and section");
+		expect(first->data(qt::settings_search_name_spans_role).toList() == QVariantList{ QPoint{ 0, 9 } },
+			   "the name's matched letters are marked for highlighting");
 		auto* const appearance = settings->page_widget(qt::settings_page::appearance);
 		auto* const codeFont   = appearance->findChild<QComboBox*>(QStringLiteral("appearanceCodeFamily"));
 		expect(codeFont != nullptr, "the Code font row's chooser exists");
@@ -283,21 +301,63 @@ namespace {
 
 		search->setText(QStringLiteral("appear"));
 		expect(result_names(*settings) == QStringList{ QStringLiteral("Appearance") }
-				   && settings->search_results()->item(0)->text().endsWith(QStringLiteral("Settings page")),
-			   "a matching page is a result of its own");
+				   && settings->search_results()->item(0)->data(qt::settings_search_location_role).toString().isEmpty()
+				   && settings->search_results()->item(0)->data(Qt::AccessibleTextRole).toString() == QStringLiteral("Appearance, settings page"),
+			   "a matching page is a result of its own, on one line");
+		expect(settings->search_results()->item(0)->data(qt::settings_search_name_spans_role).toList() == QVariantList{ QPoint{ 0, 6 } },
+			   "a page's matched letters are marked too");
+
+		search->setText(QStringLiteral("type"));
+		auto sectionMarked = false;
+		for (auto row = 0; row < settings->search_results()->count(); ++row) {
+			const auto* const item = settings->search_results()->item(row);
+			if (item->text() == QStringLiteral("Code font")) {
+				sectionMarked = item->data(qt::settings_search_location_spans_role).toList() == QVariantList{ QPoint{ 13, 4 } }
+					&& item->data(qt::settings_search_name_spans_role).toList().isEmpty();
+			}
+		}
+		expect(sectionMarked, "a setting found by its section marks the section in its location");
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark,
+								 core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			profile.apply_to(*settings);
+			save_search_render(*settings, QStringLiteral("type-%1").arg(static_cast<int>(mode)));
+		}
+
+		search->setText(QStringLiteral("dif"));
+		expect(!result_names(*settings).contains(QStringLiteral("Code font")),
+			   "a setting whose description alone holds the query waits while names hold it");
+		expect(settings->search_results()->currentItem() != nullptr && settings->search_results()->currentItem()->text() == QStringLiteral("Dif")
+				   && settings->search_results()->currentRow() > 0,
+			   "the best match is chosen, though the list keeps the pages' order");
+		save_search_render(*settings, QStringLiteral("dif"));
 		search->setText(QStringLiteral("notif"));
+		save_search_render(*settings, QStringLiteral("notif"));
 		const auto notifications = result_names(*settings);
 		expect(notifications.size() >= 2 && notifications.front() == QStringLiteral("Notifications"),
 			   "a page leads its group, followed by its matching settings");
 		expect(notifications == result_names(*settings), "the order is stable");
 		search->setFocus(Qt::OtherFocusReason);
+		const auto chosen = settings->search_results()->currentRow();
 		send_key(search, Qt::Key_Down);
-		expect(settings->focusWidget() == settings->search_results(), "Down moves to the results");
-		settings->search_results()->setCurrentRow(1);
-		settings->go_to_search_result(1);
-		expect(settings->current_page() == qt::settings_page::notifications, "a result goes to its own page");
+		expect(settings->focusWidget() == search && settings->search_results()->currentRow() == chosen + 1,
+			   "Down chooses the next result while the caret stays in the field");
+		send_key(search, Qt::Key_Up);
+		send_key(search, Qt::Key_Up);
+		expect(settings->search_results()->currentRow() == 0, "Up chooses the previous result and stops at the first");
+		send_key(search, Qt::Key_Down);
+		send_key(search, Qt::Key_Return);
+		QApplication::processEvents();
+		expect(settings->current_page() == qt::settings_page::notifications && settings->focusWidget() != search,
+			   "Return goes to the chosen result's page and setting");
+		settings->search_results()->setFocus(Qt::OtherFocusReason);
+		send_key(settings->search_results(), Qt::Key_Escape);
+		expect(settings->isVisible() && settings->focusWidget() == search && search->text() == QStringLiteral("notif"),
+			   "Escape in the results returns to the query and keeps it");
 
 		search->setText(QStringLiteral("zzzq"));
+		save_search_render(*settings, QStringLiteral("no-match"));
 		expect(settings->search_notice()->isVisibleTo(settings) && !settings->search_results()->isVisibleTo(settings)
 				   && static_cast<qt::filter_empty_notice*>(settings->search_notice())->message().contains(QStringLiteral("zzzq")),
 			   "no match says so");
@@ -326,10 +386,16 @@ namespace {
 			   "a withdrawn page never appears");
 		auto* const panel  = new QWidget;
 		auto* const column = new QVBoxLayout{ panel };
-		column->addWidget(new QCheckBox{ QStringLiteral("Brand new toggle"), panel });
+		auto* const toggle = new QCheckBox{ QStringLiteral("Brand new toggle"), panel };
+		toggle->setAccessibleDescription(QStringLiteral("Draws zebra stripes behind long lists"));
+		column->addWidget(toggle);
 		settings->adopt_panel(qt::settings_page::general, panel);
 		settings->search_field()->setText(QStringLiteral("brand toggle"));
 		expect(result_names(*settings) == QStringList{ QStringLiteral("Brand new toggle") }, "a newly placed setting is searchable");
+		settings->search_field()->setText(QStringLiteral("zebra"));
+		expect(result_names(*settings) == QStringList{ QStringLiteral("Brand new toggle") }
+				   && settings->search_results()->item(0)->toolTip().contains(QStringLiteral("zebra stripes")),
+			   "a word only its description holds finds the setting, and the tip shows the description");
 	}
 
 	void test_settings_shortcut_selects_the_active_workbench()
