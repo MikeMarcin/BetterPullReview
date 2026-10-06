@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1088"
 title: "Persist scoped label-column and authoring preferences"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0049"]
 depends_on: ["BPR-1082", "BPR-1087"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-14","milestone":"overview","acceptance":["R20","R28","R41"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"R20","outcome":"pending","revision":"4a07f26bc","evidence":{"kind":"observation","detail":"Built: Reviews & queue > Comment labels > Overview chips selects and orders any subset of the twelve labels (drag, Alt+Up/Down), independent of the label helper and marks; core_feedback_label_columns, sqlite_workbench_settings_storage (all twelve persist in order; repeats/unknowns refused, stored bad lists load kept-and-counted with a recovery notice) and qt_feedback_label_settings pass on bpr-main-linux. Pending: the owner look at the section (offscreen renders only; frontend-design skill not installed on this station)."}},{"criterion":"R28","outcome":"pass","revision":"4a07f26bc","evidence":{"kind":"command","detail":"application_workbench_preferences_consumers test_label_preferences_follow_the_profile_authority: one durable write reaches both windows of a profile, a second profile is untouched both ways, failed writes never accepted and the asking window told, cancellation claims nothing, scoped reset writes only the label defaults; qt_feedback_label_settings Reset scoped with the drawer filter kept. Failing-before controls recorded on the card. 14/14 focused rows re-verified on bpr-main-linux at 1fd74b34c."}},{"criterion":"R41","outcome":"pass","revision":"4a07f26bc","evidence":{"kind":"command","detail":"sqlite_workbench_settings_storage migrates a v12 profile with every other field off default (letters, hooks, window row) to v13 with helper off, Open, no chips and every other field equal; two windows editing at once settle on the accepted record and a mid-flight change-back ends on the last choice (host and window fixes, controls fail). application_label_authoring_contract passes with the helper reaching the editor only through the setting."}}]
 ---
 
 # BPR-1088: Persist scoped label-column and authoring preferences
