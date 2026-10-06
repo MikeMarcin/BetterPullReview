@@ -146,3 +146,27 @@ a separate follow-up. It would not mark those RFCs closed.
 RFC's dependency note, then promote, claim and finish this card. Set the RFC
 and index row to Auto-Verified and rerun DOCUMENTATION_OK. **On wait:** move
 this card to Backlog and leave it there until 0036, 0047 and 0048 close.
+
+## Owner answer (2026-10-06): amend and close
+
+The coordinator put the dependency question to the owner in chat: "RFC-0055
+passes all 10 criteria but formally depends on RFC-0036/0047/0048 … Amend and
+close / Wait". The owner answered, verbatim:
+
+> Amend and close (Recommended)
+
+The answer came in chat, not through attended review. The unanswered
+candidate `BPR-1188-dependency-v001` in session
+`cbd48b91000b00f1e72e1ad62c7c384c` was released with `resume-development
+--candidate BPR-1188-dependency-v001` (event 960, no decision recorded) and
+marked superseded by this answer with an `observe` note (event 961). Its host
+was not started, and nothing was added to that session.
+
+The amendment is recorded in RFC-BPR-0055's
+[owner amendment](../../rfcs/RFC-BPR-0055-source-feedback-and-exact-suggested-edits.md#owner-amendment-2026-10-06-dependencies-are-what-this-rfc-uses)
+section and in the [RFC index](../../rfcs/README.md): RFC-BPR-0055 depends on
+what it uses ([[BPR-1076]], [[BPR-1082]], [[BPR-1083]] and the native Markdown
+reader), not on the closure of RFC-BPR-0036, 0047 and 0048. Its `depends_on`
+is now RFC-BPR-0053 and 0054, both Auto-Verified. Those three RFCs are not
+closed by the amendment.
+

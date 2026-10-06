@@ -4,9 +4,9 @@ title: "Source Feedback, Provenance and Exact Suggested Edits"
 status: "Proposed"
 area: "BPR"
 milestone: "Review Cycles"
-depends_on: ["RFC-BPR-0053", "RFC-BPR-0054", "RFC-BPR-0036", "RFC-BPR-0047", "RFC-BPR-0048"]
+depends_on: ["RFC-BPR-0053", "RFC-BPR-0054"]
 pack_version: "review-cycles-v1"
-metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
+metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "owner_dependency_amendment": {"date": "2026-10-06", "removed_closure_dependencies": ["RFC-BPR-0036", "RFC-BPR-0047", "RFC-BPR-0048"], "uses": ["BPR-1076", "BPR-1082", "BPR-1083", "RFC-BPR-0036 native Markdown reader"], "card": "BPR-1188"}}
 ---
 
 # RFC-BPR-0055: Source Feedback, Provenance and Exact Suggested Edits
@@ -85,6 +85,39 @@ editor's, and that a double click select the word.
 Observations and evidence for this amendment are recorded on
 [BPR-1156](../issues/60-done/BPR-1156-deliver-the-native-focused-suggestion-editor.md)
 and in the [execution ledger](../verification/RFC-BPR-0053-0061.md), not here.
+
+## Owner amendment, 2026-10-06: dependencies are what this RFC uses
+
+As imported, this RFC listed RFC-BPR-0036, 0047 and 0048 among its
+dependencies. The owner was asked in chat whether to close it under a
+dependency amendment or wait for those three RFCs to close ("RFC-0055 passes
+all 10 criteria but formally depends on RFC-0036/0047/0048 … Amend and close /
+Wait"), and answered:
+
+> Amend and close (Recommended)
+
+RFC-BPR-0055 depends on what it uses, not on the closure of RFC-BPR-0036, 0047
+and 0048:
+
+- the shared label recognizer of RFC-BPR-0047,
+  [BPR-1076](../issues/60-done/BPR-1076-implement-the-complete-catalog-and-bounded-lossless-prefix-recognizer.md)
+  (Done), through which RC55-03 is judged;
+- the shared label authoring controls of RFC-BPR-0048,
+  [BPR-1082](../issues/60-done/BPR-1082-compose-convention-edits-through-shared-durable-draft-services.md)
+  and
+  [BPR-1083](../issues/60-done/BPR-1083-implement-selected-authoring-controls-and-shared-label-visuals.md)
+  (Done);
+- the native Markdown reader of RFC-BPR-0036 (implementation accepted;
+  [BPR-0917](../issues/60-done/BPR-0917-close-rfc-0036.md) is Done).
+
+The front matter's `depends_on` keeps RFC-BPR-0053 and 0054, and
+`owner_dependency_amendment` names the three removed closure dependencies and
+what is used from them. This amendment changes no RC55 criterion and closes
+none of RFC-BPR-0036, 0047 or 0048: each stays open on its own cards, and
+RFC-BPR-0036's status-only close remains separate. The question and its answer
+are recorded on
+[BPR-1188](../issues/40-parked/BPR-1188-close-rfc-0055.md) and in the
+[execution ledger](../verification/RFC-BPR-0053-0061.md).
 
 ## Normative contracts
 
