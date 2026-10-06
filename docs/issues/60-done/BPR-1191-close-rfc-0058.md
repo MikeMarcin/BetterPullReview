@@ -94,3 +94,19 @@ courses at the current tree (commands in the ledger).
 RFC-BPR-0058 is Auto-Verified. RFC-BPR-0044, 0045 and 0046 stay Proposed.
 Docs and board only; no product file changed.
 
+
+## Linux station run (bpr-main-linux, 2026-10-06)
+
+At `707d2a04a`, WSL2, GCC 15.2.0, `build/dev-tour-cli` (`dev` preset,
+Debug, `-DBPR_BUILD_TOUR_CLI=ON`), under the network-isolated runner: the
+ledger's owner-handoff selection plus the parity, cycle CLI documentation and
+skill package rows pass 13 of 13. `application_profile_cycle_handoff_public_path`
+(5.8 s), `application_profile_tour_handoff_public_path`,
+`application_review_cycle_parity_public_path` (36.4 s), `cycle_cli_public_path`,
+`cycle_cli_documentation`, `skill_bpr_cycle_package`,
+`sqlite_tour_owner_channel`, `core_review_cycle_command`,
+`review_cycle_workbench`, `application_review_cycle_desktop_public_path`,
+`application_review_round_trip_composition_contract`,
+`architecture_boundaries` and `test_network_isolation_manifest`. This is the
+first Linux run of the handoff course since the owner protocol moved to 5
+([[BPR-1279]]). The Linux half of the owed runs is discharged; Windows is still owed.

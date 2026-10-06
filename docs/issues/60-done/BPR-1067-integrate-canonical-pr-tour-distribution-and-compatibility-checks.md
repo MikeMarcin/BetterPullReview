@@ -111,3 +111,15 @@ git pull --rebase --autostash; mask repair; cmake --preset windows-dev -B build/
 Unblocked: [[BPR-1068]], whose other dependencies (BPR-1059, 1062, 1063 and
 1066) are Done. It asks for native Windows, macOS and Linux observations.
 
+
+## Linux station run (bpr-main-linux, 2026-10-06)
+
+`mask repair` deployed `pr-tour` (source `agentskills`, commit `b75119cd7`)
+by creating the `.agents/skills/pr-tour` and `.claude/skills/pr-tour` links
+into the MASK store. The working tree stayed clean. At `707d2a04a`, WSL2,
+GCC 15.2.0, `build/dev-tour-cli` (`-DBPR_BUILD_TOUR_CLI=ON`), under the
+network-isolated runner: `skill_pr_tour_package` passes
+(`pr-tour-skill-tests:pass`), as do `skill_bpr_cycle_package` and
+`test_network_isolation_manifest` in the same tree. Claude Code on this
+station lists `pr-tour` among its skills after the repair. The Linux half of
+the owed runs is discharged; Windows is still owed.
