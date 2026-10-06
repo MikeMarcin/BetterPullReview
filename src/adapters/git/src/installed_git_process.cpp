@@ -1,8 +1,8 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
+#include "bpr/platform/windows_sharing_retry.hpp"
 #include "git_process_output.hpp"
-#include "windows_sharing_retry.hpp"
 #include <glaze/json.hpp>
 
 #include <QByteArray>
@@ -354,7 +354,7 @@ namespace bpr::adapters::git {
 #elif defined(Q_OS_WIN)
 				// [[BPR-1040]]. Opened with no sharing, so a scanner still reading
 				// the spool this adapter just wrote refuses it for a moment.
-				const auto opened = detail::retry_while_held([&]() -> DWORD {
+				const auto opened = platform::retry_while_held(platform::held_errors::sharing_lock_and_access_denied, [&]() -> DWORD {
 					Handle = CreateFileW(
 						aPath.c_str(),
 						GENERIC_READ,

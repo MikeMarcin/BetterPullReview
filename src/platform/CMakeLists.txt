@@ -7,7 +7,9 @@
 # state and no Qt, provider, file-system policy or decision about what a process
 # runs, and depends on nothing first-party, so an adapter may include it without
 # an adapter-to-adapter edge. [[BPR-1252]] adds the bound a frequent Unix
-# launch puts on its child's descriptor sweep.
+# launch puts on its child's descriptor sweep. [[BPR-1239]] adds the bounded wait
+# for a file another handle briefly holds, which the Git adapter and Save to file
+# share.
 add_library(better_pull_review_platform INTERFACE)
 add_library(BetterPullReview::Platform ALIAS better_pull_review_platform)
 target_sources(
@@ -19,6 +21,7 @@ target_sources(
             "${CMAKE_CURRENT_SOURCE_DIR}/include/bpr/platform/windows_private_object.hpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/include/bpr/platform/windows_standard_handles.hpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/include/bpr/platform/unix_descriptor_sweep.hpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/include/bpr/platform/windows_sharing_retry.hpp"
 )
 target_compile_features(better_pull_review_platform INTERFACE cxx_std_23)
 if(WIN32)

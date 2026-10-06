@@ -63,3 +63,68 @@ removed. No row exercises either case.
   past the bound fails with its specific reason, and nothing is changed.
 - `review_cycle_export` still passes on every platform. `architecture_boundaries`
   and `architecture_boundary_contract` pass.
+
+## Done on Windows (bpr-main-win, 2026-10-06)
+
+**What Windows answers.** A probe on this station showed that
+`MoveFileExW(…, MOVEFILE_REPLACE_EXISTING)` over a destination another
+handle holds without `FILE_SHARE_DELETE` fails with `ERROR_ACCESS_DENIED`,
+not a sharing violation. That is the same code a read-only file or a refused
+permission gives. Once the handle closes, the same move succeeds. The first
+version of this change waited only on sharing and lock violations, so it
+reported a held destination as unavailable. The course caught that at "a
+destination released within the wait is replaced".
+
+**The change.**
+
+- `application::cycle_export_failure` gains `read_only` and `in_use`, with
+  stable names and their own words: "The file there is read-only; nothing
+  was replaced." and "Another program has the file there open; nothing was
+  replaced. Close it and save again." The CLI keeps them under
+  `destination_unavailable`, with these words.
+- `local_export_destination`'s Windows move tells access denied apart, in
+  this order:
+  1. a destination marked read-only fails at once as `read_only`, and its
+     attribute is never cleared;
+  2. otherwise it opens the destination for `DELETE` with full sharing as a
+     probe. A sharing violation there means another handle holds the file:
+     the move is repeated within the bound and, still held, reported
+     `in_use`;
+  3. anything else stays `unavailable`.
+
+  Sharing and lock violations from the move itself take the same bounded
+  wait. No handle of another process is taken.
+- The bound is the Git adapter's `retry_while_held` ([[BPR-1040]],
+  [[BPR-1104]]): eight waits from 5 ms, doubling, about 1.3 s. It moved to
+  `src/platform/include/bpr/platform/windows_sharing_retry.hpp`, so the
+  workspace adapter shares it without an adapter-to-adapter edge. It is
+  header-only, includes no Qt, and is listed in the platform target. The
+  caller now names which errors count as held: the Git adapter keeps
+  sharing, lock and access denied, as before; Save to file names sharing and
+  lock. The export target links `BetterPullReview::Platform` privately.
+
+**Evidence** (`build/windows-dev` Debug, MSVC 14.51, whole tree, no
+`warning C` line). `review_cycle_export_tests.cpp` gains a Windows section,
+`windows_refusals_name_their_reason`:
+
+- a confirmed Replace over a read-only file fails `read_only`, with its bytes
+  and attribute unchanged;
+- a destination held by a test handle without `FILE_SHARE_DELETE`, released
+  after 150 ms, is replaced;
+- one held past the bound fails `in_use`, unchanged;
+- no temporary file remains.
+
+Results:
+
+- `review_cycle_export` passes. With the original
+  `local_export_destination.cpp` it fails at its first check, "a read-only
+  destination is refused as read-only and left as it was".
+- `review_cycle_bundle`, `review_cycle_publish_desk`,
+  `review_cycle_workbench`, `application_review_cycle_desktop_public_path`,
+  `git_cache_contract` and `git_process_contract` (the moved retry's three
+  Git call sites), `architecture_boundaries` and
+  `architecture_boundary_contract` pass.
+- clang-format 22.1.3 is clean on the changed files.
+
+macOS and Linux build the new enum values and words. Their move path is
+unchanged.

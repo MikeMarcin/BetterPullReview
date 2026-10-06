@@ -54,6 +54,12 @@ target_link_libraries(
     PUBLIC
         BetterPullReview::Application
 )
+# [[BPR-1239]]. The bounded wait for a destination another handle briefly holds.
+target_link_libraries(
+    better_pull_review_adapter_export
+    PRIVATE
+        BetterPullReview::Platform
+)
 target_compile_features(
     better_pull_review_adapter_export
     PUBLIC

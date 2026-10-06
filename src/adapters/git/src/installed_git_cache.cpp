@@ -1,7 +1,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 
 #include "bpr/adapters/git/installed_git_process.hpp"
-#include "windows_sharing_retry.hpp"
+#include "bpr/platform/windows_sharing_retry.hpp"
 
 // The cache manifest discriminates the access mode, and `epoch_model.hpp`
 // declares that enumeration without its enumerators. This is the header that
@@ -2152,7 +2152,7 @@ namespace bpr::adapters::git {
 			const std::filesystem::path& aSource,
 			const std::filesystem::path& aDestination) -> DWORD
 		{
-			return detail::retry_while_held([&]() -> DWORD {
+			return platform::retry_while_held(platform::held_errors::sharing_lock_and_access_denied, [&]() -> DWORD {
 				return MoveFileExW(aSource.c_str(), aDestination.c_str(), MOVEFILE_WRITE_THROUGH) != 0
 					? ERROR_SUCCESS
 					: GetLastError();
@@ -2173,7 +2173,7 @@ namespace bpr::adapters::git {
 		[[nodiscard]] auto remove_file_name(const std::filesystem::path& aPath) -> bool
 		{
 #if defined(Q_OS_WIN)
-			const auto removed = detail::retry_while_held([&]() -> DWORD {
+			const auto removed = platform::retry_while_held(platform::held_errors::sharing_lock_and_access_denied, [&]() -> DWORD {
 				std::error_code error;
 				if (std::filesystem::remove(aPath, error) && !error) {
 					return ERROR_SUCCESS;

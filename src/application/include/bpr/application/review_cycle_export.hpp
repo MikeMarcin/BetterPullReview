@@ -32,6 +32,12 @@ namespace bpr::application {
 		/// The file there is larger than would ever be read back.
 		too_large,
 		cancelled,
+		/// [[BPR-1239]]. The file there is marked read-only, so replacing it
+		/// is refused; its attribute is never cleared to make the save succeed.
+		read_only,
+		/// [[BPR-1239]]. Another program still has the file there open past a
+		/// brief wait, so it cannot be replaced.
+		in_use,
 	};
 	[[nodiscard]] auto stable_name(cycle_export_failure aValue) noexcept -> std::string_view;
 

@@ -163,6 +163,8 @@ namespace bpr::application {
 		case cycle_export_failure::not_regular: return "That is a link, a folder or another special file; nothing was written.";
 		case cycle_export_failure::too_large:   return "The file there is too large to compare; nothing was written.";
 		case cycle_export_failure::cancelled:   return { };
+		case cycle_export_failure::read_only:   return "The file there is read-only; nothing was replaced.";
+		case cycle_export_failure::in_use:      return "Another program has the file there open; nothing was replaced. Close it and save again.";
 		default:                                return "The file could not be written there; nothing was saved.";
 		}
 	}

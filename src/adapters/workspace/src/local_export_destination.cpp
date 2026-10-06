@@ -26,6 +26,8 @@
 		#define WIN32_LEAN_AND_MEAN
 	#endif
 	#include <Windows.h>
+
+	#include "bpr/platform/windows_sharing_retry.hpp"
 #else
 	#include <cerrno>
 	#include <cstdio>
@@ -348,12 +350,46 @@ namespace bpr::adapters::workspace {
 			auto move_into_place(const std::filesystem::path& aTemporary, const bool aReplace) const -> std::expected<void, cycle_export_failure>
 			{
 #if defined(_WIN32)
-				const auto flags = MOVEFILE_WRITE_THROUGH | (aReplace ? MOVEFILE_REPLACE_EXISTING : 0U);
-				if (!::MoveFileExW(aTemporary.c_str(), File.c_str(), flags)) {
-					const auto error = ::GetLastError();
-					return std::unexpected(error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS ? cycle_export_failure::exists : cycle_export_failure::unavailable);
+				// [[BPR-1239]]. Replacing a destination that another handle holds
+				// without FILE_SHARE_DELETE (an editor, or a scanner reading a
+				// file saved a moment ago) fails with access denied, the same
+				// code a read-only file or a refused permission gives. So access
+				// denied is told apart: a read-only file is refused as such and
+				// never waited out, and its attribute is never cleared; a file
+				// that refuses even a delete-access probe with a sharing violation
+				// is held, so the move is repeated for a bounded moment and then
+				// reported as in use. Anything else stays unavailable.
+				const auto flags    = MOVEFILE_WRITE_THROUGH | (aReplace ? MOVEFILE_REPLACE_EXISTING : 0U);
+				auto       readOnly = false;
+				const auto error    = platform::retry_while_held(platform::held_errors::sharing_and_lock, [&]() -> DWORD {
+					if (::MoveFileExW(aTemporary.c_str(), File.c_str(), flags) != 0) {
+						return ERROR_SUCCESS;
+					}
+					const auto failed = ::GetLastError();
+					if (failed != ERROR_ACCESS_DENIED || !aReplace) {
+						return failed;
+					}
+					const auto attributes = ::GetFileAttributesW(File.c_str());
+					if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY) != 0U) {
+						readOnly = true;
+						return failed;
+					}
+					const auto probe = handle{ ::CreateFileW(File.c_str(), DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+					return !probe.valid() && ::GetLastError() == ERROR_SHARING_VIOLATION ? ERROR_SHARING_VIOLATION : failed;
+				});
+				if (error == ERROR_SUCCESS) {
+					return { };
 				}
-				return { };
+				if (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS) {
+					return std::unexpected(cycle_export_failure::exists);
+				}
+				if (error == ERROR_SHARING_VIOLATION || error == ERROR_LOCK_VIOLATION) {
+					return std::unexpected(cycle_export_failure::in_use);
+				}
+				if (readOnly) {
+					return std::unexpected(cycle_export_failure::read_only);
+				}
+				return std::unexpected(cycle_export_failure::unavailable);
 #else
 				if (aReplace) {
 					if (::rename(aTemporary.c_str(), File.c_str()) != 0) {

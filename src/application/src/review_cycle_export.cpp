@@ -12,6 +12,8 @@ namespace bpr::application {
 		case cycle_export_failure::unavailable: return "unavailable";
 		case cycle_export_failure::too_large:   return "too_large";
 		case cycle_export_failure::cancelled:   return "cancelled";
+		case cycle_export_failure::read_only:   return "read_only";
+		case cycle_export_failure::in_use:      return "in_use";
 		}
 		return "unavailable";
 	}

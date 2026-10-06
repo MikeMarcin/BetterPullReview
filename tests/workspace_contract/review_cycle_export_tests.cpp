@@ -21,6 +21,19 @@
 #include <string_view>
 #include <vector>
 
+#if defined(_WIN32)
+	#if !defined(NOMINMAX)
+		#define NOMINMAX
+	#endif
+	#if !defined(WIN32_LEAN_AND_MEAN)
+		#define WIN32_LEAN_AND_MEAN
+	#endif
+	#include <Windows.h>
+
+	#include <chrono>
+	#include <thread>
+#endif
+
 /// \file
 /// \brief Copy and Save of a frozen round (RFC-BPR-0056, BPR-1159) through
 /// the production runtime, store and local file destination: the clipboard
@@ -216,12 +229,62 @@ namespace {
 
 		exports_a_frozen_round_as_frozen(notes, exports, *clipboard, second);
 	}
+#if defined(_WIN32)
+	/// [[BPR-1239]]. A confirmed Replace that Windows refuses says why. A
+	/// read-only destination is refused as read-only, its bytes and attribute
+	/// unchanged. A destination another handle holds without FILE_SHARE_DELETE
+	/// is waited out for a bounded moment: released within it, it is replaced;
+	/// held past it, it is refused as in use and left as it was. No temporary
+	/// file remains either way.
+	void windows_refusals_name_their_reason(const std::filesystem::path& aFolder)
+	{
+		std::filesystem::create_directories(aFolder);
+		const auto readOnly = aFolder / "read-only.md";
+		write_file(readOnly, "locked\n");
+		expect(::SetFileAttributesW(readOnly.c_str(), FILE_ATTRIBUTE_READONLY) != 0, "the test marks its file read-only");
+		const auto refused    = save(readOnly, "replacement\n", digest_of("locked\n"));
+		const auto attributes = ::GetFileAttributesW(readOnly.c_str());
+		expect(!refused && refused.error() == cycle_export_failure::read_only && read_file(readOnly) == "locked\n" && attributes != INVALID_FILE_ATTRIBUTES
+				   && (attributes & FILE_ATTRIBUTE_READONLY) != 0U,
+			   "a read-only destination is refused as read-only and left as it was");
+		expect(::SetFileAttributesW(readOnly.c_str(), FILE_ATTRIBUTE_NORMAL) != 0, "the test clears its own attribute");
+
+		const auto hold = [](const std::filesystem::path& aFile) {
+			return ::CreateFileW(aFile.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+		};
+		const auto briefly = aFolder / "held-briefly.md";
+		write_file(briefly, "before\n");
+		{
+			const auto held = hold(briefly);
+			expect(held != INVALID_HANDLE_VALUE, "the test holds the destination");
+			auto release = std::jthread{ [held] {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 150 });
+				::CloseHandle(held);
+			} };
+			const auto replaced = save(briefly, "after\n", digest_of("before\n"));
+			release.join();
+			expect(replaced && replaced->Action == cycle_round_save_action::replace && read_file(briefly) == "after\n", "a destination released within the wait is replaced");
+		}
+		const auto stuck = aFolder / "held.md";
+		write_file(stuck, "kept\n");
+		const auto held = hold(stuck);
+		expect(held != INVALID_HANDLE_VALUE, "the test holds the destination past the wait");
+		const auto waited = save(stuck, "after\n", digest_of("kept\n"));
+		::CloseHandle(held);
+		expect(!waited && waited.error() == cycle_export_failure::in_use && read_file(stuck) == "kept\n", "a destination held past the wait is refused as in use and left as it was");
+		expect(names_in(aFolder) == std::set<std::string>{ "held-briefly.md", "held.md", "read-only.md" }, "no temporary file left behind");
+		std::cout << "NATIVE: a read-only destination and one held past the wait name their reason; a brief hold is waited out\n";
+	}
+#endif
 }
 
 auto main() -> int
 try {
 	tests::sqlite_contract::scratch_root scratch{ "cycle-export" };
 	copies_and_saves_one_document(scratch.path());
+#if defined(_WIN32)
+	windows_refusals_name_their_reason(scratch.path() / "windows-refusals");
+#endif
 	std::cout << "review-cycle-export-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {
