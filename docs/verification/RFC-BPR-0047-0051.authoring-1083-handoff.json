@@ -8,7 +8,7 @@
   "role_banner": "Role: rfc-implementer | Model: claude-opus-5-5 | Effort: high",
   "status": "parked: human-review",
   "claim_commit": "1a1f9f526",
-  "candidate_revision": "e8c9dc65c",
+  "candidate_revision": "3cddd0cdd",
   "product_commits": [
     "b43cd74a5",
     "37927cd14",
@@ -16,7 +16,7 @@
     "7513758b0",
     "5793e0759",
     "163cad3b1",
-    "e8c9dc65c"
+    "3cddd0cdd"
   ],
   "frozen_root": "/Users/jaeger/bpr1083-authoring-review-v003.AnLWd2",
   "frozen_executable_sha256": "2158e3d083f8836a006d4184ef19778ef5203be1b29d2bd48fc2d8f457ad0f77",
@@ -90,9 +90,9 @@
     "BPR-1289 port sources corrected by the owner to containers gct, Entole, AllTheThings and FindInMedia"
   ],
   "related_commits": {
-    "owner_refs_and_bpr_1212": "f83d9ca1f",
-    "finish_bpr_1287": "0753a4ccd",
-    "product_v003": "e8c9dc65c"
+    "owner_refs_and_bpr_1212": "fffe088ee",
+    "finish_bpr_1287": "9eee96ac2",
+    "product_v003": "3cddd0cdd"
   },
   "owner_amendments_round_v003": [
     "chip-menu-v002 note: non-blocking and if-minor need their own style (built; delivery contract amended)",
@@ -100,5 +100,6 @@
     "mark-preview-v002 note: individual tooltips (built)",
     "Coordinator: frontend-design skill loaded for the decorations, thread-card marks and preview",
     "Coordinator: do not edit BPR-1290; inline composer recorded on BPR-1212 as AC5"
-  ]
+  ],
+  "frozen_archive_of": "e8c9dc65c (pre-rebase; src and tests equal 3cddd0cdd)"
 }

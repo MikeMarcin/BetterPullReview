@@ -155,7 +155,8 @@ Checks and the negative controls are in the
 ## Pending owner decisions
 
 One attended session asks one Accept or Reject per candidate, on a frozen
-build of `e8c9dc65c` (`/Users/jaeger/bpr1083-authoring-review-v003.AnLWd2`,
+build of `3cddd0cdd` (archived before the rebase from `e8c9dc65c`, the same
+product tree; `/Users/jaeger/bpr1083-authoring-review-v003.AnLWd2`,
 executable SHA-256 `2158e3d0…8ad0f77`).
 `python3 /Users/jaeger/bpr1083-authoring-review-v003.AnLWd2/launch.py` opens
 `src/engine/renderer.cpp` in Read, signed in as the fixture's account. Session
