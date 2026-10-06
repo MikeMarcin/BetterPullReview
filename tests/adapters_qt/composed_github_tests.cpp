@@ -63,9 +63,11 @@
 #include <QTreeView>
 #include <QWidget>
 
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 
+#include <QHelpEvent>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -3298,6 +3300,146 @@ namespace {
 		expect((chosen == "review-thread:t200" || chosen == "review-thread:t250") && cards->note_rect(chosen).intersects(cards->viewport()->rect()),
 			   "a chip opens its thread and brings its line into view");
 		capture_layout_state(window, QStringLiteral("inline-chip-opened"));
+
+		// Shift-click on a scroll-bar tick goes to its thread; a plain press
+		// stays the scroll bar's own (the owner, rejecting the built drawer
+		// v001: "I want to shift click on a comment marker on the scrollbar to
+		// scroll to it.").
+		const auto rightSide   = core::diff_side::right;
+		const auto pressTickAt = [bar](const QPoint aAt, const Qt::KeyboardModifiers aModifiers) {
+			const auto point   = QPointF{ aAt };
+			auto       press   = QMouseEvent{ QEvent::MouseButtonPress, point, bar->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, aModifiers };
+			auto       release = QMouseEvent{ QEvent::MouseButtonRelease, point, bar->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, aModifiers };
+			QApplication::sendEvent(bar, &press);
+			QApplication::sendEvent(bar, &release);
+			QApplication::processEvents();
+		};
+		const auto hoverBarAt = [bar](const QPoint aAt, const Qt::KeyboardModifiers aModifiers) {
+			const auto point = QPointF{ aAt };
+			auto       move  = QMouseEvent{ QEvent::MouseMove, point, bar->mapToGlobal(point), Qt::NoButton, Qt::NoButton, aModifiers };
+			QApplication::sendEvent(bar, &move);
+			QApplication::processEvents();
+		};
+		const auto settleGeometry = [surface] {
+			for (auto settle = 0; settle < 20 && surface->geometry_pending(); ++settle) {
+				QApplication::processEvents();
+			}
+		};
+		// Line 250's thread is current but closed, and its line out of view.
+		cards->open_thread("review-thread:t250");
+		cards->close_thread();
+		bar->setValue(bar->minimum());
+		settleGeometry();
+		const auto tick250 = surface->thread_tick_rect(rightSide, 249U);
+		expect(!tick250.isEmpty() && !surface->source_line_visible(rightSide, 249U) && cards->current_thread() == "review-thread:t250",
+			   "line 250's thread is current and closed, its line out of view and its tick on the bar");
+		pressTickAt(tick250.center(), Qt::NoModifier);
+		settleGeometry();
+		expect(cards->open_thread_id().empty() && bar->value() != bar->minimum(),
+			   "negative control: a plain press on a tick is the scroll bar's own, moving the code and opening nothing");
+		bar->setValue(bar->minimum());
+		settleGeometry();
+		timer.restart();
+		pressTickAt(tick250.center(), Qt::ShiftModifier);
+		settleGeometry();
+		const auto goToMs = timer.elapsed();
+		expect(cards->open_thread_id() == "review-thread:t250" && cards->open_card() != nullptr && cards->open_card()->isVisible()
+				   && cards->open_card()->geometry().intersects(cards->viewport()->rect()),
+			   "Shift-click on a tick opens its thread in place, as pressing its note does");
+		expect(surface->source_line_visible(rightSide, 249U) && surface->selection().has_value() && surface->selection()->PreferredLine.Line == 249U,
+			   "Shift-click on a tick brings its exact line into view, though the thread was already current");
+		std::cout << "inline-drawer:tick-go-to-ms=" << goToMs << '\n';
+#if defined(NDEBUG)
+		expect(goToMs < 100, "Shift-click on a tick answers within 100 ms in an optimized build");
+#endif
+		capture_layout_state(window, QStringLiteral("inline-tick-go-to"));
+
+		// A press finds a tick a few pixels past its edge, and only there.
+		cards->close_thread();
+		bar->setValue(bar->minimum());
+		settleGeometry();
+		const auto tick300 = surface->thread_tick_rect(rightSide, 299U);
+		pressTickAt(QPoint{ tick300.center().x(), tick300.bottom() + 3 }, Qt::ShiftModifier);
+		settleGeometry();
+		expect(cards->open_thread_id() == "review-thread:t300" && surface->source_line_visible(rightSide, 299U),
+			   "Shift-click three pixels below a tick still goes to its thread");
+		cards->close_thread();
+		const auto ticks   = surface->thread_ticks();
+		auto       clearAt = std::optional<int>{ };
+		for (auto y = 0; y < bar->height() && !clearAt.has_value(); ++y) {
+			const auto clear = std::ranges::all_of(ticks, [surface, y](const qt::diff_thread_tick& aTick) {
+				const auto rect = surface->thread_tick_rect(aTick.Side, aTick.Line);
+				return y < rect.top() - 8 || y > rect.bottom() + 8;
+			});
+			if (clear && y > bar->height() / 2) {
+				clearAt = y;
+			}
+		}
+		expect(clearAt.has_value(), "the bar has a stretch with no tick near it");
+		bar->setValue(bar->minimum());
+		settleGeometry();
+		pressTickAt(QPoint{ tick300.center().x(), clearAt.value_or(0) }, Qt::ShiftModifier);
+		settleGeometry();
+		expect(cards->open_thread_id().empty() && bar->value() != bar->minimum(),
+			   "negative control: Shift-click away from every tick opens nothing and stays the scroll bar's own");
+
+		// Crowded ticks: the point finds the tick whose centre is nearest.
+		bar->setValue(bar->minimum());
+		settleGeometry();
+		const auto tick60  = surface->thread_tick_rect(rightSide, 59U);
+		const auto tick64  = surface->thread_tick_rect(rightSide, 63U);
+		const auto gap     = tick64.center().y() - tick60.center().y();
+		const auto inReach = [](const QRect& aTick, const int aY) { return aY >= aTick.top() - 4 && aY <= aTick.bottom() + 4; };
+		const auto near64  = tick60.center().y() + gap / 2 + 1;
+		const auto near60  = tick64.center().y() - gap / 2 - 1;
+		std::cout << "inline-drawer:crowded-tick-gap=" << gap << '\n';
+		expect(gap >= 3 && inReach(tick60, near64) && inReach(tick64, near64) && inReach(tick60, near60) && inReach(tick64, near60),
+			   "the ticks of lines 60 and 64 crowd: one point is within reach of both");
+		hoverBarAt(QPoint{ tick64.center().x(), near64 }, Qt::NoModifier);
+		expect(!surface->targeted_thread_tick().has_value() && bar->cursor().shape() != Qt::PointingHandCursor,
+			   "negative control: without Shift the pointer over a tick is the bar's own, with no hand");
+		auto shiftDown = QKeyEvent{ QEvent::KeyPress, Qt::Key_Shift, Qt::ShiftModifier };
+		QApplication::sendEvent(cards, &shiftDown);
+		QApplication::processEvents();
+		expect(surface->targeted_thread_tick().has_value() && surface->targeted_thread_tick()->Line == 63U && bar->cursor().shape() == Qt::PointingHandCursor,
+			   "pressing Shift with the pointer on crowded ticks rings the nearest one and shows the hand");
+		auto shiftUp = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Shift, Qt::NoModifier };
+		QApplication::sendEvent(cards, &shiftUp);
+		QApplication::processEvents();
+		expect(!surface->targeted_thread_tick().has_value() && bar->cursor().shape() != Qt::PointingHandCursor,
+			   "letting Shift go takes the ring and the hand away");
+		hoverBarAt(QPoint{ tick60.center().x(), near60 }, Qt::ShiftModifier);
+		expect(surface->targeted_thread_tick().has_value() && surface->targeted_thread_tick()->Line == 59U,
+			   "moving with Shift held rings the tick nearest the pointer");
+		pressTickAt(QPoint{ tick64.center().x(), near64 }, Qt::ShiftModifier);
+		settleGeometry();
+		expect(cards->open_thread_id() == "review-thread:t64", "Shift-click between crowded ticks goes to the nearer one below");
+		bar->setValue(bar->minimum());
+		settleGeometry();
+		pressTickAt(QPoint{ tick60.center().x(), near60 }, Qt::ShiftModifier);
+		settleGeometry();
+		expect(cards->open_thread_id() == "review-thread:t60", "and to the nearer one above");
+
+		// The tick says where Shift-click goes, right beside it.
+		qt::hide_anchored_tooltip();
+		const auto tipAt = [bar](const QPoint aAt) -> QString {
+			qt::hide_anchored_tooltip();
+			auto help = QHelpEvent{ QEvent::ToolTip, aAt, bar->mapToGlobal(aAt) };
+			QApplication::sendEvent(bar, &help);
+			const auto* const label = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+			return label != nullptr ? label->text() : QString{ };
+		};
+		const auto tip250 = tipAt(tick250.center());
+		std::cout << "inline-drawer:tick-tooltip=" << tip250.toStdString() << '\n';
+		expect(tip250 == QStringLiteral("Shift-click to go to line 250: 1 post, 1 new"),
+			   "a tick's tooltip names where Shift-click goes");
+		expect(tipAt(QPoint{ tick64.center().x(), near64 }).startsWith(QStringLiteral("Shift-click to go to line 64:")),
+			   "between crowded ticks the tooltip names the nearer one");
+		expect(tipAt(QPoint{ tick300.center().x(), clearAt.value_or(0) }).isEmpty(), "negative control: away from every tick there is no tooltip");
+		qt::hide_anchored_tooltip();
+		hoverBarAt(QPoint{ -5, 0 }, Qt::NoModifier);
+		auto leave = QEvent{ QEvent::Leave };
+		QApplication::sendEvent(bar, &leave);
 
 		// The keys: Esc closes, Up and Down move, Return opens, N opens the next new.
 		cards->open_thread("review-thread:t200");

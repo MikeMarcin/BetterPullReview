@@ -1536,10 +1536,12 @@ namespace bpr::qt {
 			});
 		ComparisonSurface->set_frame_observer([this] { refresh_cards(); });
 		// [[BPR-1290]]. The gutter's markers and the scroll bar's ticks follow
-		// the open thread and the note under the pointer; a marker or a tick
-		// opens its thread. A wheel over the notes scrolls the code.
+		// the open thread and the note under the pointer; a marker opens its
+		// thread, and Shift-click on a tick goes to its thread. A wheel over
+		// the notes scrolls the code.
 		ComparisonSurface->set_thread_markers(true);
 		ComparisonSurface->set_line_mark_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { toggle_thread_at(aSide, aLine); });
+		ComparisonSurface->set_thread_tick_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { go_to_thread_at(aSide, aLine); });
 		ConversationPanel->cards()->set_marks_observer([this] { apply_thread_marks(); });
 		ConversationPanel->cards()->set_scroll_forward([this](QWheelEvent& aEvent) {
 			return ComparisonSurface != nullptr && ComparisonSurface->scroll_by_wheel(aEvent);
@@ -1612,18 +1614,9 @@ namespace bpr::qt {
 					// [[BPR-1290]] written in place, in the open thread.
 					reply_to_thread(aIdentity, true);
 					break;
-				case card_action::show_line: {
-					// [[BPR-1290]]. Reveal the open thread's line where the
-					// reader is, without changing the modality.
-					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
-					if (index.isValid()) {
-						ConversationPanel->choose(index);
-						synchronize_selected_conversation(index);
-					} else {
-						static_cast<void>(select_thread_line(aIdentity));
-					}
+				case card_action::show_line:
+					reveal_thread_line(aIdentity);
 					break;
-				}
 				case card_action::publish_reply:
 					// [[BPR-1290]]. The reply in place is the draft editor's
 					// draft; nothing publishes but its own Publish.
@@ -5668,19 +5661,20 @@ namespace bpr::qt {
 		update_new_comment_group();
 	}
 
-	void workbench_window::toggle_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
+	auto workbench_window::thread_on_line(const core::diff_side aSide, const std::uint32_t aLine) -> std::optional<std::string>
 	{
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
-			return;
+			return std::nullopt;
 		}
 		const auto& cards = ConversationPanel->cards()->cards();
 		const auto  card  = std::ranges::find_if(cards, [aSide, aLine](const thread_card& aCard) {
 			return aCard.Side == aSide && aCard.Line == aLine + 1U && !aCard.Outdated;
 		});
 		if (card == cards.end()) {
-			return;
+			return std::nullopt;
 		}
-		const auto identity = card->Id;
+		// Copied before the drawer is shown, which may lay the notes out anew.
+		auto identity = card->Id;
 		// The marker is a gesture on the conversation: the drawer it opens in
 		// is shown, on its Comments tab.
 		if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
@@ -5689,7 +5683,41 @@ namespace bpr::qt {
 		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
 			TrayTabs->setCurrentIndex(tray_comments_tab);
 		}
-		ConversationPanel->cards()->toggle_thread(identity);
+		return identity;
+	}
+
+	void workbench_window::toggle_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
+	{
+		if (const auto identity = thread_on_line(aSide, aLine); identity.has_value()) {
+			ConversationPanel->cards()->toggle_thread(*identity);
+		}
+	}
+
+	void workbench_window::go_to_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
+	{
+		const auto identity = thread_on_line(aSide, aLine);
+		if (!identity.has_value()) {
+			return;
+		}
+		if (ConversationPanel->cards()->open_thread_id() != *identity) {
+			ConversationPanel->cards()->open_thread(*identity);
+		}
+		// Opening reveals the line only when it changes the current thread;
+		// the tick asks for the line whatever was current before.
+		reveal_thread_line(*identity);
+	}
+
+	void workbench_window::reveal_thread_line(const std::string& aIdentity)
+	{
+		// [[BPR-1290]]. Reveal the thread's line where the reader is, without
+		// changing the modality.
+		const auto index = ConversationPanel->model()->index_for_id(aIdentity);
+		if (index.isValid()) {
+			ConversationPanel->choose(index);
+			synchronize_selected_conversation(index);
+		} else {
+			static_cast<void>(select_thread_line(aIdentity));
+		}
 	}
 
 	void workbench_window::write_inline_reply(const std::string& aThread, const QString& aText)

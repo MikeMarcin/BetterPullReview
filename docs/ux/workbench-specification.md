@@ -1044,7 +1044,13 @@ comment states in the open thread why it is placed at its line (RFC-BPR-0022).
 Threads above or below what the drawer shows are chips on its top and bottom
 edges, nearest first, three at most and then a count; choosing one opens it at
 its line. The code's scroll bar carries a tick per thread, amber for the open
-one, blue for one with new posts, outlined for my draft. The code's gutter
+one, blue for one with new posts, outlined for my draft. A plain press on the
+bar pages or drags as any scroll bar does; Shift-click on a tick scrolls the
+code to its line and opens its thread, as pressing its note does
+([[BPR-1290]], the owner's v001 note). Where ticks crowd, the tick whose centre
+is nearest the pointer, within a few pixels of its edge, is the one chosen; its
+tooltip says "Shift-click to go to line N: …", and with Shift held over it the
+pointer is a hand and the tick is ringed. The code's gutter
 carries a marker per thread, the root post's label mark or a plain square, a
 blue dot when new, faded when resolved; pressing it opens or closes the
 thread. Keys in the drawer: Up and Down move between threads, Return opens,

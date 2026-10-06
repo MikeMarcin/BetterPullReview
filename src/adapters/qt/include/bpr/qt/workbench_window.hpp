@@ -1226,9 +1226,19 @@ namespace bpr::qt {
 		/// \brief [[BPR-0818]]. Applies the anchor on its own event-loop turn.
 		void schedule_conversation_anchor();
 		void apply_thread_marks();
-		/// \brief [[BPR-1290]]. A thread's gutter marker or scroll-bar tick
-		/// opens or closes the thread it marks.
+		/// \brief [[BPR-1290]]. The thread a gutter marker or scroll-bar tick
+		/// marks, with the drawer shown on its Comments tab; none when no
+		/// placed thread is on that zero-based line.
+		[[nodiscard]] auto thread_on_line(core::diff_side aSide, std::uint32_t aLine) -> std::optional<std::string>;
+		/// \brief [[BPR-1290]]. A thread's gutter marker opens or closes the
+		/// thread it marks.
 		void toggle_thread_at(core::diff_side aSide, std::uint32_t aLine);
+		/// \brief [[BPR-1290]]. Shift-click on a thread's scroll-bar tick:
+		/// opens that thread, as pressing its note does, and brings its line
+		/// into view even when it was already current.
+		void go_to_thread_at(core::diff_side aSide, std::uint32_t aLine);
+		/// \brief [[BPR-1290]]. Show line: reveals a thread's exact line.
+		void reveal_thread_line(const std::string& aIdentity);
 		/// \brief [[BPR-1290]]. The reply written in place is the draft
 		/// editor's text: each edit goes through the editor's one edit path.
 		void write_inline_reply(const std::string& aThread, const QString& aText);

@@ -7,11 +7,13 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QEnterEvent>
 #include <QEvent>
 #include <QFont>
 #include <QFontMetricsF>
 #include <QHBoxLayout>
 #include <QHelpEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -61,18 +63,56 @@ namespace bpr::qt {
 		constexpr auto MarkerColumnWidth = 22;
 		constexpr auto MarkerBox         = 18;
 
+		/// \brief [[BPR-1290]]. How far past a tick's top or bottom edge the
+		/// pointer still finds it, in pixels: close ticks are hard to hit.
+		constexpr auto TickReach = 4;
+
 		/// \brief [[BPR-1290]]. The code's scroll bar with a tick per thread:
 		/// amber for the open one, blue for a new one, outlined for my draft.
-		/// A press on a tick opens its thread; anywhere else scrolls.
+		///
+		/// \details A plain press is the scroll bar's own: it pages or drags.
+		/// Shift and a press on a tick go to its thread (the owner, rejecting
+		/// the built drawer v001: "I want to shift click on a comment marker on
+		/// the scrollbar to scroll to it."). Where ticks crowd, the pointer
+		/// finds the tick whose centre is nearest, within `TickReach` of its
+		/// edge. A tick names where Shift-click goes in its tooltip, and while
+		/// Shift is held over one the pointer is a hand and that tick is ringed,
+		/// so the tick a press would choose is the one shown.
 		class thread_tick_scroll_bar final : public QScrollBar
 		{
 		public:
 			thread_tick_scroll_bar(const Qt::Orientation aOrientation, QWidget* const aParent)
 				: QScrollBar{ aOrientation, aParent }
 			{
+				setMouseTracking(true);
+				anchor_tooltips(*this, [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
+					const auto index = tick_at(aPosition);
+					if (!index.has_value()) {
+						return std::nullopt;
+					}
+					const auto& tick = Ticks[*index];
+					auto        text = tick.Description;
+					if (!text.isEmpty()) {
+						text[0] = text[0].toLower();
+					}
+					return anchored_tooltip_target{
+						.Anchor = tick_rect(tick),
+						.Text   = text.isEmpty() ? QStringLiteral("Shift-click to go to this thread") : QStringLiteral("Shift-click to go to %1").arg(text),
+					};
+				});
 			}
 
-			std::function<void(core::diff_side, std::uint32_t)> Dispatch;
+			~thread_tick_scroll_bar() override
+			{
+				watch_shift(false);
+			}
+
+			thread_tick_scroll_bar(const thread_tick_scroll_bar&)                    = delete;
+			auto operator=(const thread_tick_scroll_bar&) -> thread_tick_scroll_bar& = delete;
+			thread_tick_scroll_bar(thread_tick_scroll_bar&&)                         = delete;
+			auto operator=(thread_tick_scroll_bar&&) -> thread_tick_scroll_bar&      = delete;
+
+			std::function<void(core::diff_side, std::uint32_t)> GoTo;
 			QColor                                              Thread{ 0xD2, 0x99, 0x22 };
 			QColor                                              New{ 0x09, 0x69, 0xDA };
 
@@ -82,6 +122,7 @@ namespace bpr::qt {
 					return;
 				}
 				Ticks = std::move(aTicks);
+				follow_pointer();
 				update();
 			}
 
@@ -103,6 +144,37 @@ namespace bpr::qt {
 				return QRect{ groove.left() + 2, centre - height / 2, std::max(2, groove.width() - 4), height };
 			}
 
+			/// \brief The tick a point finds: of those within `TickReach` of
+			/// the point, the one whose centre is nearest; the first on a tie.
+			[[nodiscard]] auto tick_at(const QPoint aPosition) const -> std::optional<std::size_t>
+			{
+				if (aPosition.x() < 0 || aPosition.x() >= width()) {
+					return std::nullopt;
+				}
+				auto found   = std::optional<std::size_t>{ };
+				auto nearest = std::numeric_limits<int>::max();
+				for (std::size_t index = 0U; index < Ticks.size(); ++index) {
+					const auto rect = tick_rect(Ticks[index]);
+					if (aPosition.y() < rect.top() - TickReach || aPosition.y() > rect.bottom() + TickReach) {
+						continue;
+					}
+					if (const auto distance = std::abs(aPosition.y() - rect.center().y()); distance < nearest) {
+						nearest = distance;
+						found   = index;
+					}
+				}
+				return found;
+			}
+
+			/// \brief The tick Shift and a press would go to now, if any.
+			[[nodiscard]] auto targeted() const -> std::optional<diff_thread_tick>
+			{
+				const auto at = std::ranges::find_if(Ticks, [this](const diff_thread_tick& aTick) {
+					return Target.has_value() && aTick.Side == Target->first && aTick.Line == Target->second;
+				});
+				return at == Ticks.end() ? std::nullopt : std::optional{ *at };
+			}
+
 		protected:
 			void paintEvent(QPaintEvent* const aEvent) override
 			{
@@ -120,32 +192,118 @@ namespace bpr::qt {
 						painter.setPen(QPen{ faint, 1.0 });
 						painter.setBrush(Qt::NoBrush);
 						painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 2.0, 2.0);
-						continue;
+					} else {
+						painter.setPen(Qt::NoPen);
+						painter.setBrush(tick.Open ? Thread : tick.Unread ? New
+																		  : faint);
+						painter.drawRoundedRect(rect, 2.0, 2.0);
 					}
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(tick.Open ? Thread : tick.Unread ? New
-																	  : faint);
-					painter.drawRoundedRect(rect, 2.0, 2.0);
+				}
+				// The tick Shift-click would go to, ringed in the window's ink.
+				if (const auto target = targeted(); target.has_value()) {
+					painter.setOpacity(1.0);
+					painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::WindowText), 1.5 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(QRectF{ tick_rect(*target) }.adjusted(-1.5, -1.5, 1.5, 1.5), 3.0, 3.0);
 				}
 			}
 
 			void mousePressEvent(QMouseEvent* const aEvent) override
 			{
-				if (aEvent->button() == Qt::LeftButton && Dispatch) {
-					for (const auto& tick : Ticks) {
-						if (tick_rect(tick).adjusted(0, -3, 0, 3).contains(aEvent->position().toPoint())) {
-							const auto pressed = tick;
-							Dispatch(pressed.Side, pressed.Line);
-							aEvent->accept();
-							return;
-						}
+				if (aEvent->button() == Qt::LeftButton && aEvent->modifiers().testFlag(Qt::ShiftModifier) && GoTo) {
+					if (const auto index = tick_at(aEvent->position().toPoint()); index.has_value()) {
+						// The dispatch places the ticks again; it is handed a copy.
+						const auto side = Ticks[*index].Side;
+						const auto line = Ticks[*index].Line;
+						aEvent->accept();
+						GoTo(side, line);
+						return;
 					}
 				}
 				QScrollBar::mousePressEvent(aEvent);
 			}
 
+			void mouseMoveEvent(QMouseEvent* const aEvent) override
+			{
+				Pointer   = aEvent->position().toPoint();
+				ShiftHeld = aEvent->modifiers().testFlag(Qt::ShiftModifier);
+				watch_shift(true);
+				follow_pointer();
+				QScrollBar::mouseMoveEvent(aEvent);
+			}
+
+			void enterEvent(QEnterEvent* const aEvent) override
+			{
+				Pointer   = aEvent->position().toPoint();
+				ShiftHeld = aEvent->modifiers().testFlag(Qt::ShiftModifier);
+				watch_shift(true);
+				follow_pointer();
+				QScrollBar::enterEvent(aEvent);
+			}
+
+			void leaveEvent(QEvent* const aEvent) override
+			{
+				Pointer.reset();
+				watch_shift(false);
+				follow_pointer();
+				QScrollBar::leaveEvent(aEvent);
+			}
+
+			/// Shift pressed or let go while the pointer rests on the bar.
+			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::KeyRelease) {
+					if (static_cast<QKeyEvent*>(aEvent)->key() == Qt::Key_Shift) {
+						ShiftHeld = aEvent->type() == QEvent::KeyPress;
+						follow_pointer();
+					}
+				}
+				return QScrollBar::eventFilter(aWatched, aEvent);
+			}
+
 		private:
-			std::vector<diff_thread_tick> Ticks;
+			std::vector<diff_thread_tick>                            Ticks;
+			std::optional<QPoint>                                    Pointer;
+			std::optional<std::pair<core::diff_side, std::uint32_t>> Target;
+			bool                                                     ShiftHeld = false;
+			bool                                                     Watching  = false;
+
+			/// The key events go to the focus, not to the bar: while the
+			/// pointer is over it, the application's are watched for Shift.
+			void watch_shift(const bool aWatch)
+			{
+				auto* const application = QCoreApplication::instance();
+				if (aWatch == Watching || application == nullptr) {
+					return;
+				}
+				Watching = aWatch;
+				if (aWatch) {
+					application->installEventFilter(this);
+				} else {
+					application->removeEventFilter(this);
+				}
+			}
+
+			/// Rings the tick Shift-click would choose and shows the hand.
+			void follow_pointer()
+			{
+				auto target = std::optional<std::pair<core::diff_side, std::uint32_t>>{ };
+				if (ShiftHeld && Pointer.has_value()) {
+					if (const auto index = tick_at(*Pointer); index.has_value()) {
+						target = std::pair{ Ticks[*index].Side, Ticks[*index].Line };
+					}
+				}
+				if (target == Target) {
+					return;
+				}
+				Target = std::move(target);
+				if (Target.has_value()) {
+					setCursor(Qt::PointingHandCursor);
+				} else {
+					unsetCursor();
+				}
+				update();
+			}
 		};
 
 		struct unified_source_row
@@ -1269,7 +1427,7 @@ namespace bpr::qt {
 		SharedScroll->setObjectName(QStringLiteral("diffSharedScrollBar"));
 		SharedScroll->setAccessibleName(QStringLiteral("Shared comparison position"));
 		SharedScroll->setAccessibleDescription(QStringLiteral(
-			"Moves both source panes through semantic comparison space"));
+			"Moves both source panes through semantic comparison space; Shift-click a thread's tick to go to that thread"));
 		SharedScroll->setFocusPolicy(Qt::StrongFocus);
 		topLayout->addWidget(Comparison, 1);
 		topLayout->addWidget(SharedScroll);
@@ -1770,11 +1928,16 @@ namespace bpr::qt {
 		for (auto* const source : { Left, Right, Unified }) {
 			pane(source)->set_mark_dispatch(forward);
 		}
+	}
+
+	void diff_workbench::set_thread_tick_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch)
+	{
+		ThreadTickDispatch = std::move(aDispatch);
 		for (auto* const bar : { static_cast<QScrollBar*>(SharedScroll), Unified->verticalScrollBar() }) {
 			if (auto* const ticked = dynamic_cast<thread_tick_scroll_bar*>(bar); ticked != nullptr) {
-				ticked->Dispatch = [this](const core::diff_side aSide, const std::uint32_t aLine) {
-					if (LineMarkDispatch) {
-						LineMarkDispatch(aSide, aLine);
+				ticked->GoTo = [this](const core::diff_side aSide, const std::uint32_t aLine) {
+					if (ThreadTickDispatch) {
+						ThreadTickDispatch(aSide, aLine);
 					}
 				};
 			}
@@ -1789,7 +1952,7 @@ namespace bpr::qt {
 			const auto rows = static_cast<qreal>(std::max(1, Unified->document()->blockCount() - 1));
 			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 				for (const auto& mark : line_marks(side)) {
-					auto tick = diff_thread_tick{ .Side = side, .Line = mark.Line, .Unread = mark.Kind == diff_line_mark_kind::new_thread, .Resolved = mark.Resolved, .Draft = mark.Draft, .Open = mark.Open };
+					auto tick = diff_thread_tick{ .Side = side, .Line = mark.Line, .Unread = mark.Kind == diff_line_mark_kind::new_thread, .Resolved = mark.Resolved, .Draft = mark.Draft, .Open = mark.Open, .Description = mark.Description };
 					if (const auto fraction = Controller->scrollbar_fraction(side, mark.Line); fraction.has_value()) {
 						tick.Fraction = *fraction;
 						shared.push_back(tick);
@@ -1832,6 +1995,23 @@ namespace bpr::qt {
 	{
 		auto* const bar = dynamic_cast<thread_tick_scroll_bar*>(OnePaneEnabled ? Unified->verticalScrollBar() : SharedScroll);
 		return bar != nullptr ? bar->ticks() : std::vector<diff_thread_tick>{ };
+	}
+
+	auto diff_workbench::thread_tick_rect(const core::diff_side aSide, const std::uint32_t aLine) const -> QRect
+	{
+		auto* const bar = dynamic_cast<thread_tick_scroll_bar*>(OnePaneEnabled ? Unified->verticalScrollBar() : SharedScroll);
+		if (bar == nullptr) {
+			return { };
+		}
+		const auto& ticks = bar->ticks();
+		const auto  at    = std::ranges::find_if(ticks, [aSide, aLine](const diff_thread_tick& aTick) { return aTick.Side == aSide && aTick.Line == aLine; });
+		return at == ticks.end() ? QRect{ } : bar->tick_rect(*at);
+	}
+
+	auto diff_workbench::targeted_thread_tick() const -> std::optional<diff_thread_tick>
+	{
+		auto* const bar = dynamic_cast<thread_tick_scroll_bar*>(OnePaneEnabled ? Unified->verticalScrollBar() : SharedScroll);
+		return bar != nullptr ? bar->targeted() : std::nullopt;
 	}
 
 	auto diff_workbench::line_mark_rect(const core::diff_side aSide, const std::uint32_t aLine) const -> QRect

@@ -183,6 +183,8 @@ namespace bpr::qt {
 		bool  Resolved = false;
 		bool  Draft    = false;
 		bool  Open     = false;
+		/// The thread's marker description, "Line 656: 4 posts, 2 new".
+		QString Description;
 
 		auto operator==(const diff_thread_tick&) const -> bool = default;
 	};
@@ -291,14 +293,24 @@ namespace bpr::qt {
 		void               set_mark_theme(const feedback_mark_theme& aTheme);
 		/// \brief The amber of a thread and the blue of a new one.
 		void set_mark_colours(const QColor& aThread, const QColor& aNew);
-		/// \brief Told when a thread's marker or tick is pressed, with its side
+		/// \brief Told when a thread's gutter marker is pressed, with its side
 		/// and zero-based source line.
 		void set_line_mark_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch);
+		/// \brief [[BPR-1290]]. Told when a thread's scroll-bar tick is
+		/// Shift-clicked, with its side and zero-based source line. A plain
+		/// press on the bar stays the bar's own.
+		void set_thread_tick_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch);
 		/// \brief [[BPR-1290]]. Scrolls the code as a wheel over it would.
 		/// \returns Whether the code moved.
 		[[nodiscard]] auto scroll_by_wheel(const QWheelEvent& aEvent) -> bool;
 		/// \brief The scroll bar's ticks, as last placed.
 		[[nodiscard]] auto thread_ticks() const -> std::vector<diff_thread_tick>;
+		/// \brief Where one thread's tick is, in its scroll bar's coordinates;
+		/// empty when the bar has no tick for that line.
+		[[nodiscard]] auto thread_tick_rect(core::diff_side aSide, std::uint32_t aLine) const -> QRect;
+		/// \brief The tick Shift-click would go to while Shift is held over
+		/// the bar, as ringed.
+		[[nodiscard]] auto targeted_thread_tick() const -> std::optional<diff_thread_tick>;
 		/// \brief Where one pane's marker for a zero-based line is, in this
 		/// widget's coordinates; empty while not shown.
 		[[nodiscard]] auto line_mark_rect(core::diff_side aSide, std::uint32_t aLine) const -> QRect;
@@ -567,6 +579,7 @@ namespace bpr::qt {
 		/// [[BPR-1290]]. Thread markers in the gutter and ticks on the bar.
 		bool                                                ThreadMarkers = false;
 		std::function<void(core::diff_side, std::uint32_t)> LineMarkDispatch;
+		std::function<void(core::diff_side, std::uint32_t)> ThreadTickDispatch;
 		void                                                refresh_thread_ticks();
 	};
 } // namespace bpr::qt
