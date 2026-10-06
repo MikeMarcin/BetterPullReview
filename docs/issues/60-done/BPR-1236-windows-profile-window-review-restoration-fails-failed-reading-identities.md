@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1236"
 title: "Windows: application_profile_window_review_restoration_public_path fails at 'failed reading restoration preserves exact recorded identities and sibling'"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac", "linux"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json"}
+acceptance: [{"criterion":"BPR-1236:fixed","outcome":"pass","revision":"cf5e3d7c4","evidence":{"kind":"command","detail":"Cause: a window's reading Position was retained at once while the active tab's copy followed a scheduled observation that Home could pre-empt, so the durable tab lacked the selection. Fix: the selection and reading-gesture sinks call observe_tab_reading in the same turn (github_application.cpp). The course now requires each durable record's active tab to equal its accepted reading and fails without the fix. application_profile_window_review_restoration_public_path plus document-tab and round-trip rows: Windows 15/15 alone and -j4 (cf5e3d7c4); Linux 6/6, restoration 3/3 (5c7a20e29); macOS 6/6 at cf5e3d7c4 (coordinator run, 2026-10-06)."}}]
 ---
 
 # BPR-1236: Windows: application_profile_window_review_restoration_public_path fails at 'failed reading restoration preserves exact recorded identities and sibling'
