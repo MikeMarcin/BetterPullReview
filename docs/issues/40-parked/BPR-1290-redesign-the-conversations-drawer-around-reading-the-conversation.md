@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 parked_on: "human-review"
-metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
+metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
 ---
 
 # BPR-1290: Redesign the Conversations drawer around reading the conversation
@@ -141,7 +141,7 @@ Presentation in the Qt adapter (`github_conversation_panel`,
 replying, resolving, marking read and publishing keep their existing core and
 host paths. The frames are design evidence, not the product.
 
-## Design round v1, 2026-10-06
+## Design round v1, 2026-10-06 (superseded, unanswered)
 
 [Round v1](../../design/BPR-1290-conversations-drawer-v1.html) with
 [frames](../../design/BPR-1290-conversations-drawer-frames-v1.html), drawn
@@ -165,18 +165,77 @@ The draft's body in the frames is illustrative (the screenshot does not show
 it). Choosing A or B means amending RFC-BPR-0028 AC-05's "aligned to their
 lines".
 
+## Round v1 session, unanswered
+
+Round v1's session (`77c7a0ba376d5e801cc4975de994ba70`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v001`,
+candidate `BPR-1290-drawer-direction-v001`) was not answered: the owner
+stopped it. It records no decision. Its candidate was released
+(`resume-development`, sequence 4) and its frozen root
+`/Users/jaeger/bpr1290-drawer-review-v001.Hi6CDf` deleted. A, B and C are not
+chosen or rejected; round v2 replaces the question.
+
+## Owner notes after round v1, 2026-10-06
+
+In BPR-1083's v002 review (session `c2a2442c5ce16c3fbb77598fc87360bb`,
+sequence 25, the verdict on `BPR-1083-thread-marks-v002`), before answering
+v1, verbatim as recorded:
+
+> I also think I've identified why comments drawer feels so clunky, that one
+> tab is trying to serve 2 masters. I think we need to split the inline
+> comments and the comment tree into separate ttabs in the drawer.
+
+The screenshot attached to that verdict, [`BPR-1290-owner-ref-split-tabs.webp`](../../design/owner-refs/BPR-1290-owner-ref-split-tabs.webp),
+shows Read on `conventional-comments-v1` (`renderer.cpp:12`, fixture data
+only): the Comments tab with two thread cards, the map ("2 comments · depth
+1"), the path line and the post list. The verdict's first line ("Marks don't
+show on inline comments") is BPR-1083's to act on.
+
+On round v1, relayed by the coordinator, verbatim:
+
+> It's hard to tell the value of the inline comments without a long file, you
+> have no long files in your mockups
+
+## Design round v2, 2026-10-06
+
+[Round v2](../../design/BPR-1290-conversations-drawer-v2.html) with
+[frames](../../design/BPR-1290-conversations-drawer-frames-v2.html), drawn with
+`frontend-design` on the product palette, light and dark, at 375 px and
+280 px. The Comments tab becomes two tabs; Notes and Tour are unchanged.
+
+- **Inline.** This file's threads as cards beside their lines: the first post
+  in full with its mark and rail (BPR-1083 v4), the people, the reply count,
+  what is new. A card opens in place to the whole conversation and a Reply
+  field. Threads above or below the visible code are chips on the tab's top
+  and bottom edges (nearest first); clicking one scrolls the code there. With
+  no thread on the visible lines, the nearest one each way peeks in as a
+  closed card. The code's scroll bar keeps a tick per thread. Drawn against a
+  long file at three scroll positions.
+- **Conversation.** One conversation in full under a header that picks the
+  thread (the whole pull request, by file), steps to the previous or next,
+  shows the line, resolves and marks read; Reply at the foot. It follows the
+  thread chosen in Inline.
+
+Two choices are drawn both ways:
+
+- **Tree.** A. Indented: a reply sits under the post it answers, a run where
+  each answers the one above stays level, and a line with a fold knob joins a
+  post to its several replies. B. ↩ chip: posts in order one step in; a reply
+  that answers anything but the post above starts with "↩ name: first words".
+  GitHub review threads, where every reply answers the first comment, look the
+  same both ways.
+- **Picking a card in Inline.** A. It opens in place (↗ opens it in
+  Conversation). B. It opens the Conversation tab (⌄ opens it in place).
+
+Content: the long file is this repository's
+`src/adapters/qt/src/conversation_cards_view.cpp` (1518 lines, code verbatim
+at `7513758b0`); no fixture has threads on a long file, so its seven threads
+are made up, in the voices of the `conventional-comments-v1` people. The short
+threads and the pull-request list are that fixture's; the deep thread is
+`branching-thread-v1`, whose unread state is illustrative. Thread map, path
+line, post list and body pane are gone; defect actions, Support details and
+View/Copy source move under More. Discuss is redrawn after the choice.
+
 ## Pending owner decision
 
-One attended session asks one question, on frames frozen from `feba12345`
-in `/Users/jaeger/bpr1290-drawer-review-v001.Hi6CDf` (the two HTML files and
-the screenshot; `open /Users/jaeger/bpr1290-drawer-review-v001.Hi6CDf/source/docs/design/BPR-1290-conversations-drawer-v1.html`).
-Session `77c7a0ba376d5e801cc4975de994ba70`, state
-`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v001`,
-cursor 3:
-
-1. `BPR-1290-drawer-direction-v001`: choose A. Switcher, B. Stack or
-   C. Line rail, or reject all three, with a note.
-
-The open BPR-1083 v002 session is separate and untouched. Next: record the
-verdict here, revise the frames if the note asks, then plan the Qt build of
-the chosen direction.
+Prepared next (session details follow when it opens).

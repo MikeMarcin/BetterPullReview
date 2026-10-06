@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 Conversations drawer frames v2</title>
+<!--
+  [[BPR-1290]] Conversations drawer, round v2. The owner, in BPR-1083's v002 review (session
+  c2a2442c, sequence 25): "that one tab is trying to serve 2 masters. I think we need to split the
+  inline comments and the comment tree into separate ttabs in the drawer." And on v1: "It's hard to
+  tell the value of the inline comments without a long file, you have no long files in your mockups".
+
+  v2 splits the old Comments tab in two:
+    Inline        this file's threads as readable cards at their lines; a card expands in place
+    Conversation  one conversation read in full, with its reply structure
+  Notes and Tour are unchanged. Two real choices are drawn both ways:
+    tree   indented at forks (ind)  |  flat with a "↩ name" chip (chip)
+    pick   a card expands in place  |  picking a card opens it in Conversation
+
+  Content.
+  - Long file: src/adapters/qt/src/conversation_cards_view.cpp at 7513758b0, 1518 lines, this
+    repository's own source (no fixture has threads on a long file). Its code lines are verbatim.
+    Its seven threads are illustrative, written in the voices of the conventional-comments-v1
+    fixture's people (tbutler, jiayin, fixture-author = you).
+  - Short threads and the whole pull request: tests/fixtures/github/contracts/v1/conventional-comments-v1.
+  - Deep thread: tests/fixtures/github/conversations/branching-thread-v1 (24 posts; the root has
+    three branches; C forks at its third reply). Its unread state is illustrative.
+  - Marks: BPR-1080's selected glyphs; posts per BPR-1083 v4 (18 px avatar, 16 px mark 3 px under
+    it, rail 3 px left of it; blocking = filled mark, 4 px rail).
+
+  Query parameters:  f = frame id (none draws the index)   theme = light (default) | dark
+  Static design frames, not the product. Nothing here is implemented.
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#EEF1F5; --rule:#D9DEE5; --rule-2:#C3CAD3;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#6B7480; --signal:#2F6FD6; --signal-soft:#DCE8F9; --on-signal:#FFFFFF;
+  --open:#D29922; --ok:#1A7F37; --new:#2F6FD6; --hover:#F3F5F8;
+  --code:#FFFFFF; --gutter:#F0F2F5; --lnum:#5B6570; --add:#E6FFEC; --add-g:#CCFFD8; --cur:#FFF8C5;
+  --field:#FFFFFF; --shadow:0 10px 28px rgba(31,35,40,.18); --tip:#1F2328; --tip-ink:#F6F7F9;
+  --kw:#B51D27; --fn:#6639BA; --ty:#6E3EC8; --str:#0A3069; --cm:#6E7781;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"JetBrains Mono NL", "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+body.dark {
+  --bg:#1C2026; --side:#20252C; --panel:#242930; --panel-2:#2E343D; --rule:#343A44; --rule-2:#454D59;
+  --ink:#E6EDF3; --ink-2:#A0A8B2; --ink-3:#8B949E; --signal:#7FB0E8; --signal-soft:#26374F; --on-signal:#0D1117;
+  --open:#E0B15A; --ok:#3FB950; --new:#7FB0E8; --hover:#2A3038;
+  --code:#0D1117; --gutter:#141921; --lnum:#8B949E; --add:#12301D; --add-g:#1A4A2A; --cur:#2F2A12;
+  --field:#1A1F26; --shadow:0 12px 32px rgba(0,0,0,.55); --tip:#E6EDF3; --tip-ink:#1C2026;
+  --kw:#6DA9DB; --fn:#FF8000; --ty:#FFD700; --str:#A5D6FF; --cm:#8B949E;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--ink); font:12px/1.4 var(--ui); -webkit-font-smoothing:antialiased; }
+body.index { overflow:auto; padding:20px; }
+svg.i { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; display:block; }
+svg.i.s { width:13px; height:13px; }
+.sp { flex:1; }
+
+/* window chrome */
+.win { width:100vw; height:100vh; display:flex; flex-direction:column; }
+.title { flex:0 0 32px; display:flex; align-items:center; gap:8px; padding:0 10px 0 0; background:var(--panel); border-bottom:1px solid var(--rule-2); }
+.lights { display:flex; gap:8px; padding-left:12px; width:84px; flex:none; }
+.lights i { width:12px; height:12px; border-radius:50%; background:#FF5F57; display:block; }
+.lights i:nth-child(2) { background:#FEBC2E; } .lights i:nth-child(3) { background:#28C840; }
+.seg { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; }
+.seg > span { display:inline-flex; align-items:center; gap:5px; padding:0 10px; height:21px; color:var(--ink-2); border-right:1px solid var(--rule-2); white-space:nowrap; }
+.seg > span:last-child { border-right:0; }
+.seg > span.on { background:var(--signal-soft); color:var(--ink); font-weight:600; }
+.seg kbd { font:11px var(--ui); color:var(--ink-3); }
+.tb { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:22px; min-width:24px; padding:0 4px; border-radius:5px; color:var(--ink-2); white-space:nowrap; }
+.tb.on { background:var(--signal-soft); color:var(--ink); }
+.bar { flex:0 0 30px; display:flex; align-items:center; gap:10px; padding:0 10px; background:var(--panel); border-bottom:1px solid var(--rule); white-space:nowrap; color:var(--ink-2); }
+.bar b { color:var(--ink); font-weight:600; }
+.status { flex:0 0 24px; display:flex; align-items:center; padding:0 12px; background:var(--panel); border-top:1px solid var(--rule); color:var(--ink-2); font-size:11.5px; }
+.main { flex:1; display:flex; min-height:0; }
+
+/* code: one long file */
+.cmp { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--code); }
+.fh { flex:0 0 24px; display:flex; align-items:center; justify-content:center; gap:8px; background:var(--side); border-bottom:1px solid var(--rule); color:var(--ink); font-size:12px; }
+.fh span { color:var(--ink-3); }
+.panes { flex:1; display:flex; min-height:0; position:relative; }
+.pane { flex:1; font:12px/19px var(--mono); overflow:hidden; min-width:0; }
+.ln { display:flex; white-space:pre; position:relative; height:19px; }
+.ln .g { flex:0 0 52px; text-align:right; padding-right:9px; color:var(--lnum); background:var(--gutter); }
+.ln .t { padding-left:12px; flex:1; }
+.ln.add .t { background:var(--add); } .ln.add .g { background:var(--add-g); }
+.ln.cur .t { background:var(--cur); box-shadow:inset 0 0 0 1px var(--signal); }
+.ln .gm { position:absolute; left:52px; top:2px; bottom:2px; width:4px; border-radius:1px; }
+.ln .gm.dr { background:transparent !important; border:1.5px dashed var(--ink-3); width:5px; }
+.k { color:var(--kw); } .fn { color:var(--fn); } .ty { color:var(--ty); } .str { color:var(--str); } .cm { color:var(--cm); font-style:italic; }
+/* the code's scroll bar keeps a tick per thread */
+.ruler { flex:0 0 14px; position:relative; background:var(--side); border-left:1px solid var(--rule); }
+.ruler .thumb { position:absolute; left:2px; right:2px; border-radius:3px; background:color-mix(in srgb, var(--ink) 16%, transparent); }
+.ruler .rt { position:absolute; left:1px; right:1px; height:3px; border-radius:1px; }
+.ruler .rt.dr { background:transparent !important; border:1px dashed var(--ink-3); height:4px; }
+
+/* drawer */
+.drawer { flex:none; display:flex; flex-direction:column; background:var(--panel); border-left:1px solid var(--rule-2); min-height:0; position:relative; }
+.solo { position:relative; overflow:hidden; }
+.solo .drawer { width:100%; height:100%; border-left:0; }
+.tabs { flex:0 0 30px; display:flex; align-items:stretch; padding:0 4px; border-bottom:1px solid var(--rule); }
+.tab { display:flex; align-items:center; gap:5px; padding:0 8px; color:var(--ink-2); white-space:nowrap; }
+.tab.on { color:var(--ink); font-weight:600; box-shadow:inset 0 -2px 0 var(--signal); }
+.pillc { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 5px; border-radius:8px; background:var(--new); color:var(--on-signal); font-size:10.5px; font-weight:700; }
+.dbody { flex:1; display:flex; flex-direction:column; min-height:0; position:relative; }
+.nav { flex:0 0 34px; display:flex; align-items:center; gap:3px; padding:0 6px; border-bottom:1px solid var(--rule); }
+.ic { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:5px; color:var(--ink-2); flex:none; position:relative; }
+.ic.on { background:var(--signal-soft); color:var(--ink); }
+.ic.hot { box-shadow:0 0 0 2px var(--signal); }
+.vsep { width:1px; height:16px; background:var(--rule); margin:0 2px; flex:none; }
+.scopes { display:inline-flex; border:1px solid var(--rule-2); border-radius:6px; overflow:hidden; flex:none; }
+.scopes .ic { border-radius:0; width:26px; height:22px; }
+
+/* posts, BPR-1083 v4 */
+.post { position:relative; display:grid; grid-template-columns:18px 1fr; column-gap:9px; padding:8px 12px 8px var(--pl, 16px); }
+.post .rail { position:absolute; left:calc(var(--pl, 16px) - 5px); top:8px; bottom:8px; width:2px; border-radius:1px; background:var(--t, var(--rule-2)); }
+.post.blk .rail { left:calc(var(--pl, 16px) - 7px); width:4px; }
+.post.plain .rail { background:var(--rule-2); }
+.gut { display:flex; flex-direction:column; align-items:center; gap:3px; }
+.av { width:18px; height:18px; border-radius:50%; background:var(--panel-2); border:1px solid var(--rule-2); color:var(--ink-2); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; text-transform:uppercase; flex:none; }
+.av.me { background:var(--signal); border-color:var(--signal); color:var(--on-signal); }
+.lm { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:4px; border:1.5px solid var(--t); color:var(--ink); background:color-mix(in srgb, var(--t) 22%, var(--panel)); flex:none; }
+body.dark .lm { background:color-mix(in srgb, var(--t) 30%, var(--panel)); }
+.lm.blk { background:var(--t); color:var(--on-t); }
+.lm svg { display:block; width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+.lm.sm { width:14px; height:14px; border-radius:3.5px; } .lm.sm svg { width:10px; height:10px; }
+.pb { min-width:0; }
+.nm { display:flex; align-items:center; gap:6px; min-height:18px; white-space:nowrap; }
+.nm b { font-weight:600; }
+.nm .dot { width:7px; height:7px; border-radius:50%; background:var(--new); }
+.post.read .nm b { font-weight:500; color:var(--ink-2); }
+.tx { margin:2px 0 0; font-size:13px; line-height:1.5; color:var(--ink); overflow-wrap:anywhere; }
+.post.read .tx { color:color-mix(in srgb, var(--ink) 82%, var(--panel)); }
+.tx code { font:12px var(--mono); background:var(--panel-2); padding:0 3px; border-radius:3px; }
+.post.sel { background:color-mix(in srgb, var(--signal-soft) 70%, transparent); }
+.newline { display:flex; align-items:center; gap:8px; margin:2px 12px 0 16px; color:var(--new); font-size:11px; font-weight:600; }
+.newline::after { content:""; flex:1; height:1px; background:var(--new); opacity:.55; }
+.re { display:inline-flex; align-items:center; gap:4px; max-width:100%; margin-top:2px; padding:1px 7px 1px 4px; border-radius:5px; background:var(--panel-2); color:var(--ink-2); font-size:11.5px; white-space:nowrap; overflow:hidden; border:1px solid transparent; }
+.re.hot { border-color:var(--signal); color:var(--ink); }
+.re b { color:var(--ink); font-weight:600; }
+.re .q { overflow:hidden; text-overflow:ellipsis; }
+.fold { display:flex; align-items:center; gap:7px; margin:0 12px 2px var(--pl, 28px); padding:5px 8px; border-radius:6px; border:1px dashed var(--rule-2); color:var(--ink-2); font-size:11.5px; }
+.stack { display:inline-flex; }
+.stack .av { width:16px; height:16px; font-size:9px; margin-left:-4px; box-shadow:0 0 0 1.5px var(--panel); }
+.stack .av:first-child { margin-left:0; }
+/* the tree's guides: a line from a post that has several replies down to each of them */
+.guide { position:absolute; width:2px; border-radius:1px; background:color-mix(in srgb, var(--ink-3) 70%, transparent); pointer-events:none; }
+.elbow { position:absolute; height:2px; border-radius:1px; background:color-mix(in srgb, var(--ink-3) 70%, transparent); pointer-events:none; }
+.knob { position:absolute; width:14px; height:14px; border-radius:50%; background:var(--panel); border:1.5px solid color-mix(in srgb, var(--ink-3) 70%, transparent); color:var(--ink-2); display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%); }
+.knob svg { width:9px; height:9px; stroke-width:2.6; }
+.knob.hot { border-color:var(--signal); color:var(--ink); }
+
+.btn { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 10px; border-radius:6px; border:1px solid var(--rule-2); color:var(--ink); background:var(--panel); white-space:nowrap; font-weight:500; }
+.btn.pri { background:var(--signal); border-color:var(--signal); color:var(--on-signal); }
+.priv { font-size:11px; color:var(--ink-3); display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+
+/* reply in place */
+.rbox { flex:none; border-top:1px solid var(--rule); padding:8px 10px 10px; display:flex; flex-direction:column; gap:7px; background:var(--panel); }
+.rf { display:flex; align-items:center; gap:8px; }
+.field { flex:1; min-height:30px; border:1px solid var(--rule-2); border-radius:7px; background:var(--field); padding:6px 9px; color:var(--ink-3); font-size:13px; line-height:1.45; display:flex; align-items:center; gap:6px; }
+.field.on { border-color:var(--signal); box-shadow:0 0 0 2px color-mix(in srgb, var(--signal) 30%, transparent); color:var(--ink); align-items:flex-start; min-height:78px; flex-direction:column; }
+.field .caret { display:inline-block; width:1px; height:15px; background:var(--ink); vertical-align:-3px; }
+.lab { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 6px 0 3px; border-radius:5px; background:color-mix(in srgb, var(--t) 18%, var(--panel)); color:var(--ink); font-size:12px; }
+.ract { display:flex; align-items:center; gap:4px; }
+
+/* Inline: cards at their lines */
+.lane { flex:1; position:relative; overflow:hidden; background:var(--side); }
+.card { position:absolute; left:8px; right:8px; background:var(--panel); border:1px solid var(--rule-2); border-radius:8px; box-shadow:0 1px 2px rgba(31,35,40,.06); }
+.card.cur { border-color:var(--signal); box-shadow:0 0 0 1px var(--signal); }
+.card.draft { border-style:dashed; background:color-mix(in srgb, var(--panel) 70%, var(--side)); }
+.card.hov { border-color:var(--signal); }
+.notch { position:absolute; left:-9px; width:9px; height:2px; background:var(--rule-2); }
+.card.cur .notch { background:var(--signal); }
+.chead { display:flex; align-items:center; gap:3px; height:28px; padding:0 4px 0 8px; border-bottom:1px solid var(--rule); color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.card:not(.open) .chead { border-bottom:0; height:26px; }
+.where { display:inline-flex; align-items:center; gap:4px; color:var(--ink-2); font-weight:600; }
+.where::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--open); }
+.card.draft .where::before { background:transparent; border:1.5px dashed var(--ink-3); width:7px; height:7px; }
+.cnt { display:inline-flex; align-items:center; gap:3px; color:var(--ink-3); font-size:11.5px; margin:0 3px; }
+.n { min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--new); color:var(--on-signal); font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+.card .post { padding-top:4px; }
+.card:not(.open) .post .tx { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.card .rbox { border-radius:0 0 8px 8px; padding:6px 8px 8px; }
+.card .rbox .field { min-height:28px; padding:4px 8px; }
+.dacts { display:flex; gap:2px; align-items:center; padding:0 6px 6px 43px; }
+/* threads outside the visible lines */
+.edge { position:absolute; left:0; right:0; height:30px; display:flex; align-items:center; gap:4px; padding:0 8px; background:var(--panel); z-index:5; white-space:nowrap; overflow:hidden; }
+.edge.top { top:0; border-bottom:1px solid var(--rule); box-shadow:0 3px 6px -4px rgba(0,0,0,.25); }
+.edge.bot { bottom:0; border-top:1px solid var(--rule); box-shadow:0 -3px 6px -4px rgba(0,0,0,.25); }
+.edge .dir { color:var(--ink-3); display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; margin-right:2px; }
+.ech { display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 6px 0 4px; border-radius:6px; border:1px solid var(--rule); color:var(--ink); font-variant-numeric:tabular-nums; flex:none; position:relative; }
+.ech.dr { border-style:dashed; color:var(--ink-2); }
+.ech.hov { border-color:var(--signal); background:var(--signal-soft); }
+.ech .u { width:6px; height:6px; border-radius:50%; background:var(--new); }
+.ech .dsh { width:12px; height:12px; border:1.5px dashed var(--ink-3); border-radius:3px; }
+.card.peek { opacity:.92; }
+.card.peek .chead .where::after { content:""; }
+.peekdir { display:inline-flex; color:var(--ink-3); margin-right:2px; }
+.empty { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); text-align:center; color:var(--ink-3); font-size:12px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+
+/* Conversation */
+.conv { flex:1; display:flex; flex-direction:column; min-height:0; }
+.thead { flex:none; display:flex; align-items:center; gap:2px; padding:0 4px 0 6px; height:34px; border-bottom:1px solid var(--rule); }
+.pick { display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 6px 0 5px; border-radius:6px; border:1px solid var(--rule-2); color:var(--ink); font-weight:600; white-space:nowrap; min-width:0; overflow:hidden; }
+.pick.on { border-color:var(--signal); background:var(--signal-soft); }
+.pick .p { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.pick .p span { color:var(--ink-3); font-weight:400; }
+.feed { flex:1; overflow:hidden; padding:4px 0 10px; position:relative; }
+.feedin { position:relative; }
+.feedin.tail { padding-bottom:70px; }
+
+/* popover and tooltip */
+.pop { position:absolute; z-index:15; background:var(--panel); border:1px solid var(--rule-2); border-radius:8px; box-shadow:var(--shadow); padding:4px 0; overflow:hidden; }
+.row { display:flex; align-items:center; gap:7px; height:30px; padding:0 10px 0 10px; color:var(--ink); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.row.on { background:var(--signal-soft); }
+.row .ln2 { font-weight:600; min-width:22px; }
+.row .first { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; color:var(--ink-2); }
+.row .dsh { width:14px; height:14px; border:1.5px dashed var(--ink-3); border-radius:3.5px; flex:none; }
+.fgroup { height:24px; display:flex; align-items:center; padding:4px 10px 0; color:var(--ink-3); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tip { position:absolute; z-index:20; background:var(--tip); color:var(--tip-ink); border-radius:5px; padding:4px 8px; font-size:11.5px; line-height:1.35; box-shadow:var(--shadow); white-space:nowrap; }
+.tip kbd { font:11px var(--ui); opacity:.7; margin-left:6px; }
+.cursor { position:absolute; z-index:21; width:14px; height:20px; pointer-events:none; }
+
+.idx a { display:block; margin:2px 0; color:var(--signal); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+"use strict";
+const Q = new URLSearchParams(location.search);
+const DARK = Q.get("theme") === "dark";
+if (DARK) document.body.classList.add("dark");
+const ME = "fixture-author";
+
+/* BPR-1080's selected glyphs and tints (light, dark, on-tint for blocking). */
+const L = {
+  issue:{lt:"#D1242F",dk:"#FF7B72",ol:"#FFFFFF",od:"#111418",g:'<path d="M12 4 L12 14"/><circle cx="12" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  question:{lt:"#8250DF",dk:"#C29BFF",g:'<path d="M8.4 8.6 C8.4 5.9 10 4.2 12.2 4.2 C14.4 4.2 15.9 5.7 15.9 7.7 C15.9 10.6 12.2 11.1 12.2 14.3"/><circle cx="12.2" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  praise:{lt:"#BF3989",dk:"#F778BA",g:'<path d="M12 19.5 C6.2 15.6 3.5 12.6 3.5 9.2 C3.5 6.6 5.4 4.8 7.7 4.8 C9.6 4.8 11 5.9 12 7.6 C13 5.9 14.4 4.8 16.3 4.8 C18.6 4.8 20.5 6.6 20.5 9.2 C20.5 12.6 17.8 15.6 12 19.5 Z"/>'},
+  suggestion:{lt:"#1F6FD0",dk:"#6CB0FF",g:'<path d="M9.2 15.6 C7 14.3 5.5 12.2 5.5 9.6 C5.5 6 8.4 3.5 12 3.5 C15.6 3.5 18.5 6 18.5 9.6 C18.5 12.2 17 14.3 14.8 15.6 L14.8 17 L9.2 17 Z"/><path d="M9.8 20.3 L14.2 20.3"/>'},
+  todo:{lt:"#C24E00",dk:"#FFA05A",g:'<path d="M15.5 12.5 L15.5 18.5 C15.5 19.05 15.05 19.5 14.5 19.5 L5.5 19.5 C4.95 19.5 4.5 19.05 4.5 18.5 L4.5 9.5 C4.5 8.95 4.95 8.5 5.5 8.5 L11 8.5"/><path d="M7.8 13 L10.6 15.8 L19.8 5"/>'},
+  nitpick:{lt:"#6E7781",dk:"#9BA4AE",g:'<path d="M15.5 9.5 C15.5 12.81 12.81 15.5 9.5 15.5 C6.19 15.5 3.5 12.81 3.5 9.5 C3.5 6.19 6.19 3.5 9.5 3.5 C12.81 3.5 15.5 6.19 15.5 9.5 Z"/><path d="M12.43 15.62 L15.62 12.43 L21.63 18.44 C23.75 20.57 20.57 23.75 18.44 21.63 Z" fill="currentColor" stroke="none"/>'},
+  thought:{lt:"#4F5BD5",dk:"#9AA5FF",g:'<path d="M7.2 14 C5 14 3.6 12.6 3.6 11 C3.6 9.4 5 8.2 6.8 8.4 C7.2 5.8 9.3 4 12 4 C14.6 4 16.6 5.7 17 8 C19 7.9 20.5 9.3 20.5 11 C20.5 12.7 19.2 14 17.3 14 Z"/><circle cx="7.6" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="4.4" cy="20.9" r="1.3" fill="currentColor" stroke="none"/>'},
+  chore:{lt:"#8A5A2B",dk:"#D2A26E",g:'<path d="M22 3 L15.75 9.25" stroke-width="2.2"/><path d="M14 7 L18 11 L16.5 13.5 L11.5 8.5 Z" fill="currentColor" stroke="none"/><path d="M16 15 L10 9 L1.5 12.5 L4 15 L8 11 L9 12 L5 16 L9 20 L13 16 L14 17 L10 21 L12.5 23.5 Z" fill="currentColor" stroke="none"/>'},
+  typo:{lt:"#6F7A00",dk:"#C3CE4A",g:'<path d="M0.5 14 L4 2 L6 2 L9.5 14 L7.1 14 L6.52 12 L3.48 12 L2.9 14 Z M4.07 10 L5.93 10 L5 6.8 Z" fill="currentColor" stroke="none"/><path d="M10 2 L12 2 L12 6 L13.5 6 C14.88 6 16 7.12 16 8.5 L16 11.5 C16 12.88 14.88 14 13.5 14 L10 14 Z M12 8 L12 12 L13.5 12 C13.78 12 14 11.78 14 11.5 L14 8.5 C14 8.22 13.78 8 13.5 8 Z" fill="currentColor" stroke="none"/><path d="M23.5 6 L21 6 C19.34 6 18 7.34 18 9 L18 11 C18 12.66 19.34 14 21 14 L23.5 14 L23.5 12 L21 12 C20.45 12 20 11.55 20 11 L20 9 C20 8.45 20.45 8 21 8 L23.5 8 Z" fill="currentColor" stroke="none"/><path d="M1.5 20.8 C2.59 20.8 3.41 18.2 4.5 18.2 C5.59 18.2 6.41 20.8 7.5 20.8 C8.59 20.8 9.41 18.2 10.5 18.2 C11.59 18.2 12.41 20.8 13.5 20.8 C14.59 20.8 15.41 18.2 16.5 18.2 C17.59 18.2 18.41 20.8 19.5 20.8 C20.59 20.8 21.41 18.2 22.5 18.2" stroke-width="2"/>'},
+  quibble:{lt:"#9A5B7A",dk:"#D99BBB",g:'<path d="M3 17.2 C3.5 18.8 4.4 19.8 5.7 19.8 C8.3 19.8 9.4 13.8 12 13.8 C14.6 13.8 15.7 19.8 18.3 19.8 C19.6 19.8 20.5 18.8 21 17.2"/><path d="M12 7.8 L12 4.4 M7.72 9.04 L5.71 6.81 M16.28 9.04 L18.29 6.81"/>'},
+};
+const tint = (l) => (DARK ? L[l].dk : L[l].lt);
+const mark = (l, blk, cls = "") => {
+  const name = l + (blk ? " (blocking)" : "");
+  const on = DARK ? (L[l].od || "#111418") : (L[l].ol || "#FFFFFF");
+  return `<span class="lm ${blk ? "blk" : ""} ${cls}" style="--t:${tint(l)};--on-t:${on}" role="img" aria-label="${name}" title="${name}"><svg viewBox="0 0 24 24" aria-hidden="true">${L[l].g}</svg></span>`;
+};
+
+const I = {
+  file:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
+  pr:'<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M6 8.2v7.6"/><path d="M18 15.8V10a3 3 0 0 0-3-3h-4"/><path d="M12.5 4.5 10 7l2.5 2.5"/>',
+  filter:'<path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/>',
+  resolve:'<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 5-5.4"/>',
+  read:'<path d="M2.5 12.5l3.6 3.6L13 9"/><path d="M10.6 16.1l.8.8L20.5 8"/>',
+  code:'<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
+  more:'<circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+  up:'<path d="M6 14.5l6-6 6 6"/>', down:'<path d="M6 9.5l6 6 6-6"/>',
+  chev:'<path d="M9.5 6l6 6-6 6"/>', chevd:'<path d="M6 9.5l6 6 6-6"/>', chevu:'<path d="M6 14.5l6-6 6 6"/>',
+  re:'<path d="M9.5 7 5 11.5 9.5 16"/><path d="M5 11.5h9a5 5 0 0 1 5 5V18"/>',
+  pencil:'<path d="M4.5 19.5l1-4.2L15.8 5a2 2 0 0 1 2.9 0l.3.3a2 2 0 0 1 0 2.9L8.7 18.5z"/>',
+  send:'<path d="M4 11.8 20 4.5l-6.2 15.5-2.7-6.5z"/><path d="M11.1 13.5 20 4.5"/>',
+  trash:'<path d="M5 7h14M10 7V4.5h4V7M7 7l1 12.5h8L17 7"/>',
+  tag:'<path d="M3.5 12V4.5H11l9.5 9.5-7.5 7.5z"/><circle cx="7.6" cy="8.6" r="1.3" fill="currentColor" stroke="none"/>',
+  next:'<circle cx="12" cy="7" r="3" fill="currentColor" stroke="none"/><path d="M12 12.5v8M8.5 17l3.5 3.5 3.5-3.5"/>',
+  lock:'<rect x="5.5" y="11" width="13" height="9" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/>',
+  home:'<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/>',
+  refresh:'<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+  drawer:'<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/>',
+  user:'<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/>',
+  sun:'<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  /* tabs */
+  inline:'<path d="M4 5h9M4 9h6M4 13h9M4 17h6"/><path d="M15 9.5h5.5v6h-2.5l-2 2v-2h-1z"/>',
+  conv:'<path d="M3.5 5h11v7.5h-6l-3 2.5v-2.5h-2z"/><path d="M17 9h3.5v7.5h-1.5v2.5l-3-2.5h-5v-2"/>',
+  notes:'<path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/>',
+  tour:'<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/>',
+  reply:'<path d="M4.5 5.5h15v10h-8l-4 3.5v-3.5h-3z"/>',
+  open:'<path d="M14 4.5h5.5V10"/><path d="M19.5 4.5 11 13"/><path d="M17 13.5v5.5H5V7h5.5"/>',
+  plus:'<path d="M12 6v12M6 12h12"/>', minus:'<path d="M6 12h12"/>',
+};
+const ic = (n, s = "") => `<svg class="i ${s}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const btn = (n, tip, cls = "") => `<span class="ic ${cls}" role="button" aria-label="${tip}" title="${tip}">${ic(n)}</span>`;
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const body = (s) => esc(s).replace(/(\w+\(\))/g, "<code>$1</code>");
+const avatar = (a) => `<span class="av ${a === ME ? "me" : ""}" title="${a}${a === ME ? " (you)" : ""}">${a[0]}</span>`;
+const people = (ps) => [...new Set(ps.map((p) => p.a))];
+const unread = (t) => t.posts.filter((p) => p.u).length;
+const base = (p) => p.split("/").pop();
+const rootGlyph = (r) => (r.l ? mark(r.l, r.blk, "sm") : `<span class="av" style="width:14px;height:14px;font-size:8px">${r.a[0]}</span>`);
+
+/* ================= content ================= */
+
+/* The long file: verbatim lines of this repository's conversation_cards_view.cpp at 7513758b0. */
+const SRC = {"632": "", "633": "    auto conversation_cards_view::unread_post_count() const noexcept -> std::size_t", "634": "    {", "635": "        auto count = std::size_t{ 0U };", "636": "        for (const auto& card : Cards) {", "637": "            count += card.UnreadCount;", "638": "        }", "639": "        return count;", "640": "    }", "641": "", "642": "    void conversation_cards_view::set_current_thread(const std::string& aId)", "643": "    {", "644": "        // A reply's identity names its card: the tree may be on a reply.", "645": "        Current = aId;", "646": "        for (const auto& card : Cards) {", "647": "            if (card.Draft) {", "648": "                continue;", "649": "            }", "650": "            if (card.Id == aId) {", "651": "                break;", "652": "            }", "653": "            if (std::ranges::any_of(card.Posts, [&aId](const card_post& aPost) { return aPost.Id == aId; })) {", "654": "                Current = card.Id;", "655": "                break;", "656": "            }", "657": "        }", "658": "        viewport()->update();", "659": "    }", "660": "", "661": "    void conversation_cards_view::set_colours(const QColor& aAccent, const QColor& aMarker)", "662": "    {", "663": "        Accent = aAccent;", "664": "        Marker = aMarker;", "665": "        viewport()->update();", "666": "    }", "667": "", "668": "    auto conversation_cards_view::cards() const noexcept -> const std::vector<thread_card>&", "669": "    {", "670": "        return Cards;", "1095": "                changed      = true;", "1096": "                card.Excerpt = std::move(excerpt);", "1097": "                measure_cached(card, card.Rect.width());", "1098": "                for (auto& post : card.Posts) {", "1099": "                    post.Rect.translate(card.Rect.topLeft());", "1100": "                }", "1101": "                for (auto& [action, rect] : card.Actions) {", "1102": "                    rect.translate(card.Rect.topLeft());", "1103": "                }", "1104": "            }", "1105": "        }", "1106": "        place_cards(changed);", "1107": "    }", "1108": "", "1109": "    void conversation_cards_view::place_cards(const bool aForce)", "1110": "    {", "1111": "        const auto scroll  = verticalScrollBar()->value();", "1112": "        auto       changed = aForce;", "1113": "        for (auto& card : Cards) {", "1114": "            const auto wasPlaced = card.Placed;", "1115": "            const auto targetY   = card.TargetY;", "1116": "            card.Placed          = false;", "1117": "            // The feed is a list in file order, never placed at lines.", "1118": "            if (!Feed && Scope == cards_scope::this_file && Locator && card.Side.has_value()", "1119": "                && card.Line.has_value() && *card.Line > 0U && !card.Outdated) {", "1120": "                if (const auto y = Locator(*card.Side, *card.Line); y.has_value()) {", "1121": "                    card.Placed  = true;", "1122": "                    card.TargetY = *y + scroll;", "1123": "                }", "1124": "            }", "1125": "            changed = changed || wasPlaced != card.Placed || (card.Placed && targetY != card.TargetY);", "1126": "        }", "1127": "        if (!changed) {", "1128": "            return;", "1129": "        }", "1130": "        // Placed cards in line order, then the rest; whole PR in file order.", "1131": "        std::ranges::stable_sort(Cards, [this](const thread_card& aLeft, const thread_card& aRight) {", "1132": "            if (Feed || Scope == cards_scope::whole_pull_request) {", "1133": "                return std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }", "760": "            const auto bodyHeight   = post.Body.isEmpty()", "761": "                ? 0", "762": "                : metrics.boundingRect(QRect{ 0, 0, bodyWidth, 100'000 }, Qt::TextWordWrap, post.Body).height();", "763": "            const auto height       = std::max(post.Label.has_value() ? marked_post_size : avatar_size, authorHeight + bodyHeight + 2);", "764": "            post.Rect               = QRect{ card_padding, y, aWidth - 2 * card_padding, height };", "765": "            y += height + post_gap;", "766": "        }", "767": "        aCard.Actions.clear();", "768": "        auto actionX = card_padding + avatar_column;", "769": "        auto actions = aCard.Draft", "770": "            ? std::vector{ card_action::publish_draft, card_action::edit_draft, card_action::delete_draft }", "771": "            : std::vector{ card_action::reply };", "772": "        if (!aCard.Draft && Compact && !has_code_anchor(aCard)) {", "773": "            actions.clear();", "774": "        }", "775": "        if (!aCard.Draft && aCard.UnreadCount > 0U) {", "776": "            actions.push_back(card_action::mark_read);", "777": "        }", "778": "        // [[BPR-0657]]. Resolve, or Unresolve on a resolved thread, once the", "779": "        // provider and the server both resolve threads.", "780": "        if (!aCard.Draft && ResolutionOffered && (!Compact || aCard.Kind == QStringLiteral(\"Inline thread\"))) {", "781": "            actions.push_back(aCard.Resolved ? card_action::unresolve : card_action::resolve);", "782": "        }", "783": "        if (!aCard.Draft && Feed && (!Compact || has_code_anchor(aCard))) {", "784": "            actions.push_back(card_action::open_in_code);", "785": "        }", "786": "        const auto actionMetrics = QFontMetrics{ small_font(font()) };", "787": "        const auto actionRight   = aWidth - card_padding;", "788": "        for (const auto action : actions) {", "789": "            const auto width = actionMetrics.horizontalAdvance(action_text(action)) + 4;", "790": "            // A second action that does not fit beside the first starts a", "791": "            // new row inside the card rather than leaving it.", "792": "            if (actionX + width > actionRight && actionX > card_padding + avatar_column) {", "793": "                actionX = card_padding + avatar_column;", "794": "                y += action_height + 2;", "795": "            }", "796": "            aCard.Actions.emplace_back(action, QRect{ actionX, y, width, action_height });", "797": "            actionX += width + 12;", "798": "        }"};
+const LONG = {path:"src/adapters/qt/src/conversation_cards_view.cpp", lines:1518};
+/* Its threads are illustrative, in the fixture people's voices. */
+const LT = {
+  l38:{line:38, posts:[
+    {a:"jiayin", l:"nitpick", b:"card_gap and card_margin are both 8; one constant would do."},
+    {a:ME, b:"They drift apart at Discuss widths, so I kept both."}]},
+  l416:{line:416, posts:[
+    {a:"tbutler", l:"question", b:"Who still calls set_feed() once Discuss has its own list?", u:1}]},
+  l642:{line:642, posts:[
+    {a:"tbutler", l:"issue", blk:1, b:"set_current_thread() keeps a reply's id when no card holds it, so Current can name nothing."},
+    {a:ME, l:"question", b:"Should it clear Current instead, or keep the last card?"},
+    {a:"jiayin", l:"praise", b:"Good catch, this explains the lost highlight after a refresh.", u:1},
+    {a:"tbutler", b:"Clear it. I'll push the fix with a test.", u:1}]},
+  l907:{line:907, posts:[
+    {a:"jiayin", l:"suggestion", b:"relayout() is 170 lines; measuring and placing could be two functions."},
+    {a:"tbutler", b:"Agreed, after this lands.", u:1}]},
+  l1109:{line:1109, posts:[
+    {a:"jiayin", l:"thought", b:"place_cards() runs on every scroll. A dirty flag might be cheaper."},
+    {a:"tbutler", b:"It already returns early when nothing moved.", u:1}]},
+  d1122:{line:1122, draft:1, posts:[
+    {a:ME, l:"todo", b:"Say in the header that TargetY includes the scroll offset."}]},
+  l1471:{line:1471, posts:[
+    {a:"tbutler", l:"chore", b:"keyPressEvent() could hand Shift+F10 to the thread menu too."},
+    {a:"jiayin", b:"+1, the context-menu key already does.", u:1}]},
+};
+const LKEYS = Object.keys(LT).sort((x, y) => LT[x].line - LT[y].line);
+const LUNREAD = LKEYS.filter((k) => unread(LT[k])).length;
+
+/* conventional-comments-v1: every thread of the fixture pull request. */
+const T = {
+  t6:{path:"src/engine/renderer.cpp", line:6, posts:[
+    {a:"tbutler", l:"issue", blk:1, b:"draw_scene() runs before the clear finishes on the second view."},
+    {a:ME, l:"question", b:"Does the second view share the depth buffer?"},
+    {a:"jiayin", l:"praise", b:"Good catch, this explains the flicker.", u:1},
+    {a:"tbutler", b:"Thanks, resolving after CI.", u:1}]},
+  t12:{path:"src/engine/renderer.cpp", line:12, posts:[
+    {a:"jiayin", l:"suggestion", b:"Clamp the width to at least one pixel."},
+    {a:ME, l:"todo", b:"I will add the clamp in the next push.", u:1}]},
+  r6:{path:"README.md", line:6, posts:[{a:"tbutler", l:"typo", b:"tests/ should be tests/engine/."}, {a:"jiayin", b:"polish: Add a sentence about the release flag.", u:1}]},
+  b5:{path:"src/engine/shaders/post/bloom.frag", line:5, posts:[{a:"jiayin", l:"quibble", b:"1.2 reads as a magic number."}, {a:"tbutler", b:"security: the shader trusts uScene.", u:1}]},
+  m6:{path:"src/main.cpp", line:6, posts:[{a:"tbutler", l:"nitpick", b:"1280 by 720 could be a named constant."}, {a:"jiayin", l:"thought", b:"A config file may want to own this later.", u:1}]},
+  w5:{path:"src/ui/widgets/button.cpp", line:5, posts:[{a:"jiayin", l:"chore", b:"Rename Handler to OnClick while you are here."}, {a:"tbutler", b:"note: The old name is still used by the plugin API.", u:1}]},
+};
+const PR = [["README.md", ["r6"]], ["src/engine/renderer.cpp", ["t6", "t12"]], ["src/engine/shaders/post/bloom.frag", ["b5"]], ["src/main.cpp", ["m6"]], ["src/ui/widgets/button.cpp", ["w5"]]];
+
+/* branching-thread-v1: posts with their parents, in the fixture's order. */
+const DEEP = (() => {
+  const P = [{id:"c01", p:null, a:"reviewer-one", b:"Should this traversal retain the selected node when the parent list is rebuilt?"}];
+  const A = "the rebuild keeps the identity because the map answers by identity, not by row.";
+  const B = "what about a parent that arrives after its child in the next page?";
+  const C = "the hostile fixtures cover that; this one is about depth and width together.";
+  const wa = ["author-two", "observer-three", "reviewer-four", "reviewer-one"];
+  for (let i = 1; i <= 8; i++) P.push({id:"a0" + i, p:i === 1 ? "c01" : "a0" + (i - 1), a:wa[(i - 1) % 4], b:`Branch A, reply ${i}: ${A}`});
+  const wb = ["observer-three", "reviewer-four", "reviewer-one", "author-two"];
+  for (let i = 1; i <= 7; i++) P.push({id:"b0" + i, p:i === 1 ? "c01" : "b0" + (i - 1), a:wb[(i - 1) % 4], b:`Branch B, reply ${i}: ${B}`, u:i >= 5 ? 1 : 0});
+  const wc = ["reviewer-four", "reviewer-one", "author-two", "observer-three"];
+  for (let i = 1; i <= 7; i++) P.push({id:"cc0" + i, p:i === 1 ? "c01" : "cc0" + (i - 1), a:wc[(i - 1) % 4], b:`Branch C, reply ${i}: ${C}`});
+  P.push({id:"aside", p:"cc03", a:"observer-three", b:"An aside off the third reply of branch C, so one branch itself forks."});
+  return {path:"src/core/thread_map.cpp", line:42, posts:P};
+})();
+/* A GitHub thread: every reply answers the first comment. */
+const asTree = (t) => t.posts.map((p, i) => ({...p, id:"p" + i, p:i ? "p0" : null}));
+
+/* ================= posts ================= */
+function post(p, o = {}) {
+  const cls = ["post", p.blk ? "blk" : "", p.l ? "" : "plain", p.u ? "" : "read", o.sel ? "sel" : ""].join(" ");
+  const re = o.re ? `<div class="re ${o.reHot ? "hot" : ""}" title="Answers ${o.re.a}. Click to go there.">${ic("re", "s")}<b>${o.re.a}</b><span class="q">${esc(o.re.b)}</span></div>` : "";
+  return `<div class="${cls}" data-id="${p.id || ""}" style="--pl:${o.pl || 16}px;${p.l ? "--t:" + tint(p.l) : ""}" role="article" aria-label="${p.a}${p.l ? ", " + p.l + (p.blk ? " (blocking)" : "") : ""}">
+    <i class="rail"></i><div class="gut">${avatar(p.a)}${p.l ? mark(p.l, p.blk) : ""}</div>
+    <div class="pb"><div class="nm"><b>${p.a}</b>${p.u ? '<i class="dot" title="New since you last read"></i>' : ""}</div>${re}<p class="tx">${body(p.b)}</p></div></div>`;
+}
+
+/* The conversation, in one of the two tree styles.
+   ind:  a reply is indented under the post it answers; a run where each post answers the one
+         above stays level; lines join a post with several replies to each of them.
+   chip: every reply one step in, in order; a reply that answers anything but the post right
+         above it carries "↩ name". Threads where every reply answers the first comment (all of
+         GitHub's) look the same both ways. */
+function tree(posts, o = {}) {
+  const by = Object.fromEntries(posts.map((p) => [p.id, p]));
+  const kids = (id) => posts.filter((p) => p.p === id);
+  const root = posts[0];
+  const branches = posts.some((p) => p.p && p.p !== root.id);
+  const STEP = o.step || 22;
+  const vd = {}; const fork = {};
+  for (const p of posts) {
+    if (!p.p) { vd[p.id] = 0; continue; }
+    const sib = kids(p.p).length;
+    if (o.style === "chip" || !branches) { vd[p.id] = 1; continue; }
+    fork[p.id] = p.p === root.id || sib > 1;
+    vd[p.id] = fork[p.id] ? vd[p.p] + 1 : vd[p.p];
+  }
+  let h = "", seen = false, prev = null;
+  const folded = o.fold || {};
+  for (const p of posts) {
+    if (folded.hide && folded.hide.includes(p.id)) continue;
+    if (p.u && !seen) { h += `<div class="newline" style="margin-left:${16 + vd[p.id] * STEP}px">New</div>`; seen = true; }
+    const re = o.style === "chip" && branches && p.p && prev && p.p !== prev.id ? by[p.p] : null;
+    h += post(p, {pl:16 + vd[p.id] * STEP, re, reHot:o.hotChip === p.id, sel:o.sel === p.id});
+    prev = p;
+    if (folded.after === p.id) {
+      h += `<div class="fold" style="--pl:${16 + vd[p.id] * STEP}px" role="button" title="${folded.n} more replies on this run. Click to show them.">${ic("chev", "s")}<span class="stack">${folded.who.map(avatar).join("")}</span>${folded.n} more</div>`;
+      prev = by[folded.last];
+    }
+  }
+  return {html:h, meta:{style:o.style, branches, fork, vd, posts, STEP, root:root.id, knobHot:o.knobHot, foldedHide:(folded.hide || [])}};
+}
+/* Draw the guides after layout: from a post with several replies down to each of them. */
+function drawGuides(feedin, meta) {
+  if (meta.style === "chip" || !meta.branches) return;
+  const box = feedin.getBoundingClientRect();
+  const el = (id) => feedin.querySelector(`.post[data-id="${id}"]`);
+  const av = (id) => { const e = el(id); if (!e) return null; const r = e.querySelector(".av").getBoundingClientRect(); return {x:r.left - box.left, y:r.top - box.top, w:r.width, h:r.height}; };
+  for (const parent of meta.posts) {
+    const ch = meta.posts.filter((p) => p.p === parent.id && meta.fork[p.id] && !meta.foldedHide.includes(p.id));
+    if (!ch.length) continue;
+    const pa = av(parent.id); if (!pa) continue;
+    const x = pa.x + pa.w / 2 - 1;
+    const last = av(ch[ch.length - 1].id); if (!last) continue;
+    feedin.insertAdjacentHTML("beforeend", `<i class="guide" style="left:${x}px;top:${pa.y + pa.h + 3}px;height:${last.y + last.h / 2 - (pa.y + pa.h + 3)}px"></i>`);
+    for (const c of ch) {
+      const ca = av(c.id); if (!ca) continue;
+      const y = ca.y + ca.h / 2 - 1;
+      feedin.insertAdjacentHTML("beforeend", `<i class="elbow" style="left:${x}px;top:${y}px;width:${ca.x - x - 8}px"></i>`);
+      const n = 1 + countBelow(meta.posts, c.id);
+      feedin.insertAdjacentHTML("beforeend", `<span class="knob ${meta.knobHot === c.id ? "hot" : ""}" style="left:${x + 1}px;top:${y + 1}px" role="button" title="Fold this branch (${n} posts)">${ic("minus")}</span>`);
+    }
+  }
+}
+const countBelow = (ps, id) => ps.filter((p) => p.p === id).reduce((n, c) => n + 1 + countBelow(ps, c.id), 0);
+
+/* ================= drawer pieces ================= */
+function tabs(on, narrow) {
+  const t = [["inline", "Inline", `${LUNREAD}`, `${LUNREAD} threads on this file have new comments`], ["conv", "Conversation", "", "One conversation, read in full"], ["notes", "Notes", "", "Private notes and AI tools"], ["tour", "Tour", "", "Guided tour of the changes"]];
+  return `<div class="tabs" role="tablist">${t.map(([k, label, n, tip]) => {
+    const showLabel = !narrow || k === on;
+    return `<span class="tab ${k === on ? "on" : ""}" role="tab" title="${label}: ${tip}">${ic(k)}${showLabel ? label : ""}${n && (k !== "inline" || true) ? `<span class="pillc">${n}</span>` : ""}</span>`;
+  }).join("")}</div>`;
+}
+const scopes = (pr) => `<span class="scopes">${btn("file", "This file", pr ? "" : "on")}${btn("pr", "Whole pull request", pr ? "on" : "")}</span>`;
+const filterBtn = () => btn("filter", "Filter: new, unresolved, drafts, defects");
+const nextNew = () => btn("next", "Next new comment ⌥N");
+const navInline = () => `<div class="nav">${scopes(false)}<span class="vsep"></span>${btn("up", "Previous thread ⌥↑")}${btn("down", "Next thread ⌥↓")}<span class="sp"></span>${nextNew()}${filterBtn()}</div>`;
+
+function replyBox(state) {
+  if (state === "typing") {
+    return `<div class="rbox"><div class="field on"><div><span class="lab" style="--t:${tint("suggestion")}">${mark("suggestion", 0, "sm")}suggestion</span></div><div>Wait on the clear's fence before draw_scene()<span class="caret"></span></div></div>
+      <div class="ract">${btn("tag", "Label ⌘L")}<span class="priv" style="margin-left:4px">${ic("lock", "s")}Kept as your draft</span><span class="sp"></span>${btn("trash", "Discard")}<span class="btn pri" title="Publish reply ⌘↩">${ic("send", "s")}Publish</span></div></div>`;
+  }
+  return `<div class="rbox"><div class="rf">${avatar(ME)}<div class="field">Reply</div></div></div>`;
+}
+
+/* ---- Inline: one card ---- */
+function card(k, o = {}) {
+  const t = LT[k], u = unread(t), r = t.posts[0];
+  if (t.draft) {
+    return `<div class="card draft" data-k="${k}"><i class="notch"></i><div class="chead"><span class="where" title="Show line ${t.line}">${t.line}</span><span class="sp"></span><span class="priv">${ic("lock", "s")}Only you</span></div>
+      ${post({...r, u:1})}<div class="dacts"><span class="sp"></span>${btn("pencil", "Edit draft")}${btn("trash", "Delete draft")}<span class="btn pri" title="Publish to GitHub">${ic("send", "s")}Publish</span></div></div>`;
+  }
+  const open = o.open;
+  const n = t.posts.length - 1;
+  const meta = open
+    ? `${btn("resolve", "Resolve thread")}${btn("read", u ? `Mark ${u} new as read` : "Nothing new")}${btn("open", "Open in Conversation")}${btn("more", "More: copy link, view source, classify")}${btn("chevu", "Collapse")}`
+    : `${n ? `<span class="stack" title="${people(t.posts).join(", ")}">${people(t.posts).map(avatar).join("")}</span><span class="cnt" title="${n} ${n === 1 ? "reply" : "replies"}">${ic("reply", "s")}${n}</span>` : ""}${u ? `<span class="n" title="${u} new">${u}</span>` : ""}${btn("chevd", "Show the whole conversation here")}`;
+  let posts = "";
+  if (open) {
+    let seen = false;
+    t.posts.forEach((p, i) => {
+      if (p.u && !seen) { posts += `<div class="newline">New</div>`; seen = true; }
+      posts += post(p, {pl:i ? 38 : 16});
+    });
+    posts += replyBox(o.reply);
+  } else posts = post(r);
+  return `<div class="card ${open ? "open" : ""} ${o.cur ? "cur" : ""} ${o.hov ? "hov" : ""} ${o.peek ? "peek" : ""}" data-k="${k}" ${o.peek ? `style="${o.peek === "up" ? "top:36px" : "bottom:36px"}"` : ""}>${o.peek ? "" : '<i class="notch"></i>'}<div class="chead">${o.peek ? `<span class="peekdir" title="Nearest thread ${o.peek === "up" ? "above" : "below"}">${ic(o.peek, "s")}</span>` : ""}<span class="where" title="Show line ${t.line}">${t.line}</span><span class="sp"></span>${meta}</div>${posts}</div>`;
+}
+function echip(k, hov) {
+  const t = LT[k], u = unread(t), r = t.posts[0];
+  const tip = t.draft ? `Your draft at line ${t.line}` : `Line ${t.line}: ${r.a}, ${t.posts.length} post${t.posts.length > 1 ? "s" : ""}${u ? ", " + u + " new" : ""}`;
+  return `<span class="ech ${t.draft ? "dr" : ""} ${hov ? "hov" : ""}" data-k="${k}" role="button" title="${tip}. Click to scroll there.">${t.draft ? '<i class="dsh"></i>' : rootGlyph(r)}${t.line}${u ? '<i class="u"></i>' : ""}</span>`;
+}
+
+/* ================= the window around the drawer ================= */
+const ROW = 19, FH = 24, NAVH = 64;
+function hl(s) {
+  let out = "", m;
+  const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|\b(void|const|auto|bool|int|for|if|return|continue|break|true|false|static|constexpr|namespace|std|noexcept|this)\b|\b([A-Z][A-Za-z_]*[a-z][A-Za-z_]*)(?=\b)|\b([a-z_][a-z_0-9]*)(?=\()/g;
+  let last = 0;
+  while ((m = re.exec(s))) {
+    out += esc(s.slice(last, m.index));
+    const v = esc(m[0]);
+    out += m[1] ? `<span class="cm">${v}</span>` : m[2] ? `<span class="str">${v}</span>` : m[3] ? `<span class="k">${v}</span>` : m[4] ? `<span class="ty">${v}</span>` : `<span class="fn">${v}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(s.slice(last));
+}
+function codePane(top, rows, st) {
+  let h = "";
+  for (let n = top; n < top + rows; n++) {
+    const txt = SRC[n];
+    if (txt === undefined) break;
+    const k = LKEYS.find((x) => LT[x].line === n);
+    let gm = "";
+    if (k) { const t = LT[k]; gm = `<i class="gm ${t.draft ? "dr" : ""}" style="background:${unread(t) ? "var(--new)" : "var(--open)"}" title="${t.draft ? "Your draft" : "Thread"}"></i>`; }
+    const add = st.added && n >= st.added[0] && n <= st.added[1];
+    h += `<div class="ln ${add ? "add" : ""} ${st.curLine === n ? "cur" : ""}"><span class="g">${n}</span>${gm}<span class="t">${hl(txt)}</span></div>`;
+  }
+  return `<div class="pane">${h}</div>`;
+}
+function ruler(top, rows) {
+  // thumb and ticks as a share of the file; the frame's main area is 734 px, the ruler 710
+  const H = 710;
+  let h = `<i class="thumb" style="top:${(top - 1) / LONG.lines * H}px;height:${Math.max(10, rows / LONG.lines * H)}px"></i>`;
+  for (const k of LKEYS) {
+    const t = LT[k], r = t.posts[0];
+    h += `<i class="rt ${t.draft ? "dr" : ""}" style="top:${(t.line - 1) / LONG.lines * H}px;background:${r.l ? tint(r.l) : "var(--ink-3)"}" title="Line ${t.line}"></i>`;
+  }
+  return `<div class="ruler" title="Threads in this file">${h}</div>`;
+}
+
+function inlineDrawer(st, dw) {
+  const rows = st.rows;
+  const inView = LKEYS.filter((k) => LT[k].line >= st.top && LT[k].line < st.top + rows);
+  // nearest first in both edges
+  const above = LKEYS.filter((k) => LT[k].line < st.top).reverse();
+  const below = LKEYS.filter((k) => LT[k].line >= st.top + rows);
+  const n = (a) => a.length;
+  const fit = dw < 320 ? 3 : 5;
+  const chips = (a) => a.slice(0, fit).map((k) => echip(k, st.hovChip === k)).join("") + (a.length > fit ? `<span class="dir" title="${a.slice(fit).map((k) => LT[k].line).join(", ")}">+${a.length - fit}</span>` : "");
+  let lane = "";
+  // when nothing is on these lines the nearest each way is drawn as a card, not a chip
+  const peek = !inView.length;
+  if (n(above)) lane += `<div class="edge top"><span class="dir" title="${n(above)} threads above">${ic("up", "s")}${n(above)}</span>${chips(peek ? above.slice(1) : above)}</div>`;
+  for (const k of inView) lane += card(k, {open:st.open === k, cur:st.cur === k, reply:st.reply, hov:st.hovCard === k});
+  if (!inView.length) {
+    // Nothing on these lines: the nearest thread each way peeks in, closed.
+    if (n(above)) lane += card(above[0], {peek:"up"});
+    if (n(below)) lane += card(below[0], {peek:"down"});
+    lane += `<div class="empty"><span>No threads on lines ${st.top}–${st.top + rows - 1}</span></div>`;
+  }
+  if (n(below)) lane += `<div class="edge bot"><span class="dir" title="${n(below)} threads below">${ic("down", "s")}${n(below)}</span>${chips(peek ? below.slice(1) : below)}</div>`;
+  return `${tabs("inline", dw < 320)}<div class="dbody">${navInline()}<div class="lane" data-top="${st.top}" data-edges="${n(above) ? 1 : 0}${n(below) ? 1 : 0}">${lane}</div>${st.tip ? `<div class="tip" style="${st.tip.pos}">${st.tip.text}</div>` : ""}</div>`;
+}
+/* Place the cards at their lines once they can be measured: a card's top meets its line,
+   unless the card above or the top edge pushes it down. */
+function placeCards(lane) {
+  const top = +lane.dataset.top;
+  const edges = lane.dataset.edges;
+  let y = edges[0] === "1" ? 36 : 6;
+  for (const c of lane.querySelectorAll(".card:not(.peek)")) {
+    const line = LT[c.dataset.k].line;
+    const lineY = FH + (line - top) * ROW - NAVH;
+    const at = Math.max(lineY, y);
+    c.style.top = at + "px";
+    const notch = c.querySelector(".notch");
+    notch.style.top = Math.max(8, Math.min(lineY - at + 8, 20)) + "px";
+    if (at !== lineY) notch.style.display = "none";
+    y = at + c.offsetHeight + 8;
+  }
+}
+
+function convDrawer(st, dw) {
+  const narrow = dw < 320;
+  let posts, head, ttl;
+  if (st.deep) {
+    ttl = {glyph:avatar("reviewer-one"), name:"thread_map.cpp", line:42, u:3};
+    posts = tree(DEEP.posts, {style:st.style, step:narrow ? 18 : 22, fold:{after:"a01", hide:["a02", "a03", "a04", "a05", "a06", "a07", "a08"], n:7, last:"a08", who:["observer-three", "reviewer-four", "reviewer-one", "author-two"]}, hotChip:st.hotChip, sel:st.sel, knobHot:st.knobHot});
+  } else if (st.long) {
+    const t = LT[st.long];
+    ttl = {glyph:mark(t.posts[0].l, t.posts[0].blk, "sm"), name:base(LONG.path), line:t.line, u:unread(t)};
+    posts = tree(asTree(t), {style:st.style});
+  } else {
+    const t = T[st.key || "t6"];
+    ttl = {glyph:mark(t.posts[0].l, t.posts[0].blk, "sm"), name:base(t.path), line:t.line, u:unread(t)};
+    posts = tree(asTree(t), {style:st.style});
+  }
+  head = `<div class="thead"><span class="pick ${st.picker ? "on" : ""}" role="button" title="Choose a thread">${ttl.glyph}<span class="p">${ttl.name}<span>:${ttl.line}</span></span>${ic("chevd", "s")}</span>${btn("up", "Previous thread ⌥↑")}${btn("down", "Next thread ⌥↓")}<span class="sp"></span>${btn("code", `Show line ${ttl.line} in the code`)}${btn("resolve", "Resolve thread")}${narrow ? "" : btn("read", ttl.u ? `Mark ${ttl.u} new as read` : "Nothing new")}${btn("more", "More: mark read, copy link, view source, classify")}</div>`;
+  let pop = "";
+  if (st.picker) {
+    let rows = "";
+    for (const [f, ks] of PR) {
+      rows += `<div class="fgroup" title="${f}">${f}</div>`;
+      for (const k of ks) { const t = T[k], r = t.posts[0], u = unread(t); rows += `<div class="row ${k === (st.key || "t6") ? "on" : ""}">${rootGlyph(r)}<span class="ln2">${t.line}</span><span class="first">${esc(r.b)}</span>${u ? `<span class="n" title="${u} new">${u}</span>` : ""}</div>`; }
+    }
+    pop = `<div class="pop" style="left:6px;right:6px;top:${30 + 32}px">${rows}</div>`;
+  }
+  return `${tabs("conv", narrow)}<div class="dbody"><div class="conv">${head}<div class="feed"><div class="feedin ${st.tail ? "tail" : ""}" data-scroll="${st.scrollTo || ""}">${posts.html}</div></div>${replyBox(st.reply)}</div>${pop}${st.tip ? `<div class="tip" style="${st.tip.pos}">${st.tip.text}</div>` : ""}</div>`;
+}
+
+/* Put a tooltip by its target once laid out: below it, right-aligned to the drawer when needed. */
+function anchorTips(st) {
+  if (!st.tip || !st.tip.anchor) return;
+  const tip = document.querySelector(".tip"), a = document.querySelector(st.tip.anchor);
+  if (!tip || !a) return;
+  const host = tip.offsetParent.getBoundingClientRect(), r = a.getBoundingClientRect();
+  const w = tip.offsetWidth, hw = host.width;
+  let x = r.left - host.left + (st.tip.dx || 0);
+  x = Math.max(4, Math.min(x, hw - w - 4));
+  const y = st.tip.above ? r.top - host.top - tip.offsetHeight - 6 : r.bottom - host.top + 6;
+  tip.style.left = x + "px"; tip.style.top = y + "px"; tip.style.right = "auto"; tip.style.bottom = "auto";
+}
+function windowFrame(st, dw) {
+  const rows = 38;
+  const top = st.top;
+  const drawer = st.tab === "conv" ? convDrawer(st, dw) : inlineDrawer({...st, rows}, dw);
+  return `<div class="win"><div class="title"><span class="lights"><i></i><i></i><i></i></span><span class="tb">${ic("home")}</span><span class="tb">${ic("drawer")}</span><span class="sp"></span>
+      <span class="seg"><span>Overview <kbd>⌘1</kbd></span><span class="on">Read <kbd>⌘2</kbd></span><span>Review <kbd>⌘3</kbd></span><span>Discuss <kbd>⌘4</kbd></span></span>
+      <span class="tb">${ic("refresh")}</span><span class="tb on">${ic("drawer")}<span class="pillc">${LUNREAD}</span></span><span class="tb">${ic("user")}</span><span class="tb">${ic("sun")}</span></div>
+    <div class="bar"><span>Comparing whole PR</span><span><b>Changes ${st.change || "2 of 5"}</b></span><span class="sp"></span></div>
+    <div class="main"><div class="cmp"><div class="fh">${base(LONG.path)}<span>${LONG.lines} lines</span></div><div class="panes">${codePane(top, rows, st)}${ruler(top, rows)}</div></div>
+      <div class="drawer" style="width:${dw}px">${drawer}</div></div>
+    <div class="status">${st.status || "Actionable file 9 of 17."}</div></div>`;
+}
+
+/* ================= frames ================= */
+const FRAMES = {};
+const add = (id, cap, w, h, kind, st = {}, dw = 375) => (FRAMES[id] = {cap, w, h, kind, st, dw});
+// Inline, the long file at three scroll positions.
+add("in-p1", "Inline: line 642's thread open beside its code", 1440, 820, "window", {tab:"inline", top:632, open:"l642", cur:"l642", curLine:642, added:[643, 658], hovChip:"l1109",
+  tip:{anchor:".ech.hov", above:true, text:"Line 1109: jiayin, 2 posts, 1 new. Click to scroll there."}});
+add("in-p2", "Inline: after clicking 1109, the code has scrolled there", 1440, 820, "window", {tab:"inline", top:1095, open:"l1109", cur:"l1109", curLine:1109, added:[1117, 1124], change:"4 of 5"});
+add("in-p3", "Inline at 280 px: scrolled by hand between threads", 1440, 820, "window", {tab:"inline", top:760, change:"3 of 5"}, 280);
+// Conversation
+add("cv-long", "Conversation: line 642's thread, opened from Inline", 1440, 820, "window", {tab:"conv", top:632, long:"l642", curLine:642, added:[643, 658], style:"ind"});
+add("cv-reply", "Conversation: replying, renderer.cpp:6", 375, 760, "solo", {tab:"conv", key:"t6", reply:"typing", style:"ind"});
+add("cv-pick", "Conversation: the thread list, whole pull request", 375, 760, "solo", {tab:"conv", key:"t6", picker:true, style:"ind"});
+// The tree, both ways, on branching-thread-v1
+for (const [s, name] of [["ind", "indented"], ["chip", "↩ chip"]]) {
+  add(`tr-${s}-1`, `24 posts, ${name}: the top`, 375, 760, "solo", {tab:"conv", deep:true, style:s});
+  add(`tr-${s}-2`, `24 posts, ${name}: branch C and its aside`, 375, 760, "solo", {tab:"conv", deep:true, style:s, scrollTo:"cc02", tail:true,
+    ...(s === "chip" ? {hotChip:"aside", sel:"cc03", tip:{anchor:".re.hot", dx:40, text:"Answers author-two: Branch C, reply 3. Click to go there."}} : {knobHot:"aside", tip:{anchor:".knob.hot", dx:14, text:"Fold this branch (1 post)"}})});
+  add(`tr-${s}-280`, `24 posts, ${name}, 280 px`, 280, 760, "solo", {tab:"conv", deep:true, style:s}, 280);
+}
+// Picking a thread in Inline opens it in Conversation: the Inline side
+add("pk-inline", "Inline, cards closed: clicking one opens Conversation", 1440, 820, "window", {tab:"inline", top:632, cur:"l642", curLine:642, added:[643, 658], hovCard:"l642",
+  tip:{anchor:".card.hov", above:true, dx:60, text:"Open in Conversation. ⌄ shows it here."}});
+
+const f = Q.get("f");
+const root = document.getElementById("root");
+if (!f || !FRAMES[f]) {
+  document.body.classList.add("index");
+  root.innerHTML = `<div class="idx"><h3>BPR-1290 frames v2</h3>${Object.entries(FRAMES).map(([k, v]) => `<a href="?f=${k}">${k}: ${v.cap}</a><a href="?f=${k}&theme=dark">${k}, dark</a>`).join("")}</div>`;
+} else {
+  const F = FRAMES[f];
+  if (F.kind === "window") root.innerHTML = windowFrame(F.st, F.dw);
+  else { document.body.classList.add("solo"); root.innerHTML = `<div class="solo" style="width:${F.w}px;height:${F.h}px"><div class="drawer">${F.st.tab === "conv" ? convDrawer(F.st, F.w) : ""}</div></div>`; }
+  for (const lane of document.querySelectorAll(".lane")) placeCards(lane);
+  for (const fi of document.querySelectorAll(".feedin")) {
+    const meta = tree(F.st.deep ? DEEP.posts : (F.st.long ? asTree(LT[F.st.long]) : asTree(T[F.st.key || "t6"])), {style:F.st.style, step:F.dw < 320 || F.w < 320 ? 18 : 22, fold:F.st.deep ? {after:"a01", hide:["a02", "a03", "a04", "a05", "a06", "a07", "a08"], n:7, last:"a08", who:[]} : {}, knobHot:F.st.knobHot}).meta;
+    drawGuides(fi, meta);
+    if (fi.dataset.scroll) { const t = fi.querySelector(`.post[data-id="${fi.dataset.scroll}"]`); if (t) fi.parentElement.scrollTop = t.offsetTop - 6; }
+  }
+  anchorTips(F.st);
+}
+</script>
+</body>
+</html>

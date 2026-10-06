@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 Conversations drawer, round v2</title>
+<!--
+  [[BPR-1290]] Conversations drawer, round v2: the Comments tab split into Inline and Conversation,
+  drawn against a long file, with two choices drawn both ways. Frames live in
+  BPR-1290-conversations-drawer-frames-v2.html. Nothing on this page is implemented.
+  Round v1 (BPR-1290-conversations-drawer-v1.html) went unanswered and is superseded.
+-->
+<style>
+:root { --paper:#ECEEF1; --sheet:#F8F9FA; --ink:#15181C; --ink-2:#48505A; --ink-3:#5F6873; --rule:#D2D7DD; --rule-2:#B9C0C8;
+  --signal:#2F6FD6; --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing:border-box; }
+html { background:var(--paper); }
+body { margin:0; color:var(--ink); font:14px/1.5 var(--ui); }
+main { max-width:1400px; margin:0 auto; padding:36px 28px 90px; }
+h1 { font-size:26px; margin:0 0 6px; }
+h2 { font-size:19px; margin:44px 0 10px; padding-top:14px; border-top:1px solid var(--rule-2); }
+h3 { font-size:15px; margin:22px 0 6px; }
+p { margin:0 0 10px; max-width:84ch; }
+.by { color:var(--ink-3); font-size:13px; margin-bottom:16px; max-width:110ch; }
+a { color:var(--signal); }
+code { font:12.5px "SF Mono", Menlo, monospace; background:#E3E6EA; padding:1px 4px; border-radius:3px; }
+table { border-collapse:collapse; width:100%; background:var(--sheet); border:1px solid var(--rule); font-size:13.5px; margin:8px 0 14px; }
+th, td { text-align:left; vertical-align:top; padding:7px 10px; border-bottom:1px solid var(--rule); }
+thead th { border-bottom:1px solid var(--rule-2); }
+tbody th { width:200px; font-weight:600; }
+blockquote { margin:0 0 12px; padding:0 0 0 10px; border-left:3px solid var(--rule-2); color:var(--ink-2); max-width:90ch; }
+.frames { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 6px; align-items:flex-start; }
+.fr { background:var(--sheet); border:1px solid var(--rule); border-radius:6px; padding:6px; }
+.fr .cap { font-size:12px; color:var(--ink-2); margin:0 0 4px; max-width:900px; }
+.fr .vp { overflow:hidden; border:1px solid var(--rule-2); border-radius:4px; }
+.fr iframe { border:0; transform-origin:0 0; display:block; }
+.opt { display:inline-block; font-weight:700; margin-right:6px; }
+ul { margin:0 0 10px; padding-left:20px; max-width:90ch; }
+li { margin-bottom:4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Conversations drawer, round v2</h1>
+<div class="by">BPR-1290, 2026-10-06. Frames: <a href="BPR-1290-conversations-drawer-frames-v2.html">BPR-1290-conversations-drawer-frames-v2.html</a>, light and dark, at the drawer's real widths (375 px default, 280 px). The long file is this repository's <code>src/adapters/qt/src/conversation_cards_view.cpp</code> (1518 lines, code verbatim at <code>7513758b0</code>); its seven threads are made up, in the voices of the <code>conventional-comments-v1</code> fixture's people. The short threads and the whole pull request are that fixture's; the deep thread is <code>branching-thread-v1</code>. Round v1 went unanswered and is superseded.</div>
+
+<blockquote>I don't understand the conversations drawer at all.. the useful part is this tiny little section at the bottom i can barely see and the rest I dont get.<br>— <a href="owner-refs/BPR-1290-owner-ref-conversations-drawer.webp">screenshot</a></blockquote>
+<blockquote>that one tab is trying to serve 2 masters. I think we need to split the inline comments and the comment tree into separate ttabs in the drawer.<br>— in BPR-1083's v002 review (<a href="owner-refs/BPR-1290-owner-ref-split-tabs.webp">screenshot</a>)</blockquote>
+<blockquote>It's hard to tell the value of the inline comments without a long file, you have no long files in your mockups<br>— on round v1</blockquote>
+
+<p><b>None of this is implemented.</b></p>
+
+<h2>The split</h2>
+<table><tbody>
+<tr><th>Inline</th><td>This file's threads as cards beside their lines. A card shows its first post in full, with its mark and rail (BPR-1083 v4), the people, the reply count and what is new. It opens in place to the whole conversation and a Reply field. Threads above or below the visible code sit as chips on the top and bottom edges; clicking one scrolls the code there. When no thread is on the visible lines, the nearest one each way peeks in. The code's scroll bar keeps a tick per thread.</td></tr>
+<tr><th>Conversation</th><td>One conversation, read in full: every post, its reply structure, a New rule, and Reply at the foot. The header picks the thread (a list of the whole pull request, by file), steps to the previous or next one, shows its line, resolves it, marks it read. It follows the thread chosen in Inline.</td></tr>
+<tr><th>Notes, Tour</th><td>Unchanged.</td></tr>
+<tr><th>Gone</th><td>The "Conversations drawer" caption, the pill graph, the "Path to this reply" line, the seven-line post list and the separate body pane.</td></tr>
+</tbody></table>
+
+<h3>Inline on a long file, three scroll positions</h3>
+<div class="frames" id="inline"></div>
+<h3>Conversation</h3>
+<div class="frames" id="conv"></div>
+
+<h2>Choice 1: how a conversation shows who answers whom</h2>
+<p>GitHub review threads look the same both ways: every reply answers the first comment, so replies sit one step in. The two differ only when a conversation branches, as <code>branching-thread-v1</code> does (24 posts; three branches off the first comment; branch C forks at its third reply).</p>
+<p><span class="opt">A. Indented</span>A reply sits under the post it answers. A run where each post answers the one above stays level. A line joins a post with several replies to each of them, and a ⊖ on that line folds the branch.</p>
+<div class="frames" id="ind"></div>
+<p><span class="opt">B. ↩ chip</span>Every post in order, one step in. A reply that answers anything but the post right above it starts with "↩ name: first words"; hovering highlights that post and clicking goes to it.</p>
+<div class="frames" id="chip"></div>
+
+<h2>Choice 2: clicking a card in Inline</h2>
+<p><span class="opt">A. Opens in place</span>The card grows into the whole conversation with Reply, as in the first Inline frame. Its ↗ icon opens it in Conversation.</p>
+<p><span class="opt">B. Opens Conversation</span>Cards stay closed; a click switches to the Conversation tab on that thread, with its line still shown in the code. The card's ⌄ still opens it in place.</p>
+<div class="frames" id="pick"></div>
+
+<h2>Where today's parts go</h2>
+<table>
+<thead><tr><th>Today</th><th>v2</th></tr></thead>
+<tbody>
+<tr><th>Thread cards at their lines</th><td>Inline, readable: first post in full, marks and rails, people, counts; open in place</td></tr>
+<tr><th>Scope, filters, Next new comment</th><td>Inline's toolbar: This file / Whole pull request, previous and next thread, Next new, a filter menu (new, unresolved, drafts, defects)</td></tr>
+<tr><th>Reply, Resolve, Mark read</th><td>Icons on an open card and in Conversation's header; Reply in place in both</td></tr>
+<tr><th>Drafts</th><td>Dashed cards at their lines, "Only you", Edit, Delete, Publish</td></tr>
+<tr><th>Defect badge and actions, Support details, View and Copy source</th><td>More (…)</td></tr>
+<tr><th>Thread map and "Path to this reply"</th><td>Removed; Conversation shows the structure itself (choice 1)</td></tr>
+<tr><th>Post list and body pane</th><td>Conversation, full height</td></tr>
+<tr><th>Line synchronization</th><td>Kept both ways: choosing a thread scrolls the code to its line; scrolling the code moves Inline with it</td></tr>
+<tr><th>Discuss</th><td>Redrawn in the chosen language after this round</td></tr>
+</tbody>
+</table>
+</main>
+<script>
+const SRC = "BPR-1290-conversations-drawer-frames-v2.html";
+const put = (id, list) => {
+  const el = document.getElementById(id);
+  for (const [f, w, h, cap, theme, s] of list) {
+    el.insertAdjacentHTML("beforeend", `<div class="fr"><div class="cap">${cap}</div><div class="vp" style="width:${w * s}px;height:${h * s}px"><iframe loading="lazy" src="${SRC}?f=${f}${theme ? "&theme=" + theme : ""}" width="${w}" height="${h}" style="transform:scale(${s})" title="${cap}"></iframe></div></div>`);
+  }
+};
+const W = [1440, 820], S = 0.62;
+put("inline", [
+  ["in-p1", ...W, "1. Line 642's thread open beside its code. 2 threads above, 4 below; hovering 1109.", "", S],
+  ["in-p1", ...W, "1, dark", "dark", S],
+  ["in-p2", ...W, "2. After clicking 1109: the code scrolled there, and the card is current. Your draft at 1122 sits below it.", "", S],
+  ["in-p2", ...W, "2, dark", "dark", S],
+  ["in-p3", ...W, "3. 280 px, scrolled by hand to lines 760–797: no thread here, so the nearest each way peeks in.", "", S],
+  ["in-p3", ...W, "3, dark", "dark", S],
+]);
+put("conv", [
+  ["cv-long", ...W, "Line 642's thread in Conversation; the code still shows its line", "", S],
+  ["cv-long", ...W, "Dark", "dark", S],
+  ["cv-reply", 375, 760, "Replying, renderer.cpp:6", "", 0.8],
+  ["cv-reply", 375, 760, "Replying, dark", "dark", 0.8],
+  ["cv-pick", 375, 760, "Choosing a thread: the whole pull request", "", 0.8],
+  ["cv-pick", 375, 760, "Choosing, dark", "dark", 0.8],
+]);
+for (const s of ["ind", "chip"]) put(s, [
+  [`tr-${s}-1`, 375, 760, "The top: branch A folded after its first reply", "", 0.8],
+  [`tr-${s}-1`, 375, 760, "Dark", "dark", 0.8],
+  [`tr-${s}-2`, 375, 760, "Branch C and the aside off its third reply", "", 0.8],
+  [`tr-${s}-2`, 375, 760, "Dark", "dark", 0.8],
+  [`tr-${s}-280`, 280, 760, "280 px", "", 0.8],
+  [`tr-${s}-280`, 280, 760, "280 px, dark", "dark", 0.8],
+]);
+put("pick", [
+  ["pk-inline", ...W, "B: Inline with cards closed, hovering 642", "", S],
+  ["cv-long", ...W, "B: after the click", "", S],
+  ["pk-inline", ...W, "B, dark", "dark", S],
+  ["cv-long", ...W, "B, dark, after the click", "dark", S],
+]);
+</script>
+</body>
+</html>
