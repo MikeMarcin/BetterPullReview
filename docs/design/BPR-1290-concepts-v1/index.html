@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 Conversations: three whole-window concepts</title>
+<!--
+  [[BPR-1290]] Whole-window concepts, round 1, for the owner to look at and answer in chat.
+  The stills are drawn by frames.html in this folder (c = A | B | C, f = main | d1 | d2,
+  theme = light | dark) and captured with headless Chrome at 2x: the main stills at 1440x900 and
+  1920x1080, the details cropped from 1440x900. Static design stills; nothing is implemented.
+-->
+<style>
+:root {
+  --table:#4B4E54; --table-2:#43464C; --ink:#F3F2EE; --ink-2:#C9C8C3; --ink-3:#A3A39E;
+  --amber:#E9B95A; --new:#8DB8F0; --line:rgba(255,255,255,.14);
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+}
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } }
+body { margin:0; background:var(--table); color:var(--ink); font:16px/1.5 var(--ui); -webkit-font-smoothing:antialiased; }
+a { color:inherit; }
+header { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:24px; padding:12px 32px; background:color-mix(in srgb, var(--table-2) 92%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+header h1 { margin:0; font-size:17px; font-weight:600; letter-spacing:-.01em; white-space:nowrap; }
+header nav { display:flex; gap:4px; }
+header nav a { text-decoration:none; font-weight:700; color:var(--amber); padding:3px 10px; border-radius:6px; }
+header nav a:hover { background:var(--line); }
+.sw { display:inline-flex; padding:2px; border-radius:8px; background:rgba(0,0,0,.18); }
+.sw button { all:unset; cursor:pointer; padding:4px 12px; border-radius:6px; color:var(--ink-2); font-size:14px; }
+.sw button[aria-pressed="true"] { background:var(--ink); color:#1F2328; font-weight:600; }
+.sw button:focus-visible { outline:2px solid var(--amber); outline-offset:2px; }
+.sp { flex:1; }
+main { padding:0 32px 64px; }
+.intro { max-width:none; display:flex; flex-wrap:wrap; align-items:center; gap:10px 28px; padding:22px 0 6px; color:var(--ink-2); font-size:14px; }
+.key { display:inline-flex; align-items:center; gap:8px; }
+.k-route { width:22px; height:4px; border-radius:2px; background:var(--amber); }
+.k-new { width:12px; height:12px; border-radius:50%; border:2px solid var(--new); }
+.k-mark { width:13px; height:13px; border-radius:3px; border:1.5px solid #C29BFF; background:rgba(194,155,255,.3); }
+.k-dot { width:9px; height:9px; border-radius:50%; background:#6CCFC0; }
+section { padding:56px 0 8px; scroll-margin-top:56px; }
+section + section { border-top:1px solid var(--line); margin-top:40px; }
+.pitch { display:grid; grid-template-columns:auto 1fr; align-items:baseline; column-gap:22px; margin:0 0 22px; }
+.pitch .l { font-size:88px; line-height:.8; font-weight:800; letter-spacing:-.04em; color:var(--amber); }
+.pitch h2 { margin:0; font-size:32px; line-height:1.15; font-weight:700; letter-spacing:-.02em; }
+.pitch p { grid-column:2; margin:8px 0 0; max-width:62ch; font-size:21px; line-height:1.4; color:var(--ink-2); }
+figure { margin:0; }
+.hero img { display:block; width:100%; height:auto; border-radius:12px; box-shadow:0 30px 70px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.25); }
+.details { display:grid; grid-template-columns:1fr 1fr; gap:28px; margin-top:28px; align-items:start; }
+.details.wide { grid-template-columns:1fr; }
+.details img { display:block; width:100%; height:auto; border-radius:10px; box-shadow:0 18px 44px rgba(0,0,0,.3), 0 0 0 1px rgba(0,0,0,.25); }
+figcaption { margin-top:10px; font-size:15px; color:var(--ink-2); }
+.hero figcaption { color:var(--ink-3); font-size:13px; }
+footer { padding:28px 32px 48px; border-top:1px solid var(--line); color:var(--ink-3); font-size:13px; max-width:110ch; }
+footer p { margin:0 0 8px; }
+@media (max-width:900px) { .details { grid-template-columns:1fr; } .pitch .l { font-size:56px; } .pitch h2 { font-size:24px; } .pitch p { font-size:17px; } header { flex-wrap:wrap; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Conversations, three whole-window concepts</h1>
+  <nav aria-label="Concepts"><a href="#A">A</a><a href="#B">B</a><a href="#C">C</a></nav>
+  <span class="sp"></span>
+  <span class="sw" role="group" aria-label="Theme"><button data-theme="light" aria-pressed="true">Light</button><button data-theme="dark" aria-pressed="false">Dark</button></span>
+  <span class="sw" role="group" aria-label="Window size"><button data-size="1440" aria-pressed="true">1440 × 900</button><button data-size="1920" aria-pressed="false">1920 × 1080</button></span>
+</header>
+<main>
+  <div class="intro">
+    <span class="key"><i class="k-route"></i>the branch you are reading</span>
+    <span class="key"><i class="k-new"></i>new reply</span>
+    <span class="key"><i class="k-mark"></i>label mark</span>
+    <span class="key"><i class="k-dot"></i>reply without a label, coloured by person</span>
+    <span>Label marks and rails are as accepted in BPR-1083; they are not part of this choice.</span>
+  </div>
+
+  <section id="A">
+    <div class="pitch"><span class="l">A</span><h2>Atlas</h2>
+      <p>The map is a column on the left for finding the conversation; the code stays in the middle and the conversation reads on the right.</p></div>
+    <figure class="hero"><a href="stills/A-main-1440-light.webp" data-main><img src="stills/A-main-1440-light.webp" alt="Concept A: map of every conversation at the left, the long file in the middle, the picked branch in a reader at the right"></a></figure>
+    <div class="details">
+      <figure><a href="stills/A-detail1-light.webp"><img src="stills/A-detail1-light.webp" alt="Hovering a post in the map previews it"></a><figcaption>Hover any post in the map to read it; click opens its branch.</figcaption></figure>
+      <figure><a href="stills/A-detail2-light.webp"><img src="stills/A-detail2-light.webp" alt="Replying with lines selected in the code"></a><figcaption>Reply with the code in view; the selected lines go with the reply.</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="B">
+    <div class="pitch"><span class="l">B</span><h2>Desk</h2>
+      <p>The conversation is the workspace: every conversation hangs from its file across the top, you read in the middle, and the code peeks in at the side.</p></div>
+    <figure class="hero"><a href="stills/B-main-1440-light.webp" data-main><img src="stills/B-main-1440-light.webp" alt="Concept B: a forest of every conversation across the top, the reader in the middle, a code peek at the right"></a></figure>
+    <div class="details wide">
+      <figure><a href="stills/B-detail1-light.webp"><img src="stills/B-detail1-light.webp" alt="Highlighting issue posts across the pull request"></a><figcaption>Highlight a label across the whole pull request; nothing moves, the rest fades.</figcaption></figure>
+      <figure><a href="stills/B-detail2-light.webp"><img src="stills/B-detail2-light.webp" alt="Quoting selected lines from the code peek"></a><figcaption>Select lines in the peek and quote them into the reply.</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="C">
+    <div class="pitch"><span class="l">C</span><h2>Margin</h2>
+      <p>The code is the page: threads sit in its margin at their lines and open right under the line; the map is a finder you call over the window.</p></div>
+    <figure class="hero"><a href="stills/C-main-1440-light.webp" data-main><img src="stills/C-main-1440-light.webp" alt="Concept C: margin notes beside the code, one conversation open under its line"></a></figure>
+    <div class="details">
+      <figure><a href="stills/C-detail1-light.webp"><img src="stills/C-detail1-light.webp" alt="The finder over the window, searching for page"></a><figcaption>⌘J finds any conversation by map, person, label or words; ↩ opens it at its line.</figcaption></figure>
+      <figure><a href="stills/C-detail2-light.webp"><img src="stills/C-detail2-light.webp" alt="Hovering a margin note shows the whole thread"></a><figcaption>Hover a margin note to read the whole thread without opening it.</figcaption></figure>
+    </div>
+  </section>
+</main>
+<footer>
+  <p>Static stills, nothing is built. Reply in chat with the letter you want prototyped, or what to change.</p>
+  <p>Content: the long file is this repository's <code>conversation_cards_view.cpp</code> (1550 lines, code verbatim at 1d839518c). The pull request is made up: 21 conversations in 10 files. The deep conversation at line 667 has <code>branching-thread-v1</code>'s shape (24 posts, three branches, one fork inside a branch); its words and unread state are illustrative. Source of every still: <a href="frames.html?c=A">frames.html</a>.</p>
+</footer>
+<script>
+let theme = "light", size = "1440";
+function apply() {
+  for (const a of document.querySelectorAll("a[href^='stills/']")) {
+    const main = a.hasAttribute("data-main");
+    const src = a.getAttribute("href").replace(/-(light|dark)\.webp$/, `-${theme}.webp`).replace(/-main-(1440|1920)-/, `-main-${size}-`);
+    a.setAttribute("href", src);
+    a.querySelector("img").src = src;
+  }
+  for (const b of document.querySelectorAll("[data-theme]")) b.setAttribute("aria-pressed", b.dataset.theme === theme);
+  for (const b of document.querySelectorAll("[data-size]")) b.setAttribute("aria-pressed", b.dataset.size === size);
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.theme) theme = b.dataset.theme;
+  if (b.dataset.size) size = b.dataset.size;
+  apply();
+});
+</script>
+</body>
+</html>

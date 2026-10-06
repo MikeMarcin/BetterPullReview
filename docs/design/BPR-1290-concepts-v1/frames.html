@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 whole-window concepts v1, frames</title>
+<!--
+  [[BPR-1290]] Whole-window concepts, round 1. The source of every still in this folder.
+
+  The owner on round v3 (2026-10-06, session 8ecbfc20, stopped): "the treeverse review i'm finding
+  it hard to choose any of those they all look bad and that review page format isn't ideal for
+  mockup judging on a big redesign like this." They chose fresh whole-window concepts, shown as
+  large stills, before any prototype.
+
+  Three concepts of reading and discussing with code, line-anchored threads, the conversation
+  finder (the Treeverse map across the whole pull request) and the reader together:
+    A  Atlas   the map is a navigator column at the left, code in the centre, the reader at right
+    B  Desk    the conversation is the workspace: a forest of every conversation across the top,
+               the reader in the middle, the code peeking at the right
+    C  Margin  the code is the page: threads are notes in its margin and open under their line;
+               the map is a finder laid over the window
+
+  Shared, as accepted: BPR-1080's twelve glyphs and BPR-1079's tints; every post with its 16 px
+  mark under its 18 px avatar and its rail (BPR-1083 v4: 2 px solid, 4 px blocking, grey when
+  plain). Amber is the picked route, after the accepted Treeverse mockup's "in focus".
+
+  Content. The long file is this repository's src/adapters/qt/src/conversation_cards_view.cpp at
+  1d839518c (1550 lines; code verbatim). The pull request is made up: 22 conversations in 10
+  files, extended from round v3's set, in the voices of conventional-comments-v1's people. The
+  deep conversation has branching-thread-v1's shape (24 posts, three branches off the first
+  comment, an aside forking off the third reply of the third branch), re-anchored to line 667 of
+  the long file; its words and unread state are illustrative.
+
+  Query parameters: c = A | B | C   f = main | d1 | d2   theme = light | dark
+  The window fills the viewport; stills are taken at 1440x900 and 1920x1080.
+  Static design frames, not the product. Nothing here is implemented.
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#F3F5F8; --rule:#E1E5EB; --rule-2:#C9D0D8;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#7A838D; --signal:#2F6FD6; --signal-soft:#E3ECFA; --on-signal:#FFFFFF;
+  --route:#C98F12; --route-soft:#FDF3DC; --route-line:#F7E2AE; --ok:#1A7F37; --new:#2F6FD6; --hover:#F1F4F8;
+  --code:#FFFFFF; --gutter:#FAFBFC; --lnum:#8C959F; --add:#EEFBF1; --add-g:#D9F5E0;
+  --edge:#C3CAD3; --shadow:0 18px 50px rgba(31,35,40,.18), 0 2px 6px rgba(31,35,40,.08);
+  --scrim:rgba(246,247,249,.55); --tip:#1F2328; --tip-ink:#F6F7F9;
+  --kw:#B51D27; --fn:#6639BA; --ty:#7A4B00; --str:#0A3069; --cm:#6E7781; --nm:#0550AE;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"JetBrains Mono", "JetBrainsMono Nerd Font", "SF Mono", Menlo, monospace;
+}
+body.dark {
+  --bg:#1A1E24; --side:#1F242B; --panel:#22272E; --panel-2:#272D35; --rule:#30363F; --rule-2:#414955;
+  --ink:#E6EDF3; --ink-2:#A3ACB6; --ink-3:#7E8893; --signal:#7FB0E8; --signal-soft:#233650; --on-signal:#0D1117;
+  --route:#E3B357; --route-soft:#3A3018; --route-line:#5C4A1C; --ok:#3FB950; --new:#7FB0E8; --hover:#2A3039;
+  --code:#0F1318; --gutter:#13181E; --lnum:#6E7781; --add:#11261A; --add-g:#173521;
+  --edge:#4A525E; --shadow:0 22px 60px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4);
+  --scrim:rgba(10,12,16,.55); --tip:#E6EDF3; --tip-ink:#1A1E24;
+  --kw:#FF7B72; --fn:#D2A8FF; --ty:#FFA657; --str:#A5D6FF; --cm:#8B949E; --nm:#79C0FF;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--ink); font:12.5px/1.4 var(--ui); -webkit-font-smoothing:antialiased; }
+svg.i { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; flex:none; display:block; }
+svg.i.s { width:14px; height:14px; }
+svg.i.xs { width:12px; height:12px; }
+.sp { flex:1; }
+
+/* ---------- window chrome ---------- */
+.win { width:100vw; height:100vh; display:flex; flex-direction:column; position:relative; }
+.tbar { flex:0 0 40px; display:flex; align-items:center; gap:10px; padding:0 12px 0 0; background:var(--panel); border-bottom:1px solid var(--rule); }
+.lights { display:flex; gap:8px; padding-left:14px; width:82px; flex:none; }
+.lights i { width:12px; height:12px; border-radius:50%; background:#FF5F57; display:block; }
+.lights i:nth-child(2) { background:#FEBC2E; } .lights i:nth-child(3) { background:#28C840; }
+.prid { display:flex; align-items:center; gap:8px; min-width:0; color:var(--ink-2); }
+.prid b { color:var(--ink); font-weight:600; }
+.prid .tt { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.modes { display:inline-flex; padding:2px; border-radius:8px; background:var(--panel-2); border:1px solid var(--rule); }
+.modes span { padding:3px 11px; border-radius:6px; color:var(--ink-2); white-space:nowrap; }
+.modes span.on { background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.12); }
+body.dark .modes span.on { background:#343B45; }
+.ib { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:6px; color:var(--ink-2); flex:none; position:relative; }
+.ib.on { background:var(--signal-soft); color:var(--ink); }
+.ib .bd { position:absolute; right:-3px; top:-2px; min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--new); color:var(--on-signal); font:700 9.5px/15px var(--ui); text-align:center; }
+.lbar { flex:0 0 32px; display:flex; align-items:center; gap:6px; padding:0 10px; background:var(--panel); border-bottom:1px solid var(--rule); color:var(--ink-2); white-space:nowrap; }
+.crumb { display:flex; align-items:center; gap:3px; color:var(--ink-3); }
+.crumb b { color:var(--ink); font-weight:600; }
+.stepper { display:inline-flex; align-items:center; gap:2px; color:var(--ink-2); }
+.stepper em { font-style:normal; font-variant-numeric:tabular-nums; padding:0 4px; }
+.vsep { width:1px; height:16px; background:var(--rule-2); margin:0 6px; flex:none; }
+.sbar { flex:0 0 24px; display:flex; align-items:center; gap:14px; padding:0 12px; background:var(--panel); border-top:1px solid var(--rule); color:var(--ink-3); font-size:11.5px; }
+.sbar span { display:inline-flex; align-items:center; gap:5px; }
+.main { flex:1; display:flex; min-height:0; position:relative; }
+
+/* ---------- marks, avatars ---------- */
+.lm { --t:#888; width:16px; height:16px; flex:none; display:inline-flex; align-items:center; justify-content:center; border-radius:4px;
+  border:1.5px solid var(--t); background:color-mix(in srgb, var(--t) 22%, var(--panel)); color:var(--ink); }
+body.dark .lm { background:color-mix(in srgb, var(--t) 30%, var(--panel)); }
+.lm svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.lm.blk { background:var(--t); color:var(--on-t); }
+.lm.sm { width:14px; height:14px; border-radius:3.5px; } .lm.sm svg { width:10px; height:10px; }
+.lm.lg { width:18px; height:18px; } .lm.lg svg { width:13px; height:13px; }
+.av { width:18px; height:18px; border-radius:50%; flex:none; display:inline-flex; align-items:center; justify-content:center; font:700 9.5px/1 var(--ui); color:var(--avk); background:var(--avb); }
+.av.sm { width:16px; height:16px; font-size:8.5px; }
+.av.xs { width:14px; height:14px; font-size:7.5px; }
+.av.me { box-shadow:0 0 0 1.5px var(--panel), 0 0 0 2.5px var(--ink-3); }
+.stack { display:inline-flex; } .stack .av { box-shadow:0 0 0 1.5px var(--panel); } .stack .av + .av { margin-left:-5px; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--new); display:inline-block; flex:none; }
+.cnt { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; padding:0 5px; border-radius:9px; background:var(--new); color:var(--on-signal); font:700 10px/1 var(--ui); font-variant-numeric:tabular-nums; }
+.cnt.q { background:transparent; color:var(--ink-3); font-weight:600; padding:0 2px; }
+.okm { color:var(--ok); display:inline-flex; }
+.lock { color:var(--ink-3); display:inline-flex; }
+
+/* ---------- code ---------- */
+.code { flex:1; display:flex; min-width:0; background:var(--code); position:relative; }
+.lines { flex:1; min-width:0; overflow:hidden; font:12.5px/20px var(--mono); position:relative; padding-top:6px; }
+.ln { display:flex; white-space:pre; height:20px; position:relative; }
+.ln .g { flex:0 0 50px; text-align:right; padding-right:8px; color:var(--lnum); background:var(--gutter); font-variant-numeric:tabular-nums; }
+.ln .m { flex:0 0 20px; display:flex; align-items:center; justify-content:center; background:var(--gutter); border-right:1px solid var(--rule); }
+.ln .t { padding-left:14px; flex:1; overflow:hidden; }
+.ln.add .t { background:var(--add); } .ln.add .g, .ln.add .m { background:var(--add-g); }
+.ln.pick .t { background:var(--route-soft); }
+.ln.pick .g { color:var(--ink); font-weight:700; }
+.ln.pick::before { content:""; position:absolute; left:50px; top:0; bottom:0; width:3px; background:var(--route); z-index:2; }
+.ln.sel .t { background:color-mix(in srgb, var(--signal) 16%, var(--code)); }
+.k { color:var(--kw); } .fn { color:var(--fn); } .ty { color:var(--ty); } .str { color:var(--str); } .cm { color:var(--cm); font-style:italic; } .nm { color:var(--nm); }
+.gpin { width:12px; height:12px; border-radius:3px; border:1.5px solid var(--t); background:color-mix(in srgb, var(--t) 25%, var(--code)); }
+.gpin.blk { background:var(--t); }
+.gpin.dr { border:1.5px dashed var(--ink-3); background:transparent; }
+.gpin.u { box-shadow:0 0 0 1.5px var(--code), 0 0 0 3px var(--new); }
+/* end-of-line pins (A) */
+.lane { flex:0 0 92px; display:flex; align-items:center; padding-left:8px; background:var(--gutter); border-left:1px solid var(--rule); }
+.eol { height:18px; display:flex; align-items:center; gap:5px; padding:0 7px 0 3px; border-radius:9px; background:var(--panel); border:1px solid var(--rule-2); font:600 10.5px/1 var(--ui); color:var(--ink-2); }
+.ln.pick .lane { background:var(--route-soft); }
+.ln.pick .eol { border-color:var(--route); box-shadow:0 0 0 1px var(--route); }
+.eol .av { width:14px; height:14px; font-size:7.5px; }
+/* the scroll bar keeps a tick per thread */
+.ruler { flex:0 0 14px; position:relative; background:var(--side); border-left:1px solid var(--rule); }
+.ruler .th { position:absolute; left:3px; right:3px; border-radius:3px; background:color-mix(in srgb, var(--ink) 14%, transparent); }
+.ruler .tk { position:absolute; left:2px; right:2px; height:3px; border-radius:1px; background:var(--ink-3); }
+.ruler .tk.u { background:var(--new); }
+.ruler .tk.p { background:var(--route); height:4px; }
+.ruler .tk.dr { background:transparent; border:1px dashed var(--ink-3); height:4px; }
+
+/* ---------- the map (rows: A and C) ---------- */
+.mapcol { flex:none; display:flex; flex-direction:column; background:var(--side); border-right:1px solid var(--rule); min-height:0; position:relative; }
+.mtools { flex:0 0 44px; display:flex; align-items:center; gap:4px; padding:0 10px; border-bottom:1px solid var(--rule); }
+.find { flex:1; display:flex; align-items:center; gap:7px; height:28px; padding:0 9px; border-radius:7px; background:var(--panel); border:1px solid var(--rule); color:var(--ink-3); min-width:0; }
+.find.on { border-color:var(--signal); box-shadow:0 0 0 3px color-mix(in srgb, var(--signal) 22%, transparent); color:var(--ink); }
+.tg { display:inline-flex; align-items:center; gap:4px; height:26px; padding:0 7px; border-radius:6px; color:var(--ink-2); font-weight:600; font-size:11.5px; font-variant-numeric:tabular-nums; flex:none; }
+.tg.on { background:var(--signal-soft); color:var(--ink); }
+.tg .ud { width:8px; height:8px; border-radius:50%; background:var(--new); }
+.mscroll { flex:1; overflow:hidden; padding:6px 0 20px; position:relative; }
+.fgrp { display:flex; align-items:center; gap:7px; height:30px; padding:0 12px 0 10px; margin-top:6px; color:var(--ink); font-weight:600; position:relative; }
+.fgrp .ic3 { color:var(--ink-3); }
+.fgrp .fc { margin-left:auto; color:var(--ink-3); font-weight:500; font-size:11.5px; font-variant-numeric:tabular-nums; }
+.fgrp.here::before { content:""; position:absolute; left:0; top:6px; bottom:-6px; width:3px; border-radius:0 2px 2px 0; background:var(--signal); }
+.fgrp .herei { color:var(--signal); display:inline-flex; }
+.cv { position:relative; margin:0 6px; border-radius:7px; }
+.cv.sel { background:var(--panel); box-shadow:0 0 0 1px var(--route-line), 0 1px 3px rgba(0,0,0,.06); }
+.cv.res { opacity:.55; }
+.cv.lo { opacity:.32; }
+.cv svg.ed { position:absolute; left:0; top:0; overflow:visible; }
+.cv svg.ed path { fill:none; stroke:var(--edge); stroke-width:1.5; stroke-linecap:round; }
+.cv svg.ed path.pa { stroke:var(--route); stroke-width:3; }
+.cv svg.ed path.dn { stroke:var(--route); stroke-width:1.5; opacity:.55; }
+.cv svg.ed path.hv { stroke:var(--route); stroke-width:2; stroke-dasharray:3 3; }
+.lnno { position:absolute; left:6px; width:34px; text-align:right; font:500 10.5px/1 var(--mono); color:var(--ink-3); font-variant-numeric:tabular-nums; }
+.cv.sel .lnno { color:var(--ink); font-weight:700; }
+.nd { position:absolute; transform:translate(-50%,-50%); display:flex; border-radius:5px; }
+.nd .av { width:16px; height:16px; font-size:8.5px; }
+.nd.rd { opacity:.78; }
+.nd.u::after { content:""; position:absolute; inset:-3.5px; border-radius:6px; border:2px solid var(--new); }
+.nd.u.avn::after, .nd.avn.u::after { border-radius:50%; }
+.nd.on { opacity:1; }
+.nd.foc::before { content:""; position:absolute; inset:-6px; border-radius:8px; background:color-mix(in srgb, var(--route) 30%, transparent); box-shadow:0 0 0 2px var(--route); }
+.nd.avn.foc::before { border-radius:50%; }
+.nd.hov::before { content:""; position:absolute; inset:-5px; border-radius:7px; box-shadow:0 0 0 2px var(--route), 0 0 0 6px color-mix(in srgb, var(--route) 22%, transparent); }
+.nd.hit::after { content:""; position:absolute; inset:-4px; border-radius:6px; box-shadow:0 0 0 2px var(--route); }
+.nd.lo { opacity:.25; }
+.disc { width:10px; height:10px; border-radius:50%; background:var(--dc); margin:3px; display:block; }
+.nd.avn.u::after { inset:-1.5px; border-radius:50%; }
+.nd.avn.foc::before { inset:-4px; }
+.nd.root .av { width:18px; height:18px; font-size:9.5px; }
+.fold { position:absolute; transform:translate(0,-50%); height:16px; padding:0 6px; border-radius:8px; border:1px dashed var(--edge); background:var(--side); color:var(--ink-3); font:600 10px/14px var(--ui); }
+.cv.sel .fold { background:var(--panel); }
+.cv .rt { position:absolute; right:8px; top:7px; display:flex; align-items:center; gap:4px; }
+
+/* ---------- the reader ---------- */
+.reader { flex:none; display:flex; flex-direction:column; background:var(--panel); border-left:1px solid var(--rule); min-height:0; position:relative; }
+.rhead { flex:0 0 44px; display:flex; align-items:center; gap:4px; padding:0 8px 0 14px; border-bottom:1px solid var(--rule); }
+.loc { display:flex; align-items:center; gap:7px; min-width:0; font-weight:600; }
+.loc .p { font:600 12px var(--mono); white-space:nowrap; } .loc .p span { color:var(--ink-3); font-weight:500; }
+.route { display:flex; align-items:center; gap:2px; color:var(--ink-3); }
+.route .av { box-shadow:0 0 0 1.5px var(--panel); }
+.route .av.f { box-shadow:0 0 0 1.5px var(--panel), 0 0 0 3.5px var(--route); }
+.feed { flex:1; overflow:hidden; padding:10px 0 12px; position:relative; }
+.feed::after { content:""; position:absolute; left:0; right:0; bottom:0; height:28px; background:linear-gradient(transparent, var(--panel)); }
+.post { --t:var(--rule-2); position:relative; display:flex; gap:10px; padding:9px 18px 10px var(--pl, 18px); }
+.post .rail { position:absolute; left:calc(var(--pl, 18px) - 5px); top:10px; bottom:6px; width:2px; border-radius:1px; background:var(--t); }
+.post.blk .rail { width:4px; left:calc(var(--pl, 18px) - 7px); }
+.post.plain .rail { background:var(--rule-2); }
+.post.dash .rail { background:repeating-linear-gradient(var(--t) 0 6px, transparent 6px 9px); }
+.post.dotr .rail { background:repeating-linear-gradient(var(--t) 0 2px, transparent 2px 4px); }
+.post .gut { flex:0 0 18px; display:flex; flex-direction:column; align-items:center; gap:3px; padding-top:1px; }
+.post .pb { flex:1; min-width:0; }
+.post .nm { display:flex; align-items:baseline; gap:7px; height:19px; }
+.post .nm b { font-weight:600; font-size:12.5px; }
+.post .nm time { color:var(--ink-3); font-size:11.5px; }
+.post .nm .dot { align-self:center; }
+.post .tx { margin:2px 0 0; font-size:13.5px; line-height:1.55; max-width:68ch; color:var(--ink); }
+.post .tx code { font:12px var(--mono); padding:1px 4px; border-radius:4px; background:var(--panel-2); border:1px solid var(--rule); }
+.post.foc { background:linear-gradient(90deg, var(--route-soft), color-mix(in srgb, var(--route-soft) 40%, var(--panel))); }
+.post.foc::after { content:""; position:absolute; right:0; top:0; bottom:0; width:3px; background:var(--route); }
+.post.dwn .tx { color:var(--ink-2); }
+.re { display:inline-flex; align-items:center; gap:4px; margin:3px 0 1px; padding:1px 7px 1px 5px; border-radius:10px; background:var(--panel-2); color:var(--ink-2); font-size:11.5px; max-width:100%; }
+.re b { color:var(--ink); font-weight:600; }
+.fork { display:flex; align-items:center; gap:6px; margin:0 0 2px calc(var(--pl, 18px) + 28px); color:var(--ink-3); font:600 11px var(--ui); }
+.fork .fk { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:10px; border:1px solid var(--rule-2); color:var(--ink-2); }
+.newl { display:flex; align-items:center; gap:8px; margin:6px 18px 4px 46px; color:var(--new); font:700 10.5px var(--ui); }
+.newl::after { content:""; flex:1; height:1px; background:var(--new); opacity:.6; }
+.comp { flex:none; padding:10px 14px 12px; border-top:1px solid var(--rule); background:var(--panel); }
+.cf { display:flex; align-items:center; gap:9px; min-height:36px; padding:0 8px 0 10px; border-radius:8px; border:1px solid var(--rule-2); background:var(--code); color:var(--ink-3); }
+.cf.on { flex-direction:column; align-items:stretch; padding:9px 10px 8px; border-color:var(--signal); box-shadow:0 0 0 3px color-mix(in srgb, var(--signal) 20%, transparent); color:var(--ink); gap:7px; }
+.cf .ph { flex:1; font-size:13px; }
+.chip { display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 8px 0 4px; border-radius:6px; background:color-mix(in srgb, var(--t) 14%, var(--panel)); border:1px solid color-mix(in srgb, var(--t) 45%, var(--panel)); font-weight:600; font-size:11.5px; color:var(--ink); }
+.qchip { display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 8px; border-radius:6px; background:var(--route-soft); border:1px solid var(--route-line); font:600 11px var(--mono); color:var(--ink); }
+.cf .typed { font-size:13.5px; line-height:1.5; }
+.caret { display:inline-block; width:1.5px; height:16px; background:var(--signal); vertical-align:-3px; margin-left:1px; }
+.cact { display:flex; align-items:center; gap:4px; }
+.btn { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 11px; border-radius:6px; font-weight:600; font-size:12px; }
+.btn.pri { background:var(--signal); color:var(--on-signal); }
+.kbd { font:600 10.5px var(--ui); color:var(--ink-3); padding:1px 5px; border-radius:4px; border:1px solid var(--rule-2); }
+.priv { display:inline-flex; align-items:center; gap:5px; color:var(--ink-3); font-size:11.5px; }
+
+/* ---------- tooltip / popover ---------- */
+.tip { position:absolute; z-index:40; background:var(--tip); color:var(--tip-ink); font-size:11.5px; padding:4px 8px; border-radius:5px; white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+.peek { position:absolute; z-index:40; width:300px; background:var(--panel); border:1px solid var(--rule-2); border-radius:10px; box-shadow:var(--shadow); padding:4px 0 6px; }
+.peek .post { padding-right:12px; }
+.peek .ph2 { display:flex; align-items:center; gap:6px; padding:6px 12px 2px; color:var(--ink-3); font-size:11px; }
+
+/* ---------- B: the forest ---------- */
+.forest { flex:none; position:relative; background:var(--side); border-bottom:1px solid var(--rule); overflow:hidden; }
+.ftools { position:absolute; left:12px; right:12px; top:8px; height:30px; display:flex; align-items:center; gap:4px; z-index:5; }
+.ftools .find { flex:0 0 220px; }
+.terr { position:absolute; bottom:0; height:32px; border-top:1px solid var(--rule-2); display:flex; align-items:center; justify-content:center; gap:5px; color:var(--ink-2); font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; }
+.terr.here { color:var(--ink); border-top:2px solid var(--signal); }
+.terr .n { color:var(--ink-3); font-weight:500; }
+.terr .tn { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.tree { position:absolute; }
+.tree.res { opacity:.5; } .tree.lo { opacity:.28; }
+.tree > svg { position:absolute; left:0; top:0; overflow:visible; }
+.tree > svg path { fill:none; stroke:var(--edge); stroke-width:1.5; stroke-linecap:round; }
+.tree > svg path.pa { stroke:var(--route); stroke-width:3; }
+.tree > svg path.dn { stroke:var(--route); stroke-width:1.5; opacity:.55; }
+.tree .tl { position:absolute; transform:translate(-50%, 0); font:500 9.5px/1 var(--mono); color:var(--ink-3); top:0; }
+.tree.sel .tl { color:var(--ink); font-weight:700; }
+.tree.sel .halo { position:absolute; border-radius:10px; background:var(--panel); box-shadow:0 0 0 1px var(--route-line), 0 1px 4px rgba(0,0,0,.07); }
+.vfold { position:absolute; transform:translate(-50%,-50%); width:16px; padding:2px 0; border-radius:8px; border:1px dashed var(--edge); background:var(--side); color:var(--ink-3); font:600 9px/1 var(--ui); text-align:center; }
+/* B: desk */
+.desk { flex:1; display:flex; min-height:0; }
+.dreader { flex:1; display:flex; flex-direction:column; background:var(--panel); min-width:0; }
+.dreader .rhead { flex-basis:52px; padding:0 18px 0 28px; }
+.dreader .col { width:100%; max-width:760px; margin:0 auto; }
+.dreader .feed { padding-top:14px; }
+.dreader .post .tx { font-size:14px; }
+.dreader .comp { padding:12px 0 14px; }
+.cpeek { flex:none; display:flex; flex-direction:column; border-left:1px solid var(--rule); background:var(--code); min-height:0; }
+.cpeek .ph { flex:0 0 36px; display:flex; align-items:center; gap:6px; padding:0 8px 0 12px; border-bottom:1px solid var(--rule); background:var(--panel); }
+.cpeek .body { flex:1; display:flex; min-height:0; }
+.minimap { flex:0 0 46px; position:relative; background:var(--side); border-left:1px solid var(--rule); }
+.minimap .mrow { position:absolute; left:6px; height:2px; border-radius:1px; background:color-mix(in srgb, var(--ink) 13%, transparent); }
+.minimap .vp { position:absolute; left:2px; right:2px; border-radius:3px; border:1.5px solid var(--route); background:color-mix(in srgb, var(--route) 12%, transparent); }
+.minimap .mk { position:absolute; right:4px; transform:translateY(-50%); }
+.qbar { position:absolute; z-index:6; display:flex; align-items:center; gap:6px; padding:4px 6px 4px 8px; border-radius:8px; background:var(--tip); color:var(--tip-ink); font-weight:600; font-size:11.5px; box-shadow:0 6px 20px rgba(0,0,0,.25); }
+.qbar .kbd { color:var(--tip-ink); border-color:color-mix(in srgb, var(--tip-ink) 35%, transparent); opacity:.8; }
+
+/* ---------- C: margin ---------- */
+.page { flex:1; display:flex; min-width:0; background:var(--code); position:relative; }
+.page .lines { flex:none; }
+.unfold .feed::after { display:none; }
+.margin { flex:1; position:relative; border-left:1px solid var(--rule); background:var(--gutter); min-width:0; }
+.mnote { position:absolute; left:14px; right:14px; display:flex; align-items:flex-start; gap:8px; padding:7px 10px 7px 8px; border-radius:8px; background:var(--panel); border:1px solid var(--rule); box-shadow:0 1px 2px rgba(0,0,0,.05); }
+.mnote .tx1 { flex:1; min-width:0; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; color:var(--ink-2); font-size:12.5px; line-height:1.4; }
+.mnote .mr { display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex:none; }
+.mnote.open { border-color:var(--route); background:var(--route-soft); }
+.mnote.open .tx1 { color:var(--ink); }
+.mnote.hov { border-color:var(--rule-2); box-shadow:var(--shadow); }
+.lead { position:absolute; height:0; border-top:1.5px dotted var(--edge); }
+.lead.open { border-top:2px solid var(--route); }
+.edgec { position:absolute; left:14px; display:flex; align-items:center; gap:6px; height:26px; padding:0 9px; border-radius:13px; background:var(--panel); border:1px solid var(--rule-2); color:var(--ink-2); font-weight:600; font-size:11.5px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.unfold { position:relative; margin:4px 16px 8px 84px; border-radius:10px; background:var(--panel); border:1px solid var(--rule-2); box-shadow:0 1px 0 var(--route-line), 0 8px 26px rgba(31,35,40,.10); font-family:var(--ui); white-space:normal; overflow:hidden; }
+body.dark .unfold { box-shadow:0 8px 26px rgba(0,0,0,.4); }
+.unfold::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--route); }
+.unfold .uh { display:flex; align-items:center; gap:6px; height:42px; padding:0 8px 0 14px; border-bottom:1px solid var(--rule); }
+.unfold .ustrip { position:relative; border-bottom:1px solid var(--rule); background:var(--side); }
+.unfold .comp { border-top:1px solid var(--rule); }
+.thread-from { position:absolute; left:83px; width:2px; background:var(--route); z-index:1; }
+/* C: the finder overlay */
+.scrim { position:absolute; inset:0; background:var(--scrim); backdrop-filter:blur(3px) saturate(.8); z-index:30; }
+.sheet { position:absolute; z-index:31; left:50%; transform:translateX(-50%); top:64px; bottom:56px; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--rule-2); border-radius:14px; box-shadow:var(--shadow); overflow:hidden; }
+.sheet .shead { flex:0 0 58px; display:flex; align-items:center; gap:6px; padding:0 14px; border-bottom:1px solid var(--rule); }
+.sheet .find { height:34px; font-size:14px; flex:0 0 340px; }
+.sheet .sbody { flex:1; display:flex; min-height:0; }
+.sheet .scols { flex:1; display:flex; gap:0; min-width:0; background:var(--side); }
+.sheet .scol { flex:1; min-width:0; padding:4px 0 10px; border-right:1px solid var(--rule); overflow:hidden; }
+.sheet .spre { flex:none; display:flex; flex-direction:column; background:var(--panel); }
+.sheet .sfoot { flex:0 0 34px; display:flex; align-items:center; gap:16px; padding:0 14px; border-top:1px solid var(--rule); color:var(--ink-3); font-size:11.5px; }
+.sheet .sfoot span { display:inline-flex; align-items:center; gap:6px; }
+mark.hit { background:color-mix(in srgb, var(--route) 35%, transparent); color:inherit; border-radius:2px; padding:0 1px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const Q = new URLSearchParams(location.search);
+const DARK = Q.get("theme") === "dark";
+if (DARK) document.body.classList.add("dark");
+const CON = Q.get("c") || "A", FR = Q.get("f") || "main";
+const W = innerWidth, H = innerHeight, BIG = W >= 1800;
+const ME = "fixture-author";
+
+/* BPR-1080's selected glyphs; BPR-1079's tints (light, dark) and on-tint for blocking. */
+const L = {
+  issue:{lt:"#D1242F",dk:"#FF7B72",ol:"#FFFFFF",od:"#111418",g:'<path d="M12 4 L12 14"/><circle cx="12" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  question:{lt:"#8250DF",dk:"#C29BFF",g:'<path d="M8.4 8.6 C8.4 5.9 10 4.2 12.2 4.2 C14.4 4.2 15.9 5.7 15.9 7.7 C15.9 10.6 12.2 11.1 12.2 14.3"/><circle cx="12.2" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  praise:{lt:"#BF3989",dk:"#F778BA",g:'<path d="M12 19.5 C6.2 15.6 3.5 12.6 3.5 9.2 C3.5 6.6 5.4 4.8 7.7 4.8 C9.6 4.8 11 5.9 12 7.6 C13 5.9 14.4 4.8 16.3 4.8 C18.6 4.8 20.5 6.6 20.5 9.2 C20.5 12.6 17.8 15.6 12 19.5 Z"/>'},
+  suggestion:{lt:"#1F6FD0",dk:"#6CB0FF",g:'<path d="M9.2 15.6 C7 14.3 5.5 12.2 5.5 9.6 C5.5 6 8.4 3.5 12 3.5 C15.6 3.5 18.5 6 18.5 9.6 C18.5 12.2 17 14.3 14.8 15.6 L14.8 17 L9.2 17 Z"/><path d="M9.8 20.3 L14.2 20.3"/>'},
+  todo:{lt:"#C24E00",dk:"#FFA05A",g:'<path d="M15.5 12.5 L15.5 18.5 C15.5 19.05 15.05 19.5 14.5 19.5 L5.5 19.5 C4.95 19.5 4.5 19.05 4.5 18.5 L4.5 9.5 C4.5 8.95 4.95 8.5 5.5 8.5 L11 8.5"/><path d="M7.8 13 L10.6 15.8 L19.8 5"/>'},
+  nitpick:{lt:"#6E7781",dk:"#9BA4AE",g:'<path d="M15.5 9.5 C15.5 12.81 12.81 15.5 9.5 15.5 C6.19 15.5 3.5 12.81 3.5 9.5 C3.5 6.19 6.19 3.5 9.5 3.5 C12.81 3.5 15.5 6.19 15.5 9.5 Z"/><path d="M12.43 15.62 L15.62 12.43 L21.63 18.44 C23.75 20.57 20.57 23.75 18.44 21.63 Z" fill="currentColor" stroke="none"/>'},
+  thought:{lt:"#4F5BD5",dk:"#9AA5FF",g:'<path d="M7.2 14 C5 14 3.6 12.6 3.6 11 C3.6 9.4 5 8.2 6.8 8.4 C7.2 5.8 9.3 4 12 4 C14.6 4 16.6 5.7 17 8 C19 7.9 20.5 9.3 20.5 11 C20.5 12.7 19.2 14 17.3 14 Z"/><circle cx="7.6" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="4.4" cy="20.9" r="1.3" fill="currentColor" stroke="none"/>'},
+  chore:{lt:"#8A5A2B",dk:"#D2A26E",g:'<path d="M22 3 L15.75 9.25" stroke-width="2.2"/><path d="M14 7 L18 11 L16.5 13.5 L11.5 8.5 Z" fill="currentColor" stroke="none"/><path d="M16 15 L10 9 L1.5 12.5 L4 15 L8 11 L9 12 L5 16 L9 20 L13 16 L14 17 L10 21 L12.5 23.5 Z" fill="currentColor" stroke="none"/>'},
+  typo:{lt:"#6F7A00",dk:"#C3CE4A",g:'<path d="M0.5 14 L4 2 L6 2 L9.5 14 L7.1 14 L6.52 12 L3.48 12 L2.9 14 Z M4.07 10 L5.93 10 L5 6.8 Z" fill="currentColor" stroke="none"/><path d="M10 2 L12 2 L12 6 L13.5 6 C14.88 6 16 7.12 16 8.5 L16 11.5 C16 12.88 14.88 14 13.5 14 L10 14 Z M12 8 L12 12 L13.5 12 C13.78 12 14 11.78 14 11.5 L14 8.5 C14 8.22 13.78 8 13.5 8 Z" fill="currentColor" stroke="none"/><path d="M23.5 6 L21 6 C19.34 6 18 7.34 18 9 L18 11 C18 12.66 19.34 14 21 14 L23.5 14 L23.5 12 L21 12 C20.45 12 20 11.55 20 11 L20 9 C20 8.45 20.45 8 21 8 L23.5 8 Z" fill="currentColor" stroke="none"/><path d="M1.5 20.8 C2.59 20.8 3.41 18.2 4.5 18.2 C5.59 18.2 6.41 20.8 7.5 20.8 C8.59 20.8 9.41 18.2 10.5 18.2 C11.59 18.2 12.41 20.8 13.5 20.8 C14.59 20.8 15.41 18.2 16.5 18.2 C17.59 18.2 18.41 20.8 19.5 20.8 C20.59 20.8 21.41 18.2 22.5 18.2" stroke-width="2"/>'},
+  quibble:{lt:"#9A5B7A",dk:"#D99BBB",g:'<path d="M3 17.2 C3.5 18.8 4.4 19.8 5.7 19.8 C8.3 19.8 9.4 13.8 12 13.8 C14.6 13.8 15.7 19.8 18.3 19.8 C19.6 19.8 20.5 18.8 21 17.2"/><path d="M12 7.8 L12 4.4 M7.72 9.04 L5.71 6.81 M16.28 9.04 L18.29 6.81"/>'},
+  note:{lt:"#0E7C86",dk:"#56C7D0",g:'<circle cx="12" cy="6" r="1.75" fill="currentColor" stroke="none"/><path d="M12 10.5 L12 19"/>'},
+  polish:{lt:"#B4589A",dk:"#E59AD0",g:'<path d="M12 3 L13.6 9.4 L20 11 L13.6 12.6 L12 19 L10.4 12.6 L4 11 L10.4 9.4 Z"/>'},
+};
+const tint = (l) => (DARK ? L[l].dk : L[l].lt);
+const onT = (l) => (DARK ? (L[l].od || "#111418") : (L[l].ol || "#FFFFFF"));
+const mark = (l, blk, cls = "") => {
+  const name = l + (blk ? " (blocking)" : "");
+  return `<span class="lm ${blk ? "blk" : ""} ${cls}" style="--t:${tint(l)};--on-t:${onT(l)}" role="img" aria-label="${name}" title="${name}"><svg viewBox="0 0 24 24" aria-hidden="true">${L[l].g}</svg></span>`;
+};
+
+/* people: initials on a muted hue each */
+const PEOPLE = {
+  tbutler:["#C8DAF5","#1D3B66","#2A4468","#BBD3F5","#3D6FB8","#7FA9E6"], jiayin:["#F5D2C0","#6B2F12","#55321F","#F2C3AA","#C0602F","#E89A6E"],
+  "fixture-author":["#CDE8D2","#1D5A2C","#24472D","#B9E3C1","#3C8C50","#7FC98F"], "reviewer-one":["#DFD2F5","#4A2A86","#3D2F5C","#D6C6F5","#7650C0","#B49BEB"],
+  "author-two":["#F1E1B4","#6A4E00","#4D411C","#EED9A0","#A07A10","#D9B556"], "observer-three":["#C6EAE4","#14544C","#204843","#AEE3DB","#2A8A7C","#6CCFC0"],
+  "reviewer-four":["#F0CFDD","#6E2245","#52303E","#EEBFD3","#B0476F","#E88AB0"],
+};
+const avatar = (a, cls = "") => {
+  const c = PEOPLE[a] || ["#DDD", "#333", "#333", "#DDD"];
+  const bg = DARK ? c[2] : c[0], fg = DARK ? c[3] : c[1];
+  const ini = a === "fixture-author" ? "F" : a.split("-").map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+  return `<span class="av ${a === ME ? "me" : ""} ${cls}" style="--avb:${bg};--avk:${fg}" title="${a}${a === ME ? " (you)" : ""}">${a.includes("-") && a !== ME ? ini : a[0].toUpperCase()}</span>`;
+};
+
+const I = {
+  file:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
+  pr:'<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M6 8.2v7.6"/><path d="M18 15.8V10a3 3 0 0 0-3-3h-4"/><path d="M12.5 4.5 10 7l2.5 2.5"/>',
+  search:'<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',
+  resolve:'<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 5-5.4"/>',
+  read:'<path d="M2.5 12.5l3.6 3.6L13 9"/><path d="M10.6 16.1l.8.8L20.5 8"/>',
+  code:'<path d="M8.5 7 3.5 12l5 5"/><path d="M15.5 7l5 5-5 5"/>',
+  target:'<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
+  more:'<circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+  up:'<path d="M6 14.5l6-6 6 6"/>', down:'<path d="M6 9.5l6 6 6-6"/>', left:'<path d="M14.5 6l-6 6 6 6"/>', right:'<path d="M9.5 6l6 6-6 6"/>',
+  dleft:'<path d="M12 6l-6 6 6 6"/><path d="M18 6l-6 6 6 6"/>', dright:'<path d="M6 6l6 6-6 6"/><path d="M12 6l6 6-6 6"/>',
+  chev:'<path d="M9.5 6l6 6-6 6"/>', chevd:'<path d="M6 9.5l6 6 6-6"/>',
+  re:'<path d="M9.5 7 5 11.5 9.5 16"/><path d="M5 11.5h9a5 5 0 0 1 5 5V18"/>',
+  send:'<path d="M4 11.8 20 4.5l-6.2 15.5-2.7-6.5z"/><path d="M11.1 13.5 20 4.5"/>',
+  tag:'<path d="M3.5 12V4.5H11l9.5 9.5-7.5 7.5z"/><circle cx="7.6" cy="8.6" r="1.3" fill="currentColor" stroke="none"/>',
+  next:'<circle cx="12" cy="7" r="3" fill="currentColor" stroke="none"/><path d="M12 12.5v8M8.5 17l3.5 3.5 3.5-3.5"/>',
+  lock:'<rect x="5.5" y="11" width="13" height="9" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/>',
+  home:'<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/>',
+  refresh:'<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+  user:'<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/>',
+  sun:'<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  unres:'<circle cx="12" cy="12" r="7.5"/>',
+  okc:'<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 5-5.4"/>',
+  fork:'<circle cx="6" cy="5.5" r="2.2"/><circle cx="6" cy="18.5" r="2.2"/><circle cx="18" cy="8" r="2.2"/><path d="M6 7.7v8.6"/><path d="M18 10.2c0 4-4 4.6-10.6 6.6"/>',
+  map:'<circle cx="5" cy="6" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><path d="M7 6h3M14 6h3M5 8v4a5 5 0 0 0 5 5"/><path d="M14 17h3"/>',
+  quote:'<path d="M5 7h14M5 12h9M5 17h11"/><path d="M2.5 5v14"/>',
+  panel:'<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/>',
+  notes:'<path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/>',
+  expand:'<path d="M14 4.5h5.5V10"/><path d="M19.5 4.5 13 11"/><path d="M10 19.5H4.5V14"/><path d="M4.5 19.5 11 13"/>',
+  close:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  enter:'<path d="M19 5v6a3 3 0 0 1-3 3H6"/><path d="M9.5 10.5 6 14l3.5 3.5"/>',
+  filter:'<path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/>',
+  eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
+};
+const ic = (n, s = "") => `<svg class="i ${s}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const ib = (n, tip, cls = "", extra = "") => `<span class="ib ${cls}" role="button" aria-label="${tip}" title="${tip}">${ic(n)}${extra}</span>`;
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const bodyHtml = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+const base = (p) => p.split("/").pop();
+const people = (ps) => [...new Set(ps.map((p) => p.a))];
+const unread = (c) => c.posts.filter((p) => p.u).length;
+
+/* ================= content ================= */
+const LONG = "src/adapters/qt/src/conversation_cards_view.cpp", LONGN = 1550;
+const SRC = {"600": "", "601": "    auto conversation_cards_view::unread_threads_in_file_order() const -> const std::vector<std::string>&", "602": "    {", "603": "        if (UnreadThreads.has_value()) {", "604": "            return *UnreadThreads;", "605": "        }", "606": "        // Every thread of the pull request, whatever the scope shows, so the", "607": "        // strip's next new comment walks the whole review in file order.", "608": "        auto threads = std::vector<const application::github_conversation_projection*>{ };", "609": "        for (const auto& node : Retained) {", "610": "            if (node.Kind != application::github_conversation_kind::review_thread", "611": "                || node.ParentId.has_value()) {", "612": "                continue;", "613": "            }", "614": "            const auto state = ReadStateByThread.find(node.Id);", "615": "            if (state != ReadStateByThread.end() && !ReadState[state->second].UnreadPosts.empty()) {", "616": "                threads.push_back(&node);", "617": "            }", "618": "        }", "619": "        std::ranges::stable_sort(threads, [](const auto* aLeft, const auto* aRight) {", "620": "            return std::pair{ aLeft->Path, aLeft->Line.value_or(0U) }", "621": "            < std::pair{ aRight->Path, aRight->Line.value_or(0U) };", "622": "        });", "623": "        auto ids = std::vector<std::string>{ };", "624": "        ids.reserve(threads.size());", "625": "        for (const auto* thread : threads) {", "626": "            ids.push_back(thread->Id);", "627": "        }", "628": "        UnreadThreads = std::move(ids);", "629": "        return *UnreadThreads;", "630": "    }", "631": "", "632": "    auto conversation_cards_view::unread_marked_lines(const core::diff_side aSide) const", "633": "        -> std::vector<std::uint32_t>", "634": "    {", "635": "        auto lines = std::vector<std::uint32_t>{ };", "636": "        for (const auto& card : Cards) {", "637": "            if (!card.Draft && card.RootUnread && card.Side == aSide && card.Line.has_value()", "638": "                && *card.Line > 0U) {", "639": "                lines.push_back(*card.Line - 1U);", "640": "            }", "641": "        }", "642": "        std::ranges::sort(lines);", "643": "        lines.erase(std::ranges::unique(lines).begin(), lines.end());", "644": "        return lines;", "645": "    }", "646": "", "647": "    auto conversation_cards_view::unread_post_count() const noexcept -> std::size_t", "648": "    {", "649": "        auto count = std::size_t{ 0U };", "650": "        for (const auto& card : Cards) {", "651": "            count += card.UnreadCount;", "652": "        }", "653": "        return count;", "654": "    }", "655": "", "656": "    void conversation_cards_view::set_current_thread(const std::string& aId)", "657": "    {", "658": "        // A reply's identity names its card: the tree may be on a reply.", "659": "        Current = aId;", "660": "        for (const auto& card : Cards) {", "661": "            if (card.Draft) {", "662": "                continue;", "663": "            }", "664": "            if (card.Id == aId) {", "665": "                break;", "666": "            }", "667": "            if (std::ranges::any_of(card.Posts, [&aId](const card_post& aPost) { return aPost.Id == aId; })) {", "668": "                Current = card.Id;", "669": "                break;", "670": "            }", "671": "        }", "672": "        viewport()->update();", "673": "    }", "674": "", "675": "    void conversation_cards_view::set_colours(const QColor& aAccent, const QColor& aMarker)", "676": "    {", "677": "        Accent = aAccent;", "678": "        Marker = aMarker;", "679": "        viewport()->update();", "680": "    }", "681": "", "682": "    auto conversation_cards_view::cards() const noexcept -> const std::vector<thread_card>&", "683": "    {", "684": "        return Cards;", "685": "    }", "686": "", "687": "    auto conversation_cards_view::current_thread() const noexcept -> const std::string&", "688": "    {", "689": "        return Current;", "690": "    }", "691": "", "692": "    auto conversation_cards_view::layout_nodes_visited() const noexcept -> std::uint64_t", "693": "    {", "694": "        return LayoutNodesVisited;", "695": "    }", "696": "", "697": "    auto conversation_cards_view::layouts() const noexcept -> std::uint64_t", "698": "    {", "699": "        return Layouts;", "700": "    }", "701": "", "702": "    auto conversation_cards_view::post_count() const noexcept -> std::size_t", "703": "    {", "704": "        auto count = std::size_t{ 0U };", "705": "        for (const auto& card : Cards) {", "706": "            count += card.Draft ? 0U : card.Posts.size();", "707": "        }", "708": "        return count;", "709": "    }", "710": "", "711": "    auto conversation_cards_view::marked_lines(const core::diff_side aSide) const", "712": "        -> std::vector<std::uint32_t>", "713": "    {", "714": "        auto lines = std::vector<std::uint32_t>{ };", "715": "        for (const auto& card : Cards) {", "716": "            if (!card.Draft && card.Side == aSide && card.Line.has_value() && *card.Line > 0U) {", "717": "                lines.push_back(*card.Line - 1U);", "718": "            }", "719": "        }", "720": "        std::ranges::sort(lines);"};
+
+
+/* GitHub records every reply as answering the first comment. */
+const flat = (k, posts) => posts.map((p, i) => ({...p, id:k + i, p:i ? k + "0" : null}));
+const DEEP = (() => {
+  /* branching-thread-v1's shape: three branches off the first comment, an aside off C's third reply. */
+  const P = [{id:"r", p:null, a:"reviewer-one", l:"question", b:"Should this traversal keep the selected node when the card list is rebuilt?", t:"3d"}];
+  const A = [
+    ["author-two", null, "It does: `Current` holds an id, not a row, so a rebuild can't move it."],
+    ["observer-three", null, "Unless the card that held the id is gone after the rebuild."],
+    ["reviewer-four", "question", "Then what does `Current` name? Nothing, until the next click?"],
+    ["reviewer-one", null, "That's the bug tbutler filed on line 656."],
+    ["author-two", null, "Right. I'll fall back to the nearest card in file order."],
+    ["observer-three", "thought", "Nearest by line, or by position in the list?"],
+    ["reviewer-four", null, "By line. The list order changes with the scope."],
+    ["reviewer-one", "praise", "Line it is. That also keeps the code view still."]];
+  const B = [
+    ["observer-three", "question", "What about a parent that arrives after its child, on the next page?"],
+    ["reviewer-four", null, "The child is promoted to a root until its parent lands."],
+    ["reviewer-one", null, "And when it lands, does the selection jump?"],
+    ["author-two", null, "It shouldn't. The id is the same; only its depth changes."],
+    ["observer-three", "issue", "The test only loads one page, so paging is never exercised here.", 1],
+    ["reviewer-four", "todo", "Adding a two-page case to the hostile fixtures.", 1],
+    ["reviewer-one", null, "Thanks. Ping me when it's up.", 1]];
+  const C = [
+    ["reviewer-four", "suggestion", "Look the id up in an index instead of walking every card's posts."],
+    ["reviewer-one", null, "The index would need rebuilding on every refresh too."],
+    ["author-two", null, "It's built in `relayout()` already, so it's free here."],
+    ["observer-three", null, "Then the walk becomes a lookup. Worth it at 500 cards?"],
+    ["reviewer-four", null, "Measured: 0.4 ms against 0.02. Not urgent."],
+    ["author-two", "nitpick", "Leave a comment pointing at the measurement, then."],
+    ["reviewer-one", null, "Agreed. Branch A's fix first, this after."]];
+  const add = (arr, pre) => arr.forEach(([a, l, b, u], i) => P.push({id:pre + (i + 1), p:i ? pre + i : "r", a, l, b, u}));
+  add(A, "a"); add(B, "b"); add(C, "c");
+  P.push({id:"x1", p:"c3", a:"observer-three", l:"thought", b:"Aside: `relayout()` also runs twice on a scope change. Separate card?"});
+  const t = ["2d", "2d", "2d", "1d", "1d", "1d", "20h", "18h"];
+  P.forEach((p, i) => { if (!p.t) p.t = p.u ? ["3h", "2h", "40m"][i % 3] : t[i % t.length]; });
+  return P;
+})();
+const LONGT = [
+  ["tbutler", "question", "Three passes to resolve parents. Would one walk with a visited set do?"],
+  ["jiayin", null, "A visited set depends on where the walk starts; the cycle test shows it."],
+  [ME, null, "That is why the judging pass writes nothing."],
+  ["tbutler", "thought", "Then the comment should say the order is the point, not the passes."],
+  ["jiayin", null, "It does, in its second sentence."],
+  ["reviewer-four", null, "Could the walk stop at `Entries.size()` steps?"],
+  [ME, "suggestion", "Stop at size; a longer walk is already a cycle."],
+  ["tbutler", null, "Agreed, and name the bound."],
+  ["jiayin", "praise", "The promoted count in Statistics made this easy to test."],
+  ["reviewer-four", "nitpick", "byIdentity could reserve outside the loop. It already does; ignore me."],
+  [ME, null, "Leaving it."],
+  ["tbutler", null, "Rebased on main; the hostile fixtures still pass."],
+  ["jiayin", "issue", "A parent that arrives on the next page is promoted and never re-parented.", 1],
+  [ME, null, "The map is rebuilt when that page lands, so it re-parents then.", 1],
+  ["tbutler", "question", "Is there a test for that?", 1],
+  ["jiayin", null, "Not yet. I will add one with the paged fixture.", 1],
+  [ME, null, "Thanks, I will wait for it.", 1],
+].map(([a, l, b, u]) => ({a, l, b, u}));
+const MAPF = "src/adapters/qt/src/github_thread_map.cpp", PROJ = "src/application/src/github_projection_mapping.cpp";
+const C0 = [
+  {k:"r6", path:"README.md", line:6, posts:[{a:"tbutler", l:"typo", b:"`tests/` should be `tests/engine/`."}, {a:"jiayin", l:"polish", b:"Add a sentence about the release flag.", u:1}]},
+  {k:"s970", path:"docs/ux/workbench-specification.md", line:970, res:1, posts:[
+    {a:"jiayin", l:"suggestion", b:"Say what the map does with a thread that has no replies."}, {a:ME, b:"Added a sentence."}, {a:"jiayin", b:"Thanks."}]},
+  {k:"l38", path:LONG, line:38, res:1, posts:[{a:"jiayin", l:"nitpick", b:"`card_gap` and `card_margin` are both 8; one constant would do."}, {a:ME, b:"They drift apart at Discuss widths, so I kept both."}]},
+  {k:"l430", path:LONG, line:430, posts:[{a:"tbutler", l:"question", b:"Who still calls `set_feed()` once Discuss has its own list?", u:1}]},
+  {k:"l656", path:LONG, line:656, posts:[
+    {a:"tbutler", l:"issue", blk:1, b:"`set_current_thread()` keeps a reply's id when no card holds it, so `Current` can name nothing."},
+    {a:ME, l:"question", b:"Should it clear `Current` instead, or keep the last card?"},
+    {a:"jiayin", l:"praise", b:"Good catch, this explains the lost highlight after a refresh.", u:1},
+    {a:"tbutler", b:"Clear it. I'll push the fix with a test.", u:1}]},
+  {k:"deep", path:LONG, line:667, tree:DEEP},
+  {k:"l922", path:LONG, line:922, posts:[{a:"jiayin", l:"suggestion", b:"`relayout()` is 170 lines; measuring and placing could be two functions."}, {a:"tbutler", b:"Agreed, after this lands.", u:1}]},
+  {k:"l1124", path:LONG, line:1124, posts:[{a:"jiayin", l:"thought", b:"`place_cards()` runs on every scroll. A dirty flag might be cheaper."}, {a:"tbutler", b:"It already returns early when nothing moved.", u:1}]},
+  {k:"d1137", path:LONG, line:1137, draft:1, posts:[{a:ME, l:"todo", b:"Say in the header that `TargetY` includes the scroll offset."}]},
+  {k:"l1503", path:LONG, line:1503, posts:[{a:"tbutler", l:"chore", b:"`keyPressEvent()` could hand Shift+F10 to the thread menu too."}, {a:"jiayin", b:"+1, the context-menu key already does.", u:1}]},
+  {k:"g88", path:MAPF, line:88, posts:[{a:"reviewer-four", l:"question", b:"Why a pre-order slot and not the row index?", u:1}]},
+  {k:"g214", path:MAPF, line:214, posts:LONGT},
+  {k:"g301", path:MAPF, line:301, res:1, posts:[{a:"tbutler", l:"nitpick", b:"`box_padding` could be constexpr."}, {a:ME, b:"Done."}]},
+  {k:"p175", path:PROJ, line:175, posts:[
+    {a:"tbutler", l:"issue", blk:1, b:"Carry `ReplyTo`, not the root. The first comment's fallback is missing."},
+    {a:ME, b:"The first comment's replyTo is null, so it falls back to the root."},
+    {a:"tbutler", b:"Then say so in a test."}, {a:ME, l:"todo", b:"Adding one."}]},
+  {k:"p233", path:PROJ, line:233, res:1, posts:[{a:"jiayin", l:"suggestion", b:"Name the lambda; it is used twice."}, {a:"tbutler", b:"Agreed."}]},
+  {k:"q17", path:"src/core/src/private_thread_lineage.cpp", line:17, res:1, posts:[{a:"tbutler", l:"praise", b:"The cycle guard reads well."}]},
+  {k:"t6", path:"src/engine/renderer.cpp", line:6, posts:[
+    {a:"tbutler", l:"issue", blk:1, b:"`draw_scene()` runs before the clear finishes on the second view."},
+    {a:ME, l:"question", b:"Does the second view share the depth buffer?"},
+    {a:"jiayin", l:"praise", b:"Good catch, this explains the flicker.", u:1},
+    {a:"tbutler", b:"Thanks, resolving after CI.", u:1}]},
+  {k:"t12", path:"src/engine/renderer.cpp", line:12, posts:[{a:"jiayin", l:"suggestion", b:"Clamp the width to at least one pixel."}, {a:ME, l:"todo", b:"I will add the clamp in the next push.", u:1}]},
+  {k:"b5", path:"src/engine/shaders/post/bloom.frag", line:5, posts:[{a:"jiayin", l:"quibble", b:"1.2 reads as a magic number."}, {a:"tbutler", l:"note", b:"The shader trusts `uScene` as given.", u:1}]},
+  {k:"m6", path:"src/main.cpp", line:6, posts:[{a:"tbutler", l:"nitpick", b:"1280 by 720 could be a named constant."}, {a:"jiayin", l:"thought", b:"A config file may want to own this later.", u:1}]},
+  {k:"w5", path:"src/ui/widgets/button.cpp", line:5, posts:[{a:"jiayin", l:"chore", b:"Rename `Handler` to `OnClick` while you are here."}, {a:"tbutler", l:"note", b:"The old name is still used by the plugin API.", u:1}]},
+];
+const CONVS = C0.map((c) => {
+  const posts = c.tree || flat(c.k, c.posts);
+  posts.forEach((p, i) => { if (!p.t) p.t = p.u ? "2h" : ["4d", "3d", "2d", "1d"][Math.min(i, 3)]; });
+  return {...c, posts};
+});
+const CV = Object.fromEntries(CONVS.map((c) => [c.k, c]));
+const FILES = [...new Set(CONVS.map((c) => c.path))];
+const PRNEW = CONVS.filter((c) => !c.draft && unread(c)).length;
+const PROPEN = CONVS.filter((c) => !c.res && !c.draft).length;
+const HERE = LONG, HERECONVS = CONVS.filter((c) => c.path === HERE);
+
+/* The picked post: branch B's issue, new. */
+const PICK = {k:"deep", n:"b5"};
+
+/* ================= tree layout (shared) ================= */
+/* Time runs away from the first comment. A conversation's replies sit on one line in the order
+   they were posted; a reply that has replies of its own starts a lane beside it. A GitHub
+   thread, where every reply answers the first comment, is one line; the map branches only
+   where the conversation does. */
+function layout(posts) {
+  const kids = {};
+  for (const p of posts) if (p.p) (kids[p.p] ||= []).push(p);
+  const kc = (id) => kids[id] || [];
+  const root = posts[0];
+  const pos = {}, dpar = {};
+  let lanes = 0;
+  const chain = (node, lane, col, par) => {
+    pos[node.id] = {lane, col}; dpar[node.id] = par;
+    kc(node.id).forEach((k, i) => chain(k, i === 0 ? lane : lanes++, col + 1, node.id));
+  };
+  const rk = kc(root.id);
+  const leaves = rk.filter((c) => !kc(c.id).length);
+  const groups = rk.filter((c) => kc(c.id).length).map((b) => ({b, at:posts.indexOf(b)}));
+  if (leaves.length) groups.push({run:leaves, at:posts.indexOf(leaves[0])});
+  groups.sort((x, y) => x.at - y.at);
+  for (const g of groups) {
+    const lane = lanes++;
+    if (g.run) g.run.forEach((c, i) => { pos[c.id] = {lane, col:i}; dpar[c.id] = i ? g.run[i - 1].id : root.id; });
+    else chain(g.b, lane, 0, root.id);
+  }
+  pos[root.id] = {lane:0, col:-1};
+  return {pos, dpar, lanes:Math.max(1, lanes), root};
+}
+const descend = (dpar, id) => Object.keys(dpar).filter((v) => { for (let w = dpar[v]; w; w = dpar[w]) if (w === id) return true; return false; });
+function routeOf(c, focusId) {
+  const Lo = layout(c.posts);
+  const focus = focusId || Lo.root.id;
+  const path = new Set(), down = new Set();
+  for (let w = focus; w; w = Lo.dpar[w]) path.add(w);
+  for (const d of descend(Lo.dpar, focus)) down.add(d);
+  return {Lo, focus, path, down};
+}
+/* fold the oldest read posts of a lane that does not fit; never the picked or new ones */
+function folds(c, Lo, cap, focus) {
+  const hidden = new Set(), pills = [];
+  const branchedFrom = new Set(Object.entries(Lo.dpar).filter(([v, p]) => p !== Lo.root.id && Lo.pos[p].lane !== Lo.pos[v].lane).map(([, p]) => Lo.pos[p].lane));
+  for (let lane = 0; lane < Lo.lanes; lane++) {
+    const ns = c.posts.filter((p) => p.id !== Lo.root.id && Lo.pos[p.id].lane === lane).sort((a, b) => Lo.pos[a.id].col - Lo.pos[b.id].col);
+    if (!ns.length) continue;
+    const room = cap - Lo.pos[ns[0].id].col;
+    if (ns.length <= room || branchedFrom.has(lane)) continue;
+    const h = ns.length - room + 1;
+    let i0 = 1;
+    for (; i0 + h <= ns.length - 1; i0++) if (ns.slice(i0, i0 + h).every((p) => !p.u && p.id !== focus)) break;
+    const gone = ns.slice(i0, i0 + h);
+    gone.forEach((p) => hidden.add(p.id));
+    pills.push({lane, col:Lo.pos[gone[0].id].col, n:h, ids:gone.map((p) => p.id), who:people(gone)});
+    for (const p of ns.slice(i0 + h)) Lo.pos[p.id].col -= h - 1;
+  }
+  return {hidden, pills};
+}
+const tipOf = (p) => `${p.a}${p.a === ME ? " (you)" : ""}${p.l ? ", " + p.l + (p.blk ? " (blocking)" : "") : ""}${p.u ? ", new" : ""}: ${p.b.replace(/`/g, "")}`;
+function nodeFace(p) {
+  if (p.l) return mark(p.l, p.blk);
+  const c = PEOPLE[p.a];
+  return `<span class="disc" style="--dc:${DARK ? c[5] : c[4]}"></span>`;
+}
+
+/* ================= the map, as rows (A, C) ================= */
+function mapRow(c, Wd, o = {}) {
+  const S = o.step || 20, LH = o.laneh || 24, RH = o.rowh || 32, X0 = o.x0 || 76;
+  const sel = o.sel && o.sel.k === c.k;
+  const {Lo, focus, path, down} = routeOf(c, sel ? o.sel.n : null);
+  const cap = Math.floor((Wd - X0 - 44) / S);
+  const {hidden, pills} = folds(c, Lo, cap, sel ? focus : null);
+  const showRoute = sel;
+  const X = (id) => {
+    if (id === Lo.root.id) return X0 - 24;
+    if (hidden.has(id)) { const pl = pills.find((q) => q.ids.includes(id)); return X0 + pl.col * S + S * 0.5; }
+    return X0 + Lo.pos[id].col * S;
+  };
+  const Y = (lane) => RH / 2 + lane * LH;
+  const Hh = RH + (Lo.lanes - 1) * LH;
+  const trunk = X0 - 24;
+  const seg = (u, v) => {
+    const lv = Lo.pos[v].lane;
+    if (u === Lo.root.id) return lv === 0 ? `M${trunk},${Y(0)}H${X(v)}` : `M${trunk},${Y(0)}V${Y(lv) - 8}Q${trunk},${Y(lv)} ${trunk + 8},${Y(lv)}H${X(v)}`;
+    const lu = Lo.pos[u].lane;
+    if (lu === lv) return `M${X(u)},${Y(lu)}H${X(v)}`;
+    return `M${X(u)},${Y(lu)}V${Y(lv) - 8}Q${X(u)},${Y(lv)} ${X(u) + 8},${Y(lv)}H${X(v)}`;
+  };
+  const ids = c.posts.map((p) => p.id).filter((id) => id !== Lo.root.id);
+  let d = "";
+  for (const v of ids) d += `<path d="${seg(Lo.dpar[v], v)}"/>`;
+  if (showRoute) {
+    for (const v of ids) if (down.has(v)) d += `<path class="dn" d="${seg(Lo.dpar[v], v)}"/>`;
+    for (const v of ids) if (path.has(v)) d += `<path class="pa" d="${seg(Lo.dpar[v], v)}"/>`;
+  }
+  if (o.hov && o.hov.k === c.k) {
+    const hp = new Set(); for (let w = o.hov.n; w; w = Lo.dpar[w]) hp.add(w);
+    for (const v of ids) if (hp.has(v) && !path.has(v)) d += `<path class="hv" d="${seg(Lo.dpar[v], v)}"/>`;
+  }
+  const by = Object.fromEntries(c.posts.map((p) => [p.id, p]));
+  const match = o.match ? (p) => o.match(p, c) : null;
+  let nodes = "";
+  for (const v of [Lo.root.id, ...ids]) {
+    if (hidden.has(v)) continue;
+    const p = by[v];
+    const isRoot = v === Lo.root.id;
+    const cls = ["nd", p.l ? "" : "avn", p.u ? "u" : "rd", isRoot ? "root" : "", showRoute && (path.has(v) || down.has(v)) ? "on" : "",
+      showRoute && v === focus ? "foc" : "", o.hov && o.hov.k === c.k && o.hov.n === v ? "hov" : "",
+      match ? (match(p) ? "hit" : "lo") : "", o.hl ? (p.l === o.hl ? "hit" : "lo") : ""].join(" ");
+    const face = isRoot ? (p.l ? mark(p.l, c.draft ? 0 : p.blk) : avatar(p.a)) : nodeFace(p);
+    nodes += `<span class="${cls}" style="left:${X(v)}px;top:${Y(isRoot ? 0 : Lo.pos[v].lane)}px" title="${esc(tipOf(p))}">${face}</span>`;
+  }
+  for (const pl of pills) nodes += `<span class="fold" style="left:${X0 + pl.col * S - 8}px;top:${Y(pl.lane)}px" title="${pl.n} earlier replies, all read">${pl.n}</span>`;
+  const u = unread(c);
+  const right = c.draft ? `<span class="lock" title="Your draft, only you see it">${ic("lock", "s")}</span>`
+    : c.res ? `<span class="okm" title="Resolved">${ic("okc", "s")}</span>`
+    : u ? `<span class="cnt" title="${u} new">${u}</span>` : "";
+  const lo = (o.hl && !c.posts.some((p) => p.l === o.hl)) || (match && !c.posts.some(match));
+  return `<div class="cv ${sel ? "sel" : ""} ${c.res ? "res" : ""} ${lo ? "lo" : ""}" style="height:${Hh + 2}px" title="${esc(base(c.path) + ":" + c.line)}">
+    <span class="lnno" style="top:${Y(0) - 5}px">${c.line}</span>
+    <svg class="ed" width="${Wd}" height="${Hh}">${d}</svg>${nodes}<span class="rt" style="top:${Y(0) - 9}px">${right}</span></div>`;
+}
+function mapRows(Wd, o = {}) {
+  let h = "";
+  const files = o.files || FILES;
+  for (const f of files) {
+    const cs = CONVS.filter((c) => c.path === f);
+    const isHere = f === HERE && !o.noHere;
+    const fu = cs.filter((c) => unread(c) && !c.draft).length;
+    h += `<div class="fgrp ${isHere ? "here" : ""}" title="${f}"><span class="ic3">${ic("chevd", "xs")}</span><span class="ic3">${ic("file", "s")}</span><span>${o.hlFile ? o.hlFile(base(f)) : base(f)}</span>${isHere ? `<span class="herei" title="Open in the code">${ic("eye", "s")}</span>` : ""}<span class="fc">${fu ? `<span class="dot" style="margin-right:6px;vertical-align:1px"></span>` : ""}${cs.length}</span></div>`;
+    for (const c of cs) h += mapRow(c, Wd - 12, o);
+  }
+  return h;
+}
+
+/* ================= the reader ================= */
+function post(p, o = {}) {
+  const rail = p.l ? (p.blk ? "blk" : "") : "plain";
+  const cls = ["post", rail, o.foc ? "foc" : "", o.dwn ? "dwn" : ""].join(" ");
+  const re = o.re ? `<div class="re" title="Answers ${o.re.a}">${ic("re", "xs")}<b>${o.re.a}</b></div>` : "";
+  return `<div class="${cls}" style="--pl:${o.pl || 22}px;${p.l ? "--t:" + tint(p.l) : ""}" role="article">
+    <i class="rail"></i><div class="gut">${avatar(p.a)}${p.l ? mark(p.l, p.blk) : ""}</div>
+    <div class="pb"><div class="nm"><b>${p.a === ME ? "you" : p.a}</b><time>${p.t}</time>${p.u ? '<i class="dot" title="New"></i>' : ""}</div>${re}<p class="tx">${bodyHtml(p.b)}</p></div></div>`;
+}
+function feedHtml(c, focusId, o = {}) {
+  const {Lo, focus, path, down} = routeOf(c, focusId);
+  const by = Object.fromEntries(c.posts.map((p) => [p.id, p]));
+  let show = c.posts.filter((p) => path.has(p.id) || down.has(p.id));
+  let h = "", seen = false, prev = null;
+  let folded = null;
+  if (o.foldRead) {
+    const fu = show.findIndex((p) => p.u);
+    const mid = show.slice(1, fu - 1);
+    if (mid.length >= 2) { folded = mid; show = show.filter((p) => !mid.includes(p)); }
+  }
+  for (const p of show) {
+    if (folded && prev && prev.id === Lo.root.id) {
+      h += `<div class="fork" style="--pl:22px" title="Show ${folded.length} earlier replies, all read"><span class="fk">${ic("chevd", "xs")}${folded.length} read<span class="stack">${people(folded).map((a) => avatar(a, "xs")).join("")}</span></span></div>`;
+    }
+    if (p.u && !seen) { h += `<div class="newl">New</div>`; seen = true; }
+    const re = p.p && prev && p.p !== prev.id && p.p !== Lo.root.id ? by[p.p] : null;
+    h += post(p, {pl:p.id === Lo.root.id ? (o.pl0 || 22) : (o.pl1 || 22), re, foc:p.id === focus && c.posts.length > 1 && o.markFoc !== false, dwn:false});
+    const others = Object.keys(Lo.dpar).filter((v) => Lo.dpar[v] === p.id && !path.has(v) && !down.has(v));
+    if (path.has(p.id) && p.id !== focus && others.length) {
+      const n = others.length;
+      const who = others.map((v) => avatar(by[v].a, "xs")).join("");
+      h += `<div class="fork" style="--pl:${o.pl1 || 22}px" title="${n} other ${n === 1 ? "branch starts" : "branches start"} here; pick one in the map"><span class="fk">${ic("fork", "xs")}${n}<span class="stack">${who}</span></span></div>`;
+    }
+    prev = p;
+  }
+  return h;
+}
+function routeCrumbs(c, focusId) {
+  const {Lo, focus, path} = routeOf(c, focusId);
+  const ids = c.posts.filter((p) => path.has(p.id));
+  return `<span class="route" title="The branch you are reading">${ids.map((p, i) => (i ? ic("chev", "xs") : "") + avatar(p.a, "sm " + (p.id === focus ? "f" : ""))).join("")}</span>`;
+}
+function rhead(c, o = {}) {
+  const r = c.posts[0], u = unread(c);
+  return `<div class="rhead"><span class="loc" title="${c.path}:${c.line}">${r.l ? mark(r.l, r.blk) : avatar(r.a)}<span class="p">${base(c.path)}<span>:${c.line}</span></span></span>
+    ${o.crumbs ? `<span class="vsep"></span>${routeCrumbs(c, o.focus)}` : ""}<span class="sp"></span>
+    ${o.noCode ? "" : ib("target", `Show line ${c.line} in the code`)}${ib("resolve", "Resolve")}${ib("read", u ? `Mark ${u} new as read` : "Nothing new")}${ib("more", "More: copy link, view source, classify")}</div>`;
+}
+function composer(state, o = {}) {
+  if (state === "typing") {
+    const q = o.quote ? `<span class="qchip" title="Quoted from the code">${ic("quote", "xs")}${o.quote}</span>` : "";
+    return `<div class="comp"><div class="cf on"><div style="display:flex;gap:6px;align-items:center"><span class="chip" style="--t:${tint("suggestion")}">${mark("suggestion", 0, "sm")}suggestion</span>${q}</div>
+      <div class="typed">${o.text || ""}<span class="caret"></span></div>
+      <div class="cact">${ib("tag", "Label ⌘L")}${ib("quote", "Quote the selected lines")}<span class="priv">${ic("lock", "xs")}Draft, only you see it</span><span class="sp"></span><span class="btn pri" title="Publish reply ⌘↩">${ic("send", "s")}Publish</span></div></div></div>`;
+  }
+  return `<div class="comp"><div class="cf">${avatar(ME)}<span class="ph">Reply</span>${ib("tag", "Label ⌘L")}${ib("quote", "Quote the selected lines")}<span class="kbd" title="Reply">R</span></div></div>`;
+}
+
+/* ================= code ================= */
+function hl(s) {
+  let out = "", m;
+  const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|\b(void|const|auto|bool|int|for|if|else|return|continue|break|true|false|static|constexpr|namespace|noexcept|this|nullptr|using)\b|\b(std|QRect|QColor|QPoint|QFontMetrics|QKeyEvent|card_post|thread_card|cards_scope|card_action|size_t|string|vector|optional)\b|\b([a-z_][a-z_0-9]*)(?=\()|\b([A-Z][A-Za-z]+)\b/g;
+  let last = 0;
+  while ((m = re.exec(s))) {
+    out += esc(s.slice(last, m.index));
+    const v = esc(m[0]);
+    out += m[1] ? `<span class="cm">${v}</span>` : m[2] ? `<span class="str">${v}</span>` : m[3] ? `<span class="k">${v}</span>` : m[4] ? `<span class="ty">${v}</span>` : m[5] ? `<span class="fn">${v}</span>` : `<span class="nm">${v}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(s.slice(last));
+}
+const ADDED = [656, 671];
+function codeLines(top, rows, o = {}) {
+  let h = "";
+  for (let n = top; n < top + rows; n++) {
+    const txt = SRC[n];
+    if (txt === undefined) break;
+    const c = HERECONVS.find((x) => x.line === n);
+    let gm = "";
+    if (c) {
+      const r = c.posts[0];
+      gm = `<span class="gpin ${c.draft ? "dr" : ""} ${r.blk ? "blk" : ""} ${unread(c) && !c.draft ? "u" : ""}" style="--t:${r.l ? tint(r.l) : "var(--ink-3)"}" title="${c.posts.length} posts${unread(c) ? ", " + unread(c) + " new" : ""}"></span>`;
+    }
+    const add = n >= ADDED[0] && n <= ADDED[1];
+    const pick = o.pick === n, sel = o.sel && n >= o.sel[0] && n <= o.sel[1];
+    let eol = o.eol ? '<span class="lane"></span>' : "";
+    if (c && o.eol) {
+      const u = unread(c);
+      eol = `<span class="lane"><span class="eol" title="${c.posts.length} posts. Open in the reader">${c.posts[0].l ? mark(c.posts[0].l, c.posts[0].blk, "sm") : ""}<span class="stack">${people(c.posts).slice(0, 3).map((a) => avatar(a)).join("")}</span>${c.posts.length}${u ? `<span class="dot" style="width:6px;height:6px"></span>` : ""}</span></span>`;
+    }
+    h += `<div class="ln ${add ? "add" : ""} ${pick ? "pick" : ""} ${sel ? "sel" : ""}" data-n="${n}"><span class="g">${n}</span><span class="m">${gm}</span><span class="t">${hl(txt)}</span>${eol}</div>`;
+    if (o.after && o.after[n]) h += o.after[n];
+  }
+  return h;
+}
+function ruler(top, rows, Hpx) {
+  let h = `<div class="th" style="top:${(top / LONGN) * 100}%;height:${Math.max(3, (rows / LONGN) * 100)}%"></div>`;
+  for (const c of HERECONVS) {
+    const cls = c.k === PICK.k ? "p" : c.draft ? "dr" : unread(c) ? "u" : "";
+    h += `<i class="tk ${cls}" style="top:${(c.line / LONGN) * 100}%" title="Line ${c.line}"></i>`;
+  }
+  return `<div class="ruler">${h}</div>`;
+}
+
+/* ================= chrome ================= */
+function chrome(inner, o = {}) {
+  const modes = ["Overview", "Read", "Review", "Discuss"].map((m) => `<span class="${m === o.mode ? "on" : ""}">${m}</span>`).join("");
+  const lbar = o.lbar === false ? "" : `<div class="lbar">${ib("panel", "Files")}<span class="vsep"></span>
+    <span class="crumb">src<span>/</span>adapters<span>/</span>qt<span>/</span>src<span>/</span><b>conversation_cards_view.cpp</b></span>
+    <span class="cnt q" style="margin-left:6px" title="Changed lines">+16 −9</span><span class="sp"></span>
+    <span class="stepper" title="File 3 of 10">${ic("dleft", "s")}<em>3 / 10</em>${ic("dright", "s")}</span><span class="vsep"></span>
+    <span class="stepper" title="Change 2 of 6">${ic("left", "s")}<em>2 / 6</em>${ic("right", "s")}</span>${o.lextra || ""}</div>`;
+  return `<div class="win"><div class="tbar"><div class="lights"><i></i><i></i><i></i></div>${ib("home", "Home")}
+    <span class="prid">${ic("pr", "s")}<b>#418</b><span class="tt">Find the conversation from the map</span></span><span class="sp"></span>
+    <span class="modes">${modes}</span><span class="sp"></span>${o.textra || ""}${ib("refresh", "Refresh")}${ib("notes", "Notes")}${ib("user", "Account")}${ib("sun", "Appearance")}</div>
+    ${lbar}<div class="main">${inner}</div>
+    <div class="sbar"><span>${o.status || ""}</span><span class="sp"></span><span>${CONVS.length} conversations</span><span><i class="dot"></i>${PRNEW} with new replies</span><span>${PROPEN} open</span></div></div>`;
+}
+const topFor = (pick, rows, frac = 0.36) => Math.max(600, Math.min(720 - rows, pick - Math.round(rows * frac)));
+
+/* ================= A. Atlas ================= */
+function conceptA() {
+  const mapW = BIG ? 400 : 336, rdW = BIG ? 560 : 440;
+  const bodyH = H - 40 - 32 - 24;
+  const rows = Math.floor((bodyH - 6) / 20);
+  const top = topFor(667, rows, FR === "d2" ? 0.42 : 0.36);
+  const c = CV[PICK.k];
+  let focus = PICK.n, hov = null, compose = "idle", sel = null, extra = "";
+  if (FR === "d1") hov = {k:"deep", n:"x1"};
+  if (FR === "d2") { compose = "typing"; sel = [664, 669]; }
+  const mapH = `<div class="mapcol" style="width:${mapW}px">
+    <div class="mtools"><span class="find" title="Find by person, label or words">${ic("search", "s")}Find</span>
+      <span class="tg on" title="This file and the whole pull request">${ic("pr", "s")}</span>
+      <span class="tg" title="Only conversations with new replies"><i class="ud"></i>${PRNEW}</span>
+      <span class="tg" title="Only open conversations">${ic("unres", "s")}${PROPEN}</span>
+      ${ib("next", "Next new reply ⌥N")}</div>
+    <div class="mscroll">${mapRows(mapW, {sel:PICK, hov})}</div></div>`;
+  const codeH = `<div class="code"><div class="lines">${codeLines(top, rows, {pick:667, eol:true, sel})}</div>${ruler(top, rows)}</div>`;
+  const feed = feedHtml(c, focus);
+  const text = FR === "d2" ? "Test both orders: the child's page first, then the parent's, and check <code style=\"font:12px var(--mono)\">Current</code> still names the same card" : "";
+  const rd = `<div class="reader" style="width:${rdW}px">${rhead(c, {focus})}<div class="feed">${feed}</div>${composer(compose, {text, quote:"664–669"})}</div>`;
+  let over = "";
+  if (FR === "d1") {
+    /* the tooltip of a hovered node: the post, in full, with its mark */
+    const p = c.posts.find((x) => x.id === "x1");
+    over = `<div class="peek" id="hovpeek"><div class="ph2">${ic("fork", "xs")}Starts its own branch<span class="sp"></span><span class="kbd">Click</span> reads it</div>${post(p, {pl:22})}</div>`;
+  }
+  return chrome(mapH + codeH + rd + over, {mode:"Read", status:"Read"});
+}
+
+/* ================= B. Desk ================= */
+function forestHtml(Wb, Hb, o = {}) {
+  const S = o.step || 20, LW = o.lanew || 21, top0 = 56, bottom = 32;
+  const avail = Hb - top0 - bottom - 16;
+  const cap = Math.floor(avail / S) - 1;
+  /* widths */
+  const items = CONVS.map((c) => {
+    const sel = o.sel && o.sel.k === c.k;
+    const r = routeOf(c, sel ? o.sel.n : null);
+    const f = folds(c, r.Lo, cap, sel ? r.focus : null);
+    return {c, ...r, ...f, sel, w:(r.Lo.lanes - 1) * LW + 24};
+  });
+  const gapC = 8;
+  let total = 0;
+  const groups = FILES.map((f) => {
+    const its = items.filter((x) => x.c.path === f);
+    const inner = its.reduce((s, x) => s + x.w, 0) + gapC * (its.length - 1);
+    const w = Math.max(inner + 16, 60);
+    total += w;
+    return {f, its, inner, w, want:base(f).length * 6.3 + 30};
+  });
+  /* widen territories toward their label's width while room lasts, then spread the rest */
+  let room = Wb - 32 - total - 10 * (groups.length - 1);
+  for (let pass = 0; pass < 6 && room > 1; pass++) {
+    const short = groups.filter((g) => g.want > g.w);
+    if (!short.length) break;
+    const share = room / short.length;
+    for (const g of short) { const d = Math.min(share, g.want - g.w); g.w += d; room -= d; }
+  }
+  const gapF2 = 10 + Math.max(0, room) / (groups.length - 1);
+  let x = 16;
+  let h = "";
+  for (const g of groups) {
+    const isHere = g.f === HERE;
+    const fu = g.its.filter((v) => unread(v.c) && !v.c.draft).length;
+    h += `<div class="terr ${isHere ? "here" : ""}" style="left:${x}px;width:${g.w}px" title="${g.f}"><span class="tn">${base(g.f)}</span>${fu ? '<i class="dot" style="width:6px;height:6px"></i>' : ""}</div>`;
+    let cx = x + (g.w - g.inner) / 2;
+    for (const it of g.its) {
+      const {c, Lo, focus, path, down, hidden, pills, sel} = it;
+      const Xl = (lane) => 11 + lane * LW;
+      const Y = (id) => {
+        if (id === Lo.root.id) return 22;
+        if (hidden.has(id)) { const pl = pills.find((q) => q.ids.includes(id)); return 22 + (pl.col + 1) * S + S * 0.5; }
+        return 22 + (Lo.pos[id].col + 1) * S;
+      };
+      const lane = (id) => (id === Lo.root.id ? 0 : Lo.pos[id].lane);
+      const seg = (u, v) => {
+        const lu = lane(u), lv = lane(v);
+        if (lu === lv) return `M${Xl(lu)},${Y(u)}V${Y(v)}`;
+        return `M${Xl(lu)},${Y(u)}H${Xl(lv) - 6}Q${Xl(lv)},${Y(u)} ${Xl(lv)},${Y(u) + 6}V${Y(v)}`;
+      };
+      const ids = c.posts.map((p) => p.id).filter((id) => id !== Lo.root.id);
+      let d = "";
+      for (const v of ids) d += `<path d="${seg(Lo.dpar[v], v)}"/>`;
+      if (sel) { for (const v of ids) if (down.has(v)) d += `<path class="dn" d="${seg(Lo.dpar[v], v)}"/>`; for (const v of ids) if (path.has(v)) d += `<path class="pa" d="${seg(Lo.dpar[v], v)}"/>`; }
+      const by = Object.fromEntries(c.posts.map((p) => [p.id, p]));
+      let nodes = "";
+      for (const v of [Lo.root.id, ...ids]) {
+        if (hidden.has(v)) continue;
+        const p = by[v];
+        const cls = ["nd", p.l ? "" : "avn", p.u ? "u" : "rd", v === Lo.root.id ? "root" : "", sel && (path.has(v) || down.has(v)) ? "on" : "", sel && v === focus ? "foc" : "",
+          o.hl ? (p.l === o.hl ? "hit" : "lo") : "", o.hov && o.hov.k === c.k && o.hov.n === v ? "hov" : ""].join(" ");
+        nodes += `<span class="${cls}" style="left:${Xl(lane(v))}px;top:${Y(v)}px" title="${esc(tipOf(p))}">${nodeFace(p)}</span>`;
+      }
+      for (const pl of pills) nodes += `<span class="vfold" style="left:${Xl(pl.lane)}px;top:${22 + (pl.col + 1) * S + S * 0.5}px" title="${pl.n} earlier replies, all read">${pl.n}</span>`;
+      const maxY = Math.max(...[Lo.root.id, ...ids].filter((v) => !hidden.has(v)).map(Y));
+      const u = unread(c);
+      const lo = o.hl && !c.posts.some((p) => p.l === o.hl);
+      const halo = sel ? `<span class="halo" style="left:-8px;top:-6px;width:${it.w + 16}px;height:${maxY + 22}px"></span>` : "";
+      const badge = c.draft ? `<span class="lock" style="position:absolute;left:${Xl(0)}px;top:${maxY + 14}px;transform:translateX(-50%)">${ic("lock", "xs")}</span>`
+        : c.res ? `<span class="okm" style="position:absolute;left:${Xl(0)}px;top:${maxY + 13}px;transform:translateX(-50%)">${ic("okc", "xs")}</span>` : "";
+      h += `<div class="tree ${sel ? "sel" : ""} ${c.res ? "res" : ""} ${lo ? "lo" : ""}" style="left:${cx}px;top:${top0}px;width:${it.w}px;height:${maxY + 20}px" title="${esc(base(c.path) + ":" + c.line + (u ? ", " + u + " new" : ""))}">${halo}<span class="tl" style="left:${Xl(0)}px">${c.line}</span><svg width="${it.w}" height="${maxY + 20}">${d}</svg>${nodes}${badge}</div>`;
+      cx += it.w + gapC;
+    }
+    x += g.w + gapF2;
+  }
+  return h;
+}
+function conceptB() {
+  const bandH = BIG ? 330 : 300;
+  const peekW = BIG ? 660 : 500;
+  const c = CV[PICK.k];
+  const hl = FR === "d1" ? "issue" : null;
+  const forest = `<div class="forest" style="height:${bandH}px">
+    <div class="ftools"><span class="find" title="Find by person, label or words">${ic("search", "s")}Find</span>
+      <span class="tg on" title="Whole pull request">${ic("pr", "s")}</span>
+      <span class="tg" title="Only conversations with new replies"><i class="ud"></i>${PRNEW}</span>
+      <span class="tg" title="Only open conversations">${ic("unres", "s")}${PROPEN}</span>
+      ${hl ? `<span class="tg on" title="Highlighting issue posts; the rest stay in place">${mark("issue", 0, "sm")}${CONVS.reduce((n, x) => n + x.posts.filter((p) => p.l === "issue").length, 0)}${ic("close", "xs")}</span>` : `<span class="tg" title="Highlight a label">${ic("tag", "s")}</span>`}
+      <span class="sp"></span>${ib("next", "Next new reply ⌥N")}${ib("expand", "Collapse the map ⌘J")}</div>
+    ${forestHtml(W, bandH, {sel:PICK, hl})}</div>`;
+  const bodyH = H - 40 - bandH - 24 - 36;
+  const rows = Math.floor((bodyH - 6) / 20);
+  const top = topFor(667, rows, 0.3);
+  const sel = FR === "d2" ? [664, 669] : null;
+  const compose = FR === "d2" ? "typing" : "idle";
+  const text = FR === "d2" ? "Test both orders: the child's page first, then the parent's, and check <code style=\"font:12px var(--mono)\">Current</code> still names the same card" : "";
+  const rdr = `<div class="dreader">${rhead(c, {crumbs:true, focus:PICK.n, noCode:true}).replace('class="rhead"', 'class="rhead"')}
+    <div class="feed"><div class="col">${feedHtml(c, PICK.n, {foldRead:!BIG})}</div></div><div class="col">${composer(compose, {text, quote:"664–669"})}</div></div>`;
+  /* minimap: the whole file at a glance */
+  let mm = "";
+  const seed = (n) => (Math.sin(n * 12.9898) * 43758.5453) % 1;
+  for (let i = 0; i < 150; i++) { const w = 8 + Math.abs(seed(i + 3)) * 26; mm += `<i class="mrow" style="top:${(i / 150) * 100}%;width:${w}px;opacity:${0.5 + Math.abs(seed(i)) * 0.5}"></i>`; }
+  mm += `<i class="vp" style="top:${(top / LONGN) * 100}%;height:${Math.max(2.5, (rows / LONGN) * 100)}%"></i>`;
+  for (const x of HERECONVS) { const r = x.posts[0]; mm += `<span class="mk" style="top:${(x.line / LONGN) * 100}%"><span class="gpin ${x.draft ? "dr" : ""} ${r.blk ? "blk" : ""} ${unread(x) && !x.draft ? "u" : ""}" style="--t:${r.l ? tint(r.l) : "var(--ink-3)"};width:9px;height:9px;display:block"></span></span>`; }
+  let qbar = "";
+  if (FR === "d2") qbar = `<div class="qbar" id="qbar">${ic("quote", "s")}Quote in reply<span class="kbd">Q</span></div>`;
+  const peek = `<div class="cpeek" style="width:${peekW}px"><div class="ph">${ic("file", "s")}<span style="font:600 12px var(--mono)">${base(HERE)}</span><span style="color:var(--ink-3);font:12px var(--mono)">:667</span><span class="sp"></span>${ib("code", "Open in Read ⌘2")}</div>
+    <div class="body"><div class="lines" style="position:relative">${codeLines(top, rows, {pick:667, sel})}${qbar}</div><div class="minimap" title="The whole file; marks are conversations">${mm}</div></div></div>`;
+  return chrome(forest + `<div class="desk">${rdr}${peek}</div>`, {mode:"Discuss", lbar:false, status:"Discuss"}).replace('<div class="main">', '<div class="main" style="flex-direction:column">');
+}
+
+/* ================= C. Margin ================= */
+function conceptC() {
+  const bodyH = H - 40 - 32 - 24;
+  const marginW = BIG ? 470 : 400;
+  const codeW = W - marginW - 15;
+  const c = CV[PICK.k];
+  const unfoldW = Math.min(codeW - 84 - 16, BIG ? 900 : 780);
+  const strip = `<div class="ustrip">${mapRow(c, unfoldW, {sel:PICK, step:20, x0:70, rowh:30, laneh:22})}</div>`;
+  const unfold = `<div class="unfold" id="unfold" style="width:${unfoldW}px">${rhead(c, {crumbs:true, focus:PICK.n, noCode:true}).replace('class="rhead"', 'class="uh"')}${strip}<div class="feed" style="padding:4px 0 2px">${feedHtml(c, PICK.n, {foldRead:true})}</div>${composer("idle")}</div>`;
+  const rows = 60;
+  const d2 = FR === "d2";
+  const top = d2 ? 640 : BIG ? 652 : 659;
+  const lines = `<div class="lines" style="width:${codeW}px">${codeLines(top, rows, d2 ? {sel:[656, 656]} : {pick:667, after:{667:unfold}})}</div>`;
+  const notes = `<div class="margin" id="margin"></div>`;
+  const textra = ib("map", "Find a conversation ⌘J", FR === "d1" ? "on" : "", `<span class="bd">${PRNEW}</span>`);
+  let over = "";
+  if (FR === "d1") over = overlayC();
+  return chrome(`<div class="page">${lines}${notes}${ruler(top, 40)}</div>${over}`, {mode:"Read", status:"Read", textra});
+}
+function overlayC() {
+  const SW = Math.min(W - 160, BIG ? 1500 : 1240);
+  const preW = BIG ? 460 : 400;
+  const colW = Math.floor((SW - preW) / 2);
+  const q = "page";
+  const match = (p) => /page/i.test(p.b);
+  const half = Math.ceil(FILES.length / 2);
+  const hlFile = (s) => s;
+  const col1 = mapRows(colW, {files:FILES.slice(0, 3), sel:{k:"deep", n:"b5"}, match, step:20, x0:76, noHere:false});
+  const col2 = mapRows(colW, {files:FILES.slice(3), match, step:20, x0:76});
+  const c = CV.deep;
+  const pre = `<div class="spre" style="width:${preW}px">${rhead(c, {crumbs:BIG, focus:"b5", noCode:true})}<div class="feed" style="padding-top:6px">${
+    feedHtml(c, "b5").replace(/(next page|page)/g, '<mark class="hit">$1</mark>')}</div></div>`;
+  const nm = CONVS.reduce((n, x) => n + x.posts.filter(match).length, 0);
+  const nc = CONVS.filter((x) => x.posts.some(match)).length;
+  return `<div class="scrim"></div><div class="sheet" style="width:${SW}px">
+    <div class="shead"><span class="find on">${ic("search")}<span>${q}</span><span class="caret" style="height:17px"></span><span class="sp"></span><span style="color:var(--ink-3);font-size:12px">${nm} posts in ${nc}</span></span>
+      <span class="tg on" title="Whole pull request">${ic("pr", "s")}</span><span class="tg" title="Only conversations with new replies"><i class="ud"></i>${PRNEW}</span><span class="tg" title="Only open conversations">${ic("unres", "s")}${PROPEN}</span><span class="tg" title="Highlight a label">${ic("tag", "s")}</span><span class="sp"></span>${ib("close", "Close ⎋")}</div>
+    <div class="sbody"><div class="scols"><div class="scol">${col1}</div><div class="scol">${col2}</div></div>${pre}</div>
+    <div class="sfoot"><span><span class="kbd">↑↓</span><span class="kbd">←→</span>move</span><span><span class="kbd">↩</span>open at its line</span><span><span class="kbd">⎋</span>back to the code</span></div></div>`;
+}
+/* margin notes are placed after layout, at their line's height */
+function placeMargin() {
+  const m = document.getElementById("margin");
+  if (!m) return;
+  const mr = m.getBoundingClientRect();
+  const lines = [...document.querySelectorAll(".ln[data-n]")];
+  const vis = {};
+  for (const el of lines) vis[+el.dataset.n] = el.getBoundingClientRect();
+  let h = "";
+  const shown = Object.keys(vis).map(Number);
+  const above = HERECONVS.filter((c) => !vis[c.line] && c.line < Math.min(...shown));
+  const below = HERECONVS.filter((c) => !vis[c.line] && c.line > Math.max(...shown));
+  const chip = (cs, dir) => `${ic(dir, "xs")}${cs.map((c) => (c.posts[0].l ? mark(c.posts[0].l, c.posts[0].blk, "sm") : "")).join("")}<span>${cs.length}</span>${cs.some((c) => unread(c) && !c.draft) ? '<i class="dot" style="width:6px;height:6px"></i>' : ""}`;
+  if (above.length) h += `<div class="edgec" style="top:10px" title="${above.map((c) => "line " + c.line).join(", ")}">${chip(above, "up")}</div>`;
+  if (below.length) h += `<div class="edgec" style="bottom:12px" title="${below.map((c) => "line " + c.line).join(", ")}">${chip(below, "down")}</div>`;
+  let lastBottom = 46;
+  for (const c of HERECONVS) {
+    const r = vis[c.line];
+    if (!r) continue;
+    const y = Math.max(lastBottom, r.top - mr.top - 8);
+    const open = c.k === PICK.k && FR !== "d2";
+    const hov = FR === "d2" && c.k === "l656";
+    const p0 = c.posts[0], u = unread(c);
+    const textEnd = (() => { const t = document.querySelector(`.ln[data-n="${c.line}"] .t`); const range = document.createRange(); range.selectNodeContents(t); const rr = range.getBoundingClientRect(); return rr.right; })();
+    h += `<i class="lead ${open ? "open" : ""}" style="top:${r.top - mr.top + 10}px;left:${textEnd - mr.left + 8}px;width:${Math.max(0, 14 - (textEnd - mr.left + 8))}px"></i>`;
+    h += `<div class="mnote ${open ? "open" : ""} ${hov ? "hov" : ""}" style="top:${y}px" title="${esc(p0.b.replace(/`/g, ""))}">${p0.l ? mark(p0.l, p0.blk) : avatar(p0.a)}<span class="tx1">${bodyHtml(p0.b).replace(/<\/?code>/g, "")}</span><span class="mr"><span class="stack">${people(c.posts).slice(0, 4).map((a) => avatar(a, "sm")).join("")}</span><span style="display:flex;gap:4px;align-items:center">${c.draft ? `<span class="lock">${ic("lock", "xs")}</span>` : u ? `<span class="cnt">${u}</span>` : ""}<span class="cnt q">${c.posts.length}</span>${open ? `<span style="color:var(--route);display:inline-flex" title="Open below its line">${ic("chevd", "s")}</span>` : ""}</span></span></div>`;
+    lastBottom = y + 62;
+    if (hov) {
+      h += `<div class="peek" style="position:absolute;left:14px;right:14px;width:auto;top:${y + 60}px"><div class="ph2">${base(c.path)}:${c.line}<span class="sp"></span><span class="kbd">↩</span> opens under the line</div>${c.posts.map((p) => post(p, {pl:22})).join("")}</div>`;
+    }
+  }
+  m.innerHTML = h;
+}
+
+/* ================= draw ================= */
+const app = document.getElementById("app");
+app.innerHTML = CON === "A" ? conceptA() : CON === "B" ? conceptB() : conceptC();
+placeMargin();
+/* scroll the long thread lists so the picked conversation is in view */
+for (const ms of document.querySelectorAll(".mscroll, .scol")) {
+  const s = ms.querySelector(".cv.sel");
+  if (s && s.offsetTop + s.offsetHeight > ms.clientHeight - 20) ms.scrollTop = s.offsetTop - 120;
+}
+/* A d1: place the hovered node's preview beside it */
+const hp = document.getElementById("hovpeek");
+if (hp) {
+  const n = document.querySelector(".nd.hov");
+  const r = n.getBoundingClientRect();
+  hp.style.left = (r.right + 14) + "px"; hp.style.top = (r.top - 30) + "px";
+}
+/* B d2: the quote bar sits above the selected lines */
+const qb = document.getElementById("qbar");
+if (qb) {
+  const s = document.querySelector('.ln.sel');
+  const lr = qb.parentElement.getBoundingClientRect(), r = s.getBoundingClientRect();
+  qb.style.left = "120px"; qb.style.top = (r.top - lr.top - 36) + "px";
+}
+</script>
+</body>
+</html>

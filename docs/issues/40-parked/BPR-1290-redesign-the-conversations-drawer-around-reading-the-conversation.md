@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-parked_on: "human-review"
+parked_on: "owner-design-discussion"
 metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
 ---
 
@@ -110,6 +110,9 @@ Read from the code and the screenshot, not from the owner:
 - **BPR-1290:inventory.** The table above is complete before design starts.
 - **BPR-1290:direction.** The owner chooses one of the frame candidates (or
   rejects all) in an attended session; the choice and note are recorded here.
+  Amended 2026-10-06 by the owner's format choice after round v3 (below): the
+  owner chooses one of the whole-window concepts (or rejects all) in chat, and
+  the chosen one is then prototyped; the choice and note are recorded here.
 - **BPR-1290:reading.** In Read, the selected conversation fills the drawer's
   height under the tabs and its navigation: every post shows its author,
   avatar, mark and rail per BPR-1083 v4, unread state and complete body, with
@@ -279,7 +282,7 @@ grouped by file; picking a conversation or a post in it opens the branch from
 the first comment to that post in the reader. Inline remains this file's
 line-anchored threads.
 
-## Design round v3, 2026-10-06
+## Design round v3, 2026-10-06 (superseded, unanswered)
 
 [Round v3](../../design/BPR-1290-conversations-drawer-v3.html) with
 [frames](../../design/BPR-1290-conversations-drawer-frames-v3.html), drawn with
@@ -327,26 +330,82 @@ state, which the ledger has carried since [[BPR-0656]]; the section's "no read
 or unread state on the map" predates that). RFC-BPR-0028 AC-05's line alignment
 stays with Inline.
 
-## Pending owner decisions
+## Round v3 session, stopped unanswered
 
-One attended session asks four questions on frames frozen from `edb712fd6` (rebased onto main as `9c89f6e43`; the five
-frozen files are byte-identical) in
-`/Users/jaeger/bpr1290-drawer-review-v003.PfgyIp` (the v3 page and frames, v2's
-frames for Inline, and both owner screenshots; `open /Users/jaeger/bpr1290-drawer-review-v003.PfgyIp/source/docs/design/BPR-1290-conversations-drawer-v3.html`).
-Session `8ecbfc2039c5ffacfcdd3ea0fff14f2c`, state
-`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v003`,
-cursor 12:
+Round v3's session (`8ecbfc2039c5ffacfcdd3ea0fff14f2c`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v003`)
+was stopped by the coordinator at cursor 12 with no decision on any of its four
+candidates (`BPR-1290-map-primary-v003`, `BPR-1290-map-layout-v003`,
+`BPR-1290-inline-pick-v003`, `BPR-1290-split-tabs-v003`). Round v3 is
+**superseded**: none of its questions is answered, and none is asked again.
+Its candidates were released (`resume-development`, sequence 13) and its frozen
+root `/Users/jaeger/bpr1290-drawer-review-v003.PfgyIp` deleted.
 
-1. `BPR-1290-map-primary-v003`: Accept or Reject the map as the primary
-   Conversation navigator, as drawn (BPR-1290:direction).
-2. `BPR-1290-map-layout-v003`: A. Above, B. Beside or C. Fills the tab
-   (BPR-1290:navigation).
-3. `BPR-1290-inline-pick-v003`: A. Opens in place or B. Opens Conversation
-   (BPR-1290:navigation; v2's question, asked again).
-4. `BPR-1290-split-tabs-v003`: Accept or Reject the split into Inline and
-   Conversation as drawn (BPR-1290:direction; v2's question, asked again).
+## Owner verdict on round v3 and the format, 2026-10-06
 
-Next: record each verdict and note here. If the map is accepted, amend
-BPR-1290:depth (the map stays, as the navigator, rather than going) and the
-specification's thread map section, revise the frames if a note asks, then
-plan the Qt build. BPR-1083's sessions are separate and untouched.
+In chat, relayed by the coordinator, verbatim:
+
+> the treeverse review i'm finding it hard to choose any of those they all look
+> bad and that review page format isn't ideal for mockup judging on a big
+> redesign like this.
+
+Asked how to proceed, the owner chose **fresh concepts first**: step back with
+three very different whole-window concepts (not drawer tweaks) as large stills,
+then prototype the one they like. No attended session for this round; the
+owner answers in chat. The card is parked on `owner-design-discussion`.
+
+Direction carried from earlier rounds: reading the conversation is the useful
+part and the drawer has too many parts and is cramped; inline comments
+(line-anchored to the file) are split from the conversation tree; the Treeverse
+map is the primary way to find the right conversation across the pull request;
+the code stays in view while commenting; a long file; minimal text, with icons,
+tooltips and colour; label marks and rails as accepted in [[BPR-1083]].
+
+## Whole-window concepts, round 1, 2026-10-06
+
+[The concepts page](../../design/BPR-1290-concepts-v1/index.html) shows three
+whole-window concepts as large stills, light and dark, at 1440 by 900 and 1920
+by 1080, each with two detail stills, a one-line pitch and no form. Drawn with
+`frontend-design`; every still comes from
+[`frames.html`](../../design/BPR-1290-concepts-v1/frames.html) (`c`, `f`,
+`theme`) through headless Chrome at 2x. Shared by all three: amber is the
+branch being read (the accepted Treeverse mockup's "in focus"), blue rings mark
+new replies, label marks and rails are BPR-1083 v4's with BPR-1080's glyphs and
+BPR-1079's tints, and a reply without a label is a dot in its author's colour.
+
+- **A. Atlas.** The map is a navigator column at the left (every conversation,
+  grouped by file, one row each, branching where the conversation does); the
+  long file stays in the middle with a thread lane at its right edge; the
+  picked branch reads in a column at the right with Reply at its foot. Details:
+  hovering a post in the map previews it; replying with lines selected in the
+  code.
+- **B. Desk.** The conversation is the workspace (Discuss): every conversation
+  hangs from its file as a vertical tree across the top of the window, the
+  branch reads in a wide centre column, and the code peeks in at the right with
+  a whole-file minimap. Details: highlighting one label across the pull
+  request; quoting lines from the peek into the reply.
+- **C. Margin.** The code is the page: threads are notes in a margin beside
+  their lines, and the picked one opens right under its line with its own small
+  map, the branch and Reply, between the code above and below. The map is a
+  finder laid over the window (⌘J) with search by words, person or label and a
+  preview. Details: the finder searching for "page"; hovering a margin note.
+
+Content: the long file is this repository's
+`src/adapters/qt/src/conversation_cards_view.cpp` (1550 lines, code verbatim at
+`1d839518c`). The pull request is made up: 21 conversations in 10 files,
+extended from round v3's set. The deep conversation at line 667 has
+`branching-thread-v1`'s shape (24 posts, three branches off the first comment,
+an aside forking off the third reply of the third branch); its words and unread
+state are illustrative.
+
+## Pending owner decision
+
+In chat: which concept to prototype (A, B or C), or what to change
+(BPR-1290:direction, as amended). Open the page with
+`open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/design/BPR-1290-concepts-v1/index.html`.
+
+Next: record the owner's words here, then prototype the chosen concept as a
+clickable HTML prototype at window size before any Qt work; revisit
+BPR-1290:reading, :navigation and :depth (they name the drawer) against the
+chosen concept and amend them with the owner. BPR-1083's sessions are separate
+and untouched.
