@@ -640,3 +640,30 @@ the prototype."
 Next: read the session's decision. Accept satisfies :owner-look and the card
 finishes; Reject comes back with what differs in its note, for a v002
 candidate.
+
+**Note: Linux verification at `1fecfaef5` (station `bpr-main-linux`, WSL2, GCC
+15.2.0, offscreen).**
+
+- **Dev tree** (rebuilt whole, no warnings): 21 of 21 pass.
+  - `qt_composed_inline_drawer_scale_{100,125,200}` (0.9, 1.1 and 1.9 s).
+  - `qt_conversation_cards_view` and `qt_github_conversation_panel`.
+  - `qt_github_thread_map_scale_{100,125,200}` and
+    `qt_feedback_label_threads`.
+  - `qt_composed_markdown_{1_0,1_25,2_0}` and
+    `qt_composed_github_scale_{100,125,200}`.
+  - `qt_workbench_window_scale_{100,125,200}`, which now pass with
+    [[BPR-1255]]'s floor.
+  - `application_composition_contract` (792.4 s),
+    `application_review_round_trip_composition_contract` and
+    `architecture_boundaries`.
+- **Optimized tests-on tree** (`app-release`, `BUILD_TESTING=ON`, GCC
+  `-O3`, `-j1`, idle): 21 of 21 pass in 100.1 s. That is the 18
+  large-review rows and the three `qt_composed_inline_drawer` scales. Every
+  report has `BudgetsEnforced` true, `KnownInputMisses` empty and no input
+  failure. Largest gaps in ms: `large_file_selection` 18.9–34.2,
+  `large_source_revisit_render` 17.8 and 21.0, `approximate_file_selection`
+  36.4, `first_tab_file` 22.6. The largest gated gap is 49.0
+  (`paged_review_and_git_load`).
+
+`build/app-release-tests` was removed. The card stays parked for the owner's
+look.
