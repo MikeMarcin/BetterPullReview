@@ -1,6 +1,6 @@
 #include "bpr/application/review_preflight_observation.hpp"
 
-#include "bpr/core/feedback_conversation.hpp"
+#include "bpr/application/feedback_sources.hpp"
 
 #include <algorithm>
 #include <unordered_map>
@@ -9,31 +9,6 @@
 namespace bpr::application {
 	namespace {
 		constexpr std::size_t maximum_subject_bytes = 200U;
-
-		struct posted
-		{
-			std::string                 Conversation;
-			std::string                 Id;
-			std::optional<std::string>  ReplyTo;
-			std::string_view            Body;
-			core::feedback_body_segment Segment;
-			bool                        Deleted = false;
-		};
-
-		[[nodiscard]] auto prefixed(std::string_view aPrefix, std::string_view aValue) -> std::string
-		{
-			auto text = std::string{ aPrefix };
-			text.append(aValue);
-			return text;
-		}
-
-		[[nodiscard]] auto author_of(const std::optional<github_actor_record>& aAuthor) -> std::optional<std::string>
-		{
-			if (!aAuthor || aAuthor->Actor.value().empty()) {
-				return std::nullopt;
-			}
-			return std::string{ aAuthor->Actor.value() };
-		}
 
 		/// The subject as written, else the first line, cut at a character.
 		[[nodiscard]] auto subject_of(std::string_view aBody, const core::feedback_annotation* aAnnotation) -> std::string
@@ -56,107 +31,25 @@ namespace bpr::application {
 			return std::string{ text };
 		}
 
-		[[nodiscard]] auto link_first(std::string_view aBody) noexcept -> bool
-		{
-			return aBody.starts_with("https://") || aBody.starts_with("http://");
-		}
-
-		[[nodiscard]] auto where_of(std::string_view aPath, std::optional<std::uint32_t> aLine) -> std::string
-		{
-			if (aPath.empty()) {
-				return "Pull request";
-			}
-			return aLine ? std::string{ aPath } + ":" + std::to_string(*aLine) : std::string{ aPath };
-		}
 	} // namespace
 
 	auto observe_review_preflight(const core::cached_review_key& aScope, const github_pull_request_snapshot& aSnapshot)
 		-> review_preflight_observation
 	{
-		auto       observation = review_preflight_observation{ .Snapshot  = aSnapshot.Snapshot,
-															   .Account   = aSnapshot.Account,
-															   .Head      = std::string{ aSnapshot.PullRequest.HeadOid.value() },
-															   .Submitter = std::string{ aSnapshot.Viewer.Actor.value() } };
-		auto       posts       = std::vector<posted>{ };
-		auto       facts       = std::vector<core::feedback_conversation_facts>{ };
-		auto       where       = std::map<std::string, std::string>{ };
-		const auto add         = [&](std::string aConversation, std::string aId, std::optional<std::string> aReplyTo, std::string_view aBody, bool aDeleted) {
-			posts.push_back({ .Conversation = std::move(aConversation), .Id = std::move(aId), .ReplyTo = std::move(aReplyTo), .Body = aBody, .Segment = core::published_feedback_segment(aBody), .Deleted = aDeleted });
-		};
-		const auto threads = aSnapshot.ReviewThreadsAvailability == github_collection_availability::available;
-		if (threads) {
-			for (const auto& thread : aSnapshot.ReviewThreads) {
-				auto                                conversation = prefixed("review-thread:", thread.Thread.value());
-				const auto                          file         = thread.Subject == github_review_thread_subject::file;
-				const github_review_comment_record* root         = nullptr;
-				auto                                roots        = std::size_t{ 0U };
-				for (const auto& comment : thread.Comments) {
-					add(conversation, prefixed("review-comment:", comment.Comment.value()),
-						comment.ReplyTo ? std::optional{ prefixed("review-comment:", comment.ReplyTo->value()) } : std::nullopt, comment.Body, comment.Deleted);
-					if (file && link_first(comment.Body)) {
-						// A file comment that begins with a link may be a permalink
-						// envelope (RFC-BPR-0022) whose prose this layer cannot map:
-						// its label is unclassified, not guessed. One that does not
-						// cannot be one, and is ordinary text.
-						posts.back().Segment = { .Managed = true };
-					}
-					if (!comment.ReplyTo) {
-						root = &comment;
-						++roots;
-					}
-				}
-				// No root, or more than one, names no author.
-				observation.Authors.push_back({ .Conversation = conversation, .RootAuthor = roots == 1U ? author_of(root->Author) : std::nullopt });
-				facts.push_back({ .Id         = conversation,
-								  .Resolution = thread.Resolved ? core::feedback_resolution::resolved : core::feedback_resolution::unresolved,
-								  .Anchor     = thread.Path.empty() ? core::feedback_anchor{ } : core::feedback_anchor{ .Status = core::feedback_anchor_status::file, .Path = thread.Path, .Outdated = thread.Outdated } });
-				where.emplace(conversation, where_of(thread.Path, thread.Line ? thread.Line : thread.OriginalLine));
-			}
-		} else if (aSnapshot.ReviewCommentsAvailability == github_collection_availability::available) {
-			for (const auto& group : aSnapshot.ReviewCommentGroups) {
-				auto conversation = prefixed("public-preview-comment:", group.Root.Comment.value());
-				add(conversation, conversation, std::nullopt, group.Root.Body, group.Root.Deleted);
-				for (const auto& reply : group.Replies) {
-					add(conversation, prefixed("public-preview-comment:", reply.Comment.value()),
-						prefixed("public-preview-comment:", reply.ReplyTo ? reply.ReplyTo->value() : group.Root.Comment.value()), reply.Body, reply.Deleted);
-				}
-				observation.Authors.push_back({ .Conversation = conversation, .RootAuthor = author_of(group.Root.Author) });
-				facts.push_back({ .Id         = conversation,
-								  .Resolution = core::feedback_resolution::unknown,
-								  .Anchor     = group.Root.Path.empty() ? core::feedback_anchor{ } : core::feedback_anchor{ .Status = core::feedback_anchor_status::file, .Path = group.Root.Path, .Outdated = group.Root.Outdated } });
-				where.emplace(conversation, where_of(group.Root.Path, group.Root.Line ? group.Root.Line : group.Root.OriginalLine));
-			}
-		}
-		for (const auto& comment : aSnapshot.IssueComments) {
-			auto conversation = prefixed("issue-comment:", comment.Comment.value());
-			add(conversation, conversation, std::nullopt, comment.Body, comment.Deleted);
-			observation.Authors.push_back({ .Conversation = conversation, .RootAuthor = author_of(comment.Author) });
-			facts.push_back({ .Id = conversation, .Deleted = comment.Deleted, .Resolution = core::feedback_resolution::not_applicable });
-			where.emplace(conversation, where_of({ }, std::nullopt));
-		}
-		for (const auto& review : aSnapshot.Reviews) {
-			if (review.Body.empty()) {
-				continue;
-			}
-			auto conversation = prefixed("review:", review.Review.value());
-			add(conversation, conversation, std::nullopt, review.Body, false);
-			observation.Authors.push_back({ .Conversation = conversation, .RootAuthor = author_of(review.Author) });
-			// My own pending GitHub review is not published yet.
-			facts.push_back({ .Id         = conversation,
-							  .Origin     = review.State == github_review_state::pending ? core::feedback_unit_origin::pending_publication : core::feedback_unit_origin::published,
-							  .Resolution = core::feedback_resolution::not_applicable });
-			where.emplace(conversation, where_of({ }, std::nullopt));
-		}
-
-		auto observed = std::vector<core::feedback_post_observation>{ };
-		observed.reserve(posts.size());
-		for (const auto& post : posts) {
-			observed.push_back({ .Conversation = post.Conversation,
-								 .Id           = post.Id,
-								 .ReplyTo      = post.ReplyTo ? std::optional<std::string_view>{ *post.ReplyTo } : std::nullopt,
-								 .Body         = post.Body,
-								 .Segment      = post.Segment,
-								 .Deleted      = post.Deleted });
+		auto observation = review_preflight_observation{ .Snapshot  = aSnapshot.Snapshot,
+														 .Account   = aSnapshot.Account,
+														 .Head      = std::string{ aSnapshot.PullRequest.HeadOid.value() },
+														 .Submitter = std::string{ aSnapshot.Viewer.Actor.value() } };
+		// [[BPR-1087]]. The shared adapter; a tour index stays a top-level
+		// comment here, as the preflight has always read it.
+		const auto sources  = observe_feedback_sources(aSnapshot);
+		const auto observed = feedback_post_observations(sources);
+		auto       facts    = std::vector<core::feedback_conversation_facts>{ };
+		auto       where    = std::map<std::string, std::string>{ };
+		for (const auto& conversation : sources.Conversations) {
+			observation.Authors.push_back({ .Conversation = conversation.Facts.Id, .RootAuthor = conversation.RootAuthor });
+			facts.push_back(conversation.Facts);
+			where.emplace(conversation.Facts.Id, conversation.Where);
 		}
 		auto refresh = core::refresh_feedback_annotations({ }, aScope, observed);
 		if (refresh.Refusal != core::feedback_refresh_refusal::none) {
@@ -166,10 +59,7 @@ namespace bpr::application {
 		if (!adopted) {
 			return observation;
 		}
-		const auto collection = threads || aSnapshot.ReviewCommentsAvailability == github_collection_availability::available
-			? core::feedback_collection::complete
-			: core::feedback_collection::partial;
-		auto       population = core::build_feedback_population(*adopted, facts, collection);
+		auto population = core::build_feedback_population(*adopted, facts, sources.Collection);
 		if (population.Refusal != core::feedback_population_refusal::none) {
 			return observation;
 		}
@@ -178,7 +68,7 @@ namespace bpr::application {
 		observation.Admitted    = true;
 
 		auto bodies = std::unordered_map<std::string_view, std::string_view>{ };
-		for (const auto& post : posts) {
+		for (const auto& post : sources.Posts) {
 			bodies.emplace(post.Id, post.Body);
 		}
 		auto annotations = std::unordered_map<std::string_view, const core::feedback_annotation*>{ };

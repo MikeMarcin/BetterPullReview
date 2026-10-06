@@ -967,3 +967,11 @@ bpr_enable_warnings(test_writing_delivery)
 bpr_add_network_isolated_test(NAME application_writing_delivery COMMAND test_writing_delivery)
 
 endif()
+# [[BPR-1087]]. Accepted label buckets per pull request, file and folder from the
+# accepted read model, with the kept annotations and the bounded re-tally.
+bpr_add_executable(test_better_pull_review_feedback_counters_tests feedback_counters_tests.cpp)
+target_link_libraries(test_better_pull_review_feedback_counters_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_feedback_counters_tests)
+bpr_enable_warnings(test_better_pull_review_feedback_counters_tests)
+bpr_add_network_isolated_test(NAME application_feedback_counters COMMAND test_better_pull_review_feedback_counters_tests)
+set_tests_properties(application_feedback_counters PROPERTIES TIMEOUT 120 PASS_REGULAR_EXPRESSION "feedback-counters-tests:pass")
