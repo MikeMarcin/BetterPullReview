@@ -307,3 +307,66 @@ after that implementation dependency is Done. Final gate artifacts are
 `m2-board-final.json` (valid). The completion observation/check result under
 `build/rfc0036-run/` records the final documentation HEAD and quiescent ownership.
 The unrelated `.mask.lock.json` change is excluded from every producer commit.
+
+## Status-only close under BPR-1299: stopped at AC-01 (2026-10-06)
+
+Mandate of 2026-10-06: promote and claim [[BPR-1299]] and check RFC-BPR-0036's
+acceptance against [[BPR-0917]]'s evidence and its dependencies. If they hold,
+close the RFC; otherwise record exactly what is missing and stop. The
+dependencies RFC-BPR-0005, 0006 and 0008 are Auto-Verified, and BPR-0917 is
+Done. BPR-1299 was promoted at `5cbac5a6b` and claimed at `c012afeaa`, over
+`origin/main` `34c4b9d49`.
+
+Since `a3ab46ee`, the shared reader has changed: BPR-1083's label marks,
+BPR-0970's fuzz fixes, review-tour reconstruction and Qt 6.11.2. The overview
+and conversation composition have changed much more (about 2,700 lines across
+`conversation_cards_view.cpp`, `github_conversation_panel.cpp` and
+`pull_request_overview_page.cpp`). So BPR-0917's focused course was run again
+rather than reused.
+
+Fresh at `c012afeaa` (product tree `34c4b9d49`), macOS 26.6.2 arm64,
+`build/dev` (Debug):
+
+- `ctest --test-dir build/dev -j 6 --output-on-failure -R
+  '^(core_markdown_navigation|application_github_window_read_host|qt_pull_request_overview_page|qt_github_conversation_panel|qt_conversation_cards_view|qt_markdown_body_.*|qt_composed_markdown_.*|qt_public_preview_conversation|application_device_authorization_browser_address|application_setup_destination_public_path|core_dependency_boundary|architecture_boundaries|architecture_boundary_contract)$'`
+  passes 17 of 17.
+- The native Cocoa course (`QT_QPA_PLATFORM=cocoa BPR_AUTOMATED_TEST_BOUNDARY=1`,
+  `better_pull_review_composed_markdown_tests`) passes. A 50,742-byte body lays
+  out in 31 ms, and the 1,027-byte pathological fallback takes 10 ms.
+
+Inspecting the ten captures found a failure that the passing tests do not
+report. The overview still renders the declared subset (`overview-native.png`
+shows headings, emphasis, quote, nested lists, read-only tasks, code, a
+bordered table and links), and the long-description and wide-block captures
+still reach their final content. The four conversation captures
+(`conversation-1`, `-2`, `-4`, `-5`) show every public post as raw Markdown:
+`- [x] Complete`, a backtick fence, `| --- | --- |`, `**Readable**` and
+`[Web link](https://…)` as typed.
+
+The cause is [[BPR-1290]] at `201c96f21` (2026-10-06), on the owner's verdict
+on the inline drawer prototype ("I like it"). That card records the removal of
+"the post list and the Markdown body pane (each post is read in place, as
+written)". Posts are now a `threadPostBody` `QTextEdit` holding the body as
+written, with links admitted through the host. The same commit narrowed
+`qt_composed_markdown`'s conversation half. It no longer calls `structures()`,
+compares `original_body()`, Tabs into a reader or switches source for
+conversations. It checks only that each post reaches its final content and
+that a link gesture carries the post's identity. The rows therefore pass while
+the behaviour they used to check is gone.
+
+| Criterion | At `34c4b9d49` | Result |
+|---|---|---|
+| AC-01 | Overview renders the subset through the shipped composition. Public conversations show Markdown as written, not rendered | **Fails** for public conversations |
+| AC-02 | The overview's source, copy and fallback hold. Conversation posts show their bytes as written; no rendered preview remains in them to compare | Overview pass; conversation half moot while AC-01 fails |
+| AC-03 | Link admission and refusals through the host, for the overview and for conversation post links (the course's link gesture per post). No resource effects | Pass |
+| AC-04 | Overview reader keyboard, source switch, appearance and scales hold. The conversation reader that the criterion's keyboard, source-switching and accessibility half was proven on has been removed | Overview pass; conversation half not demonstrated |
+| AC-05 | Bounds, measured long and pathological bodies, unchanged refresh and stale-completion rejection | Pass |
+| AC-06 | Uncapped long description reaches its final paragraph; `docs/architecture/native-markdown.md` still describes subset, fallback, bounds and image policy | Pass |
+
+The RFC stays Proposed. BPR-1299 is parked on `human-review` with one owner
+question. The first choice is to restore rendering of the declared subset in
+each open thread's posts, keeping BPR-1083's marks and the link host, and to
+restore the course's conversation structure assertions, in BPR-1290's next
+candidate (BPR-1290 is itself parked for the owner). The second is to amend
+AC-01 and AC-04 to the overview and close. Nothing in the product changed
+here.

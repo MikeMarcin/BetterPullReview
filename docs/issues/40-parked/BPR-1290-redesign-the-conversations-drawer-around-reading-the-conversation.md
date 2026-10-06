@@ -1041,3 +1041,11 @@ question, Accept or Reject: "drawer v004: shortcodes work in replies."
 Next: read the session's decision. Accept satisfies :owner-look and the card
 finishes; Reject comes back with what differs in its note, for a v005
 candidate. The composer items of the v003 note are BPR-1212's.
+
+**Note (2026-10-06, from [[BPR-1299]]):** reading posts "as written" makes
+RFC-BPR-0036's AC-01 fail for public conversations. The native captures of
+`qt_composed_markdown` show raw `- [x]`, fences and table pipes in the open
+thread. This card's change to that course also dropped its conversation
+structure assertions, so the rows still pass. BPR-1299 is parked on the
+owner's choice between rendering posts with the shared reader in this card's
+next candidate (recommended) and amending AC-01 to the overview.
