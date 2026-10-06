@@ -1,5 +1,6 @@
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/feedback_convention.hpp"
 #include <cstdlib>
 #include <iostream>
 namespace {
@@ -94,5 +95,18 @@ int main()
 								 "\n")
 			   && writingMetadata.metadata() == metadata,
 		   "runtime facts cannot admit a prohibited finding carrier or change on its refusal");
+	// [[BPR-1086]]. RFC-BPR-0048 "Tour compatibility" and R19: the tour's
+	// problem, solution, outline and stop hooks keep their own purposes. No
+	// shipped default asks for a feedback label or a decoration, so a stop the
+	// agent drafts is plain unless its author labels it.
+	for (const auto hook : { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment }) {
+		const auto text = application::default_writing_hook(hook);
+		expect(!text.empty(), "every tour hook ships its default");
+		for (std::size_t label = 0; label < core::feedback_label_count; ++label) {
+			const auto name = std::string{ core::stable_name(static_cast<core::feedback_label>(label)) };
+			expect(text.find(name + ":") == std::string_view::npos && text.find(name + " (") == std::string_view::npos, "no tour hook asks for a feedback label");
+		}
+		expect(text.find("(blocking)") == std::string_view::npos && text.find("Conventional Comments") == std::string_view::npos, "nor for a decoration or the convention");
+	}
 	std::cout << "writing-delivery-tests:pass\n";
 }

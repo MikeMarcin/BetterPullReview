@@ -616,6 +616,24 @@ namespace bpr::app::detail {
 		/// A reply written in place in a thread on a current line: the reply
 		/// editor's mark and the draft editor's both say native.
 		bool ReplyMarkedNative = false;
+		/// [[BPR-1086]]. After every labelled comment above, no defect exists,
+		/// and the issue root's thread menu offers Classify as defect.
+		bool IssueOffersTracking = false;
+		/// That explicit gesture, and only it, made one outstanding defect on
+		/// that thread, with no review submission or post.
+		bool TrackedOnlyByGesture = false;
+		/// The website removed the root's `issue` label and the application
+		/// refreshed: the same thread now reads plain and the defect is kept,
+		/// its state, severity and category unchanged.
+		bool RelabelKeptDefect = false;
+		/// The website resolved the thread and the application refreshed: the
+		/// defect stays outstanding, never verified or withdrawn, verification
+		/// is still the reviewer's explicit action, and nothing was submitted.
+		bool ResolveOnlyEvidence = false;
+		/// A tour stop the website shows on another thread, its narrative
+		/// labelled `question`, is marked from its narrative and kept byte for
+		/// byte.
+		bool TourStopLabelled = false;
 
 		auto operator<=>(const label_authoring_probe_evidence&) const = default;
 	};

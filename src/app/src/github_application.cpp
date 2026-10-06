@@ -15628,10 +15628,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_reply_open,
 				awaiting_reply_draft,
 				awaiting_reply_body,
+				// [[BPR-1086]]. Private tracking and a tour stop beside the labels.
+				awaiting_defect_offer,
+				awaiting_defect_tracked,
+				awaiting_relabel_refreshed,
+				awaiting_resolve_refreshed,
+				awaiting_tour_refreshed,
 				passed,
 				failed,
 			};
 			detail::label_authoring_probe_evidence Evidence;
+			/// [[BPR-1086]]. The tracked defect as the gesture left it, the
+			/// fixture's review submissions and posts before it, and the bodies
+			/// the fixture's website gives the issue root and the tour stop.
+			std::optional<core::defect_record> Tracked;
+			std::size_t                        SubmissionsBefore = 0U;
+			std::string                        EditedRoot;
+			std::string                        TourStop;
 			/// [[BPR-1084]]. The line the current root comment is on, and the
 			/// fixture's native post count before it was published.
 			std::optional<core::source_line_ref> Anchor;
@@ -24928,6 +24941,142 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& evidence.PatchPublishedExact && evidence.ProseUnmarkedExact && evidence.RefusedTextKept && evidence.RefusedMarkedTextOnly && evidence.ReplyMarkedNative;
 			if (!all) {
 				return fail("reply-mark inPlace=" + inPlace + " editorMark=" + markState());
+			}
+			probe.Phase = state_type::phase::awaiting_defect_offer;
+			return result::pending;
+		}
+		// [[BPR-1086]]. Private tracking beside public labels (RFC-BPR-0048 R16):
+		// the issue root offers Classify as defect, only that gesture tracks
+		// it, and the website's label edit and resolution reach the defect as
+		// evidence at most. Then a tour stop with a labelled narrative (R19).
+		case state_type::phase::awaiting_defect_offer: {
+			auto* const ledger = implementation->ReviewLedgerHost.get();
+			auto        menu   = std::unique_ptr<QMenu>{ cards->thread_menu("review-thread:PRRT_cc_1") };
+			auto* const offer  = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadClassifyDefect")) : nullptr;
+			const auto  issues = std::ranges::count_if(cards->cards(), [&](const qt::thread_card& aCard) { return rootLabel(&aCard) == core::feedback_label::issue; });
+			note("ledger=" + std::to_string(ledger != nullptr && ledger->is_quiescent() ? 1 : 0) + " defects=" + std::to_string(implementation->DurableDefects.size())
+				 + " issues=" + std::to_string(issues) + " offer=" + std::to_string(offer == nullptr ? -1 : offer->isEnabled() ? 1
+																															   : 0));
+			if (ledger == nullptr || !ledger->is_quiescent() || offer == nullptr || !offer->isEnabled()) {
+				return result::pending;
+			}
+			// Several issue roots were read, written and published above; none
+			// became a defect.
+			probe.Evidence.IssueOffersTracking = implementation->DurableDefects.empty() && issues >= 2 && rootLabel(cardFor("review-thread:PRRT_cc_1")) == core::feedback_label::issue;
+			if (!probe.Evidence.IssueOffersTracking) {
+				return fail("issue-read-made-a-defect defects=" + std::to_string(implementation->DurableDefects.size()));
+			}
+			const auto mutations    = implementation->Fixture->review_mutation_evidence();
+			probe.SubmissionsBefore = mutations.Submissions;
+			probe.NativeBefore      = mutations.NativePosts;
+			offer->trigger();
+			probe.Phase = state_type::phase::awaiting_defect_tracked;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_defect_tracked: {
+			const auto identity = defect_identity("review-thread:PRRT_cc_1");
+			const auto found    = std::ranges::find_if(implementation->DurableDefects, [identity](const application::durable_defect_record& aDefect) {
+				return aDefect.Conversation.value() == identity.Conversation && aDefect.History.Defect.Id.value() == identity.Defect;
+			});
+			const auto quiet    = implementation->ReviewLedgerHost->is_quiescent();
+			note("defects=" + std::to_string(implementation->DurableDefects.size()) + " tracked="
+				 + (found != implementation->DurableDefects.end() ? std::string{ core::name(found->History.Defect.State) } : std::string{ "-" }) + " quiet=" + std::to_string(quiet ? 1 : 0));
+			if (found == implementation->DurableDefects.end() || !quiet || !window->github_refresh_action()->isEnabled()) {
+				return result::pending;
+			}
+			const auto mutations                = implementation->Fixture->review_mutation_evidence();
+			probe.Tracked                       = found->History.Defect;
+			probe.Evidence.TrackedOnlyByGesture = implementation->DurableDefects.size() == 1U && core::outstanding(probe.Tracked->State)
+				&& mutations.Submissions == probe.SubmissionsBefore && mutations.NativePosts == probe.NativeBefore;
+			if (!probe.Evidence.TrackedOnlyByGesture) {
+				return fail("tracking state=" + std::string{ core::name(probe.Tracked->State) });
+			}
+			// The website edits only the root's label away, without a commit.
+			const auto* const root    = cardFor("review-thread:PRRT_cc_1");
+			const auto        written = root != nullptr ? root->Posts.front().Body.toStdString() : std::string{ };
+			const auto        read    = core::recognize_feedback_prefix(written);
+			if (!read.Subject) {
+				return fail("issue-root-unreadable");
+			}
+			probe.EditedRoot = written.substr(read.Subject->Begin);
+			stage_server_root(aApplication, "PRRT_cc_1", probe.EditedRoot, std::nullopt);
+			window->github_refresh_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_relabel_refreshed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_relabel_refreshed: {
+			const auto* const root    = cardFor("review-thread:PRRT_cc_1");
+			const auto        ready   = window->github_status_text() == "Pull request ready." && window->github_refresh_action()->isEnabled();
+			const auto        edited  = root != nullptr && root->Posts.front().Body.toStdString() == probe.EditedRoot;
+			const auto        quiet   = implementation->ReviewLedgerHost->is_quiescent();
+			const auto        tracked = std::ranges::find(implementation->DurableDefects, probe.Tracked->Id, [](const application::durable_defect_record& aDefect) { return aDefect.History.Defect.Id; });
+			note("ready=" + std::to_string(ready ? 1 : 0) + " edited=" + std::to_string(edited ? 1 : 0) + " quiet=" + std::to_string(quiet ? 1 : 0)
+				 + " tracked=" + (tracked != implementation->DurableDefects.end() ? std::string{ core::name(tracked->History.Defect.State) } : std::string{ "-" }));
+			if (!ready || !edited || !quiet) {
+				return result::pending;
+			}
+			if (tracked == implementation->DurableDefects.end()) {
+				return fail("relabel-removed-the-defect");
+			}
+			const auto& after                = tracked->History.Defect;
+			probe.Evidence.RelabelKeptDefect = !rootLabel(root).has_value() && after == *probe.Tracked && implementation->DurableDefects.size() == 1U;
+			if (!probe.Evidence.RelabelKeptDefect) {
+				return fail("relabel-moved-the-defect state=" + std::string{ core::name(after.State) });
+			}
+			stage_server_root(aApplication, "PRRT_cc_1", std::nullopt, true);
+			window->github_refresh_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_resolve_refreshed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_resolve_refreshed: {
+			const auto* const thread   = implementation->accepted_thread("review-thread:PRRT_cc_1");
+			const auto        ready    = window->github_status_text() == "Pull request ready." && window->github_refresh_action()->isEnabled();
+			const auto        resolved = thread != nullptr && thread->Resolved;
+			const auto        quiet    = implementation->ReviewLedgerHost->is_quiescent();
+			const auto        tracked  = std::ranges::find(implementation->DurableDefects, probe.Tracked->Id, [](const application::durable_defect_record& aDefect) { return aDefect.History.Defect.Id; });
+			note("ready=" + std::to_string(ready ? 1 : 0) + " resolved=" + std::to_string(resolved ? 1 : 0) + " quiet=" + std::to_string(quiet ? 1 : 0)
+				 + " tracked=" + (tracked != implementation->DurableDefects.end() ? std::string{ core::name(tracked->History.Defect.State) } : std::string{ "-" }));
+			if (!ready || !resolved || !quiet) {
+				return result::pending;
+			}
+			if (tracked == implementation->DurableDefects.end()) {
+				return fail("resolution-removed-the-defect");
+			}
+			const auto& after                  = tracked->History.Defect;
+			auto        menu                   = std::unique_ptr<QMenu>{ cards->thread_menu("review-thread:PRRT_cc_1") };
+			auto* const verify                 = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("defectVerify")) : nullptr;
+			const auto  mutations              = implementation->Fixture->review_mutation_evidence();
+			probe.Evidence.ResolveOnlyEvidence = core::outstanding(after.State) && after.State != core::defect_state::verified && after.State != core::defect_state::withdrawn
+				&& after.Severity == probe.Tracked->Severity && after.Category == probe.Tracked->Category && verify != nullptr && verify->isEnabled()
+				&& mutations.Submissions == probe.SubmissionsBefore && mutations.NativePosts == probe.NativeBefore;
+			if (!probe.Evidence.ResolveOnlyEvidence) {
+				return fail("resolution-settled-the-defect state=" + std::string{ core::name(after.State) } + " verify=" + std::to_string(verify != nullptr && verify->isEnabled() ? 1 : 0));
+			}
+			// The website shows a tour stop on renderer.cpp's other thread,
+			// its narrative deliberately labelled.
+			const std::array navigation{ core::tour_markdown_link{ "Tour overview", "https://github.com/octo-org/nested-folders/pull/7#pullrequestreview-9" } };
+			const auto       stop = core::render_tour_stop("Why the width is clamped", 2, "question: Should the clamp live in the caller?\n\nThe renderer trusts it today.", navigation);
+			if (!stop) {
+				return fail("tour-stop-unrendered");
+			}
+			probe.TourStop = *stop;
+			stage_server_root(aApplication, "PRRT_cc_2", probe.TourStop, std::nullopt);
+			window->github_refresh_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_tour_refreshed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_tour_refreshed: {
+			const auto* const stop  = cardFor("review-thread:PRRT_cc_2");
+			const auto        ready = window->github_status_text() == "Pull request ready." && window->github_refresh_action()->isEnabled();
+			const auto        shown = stop != nullptr && stop->Posts.front().Body.toStdString() == probe.TourStop;
+			note("ready=" + std::to_string(ready ? 1 : 0) + " shown=" + std::to_string(shown ? 1 : 0));
+			if (!ready || !shown) {
+				return result::pending;
+			}
+			probe.Evidence.TourStopLabelled = rootLabel(stop) == core::feedback_label::question && stop->Posts.front().HeaderLength == 0 && !cards->mark_rect(*stop).isEmpty();
+			render("tour-stop-labelled");
+			if (!probe.Evidence.TourStopLabelled) {
+				return fail("tour-stop-unmarked name=" + stop->Posts.front().Name.toStdString());
 			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;

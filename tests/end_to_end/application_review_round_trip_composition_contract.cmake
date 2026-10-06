@@ -799,6 +799,19 @@ endfunction()
 # account's and opens Compose review. No grant, target, provider,
 # credential, mutation or publication path changes; mutation pin unchanged;
 # no new src/app source. Reviewed on BPR-1085.
+# BPR-1086 reseal (2026-10-06): over the BPR-1085 attention-amber reseal
+# above; no intervening pinned-scope commit. github_application.cpp: the
+# tests-on label-authoring course continues after its reply. It triggers
+# Classify as defect from the issue root's thread menu, then has the
+# fixture's website remove that root's label, resolve the thread and show a
+# labelled tour stop on another thread (the existing stage_server_root),
+# refreshing through the public Refresh action each time, and reads the
+# private defect and the cards. main.cpp prints five more evidence bits
+# (github_application_fixture_access.hpp). The production composition is
+# unchanged; the tour stop's mark is read in the Qt adapter, outside these
+# pins. No grant, target, provider, credential, mutation or publication
+# path changes; mutation pin unchanged; no new src/app source. Reviewed on
+# BPR-1086.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -817,7 +830,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"227197bbd2314bafd9ba8d2227431d50f92e478cddc8d80a2a1aafeb5a163356"
+		"8152ddf8de0b1d546737ee76e7575531b917f62b3647879902ee7a244254f1fa"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1015,7 +1028,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c4d7fb9c7616f43e772fe7615418aaf229eaa60968346e22863d307878b1a0d4"
+        "a5f65a5875cba28f29bed2d747fb78313caf9b8cf61404637cc9f6b348213044"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

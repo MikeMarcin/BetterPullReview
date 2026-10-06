@@ -147,6 +147,56 @@ namespace {
 		}
 	}
 
+	// [[BPR-1086]]. RFC-BPR-0048 R16 and the pack's `website-resolve` and
+	// `website-root-edit` cases. A label is public text on the thread, and
+	// correlation reads no text: its thread facts are resolution and an author
+	// reply, nothing else. A website resolution, a suggestion applied on
+	// GitHub (a commit that moves the code under the anchor), an author reply
+	// and a root whose `issue:` label was edited or removed can each only ask
+	// the reviewer to look. None verifies, withdraws, accepts or removes a
+	// private defect, none changes its private severity or category, and an
+	// `issue:` thread nobody classified never becomes one.
+	void test_website_facts_never_settle_withdraw_or_create_a_defect()
+	{
+		for (const auto starting :
+			 { state::open, state::fix_claimed, state::needs_verification,
+			   state::reopened, state::verified, state::withdrawn,
+			   state::accepted_as_is }) {
+			auto tracked           = defect(1U, 10U, starting);
+			tracked.Severity       = core::defect_severity::critical;
+			tracked.Category       = core::defect_category::security;
+			const auto defects     = std::array{ tracked };
+			const auto links       = std::array{ link(1U, "thread-issue") };
+			const auto applied     = std::array{ tracked.Anchor };
+			const auto threads     = std::array{ application::defect_thread_observation{
+				.ThreadId = "thread-issue", .Resolved = true, .AuthorRepliedSince = true } };
+			const auto result      = application::correlate(defects, links, threads, applied);
+			const auto settledFrom = [starting](const state aState) { return aState == starting; };
+			expect(result.Defects.size() == 1U, "the defect is still there");
+			const auto& after = result.Defects.front();
+			expect(after.State != state::verified || settledFrom(state::verified),
+				   "a resolution, an applied suggestion or a reply never verifies");
+			expect(after.State != state::withdrawn || settledFrom(state::withdrawn),
+				   "nor withdraws");
+			expect(after.State != state::accepted_as_is || settledFrom(state::accepted_as_is),
+				   "nor accepts it as is");
+			expect(after.Severity == core::defect_severity::critical && after.Category == core::defect_category::security && after.Anchor == tracked.Anchor,
+				   "the private classification and anchor are untouched");
+			expect(core::outstanding(after.State) == core::outstanding(starting),
+				   "an outstanding defect stays outstanding and a settled one settled; only the reviewer moves it across");
+		}
+
+		// Threads whose roots read `issue:`, observed with every fact at once,
+		// and no defect record: nothing is created and nothing is raised.
+		const auto issueThreads = std::array{
+			application::defect_thread_observation{ .ThreadId = "thread-issue-a", .Resolved = true, .AuthorRepliedSince = true },
+			application::defect_thread_observation{ .ThreadId = "thread-issue-b", .Resolved = false, .AuthorRepliedSince = true },
+		};
+		const auto untracked = application::correlate({ }, { }, issueThreads, { });
+		expect(untracked.Defects.empty() && untracked.Evidence.empty(),
+			   "a thread nobody classified is never made a defect");
+	}
+
 	void test_a_decided_defect_is_left_alone()
 	{
 		for (const auto decided :
@@ -230,6 +280,7 @@ auto main() -> int
 	test_an_author_reply_and_a_resolution_are_both_evidence();
 	test_no_correlation_ever_verifies();
 	test_a_decided_defect_is_left_alone();
+	test_website_facts_never_settle_withdraw_or_create_a_defect();
 	test_correlation_touches_only_the_defect_it_names();
 	test_an_unlinked_thread_observation_is_ignored();
 	test_repeated_correlation_settles();

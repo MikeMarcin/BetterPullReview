@@ -4718,7 +4718,8 @@ namespace {
 				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.ReadEmptyDirected << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
 				   << evidence.ShortcodeApplied << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
 				   << evidence.PublishedMarked << evidence.PatchMarkedNative << evidence.PatchPublishedExact << evidence.ProseUnmarkedExact
-				   << evidence.RefusedTextKept << evidence.RefusedMarkedTextOnly << evidence.ReplyMarkedNative << '\n';
+				   << evidence.RefusedTextKept << evidence.RefusedMarkedTextOnly << evidence.ReplyMarkedNative << evidence.IssueOffersTracking
+				   << evidence.TrackedOnlyByGesture << evidence.RelabelKeptDefect << evidence.ResolveOnlyEvidence << evidence.TourStopLabelled << '\n';
 			stream << "LABEL_AUTHORING_DIAGNOSTIC:" << QString::fromStdString(aRun.LabelAuthoringDiagnostic) << '\n';
 		}
 		if (aRun.ReviewRoundTripCompositionProbe) {
