@@ -236,6 +236,20 @@ threads and the pull-request list are that fixture's; the deep thread is
 line, post list and body pane are gone; defect actions, Support details and
 View/Copy source move under More. Discuss is redrawn after the choice.
 
-## Pending owner decision
+## Pending owner decisions
 
-Prepared next (session details follow when it opens).
+One attended session asks three questions on frames frozen from `552615a22`
+in `/Users/jaeger/bpr1290-drawer-review-v002.OWoDW6` (the two v2 HTML files and
+both owner screenshots; `open /Users/jaeger/bpr1290-drawer-review-v002.OWoDW6/source/docs/design/BPR-1290-conversations-drawer-v2.html`).
+Session `c6d804e30f0b4f6b02c7ef6d13335165`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v002`,
+cursor 9:
+
+1. `BPR-1290-split-tabs-v002`: Accept or Reject the split into Inline and
+   Conversation as drawn (BPR-1290:direction).
+2. `BPR-1290-tree-style-v002`: A. Indented or B. ↩ chip (BPR-1290:depth).
+3. `BPR-1290-inline-pick-v002`: A. Opens in place or B. Opens Conversation
+   (BPR-1290:navigation).
+
+Next: record each verdict and note here, revise the frames if a note asks,
+then plan the Qt build. BPR-1083's sessions are separate and untouched.
