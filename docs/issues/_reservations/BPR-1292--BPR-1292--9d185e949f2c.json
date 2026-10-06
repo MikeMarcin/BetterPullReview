@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1292"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "application_label_authoring_contract intermittent fixture replay mismatch",
+  "created": "2026-10-06T04:36:29.297844+00:00",
+  "base": "b3a8ed5708e190d7aac6ed2b3bfa3758d88f0617"
+}
