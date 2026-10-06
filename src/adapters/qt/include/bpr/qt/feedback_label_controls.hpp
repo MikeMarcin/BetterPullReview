@@ -93,6 +93,11 @@ namespace bpr::qt {
 		/// either way.
 		void               set_helper(bool aEnabled);
 		[[nodiscard]] auto helper() const noexcept -> bool;
+		/// \brief Whether the blocking, non-blocking and if-minor toggles sit
+		/// beside the chip (the default). Off, they stay in the chip's menu
+		/// under "Adds" and the chip's mark still shows them: the drawer's
+		/// in-place reply, which is too narrow for the row ([[BPR-1290]]).
+		void set_decoration_toggles(bool aShown);
 		/// \brief Where a refused edit's reason is said.
 		void set_status_sink(std::function<void(const QString&)> aSink);
 
@@ -142,6 +147,7 @@ namespace bpr::qt {
 		QListWidget*                               Completion  = nullptr;
 		feedback_mark_theme                        Theme;
 		bool                                       Helper    = false;
+		bool                                       Toggles   = true;
 		bool                                       Editing   = false;
 		bool                                       Typed     = false;
 		bool                                       Dismissed = false;

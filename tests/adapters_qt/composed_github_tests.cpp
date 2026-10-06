@@ -8,6 +8,7 @@
 
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
@@ -3551,6 +3552,60 @@ namespace {
 		QApplication::sendEvent(cards->reply_editor(), &escape);
 		QApplication::processEvents();
 		expect(cards->reply_editor() == nullptr && cards->hasFocus(), "Esc in an empty reply gives it up and returns to the notes");
+
+		// After the owner's v003 Reject (": chortcodes arent working in the
+		// reply comments"): the reply in place is the draft editor's reply and
+		// has the composer's label helper ([[BPR-1083]]), on its switch.
+		window.set_review_reply_dispatch([&window](const std::string& aThread) {
+			const auto selection = window.comparison_surface()->selection();
+			window.review_editor()->present(core::review_comment_draft{
+				.Id            = core::review_draft_id{ 90U },
+				.Anchor        = selection.has_value() ? selection->PreferredLine : core::source_line_ref{ },
+				.Body          = { },
+				.ReplyToThread = aThread.substr(std::string_view{ "review-thread:" }.size()),
+			});
+		});
+		const auto typeInto = [](QWidget* aTarget, const QString& aText) {
+			for (const auto character : aText) {
+				const auto code  = character == QLatin1Char{ ':' } ? Qt::Key_Colon : (character == QLatin1Char{ ' ' } ? Qt::Key_Space : Qt::Key_A + (character.unicode() - u'a'));
+				auto       event = QKeyEvent{ QEvent::KeyPress, code, Qt::NoModifier, QString{ character } };
+				QApplication::sendEvent(aTarget, &event);
+				QApplication::processEvents();
+			}
+			QApplication::processEvents();
+		};
+		press(Qt::Key_R);
+		auto* const replyBox    = cards->reply_editor();
+		auto* const replyLabels = cards->reply_label_controls();
+		auto* const composer    = window.review_editor()->label_controls();
+		expect(replyBox != nullptr && replyBox->hasFocus() && replyLabels != nullptr && replyLabels != composer,
+			   "R opens the draft editor's reply in place, with label controls of its own text");
+		typeInto(replyBox, QStringLiteral(":"));
+		expect(!replyLabels->completion()->isVisible() && !composer->helper(),
+			   "negative control: with the label helper off, as the product ships, a lone colon opens nothing");
+		window.review_editor()->set_label_helper(true);
+		QApplication::processEvents();
+		expect(replyLabels->helper(), "turning the composer's helper on turns the open reply's on");
+		replyBox->clear();
+		QApplication::processEvents();
+		typeInto(replyBox, QStringLiteral(":"));
+		expect(replyLabels->completion()->isVisible() && replyLabels->completion()->count() == 12,
+			   "a lone colon in the reply opens the completion with every label");
+		expect(!composer->completion()->isVisible(), "negative control: the composer's own completion stays closed while the reply writes to its draft");
+		capture_layout_state(window, QStringLiteral("inline-reply-completion"));
+		typeInto(replyBox, QStringLiteral("qu:"));
+		expect(replyBox->toPlainText() == QStringLiteral("question: ") && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("question: "),
+			   "a reply with :qu: becomes question:, in place and in its draft");
+		expect(replyLabels->chip()->accessibleName() == QStringLiteral("Label: question") && composer->statistics().Shortcodes == 0U,
+			   "the reply's chip names the label; the code was replaced once, by the reply's own controls");
+		typeInto(replyBox, QStringLiteral("why"));
+		capture_layout_state(window, QStringLiteral("inline-reply-label"));
+		replyBox->clear();
+		QApplication::processEvents();
+		QApplication::sendEvent(replyBox, &escape);
+		QApplication::processEvents();
+		window.review_editor()->set_label_helper(false);
+		expect(cards->reply_editor() == nullptr, "the emptied reply gives itself up");
 
 		// The filters: Hide resolved and Only new.
 		panel->filter_unresolved_button()->click();

@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-1293","BPR-1294","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp","docs/design/owner-refs/BPR-1290-owner-ref-built-drawer-v002.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
+metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-1293","BPR-1294","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp","docs/design/owner-refs/BPR-1290-owner-ref-built-drawer-v002.webp","docs/design/owner-refs/BPR-1290-owner-ref-built-drawer-v003.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
 parked_on: "human-review"
 ---
 
@@ -914,3 +914,101 @@ tooltip are right."
 Next: read the session's decision. Accept satisfies :owner-look and the card
 finishes; Reject comes back with what differs in its note, for a v004
 candidate.
+
+## Owner verdict on built drawer v003, 2026-10-06
+
+Session `ad892b9ca0cff2ad4b6faccc02fdc093` handed back at sequence 5 (cursor
+3 to 5 read). `BPR-1290-built-drawer-v003` (revision `frozen-033da0859-v003`):
+**Reject** (decision `567768f9`, 16:27:00Z). In chat: "handed back, much
+better". Note, verbatim:
+
+> : chortcodes arent working in the reply comments.
+>
+> I want add comment from the right-click menu. I want add comment to show up in the drawer instead of the full screen add comment window. Fold add comment window into discuss. Drawer comment should have something like a maximize button to go view it in discuss.
+>
+> I want to try to unify a bunch of this interaction with the local project flow. Maybe we do right click to add comment / suggest change with enter / shift+enter as shortcuts?
+
+The screenshot attached to the verdict,
+[`BPR-1290-owner-ref-built-drawer-v003.webp`](../../design/owner-refs/BPR-1290-owner-ref-built-drawer-v003.webp),
+shows Read on `inline-drawer-v1`'s long file (fixture data only): line 1080's
+thread open in place with "2 new" in its header, and the in-place Reply
+editor holding ":p" with no completion under it and the chip saying "Plain".
+
+Read as follows, relayed by the coordinator:
+
+- **This card: shortcodes in the reply.** The in-place Reply editor carries
+  its own chip and no label helper, so a typed `:` never completes and a
+  `:xx:` code never becomes its label. It gets [[BPR-1083]]'s helper, the same
+  one the composer has: the `:` completion, the shortcode replacement, the
+  chip and Command+L. v003's attended launch also never turned the helper on
+  (it is off in the product until [[BPR-1088]]'s Settings row), so v004's does.
+- **To [[BPR-1212]]: the composer items.** Add comment from the right-click
+  menu; Add comment in the drawer instead of the full-screen composition page;
+  the composition page folded into Discuss; a maximize control on a drawer
+  comment that views it in Discuss; and one interaction with the local project
+  flow, with right-click to add a comment or suggest a change and Enter and
+  Shift+Enter as shortcuts. Another implementer takes these under BPR-1212;
+  this card does not.
+
+Nothing else in v003 was rejected; the new-post marking and the Shift tooltip
+stand. BPR-1290:owner-look is asked again on v004, about the shortcodes only.
+
+## Built drawer v004, 2026-10-06
+
+The change the v003 Reject asked of this card and nothing else. Presentation
+in the Qt adapter only, drawn with `frontend-design`:
+
+- **One helper.** The in-place reply's text is a `QPlainTextEdit`, as the
+  composer's body is, and carries `feedback_label_controls`, the composer's own
+  ([[BPR-1083]]). The reply's private chip is gone. A lone `:` at the start
+  opens the label completion, letters narrow it, the closing colon of `:qu:`
+  makes the reply `question: `, a code before a label replaces it, Command+L
+  opens the label menu, and the chip names the label with its mark. A pasted
+  code is not typing and stays as written.
+- **One switch.** The reply follows the draft editor's label helper: the
+  draft's reply presentation carries it (`thread_reply_presentation`'s
+  `LabelHelper`), and turning the editor's helper on or off refreshes an open
+  reply at once. It is off in the product until [[BPR-1088]]; the attended
+  launch turns it on with `--label-helper`.
+- **Fitted to the drawer.** The blocking, non-blocking and if-minor toggles
+  stay in the chip's menu under "Adds" (`set_decoration_toggles(false)`), since
+  the drawer is 280 px at its narrowest; the chip's mark still shows them. The
+  chip is drawn as the drawer's quiet pill: a hairline in the rule colour on a
+  tint of the panel, the signal colour when it has focus. A refused label edit
+  is said under the reply's buttons.
+- **Esc.** With the completion open, Esc closes it and the reply keeps its text
+  and focus; otherwise Esc behaves as before.
+- [[BPR-1084]]'s decision mark has not landed (the card is In Progress), so
+  there is none to carry.
+
+The specification's [Conversation drawer](../../ux/workbench-specification.md#conversation-drawer)
+section says the reply has the composer's label controls.
+
+### Verification on the candidate
+
+- `qt_conversation_cards_view`, a new test on the reply in place: with the
+  helper off (negative control) a lone `:` opens nothing and `:qu:` stays as
+  typed; on, `:` opens the completion with all twelve labels, Esc closes it
+  and keeps the text and focus, `:q` narrows it to question first, `:qu:`
+  becomes `question: ` and the chip says "Label: question", the replaced text
+  goes to the draft, `:is:` before the label makes it `issue: why`, Command+L
+  opens the menu and choosing suggestion makes `suggestion: why`; a pasted
+  `:qu: pasted` stays (negative control). The decoration toggles are hidden.
+- `qt_composed_inline_drawer_scale_{100,125,200}` through the composed
+  window: R opens the draft editor's reply in place with controls of its own
+  text; with the composer's helper off (as shipped) `:` opens nothing
+  (negative control); turning the composer's helper on turns the open
+  reply's on; `:` opens the twelve-label completion while the composer's own
+  stays closed (negative control); `:qu:` becomes `question: ` in place and in
+  the draft, replaced once, by the reply's controls. Renders at each scale:
+  `composed-inline-drawer-<scale>-inline-reply-{completion,label}.png`.
+- Mutations, each failing its row: the reply ignoring the draft's switch; the
+  editor's switch not refreshing the open reply; Esc leaving the reply while
+  the completion is open.
+- Debug: `qt_composed_inline_drawer_scale_{100,125,200}`,
+  `qt_conversation_cards_view`, `qt_github_conversation_panel`,
+  `qt_github_conversation_model_property`, `qt_review_draft_editor`,
+  `qt_feedback_label_{marks,controls,threads}` and `architecture_boundaries`
+  passed. Format check and clang-tidy (`tidy.py --changed`): clean.
+  `src/app` is unchanged. Linux and Windows have not run v004's rows.
+

@@ -280,6 +280,11 @@ namespace bpr::qt {
 	void review_draft_editor::set_label_helper(const bool aEnabled)
 	{
 		Members.Labels->set_helper(aEnabled);
+		// [[BPR-1290]]. The drawer's in-place reply is this editor's draft and
+		// takes the same switch from its presentation.
+		if (Members.PresentationObserver) {
+			Members.PresentationObserver();
+		}
 	}
 
 	auto review_draft_editor::target_label() const noexcept -> QLabel*

@@ -1052,7 +1052,13 @@ already new, the header's count and the posts' unread dots say so and no rule
 is drawn. Its header row has Show line, Resolve or Unresolve, Mark read, More
 (the thread menu) and Close; my draft has Publish, Edit and Delete instead. Reply (the field, or R) opens an editor in place at
 the foot of the thread; the reply is the same draft the composition entry
-writes, and nothing is published until Publish (Command+Return). Comment
+writes, and nothing is published until Publish (Command+Return). The reply
+has the composer's own label controls ([[BPR-1083]]): the label chip and its
+menu (Command+L), and with the label helper on, a lone `:` opening the label
+completion and a typed `:xx:` code becoming its label, as `:qu:` becomes
+`question: `. The decoration toggles stay in the chip's menu, since the drawer
+is too narrow for them beside the chip ([[BPR-1290]], the owner's v003 note:
+"chortcodes arent working in the reply comments"). Comment
 (Option-C) still opens the composition page, whose inside is [[BPR-1212]]'s. A file-level compatibility
 comment states in the open thread why it is placed at its line (RFC-BPR-0022).
 

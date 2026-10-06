@@ -1,4 +1,5 @@
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 
 #include "bpr/core/diff_model.hpp"
 
@@ -11,9 +12,11 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPixmap>
+#include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QTextEdit>
 #include <QToolButton>
@@ -814,8 +817,9 @@ namespace {
 		editor->setPlainText(QStringLiteral("question: Is this still needed?"));
 		expect(!typed.empty() && typed.back() == std::pair{ std::string{ "t50" }, QStringLiteral("question: Is this still needed?") },
 			   "each edit of the reply goes to the draft editor");
-		auto* const chip = view.open_card()->findChild<QWidget*>(QStringLiteral("threadReplyChip"));
-		expect(chip != nullptr && chip->accessibleName() == QStringLiteral("question"), "the reply's label follows its first words");
+		auto* const labels = view.reply_label_controls();
+		expect(labels != nullptr && labels->chip()->accessibleName() == QStringLiteral("Label: question"),
+			   "the reply's label follows its first words, on the composer's own chip");
 		view.present_reply(qt::thread_reply_presentation{ .Thread = "t50", .Body = QStringLiteral("question: Is this still needed?"), .Publishable = true });
 		expect(publish->isEnabled(), "a draft that can publish enables Publish");
 		auto submit = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
@@ -842,6 +846,108 @@ namespace {
 	// [[BPR-0972]]. One thread's read state reaches the notes as that thread
 	// alone: a thread whose note is not shown lays nothing out, a shown one
 	// lays out its file's notes, and both agree with the complete state.
+	/// \brief Types one character into a widget, as a key press does.
+	void type(QWidget& aTarget, const QChar aCharacter)
+	{
+		const auto key   = aCharacter == QLatin1Char{ ':' } ? Qt::Key_Colon : Qt::Key_A + (aCharacter.unicode() - u'a');
+		auto       event = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier, QString{ aCharacter } };
+		QApplication::sendEvent(&aTarget, &event);
+		QApplication::processEvents();
+	}
+
+	/// \brief [[BPR-1290]], after the owner's v003 Reject (": chortcodes arent
+	/// working in the reply comments"). The reply written in place has the
+	/// composer's own label helper ([[BPR-1083]]): a lone `:` opens the
+	/// completion, `:qu:` becomes `question: `, ⌘L opens the label menu, and
+	/// all of it follows the draft editor's switch.
+	auto test_reply_in_place_has_the_composers_label_helper() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 700);
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return static_cast<int>(aLine) * 6; });
+		view.adopt({ thread("t10", "src/a.cpp", 10U), reply("c10", "t10", "a", "first") }, core::file_identity_of("src/a.cpp"));
+		auto typed = std::vector<QString>{ };
+		view.set_reply_text_dispatch([&typed](const std::string&, const QString& aText) { typed.push_back(aText); });
+		view.open_thread("t10");
+		view.begin_reply("t10");
+		QApplication::processEvents();
+		auto* const editor = view.reply_editor();
+		auto* const labels = view.reply_label_controls();
+		expect(editor != nullptr && labels != nullptr && editor->hasFocus(), "the reply opens in place with the composer's label controls");
+		expect(labels->chip()->isVisible() && labels->chip()->accessibleName() == QStringLiteral("Label: Plain comment"),
+			   "the reply's chip is the composer's chip and starts plain");
+		expect(!labels->blocking_toggle()->isVisible(), "the drawer leaves the decoration toggles in the chip's menu");
+
+		// Negative control: before the draft editor's reply says the helper
+		// is on, a colon is only a colon and a code stays as typed.
+		view.present_reply(qt::thread_reply_presentation{ .Thread = "t10", .Body = QString{ }, .Publishable = true, .LabelHelper = false });
+		type(*editor, QLatin1Char{ ':' });
+		expect(!labels->completion()->isVisible(), "negative control: with the helper off a lone colon opens nothing");
+		for (const auto character : QStringLiteral("qu:")) {
+			type(*editor, character);
+		}
+		QApplication::processEvents();
+		expect(editor->toPlainText() == QStringLiteral(":qu:") && labels->statistics().Shortcodes == 0U,
+			   "negative control: with the helper off :qu: stays as typed");
+		editor->clear();
+		QApplication::processEvents();
+
+		// The draft editor's helper on: the reply follows it.
+		view.present_reply(qt::thread_reply_presentation{ .Thread = "t10", .Body = QString{ }, .Publishable = true, .LabelHelper = true });
+		expect(labels->helper(), "the reply takes the draft editor's helper switch");
+		type(*editor, QLatin1Char{ ':' });
+		expect(labels->completion()->isVisible() && labels->completion()->count() == 12, "a lone colon opens the completion with every label");
+		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(editor, &escape);
+		QApplication::processEvents();
+		expect(!labels->completion()->isVisible() && view.reply_editor() == editor && editor->hasFocus() && editor->toPlainText() == QStringLiteral(":"),
+			   "Esc closes the completion first; the reply keeps its text and focus");
+		editor->clear();
+		QApplication::processEvents();
+		type(*editor, QLatin1Char{ ':' });
+		type(*editor, QLatin1Char{ 'q' });
+		expect(labels->completion()->isVisible() && labels->completion_labels().front() == core::feedback_label::question, "letters narrow the completion");
+		type(*editor, QLatin1Char{ 'u' });
+		type(*editor, QLatin1Char{ ':' });
+		QApplication::processEvents();
+		expect(editor->toPlainText() == QStringLiteral("question: ") && labels->statistics().Shortcodes == 1U,
+			   "a reply with :qu: becomes question:");
+		expect(labels->chip()->accessibleName() == QStringLiteral("Label: question"), "the chip names the label the code chose");
+		expect(!typed.empty() && typed.back() == QStringLiteral("question: "), "the replaced text goes to the draft editor");
+		for (const auto character : QStringLiteral("why")) {
+			type(*editor, character);
+		}
+		expect(editor->toPlainText() == QStringLiteral("question: why"), "typing goes on after the label");
+
+		// A code in front of a label replaces it; it never adds a second one.
+		auto start = editor->textCursor();
+		start.setPosition(0);
+		editor->setTextCursor(start);
+		for (const auto character : QStringLiteral(":is:")) {
+			type(*editor, character);
+		}
+		QApplication::processEvents();
+		expect(editor->toPlainText() == QStringLiteral("issue: why"), "a code before a label replaces that label");
+
+		// ⌘L opens the label menu from the reply.
+		auto command = QKeyEvent{ QEvent::KeyPress, Qt::Key_L, Qt::ControlModifier };
+		QApplication::sendEvent(editor, &command);
+		QApplication::processEvents();
+		expect(labels->menu()->isVisible(), "⌘L opens the label menu from the reply");
+		labels->menu()->label_button(core::feedback_label::suggestion)->click();
+		QApplication::processEvents();
+		expect(editor->toPlainText() == QStringLiteral("suggestion: why") && !labels->menu()->isVisible(), "the menu changes the reply's label");
+
+		// Negative control: a code pasted is not typed, so it stays.
+		editor->setPlainText(QStringLiteral(":qu: pasted"));
+		QApplication::processEvents();
+		expect(editor->toPlainText() == QStringLiteral(":qu: pasted") && !labels->completion()->isVisible(),
+			   "negative control: a pasted code is not replaced");
+		view.hide();
+	}
+
 	void test_one_thread_read_state_matches_the_complete_state()
 	{
 		for (const auto threads : { 32U, 4096U }) {
@@ -1155,6 +1261,7 @@ auto main(int argc, char** argv) -> int
 	test_notes_hang_from_their_lines_and_one_opens_pinned();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
+	test_reply_in_place_has_the_composers_label_helper();
 	test_unchanged_refresh_retains_measured_notes();
 	test_alternating_widths_keep_both_widths_measured();
 	test_discuss_geometry_refresh_updates_excerpts();

@@ -3,6 +3,7 @@
 #include "conversation_glyphs.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QFontMetrics>
@@ -15,6 +16,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPalette>
+#include <QPlainTextEdit>
 #include <QRegularExpression>
 #include <QResizeEvent>
 #include <QTextBlock>
@@ -276,68 +278,16 @@ namespace bpr::qt {
 			QColor Rule;
 		};
 
-		/// \brief The reply's label, as its first words make it.
-		class reply_chip final : public QWidget
-		{
-		public:
-			reply_chip(open_card_style aStyle, QWidget* aParent)
-				: QWidget{ aParent }
-				, Style{ std::move(aStyle) }
-			{
-				setObjectName(QStringLiteral("threadReplyChip"));
-				setFont(semibold(scaled(font(), 0.92)));
-				setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
-				set_text(QString{ });
-			}
-
-			void set_text(const QString& aText)
-			{
-				Mark = feedback_body_mark_of(aText.toStdString());
-				setAccessibleName(Mark.Label ? Mark.Name : QStringLiteral("Plain"));
-				setToolTip(Mark.Label ? Mark.Name : QStringLiteral("No label: the reply publishes as a plain comment"));
-				updateGeometry();
-				update();
-			}
-
-			[[nodiscard]] auto sizeHint() const -> QSize override
-			{
-				const auto metrics = QFontMetrics{ font() };
-				const auto words   = Mark.Label ? Mark.Name : QStringLiteral("Plain");
-				return { std::min(240, (Mark.Label ? 4 + mark_size + 5 : 8) + metrics.horizontalAdvance(words) + 8), 22 };
-			}
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				painter.setPen(QPen{ Style.Colours.Rule, 1.0 });
-				painter.setBrush(mix(Style.Colours.Panel, Style.Colours.Ink, 0.04));
-				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
-				auto x = 8;
-				if (Mark.Label) {
-					paint_feedback_mark(painter, QRectF{ 4.0, (height() - mark_size) / 2.0, static_cast<qreal>(mark_size), static_cast<qreal>(mark_size) }, *Mark.Label, Mark.Emphasis, mark_colours(Style, *Mark.Label));
-					x = 4 + mark_size + 5;
-				}
-				painter.setPen(Style.Colours.Ink2);
-				painter.drawText(QRect{ x, 0, width() - x - 6, height() }, Qt::AlignLeft | Qt::AlignVCenter,
-								 QFontMetrics{ font() }.elidedText(Mark.Label ? Mark.Name : QStringLiteral("Plain"), Qt::ElideRight, std::max(0, width() - x - 6)));
-			}
-
-		private:
-			open_card_style    Style;
-			feedback_body_mark Mark;
-		};
-
 		/// \brief The reply's editor: plain text, growing with what is typed.
-		class reply_text final : public QTextEdit
+		/// \details A `QPlainTextEdit`, as the composer's body is, so the
+		/// composer's own label controls work on it ([[BPR-1083]]).
+		class reply_text final : public QPlainTextEdit
 		{
 		public:
 			explicit reply_text(QWidget* aParent)
-				: QTextEdit{ aParent }
+				: QPlainTextEdit{ aParent }
 			{
 				setObjectName(QStringLiteral("threadReplyText"));
-				setAcceptRichText(false);
 				setFrameShape(QFrame::NoFrame);
 				setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 				setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -347,12 +297,16 @@ namespace bpr::qt {
 				setAutoFillBackground(false);
 				setPlaceholderText(QStringLiteral("Reply. Start with a label, as in question: or issue (blocking):"));
 				fit();
-				connect(this, &QTextEdit::textChanged, this, [this] { fit(); });
+				connect(this, &QPlainTextEdit::textChanged, this, [this] { fit(); });
 			}
 
 			void fit()
 			{
-				const auto height = std::clamp(static_cast<int>(std::ceil(document()->size().height())) + 2, reply_minimum, reply_maximum);
+				// The plain layout measures the document in lines, wrapped
+				// lines included.
+				const auto lines  = std::max<qreal>(1.0, document()->size().height());
+				const auto pixels = static_cast<int>(std::ceil(lines * fontMetrics().lineSpacing()));
+				const auto height = std::clamp(pixels + 2, reply_minimum, reply_maximum);
 				if (height != this->height() || minimumHeight() != height) {
 					setFixedHeight(height);
 				}
@@ -361,7 +315,7 @@ namespace bpr::qt {
 		protected:
 			void resizeEvent(QResizeEvent* aEvent) override
 			{
-				QTextEdit::resizeEvent(aEvent);
+				QPlainTextEdit::resizeEvent(aEvent);
 				fit();
 			}
 		};
@@ -396,6 +350,23 @@ namespace bpr::qt {
 			QColor Signal;
 			QColor Surface;
 		};
+
+		/// \brief Draws the composer's label chip as the drawer's quiet pill:
+		/// a hairline in the rule colour on a tint of the panel, its mark and
+		/// name in the secondary ink, and the signal colour when it has focus.
+		void style_reply_chip(QToolButton& aChip, const open_card_style& aStyle)
+		{
+			const auto& colours = aStyle.Colours;
+			aChip.setAutoRaise(false);
+			aChip.setFont(semibold(scaled(aChip.font(), 0.92)));
+			aChip.setStyleSheet(QStringLiteral("QToolButton { border: 1px solid %1; border-radius: 6px; background: %2; color: %3; padding: 2px 8px 2px 4px; }"
+											   "QToolButton:hover { background: %4; }"
+											   "QToolButton:pressed { background: %4; }"
+											   "QToolButton:focus { border-color: %5; }"
+											   "QToolButton:disabled { color: %6; }")
+									.arg(colours.Rule.name(), mix(colours.Panel, colours.Ink, 0.04).name(), colours.Ink2.name(),
+										 mix(colours.Panel, colours.Ink, 0.09).name(), colours.Signal.name(), colours.Faint.name()));
+		}
 
 		[[nodiscard]] auto tool(QWidget* aParent, const QString& aName, const QString& aTip, const conversation_glyph aGlyph, const QPalette& aPalette) -> QToolButton*
 		{
@@ -1016,8 +987,16 @@ namespace bpr::qt {
 			editor->addWidget(ReplyBox);
 			auto* const controls = new QHBoxLayout{ };
 			controls->setSpacing(6);
-			auto* const chip = new reply_chip{ Style, Editor };
-			controls->addWidget(chip);
+			// The composer's own label controls ([[BPR-1083]]): the chip and
+			// its menu, ⌘L, and with the helper on the `:` completion and the
+			// `:xx:` replacement. The drawer is too narrow for the decoration
+			// toggles; they stay in the menu, and the chip's mark shows them.
+			Labels = new feedback_label_controls{ ReplyBox, Editor };
+			Labels->setObjectName(QStringLiteral("threadReplyLabels"));
+			Labels->set_decoration_toggles(false);
+			Labels->set_theme(Style.Marks);
+			style_reply_chip(*Labels->chip(), Style);
+			controls->addWidget(Labels);
 			controls->addStretch(1);
 			auto* const cancel = new QToolButton{ Editor };
 			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
@@ -1034,10 +1013,27 @@ namespace bpr::qt {
 			connect(Publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_reply); } });
 			controls->addWidget(Publish);
 			editor->addLayout(controls);
+			ReplyStatus = new QLabel{ Editor };
+			ReplyStatus->setObjectName(QStringLiteral("threadReplyStatus"));
+			ReplyStatus->setWordWrap(true);
+			ReplyStatus->setTextFormat(Qt::PlainText);
+			ReplyStatus->setFont(scaled(font(), 0.92));
+			ReplyStatus->hide();
+			editor->addWidget(ReplyStatus);
+			Labels->set_status_sink([this](const QString& aText) {
+				ReplyStatus->setText(aText);
+				ReplyStatus->setAccessibleName(aText);
+				ReplyStatus->setVisible(!aText.isEmpty());
+				if (HeightChanged) {
+					HeightChanged();
+				}
+			});
 			footRow->addWidget(Editor);
 			Editor->hide();
-			connect(ReplyBox, &QTextEdit::textChanged, this, [this, chip] {
-				chip->set_text(ReplyBox->toPlainText());
+			connect(ReplyBox, &QPlainTextEdit::textChanged, this, [this] {
+				if (!ReplyStatus->isHidden()) {
+					ReplyStatus->hide();
+				}
 				refresh_reply_controls();
 				if (!Applying && ReplyText) {
 					ReplyText(ReplyBox->toPlainText());
@@ -1092,6 +1088,9 @@ namespace bpr::qt {
 		}
 		const auto ours = aReply.has_value() && aReply->Thread == Id;
 		Publishable     = ours && aReply->Publishable;
+		// The helper is the draft editor's switch; a reply that is not yet
+		// its draft has none.
+		Labels->set_helper(ours && aReply->LabelHelper);
 		if (ours && ReplyBox->toPlainText() != aReply->Body) {
 			// The draft editor's text arrives; a caret at the end keeps typing
 			// where it was.
@@ -1112,9 +1111,14 @@ namespace bpr::qt {
 		}
 	}
 
-	auto open_thread_card::reply_editor() const noexcept -> QTextEdit*
+	auto open_thread_card::reply_editor() const noexcept -> QPlainTextEdit*
 	{
 		return Replying ? ReplyBox : nullptr;
+	}
+
+	auto open_thread_card::label_controls() const noexcept -> feedback_label_controls*
+	{
+		return Labels;
 	}
 
 	auto open_thread_card::reply_field() const noexcept -> QAbstractButton*

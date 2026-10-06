@@ -2,6 +2,7 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
@@ -16,6 +17,7 @@
 #include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLinearGradient>
+#include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -23,9 +25,9 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPen>
+#include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScrollBar>
-#include <QTextEdit>
 #include <QTextLayout>
 #include <QToolButton>
 #include <QWheelEvent>
@@ -984,9 +986,14 @@ namespace bpr::qt {
 		return lines;
 	}
 
-	auto conversation_cards_view::reply_editor() const -> QTextEdit*
+	auto conversation_cards_view::reply_editor() const -> QPlainTextEdit*
 	{
 		return OpenCard != nullptr ? OpenCard->reply_editor() : nullptr;
+	}
+
+	auto conversation_cards_view::reply_label_controls() const -> feedback_label_controls*
+	{
+		return OpenCard != nullptr && OpenCard->reply_editor() != nullptr ? OpenCard->label_controls() : nullptr;
 	}
 
 	auto conversation_cards_view::open_card() const -> QWidget*
@@ -2297,6 +2304,11 @@ namespace bpr::qt {
 					return true;
 				}
 				if (key.key() == Qt::Key_Escape) {
+					// An open label completion is the label controls' to close
+					// first ([[BPR-1083]]); the reply keeps its text and focus.
+					if (const auto* const labels = OpenCard->label_controls(); labels != nullptr && labels->completion()->isVisible()) {
+						return false;
+					}
 					if (editor->toPlainText().trimmed().isEmpty() && OpenCard->Action) {
 						OpenCard->Action(card_action::cancel_reply);
 					} else {

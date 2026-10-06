@@ -317,7 +317,9 @@ namespace bpr::qt {
 		/// \brief The label tints of the theme on screen and the mark style.
 		void set_label_marks(const feedback_mark_theme& aTheme);
 		/// \brief The label helper (completion and shortcode replacement), off
-		/// by default; the Settings section that owns it is BPR-1088.
+		/// by default; the Settings section that owns it is BPR-1088. The
+		/// drawer's in-place reply to this editor's draft follows it
+		/// ([[BPR-1290]]).
 		void               set_label_helper(bool aEnabled);
 		[[nodiscard]] auto target_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-0657]]. Names the thread the shown draft answers; shown only while it does.

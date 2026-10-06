@@ -19,9 +19,12 @@
 
 class QLabel;
 class QPalette;
+class QPlainTextEdit;
 class QToolButton;
 
 namespace bpr::qt {
+	class feedback_label_controls;
+
 	/// \brief [[BPR-1290]]. The colours the notes are drawn in, derived from
 	/// the palette on screen and the appearance profile's unread and marker
 	/// colours.
@@ -152,8 +155,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto replying() const noexcept -> bool;
 		/// \brief The draft editor's reply for this thread.
 		void               present_reply(const std::optional<thread_reply_presentation>& aReply);
-		[[nodiscard]] auto reply_editor() const noexcept -> QTextEdit*;
+		[[nodiscard]] auto reply_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto reply_field() const noexcept -> QAbstractButton*;
+		/// \brief The reply's label chip, menu and shortcodes: the composer's
+		/// own [[BPR-1083]] controls on the reply's text. Null on a card that
+		/// takes no reply.
+		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
 		[[nodiscard]] auto posts() const -> std::vector<thread_post_view*>;
 		/// \brief The vertical centre of the notch, from the card's top.
 		void               set_notch(int aY);
@@ -187,7 +194,9 @@ namespace bpr::qt {
 		QWidget*                       Foot        = nullptr;
 		note_button*                   ReplyField  = nullptr;
 		QWidget*                       Editor      = nullptr;
-		QTextEdit*                     ReplyBox    = nullptr;
+		QPlainTextEdit*                ReplyBox    = nullptr;
+		feedback_label_controls*       Labels      = nullptr;
+		QLabel*                        ReplyStatus = nullptr;
 		note_button*                   Publish     = nullptr;
 		std::vector<thread_post_view*> Posts;
 	};

@@ -231,6 +231,12 @@ namespace bpr::qt {
 		return Helper;
 	}
 
+	void feedback_label_controls::set_decoration_toggles(const bool aShown)
+	{
+		Toggles = aShown;
+		refresh();
+	}
+
 	void feedback_label_controls::set_status_sink(std::function<void(const QString&)> aSink)
 	{
 		StatusSink = std::move(aSink);
@@ -313,7 +319,7 @@ namespace bpr::qt {
 		}
 		const auto pairs = std::array<std::pair<QToolButton*, bool>, 3U>{ { { Blocking, State.Blocking }, { NonBlocking, State.NonBlocking }, { IfMinor, State.IfMinor } } };
 		for (const auto& [toggle, written] : pairs) {
-			toggle->setVisible(State.Label.has_value());
+			toggle->setVisible(Toggles && State.Label.has_value());
 			toggle->setEnabled(open && State.Label.has_value());
 			toggle->setChecked(written);
 		}

@@ -28,7 +28,7 @@
 class QAbstractButton;
 class QContextMenuEvent;
 class QMenu;
-class QTextEdit;
+class QPlainTextEdit;
 class QToolButton;
 class QKeyEvent;
 class QMouseEvent;
@@ -37,6 +37,8 @@ class QResizeEvent;
 class QWheelEvent;
 
 namespace bpr::qt {
+	class feedback_label_controls;
+
 	/// \brief Which threads the notes show.
 	enum class cards_scope : std::uint8_t {
 		/// The threads of the file the comparison shows, at their lines.
@@ -198,6 +200,10 @@ namespace bpr::qt {
 		QString     Body;
 		/// The draft editor's Publish is enabled.
 		bool Publishable = false;
+		/// [[BPR-1290]]. The draft editor's label helper is on, so the reply
+		/// completes and replaces `:xx:` codes as the composer does
+		/// ([[BPR-1083]]); off, a label is typed in full.
+		bool LabelHelper = false;
 
 		auto operator==(const thread_reply_presentation&) const -> bool = default;
 	};
@@ -340,7 +346,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1290]]. Each edit of the reply written in place.
 		void set_reply_text_dispatch(std::function<void(const std::string&, const QString&)> aDispatch);
 		/// \brief The editor of the reply in place, while one is shown.
-		[[nodiscard]] auto reply_editor() const -> QTextEdit*;
+		[[nodiscard]] auto reply_editor() const -> QPlainTextEdit*;
+		/// \brief The reply's label chip, menu and shortcodes ([[BPR-1083]]'s
+		/// controls, as the composer has them), while a reply is shown.
+		[[nodiscard]] auto reply_label_controls() const -> feedback_label_controls*;
 		/// \brief The open thread's card, while one is open.
 		[[nodiscard]] auto open_card() const -> QWidget*;
 		/// \brief The out-of-view chips shown now, top first then bottom.

@@ -5749,6 +5749,7 @@ namespace bpr::qt {
 			.Thread      = "review-thread:" + *draft->ReplyToThread,
 			.Body        = ReviewEditor->body_editor()->toPlainText(),
 			.Publishable = ReviewEditor->publish_action()->isEnabled() && !ReviewEditor->body_editor()->isReadOnly(),
+			.LabelHelper = ReviewEditor->label_controls()->helper(),
 		});
 	}
 
