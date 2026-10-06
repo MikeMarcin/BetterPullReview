@@ -44,11 +44,18 @@ namespace {
 		return { .Command = { .Id = aDraft.Draft.Id, .Kind = review_draft_command_kind::edit, .Body = std::move(aBody) }, .ExpectedRevision = aDraft.Revision, .Scope = aDraft.Scope };
 	}
 
+	template <class TResult>
+	auto opened(TResult aResult)
+	{
+		expect(aResult.has_value(), "the private review store opens");
+		return std::move(*aResult);
+	}
+
 	struct fixture
 	{
 		tests::sqlite_contract::scratch_root       Scratch{ "feedback-draft" };
 		private_review_configuration               Config{ { Scratch.path(), "github.com", "octo", "example", 5 }, bpr_profile_id{ 1 }, git_host_id{ 2 }, github_account_id{ 3 }, repository_id{ 4 }, pull_request_id{ 5 } };
-		std::unique_ptr<private_review_store_port> Store   = std::move(*make_private_review_store(Config));
+		std::unique_ptr<private_review_store_port> Store   = opened(make_private_review_store(Config));
 		private_review_binding                     Binding = private_review_fixture::binding();
 		diff_semantic_index                        Index   = private_review_fixture::index();
 		every_window_current                       Contexts;
