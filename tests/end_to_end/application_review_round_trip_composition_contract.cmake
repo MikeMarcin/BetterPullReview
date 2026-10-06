@@ -742,6 +742,14 @@ endfunction()
 # request. Presentation and fixture only: no grant, target, provider,
 # credential, mutation or publication path changes; mutation pin unchanged;
 # no new src/app source. Reviewed on BPR-1290.
+# BPR-1289 reseal: over the BPR-1290 reseal above; no intervening
+# pinned-scope commit. main.cpp adds the tests-on --attended-open-settings,
+# which with --attended-launch triggers the workbench's own Settings action
+# once the window shows and prints ATTENDED_SETTINGS_SHOWN or
+# ATTENDED_SETTINGS_FAILED, for an attended look at the Settings search.
+# Attended setup only: no grant, target, provider, credential, mutation or
+# publication path changes; mutation pin unchanged; no new src/app source.
+# Reviewed on BPR-1289.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -958,7 +966,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "d0f088a611680e78590a0535bbc67dfccb5f8476760cfe951b9ddece299cac4f"
+        "a4afaa2467a3dd343f95b5acaf173834abfa043868c4f0db8a4713616db2b20f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

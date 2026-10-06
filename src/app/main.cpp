@@ -5205,6 +5205,21 @@ namespace {
 		timer->start();
 	}
 
+	// [[BPR-1289]]. `--attended-open-settings`: before a person looks,
+	// Settings opens over the window through the workbench's own Settings
+	// action, as Command-comma opens it, and one line says whether it showed.
+	void schedule_attended_settings(bpr::app::github_application& aApplication)
+	{
+		QTimer::singleShot(0, &aApplication.window(), [&aApplication, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto& window = aApplication.window();
+			window.settings_action()->trigger();
+			QTextStream{ stdout } << (window.settings()->isVisible() ? "ATTENDED_SETTINGS_SHOWN" : "ATTENDED_SETTINGS_FAILED") << '\n';
+		});
+	}
+
 	// [[BPR-1083]]. One tick of the label-authoring course; ends the run when
 	// the course does.
 	void advance_label_authoring_probe(
@@ -8655,8 +8670,11 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1287]]. The same, stopping at the pull request's own opening
 		// page, so a person can go to Read with no file chosen.
 		const auto attendedOpenPullRequest = has_argument(argc, argv, "--attended-open-pull-request");
+		// [[BPR-1289]]. Or opening Settings over Home, for a look at Settings.
+		const auto attendedOpenSettings = has_argument(argc, argv, "--attended-open-settings");
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
-			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))) {
+			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
+			|| (attendedOpenSettings && (!attendedLaunch || attendedOpenFile.has_value() || attendedOpenPullRequest))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -9024,6 +9042,9 @@ auto main(int argc, char** argv) -> int
 #if defined(BPR_BUILD_TESTING)
 				if (heldOpenForInspection && (attendedOpenFile.has_value() || attendedOpenPullRequest)) {
 					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest);
+				}
+				if (heldOpenForInspection && attendedOpenSettings) {
+					schedule_attended_settings(*application);
 				}
 #endif
 
