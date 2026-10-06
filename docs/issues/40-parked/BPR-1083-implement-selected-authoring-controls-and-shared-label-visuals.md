@@ -152,9 +152,9 @@ each rule.
 Checks and the negative controls are in the
 [execution ledger](../../verification/RFC-BPR-0047-0051.md).
 
-## Pending owner decisions
+## Round v003's session
 
-One attended session asks one Accept or Reject per candidate, on a frozen
+One attended session asked one Accept or Reject per candidate, on a frozen
 build of `3cddd0cdd` (archived before the rebase from `e8c9dc65c`, the same
 product tree; `/Users/jaeger/bpr1083-authoring-review-v003.AnLWd2`,
 executable SHA-256 `2158e3d0…8ad0f77`).
@@ -174,8 +174,36 @@ cursor 16:
 
 Accepted in v002 and not asked again: the chip, menu, toggles and Publish
 (`chip-menu-v002`), the shortcodes (`shortcodes-v002`) and the preview
-(`mark-preview-v002`). On Accept of all four, AC1 to AC3 stand on their
-automated evidence and the card can finish.
+(`mark-preview-v002`).
+
+## Owner verdicts, session `5674c48e` (v003), 2026-10-05
+
+Handed back at sequence 25 (cursor 16 to 25 read). Verbatim, line breaks
+shown as " / ":
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1083-colon-trigger-v003` | Accept (`eaa28196`) | (none) |
+| `BPR-1083-thread-marks-v003` | Accept (`326221de`) | (none) |
+| `BPR-1083-decorations-v003` | **Reject** (`6c45adf5`, superseding two earlier Rejects with the same note cut shorter, `756337bf` and `d96b2838`) | "These are good, but I think we've. gone a bit of a wrong direction. Decorrators according to https://conventionalcomments.org/ are org specific and multiple decorators can be applied to a comment. like (non-blocking, if-minor).  Obviously something like (blocking, non-blocking) is non-sense so don't worry about it. / Here's what I think. I think we keey normal, blocking, non-blocking sytles for easy scanning. We can also support if-minor style as just filling in the top left corner.  / I think we always display the decorators text out in the comments so we can default support custom decorators and people don't have to learn our styles, its just a bonus helpful ux." |
+| `BPR-1083-preview-tooltips-v003` | **Reject** (`4bc1c16e`, superseding `ba01bdfd`, withdrawn at sequence 22) | "The tooltip feels strangely far away." |
+
+The rejection's screenshot is
+[`BPR-1083-owner-ref-preview-tooltip-far.png`](../../design/owner-refs/BPR-1083-owner-ref-preview-tooltip-far.png):
+the praise mark's tooltip, "praise / Recognize something genuinely
+valuable.", opening well below and right of the six preview marks. It is the
+owner's attachment at its own 790 px, with its colour profile, EXIF and text
+chunks dropped.
+
+The coordinator relayed the direction for round v004 (owner, in chat, on
+handback): marks and rails keep three styles, normal, blocking and
+non-blocking; if-minor is an overlay that fills the top-left corner of any of
+them; several decorations are allowed and kept exactly as written, and any
+custom decoration is accepted; the decoration text is always shown in the
+comment, as in "issue (non-blocking, if-minor):", in thread cards, the reader
+and the composer; the chip menu's decorations combine and take a custom one;
+and a mark's tooltip sits right next to the mark, directly below or above
+it, everywhere marks have tooltips.
 
 Limitations: macOS only (Linux and Windows station runs owed); R33's native
 matrix is not run; the Overview chips and Label key (BPR-1087, BPR-1089) must
