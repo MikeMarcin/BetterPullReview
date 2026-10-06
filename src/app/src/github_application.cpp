@@ -6285,6 +6285,9 @@ namespace bpr::app {
 		// presented it. A tab gesture queues behind this observation.
 		void observe_tab_reading()
 		{
+			if (Closing || TabHost == nullptr) {
+				return;
+			}
 			const auto& tabs    = TabHost->state();
 			const auto* active  = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
 			const auto* surface = Window->comparison_surface();
@@ -6733,11 +6736,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const std::optional<core::semantic_selection>& aSelection) {
 					observe_review_selection(aSelection);
 					retain_reading_position();
+					// [[BPR-1236]]. The active tab takes the reading now, with
+					// the position: a Home or Quit before the scheduled
+					// presentation would otherwise keep a tab without it.
+					observe_tab_reading();
 					schedule_tab_presentation();
 				});
 			Window->comparison_surface()->set_reading_gesture_sink([this] {
 				cancel_restoration(false, true);
 				retain_reading_position();
+				observe_tab_reading();
 				schedule_tab_presentation();
 			});
 			Window->set_defect_dispatch(

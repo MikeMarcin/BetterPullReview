@@ -915,6 +915,10 @@ auto main(int aArgc, char** aArgv) -> int
 		expect(retained && retained->Records.size() == seededReadings.size(), "Quit drains both reading writes");
 		for (std::size_t index = 0; index < seededReadings.size(); ++index) {
 			expect(retained->Records[index].Position == seededReadings[index], "durable record equals actual accepted public reading");
+			// [[BPR-1236]]. The active tab carries the same reading, even when
+			// Home followed the selection at once.
+			const auto& tabs = retained->Records[index].Tabs;
+			expect(!tabs || (tabs->Active && tabs->Tabs[*tabs->Active] == seededReadings[index]), "durable active tab equals the accepted reading");
 		}
 	}
 	// stdout is a dedicated binary pipe to parent memory, never a diagnostic log.

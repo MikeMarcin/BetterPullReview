@@ -724,6 +724,14 @@ endfunction()
 # at 68c1fe9b7 without a reseal and left this row failing on origin/main;
 # they add no grant, target, provider, credential, mutation or publication
 # path either. Reviewed on BPR-1292.
+# BPR-1236 reseal: over the BPR-1292 reseal above; no intervening
+# pinned-scope commit. The comparison surface's selection and reading-gesture
+# sinks now observe the active document tab's reading in the same turn as the
+# window's reading position (observe_tab_reading, which returns before the tab
+# host exists or once the window closes), so a Home or Quit that follows a
+# selection at once no longer records a tab without it. No grant, target,
+# provider, credential, mutation or publication path changes; mutation pin
+# unchanged; no new src/app source. Reviewed on BPR-1236.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -742,7 +750,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"c5486fd5c822cdc2fafa64f35b81a53cb9c1c396e391f6eff9b942f56e144e9b"
+		"ffc1c7babe69e744ee3cf0f185d0d6bcaddc017d36e787d2098b89eb159e6cc8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -940,7 +948,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a049431794ca7b60b93e9844c6145cd30d9618ca04b707f95bd2660d232a33a8"
+        "b95540399129d3bb74bfcfb2f349935ab63a961901a2607aae25188104e140a4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

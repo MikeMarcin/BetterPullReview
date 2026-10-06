@@ -106,3 +106,64 @@ At `db021262a`, the row failed in bpr-main-win's BPR-0905 Linux full suite and
 again run serially on its own, with `unavailable-anchor failed (1)` and then the
 same final check. The failure is shared by all three platforms, not
 Windows-only. The card's platforms now name all three.
+
+## Cause, fix and Windows evidence (bpr-main-win, 2026-10-05)
+
+**Reproduced** on current `main` (`568db6cc5`), `build/windows-dev` Debug:
+`unavailable-anchor failed (1)`, then `FAILED: failed reading restoration
+preserves exact recorded identities and sibling`, after 261.8 s.
+
+**Cause, in the recording.** The restore was right. A window keeps two
+copies of its reading: the record's `Position` and its active document tab
+inside `Tabs` ([[BPR-1132]]). The comparison surface's selection sink wrote
+`Position` in the same turn (`retain_reading_position`). The tab's copy
+followed only later: `schedule_tab_presentation`, then on the decision lane
+`advance_tab_presentation`, then `observe_tab_reading`, then the tab host,
+then `retain_tabs`.
+
+`seed_auth` selects the second window's reading line and goes to Home at
+once. Once Home showed, the scheduled observation no longer saw that tab's
+load on the surface, so the tab kept no selection while `Position` had one.
+That record disagreed with itself. Restoring it later presented the reading
+in the active tab, and Quit then saved a consistent record, which differed
+from the inconsistent seed. That is the `hasSelA=1 hasSelB=0` the 2026-09-30
+probe saw. Whether the scheduled observation runs before Home is a matter of
+timing, which is why macOS once passed.
+
+**Fix** (`src/app/src/github_application.cpp`). The selection sink and the
+reading-gesture sink call `observe_tab_reading()` in the same turn as
+`retain_reading_position()`, as the tab-gesture dispatch already does. So
+the active tab's reading is queued to the tab host with the selection of
+that moment. `observe_tab_reading` now returns early before the tab host
+exists and once the window is closing. Without that guard, a selection
+during startup crashed the seed (`0xC0000005`). The round-trip composition
+pins are resealed for this change (note "BPR-1236 reseal"); the mutation pin
+is unchanged.
+
+**Failing-before control.** The course now also requires, after the seed's
+Quit, that each record's active tab equals its accepted reading ("durable
+active tab equals the accepted reading"). Without the fix the row fails in
+its first phase: `auth-seed failed (1)`, `FAILED: durable active tab equals
+the accepted reading`. With the fix the whole course passes.
+
+**Windows, after** (`build/windows-dev` Debug, whole tree, no `warning C` or
+`warning LNK` line):
+
+- `application_profile_window_review_restoration_public_path` passes alone
+  (435.3 s) and again under `-j4` (444.4 s). Before the fix it failed in 4 of
+  4 runs on 2026-09-30, and again today.
+- 15 of 15 related rows pass under `-j4`:
+  - the document-tab rows: `core_document_tabs`,
+    `application_document_tab_host` and `qt_document_tabs_scale_{100,125,200}`;
+  - the restoration rows: `core_`, `application_` and
+    `sqlite_window_review_restoration*`, `profile_window_restoration_fixture_contract`
+    and `application_document_tabs_restoration_public_path`;
+  - `application_diff_workbench_public_path`,
+    `application_label_authoring_contract`,
+    `application_review_round_trip_composition_contract` and
+    `architecture_boundaries`.
+- clang-format 22.1.3 is clean on the changed files.
+
+**Owed before Done:** the change is portable, but this card's acceptance
+asks for macOS and Linux runs of the row, and neither has been run with the
+fix yet.
