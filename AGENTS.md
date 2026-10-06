@@ -52,6 +52,9 @@ network, or process effects.
   printed `STARTUP_FAILED` and closed before any window. Export the commit
   into the root, build there, and have the launcher check the fixture tree
   before starting and report an exit within seconds.
+- Every attended review opens its own new, short session (a fresh `--state`
+  directory). Never add candidates to or restart the long default session
+  `cbd48b91…`; the owner asked for short sessions on 2026-10-04.
 - Ask one question per candidate criterion. A question riding a criterion about
   something else comes back unanswered (BPR-0744 v008 and v009).
 - Ask a keep-or-change judgment as Accept or Reject, with the change in the

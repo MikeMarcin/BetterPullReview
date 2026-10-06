@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1298"
+  ],
+  "reserve_for": "crlf-editors",
+  "purpose": "Desktop draft and reply editors read CRLF back as LF",
+  "created": "2026-10-06T18:59:47.316633+00:00",
+  "base": "35b8d4fcb002959c6dac4f61a546609115edb2ad"
+}
