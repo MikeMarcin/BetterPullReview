@@ -51,6 +51,7 @@ add_library(
         src/pull_request_overview_page.cpp
         src/conversation_cards_view.cpp
         src/conversation_glyphs.cpp
+        src/painted_glyph_icon.cpp
         src/conversation_open_card.cpp
         src/repositories_drawer.cpp
         src/files_tree.cpp

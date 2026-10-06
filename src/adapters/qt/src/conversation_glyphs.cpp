@@ -1,5 +1,7 @@
 #include "conversation_glyphs.hpp"
 
+#include "painted_glyph_icon.hpp"
+
 #include <QPainter>
 #include <QPainterPath>
 #include <QPalette>
@@ -140,17 +142,6 @@ namespace bpr::qt {
 			}
 		}
 
-		[[nodiscard]] auto render(const conversation_glyph aGlyph, const QColor& aInk, const int aLogical, const qreal aScale) -> QPixmap
-		{
-			const auto pixels = static_cast<int>(std::lround(static_cast<qreal>(aLogical) * aScale));
-			auto       pixmap = QPixmap{ pixels, pixels };
-			pixmap.setDevicePixelRatio(aScale);
-			pixmap.fill(Qt::transparent);
-			auto painter = QPainter{ &pixmap };
-			paint_conversation_glyph(painter, QRectF{ 0.0, 0.0, static_cast<qreal>(aLogical), static_cast<qreal>(aLogical) }, aGlyph, aInk);
-			return pixmap;
-		}
-
 		[[nodiscard]] auto disabled_ink(const QPalette& aPalette) -> QColor
 		{
 			auto ink = aPalette.color(QPalette::Disabled, QPalette::ButtonText);
@@ -162,17 +153,9 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto icon_of(const conversation_glyph aGlyph, const QColor& aInk, const QColor& aDisabled) -> QIcon
 		{
-			auto           icon   = QIcon{ };
-			constexpr auto sizes  = std::array{ 14, 16 };
-			constexpr auto scales = std::array{ 1.0, 1.25, 2.0 };
-			for (const auto& [mode, ink] : { std::pair{ QIcon::Normal, aInk }, std::pair{ QIcon::Disabled, aDisabled } }) {
-				for (const auto size : sizes) {
-					for (const auto scale : scales) {
-						icon.addPixmap(render(aGlyph, ink, size, scale), mode, QIcon::Off);
-					}
-				}
-			}
-			return icon;
+			// [[BPR-1296]]. Painted at the size and scale the button asks for.
+			return painted_glyph_icon([aGlyph](QPainter& aPainter, const qreal aSide, const QColor& aGlyphInk) { paint_conversation_glyph(aPainter, QRectF{ 0.0, 0.0, aSide, aSide }, aGlyph, aGlyphInk); },
+									  aInk, aDisabled);
 		}
 	} // namespace
 

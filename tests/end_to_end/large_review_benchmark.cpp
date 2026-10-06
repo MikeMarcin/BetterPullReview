@@ -312,6 +312,11 @@ namespace bpr::e2e::large_review {
 		// before the change, and 168-172 under Qt 6.10.3, when it already failed
 		// 160), so it has its own bound: 184 MiB, 10% above its peak, the rule
 		// BPR-0893 used for the single 224 MiB bound these two replace.
+		// [[BPR-1296]]: by 2026-10-06 the constructed window held 9.6 MiB more
+		// live heap than at 5a26d6b1b, from glyph icons rendered in advance at
+		// every mode, size and scale; the course's footprint median rose from
+		// 158 to 176.5 MiB and missed 184 in 1 of 20 runs. The icons paint on
+		// request now (median 157.0, highest 166.4); the limit is unchanged.
 		// [[BPR-0967]]: other platforms' values are in the platform table above.
 		std::uint64_t SampledFootprintGrowthLimitBytes   = PlatformFootprintGrowthLimitBytes;
 		std::uint64_t CacheByteFootprintGrowthLimitBytes = PlatformCacheByteFootprintGrowthLimitBytes;

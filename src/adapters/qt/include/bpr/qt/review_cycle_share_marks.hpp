@@ -90,8 +90,8 @@ namespace bpr::qt {
 
 	/// \brief One glyph, `aLogical` pixels square at `aScale`, in `aInk`.
 	[[nodiscard]] auto share_glyph_pixmap(share_glyph aGlyph, const QColor& aInk, int aLogical, qreal aScale) -> QPixmap;
-	/// \brief The glyph as an icon at the sizes buttons and lists ask for, at
-	/// 1x, 1.25x and 2x; disabled in `aDisabled`.
+	/// \brief The glyph as an icon, painted at the size and scale a button or
+	/// list asks for ([[BPR-1296]]); disabled in `aDisabled`.
 	[[nodiscard]] auto share_glyph_icon(share_glyph aGlyph, const QColor& aInk, const QColor& aDisabled) -> QIcon;
 
 	/// \brief A chip: a glyph in its tone's colour and a few words, on a faint

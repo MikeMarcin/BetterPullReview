@@ -3,6 +3,8 @@
 #include "bpr/qt/epoch_line.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 
+#include "painted_glyph_icon.hpp"
+
 #include <QAbstractButton>
 #include <QAction>
 #include <QActionEvent>
@@ -217,57 +219,28 @@ namespace bpr::qt {
 			}
 		}
 
-		[[nodiscard]] auto render_glyph(
-			const strip_glyph aGlyph,
-			const QColor&     aInk,
-			const int         aLogicalSize,
-			const double      aScale) -> QPixmap
+		/// Strokes `aGlyph` `aSide` logical pixels square at the origin in `aInk`.
+		void paint_glyph(QPainter& aPainter, const strip_glyph aGlyph, const qreal aSide, const QColor& aInk)
 		{
-			const auto pixels = static_cast<int>(
-				std::lround(static_cast<double>(aLogicalSize) * aScale));
-			auto pixmap = QPixmap{ pixels, pixels };
-			pixmap.setDevicePixelRatio(aScale);
-			pixmap.fill(Qt::transparent);
-			{
-				auto painter = QPainter{ &pixmap };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto unit = static_cast<double>(aLogicalSize) / 24.0;
-				painter.scale(unit, unit);
-				auto pen = QPen{ aInk };
-				pen.setWidthF(2.0);
-				pen.setCapStyle(Qt::RoundCap);
-				pen.setJoinStyle(Qt::RoundJoin);
-				painter.setPen(pen);
-				painter.setBrush(Qt::NoBrush);
-				stroke_glyph(painter, aGlyph);
-			}
-			return pixmap;
+			aPainter.save();
+			const auto unit = aSide / 24.0;
+			aPainter.scale(unit, unit);
+			auto pen = QPen{ aInk };
+			pen.setWidthF(2.0);
+			pen.setCapStyle(Qt::RoundCap);
+			pen.setJoinStyle(Qt::RoundJoin);
+			aPainter.setPen(pen);
+			aPainter.setBrush(Qt::NoBrush);
+			stroke_glyph(aPainter, aGlyph);
+			aPainter.restore();
 		}
 	} // namespace
 
 	auto strip_icon(const strip_glyph aGlyph, const QPalette& aPalette) -> QIcon
 	{
-		auto           icon         = QIcon{ };
-		constexpr auto logicalSizes = std::array{ 16, 20, 24 };
-		constexpr auto scales       = std::array{ 1.0, 1.25, 2.0 };
-		const auto     ink          = aPalette.color(QPalette::Active, QPalette::ButtonText);
-		const auto     modes        = std::array{
-			std::pair{ QIcon::Normal, ink },
-			std::pair{ QIcon::Active, ink },
-			std::pair{ QIcon::Selected, ink },
-			std::pair{ QIcon::Disabled, disabled_ink(aPalette) },
-		};
-		for (const auto& [mode, colour] : modes) {
-			for (const auto logicalSize : logicalSizes) {
-				for (const auto scale : scales) {
-					icon.addPixmap(
-						render_glyph(aGlyph, colour, logicalSize, scale),
-						mode,
-						QIcon::Off);
-				}
-			}
-		}
-		return icon;
+		// [[BPR-1296]]. Painted at the size and scale the button asks for.
+		return painted_glyph_icon([aGlyph](QPainter& aPainter, const qreal aSide, const QColor& aInk) { paint_glyph(aPainter, aGlyph, aSide, aInk); },
+								  aPalette.color(QPalette::Active, QPalette::ButtonText), disabled_ink(aPalette));
 	}
 
 	void set_strip_badge(QToolButton& aButton, const QString& aBadge)

@@ -1,5 +1,7 @@
 #include "bpr/qt/review_cycle_share_marks.hpp"
 
+#include "painted_glyph_icon.hpp"
+
 #include <QEvent>
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -190,6 +192,23 @@ namespace bpr::qt {
 		constexpr auto chip_outline = 120;
 		constexpr auto panel_wash   = 26;
 		constexpr auto panel_edge   = 70;
+
+		/// Strokes `aGlyph` `aSide` logical pixels square at the origin in `aInk`.
+		void paint_glyph(QPainter& aPainter, const share_glyph aGlyph, const qreal aSide, const QColor& aInk)
+		{
+			aPainter.save();
+			const auto unit = aSide / 24.0;
+			aPainter.scale(unit, unit);
+			auto pen = QPen{ aInk };
+			// About one and a half device pixels at 16 logical, whatever the size.
+			pen.setWidthF(std::max(1.8, 1.3 / unit));
+			pen.setCapStyle(Qt::RoundCap);
+			pen.setJoinStyle(Qt::RoundJoin);
+			aPainter.setPen(pen);
+			aPainter.setBrush(Qt::NoBrush);
+			stroke_glyph(aPainter, aGlyph);
+			aPainter.restore();
+		}
 	}
 
 	auto share_tone_role(const share_tone aTone) noexcept -> core::appearance_role
@@ -220,30 +239,13 @@ namespace bpr::qt {
 		pixmap.fill(Qt::transparent);
 		auto painter = QPainter{ &pixmap };
 		painter.setRenderHint(QPainter::Antialiasing, true);
-		const auto unit = static_cast<qreal>(aLogical) / 24.0;
-		painter.scale(unit, unit);
-		auto pen = QPen{ aInk };
-		// About one and a half device pixels at 16 logical, whatever the size.
-		pen.setWidthF(std::max(1.8, 1.3 / unit));
-		pen.setCapStyle(Qt::RoundCap);
-		pen.setJoinStyle(Qt::RoundJoin);
-		painter.setPen(pen);
-		painter.setBrush(Qt::NoBrush);
-		stroke_glyph(painter, aGlyph);
+		paint_glyph(painter, aGlyph, static_cast<qreal>(aLogical), aInk);
 		return pixmap;
 	}
 
 	auto share_glyph_icon(const share_glyph aGlyph, const QColor& aInk, const QColor& aDisabled) -> QIcon
 	{
-		auto icon = QIcon{ };
-		for (const auto& [mode, ink] : { std::pair{ QIcon::Normal, aInk }, std::pair{ QIcon::Active, aInk }, std::pair{ QIcon::Selected, aInk }, std::pair{ QIcon::Disabled, aDisabled } }) {
-			for (const auto logical : { 14, 16, 20 }) {
-				for (const auto scale : { 1.0, 1.25, 2.0 }) {
-					icon.addPixmap(share_glyph_pixmap(aGlyph, ink, logical, scale), mode, QIcon::Off);
-				}
-			}
-		}
-		return icon;
+		return painted_glyph_icon([aGlyph](QPainter& aPainter, const qreal aSide, const QColor& aGlyphInk) { paint_glyph(aPainter, aGlyph, aSide, aGlyphInk); }, aInk, aDisabled);
 	}
 
 	share_chip::share_chip(QWidget* const aParent)

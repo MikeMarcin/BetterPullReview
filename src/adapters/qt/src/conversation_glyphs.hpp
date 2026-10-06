@@ -44,7 +44,7 @@ namespace bpr::qt {
 	void paint_conversation_glyph(QPainter& aPainter, const QRectF& aBox, conversation_glyph aGlyph, const QColor& aInk);
 
 	/// \brief One glyph as an icon in the palette's button ink, with its
-	/// disabled state, at 1x, 1.25x and 2x.
+	/// disabled state, painted at the size and scale a button asks for.
 	[[nodiscard]] auto conversation_icon(conversation_glyph aGlyph, const QPalette& aPalette) -> QIcon;
 	/// \brief One glyph as an icon in a fixed ink.
 	[[nodiscard]] auto conversation_icon(conversation_glyph aGlyph, const QColor& aInk) -> QIcon;

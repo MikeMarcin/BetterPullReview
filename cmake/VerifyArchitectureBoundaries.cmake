@@ -5273,6 +5273,11 @@ foreach(source_file IN LISTS source_files)
         string(REPLACE "::fork()" "" contents "${contents}")
         string(REPLACE "::execv(argv[1], argv + 1)" "" contents "${contents}")
     endif()
+    if(relative_file STREQUAL "src/adapters/qt/src/painted_glyph_icon.cpp")
+        # [[BPR-1296]]. QIconEngine's required copy override is named clone;
+        # only that exact declaration is removed, not the Linux process call.
+        string(REPLACE "auto clone() const -> QIconEngine* override" "" contents "${contents}")
+    endif()
     foreach(alternate_process_pattern IN LISTS alternate_process_patterns)
         if(contents MATCHES "${alternate_process_pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")

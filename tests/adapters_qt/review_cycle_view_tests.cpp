@@ -9,6 +9,7 @@
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/review_cycle_share_marks.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
+#include "bpr/qt/workbench_strip.hpp"
 
 #include <QAccessible>
 #include <QAccessibleEvent>
@@ -52,6 +53,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -2369,6 +2371,41 @@ namespace {
 		expect(sheet.rows()[10].Heading->text() == QStringLiteral("Changed too."), "until its note changes");
 		std::cout << "NATIVE: a 514-note sheet lists a pass a turn and refills only what changed\n";
 	}
+
+	/// \brief [[BPR-1296]]. A glyph icon holds no pixmap until a view asks for
+	/// one, then paints the size, scale and mode asked for. Rendering every
+	/// mode, size and scale in advance held 13.3 MiB of live heap by the time
+	/// the window was built, and kept the large-review byte course at its
+	/// memory limit.
+	void paints_glyph_icons_on_request()
+	{
+		const auto ink      = QColor{ 0x20, 0x60, 0xd0 };
+		const auto disabled = QColor{ 0xd0, 0x40, 0x20 };
+		auto       palette  = QPalette{ };
+		palette.setColor(QPalette::Active, QPalette::ButtonText, ink);
+		palette.setColor(QPalette::Disabled, QPalette::ButtonText, disabled);
+		const auto icons = std::array{
+			std::pair{ qt::strip_icon(qt::strip_glyph::refresh, palette), "strip" },
+			std::pair{ qt::share_glyph_icon(qt::share_glyph::copy, ink, disabled), "share" },
+		};
+		for (const auto& [icon, family] : icons) {
+			const auto name = std::string{ family };
+			expect(!icon.isNull(), name + ": the icon is not null");
+			for (const auto mode : { QIcon::Normal, QIcon::Active, QIcon::Selected, QIcon::Disabled }) {
+				expect(icon.availableSizes(mode).isEmpty(), name + ": no pixmap is held before a view asks for one");
+			}
+			for (const auto& [logical, scale, device] : { std::tuple{ 16, 1.0, 16 }, std::tuple{ 16, 1.25, 20 }, std::tuple{ 20, 2.0, 40 }, std::tuple{ 18, 2.0, 36 } }) {
+				const auto normal = icon.pixmap(QSize{ logical, logical }, scale, QIcon::Normal);
+				const auto off    = icon.pixmap(QSize{ logical, logical }, scale, QIcon::Disabled);
+				const auto at     = name + " at " + std::to_string(logical) + " x " + std::to_string(scale);
+				expect(normal.size() == QSize{ device, device } && std::abs(normal.devicePixelRatio() - scale) < 0.01, at + ": painted at the device size asked for");
+				expect(pixels_near(normal.toImage(), normal.rect(), ink) > 0 && pixels_near(normal.toImage(), normal.rect(), disabled) == 0, at + ": in the ink, none in the disabled ink");
+				expect(pixels_near(off.toImage(), off.rect(), disabled) > 0 && pixels_near(off.toImage(), off.rect(), ink) == 0, at + ": disabled in the disabled ink");
+			}
+			const auto wide = icon.pixmap(QSize{ 24, 16 }, 1.0);
+			expect(wide.size() == QSize{ 16, 16 }, name + ": a size that is not square gets the square inside it");
+		}
+	}
 }
 
 auto main(int aArgc, char** aArgv) -> int
@@ -2385,6 +2422,7 @@ try {
 	// [[BPR-1270]]. The bundled code font, registered as the application does at
 	// startup, so every appearance the course builds uses the font it ships.
 	expect(qt::register_bundled_code_font(), "the bundled code font registers");
+	paints_glyph_icons_on_request();
 	fit_rows_at_negative_leading();
 	aligns_and_colours_a_notes_code();
 	lists_a_long_round_a_pass_a_turn();
