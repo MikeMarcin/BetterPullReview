@@ -41,6 +41,7 @@
 	#include "bpr/qt/windows_caption_buttons.hpp"
 #endif
 
+#include <QColor>
 #include <QList>
 #include <QMainWindow>
 #include <QPointer>
@@ -791,6 +792,9 @@ namespace bpr::qt {
 		/// mark style the reviewer chose on Reviews & queue, they reach every
 		/// surface in this window that draws a label mark.
 		void set_label_tints(const feedback_label_tints& aTints);
+		/// \brief [[BPR-1085]]. The theme's attention amber (`state_attention`),
+		/// for Approve's dot while my blocking feedback is open.
+		void set_attention_colour(const QColor& aColour);
 		/// \brief The tints and mark style this window draws marks with.
 		[[nodiscard]] auto label_marks() const -> feedback_mark_theme;
 		/// \brief Opens a retained editor page without changing or publishing its draft.
@@ -1701,9 +1705,12 @@ namespace bpr::qt {
 		/// [[BPR-1083]]. The label tints of the theme on screen, once the
 		/// composition supplies them; the mark style is `Behaviour`'s.
 		std::optional<feedback_label_tints> LabelTints;
-		bool                                ApplyingBehaviour = false;
-		std::optional<review_modality>      LastUsedModality;
-		bool                                ReturnComparisonPending = false;
+		/// [[BPR-1085]]. The theme's attention amber, once the composition
+		/// supplies it.
+		std::optional<QColor>          AttentionColour;
+		bool                           ApplyingBehaviour = false;
+		std::optional<review_modality> LastUsedModality;
+		bool                           ReturnComparisonPending = false;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
 		bool                                      BehaviourPublished    = false;

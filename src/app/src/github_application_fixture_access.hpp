@@ -1250,6 +1250,13 @@ namespace bpr::app::detail {
 		/// listed; the gesture is the drawer's own selection.
 		[[nodiscard]] static auto reveal_fixture_file(github_application& aApplication, std::string_view aPath)
 			-> fixture_file_reveal_result;
+		/// \brief [[BPR-1084]] and [[BPR-1085]]. For an attended look, in Read
+		/// on a revealed file: a new comment on the first `aSide` line no thread
+		/// is on, holding `aBody`, through the window's own Comment action and
+		/// editor, the way a reviewer would write it. Shown once the draft and
+		/// the editor hold `aBody`. Nothing is published.
+		[[nodiscard]] static auto seed_attended_comment_draft(github_application& aApplication, core::diff_side aSide, const std::string& aBody)
+			-> fixture_file_reveal_result;
 		/// \brief [[BPR-1083]]. In Read on `src/engine/renderer.cpp`: the
 		/// thread marks, then a new comment labelled by `:qu:`, the chip and ⌘L,
 		/// published, and its mark after a refresh. Saves window renders into

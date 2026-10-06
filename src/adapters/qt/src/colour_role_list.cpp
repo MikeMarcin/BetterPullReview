@@ -20,6 +20,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <array>
 #include <utility>
 
 namespace bpr::qt {
@@ -46,6 +48,27 @@ namespace bpr::qt {
 		{
 			return static_cast<appearance_role_group>(
 				static_cast<std::uint8_t>(aIndex));
+		}
+
+		/// \brief Every role index, by group and then in the core's own order.
+		///
+		/// \details [[BPR-1085]]. A role is declared at the end of the core's
+		/// vocabulary, where its ordinal stays durable, even when it lists in an
+		/// earlier group: `state_attention` lists under Review states. Within a
+		/// group the core's order holds, so the earlier roles keep their places.
+		[[nodiscard]] auto display_order() -> const std::array<std::size_t, core::appearance_role_count>&
+		{
+			static const auto order = [] {
+				auto indices = std::array<std::size_t, core::appearance_role_count>{ };
+				for (auto index = std::size_t{ 0U }; index < indices.size(); ++index) {
+					indices[index] = index;
+				}
+				std::ranges::stable_sort(indices, { }, [](const std::size_t aIndex) {
+					return static_cast<std::size_t>(appearance_role_group_of(role_at(aIndex)));
+				});
+				return indices;
+			}();
+			return order;
 		}
 
 		/// \brief Says one colour the way the design writes it.
@@ -188,7 +211,7 @@ namespace bpr::qt {
 			[this](int) { refresh_sticky_header(); });
 
 		// The rows are deliberately not built here. See the class documentation:
-		// fifty-seven rows of four widgets each is the largest fixed structure in
+		// fifty-eight rows of four widgets each is the largest fixed structure in
 		// the application's chrome, and a reviewer who never opens Appearance should
 		// not be carrying it.
 	}
@@ -213,8 +236,7 @@ namespace bpr::qt {
 		// each row belongs to, and whether it is offered at all, are the
 		// vocabulary's, which derives both from the same enumeration. A role that
 		// is not offered has no row ([[BPR-0986]]).
-		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
-			 ++index) {
+		for (const auto index : display_order()) {
 			const auto role = role_at(index);
 			if (!appearance_role_offered(role)) {
 				continue;
@@ -447,7 +469,7 @@ namespace bpr::qt {
 		ensure_rows();
 		auto roles = std::vector<core::appearance_role>{ };
 		roles.reserve(RoleRows.size());
-		for (auto index = std::size_t{ 0U }; index < RoleRows.size(); ++index) {
+		for (const auto index : display_order()) {
 			if (RoleRows[index].Frame != nullptr && !RoleRows[index].Frame->isHidden()) {
 				roles.push_back(role_at(index));
 			}

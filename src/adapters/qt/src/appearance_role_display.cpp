@@ -145,6 +145,11 @@ namespace bpr::qt {
 			return { group::comment_labels, "Label polish" };
 		case role::feedback_label_quibble:
 			return { group::comment_labels, "Label quibble" };
+
+		// [[BPR-1085]]. Declared last for the durable order, listed with the
+		// review states it sits beside.
+		case role::state_attention:
+			return { group::review_states, "State attention" };
 		}
 
 		return { };

@@ -5,6 +5,7 @@
 #include "bpr/core/review_submission.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
+#include <QColor>
 #include <QString>
 #include <QWidget>
 #include <array>
@@ -90,6 +91,11 @@ namespace bpr::qt {
 		void set_item_reveal(std::function<void(const std::string&)> aReveal);
 		/// \brief The tints and mark style the window draws marks with.
 		void set_label_marks(const feedback_mark_theme& aTheme);
+		/// \brief [[BPR-1085]]. The amber of Approve's dot: the theme's
+		/// `state_attention` (Appearance > Colours). Until the window supplies
+		/// one, the built-in value of the variant the palette's base implies.
+		void               set_attention_colour(const QColor& aColour);
+		[[nodiscard]] auto attention_colour() const -> QColor;
 
 	private:
 		void                                         present_preflight(const review_submission_editor_projection& aProjection);
@@ -101,6 +107,7 @@ namespace bpr::qt {
 		std::function<void()>                        PresentationObserver;
 		std::function<void(const std::string&)>      Reveal;
 		std::optional<feedback_mark_theme>           MarkTheme;
+		std::optional<QColor>                        Attention;
 		review_submission_editor_projection          Shown;
 		QPlainTextEdit*                              Body        = nullptr;
 		QButtonGroup*                                Disposition = nullptr;

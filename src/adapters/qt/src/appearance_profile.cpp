@@ -134,6 +134,9 @@ namespace bpr::qt {
 			{ role::feedback_label_typo, srgb(0x6F7A00) },
 			{ role::feedback_label_polish, srgb(0x0F8577) },
 			{ role::feedback_label_quibble, srgb(0x9A5B7A) },
+			// [[BPR-1085]]. The attention amber: at least 3:1 against the
+			// application surface (a mark), GitHub's amber where that holds.
+			{ role::state_attention, srgb(0xAD7A00) },
 		} });
 
 		constexpr auto dark_profile = make_profile(profile_entries{ {
@@ -216,6 +219,7 @@ namespace bpr::qt {
 			{ role::feedback_label_typo, srgb(0xC3CE4A) },
 			{ role::feedback_label_polish, srgb(0x3FCDB8) },
 			{ role::feedback_label_quibble, srgb(0xD99BBB) },
+			{ role::state_attention, srgb(0xD29922) },
 		} });
 
 		constexpr auto high_contrast_light_profile = make_profile(profile_entries{ {
@@ -278,6 +282,7 @@ namespace bpr::qt {
 			{ role::feedback_label_typo, srgb(0x434A00) },
 			{ role::feedback_label_polish, srgb(0x005048) },
 			{ role::feedback_label_quibble, srgb(0x5E2A44) },
+			{ role::state_attention, srgb(0x8A5300) },
 		} });
 
 		constexpr auto high_contrast_dark_profile = make_profile(profile_entries{ {
@@ -340,6 +345,7 @@ namespace bpr::qt {
 			{ role::feedback_label_typo, srgb(0xD6E070) },
 			{ role::feedback_label_polish, srgb(0x5EE6D2) },
 			{ role::feedback_label_quibble, srgb(0xF0B8D4) },
+			{ role::state_attention, srgb(0xFFBC66) },
 		} });
 
 		/// \brief [[BPR-0776]]. Home's state colours per built-in variant, in

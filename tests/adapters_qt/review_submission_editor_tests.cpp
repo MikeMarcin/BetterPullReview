@@ -111,6 +111,16 @@ auto main(int argc, char** argv) -> int
 	expect(!approve->icon().isNull() && approve->toolTip() == QStringLiteral("Approve. You have 3 open blocking comment(s) of your own; approving does not resolve them.")
 			   && approve->accessibleDescription() == approve->toolTip() && approve->isEnabled(),
 		   "Approve carries the amber dot and says approving does not resolve my blockers, and stays available");
+	// The dot is the theme's attention amber (`state_attention`, Appearance >
+	// Colours), never a fixed colour: the built-in value until the window
+	// supplies the theme's, and then exactly the theme's.
+	const auto dot = [approve] {
+		const auto image = approve->icon().pixmap(QSize{ 16, 16 }).toImage();
+		return image.pixelColor(image.width() / 2, image.height() / 2);
+	};
+	expect(dot() == editor.attention_colour() && editor.attention_colour().isValid(), "the dot is drawn in the attention amber");
+	editor.set_attention_colour(QColor{ 0x12, 0x34, 0x56 });
+	expect(dot() == QColor{ 0x12, 0x34, 0x56 }, "a theme's own attention amber repaints the dot");
 	auto rows = QStringList{ };
 	for (auto* action : editor.preflight_menu()->actions()) {
 		rows.push_back(action->isSeparator() ? (action->text().isEmpty() ? QStringLiteral("--") : QStringLiteral("## ") + action->text())

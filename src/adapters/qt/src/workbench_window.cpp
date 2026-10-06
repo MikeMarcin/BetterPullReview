@@ -6744,6 +6744,12 @@ namespace bpr::qt {
 		apply_label_marks();
 	}
 
+	void workbench_window::set_attention_colour(const QColor& aColour)
+	{
+		AttentionColour = aColour;
+		apply_label_marks();
+	}
+
 	auto workbench_window::label_marks() const -> feedback_mark_theme
 	{
 		auto theme  = LabelTints.has_value() ? feedback_mark_theme{ .Tints = *LabelTints } : default_feedback_mark_theme(palette());
@@ -6759,6 +6765,9 @@ namespace bpr::qt {
 		}
 		if (ReviewSubmissionEditor != nullptr) {
 			ReviewSubmissionEditor->set_label_marks(theme);
+			if (AttentionColour.has_value()) {
+				ReviewSubmissionEditor->set_attention_colour(*AttentionColour);
+			}
 		}
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_label_marks(theme);

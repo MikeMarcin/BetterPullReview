@@ -1,10 +1,11 @@
 /// \file
-/// \brief Proves RFC-BPR-0034's Colours list: 57 roles, five groups, live picking.
+/// \brief Proves RFC-BPR-0034's Colours list: 58 roles, five groups, live picking.
 ///
 /// \details Criterion C5's list half. The inventory is every role the core
 /// declares except the two hunk-header roles the card no longer offers (C5
 /// amended from 47 to 45 on 2026-09-24, [[BPR-0986]]; then to 57 when
-/// [[BPR-1083]] added the twelve label tints as a fifth group), in five groups with
+/// [[BPR-1083]] added the twelve label tints as a fifth group, and to 58 when
+/// [[BPR-1085]] added the attention amber to Review states), in five groups with
 /// sticky headers carrying counted totals; the filter
 /// lists what it matches; a swatch opens the picker through the settable seam and
 /// every colour the picker moves through is reported, so the review window can
@@ -134,8 +135,8 @@ namespace {
 		show(list);
 
 		expect(
-			list.listed_roles().size() == 57U && core::appearance_role_count == 59U,
-			"57 of the 59 roles the core declares are listed");
+			list.listed_roles().size() == 58U && core::appearance_role_count == 60U,
+			"58 of the 60 roles the core declares are listed");
 		for (const auto unoffered :
 			 { role::diff_hunk_header_background, role::diff_hunk_header_text }) {
 			expect(
@@ -146,17 +147,28 @@ namespace {
 				"the two hunk-header roles, whose surface the review window does not "
 				"have, get no row");
 		}
-		auto order = std::size_t{ 0U };
-		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
-			 ++index) {
-			const auto listed = static_cast<role>(static_cast<std::uint8_t>(index));
-			if (!qt::appearance_role_offered(listed)) {
-				continue;
+		// By group, and within a group in the core's own order: a role declared
+		// at the end for its durable ordinal lists in its own group
+		// ([[BPR-1085]]: the attention amber under Review states).
+		auto expectedOrder = std::vector<role>{ };
+		for (auto group = std::size_t{ 0U }; group < qt::appearance_role_group_count; ++group) {
+			for (auto index = std::size_t{ 0U }; index < core::appearance_role_count; ++index) {
+				const auto candidate = static_cast<role>(static_cast<std::uint8_t>(index));
+				if (qt::appearance_role_offered(candidate) && static_cast<std::size_t>(qt::appearance_role_group_of(candidate)) == group) {
+					expectedOrder.push_back(candidate);
+				}
 			}
-			expect(
-				list.listed_roles()[order++] == listed,
-				"the rows are in the core's own order, so the list cannot reorder "
-				"the vocabulary");
+		}
+		expect(list.listed_roles() == expectedOrder,
+			   "the rows are grouped, each group in the core's own order, so the list cannot reorder "
+			   "the vocabulary within a group");
+		const auto stale     = list.row_of(role::state_stale)->geometry();
+		const auto attention = list.row_of(role::state_attention)->geometry();
+		const auto normal    = list.row_of(role::syntax_normal)->geometry();
+		expect(stale.bottom() < attention.top() && attention.bottom() < list.group_header_of(group::syntax)->geometry().top()
+				   && attention.bottom() < normal.top(),
+			   "the attention amber's row sits directly under State stale, inside Review states");
+		for (const auto listed : expectedOrder) {
 			expect(
 				list.name_label_of(listed)->text()
 					== qt::appearance_role_text(listed),
@@ -187,7 +199,7 @@ namespace {
 					== QStringLiteral("7")
 				&& list.group_count_text(group::diff) == QStringLiteral("6")
 				&& list.group_count_text(group::review_states)
-					== QStringLiteral("6")
+					== QStringLiteral("7")
 				&& list.group_count_text(group::syntax) == QStringLiteral("26")
 				&& list.group_heading_text(group::comment_labels) == QStringLiteral("Comment labels")
 				&& list.group_count_text(group::comment_labels) == QStringLiteral("12"),
@@ -260,8 +272,9 @@ namespace {
 		list.filter_field()->clear();
 		settle();
 		expect(
-			list.listed_roles().size() == 57U
-				&& list.group_count_text(group::syntax) == QStringLiteral("26"),
+			list.listed_roles().size() == 58U
+				&& list.group_count_text(group::syntax) == QStringLiteral("26")
+				&& list.group_count_text(group::review_states) == QStringLiteral("7"),
 			"clearing the filter lists every offered role again");
 
 		// [[BPR-1083]]. Settings' "Mark colours" row opens Appearance filtered

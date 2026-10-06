@@ -336,10 +336,15 @@ Consumers: the inline composition page and reply drafts
   - Before Publish, the comment editor shows a 16 px mark beside Publish, and
     the reply written in place shows it beside its label chip, only when the
     body carries a suggested change (owner: minimal text, icons and tooltips,
-    coordinator 2026-10-06). A plus over a minus in a box means GitHub's own
-    suggestion on this exact line, applied on GitHub; the same glyph struck
-    through with a dashed box means text only here. The shape, not only the
-    colour, tells them apart. The tooltip and accessible description say
+    coordinator 2026-10-06). The mark is a state, so it is round beside the
+    square label marks: a plus over a minus in a solid 16 px ring means
+    GitHub's own suggestion on this exact line, applied on GitHub; the same
+    glyph in a ring broken into the marks' dashes (2.5 px on, 1.5 px off)
+    means text only here. Both are drawn in the window's text ink with the
+    marks' 1.5 px border, the bars on pixel centres so they stay crisp at 1x.
+    The shape, not only the colour, tells them apart. (Derived, macOS look
+    pass 2026-10-06: the first build's rounded box shared the label shape and
+    its strike read as a "%" at 1x, so both were dropped.) The tooltip and accessible description say
     what GitHub will do and, for text only, why: the base side, a file
     comment, an outdated thread, no current line, a pull request comment, or
     an inline comment GitHub refused on this line. The mark offers no action
@@ -480,10 +485,11 @@ derived and may be revised with a recorded reason.
   "Your blocking feedback". It draws up to three marks, each with a count:
   - the filled blocking `issue` mark, with my open blocking comments on
     GitHub (always shown, 0 included);
-  - a dashed square with a pencil stroke, with my unsent blocking drafts
-    (shown only when there are some);
-  - a round "?", with the uncertain items (shown whenever the read is not
-    exact, even at 0).
+  - a dashed square with a pencil, with my unsent blocking drafts (shown
+    only when there are some): the marks' 16 px square, 1.5 px border and
+    accepted dashes, as my draft's marker beside the code (BPR-1290);
+  - a round "?" in the marks' ring, with the uncertain items (shown whenever
+    the read is not exact, even at 0).
 
   An unread preflight shows only "?" and the tooltip "Your feedback on this
   revision has not been read: unknown, not none."
@@ -504,8 +510,13 @@ derived and may be revised with a recorded reason.
   A blocker row reveals its conversation in Discuss
   (`workbench_window::reveal_conversation`). A draft row opens the inline
   draft page. Neither row does anything else.
-- **Approve** (owner). The dot is GitHub's attention amber: `#BF8700` on a
-  light panel, `#D29922` on a dark one. No palette role exists for it yet.
+- **Approve** (owner). The dot is an 8 px disc in the theme's attention
+  amber, the `state_attention` role on Appearance › Colours (owner,
+  2026-10-06: "a proper palette role (e.g. attention) with per-theme defaults
+  on Appearance › Colours, rather than fixed hex"). Its built-in values are
+  `#AD7A00`, `#D29922`, `#8A5300` and `#FFBC66` for Light, Dark, High
+  contrast light and High contrast dark, each at least 3:1 against the
+  surface; GitHub's `#BF8700`, used before, is 2.93:1 on the light surface.
   The tooltip and accessible description say "Approve. You have N open
   blocking comment(s) of your own; approving does not resolve them." With
   none, the tooltip is "Approve this pull request." The button stays enabled.
@@ -515,9 +526,12 @@ derived and may be revised with a recorded reason.
   makes a conversation blocking. A file-level comment whose body begins with
   a link may be a permalink envelope, so its label counts as not readable
   rather than guessed.
-- **Open: owner look.** The chip's marks, the menu and the dot are built
-  from existing patterns. The frontend-design skill is not installed on the
-  building station. R33's native matrix has not been run.
+- **Open: owner look.** The chip's marks, the menu and the dot were built
+  from existing patterns on Linux, then reviewed on macOS with the
+  frontend-design skill in light, dark and both high-contrast themes
+  (2026-10-06): the draft and "?" icons moved onto the marks' own geometry
+  and the dot onto `state_attention`. The owner's look is attended question
+  `BPR-1085-preflight-v001`. R33's native matrix has not been run.
 
 ### Settings (BPR-1088; RFC-BPR-0049)
 

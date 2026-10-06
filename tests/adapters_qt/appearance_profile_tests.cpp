@@ -2678,6 +2678,30 @@ namespace {
 				   "a profile's Home state colour is its resolved variant's");
 		}
 	}
+
+	// [[BPR-1085]]. The attention amber is a mark, Approve's dot: each built-in
+	// value holds the indicator ratio against its variant's surface and base, so
+	// it needs no fixed colour, and a stored palette that predates it reads the
+	// built-in value (test_a_palette_without_label_tints_reads_the_builtin_tints).
+	void test_the_attention_amber_is_a_visible_mark_in_every_variant()
+	{
+		auto seen = std::vector<core::appearance_color>{ };
+		for (const auto variant : { core::appearance_variant::light,
+									core::appearance_variant::dark,
+									core::appearance_variant::high_contrast_light,
+									core::appearance_variant::high_contrast_dark }) {
+			const auto& palette   = qt::builtin_appearance_palette(variant);
+			const auto  amber     = palette[core::index_of(role::state_attention)];
+			const auto  onSurface = qt::contrast_ratio(amber, palette[core::index_of(role::application_surface)]);
+			const auto  onBase    = qt::contrast_ratio(amber, palette[core::index_of(role::code_background)]);
+			std::cout << "attention-amber variant=" << static_cast<int>(variant) << " colour=" << qt::to_presentation_color(amber).name().toStdString()
+					  << " surface=" << onSurface << " base=" << onBase << '\n';
+			expect(amber.Alpha == 255U && onSurface >= 3.0 && onBase >= 3.0,
+				   "the attention amber is opaque and holds 3:1 against its variant's surface and base");
+			expect(std::ranges::find(seen, amber) == seen.end(), "each variant has its own attention amber");
+			seen.push_back(amber);
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2715,6 +2739,7 @@ auto main(int argc, char** argv) -> int
 	test_hue_critical_pairs_are_measured_for_every_builtin_profile();
 	test_every_builtin_profile_passes_the_published_contrast_audit();
 	test_attention_colours_read_as_text_in_every_variant();
+	test_the_attention_amber_is_a_visible_mark_in_every_variant();
 
 	std::cout << "appearance-profile-tests:pass\n";
 	return EXIT_SUCCESS;

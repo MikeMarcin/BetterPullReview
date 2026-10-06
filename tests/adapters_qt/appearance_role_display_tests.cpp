@@ -83,7 +83,9 @@ namespace {
 		}
 	}
 
-	/// \brief The five groups must hold exactly the accepted counts, and all 59.
+	/// \brief The five groups must hold exactly the accepted counts, and all 60.
+	///
+	/// \details [[BPR-1085]] adds the attention amber to Review states.
 	void test_the_five_groups_hold_every_role()
 	{
 		auto counted = std::array<std::size_t, qt::appearance_role_group_count>{ };
@@ -96,27 +98,28 @@ namespace {
 
 		// The counts the accepted design prints beside each sticky header.
 		const auto accepted = std::array<std::size_t, qt::appearance_role_group_count>{
-			7U, 8U, 6U, 26U, 12U
+			7U, 8U, 7U, 26U, 12U
 		};
-		expect(counted == accepted, "the groups hold 7, 8, 6, 26 and 12 roles");
+		expect(counted == accepted, "the groups hold 7, 8, 7, 26 and 12 roles");
 
 		auto total = std::size_t{ 0U };
 		for (const auto count : counted) {
 			total += count;
 		}
 		expect(
-			total == core::appearance_role_count && total == 59U,
-			"and together they hold every one of the 59 roles, so no role can be "
+			total == core::appearance_role_count && total == 60U,
+			"and together they hold every one of the 60 roles, so no role can be "
 			"grouped out of the list");
 	}
 
-	/// \brief The card offers 57 roles: every one but the two hunk-header roles.
+	/// \brief The card offers 58 roles: every one but the two hunk-header roles.
 	///
 	/// \details [[BPR-0986]]. RFC-BPR-0034 C5 was amended from 47 offered roles
 	/// to 45 on 2026-09-24, because the review window has no hunk header for the
 	/// two roles to change. They stay in the vocabulary and in their group.
 	/// [[BPR-1083]] added the twelve label tints as a fifth group, Comment
-	/// labels, all offered: 57 (owner, BPR-1079 `tints-v002`).
+	/// labels, all offered: 57 (owner, BPR-1079 `tints-v002`). [[BPR-1085]]
+	/// added the attention amber to Review states: 58.
 	void test_the_card_offers_every_role_but_the_hunk_header()
 	{
 		auto offered   = std::array<std::size_t, qt::appearance_role_group_count>{ };
@@ -137,8 +140,8 @@ namespace {
 			"exactly the two hunk-header roles are not offered");
 		expect(
 			offered
-				== std::array<std::size_t, qt::appearance_role_group_count>{ 7U, 6U, 6U, 26U, 12U },
-			"so the card's groups offer 7, 6, 6, 26 and 12 roles, 57 in all");
+				== std::array<std::size_t, qt::appearance_role_group_count>{ 7U, 6U, 7U, 26U, 12U },
+			"so the card's groups offer 7, 6, 7, 26 and 12 roles, 58 in all");
 		expect(
 			qt::appearance_role_group_of(core::appearance_role::diff_hunk_header_text)
 					== qt::appearance_role_group::diff
@@ -165,8 +168,15 @@ namespace {
 					== QStringLiteral("Application surface")
 				&& qt::appearance_role_text(core::appearance_role::feedback_label_quibble)
 					== QStringLiteral("Label quibble"),
-			"the first and last roles of the vocabulary read as the boards list "
+			"the first role and the last label tint read as the boards list "
 			"them");
+		expect(
+			qt::appearance_role_text(core::appearance_role::state_attention)
+					== QStringLiteral("State attention")
+				&& qt::appearance_role_group_of(core::appearance_role::state_attention)
+					== qt::appearance_role_group::review_states
+				&& qt::appearance_role_offered(core::appearance_role::state_attention),
+			"the attention amber reads as a review state and is offered there");
 		expect(
 			qt::appearance_role_group_text(
 				qt::appearance_role_group::surfaces_and_text)

@@ -14870,6 +14870,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1083]]. The label tints of the theme on screen, for every
 			// surface that draws a Conventional Comments mark.
 			Window->set_label_tints(qt::feedback_label_tints_of(AppearanceProfile->palette()));
+			// [[BPR-1085]]. Approve's dot takes the theme's attention amber.
+			Window->set_attention_colour(AppearanceProfile->color(core::appearance_role::state_attention));
 			if (auto* const conversations = Window->conversation_panel();
 				conversations != nullptr && conversations->cards() != nullptr) {
 				conversations->adopt_appearance(*AppearanceProfile);
@@ -15598,6 +15600,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string Path;
 		};
 		std::optional<fixture_file_reveal_state> FileReveal;
+		// [[BPR-1084]]. The line an attended look's seeded comment is on.
+		std::optional<std::uint32_t> AttendedDraftLine;
 		// [[BPR-1083]]. The label-authoring course.
 		struct label_authoring_probe_state
 		{
@@ -24364,6 +24368,57 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		reveal.Phase = state_type::phase::shown;
 		return result::shown;
+	}
+
+	auto detail::github_application_fixture_access::seed_attended_comment_draft(
+		github_application& aApplication, const core::diff_side aSide, const std::string& aBody) -> detail::fixture_file_reveal_result
+	{
+		using result               = detail::fixture_file_reveal_result;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Window == nullptr) {
+			return result::failed;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const editor = window->review_editor();
+		auto* const model  = window->conversation_model();
+		if (editor == nullptr || model == nullptr) {
+			return result::pending;
+		}
+		const auto& draft = implementation->ReviewDraft;
+		if (draft && draft->Body == aBody && draft->State == core::review_draft_state::drafting && editor->body_editor()->toPlainText().toStdString() == aBody) {
+			return result::shown;
+		}
+		if (window->current_modality() != qt::review_modality::read) {
+			window->choose_modality(qt::review_modality::read);
+			QCoreApplication::processEvents();
+			return result::pending;
+		}
+		// Chosen once and then kept selected, as the label-authoring course does.
+		auto& line = implementation->AttendedDraftLine;
+		if (!line) {
+			for (auto candidate = std::uint32_t{ 0U }; candidate < 64U && !line; ++candidate) {
+				if (window->comparison_surface()->select_conversation_line(aSide, candidate)
+					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
+					line = candidate;
+				}
+			}
+			return line ? result::pending : result::failed;
+		}
+		if (const auto selected = window->comparison_surface()->selection();
+			!selected || selected->PreferredLine.Side != aSide || selected->PreferredLine.Line != *line) {
+			static_cast<void>(window->comparison_surface()->select_conversation_line(aSide, *line));
+		}
+		if (!draft || draft->ReplyToThread || draft->Anchor.Line != *line || draft->Anchor.Side != aSide
+			|| draft->State != core::review_draft_state::drafting || !window->comment_action()->isEnabled()) {
+			return result::pending;
+		}
+		window->comment_action()->trigger();
+		QCoreApplication::processEvents();
+		if (editor->body_editor()->isReadOnly()) {
+			return result::failed;
+		}
+		editor->body_editor()->setPlainText(QString::fromStdString(aBody));
+		return result::pending;
 	}
 
 	auto detail::github_application_fixture_access::exercise_label_authoring(

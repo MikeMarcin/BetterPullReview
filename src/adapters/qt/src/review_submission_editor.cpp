@@ -1,5 +1,7 @@
 #include "bpr/qt/review_submission_editor.hpp"
 
+#include "bpr/qt/appearance_profile.hpp"
+
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QAction>
@@ -11,6 +13,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QPlainTextEdit>
+#include <QPolygonF>
 #include <QSignalBlocker>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
@@ -42,15 +45,16 @@ namespace bpr::qt {
 			return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size()));
 		}
 
-		/// [[BPR-1085]]. A 16 px icon drawn in one ink: the round "unknown"
-		/// state (states are round, labels square), the dashed "not sent"
-		/// square drafts use beside the code, or the amber dot.
+		/// [[BPR-1085]]. A 16 px icon drawn in one ink, on the marks' own
+		/// geometry (BPR-1083): the round "unknown" state (states are round,
+		/// labels square), the dashed "not sent" square my drafts carry beside
+		/// the code (BPR-1290) with a pencil stroke, or the attention dot.
 		enum class preflight_icon : std::uint8_t {
 			unknown,
 			draft,
 			attention,
 		};
-		[[nodiscard]] auto preflight_pixmap(const preflight_icon aIcon, const QPalette& aPalette, const qreal aRatio) -> QPixmap
+		[[nodiscard]] auto preflight_pixmap(const preflight_icon aIcon, const QPalette& aPalette, const qreal aRatio, const QColor& aAttention = { }) -> QPixmap
 		{
 			const auto ratio  = std::max<qreal>(1.0, aRatio);
 			const auto pixels = static_cast<int>(std::ceil(feedback_mark_size * ratio));
@@ -60,32 +64,41 @@ namespace bpr::qt {
 			{
 				auto painter = QPainter{ &image };
 				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto ink = aPalette.color(QPalette::WindowText);
+				const auto ink   = aPalette.color(QPalette::WindowText);
+				const auto inset = feedback_mark_border / 2.0;
+				const auto frame = QRectF{ inset, inset, feedback_mark_size - feedback_mark_border, feedback_mark_size - feedback_mark_border };
 				switch (aIcon) {
 				case preflight_icon::unknown: {
-					painter.setPen(QPen{ ink, 1.5 });
+					painter.setPen(QPen{ ink, feedback_mark_border });
 					painter.setBrush(Qt::NoBrush);
-					painter.drawEllipse(QRectF{ 1.25, 1.25, 13.5, 13.5 });
+					painter.drawEllipse(frame);
 					auto font = painter.font();
 					font.setPixelSize(10);
 					font.setBold(true);
 					painter.setFont(font);
-					painter.drawText(QRectF{ 0.0, 0.0, 16.0, 16.0 }, Qt::AlignCenter, QStringLiteral("?"));
+					painter.drawText(QRectF{ 0.0, 0.0, feedback_mark_size, feedback_mark_size }, Qt::AlignCenter, QStringLiteral("?"));
 					break;
 				}
 				case preflight_icon::draft: {
-					painter.setPen(QPen{ ink, 1.5, Qt::DashLine });
+					// The accepted open border: flat dashes, as a non-blocking
+					// mark draws them, so the corners stay square-cut.
+					auto border = QPen{ ink, feedback_mark_border };
+					border.setCapStyle(Qt::FlatCap);
+					border.setDashPattern({ feedback_mark_dash / feedback_mark_border, feedback_mark_dash_gap / feedback_mark_border });
+					painter.setPen(border);
 					painter.setBrush(Qt::NoBrush);
-					painter.drawRoundedRect(QRectF{ 1.25, 1.25, 13.5, 13.5 }, 3.0, 3.0);
-					painter.setPen(QPen{ ink, 1.5, Qt::SolidLine, Qt::RoundCap });
-					painter.drawLine(QPointF{ 5.0, 11.0 }, QPointF{ 11.0, 5.0 });
+					painter.drawRoundedRect(frame, feedback_mark_corner - inset, feedback_mark_corner - inset);
+					// A pencil: its shaft, short of the border, and its tip.
+					painter.setPen(QPen{ ink, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+					painter.drawLine(QPointF{ 6.5, 9.5 }, QPointF{ 10.5, 5.5 });
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(ink);
+					painter.drawPolygon(QPolygonF{ { QPointF{ 4.6, 11.4 }, QPointF{ 5.4, 8.9 }, QPointF{ 7.1, 10.6 } } });
 					break;
 				}
 				case preflight_icon::attention: {
-					// Amber that reads on the panel: GitHub's attention tones.
-					const auto dark = aPalette.color(QPalette::Window).lightness() < 128;
 					painter.setPen(Qt::NoPen);
-					painter.setBrush(dark ? QColor{ 0xD2, 0x99, 0x22 } : QColor{ 0xBF, 0x87, 0x00 });
+					painter.setBrush(aAttention);
 					painter.drawEllipse(QRectF{ 4.0, 4.0, 8.0, 8.0 });
 					break;
 				}
@@ -422,7 +435,7 @@ namespace bpr::qt {
 		// and tooltip say what approving does not do (owner, preflight B).
 		auto* approve = Decisions[decision_index(core::review_disposition::approve)];
 		if (const auto open = preflight ? core::open_blocking(*preflight) : 0U; open > 0U) {
-			approve->setIcon(QIcon{ preflight_pixmap(preflight_icon::attention, palette(), ratio) });
+			approve->setIcon(QIcon{ preflight_pixmap(preflight_icon::attention, palette(), ratio, attention_colour()) });
 			approve->setToolTip(tr("Approve. You have %n open blocking comment(s) of your own; approving does not resolve them.", nullptr, static_cast<int>(open)));
 		} else {
 			approve->setIcon(QIcon{ });
@@ -493,6 +506,22 @@ namespace bpr::qt {
 	{
 		MarkTheme = aTheme;
 		present_preflight(Shown);
+	}
+	void review_submission_editor::set_attention_colour(const QColor& aColour)
+	{
+		if (Attention == aColour) {
+			return;
+		}
+		Attention = aColour;
+		present_preflight(Shown);
+	}
+	auto review_submission_editor::attention_colour() const -> QColor
+	{
+		if (Attention.has_value()) {
+			return *Attention;
+		}
+		const auto variant = palette().color(QPalette::Base).lightnessF() < 0.5 ? core::appearance_variant::dark : core::appearance_variant::light;
+		return to_presentation_color(builtin_appearance_palette(variant)[core::index_of(core::appearance_role::state_attention)]);
 	}
 	void review_submission_editor::emit_command(core::review_submission_command_kind aKind)
 	{

@@ -788,6 +788,17 @@ endfunction()
 # unchanged; the begin_submit gate only adds refusals. No grant, target,
 # provider, credential, mutation or publication path changes; mutation pin
 # unchanged; no new src/app source. Reviewed on BPR-1085.
+# BPR-1085 attention-amber reseal (2026-10-06, macOS look pass): over the
+# BPR-1085 reseal above; no intervening pinned-scope commit.
+# github_application.cpp adds one presentation call beside set_label_tints:
+# the window receives the theme's state_attention colour for Approve's dot
+# (Window->set_attention_colour). For the attended look only, the tests-on
+# fixture accessor seed_attended_comment_draft writes a comment through the
+# window's own Comment action, and main.cpp's tests-on
+# --attended-preflight-look stages two fixture thread roots as the fixture
+# account's and opens Compose review. No grant, target, provider,
+# credential, mutation or publication path changes; mutation pin unchanged;
+# no new src/app source. Reviewed on BPR-1085.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -806,7 +817,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4495b3e97278d8af38771aacc923be5fc964363b2df64d03657d4754990421c2"
+		"227197bbd2314bafd9ba8d2227431d50f92e478cddc8d80a2a1aafeb5a163356"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1004,7 +1015,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "76a9c3520c3b839e2c49d9e689b4ce948bf2a6b30ec48bbb4ca36b9f39b7c26e"
+        "c4d7fb9c7616f43e772fe7615418aaf229eaa60968346e22863d307878b1a0d4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

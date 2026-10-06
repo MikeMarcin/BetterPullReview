@@ -257,8 +257,8 @@ namespace {
 			   "a partial document yields no palette instead of a defaulted one");
 
 		const auto headerOnly = imported("bpr-theme 1\n");
-		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count,
-			   "a document that assigns nothing is missing every role but the label tints");
+		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count - 1U,
+			   "a document that assigns nothing is missing every role but the label tints and the attention amber");
 	}
 
 	/// \brief [[BPR-1083]]. A document written before the twelve label tints
@@ -293,9 +293,24 @@ namespace {
 				   && (*partial.Palette)[index_of(appearance_role::feedback_label_issue)] == appearance_color{ 0xD1U, 0x24U, 0x2FU, 255U }
 				   && (*partial.Palette)[index_of(appearance_role::feedback_label_praise)] == unassigned_appearance_color,
 			   "a document that assigns some label tints keeps them and leaves the rest unassigned");
-		expect(!defaults_on_import(appearance_role::syntax_other) && defaults_on_import(appearance_role::feedback_label_praise)
-				   && defaults_on_import(appearance_role::feedback_label_quibble),
-			   "only the twelve label tints may be absent");
+		expect(!defaults_on_import(appearance_role::syntax_other) && !defaults_on_import(appearance_role::state_stale)
+				   && defaults_on_import(appearance_role::feedback_label_praise)
+				   && defaults_on_import(appearance_role::feedback_label_quibble)
+				   && defaults_on_import(appearance_role::state_attention),
+			   "only the twelve label tints and the attention amber may be absent");
+		// [[BPR-1085]]. A document written with the label tints but before the
+		// attention amber still imports, the amber unassigned.
+		const auto withoutAttention = imported(document + "feedback_label_issue #d1242fff\n");
+		expect(withoutAttention.Palette.has_value()
+				   && (*withoutAttention.Palette)[index_of(appearance_role::state_attention)] == unassigned_appearance_color,
+			   "a document without the attention amber leaves it unassigned");
+		const auto withAttention = imported(document + "state_attention #ad7a00ff\n");
+		expect(withAttention.Palette.has_value()
+				   && (*withAttention.Palette)[index_of(appearance_role::state_attention)] == appearance_color{ 0xADU, 0x7AU, 0x00U, 255U },
+			   "a document that assigns the attention amber keeps it");
+		expect(stable_name(appearance_role::state_attention) == "state_attention"
+				   && find_appearance_role("state_attention") == appearance_role::state_attention,
+			   "the attention amber's stable name is state_attention");
 		expect(stable_name(appearance_role::feedback_label_issue) == "feedback_label_issue"
 				   && find_appearance_role("feedback_label_quibble") == appearance_role::feedback_label_quibble,
 			   "the label tints' stable names are feedback_label_<id>");

@@ -221,14 +221,14 @@ Color is never the only state signal. Icons, labels, gutter marks, line prefixes
 
 ### Semantic customization and local import
 
-The settings surface lists the closed role vocabulary — 57 of its 59 roles
+The settings surface lists the closed role vocabulary — 58 of its 60 roles
 (not the two hunk-header roles) in five groups, Surfaces and text, Diff, Review
 states, Syntax and Comment labels, with sticky group headers and counts — and
 edits roles inside a total
 `appearance_palette`; a raw `QPalette`, QSS fragment, or widget stylesheet is
-never the saved authority. The list is built from the core's published count in
-the core's own order, so a role the core declares cannot be one the editor
-omits, and a filter field narrows it. A row is a swatch, the role's name in
+never the saved authority. The list is built from the core's published count,
+by group and within a group in the core's own order, so a role the core
+declares cannot be one the editor omits, and a filter field narrows it. A row is a swatch, the role's name in
 words and its value in the code font; the swatch opens the platform colour
 picker and the change previews in the review window as the picker moves, and an
 edited row shows its new value beside the old one. The role combo box and the
@@ -393,6 +393,17 @@ theme variant has its own built-in tints. A stored palette or a theme document
 written before they existed may leave them out: they read as the built-in
 tints of the theme they customise, and no other role changes. Every other role
 is still required ([[BPR-1083]]).
+
+`state_attention`, "State attention" in Review states, is the amber of
+something that wants the reviewer's attention before acting: the dot on
+Approve while the reviewer's own blocking feedback is open ([[BPR-1085]]). It
+is declared last, after the label tints, so no stored ordinal moves, and lists
+under State stale. Its built-in values are `#AD7A00` (Light), `#D29922`
+(Dark), `#8A5300` (High contrast light) and `#FFBC66` (High contrast dark),
+each at least 3:1 against its variant's surface and code background. GitHub's
+`#BF8700`, which the dot used before, is 2.93:1 on the light surface. A stored
+palette or theme document without it reads the built-in value, as for the
+label tints.
 
 ## Syntax highlighting
 

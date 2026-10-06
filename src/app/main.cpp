@@ -12,7 +12,10 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
+#include "bpr/qt/review_submission_editor.hpp"
+#include "bpr/qt/suggestion_mark.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "src/installed_resources.hpp"
 #include "src/installed_runtime.hpp"
@@ -5137,10 +5140,13 @@ namespace {
 	// It then leaves the window to the person and prints one line saying
 	// whether it got there. [[BPR-1287]]. With no path
 	// (`--attended-open-pull-request`) it stops once the pull request is open.
+	void schedule_attended_preflight_look(bpr::app::github_application& aApplication, std::string aLook);
+
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
 		std::string                   aPath,
-		QString                       aPullRequest)
+		QString                       aPullRequest,
+		std::optional<std::string>    aLook = std::nullopt)
 	{
 		enum class step : std::uint8_t {
 			connect,
@@ -5155,7 +5161,7 @@ namespace {
 		auto        state = std::make_shared<reveal_state>(reveal_state{ .Started = automated_clock::now() });
 		auto* const timer = new QTimer{ &aApplication.window() };
 		timer->setInterval(50);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, path = std::move(aPath), pullRequest = std::move(aPullRequest), alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, path = std::move(aPath), pullRequest = std::move(aPullRequest), look = std::move(aLook), alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -5195,6 +5201,9 @@ namespace {
 					return;
 				case bpr::app::detail::fixture_file_reveal_result::shown:
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
+					if (look) {
+						schedule_attended_preflight_look(aApplication, *look);
+					}
 					return;
 				case bpr::app::detail::fixture_file_reveal_result::failed:
 					finish(QStringLiteral("ATTENDED_FILE_FAILED:%1").arg(QString::fromStdString(path)));
@@ -5219,6 +5228,73 @@ namespace {
 			window.settings_action()->trigger();
 			QTextStream{ stdout } << (window.settings()->isVisible() ? "ATTENDED_SETTINGS_SHOWN" : "ATTENDED_SETTINGS_FAILED") << '\n';
 		});
+	}
+
+	// [[BPR-1084]] and [[BPR-1085]]. `--attended-preflight-look`: on
+	// conventional-comments-v1, once the file is shown, a new blocking comment
+	// carrying a suggested change is written on a head line through the
+	// window's own Comment action, so its suggestion mark shows beside
+	// Publish (`native`). `text-only` writes one the fixture refuses an inline
+	// comment for and presses Publish once: the fixture's synthetic 422 comes
+	// back, the text is kept and the mark says text only. `review` then opens
+	// Compose review, whose preflight counts the two blocking threads the
+	// launch staged as the fixture account's own and the unsent draft. Nothing
+	// reaches GitHub; one line says where it got.
+	void schedule_attended_preflight_look(bpr::app::github_application& aApplication, std::string aLook)
+	{
+		const auto  refused = aLook == "text-only";
+		const auto  body    = refused ? std::string{ "issue (blocking): Clamp the width to one pixel. BPR-1084 off-hunk\n\n```suggestion\n\tconst auto width = std::max(1, requested);\n\treturn width;\n```\n" }
+									  : std::string{ "issue (blocking): Clamp the width to one pixel.\n\n```suggestion\n\tconst auto width = std::max(1, requested);\n\treturn width;\n```\n" };
+		auto* const timer   = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		const auto started   = std::make_shared<automated_clock::time_point>(automated_clock::now());
+		const auto published = std::make_shared<bool>(false);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, published, refused, body, look = std::move(aLook), alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			const auto finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				timer->stop();
+				timer->deleteLater();
+			};
+			if (automated_clock::now() - *started > std::chrono::seconds{ 60 }) {
+				finish(QStringLiteral("ATTENDED_LOOK_FAILED:timeout"));
+				return;
+			}
+			auto&       window = aApplication.window();
+			const auto* mark   = window.review_editor()->suggestion_mark_widget();
+			const auto  shown  = [&window, mark] { return mark != nullptr && mark->isVisibleTo(window.review_editor()) ? mark->property("suggestionApplicability").toString() : QStringLiteral("hidden"); };
+			if (!*published) {
+				switch (bpr::app::detail::github_application_fixture_access::seed_attended_comment_draft(aApplication, bpr::core::diff_side::right, body)) {
+				case bpr::app::detail::fixture_file_reveal_result::pending:
+					return;
+				case bpr::app::detail::fixture_file_reveal_result::failed:
+					finish(QStringLiteral("ATTENDED_LOOK_FAILED:draft"));
+					return;
+				case bpr::app::detail::fixture_file_reveal_result::shown:
+					break;
+				}
+				if (refused) {
+					if (!window.review_editor()->publish_action()->isEnabled()) {
+						return;
+					}
+					window.review_editor()->publish_action()->trigger();
+					*published = true;
+					return;
+				}
+			} else if (shown() != QStringLiteral("textual_only")) {
+				return;
+			}
+			if (look == "review") {
+				window.open_review_composition();
+				QCoreApplication::processEvents();
+				finish(QStringLiteral("ATTENDED_LOOK_SHOWN:review:mark=%1:chip=%2").arg(shown(), window.review_submission_editor_view()->preflight_button()->toolTip().replace(QLatin1Char{ '\n' }, QStringLiteral(" / "))));
+				return;
+			}
+			finish(QStringLiteral("ATTENDED_LOOK_SHOWN:%1:mark=%2").arg(QString::fromStdString(look), shown()));
+		});
+		timer->start();
 	}
 
 	// [[BPR-1083]]. One tick of the label-authoring course; ends the run when
@@ -8673,9 +8749,15 @@ auto main(int argc, char** argv) -> int
 		const auto attendedOpenPullRequest = has_argument(argc, argv, "--attended-open-pull-request");
 		// [[BPR-1289]]. Or opening Settings over Home, for a look at Settings.
 		const auto attendedOpenSettings = has_argument(argc, argv, "--attended-open-settings");
+		// [[BPR-1084]] and [[BPR-1085]]. Or, on conventional-comments-v1 after
+		// the file, a seeded suggestion draft and, for `review`, the preflight.
+		const auto attendedPreflightLook = argument_value(argc, argv, "--attended-preflight-look");
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
-			|| (attendedOpenSettings && (!attendedLaunch || attendedOpenFile.has_value() || attendedOpenPullRequest))) {
+			|| (attendedOpenSettings && (!attendedLaunch || attendedOpenFile.has_value() || attendedOpenPullRequest))
+			|| (attendedPreflightLook.has_value()
+				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
+					|| (*attendedPreflightLook != "native" && *attendedPreflightLook != "text-only" && *attendedPreflightLook != "review")))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -9042,7 +9124,16 @@ auto main(int argc, char** argv) -> int
 				}
 #if defined(BPR_BUILD_TESTING)
 				if (heldOpenForInspection && (attendedOpenFile.has_value() || attendedOpenPullRequest)) {
-					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest);
+					auto look = std::optional<std::string>{ };
+					if (attendedPreflightLook.has_value()) {
+						look = std::string{ *attendedPreflightLook };
+						// [[BPR-1085]]. Two of the fixture's threads become the
+						// fixture account's own blocking feedback, in the
+						// fixture's responses only, before the first read.
+						bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_3", "issue (blocking): 1280 by 720 should be a named constant before this ships.", std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
+						bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_4", "todo (blocking): Rename Handler to OnClick while you are here.", std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
+					}
+					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look));
 				}
 				if (heldOpenForInspection && attendedOpenSettings) {
 					schedule_attended_settings(*application);

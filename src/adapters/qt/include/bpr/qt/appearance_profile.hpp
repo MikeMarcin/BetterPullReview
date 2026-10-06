@@ -79,6 +79,8 @@ namespace bpr::qt {
 	/// `core::unassigned_appearance_color` (`core::defaults_on_import`). Shown
 	/// or previewed, they read as the built-in tints of `aVariant`, and no other
 	/// role changes. A palette with nothing unassigned is returned unchanged.
+	/// The attention amber, `state_attention` ([[BPR-1085]]), is read the same
+	/// way.
 	[[nodiscard]] auto with_builtin_label_tints(
 		core::appearance_palette aPalette,
 		core::appearance_variant aVariant) noexcept -> core::appearance_palette;

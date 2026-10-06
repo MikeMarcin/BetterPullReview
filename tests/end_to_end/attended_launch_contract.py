@@ -110,6 +110,22 @@ def test_it_refuses_to_share_the_wheel() -> None:
             "--github-fixture", "github-com", "--attended-launch",
             "--render-evidence", str(capture),
         ],
+        # [[BPR-1085]]. The preflight look needs its file and its fixture,
+        # and names one of three looks.
+        "a preflight look with no file": [
+            "--github-fixture", "conventional-comments-v1", "--attended-launch",
+            "--attended-preflight-look", "native",
+        ],
+        "a preflight look on another fixture": [
+            "--github-fixture", "github-com", "--attended-launch",
+            "--attended-open-file", "src/engine/renderer.cpp",
+            "--attended-preflight-look", "review",
+        ],
+        "an unknown preflight look": [
+            "--github-fixture", "conventional-comments-v1", "--attended-launch",
+            "--attended-open-file", "src/engine/renderer.cpp",
+            "--attended-preflight-look", "everything",
+        ],
     }
     for name, arguments in combinations.items():
         ok, output = refused(*arguments)
