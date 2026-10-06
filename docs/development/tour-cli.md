@@ -207,12 +207,17 @@ The profile has one owner. When the desktop owns it, `status`, `show`, `edit`,
 `move`, `remove`, `ready`, `undo` and `redo` are forwarded over a same-user local
 socket beside the desktop's activation endpoint; the CLI never opens the store,
 takes the lease or starts the desktop. An owner that predates the channel answers
-`owner_protocol_unsupported` (exit 4). Provider-reading commands (`add`, `open`,
-`show --source`, `walk`, refresh, publish, recover) answer `interaction_required`
-while a desktop owns the profile; forwarding source reads is BPR-1227. The
-channel is a same-user local socket on macOS and Linux and an owner-private named
-pipe on Windows ([[BPR-1168]]), protocol 3; an owner of another protocol version
-answers `owner_protocol_unsupported` before anything is sent. The same channel
+`owner_protocol_unsupported` (exit 4). `add`, `show --source` and `walk` read
+pinned source through the owner ([[BPR-1227]]): the desktop window that has the
+draft's pull request open reads the exact range with its own provider composition
+and the CLI builds the stop as it does standalone, so only the stop is recorded.
+A draft no window has open answers `interaction_required` (exit 3); open the pull
+request in the desktop and retry. `open`, refresh, publish and recover answer
+`interaction_required` while a desktop owns the profile, and `assist --sources`
+does too. The channel is a same-user local socket on macOS and Linux and an
+owner-private named pipe on Windows ([[BPR-1168]]), protocol 6; an owner of
+another protocol version answers `owner_protocol_unsupported` before anything is
+sent. The same channel
 carries `bpr cycle` commands ([Review Cycles terminal](cycle-cli.md)).
 
 Every local edit carries a request ID (`--request-id`, generated when omitted; at

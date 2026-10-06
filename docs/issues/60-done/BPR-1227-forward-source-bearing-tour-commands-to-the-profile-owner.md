@@ -121,3 +121,23 @@ return. The restored tree passes all six again.
 Round-trip pins resealed (`github_application.cpp`, `tour_cli.cpp`,
 `tour_runtime.*`, `tour_owner_service.*`); `PIN_CHECK_OK`. clang-format is clean
 on every changed C++ file.
+
+**After rebasing onto `1c652c97c`** (BPR-1067, BPR-1191 and BPR-1192 were
+finished meanwhile), more places named the old protocol and were brought to v6:
+
+- `docs/development/tour-cli.md`, which now describes the forwarded source
+  reads.
+- `bpr cycle`'s capabilities string and `docs/development/cycle-cli.md`, kept
+  together by `cycle_cli_documentation`.
+- The threat model's owner-endpoint entry. It now records the one source read
+  the channel carries and its bound. The read grants nothing the same user's
+  standalone CLI could not read itself.
+
+The pins still hold (`cycle_cli.cpp` is outside the pinned digests). After a
+full rebuild of the rebased tree, these 11 rows pass:
+
+- the six above;
+- `application_profile_cycle_handoff_public_path`;
+- `application_review_cycle_security_qualification` (now protocol 6);
+- `cycle_cli_public_path` and `cycle_cli_documentation`;
+- `application_review_round_trip_composition_contract`.

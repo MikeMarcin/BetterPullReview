@@ -298,7 +298,7 @@ namespace bpr::app {
 				{ "network", false },
 				{ "cycle_names", "RC-<n> cycles, R<n> captures, I<n> notes, F<n> frozen rounds" },
 				{ "target_resolution", "an explicit RC-<n>, or the one active cycle bound to the working folder; never a remembered or active-window cycle" },
-				{ "owner", "one writer: while another BetterPullReview process owns the profile, each command is forwarded to it over its same-user command channel (protocol 5) and run on its store; an owner without one is refused with capability_unavailable" },
+				{ "owner", "one writer: while another BetterPullReview process owns the profile, each command is forwarded to it over its same-user command channel (protocol 6) and run on its store; an owner without one is refused with capability_unavailable" },
 				{ "operation_id", "--operation-id names a command; repeating it never applies the command twice, and an owner answers a repeat as it answered the first" },
 				{ "role", aConsumer ? "consumer" : "reviewer" },
 				{ "consumer_commands", QJsonArray::fromStringList(consumer_command_names()) },

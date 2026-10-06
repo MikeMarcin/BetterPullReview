@@ -168,7 +168,7 @@ The profile has one writer: whichever process holds its runtime lease
 releases it while a person answers. When another BetterPullReview process
 holds it, the command is sent to that owner over its same-user command channel
 (a local socket beside the desktop's activation endpoint on macOS and Linux, an
-owner-private named pipe on Windows; protocol 5) and the owner runs it on its own store, in
+owner-private named pipe on Windows; protocol 6) and the owner runs it on its own store, in
 a session of its own beside its windows. The terminal never opens the store a
 second time, takes the lease or starts the desktop.
 

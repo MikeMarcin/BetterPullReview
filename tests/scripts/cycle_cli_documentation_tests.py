@@ -200,7 +200,7 @@ def check_prose(text, capabilities, policy):
         == (str(1024 * 1024), str(4 * 1024), str(2 * 1024 * 1024)),
         "256 at a time": limits["round_source_list_entries"] == "256",
         "1 MiB at a time": limits["round_source_chunk_bytes"] == str(1024 * 1024),
-        "protocol 5": "protocol 5" in capabilities["owner"],
+        "protocol 6": "protocol 6" in capabilities["owner"],
         "`bpr.cycle.cli-result.v1`": capabilities["result_schema"] == "bpr.cycle.cli-result.v1",
     }
     problems = [f"the page says {phrase!r}, which the binary does not" for phrase, true in statements.items() if phrase not in text or not true]
