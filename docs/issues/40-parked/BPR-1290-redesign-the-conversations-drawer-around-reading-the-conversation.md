@@ -196,7 +196,7 @@ On round v1, relayed by the coordinator, verbatim:
 > It's hard to tell the value of the inline comments without a long file, you
 > have no long files in your mockups
 
-## Design round v2, 2026-10-06
+## Design round v2, 2026-10-06 (superseded in part, unanswered)
 
 [Round v2](../../design/BPR-1290-conversations-drawer-v2.html) with
 [frames](../../design/BPR-1290-conversations-drawer-frames-v2.html), drawn with
@@ -236,20 +236,117 @@ threads and the pull-request list are that fixture's; the deep thread is
 line, post list and body pane are gone; defect actions, Support details and
 View/Copy source move under More. Discuss is redrawn after the choice.
 
+## Round v2 session, stopped unanswered
+
+Round v2's session (`c6d804e30f0b4f6b02c7ef6d13335165`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v002`,
+cursor 9) was stopped by the coordinator before the owner answered it. It
+records no decision on any of its three candidates (`BPR-1290-split-tabs-v002`,
+`BPR-1290-tree-style-v002`, `BPR-1290-inline-pick-v002`). Its candidates were
+released and its frozen root `/Users/jaeger/bpr1290-drawer-review-v002.OWoDW6`
+was deleted (see the v3 session below).
+
+`BPR-1290-tree-style-v002` (A. Indented or B. ↩ chip) is **superseded**, not
+answered. The owner's direction below makes the map the way to read a
+conversation's structure, so the reader shows one branch at a time and the
+question of drawing a whole tree inside the reader no longer arises. The split
+and Inline pick questions are asked again in v3 on the same terms.
+
+## Owner direction, 2026-10-06
+
+In chat, verbatim:
+
+> I feel like the treemap should be the primary interface to navigate the
+> conversation view., unless you have a good reason it shouldnt be.
+
+"Treemap" means the Treeverse thread map ([[BPR-0418]]), of which the owner
+said on 2026-08-21 (the [[BPR-0211]] verdict), verbatim:
+
+> I prefer this view, it still needs to show the full branch that you clicked
+> on, or at least up to the noce you selected.
+
+The coordinator replied with one caveat: GitHub review threads are usually
+flat (every reply's parent is the first comment), so a map of one thread
+degenerates to a root and a row of names. The owner then corrected the scope,
+verbatim (relayed by the coordinator):
+
+> Not to move around a single conversation, I mean to find the right
+> conversation.
+
+So the map is the way to **find** a conversation across the whole pull
+request, not to move inside one. It draws every conversation as a small tree,
+grouped by file; picking a conversation or a post in it opens the branch from
+the first comment to that post in the reader. Inline remains this file's
+line-anchored threads.
+
+## Design round v3, 2026-10-06
+
+[Round v3](../../design/BPR-1290-conversations-drawer-v3.html) with
+[frames](../../design/BPR-1290-conversations-drawer-frames-v3.html), drawn with
+`frontend-design` on the product palette, light and dark, at 375, 280 and
+760 px. Inline is v2's, unchanged; its frames are reused from
+[v2's frames](../../design/BPR-1290-conversations-drawer-frames-v2.html).
+
+- **The map.** Every conversation in the pull request, grouped by file. A row
+  is one conversation: line, the author's avatar and the root's label mark,
+  then one node per reply, oldest first; on the right the new count, ✓ for
+  resolved, or a lock for my draft. A node is the post's label mark
+  (BPR-1083) or the author's initial, ringed blue when new, faded when read.
+- **The flat-thread caveat, answered by the layout rule.** Replies sit on one
+  line in posting order. A reply that has replies of its own starts a lane
+  underneath, joined to the post it answers. A GitHub thread is therefore one
+  line and the map branches only where a conversation does. `branching-thread-v1`
+  draws as three lanes off the first comment plus the aside's lane off C's
+  third reply. A line too long for the drawer folds its oldest read posts into
+  a count; the picked post and new ones never fold.
+- **Picking.** The picked post has an amber ring in the map and an amber edge in
+  the reader (amber follows the accepted Treeverse mockup's "in focus"). The path from
+  the first comment is drawn heavy and what follows it light. The reader shows
+  that branch, root to picked post and onward, as a linear feed ([[BPR-0456]]),
+  with ⑂ n where other branches leave it, and Reply at the foot.
+- **Toolbar.** This file or whole pull request; only new; only unresolved;
+  highlight a label (fades the rest in place, does not hide it); next new.
+- **Layout, three ways.** A. Map above the reader with a divider. B. Map beside
+  the reader; the drawer widens to 760 px while Conversation is open (the
+  Discuss arrangement), and falls back to A below 640 px. C. The map fills the
+  tab; picking folds it to the picked conversation's row above the reader, and
+  ‹ (Esc) returns.
+
+Content: the pull request is made up for the frames, 21 conversations in 10
+files: `conventional-comments-v1`'s six threads, v2's seven illustrative
+threads on `conversation_cards_view.cpp`, and eight illustrative ones in the
+same people's voices, including a 17-post flat thread on
+`github_thread_map.cpp:214`. The deep thread is `branching-thread-v1`
+(constructed; unread state illustrative). Code lines are verbatim from this
+repository at `62198a6a8`.
+
+Governing text to amend if accepted: the specification's
+[thread map](../../ux/workbench-specification.md#the-thread-map) section (the map
+covers the whole pull request, uses the rule above, and shows per-post new
+state, which the ledger has carried since [[BPR-0656]]; the section's "no read
+or unread state on the map" predates that). RFC-BPR-0028 AC-05's line alignment
+stays with Inline.
+
 ## Pending owner decisions
 
-One attended session asks three questions on frames frozen from `552615a22`
-(rebased onto main as `13c079175`; the four frozen files are byte-identical) in `/Users/jaeger/bpr1290-drawer-review-v002.OWoDW6` (the two v2 HTML files and
-both owner screenshots; `open /Users/jaeger/bpr1290-drawer-review-v002.OWoDW6/source/docs/design/BPR-1290-conversations-drawer-v2.html`).
-Session `c6d804e30f0b4f6b02c7ef6d13335165`, state
-`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v002`,
-cursor 9:
+One attended session asks four questions on frames frozen from `edb712fd6` (rebased onto main as `9c89f6e43`; the five
+frozen files are byte-identical) in
+`/Users/jaeger/bpr1290-drawer-review-v003.PfgyIp` (the v3 page and frames, v2's
+frames for Inline, and both owner screenshots; `open /Users/jaeger/bpr1290-drawer-review-v003.PfgyIp/source/docs/design/BPR-1290-conversations-drawer-v3.html`).
+Session `8ecbfc2039c5ffacfcdd3ea0fff14f2c`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v003`,
+cursor 12:
 
-1. `BPR-1290-split-tabs-v002`: Accept or Reject the split into Inline and
-   Conversation as drawn (BPR-1290:direction).
-2. `BPR-1290-tree-style-v002`: A. Indented or B. ↩ chip (BPR-1290:depth).
-3. `BPR-1290-inline-pick-v002`: A. Opens in place or B. Opens Conversation
+1. `BPR-1290-map-primary-v003`: Accept or Reject the map as the primary
+   Conversation navigator, as drawn (BPR-1290:direction).
+2. `BPR-1290-map-layout-v003`: A. Above, B. Beside or C. Fills the tab
    (BPR-1290:navigation).
+3. `BPR-1290-inline-pick-v003`: A. Opens in place or B. Opens Conversation
+   (BPR-1290:navigation; v2's question, asked again).
+4. `BPR-1290-split-tabs-v003`: Accept or Reject the split into Inline and
+   Conversation as drawn (BPR-1290:direction; v2's question, asked again).
 
-Next: record each verdict and note here, revise the frames if a note asks,
-then plan the Qt build. BPR-1083's sessions are separate and untouched.
+Next: record each verdict and note here. If the map is accepted, amend
+BPR-1290:depth (the map stays, as the navigator, rather than going) and the
+specification's thread map section, revise the frames if a note asks, then
+plan the Qt build. BPR-1083's sessions are separate and untouched.
