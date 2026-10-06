@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1083"
 title: "Implement selected authoring controls and shared label visuals"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0050"]
 depends_on: ["BPR-1081", "BPR-1082"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-09","milestone":"authoring","acceptance":["R09","R10","R31","R32","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "7513758b0", "evidence": {"kind": "command", "path": "docs/verification/RFC-BPR-0047-0051.md", "command": "ctest --test-dir build/dev -R 'qt_feedback_label_controls|qt_review_draft_editor'", "detail": "In the composed review_draft_editor with its revisioned dispatch: the chip/menu and toggles leave 'suggestion (blocking): ...' with the same dispatched body as the header typed by hand, and recognize_feedback_prefix gives the same label, expectation and subject span for both; a chip choice is one whole-body edit equal to plan_feedback_draft_edit's command and one undo step. macOS arm64 Debug."}}, {"criterion": "AC2", "outcome": "pass", "revision": "7513758b0", "evidence": {"kind": "command", "path": "docs/verification/RFC-BPR-0047-0051.md", "command": "ctest --test-dir build/dev -R 'qt_feedback_label_marks|qt_feedback_label_threads'", "detail": "One Qt unit, feedback_label_marks, holds the twelve glyphs as compiled QPainterPath construction; all 29 elements equal tests/fixtures/feedback/bpr-1080-selected-glyphs.txt, which equals the selected page at 759ecc692. Every surface (chip, menu, completion, cards, post list, reader) draws through it. Names: menu buttons by label with description and code; marks 'issue (blocking)'; posts 'tbutler, issue (blocking)' and the model's accessible text."}}, {"criterion": "AC3", "outcome": "pass", "revision": "7513758b0", "evidence": {"kind": "command", "path": "docs/verification/RFC-BPR-0047-0051.md", "command": "ctest --test-dir build/dev -R 'qt_feedback_label_controls|qt_feedback_label_threads|qt_review_draft_editor'", "detail": "The controls emit only edit commands through the editor's typed path; refusals change nothing and dispatch nothing; the menu and completion are popups outside the editor's layout and add no scroll area to it; the rail adds no width (every post keeps its text edge); the reader shows one body, from the subject, in the existing reader; no publish, resolve or review decision is reachable from a label."}}]
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7513758b0","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0047-0051.md","command":"ctest --test-dir build/dev -R 'qt_feedback_label_controls|qt_review_draft_editor'","detail":"In the composed review_draft_editor with its revisioned dispatch: the chip/menu and toggles leave 'suggestion (blocking): ...' with the same dispatched body as the header typed by hand, and recognize_feedback_prefix gives the same label, expectation and subject span for both; a chip choice is one whole-body edit equal to plan_feedback_draft_edit's command and one undo step. macOS arm64 Debug."}},{"criterion":"AC2","outcome":"pass","revision":"7513758b0","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0047-0051.md","command":"ctest --test-dir build/dev -R 'qt_feedback_label_marks|qt_feedback_label_threads'","detail":"One Qt unit, feedback_label_marks, holds the twelve glyphs as compiled QPainterPath construction; all 29 elements equal tests/fixtures/feedback/bpr-1080-selected-glyphs.txt, which equals the selected page at 759ecc692. Every surface (chip, menu, completion, cards, post list, reader) draws through it. Names: menu buttons by label with description and code; marks 'issue (blocking)'; posts 'tbutler, issue (blocking)' and the model's accessible text."}},{"criterion":"AC3","outcome":"pass","revision":"7513758b0","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0047-0051.md","command":"ctest --test-dir build/dev -R 'qt_feedback_label_controls|qt_feedback_label_threads|qt_review_draft_editor'","detail":"The controls emit only edit commands through the editor's typed path; refusals change nothing and dispatch nothing; the menu and completion are popups outside the editor's layout and add no scroll area to it; the rail adds no width (every post keeps its text edge); the reader shows one body, from the subject, in the existing reader; no publish, resolve or review decision is reachable from a label."}},{"criterion":"owner-look","outcome":"pass","revision":"c3998bef0","evidence":{"kind":"freeform","path":"docs/verification/RFC-BPR-0047-0051.md","detail":"Owner accepted BPR-1083-decorations-v004 (decision 3cd54bc5, 2026-10-06T10:28:32Z) and BPR-1083-tooltips-v004 (decision 8171b117, 10:28:42Z), no notes, in session 241abd52f98af0596da2cdd1f114c6a4 on the frozen build of c3998bef0; handed back at sequence 11. Earlier rounds' candidates were accepted in v002 and v003."}}]
 ---
 
 # BPR-1083: Implement selected authoring controls and shared label visuals
@@ -264,3 +263,29 @@ Limitations: macOS only (Linux and Windows station runs owed); R33's native
 matrix is not run; the Overview chips and Label key (BPR-1087, BPR-1089) must
 draw through `feedback_mark_theme` and `feedback_mark_emphasis`; the helper's
 Settings row is BPR-1088.
+
+## Owner verdicts, session `241abd52` (v004), 2026-10-06
+
+Handed back at sequence 11 (cursor 8 to 11 read). Both candidates accepted,
+on the frozen build of `c3998bef0`:
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1083-decorations-v004` | Accept (`3cd54bc5`, 10:28:32Z) | (none) |
+| `BPR-1083-tooltips-v004` | Accept (`8171b117`, 10:28:42Z) | (none) |
+
+Every candidate of rounds v001 to v004 is now accepted; AC1 to AC3 stand on
+their automated evidence and the card is Done. The session's candidates were
+released (`resume-development --all`, sequence 12) and the frozen root
+`/Users/jaeger/bpr1083-authoring-review-v004.FkYjzT` deleted. The owner's
+attachment directories were deleted after checking each picture against
+`docs/design/owner-refs/` (the committed copies are halved or cropped, with
+metadata dropped): `bpr1083-owner-attachments-v002` and `-v003` whole, and
+three of `bpr1083-owner-attachments`' four. Its
+`bpr1083-att-BPR-1083-mark-style-v001-0.png` is kept: only its Settings
+sidebar is committed, as
+[`BPR-1083-owner-ref-codex-settings-search.png`](../../design/owner-refs/BPR-1083-owner-ref-codex-settings-search.png).
+
+The limitations above stand: macOS only (Linux and Windows station runs
+owed), R33's native matrix not run, and BPR-1087, BPR-1088 and BPR-1089 own
+the follow-ups they name.
