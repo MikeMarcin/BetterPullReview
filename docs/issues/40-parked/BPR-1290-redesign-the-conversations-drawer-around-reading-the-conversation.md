@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1290"
 title: "Redesign the Conversations drawer around reading the conversation"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
+parked_on: "human-review"
 metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
 ---
 
@@ -163,3 +164,19 @@ how a thread is chosen:
 The draft's body in the frames is illustrative (the screenshot does not show
 it). Choosing A or B means amending RFC-BPR-0028 AC-05's "aligned to their
 lines".
+
+## Pending owner decision
+
+One attended session asks one question, on frames frozen from `feba12345`
+in `/Users/jaeger/bpr1290-drawer-review-v001.Hi6CDf` (the two HTML files and
+the screenshot; `open /Users/jaeger/bpr1290-drawer-review-v001.Hi6CDf/source/docs/design/BPR-1290-conversations-drawer-v1.html`).
+Session `77c7a0ba376d5e801cc4975de994ba70`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-drawer-v001`,
+cursor 3:
+
+1. `BPR-1290-drawer-direction-v001`: choose A. Switcher, B. Stack or
+   C. Line rail, or reject all three, with a note.
+
+The open BPR-1083 v002 session is separate and untouched. Next: record the
+verdict here, revise the frames if the note asks, then plan the Qt build of
+the chosen direction.
