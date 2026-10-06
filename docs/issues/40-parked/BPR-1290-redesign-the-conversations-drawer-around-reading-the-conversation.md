@@ -130,7 +130,10 @@ Read from the code and the screenshot, not from the owner:
   ("I like it", below): the drawer shows this file's threads only. A thread
   is chosen by its margin note, its marker in the code's gutter, the
   out-of-view chips at the drawer's top and bottom, or its tick on the code's
-  scroll bar. The filters are Only new and Hide resolved. The keys are
+  scroll bar. Amended 2026-10-06 by the owner's v001 Reject (below): a thread
+  is chosen from the scroll bar by Shift-click on its tick, which scrolls the
+  code to its line and opens it; a plain press on the bar stays the bar's own.
+  The filters are Only new and Hide resolved. The keys are
   Up/Down between threads, Return to open, Esc to close, R to reply, N for
   the next new thread, Command+Return (Ctrl+Return) to publish, and
   Shift+F10 for the thread's actions. Opening a thread reveals its line, and
@@ -667,3 +670,21 @@ candidate.
 
 `build/app-release-tests` was removed. The card stays parked for the owner's
 look.
+
+## Owner verdict on built drawer v001, 2026-10-06
+
+Session `b3a08bc827a529abbf0bc7ecede12823` handed back at sequence 4 (cursor
+2 to 4 read). `BPR-1290-built-drawer-v001` (revision `frozen-ffea22995-v001`):
+**Reject** (decision `1cece685`, 10:31:15Z). Note, verbatim:
+
+> I want to shift click on a comment marker on the scrollbar to scroll to it.
+
+Read as a requirement, not a defect: v001's ticks opened their thread on a
+plain press, which also took the press away from the scroll bar. The
+coordinator relayed the shape of the fix: Shift-click on a thread's tick
+scrolls the code so that its line is in view and opens the thread, as
+pressing its note does; a plain click keeps the scroll bar's own behaviour;
+crowded ticks are hit-tested to the nearest within a few pixels; a tick has a
+"Shift-click to go to …" tooltip and a pointing cursor while Shift is held
+over it. BPR-1290:navigation is amended above. Nothing else in v001 was
+rejected, and BPR-1290:owner-look is asked again on v002.
