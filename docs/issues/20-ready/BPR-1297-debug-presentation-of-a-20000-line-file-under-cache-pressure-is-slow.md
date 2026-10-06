@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1297"
 title: "Debug presentation of a 20,000-line file under cache pressure takes 135–372 s per selection"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
