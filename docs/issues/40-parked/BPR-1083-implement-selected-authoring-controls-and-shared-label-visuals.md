@@ -205,6 +205,61 @@ and the composer; the chip menu's decorations combine and take a custom one;
 and a mark's tooltip sits right next to the mark, directly below or above
 it, everywhere marks have tooltips.
 
+## Round v004, 2026-10-05
+
+Product commit `c3998bef0`, designed with the `frontend-design` skill. The
+[delivery contract](../../ux/conventional-comments-feedback.md) records each
+rule.
+
+- **Decorations** (`decorations-v003` Reject). Marks and rails keep three
+  weights, normal, blocking and non-blocking, read from the written
+  decorations' kinds, so `(non-blocking, if-minor)`, which the grammar calls
+  `conflicting`, is the open mark with the corner. If-minor fills the
+  top-left corner of any weight (on a filled mark, in the glyph's ink) and
+  leaves the rail alone. Every body reads as written in cards, the post list
+  and the reader, its label and decorations included; a mark's name lists
+  every decoration, custom ones as written.
+- **Combinable and custom decorations.** `core::feedback_decoration_change`
+  writes or takes out one decoration and keeps the rest exactly as authored;
+  blocking and non-blocking replace each other. The recognizer already kept
+  several and custom decorations (`core_feedback_convention`); the header
+  edit could only set one standard decoration, and now has
+  `combinable_decorations` tests. The chip's toggles combine, and its menu
+  shows a toggle per custom decoration and a field for a new one.
+- **Tooltips** (`preview-tooltips-v003` Reject). `anchored_tooltip` places a
+  mark's tooltip directly below the mark, left edges aligned and 4 px apart,
+  or directly above it near the screen's bottom: the preview, cards, drawer
+  entries, the reader's mark, the chip, the menu and completion.
+- **Fixture.** renderer.cpp's threads carry `question (non-blocking)`,
+  `suggestion (non-blocking, if-minor)`, `todo (blocking, if-minor, perf)`
+  and `nitpick (style)`.
+
+Checks and the negative controls are in the
+[execution ledger](../../verification/RFC-BPR-0047-0051.md).
+
+## Pending owner decisions
+
+One short attended session asks one Accept or Reject per candidate, on a
+frozen build of `c3998bef0` (`/Users/jaeger/bpr1083-authoring-review-v004.FkYjzT`,
+executable SHA-256 `321dcf55…6846b9f`).
+`python3 /Users/jaeger/bpr1083-authoring-review-v004.FkYjzT/launch.py` opens
+`src/engine/renderer.cpp` in Read, signed in as the fixture's account.
+Session `241abd52f98af0596da2cdd1f114c6a4`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v004`,
+cursor 8:
+
+1. `BPR-1083-decorations-v004`: every comment shows its decorations as
+   written, several and custom ones included, and its mark shows one of three
+   styles with if-minor filling the top-left corner of any of them.
+2. `BPR-1083-tooltips-v004`: a mark's tooltip sits right next to it,
+   directly below (or above near the screen's bottom).
+
+Accepted and not asked again: the chip, menu, toggles and Publish
+(`chip-menu-v002`), the shortcodes (`shortcodes-v002`), the preview
+(`mark-preview-v002`), the drawer entries' marks (`thread-marks-v003`) and the
+lone colon (`colon-trigger-v003`). On Accept of both, AC1 to AC3 stand on
+their automated evidence and the card can finish.
+
 Limitations: macOS only (Linux and Windows station runs owed); R33's native
 matrix is not run; the Overview chips and Label key (BPR-1087, BPR-1089) must
 draw through `feedback_mark_theme` and `feedback_mark_emphasis`; the helper's
