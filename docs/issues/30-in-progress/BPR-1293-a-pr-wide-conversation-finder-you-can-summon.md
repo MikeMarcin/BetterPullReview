@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1293"
 title: "A PR-wide conversation finder you can summon"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
