@@ -1049,3 +1049,137 @@ thread. This card's change to that course also dropped its conversation
 structure assertions, so the rows still pass. BPR-1299 is parked on the
 owner's choice between rendering posts with the shared reader in this card's
 next candidate (recommended) and amending AC-01 to the overview.
+
+## Session v004 stopped unanswered; posts render again, 2026-10-06
+
+Session `2c58f7ad375731fd84651160badee24e` (v004, shortcodes in replies) was
+not answered. The coordinator stopped its host, and it was released here
+(`resume-development --all`, sequence 5, no decision). Its frozen root
+`/Users/jaeger/bpr1290-inline-drawer-review-v004.3ABLRN` was deleted. The
+v004 question is asked again in v005.
+
+[[BPR-1299]] found a regression from `201c96f21`: posts in an open thread
+showed their Markdown as written (`- [x]`, fences, table pipes, `**bold**`).
+That fails RFC-BPR-0036's AC-01 for public conversations. The same commit had
+removed the composed course's conversation checks, so the rows still passed.
+Coordinator's decision, 2026-10-06: render posts, since it is a regression
+against an accepted RFC. The `:kept` amendment's "each post is read in place,
+as written" is read with that correction: in place, rendered, with its label
+header as written.
+
+## Built drawer v005, 2026-10-06
+
+Candidate `7fb9997b1` ("open-thread posts render Markdown through the shared
+reader"), on `origin/main` at `440768bdc`. It holds v004's reply helper and
+adds the rendering. Presentation in the Qt adapter, drawn with
+`frontend-design`:
+
+- **Rendered posts.** Each post of the open thread, in the drawer and in
+  Discuss, reads through `markdown_body_view` in a new in-place mode
+  (`set_in_place`). The post is as tall as its content and has no vertical
+  scrolling of its own, so a vertical wheel still scrolls the code. Wide code
+  and tables scroll sideways. Headings keep to the post's scale, lists indent
+  by half Qt's step for the 280 px drawer, and links on a dark panel keep their
+  hue at a readable lightness. Closed notes stay one-line summaries.
+- **Label header as accepted.** [[BPR-1083]]'s mark under the avatar and the
+  rail are unchanged. The recognized header and its decorations stay at the
+  front as written, rendered (`**praise:**` reads "praise:"), in semibold and
+  the secondary ink. A header written strong stays bold.
+- **Source.** View source (angle brackets) and Copy source (two sheets) sit at
+  the right of the post's name row. They show while the post is hovered or
+  holds focus. View source stays lit while the source is shown. Copy says
+  "Source copied" under the button.
+- **Links.** A link opens through the window's admission with the post's
+  identity, as the overview's do. Its destination is its tooltip, shown at
+  once when Tab reaches the link.
+- **Keyboard.** Tab from the notes enters the open thread's first post. Tab
+  walks that post's links, then its two source buttons, then the next post.
+  In a post's text the arrows move the reading caret, not the thread. The
+  drawer keeps the caret in view, scrolling the code in Review as a wheel
+  would. Esc, R and N keep their meaning there.
+- **Fix on the way.** Setting the code font or the colours left the old open
+  card behind as a hidden widget. It is now replaced and deleted.
+
+The specification's [Conversation drawer](../../ux/workbench-specification.md#conversation-drawer)
+section and [`native-markdown.md`](../../architecture/native-markdown.md)
+describe the rendered posts. The fixture `inline-drawer-v1` gains a Markdown
+reply at line 430 (a task list, a code block, a table and bold); 45 posts.
+
+### Verification on the candidate
+
+- `qt_composed_markdown_{1_0,1_25,2_0}`: the conversation checks that
+  `201c96f21` removed are back, against the drawer, for all six public posts.
+  They cover `structures()` (heading, tasks, lists, code, table, accessible
+  text) and no Markdown punctuation as prose. They check `original_body()`,
+  Tab from the notes into each post's reader, and reading to the end by
+  keyboard with the final line inside the drawer. They also check link
+  identity, View source and Copy source per post, the source font from the
+  appearance profile, and selection kept across an unchanged refresh.
+  **Failing-before control:** with these tests on the pre-fix product (`src/`
+  at `440768bdc`), all three fail at "every public body and reply reads in
+  place through the shared Markdown reader". The native captures
+  `conversation-1`/`-2` show rendered tasks, code, a bordered table and links.
+- `qt_composed_inline_drawer_scale_{100,125,200}` through the composed window,
+  line 200's Markdown reply:
+  - The reader is used and the body as written is kept. Tasks, code fence,
+    table and bold are rendered, and no punctuation shows as prose.
+  - Negative control: a plain post reads as its words, with no header.
+  - Tab from the notes reaches the first post, then the Markdown post. Down
+    there moves the caret and keeps the thread. Tab reaches the link and shows
+    its destination; Return hands it to admission with `review-comment:c17`.
+  - View source shows the body as written at its own height; Copy source copies
+    it; switching back restores the height. A wheel over the post's text
+    scrolls the code.
+  - Line 250's `chore (non-blocking):` header is semibold and the words after
+    it are not.
+  - Render: `composed-inline-drawer-<scale>-inline-markdown-post.png`.
+- Mutations on the fixed product, each failing its row: no arrow-key exemption
+  in a post's text (the inline rows); no caret reveal (`qt_composed_markdown`).
+- Debug, 41 rows: `qt_composed*`, `qt_conversation*`,
+  `qt_github_conversation*`, `qt_github_thread_map*`, `qt_feedback_label*`,
+  `qt_workbench_window*`, `qt_markdown_body_*`,
+  `qt_pull_request_overview_page`, `qt_public_preview_conversation`,
+  `qt_review_draft_editor`, `architecture_boundaries`,
+  `architecture_boundary_contract`, `core_markdown_navigation`,
+  `core_dependency_boundary`, `application_github_window_read_host`,
+  `application_setup_destination_public_path` and
+  `application_device_authorization_browser_address`. All passed, as did
+  `github_recorded_fixture_contract` and `github_contract_fixture_security`.
+  `src/app` is unchanged, so the round-trip pin is unchanged.
+- Optimized (`app-release` with `BUILD_TESTING=ON`, Release), serial: the
+  three drawer rows, `qt_composed_markdown_*` and `qt_conversation_cards_view`
+  passed, with the 100 ms checks enforced. Opening in place took 7, 8 and
+  10 ms. Opening the Markdown thread took 6, 7 and 8 ms. A scroll frame took
+  3 to 5 ms, and Shift-click 3 to 5 ms. In Debug the same steps took
+  7 to 10, 6 to 9 and 3 to 6 ms.
+- Format check and clang-tidy (`tidy.py --changed`): clean.
+  `DOCUMENTATION_OK`. Linux and Windows have not run v005's rows.
+
+### Owner look, session v005
+
+Pending: BPR-1290:owner-look is the owner's, not self-certified. One
+question, Accept or Reject: "drawer v005: shortcodes work in replies and
+posts render Markdown."
+
+- Session `f76a3bf839eafd23b24baa2da0e15979`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1290-built-v005`,
+  candidate `BPR-1290-built-drawer-v005` (revision `frozen-7fb9997b1-v005`,
+  fingerprint `08e46c30552e…`), ready at event cursor 4. It carries the
+  frozen build's own 2x render of an open thread with the Markdown reply. The
+  host was started detached (`nohup`, its own session) and answered on
+  loopback.
+- Frozen root `/Users/jaeger/bpr1290-inline-drawer-review-v005.sSilse`: the
+  `git archive` of `7fb9997b1` built there with the dev preset (tests on),
+  source read-only. It was published as `0a7f72068` after a rebase onto
+  `63915222e`, which adds only BPR-1084/1085 and BPR-1190 work. The executable
+  SHA-256 begins `69b08eb11ab3e24f`. Offscreen with the launcher's arguments it
+  printed `ATTENDED_FILE_SHOWN`, and the three inline rows and
+  `qt_composed_markdown_*` passed from its build tree.
+- Launch: `python3 /Users/jaeger/bpr1290-inline-drawer-review-v005.sSilse/launch.py`
+  (`--renderer` for renderer.cpp). It refuses if the build, the fixture or the
+  line-430 Markdown reply is missing, and reports an early exit within
+  seconds. The label helper is on (`--label-helper`).
+
+Next: read the session's decision. Accept satisfies :owner-look and the card
+finishes. Reject comes back with what differs in its note, for a v006
+candidate.

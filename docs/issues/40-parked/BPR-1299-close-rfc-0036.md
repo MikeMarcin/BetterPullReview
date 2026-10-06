@@ -100,3 +100,33 @@ back, rerun the focused selection and the native Cocoa course, inspect the
 conversation captures, then close RFC-BPR-0036.
 
 Parked on `human-review`. RFC-BPR-0036 stays Proposed. No product file changed.
+
+## The fix landed in BPR-1290 v005 (2026-10-06)
+
+The coordinator chose the first option, "Render posts", on 2026-10-06, since
+the regression breaks an accepted RFC. [[BPR-1290]]'s candidate `7fb9997b1`
+(v005) carries it:
+
+- Every post in an open thread, in the drawer and in Discuss, reads through
+  `markdown_body_view` in place (`set_in_place`). BPR-1083's marks, rails and
+  semibold label header are kept. View source and Copy source are in the
+  post's name row. Links go through the window's admission with the post's
+  identity. Closed notes stay one-line summaries.
+- `qt_composed_markdown`'s conversation half is restored against the drawer:
+  `structures()`, no Markdown punctuation shown as prose, `original_body()`,
+  Tab from the notes into each post's reader, reading to the end with the
+  final line kept in the drawer, link identity, and View source and Copy
+  source per post. Against the pre-fix product the rows fail at "every public
+  body and reply reads in place through the shared Markdown reader".
+- `docs/architecture/native-markdown.md` names the open-thread posts as a
+  reader surface again.
+
+Still open here, unchanged: AC-01 to AC-06 still have to be reconciled on the
+published commit. **To rerun:** the focused selection from the reconciliation
+above (17 rows, Debug) and the native Cocoa course
+(`QT_QPA_PLATFORM=cocoa BPR_AUTOMATED_TEST_BOUNDARY=1`,
+`better_pull_review_composed_markdown_tests` with `BPR_MARKDOWN_RENDER_DIR`).
+Then inspect `conversation-1`, `-2`, `-4` and `-5` for rendered tasks, code,
+tables and links, and close RFC-BPR-0036 if AC-01, AC-02 and AC-04 now pass.
+This card stays parked until that run. BPR-1290's own owner look (v005) is
+separate and does not gate this close.
