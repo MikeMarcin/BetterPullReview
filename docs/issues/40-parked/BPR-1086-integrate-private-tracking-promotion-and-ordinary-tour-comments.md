@@ -112,3 +112,13 @@ root also get its own offer?
 - (c) A small icon button with a tooltip on an `issue` root's card.
 
 Linux only; macOS and Windows runs are owed. No live GitHub.
+
+## Coordinator decision — 2026-10-06
+
+The question was whether an `issue` root gets its own Track as defect offer
+(RFC-BPR-0048: reading `issue:` "offers existing Track as defect
+functionality"). The integrator chose option (a), as coordinator: keep the
+existing, label-independent "Classify as defect…" on every thread's menu, as
+built. No label-specific offer is added, so tracking stays one explicit
+gesture on any thread. The owner's look at the labelled tour stop's mark
+stays open for the next Mac session.
