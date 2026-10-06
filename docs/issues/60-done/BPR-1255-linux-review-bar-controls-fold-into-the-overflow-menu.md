@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1255"
 title: "Linux: a review-bar control folds into the overflow menu in the title-row and workbench-window scale rows"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["linux", "win"]
 metadata: {"found_by":"bpr-main-linux triage of the BPR-0905 Linux full suite, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1255--BPR-1258--f86522aa8587.json","related_cards":["BPR-1251","BPR-1256","BPR-0905"]}
-acceptance: [{"criterion":"The six rows pass on Linux","outcome":"pending","revision":"2ac99c816","evidence":{"kind":"observation","detail":"Waits on the owner's choice among the card's three options. With only the overflow check bypassed (not committed), all six rows pass on Linux at this revision."}},{"criterion":"The card names the cause","outcome":"pass","revision":"2ac99c816","evidence":{"kind":"observation","detail":"Card 'Cause': at the course's doubled font, 18 pt Sans Serif (DejaVu Sans), the fully yielded review bar needs 983 px against the 900 px floor. Every yield (dates, words, numbers) has already fired, and the last control, Comment, folds at 982 px. At the default font the bar is 843 px and fits."}}]
+acceptance: [{"criterion":"BPR-1255:floor-follows-bar","outcome":"pass","revision":"012eb89c0","evidence":{"kind":"command","detail":"Owner chose 'Floor follows bar' (chat, 2026-10-06). apply_review_bar_width sets minimumWidth = max(platform floor, fully yielded bar), recomputed on font/style/theme/DPR changes; restore clamps to it. Six qt_workbench_(title_row|window)_scale_* rows: Linux 6/6 (012eb89c0; floor 900 default, 983 at 2x; old code fails all six); Windows 6/6 at 9bed0a21a after a test-only iterator fix fe300517d (floor 902 default, 917 at 2x); macOS 6/6 at b05aa2ba1 (coordinator run, 2026-10-06)."}}]
 ---
 
 # BPR-1255: Linux: a review-bar control folds into the overflow menu in the title-row and workbench-window scale rows
