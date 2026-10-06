@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 parked_on: "owner-design-discussion"
-metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
+metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-1293","BPR-1294","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
 ---
 
 # BPR-1290: Redesign the Conversations drawer around reading the conversation
@@ -361,7 +361,7 @@ map is the primary way to find the right conversation across the pull request;
 the code stays in view while commenting; a long file; minimal text, with icons,
 tooltips and colour; label marks and rails as accepted in [[BPR-1083]].
 
-## Whole-window concepts, round 1, 2026-10-06
+## Whole-window concepts, round 1, 2026-10-06 (superseded, unanswered)
 
 [The concepts page](../../design/BPR-1290-concepts-v1/index.html) shows three
 whole-window concepts as large stills, light and dark, at 1440 by 900 and 1920
@@ -398,14 +398,92 @@ extended from round v3's set. The deep conversation at line 667 has
 an aside forking off the third reply of the third branch); its words and unread
 state are illustrative.
 
+## Owner direction after concepts round 1, 2026-10-06
+
+The owner did not choose A, B or C. In chat, verbatim:
+
+> what's the point of the conversation view if the inline comments view shows
+> the whole thread like the first mockup before I said split it? Seems like
+> they show the same thing except for navigation.
+
+> I guess there's comments that are on the PR and not tied to source files to
+> consider. I'm not sure how we deal with those at all right now.
+
+> I kind of feel like all of these tree view mockups are worse than what we had
+> before the redesign. At least they all confuse me and most encroach on the
+> screen real-estate heavily. I'd almost rather just have the tree view be a
+> tab in the main pane or a window you can summon like the home screen.
+
+> Honestly I'm not too attached to the modalities right now, i'm not sure how
+> long I want to retain them. (beyond overview and review of course)
+
+The concepts round is **superseded**: none of A, B or C is chosen or asked
+again. The agreed plan:
+
+- **(a) This card: the drawer is inline only.** It shows this file's
+  line-anchored threads, and each opens in place to the whole conversation with
+  a reply. There are no tabs for a conversation tree and no map in the drawer.
+  Notes and Tour stay.
+- **(b) [[BPR-1293]]: the PR-wide finder moves out of the drawer** into a
+  main-pane tab or a window you summon like Home (open question), and is not
+  tied to the Read or Discuss modalities. Not designed here. The owner then
+  narrowed it to navigation only, verbatim:
+
+  > Well I dont necessarily want to summon non-file comments like that. Just
+  > the navigation I was thinking. We might need a different better solution
+  > for PR wide comments that arent on a file.
+
+- **[[BPR-1294]]: pull request comments and review summaries that are not on a
+  file** are a separate open problem. The leading direction is Overview, after
+  the owner's "I know in collaborator those comments are effectively on their
+  version of the overview page." Not designed here.
+
+Criteria to revisit with the owner once (a) is settled: BPR-1290:navigation
+(the whole-PR scope leaves the drawer for BPR-1293), :depth (deep threads are
+BPR-1293's question) and :kept (RFC-BPR-0028 AC-05's "All PR conversations"
+and Discuss).
+
+## Inline drawer prototype v1, 2026-10-06
+
+[The prototype](../../design/BPR-1290-inline-drawer-v1/index.html) is one
+clickable full window: Read on this repository's
+`src/adapters/qt/src/conversation_cards_view.cpp` (all 1557 lines, verbatim at
+`fbbabb3ef`), the drawer at its 375 px default (drag 280 to 760), light and
+dark from the title bar. Drawn with `frontend-design`.
+
+- Eight threads and one draft of mine hang from their lines (38, 430, 656, 667,
+  927, 1080, 1142, 1176, 1510) as flat margin notes: author, root mark and rail,
+  two lines of the body as written, reply count and people, new count, ✓ for
+  resolved. The drawer moves with the code.
+- Clicking a thread, or its marker in the code's gutter, opens it in place: the
+  whole conversation with a New rule, Show line, Resolve, Mark read, More and
+  Reply. The open thread is pinned exactly at its line (the line washed amber,
+  its marker ringed, the card's amber edge and notch), and the others make room
+  above and below it. One thread is open at a time.
+- Threads above or below what the drawer shows are chips on its top and bottom
+  edges, nearest first; the code's scroll bar keeps a tick per thread.
+- Marks, rails and decorations are BPR-1083's as accepted: three weights and
+  the if-minor corner, every body shown as written with its decorations
+  (`suggestion (non-blocking, if-minor):`, custom `note (perf):`, a plain post
+  with a grey rail). A reply typed with a label prefix gets its mark when
+  published.
+- Keyboard: Up/Down between threads, Return opens, Esc closes, R replies, N
+  next new, ⌘Return publishes.
+- Only new and Hide resolved filter the drawer. The finder button and the status
+  bar's "3 comments not on a file" name BPR-1293 and BPR-1294; neither is
+  drawn.
+
+Content: the threads are made up in the `conventional-comments-v1` people's
+voices; the changed-line ranges are illustrative. Kept as today and not drawn:
+More's items, defect actions, the composer's inside ([[BPR-1212]]),
+Notes and Tour.
+
 ## Pending owner decision
 
-In chat: which concept to prototype (A, B or C), or what to change
-(BPR-1290:direction, as amended). Open the page with
-`open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/design/BPR-1290-concepts-v1/index.html`.
+In chat, no attended session: keep the inline drawer as prototyped, or what to
+change (BPR-1290:direction, as amended). Open it with
+`open /Users/jaeger/Documents/GitHub/BetterPullReview/docs/design/BPR-1290-inline-drawer-v1/index.html`.
 
-Next: record the owner's words here, then prototype the chosen concept as a
-clickable HTML prototype at window size before any Qt work; revisit
-BPR-1290:reading, :navigation and :depth (they name the drawer) against the
-chosen concept and amend them with the owner. BPR-1083's sessions are separate
-and untouched.
+Next: record the owner's words here; amend :navigation, :depth and :kept with
+the owner; then build the drawer in the Qt adapter. BPR-1083's sessions are
+separate and untouched.

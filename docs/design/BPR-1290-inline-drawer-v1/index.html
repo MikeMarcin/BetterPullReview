@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1290 inline drawer, prototype v1</title>
+<!--
+  [[BPR-1290]] Inline drawer, clickable prototype v1, for the owner to try and answer in chat.
+
+  The owner's direction (2026-10-06): the drawer is inline only. It shows this file's
+  line-anchored threads, and each opens in place to the whole conversation with a reply.
+  There is no conversation tree and no map in the drawer; Notes and Tour stay. Finding a
+  conversation across the pull request is BPR-1293 (navigation only), and pull request
+  comments that are not on a file are BPR-1294. Neither is designed here.
+
+  Marks, rails and decorations are BPR-1083's as accepted: BPR-1080's glyphs, BPR-1079's
+  tints, the 16 px mark under the 18 px avatar, a 2 px rail (4 px blocking, dashed
+  non-blocking, grey when plain), the open dashed mark for non-blocking, the filled top-left
+  corner for if-minor, and every body shown exactly as written, decorations included.
+
+  Content: the code is this repository's src/adapters/qt/src/conversation_cards_view.cpp at
+  fbbabb3ef (1557 lines, verbatim). The threads are made up, in the voices of the
+  conventional-comments-v1 people. Changed-line ranges are illustrative.
+
+  ?theme=light|dark sets the first theme; the button in the title bar switches it.
+  A design prototype, not the product.
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --side:#F0F2F5; --panel:#FFFFFF; --panel-2:#F3F5F8; --rule:#E1E5EB; --rule-2:#C9D0D8;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#7A838D; --signal:#2F6FD6; --signal-soft:#E3ECFA; --on-signal:#FFFFFF;
+  --route:#C98F12; --route-soft:#FDF3DC; --route-line:#EFD48F; --ok:#1A7F37; --new:#2F6FD6; --hover:#F1F4F8;
+  --code:#FFFFFF; --gutter:#FAFBFC; --lnum:#8C959F; --add:#EEFBF1; --add-g:#D9F5E0; --drawer:#F7F8FA;
+  --shadow:0 10px 30px rgba(31,35,40,.13), 0 1px 3px rgba(31,35,40,.08);
+  --tip:#1F2328; --tip-ink:#F6F7F9; --soft:22%;
+  --kw:#B51D27; --fn:#6639BA; --ty:#7A4B00; --str:#0A3069; --cm:#6E7781; --nm:#0550AE; --pp:#8250DF;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  color-scheme:light;
+}
+body.dark {
+  --bg:#1A1E24; --side:#1F242B; --panel:#22272E; --panel-2:#272D35; --rule:#30363F; --rule-2:#414955;
+  --ink:#E6EDF3; --ink-2:#A3ACB6; --ink-3:#7E8893; --signal:#7FB0E8; --signal-soft:#233650; --on-signal:#0D1117;
+  --route:#E3B357; --route-soft:#3A3018; --route-line:#6B5622; --ok:#3FB950; --new:#7FB0E8; --hover:#2A3039;
+  --code:#0F1318; --gutter:#13181E; --lnum:#6E7781; --add:#11261A; --add-g:#173521; --drawer:#1C2128;
+  --shadow:0 14px 40px rgba(0,0,0,.55), 0 1px 4px rgba(0,0,0,.4);
+  --tip:#E6EDF3; --tip-ink:#1A1E24; --soft:30%;
+  --kw:#FF7B72; --fn:#D2A8FF; --ty:#FFA657; --str:#A5D6FF; --cm:#8B949E; --nm:#79C0FF; --pp:#D2A8FF;
+  color-scheme:dark;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--ink); font:12.5px/1.4 var(--ui); -webkit-font-smoothing:antialiased; }
+button { font:inherit; color:inherit; }
+svg.i { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; flex:none; display:block; }
+svg.i.s { width:14px; height:14px; } svg.i.xs { width:12px; height:12px; }
+.sp { flex:1; }
+:focus-visible { outline:2px solid var(--signal); outline-offset:1px; }
+
+/* ---------- window ---------- */
+.win { width:100vw; height:100vh; display:flex; flex-direction:column; }
+.tbar { flex:0 0 40px; display:flex; align-items:center; gap:8px; padding:0 10px 0 0; background:var(--panel); border-bottom:1px solid var(--rule); }
+.lights { display:flex; gap:8px; padding-left:14px; width:80px; flex:none; }
+.lights i { width:12px; height:12px; border-radius:50%; background:#FF5F57; display:block; }
+.lights i:nth-child(2) { background:#FEBC2E; } .lights i:nth-child(3) { background:#28C840; }
+.prid { display:flex; align-items:center; gap:8px; min-width:0; color:var(--ink-2); }
+.prid b { color:var(--ink); font-weight:600; }
+.prid .tt { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.modes { display:inline-flex; padding:2px; border-radius:8px; background:var(--panel-2); border:1px solid var(--rule); }
+.modes span { padding:3px 11px; border-radius:6px; color:var(--ink-2); white-space:nowrap; }
+.modes span.on { background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.12); }
+body.dark .modes span.on { background:#343B45; }
+.ib { all:unset; box-sizing:border-box; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:6px; color:var(--ink-2); flex:none; position:relative; }
+.ib:hover { background:var(--hover); color:var(--ink); }
+.ib[aria-pressed="true"] { background:var(--signal-soft); color:var(--ink); }
+.ib:focus-visible { outline:2px solid var(--signal); outline-offset:0; }
+.ib .bd { position:absolute; right:-3px; top:-3px; min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--new); color:var(--on-signal); font:700 9.5px/15px var(--ui); text-align:center; }
+.theme { display:inline-flex; padding:2px; border-radius:8px; background:var(--panel-2); border:1px solid var(--rule); }
+.theme button { all:unset; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; width:28px; height:22px; border-radius:6px; color:var(--ink-3); }
+.theme button[aria-pressed="true"] { background:var(--panel); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.14); }
+body.dark .theme button[aria-pressed="true"] { background:#343B45; }
+.theme button:focus-visible { outline:2px solid var(--signal); }
+.main { flex:1; display:flex; min-height:0; }
+.codecol { flex:1; display:flex; flex-direction:column; min-width:0; }
+.hbar { flex:0 0 34px; display:flex; align-items:center; gap:6px; padding:0 10px; background:var(--panel); border-bottom:1px solid var(--rule); color:var(--ink-2); white-space:nowrap; overflow:hidden; }
+.crumb { display:flex; align-items:center; gap:3px; color:var(--ink-3); min-width:0; overflow:hidden; }
+.crumb b { color:var(--ink); font-weight:600; }
+.stepper { display:inline-flex; align-items:center; gap:2px; color:var(--ink-2); }
+.stepper em { font-style:normal; font-variant-numeric:tabular-nums; padding:0 4px; }
+.vsep { width:1px; height:16px; background:var(--rule-2); margin:0 6px; flex:none; }
+.diffn { color:var(--ink-3); font-variant-numeric:tabular-nums; margin-left:6px; }
+.sbar { flex:0 0 24px; display:flex; align-items:center; gap:16px; padding:0 12px; background:var(--panel); border-top:1px solid var(--rule); color:var(--ink-3); font-size:11.5px; white-space:nowrap; overflow:hidden; }
+.sbar span { display:inline-flex; align-items:center; gap:5px; }
+.sbar button { all:unset; cursor:pointer; color:var(--ink-2); text-decoration:underline; text-decoration-color:var(--rule-2); text-underline-offset:2px; }
+
+/* ---------- code ---------- */
+.codewrap { flex:1; display:flex; min-height:0; }
+#code { flex:1; overflow:auto; background:var(--code); scrollbar-width:none; position:relative; }
+#code::-webkit-scrollbar { display:none; }
+#lines { font:12.5px/20px var(--mono); padding-top:8px; min-width:max-content; tab-size:4; -moz-tab-size:4; }
+.ln { display:flex; white-space:pre; height:20px; position:relative; }
+.ln .g { position:sticky; left:0; z-index:2; flex:0 0 52px; text-align:right; padding-right:8px; color:var(--lnum); background:var(--gutter); font-variant-numeric:tabular-nums; user-select:none; }
+.ln .m { position:sticky; left:52px; z-index:2; flex:0 0 24px; display:flex; align-items:center; justify-content:center; background:var(--gutter); border-right:1px solid var(--rule); }
+.ln .t { padding:0 24px 0 14px; flex:1; }
+.ln.add .t { background:var(--add); } .ln.add .g, .ln.add .m { background:var(--add-g); }
+.ln.hov .t { background:color-mix(in srgb, var(--route) 9%, var(--code)); }
+.ln.pick .t { background:var(--route-soft); }
+.ln.pick .g { color:var(--ink); font-weight:700; background:var(--route-soft); }
+.ln.pick .m { background:var(--route-soft); }
+.ln.pick .g { box-shadow:inset 3px 0 0 var(--route); }
+.k { color:var(--kw); } .fn { color:var(--fn); } .ty { color:var(--ty); } .str { color:var(--str); } .cm { color:var(--cm); font-style:italic; } .nu { color:var(--nm); } .pp { color:var(--pp); }
+
+/* gutter markers */
+.pin { all:unset; cursor:pointer; position:relative; width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:5px; }
+.pin:hover { background:var(--hover); }
+.pin:focus-visible { outline:2px solid var(--signal); }
+.pin .lm { width:14px; height:14px; }
+.pin.u::after { content:""; position:absolute; right:-1px; top:-1px; width:6px; height:6px; border-radius:50%; background:var(--new); box-shadow:0 0 0 1.5px var(--gutter); }
+.ln.add .pin.u::after { box-shadow:0 0 0 1.5px var(--add-g); }
+.pin.sel { box-shadow:0 0 0 2px var(--route); background:var(--panel); }
+.pin.dim { opacity:.5; }
+.pin .plainpin { width:12px; height:12px; border-radius:3px; border:1.5px solid var(--ink-3); background:color-mix(in srgb, var(--ink-3) 18%, var(--code)); }
+.pin .draftpin { width:13px; height:13px; border-radius:3px; border:1.5px dashed var(--ink-3); display:flex; align-items:center; justify-content:center; color:var(--ink-3); }
+.pin.flash { animation:flash .9s ease-out 1; }
+@keyframes flash { 0% { box-shadow:0 0 0 2px var(--route), 0 0 0 2px color-mix(in srgb, var(--route) 60%, transparent); } 100% { box-shadow:0 0 0 2px var(--route), 0 0 0 12px transparent; } }
+
+/* the scroll bar keeps a tick per thread */
+#ruler { flex:0 0 14px; position:relative; background:var(--side); border-left:1px solid var(--rule); cursor:pointer; }
+#ruler .hunk { position:absolute; left:0; width:3px; background:color-mix(in srgb, var(--ok) 45%, transparent); }
+#ruler .thumb { position:absolute; left:2px; right:2px; border-radius:4px; background:color-mix(in srgb, var(--ink) 16%, transparent); cursor:grab; }
+#ruler .thumb:hover, #ruler .thumb.drag { background:color-mix(in srgb, var(--ink) 26%, transparent); }
+#ruler .tk { all:unset; cursor:pointer; position:absolute; left:2px; right:2px; height:4px; margin-top:-2px; border-radius:2px; background:var(--ink-3); }
+#ruler .tk.u { background:var(--new); }
+#ruler .tk.dr { background:transparent; box-shadow:inset 0 0 0 1px var(--ink-3); }
+#ruler .tk.sel { background:var(--route); height:6px; margin-top:-3px; }
+#ruler .tk.res { opacity:.45; }
+
+/* ---------- drawer ---------- */
+#drawer { flex:none; display:flex; flex-direction:column; background:var(--drawer); border-left:1px solid var(--rule); position:relative; min-width:0; }
+#drawer[hidden] { display:none; }
+#grip { position:absolute; left:-3px; top:0; bottom:0; width:6px; cursor:col-resize; z-index:20; }
+#grip:hover, #grip.drag { background:color-mix(in srgb, var(--signal) 35%, transparent); }
+.dhead { flex:0 0 34px; display:flex; align-items:stretch; gap:2px; padding:0 6px 0 4px; background:var(--panel); border-bottom:1px solid var(--rule); }
+.tab { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:6px; padding:0 9px; color:var(--ink-2); font-weight:600; position:relative; white-space:nowrap; }
+.tab[aria-selected="true"] { color:var(--ink); }
+.tab[aria-selected="true"]::after { content:""; position:absolute; left:8px; right:8px; bottom:-1px; height:2px; border-radius:2px 2px 0 0; background:var(--signal); }
+.tab:focus-visible { outline:2px solid var(--signal); outline-offset:-4px; border-radius:6px; }
+.tab .cnt { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 5px; border-radius:8px; background:var(--new); color:var(--on-signal); font:700 10px/1 var(--ui); }
+.tab svg.i { display:none; } #drawer.narrow .tab svg.i { display:block; } #drawer.narrow .tab .tl { display:none; } #drawer.narrow .tab { padding:0 7px; }
+.dhead .tools { display:flex; align-items:center; gap:1px; margin-left:auto; }
+#dview { flex:1; position:relative; overflow:hidden; }
+#dlayer { position:absolute; left:0; right:0; top:0; will-change:transform; }
+.dpanel { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--ink-3); padding:24px; text-align:center; }
+.dpanel[hidden] { display:none; }
+.dpanel svg.i { width:28px; height:28px; stroke-width:1.4; }
+
+/* edges: threads above and below the visible code */
+.edge { position:absolute; left:0; right:0; z-index:10; display:flex; align-items:center; gap:4px; padding:0 8px; height:34px; pointer-events:none; }
+.edge.top { top:0; background:linear-gradient(var(--drawer) 55%, transparent); }
+.edge.bottom { bottom:0; background:linear-gradient(transparent, var(--drawer) 45%); }
+.edge[hidden] { display:none; }
+.ech { all:unset; pointer-events:auto; cursor:pointer; display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 7px 0 5px; border-radius:11px; background:var(--panel); border:1px solid var(--rule-2); color:var(--ink-2); font:600 11px/1 var(--ui); font-variant-numeric:tabular-nums; box-shadow:0 1px 3px rgba(0,0,0,.08); white-space:nowrap; }
+.ech:hover { border-color:var(--ink-3); color:var(--ink); }
+.ech:focus-visible { outline:2px solid var(--signal); }
+.ech .lm { width:14px; height:14px; }
+.ech .ud { width:6px; height:6px; border-radius:50%; background:var(--new); }
+.ech.dir { padding:0 6px; color:var(--ink-3); }
+.ech.more { padding:0 7px; }
+
+/* ---------- threads ---------- */
+.card { position:absolute; left:8px; right:8px; border-radius:8px; transition:top .16s ease; outline:none; }
+.card.closed { cursor:pointer; padding:6px 8px 7px 0; }
+.card.closed:hover, .card.closed.hov { background:var(--panel); box-shadow:0 0 0 1px var(--rule); }
+.card.closed:focus-visible { box-shadow:0 0 0 2px var(--signal); background:var(--panel); }
+.card.res.closed { opacity:.62; }
+.card.res.closed:hover { opacity:1; }
+.card.draft.closed { border:1.5px dashed var(--rule-2); padding:5px 7px 6px 0; }
+.card.open { background:var(--panel); box-shadow:var(--shadow), 0 0 0 1px var(--route-line); z-index:5; cursor:default; }
+.card.open::before { content:""; position:absolute; left:-1px; top:6px; bottom:6px; width:3px; border-radius:0 3px 3px 0; background:var(--route); }
+.card.open::after { content:""; position:absolute; left:-7px; top:var(--notch, 14px); border:6px solid transparent; border-right-color:var(--route); border-left:0; }
+.card.draft.open { box-shadow:var(--shadow), 0 0 0 1.5px var(--rule-2); }
+@media (prefers-reduced-motion: reduce) { .card { transition:none; } .pin.flash { animation:none; } }
+
+.ch { display:flex; align-items:center; gap:2px; height:34px; padding:0 4px 0 12px; border-bottom:1px solid var(--rule); cursor:pointer; }
+.ch .where { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 7px 0 5px; border-radius:6px; color:var(--ink-2); font:600 11.5px var(--mono); font-variant-numeric:tabular-nums; }
+.ch .where:hover { background:var(--hover); color:var(--ink); }
+.ch .where:focus-visible { outline:2px solid var(--signal); }
+.ch .state { display:inline-flex; align-items:center; gap:4px; color:var(--ink-3); font-size:11.5px; margin-left:4px; }
+.ch .state.ok { color:var(--ok); }
+
+.post { --t:var(--rule-2); position:relative; display:flex; gap:9px; padding:8px 10px 8px 12px; }
+.card.closed .post { padding:0 0 0 12px; }
+.post .rail { position:absolute; left:6px; top:3px; bottom:3px; width:2px; border-radius:1px; background:var(--t); }
+.card.open .post .rail { top:10px; bottom:6px; }
+.post.blk .rail { width:4px; left:4px; }
+.post.plain .rail { background:var(--rule-2); }
+.post.dash .rail { background:repeating-linear-gradient(var(--t) 0 6px, transparent 6px 9px); }
+.post .gut { flex:0 0 18px; display:flex; flex-direction:column; align-items:center; gap:3px; padding-top:1px; }
+.post .pb { flex:1; min-width:0; }
+.post .nm { display:flex; align-items:center; gap:7px; height:19px; }
+.post .nm b { font-weight:600; font-size:12.5px; }
+.post .nm time { color:var(--ink-3); font-size:11.5px; }
+.post .nm .meta { margin-left:auto; display:inline-flex; align-items:center; gap:6px; color:var(--ink-3); font-size:11.5px; font-variant-numeric:tabular-nums; }
+.post .tx { margin:1px 0 0; font-size:13px; line-height:1.5; color:var(--ink); overflow-wrap:anywhere; white-space:pre-wrap; }
+.post .tx code { font:11.5px var(--mono); padding:0 4px; border-radius:4px; background:var(--panel-2); border:1px solid var(--rule); }
+.post .tx .pfx { font-weight:600; color:var(--ink-2); }
+.card.closed .post .tx { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; white-space:normal; }
+.card.closed.res .post .tx { -webkit-line-clamp:1; }
+.post + .post { border-top:1px solid color-mix(in srgb, var(--rule) 60%, transparent); }
+.newl { display:flex; align-items:center; gap:8px; margin:2px 10px 0 39px; color:var(--new); font:700 10.5px var(--ui); }
+.newl::after { content:""; flex:1; height:1px; background:var(--new); opacity:.55; }
+.newl + .post { border-top:0; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--new); display:inline-block; flex:none; }
+.cnt2 { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 5px; border-radius:8px; background:var(--new); color:var(--on-signal); font:700 10px/1 var(--ui); }
+.okm { color:var(--ok); display:inline-flex; }
+.stack { display:inline-flex; } .stack .av { box-shadow:0 0 0 1.5px var(--drawer); } .stack .av + .av { margin-left:-5px; }
+.card.closed:hover .stack .av, .card.closed.hov .stack .av { box-shadow:0 0 0 1.5px var(--panel); }
+.reps { display:inline-flex; align-items:center; gap:3px; }
+.open-body { animation:reveal .14s ease-out 1; }
+@keyframes reveal { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { .open-body { animation:none; } }
+
+/* marks and avatars */
+.lm { width:16px; height:16px; flex:none; display:block; }
+.av { width:18px; height:18px; border-radius:50%; flex:none; display:inline-flex; align-items:center; justify-content:center; font:700 9.5px/1 var(--ui); color:var(--avk); background:var(--avb); }
+.av.xs { width:14px; height:14px; font-size:7.5px; }
+.av.me { box-shadow:0 0 0 1.5px var(--panel), 0 0 0 2.5px var(--ink-3); }
+
+/* composer */
+.comp { padding:8px 10px 10px 12px; border-top:1px solid var(--rule); }
+.cfb { all:unset; box-sizing:border-box; cursor:text; display:flex; align-items:center; gap:9px; width:100%; min-height:32px; padding:0 8px 0 9px; border-radius:7px; border:1px solid var(--rule-2); background:var(--code); color:var(--ink-3); }
+.cfb:hover { border-color:var(--ink-3); }
+.cfb:focus-visible { outline:2px solid var(--signal); }
+.kbd { font:600 10.5px var(--ui); color:var(--ink-3); padding:1px 5px; border-radius:4px; border:1px solid var(--rule-2); }
+.cf { display:flex; flex-direction:column; gap:7px; padding:8px 9px 8px; border-radius:7px; border:1px solid var(--signal); background:var(--code); box-shadow:0 0 0 3px color-mix(in srgb, var(--signal) 20%, transparent); }
+.cf textarea { all:unset; display:block; width:100%; min-height:54px; max-height:220px; overflow:auto; font:13px/1.5 var(--ui); color:var(--ink); white-space:pre-wrap; field-sizing:content; }
+.cf textarea::placeholder { color:var(--ink-3); }
+.crow { display:flex; align-items:center; gap:6px; }
+.chip { display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 8px 0 4px; border-radius:6px; background:var(--panel-2); border:1px solid var(--rule); font-weight:600; font-size:11.5px; color:var(--ink-2); white-space:nowrap; max-width:240px; overflow:hidden; text-overflow:ellipsis; }
+.chip.plain { padding-left:8px; }
+.btn { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 11px; border-radius:6px; font-weight:600; font-size:12px; color:var(--ink-2); }
+.btn:hover { background:var(--hover); color:var(--ink); }
+.btn.pri { background:var(--signal); color:var(--on-signal); }
+.btn.pri:hover { filter:brightness(1.07); }
+.btn.pri[disabled] { opacity:.45; cursor:default; filter:none; }
+.btn:focus-visible { outline:2px solid var(--signal); outline-offset:1px; }
+.priv { display:inline-flex; align-items:center; gap:5px; color:var(--ink-3); font-size:11.5px; }
+.dacts { display:flex; align-items:center; gap:4px; padding:4px 10px 10px 39px; }
+
+/* tooltip and toast */
+#tip { position:fixed; z-index:100; pointer-events:none; background:var(--tip); color:var(--tip-ink); font-size:11.5px; line-height:1.4; padding:4px 8px; border-radius:5px; max-width:340px; box-shadow:0 4px 14px rgba(0,0,0,.25); white-space:pre-line; }
+#tip[hidden] { display:none; }
+#toast { position:fixed; z-index:90; left:24px; bottom:36px; max-width:380px; padding:10px 12px; border-radius:9px; background:var(--tip); color:var(--tip-ink); font-size:12.5px; line-height:1.45; box-shadow:0 10px 30px rgba(0,0,0,.3); }
+#toast[hidden] { display:none; }
+</style>
+</head>
+<body>
+<div class="win">
+  <header class="tbar">
+    <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+    <button class="ib" data-tip="Home" data-act="noop"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/></svg></button>
+    <span class="prid"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M6 8.2v7.6"/><path d="M18 15.8V10a3 3 0 0 0-3-3h-4"/><path d="M12.5 4.5 10 7l2.5 2.5"/></svg><b>#418</b><span class="tt">Keep the selected conversation across a rebuild</span></span>
+    <span class="sp"></span>
+    <span class="modes" aria-label="Mode"><span>Overview</span><span class="on">Read</span><span>Review</span><span>Discuss</span></span>
+    <span class="sp"></span>
+    <span class="theme" role="group" aria-label="Theme"><button data-theme="light" aria-pressed="true" data-tip="Light"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></button><button data-theme="dark" aria-pressed="false" data-tip="Dark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/></svg></button></span>
+    <button class="ib" data-tip="Refresh" data-act="noop"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></svg></button>
+    <button class="ib" id="drawerToggle" aria-pressed="true" data-tip="Conversations drawer" data-act="drawer"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/></svg></button>
+    <button class="ib" data-tip="Account" data-act="noop"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/></svg></button>
+  </header>
+  <div class="main">
+    <div class="codecol">
+      <div class="hbar">
+        <button class="ib" data-tip="Files" data-act="noop"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h6l2 2h8v10H4z"/></svg></button><span class="vsep"></span>
+        <span class="crumb">src<span>/</span>adapters<span>/</span>qt<span>/</span>src<span>/</span><b>conversation_cards_view.cpp</b></span>
+        <span class="diffn" data-tip="Changed lines (illustrative)">+41 −12</span><span class="sp"></span>
+        <span class="stepper" data-tip="File 3 of 10"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6l-6 6 6 6"/><path d="M18 6l-6 6 6 6"/>', dright:'<path d="M6 6l6 6-6 6"/><path d="M12 6l6 6-6 6"/></svg><em>3 / 10</em><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l6 6-6 6"/><path d="M12 6l6 6-6 6"/></svg></span><span class="vsep"></span>
+        <span class="stepper" data-tip="Change 2 of 4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/>', right:'<path d="M9.5 6l6 6-6 6"/></svg><em>2 / 4</em><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></span>
+      </div>
+      <div class="codewrap">
+        <div id="code" tabindex="0" aria-label="conversation_cards_view.cpp"><div id="lines"></div></div>
+        <div id="ruler" aria-label="Scroll bar with a mark per thread"><div class="thumb"></div></div>
+      </div>
+    </div>
+    <aside id="drawer" style="width:375px" aria-label="Conversations drawer">
+      <div id="grip" role="separator" aria-orientation="vertical" aria-label="Drawer width" data-tip="Drag to resize"></div>
+      <div class="dhead">
+        <div role="tablist" style="display:flex;align-items:stretch">
+          <button class="tab" role="tab" aria-selected="true" data-tab="comments" id="tabComments">Comments<span class="cnt" id="newCount"></span></button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="notes" aria-label="Notes" data-tip="Notes"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/></svg><span class="tl">Notes</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="tour" aria-label="Tour" data-tip="Tour"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 17c6 0 2-9 8-10"/></svg><span class="tl">Tour</span></button>
+        </div>
+        <div class="tools" id="tools">
+          <button class="ib" id="fNew" aria-pressed="false" data-tip="Only threads with new replies" data-act="fnew"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="8.5"/></svg></button>
+          <button class="ib" id="fOpen" aria-pressed="false" data-tip="Hide resolved threads" data-act="fopen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8 16 16 8"/></svg></button>
+          <button class="ib" data-tip="Next new reply  N" data-act="next"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3" fill="currentColor" stroke="none"/><path d="M12 12.5v8M8.5 17l3.5 3.5 3.5-3.5"/></svg></button>
+          <button class="ib" data-tip="Find a conversation anywhere in the pull request&#10;(its own view: BPR-1293, not designed yet)" data-act="finder"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="12" cy="17" r="2"/><path d="M7 6h3M5 8v4a5 5 0 0 0 5 5"/><circle cx="18.5" cy="17.5" r="3"/><path d="M20.7 19.7 22.5 21.5"/></svg></button>
+        </div>
+      </div>
+      <div id="dview" role="list" aria-label="Threads in this file">
+        <div id="dlayer"></div>
+        <div class="edge top" id="above" hidden></div>
+        <div class="edge bottom" id="below" hidden></div>
+      </div>
+      <div class="dpanel" id="pNotes" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/></svg><div>Notes stay as they are.</div><div>Not part of this prototype.</div></div>
+      <div class="dpanel" id="pTour" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 17c6 0 2-9 8-10"/></svg><div>Tour stays as it is.</div><div>Not part of this prototype.</div></div>
+    </aside>
+  </div>
+  <footer class="sbar">
+    <span>Prototype of the inline drawer, BPR-1290. Threads are made up; the code is verbatim at fbbabb3ef.</span>
+    <span class="sp"></span>
+    <span id="sCount"></span>
+    <span><button data-act="prwide" data-tip="Pull request comments and review summaries that are not on a file&#10;(BPR-1294, open problem)">3 comments not on a file</button></span>
+  </footer>
+</div>
+<div id="tip" hidden></div>
+<div id="toast" hidden role="status"></div>
+<script>
+"use strict";
+const SRC = ["#include \"bpr/qt/conversation_cards_view.hpp\"", "", "#include \"bpr/qt/anchored_tooltip.hpp\"", "#include \"bpr/qt/appearance_profile.hpp\"", "", "#include <QContextMenuEvent>", "#include <QFont>", "#include <QFontMetrics>", "#include <QHelpEvent>", "#include <QKeyEvent>", "#include <QMenu>", "#include <QMouseEvent>", "#include <QPaintEvent>", "#include <QPainter>", "#include <QPalette>", "#include <QPen>", "#include <QResizeEvent>", "#include <QScrollBar>", "#include <QToolButton>", "", "#include <algorithm>", "#include <cstddef>", "#include <map>", "#include <optional>", "#include <set>", "#include <string>", "#include <string_view>", "#include <tuple>", "#include <unordered_map>", "#include <utility>", "#include <vector>", "", "namespace bpr::qt {", "\tnamespace {", "", "\t\tconstexpr int card_margin     = 8;", "\t\tconstexpr int card_padding    = 10;", "\t\tconstexpr int card_gap        = 8;", "\t\tconstexpr int avatar_size     = 18;", "\t\tconstexpr int avatar_column   = 26;", "\t\tconstexpr int post_gap        = 6;", "\t\tconstexpr int action_height   = 18;", "\t\tconstexpr int header_height   = 18;", "\t\tconstexpr int path_row_height = 20;", "\t\tconstexpr int excerpt_padding = 6;", "\t\t/// [[BPR-1083]]. A marked post is at least the avatar, the 3 px gap and", "\t\t/// the 16 px mark tall.", "\t\tconstexpr int mark_gap         = 3;", "\t\tconstexpr int marked_post_size = avatar_size + mark_gap + 16;", "\t\tconstexpr int rail_gap         = 3;", "\t\t/// A compact entry's root mark and the gap before its text.", "\t\tconstexpr int compact_mark_lead = 16 + 6;", "", "\t\t[[nodiscard]] auto mark_code(const card_post& aPost) -> int", "\t\t{", "\t\t\treturn aPost.Label.has_value() ? (static_cast<int>(*aPost.Label) * 8) + feedback_mark_emphasis_code(aPost.Emphasis) : -1;", "\t\t}", "", "\t\t/// \\brief Whether a compact entry leads with its root's mark.", "\t\t[[nodiscard]] auto compact_marked(const thread_card& aCard) -> bool", "\t\t{", "\t\t\treturn !aCard.Posts.empty() && aCard.Posts.front().Label.has_value();", "\t\t}", "", "\t\t/// \\brief Where a compact entry's text starts after its padding.", "\t\t[[nodiscard]] auto compact_lead(const thread_card& aCard) -> int", "\t\t{", "\t\t\treturn compact_marked(aCard) ? compact_mark_lead : 0;", "\t\t}", "", "\t\t[[nodiscard]] auto has_code_anchor(const thread_card& aCard) -> bool", "\t\t{", "\t\t\treturn !aCard.Path.isEmpty() && !aCard.Outdated && !aCard.AnchorUnavailable", "\t\t\t\t&& aCard.Side.has_value() && aCard.Line.has_value() && *aCard.Line > 0U;", "\t\t}", "", "\t\t[[nodiscard]] auto compact_label(const thread_card& aCard) -> QString", "\t\t{", "\t\t\tauto label = aCard.Draft ? QStringLiteral(\"Your unpublished draft\") : aCard.Kind;", "\t\t\tif (!aCard.Posts.empty()) {", "\t\t\t\tlabel += QStringLiteral(\" · @%1\").arg(aCard.Posts.front().Author);", "\t\t\t}", "\t\t\tlabel += QStringLiteral(\"\\n%1 posts · %2 unread\").arg(aCard.Posts.size()).arg(aCard.UnreadCount);", "\t\t\tif (aCard.Resolved) {", "\t\t\t\tlabel += QStringLiteral(\" · Resolved\");", "\t\t\t}", "\t\t\tif (aCard.Outdated) {", "\t\t\t\tlabel += QStringLiteral(\" · Outdated\");", "\t\t\t}", "\t\t\tif (aCard.AnchorUnavailable) {", "\t\t\t\tlabel += QStringLiteral(\"\\nCode anchor unavailable\");", "\t\t\t}", "\t\t\treturn label;", "\t\t}", "", "\t\t[[nodiscard]] auto text(const std::string& aValue) -> QString", "\t\t{", "\t\t\treturn QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size()));", "\t\t}", "", "\t\t[[nodiscard]] auto action_text(const card_action aAction) -> QString", "\t\t{", "\t\t\tswitch (aAction) {", "\t\t\tcase card_action::publish_draft:", "\t\t\t\treturn QStringLiteral(\"Publish\");", "\t\t\tcase card_action::edit_draft:", "\t\t\t\treturn QStringLiteral(\"Edit\");", "\t\t\tcase card_action::mark_read:", "\t\t\t\treturn QStringLiteral(\"Mark read\");", "\t\t\tcase card_action::reply:", "\t\t\t\treturn QStringLiteral(\"Reply\");", "\t\t\tcase card_action::open_in_code:", "\t\t\t\treturn QStringLiteral(\"Open in code\");", "\t\t\tcase card_action::resolve:", "\t\t\t\treturn QStringLiteral(\"Resolve\");", "\t\t\tcase card_action::unresolve:", "\t\t\t\treturn QStringLiteral(\"Unresolve\");", "\t\t\tcase card_action::defect:", "\t\t\t\treturn QStringLiteral(\"Defect actions\");", "\t\t\tcase card_action::delete_draft:", "\t\t\t\tbreak;", "\t\t\t}", "\t\t\treturn QStringLiteral(\"Delete\");", "\t\t}", "", "\t\t[[nodiscard]] auto small_font(const QFont& aFont) -> QFont", "\t\t{", "\t\t\tauto font = aFont;", "\t\t\tfont.setPointSizeF(font.pointSizeF() * 0.85);", "\t\t\treturn font;", "\t\t}", "", "\t\t[[nodiscard]] auto bold_font(const QFont& aFont) -> QFont", "\t\t{", "\t\t\tauto font = aFont;", "\t\t\tfont.setWeight(QFont::DemiBold);", "\t\t\treturn font;", "\t\t}", "", "\t\t[[nodiscard]] auto side_of(const application::github_conversation_projection& aNode)", "\t\t\t-> std::optional<core::diff_side>", "\t\t{", "\t\t\tif (!aNode.DiffSide.has_value()) {", "\t\t\t\treturn std::nullopt;", "\t\t\t}", "\t\t\tswitch (*aNode.DiffSide) {", "\t\t\tcase application::github_conversation_diff_side::left:", "\t\t\t\treturn core::diff_side::left;", "\t\t\tcase application::github_conversation_diff_side::right:", "\t\t\t\treturn core::diff_side::right;", "\t\t\t}", "\t\t\treturn std::nullopt;", "\t\t}", "\t} // namespace", "", "\tconversation_cards_view::conversation_cards_view(QWidget* const aParent)", "\t\t: QAbstractScrollArea{ aParent }", "\t\t, CodeFont{ to_presentation_font(default_typography_settings().Code) }", "\t{", "\t\tsetObjectName(QStringLiteral(\"conversationCards\"));", "\t\tMarkTheme = default_feedback_mark_theme(palette());", "\t\tsetAccessibleName(QStringLiteral(\"Comment cards\"));", "\t\tsetAccessibleDescription(QStringLiteral(", "\t\t\t\"This file's threads as cards at their lines; Up and Down move \"", "\t\t\t\"between them, Return reveals the line; Shift+F10 opens its thread actions\"));", "\t\tsetFocusPolicy(Qt::StrongFocus);", "\t\tsetHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);", "\t\tsetVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);", "\t\tviewport()->setAutoFillBackground(true);", "\t\tviewport()->setBackgroundRole(QPalette::Window);", "\t\tconnect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) {", "\t\t\tsync_badge_buttons();", "\t\t\tviewport()->update();", "\t\t});", "\t}", "", "\tvoid conversation_cards_view::set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder)", "\t{", "\t\tContextMenuBuilder = std::move(aBuilder);", "\t}", "", "\tvoid conversation_cards_view::set_defect_badges(defect_badges aBadges)", "\t{", "\t\tif (DefectBadges == aBadges) {", "\t\t\treturn;", "\t\t}", "\t\tDefectBadges = std::move(aBadges);", "\t\trelayout();", "\t}", "", "\tauto conversation_cards_view::thread_menu(const std::string& aIdentity) -> QMenu*", "\t{", "\t\tconst auto at = std::ranges::find(Cards, aIdentity, &thread_card::Id);", "\t\tif (at == Cards.end() || at->Draft) {", "\t\t\treturn nullptr;", "\t\t}", "\t\t// Selection can rebuild Cards; retain this exact card across the dispatch.", "\t\tconst auto card = *at; // NOLINT(performance-unnecessary-copy-initialization)", "\t\tchoose(static_cast<std::size_t>(std::distance(Cards.begin(), at)), false);", "\t\tauto* menu = new QMenu{ this };", "\t\tmenu->setObjectName(QStringLiteral(\"threadContextMenu\"));", "\t\tmenu->setToolTipsVisible(true);", "\t\tmenu->setAttribute(Qt::WA_DeleteOnClose);", "\t\tconst auto add = [this, menu, identity = card.Id](card_action aKind, bool aEnabled, const QString& aReason) {", "\t\t\tauto* action = menu->addAction(action_text(aKind));", "\t\t\taction->setEnabled(aEnabled && static_cast<bool>(ActionDispatch));", "\t\t\taction->setToolTip(aEnabled ? action->text() : aReason);", "\t\t\tconnect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });", "\t\t};", "\t\tadd(card_action::reply, has_code_anchor(card), tr(\"This thread has no current code anchor. Open its current comparison before replying.\"));", "\t\tadd(card_action::mark_read, card.UnreadCount > 0U, tr(\"This thread has no unread posts.\"));", "\t\tadd(card.Resolved ? card_action::unresolve : card_action::resolve, ResolutionOffered && card.Kind == QStringLiteral(\"Inline thread\"), tr(\"Thread resolution is not available for this conversation.\"));", "\t\tadd(card_action::open_in_code, has_code_anchor(card), tr(\"This thread's code anchor is unavailable.\"));", "\t\tif (ContextMenuBuilder) {", "\t\t\tmenu->addSeparator();", "\t\t\tContextMenuBuilder(*menu, card.Id);", "\t\t}", "\t\treturn menu;", "\t}", "", "\tvoid conversation_cards_view::show_thread_menu(const std::string& aIdentity, QPoint aGlobalPosition)", "\t{", "\t\tif (auto* menu = thread_menu(aIdentity)) {", "\t\t\tmenu->popup(aGlobalPosition.isNull() ? viewport()->mapToGlobal(viewport()->rect().center()) : aGlobalPosition);", "\t\t}", "\t}", "", "\tvoid conversation_cards_view::contextMenuEvent(QContextMenuEvent* aEvent)", "\t{", "\t\tif (aEvent->reason() == QContextMenuEvent::Keyboard) {", "\t\t\tshow_thread_menu(Current);", "\t\t} else if (const auto hit = hit_test(aEvent->pos())) {", "\t\t\tconst auto identity = Cards[hit->first].Id;", "\t\t\tshow_thread_menu(identity, aEvent->globalPos());", "\t\t}", "\t\taEvent->accept();", "\t}", "", "\tvoid conversation_cards_view::sync_badge_buttons()", "\t{", "\t\tauto used = std::size_t{ 0 };", "\t\tfor (const auto& card : Cards) {", "\t\t\tif (card.DefectBadge.isEmpty()) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tconst auto badge = std::ranges::find(card.Actions, card_action::defect, &std::pair<card_action, QRect>::first);", "\t\t\tif (badge == card.Actions.end()) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tconst auto rect = badge->second.translated(0, -verticalScrollBar()->value());", "\t\t\tif (!rect.intersects(viewport()->rect())) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tif (used == BadgeButtons.size()) {", "\t\t\t\tauto* button = new QToolButton{ viewport() };", "\t\t\t\tbutton->setObjectName(QStringLiteral(\"threadDefectBadge\"));", "\t\t\t\tbutton->setFocusPolicy(Qt::StrongFocus);", "\t\t\t\tconnect(button, &QToolButton::clicked, this, [this, button] {", "\t\t\t\t\tshow_thread_menu(button->property(\"threadIdentity\").toString().toStdString(), button->mapToGlobal(QPoint{ 0, button->height() }));", "\t\t\t\t});", "\t\t\t\tBadgeButtons.push_back(button);", "\t\t\t}", "\t\t\tauto* button = BadgeButtons[used++];", "\t\t\tbutton->setProperty(\"threadIdentity\", QString::fromStdString(card.Id));", "\t\t\tbutton->setText(button->fontMetrics().elidedText(card.DefectBadge, Qt::ElideRight, std::max(1, rect.width() - 18)));", "\t\t\tbutton->setAccessibleName(card.DefectBadge);", "\t\t\tbutton->setAccessibleDescription(card.DefectDescription);", "\t\t\tbutton->setToolTip(card.DefectDescription);", "\t\t\tbutton->setGeometry(rect);", "\t\t\tbutton->show();", "\t\t}", "\t\tfor (; used < BadgeButtons.size(); ++used) {", "\t\t\tBadgeButtons[used]->hide();", "\t\t}", "\t}", "", "\tvoid conversation_cards_view::adopt(", "\t\tconst std::vector<application::github_conversation_projection>& aConversations)", "\t{", "\t\tadopt(aConversations, AnchorFile);", "\t}", "", "\tvoid conversation_cards_view::adopt(", "\t\tconst std::vector<application::github_conversation_projection>& aConversations,", "\t\tstd::optional<core::file_identity>                              aFile)", "\t{", "\t\tif (Retained == aConversations && AnchorFile == aFile) {", "\t\t\treturn;", "\t\t}", "\t\tif (Retained != aConversations) {", "\t\t\t// A changed snapshot need not change any text. Retain rectangles only", "\t\t\t// for still-present roots; each use validates exact measurement inputs.", "\t\t\tauto roots = std::set<std::string>{ };", "\t\t\tfor (const auto& node : aConversations) {", "\t\t\t\tif (node.Kind == application::github_conversation_kind::review_thread && !node.ParentId.has_value()) {", "\t\t\t\t\troots.insert(node.Id);", "\t\t\t\t}", "\t\t\t}", "\t\t\tforget_measurements_if([&roots, this](const std::string& aId) {", "\t\t\t\treturn !roots.contains(aId) && !(aId.empty() && Draft.has_value());", "\t\t\t});", "\t\t\tRetained = aConversations;", "\t\t\tindex_retained();", "\t\t}", "\t\tAnchorFile = std::move(aFile);", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::clear()", "\t{", "\t\tclear_measurements();", "\t\tRetained.clear();", "\t\tindex_retained();", "\t\tDraft.reset();", "\t\tCurrent.clear();", "\t\tReadState.clear();", "\t\tReadStateByThread.clear();", "\t\tReadStateKnown = false;", "\t\tUnreadThreads.reset();", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::index_retained()", "\t{", "\t\tUnreadThreads.reset();", "\t\tRetainedFiles.clear();", "\t\tRetainedById.clear();", "\t\tRetainedRoot.clear();", "\t\tRetainedDepth.clear();", "\t\tRetainedByFile.clear();", "\t\tRetainedMarks.clear();", "\t\tRetainedMarks.reserve(Retained.size());", "\t\tRetainedFiles.reserve(Retained.size());", "\t\tRetainedById.reserve(Retained.size());", "\t\tfor (std::size_t index = 0U; index < Retained.size(); ++index) {", "\t\t\tRetainedFiles.push_back(core::file_identity_of(Retained[index].Path));", "\t\t\t// [[BPR-1083]]. Marks follow the accepted body; an unchanged forest", "\t\t\t// is not read again by a relayout.", "\t\t\tRetainedMarks.push_back(feedback_body_mark_of(Retained[index].ReviewerProse.value_or(Retained[index].Body)));", "\t\t\t// The first node with an identity answers for it.", "\t\t\tRetainedById.emplace(Retained[index].Id, index);", "\t\t}", "\t\t// A root is the topmost retained ancestor: a parent that is not", "\t\t// retained makes its child a root, and the walk is bounded by the", "\t\t// node count so no cycle can spin.", "\t\tRetainedRoot.reserve(Retained.size());", "\t\tRetainedDepth.reserve(Retained.size());", "\t\tRetainedByFile.reserve(Retained.size());", "\t\tfor (std::size_t index = 0U; index < Retained.size(); ++index) {", "\t\t\tauto current = index;", "\t\t\tauto depth   = std::size_t{ 0U };", "\t\t\twhile (Retained[current].ParentId.has_value() && depth < RetainedById.size()) {", "\t\t\t\tconst auto parent = RetainedById.find(*Retained[current].ParentId);", "\t\t\t\tif (parent == RetainedById.end()) {", "\t\t\t\t\tbreak;", "\t\t\t\t}", "\t\t\t\tcurrent = parent->second;", "\t\t\t\t++depth;", "\t\t\t}", "\t\t\tRetainedRoot.push_back(current);", "\t\t\tRetainedDepth.push_back(depth);", "\t\t\tRetainedByFile.emplace_back(RetainedFiles[current], index);", "\t\t}", "\t\tstd::ranges::sort(RetainedByFile);", "\t}", "", "\tvoid conversation_cards_view::set_scope(const cards_scope aScope)", "\t{", "\t\tif (Scope == aScope) {", "\t\t\treturn;", "\t\t}", "\t\tScope = aScope;", "\t\trelayout();", "\t}", "", "\tauto conversation_cards_view::scope() const noexcept -> cards_scope", "\t{", "\t\treturn Scope;", "\t}", "", "\tvoid conversation_cards_view::set_anchor_file(std::optional<core::file_identity> aFile)", "\t{", "\t\tif (AnchorFile == aFile) {", "\t\t\treturn;", "\t\t}", "\t\tAnchorFile = std::move(aFile);", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::set_line_locator(card_line_locator aLocator)", "\t{", "\t\tLocator = std::move(aLocator);", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::set_draft(", "\t\tstd::optional<core::review_comment_draft>   aDraft,", "\t\tstd::optional<core::file_comparison_digest> aCurrentComparison)", "\t{", "\t\tif (Draft == aDraft && CurrentComparison == aCurrentComparison) {", "\t\t\treturn;", "\t\t}", "\t\tif (!aDraft.has_value()) {", "\t\t\tforget_measurements_if([](const std::string& aId) { return aId.empty(); });", "\t\t}", "\t\tDraft             = std::move(aDraft);", "\t\tCurrentComparison = std::move(aCurrentComparison);", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::set_viewer_login(const QString& aLogin)", "\t{", "\t\tif (Viewer == aLogin) {", "\t\t\treturn;", "\t\t}", "\t\tViewer = aLogin;", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::set_thread_dispatch(card_thread_dispatch aDispatch)", "\t{", "\t\tThreadDispatch = std::move(aDispatch);", "\t}", "", "\tvoid conversation_cards_view::set_action_dispatch(card_action_dispatch aDispatch)", "\t{", "\t\tActionDispatch = std::move(aDispatch);", "\t}", "", "\tvoid conversation_cards_view::set_feed(const bool aFeed)", "\t{", "\t\tif (Feed == aFeed) {", "\t\t\treturn;", "\t\t}", "\t\tFeed = aFeed;", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::set_compact(const bool aCompact)", "\t{", "\t\tif (Compact == aCompact) {", "\t\t\treturn;", "\t\t}", "\t\tCompact = aCompact;", "\t\tclear_measurements();", "\t\trelayout();", "\t}", "", "\tauto conversation_cards_view::feed() const noexcept -> bool", "\t{", "\t\treturn Feed;", "\t}", "", "\tvoid conversation_cards_view::set_filters(const discuss_filters aFilters)", "\t{", "\t\tif (Filters == aFilters) {", "\t\t\treturn;", "\t\t}", "\t\tFilters = aFilters;", "\t\trelayout();", "\t}", "", "\tauto conversation_cards_view::filters() const noexcept -> discuss_filters", "\t{", "\t\treturn Filters;", "\t}", "", "\tvoid conversation_cards_view::set_resolution_offered(const bool aOffered)", "\t{", "\t\tif (ResolutionOffered == aOffered) {", "\t\t\treturn;", "\t\t}", "\t\tResolutionOffered = aOffered;", "\t\trelayout();", "\t}", "", "\tauto conversation_cards_view::resolution_offered() const noexcept -> bool", "\t{", "\t\treturn ResolutionOffered;", "\t}", "", "\tvoid conversation_cards_view::set_pull_request_author(const QString& aLogin)", "\t{", "\t\tif (PullRequestAuthor == aLogin) {", "\t\t\treturn;", "\t\t}", "\t\tPullRequestAuthor = aLogin;", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::set_excerpt_locator(card_excerpt_locator aLocator)", "\t{", "\t\tExcerptLocator = std::move(aLocator);", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::set_layout_observer(std::function<void()> aObserver)", "\t{", "\t\tLayoutObserver = std::move(aObserver);", "\t}", "", "\tauto conversation_cards_view::thread_count() const noexcept -> std::size_t", "\t{", "\t\tauto count = std::size_t{ 0U };", "\t\tfor (const auto& card : Cards) {", "\t\t\tcount += card.Draft ? 0U : 1U;", "\t\t}", "\t\treturn count;", "\t}", "", "\tauto conversation_cards_view::unresolved_count() const noexcept -> std::size_t", "\t{", "\t\tauto count = std::size_t{ 0U };", "\t\tfor (const auto& card : Cards) {", "\t\t\tcount += !card.Draft && !card.Resolved && (!Compact || card.Kind == QStringLiteral(\"Inline thread\")) ? 1U : 0U;", "\t\t}", "\t\treturn count;", "\t}", "", "\tauto conversation_cards_view::unread_thread_count() const noexcept -> std::size_t", "\t{", "\t\tauto count = std::size_t{ 0U };", "\t\tfor (const auto& card : Cards) {", "\t\t\tcount += card.UnreadCount > 0U ? 1U : 0U;", "\t\t}", "\t\treturn count;", "\t}", "", "\tvoid conversation_cards_view::set_code_font(const QFont& aFont)", "\t{", "\t\tif (CodeFont == aFont) {", "\t\t\treturn;", "\t\t}", "\t\tCodeFont = aFont;", "\t\tclear_measurements();", "\t\trelayout();", "\t}", "", "\tauto conversation_cards_view::code_font() const -> const QFont&", "\t{", "\t\treturn CodeFont;", "\t}", "", "\tvoid conversation_cards_view::set_code_colours(const QColor& aBackground, const QColor& aInk)", "\t{", "\t\tCodeBackground = aBackground;", "\t\tCodeInk        = aInk;", "\t\tviewport()->update();", "\t}", "", "\tvoid conversation_cards_view::set_read_state(std::vector<thread_read_state> aState)", "\t{", "\t\tif (ReadStateKnown && ReadState == aState) {", "\t\t\treturn;", "\t\t}", "\t\tReadState      = std::move(aState);", "\t\tReadStateKnown = true;", "\t\tReadStateByThread.clear();", "\t\tReadStateByThread.reserve(ReadState.size());", "\t\tfor (std::size_t index = 0U; index < ReadState.size(); ++index) {", "\t\t\t// The first state recorded for a thread answers for it.", "\t\t\tReadStateByThread.emplace(ReadState[index].Thread, index);", "\t\t}", "\t\tUnreadThreads.reset();", "\t\trelayout();", "\t}", "", "\tauto conversation_cards_view::set_thread_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)", "\t\t-> std::vector<std::string>", "\t{", "\t\tauto previous = std::vector<std::string>{ };", "\t\tif (const auto found = ReadStateByThread.find(aThread); found != ReadStateByThread.end()) {", "\t\t\tprevious = ReadState[found->second].UnreadPosts;", "\t\t\tif (ReadStateKnown && previous == aUnreadPosts) {", "\t\t\t\treturn previous;", "\t\t\t}", "\t\t\tReadState[found->second].UnreadPosts = std::move(aUnreadPosts);", "\t\t} else {", "\t\t\tif (ReadStateKnown && aUnreadPosts.empty()) {", "\t\t\t\treturn previous;", "\t\t\t}", "\t\t\tReadState.push_back(thread_read_state{ .Thread = aThread, .UnreadPosts = std::move(aUnreadPosts) });", "\t\t\tReadStateByThread.emplace(aThread, ReadState.size() - 1U);", "\t\t}", "\t\tReadStateKnown     = true;", "\t\tconst auto& now    = ReadState[ReadStateByThread.at(aThread)].UnreadPosts;", "\t\tconst auto  wasNew = !previous.empty();", "\t\tif (UnreadThreads.has_value() && wasNew && now.empty()) {", "\t\t\tstd::erase(*UnreadThreads, aThread);", "\t\t} else if (wasNew != !now.empty()) {", "\t\t\t// A thread becoming unread takes its place in file order when the", "\t\t\t// list is next asked for.", "\t\t\tUnreadThreads.reset();", "\t\t}", "\t\tif (std::ranges::any_of(Cards, [&aThread](const thread_card& aCard) { return aCard.Id == aThread; })) {", "\t\t\trelayout();", "\t\t}", "\t\treturn previous;", "\t}", "", "\tauto conversation_cards_view::unread_threads_in_file_order() const -> const std::vector<std::string>&", "\t{", "\t\tif (UnreadThreads.has_value()) {", "\t\t\treturn *UnreadThreads;", "\t\t}", "\t\t// Every thread of the pull request, whatever the scope shows, so the", "\t\t// strip's next new comment walks the whole review in file order.", "\t\tauto threads = std::vector<const application::github_conversation_projection*>{ };", "\t\tfor (const auto& node : Retained) {", "\t\t\tif (node.Kind != application::github_conversation_kind::review_thread", "\t\t\t\t|| node.ParentId.has_value()) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tconst auto state = ReadStateByThread.find(node.Id);", "\t\t\tif (state != ReadStateByThread.end() && !ReadState[state->second].UnreadPosts.empty()) {", "\t\t\t\tthreads.push_back(&node);", "\t\t\t}", "\t\t}", "\t\tstd::ranges::stable_sort(threads, [](const auto* aLeft, const auto* aRight) {", "\t\t\treturn std::pair{ aLeft->Path, aLeft->Line.value_or(0U) }", "\t\t\t< std::pair{ aRight->Path, aRight->Line.value_or(0U) };", "\t\t});", "\t\tauto ids = std::vector<std::string>{ };", "\t\tids.reserve(threads.size());", "\t\tfor (const auto* thread : threads) {", "\t\t\tids.push_back(thread->Id);", "\t\t}", "\t\tUnreadThreads = std::move(ids);", "\t\treturn *UnreadThreads;", "\t}", "", "\tauto conversation_cards_view::unread_marked_lines(const core::diff_side aSide) const", "\t\t-> std::vector<std::uint32_t>", "\t{", "\t\tauto lines = std::vector<std::uint32_t>{ };", "\t\tfor (const auto& card : Cards) {", "\t\t\tif (!card.Draft && card.RootUnread && card.Side == aSide && card.Line.has_value()", "\t\t\t\t&& *card.Line > 0U) {", "\t\t\t\tlines.push_back(*card.Line - 1U);", "\t\t\t}", "\t\t}", "\t\tstd::ranges::sort(lines);", "\t\tlines.erase(std::ranges::unique(lines).begin(), lines.end());", "\t\treturn lines;", "\t}", "", "\tauto conversation_cards_view::unread_post_count() const noexcept -> std::size_t", "\t{", "\t\tauto count = std::size_t{ 0U };", "\t\tfor (const auto& card : Cards) {", "\t\t\tcount += card.UnreadCount;", "\t\t}", "\t\treturn count;", "\t}", "", "\tvoid conversation_cards_view::set_current_thread(const std::string& aId)", "\t{", "\t\t// A reply's identity names its card: the tree may be on a reply.", "\t\tCurrent = aId;", "\t\tfor (const auto& card : Cards) {", "\t\t\tif (card.Draft) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tif (card.Id == aId) {", "\t\t\t\tbreak;", "\t\t\t}", "\t\t\tif (std::ranges::any_of(card.Posts, [&aId](const card_post& aPost) { return aPost.Id == aId; })) {", "\t\t\t\tCurrent = card.Id;", "\t\t\t\tbreak;", "\t\t\t}", "\t\t}", "\t\tviewport()->update();", "\t}", "", "\tvoid conversation_cards_view::set_colours(const QColor& aAccent, const QColor& aMarker)", "\t{", "\t\tAccent = aAccent;", "\t\tMarker = aMarker;", "\t\tviewport()->update();", "\t}", "", "\tauto conversation_cards_view::cards() const noexcept -> const std::vector<thread_card>&", "\t{", "\t\treturn Cards;", "\t}", "", "\tauto conversation_cards_view::current_thread() const noexcept -> const std::string&", "\t{", "\t\treturn Current;", "\t}", "", "\tauto conversation_cards_view::layout_nodes_visited() const noexcept -> std::uint64_t", "\t{", "\t\treturn LayoutNodesVisited;", "\t}", "", "\tauto conversation_cards_view::layouts() const noexcept -> std::uint64_t", "\t{", "\t\treturn Layouts;", "\t}", "", "\tauto conversation_cards_view::post_count() const noexcept -> std::size_t", "\t{", "\t\tauto count = std::size_t{ 0U };", "\t\tfor (const auto& card : Cards) {", "\t\t\tcount += card.Draft ? 0U : card.Posts.size();", "\t\t}", "\t\treturn count;", "\t}", "", "\tauto conversation_cards_view::marked_lines(const core::diff_side aSide) const", "\t\t-> std::vector<std::uint32_t>", "\t{", "\t\tauto lines = std::vector<std::uint32_t>{ };", "\t\tfor (const auto& card : Cards) {", "\t\t\tif (!card.Draft && card.Side == aSide && card.Line.has_value() && *card.Line > 0U) {", "\t\t\t\tlines.push_back(*card.Line - 1U);", "\t\t\t}", "\t\t}", "\t\tstd::ranges::sort(lines);", "\t\tlines.erase(std::ranges::unique(lines).begin(), lines.end());", "\t\treturn lines;", "\t}", "", "\tauto conversation_cards_view::to_content(const QPoint aViewportPoint) const -> QPoint", "\t{", "\t\treturn { aViewportPoint.x(), aViewportPoint.y() + verticalScrollBar()->value() };", "\t}", "", "\tauto conversation_cards_view::to_viewport(const QRect aContentRect) const -> QRect", "\t{", "\t\treturn aContentRect.translated(0, -verticalScrollBar()->value());", "\t}", "", "\tauto conversation_cards_view::hit_test(const QPoint aViewportPoint) const", "\t\t-> std::optional<std::pair<std::size_t, std::optional<card_action>>>", "\t{", "\t\tconst auto point = to_content(aViewportPoint);", "\t\tfor (std::size_t index = 0U; index < Cards.size(); ++index) {", "\t\t\tconst auto& card = Cards[index];", "\t\t\tif (!card.Rect.contains(point)) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tfor (const auto& [action, rect] : card.Actions) {", "\t\t\t\tif (rect.contains(point)) {", "\t\t\t\t\treturn std::pair{ index, std::optional{ action } };", "\t\t\t\t}", "\t\t\t}", "\t\t\treturn std::pair{ index, std::optional<card_action>{ } };", "\t\t}", "\t\treturn std::nullopt;", "\t}", "", "\tvoid conversation_cards_view::measure(thread_card& aCard, const int aWidth) const", "\t{", "\t\tconst auto metrics   = QFontMetrics{ font() };", "\t\tconst auto bodyWidth = std::max(40, aWidth - 2 * card_padding - avatar_column);", "\t\tauto       y         = card_padding;", "\t\tif (Compact) {", "\t\t\tconst auto text = metrics.boundingRect(QRect{ 0, 0, std::max(1, aWidth - 2 * card_padding - compact_lead(aCard)), 100'000 }, Qt::TextWordWrap | Qt::TextWrapAnywhere, compact_label(aCard)).height();", "\t\t\ty += std::max(text, compact_marked(aCard) ? 16 : 0) + post_gap;", "\t\t}", "\t\tif (!Compact && (aCard.Resolved || aCard.Outdated || aCard.Draft)) {", "\t\t\ty += header_height;", "\t\t}", "\t\t// [[BPR-0649]]. The code at the thread's line, one line each side,", "\t\t// in the code font on the code background.", "\t\tif (!Compact && Feed && !aCard.Excerpt.isEmpty()) {", "\t\t\tconst auto lines = static_cast<int>(aCard.Excerpt.count(QLatin1Char{ '\\n' })) + 1;", "\t\t\ty += lines * QFontMetrics{ CodeFont }.height() + 2 * excerpt_padding + post_gap;", "\t\t}", "\t\tfor (auto& post : aCard.Posts) {", "\t\t\tif (Compact) {", "\t\t\t\tpost.Rect = { };", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\t// In the feed the header line carries role and \"replying to\"", "\t\t\t// beside the author; the small font keeps it on one line.", "\t\t\tconst auto authorHeight = metrics.height();", "\t\t\tconst auto bodyHeight   = post.Body.isEmpty()", "\t\t\t\t? 0", "\t\t\t\t: metrics.boundingRect(QRect{ 0, 0, bodyWidth, 100'000 }, Qt::TextWordWrap, post.Body).height();", "\t\t\tconst auto height       = std::max(post.Label.has_value() ? marked_post_size : avatar_size, authorHeight + bodyHeight + 2);", "\t\t\tpost.Rect               = QRect{ card_padding, y, aWidth - 2 * card_padding, height };", "\t\t\ty += height + post_gap;", "\t\t}", "\t\taCard.Actions.clear();", "\t\tauto actionX = card_padding + avatar_column;", "\t\tauto actions = aCard.Draft", "\t\t\t? std::vector{ card_action::publish_draft, card_action::edit_draft, card_action::delete_draft }", "\t\t\t: std::vector{ card_action::reply };", "\t\tif (!aCard.Draft && Compact && !has_code_anchor(aCard)) {", "\t\t\tactions.clear();", "\t\t}", "\t\tif (!aCard.Draft && aCard.UnreadCount > 0U) {", "\t\t\tactions.push_back(card_action::mark_read);", "\t\t}", "\t\t// [[BPR-0657]]. Resolve, or Unresolve on a resolved thread, once the", "\t\t// provider and the server both resolve threads.", "\t\tif (!aCard.Draft && ResolutionOffered && (!Compact || aCard.Kind == QStringLiteral(\"Inline thread\"))) {", "\t\t\tactions.push_back(aCard.Resolved ? card_action::unresolve : card_action::resolve);", "\t\t}", "\t\tif (!aCard.Draft && Feed && (!Compact || has_code_anchor(aCard))) {", "\t\t\tactions.push_back(card_action::open_in_code);", "\t\t}", "\t\tconst auto actionMetrics = QFontMetrics{ small_font(font()) };", "\t\tconst auto actionRight   = aWidth - card_padding;", "\t\tfor (const auto action : actions) {", "\t\t\tconst auto width = actionMetrics.horizontalAdvance(action_text(action)) + 4;", "\t\t\t// A second action that does not fit beside the first starts a", "\t\t\t// new row inside the card rather than leaving it.", "\t\t\tif (actionX + width > actionRight && actionX > card_padding + avatar_column) {", "\t\t\t\tactionX = card_padding + avatar_column;", "\t\t\t\ty += action_height + 2;", "\t\t\t}", "\t\t\taCard.Actions.emplace_back(action, QRect{ actionX, y, width, action_height });", "\t\t\tactionX += width + 12;", "\t\t}", "\t\ty += action_height + card_padding;", "\t\tif (!aCard.DefectBadge.isEmpty()) {", "\t\t\taCard.Actions.emplace_back(card_action::defect, QRect{ card_padding, y, aWidth - 2 * card_padding, 28 });", "\t\t\ty += 28 + card_padding;", "\t\t}", "\t\taCard.Rect.setHeight(y);", "\t}", "", "\tauto conversation_cards_view::card_height(const thread_card& aCard, const int aWidth) const -> int", "\t{", "\t\tauto copy = aCard;", "\t\tmeasure(copy, aWidth);", "\t\treturn copy.Rect.height();", "\t}", "", "\tauto conversation_cards_view::measurements() const noexcept -> std::uint64_t", "\t{", "\t\treturn MeasurementCount;", "\t}", "", "\tvoid conversation_cards_view::clear_measurements()", "\t{", "\t\tMeasurements         = { };", "\t\tPreviousMeasurements = { };", "\t}", "", "\tvoid conversation_cards_view::forget_measurements_if(", "\t\tconst std::function<bool(const std::string&)>& aForget)", "\t{", "\t\tfor (auto* const generation : { &Measurements, &PreviousMeasurements }) {", "\t\t\tstd::erase_if(generation->Cards, [&aForget](const auto& aEntry) { return aForget(aEntry.first); });", "\t\t}", "\t}", "", "\tvoid conversation_cards_view::measure_cached(thread_card& aCard, const int aWidth, compact_measurements* aCompact)", "\t{", "\t\tif (MeasurementFont != font() || MeasurementFeed != Feed", "\t\t\t|| MeasurementResolutionOffered != ResolutionOffered) {", "\t\t\tclear_measurements();", "\t\t\tMeasurementFont              = font();", "\t\t\tMeasurementFeed              = Feed;", "\t\t\tMeasurementResolutionOffered = ResolutionOffered;", "\t\t}", "\t\tif (Measurements.Width != aWidth) {", "\t\t\t// The other width is kept rather than discarded, so a layout that", "\t\t\t// returns to it finds its cards already measured.", "\t\t\tstd::swap(Measurements, PreviousMeasurements);", "\t\t\tif (Measurements.Width != aWidth) {", "\t\t\t\tMeasurements = measurement_generation{ .Width = aWidth };", "\t\t\t}", "\t\t}", "\t\tconst auto cached = Measurements.Cards.find(aCard.Id);", "\t\tconst auto header = aCard.Resolved || aCard.Outdated || aCard.Draft;", "\t\tconst auto label  = (Compact ? compact_label(aCard) : QString{ }) + QChar{ 0x1f } + aCard.DefectBadge;", "\t\tif (cached != Measurements.Cards.end() && cached->second.Excerpt == aCard.Excerpt", "\t\t\t&& cached->second.Label == label", "\t\t\t&& cached->second.AnchorAvailable == has_code_anchor(aCard)", "\t\t\t&& cached->second.Header == header && cached->second.Draft == aCard.Draft", "\t\t\t&& cached->second.Resolved == aCard.Resolved && cached->second.Unread == (aCard.UnreadCount > 0U)", "\t\t\t&& std::ranges::equal(cached->second.Bodies, aCard.Posts, { }, std::identity{ }, &card_post::Body)", "\t\t\t&& std::ranges::equal(cached->second.Marks, aCard.Posts, { }, std::identity{ }, mark_code)) {", "\t\t\taCard.Rect.setHeight(cached->second.Height);", "\t\t\tfor (std::size_t index = 0U; index < aCard.Posts.size(); ++index) {", "\t\t\t\taCard.Posts[index].Rect = cached->second.Posts[index];", "\t\t\t}", "\t\t\taCard.Actions = cached->second.Actions;", "\t\t\treturn;", "\t\t}", "\t\t// During one layout font, width and action policy are fixed. Compact", "\t\t// geometry depends on its complete label and action flags; the body is", "\t\t// hidden. Keep source, identity and unread facts on each card. Include", "\t\t// flags explicitly: provider-authored text can mimic a label's suffix.", "\t\tif (Compact && aCompact) {", "\t\t\tconst auto [found, inserted] = aCompact->try_emplace({ label, has_code_anchor(aCard), aCard.Draft,", "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t   aCard.Resolved, aCard.UnreadCount > 0U, aCard.Kind == QStringLiteral(\"Inline thread\"), compact_marked(aCard) });", "\t\t\tif (inserted) {", "\t\t\t\tmeasure(aCard, aWidth);", "\t\t\t\tfound->second = { aCard.Rect.height(), aCard.Actions };", "\t\t\t} else {", "\t\t\t\taCard.Rect.setHeight(found->second.Height);", "\t\t\t\taCard.Actions = found->second.Actions;", "\t\t\t\tfor (auto& post : aCard.Posts) {", "\t\t\t\t\tpost.Rect = { };", "\t\t\t\t}", "\t\t\t}", "\t\t} else {", "\t\t\tmeasure(aCard, aWidth);", "\t\t}", "\t\t++MeasurementCount;", "\t\tauto measured = measured_card{", "\t\t\t.Label           = label,", "\t\t\t.Excerpt         = aCard.Excerpt,", "\t\t\t.Header          = header,", "\t\t\t.Draft           = aCard.Draft,", "\t\t\t.Resolved        = aCard.Resolved,", "\t\t\t.Unread          = aCard.UnreadCount > 0U,", "\t\t\t.AnchorAvailable = has_code_anchor(aCard),", "\t\t\t.Height          = aCard.Rect.height(),", "\t\t\t.Actions         = aCard.Actions,", "\t\t};", "\t\tfor (const auto& post : aCard.Posts) {", "\t\t\tmeasured.Bodies.push_back(post.Body);", "\t\t\tmeasured.Marks.push_back(mark_code(post));", "\t\t\tmeasured.Posts.push_back(post.Rect);", "\t\t}", "\t\tMeasurements.Cards.insert_or_assign(aCard.Id, std::move(measured));", "\t}", "", "\tvoid conversation_cards_view::relayout()", "\t{", "\t\t++Layouts;", "\t\tCards.clear();", "\t\t// [[BPR-0972]]. Scoped to one file, only that file's conversations are", "\t\t// visited: the per-forest index names them, in retained order.", "\t\tauto candidates = std::vector<std::size_t>{ };", "\t\tif (Scope == cards_scope::this_file && AnchorFile.has_value()) {", "\t\t\tfor (const auto& [file, index] : std::ranges::equal_range(RetainedByFile, *AnchorFile, { }, &std::pair<core::file_identity, std::size_t>::first)) {", "\t\t\t\tcandidates.push_back(index);", "\t\t\t}", "\t\t} else {", "\t\t\tcandidates.resize(Retained.size());", "\t\t\tfor (std::size_t index = 0U; index < Retained.size(); ++index) {", "\t\t\t\tcandidates[index] = index;", "\t\t\t}", "\t\t}", "\t\tLayoutNodesVisited += candidates.size();", "\t\t// Compact navigation admits every top-level conversation kind;", "\t\t// the legacy full-card mode admits only anchored review threads.", "\t\tauto cardsById = std::unordered_map<std::string_view, std::size_t>{ };", "\t\tfor (const auto index : candidates) {", "\t\t\tconst auto& node = Retained[index];", "\t\t\tif ((!Compact && node.Kind != application::github_conversation_kind::review_thread)", "\t\t\t\t|| (node.ParentId.has_value() && (!Compact || RetainedById.contains(*node.ParentId)))) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tif (Scope == cards_scope::this_file && AnchorFile.has_value()", "\t\t\t\t&& RetainedFiles[index] != *AnchorFile) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tauto card = thread_card{ };", "\t\t\tcard.Id   = node.Id;", "\t\t\tif (const auto badge = DefectBadges.find(card.Id); badge != DefectBadges.end()) {", "\t\t\t\tcard.DefectBadge       = badge->second.first;", "\t\t\t\tcard.DefectDescription = badge->second.second;", "\t\t\t}", "\t\t\tcard.Kind              = node.Kind == application::github_conversation_kind::review_thread", "\t\t\t\t? QStringLiteral(\"Inline thread\")", "\t\t\t\t: node.Kind == application::github_conversation_kind::review", "\t\t\t\t? QStringLiteral(\"Review summary\")", "\t\t\t\t: node.Kind == application::github_conversation_kind::review_comment", "\t\t\t\t? QStringLiteral(\"Inline comment\")", "\t\t\t\t: QStringLiteral(\"PR comment\");", "\t\t\tcard.Path              = text(node.Path);", "\t\t\tcard.Side              = side_of(node);", "\t\t\tcard.Line              = node.Line;", "\t\t\tcard.Resolved          = node.Resolved;", "\t\t\tcard.AnchorUnavailable = !node.Path.empty() && node.AnchorAvailability != application::github_conversation_anchor_availability::current;", "\t\t\tcard.Outdated          = node.Outdated || (!Compact && card.AnchorUnavailable);", "\t\t\tcardsById.emplace(node.Id, Cards.size());", "\t\t\tCards.push_back(std::move(card));", "\t\t}", "\t\t// The unread posts of the shown threads' first recorded states, so a", "\t\t// post is judged by hash rather than a walk of its thread's list.", "\t\tauto unreadPosts = std::unordered_map<std::string_view, std::set<std::string_view>>{ };", "\t\tfor (const auto& card : Cards) {", "\t\t\tif (const auto state = ReadStateByThread.find(card.Id); state != ReadStateByThread.end()) {", "\t\t\t\tauto& posts = unreadPosts[card.Id];", "\t\t\t\tfor (const auto& post : ReadState[state->second].UnreadPosts) {", "\t\t\t\t\tposts.insert(post);", "\t\t\t\t}", "\t\t\t}", "\t\t}", "\t\tfor (const auto index : candidates) {", "\t\t\tconst auto& node = Retained[index];", "\t\t\tif (node.Kind == application::github_conversation_kind::review_thread", "\t\t\t\t|| (!Compact && !node.ParentId.has_value()) || node.Deleted) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tconst auto& root  = Retained[RetainedRoot[index]];", "\t\t\tconst auto  depth = RetainedDepth[index];", "\t\t\tconst auto  card  = cardsById.find(root.Id);", "\t\t\tif (card == cardsById.end()) {", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tconst auto author = text(node.AuthorLogin);", "\t\t\tauto&      target = Cards[card->second];", "\t\t\tconst auto state  = unreadPosts.find(root.Id);", "\t\t\tconst auto unread = state != unreadPosts.end() && state->second.contains(node.Id);", "\t\t\tif (unread) {", "\t\t\t\tif (target.Posts.empty()) {", "\t\t\t\t\ttarget.RootUnread = true;", "\t\t\t\t}", "\t\t\t\t++target.UnreadCount;", "\t\t\t}", "\t\t\t// [[BPR-0649]]. The feed's header: the pull request's author is", "\t\t\t// \"author\", anyone else \"reviewer\" (the projection carries no", "\t\t\t// finer role); a reply to a reply names whom it answers.", "\t\t\tauto replyingTo = QString{ };", "\t\t\tif (Feed && node.ParentId.has_value() && *node.ParentId != root.Id) {", "\t\t\t\tif (const auto parent = RetainedById.find(*node.ParentId); parent != RetainedById.end()) {", "\t\t\t\t\treplyingTo = text(Retained[parent->second].AuthorLogin);", "\t\t\t\t}", "\t\t\t}", "\t\t\tconst auto& mark = RetainedMarks[index];", "\t\t\ttarget.Posts.push_back(card_post{", "\t\t\t\t.Id         = node.Id,", "\t\t\t\t.Author     = author,", "\t\t\t\t.Body       = text(node.ReviewerProse.value_or(node.Body)),", "\t\t\t\t.Depth      = depth,", "\t\t\t\t.Mine       = !Viewer.isEmpty() && author == Viewer,", "\t\t\t\t.Unread     = unread,", "\t\t\t\t.Role       = !Feed ? QString{ }", "\t\t\t\t\t: !PullRequestAuthor.isEmpty() && author == PullRequestAuthor", "\t\t\t\t\t? QStringLiteral(\"author\")", "\t\t\t\t\t: QStringLiteral(\"reviewer\"),", "\t\t\t\t.ReplyingTo = replyingTo,", "\t\t\t\t.Label      = mark.Label,", "\t\t\t\t.Emphasis   = mark.Emphasis,", "\t\t\t\t.Name       = feedback_post_name(author, mark),", "\t\t\t});", "\t\t}", "\t\t// [[BPR-0649]]. Discuss's filters: only threads with unread posts,", "\t\t// only unresolved threads. The draft card is never filtered out.", "\t\tif (Filters.UnreadOnly || Filters.UnresolvedOnly) {", "\t\t\tstd::erase_if(Cards, [this](const thread_card& aCard) {", "\t\t\t\treturn !aCard.Draft", "\t\t\t\t\t&& ((Filters.UnreadOnly && aCard.UnreadCount == 0U)", "\t\t\t\t\t\t|| (Filters.UnresolvedOnly && (aCard.Resolved || (Compact && aCard.Kind != QStringLiteral(\"Inline thread\")))));", "\t\t\t});", "\t\t}", "\t\tif (Feed && ExcerptLocator) {", "\t\t\tfor (auto& card : Cards) {", "\t\t\t\tif (!card.Draft && card.Side.has_value() && card.Line.has_value() && *card.Line > 0U) {", "\t\t\t\t\tcard.Excerpt = ExcerptLocator(card.Path, *card.Side, *card.Line).value_or(QString{ });", "\t\t\t\t}", "\t\t\t}", "\t\t}", "\t\t// My draft, at its line, while it is on this comparison.", "\t\tif (Scope == cards_scope::this_file && Draft.has_value() && CurrentComparison.has_value()", "\t\t\t&& Draft->Anchor.Comparison == *CurrentComparison && !Draft->shared()) {", "\t\t\tauto card       = thread_card{ };", "\t\t\tcard.Draft      = true;", "\t\t\tcard.Side       = Draft->Anchor.Side;", "\t\t\tcard.Line       = Draft->Anchor.Line + 1U;", "\t\t\tconst auto mark = feedback_body_mark_of(Draft->Body);", "\t\t\tcard.Posts.push_back(card_post{", "\t\t\t\t.Author   = QStringLiteral(\"Your note, not published\"),", "\t\t\t\t.Body     = text(Draft->Body),", "\t\t\t\t.Mine     = true,", "\t\t\t\t.Label    = mark.Label,", "\t\t\t\t.Emphasis = mark.Emphasis,", "\t\t\t\t.Name     = feedback_post_name(QStringLiteral(\"Your note, not published\"), mark),", "\t\t\t});", "\t\t\tCards.push_back(std::move(card));", "\t\t}", "", "\t\tauto       compactMeasurements = compact_measurements{ };", "\t\tconst auto width               = std::max(120, viewport()->width());", "\t\tauto       order               = std::size_t{ 0U };", "\t\tfor (auto& card : Cards) {", "\t\t\tcard.ProjectionOrder = order++;", "\t\t\tcard.Rect            = QRect{ card_margin, 0, width - 2 * card_margin, 0 };", "\t\t\tmeasure_cached(card, width - 2 * card_margin, &compactMeasurements);", "\t\t\tfor (auto& post : card.Posts) {", "\t\t\t\tpost.Rect.translate(card.Rect.left(), 0);", "\t\t\t}", "\t\t\tfor (auto& [action, rect] : card.Actions) {", "\t\t\t\trect.translate(card.Rect.left(), 0);", "\t\t\t}", "\t\t}", "\t\tplace_cards(true);", "\t\tif (LayoutObserver) {", "\t\t\tLayoutObserver();", "\t\t}", "\t\tsetAccessibleDescription((Compact", "\t\t\t\t\t\t\t\t\t  ? QStringLiteral(\"%1 conversations, %2 posts, %3 unread; Up and Down move between conversations, Return opens the selected detail; Shift+F10 opens its thread actions\")", "\t\t\t\t\t\t\t\t\t  : QStringLiteral(\"%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line; Shift+F10 opens its thread actions\"))", "\t\t\t\t\t\t\t\t\t .arg(thread_count())", "\t\t\t\t\t\t\t\t\t .arg(post_count())", "\t\t\t\t\t\t\t\t\t .arg(unread_post_count()));", "\t}", "", "\tvoid conversation_cards_view::refresh_geometry()", "\t{", "\t\t// Comparison frames can change line positions and feed excerpts without", "\t\t// changing a single conversation. Keep their forest and text measurements.", "\t\tauto changed = false;", "\t\tif (Feed && ExcerptLocator) {", "\t\t\tfor (auto& card : Cards) {", "\t\t\t\tif (card.Draft || !card.Side.has_value() || !card.Line.has_value() || *card.Line == 0U) {", "\t\t\t\t\tcontinue;", "\t\t\t\t}", "\t\t\t\tauto excerpt = ExcerptLocator(card.Path, *card.Side, *card.Line).value_or(QString{ });", "\t\t\t\tif (card.Excerpt == excerpt) {", "\t\t\t\t\tcontinue;", "\t\t\t\t}", "\t\t\t\tchanged      = true;", "\t\t\t\tcard.Excerpt = std::move(excerpt);", "\t\t\t\tmeasure_cached(card, card.Rect.width());", "\t\t\t\tfor (auto& post : card.Posts) {", "\t\t\t\t\tpost.Rect.translate(card.Rect.topLeft());", "\t\t\t\t}", "\t\t\t\tfor (auto& [action, rect] : card.Actions) {", "\t\t\t\t\trect.translate(card.Rect.topLeft());", "\t\t\t\t}", "\t\t\t}", "\t\t}", "\t\tplace_cards(changed);", "\t}", "", "\tvoid conversation_cards_view::place_cards(const bool aForce)", "\t{", "\t\tconst auto scroll  = verticalScrollBar()->value();", "\t\tauto       changed = aForce;", "\t\tfor (auto& card : Cards) {", "\t\t\tconst auto wasPlaced = card.Placed;", "\t\t\tconst auto targetY   = card.TargetY;", "\t\t\tcard.Placed          = false;", "\t\t\t// The feed is a list in file order, never placed at lines.", "\t\t\tif (!Feed && Scope == cards_scope::this_file && Locator && card.Side.has_value()", "\t\t\t\t&& card.Line.has_value() && *card.Line > 0U && !card.Outdated) {", "\t\t\t\tif (const auto y = Locator(*card.Side, *card.Line); y.has_value()) {", "\t\t\t\t\tcard.Placed  = true;", "\t\t\t\t\tcard.TargetY = *y + scroll;", "\t\t\t\t}", "\t\t\t}", "\t\t\tchanged = changed || wasPlaced != card.Placed || (card.Placed && targetY != card.TargetY);", "\t\t}", "\t\tif (!changed) {", "\t\t\treturn;", "\t\t}", "\t\t// Placed cards in line order, then the rest; whole PR in file order.", "\t\tstd::ranges::stable_sort(Cards, [this](const thread_card& aLeft, const thread_card& aRight) {", "\t\t\tif (Feed || Scope == cards_scope::whole_pull_request) {", "\t\t\t\treturn std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }", "\t\t\t\t< std::tuple{ aRight.Path, aRight.Line.value_or(0U), aRight.ProjectionOrder };", "\t\t\t}", "\t\t\tif (aLeft.Placed != aRight.Placed) {", "\t\t\t\treturn aLeft.Placed;", "\t\t\t}", "\t\t\tif (aLeft.Placed) {", "\t\t\t\treturn std::pair{ aLeft.TargetY, aLeft.ProjectionOrder }", "\t\t\t\t< std::pair{ aRight.TargetY, aRight.ProjectionOrder };", "\t\t\t}", "\t\t\treturn std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }", "\t\t\t< std::tuple{ aRight.Path, aRight.Line.value_or(0U), aRight.ProjectionOrder };", "\t\t});", "\t\tauto bottom   = card_margin / 2;", "\t\tauto lastPath = QString{ };", "\t\tfor (auto& card : Cards) {", "\t\t\tif (Scope == cards_scope::whole_pull_request && card.Path != lastPath) {", "\t\t\t\tbottom += path_row_height;", "\t\t\t\tlastPath = card.Path;", "\t\t\t}", "\t\t\tauto top = bottom + (bottom == card_margin / 2 ? 0 : card_gap);", "\t\t\tif (card.Placed) {", "\t\t\t\t// At its line, or beneath the card above: never over it.", "\t\t\t\ttop = std::max(top, card.TargetY);", "\t\t\t}", "\t\t\tconst auto offset = top - card.Rect.top();", "\t\t\tcard.Rect.moveTop(top);", "\t\t\tfor (auto& post : card.Posts) {", "\t\t\t\tpost.Rect.translate(0, offset);", "\t\t\t}", "\t\t\tfor (auto& [action, rect] : card.Actions) {", "\t\t\t\trect.translate(0, offset);", "\t\t\t}", "\t\t\tbottom = card.Rect.bottom();", "\t\t}", "\t\tContentHeight = bottom + card_margin;", "\t\tverticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));", "\t\tverticalScrollBar()->setPageStep(viewport()->height());", "\t\tverticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());", "\t\tsync_badge_buttons();", "\t\tviewport()->update();", "\t}", "", "\tvoid conversation_cards_view::changeEvent(QEvent* const aEvent)", "\t{", "\t\tQAbstractScrollArea::changeEvent(aEvent);", "\t\tif (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange) {", "\t\t\tclear_measurements();", "\t\t\trelayout();", "\t\t}", "\t}", "", "\tvoid conversation_cards_view::paintEvent(QPaintEvent* const aEvent)", "\t{", "\t\tstatic_cast<void>(aEvent);", "\t\tauto painter = QPainter{ viewport() };", "\t\tpainter.setRenderHint(QPainter::Antialiasing, true);", "\t\tpainter.translate(0, -verticalScrollBar()->value());", "\t\tconst auto& colours  = palette();", "\t\tconst auto  ink      = colours.color(QPalette::Active, QPalette::Text);", "\t\tconst auto  faint    = colours.color(QPalette::Active, QPalette::PlaceholderText);", "\t\tconst auto  rule     = colours.color(QPalette::Active, QPalette::Mid);", "\t\tconst auto  surface  = colours.color(QPalette::Active, QPalette::Base);", "\t\tauto        lastPath = QString{ };", "\t\tconst auto  small    = small_font(font());", "\t\tconst auto  bold     = bold_font(font());", "\t\tfor (const auto& card : Cards) {", "\t\t\tif (Scope == cards_scope::whole_pull_request && card.Path != lastPath) {", "\t\t\t\tlastPath = card.Path;", "\t\t\t\tpainter.setFont(small);", "\t\t\t\tpainter.setPen(faint);", "\t\t\t\tpainter.drawText(QRect{ card_margin, card.Rect.top() - path_row_height, width() - 2 * card_margin, path_row_height },", "\t\t\t\t\t\t\t\t Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ small }.elidedText(card.Path, Qt::ElideMiddle, width() - 2 * card_margin));", "\t\t\t}", "\t\t\tconst auto current = !card.Draft && card.Id == Current;", "\t\t\tauto       pen     = QPen{ current ? Accent : rule, current ? 1.5 : 1.0 };", "\t\t\tif (card.Draft) {", "\t\t\t\tpen = QPen{ Accent, 1.0, Qt::DashLine };", "\t\t\t}", "\t\t\tpainter.setPen(pen);", "\t\t\tpainter.setBrush(surface);", "\t\t\tpainter.drawRoundedRect(QRectF{ card.Rect }.adjusted(0.5, 0.5, -0.5, -0.5), 7.0, 7.0);", "\t\t\t// [[BPR-1083]]. The rail in the root's tint, or grey for a plain", "\t\t\t// root, inside the card's own padding: it adds no width.", "\t\t\tif (!card.Posts.empty()) {", "\t\t\t\tconst auto& root = card.Posts.front();", "\t\t\t\tconst auto  rail = rail_rect(card, root);", "\t\t\t\tpaint_feedback_rail(painter, rail.right(), rail.top(), rail.bottom(), root.Label.has_value() ? MarkTheme.Tints[static_cast<std::size_t>(*root.Label)] : rule, root.Emphasis);", "\t\t\t}", "\t\t\tif (Compact) {", "\t\t\t\t// The root's mark leads the entry, inline thread and draft", "\t\t\t\t// alike, and the text starts after it.", "\t\t\t\tif (const auto mark = compact_mark_rect(card); !mark.isEmpty()) {", "\t\t\t\t\tconst auto& root = card.Posts.front();", "\t\t\t\t\tpaint_feedback_mark(painter, QRectF{ mark }, *root.Label, root.Emphasis,", "\t\t\t\t\t\t\t\t\t\tfeedback_mark_colours{ .Tint = MarkTheme.Tints[static_cast<std::size_t>(*root.Label)], .Panel = surface, .Ink = ink, .Style = MarkTheme.Style });", "\t\t\t\t}", "\t\t\t\tpainter.setFont(font());", "\t\t\t\tpainter.setPen(ink);", "\t\t\t\tpainter.drawText(card.Rect.adjusted(card_padding + compact_lead(card), card_padding, -card_padding, -card_padding),", "\t\t\t\t\t\t\t\t Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap | Qt::TextWrapAnywhere, compact_label(card));", "\t\t\t\tpainter.setFont(small);", "\t\t\t\tpainter.setPen(Accent);", "\t\t\t\tfor (const auto& [action, rect] : card.Actions) {", "\t\t\t\t\tif (action != card_action::defect) {", "\t\t\t\t\t\tpainter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, action_text(action));", "\t\t\t\t\t}", "\t\t\t\t}", "\t\t\t\tcontinue;", "\t\t\t}", "\t\t\tconst auto dim  = card.Resolved;", "\t\t\tauto       tagY = card.Rect.top() + card_padding;", "\t\t\tif (card.Resolved || card.Outdated || card.Draft) {", "\t\t\t\tpainter.setFont(small);", "\t\t\t\tpainter.setPen(card.Draft ? Accent : faint);", "\t\t\t\tconst auto tag = card.Draft", "\t\t\t\t\t? QStringLiteral(\"Draft on line %1\").arg(card.Line.value_or(0U))", "\t\t\t\t\t: card.Resolved && card.Outdated ? QStringLiteral(\"Resolved, outdated\")", "\t\t\t\t\t: card.Resolved                  ? QStringLiteral(\"Resolved\")", "\t\t\t\t\t\t\t\t\t\t\t\t\t : QStringLiteral(\"Outdated\");", "\t\t\t\tpainter.drawText(QRect{ card.Rect.left() + card_padding, tagY, card.Rect.width() - 2 * card_padding, header_height },", "\t\t\t\t\t\t\t\t Qt::AlignLeft | Qt::AlignVCenter, tag);", "\t\t\t}", "\t\t\t// [[BPR-0649]]. The excerpt sits above the posts on the code", "\t\t\t// background, in the code font; the theme's own colours.", "\t\t\tif (Feed && !card.Excerpt.isEmpty()) {", "\t\t\t\tconst auto lines  = static_cast<int>(card.Excerpt.count(QLatin1Char{ '\\n' })) + 1;", "\t\t\t\tconst auto height = lines * QFontMetrics{ CodeFont }.height() + 2 * excerpt_padding;", "\t\t\t\tconst auto top    = tagY + (card.Resolved || card.Outdated || card.Draft ? header_height : 0);", "\t\t\t\tconst auto box    = QRect{ card.Rect.left() + card_padding, top, card.Rect.width() - 2 * card_padding, height };", "\t\t\t\tpainter.setPen(Qt::NoPen);", "\t\t\t\tpainter.setBrush(CodeBackground);", "\t\t\t\tpainter.drawRoundedRect(box, 4.0, 4.0);", "\t\t\t\tpainter.setFont(CodeFont);", "\t\t\t\tpainter.setPen(CodeInk);", "\t\t\t\tpainter.drawText(box.adjusted(excerpt_padding, excerpt_padding, -excerpt_padding, -excerpt_padding),", "\t\t\t\t\t\t\t\t Qt::AlignLeft | Qt::AlignTop, card.Excerpt);", "\t\t\t}", "\t\t\t// The rail: a line between the first and last avatars.", "\t\t\tif (card.Posts.size() > 1U) {", "\t\t\t\tconst auto x = card.Posts.front().Rect.left() + avatar_size / 2;", "\t\t\t\tpainter.setPen(QPen{ rule, 2.0 });", "\t\t\t\tpainter.drawLine(QPoint{ x, card.Posts.front().Rect.top() + avatar_size },", "\t\t\t\t\t\t\t\t QPoint{ x, card.Posts.back().Rect.top() });", "\t\t\t}", "\t\t\tfor (const auto& post : card.Posts) {", "\t\t\t\tconst auto avatar = QRectF{ static_cast<qreal>(post.Rect.left()), static_cast<qreal>(post.Rect.top()),", "\t\t\t\t\t\t\t\t\t\t\tstatic_cast<qreal>(avatar_size), static_cast<qreal>(avatar_size) };", "\t\t\t\t// [[BPR-1083]]. Every post after the root carries its own rail;", "\t\t\t\t// the root's is the card's, drawn above. A reply's mark may", "\t\t\t\t// differ from its root's.", "\t\t\t\tif (&post != &card.Posts.front()) {", "\t\t\t\t\tconst auto rail = rail_rect(card, post);", "\t\t\t\t\tpaint_feedback_rail(painter, rail.right(), rail.top(), rail.bottom(), post.Label.has_value() ? MarkTheme.Tints[static_cast<std::size_t>(*post.Label)] : rule, post.Emphasis);", "\t\t\t\t}", "\t\t\t\tpainter.setPen(Qt::NoPen);", "\t\t\t\tpainter.setBrush(post.Mine ? Accent : rule);", "\t\t\t\tpainter.drawEllipse(avatar);", "\t\t\t\tpainter.setFont(small);", "\t\t\t\tpainter.setPen(post.Mine ? surface : ink);", "\t\t\t\tpainter.drawText(avatar, Qt::AlignCenter, post.Author.left(1).toUpper());", "\t\t\t\tif (post.Label.has_value()) {", "\t\t\t\t\tpaint_feedback_mark(painter, QRectF{ mark_rect(post) }, *post.Label, post.Emphasis,", "\t\t\t\t\t\t\t\t\t\tfeedback_mark_colours{ .Tint = MarkTheme.Tints[static_cast<std::size_t>(*post.Label)], .Panel = surface, .Ink = ink, .Style = MarkTheme.Style });", "\t\t\t\t}", "\t\t\t\tconst auto textLeft  = post.Rect.left() + avatar_column;", "\t\t\t\tconst auto textWidth = post.Rect.width() - avatar_column;", "\t\t\t\t// [[BPR-0656]]. An unread post: a blue dot before a full-ink", "\t\t\t\t// name. A read post, once the ledger has said so, steps its", "\t\t\t\t// name back; before any read state every name is full ink.", "\t\t\t\tconst auto read = ReadStateKnown && !post.Unread && !post.Mine;", "\t\t\t\tpainter.setFont(bold);", "\t\t\t\tpainter.setPen(dim || read ? faint : ink);", "\t\t\t\tconst auto authorHeight = QFontMetrics{ font() }.height();", "\t\t\t\tif (post.Unread) {", "\t\t\t\t\tpainter.save();", "\t\t\t\t\tpainter.setPen(Qt::NoPen);", "\t\t\t\t\tpainter.setBrush(Accent);", "\t\t\t\t\tpainter.drawEllipse(QRectF{ static_cast<qreal>(textLeft) - 8.5,", "\t\t\t\t\t\t\t\t\t\t\t\tstatic_cast<qreal>(post.Rect.top()) + authorHeight / 2.0 - 3.0, 6.0, 6.0 });", "\t\t\t\t\tpainter.restore();", "\t\t\t\t}", "\t\t\t\tpainter.drawText(QRect{ textLeft, post.Rect.top(), textWidth, authorHeight },", "\t\t\t\t\t\t\t\t Qt::AlignLeft | Qt::AlignVCenter, post.Author);", "\t\t\t\tif (Feed && (!post.Role.isEmpty() || !post.ReplyingTo.isEmpty())) {", "\t\t\t\t\tauto header = post.Role;", "\t\t\t\t\tif (!post.ReplyingTo.isEmpty()) {", "\t\t\t\t\t\theader += QStringLiteral(\"  replying to %1\").arg(post.ReplyingTo);", "\t\t\t\t\t}", "\t\t\t\t\tconst auto after = QFontMetrics{ bold }.horizontalAdvance(post.Author) + 8;", "\t\t\t\t\tpainter.setFont(small);", "\t\t\t\t\tpainter.setPen(faint);", "\t\t\t\t\tpainter.drawText(QRect{ textLeft + after, post.Rect.top(), std::max(0, textWidth - after), authorHeight },", "\t\t\t\t\t\t\t\t\t Qt::AlignLeft | Qt::AlignVCenter,", "\t\t\t\t\t\t\t\t\t QFontMetrics{ small }.elidedText(header, Qt::ElideRight, std::max(0, textWidth - after)));", "\t\t\t\t}", "\t\t\t\tpainter.setFont(font());", "\t\t\t\tpainter.setPen(dim ? faint : ink);", "\t\t\t\tpainter.drawText(QRect{ textLeft, post.Rect.top() + authorHeight + 2, textWidth, post.Rect.height() - authorHeight },", "\t\t\t\t\t\t\t\t Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, post.Body);", "\t\t\t}", "\t\t\tpainter.setFont(small);", "\t\t\tfor (const auto& [action, rect] : card.Actions) {", "\t\t\t\tpainter.setPen(Accent);", "\t\t\t\tif (action != card_action::defect) {", "\t\t\t\t\tpainter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, action_text(action));", "\t\t\t\t}", "\t\t\t}", "\t\t}", "\t\tif (Cards.empty()) {", "\t\t\tpainter.setFont(font());", "\t\t\tpainter.setPen(faint);", "\t\t\tpainter.drawText(QRect{ card_margin, card_margin, width() - 2 * card_margin, 60 },", "\t\t\t\t\t\t\t Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,", "\t\t\t\t\t\t\t Scope == cards_scope::this_file", "\t\t\t\t\t\t\t\t ? QStringLiteral(\"No threads on this file.\")", "\t\t\t\t\t\t\t\t : QStringLiteral(\"No threads on this pull request.\"));", "\t\t}", "\t}", "", "\tvoid conversation_cards_view::set_label_marks(const feedback_mark_theme& aTheme)", "\t{", "\t\tMarkTheme = aTheme;", "\t\tviewport()->update();", "\t}", "", "\tauto conversation_cards_view::label_marks() const noexcept -> const feedback_mark_theme&", "\t{", "\t\treturn MarkTheme;", "\t}", "", "\tauto conversation_cards_view::mark_rect(const card_post& aPost) const -> QRect", "\t{", "\t\tif (!aPost.Label.has_value() || Compact || aPost.Rect.isEmpty()) {", "\t\t\treturn { };", "\t\t}", "\t\t// Centred under the 18 px avatar: one pixel either side at any whole scale.", "\t\treturn QRect{ aPost.Rect.left() + (avatar_size - 16) / 2, aPost.Rect.top() + avatar_size + mark_gap, 16, 16 };", "\t}", "", "\tauto conversation_cards_view::compact_mark_rect(const thread_card& aCard) const -> QRect", "\t{", "\t\tif (!Compact || !compact_marked(aCard) || aCard.Rect.isEmpty()) {", "\t\t\treturn { };", "\t\t}", "\t\t// Centred on the first line of the entry's text.", "\t\tconst auto line = QFontMetrics{ font() }.height();", "\t\treturn QRect{ aCard.Rect.left() + card_padding, aCard.Rect.top() + card_padding + std::max(0, (line - 16) / 2), 16, 16 };", "\t}", "", "\tauto conversation_cards_view::rail_rect(const thread_card& aCard, const card_post& aPost) const -> QRectF", "\t{", "\t\tconst auto width = feedback_rail_width(aPost.Emphasis);", "\t\tif (Compact || aPost.Rect.isEmpty()) {", "\t\t\tconst auto right = static_cast<qreal>(aCard.Rect.left() + card_padding - rail_gap);", "\t\t\treturn QRectF{ right - width, static_cast<qreal>(aCard.Rect.top()) + card_padding / 2.0, width, static_cast<qreal>(std::max(0, aCard.Rect.height() - card_padding)) };", "\t\t}", "\t\t// The rail's right edge stays 3 px left of the avatar, so blocking", "\t\t// grows it outward and the text does not move.", "\t\tconst auto right = static_cast<qreal>(aPost.Rect.left() - rail_gap);", "\t\treturn QRectF{ right - width, static_cast<qreal>(aPost.Rect.top()), width, static_cast<qreal>(aPost.Rect.height()) };", "\t}", "", "\tauto conversation_cards_view::viewportEvent(QEvent* const aEvent) -> bool", "\t{", "\t\tif (aEvent->type() == QEvent::ToolTip) {", "\t\t\tconst auto* const help  = static_cast<QHelpEvent*>(aEvent);", "\t\t\tconst auto        point = to_content(help->pos());", "\t\t\tfor (const auto& card : Cards) {", "\t\t\t\tif (!card.Rect.contains(point) || card.Posts.empty()) {", "\t\t\t\t\tcontinue;", "\t\t\t\t}", "\t\t\t\t// The name sits right below the mark it names ([[BPR-1083]]", "\t\t\t\t// v004; owner, preview-tooltips-v003: \"The tooltip feels", "\t\t\t\t// strangely far away.\"), also when the rail is hovered.", "\t\t\t\tif (const auto mark = compact_mark_rect(card); !mark.isEmpty() && (mark.contains(point) || (Compact && rail_rect(card, card.Posts.front()).adjusted(-3.0, 0.0, 3.0, 0.0).contains(QPointF{ point })))) {", "\t\t\t\t\tshow_anchored_tooltip(*viewport(), to_viewport(mark), card.Posts.front().Name);", "\t\t\t\t\treturn true;", "\t\t\t\t}", "\t\t\t\tfor (const auto& post : card.Posts) {", "\t\t\t\t\tconst auto mark = mark_rect(post);", "\t\t\t\t\tif (!Compact && (mark.contains(point) || rail_rect(card, post).adjusted(-3.0, 0.0, 3.0, 0.0).contains(QPointF{ point }))) {", "\t\t\t\t\t\tshow_anchored_tooltip(*viewport(), to_viewport(mark.isEmpty() ? rail_rect(card, post).toAlignedRect() : mark), post.Name);", "\t\t\t\t\t\treturn true;", "\t\t\t\t\t}", "\t\t\t\t}", "\t\t\t}", "\t\t\thide_anchored_tooltip();", "\t\t\taEvent->ignore();", "\t\t\treturn true;", "\t\t}", "\t\treturn QAbstractScrollArea::viewportEvent(aEvent);", "\t}", "", "\tvoid conversation_cards_view::resizeEvent(QResizeEvent* const aEvent)", "\t{", "\t\tQAbstractScrollArea::resizeEvent(aEvent);", "\t\trelayout();", "\t}", "", "\tvoid conversation_cards_view::choose(", "\t\tconst std::size_t aCard, const bool aOpenDetail)", "\t{", "\t\tif (aCard >= Cards.size() || Cards[aCard].Draft) {", "\t\t\treturn;", "\t\t}", "\t\tCurrent           = Cards[aCard].Id;", "\t\tconst auto top    = Cards[aCard].Rect.top();", "\t\tconst auto bottom = Cards[aCard].Rect.bottom();", "\t\tif (top < verticalScrollBar()->value()) {", "\t\t\tverticalScrollBar()->setValue(top);", "\t\t} else if (bottom > verticalScrollBar()->value() + viewport()->height()) {", "\t\t\tverticalScrollBar()->setValue(bottom - viewport()->height());", "\t\t}", "\t\tviewport()->update();", "\t\tif (ThreadDispatch) {", "\t\t\t// [[BPR-1029]]. The dispatch may make another thread current, so it", "\t\t\t// is handed its own copy of the identity rather than a reference", "\t\t\t// into state it can change.", "\t\t\tconst auto chosen = Current;", "\t\t\tThreadDispatch(chosen, aOpenDetail);", "\t\t}", "\t}", "", "\tvoid conversation_cards_view::mousePressEvent(QMouseEvent* const aEvent)", "\t{", "\t\tif (aEvent->button() != Qt::LeftButton) {", "\t\t\tQAbstractScrollArea::mousePressEvent(aEvent);", "\t\t\treturn;", "\t\t}", "\t\tconst auto hit = hit_test(aEvent->position().toPoint());", "\t\tif (!hit.has_value()) {", "\t\t\tQAbstractScrollArea::mousePressEvent(aEvent);", "\t\t\treturn;", "\t\t}", "\t\tconst auto& [index, action] = *hit;", "\t\tsetFocus(Qt::MouseFocusReason);", "\t\tif (action.has_value()) {", "\t\t\tif (!Cards[index].Draft) {", "\t\t\t\tCurrent = Cards[index].Id;", "\t\t\t\tviewport()->update();", "\t\t\t}", "\t\t\tif (ActionDispatch) {", "\t\t\t\t// [[BPR-1029]]. The window's dispatch can relay these cards out", "\t\t\t\t// before it reads the identity, which rebuilds the vector the", "\t\t\t\t// card lives in; a reference into it would then name whichever", "\t\t\t\t// card was rebuilt in that slot.", "\t\t\t\tconst auto identity = Cards[index].Id;", "\t\t\t\tActionDispatch(*action, identity);", "\t\t\t}", "\t\t\taEvent->accept();", "\t\t\treturn;", "\t\t}", "\t\tchoose(index, true);", "\t\taEvent->accept();", "\t}", "", "\tvoid conversation_cards_view::keyPressEvent(QKeyEvent* const aEvent)", "\t{", "\t\tif (aEvent->key() == Qt::Key_Menu || (aEvent->key() == Qt::Key_F10 && aEvent->modifiers().testFlag(Qt::ShiftModifier))) {", "\t\t\tshow_thread_menu(Current);", "\t\t\taEvent->accept();", "\t\t\treturn;", "\t\t}", "\t\tauto threads = std::vector<std::size_t>{ };", "\t\tfor (std::size_t index = 0U; index < Cards.size(); ++index) {", "\t\t\tif (!Cards[index].Draft) {", "\t\t\t\tthreads.push_back(index);", "\t\t\t}", "\t\t}", "\t\tconst auto position = std::ranges::find_if(threads, [this](const std::size_t aIndex) {", "\t\t\treturn Cards[aIndex].Id == Current;", "\t\t});", "\t\tswitch (aEvent->key()) {", "\t\tcase Qt::Key_Down:", "\t\t\tif (!threads.empty()) {", "\t\t\t\tchoose(position == threads.end() || std::next(position) == threads.end()", "\t\t\t\t\t\t   ? threads.front()", "\t\t\t\t\t\t   : *std::next(position),", "\t\t\t\t\t   false);", "\t\t\t}", "\t\t\taEvent->accept();", "\t\t\treturn;", "\t\tcase Qt::Key_Up:", "\t\t\tif (!threads.empty()) {", "\t\t\t\tchoose(position == threads.end() || position == threads.begin()", "\t\t\t\t\t\t   ? threads.back()", "\t\t\t\t\t\t   : *std::prev(position),", "\t\t\t\t\t   false);", "\t\t\t}", "\t\t\taEvent->accept();", "\t\t\treturn;", "\t\tcase Qt::Key_Return:", "\t\tcase Qt::Key_Enter:", "\t\t\tif (position != threads.end()) {", "\t\t\t\tchoose(*position, true);", "\t\t\t}", "\t\t\taEvent->accept();", "\t\t\treturn;", "\t\tdefault:", "\t\t\tbreak;", "\t\t}", "\t\tQAbstractScrollArea::keyPressEvent(aEvent);", "\t}", "} // namespace bpr::qt"];
+const ME = "fixture-author";
+
+/* ===== BPR-1080's glyphs; BPR-1079's tints (light, dark) ===== */
+const L = {
+  praise:{lt:"#BF3989",dk:"#F778BA",g:'<path d="M12 19.5 C6.2 15.6 3.5 12.6 3.5 9.2 C3.5 6.6 5.4 4.8 7.7 4.8 C9.6 4.8 11 5.9 12 7.6 C13 5.9 14.4 4.8 16.3 4.8 C18.6 4.8 20.5 6.6 20.5 9.2 C20.5 12.6 17.8 15.6 12 19.5 Z"/>'},
+  nitpick:{lt:"#6E7781",dk:"#9BA4AE",g:'<path d="M15.5 9.5 C15.5 12.81 12.81 15.5 9.5 15.5 C6.19 15.5 3.5 12.81 3.5 9.5 C3.5 6.19 6.19 3.5 9.5 3.5 C12.81 3.5 15.5 6.19 15.5 9.5 Z"/><path d="M12.43 15.62 L15.62 12.43 L21.63 18.44 C23.75 20.57 20.57 23.75 18.44 21.63 Z" fill="currentColor" stroke="none"/>'},
+  suggestion:{lt:"#1F6FD0",dk:"#6CB0FF",g:'<path d="M9.2 15.6 C7 14.3 5.5 12.2 5.5 9.6 C5.5 6 8.4 3.5 12 3.5 C15.6 3.5 18.5 6 18.5 9.6 C18.5 12.2 17 14.3 14.8 15.6 L14.8 17 L9.2 17 Z"/><path d="M9.8 20.3 L14.2 20.3"/>'},
+  issue:{lt:"#D1242F",dk:"#FF7B72",g:'<path d="M12 4 L12 14"/><circle cx="12" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  todo:{lt:"#C24E00",dk:"#FFA05A",g:'<path d="M15.5 12.5 L15.5 18.5 C15.5 19.05 15.05 19.5 14.5 19.5 L5.5 19.5 C4.95 19.5 4.5 19.05 4.5 18.5 L4.5 9.5 C4.5 8.95 4.95 8.5 5.5 8.5 L11 8.5"/><path d="M7.8 13 L10.6 15.8 L19.8 5"/>'},
+  question:{lt:"#8250DF",dk:"#C29BFF",g:'<path d="M8.4 8.6 C8.4 5.9 10 4.2 12.2 4.2 C14.4 4.2 15.9 5.7 15.9 7.7 C15.9 10.6 12.2 11.1 12.2 14.3"/><circle cx="12.2" cy="19" r="1.75" fill="currentColor" stroke="none"/>'},
+  thought:{lt:"#4F5BD5",dk:"#9AA5FF",g:'<path d="M7.2 14 C5 14 3.6 12.6 3.6 11 C3.6 9.4 5 8.2 6.8 8.4 C7.2 5.8 9.3 4 12 4 C14.6 4 16.6 5.7 17 8 C19 7.9 20.5 9.3 20.5 11 C20.5 12.7 19.2 14 17.3 14 Z"/><circle cx="7.6" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="4.4" cy="20.9" r="1.3" fill="currentColor" stroke="none"/>'},
+  chore:{lt:"#8A5A2B",dk:"#D2A26E",g:'<path d="M22 3 L15.75 9.25" stroke-width="2.2"/><path d="M14 7 L18 11 L16.5 13.5 L11.5 8.5 Z" fill="currentColor" stroke="none"/><path d="M16 15 L10 9 L1.5 12.5 L4 15 L8 11 L9 12 L5 16 L9 20 L13 16 L14 17 L10 21 L12.5 23.5 Z" fill="currentColor" stroke="none"/>'},
+  note:{lt:"#0E7C86",dk:"#56C7D0",g:'<circle cx="12" cy="6" r="1.75" fill="currentColor" stroke="none"/><path d="M12 10.5 L12 19"/>'},
+  typo:{lt:"#6F7A00",dk:"#C3CE4A",g:'<path d="M0.5 14 L4 2 L6 2 L9.5 14 L7.1 14 L6.52 12 L3.48 12 L2.9 14 Z M4.07 10 L5.93 10 L5 6.8 Z" fill="currentColor" stroke="none"/><path d="M10 2 L12 2 L12 6 L13.5 6 C14.88 6 16 7.12 16 8.5 L16 11.5 C16 12.88 14.88 14 13.5 14 L10 14 Z M12 8 L12 12 L13.5 12 C13.78 12 14 11.78 14 11.5 L14 8.5 C14 8.22 13.78 8 13.5 8 Z" fill="currentColor" stroke="none"/><path d="M23.5 6 L21 6 C19.34 6 18 7.34 18 9 L18 11 C18 12.66 19.34 14 21 14 L23.5 14 L23.5 12 L21 12 C20.45 12 20 11.55 20 11 L20 9 C20 8.45 20.45 8 21 8 L23.5 8 Z" fill="currentColor" stroke="none"/><path d="M1.5 20.8 C2.59 20.8 3.41 18.2 4.5 18.2 C5.59 18.2 6.41 20.8 7.5 20.8 C8.59 20.8 9.41 18.2 10.5 18.2 C11.59 18.2 12.41 20.8 13.5 20.8 C14.59 20.8 15.41 18.2 16.5 18.2 C17.59 18.2 18.41 20.8 19.5 20.8 C20.59 20.8 21.41 18.2 22.5 18.2" stroke-width="2"/>'},
+  polish:{lt:"#B4589A",dk:"#E59AD0",g:'<path d="M12 3 L13.6 9.4 L20 11 L13.6 12.6 L12 19 L10.4 12.6 L4 11 L10.4 9.4 Z"/>'},
+  quibble:{lt:"#9A5B7A",dk:"#D99BBB",g:'<path d="M3 17.2 C3.5 18.8 4.4 19.8 5.7 19.8 C8.3 19.8 9.4 13.8 12 13.8 C14.6 13.8 15.7 19.8 18.3 19.8 C19.6 19.8 20.5 18.8 21 17.2"/><path d="M12 7.8 L12 4.4 M7.72 9.04 L5.71 6.81 M16.28 9.04 L18.29 6.81"/>'},
+};
+const LABELS = Object.keys(L);
+/* The glyph on a blocking mark: white or #111418, whichever contrasts more with the tint. */
+const lum = (h) => { const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const onTint = (h) => { const l = lum(h), cw = 1.05 / (l + 0.05), cd = (l + 0.05) / (lum("#111418") + 0.05); return cw >= cd ? "#FFFFFF" : "#111418"; };
+
+/* people: initials on a muted hue each (light bg, light fg, dark bg, dark fg) */
+const PEOPLE = {
+  tbutler:["#C8DAF5","#1D3B66","#2A4468","#BBD3F5"], jiayin:["#F5D2C0","#6B2F12","#55321F","#F2C3AA"],
+  "fixture-author":["#CDE8D2","#1D5A2C","#24472D","#B9E3C1"], "reviewer-four":["#F0CFDD","#6E2245","#52303E","#EEBFD3"],
+  "observer-three":["#C6EAE4","#14544C","#204843","#AEE3DB"], "author-two":["#F1E1B4","#6A4E00","#4D411C","#EED9A0"],
+};
+const slug = (a) => a.replace(/[^a-z0-9]/g, "");
+(function themeVars() {
+  let lt = "", dk = "";
+  for (const l of LABELS) {
+    lt += `--t-${l}:${L[l].lt};--o-${l}:${onTint(L[l].lt)};`;
+    dk += `--t-${l}:${L[l].dk};--o-${l}:${onTint(L[l].dk)};`;
+  }
+  for (const [a, c] of Object.entries(PEOPLE)) { lt += `--avb-${slug(a)}:${c[0]};--avk-${slug(a)}:${c[1]};`; dk += `--avb-${slug(a)}:${c[2]};--avk-${slug(a)}:${c[3]};`; }
+  const s = document.createElement("style");
+  s.textContent = `:root{${lt}} body.dark{${dk}}`;
+  document.head.appendChild(s);
+})();
+
+/* ===== the recognizer, as BPR-1083 reads a body =====
+   Only a recognized prefix gets a mark. blocking alone is blocking, non-blocking alone is open,
+   both or neither is normal; any if-minor fills the corner; custom decorations change no style. */
+const PFX = new RegExp(`^(${LABELS.join("|")})\\s*(?:\\(([^)]*)\\))?\\s*:[ \\t]*(?=\\S)`, "i");
+function recognize(b) {
+  const m = PFX.exec(b);
+  if (!m) return null;
+  const decos = (m[2] || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const has = (d) => decos.some((x) => x.toLowerCase() === d);
+  const blk = has("blocking"), non = has("non-blocking");
+  const weight = blk && !non ? "blocking" : non && !blk ? "open" : "normal";
+  return {label:m[1].toLowerCase(), decos, weight, ifMinor:has("if-minor"), len:m[0].length};
+}
+const markName = (r) => r.label + (r.decos.length ? ` (${r.decos.join(", ")})` : "");
+
+/* The mark: a 16 px rounded square, 1.5 px border in the tint, glyph in a 12 px box. */
+function markSvg(r, cls = "") {
+  const t = `var(--t-${r.label})`;
+  const blk = r.weight === "blocking", open = r.weight === "open";
+  const ink = blk ? `var(--o-${r.label})` : "var(--ink)";
+  const fill = blk ? t : open ? "var(--panel)" : `color-mix(in srgb, ${t} var(--soft), var(--panel))`;
+  const dash = open ? ' stroke-dasharray="2.5 1.5"' : "";
+  let corner = "";
+  if (r.ifMinor) {
+    corner = `<path d="M0 0 L6 0 L0 6 Z" style="fill:${t}"/>`;
+    if (blk) corner += `<path d="M1.5 1.5 L5.25 1.5 L1.5 5.25 Z" style="fill:${ink}"/>`;
+  }
+  return `<svg class="lm ${cls}" viewBox="0 0 16 16" role="img" aria-label="${esc(markName(r))}" data-tip="${esc(markName(r))}">
+    <rect x=".75" y=".75" width="14.5" height="14.5" rx="3.25" style="fill:${fill}"/>
+    <rect x=".75" y=".75" width="14.5" height="14.5" rx="3.25" fill="none" style="stroke:${t}" stroke-width="1.5"${dash}/>${corner}
+    <svg x="2" y="2" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="stroke:${ink};color:${ink}" aria-hidden="true">${L[r.label].g}</svg></svg>`;
+}
+
+const I = {
+  home:'<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/>',
+  pr:'<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M6 8.2v7.6"/><path d="M18 15.8V10a3 3 0 0 0-3-3h-4"/><path d="M12.5 4.5 10 7l2.5 2.5"/>',
+  sun:'<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  moon:'<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>',
+  refresh:'<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+  panel:'<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/>',
+  user:'<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/>',
+  files:'<path d="M4 6.5h6l2 2h8v10H4z"/>',
+  dleft:'<path d="M12 6l-6 6 6 6"/><path d="M18 6l-6 6 6 6"/>', dright:'<path d="M6 6l6 6-6 6"/><path d="M12 6l6 6-6 6"/>',
+  left:'<path d="M14.5 6l-6 6 6 6"/>', right:'<path d="M9.5 6l6 6-6 6"/>',
+  up:'<path d="M6 14.5l6-6 6 6"/>', down:'<path d="M6 9.5l6 6 6-6"/>',
+  newonly:'<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="8.5"/>',
+  unres:'<circle cx="12" cy="12" r="8.5"/><path d="M8 16 16 8"/>',
+  next:'<circle cx="12" cy="7" r="3" fill="currentColor" stroke="none"/><path d="M12 12.5v8M8.5 17l3.5 3.5 3.5-3.5"/>',
+  finder:'<circle cx="5" cy="6" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="12" cy="17" r="2"/><path d="M7 6h3M5 8v4a5 5 0 0 0 5 5"/><circle cx="18.5" cy="17.5" r="3"/><path d="M20.7 19.7 22.5 21.5"/>',
+  notes:'<path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/>',
+  tour:'<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 17c6 0 2-9 8-10"/>',
+  target:'<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
+  resolve:'<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 5-5.4"/>',
+  unresolve:'<circle cx="12" cy="12" r="8.5"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  read:'<path d="M2.5 12.5l3.6 3.6L13 9"/><path d="M10.6 16.1l.8.8L20.5 8"/>',
+  more:'<circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+  collapse:'<path d="M6 14.5l6-6 6 6"/>',
+  reply:'<path d="M9.5 7 5 11.5 9.5 16"/><path d="M5 11.5h9a5 5 0 0 1 5 5V18"/>',
+  send:'<path d="M4 11.8 20 4.5l-6.2 15.5-2.7-6.5z"/><path d="M11.1 13.5 20 4.5"/>',
+  lock:'<rect x="5.5" y="11" width="13" height="9" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/>',
+  ok:'<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 5-5.4"/>',
+  trash:'<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+};
+const ic = (n, s = "") => `<svg class="i ${s}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+const inline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+/* Every body is shown exactly as written; the recognized prefix is set in semibold. */
+function bodyHtml(b) {
+  const r = recognize(b);
+  if (!r) return inline(b);
+  return `<span class="pfx">${esc(b.slice(0, r.len).trimEnd())}</span> ${inline(b.slice(r.len))}`;
+}
+const avatar = (a, cls = "") => {
+  const ini = a === ME ? "F" : a.includes("-") ? a.split("-").map((s) => s[0]).join("").toUpperCase() : a[0].toUpperCase();
+  return `<span class="av ${a === ME ? "me" : ""} ${cls}" style="--avb:var(--avb-${slug(a)});--avk:var(--avk-${slug(a)})" data-tip="${a}${a === ME ? " (you)" : ""}">${ini}</span>`;
+};
+const who = (a) => (a === ME ? "you" : a);
+
+/* ===== the threads (made up) ===== */
+const T = [
+  {id:"t38", line:38, res:true, posts:[
+    {a:"jiayin", t:"4d", b:"nitpick (non-blocking): `card_gap` and `card_margin` are both 8; one constant would do."},
+    {a:ME, t:"4d", b:"They drift apart at Discuss widths, so I kept both."},
+    {a:"jiayin", t:"3d", b:"praise: Fair, and the names say why."}]},
+  {id:"t430", line:430, posts:[
+    {a:"tbutler", t:"2h", u:1, b:"question: Who still calls `set_feed()` once Discuss has its own list?"}]},
+  {id:"t656", line:656, posts:[
+    {a:"tbutler", t:"3d", b:"issue (blocking): `set_current_thread()` keeps a reply's id when no card holds it, so `Current` can name nothing."},
+    {a:ME, t:"2d", b:"question: Should it clear `Current` instead, or keep the last card?"},
+    {a:"jiayin", t:"3h", u:1, b:"praise: Good catch, this explains the lost highlight after a refresh."},
+    {a:"tbutler", t:"2h", u:1, b:"Clear it. I'll push the fix with a test."}]},
+  {id:"t667", line:667, posts:[
+    {a:"reviewer-four", t:"2d", b:"suggestion (non-blocking, if-minor): Look the id up in an index instead of walking every card's posts."},
+    {a:"author-two", t:"2d", b:"The index would need rebuilding on every refresh too."},
+    {a:ME, t:"1d", b:"It's built in `relayout()` already, so the lookup is free here."},
+    {a:"reviewer-four", t:"1d", b:"Measured: 0.4 ms against 0.02 at 500 cards. Not urgent."},
+    {a:ME, t:"20h", b:"todo (if-minor): Leave a comment pointing at the measurement."}]},
+  {id:"t927", line:927, posts:[
+    {a:"tbutler", t:"3d", b:"suggestion: `relayout()` is 200 lines; measuring and placing could be two functions."},
+    {a:"jiayin", t:"3d", b:"They share `compactMeasurements`, so splitting means passing it around."},
+    {a:ME, t:"2d", b:"Passing one struct is fine. The measuring half has no side effects."},
+    {a:"tbutler", t:"2d", b:"thought: Then the placing half could be tested without fonts."},
+    {a:"observer-three", t:"1d", b:"Which would have caught the 280 px clipping last week."},
+    {a:"jiayin", t:"1d", b:"note (perf): `relayout()` runs twice on a scope change; the second pass finds nothing to do."},
+    {a:ME, t:"3h", u:1, b:"Splitting after this lands, on its own card."},
+    {a:"tbutler", t:"1h", u:1, b:"praise: Thanks, happy with that."}]},
+  {id:"t1080", line:1080, posts:[
+    {a:"observer-three", t:"1d", b:"Why `width - 2 * card_margin` and not the viewport's `contentsRect()`?"},
+    {a:ME, t:"1d", b:"The viewport has no margins here, so `contentsRect()` is the same width."},
+    {a:"observer-three", t:"40m", u:1, b:"nitpick (non-blocking): Then a comment saying so would stop the next person asking."}]},
+  {id:"d1142", line:1142, draft:true, posts:[
+    {a:ME, t:"draft", b:"todo (if-minor): Say in the header that `TargetY` includes the scroll offset."}]},
+  {id:"t1176", line:1176, posts:[
+    {a:"jiayin", t:"2d", b:"thought (perf): `std::max` here pushes every later card down one by one; does a run of close lines cost a pass each?"},
+    {a:"tbutler", t:"2d", b:"It's one pass over sorted cards, so linear either way."},
+    {a:"jiayin", t:"1d", b:"Right, I misread the loop."}]},
+  {id:"t1510", line:1510, posts:[
+    {a:"tbutler", t:"1d", b:"chore (non-blocking): Say in a comment that Shift+F10 and the Menu key open the same thread menu."},
+    {a:"jiayin", t:"25m", u:1, b:"+1, the second half of the condition on 1512 is easy to miss."}]},
+];
+const BYID = Object.fromEntries(T.map((t) => [t.id, t]));
+const HUNKS = [[601, 630], [656, 673], [1129, 1150], [1166, 1188]];
+const unread = (t) => t.posts.filter((p) => p.u).length;
+
+/* ===== state ===== */
+const S = {open:null, hover:null, fNew:false, fOpen:false, reply:{}, tab:"comments"};
+const LH = 20, PAD = 8, N = SRC.length;
+const lineTop = (n) => PAD + (n - 1) * LH;
+const $ = (s, r = document) => r.querySelector(s);
+const code = $("#code"), lines = $("#lines"), dview = $("#dview"), dlayer = $("#dlayer"), ruler = $("#ruler");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ===== code ===== */
+const KW = "alignas|auto|bool|break|case|class|const|constexpr|continue|default|do|double|else|enum|explicit|false|for|if|inline|int|namespace|noexcept|nullptr|operator|override|private|public|return|static|static_cast|struct|switch|this|true|using|void|while|qreal";
+const HL = new RegExp(`(\\/\\/.*$)|("(?:[^"\\\\]|\\\\.)*"|<[\\w./]+>(?=$))|\\b(${KW})\\b|\\b(std|core|application|Q[A-Z]\\w*|size_t|uint64_t|uint32_t|string|string_view|vector|optional|pair|thread_card|card_post|cards_scope)\\b|\\b([a-z_][a-z_0-9]*)(?=\\()|\\b(\\d+(?:\\.\\d+)?U?|[A-Z][A-Za-z0-9]+)\\b`, "g");
+function hl(s) {
+  if (/^#/.test(s)) return `<span class="pp">${esc(s)}</span>`;
+  let out = "", m, last = 0;
+  HL.lastIndex = 0;
+  while ((m = HL.exec(s))) {
+    out += esc(s.slice(last, m.index));
+    const v = esc(m[0]);
+    out += m[1] ? `<span class="cm">${v}</span>` : m[2] ? `<span class="str">${v}</span>` : m[3] ? `<span class="k">${v}</span>` : m[4] ? `<span class="ty">${v}</span>` : m[5] ? `<span class="fn">${v}</span>` : `<span class="nu">${v}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(s.slice(last));
+}
+function buildCode() {
+  const inHunk = (n) => HUNKS.some(([a, b]) => n >= a && n <= b);
+  let h = "";
+  SRC.forEach((txt, i) => {
+    const n = i + 1;
+    h += `<div class="ln${inHunk(n) ? " add" : ""}" id="L${n}"><span class="g">${n}</span><span class="m"></span><span class="t">${hl(txt) || " "}</span></div>`;
+  });
+  lines.innerHTML = h;
+  let hk = "";
+  for (const [a, b] of HUNKS) hk += `<i class="hunk" data-a="${a}" data-b="${b}"></i>`;
+  ruler.insertAdjacentHTML("afterbegin", hk);
+}
+function pinHtml(t) {
+  const r = recognize(t.posts[0].b), u = unread(t);
+  const face = t.draft ? `<span class="draftpin">${ic("lock", "xs").replace('class="i xs"', 'class="i" style="width:9px;height:9px"')}</span>` : r ? markSvg(r) : '<span class="plainpin"></span>';
+  const tip = `Line ${t.line}: ${t.draft ? "your draft" : t.posts.length + (t.posts.length === 1 ? " post" : " posts")}${u ? ", " + u + " new" : ""}${t.res ? ", resolved" : ""}`;
+  return `<button class="pin${u ? " u" : ""}${S.open === t.id ? " sel" : ""}${t.res ? " dim" : ""}" data-pin="${t.id}" aria-label="${tip}" data-tip="${tip}">${face}</button>`;
+}
+function renderPins() {
+  for (const t of T) {
+    const m = $(`#L${t.line} .m`);
+    if (m) m.innerHTML = pinHtml(t);
+  }
+  document.querySelectorAll(".ln.pick").forEach((e) => e.classList.remove("pick"));
+  if (S.open) $(`#L${BYID[S.open].line}`).classList.add("pick");
+}
+
+/* ===== threads in the drawer ===== */
+const visible = () => T.filter((t) => (!S.fNew || unread(t) || t.id === S.open) && (!S.fOpen || !t.res || t.id === S.open));
+function postHtml(p) {
+  const r = recognize(p.b);
+  const cls = ["post", r ? (r.weight === "blocking" ? "blk" : r.weight === "open" ? "dash" : "") : "plain"].join(" ");
+  const name = `${who(p.a)}${r ? ", " + markName(r) : ""}`;
+  return `<div class="${cls}" style="${r ? `--t:var(--t-${r.label})` : ""}" role="article" aria-label="${esc(name)}">
+    <i class="rail"></i><div class="gut">${avatar(p.a)}${r ? markSvg(r) : ""}</div>
+    <div class="pb"><div class="nm"><b>${who(p.a)}</b><time>${p.t}</time>${p.u ? '<i class="dot" data-tip="New"></i>' : ""}</div><p class="tx">${bodyHtml(p.b)}</p></div></div>`;
+}
+function closedHtml(t) {
+  const root = t.posts[0], u = unread(t), reps = t.posts.slice(1);
+  const ppl = [...new Set(reps.map((p) => p.a))].slice(0, 3);
+  const meta = t.draft ? `<span class="priv">${ic("lock", "xs")}Draft</span>`
+    : `${reps.length ? `<span class="reps" data-tip="${reps.length} ${reps.length === 1 ? "reply" : "replies"}"><span class="stack">${ppl.map((a) => avatar(a, "xs")).join("")}</span>${ic("reply", "xs")}${reps.length}</span>` : ""}${u ? `<span class="cnt2" data-tip="${u} new">${u}</span>` : ""}${t.res ? `<span class="okm" data-tip="Resolved">${ic("ok", "s")}</span>` : ""}`;
+  const r = recognize(root.b);
+  const cls = ["post", r ? (r.weight === "blocking" ? "blk" : r.weight === "open" ? "dash" : "") : "plain"].join(" ");
+  return `<div class="card closed${t.res ? " res" : ""}${t.draft ? " draft" : ""}${S.hover === t.id ? " hov" : ""}" data-card="${t.id}" tabindex="0" role="button" aria-expanded="false"
+      aria-label="Line ${t.line}, ${who(root.a)}${r ? ", " + markName(r) : ""}${u ? ", " + u + " new" : ""}${t.res ? ", resolved" : ""}. Open">
+    <div class="${cls}" style="${r ? `--t:var(--t-${r.label})` : ""}"><i class="rail"></i><div class="gut">${avatar(root.a)}${r ? markSvg(r) : ""}</div>
+      <div class="pb"><div class="nm"><b>${who(root.a)}</b><time>${root.t}</time><span class="meta">${meta}</span></div><p class="tx">${bodyHtml(root.b)}</p></div></div></div>`;
+}
+function composerHtml(t) {
+  const st = S.reply[t.id];
+  if (!st || !st.on) {
+    return `<div class="comp"><button class="cfb" data-act="reply" data-tip="Reply  R">${avatar(ME)}<span style="flex:1">Reply</span><span class="kbd">R</span></button></div>`;
+  }
+  return `<div class="comp"><div class="cf"><textarea data-reply="${t.id}" rows="2" placeholder="Reply. Start with a label, as in question: or issue (blocking):" aria-label="Reply to the thread on line ${t.line}">${esc(st.text || "")}</textarea>
+    <div class="crow"><span class="chip" data-chip>${chipHtml(st.text || "")}</span><span class="sp"></span>
+    <button class="btn" data-act="reply-cancel">Cancel</button><button class="btn pri" data-act="reply-send" data-tip="Publish reply  ⌘↩"${(st.text || "").trim() ? "" : " disabled"}>${ic("send", "s")}Publish</button></div></div></div>`;
+}
+function chipHtml(text) {
+  const r = recognize(text);
+  return r ? `${markSvg(r)}${esc(markName(r))}` : "Plain";
+}
+function openHtml(t) {
+  const u = unread(t);
+  let posts = "", seen = false;
+  for (const p of t.posts) {
+    if (p.u && !seen && !t.draft) { posts += `<div class="newl">New</div>`; seen = true; }
+    posts += postHtml(p);
+  }
+  const state = t.draft ? `<span class="state">${ic("lock", "xs")}Only you see it</span>` : t.res ? `<span class="state ok">${ic("ok", "xs")}Resolved</span>` : "";
+  const acts = t.draft ? "" : `
+      <button class="ib" data-act="resolve" data-tip="${t.res ? "Unresolve" : "Resolve"}">${ic(t.res ? "unresolve" : "resolve")}</button>
+      <button class="ib" data-act="read" data-tip="${u ? `Mark ${u} new as read` : "Nothing new"}"${u ? "" : ' aria-disabled="true" style="opacity:.4"'}>${ic("read")}</button>
+      <button class="ib" data-act="more" data-tip="More: copy link, view source, copy source, classify">${ic("more")}</button>`;
+  const foot = t.draft ? `<div class="dacts"><button class="btn pri" data-act="draft-publish">${ic("send", "s")}Publish</button><button class="btn" data-act="draft-edit">${ic("edit", "s")}Edit</button><span class="sp"></span><button class="btn" data-act="draft-delete" data-tip="Delete draft">${ic("trash", "s")}</button></div>`
+    : composerHtml(t);
+  return `<div class="card open${t.res ? " res" : ""}${t.draft ? " draft" : ""}" data-card="${t.id}" tabindex="-1" role="group" aria-expanded="true" aria-label="Thread on line ${t.line}">
+    <div class="ch" data-act="collapse-area"><button class="where" data-act="reveal" data-tip="Show line ${t.line} in the code">${ic("target", "xs")}${t.line}</button>${state}<span class="sp"></span>${acts}
+      <button class="ib" data-act="collapse" data-tip="Close  Esc">${ic("collapse")}</button></div>
+    <div class="open-body">${posts}${foot}</div></div>`;
+}
+let lastOpenRendered = null;
+function renderCards() {
+  const ae = document.activeElement;
+  const focusKey = ae && ae.dataset && (ae.dataset.card ? "card:" + ae.dataset.card : ae.dataset.reply ? "reply:" + ae.dataset.reply : null);
+  const caret = ae && ae.dataset && ae.dataset.reply ? [ae.selectionStart, ae.selectionEnd] : null;
+  dlayer.innerHTML = visible().map((t) => (S.open === t.id ? openHtml(t) : closedHtml(t))).join("");
+  if (S.open === lastOpenRendered) dlayer.querySelectorAll(".open-body").forEach((e) => (e.style.animation = "none"));
+  lastOpenRendered = S.open;
+  if (focusKey) {
+    const [k, id] = focusKey.split(":");
+    const el = k === "card" ? dlayer.querySelector(`[data-card="${id}"]`) : dlayer.querySelector(`[data-reply="${id}"]`);
+    if (el) { el.focus({preventScroll:true}); if (caret) el.setSelectionRange(...caret); }
+  }
+  renderPins();
+  layout();
+  renderCounts();
+}
+
+/* Each thread hangs from its line. The open one is pinned exactly at its line; the others pack
+   above and below it without overlapping. With none open, they pack downward from their lines. */
+const GAP = 6, NUDGE = -4;
+let placed = [];
+function layout() {
+  const dr = $("#drawer"); dr.classList.toggle("narrow", dr.offsetWidth < 350);
+  const cards = [...dlayer.querySelectorAll(".card")];
+  const items = cards.map((el) => ({el, t:BYID[el.dataset.card], h:el.offsetHeight}));
+  items.forEach((it) => (it.target = lineTop(it.t.line) + NUDGE));
+  const a = items.findIndex((it) => it.t.id === S.open);
+  const packDown = (from) => { for (let i = from; i < items.length; i++) items[i].top = Math.max(items[i].target, i ? items[i - 1].top + items[i - 1].h + GAP : 2); };
+  if (a < 0) packDown(0);
+  else {
+    items[a].top = items[a].target;
+    for (let i = a - 1; i >= 0; i--) items[i].top = Math.min(items[i].target, items[i + 1].top - GAP - items[i].h);
+    packDown(a + 1);
+    if (items.length && items[0].top < 2) { items[0].top = 2; packDown(1); }
+  }
+  for (const it of items) {
+    it.el.style.top = it.top + "px";
+    if (it.t.id === S.open) it.el.style.setProperty("--notch", Math.max(8, it.target - it.top + 10 - NUDGE) + "px");
+  }
+  placed = items;
+  const bottom = items.reduce((m, it) => Math.max(m, it.top + it.h), 0);
+  const fileBottom = lineTop(N + 1);
+  lines.style.paddingBottom = Math.max(code.clientHeight * 0.45, bottom - fileBottom + code.clientHeight * 0.4) + "px";
+  sync();
+}
+
+/* ===== scrolling: the drawer moves with the code ===== */
+let ticking = false;
+function sync() {
+  const y = code.scrollTop;
+  dlayer.style.transform = `translateY(${-y}px)`;
+  // the ruler
+  const H = ruler.clientHeight, SH = code.scrollHeight, CH = code.clientHeight;
+  const th = $(".thumb", ruler);
+  th.style.top = (y / SH) * H + "px";
+  th.style.height = Math.max(18, (CH / SH) * H) + "px";
+  ruler.querySelectorAll(".hunk").forEach((e) => { e.style.top = (lineTop(+e.dataset.a) / SH) * H + "px"; e.style.height = Math.max(2, ((+e.dataset.b - +e.dataset.a + 1) * LH / SH) * H) + "px"; });
+  ruler.querySelectorAll(".tk").forEach((e) => (e.style.top = ((lineTop(BYID[e.dataset.go].line) + LH / 2) / SH) * H + "px"));
+  edges();
+}
+code.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(() => { ticking = false; sync(); }); } }, {passive:true});
+/* The drawer never scrolls on its own: anything that would scroll it (focus, a caret) scrolls the code. */
+dview.addEventListener("scroll", () => { if (dview.scrollTop) { const d = dview.scrollTop; dview.scrollTop = 0; code.scrollTop += d; } });
+dview.addEventListener("wheel", (e) => { e.preventDefault(); code.scrollBy({top:e.deltaY, left:0}); }, {passive:false});
+addEventListener("resize", () => layout());
+
+function renderRuler() {
+  ruler.querySelectorAll(".tk").forEach((e) => e.remove());
+  let h = "";
+  for (const t of T) {
+    const cls = S.open === t.id ? "sel" : t.draft ? "dr" : unread(t) ? "u" : "";
+    h += `<button class="tk ${cls}${t.res ? " res" : ""}" data-go="${t.id}" data-tip="Line ${t.line}${unread(t) ? ", " + unread(t) + " new" : ""}${t.draft ? ", your draft" : ""}${t.res ? ", resolved" : ""}" aria-label="Thread on line ${t.line}"></button>`;
+  }
+  ruler.insertAdjacentHTML("beforeend", h);
+}
+
+/* Threads above and below what the drawer shows: nearest first. */
+function edges() {
+  const y = code.scrollTop, H = dview.clientHeight;
+  const above = placed.filter((it) => it.top + it.h < y + 30).reverse();
+  const below = placed.filter((it) => it.top > y + H - 30);
+  const chips = (list, dir) => {
+    if (!list.length) return "";
+    const shown = list.slice(0, 3), rest = list.length - shown.length;
+    let h = `<span class="ech dir" aria-hidden="true">${ic(dir, "xs")}</span>`;
+    for (const it of shown) {
+      const t = it.t, r = recognize(t.posts[0].b), u = unread(t);
+      const face = t.draft ? `<span class="draftpin" style="width:12px;height:12px;border:1.5px dashed var(--ink-3);border-radius:3px"></span>` : r ? markSvg(r) : '<span class="plainpin" style="width:11px;height:11px;border-radius:3px;border:1.5px solid var(--ink-3)"></span>';
+      h += `<button class="ech" data-go="${t.id}" data-tip="Line ${t.line}, ${who(t.posts[0].a)}: ${esc(t.posts[0].b.replace(/`/g, "").slice(0, 70))}${t.posts[0].b.length > 70 ? "…" : ""}">${face}${t.line}${u ? '<i class="ud"></i>' : ""}</button>`;
+    }
+    if (rest) h += `<button class="ech more" data-go="${list[3].t.id}" data-tip="${list.slice(3).map((it) => "Line " + it.t.line).join(", ")}">+${rest}</button>`;
+    return h;
+  };
+  const A = $("#above"), B = $("#below");
+  A.innerHTML = chips(above, "up"); A.hidden = !above.length;
+  B.innerHTML = chips(below, "down"); B.hidden = !below.length;
+}
+
+function renderCounts() {
+  const nNew = T.filter((t) => !t.draft && unread(t)).length;
+  const c = $("#newCount");
+  c.textContent = nNew; c.hidden = !nNew;
+  $("#tabComments").setAttribute("aria-label", `Comments, ${nNew} threads with new replies`);
+  const pub = T.filter((t) => !t.draft).length;
+  $("#sCount").textContent = `${pub} threads in this file, ${nNew} with new replies, ${T.filter((t) => t.res).length} resolved`;
+  renderRuler(); sync();
+}
+
+/* ===== actions ===== */
+function scrollToLine(n, force) {
+  const top = lineTop(n), y = code.scrollTop, H = code.clientHeight;
+  const inView = top >= y + H * 0.08 && top <= y + H * 0.4;
+  if (inView && !force) return;
+  code.scrollTo({top:Math.max(0, top - H * 0.22), behavior:reduce ? "auto" : "smooth"});
+}
+function flashPin(id) {
+  const p = $(`[data-pin="${id}"]`);
+  if (!p) return;
+  p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash");
+}
+function openThread(id, o = {}) {
+  S.open = id;
+  renderCards();
+  scrollToLine(BYID[id].line, o.force);
+  flashPin(id);
+  if (o.focus !== false) { const el = dlayer.querySelector(`[data-card="${id}"]`); if (el) el.focus({preventScroll:true}); }
+}
+function closeThread() {
+  const id = S.open;
+  S.open = null;
+  renderCards();
+  const el = id && dlayer.querySelector(`[data-card="${id}"]`);
+  if (el) el.focus({preventScroll:true});
+}
+function nextNew(dir = 1) {
+  const list = T.filter((t) => !t.draft && unread(t));
+  if (!list.length) return toast("Nothing new in this file.");
+  const from = S.open ? BYID[S.open].line : Math.floor(code.scrollTop / LH);
+  const sorted = dir > 0 ? list : [...list].reverse();
+  const t = sorted.find((x) => (dir > 0 ? x.line > from : x.line < from)) || sorted[0];
+  openThread(t.id, {force:true});
+}
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 4200);
+}
+
+document.addEventListener("click", (e) => {
+  const go = e.target.closest("[data-go]");
+  if (go) { openThread(go.dataset.go, {force:true}); return; }
+  const pin = e.target.closest("[data-pin]");
+  if (pin) { S.open === pin.dataset.pin ? closeThread() : openThread(pin.dataset.pin); return; }
+  const th = e.target.closest("[data-theme]");
+  if (th) { setTheme(th.dataset.theme); return; }
+  const tab = e.target.closest("[data-tab]");
+  if (tab) { setTab(tab.dataset.tab); return; }
+  const act = e.target.closest("[data-act]");
+  const card = e.target.closest("[data-card]");
+  if (card && card.classList.contains("closed")) { openThread(card.dataset.card); return; }
+  if (!act) return;
+  const t = card && BYID[card.dataset.card];
+  switch (act.dataset.act) {
+    case "collapse": case "collapse-area":
+      if (act.dataset.act === "collapse-area" && e.target !== act) return;
+      closeThread(); break;
+    case "reveal": scrollToLine(t.line, true); flashPin(t.id); break;
+    case "resolve": t.res = !t.res; renderCards(); toast(t.res ? `Resolved the thread on line ${t.line}.` : `Unresolved the thread on line ${t.line}.`); break;
+    case "read": if (unread(t)) { t.posts.forEach((p) => delete p.u); renderCards(); } break;
+    case "more": toast("More keeps today's items: Copy link, View source, Copy source and Classify. Not drawn in this prototype."); break;
+    case "reply": S.reply[t.id] = {on:true, text:(S.reply[t.id] || {}).text || ""}; renderCards(); dlayer.querySelector(`[data-reply="${t.id}"]`).focus({preventScroll:true}); break;
+    case "reply-cancel": S.reply[t.id] = {on:false, text:""}; renderCards(); dlayer.querySelector(`[data-card="${t.id}"]`).focus({preventScroll:true}); break;
+    case "reply-send": publishReply(t); break;
+    case "draft-publish": t.draft = false; t.posts[0].t = "now"; renderCards(); toast(`Published your comment on line ${t.line}.`); break;
+    case "draft-edit": toast("Editing a draft uses the composer BPR-1212 settles. Not drawn here."); break;
+    case "draft-delete": { const i = T.indexOf(t); T.splice(i, 1); delete BYID[t.id]; S.open = null; renderCards(); toast(`Deleted your draft on line ${t.line}.`); break; }
+    case "fnew": S.fNew = !S.fNew; act.setAttribute("aria-pressed", S.fNew); renderCards(); break;
+    case "fopen": S.fOpen = !S.fOpen; act.setAttribute("aria-pressed", S.fOpen); renderCards(); break;
+    case "next": nextNew(1); break;
+    case "finder": toast("Finding a conversation anywhere in the pull request gets its own view: a main-pane tab or a window you summon like Home (BPR-1293). Not designed yet."); break;
+    case "prwide": toast("Pull request comments and review summaries that are not on a file need a better home (BPR-1294). The leading idea is Overview, as in Collaborator. Not designed yet."); break;
+    case "drawer": { const d = $("#drawer"); d.hidden = !d.hidden; act.setAttribute("aria-pressed", !d.hidden); if (!d.hidden) layout(); break; }
+    case "noop": break;
+  }
+});
+function publishReply(t) {
+  const st = S.reply[t.id];
+  const text = (st && st.text || "").trim();
+  if (!text) return;
+  t.posts.push({a:ME, t:"now", b:text});
+  S.reply[t.id] = {on:false, text:""};
+  renderCards();
+  dlayer.querySelector(`[data-card="${t.id}"]`).focus({preventScroll:true});
+  toast(`Published your reply on line ${t.line}.`);
+}
+document.addEventListener("input", (e) => {
+  const ta = e.target.closest("[data-reply]");
+  if (!ta) return;
+  const id = ta.dataset.reply;
+  S.reply[id] = {...S.reply[id], on:true, text:ta.value};
+  const card = ta.closest(".card");
+  card.querySelector("[data-chip]").innerHTML = chipHtml(ta.value);
+  const send = card.querySelector('[data-act="reply-send"]');
+  if (ta.value.trim()) send.removeAttribute("disabled"); else send.setAttribute("disabled", "");
+  layout();
+});
+document.addEventListener("mouseover", (e) => {
+  const c = e.target.closest("[data-card],[data-pin]");
+  const id = c ? c.dataset.card || c.dataset.pin : null;
+  if (id === S.hover) return;
+  if (S.hover && BYID[S.hover]) { const l = $(`#L${BYID[S.hover].line}`); if (l) l.classList.remove("hov"); const k = dlayer.querySelector(`[data-card="${S.hover}"]`); if (k) k.classList.remove("hov"); }
+  S.hover = id;
+  if (id && BYID[id]) { $(`#L${BYID[id].line}`).classList.add("hov"); const k = dlayer.querySelector(`[data-card="${id}"].closed`); if (k) k.classList.add("hov"); }
+});
+
+/* keyboard: Up/Down between threads, Return opens, Esc closes, R replies, N next new */
+document.addEventListener("keydown", (e) => {
+  const typing = e.target.matches("textarea, input");
+  if (typing) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); publishReply(BYID[e.target.dataset.reply]); }
+    else if (e.key === "Escape") { e.preventDefault(); const id = e.target.dataset.reply; if (!(S.reply[id].text || "").trim()) { S.reply[id] = {on:false, text:""}; renderCards(); } dlayer.querySelector(`[data-card="${id}"]`).focus({preventScroll:true}); }
+    return;
+  }
+  const card = e.target.closest && e.target.closest("[data-card]");
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (!card) return;
+    e.preventDefault();
+    const vs = visible(), i = vs.findIndex((t) => t.id === card.dataset.card);
+    const n = vs[i + (e.key === "ArrowDown" ? 1 : -1)];
+    if (n) { const el = dlayer.querySelector(`[data-card="${n.id}"]`); el.focus({preventScroll:true}); scrollToLine(n.line); }
+  } else if ((e.key === "Enter" || e.key === " ") && card && card.classList.contains("closed")) {
+    e.preventDefault(); openThread(card.dataset.card);
+  } else if (e.key === "Escape" && S.open) {
+    e.preventDefault(); closeThread();
+  } else if ((e.key === "r" || e.key === "R") && S.open && !e.metaKey && !e.ctrlKey && !BYID[S.open].draft) {
+    e.preventDefault(); S.reply[S.open] = {on:true, text:(S.reply[S.open] || {}).text || ""}; renderCards(); dlayer.querySelector(`[data-reply="${S.open}"]`).focus({preventScroll:true});
+  } else if ((e.key === "n" || e.key === "N") && !e.metaKey && !e.ctrlKey) {
+    e.preventDefault(); nextNew(e.shiftKey ? -1 : 1);
+  }
+});
+
+/* ruler: click to jump, drag the thumb */
+ruler.addEventListener("pointerdown", (e) => {
+  if (e.target.closest("[data-go]")) return;
+  const thumb = $(".thumb", ruler), r = ruler.getBoundingClientRect();
+  const SH = code.scrollHeight, H = r.height;
+  if (e.target === thumb) {
+    const y0 = e.clientY, s0 = code.scrollTop;
+    thumb.classList.add("drag"); thumb.setPointerCapture(e.pointerId);
+    const mv = (ev) => (code.scrollTop = s0 + ((ev.clientY - y0) / H) * SH);
+    const up = () => { thumb.classList.remove("drag"); thumb.removeEventListener("pointermove", mv); thumb.removeEventListener("pointerup", up); };
+    thumb.addEventListener("pointermove", mv); thumb.addEventListener("pointerup", up);
+  } else {
+    code.scrollTo({top:((e.clientY - r.top) / H) * SH - code.clientHeight / 2, behavior:reduce ? "auto" : "smooth"});
+  }
+});
+/* drawer width: 375 px by default, 280 to 760 */
+$("#grip").addEventListener("pointerdown", (e) => {
+  const g = e.currentTarget, d = $("#drawer"), x0 = e.clientX, w0 = d.offsetWidth;
+  g.classList.add("drag"); g.setPointerCapture(e.pointerId);
+  const mv = (ev) => { d.style.width = Math.max(280, Math.min(760, w0 - (ev.clientX - x0))) + "px"; layout(); };
+  const up = () => { g.classList.remove("drag"); g.removeEventListener("pointermove", mv); g.removeEventListener("pointerup", up); };
+  g.addEventListener("pointermove", mv); g.addEventListener("pointerup", up);
+});
+
+function setTab(name) {
+  S.tab = name;
+  document.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === name));
+  $("#dview").hidden = name !== "comments";
+  $("#tools").style.visibility = name === "comments" ? "" : "hidden";
+  $("#pNotes").hidden = name !== "notes";
+  $("#pTour").hidden = name !== "tour";
+  if (name === "comments") layout();
+}
+function setTheme(name) {
+  document.body.classList.toggle("dark", name === "dark");
+  document.querySelectorAll("[data-theme]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.theme === name));
+}
+
+/* tooltips beside what they name */
+const tip = $("#tip");
+let tipFor = null;
+document.addEventListener("pointerover", (e) => {
+  const el = e.target.closest("[data-tip]");
+  if (el === tipFor) return;
+  tipFor = el;
+  if (!el) { tip.hidden = true; return; }
+  tip.textContent = el.dataset.tip; tip.hidden = false;
+  const r = el.getBoundingClientRect(), tw = tip.offsetWidth, thh = tip.offsetHeight;
+  let x = Math.min(r.left, innerWidth - tw - 6), y = r.bottom + 4;
+  if (y + thh > innerHeight - 4) y = r.top - thh - 4;
+  tip.style.left = Math.max(4, x) + "px"; tip.style.top = y + "px";
+});
+document.addEventListener("pointerdown", () => { tip.hidden = true; tipFor = null; });
+code.addEventListener("scroll", () => { tip.hidden = true; tipFor = null; }, {passive:true});
+
+/* start: light or dark, scrolled to the blocking issue's function */
+const q = new URLSearchParams(location.search);
+setTheme(q.get("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+buildCode();
+renderCards();
+code.scrollTop = lineTop(636);
+sync();
+</script>
+</body>
+</html>
