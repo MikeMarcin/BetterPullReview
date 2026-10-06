@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1229"
 title: "Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
