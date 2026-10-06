@@ -214,6 +214,61 @@ namespace {
 		expect(refusal(std::string(1100U, '\n') + "issue: x", set(feedback_label::todo)) == feedback_edit_refusal::unsupported_header, "limited body left to the author");
 	}
 
+	auto decorate(std::string aToken, bool aWritten = true, feedback_label_change aChange = feedback_label_change::keep) -> feedback_header_edit
+	{
+		return { .Change = aChange, .Label = feedback_label::issue, .Decoration = feedback_decoration_change{ .Token = std::move(aToken), .Written = aWritten } };
+	}
+
+	// [[BPR-1083]] v004. Decorations combine, as Conventional Comments allows
+	// ("issue (non-blocking, if-minor):"), and custom ones are an
+	// organisation's own: one decoration goes in or out, and every other
+	// token stays exactly as the author wrote it.
+	void combinable_decorations()
+	{
+		expect(applied("issue (non-blocking): x", decorate("if-minor")) == "issue (non-blocking, if-minor): x", "if-minor combines with a weight");
+		expect(applied("issue (non-blocking, if-minor): x", decorate("if-minor", false)) == "issue (non-blocking): x", "if-minor taken out alone");
+		expect(applied("issue (non-blocking, if-minor): x", decorate("blocking")) == "issue (if-minor, blocking): x", "blocking takes the place of non-blocking, if-minor stays");
+		expect(applied("issue (Blocking, ux): x", decorate("non-blocking")) == "issue (ux, non-blocking): x", "non-blocking takes out blocking in any case");
+		expect(applied("issue (Security, if-minor): x", decorate("perf_2")) == "issue (Security, if-minor, perf_2): x", "a custom decoration is appended as typed, others kept as written");
+		expect(applied("issue (Security, if-minor, security): x", decorate("SECURITY", false)) == "issue (if-minor): x", "taking out a custom one removes every copy, case-insensitively");
+		expect(applied("issue (if-minor): x", decorate("If-Minor", false)) == "issue: x", "a standard one is matched by kind; an empty list drops its parentheses");
+		expect(applied("**Issue** (ux): x", decorate("blocking")) == "**Issue** (ux, blocking): x", "the form and the label's spelling are kept");
+		expect(applied("observation (ux): x", decorate("if-minor")) == "observation (ux, if-minor): x", "an unknown label takes decorations too");
+		expect(applied("Plain text.", decorate("security", true, feedback_label_change::set)) == "issue (security): Plain text.", "a label set with a custom decoration");
+		expect(applied("question: x", decorate("non-blocking", true, feedback_label_change::set)) == "issue (non-blocking): x", "a relabel with a decoration");
+
+		const auto unchanged = [](std::string_view aBody, feedback_header_edit aEdit) {
+			const auto decision = decide(request(aBody, std::move(aEdit)));
+			expect(decision.Refusal == feedback_edit_refusal::none && !decision.Changed, aBody);
+		};
+		unchanged("issue (NON-BLOCKING, If-Minor): x", decorate("if-minor"));
+		unchanged("issue (security): x", decorate("Security"));
+		unchanged("issue (security): x", decorate("if-minor", false));
+
+		auto both        = decorate("if-minor");
+		both.Expectation = feedback_expectation::blocking;
+		expect(refusal("issue: x", both) == feedback_edit_refusal::invalid_edit, "a decoration and an expectation are not one edit");
+		expect(refusal("issue: x", decorate("if-minor", true, feedback_label_change::remove)) == feedback_edit_refusal::invalid_edit, "removal with a decoration");
+		expect(refusal("Plain text.", decorate("if-minor")) == feedback_edit_refusal::invalid_edit, "a decoration needs a header");
+		for (const auto* token : { "", "two words", "a,b", "(x)", "caf\xC3\xA9", "x:" }) {
+			expect(refusal("issue: x", decorate(token)) == feedback_edit_refusal::invalid_edit, token);
+			expect(!valid_feedback_decoration(token), token);
+		}
+		expect(valid_feedback_decoration(std::string(maximum_feedback_label_bytes, 'a')) && !valid_feedback_decoration(std::string(maximum_feedback_label_bytes + 1U, 'a')), "decorations are bounded like labels");
+		expect(valid_feedback_decoration("non-blocking") && valid_feedback_decoration("perf_2") && valid_feedback_decoration("UX"), "the recognizer's token");
+
+		// Several decorations read back as the recognizer reports them; the
+		// grammar still calls two distinct standard ones `conflicting`, and a
+		// mark reads the written kinds instead (delivery contract).
+		const auto written = applied(applied(applied("issue: x", decorate("non-blocking")), decorate("if-minor")), decorate("security"));
+		expect(written == "issue (non-blocking, if-minor, security): x", "three decorations written one at a time");
+		const auto read = recognize_feedback_prefix(written);
+		expect(read.Status == feedback_prefix_status::recognized && read.Decorations.size() == 3U && read.Decorations[0].Kind == feedback_decoration_kind::non_blocking
+				   && read.Decorations[1].Kind == feedback_decoration_kind::if_minor && read.Decorations[2].Kind == feedback_decoration_kind::custom
+				   && read.Expectation == feedback_expectation::conflicting,
+			   "multiple and custom decorations recognized, each kept");
+	}
+
 	// Adding a label to a plain body writes before its first line, and never
 	// turns another block into a paragraph to make room.
 	void plain_insertion()
@@ -405,6 +460,7 @@ auto main(int aArgc, char** aArgv) -> int
 	const std::filesystem::path pack{ aArgv[1] };
 	const auto                  cases = pack_cases(pack);
 	decoration_and_form_edits();
+	combinable_decorations();
 	plain_insertion();
 	const auto trips = round_trips();
 	revision_binding();

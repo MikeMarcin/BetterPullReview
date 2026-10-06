@@ -574,25 +574,50 @@ namespace bpr::qt {
 		aPainter.restore();
 	}
 
-	auto feedback_mark_emphasis_of(const core::feedback_expectation aExpectation) noexcept -> feedback_mark_emphasis
+	auto feedback_mark_emphasis_of(const bool aBlocking, const bool aNonBlocking, const bool aIfMinor) noexcept -> feedback_mark_emphasis
 	{
-		switch (aExpectation) {
-		case core::feedback_expectation::blocking:
-			return feedback_mark_emphasis::blocking;
-		case core::feedback_expectation::non_blocking:
-			return feedback_mark_emphasis::non_blocking;
-		case core::feedback_expectation::if_minor:
-			return feedback_mark_emphasis::if_minor;
-		case core::feedback_expectation::unspecified:
-		case core::feedback_expectation::conflicting:
-			return feedback_mark_emphasis::undecorated;
+		// Both weights at once is nonsense (owner, decorations-v003: "don't
+		// worry about it"): neither is drawn, and the text still says both.
+		const auto weight = aBlocking == aNonBlocking ? feedback_mark_weight::normal
+			: aBlocking                               ? feedback_mark_weight::blocking
+													  : feedback_mark_weight::non_blocking;
+		return { .Weight = weight, .IfMinor = aIfMinor };
+	}
+
+	auto feedback_mark_emphasis_of(const core::feedback_annotation& aAnnotation) noexcept -> feedback_mark_emphasis
+	{
+		const auto written = [&aAnnotation](const core::feedback_decoration_kind aKind) {
+			return std::ranges::any_of(aAnnotation.Decorations, [aKind](const core::feedback_decoration& aDecoration) { return aDecoration.Kind == aKind; });
+		};
+		return feedback_mark_emphasis_of(written(core::feedback_decoration_kind::blocking), written(core::feedback_decoration_kind::non_blocking), written(core::feedback_decoration_kind::if_minor));
+	}
+
+	auto feedback_mark_emphasis_code(const feedback_mark_emphasis aEmphasis) noexcept -> int
+	{
+		return (static_cast<int>(aEmphasis.Weight) * 2) + (aEmphasis.IfMinor ? 1 : 0);
+	}
+
+	auto feedback_mark_emphasis_from_code(const int aCode) noexcept -> feedback_mark_emphasis
+	{
+		const auto code = std::clamp(aCode, 0, 5);
+		return { .Weight = static_cast<feedback_mark_weight>(static_cast<std::uint8_t>(code / 2)), .IfMinor = (code % 2) == 1 };
+	}
+
+	auto feedback_mark_emphasis_words(const feedback_mark_emphasis aEmphasis) -> QString
+	{
+		auto words = QStringList{ };
+		if (aEmphasis.Weight != feedback_mark_weight::normal) {
+			words.push_back(decoration_text(aEmphasis.Weight == feedback_mark_weight::blocking ? core::feedback_decoration_kind::blocking : core::feedback_decoration_kind::non_blocking));
 		}
-		return feedback_mark_emphasis::undecorated;
+		if (aEmphasis.IfMinor) {
+			words.push_back(decoration_text(core::feedback_decoration_kind::if_minor));
+		}
+		return words.isEmpty() ? QString{ } : QStringLiteral(" (%1)").arg(words.join(QStringLiteral(", ")));
 	}
 
 	auto feedback_rail_width(const feedback_mark_emphasis aEmphasis) noexcept -> qreal
 	{
-		return aEmphasis == feedback_mark_emphasis::blocking ? 4.0 : 2.0;
+		return aEmphasis.Weight == feedback_mark_weight::blocking ? 4.0 : 2.0;
 	}
 
 	void paint_feedback_mark(QPainter& aPainter, const QRectF& aMark, const core::feedback_label aLabel, const feedback_mark_emphasis aEmphasis, const feedback_mark_colours& aColours)
@@ -603,12 +628,13 @@ namespace bpr::qt {
 		const auto inset    = feedback_mark_border * scale / 2.0;
 		const auto frame    = aMark.adjusted(inset, inset, -inset, -inset);
 		const auto corner   = (feedback_mark_corner * scale) - inset;
-		const auto blocking = aEmphasis == feedback_mark_emphasis::blocking;
+		const auto blocking = aEmphasis.Weight == feedback_mark_weight::blocking;
+		const auto ink      = blocking ? feedback_mark_blocking_ink(aColours.Tint) : aColours.Ink;
 		auto       border   = QPen{ aColours.Tint, feedback_mark_border * scale };
 		auto       fill     = blocking ? aColours.Tint : feedback_mark_soft_fill(aColours.Tint, aColours.Panel);
-		if (aEmphasis == feedback_mark_emphasis::non_blocking) {
+		if (aEmphasis.Weight == feedback_mark_weight::non_blocking) {
 			// Open: the panel shows through, and the border is broken into
-			// dashes, so the mark reads as lighter than an undecorated one.
+			// dashes, so the mark reads as lighter than a normal one.
 			fill = aColours.Panel;
 			border.setCapStyle(Qt::FlatCap);
 			border.setDashPattern({ feedback_mark_dash / feedback_mark_border, feedback_mark_dash_gap / feedback_mark_border });
@@ -619,21 +645,29 @@ namespace bpr::qt {
 		aPainter.setPen(border);
 		aPainter.setBrush(Qt::NoBrush);
 		aPainter.drawRoundedRect(frame, corner, corner);
-		if (aEmphasis == feedback_mark_emphasis::if_minor) {
-			// The top-left corner squared off and filled in the tint, over the
-			// rounded border: the silhouette changes, so it reads in greyscale
-			// and at 16 px. It covers x + y <= tab from the corner.
-			auto       tab  = QPainterPath{ };
+		if (aEmphasis.IfMinor) {
+			// The top-left corner filled (owner, decorations-v003), squared
+			// off over the rounded border, so the silhouette changes and it
+			// reads in greyscale and at 16 px. It covers x + y <= tab from the
+			// corner. A blocking mark is the tint already, so its corner is
+			// filled in the glyph's ink inside the squared-off border.
 			const auto side = feedback_mark_corner_tab * scale;
-			tab.moveTo(aMark.topLeft());
-			tab.lineTo(aMark.left() + side, aMark.top());
-			tab.lineTo(aMark.left(), aMark.top() + side);
-			tab.closeSubpath();
-			aPainter.fillPath(tab, aColours.Tint);
+			const auto tab  = [&aMark](const qreal aInset, const qreal aSide) {
+				auto path = QPainterPath{ };
+				path.moveTo(aMark.left() + aInset, aMark.top() + aInset);
+				path.lineTo(aMark.left() + aSide, aMark.top() + aInset);
+				path.lineTo(aMark.left() + aInset, aMark.top() + aSide);
+				path.closeSubpath();
+				return path;
+			};
+			aPainter.fillPath(tab(0.0, side), aColours.Tint);
+			if (blocking) {
+				const auto edge = feedback_mark_border * scale;
+				aPainter.fillPath(tab(edge, side - (edge * 0.5)), ink);
+			}
 		}
 		const auto side = feedback_mark_glyph_size * scale;
 		const auto box  = QRectF{ aMark.center().x() - side / 2.0, aMark.center().y() - side / 2.0, side, side };
-		const auto ink  = blocking ? feedback_mark_blocking_ink(aColours.Tint) : aColours.Ink;
 		if (aColours.Style == feedback_mark_style::letters) {
 			paint_feedback_letters(aPainter, box, aLabel, ink);
 		} else {
@@ -681,24 +715,24 @@ namespace bpr::qt {
 		aPainter.save();
 		aPainter.setPen(Qt::NoPen);
 		aPainter.setBrush(aColour);
-		if (aEmphasis != feedback_mark_emphasis::non_blocking && aEmphasis != feedback_mark_emphasis::if_minor) {
+		if (aEmphasis.Weight != feedback_mark_weight::non_blocking) {
 			aPainter.drawRoundedRect(QRectF{ aRight - width, aTop, width, length }, width / 2.0, width / 2.0);
 			aPainter.restore();
 			return;
 		}
-		// Broken rails: runs from the top, the last one cut at the bottom so
-		// the rail never reaches past its post.
-		const auto dotted = aEmphasis == feedback_mark_emphasis::if_minor;
-		const auto run    = dotted ? feedback_rail_dot : feedback_rail_dash;
-		const auto gap    = dotted ? feedback_rail_dot_gap : feedback_rail_dash_gap;
-		for (auto y = aTop; y < aBottom; y += run + gap) {
-			const auto piece = std::min(run, aBottom - y);
+		// A broken rail: dashes from the top, the last one cut at the bottom
+		// so the rail never reaches past its post.
+		const auto pitch = feedback_rail_dash + feedback_rail_dash_gap;
+		const auto runs  = static_cast<int>(std::ceil(length / pitch));
+		for (auto run = 0; run < runs; ++run) {
+			const auto y     = aTop + (run * pitch);
+			const auto piece = std::min(feedback_rail_dash, aBottom - y);
 			aPainter.drawRoundedRect(QRectF{ aRight - width, y, width, piece }, width / 2.0, std::min(width, piece) / 2.0);
 		}
 		aPainter.restore();
 	}
 
-	auto feedback_mark_name(const core::feedback_annotation& aAnnotation) -> QString
+	auto feedback_mark_name(const core::feedback_annotation& aAnnotation, const std::string_view aBody) -> QString
 	{
 		if (aAnnotation.Status != core::feedback_prefix_status::recognized || !aAnnotation.Label.has_value()) {
 			return { };
@@ -706,9 +740,13 @@ namespace bpr::qt {
 		auto name        = text_of(core::stable_name(*aAnnotation.Label));
 		auto decorations = QStringList{ };
 		for (const auto& decoration : aAnnotation.Decorations) {
-			// Standard decorations only, in written order; a repeat is named once.
-			const auto words = decoration_text(decoration.Kind);
-			if (!words.isEmpty() && !decorations.contains(words)) {
+			// Every decoration in written order: a standard one in its
+			// canonical spelling, a custom one as written; a repeat once.
+			auto words = decoration_text(decoration.Kind);
+			if (words.isEmpty()) {
+				words = text_of(core::feedback_text(aBody, decoration.Raw));
+			}
+			if (!words.isEmpty() && !decorations.contains(words, Qt::CaseInsensitive)) {
 				decorations.push_back(words);
 			}
 		}
@@ -725,11 +763,9 @@ namespace bpr::qt {
 			return { };
 		}
 		return feedback_body_mark{
-			.Label         = annotation.Label,
-			.Emphasis      = feedback_mark_emphasis_of(annotation.Expectation),
-			.Name          = feedback_mark_name(annotation),
-			.SubjectOffset = feedback_text_index(aBody, annotation.Subject->Begin),
-			.SubjectByte   = annotation.Subject->Begin,
+			.Label    = annotation.Label,
+			.Emphasis = feedback_mark_emphasis_of(annotation),
+			.Name     = feedback_mark_name(annotation, aBody),
 		};
 	}
 

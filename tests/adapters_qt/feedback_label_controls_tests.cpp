@@ -11,18 +11,21 @@
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_draft_edit.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QHelpEvent>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QStringList>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QToolButton>
@@ -213,35 +216,69 @@ namespace {
 
 	void test_decorations_and_plain()
 	{
-		auto f = fixture{ "Fix it." };
+		using W = qt::feedback_mark_weight;
+		auto f  = fixture{ "Fix it." };
 		f.controls()->chip()->click();
 		settle();
 		f.menu()->label_button(core::feedback_label::issue)->click();
 		settle();
-		auto* const blocking = f.controls()->blocking_toggle();
+		auto* const blocking    = f.controls()->blocking_toggle();
+		auto* const nonBlocking = f.controls()->non_blocking_toggle();
+		auto* const ifMinor     = f.controls()->if_minor_toggle();
 		expect(blocking->isVisible() && !blocking->isChecked() && blocking->accessibleName() == QStringLiteral("blocking"),
 			   "with a label the three decorations sit beside the chip as toggles");
 		blocking->click();
 		settle();
-		expect(f.text() == "issue (blocking): Fix it." && blocking->isChecked() && f.controls()->state().Expectation == core::feedback_expectation::blocking,
+		expect(f.text() == "issue (blocking): Fix it." && blocking->isChecked() && f.controls()->state().Emphasis == qt::feedback_mark_emphasis{ .Weight = W::blocking },
 			   "blocking adds (blocking)");
-		f.controls()->non_blocking_toggle()->click();
+		nonBlocking->click();
 		settle();
-		expect(f.text() == "issue (non-blocking): Fix it." && !blocking->isChecked() && f.controls()->non_blocking_toggle()->isChecked(),
-			   "non-blocking leaves exactly that one");
-		f.controls()->non_blocking_toggle()->click();
+		expect(f.text() == "issue (non-blocking): Fix it." && !blocking->isChecked() && nonBlocking->isChecked(),
+			   "non-blocking takes blocking's place: a label carries one weight");
+		// [[BPR-1083]] v004 (owner, decorations-v003: "multiple decorators can
+		// be applied to a comment. like (non-blocking, if-minor)").
+		ifMinor->click();
 		settle();
-		expect(f.text() == "issue: Fix it.", "pressing a written decoration removes it");
+		expect(f.text() == "issue (non-blocking, if-minor): Fix it." && nonBlocking->isChecked() && ifMinor->isChecked()
+				   && f.controls()->state().Emphasis == qt::feedback_mark_emphasis{ .Weight = W::non_blocking, .IfMinor = true },
+			   "if-minor combines with the weight");
+		nonBlocking->click();
+		settle();
+		expect(f.text() == "issue (if-minor): Fix it." && ifMinor->isChecked(), "pressing a written decoration takes out that one alone");
 
 		f.controls()->open_menu();
 		settle();
+		f.menu()->blocking_button()->click();
+		settle();
+		expect(f.text() == "issue (if-minor, blocking): Fix it." && f.menu()->isVisible() && f.menu()->blocking_button()->isChecked() && f.menu()->if_minor_button()->isChecked(),
+			   "the menu's Adds row combines decorations and stays open");
+		// Any custom decoration, written as typed.
+		auto* const field = f.menu()->custom_field();
+		expect(field->isEnabled() && f.menu()->custom_buttons().empty(), "the menu takes a custom decoration once there is a label");
+		field->setFocus();
+		for (const auto character : QStringLiteral("two words")) {
+			key(field, character == QLatin1Char{ ' ' } ? Qt::Key_Space : Qt::Key_A, Qt::NoModifier, QString{ character });
+		}
+		expect(field->text() == QStringLiteral("twowords"), "a decoration is one word: a space cannot be typed");
+		field->clear();
+		for (const auto character : QStringLiteral("Security")) {
+			key(field, Qt::Key_A, Qt::NoModifier, QString{ character });
+		}
+		key(field, Qt::Key_Return);
+		settle();
+		expect(f.text() == "issue (if-minor, blocking, Security): Fix it." && field->text().isEmpty() && f.menu()->isVisible(), "Return writes the custom decoration as typed, after the others");
+		const auto custom = f.menu()->custom_buttons();
+		expect(custom.size() == 1U && custom.front()->text() == QStringLiteral("Security") && custom.front()->isChecked() && f.controls()->state().Custom == QStringList{ QStringLiteral("Security") },
+			   "a written custom decoration shows as a checked toggle");
 		f.menu()->if_minor_button()->click();
 		settle();
-		expect(f.text() == "issue (if-minor): Fix it." && f.menu()->isVisible() && f.menu()->if_minor_button()->isChecked(),
-			   "the menu's Adds row decorates and stays open");
+		expect(f.text() == "issue (blocking, Security): Fix it.", "if-minor comes out and the custom one stays as written");
+		f.menu()->custom_buttons().front()->click();
+		settle();
+		expect(f.text() == "issue (blocking): Fix it." && f.menu()->custom_buttons().empty(), "unchecking a custom decoration takes it out");
 		f.menu()->label_button(core::feedback_label::question)->click();
 		settle();
-		expect(f.text() == "question (if-minor): Fix it.", "a new label keeps the decorations");
+		expect(f.text() == "question (blocking): Fix it.", "a new label keeps the decorations");
 
 		f.controls()->open_menu();
 		settle();
@@ -250,7 +287,61 @@ namespace {
 		settle();
 		expect(f.text() == "Fix it." && !f.menu()->isVisible(), "⌘0 in the menu makes the comment plain and closes it");
 		expect(!overrides(f.body(), Qt::Key_0), "outside the menu ⌘0 stays the window's Home shortcut");
-		expect(f.Commands.size() == 7U, "each change was one draft edit");
+		expect(f.Commands.size() == 11U, "each change was one draft edit");
+
+		// A header typed by hand with several and custom decorations shows on
+		// the toggles and in the menu exactly as written.
+		auto typed = fixture{ "nitpick (Security, if-minor, perf_2): spacing" };
+		expect(typed.controls()->state().Custom == QStringList{ QStringLiteral("Security"), QStringLiteral("perf_2") } && typed.controls()->if_minor_toggle()->isChecked()
+				   && !typed.controls()->blocking_toggle()->isChecked() && typed.controls()->state().Emphasis == qt::feedback_mark_emphasis{ .IfMinor = true },
+			   "typed custom decorations are read as written, in order");
+		typed.controls()->open_menu();
+		settle();
+		save_render(*typed.menu(), "menu-custom");
+		expect(typed.menu()->custom_buttons().size() == 2U, "each custom decoration has its toggle");
+		typed.menu()->custom_buttons().front()->click();
+		settle();
+		expect(typed.text() == "nitpick (if-minor, perf_2): spacing", "taking one out keeps the rest exactly as written");
+		typed.menu()->close();
+	}
+
+	/// \brief [[BPR-1083]] v004. The controls' tooltips sit right next to
+	/// what they name (owner, preview-tooltips-v003: "The tooltip feels
+	/// strangely far away.").
+	void test_control_tooltips_sit_next_to_their_marks()
+	{
+		const auto expect_anchored = [](QWidget& aOwner, const QRect& aAnchor, const QString& aText, const char* const aWhat) {
+			qt::hide_anchored_tooltip();
+			QHelpEvent help{ QEvent::ToolTip, aAnchor.center(), aOwner.mapToGlobal(aAnchor.center()) };
+			QApplication::sendEvent(&aOwner, &help);
+			const auto* const tip   = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+			const auto        frame = QRect{ aOwner.mapToGlobal(aAnchor.topLeft()), aAnchor.size() };
+			const auto        ok    = tip != nullptr && tip->text() == aText
+				&& (tip->geometry().left() == frame.left() || (tip->geometry().left() < frame.left() && tip->geometry().right() >= frame.right() && tip->geometry() == qt::anchored_tooltip_geometry(frame, tip->size(), aOwner.screen()->availableGeometry())))
+				&& (tip->geometry().top() == frame.bottom() + 1 + qt::anchored_tooltip_gap || tip->geometry().bottom() + 1 + qt::anchored_tooltip_gap == frame.top());
+			if (!ok) {
+				std::cerr << aWhat << ": " << (tip != nullptr ? tip->text().toStdString() : std::string{ "no tooltip" }) << '\n';
+			}
+			expect(ok, "the tooltip sits right below or above what it names, left edges aligned");
+			qt::hide_anchored_tooltip();
+		};
+		auto f = fixture{ "issue: Fix it." };
+		expect_anchored(*f.controls()->chip(), f.controls()->chip()->rect(), f.controls()->chip()->toolTip(), "chip");
+		f.controls()->open_menu();
+		settle();
+		auto* const praise = f.menu()->label_button(core::feedback_label::praise);
+		expect_anchored(*praise, praise->rect(), qt::feedback_label_description(core::feedback_label::praise), "menu entry");
+		f.menu()->close();
+		settle();
+		f.controls()->set_helper(true);
+		f.body()->clear();
+		f.body()->setFocus();
+		type(f.body(), QStringLiteral(":"));
+		settle();
+		auto* const list = f.controls()->completion();
+		expect(list->isVisible() && list->count() == 12, "a colon opens completion");
+		const auto item = list->visualItemRect(list->item(1));
+		expect_anchored(*list->viewport(), item, qt::feedback_label_description(core::feedback_label::nitpick), "completion row");
 	}
 
 	void test_command_l_belongs_to_the_focused_editor()
@@ -557,6 +648,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	test_the_chip_and_menu_edit_once_and_undo_once();
 	test_decorations_and_plain();
+	test_control_tooltips_sit_next_to_their_marks();
 	test_command_l_belongs_to_the_focused_editor();
 	test_every_label_and_plain_are_reachable_by_keyboard();
 	test_controls_and_typed_syntax_are_the_same_draft();

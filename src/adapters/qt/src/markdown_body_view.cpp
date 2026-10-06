@@ -2,6 +2,8 @@
 
 #include "markdown_document.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QFontDatabase>
@@ -393,6 +395,7 @@ namespace bpr::qt {
 		copy->setObjectName(QStringLiteral("markdownCopySource"));
 		Mark = new QLabel{ this };
 		Mark->setObjectName(QStringLiteral("markdownFeedbackMark"));
+		anchor_tooltips(*Mark);
 		Mark->hide();
 		controls->addWidget(Mark);
 		controls->addWidget(Toggle);
@@ -471,17 +474,11 @@ namespace bpr::qt {
 
 	void markdown_body_view::set_feedback_marks(const feedback_mark_theme& aTheme)
 	{
-		const auto enabled = MarkTheme.has_value();
-		MarkTheme          = aTheme;
-		const auto mark    = feedback_body_mark_of(Body);
-		// A new tint or style redraws the mark alone. The document, its
-		// position and its selection change only when what it renders does.
-		if ((enabled && mark.Label == BodyMark.Label && mark.SubjectByte == BodyMark.SubjectByte) || (!enabled && !mark.Label.has_value())) {
-			BodyMark = mark;
-			refresh_mark();
-			return;
-		}
-		prepare_rendered();
+		// A new tint or style redraws the mark alone. The document renders the
+		// body as written either way, so its position and selection stay.
+		MarkTheme = aTheme;
+		BodyMark  = feedback_body_mark_of(Body);
+		refresh_mark();
 	}
 
 	void markdown_body_view::refresh_mark()
@@ -502,10 +499,11 @@ namespace bpr::qt {
 
 	void markdown_body_view::prepare_rendered()
 	{
-		// [[BPR-1083]]. The mark stands in for the prefix in the reading view.
+		// [[BPR-1083]]. The mark leads the body, which reads as written, its
+		// header and decorations included (owner, decorations-v003).
 		BodyMark = MarkTheme.has_value() ? feedback_body_mark_of(Body) : feedback_body_mark{ };
 		refresh_mark();
-		const auto shown  = std::string_view{ Body }.substr(std::min(BodyMark.SubjectByte, Body.size()));
+		const auto shown  = std::string_view{ Body };
 		Fallback          = rendering_limit(shown);
 		RenderedAvailable = Fallback.isEmpty();
 		auto* document    = Rendered->document();

@@ -1,5 +1,6 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QContextMenuEvent>
@@ -16,7 +17,6 @@
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QToolButton>
-#include <QToolTip>
 
 #include <algorithm>
 #include <cstddef>
@@ -53,7 +53,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto mark_code(const card_post& aPost) -> int
 		{
-			return aPost.Label.has_value() ? (static_cast<int>(*aPost.Label) * 4) + static_cast<int>(aPost.Emphasis) : -1;
+			return aPost.Label.has_value() ? (static_cast<int>(*aPost.Label) * 8) + feedback_mark_emphasis_code(aPost.Emphasis) : -1;
 		}
 
 		/// \brief Whether a compact entry leads with its root's mark.
@@ -727,6 +727,11 @@ namespace bpr::qt {
 		return { aViewportPoint.x(), aViewportPoint.y() + verticalScrollBar()->value() };
 	}
 
+	auto conversation_cards_view::to_viewport(const QRect aContentRect) const -> QRect
+	{
+		return aContentRect.translated(0, -verticalScrollBar()->value());
+	}
+
 	auto conversation_cards_view::hit_test(const QPoint aViewportPoint) const
 		-> std::optional<std::pair<std::size_t, std::optional<card_action>>>
 	{
@@ -1018,7 +1023,7 @@ namespace bpr::qt {
 			target.Posts.push_back(card_post{
 				.Id         = node.Id,
 				.Author     = author,
-				.Body       = text(node.ReviewerProse.value_or(node.Body)).mid(mark.SubjectOffset),
+				.Body       = text(node.ReviewerProse.value_or(node.Body)),
 				.Depth      = depth,
 				.Mine       = !Viewer.isEmpty() && author == Viewer,
 				.Unread     = unread,
@@ -1058,7 +1063,7 @@ namespace bpr::qt {
 			const auto mark = feedback_body_mark_of(Draft->Body);
 			card.Posts.push_back(card_post{
 				.Author   = QStringLiteral("Your note, not published"),
-				.Body     = text(Draft->Body).mid(mark.SubjectOffset),
+				.Body     = text(Draft->Body),
 				.Mine     = true,
 				.Label    = mark.Label,
 				.Emphasis = mark.Emphasis,
@@ -1417,20 +1422,22 @@ namespace bpr::qt {
 				if (!card.Rect.contains(point) || card.Posts.empty()) {
 					continue;
 				}
-				if (compact_mark_rect(card).contains(point)) {
-					QToolTip::showText(help->globalPos(), card.Posts.front().Name, viewport());
+				// The name sits right below the mark it names ([[BPR-1083]]
+				// v004; owner, preview-tooltips-v003: "The tooltip feels
+				// strangely far away."), also when the rail is hovered.
+				if (const auto mark = compact_mark_rect(card); !mark.isEmpty() && (mark.contains(point) || (Compact && rail_rect(card, card.Posts.front()).adjusted(-3.0, 0.0, 3.0, 0.0).contains(QPointF{ point })))) {
+					show_anchored_tooltip(*viewport(), to_viewport(mark), card.Posts.front().Name);
 					return true;
 				}
 				for (const auto& post : card.Posts) {
-					if (mark_rect(post).contains(point) || rail_rect(card, post).adjusted(-3.0, 0.0, 3.0, 0.0).contains(QPointF{ point })) {
-						// The word appears only in the tooltip and the
-						// accessible name, as in "issue (blocking)".
-						QToolTip::showText(help->globalPos(), post.Name, viewport());
+					const auto mark = mark_rect(post);
+					if (!Compact && (mark.contains(point) || rail_rect(card, post).adjusted(-3.0, 0.0, 3.0, 0.0).contains(QPointF{ point }))) {
+						show_anchored_tooltip(*viewport(), to_viewport(mark.isEmpty() ? rail_rect(card, post).toAlignedRect() : mark), post.Name);
 						return true;
 					}
 				}
 			}
-			QToolTip::hideText();
+			hide_anchored_tooltip();
 			aEvent->ignore();
 			return true;
 		}

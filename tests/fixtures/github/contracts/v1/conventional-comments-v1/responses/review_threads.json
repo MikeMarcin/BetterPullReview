@@ -105,7 +105,7 @@
 											"id": "U_fixture-author",
 											"login": "fixture-author"
 										},
-										"bodyText": "question: Does the second view share the depth buffer?",
+										"bodyText": "question (non-blocking): Does the second view share the depth buffer?",
 										"id": "PRRC_cc_1_2",
 										"line": 6,
 										"originalLine": 6,
@@ -171,7 +171,7 @@
 											"id": "U_fixture_jiayin",
 											"login": "jiayin"
 										},
-										"bodyText": "suggestion (non-blocking): Clamp the width to at least one pixel.",
+										"bodyText": "suggestion (non-blocking, if-minor): Clamp the width to at least one pixel.",
 										"id": "PRRC_cc_2_1",
 										"line": 12,
 										"originalLine": 12,
@@ -184,8 +184,23 @@
 											"id": "U_fixture-author",
 											"login": "fixture-author"
 										},
-										"bodyText": "todo: I will add the clamp in the next push.",
+										"bodyText": "todo (blocking, if-minor, perf): Add the clamp before the next push.",
 										"id": "PRRC_cc_2_2",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_2_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "nitpick (style): std::max reads better than the ternary here.",
+										"id": "PRRC_cc_2_3",
 										"line": 12,
 										"originalLine": 12,
 										"outdated": false,
@@ -196,10 +211,10 @@
 									}
 								],
 								"pageInfo": {
-									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMl8y",
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfMl8z",
 									"hasNextPage": false
 								},
-								"totalCount": 2
+								"totalCount": 3
 							},
 							"diffSide": "RIGHT",
 							"id": "PRRT_cc_2",

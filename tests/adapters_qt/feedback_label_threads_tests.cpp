@@ -2,9 +2,11 @@
 /// \brief [[BPR-1083]]. Proves the thread marks (owner, BPR-1079 v4; RFC-BPR-0050
 /// R31, R32): every post's 16 px mark under its 18 px avatar, the rail in the
 /// label's tint that adds no width, blocking's fill and wider rail, the reply's
-/// own mark, the body starting at the subject while the source keeps the prefix,
-/// the names "tbutler, issue (blocking)", and the two mark styles.
+/// own mark, every body read as written with its decorations (BPR-1083 v004),
+/// the names "tbutler, issue (blocking)", the two mark styles, and tooltips
+/// that sit right next to their marks.
 
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -19,6 +21,8 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QGuiApplication>
+#include <QHeaderView>
 #include <QHelpEvent>
 #include <QImage>
 #include <QLabel>
@@ -26,7 +30,9 @@
 #include <QPlainTextEdit>
 #include <QPoint>
 #include <QRect>
+#include <QScreen>
 #include <QScrollBar>
+#include <QSize>
 #include <QTextEdit>
 #include <QToolButton>
 #include <QToolTip>
@@ -69,6 +75,42 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1083]] v004. Sends a tooltip event at `aPoint` of `aOwner`
+	/// and expects `aText` in an anchored tooltip right next to `aAnchor`:
+	/// directly below it with their left edges aligned, or directly above it
+	/// when below has no room (owner, preview-tooltips-v003: "The tooltip
+	/// feels strangely far away.").
+	void expect_tooltip_at(QWidget& aOwner, const QPoint aPoint, const QRect& aAnchor, const QString& aText, const char* const aWhat)
+	{
+		qt::hide_anchored_tooltip();
+		QHelpEvent help{ QEvent::ToolTip, aPoint, aOwner.mapToGlobal(aPoint) };
+		QApplication::sendEvent(&aOwner, &help);
+		const auto* const tip = qt::anchored_tooltip();
+		if (tip == nullptr) {
+			std::cerr << aWhat << ": no anchored tooltip\n";
+		}
+		expect(tip != nullptr && !QToolTip::isVisible(), "a mark's tooltip is the anchored one, not Qt's at the pointer");
+		const auto* const label = qobject_cast<const QLabel*>(tip);
+		if (label == nullptr || label->text() != aText) {
+			std::cerr << aWhat << ": tooltip text '" << (label != nullptr ? label->text().toStdString() : std::string{ }) << "'\n";
+		}
+		expect(label != nullptr && label->text() == aText, "the tooltip names what is under the pointer");
+		const auto anchor = QRect{ aOwner.mapToGlobal(aAnchor.topLeft()), aAnchor.size() };
+		const auto box    = tip->geometry();
+		const auto below  = box.top() == anchor.bottom() + 1 + qt::anchored_tooltip_gap;
+		const auto above  = box.bottom() + 1 + qt::anchored_tooltip_gap == anchor.top();
+		// Left edges aligned unless the screen's edge moved it left; it still
+		// spans the mark.
+		const auto* const screen  = QGuiApplication::screenAt(anchor.center()) != nullptr ? QGuiApplication::screenAt(anchor.center()) : aOwner.screen();
+		const auto        aligned = box.left() == anchor.left()
+			|| (box.left() < anchor.left() && box.right() >= anchor.right() && box == qt::anchored_tooltip_geometry(anchor, box.size(), screen->availableGeometry()));
+		if (!(below || above) || !aligned) {
+			std::cerr << aWhat << ": anchor " << anchor.x() << ',' << anchor.y() << ' ' << anchor.width() << 'x' << anchor.height() << ", tooltip " << box.x() << ',' << box.y() << ' ' << box.width() << 'x' << box.height() << '\n';
+		}
+		expect((below || above) && aligned, "the tooltip sits right below or above its mark, left edges aligned");
+		qt::hide_anchored_tooltip();
+	}
+
 	[[nodiscard]] auto forest() -> std::vector<conversation>
 	{
 		const auto post = [](std::string aId, std::string aAuthor, std::string aBody) {
@@ -85,7 +127,7 @@ namespace {
 		return {
 			conversation{ .Id = "thread-1", .Kind = application::github_conversation_kind::review_thread, .Path = "src/light.cpp", .Line = 12U, .DiffSide = application::github_conversation_diff_side::right, .AnchorAvailability = application::github_conversation_anchor_availability::current },
 			post("c1", "tbutler", "issue (blocking): LightScale ignores the view's post-process settings."),
-			post("c2", "MikeMarcin", "question: Can the view settings be null on secondary views?"),
+			post("c2", "MikeMarcin", "question (if-minor, ux): Can the view settings be null on secondary views?"),
 			post("c3", "jiayin", "**praise:** Good catch."),
 			post("c4", "tbutler", "Thanks, resolving after CI."),
 		};
@@ -106,14 +148,18 @@ namespace {
 		settle();
 		expect(view.cards().size() == 1U && view.cards().front().Posts.size() == 4U, "one thread of four posts");
 		const auto& posts = view.cards().front().Posts;
-		expect(posts[0].Label == core::feedback_label::issue && posts[0].Emphasis == qt::feedback_mark_emphasis::blocking && posts[0].Name == QStringLiteral("tbutler, issue (blocking)"),
+		expect(posts[0].Label == core::feedback_label::issue && posts[0].Emphasis == qt::feedback_mark_emphasis{ .Weight = qt::feedback_mark_weight::blocking } && posts[0].Name == QStringLiteral("tbutler, issue (blocking)"),
 			   "the root is a blocking issue named with its author first");
-		expect(posts[1].Label == core::feedback_label::question && posts[1].Emphasis == qt::feedback_mark_emphasis::undecorated && posts[2].Label == core::feedback_label::praise,
-			   "each reply shows its own mark, which may differ from its root's");
+		expect(posts[1].Label == core::feedback_label::question && posts[1].Emphasis == qt::feedback_mark_emphasis{ .IfMinor = true } && posts[2].Label == core::feedback_label::praise
+				   && posts[1].Name == QStringLiteral("MikeMarcin, question (if-minor, ux)"),
+			   "each reply shows its own mark, which may differ from its root's, with if-minor's corner and its custom decoration named");
 		expect(!posts[3].Label.has_value() && posts[3].Name == QStringLiteral("tbutler"), "a plain post has no mark");
-		expect(posts[0].Body == QStringLiteral("LightScale ignores the view's post-process settings.") && posts[2].Body == QStringLiteral("Good catch.")
+		// [[BPR-1083]] v004 (owner, decorations-v003: "I think we always
+		// display the decorators text out in the comments").
+		expect(posts[0].Body == QStringLiteral("issue (blocking): LightScale ignores the view's post-process settings.")
+				   && posts[1].Body == QStringLiteral("question (if-minor, ux): Can the view settings be null on secondary views?") && posts[2].Body == QStringLiteral("**praise:** Good catch.")
 				   && posts[3].Body == QStringLiteral("Thanks, resolving after CI."),
-			   "the mark stands in for the prefix, so the body starts at the subject");
+			   "every post reads as written, its label and decorations included");
 		for (const auto& post : posts) {
 			expect(post.Rect.left() == posts.front().Rect.left(), "every post's text keeps the same left edge: the rail adds no width");
 			const auto mark = view.mark_rect(post);
@@ -125,7 +171,7 @@ namespace {
 				expect(mark.isEmpty(), "a plain post has no mark rect");
 			}
 			const auto rail = view.rail_rect(view.cards().front(), post);
-			expect(rail.right() == post.Rect.left() - 3 && rail.width() == (post.Emphasis == qt::feedback_mark_emphasis::blocking ? 4.0 : 2.0) && rail.left() >= view.cards().front().Rect.left(),
+			expect(rail.right() == post.Rect.left() - 3 && rail.width() == (post.Emphasis.Weight == qt::feedback_mark_weight::blocking ? 4.0 : 2.0) && rail.left() >= view.cards().front().Rect.left(),
 				   "the rail runs 3 px left of the avatar, 2 px or 4 px when blocking, growing outward inside the card");
 		}
 
@@ -207,25 +253,21 @@ namespace {
 		const auto plainCard  = plain.cards().front().Rect.translated(0, -plain.verticalScrollBar()->value());
 		expect(firstInk(plainImage, plainCard) >= 0 && firstInk(image, markedCard) == shown.left(),
 			   "the marked entry's first ink is its mark; the plain entry starts with its text");
-		auto       tip = QString{ };
-		QHelpEvent help{ QEvent::ToolTip, shown.center(), view.viewport()->mapToGlobal(shown.center()) };
-		QApplication::sendEvent(view.viewport(), &help);
-		tip = QToolTip::text();
-		expect(tip == QStringLiteral("tbutler, issue (blocking)"), "the mark's tooltip names the root post and its label");
-		QToolTip::hideText();
+		expect_tooltip_at(*view.viewport(), shown.center(), shown, QStringLiteral("tbutler, issue (blocking)"), "the compact entry's mark");
 
 		// My draft's entry leads with its own mark, in its own decoration.
 		const auto comparison = core::file_comparison_digest{ };
 		view.set_draft(core::review_comment_draft{
 						   .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 11U },
-						   .Body   = "suggestion (non-blocking): Clamp the width.",
+						   .Body   = "suggestion (non-blocking, if-minor): Clamp the width.",
 					   },
 					   comparison);
 		settle();
 		const auto draft = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; });
 		expect(draft != view.cards().end() && draft->Posts.front().Label == core::feedback_label::suggestion
-				   && draft->Posts.front().Emphasis == qt::feedback_mark_emphasis::non_blocking && !view.compact_mark_rect(*draft).isEmpty(),
-			   "a draft entry leads with its non-blocking suggestion mark");
+				   && draft->Posts.front().Emphasis == qt::feedback_mark_emphasis{ .Weight = qt::feedback_mark_weight::non_blocking, .IfMinor = true } && !view.compact_mark_rect(*draft).isEmpty()
+				   && draft->Posts.front().Body == QStringLiteral("suggestion (non-blocking, if-minor): Clamp the width."),
+			   "a draft entry leads with its non-blocking, if-minor suggestion mark, and its text says so");
 		expect(view.rail_rect(*draft, draft->Posts.front()).width() == 2.0, "and keeps a 2 px rail");
 		save_render(view, "cards-compact-draft");
 	}
@@ -241,7 +283,7 @@ namespace {
 				   && first.data(qt::github_conversation_model::feedback_name_role).toString() == QStringLiteral("issue (blocking)"),
 			   "the model reads each post's mark once from its accepted body");
 		const auto spoken = first.data(Qt::AccessibleTextRole).toString();
-		expect(spoken.startsWith(QStringLiteral("Review comment by @tbutler, issue (blocking)\nLightScale")), "the post's accessible name is its author and then its mark");
+		expect(spoken.startsWith(QStringLiteral("Review comment by @tbutler, issue (blocking)\nissue (blocking): LightScale")), "the post's accessible name is its author and then its mark, and its text is as written");
 		expect(first.data(qt::github_conversation_model::body_role).toString().startsWith(QStringLiteral("issue (blocking): ")), "the body role keeps the prefix");
 		expect(!model.index(3, 0, root).data(qt::github_conversation_model::feedback_label_role).isValid(), "a plain post has no label");
 
@@ -250,11 +292,22 @@ namespace {
 		delegate->set_label_marks(theme());
 		view.setModel(&model);
 		view.setItemDelegate(delegate);
+		// As the conversation panel sets its list up, so wrapped bodies are
+		// measured at the width they paint at.
 		view.setRootIsDecorated(false);
 		view.setIndentation(0);
+		view.setWordWrap(true);
+		view.setUniformRowHeights(false);
+		view.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		view.header()->setSectionResizeMode(QHeaderView::Stretch);
+		view.setTextElideMode(Qt::ElideNone);
+		view.header()->hide();
 		view.expandAll();
 		view.resize(420, 600);
 		view.show();
+		settle();
+		// The rows were measured before the view had its width.
+		view.doItemsLayout();
 		settle();
 		save_render(view, "post-list");
 		auto image = QImage{ view.viewport()->size(), QImage::Format_ARGB32_Premultiplied };
@@ -274,7 +327,7 @@ namespace {
 		reader.set_feedback_marks(theme());
 		reader.resize(420, 200);
 		save_render(reader, "reader");
-		expect(reader.rendered_view()->toPlainText().startsWith(QStringLiteral("LightScale ignores")), "with marks the rendered body starts at the subject");
+		expect(reader.rendered_view()->toPlainText().startsWith(QStringLiteral("issue (blocking): LightScale ignores")), "with marks the rendered body still reads as written, its decorations included");
 		expect(reader.feedback_mark_label()->isVisibleTo(&reader) && reader.feedback_mark_label()->accessibleName() == QStringLiteral("issue (blocking)")
 				   && reader.feedback_mark_label()->toolTip() == QStringLiteral("issue (blocking)"),
 			   "and the mark leads it, named issue (blocking)");
@@ -283,6 +336,39 @@ namespace {
 		expect(QApplication::clipboard()->text() == QStringLiteral("issue (blocking): LightScale **ignores** the view."), "and so does Copy source");
 		reader.set_body("Plain text.", "c4");
 		expect(!reader.feedback_mark_label()->isVisibleTo(&reader) && reader.rendered_view()->toPlainText().startsWith(QStringLiteral("Plain text.")), "a plain body has no mark");
+	}
+	/// \brief [[BPR-1083]] v004 (owner, preview-tooltips-v003: "The tooltip
+	/// feels strangely far away."). Every mark's tooltip sits right next to it.
+	void test_tooltips_sit_next_to_their_marks()
+	{
+		const auto screen = QRect{ 0, 0, 1000, 800 };
+		expect(qt::anchored_tooltip_geometry(QRect{ 100, 100, 16, 16 }, QSize{ 200, 40 }, screen) == QRect{ 100, 116 + qt::anchored_tooltip_gap, 200, 40 },
+			   "below the mark, left edges aligned, a few pixels apart");
+		expect(qt::anchored_tooltip_geometry(QRect{ 100, 770, 16, 16 }, QSize{ 200, 40 }, screen) == QRect{ 100, 770 - qt::anchored_tooltip_gap - 40, 200, 40 },
+			   "above the mark when below would leave the screen");
+		expect(qt::anchored_tooltip_geometry(QRect{ 950, 100, 16, 16 }, QSize{ 200, 40 }, screen).left() == 800, "moved left only to stay on the screen");
+
+		qt::conversation_cards_view view;
+		view.set_label_marks(theme());
+		view.resize(420, 900);
+		view.show();
+		view.adopt(forest());
+		settle();
+		const auto& posts  = view.cards().front().Posts;
+		const auto  scroll = view.verticalScrollBar()->value();
+		const auto  reply  = view.mark_rect(posts[1]).translated(0, -scroll);
+		expect_tooltip_at(*view.viewport(), reply.center(), reply, QStringLiteral("MikeMarcin, question (if-minor, ux)"), "a thread card's mark");
+		const auto rail = view.rail_rect(view.cards().front(), posts[0]).translated(0, -scroll).toAlignedRect();
+		expect_tooltip_at(*view.viewport(), rail.center(), view.mark_rect(posts[0]).translated(0, -scroll), QStringLiteral("tbutler, issue (blocking)"), "a rail, named at its mark");
+
+		auto reader = qt::markdown_body_view{ };
+		reader.set_feedback_marks(theme());
+		reader.set_body("question (if-minor, ux): Is it null?", "c2");
+		reader.resize(420, 200);
+		reader.show();
+		settle();
+		auto* const mark = reader.feedback_mark_label();
+		expect_tooltip_at(*mark, mark->rect().center(), mark->rect(), QStringLiteral("question (if-minor, ux)"), "the reader's mark");
 	}
 	/// \brief The owner's toggle (2026-10-05): Label marks, Icons or Letters,
 	/// on Reviews & queue beside the Comment labels settings, persisted with the
@@ -345,21 +431,23 @@ namespace {
 				   && preview->accessibleName() == QStringLiteral("Label marks preview, icons")
 				   && preview->accessibleDescription().contains(QStringLiteral("issue (blocking)"))
 				   && preview->accessibleDescription().contains(QStringLiteral("nitpick (non-blocking)"))
-				   && preview->accessibleDescription().contains(QStringLiteral("suggestion (if-minor)")),
+				   && preview->accessibleDescription().contains(QStringLiteral("suggestion (non-blocking, if-minor)"))
+				   && preview->accessibleDescription().contains(QStringLiteral("todo (if-minor)")),
 			   "it starts in icons and names what it shows, each decoration included");
 		// The owner, mark-preview-v002: "There should be individual tooltips
 		// instead of one giant tooltip."
 		expect(preview->toolTip().isEmpty(), "the preview has no one tooltip for all its marks");
 		const auto entries = qt::feedback_mark_preview::entries();
 		for (std::size_t index = 0U; index < entries.size(); ++index) {
-			const auto centre = preview->entry_rect(index).center().toPoint();
-			QHelpEvent help{ QEvent::ToolTip, centre, preview->mapToGlobal(centre) };
-			QApplication::sendEvent(preview, &help);
+			const auto mark     = preview->entry_rect(index).toAlignedRect();
 			const auto expected = qt::feedback_mark_preview::entry_tooltip(entries[index]);
-			expect(QToolTip::isVisible() && QToolTip::text() == expected && !expected.contains(QStringLiteral(", ")),
-				   "each mark has its own tooltip: its name and description, nothing about the others");
+			// Right below its own mark (owner, preview-tooltips-v003: "The
+			// tooltip feels strangely far away.").
+			expect_tooltip_at(*preview, mark.center(), mark, expected, "a preview mark");
+			for (std::size_t other = 0U; other < entries.size(); ++other) {
+				expect(other == index || !expected.contains(qt::feedback_label_text(entries[other].Label)), "each mark has its own tooltip: its name and description, nothing about the others");
+			}
 			expect(expected.startsWith(qt::feedback_label_text(entries[index].Label)), "the tooltip starts with the mark's label");
-			QToolTip::hideText();
 		}
 		const auto between = QPoint{ static_cast<int>(preview->entry_rect(0U).right()) + 3, preview->height() / 2 };
 		expect(!preview->entry_at(QPointF{ between }).has_value() && preview->entry_at(preview->entry_rect(2U).center()) == std::optional<std::size_t>{ 2U },
@@ -371,7 +459,7 @@ namespace {
 			return image;
 		};
 		const auto icons      = paint();
-		const auto issueIndex = std::distance(entries.begin(), std::ranges::find_if(entries, [](const auto& aEntry) { return aEntry.Emphasis == qt::feedback_mark_emphasis::blocking; }));
+		const auto issueIndex = std::distance(entries.begin(), std::ranges::find_if(entries, [](const auto& aEntry) { return aEntry.Emphasis.Weight == qt::feedback_mark_weight::blocking; }));
 		const auto issueX     = static_cast<int>(preview->entry_rect(static_cast<std::size_t>(issueIndex)).left());
 		const auto issueTint  = window.label_marks().Tints[static_cast<std::size_t>(core::feedback_label::issue)];
 		const auto corner     = icons.pixelColor(issueX + 3, (preview->height() / 2) - 5);
@@ -399,6 +487,7 @@ auto main(int argc, char** argv) -> int
 	test_cards_mark_every_post_under_its_avatar();
 	test_compact_entries_lead_with_the_root_mark();
 	test_the_post_list_and_the_body_reader();
+	test_tooltips_sit_next_to_their_marks();
 	test_the_mark_style_setting_reaches_every_surface();
 	test_the_mark_style_preview_follows_the_setting();
 	std::cout << "feedback-label-threads-tests:pass\n";

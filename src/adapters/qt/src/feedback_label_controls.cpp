@@ -1,6 +1,7 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 
 #include "bpr/core/feedback_draft_edit.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QApplication>
@@ -12,12 +13,15 @@
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMetaObject>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
 #include <QScreen>
 #include <QSizePolicy>
 #include <QStringList>
@@ -26,7 +30,6 @@
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QToolButton>
-#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -53,13 +56,20 @@ namespace bpr::qt {
 		{
 			auto state            = feedback_composition_state{ };
 			state.Label           = aAnnotation.Label;
-			state.Expectation     = aAnnotation.Expectation;
 			state.AwaitingSubject = aAwaiting;
 			for (const auto& decoration : aAnnotation.Decorations) {
 				state.Blocking    = state.Blocking || decoration.Kind == core::feedback_decoration_kind::blocking;
 				state.NonBlocking = state.NonBlocking || decoration.Kind == core::feedback_decoration_kind::non_blocking;
 				state.IfMinor     = state.IfMinor || decoration.Kind == core::feedback_decoration_kind::if_minor;
+				if (decoration.Kind == core::feedback_decoration_kind::custom) {
+					const auto raw = core::feedback_text(aBody, decoration.Raw);
+					const auto own = QString::fromUtf8(raw.data(), static_cast<qsizetype>(raw.size()));
+					if (!state.Custom.contains(own, Qt::CaseInsensitive)) {
+						state.Custom.push_back(own);
+					}
+				}
 			}
+			state.Emphasis     = feedback_mark_emphasis_of(state.Blocking, state.NonBlocking, state.IfMinor);
 			state.PrefixLength = aAwaiting ? feedback_text_index(aBody, aBody.size())
 										   : feedback_text_index(aBody, aAnnotation.Subject.value_or(core::feedback_span{ }).Begin);
 			return state;
@@ -153,18 +163,20 @@ namespace bpr::qt {
 		Chip->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		Chip->setIconSize(QSize{ static_cast<int>(feedback_mark_size), static_cast<int>(feedback_mark_size) });
 		row->addWidget(Chip);
+		anchor_tooltips(*Chip);
 		const auto tip = QStringLiteral("Adds (%1) to the label");
 		Blocking       = make_toggle(this, QStringLiteral("blocking"), QStringLiteral("feedbackLabelBlocking"), tip.arg(QStringLiteral("blocking")));
 		NonBlocking    = make_toggle(this, QStringLiteral("non-blocking"), QStringLiteral("feedbackLabelNonBlocking"), tip.arg(QStringLiteral("non-blocking")));
 		IfMinor        = make_toggle(this, QStringLiteral("if-minor"), QStringLiteral("feedbackLabelIfMinor"), tip.arg(QStringLiteral("if-minor")));
 		for (auto* const toggle : { Blocking, NonBlocking, IfMinor }) {
 			row->addWidget(toggle);
+			anchor_tooltips(*toggle);
 		}
 		row->addStretch();
 		connect(Chip, &QToolButton::clicked, this, [this] { open_menu(); });
-		connect(Blocking, &QToolButton::clicked, this, [this] { toggle_decoration(core::feedback_expectation::blocking, State.Blocking); });
-		connect(NonBlocking, &QToolButton::clicked, this, [this] { toggle_decoration(core::feedback_expectation::non_blocking, State.NonBlocking); });
-		connect(IfMinor, &QToolButton::clicked, this, [this] { toggle_decoration(core::feedback_expectation::if_minor, State.IfMinor); });
+		connect(Blocking, &QToolButton::clicked, this, [this] { toggle_decoration(QStringLiteral("blocking"), State.Blocking); });
+		connect(NonBlocking, &QToolButton::clicked, this, [this] { toggle_decoration(QStringLiteral("non-blocking"), State.NonBlocking); });
+		connect(IfMinor, &QToolButton::clicked, this, [this] { toggle_decoration(QStringLiteral("if-minor"), State.IfMinor); });
 
 		Menu = new feedback_label_menu{ *this };
 
@@ -177,6 +189,13 @@ namespace bpr::qt {
 		Completion->setIconSize(QSize{ static_cast<int>(feedback_mark_size), static_cast<int>(feedback_mark_size) });
 		Completion->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Completion->hide();
+		anchor_tooltips(*Completion->viewport(), [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
+			const auto* const item = Completion->itemAt(aPosition);
+			if (item == nullptr) {
+				return std::nullopt;
+			}
+			return anchored_tooltip_target{ .Anchor = Completion->visualItemRect(item), .Text = item->toolTip() };
+		});
 		connect(Completion, &QListWidget::itemClicked, this, [this](QListWidgetItem* aItem) {
 			Completion->setCurrentItem(aItem);
 			take_completion();
@@ -257,13 +276,13 @@ namespace bpr::qt {
 		return true;
 	}
 
-	void feedback_label_controls::toggle_decoration(const core::feedback_expectation aExpectation, const bool aWritten)
+	void feedback_label_controls::toggle_decoration(const QString& aToken, const bool aWritten)
 	{
-		// Setting one leaves exactly that one; pressing a written one removes
-		// the standard decorations. Custom decorations are always kept.
+		// One decoration in or out; every other one stays as written
+		// ([[BPR-1083]] v004). Blocking and non-blocking take each other out.
 		static_cast<void>(apply(core::feedback_header_edit{
-			.Change      = core::feedback_label_change::keep,
-			.Expectation = aWritten ? core::feedback_expectation::unspecified : aExpectation,
+			.Change     = core::feedback_label_change::keep,
+			.Decoration = core::feedback_decoration_change{ .Token = utf8(aToken), .Written = !aWritten },
 		}));
 	}
 
@@ -319,7 +338,7 @@ namespace bpr::qt {
 		const auto ratio = devicePixelRatioF();
 		if (State.Label.has_value()) {
 			const auto colours = feedback_mark_colours_for(Theme, *State.Label, palette());
-			Chip->setIcon(QIcon{ feedback_mark_pixmap(*State.Label, feedback_mark_emphasis_of(State.Expectation), colours, ratio) });
+			Chip->setIcon(QIcon{ feedback_mark_pixmap(*State.Label, State.Emphasis, colours, ratio) });
 		} else {
 			Chip->setIcon(QIcon{ feedback_plain_mark_pixmap(palette(), ratio) });
 		}
@@ -495,7 +514,7 @@ namespace bpr::qt {
 			const auto code    = feedback_shortcode(label);
 			auto*      item    = new QListWidgetItem{ Completion };
 			const auto colours = feedback_mark_colours_for(Theme, label, Completion->palette());
-			item->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis::undecorated, colours, devicePixelRatioF()) });
+			item->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis{ }, colours, devicePixelRatioF()) });
 			item->setText(QStringLiteral(":%1:  %2").arg(QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size())), feedback_label_text(label)));
 			item->setToolTip(feedback_label_description(label));
 			item->setData(Qt::AccessibleTextRole, feedback_label_text(label));
@@ -615,6 +634,7 @@ namespace bpr::qt {
 		Plain->setCheckable(true);
 		Plain->setAutoRaise(true);
 		Plain->setIconSize(QSize{ static_cast<int>(feedback_mark_size), static_cast<int>(feedback_mark_size) });
+		anchor_tooltips(*Plain);
 		column->addWidget(Plain);
 		auto* const labelHeading = new QLabel{ QStringLiteral("Label"), this };
 		labelHeading->setForegroundRole(QPalette::PlaceholderText);
@@ -635,6 +655,7 @@ namespace bpr::qt {
 			button->setAccessibleDescription(QStringLiteral("%1 Code :%2:").arg(feedback_label_description(label), QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size()))));
 			button->setToolTip(feedback_label_description(label));
 			button->setFocusPolicy(Qt::StrongFocus);
+			anchor_tooltips(*button);
 			grid->addWidget(button, static_cast<int>(index / 3U), static_cast<int>(index % 3U));
 			Labels[index] = button;
 			connect(button, &QToolButton::clicked, this, [this, label] {
@@ -649,19 +670,46 @@ namespace bpr::qt {
 		adds->setSpacing(4);
 		const auto words = std::array{ QStringLiteral("blocking"), QStringLiteral("non-blocking"), QStringLiteral("if-minor") };
 		const auto names = std::array{ QStringLiteral("feedbackLabelMenuBlocking"), QStringLiteral("feedbackLabelMenuNonBlocking"), QStringLiteral("feedbackLabelMenuIfMinor") };
-		const auto kinds = std::array{ core::feedback_expectation::blocking, core::feedback_expectation::non_blocking, core::feedback_expectation::if_minor };
 		for (std::size_t index = 0U; index < Decorations.size(); ++index) {
 			Decorations[index] = make_toggle(this, words[index], names[index], QStringLiteral("Adds (%1) to the label").arg(words[index]));
 			adds->addWidget(Decorations[index]);
-			const auto kind = kinds[index];
-			connect(Decorations[index], &QToolButton::clicked, this, [this, index, kind] {
-				const auto written = !Decorations[index]->isChecked();
-				static_cast<void>(Controls.apply({ .Change = core::feedback_label_change::keep, .Expectation = written ? core::feedback_expectation::unspecified : kind }));
-				present(Controls.state(), Controls.theme());
+			anchor_tooltips(*Decorations[index]);
+			connect(Decorations[index], &QToolButton::clicked, this, [this, index, word = words[index]] {
+				// The click has already flipped the check: checked means write it.
+				decorate(word, Decorations[index]->isChecked());
 			});
 		}
 		adds->addStretch();
 		column->addLayout(adds);
+		// [[BPR-1083]] v004. Custom decorations: those written show as
+		// toggles here, and the field writes a new one as typed.
+		CustomRow           = new QWidget{ this };
+		auto* const customs = new QHBoxLayout{ CustomRow };
+		customs->setContentsMargins(0, 0, 0, 0);
+		customs->setSpacing(4);
+		customs->addStretch();
+		column->addWidget(CustomRow);
+		auto* const own = new QHBoxLayout{ };
+		own->setSpacing(4);
+		CustomField = new QLineEdit{ this };
+		CustomField->setObjectName(QStringLiteral("feedbackLabelMenuCustomField"));
+		CustomField->setPlaceholderText(QStringLiteral("Your own, such as security"));
+		CustomField->setAccessibleName(QStringLiteral("Custom decoration"));
+		CustomField->setAccessibleDescription(QStringLiteral("One word of letters, digits, - or _, added to the label as written. Return adds it."));
+		CustomField->setValidator(new QRegularExpressionValidator{ QRegularExpression{ QStringLiteral("[A-Za-z0-9_-]{1,%1}").arg(core::maximum_feedback_label_bytes) }, CustomField });
+		CustomField->setMaxLength(static_cast<int>(core::maximum_feedback_label_bytes));
+		own->addWidget(CustomField, 1);
+		CustomAdd = new QToolButton{ this };
+		CustomAdd->setObjectName(QStringLiteral("feedbackLabelMenuCustomAdd"));
+		CustomAdd->setText(QStringLiteral("Add"));
+		CustomAdd->setAccessibleName(QStringLiteral("Add custom decoration"));
+		CustomAdd->setAutoRaise(true);
+		CustomAdd->setFocusPolicy(Qt::StrongFocus);
+		own->addWidget(CustomAdd);
+		column->addLayout(own);
+		connect(CustomField, &QLineEdit::returnPressed, this, [this] { add_custom(); });
+		connect(CustomAdd, &QToolButton::clicked, this, [this] { add_custom(); });
+		connect(CustomField, &QLineEdit::textChanged, this, [this](const QString& aText) { CustomAdd->setEnabled(CustomField->isEnabled() && !aText.isEmpty()); });
 		Hint = new QLabel{ this };
 		Hint->setForegroundRole(QPalette::PlaceholderText);
 		Hint->setText(QStringLiteral("Arrow keys move · Return chooses · Esc closes"));
@@ -678,13 +726,53 @@ namespace bpr::qt {
 		for (std::size_t index = 0U; index < Labels.size(); ++index) {
 			const auto label = label_at(index);
 			Labels[index]->setChecked(aState.Label == label);
-			Labels[index]->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis::undecorated, feedback_mark_colours_for(aTheme, label, palette()), ratio) });
+			Labels[index]->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis{ }, feedback_mark_colours_for(aTheme, label, palette()), ratio) });
 		}
 		const auto written = std::array{ aState.Blocking, aState.NonBlocking, aState.IfMinor };
 		for (std::size_t index = 0U; index < Decorations.size(); ++index) {
 			Decorations[index]->setEnabled(aState.Label.has_value());
 			Decorations[index]->setChecked(written[index]);
 		}
+		// The custom decorations written, one checked toggle each; unchecking
+		// one takes it out.
+		const auto hadFocus = std::ranges::any_of(Custom, [](const QToolButton* aButton) { return aButton->hasFocus(); });
+		for (auto* const button : Custom) {
+			button->deleteLater();
+			button->hide();
+		}
+		Custom.clear();
+		auto* const row = static_cast<QHBoxLayout*>(CustomRow->layout());
+		for (const auto& token : aState.Custom) {
+			auto* const button = make_toggle(CustomRow, token, QStringLiteral("feedbackLabelMenuCustom_%1").arg(token), QStringLiteral("Adds (%1) to the label").arg(token));
+			button->setChecked(true);
+			anchor_tooltips(*button);
+			row->insertWidget(row->count() - 1, button);
+			connect(button, &QToolButton::clicked, this, [this, token, button] { decorate(token, button->isChecked()); });
+			Custom.push_back(button);
+		}
+		CustomRow->setVisible(!Custom.empty());
+		CustomField->setEnabled(aState.Label.has_value());
+		CustomAdd->setEnabled(aState.Label.has_value() && !CustomField->text().isEmpty());
+		if (hadFocus) {
+			(Custom.empty() ? static_cast<QWidget*>(CustomField) : Custom.front())->setFocus(Qt::TabFocusReason);
+		}
+		adjustSize();
+	}
+
+	void feedback_label_menu::decorate(const QString& aToken, const bool aWritten)
+	{
+		static_cast<void>(Controls.apply({ .Change = core::feedback_label_change::keep, .Decoration = core::feedback_decoration_change{ .Token = aToken.toStdString(), .Written = aWritten } }));
+		present(Controls.state(), Controls.theme());
+	}
+
+	void feedback_label_menu::add_custom()
+	{
+		const auto token = CustomField->text().trimmed();
+		if (token.isEmpty() || !core::valid_feedback_decoration(token.toStdString())) {
+			return;
+		}
+		CustomField->clear();
+		decorate(token, true);
 	}
 
 	auto feedback_label_menu::plain_button() const noexcept -> QToolButton* { return Plain; }
@@ -696,6 +784,9 @@ namespace bpr::qt {
 	auto feedback_label_menu::blocking_button() const noexcept -> QToolButton* { return Decorations[0]; }
 	auto feedback_label_menu::non_blocking_button() const noexcept -> QToolButton* { return Decorations[1]; }
 	auto feedback_label_menu::if_minor_button() const noexcept -> QToolButton* { return Decorations[2]; }
+	auto feedback_label_menu::custom_buttons() const -> std::vector<QToolButton*> { return Custom; }
+	auto feedback_label_menu::custom_field() const noexcept -> QLineEdit* { return CustomField; }
+	auto feedback_label_menu::custom_add_button() const noexcept -> QToolButton* { return CustomAdd; }
 
 	void feedback_label_menu::choose(const core::feedback_header_edit& aEdit)
 	{
@@ -753,8 +844,9 @@ namespace bpr::qt {
 
 	void feedback_label_menu::move_focus(const int aRows, const int aColumns)
 	{
-		// Row 0 is Plain, rows 1 to 4 the grid, row 5 the decorations.
-		const auto at = [this](const int aRow, const int aColumn) -> QToolButton* {
+		// Row 0 is Plain, rows 1 to 4 the grid, row 5 the decorations, row 6
+		// the custom ones written (when there are any) and row 7 the field.
+		const auto at = [this](const int aRow, const int aColumn) -> QWidget* {
 			if (aRow <= 0) {
 				return Plain;
 			}
@@ -762,7 +854,13 @@ namespace bpr::qt {
 				const auto index = (aRow - 1) * 3 + std::clamp(aColumn, 0, 2);
 				return Labels[static_cast<std::size_t>(index)];
 			}
-			return Decorations[static_cast<std::size_t>(std::clamp(aColumn, 0, 2))];
+			if (aRow == 5) {
+				return Decorations[static_cast<std::size_t>(std::clamp(aColumn, 0, 2))];
+			}
+			if (aRow == 6 && !Custom.empty()) {
+				return Custom[static_cast<std::size_t>(std::clamp(aColumn, 0, static_cast<int>(Custom.size()) - 1))];
+			}
+			return CustomField;
 		};
 		auto row    = 0;
 		auto column = 0;
@@ -778,7 +876,20 @@ namespace bpr::qt {
 				column = static_cast<int>(index);
 			}
 		}
-		auto* target = at(std::clamp(row + aRows, 0, 5), column + aColumns);
+		for (std::size_t index = 0U; index < Custom.size(); ++index) {
+			if (focusWidget() == Custom[index]) {
+				row    = 6;
+				column = static_cast<int>(index);
+			}
+		}
+		if (focusWidget() == CustomField || focusWidget() == CustomAdd) {
+			row = 7;
+		}
+		auto next = std::clamp(row + aRows, 0, 7);
+		if (next == 6 && Custom.empty()) {
+			next += aRows < 0 ? -1 : 1;
+		}
+		auto* target = at(next, column + aColumns);
 		if (target->isEnabled()) {
 			target->setFocus(Qt::TabFocusReason);
 		}
@@ -791,33 +902,18 @@ namespace bpr::qt {
 	}
 
 	namespace {
-		/// Three undecorated marks and one of each decoration: enough to show
-		/// the shapes or the letters, the tints, the blocking fill and the two
-		/// quieter decorations without becoming a second key.
+		/// Three weights and the if-minor corner on two of them: enough to
+		/// show the shapes or the letters, the tints and every style without
+		/// becoming a second key.
 		constexpr auto preview_entries = std::array{
 			feedback_mark_preview::entry{ .Label = core::feedback_label::praise },
-			feedback_mark_preview::entry{ .Label = core::feedback_label::suggestion, .Emphasis = feedback_mark_emphasis::if_minor },
-			feedback_mark_preview::entry{ .Label = core::feedback_label::issue, .Emphasis = feedback_mark_emphasis::blocking },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::suggestion, .Emphasis = { .Weight = feedback_mark_weight::non_blocking, .IfMinor = true } },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::issue, .Emphasis = { .Weight = feedback_mark_weight::blocking } },
 			feedback_mark_preview::entry{ .Label = core::feedback_label::question },
-			feedback_mark_preview::entry{ .Label = core::feedback_label::nitpick, .Emphasis = feedback_mark_emphasis::non_blocking },
-			feedback_mark_preview::entry{ .Label = core::feedback_label::todo },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::nitpick, .Emphasis = { .Weight = feedback_mark_weight::non_blocking } },
+			feedback_mark_preview::entry{ .Label = core::feedback_label::todo, .Emphasis = { .IfMinor = true } },
 		};
 		constexpr auto preview_gap = 6;
-
-		[[nodiscard]] auto emphasis_words(const feedback_mark_emphasis aEmphasis) -> QString
-		{
-			switch (aEmphasis) {
-			case feedback_mark_emphasis::blocking:
-				return QStringLiteral(" (blocking)");
-			case feedback_mark_emphasis::non_blocking:
-				return QStringLiteral(" (non-blocking)");
-			case feedback_mark_emphasis::if_minor:
-				return QStringLiteral(" (if-minor)");
-			case feedback_mark_emphasis::undecorated:
-				return { };
-			}
-			return { };
-		}
 	} // namespace
 
 	feedback_mark_preview::feedback_mark_preview(QWidget* const aParent)
@@ -866,7 +962,7 @@ namespace bpr::qt {
 
 	auto feedback_mark_preview::entry_tooltip(const entry& aEntry) -> QString
 	{
-		return feedback_label_text(aEntry.Label) + emphasis_words(aEntry.Emphasis) + QLatin1Char{ '\n' } + feedback_label_description(aEntry.Label);
+		return feedback_label_text(aEntry.Label) + feedback_mark_emphasis_words(aEntry.Emphasis) + QLatin1Char{ '\n' } + feedback_label_description(aEntry.Label);
 	}
 
 	auto feedback_mark_preview::sizeHint() const -> QSize
@@ -879,13 +975,13 @@ namespace bpr::qt {
 	auto feedback_mark_preview::event(QEvent* const aEvent) -> bool
 	{
 		if (aEvent->type() == QEvent::ToolTip) {
-			// One tooltip per mark; the gaps between marks show none.
+			// One tooltip per mark, right below it; the gaps show none.
 			const auto* const help = static_cast<QHelpEvent*>(aEvent);
 			if (const auto index = entry_at(QPointF{ help->pos() }); index.has_value()) {
-				QToolTip::showText(help->globalPos(), entry_tooltip(preview_entries[*index]), this, entry_rect(*index).toAlignedRect());
+				show_anchored_tooltip(*this, entry_rect(*index).toAlignedRect(), entry_tooltip(preview_entries[*index]));
 				return true;
 			}
-			QToolTip::hideText();
+			hide_anchored_tooltip();
 			aEvent->ignore();
 			return true;
 		}
@@ -917,7 +1013,7 @@ namespace bpr::qt {
 		setAccessibleName(QStringLiteral("Label marks preview, %1").arg(style));
 		auto names = QStringList{ };
 		for (const auto& shown : preview_entries) {
-			names.push_back(feedback_label_text(shown.Label) + emphasis_words(shown.Emphasis));
+			names.push_back(feedback_label_text(shown.Label) + feedback_mark_emphasis_words(shown.Emphasis));
 		}
 		// The whole list is the accessible description only; the pointer gets
 		// one tooltip per mark.

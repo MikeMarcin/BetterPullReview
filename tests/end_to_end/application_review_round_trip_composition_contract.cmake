@@ -704,6 +704,14 @@ endfunction()
 # (compact_mark_rect), and the published thread's undecorated mark. Fixture-
 # only: no grant, target, provider, credential, mutation or publication path
 # changes; mutation pin unchanged; no new src/app source. Reviewed on BPR-1083.
+# BPR-1083 v004 reseal: over the BPR-1083 v003 reseal above; no intervening
+# pinned-scope commit. The tests-on label-authoring course reads a card's
+# decorations as the Qt adapter's feedback_mark_emphasis struct (a weight and
+# the if-minor corner) and expects the fixture's renderer.cpp threads to carry
+# several and custom decorations, shown as written in each post's text.
+# Fixture-only: no grant, target, provider, credential, mutation or
+# publication path changes; mutation pin unchanged; no new src/app source.
+# Reviewed on BPR-1083.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -722,7 +730,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d13b34f5da5d1d8fb8602b69de1d7db6387f4edbccc361252f6f2b191e5ba771"
+		"8f1ef121a3c8f00970452db0f87820bebc04878a1a395338a4421b9af72cf172"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -920,7 +928,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "d0349eb21c0966df20bf38df3c0bec75dee026af66b8513072a94ad0eeed9ec4"
+        "fe55de555e237061aca7ac85c2958a99bb0e6c0133743476102c2986e4702aa8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -52,11 +52,10 @@ namespace bpr::qt {
 			feedback_label_role,
 			/// Whether that label is explicitly `(blocking)`.
 			feedback_blocking_role,
-			/// The mark's name, as in "issue (blocking)"; empty with no mark.
+			/// The mark's name, as in "issue (non-blocking, if-minor)"; empty
+			/// with no mark.
 			feedback_name_role,
-			/// Where the subject starts in `body_role`'s text.
-			feedback_subject_role,
-			/// The label's standard decoration as `feedback_mark_emphasis`.
+			/// The written decorations as `feedback_mark_emphasis_code`.
 			feedback_emphasis_role,
 		};
 

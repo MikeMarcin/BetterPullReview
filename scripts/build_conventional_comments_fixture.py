@@ -32,17 +32,20 @@ AUTHORS = {
 
 # (thread, path, line, [(author, body), ...]). Lines are the head lines of the
 # nested-folders files. Every label appears once; one post is plain and one
-# carries a custom label, which gets no mark.
+# carries a custom label, which gets no mark. BPR-1083 v004: renderer.cpp's
+# threads also carry several decorations on one label and custom ones
+# (perf, style), as Conventional Comments allows.
 THREADS = (
     ("1", "src/engine/renderer.cpp", 6, (
         ("tbutler", "issue (blocking): draw_scene() runs before the clear finishes on the second view."),
-        ("fixture-author", "question: Does the second view share the depth buffer?"),
+        ("fixture-author", "question (non-blocking): Does the second view share the depth buffer?"),
         ("jiayin", "praise: Good catch, this explains the flicker."),
         ("tbutler", "Thanks, resolving after CI."),
     )),
     ("2", "src/engine/renderer.cpp", 12, (
-        ("jiayin", "suggestion (non-blocking): Clamp the width to at least one pixel."),
-        ("fixture-author", "todo: I will add the clamp in the next push."),
+        ("jiayin", "suggestion (non-blocking, if-minor): Clamp the width to at least one pixel."),
+        ("fixture-author", "todo (blocking, if-minor, perf): Add the clamp before the next push."),
+        ("tbutler", "nitpick (style): std::max reads better than the ternary here."),
     )),
     ("3", "src/main.cpp", 6, (
         ("tbutler", "nitpick (if-minor): 1280 by 720 could be a named constant."),

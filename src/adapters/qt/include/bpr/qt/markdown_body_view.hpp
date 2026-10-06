@@ -44,11 +44,11 @@ namespace bpr::qt {
 		void show_source(bool aSource);
 		/// \brief Copies original bytes, without reconstructing rendered text.
 		void copy_source() const;
-		/// \brief [[BPR-1083]]. Reads a recognized Conventional Comments prefix
-		/// as a mark: the rendered body starts at the subject and the mark,
-		/// named "issue (blocking)", leads the controls. Source and Copy source
-		/// keep the prefix byte for byte. Off by default, so a description or
-		/// a tour preview reads as written.
+		/// \brief [[BPR-1083]]. Shows a recognized Conventional Comments prefix's
+		/// mark, named "issue (non-blocking, if-minor)", leading the controls.
+		/// The rendered body still reads as written, its header and
+		/// decorations included (owner, `decorations-v003`). Off by default,
+		/// so a description or a tour preview shows no mark.
 		void               set_feedback_marks(const feedback_mark_theme& aTheme);
 		[[nodiscard]] auto feedback_mark_label() const noexcept -> QLabel*;
 

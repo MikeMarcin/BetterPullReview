@@ -114,29 +114,47 @@ namespace bpr::qt {
 	/// in icons: what a surface draws before the composition supplies a theme.
 	[[nodiscard]] auto default_feedback_mark_theme(const QPalette& aPalette) -> feedback_mark_theme;
 
-	/// \brief The standard decoration a mark and its rail show.
-	/// \details Blocking is the owner's (BPR-1079): a filled mark and a 4 px
-	/// rail. Non-blocking and if-minor are BPR-1083 v003's, after the owner's
-	/// "I notice we have style for blocking but noting for non-blocking or
-	/// if-minor": quieter than blocking and distinct from each other and from
-	/// an undecorated label, by shape as well as colour.
-	enum class feedback_mark_emphasis : std::uint8_t {
-		/// No standard decoration, a conflicting set, or only custom ones: the
-		/// soft mark and a 2 px solid rail.
-		undecorated,
-		/// `(blocking)`: the mark filled with the full tint and a 4 px rail.
+	/// \brief The weight a mark and its rail show: one of three styles kept for
+	/// easy scanning (owner, `decorations-v003`: "I think we keey normal,
+	/// blocking, non-blocking sytles for easy scanning.").
+	enum class feedback_mark_weight : std::uint8_t {
+		/// No weight written, or both: the soft mark and a 2 px solid rail.
+		normal,
+		/// `(blocking)`: the mark filled with the full tint and a 4 px rail
+		/// (owner, BPR-1079).
 		blocking,
 		/// `(non-blocking)`: an open mark (no fill) with a dashed border, and a
-		/// 2 px dashed rail.
+		/// 2 px dashed rail (BPR-1083 v003, kept by the owner).
 		non_blocking,
-		/// `(if-minor)`: the soft mark with its top-left corner squared off and
-		/// filled in the tint, and a 2 px dotted rail.
-		if_minor,
 	};
-	/// \brief The emphasis an annotation's expectation shows. Only an explicit
-	/// standard decoration counts; `conflicting` and `unspecified` are
-	/// undecorated.
-	[[nodiscard]] auto feedback_mark_emphasis_of(core::feedback_expectation aExpectation) noexcept -> feedback_mark_emphasis;
+	/// \brief What a mark shows of the decorations written on its label.
+	/// \details The weight and, independently, if-minor: "We can also support
+	/// if-minor style as just filling in the top left corner" (owner,
+	/// `decorations-v003`). The decorations themselves are always shown as
+	/// written in the comment's text; these styles are a bonus to scanning,
+	/// so a custom decoration needs none.
+	struct feedback_mark_emphasis
+	{
+		feedback_mark_weight Weight = feedback_mark_weight::normal;
+		/// `(if-minor)`: the top-left corner filled, with any weight.
+		bool IfMinor                                                 = false;
+		auto operator==(const feedback_mark_emphasis&) const -> bool = default;
+	};
+	/// \brief The emphasis written decorations show. `blocking` alone is
+	/// blocking, `non-blocking` alone non-blocking, both or neither normal;
+	/// any `if-minor` fills the corner. Custom decorations show no style.
+	[[nodiscard]] auto feedback_mark_emphasis_of(bool aBlocking, bool aNonBlocking, bool aIfMinor) noexcept -> feedback_mark_emphasis;
+	/// \brief The emphasis of an annotation's written decorations, read from
+	/// their kinds: the grammar's `conflicting` for (non-blocking, if-minor)
+	/// still shows non-blocking with the corner.
+	[[nodiscard]] auto feedback_mark_emphasis_of(const core::feedback_annotation& aAnnotation) noexcept -> feedback_mark_emphasis;
+	/// \brief One emphasis as a small integer for a model role or a cache
+	/// key, 0 to 5, and back.
+	[[nodiscard]] auto feedback_mark_emphasis_code(feedback_mark_emphasis aEmphasis) noexcept -> int;
+	[[nodiscard]] auto feedback_mark_emphasis_from_code(int aCode) noexcept -> feedback_mark_emphasis;
+	/// \brief The decorations words of an emphasis, as in " (non-blocking,
+	/// if-minor)", or nothing when normal: for the preview's names.
+	[[nodiscard]] auto feedback_mark_emphasis_words(feedback_mark_emphasis aEmphasis) -> QString;
 	/// \brief A rail's width: 4 px when blocking, 2 px otherwise.
 	[[nodiscard]] auto feedback_rail_width(feedback_mark_emphasis aEmphasis) noexcept -> qreal;
 	/// \brief The side of the if-minor corner, along each edge from the mark's
@@ -145,12 +163,10 @@ namespace bpr::qt {
 	/// \brief The dashes of a non-blocking mark's border, in pixels.
 	inline constexpr qreal feedback_mark_dash     = 2.5;
 	inline constexpr qreal feedback_mark_dash_gap = 1.5;
-	/// \brief The dashes of a non-blocking rail and the dots of an if-minor
-	/// rail, in pixels: a run and the gap after it.
+	/// \brief The dashes of a non-blocking rail, in pixels: a run and the gap
+	/// after it.
 	inline constexpr qreal feedback_rail_dash     = 6.0;
 	inline constexpr qreal feedback_rail_dash_gap = 3.0;
-	inline constexpr qreal feedback_rail_dot      = 2.0;
-	inline constexpr qreal feedback_rail_dot_gap  = 2.0;
 
 	/// \brief The colours one mark is painted with.
 	struct feedback_mark_colours
@@ -177,42 +193,40 @@ namespace bpr::qt {
 	void paint_feedback_glyph(QPainter& aPainter, const QRectF& aBox, core::feedback_label aLabel, const QColor& aInk);
 	/// \brief Draws a label's two-letter code into a box in one ink.
 	void paint_feedback_letters(QPainter& aPainter, const QRectF& aBox, core::feedback_label aLabel, const QColor& aInk);
-	/// \brief Draws one 16 px mark in its emphasis (soft, filled, open and
-	/// dashed, or soft with a corner), with the glyph or the letters
-	/// `aColours.Style` names.
+	/// \brief Draws one 16 px mark in its weight (soft, filled, or open and
+	/// dashed), its top-left corner filled when if-minor, with the glyph or
+	/// the letters `aColours.Style` names.
 	void paint_feedback_mark(QPainter& aPainter, const QRectF& aMark, core::feedback_label aLabel, feedback_mark_emphasis aEmphasis, const feedback_mark_colours& aColours);
 	/// \brief One mark as a pixmap for a control's icon, at a device pixel ratio.
 	[[nodiscard]] auto feedback_mark_pixmap(core::feedback_label aLabel, feedback_mark_emphasis aEmphasis, const feedback_mark_colours& aColours, qreal aDevicePixelRatio) -> QPixmap;
 	/// \brief The Plain mark: an empty square in the panel's mid tone.
 	[[nodiscard]] auto feedback_plain_mark_pixmap(const QPalette& aPalette, qreal aDevicePixelRatio) -> QPixmap;
 	/// \brief A thread rail in the tint: 2 px solid, 4 px when blocking, 2 px
-	/// dashed when non-blocking or dotted when if-minor, drawn so that its
-	/// right edge stays at `aRight` whatever its width.
+	/// dashed when non-blocking, drawn so that its right edge stays at
+	/// `aRight` whatever its width. If-minor does not change a rail.
 	void paint_feedback_rail(QPainter& aPainter, qreal aRight, qreal aTop, qreal aBottom, const QColor& aColour, feedback_mark_emphasis aEmphasis);
 
 	/// \brief What one body shows as a mark.
 	/// \details Only a `recognized` prefix gets a mark (contract, derived):
-	/// `plain`, `unknown_label`, `malformed` and `limited` bodies get none and
-	/// read exactly as written. `Emphasis` is the author's explicit standard
-	/// expectation and nothing else: built-in guidance never decorates a mark.
+	/// `plain`, `unknown_label`, `malformed` and `limited` bodies get none.
+	/// Every body reads exactly as written, its header included, so the
+	/// decorations are always in the text (owner, `decorations-v003`).
+	/// `Emphasis` is the author's written decorations and nothing else:
+	/// built-in guidance never decorates a mark.
 	struct feedback_body_mark
 	{
 		std::optional<core::feedback_label> Label;
-		/// The author's explicit standard decoration, as the mark shows it.
-		feedback_mark_emphasis Emphasis = feedback_mark_emphasis::undecorated;
-		/// "issue (blocking)": the label and its standard decorations in
-		/// written order. Empty with no mark.
+		/// The author's written decorations, as the mark shows them.
+		feedback_mark_emphasis Emphasis;
+		/// "issue (non-blocking, if-minor)": the label and every decoration
+		/// in written order, custom ones as written. Empty with no mark.
 		QString Name;
-		/// Where the subject begins, as a `QString` index into the body: the
-		/// body a reader shows after the mark that stands in for the prefix.
-		qsizetype SubjectOffset = 0;
-		/// The same place as a UTF-8 byte offset into the body.
-		std::size_t SubjectByte = 0U;
 	};
 	/// \brief The mark an ordinary body carries.
 	[[nodiscard]] auto feedback_body_mark_of(std::string_view aBody) -> feedback_body_mark;
-	/// \brief The name of a recognized annotation's mark.
-	[[nodiscard]] auto feedback_mark_name(const core::feedback_annotation& aAnnotation) -> QString;
+	/// \brief The name of a recognized annotation's mark, read from the body
+	/// it annotates (custom decorations are named as written).
+	[[nodiscard]] auto feedback_mark_name(const core::feedback_annotation& aAnnotation, std::string_view aBody) -> QString;
 	/// \brief A post's accessible name: its author first, as in
 	/// "tbutler, issue (blocking)", or the author alone with no mark.
 	[[nodiscard]] auto feedback_post_name(const QString& aAuthor, const feedback_body_mark& aMark) -> QString;

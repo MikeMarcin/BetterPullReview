@@ -60,43 +60,74 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
   are square and states are round, so the two never share a shape.
 - **Blocking** (owner). The mark is filled with the full tint, and the glyph
   turns white or `#111418`, whichever contrasts more. Its rail is 4 px.
-- **Non-blocking and if-minor** (owner amendment, BPR-1083 `chip-menu-v002`,
-  2026-10-05, verbatim: "I notice we have style for blocking but noting for
-  non-blocking or if-minor"; the treatments are BPR-1083 v003's, designed
-  with the `frontend-design` skill, and await the owner's
-  `decorations-v003`). Until then BPR-1079 had "(non-blocking)" and an
-  undecorated label look the same. The decorations now form a scale of
-  weight, heaviest first, and the rails borrow road markings: a solid line
-  is not crossed, a broken one may be.
+- **Decorations: three weights and a corner** (owner, BPR-1083
+  `decorations-v003`, Reject, 2026-10-05, verbatim: "These are good, but I
+  think we've. gone a bit of a wrong direction. Decorrators according to
+  https://conventionalcomments.org/ are org specific and multiple decorators
+  can be applied to a comment. like (non-blocking, if-minor). Obviously
+  something like (blocking, non-blocking) is non-sense so don't worry about
+  it. Here's what I think. I think we keey normal, blocking, non-blocking
+  sytles for easy scanning. We can also support if-minor style as just
+  filling in the top left corner. I think we always display the decorators
+  text out in the comments so we can default support custom decorators and
+  people don't have to learn our styles, its just a bonus helpful ux.").
+  This replaces v003's four-step scale, whose dotted if-minor rail is gone.
+  A mark and its rail show one of three weights, and if-minor, independently,
+  fills the top-left corner of any of them:
 
-  | Decoration | Mark | Rail |
+  | Written | Mark | Rail |
   |---|---|---|
-  | `(blocking)` | filled with the tint | 4 px solid |
-  | none | soft fill, solid 1.5 px border | 2 px solid |
-  | `(if-minor)` | soft fill, top-left corner squared off and filled in the tint (6 px along each edge) | 2 px dotted: 2 px dots, 2 px apart |
-  | `(non-blocking)` | open: the panel shows inside a dashed border (2.5 px dashes, 1.5 px gaps) | 2 px dashed: 6 px dashes, 3 px apart |
+  | neither weight (normal) | soft fill, solid 1.5 px border | 2 px solid |
+  | `blocking` | filled with the tint | 4 px solid |
+  | `non-blocking` | open: the panel shows inside a dashed border (2.5 px dashes, 1.5 px gaps) | 2 px dashed: 6 px dashes, 3 px apart |
+  | `if-minor`, with any of the above | the top-left corner squared off and filled (6 px along each edge): in the tint, or on a filled mark in the glyph's ink inside the squared-off tint | unchanged |
 
   Each differs by shape as well as colour, so it reads in greyscale. The
   corner clears every glyph and both letters, and an open mark keeps its
   glyph in ink on the panel, so glyph contrast is at least the soft mark's.
-  `qt_feedback_label_marks` checks all four at 16 px in the four built-in
-  variants, in icons and letters.
-- **Which emphasis applies** (derived). The annotation's `Expectation`:
-  `blocking`, `non_blocking` and `if_minor` each have their own; `unspecified`
-  and `conflicting` are undecorated. Built-in guidance, such as a todo's
-  `necessary_change`, never decorates a mark: it is not an explicit
-  decoration (RFC-BPR-0048). Code: `feedback_mark_emphasis` in
+  `qt_feedback_label_marks` checks every weight with and without the corner
+  at 16 px in the four built-in variants, in icons and letters.
+- **The styles are a bonus; the text is the decoration** (owner,
+  `decorations-v003`). Every body is shown exactly as written, its label and
+  decorations included, as in `issue (non-blocking, if-minor): ...`: in thread
+  cards and the post list, in the reader, and in the composer. So any custom
+  decoration an organisation uses, as in `(security)`, reads without a style
+  of its own, and nobody has to learn the styles to read a comment.
+- **Which style applies** (derived from the owner's rule). The mark reads the
+  kinds of the decorations written, not the recognizer's single expectation:
+  `blocking` alone is blocking, `non-blocking` alone non-blocking, and both or
+  neither normal (both at once is nonsense, so neither is drawn, and the text
+  still says both); any `if-minor` fills the corner. So `(non-blocking,
+  if-minor)`, which the grammar reports as `conflicting`, is the open mark
+  with the corner. Custom decorations change no style. Built-in guidance,
+  such as a todo's `necessary_change`, never decorates a mark: it is not an
+  explicit decoration (RFC-BPR-0048). Code: `feedback_mark_emphasis_of` in
   `feedback_label_marks`.
 - **Which bodies get a mark** (derived from the owner's "plain posts get a
   grey rail"). Only a `recognized` prefix gets a mark. `plain`,
   `unknown_label` (a custom label), `malformed` and `limited` bodies get no
-  mark, and their text is shown exactly as written.
+  mark. Every body's text is shown exactly as written, marked or not.
 - **Name** (owner). The mark is an image whose accessible name and tooltip
-  are the label and its standard decorations, as in "issue (blocking)". A post
-  is named with its author first, as in "tbutler, issue (blocking)" (owner,
-  BPR-1079 v4). When several standard decorations are written, the name lists
-  them in written order, separated by commas (derived). Custom decorations stay
-  in the text and are not added to the name (derived).
+  are the label and its decorations, as in "issue (blocking)". A post is
+  named with its author first, as in "tbutler, issue (blocking)" (owner,
+  BPR-1079 v4). Every decoration is named in written order, separated by
+  commas, a standard one in its canonical spelling and a custom one as
+  written, a repeat once, as in "note (Security, ux, blocking)" (derived,
+  BPR-1083 v004, after `decorations-v003`; v003 left custom ones out).
+- **Tooltips sit next to their marks** (owner, BPR-1083
+  `preview-tooltips-v003`, Reject, verbatim: "The tooltip feels strangely far
+  away.", with a screenshot,
+  [`BPR-1083-owner-ref-preview-tooltip-far.png`](../design/owner-refs/BPR-1083-owner-ref-preview-tooltip-far.png),
+  of the preview's praise tooltip opening well below and right of the marks).
+  Qt's tooltip opens at the pointer plus the platform cursor's height. A mark's
+  tooltip is instead anchored to the mark: directly below it, left edges
+  aligned and 4 px apart, or directly above it when below would leave the
+  screen, and moved left only to stay on the screen. It looks like the style's
+  own tooltip and goes when the pointer leaves the mark, on a press, a key or
+  the wheel. This holds everywhere a mark has a tooltip: the preview, thread
+  cards (a rail names its post at the post's mark) and drawer entries, the
+  reader's mark, the chip, the menu's entries and toggles, and completion.
+  Code: `anchored_tooltip` in the Qt adapter.
 - **Colour is never the only cue** (owner). The shape names the label, and
   the fill shows blocking, so both read in greyscale. Measured on the frames:
   glyph contrast is at least 6.06:1 on the soft fill and 4.52:1 on the blocking
@@ -112,12 +143,12 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
   same mark, with the same tints, blocking fill, size and accessible names.
   The choice is the Label marks row of Reviews & queue › Comment labels, kept
   with the profile's review behaviour (workbench settings store, schema 12),
-  with six marks beside it (praise, suggestion if-minor, issue blocking,
-  question, nitpick non-blocking, todo) drawn in the published style and the
-  theme's tints (owner, `mark-style-v001`: "it'd be nice to see a preview"),
+  with six marks beside it (praise, suggestion non-blocking with if-minor,
+  issue blocking, question, nitpick non-blocking, todo if-minor) drawn in the
+  published style and the theme's tints (owner, `mark-style-v001`: "it'd be nice to see a preview"),
   each with its own tooltip, its name and catalog description (owner,
   `mark-preview-v002`: "There should be individual tooltips instead of one
-  giant tooltip."),
+  giant tooltip."), right below the mark (owner, `preview-tooltips-v003`),
   and it applies everywhere a mark is drawn: threads, the chip and its menu,
   completion, and the Overview chips and Label key when BPR-1087 and BPR-1089
   draw them through `feedback_mark_theme`.
@@ -200,11 +231,25 @@ Consumers: the inline composition page and reply drafts
   - "Plain comment" first, with ⌘0;
   - a 3×4 grid of the twelve marks with their names and codes, each with its
     catalog description as a tooltip;
-  - the decorations under "Adds": blocking, non-blocking and if-minor.
+  - the decorations under "Adds": blocking, non-blocking and if-minor, then a
+    toggle for each custom decoration written, then a field that takes a new
+    one (BPR-1083 v004).
 
   Once a label is chosen, the same three decorations also sit beside the chip
   as toggles. ⌘0 is the window's Home shortcut, so it is a key of the open menu
   only and never a window shortcut (derived).
+- **Decorations combine** (owner, `decorations-v003`: "multiple decorators
+  can be applied to a comment. like (non-blocking, if-minor)"). Each toggle
+  writes or takes out its own decoration and keeps every other one exactly as
+  written, in place: `issue (non-blocking)` and if-minor make `issue
+  (non-blocking, if-minor)`. Blocking and non-blocking are one weight, so
+  writing one takes the other out (derived; the owner: "(blocking,
+  non-blocking) is non-sense"). A custom decoration is one word of letters,
+  digits, `-` or `_`, up to 32 bytes, the token the recognizer reads; it is
+  written as typed after the others, and unchecking its toggle takes out
+  every copy of it. Code: `core::feedback_decoration_change` in
+  `decide_feedback_header_edit`, so a menu choice and a header typed by hand
+  are still the same draft.
 - **Shortcodes** (owner, v2). They work only at the very start of the
   comment:
   - A colon alone opens completion with all twelve labels in catalog order
@@ -239,7 +284,8 @@ Consumers: the inline composition page and reply drafts
   typed out in full counts either way. The last `(blocking)` used is never
   carried to the next comment (RFC-BPR-0048).
 - **Shown while writing** (owner, v4). The label appears as the highlighted
-  words at the start of the field, and the mark and rail follow them.
+  words at the start of the field, its decorations included, and the mark
+  and rail follow them.
 - **⌘L collision** (derived). `homeFocusBarAction` already binds Ctrl+L
   (⌘L) with window context in `workbench_window.cpp`. The editor claims ⌘L
   through `QEvent::ShortcutOverride` while it has focus, so the label menu
@@ -292,12 +338,13 @@ selected thread's detail (`markdown_body_view`).
     the avatar, in the card's existing padding or the reply's indent. It adds
     no width. Plain posts get a grey rail.
   - Blocking makes the rail 4 px instead of 2 px, growing outward, so the text
-    does not move. Non-blocking breaks it into dashes and if-minor into dots
-    (BPR-1083 v003, above).
+    does not move. Non-blocking breaks it into dashes (BPR-1083 v003, kept in
+    v004); if-minor leaves the rail alone (above).
   - No card header holds a mark.
-- **Reading** (owner, v1 and v4). The mark stands in for the recognized
-  prefix, so the body starts at the subject. Copy source and View source keep
-  the prefix byte for byte (R32).
+- **Reading** (owner, `decorations-v003`, superseding v1 and v4's "the mark
+  stands in for the recognized prefix"). The mark leads the post, and the body
+  still reads as written, from its label through its decorations to the
+  subject. Copy source and View source keep every byte (R32).
 - **Replies** (owner). A reply shows its own mark, which may differ from its
   root's mark. Replies never add to a count.
 - **Kept as they are** (owner, R32):
@@ -318,10 +365,9 @@ selected thread's detail (`markdown_body_view`).
   comments."; built in v003, inline threads and my draft's entry alike, with
   the root post's name as the mark's tooltip); each row of the post list
   (`github_conversation_delegate`) has its rail in the row's padding and its
-  16 px mark leading the heading, with the body from the subject; the body
-  reader (`markdown_body_view`, in the conversation panel only) renders from
-  the subject with the named mark before View source and Copy source, which
-  keep the prefix. The model reads each body's mark once per accepted body,
+  16 px mark leading the heading, with the body as written; the body reader
+  (`markdown_body_view`, in the conversation panel only) renders the body as
+  written with the named mark before View source and Copy source. The model reads each body's mark once per accepted body,
   and the post's accessible name is "Review comment by @tbutler, issue
   (blocking)".
 

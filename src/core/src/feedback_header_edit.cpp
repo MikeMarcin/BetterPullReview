@@ -43,6 +43,25 @@ namespace bpr::core {
 			return feedback_expectation::unspecified;
 		}
 
+		auto ascii_lower(char aByte) noexcept -> char
+		{
+			return aByte >= 'A' && aByte <= 'Z' ? static_cast<char>(aByte - 'A' + 'a') : aByte;
+		}
+		auto ascii_equal(std::string_view aLeft, std::string_view aRight) noexcept -> bool
+		{
+			return aLeft.size() == aRight.size() && std::ranges::equal(aLeft, aRight, [](char aFirst, char aSecond) { return ascii_lower(aFirst) == ascii_lower(aSecond); });
+		}
+		/// The recognizer's own reading of one token.
+		auto kind_of(std::string_view aToken) noexcept -> feedback_decoration_kind
+		{
+			for (const auto kind : { feedback_decoration_kind::blocking, feedback_decoration_kind::non_blocking, feedback_decoration_kind::if_minor }) {
+				if (ascii_equal(aToken, standard_text(expectation_of(kind)))) {
+					return kind;
+				}
+			}
+			return feedback_decoration_kind::custom;
+		}
+
 		/// The header to write: its label text, its decoration tokens and the
 		/// form the author used.
 		struct header_plan
@@ -105,6 +124,36 @@ namespace bpr::core {
 				tokens.push_back(standard_text(aTarget));
 			}
 			return tokens;
+		}
+
+		/// Write or take out one decoration; every other token stays as
+		/// written, in place. Returns nothing when the list would not change.
+		auto change_decoration(std::string_view aBody, const std::vector<feedback_decoration>& aDecorations, const feedback_decoration_change& aChange)
+			-> std::optional<std::vector<std::string_view>>
+		{
+			const auto kind     = kind_of(aChange.Token);
+			const auto opposite = kind == feedback_decoration_kind::blocking ? std::optional{ feedback_decoration_kind::non_blocking }
+				: kind == feedback_decoration_kind::non_blocking             ? std::optional{ feedback_decoration_kind::blocking }
+																			 : std::nullopt;
+			const auto same     = [&](const feedback_decoration& aDecoration) {
+				return kind == feedback_decoration_kind::custom ? aDecoration.Kind == kind && ascii_equal(feedback_text(aBody, aDecoration.Raw), aChange.Token) : aDecoration.Kind == kind;
+			};
+			std::vector<std::string_view> tokens;
+			bool                          changed = false;
+			bool                          present = false;
+			for (const auto& decoration : aDecorations) {
+				const auto drop = same(decoration) ? !aChange.Written : aChange.Written && opposite == decoration.Kind;
+				present         = present || same(decoration);
+				changed         = changed || drop;
+				if (!drop) {
+					tokens.push_back(feedback_text(aBody, decoration.Raw));
+				}
+			}
+			if (aChange.Written && !present) {
+				tokens.push_back(kind == feedback_decoration_kind::custom ? std::string_view{ aChange.Token } : standard_text(expectation_of(kind)));
+				changed = true;
+			}
+			return changed ? std::optional{ std::move(tokens) } : std::nullopt;
 		}
 
 		auto line_end_or_space(std::string_view aBody, std::size_t aAt, std::size_t aEnd) noexcept -> bool
@@ -240,7 +289,9 @@ namespace bpr::core {
 			plan.Header.Form   = aCurrent.Form;
 			plan.Header.Known  = relabel ? std::optional{ aEdit.Label } : aCurrent.Label;
 			plan.Header.Label  = relabel ? stable_name(aEdit.Label) : feedback_text(aBody, *aCurrent.RawLabel);
-			auto rewritten     = aEdit.Expectation ? rewrite_decorations(aBody, aCurrent.Decorations, *aEdit.Expectation) : std::nullopt;
+			auto rewritten     = aEdit.Expectation ? rewrite_decorations(aBody, aCurrent.Decorations, *aEdit.Expectation)
+				: aEdit.Decoration                 ? change_decoration(aBody, aCurrent.Decorations, *aEdit.Decoration)
+												   : std::nullopt;
 			if (!relabel && !rewritten) {
 				plan.Noop = true;
 				return plan;
@@ -273,15 +324,20 @@ namespace bpr::core {
 			if (aEdit.Expectation && *aEdit.Expectation != feedback_expectation::unspecified) {
 				plan.Header.Decorations.push_back(standard_text(*aEdit.Expectation));
 			}
+			if (aEdit.Decoration && aEdit.Decoration->Written) {
+				const auto kind = kind_of(aEdit.Decoration->Token);
+				plan.Header.Decorations.push_back(kind == feedback_decoration_kind::custom ? std::string_view{ aEdit.Decoration->Token } : standard_text(expectation_of(kind)));
+			}
 			return plan;
 		}
 		auto plan_edit(std::string_view aBody, const feedback_annotation& aCurrent, const feedback_header_edit& aEdit, feedback_span aUserBody) -> edit_plan
 		{
-			if (aEdit.Change == feedback_label_change::keep && !aEdit.Expectation) {
+			if (aEdit.Change == feedback_label_change::keep && !aEdit.Expectation && !aEdit.Decoration) {
 				return { .Noop = true };
 			}
 			if ((aEdit.Expectation && *aEdit.Expectation == feedback_expectation::conflicting)
-				|| (aEdit.Change == feedback_label_change::remove && aEdit.Expectation)) {
+				|| (aEdit.Change == feedback_label_change::remove && (aEdit.Expectation || aEdit.Decoration))
+				|| (aEdit.Expectation && aEdit.Decoration) || (aEdit.Decoration && !valid_feedback_decoration(aEdit.Decoration->Token))) {
 				return { .Refusal = feedback_edit_refusal::invalid_edit };
 			}
 			switch (aCurrent.Status) {
@@ -296,6 +352,13 @@ namespace bpr::core {
 			}
 			return { .Refusal = feedback_edit_refusal::unsupported_header };
 		}
+	}
+
+	auto valid_feedback_decoration(std::string_view aToken) noexcept -> bool
+	{
+		return !aToken.empty() && aToken.size() <= maximum_feedback_label_bytes && std::ranges::all_of(aToken, [](char aByte) {
+			return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9') || aByte == '-' || aByte == '_';
+		});
 	}
 
 	auto stable_name(feedback_edit_refusal aRefusal) noexcept -> std::string_view

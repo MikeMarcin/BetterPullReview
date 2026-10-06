@@ -31,6 +31,29 @@ namespace bpr::core {
 		remove,
 	};
 
+	/// \brief One decoration written into or taken out of the list, every
+	/// other decoration kept exactly as authored ([[BPR-1083]] v004).
+	/// \details Conventional Comments lets several decorations ride one
+	/// label, as in `issue (non-blocking, if-minor):`, and an organisation may
+	/// add its own, as in `(security)`. Writing a decoration that is already
+	/// there changes nothing; a new one goes after the written ones, a
+	/// standard one in its canonical lowercase spelling and a custom one as
+	/// given. Writing `blocking` takes out `non-blocking`, and the reverse:
+	/// a label carries one weight. `if-minor` and custom decorations combine
+	/// with anything. Taking one out removes every copy of it, matched as the
+	/// recognizer matches (standard by kind, custom ASCII case-insensitively).
+	struct feedback_decoration_change
+	{
+		/// The decoration's text; `valid_feedback_decoration` must accept it.
+		std::string Token;
+		/// Write it (true) or take it out (false).
+		bool Written = true;
+	};
+	/// \brief Whether a decoration can be written: 1 to
+	/// `maximum_feedback_label_bytes` bytes of ASCII letters, digits, `-` and
+	/// `_`, the token the recognizer reads inside the parentheses.
+	[[nodiscard]] auto valid_feedback_decoration(std::string_view aToken) noexcept -> bool;
+
 	/// \brief What the author asked to change.
 	struct feedback_header_edit
 	{
@@ -42,6 +65,9 @@ namespace bpr::core {
 		/// exactly that one. `conflicting` is not something to write.
 		/// Custom decorations are always kept, in order.
 		std::optional<feedback_expectation> Expectation = std::nullopt;
+		/// One decoration written or taken out, the rest kept as written.
+		/// Not together with `Expectation`, and not with `remove`.
+		std::optional<feedback_decoration_change> Decoration = std::nullopt;
 	};
 
 	struct feedback_header_edit_request
@@ -61,8 +87,9 @@ namespace bpr::core {
 		/// The body or the parser changed since the edit was chosen. Nothing
 		/// is applied; plan again from the current body.
 		stale_revision,
-		/// The request contradicts itself, such as `conflicting` as a target or
-		/// decorations for a body without a header.
+		/// The request contradicts itself, such as `conflicting` as a target,
+		/// decorations for a body without a header, or a decoration that
+		/// cannot be written.
 		invalid_edit,
 		/// The header is malformed, over budget or inside an envelope whose
 		/// user text is unknown. The author's text stays as written.

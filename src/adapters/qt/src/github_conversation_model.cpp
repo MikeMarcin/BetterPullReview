@@ -187,7 +187,6 @@ namespace bpr::qt {
 				github_conversation_model::feedback_label_role,
 				github_conversation_model::feedback_blocking_role,
 				github_conversation_model::feedback_name_role,
-				github_conversation_model::feedback_subject_role,
 				github_conversation_model::feedback_emphasis_role,
 				github_conversation_model::path_role,
 				github_conversation_model::line_role,
@@ -305,13 +304,9 @@ namespace bpr::qt {
 				value->Mark = conversation.Deleted ? feedback_body_mark{ } : feedback_body_mark_of(conversation.ReviewerProse.value_or(conversation.Body));
 			}
 			// [[BPR-1083]]. A post is named with its author and then its mark,
-			// as in "Review comment by @tbutler, issue (blocking)", and its text
-			// starts at the subject the mark stands in front of.
+			// as in "Review comment by @tbutler, issue (blocking)"; its text
+			// reads as written, header included.
 			if (const auto& mark = *value->Mark; !mark.Name.isEmpty()) {
-				const auto body = text(conversation.ReviewerProse.value_or(conversation.Body));
-				if (const auto at = shown.indexOf(body); at >= 0) {
-					shown.remove(at, mark.SubjectOffset);
-				}
 				const auto line = shown.indexOf(QLatin1Char{ '\n' });
 				shown.insert(line < 0 ? shown.size() : line, QStringLiteral(", %1").arg(mark.Name));
 			}
@@ -334,7 +329,6 @@ namespace bpr::qt {
 		case feedback_label_role:
 		case feedback_blocking_role:
 		case feedback_name_role:
-		case feedback_subject_role:
 		case feedback_emphasis_role: {
 			if (!value->Mark.has_value()) {
 				value->Mark = conversation.Deleted ? feedback_body_mark{ } : feedback_body_mark_of(conversation.ReviewerProse.value_or(conversation.Body));
@@ -344,15 +338,12 @@ namespace bpr::qt {
 				return mark.Label.has_value() ? QVariant{ static_cast<int>(*mark.Label) } : QVariant{ };
 			}
 			if (aRequestedRole == feedback_blocking_role) {
-				return mark.Emphasis == feedback_mark_emphasis::blocking;
+				return mark.Emphasis.Weight == feedback_mark_weight::blocking;
 			}
 			if (aRequestedRole == feedback_emphasis_role) {
-				return static_cast<int>(mark.Emphasis);
+				return feedback_mark_emphasis_code(mark.Emphasis);
 			}
-			if (aRequestedRole == feedback_name_role) {
-				return mark.Name;
-			}
-			return QVariant{ static_cast<qlonglong>(mark.SubjectOffset) };
+			return mark.Name;
 		}
 		case path_role:
 			return text(conversation.Path);

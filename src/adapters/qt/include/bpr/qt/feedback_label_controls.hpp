@@ -10,6 +10,7 @@
 #include <QRectF>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 #include <array>
@@ -21,6 +22,7 @@
 #include <vector>
 
 class QLabel;
+class QLineEdit;
 class QListWidget;
 class QPlainTextEdit;
 class QToolButton;
@@ -42,11 +44,15 @@ namespace bpr::qt {
 	struct feedback_composition_state
 	{
 		std::optional<core::feedback_label> Label;
-		core::feedback_expectation          Expectation = core::feedback_expectation::unspecified;
 		/// Which of blocking, non-blocking and if-minor are written.
 		bool Blocking    = false;
 		bool NonBlocking = false;
 		bool IfMinor     = false;
+		/// The custom decorations written, as written, each once ([[BPR-1083]]
+		/// v004: any decoration is accepted and kept exactly as authored).
+		QStringList Custom;
+		/// What the chip's mark shows of them.
+		feedback_mark_emphasis Emphasis;
 		/// A header with no subject yet (`issue: `). The recognizer reads it as
 		/// `malformed` (`empty_subject`); the chip still shows its label, and
 		/// says it is waiting for a subject (BPR-1083's settlement of the
@@ -123,7 +129,7 @@ namespace bpr::qt {
 		void show_completion(const std::vector<core::feedback_label>& aLabels);
 		void hide_completion();
 		void take_completion();
-		void toggle_decoration(core::feedback_expectation aExpectation, bool aWritten);
+		void toggle_decoration(const QString& aToken, bool aWritten);
 		void refresh_icons();
 		void place_caret_after_prefix();
 
@@ -147,6 +153,11 @@ namespace bpr::qt {
 
 	/// \brief The label menu: Plain comment (⌘0), the 3×4 grid of the twelve
 	/// marks with names and codes, and the decorations under "Adds".
+	/// \details The decorations combine ([[BPR-1083]] v004, after the owner's
+	/// `decorations-v003`): blocking and non-blocking are one weight, so each
+	/// takes the other out, and if-minor goes with either. Custom decorations
+	/// written in the comment show as toggles too, and a field takes a new
+	/// one, as in `security`, which is written as typed.
 	/// \details A popup, so ⌘0 reaches it before Home's window shortcut and is
 	/// a key of the open menu only (contract, derived). Arrow keys move through
 	/// the grid; Return or Space chooses; Esc closes. Focus returns to the body
@@ -162,6 +173,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto blocking_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto non_blocking_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto if_minor_button() const noexcept -> QToolButton*;
+		/// \brief The toggles of the custom decorations written, in order.
+		[[nodiscard]] auto custom_buttons() const -> std::vector<QToolButton*>;
+		/// \brief The field that takes a new custom decoration, and its Add.
+		[[nodiscard]] auto custom_field() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto custom_add_button() const noexcept -> QToolButton*;
 
 	protected:
 		auto event(QEvent* aEvent) -> bool override;
@@ -170,13 +186,19 @@ namespace bpr::qt {
 
 	private:
 		void choose(const core::feedback_header_edit& aEdit);
+		void decorate(const QString& aToken, bool aWritten);
+		void add_custom();
 		void move_focus(int aRows, int aColumns);
 
 		feedback_label_controls&                             Controls;
 		QToolButton*                                         Plain = nullptr;
 		std::array<QToolButton*, core::feedback_label_count> Labels{ };
 		std::array<QToolButton*, 3U>                         Decorations{ };
-		QLabel*                                              Hint = nullptr;
+		QWidget*                                             CustomRow = nullptr;
+		std::vector<QToolButton*>                            Custom;
+		QLineEdit*                                           CustomField = nullptr;
+		QToolButton*                                         CustomAdd   = nullptr;
+		QLabel*                                              Hint        = nullptr;
 	};
 
 	/// \brief [[BPR-1083]]. A few marks drawn in the style and tints on
@@ -184,10 +206,12 @@ namespace bpr::qt {
 	/// Letters before meeting them in a thread (owner, mark-style-v001: "it'd
 	/// be nice to see a preview").
 	/// \details Presentation only: it paints what `set_theme` hands it and
-	/// dispatches nothing. One mark is blocking, one non-blocking and one
-	/// if-minor, so each decoration's look shows too. Each mark has its own
-	/// tooltip, its name and catalog description (owner, `mark-preview-v002`:
-	/// "There should be individual tooltips instead of one giant tooltip.").
+	/// dispatches nothing. The marks show the three weights and the if-minor
+	/// corner on two of them. Each mark has its own tooltip, its name and
+	/// catalog description (owner, `mark-preview-v002`: "There should be
+	/// individual tooltips instead of one giant tooltip."), right below the
+	/// mark (owner, `preview-tooltips-v003`: "The tooltip feels strangely far
+	/// away.").
 	class feedback_mark_preview final : public QWidget
 	{
 	public:
@@ -195,7 +219,7 @@ namespace bpr::qt {
 		struct entry
 		{
 			core::feedback_label   Label;
-			feedback_mark_emphasis Emphasis = feedback_mark_emphasis::undecorated;
+			feedback_mark_emphasis Emphasis;
 		};
 
 		explicit feedback_mark_preview(QWidget* aParent = nullptr);

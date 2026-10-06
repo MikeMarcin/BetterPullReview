@@ -100,11 +100,13 @@ namespace bpr::qt {
 		QString Role;
 		QString ReplyingTo;
 		/// [[BPR-1083]]. The post's label mark, when its body begins with a
-		/// recognized Conventional Comments prefix. `Body` then starts at the
-		/// subject: the mark stands in for the prefix (owner, v1 and v4).
+		/// recognized Conventional Comments prefix. `Body` is still the whole
+		/// body, its header and decorations included, as written (owner,
+		/// `decorations-v003`: "I think we always display the decorators text
+		/// out in the comments").
 		std::optional<core::feedback_label> Label;
-		/// The label's standard decoration, as its mark and rail show it.
-		feedback_mark_emphasis Emphasis = feedback_mark_emphasis::undecorated;
+		/// The label's written decorations, as its mark and rail show them.
+		feedback_mark_emphasis Emphasis;
 		/// "tbutler, issue (blocking)": the author, then the mark's name.
 		QString Name;
 		/// Where the post was drawn, in content coordinates.
@@ -327,6 +329,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto card_height(const thread_card& aCard, int aWidth) const -> int;
 		void               measure(thread_card& aCard, int aWidth) const;
 		[[nodiscard]] auto to_content(QPoint aViewportPoint) const -> QPoint;
+		[[nodiscard]] auto to_viewport(QRect aContentRect) const -> QRect;
 		void               choose(std::size_t aCard, bool aOpenDetail);
 		void               place_cards(bool aForce);
 

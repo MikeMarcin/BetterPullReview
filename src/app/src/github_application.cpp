@@ -24396,12 +24396,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (first == nullptr || second == nullptr || !cards->isVisibleTo(window)) {
 				return result::pending;
 			}
-			// renderer.cpp's two threads: issue (blocking), question, praise and
-			// a plain reply; suggestion (non-blocking) and todo.
-			const auto marked = rootLabel(first) == core::feedback_label::issue && (first->Posts.front().Emphasis == qt::feedback_mark_emphasis::blocking)
-				&& first->Posts.size() == 4U && first->Posts[1].Label == core::feedback_label::question
+			// renderer.cpp's two threads: issue (blocking), question
+			// (non-blocking), praise and a plain reply; suggestion
+			// (non-blocking, if-minor), todo (blocking, if-minor, perf) and
+			// nitpick (style). Several and custom decorations are kept, shown
+			// as written in the text, and styled by weight and the if-minor
+			// corner (owner, decorations-v003).
+			using weight      = qt::feedback_mark_weight;
+			const auto marked = rootLabel(first) == core::feedback_label::issue && first->Posts.front().Emphasis == qt::feedback_mark_emphasis{ .Weight = weight::blocking }
+				&& first->Posts.size() == 4U && first->Posts[1].Label == core::feedback_label::question && first->Posts[1].Emphasis == qt::feedback_mark_emphasis{ .Weight = weight::non_blocking }
 				&& first->Posts[2].Label == core::feedback_label::praise && !first->Posts[3].Label.has_value()
-				&& rootLabel(second) == core::feedback_label::suggestion && second->Posts.front().Emphasis == qt::feedback_mark_emphasis::non_blocking
+				&& rootLabel(second) == core::feedback_label::suggestion && second->Posts.front().Emphasis == qt::feedback_mark_emphasis{ .Weight = weight::non_blocking, .IfMinor = true }
+				&& second->Posts.front().Body.startsWith(QStringLiteral("suggestion (non-blocking, if-minor): ")) && second->Posts.size() == 3U
+				&& second->Posts[1].Emphasis == qt::feedback_mark_emphasis{ .Weight = weight::blocking, .IfMinor = true } && second->Posts[1].Name.endsWith(QStringLiteral("todo (blocking, if-minor, perf)"))
+				&& second->Posts[2].Label == core::feedback_label::nitpick && second->Posts[2].Emphasis == qt::feedback_mark_emphasis{ } && second->Posts[2].Body.startsWith(QStringLiteral("nitpick (style): "))
 				// The drawer's entries lead with their root's mark (owner,
 				// thread-marks-v002: "Marks don't show on inline comments").
 				&& !cards->compact_mark_rect(*first).isEmpty() && !cards->compact_mark_rect(*second).isEmpty();
@@ -24526,7 +24534,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (card == nullptr) {
 				return result::pending;
 			}
-			probe.Evidence.PublishedMarked = rootLabel(card) == core::feedback_label::issue && card->Posts.front().Emphasis == qt::feedback_mark_emphasis::undecorated
+			probe.Evidence.PublishedMarked = rootLabel(card) == core::feedback_label::issue && card->Posts.front().Emphasis == qt::feedback_mark_emphasis{ }
 				&& card->Posts.front().Name.endsWith(QStringLiteral(", issue")) && !cards->compact_mark_rect(*card).isEmpty();
 			render("published-marked");
 			if (!probe.Evidence.PublishedMarked) {
