@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1227"
 title: "Forward source-bearing tour commands to the profile owner"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0045"]
 depends_on: ["BPR-1062"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","origin":"discovered while accepting BPR-1061 and BPR-1062: with a desktop owner, the CLI forwards local edit commands but answers interaction_required to every command that reads the provider","reservation":"docs/issues/_reservations/BPR-1227--BPR-1227--3f02ead5aa45.json"}
