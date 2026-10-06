@@ -4,7 +4,7 @@ id: "BPR-1204"
 title: "The tray's Findings tab does not say what it holds"
 status: "Backlog"
 rfcs: ["RFC-BPR-0052"]
-depends_on: ["BPR-1134","BPR-1208","BPR-1209","BPR-1210"]
+depends_on: ["BPR-1134","BPR-1208","BPR-1209"]
 priority: "P2"
 milestone: "Review workbench scaffolding"
 platforms: ["mac","win","linux"]
@@ -190,3 +190,13 @@ fingerprints are retained in the card metadata.
 
 Both parts of AC4 pass for that candidate. Backlog and the terminal dependencies
 on BPR-1208, BPR-1209 and BPR-1210 remain; this decision does not bypass them.
+
+## Coordinator decision — 2026-10-06
+
+The integrator, as coordinator, removed [[BPR-1210]] from this card's
+`depends_on`. That dependency was incidental: the Notes name, tooltip,
+introduction and accessible names do not depend on BPR-1210's open engineering
+gap, a historical file note's filename (`blocked_by:
+historical-note-path-contract`). BPR-1210 stays Blocked and keeps its own AC1.
+BPR-1134, BPR-1208 and BPR-1209 are Done. The card is finished on the evidence
+above, the owner's hand-back 49 Accepts, and the Linux station's run below.
