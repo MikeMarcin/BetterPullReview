@@ -2,6 +2,8 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 
+#include "bpr/core/feedback_conversation.hpp"
+
 #include <QFont>
 #include <QImage>
 #include <QPainter>
@@ -758,7 +760,8 @@ namespace bpr::qt {
 
 	auto feedback_body_mark_of(const std::string_view aBody) -> feedback_body_mark
 	{
-		const auto annotation = core::recognize_feedback_prefix(aBody);
+		// [[BPR-1086]]. A published tour stop is read inside its narrative.
+		const auto annotation = core::recognize_feedback_body(aBody, core::published_feedback_segment(aBody));
 		if (annotation.Status != core::feedback_prefix_status::recognized || !annotation.Label.has_value() || !annotation.Subject.has_value()) {
 			return { };
 		}

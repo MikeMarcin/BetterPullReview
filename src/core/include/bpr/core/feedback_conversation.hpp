@@ -92,6 +92,17 @@ namespace bpr::core {
 	/// \brief Classify one conversation from its posts, in any order.
 	[[nodiscard]] auto classify_feedback_conversation(std::string_view aConversation, std::span<const feedback_post> aPosts) -> feedback_conversation;
 
+	/// \brief Which bytes of one published post body are the user's
+	/// ([[BPR-1086]]).
+	/// \details A published tour stop is the user's only inside the narrative
+	/// its owner maps (`map_tour_stop`), and not at all when the generated
+	/// heading is there but the rest of the envelope does not map. Any other
+	/// body is ordinary, the user's from its first byte. A tour stop is
+	/// therefore plain unless its author labelled the narrative, and the
+	/// heading and navigation are never read as a label. A permalink comment's
+	/// prose is mapped by its own owner against the retained source, not here.
+	[[nodiscard]] auto published_feedback_segment(std::string_view aBody) -> feedback_body_segment;
+
 	/// \brief The derived annotations of one scope (account, host, repository
 	/// and pull request). `Posts` is ordered by conversation then post,
 	/// `Conversations` by identity. `Epoch` counts adopted refreshes.

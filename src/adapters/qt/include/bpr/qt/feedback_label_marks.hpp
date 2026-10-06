@@ -222,7 +222,9 @@ namespace bpr::qt {
 		/// in written order, custom ones as written. Empty with no mark.
 		QString Name;
 	};
-	/// \brief The mark an ordinary body carries.
+	/// \brief The mark a body carries: an ordinary body's header, or the
+	/// header of a published tour stop's narrative ([[BPR-1086]]). A tour stop
+	/// whose narrative has no header, or whose envelope does not map, has none.
 	[[nodiscard]] auto feedback_body_mark_of(std::string_view aBody) -> feedback_body_mark;
 	/// \brief The name of a recognized annotation's mark, read from the body
 	/// it annotates (custom decorations are named as written).

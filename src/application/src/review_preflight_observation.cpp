@@ -1,6 +1,6 @@
 #include "bpr/application/review_preflight_observation.hpp"
 
-#include "bpr/core/review_tour_markdown.hpp"
+#include "bpr/core/feedback_conversation.hpp"
 
 #include <algorithm>
 #include <unordered_map>
@@ -33,21 +33,6 @@ namespace bpr::application {
 				return std::nullopt;
 			}
 			return std::string{ aAuthor->Actor.value() };
-		}
-
-		/// An ordinary body is the user's from its first byte; a tour stop's
-		/// only inside its mapped narrative, and not at all when the generated
-		/// heading is there but the rest of the envelope does not map.
-		[[nodiscard]] auto segment_of(std::string_view aBody) -> core::feedback_body_segment
-		{
-			const auto stop = core::map_tour_stop(aBody);
-			if (stop.Narrative) {
-				return { .Managed = true, .UserBody = core::feedback_span{ stop.Narrative->Begin, stop.Narrative->End } };
-			}
-			if (stop.Heading) {
-				return { .Managed = true };
-			}
-			return { };
 		}
 
 		/// The subject as written, else the first line, cut at a character.
@@ -96,7 +81,7 @@ namespace bpr::application {
 		auto       facts       = std::vector<core::feedback_conversation_facts>{ };
 		auto       where       = std::map<std::string, std::string>{ };
 		const auto add         = [&](std::string aConversation, std::string aId, std::optional<std::string> aReplyTo, std::string_view aBody, bool aDeleted) {
-			posts.push_back({ .Conversation = std::move(aConversation), .Id = std::move(aId), .ReplyTo = std::move(aReplyTo), .Body = aBody, .Segment = segment_of(aBody), .Deleted = aDeleted });
+			posts.push_back({ .Conversation = std::move(aConversation), .Id = std::move(aId), .ReplyTo = std::move(aReplyTo), .Body = aBody, .Segment = core::published_feedback_segment(aBody), .Deleted = aDeleted });
 		};
 		const auto threads = aSnapshot.ReviewThreadsAvailability == github_collection_availability::available;
 		if (threads) {

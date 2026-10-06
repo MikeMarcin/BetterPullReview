@@ -614,6 +614,20 @@ bpr_enable_hardening(test_feedback_partition)
 bpr_enable_warnings(test_feedback_partition)
 bpr_add_network_isolated_test(NAME core_feedback_partition COMMAND test_feedback_partition "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1086]]. Private promotion into the shared draft keeps lineage and leaks no private severity, category or provenance.
+bpr_add_executable(test_feedback_private_promotion feedback_private_promotion_tests.cpp)
+target_link_libraries(test_feedback_private_promotion PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_private_promotion)
+bpr_enable_warnings(test_feedback_private_promotion)
+bpr_add_network_isolated_test(NAME core_feedback_private_promotion COMMAND test_feedback_private_promotion)
+
+# [[BPR-1086]]. A tour's plain and labelled stops, index links and ordinary threads through one segment owner and the shared population.
+bpr_add_executable(test_feedback_tour_coexistence feedback_tour_coexistence_tests.cpp)
+target_link_libraries(test_feedback_tour_coexistence PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_tour_coexistence)
+bpr_enable_warnings(test_feedback_tour_coexistence)
+bpr_add_network_isolated_test(NAME core_feedback_tour_coexistence COMMAND test_feedback_tour_coexistence)
+
 # [[BPR-1085]]. The submitting reviewer's own feedback before a native review decision, and which changes invalidate a prepared decision.
 bpr_add_executable(test_review_preflight review_preflight_tests.cpp)
 target_link_libraries(test_review_preflight PRIVATE BetterPullReview::Core)

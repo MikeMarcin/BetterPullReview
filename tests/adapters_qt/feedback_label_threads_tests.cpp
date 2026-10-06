@@ -18,6 +18,8 @@
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/core/review_tour_markdown.hpp"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QGuiApplication>
@@ -38,6 +40,8 @@
 #include <QTreeView>
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
@@ -304,6 +308,93 @@ namespace {
 		reader.set_body("Plain text.", "c4");
 		expect(!reader.feedback_mark_label()->isVisibleTo(&reader) && reader.rendered_view()->toPlainText().startsWith(QStringLiteral("Plain text.")), "a plain body has no mark");
 	}
+	/// \brief [[BPR-1086]]. A published tour stop is plain unless its author
+	/// labelled it (RFC-BPR-0048, "Tour compatibility"; R19). The mark comes
+	/// from the narrative the tour owner maps; the generated heading, the
+	/// pinned source and the navigation are never read as a label, nor set as
+	/// a header; and every byte of the stop is shown and kept as written.
+	void test_a_tour_stop_is_plain_unless_its_author_labelled_it()
+	{
+		const std::array navigation{ core::tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" },
+									 core::tour_markdown_link{ "Next", "https://github.com/o/r/pull/7#discussion_r12" } };
+		const auto       labelled = core::render_tour_stop("Why the width is clamped", 2, "question (non-blocking): Should the clamp live in the caller?\n\nThe renderer trusts it today.",
+														   navigation, "https://github.com/o/r/blob/1111111111111111111111111111111111111111/src/light.cpp?plain=1#L12");
+		const auto       plain    = core::render_tour_stop("Where the frame starts", 1, "The renderer owns the frame from here.", navigation);
+		expect(labelled.has_value() && plain.has_value(), "the tour owner renders both stops");
+		// A generated heading whose envelope does not map: nothing in it is
+		// the author's to classify, so no label is read past the heading.
+		const auto broken = std::string{ "### Author's tour · 3 — Teardown\n\nissue: The navigation paragraph is missing." };
+		auto       stops  = std::vector<conversation>{ };
+		const auto add    = [&stops](const std::string& aThread, const std::string& aBody, const std::uint32_t aLine) {
+			auto thread               = conversation{ };
+			thread.Id                 = aThread;
+			thread.Kind               = application::github_conversation_kind::review_thread;
+			thread.Path               = "src/light.cpp";
+			thread.Line               = aLine;
+			thread.DiffSide           = application::github_conversation_diff_side::right;
+			thread.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			stops.push_back(std::move(thread));
+			auto root        = conversation{ };
+			root.Id          = aThread + "-root";
+			root.ParentId    = aThread;
+			root.Kind        = application::github_conversation_kind::review_comment;
+			root.AuthorLogin = "tbutler";
+			root.Body        = aBody;
+			root.Path        = "src/light.cpp";
+			root.Line        = aLine;
+			stops.push_back(std::move(root));
+		};
+		add("stop-1", *plain, 4U);
+		add("stop-2", *labelled, 12U);
+		add("stop-3", broken, 20U);
+
+		qt::conversation_cards_view view;
+		view.set_label_marks(theme());
+		view.resize(420, 900);
+		view.show();
+		view.adopt(stops);
+		settle();
+		const auto card = [&view](const std::string_view aId) -> const qt::thread_card* {
+			const auto found = std::ranges::find(view.cards(), std::string{ aId }, &qt::thread_card::Id);
+			return found == view.cards().end() || found->Posts.empty() ? nullptr : &*found;
+		};
+		const auto* const first  = card("stop-1");
+		const auto* const second = card("stop-2");
+		const auto* const third  = card("stop-3");
+		expect(first != nullptr && second != nullptr && third != nullptr, "three tour stops, three notes");
+		const auto& asked = second->Posts.front();
+		if (asked.Label != core::feedback_label::question) {
+			std::cerr << "labelled stop: name '" << asked.Name.toStdString() << "'\n";
+		}
+		expect(asked.Label == core::feedback_label::question && asked.Emphasis == qt::feedback_mark_emphasis{ .Weight = qt::feedback_mark_weight::non_blocking }
+				   && asked.Name == QStringLiteral("tbutler, question (non-blocking)") && !view.mark_rect(*second).isEmpty(),
+			   "a stop its author labelled carries the label of its narrative");
+		expect(asked.HeaderLength == 0, "the generated heading before the narrative is not set as a header");
+		expect(asked.Body == QString::fromStdString(*labelled), "the labelled stop reads as written: pinned source, heading, narrative and navigation");
+		expect(!first->Posts.front().Label.has_value() && view.mark_rect(*first).isEmpty() && first->Posts.front().HeaderLength == 0
+				   && first->Posts.front().Body == QString::fromStdString(*plain),
+			   "an explanatory stop stays plain: no label is forced on it");
+		expect(!third->Posts.front().Label.has_value() && view.mark_rect(*third).isEmpty(), "a stop whose envelope does not map is not classified");
+
+		auto model = qt::github_conversation_model{ };
+		model.apply(stops);
+		const auto rootOf = [&model](const int aRow) { return model.index(0, 0, model.index(aRow, 0)); };
+		expect(rootOf(1).data(qt::github_conversation_model::feedback_label_role).toInt() == static_cast<int>(core::feedback_label::question)
+				   && !rootOf(0).data(qt::github_conversation_model::feedback_label_role).isValid()
+				   && !rootOf(2).data(qt::github_conversation_model::feedback_label_role).isValid(),
+			   "the model reads the same marks from the same accepted bodies");
+
+		auto reader = qt::markdown_body_view{ };
+		reader.set_feedback_marks(theme());
+		reader.set_body(*labelled, "stop-2-root");
+		expect(reader.feedback_mark_label()->isVisibleTo(&reader) && reader.feedback_mark_label()->accessibleName() == QStringLiteral("question (non-blocking)")
+				   && reader.source_view()->toPlainText() == QString::fromStdString(*labelled),
+			   "the reader marks the labelled stop and View source keeps every byte");
+		reader.set_body(*plain, "stop-1-root");
+		expect(!reader.feedback_mark_label()->isVisibleTo(&reader), "and shows no mark for a plain stop");
+		save_render(view, "tour-stops");
+	}
+
 	/// \brief [[BPR-1083]] v004 (owner, preview-tooltips-v003: "The tooltip
 	/// feels strangely far away."). Every mark's tooltip sits right next to it.
 	void test_tooltips_sit_next_to_their_marks()
@@ -457,6 +548,7 @@ auto main(int argc, char** argv) -> int
 	test_the_open_thread_marks_every_post_under_its_avatar();
 	test_closed_notes_carry_the_root_mark();
 	test_the_model_and_the_overview_reader();
+	test_a_tour_stop_is_plain_unless_its_author_labelled_it();
 	test_tooltips_sit_next_to_their_marks();
 	test_the_mark_style_setting_reaches_every_surface();
 	test_the_mark_style_preview_follows_the_setting();

@@ -5,6 +5,8 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include "bpr/core/feedback_conversation.hpp"
+
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
 
@@ -122,13 +124,20 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 
-		[[nodiscard]] auto header_length_of(const std::string_view aBody) -> qsizetype
+		/// \brief How much of the body's start is its header, set in semibold.
+		/// [[BPR-1086]]. A published tour stop's header sits inside its
+		/// narrative, after the generated heading, so none of its start is.
+		[[nodiscard]] auto header_length_of(const std::string_view aBody, const core::feedback_body_segment& aSegment, const core::feedback_annotation& aAnnotation) -> qsizetype
 		{
-			const auto annotation = core::recognize_feedback_prefix(aBody);
-			if (annotation.Status != core::feedback_prefix_status::recognized || !annotation.Header.has_value()) {
+			if (aSegment.Managed || aAnnotation.Status != core::feedback_prefix_status::recognized || !aAnnotation.Header.has_value()) {
 				return 0;
 			}
-			return feedback_text_index(aBody, annotation.Header->End);
+			return feedback_text_index(aBody, aAnnotation.Header->End);
+		}
+		[[nodiscard]] auto header_length_of(const std::string_view aBody) -> qsizetype
+		{
+			const auto segment = core::published_feedback_segment(aBody);
+			return header_length_of(aBody, segment, core::recognize_feedback_body(aBody, segment));
 		}
 
 		/// \brief A closed note's body: one flowing paragraph, the header in
@@ -524,15 +533,17 @@ namespace bpr::qt {
 			RetainedFiles.push_back(core::file_identity_of(Retained[index].Path));
 			// [[BPR-1083]]. Marks follow the accepted body; an unchanged forest
 			// is not read again by a relayout.
-			const auto& body       = Retained[index].ReviewerProse.has_value() ? *Retained[index].ReviewerProse : Retained[index].Body;
-			const auto  annotation = core::recognize_feedback_prefix(body);
-			const auto  recognized = annotation.Status == core::feedback_prefix_status::recognized && annotation.Label.has_value()
+			const auto& body = Retained[index].ReviewerProse.has_value() ? *Retained[index].ReviewerProse : Retained[index].Body;
+			// [[BPR-1086]]. A published tour stop is read inside its narrative.
+			const auto segment    = core::published_feedback_segment(body);
+			const auto annotation = core::recognize_feedback_body(body, segment);
+			const auto recognized = annotation.Status == core::feedback_prefix_status::recognized && annotation.Label.has_value()
 				&& annotation.Subject.has_value();
 			RetainedMarks.push_back(recognized ? feedback_body_mark{ .Label    = annotation.Label,
 																	 .Emphasis = feedback_mark_emphasis_of(annotation),
 																	 .Name     = feedback_mark_name(annotation, body) }
 											   : feedback_body_mark{ });
-			RetainedHeaders.push_back(recognized && annotation.Header.has_value() ? feedback_text_index(body, annotation.Header->End) : 0);
+			RetainedHeaders.push_back(recognized ? header_length_of(body, segment, annotation) : 0);
 			// The first node with an identity answers for it.
 			RetainedById.emplace(Retained[index].Id, index);
 		}

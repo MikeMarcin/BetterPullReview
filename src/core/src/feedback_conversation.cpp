@@ -1,5 +1,6 @@
 #include "bpr/core/feedback_conversation.hpp"
 
+#include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -193,6 +194,18 @@ namespace bpr::core {
 			return "duplicate_post";
 		}
 		return "unknown";
+	}
+
+	auto published_feedback_segment(const std::string_view aBody) -> feedback_body_segment
+	{
+		const auto stop = map_tour_stop(aBody);
+		if (stop.Narrative) {
+			return { .Managed = true, .UserBody = feedback_span{ stop.Narrative->Begin, stop.Narrative->End } };
+		}
+		if (stop.Heading) {
+			return { .Managed = true };
+		}
+		return { };
 	}
 
 	auto classify_feedback_conversation(std::string_view aConversation, std::span<const feedback_post> aPosts) -> feedback_conversation
