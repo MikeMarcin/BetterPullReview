@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1229"
 title: "Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer"
-status: "Backlog"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win station run, 2026-09-29","reservation":"docs/issues/_reservations/BPR-1229--BPR-1237--8ddd5fd98cf2.json","related_cards":["BPR-1128","BPR-1139"]}
+parked_on: "human-review"
 ---
 
 # BPR-1229: Windows: qt_agent_launch_canary fails contained at its durable child course, which opens a private SQLite store inside the AppContainer
@@ -59,3 +60,20 @@ is a containment decision, so this card does not make it. Two options:
 - `qt_agent_launch_canary` passes on Windows, and the durable course runs
   somewhere on Windows.
 - `test_network_isolation_manifest` names no row this card changes.
+
+## Parked for the owner's choice (bpr-main-win, 2026-10-05)
+
+Reproduced at current `main` (`ade8a312d`), `build/windows-dev` Debug:
+`qt_agent_launch_canary` fails contained in 0.06 s at `FAILED: open durable
+child course` (`agent_launch_canary_tests.cpp:281`), as described above.
+Nothing was changed. The containment choice above is the owner's, so the card
+is parked on this one question:
+
+> **Should `qt_agent_launch_canary` leave the Windows AppContainer whole
+> (option 1), or should its durable child course move to its own uncontained
+> row while the canary's launch courses stay contained (option 2)?**
+
+The station recommends option 2. Its launch courses are the ones whose
+network boundary matters, and the durable course is the only part that
+needs a private SQLite store, which the container refuses. That is the same
+refusal as the other store rows pinned `dos-volume-name`.
