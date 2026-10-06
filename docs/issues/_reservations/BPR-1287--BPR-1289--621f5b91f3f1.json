@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1287",
+    "BPR-1288",
+    "BPR-1289"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-1083 owner asides (session 8bf44458): Read empty state; Settings visual redesign; Settings search and filter",
+  "created": "2026-10-06T00:24:51.946471+00:00",
+  "base": "15700512e6365e091e7fd933ae7dadc99ee8a4dc"
+}
