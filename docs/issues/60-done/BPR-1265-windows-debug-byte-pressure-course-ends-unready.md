@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1265"
 title: "Windows Debug: the large-review byte-pressure course ends unready at an epoch refresh"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"BPR-0967 Windows station Debug run, 2026-10-01","reservation":"docs/issues/_reservations/BPR-1264--BPR-1265--e0e97a5e10af.json","related_cards":["BPR-0967"]}
+acceptance: [{"criterion":"The row passes in Windows Debug, or the card records the measured cause and the owner's decision for the Debug row","outcome":"pass","revision":"0066d4b4d","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1265-windows-debug-byte-pressure-course-ends-unready.md","detail":"Measured cause: an unguarded Windows Git assigned to its kill-on-close job after start lost a race with a Git that had already exited (AssignProcessToJobObject ERROR_ACCESS_DENIED, exit code 0) and failed as process_start, failing the epoch refresh in catalog recovery (7 of 7 Debug runs). Fixed at 3036a08af: the job is named in the creation attribute list (PROC_THREAD_ATTRIBUTE_JOB_LIST) and an IsProcessInJob check refuses a child found outside; failing-before control in git_process_contract. With the race gone the Debug course still outlasts its clock on presentation cost (BPR-1297). Coordinator's decision (option a, 2026-10-06): the row runs only in optimized builds on every platform; Debug reports Skipped with its reason (SKIP_RETURN_CODE 77). Windows: Debug Skipped in 0.05 s, optimized passes in 287.0 s; the Git contracts, gh rows and both boundary rows pass on Windows, macOS (324f17e2c, 15/15) and Linux (e7bdb5491, 6/6)."}}]
 ---
 
 # BPR-1265: Windows Debug byte-pressure course ends unready at an epoch refresh
