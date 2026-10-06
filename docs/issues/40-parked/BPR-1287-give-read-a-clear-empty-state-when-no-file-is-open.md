@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1287"
 title: "Give Read a clear empty state when no file is open"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner aside in attended session 8bf444584f9806487f06891db2f5af50 (BPR-1083 chip-menu-v001, decision 01876495, 2026-10-06T00:12Z)","reservation":"docs/issues/_reservations/BPR-1287--BPR-1289--621f5b91f3f1.json","related_cards":["BPR-1083","BPR-1214"],"owner_reference":"docs/design/owner-refs/BPR-1083-owner-ref-read-without-a-file.png","acceptance":["BPR-1287:no-blank-diff","BPR-1287:direction","BPR-1287:unchanged","BPR-1287:owner-look"]}
+parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1287:no-blank-diff","outcome":"pass","revision":"163cad3b1","evidence":{"kind":"command","path":"docs/issues/30-in-progress/BPR-1287-give-read-a-clear-empty-state-when-no-file-is-open.md","command":"ctest --test-dir build/dev -R 'qt_workbench_window_scale|application_label_authoring_contract'","detail":"With a pull request open and nothing chosen, Read shows the idle page and neither pane nor the bare status (qt_workbench_window at three scales); in the composed application over conventional-comments-v1 the label-authoring course's first evidence bit (ReadEmptyDirected) checks the same, offscreen and on the frozen executable 7110dd47. macOS arm64 Debug."}},{"criterion":"BPR-1287:direction","outcome":"pass","revision":"163cad3b1","evidence":{"kind":"command","path":"docs/issues/30-in-progress/BPR-1287-give-read-a-clear-empty-state-when-no-file-is-open.md","command":"ctest --test-dir build/dev -R qt_workbench_window_scale","detail":"'No file open' with the file count and ⌥↓; Open first file dispatches Next file's navigate intent (the core enters the order at the first actionable file) and follows its enablement; Show files expands Files and focuses the tree; both keyboard-focusable and named; no actionable file says 'No files to read' without Open first file; tab and status line agree."}},{"criterion":"BPR-1287:unchanged","outcome":"pass","revision":"163cad3b1","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0047-0051.md","command":"ctest --test-dir build/dev -j8","detail":"set_loading brings the panes back, clear() the direction, clear(reason) shows the reason; review details still open with nothing chosen; the idle page dispatches nothing but Next file. Whole dev suite 603 of 606 before the last two edits, the two of this work fixed and green, the third BPR-1236's."}},{"criterion":"BPR-1287:owner-look","outcome":"pending","revision":"163cad3b1","evidence":{"kind":"freeform","detail":"Asked as BPR-1287-read-empty-v001 in session c2a2442c5ce16c3fbb77598fc87360bb (state /Users/jaeger/.mask/attended-review/owner-review-20261005-bpr1083-authoring-v002, cursor 20), frozen root /Users/jaeger/bpr1083-authoring-review-v002.nvkpPZ, launch.py --no-file."}}]
 ---
 
 # BPR-1287: Give Read a clear empty state when no file is open
