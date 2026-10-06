@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1188"
 title: "Verify and close RFC-BPR-0055"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0055"]
 depends_on: ["BPR-1187"]
 closeout_for: ["RFC-BPR-0055"]
 metadata: {"pack": "bpr-review-cycles-v1", "milestone": "closeout", "acceptance": ["RC55-01", "RC55-02", "RC55-03", "RC55-04", "RC55-05", "RC55-06", "RC55-07", "RC55-08", "RC55-09", "RC55-10"], "pack_alias": "PACK-CYCLE-46", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"RC55-01","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: range, file, module and cycle notes and one multi-location discussion from retained full source with only a body; native authoring surface in the window; macOS, Linux, Windows. Producing: BPR-1153 e5688006c, BPR-1156, BPR-1157. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-02","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: original attachment never rewritten; exact_material, exact_mapped, ambiguous, deleted and unavailable kept apart; forged or live-only bytes refused; all three. Producing: BPR-1153 e5688006c. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-03","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: every stored and disclosed cycle body read through the shared BPR-1076 recognizer (twelve labels, Plain, malformed, quoted, code, unknown, CRLF, empty, emoji/NUL); spans index authored bytes; no label changes suggestion, lifecycle or provenance; negative control fails. Producing: BPR-1154 f269f88c3, BPR-1076 dca6d2772, BPR-1188 e82c50f75. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-04","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: exact bytes, insertion and deletion, intent, byte ranges, in-memory preview; 2026-10-01 amendment, one suggestion per separate changed run; all three. Producing: BPR-1155 29c8262dc, BPR-1156 da459c4e1. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-05","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: original-coordinate application of out-of-order edits; overlapping, contained, identical and same-boundary edits conflict and apply nothing; stale_blob; all three. Producing: BPR-1155 29c8262dc. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-06","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: suggest, preview and preflight leave the workspace unchanged; exact later result observed_already_applied, preflight already_applied; no workspace application exists. Producing: BPR-1155 29c8262dc. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-07","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass with recorded judgment: owner accepted BPR-1156-editor-gestures-v004 (event 790, IME included) and native-keyboard-v002 on macOS; 15-row selection on all three, offscreen on Linux and Windows. Limit: Windows native IME and MSDEVColumnSelect clipboard not exercised on a desktop. Producing: BPR-1156 fd5ca4412, caae4cc9e; BPR-1157 fa9f42381; BPR-1182. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-08","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: human, adapter-observed, self-reported and unknown revisions distinct; only current wording disclosed by default; all three. Producing: BPR-1154 f269f88c3. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-09","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: composer hands exact bytes, intent and rationale with no model, summarizer or second prompt; rounds freeze selected wording and suggestion bytes deterministically. Producing: BPR-1156, BPR-1158. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}},{"criterion":"RC55-10","outcome":"pass","revision":"cd9b87e19a5d72b7f0b85c4afa41766313b28085","evidence":{"kind":"observation","detail":"Pass: cycle threads use shared private_thread_lineage; core_private_review unchanged; relabel and undo are successor revisions; RFC-BPR-0023 scope untouched; all three. Producing: BPR-1153 e5688006c, BPR-1154 f269f88c3. Judged in docs/verification/RFC-BPR-0053-0061.md (BPR-1188 sections); closed under the owner's 2026-10-06 dependency amendment (\"Amend and close (Recommended)\"); fresh macOS build/core-only RC55 selection 10/10 at cd9b87e19."}}]
 ---
 
 Pack alias: **PACK-CYCLE-46** (live `BPR-1188`, allocated at import).
@@ -168,4 +169,27 @@ what it uses ([[BPR-1076]], [[BPR-1082]], [[BPR-1083]] and the native Markdown
 reader), not on the closure of RFC-BPR-0036, 0047 and 0048. Its `depends_on`
 is now RFC-BPR-0053 and 0054, both Auto-Verified. Those three RFCs are not
 closed by the amendment.
+
+## Closeout result (2026-10-06)
+
+Promoted at `2b2922336` on the owner's amendment and claimed at `d4a12791c`.
+RFC-BPR-0055's dependencies are RFC-BPR-0053 and 0054, both Auto-Verified;
+the card dependency [[BPR-1187]] is Done.
+
+All ten criteria pass, each judged in the
+[ledger](../../verification/RFC-BPR-0053-0061.md#bpr-1188-rfc-bpr-0055-closed-2026-10-06):
+nine on the 2026-10-04 reconciliation's unchanged evidence and RC55-03 through
+the shared recognizer (`e82c50f75`). RC55-07 keeps its recorded judgment:
+native IME and clipboard were observed by the owner on macOS only, and ran
+offscreen on Linux and Windows.
+
+Fresh at `cd9b87e19` (the product tree of this card's commits), macOS 26.6.2
+arm64, `build/core-only`: `core_private_review`, `core_feedback_convention`,
+`core_review_cycle_feedback`, `_suggestion`, `_disclosure`, `_round`,
+`sqlite_private_review_storage`, `review_cycle_feedback`, `_suggestion` and
+`_round` pass 10 of 10 under the network-isolated runner.
+DOCUMENTATION_OK.
+
+RFC-BPR-0055 is Auto-Verified. RFC-BPR-0036, 0047 and 0048 stay Proposed.
+Docs and board only; no product file changed.
 
