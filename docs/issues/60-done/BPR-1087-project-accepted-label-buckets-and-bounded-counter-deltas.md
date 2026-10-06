@@ -141,3 +141,11 @@ clang-format 22.1.3 is clean on the new and changed files.
 - Timing evidence is [[BPR-1094]]'s.
 - macOS and Linux runs of `application_feedback_counters` are owed. The code is
   portable application code.
+
+**After rebasing onto [[BPR-1086]]** (`e80e1865d`), which made
+`core::published_feedback_segment` the one rule for a published body's
+segment, including a tour stop's narrative label: the shared adapter now calls
+that core function instead of its own copy. The preflight reads it through the
+adapter. The merged tree rebuilt with no `warning C` line, and the same
+selection, which now has 20 rows with [[BPR-1086]]'s new core row, passes 20
+of 20.
