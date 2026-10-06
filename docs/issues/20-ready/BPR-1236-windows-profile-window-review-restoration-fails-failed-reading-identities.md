@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1236"
 title: "Windows: application_profile_window_review_restoration_public_path fails at 'failed reading restoration preserves exact recorded identities and sibling'"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
