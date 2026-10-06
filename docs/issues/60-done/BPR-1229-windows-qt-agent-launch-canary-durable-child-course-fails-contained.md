@@ -137,3 +137,15 @@ At 4cf46a609 on macOS arm64 Debug (build/dev in a clean worktree): 12/12 of the
 canary (contained launch courses and the durable-course row), agent parent death,
 cycle export/bundle/publish-desk/workbench, git cache and process contracts,
 architecture boundaries and the network isolation manifest passed.
+
+**Note: Linux run at `4cf46a609` (station `bpr-main-linux`, WSL2, GCC 15.2.0,
+`build/dev` rebuilt whole, `-j1`).** The build had no GCC warning or
+error; the only "Warning" lines are CMake configure notices in Qt's own CMake
+files. 12 of 12 passed: `qt_agent_launch_canary` (63.1 s),
+`qt_agent_launch_canary_durable_course`, `agent_parent_death` (20.8 s),
+`review_cycle_export`, `review_cycle_bundle`, `review_cycle_publish_desk`,
+`review_cycle_workbench` (34.7 s), `git_cache_contract`,
+`git_process_contract`, `architecture_boundaries`,
+`architecture_boundary_contract` (188.2 s) and
+`test_network_isolation_manifest`. Nothing needed a fix. Done is not
+reopened.
