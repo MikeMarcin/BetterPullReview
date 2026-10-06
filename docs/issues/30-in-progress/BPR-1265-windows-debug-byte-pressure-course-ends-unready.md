@@ -153,3 +153,10 @@ runs reach the `cache_byte_selection` phases. Each selection takes 155 to
 epoch `ready`. The refreshes themselves take 25 to 48 s each, growing
 through the course. The one recorded Debug pass, at `f61340e17`, took
 1,626 s in all. This slowness is a separate cause, attributed next.
+
+## macOS run (coordinator, 2026-10-06)
+
+At 324f17e2c (holds 3036a08af) on macOS arm64 Debug, clean worktree: 15/15 of
+git_process_contract, git_cache_contract, github_cli_process_runner,
+gh_cli_transport, both architecture boundary rows, qt_workbench_title_row and
+qt_workbench_window at 100/125/200, and qt_document_tabs passed.

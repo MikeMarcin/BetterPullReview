@@ -274,3 +274,10 @@ held a stale card iterator.
   rows have passed there since the main-stabilization milestone.
 - Neither has rerun all six at `c6ab4fb61`. That is owed to the coordinator,
   not gating, since no layout code changed for this close.
+
+## macOS run (coordinator, 2026-10-06)
+
+At 324f17e2c (holds 3036a08af) on macOS arm64 Debug, clean worktree: 15/15 of
+git_process_contract, git_cache_contract, github_cli_process_runner,
+gh_cli_transport, both architecture boundary rows, qt_workbench_title_row and
+qt_workbench_window at 100/125/200, and qt_document_tabs passed.
