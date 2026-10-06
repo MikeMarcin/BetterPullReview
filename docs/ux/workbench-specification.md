@@ -519,7 +519,13 @@ shortcut. No text toolbar appears at a narrower width: as the window narrows
 the review bar drops the comparison's dates and then the positions' words
 ("3/40" for "file 3 of 40"), and the title row drops the name's title, its
 owner and then the modality's shortcuts, keeping the name's number. No control
-folds into an overflow menu at any width down to the platform's floor.
+folds into an overflow menu at any width down to the platform's floor. The
+floor follows the bar ([[BPR-1255]], the owner's choice of 2026-10-06). When a
+larger font makes the fully yielded review bar wider than the platform's 900
+pixels (902 on Windows), the window's minimum width rises to the bar's width.
+It returns to the platform's floor at the default font, and it is measured
+again on a font, style, theme or scale change. A restored geometry narrower
+than the floor opens at the floor.
 
 A local Review Cycle's review bar (RFC-BPR-0061) keeps the same rule at the
 default font ([[BPR-1182]]). One button names the view shown and opens the view

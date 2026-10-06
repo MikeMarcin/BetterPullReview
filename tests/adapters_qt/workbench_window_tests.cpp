@@ -5536,6 +5536,107 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1255]]. The platform's width floor, which the window keeps at
+	/// the default font.
+	[[nodiscard]] constexpr auto platform_floor_width() noexcept -> int
+	{
+#if defined(_WIN32)
+		return 902;
+#else
+		return 900;
+#endif
+	}
+
+	/// \brief A review bar with every control, dates and positions shown.
+	void publish_positioned_review_bar(qt::workbench_window& aWindow)
+	{
+		auto positioned      = every_primary_command_offered();
+		positioned.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
+																	.Ordinal           = 3U,
+																	.ActionableCount   = 40U,
+																	.PreviousAvailable = true,
+																	.NextAvailable     = true,
+																} };
+		aWindow.publish(positioned);
+		const auto first = epoch_row(1);
+		const auto third = epoch_row(3);
+		aWindow.publish(retained_epochs({ first, epoch_row(2), third }));
+		aWindow.publish(resolved_pair_update(core::comparison_pair{
+			.Left  = epoch_anchor(first, core::comparison_anchor_kind::epoch_base),
+			.Right = epoch_anchor(third, core::comparison_anchor_kind::epoch_head),
+		}));
+	}
+
+	[[nodiscard]] auto review_bar_folded(qt::workbench_window& aWindow) -> bool
+	{
+		auto* const extension = aWindow.review_bar()->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+		return extension != nullptr && extension->isVisible();
+	}
+
+	/// \brief [[BPR-1255]]. The floor follows the bar, the owner's choice of
+	/// 2026-10-06: in a font too large for the platform's floor the window's
+	/// minimum rises to the fully yielded review bar, and it returns to the
+	/// floor at the default font.
+	///
+	/// \details Three times the bar's font is wider than every platform's floor
+	/// once everything has yielded, so the rise is observed on each platform;
+	/// the doubled font of the yield course fits the floor on macOS.
+	void test_the_floor_follows_the_review_bar()
+	{
+		qt::workbench_window window;
+		window.resize(1'920, 820);
+		window.show();
+		publish_positioned_review_bar(window);
+		process_events();
+		expect(window.minimumWidth() == platform_floor_width(), "at the default font the window keeps the platform's floor");
+		const auto normal = window.review_bar()->font();
+		auto       larger = normal;
+		larger.setPointSizeF(normal.pointSizeF() * 3.0);
+		window.review_bar()->setFont(larger);
+		process_events();
+		const auto raised = window.minimumWidth();
+		expect(raised > platform_floor_width(), "a font too large for the floor raises the window's minimum");
+		window.resize(platform_floor_width(), 820);
+		process_events();
+		expect(window.width() == raised && !review_bar_folded(window),
+			   "the window cannot be made narrower than the raised floor, where nothing folds");
+		expect(window.review_bar()->sizeHint().width() <= raised, "the raised floor holds the bar with everything yielded");
+		window.review_bar()->setFont(normal);
+		process_events();
+		expect(window.minimumWidth() == platform_floor_width(), "the floor returns at the default font");
+		auto windowFont = window.font();
+		windowFont.setPointSizeF(windowFont.pointSizeF() * 3.0);
+		window.setFont(windowFont);
+		process_events();
+		expect(window.minimumWidth() > platform_floor_width() && !review_bar_folded(window),
+			   "a larger window font raises the floor the same way");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1255]]. A geometry saved at the platform's floor is restored
+	/// under a doubled font at the floor the bar needs, with nothing folded.
+	void test_restored_geometry_accepts_the_raised_floor()
+	{
+		qt::workbench_window window;
+		publish_positioned_review_bar(window);
+		auto larger = window.review_bar()->font();
+		larger.setPointSizeF(larger.pointSizeF() * 2.0);
+		window.review_bar()->setFont(larger);
+		window.show();
+		process_events();
+		const auto floor = window.minimumWidth();
+		expect(floor >= platform_floor_width(), "the doubled font keeps at least the platform's floor");
+		auto* const screen = QGuiApplication::primaryScreen();
+		const auto  origin = screen != nullptr ? screen->availableGeometry().topLeft() + QPoint{ 40, 80 } : QPoint{ 40, 80 };
+		window.publish(application::workbench_projection{
+			.Geometry = application::workbench_window_geometry{ origin.x(), origin.y(), platform_floor_width(), 700, false } });
+		process_events();
+		// The height is the screen's to clamp; the width is the floor's.
+		expect(window.width() == floor && !review_bar_folded(window),
+			   "a geometry saved at the platform's floor is restored at the floor the bar needs");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1129]]. The title row and the review bar as a reviewer sees
 	/// them, at the design's 1280 by 852 and at the platform's width floor, saved
 	/// beside the other window renders at each registered scale.
@@ -11008,6 +11109,8 @@ auto main(int argc, char** argv) -> int
 		test_compact_icon_row_preserves_exact_order_and_edges();
 		test_strip_identity_stays_at_every_width();
 		test_the_review_bar_yields_dates_then_words();
+		test_the_floor_follows_the_review_bar();
+		test_restored_geometry_accepts_the_raised_floor();
 		test_strip_is_the_title_row();
 		std::cout << "workbench-title-row:pass\n";
 		return EXIT_SUCCESS;
@@ -11085,6 +11188,8 @@ auto main(int argc, char** argv) -> int
 	test_strip_modalities_positions_and_account();
 	test_strip_identity_stays_at_every_width();
 	test_the_review_bar_yields_dates_then_words();
+	test_the_floor_follows_the_review_bar();
+	test_restored_geometry_accepts_the_raised_floor();
 	test_the_title_row_and_review_bar_render();
 	test_the_updates_line_folds_from_the_review_bar();
 	test_comment_names_its_target_and_every_card_replies();

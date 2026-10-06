@@ -98,6 +98,15 @@
 
 namespace bpr::qt {
 	namespace {
+#if defined(_WIN32)
+		// [[BPR-0653]]. On Windows the strip also carries the menu control and
+		// the three 46-pixel caption buttons. With the modality segments at their
+		// three-character prefixes every control is top level from 902 pixels,
+		// and the owner chose that floor on 2026-09-17.
+		inline constexpr int platform_floor_width = 902;
+#else
+		inline constexpr int platform_floor_width = 900;
+#endif
 		/// \brief [[BPR-0775]]. Home's bar: its label, the field and the shortcut
 		/// inside one bordered field with one 8-point radius.
 		///
@@ -530,15 +539,9 @@ namespace bpr::qt {
 		// fit with nothing folded into an overflow menu. The identity and the
 		// two position labels are the only strip items that yield width, and
 		// they do so before the floor (see apply_strip_width).
-#if defined(_WIN32)
-		// [[BPR-0653]]. On Windows the strip also carries the menu control and
-		// the three 46-pixel caption buttons. With the modality segments at their
-		// three-character prefixes every control is top level from 902 pixels,
-		// and the owner chose that floor on 2026-09-17.
-		setMinimumSize(902, 360);
-#else
-		setMinimumSize(900, 360);
-#endif
+		// [[BPR-1255]]. A larger font can raise this to the review bar's fully
+		// yielded width (see apply_review_bar_width).
+		setMinimumSize(platform_floor_width, 360);
 		resize(1'280, 820);
 
 		build_menu_bar();
@@ -1099,6 +1102,8 @@ namespace bpr::qt {
 		// private progress; at its right Compose review and Comment. It is an
 		// ordinary row: its bare surface drags nothing.
 		ReviewBar = new workbench_strip{ QStringLiteral("Review bar"), this, strip_role::review_bar };
+		// [[BPR-1255]]. Its own font or style can move the window's floor.
+		ReviewBar->installEventFilter(this);
 		ReviewBar->setObjectName(QStringLiteral("workbenchReviewBar"));
 		ReviewBar->setAccessibleName(QStringLiteral("Review bar"));
 		ReviewBar->setAccessibleDescription(QStringLiteral(
@@ -8945,6 +8950,10 @@ namespace bpr::qt {
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
 			place_dif_corner();
 		}
+		if (aWatched == ReviewBar && aEvent != nullptr
+			&& (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange)) {
+			apply_strip_width();
+		}
 		if (aWatched == HomeRecentList && aEvent != nullptr
 			&& aEvent->type() == QEvent::KeyPress) {
 			auto* const key = static_cast<QKeyEvent*>(aEvent);
@@ -9739,12 +9748,27 @@ namespace bpr::qt {
 		// numbers. File and Changes always remain; full positions stay in their
 		// tooltips. Each width starts whole and measures, so nothing returns at a narrower
 		// width and a resize never alternates.
-		const auto available = width();
 		const auto remeasure = [this] {
 			if (auto* const layout = ReviewBar->layout(); layout != nullptr) {
 				layout->invalidate();
 			}
 		};
+		// [[BPR-1255]]. The floor follows the bar, the owner's choice of
+		// 2026-10-06: the window is never narrower than the bar with everything
+		// yielded, so nothing folds in a larger font either. At the default
+		// font the yielded bar is narrower than the platform floor, which
+		// stands. A window below a raised floor is widened to it.
+		EpochSelectors->set_comparing_dates_shown(false);
+		ReviewBarCompact        = true;
+		ReviewBarPositionsShown = false;
+		update_strip_positions();
+		remeasure();
+		const auto inset = ReviewBar->isVisible() ? std::max(0, width() - ReviewBar->width()) : 0;
+		const auto floor = std::max(platform_floor_width, ReviewBar->sizeHint().width() + inset);
+		if (minimumWidth() != floor) {
+			setMinimumWidth(floor);
+		}
+		const auto available = width();
 		EpochSelectors->set_comparing_dates_shown(true);
 		ReviewBarCompact        = false;
 		ReviewBarPositionsShown = true;
@@ -9787,7 +9811,11 @@ namespace bpr::qt {
 		case QEvent::FontChange:
 		case QEvent::StyleChange:
 		case QEvent::ThemeChange:
+		case QEvent::DevicePixelRatioChange:
 			refresh_toolbar_icons();
+			// [[BPR-1255]]. A font, style or theme can move the review bar's
+			// yielded width, and with it the window's floor.
+			apply_strip_width();
 			// The pull-request title and identity carry derived emphasis fonts,
 			// which stop tracking the application font unless they are re-derived
 			// here. `github_window` did this; the shell must too, or a reviewer

@@ -127,3 +127,54 @@ theme changes. Window-geometry restore accepts the moving floor. The rule "no
 control folds into an overflow menu" stays, amended to say that the floor
 follows the bar. The minimum is a Qt layout fact; the core is unchanged.
 Claimed for Linux; the Windows run follows.
+
+## Linux implementation — 2026-10-06 (`bpr-main-linux`)
+
+**Change** (`src/adapters/qt/src/workbench_window.cpp`, Qt only; core
+unchanged):
+
+- `apply_review_bar_width` first measures the review bar with everything
+  yielded (no dates, compact positions, no position numbers).
+- The window's minimum width becomes the platform floor
+  (`platform_floor_width`, 900, or 902 on Windows) or that width, whichever is
+  larger. Qt widens a window that is below a raised floor. The existing yield
+  sequence then runs unchanged.
+- The floor is measured on every strip relayout: each resize, the window's
+  font, palette, style, theme and device-pixel-ratio changes, and the review
+  bar's own font and style changes, through an event filter.
+- Restore already clamps a saved width to `minimumWidth()`, so a geometry
+  saved at 900 opens at the raised floor. `valid()` needs no change.
+- The workbench specification states the amended rule.
+
+**Measured on Linux** (DejaVu Sans): at the default font the floor stays 900.
+At the doubled font it rises to 983.
+
+**Tests** (`tests/adapters_qt/workbench_window_tests.cpp`, in the title-row
+and full window rows):
+
+- `test_the_floor_follows_the_review_bar`. At 3× the bar's font, wider than
+  every platform's floor, the minimum rises. The window cannot be made
+  narrower than it and nothing folds. The minimum returns to the platform
+  floor at the default font, and a 3× window font raises it the same way.
+- `test_restored_geometry_accepts_the_raised_floor`. A geometry saved at the
+  platform floor (900) and restored under the doubled font opens at the floor
+  the bar needs (983 here), with nothing folded, at 100, 125 and 200 %. The
+  height is left to the screen's clamp, since the scaled offscreen screen is
+  shorter.
+
+**Evidence** (`build/dev`, GCC 15.2, offscreen, `-j1`):
+
+- `qt_workbench_title_row_scale_{100,125,200}` and
+  `qt_workbench_window_scale_{100,125,200}` pass 6/6. The review-bar course
+  covers the default and the doubled font.
+- Failing-before control: with the original `workbench_window.cpp` and the new
+  tests, all six fail at "no review-bar control folds into an overflow menu at
+  any width". They pass again with the change.
+- Wider set: every `qt_` row, the scaling, window-restoration, multi-window,
+  geometry and composed-window courses, `review_cycle_desktop` and
+  `architecture_boundaries` pass 132/132.
+- `coding-format-check`, `git diff --check` and `DOCUMENTATION_OK` pass.
+
+**Owed:** a Windows run (the six rows failed there at the same check) and a
+macOS run, to confirm the 3× rise and that the default and doubled fonts keep
+the floor. The card stays In Progress until they are in.
