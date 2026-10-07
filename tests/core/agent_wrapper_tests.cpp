@@ -4,17 +4,21 @@
 
 #include "bpr/core/agent_wrapper.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <set>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
 	using core::agent_wrapper_platform;
 	using core::agent_wrapper_refusal;
+	using core::claude_found_in;
+	using core::claude_search_candidate;
 
 	void expect(const bool aCondition, const std::string_view aMessage)
 	{
@@ -93,6 +97,64 @@ namespace {
 		expect(!core::storable_agent_wrapper("/a\nb"), "a line break is never stored");
 		expect(!core::storable_agent_wrapper(std::string(core::maximum_agent_wrapper_bytes + 1U, 'a')), "an over-long path is never stored");
 	}
+
+	[[nodiscard]] auto candidates(const std::string_view aPath, const std::vector<std::string>& aFolders, const agent_wrapper_platform aPlatform)
+		-> std::vector<claude_search_candidate>
+	{
+		return core::claude_search_candidates(aPath, aFolders, aPlatform);
+	}
+
+	/// [[BPR-1301]], owner 2026-10-07. Where a launch with no wrapper looks
+	/// for claude, in order, before any file is read.
+	void test_posix_search_order()
+	{
+		const auto folders = core::usual_claude_folders("/Users/me", agent_wrapper_platform::posix);
+		expect(folders
+				   == std::vector<std::string>{ "/Users/me/.local/bin", "/Users/me/.claude/local", "/opt/homebrew/bin", "/usr/local/bin", "/Users/me/.npm-global/bin" },
+			   "the usual folders are the native installer's, the old local install, Homebrew's two and npm's global folder, in that order");
+		expect(core::usual_claude_folders("/Users/me/", agent_wrapper_platform::posix).front() == "/Users/me/.local/bin", "a home ending in / joins once");
+		for (const auto* const home : { "", "relative/home", "~", "~/me" }) {
+			expect(core::usual_claude_folders(home, agent_wrapper_platform::posix) == std::vector<std::string>{ "/opt/homebrew/bin", "/usr/local/bin" },
+				   "a home that is not absolute adds none of its folders");
+		}
+
+		const auto found = candidates("/usr/bin::.:bin:./tools:~/bin:/opt/homebrew/bin/:/usr/bin:/odd\\dir", folders, agent_wrapper_platform::posix);
+		const auto want  = std::vector<claude_search_candidate>{
+			{ .Path = "/usr/bin/claude", .Origin = claude_found_in::path },
+			{ .Path = "/opt/homebrew/bin/claude", .Origin = claude_found_in::path },
+			{ .Path = "/odd\\dir/claude", .Origin = claude_found_in::path },
+			{ .Path = "/Users/me/.local/bin/claude", .Origin = claude_found_in::usual_folder },
+			{ .Path = "/Users/me/.claude/local/claude", .Origin = claude_found_in::usual_folder },
+			{ .Path = "/usr/local/bin/claude", .Origin = claude_found_in::usual_folder },
+			{ .Path = "/Users/me/.npm-global/bin/claude", .Origin = claude_found_in::usual_folder },
+		};
+		expect(found == want, "PATH in order, empty, relative, . and ~ entries skipped, then the usual folders, nothing listed twice");
+		expect(candidates("", { }, agent_wrapper_platform::posix).empty(), "an empty PATH and no folders give nothing to look at");
+		expect(candidates(".:bin:", { "relative", "" }, agent_wrapper_platform::posix).empty(), "relative entries and the current directory are never searched");
+		expect(candidates("/a\nb:/ok", { }, agent_wrapper_platform::posix) == std::vector<claude_search_candidate>{ { .Path = "/ok/claude" } },
+			   "an entry with a control character is skipped");
+		const auto longest = "/" + std::string(core::maximum_agent_wrapper_bytes - 8U, 'a');
+		expect(candidates(longest + ":" + longest + "a", { }, agent_wrapper_platform::posix) == std::vector<claude_search_candidate>{ { .Path = longest + "/claude" } },
+			   "a result over the wrapper bound is skipped, one at the bound is kept");
+		expect(candidates("/opt/x", { }, agent_wrapper_platform::posix).front().Path.ends_with("/claude"), "POSIX looks for claude, never claude.exe");
+	}
+
+	void test_windows_search_order()
+	{
+		const auto folders = core::usual_claude_folders(R"(C:\Users\me)", agent_wrapper_platform::windows);
+		expect(folders == std::vector<std::string>{ R"(C:\Users\me\.local\bin)" }, "Windows adds only the native installer's folder");
+		expect(core::usual_claude_folders("relative", agent_wrapper_platform::windows).empty(), "a relative home adds nothing on Windows");
+		const auto found = candidates(R"(C:\Windows;;.;C:relative;\tools;\\server\share\;C:/tools/;"C:\quoted")", folders, agent_wrapper_platform::windows);
+		const auto want  = std::vector<claude_search_candidate>{
+			{ .Path = R"(C:\Windows\claude.exe)", .Origin = claude_found_in::path },
+			{ .Path = R"(\\server\share\claude.exe)", .Origin = claude_found_in::path },
+			{ .Path = "C:/tools/claude.exe", .Origin = claude_found_in::path },
+			{ .Path = R"(C:\Users\me\.local\bin\claude.exe)", .Origin = claude_found_in::usual_folder },
+		};
+		expect(found == want, "Windows splits on ;, keeps drive, UNC and slash paths, skips empty, ., drive-relative, root-relative and quoted entries");
+		expect(std::ranges::all_of(found, [](const claude_search_candidate& aFound) { return !core::inspect_agent_wrapper_text(aFound.Path, agent_wrapper_platform::windows); }),
+			   "every Windows candidate is a path a wrapper could be: an absolute .exe");
+	}
 }
 
 auto main() -> int
@@ -100,6 +162,8 @@ auto main() -> int
 	test_posix_paths();
 	test_windows_paths();
 	test_reasons_and_storage();
+	test_posix_search_order();
+	test_windows_search_order();
 	std::cout << "agent-wrapper-tests:pass\n";
 	return EXIT_SUCCESS;
 }

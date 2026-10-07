@@ -161,6 +161,16 @@ namespace bpr::app::detail {
 		bool                                 PublicationDisplayed = false;
 	};
 
+	/// \brief [[BPR-1301]]. The `PATH` and usual install folders a Claude
+	/// launch with no wrapper searches, in place of the application's `PATH`
+	/// and the shipped folders, which on a developer's machine may hold a
+	/// real `claude`.
+	struct claude_search_environment
+	{
+		std::string              PathVariable;
+		std::vector<std::string> UsualFolders;
+	};
+
 	struct github_public_path_fixture_options
 	{
 		struct github_cli_discovery_account
@@ -231,7 +241,11 @@ namespace bpr::app::detail {
 		/// on; the external terminal has none and refuses one by design.
 		std::optional<std::filesystem::path> CodexAgentExecutable;
 		std::optional<std::filesystem::path> ClaudeAgentExecutable;
-		std::optional<std::filesystem::path> GitExecutable;
+		/// [[BPR-1301]]. Where the shipped bare `claude` is looked for, so a
+		/// course decides what is found and never finds the developer's own.
+		/// Absent, the application's environment is searched, as shipped.
+		std::optional<claude_search_environment> ClaudeSearch;
+		std::optional<std::filesystem::path>     GitExecutable;
 		// RFC-BPR-0016. Composes a registered device capability against the
 		// recorded BPR-0276 grant so the enrollment reaches the real vault.
 		// Only meaningful with a fixture; a shipped build has no identity to

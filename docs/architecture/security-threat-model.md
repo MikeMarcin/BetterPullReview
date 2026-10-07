@@ -279,7 +279,16 @@ All API, Git, diff, syntax, Markdown, agent, and settings inputs are untrusted. 
 
 - Resolve executables explicitly. A Claude process wrapper ([[BPR-1301]]) is
   the reviewer's own absolute path, inspected when saved and again before each
-  launch; nothing searches `PATH`, and a refused wrapper starts nothing.
+  launch, and a refused wrapper starts nothing.
+  Owner amendment, 2026-10-07 ("Yes, search PATH (Recommended)"): with no
+  wrapper saved, and only then, a Claude launch of the bare `claude` resolves
+  it itself, to the first absolute executable regular `claude` (`claude.exe`
+  on Windows, no `PATHEXT` script) on the application's own `PATH`, empty,
+  relative and current-directory entries skipped, then in a fixed list of
+  usual install folders. It resolves and checks again at each launch, runs the
+  absolute path it found with an argument array and never through a shell,
+  starts nothing when none is found, and shows the found path in Settings.
+  No other executable is searched for.
 - Invoke with argument arrays, never a shell.
 - Use bounded stdin/stdout/stderr, timeouts, cancellation, and redaction.
 - Pass prompts and request bodies through stdin or protocol messages, not command lines.
@@ -1590,7 +1599,22 @@ what a Claude launch can be, never what it receives:
   same supervisor, process group, Job Object and three-handle list. No name is
   added for it; provider settings come from `~/.claude/settings.json` through
   `HOME` or from the wrapper itself.
-- **No shell, no discovery, no fallback.** The path is never split or
+- **No wrapper: the `claude` on `PATH`.** Owner amendment, 2026-10-07 ("Yes,
+  search PATH (Recommended)"); see "Resolve executables explicitly" and
+  [AI agent boundary](ai-agent-boundary.md#claude-process-wrapper). The search
+  widens which program a Claude request can start to whatever `claude` comes
+  first on the application's `PATH` or in the fixed usual folders
+  (`HOME/.local/bin`, `HOME/.claude/local`, `/opt/homebrew/bin`,
+  `/usr/local/bin`, `HOME/.npm-global/bin`; Windows `%USERPROFILE%\.local\bin`).
+  A writable folder earlier on `PATH` can therefore choose the program, as it
+  can for a terminal user typing `claude`; Settings names the absolute path so
+  the reviewer can see it, and a saved wrapper pins it instead. Relative and
+  current-directory entries are never searched, the found file must be an
+  absolute executable regular file at launch time, it is run directly and
+  never through a shell (no login-shell `PATH` is fetched), and nothing else
+  changes: arguments, environment allowlist, handles and host policy are
+  Claude's. A refused wrapper never falls back to it.
+- **No shell, no fallback.** The path is never split or
   expanded and never run through a shell; Windows `.bat` and `.cmd` files,
   which `CreateProcessW` would run through `cmd.exe`, are refused, and only an
   `.exe` is accepted there. It is inspected when saved and again before each

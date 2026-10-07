@@ -18,7 +18,8 @@ The shipped immutable registry contains Codex App Server and Codex JSONL
 (`codex`), approved Claude stream JSON (`claude`), and the external terminal
 harness (`bpr-agent-terminal`). Merely showing the panel performs no executable
 discovery. A missing executable becomes `failed_to_start` only after an explicit
-start gesture. GitHub.com permits all four profiles; an explicit GHES host
+start gesture. The one search is Claude's with no wrapper saved, below, which
+Settings > Agents & context also runs to show its result. GitHub.com permits all four profiles; an explicit GHES host
 refuses Codex before workspace or launcher effects and offers only the approved
 corporate alternatives.
 
@@ -42,9 +43,9 @@ place of `claude` for every Claude stream-JSON launch of that profile: the
 agent panel, side chat, comment workshop, tool-free writing and Review Cycle
 Send to Agent. A wrapper is either a separately installed `claude` or a
 program that prepares a provider (Bedrock, a gateway, credentials it fetches
-itself) and then runs Claude. It is how a shipped build reaches Claude at all:
-the registry names the bare `claude`, and the launch performs no `PATH`
-search, so without a wrapper a Claude request ends as `failed_to_start`.
+itself) and then runs Claude. The registry names the bare `claude`, which no
+launcher starts as it is; with no wrapper saved the launch searches for it
+(below).
 
 - **A path, never a command line.** The text is not split, quoted or expanded
   (`~` and variables included) and no shell runs it. It is accepted only as an
@@ -73,6 +74,33 @@ search, so without a wrapper a Claude request ends as `failed_to_start`.
   `~/.claude/settings.json`, reached through the allowlisted `HOME`, or is set
   by the wrapper itself; a wrapper that wants `AWS_PROFILE` or a gateway URL
   sets it inside its own script.
+- **No wrapper: `claude` on `PATH`.** Owner amendment, 2026-10-07, verbatim:
+  "Yes, search PATH (Recommended)". With no wrapper saved, a Claude request
+  that names the bare `claude` runs the first `claude` (`claude.exe` on
+  Windows; no `PATHEXT` script, as for a wrapper) that is an absolute
+  executable regular file, searched in this order: each absolute entry of the
+  application's own `PATH` (empty, relative and `~` entries, the current
+  directory included, are skipped), then the fixed usual install folders
+  (`core::usual_claude_folders`): `HOME/.local/bin` (the native installer),
+  `HOME/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin` (Homebrew, and
+  npm's global folder under Homebrew or installer Node) and
+  `HOME/.npm-global/bin`; on Windows `%USERPROFILE%\.local\bin`. The fixed
+  folders exist because a macOS application opened from the Finder or the
+  Dock gets launchd's `PATH`, `/usr/bin:/bin:/usr/sbin:/sbin` (observed
+  2026-10-07 on an application opened through LaunchServices), which holds
+  none of them; a login-shell `PATH` would, but no shell is ever started to
+  ask for one. The search is repeated at every launch, so a `claude` removed
+  or replaced since Settings showed it is not the one that runs; none found
+  ends the request as `failed_to_start` ("claude was not found on PATH or in
+  the usual install folders; ...") and starts nothing. The found absolute
+  path replaces only the executable, exactly as a wrapper does, and is never
+  run through a shell. Settings shows it read-only under the field ("Using
+  /opt/homebrew/bin/claude (found on PATH).", "... (found in a usual install
+  folder, not on PATH).", or "claude not found on PATH or in the usual install
+  folders; set a wrapper."), looked up again whenever the row is shown. A
+  saved wrapper always wins: nothing is searched, and a refused wrapper never
+  falls back to the found `claude`. A request that already names its program
+  by path is not searched for.
 - **Sign-in is Claude's.** BetterPullReview has no agent sign-in prompt or
   check, so it offers no "don't prompt to sign in" switch (owner, 2026-10-06,
   "Accept (no switch)"); the page says in one line that sign-in is left to

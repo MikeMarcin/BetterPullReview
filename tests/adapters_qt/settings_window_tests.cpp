@@ -426,6 +426,36 @@ namespace {
 		panel->show_answer({ .Path = "/x" });
 		expect(status->text() == QStringLiteral("Not saved. This profile's settings are not available yet."), "an unavailable profile is said plainly");
 
+		// [[BPR-1301]], owner 2026-10-07. With no wrapper the row names the
+		// claude a launch would run, looked up whenever the row is shown.
+		auto* const found   = page->findChild<QLabel*>(QStringLiteral("claudeWrapperFound"));
+		auto        lookups = 0;
+		workbench.settings()->hide();
+		panel->set_dispatch([&sent](std::string aPath) { sent.push_back(std::move(aPath)); }, [&lookups] { ++lookups; });
+		expect(found != nullptr && found->text().isEmpty() && !found->isVisibleTo(page), "nothing is claimed about claude before a lookup answers");
+		expect(lookups == 0, "a hidden row looks nothing up");
+		workbench.settings()->present(qt::settings_page::agents_and_context);
+		QApplication::processEvents();
+		expect(lookups == 1, "showing the row with no wrapper looks claude up once");
+		panel->show_found(core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude", .Origin = core::claude_found_in::path });
+		expect(found->text() == QStringLiteral("Using /opt/homebrew/bin/claude (found on PATH).") && found->isVisibleTo(page), "the found path is shown, and where it was found");
+		panel->show_found(core::claude_search_candidate{ .Path = "/Users/me/.local/bin/claude", .Origin = core::claude_found_in::usual_folder });
+		expect(found->text() == QStringLiteral("Using /Users/me/.local/bin/claude (found in a usual install folder, not on PATH)."), "a usual folder is named as such");
+		panel->show_found(std::nullopt);
+		expect(found->text() == QStringLiteral("claude not found on PATH or in the usual install folders; set a wrapper."), "none found says what to do");
+		expect((found->textInteractionFlags() & Qt::TextEditable) == 0, "the found line is read-only");
+		panel->present("/opt/tools/claude-gateway");
+		expect(!found->isVisibleTo(page) && lookups == 1, "a saved wrapper wins: the found line goes and nothing is looked up");
+		panel->show_found(core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude" });
+		expect(!found->isVisibleTo(page), "a late answer does not show over a saved wrapper");
+		panel->present({ });
+		expect(found->isVisibleTo(page) && lookups == 2, "clearing the wrapper looks claude up again");
+		workbench.settings()->hide();
+		workbench.settings()->present(qt::settings_page::agents_and_context);
+		QApplication::processEvents();
+		expect(lookups == 3, "opening Settings again looks again");
+		workbench.settings()->hide();
+
 		auto* const settings = workbench.settings();
 		settings->search_field()->setText(QStringLiteral("process wrapper"));
 		expect(result_names(*settings).contains(QStringLiteral("Process wrapper")), "the wrapper row is found by search");

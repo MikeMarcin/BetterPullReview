@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner request in chat, 2026-10-06, with a screenshot of the VS Code Claude Code extension settings","reservation":"docs/issues/_reservations/BPR-1301--BPR-1301--ddc91c168c32.json","reference":"https://code.claude.com/docs/en/vs-code#use-third-party-providers","owner_questions":["BPR-1301:q-sign-in-switch","BPR-1301:q-windows-scripts"],"implementation_note":"Use the frontend-design skill for the Settings rows; owner review is required","acceptance":["BPR-1301:wrapper-path","BPR-1301:wrapper-launch","BPR-1301:unset-unchanged","BPR-1301:launch-recheck","BPR-1301:scope","BPR-1301:persist","BPR-1301:sign-in","BPR-1301:agent-free","BPR-1301:documents","BPR-1301:owner-look"],"owner_answers":{"date":"2026-10-06","BPR-1301:q-sign-in-switch":"Accept (no switch)","BPR-1301:q-windows-scripts":"Accept (.exe only)"}}
+metadata: {"origin":"Owner request in chat, 2026-10-06, with a screenshot of the VS Code Claude Code extension settings","reservation":"docs/issues/_reservations/BPR-1301--BPR-1301--ddc91c168c32.json","reference":"https://code.claude.com/docs/en/vs-code#use-third-party-providers","owner_questions":["BPR-1301:q-sign-in-switch","BPR-1301:q-windows-scripts","BPR-1301:q-path-search"],"implementation_note":"Use the frontend-design skill for the Settings rows; owner review is required","acceptance":["BPR-1301:wrapper-path","BPR-1301:wrapper-launch","BPR-1301:unset-unchanged","BPR-1301:launch-recheck","BPR-1301:scope","BPR-1301:persist","BPR-1301:sign-in","BPR-1301:path-lookup","BPR-1301:agent-free","BPR-1301:documents","BPR-1301:owner-look"],"owner_answers":{"date":"2026-10-06","BPR-1301:q-sign-in-switch":"Accept (no switch)","BPR-1301:q-windows-scripts":"Accept (.exe only)","2026-10-07":{"BPR-1301:q-path-search":"Yes, search PATH (Recommended)"}}}
 parked_on: "human-review"
 acceptance: [{"criterion":"BPR-1301:wrapper-path","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"core_agent_wrapper and qt_claude_process_wrapper: absolute executable regular file (and through a symlink) accepted; relative, ~, missing, dangling link, directory, non-executable, pipe, NUL/line break, over 1024 bytes and Windows .bat/.cmd (and non-.exe, ADS) refused, each its own reason; application_claude_process_wrapper: a refused path is not saved. Controls: .cmd admitted, X_OK dropped, refused path saved each fail. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:wrapper-launch","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"qt_claude_process_wrapper through the real supervised launcher: a recording copy of the canary as wrapper gets today's argv[1..], whole environment, cwd and stdin bytes for agent panel, tool-free writing, round send and --resume round, nothing prepended, no added name; the shipped bare claude fails to start as the in-test control. Composed: application_review_tour_writing_wrapper and application_review_cycle_send_public_path. Control: no substitution fails 3 rows. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:unset-unchanged","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"application_claude_process_wrapper: with no wrapper the Claude request reaches the launcher equal to the built request and nothing is inspected; qt_claude_process_wrapper: built shipped request equals today's but for the executable. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:launch-recheck","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"qt_claude_process_wrapper: a saved wrapper made chmod -x, then deleted, ends failed_to_start with 'Claude process wrapper PATH: reason'; the counting port shows no process started, bare claude included. Control: recheck removed fails 2 rows. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:scope","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"application_claude_process_wrapper and qt_claude_process_wrapper: Codex JSONL, App Server and external terminal keep their executable with a wrapper saved; host policy and core profiles untouched (the port sits after policy). macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:persist","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"sqlite_workbench_settings_storage: schema 14 round trip and reopen, 13->14 migration, legacy and window writes keep it; application_workbench_preferences_consumers: owned adoption keeps it; composed writing course: path survives restart. Per-profile by each window's own profile subscription; purge removes workbench-settings.sqlite3. Controls: legacy store drop and adoption drop fail. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:sign-in","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"Owner Q1 'Accept (no switch)': no switch built; qt_settings_window asserts the one Sign-in line and no extra check box. Look pending in BPR-1301:owner-look. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:agent-free","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"build/dev-agent-free builds; 16/16 architecture_boundaries, settings, preferences, round-trip, cycle-send rows; no wrapper object or symbol; the page and rows are withdrawn (qt_settings_window withdrawal check); stored value carried unread through preference writes. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:documents","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"ai-agent-boundary.md and security-threat-model.md record trust, GHES and tool-free consequences and unchanged environment; settings docs updated; DOCUMENTATION_OK. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:owner-look","outcome":"pending","revision":"b07a3f44d","evidence":{"kind":"observation","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"Pending: attended session prepared (see card); one Accept or Reject per row."}}]
 ---
@@ -215,6 +215,54 @@ The owner answered both questions in chat on 2026-10-06, verbatim:
 - **BPR-1301:q-windows-scripts:** "Accept (.exe only)". A Windows wrapper must
   be an `.exe`; `.bat` and `.cmd` are refused with a one-line reason.
 
+- **BPR-1301:q-path-search**, asked in chat on 2026-10-07 after v001 (the
+  open decision below): "Today a shipped BetterPullReview can't start Claude
+  unless you set a wrapper path … When no wrapper is saved, should BPR find
+  `claude` on your PATH itself, using and showing the absolute path it
+  found?" The owner answered in chat on 2026-10-07, verbatim: **"Yes, search
+  PATH (Recommended)"**.
+
+## Owner amendment (2026-10-07)
+
+From that answer. It amends this card's boundary ("No `PATH` discovery of
+`claude` is added"), the criterion BPR-1301:unset-unchanged, and the
+"Resolve executables explicitly" rule in
+`docs/architecture/security-threat-model.md` (process handling, and its
+Claude process wrapper section) and `docs/architecture/ai-agent-boundary.md`
+(Claude process wrapper), where the same dated amendment is written:
+
+- Used only when no wrapper is saved; a saved wrapper always wins, and a
+  refused wrapper never falls back.
+- Search the application's own `PATH` for `claude` (`claude.exe` on Windows;
+  no `PATHEXT` scripts, consistent with ".exe only"). Take the first absolute
+  executable regular file; ignore relative and empty entries and the current
+  directory.
+- Show the found absolute path in Settings, read-only ("Using
+  /opt/homebrew/bin/claude (found on PATH)."), or "claude not found on PATH or
+  in the usual install folders; set a wrapper."
+- Resolve and check again at each launch; never run it through a shell.
+- **macOS: a login-shell `PATH` would be needed, so a fixed fallback list is
+  used instead (for the owner).** An application opened from the Finder or
+  the Dock gets launchd's `PATH`. Observed here on 2026-10-07: a throwaway
+  application bundle opened through LaunchServices (`open`) recorded
+  `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, `HOME=/Users/jaeger`;
+  `launchctl getenv PATH` is empty. `claude` usually lives in
+  `~/.local/bin` (the native installer), `~/.claude/local` (the older local
+  install), `/opt/homebrew/bin` (Homebrew on Apple silicon, and npm's global
+  folder under Homebrew's Node; this machine's is
+  `/opt/homebrew/bin/claude` -> `/opt/homebrew/Caskroom/claude-code@latest/…`),
+  `/usr/local/bin` (Homebrew on Intel, npm under the installer Node) or
+  `~/.npm-global/bin` (npm's documented user prefix); an nvm Node puts it in a
+  versioned folder no fixed list can name. None of those is on launchd's
+  `PATH`, so a Finder-launched build would find nothing on `PATH`; only a
+  login shell's `PATH` has them. No shell is spawned. After `PATH`, the
+  search tries this fixed list in that order (`core::usual_claude_folders`),
+  and Settings says "(found in a usual install folder, not on PATH)" when one
+  of them is used. On Windows, where an application gets the user's whole
+  `PATH`, the list is only `%USERPROFILE%\.local\bin\claude.exe` (the native
+  installer). An nvm-installed `claude` still needs a wrapper or a `PATH` the
+  application inherits (launched from a terminal).
+
 ## Acceptance
 
 - **BPR-1301:wrapper-path.** Validation accepts an absolute path to an
@@ -229,7 +277,21 @@ The owner answered both questions in chat on 2026-10-06, verbatim:
   tool-free writing run and a Review Cycle send, with no added argument and
   no added environment name. Shown failing before the change.
 - **BPR-1301:unset-unchanged.** With no wrapper set the launch request is
-  equal to today's for every Claude entry point.
+  equal to today's for every Claude entry point. *Amended 2026-10-07 (owner
+  amendment above):* equal to today's except that the bare `claude` is
+  replaced by the absolute path found, and nothing else; a request already
+  naming an absolute program is equal to today's.
+- **BPR-1301:path-lookup.** (Owner amendment, 2026-10-07.) With no wrapper
+  saved, a Claude launch of the bare `claude` runs the first absolute
+  executable regular `claude` on the application's `PATH`, then in the fixed
+  usual folders; relative, empty and current-directory entries are never
+  searched; Windows takes only `claude.exe`; none found ends the request
+  `failed_to_start` and starts nothing; the search repeats at each launch, so
+  one removed between Settings and the launch is not run; a saved wrapper
+  wins without a search. Settings shows the found path read-only, or says
+  none was found. Unit, real-file, real-launcher and composed rows (found,
+  not found, relative entries, wrapper wins, removed between save and launch)
+  with failing-before controls; agent-free builds unaffected.
 - **BPR-1301:launch-recheck.** A wrapper deleted or made non-executable after
   saving ends the request as `failed_to_start` naming the wrapper, and no
   process named `claude` is attempted.
@@ -344,12 +406,14 @@ was resealed over BPR-1068's. Merged tree: 23/23 focused wrapper, settings,
 preferences, writing, cycle-send, round-trip, architecture and overview rows;
 DOCUMENTATION_OK.
 
-### Open decision, not built
+### Open decision (resolved 2026-10-07)
 
 With no wrapper saved, a shipped build cannot start Claude (bare `claude`, no
 `PATH` search, the Unix supervisor requires `/`). Resolving `claude` on `PATH`
 when no wrapper is set is a policy change to "Resolve executables explicitly"
-and this card's boundary, so it is put to the owner, not built.
+and this card's boundary, so it was put to the owner, not built. The owner
+answered "Yes, search PATH (Recommended)" (BPR-1301:q-path-search); built in
+v002 below.
 
 ### Owed station runs (not blocking)
 
@@ -363,7 +427,11 @@ remote mutation:
 
 Host and Qt. The core profile registry and host policy are unchanged. No
 `PATH` discovery of `claude` is added; that is a separate decision if wanted.
-No environment-variables setting.
+*Amended 2026-10-07 by the owner ("Yes, search PATH (Recommended)"):* with no
+wrapper saved, `claude` alone is searched for on `PATH` and in a fixed list of
+usual install folders, as the owner amendment above says; no other
+executable is searched for and no shell is started. No environment-variables
+setting.
 
 
 ## Windows pin (bpr-main-win, 2026-10-07)

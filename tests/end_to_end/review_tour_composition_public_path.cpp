@@ -8,6 +8,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #include "private_data_root.hpp"
@@ -370,12 +371,22 @@ auto main(int argc, char** argv) -> int
 		}
 	}
 	auto server = std::make_shared<app::detail::review_submission_fixture_state>();
-	auto make   = [&] {
+	// [[BPR-1301]]. The wrapper course's own PATH, empty until the course puts
+	// a claude there, and no usual folders: never the developer's own claude.
+	const auto wrapperCourse = argc > 2 && std::string_view{ argv[1] } == "--writing-wrapper";
+	const auto claudeSearch  = std::filesystem::path{ data.path().toStdString() } / "claude-search";
+	if (wrapperCourse) {
+		std::filesystem::create_directory(claudeSearch);
+	}
+	auto make = [&] {
 		std::unique_ptr<app::github_application> started;
 		bool                                     terminal = false;
-		auto                                     startup  = access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,
-																		  app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper"), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && std::string_view{ argv[1] } == "--writing" ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt },
-																		  [&](auto aResult) { terminal = true; if (aResult) { started = std::move(*aResult); } });
+		auto                                     options  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper"), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && std::string_view{ argv[1] } == "--writing" ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt };
+		if (wrapperCourse) {
+			options.ClaudeSearch = app::detail::claude_search_environment{ .PathVariable = claudeSearch.string() };
+		}
+		auto startup = access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1, std::move(options),
+									 [&](auto aResult) { terminal = true; if (aResult) { started = std::move(*aResult); } });
 		wait([&] { return terminal && startup && startup->is_quiescent(); }, "startup terminal");
 		expect(started != nullptr, "startup succeeds");
 		return started;
@@ -413,12 +424,15 @@ auto main(int argc, char** argv) -> int
 			return result;
 		}
 
-		// [[BPR-1301]]. The shipped composition names the bare `claude`, which
-		// no build can start. Through the real Settings rows the reviewer saves
-		// a wrapper, and the same writing request then runs it, through the
-		// agent host, the supervised launcher and the restricted protocol. The
-		// wrapper is still there after a restart.
-		if (argc > 2 && std::string_view{ argv[1] } == "--writing-wrapper") {
+		// [[BPR-1301]]. The shipped composition names the bare `claude`. With
+		// none on the course's PATH the request starts nothing and Settings
+		// says so; with one put there, the same writing request runs it, and
+		// Settings names it (owner, 2026-10-07). Then, through the real
+		// Settings rows, the reviewer saves a wrapper, the PATH claude goes,
+		// and the same request runs the wrapper, through the agent host, the
+		// supervised launcher and the restricted protocol. The wrapper is
+		// still there after a restart.
+		if (wrapperCourse) {
 			auto* panel    = window.agent_panel();
 			auto* selector = panel->profile_selector();
 			select_file(window, "review.cpp");
@@ -434,14 +448,39 @@ auto main(int argc, char** argv) -> int
 			saved(editor);
 			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;magic->click();wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
 			const auto select = [&] {auto cursor=prose->textCursor();cursor.setPosition(3);cursor.setPosition(7,QTextCursor::KeepAnchor);prose->setTextCursor(cursor); };
+			auto*      rows   = window.claude_wrapper();
+			auto*      path   = rows->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
+			auto*      save   = rows->findChild<QPushButton*>(QStringLiteral("claudeWrapperSave"));
+			auto*      answer = rows->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus"));
+			auto*      found  = rows->findChild<QLabel*>(QStringLiteral("claudeWrapperFound"));
+			const auto look   = [&](const QString& aLine, const char* aWhat) {
+				window.settings()->hide();
+				window.settings()->present(qt::settings_page::agents_and_context);
+				wait([&] { return found->text() == aLine && found->isVisible(); }, aWhat);
+				window.settings()->hide();
+				// Writing assistance answers only its active window.
+				window.activateWindow();
+				wait([&] { return window.isActiveWindow(); }, "the workbench is active again after Settings");
+			};
+			look(QStringLiteral("claude not found on PATH or in the usual install folders; set a wrapper."), "Settings says no claude was found");
 			select();
 			const auto captured = *prose->capture();
+			const auto before   = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
+			magic->click();
+			wait([&] { return status->text() == QStringLiteral("Assistance did not complete; your text is unchanged.") && access::agent_invocation_evidence(*application).Quiescent; },
+				 "the request with no claude found ends");
+			expect(prose->raw() == captured.Raw && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == before,
+				   "failing-before control: with no wrapper and no claude found nothing starts and nothing changes");
+			// The scoped writing agent, put on the course's PATH as claude.
+			const auto claudeOnPath = claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string());
+			std::filesystem::copy_file(argv[2], claudeOnPath);
+			look(QStringLiteral("Using %1 (found on PATH).").arg(QString::fromStdString(claudeOnPath.string())), "Settings names the claude found on PATH");
+			select();
+			const auto viaPath = *prose->capture();
 			run();
-			expect(prose->raw() == captured.Raw, "failing-before control: with no wrapper the shipped bare claude cannot start and nothing changes");
-			auto* rows   = window.claude_wrapper();
-			auto* path   = rows->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
-			auto* save   = rows->findChild<QPushButton*>(QStringLiteral("claudeWrapperSave"));
-			auto* answer = rows->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus"));
+			expect(prose->raw() == viaPath.Raw.substr(0, viaPath.Selection.Begin) + "Rewritten 😀\r\nexact." + viaPath.Raw.substr(viaPath.Selection.End),
+				   "with no wrapper the same writing request runs the claude found on PATH");
+			std::filesystem::remove(claudeOnPath);
 			path->setText(QStringLiteral("relative/agent"));
 			save->click();
 			wait([&] { return answer->text().startsWith(QStringLiteral("Not saved.")); }, "a relative wrapper is answered");
@@ -449,9 +488,11 @@ auto main(int argc, char** argv) -> int
 			path->setText(QString::fromLocal8Bit(argv[2]));
 			save->click();
 			wait([&] { return answer->text() == QStringLiteral("Saved for this profile."); }, "the wrapper is saved for the profile");
+			expect(!found->isVisibleTo(rows), "a saved wrapper wins: Settings names no PATH claude");
 			select();
+			const auto viaWrapper = *prose->capture();
 			run();
-			const auto expected = captured.Raw.substr(0, captured.Selection.Begin) + "Rewritten 😀\r\nexact." + captured.Raw.substr(captured.Selection.End);
+			const auto expected = viaWrapper.Raw.substr(0, viaWrapper.Selection.Begin) + "Rewritten 😀\r\nexact." + viaWrapper.Raw.substr(viaWrapper.Selection.End);
 			if (prose->raw() != expected) {
 				std::cerr << "writing status: " << status->text().toStdString() << " agent: " << panel->status_text().toStdString() << '\n';
 			}

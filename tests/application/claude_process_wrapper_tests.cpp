@@ -110,6 +110,80 @@ namespace {
 		expect(inner.Cancels == 1, "cancel reaches the launcher");
 	}
 
+	/// [[BPR-1301]], owner 2026-10-07. A scripted locator: what it answers
+	/// now, and how often it was asked.
+	struct locator_log
+	{
+		std::optional<core::claude_search_candidate> Answer;
+		std::size_t                                  Asked = 0U;
+	};
+
+	[[nodiscard]] auto locator(locator_log& aLog) -> application::claude_locator
+	{
+		return [&aLog] {
+			++aLog.Asked;
+			return aLog.Answer;
+		};
+	}
+
+	void test_claude_found_without_a_wrapper()
+	{
+		auto inner   = recording_port{ };
+		auto log     = inspector_log{ };
+		auto located = locator_log{ .Answer = core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude", .Origin = core::claude_found_in::path } };
+		auto source  = std::make_shared<application::claude_process_wrapper_source>();
+		auto port    = application::wrapped_claude_process{ inner, source, inspector(log), locator(located) };
+
+		const auto claude   = request(core::agent_protocol::claude_stream_json);
+		auto       expected = claude;
+		expected.Executable = "/opt/homebrew/bin/claude";
+		static_cast<void>(port.run(claude, 1));
+		expect(inner.Requests.back() == expected, "with no wrapper the found claude replaces the bare name and nothing else");
+		expect(located.Asked == 1U && log.Asked.empty(), "the search ran for this launch and no wrapper was inspected");
+
+		located.Answer = core::claude_search_candidate{ .Path = "/Users/me/.local/bin/claude", .Origin = core::claude_found_in::usual_folder };
+		static_cast<void>(port.run(claude, 1));
+		expect(inner.Requests.back().Executable == "/Users/me/.local/bin/claude" && located.Asked == 2U, "each launch searches again and runs what is found now");
+
+		// Removed between Settings showing it and the launch: nothing is found.
+		located.Answer     = std::nullopt;
+		const auto before  = inner.Requests.size();
+		const auto missing = port.run(claude, 1);
+		expect(inner.Requests.size() == before, "with no claude found nothing is started, the bare name included");
+		expect(missing.Outcome == application::agent_run_outcome::failed_to_start && missing.Session == claude.Session, "no claude found ends the request as failed_to_start");
+		expect(missing.StandardError == application::claude_not_found_message, "the failure says claude was not found and where to set a wrapper");
+
+		// A saved wrapper always wins: the search is not even asked.
+		located.Answer = core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude" };
+		source->set("/opt/tools/claude-gateway");
+		const auto asked = located.Asked;
+		static_cast<void>(port.run(claude, 1));
+		expect(inner.Requests.back().Executable == "/opt/tools/claude-gateway" && located.Asked == asked, "a saved wrapper wins and nothing is searched");
+		log.Answer        = agent_wrapper_refusal::missing;
+		const auto gone   = inner.Requests.size();
+		const auto failed = port.run(claude, 1);
+		expect(failed.Outcome == application::agent_run_outcome::failed_to_start && inner.Requests.size() == gone && located.Asked == asked,
+			   "a refused wrapper never falls back to the claude on PATH");
+		log.Answer = std::nullopt;
+		source->set({ });
+
+		// A request that already names its program by path is left alone.
+		const auto named = request(core::agent_protocol::claude_stream_json, "/fixtures/fake-claude");
+		static_cast<void>(port.run(named, 1));
+		expect(inner.Requests.back() == named && located.Asked == asked, "an absolute executable is run as built and nothing is searched");
+		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::codex_jsonl_exec, core::agent_protocol::external_terminal }) {
+			const auto other = request(protocol, "codex");
+			static_cast<void>(port.run(other, 1));
+			expect(inner.Requests.back() == other, "Codex and the external terminal are never pointed at claude");
+		}
+		expect(located.Asked == asked, "a non-Claude launch searches nothing");
+
+		// No locator: the request passes through exactly as before.
+		auto unlocated = application::wrapped_claude_process{ inner, source, inspector(log) };
+		static_cast<void>(unlocated.run(claude, 1));
+		expect(inner.Requests.back() == claude, "with no locator the bare request passes through unchanged");
+	}
+
 	struct durable_state
 	{
 		application::workbench_profile_preferences Preferences;
@@ -210,12 +284,54 @@ namespace {
 		decision.drain();
 		expect(answers.size() == answered && durable.Preferences.ClaudeWrapper == "/opt/kept" && editor.is_quiescent(), "a shut-down editor answers and saves nothing");
 	}
+
+	void test_editor_locates_for_settings()
+	{
+		auto durable  = durable_state{ };
+		auto port     = settings_port{ durable };
+		auto effects  = application::manual_executor{ };
+		auto decision = application::manual_executor{ };
+		auto host     = application::workbench_preferences_host{ port, effects, decision, core::bpr_profile_id{ 1U } };
+		host.adopt_loaded(durable.Preferences);
+		auto       log     = inspector_log{ };
+		auto       located = locator_log{ .Answer = core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude" } };
+		auto       editor  = application::claude_wrapper_editor{ host, effects, decision, inspector(log), locator(located) };
+		auto       answers = std::vector<std::optional<core::claude_search_candidate>>{ };
+		const auto record  = [&answers](const std::optional<core::claude_search_candidate>& aFound) { answers.push_back(aFound); };
+
+		editor.locate(record);
+		expect(located.Asked == 0U && answers.empty() && !editor.is_quiescent(), "the search waits for the effect lane");
+		effects.drain();
+		expect(located.Asked == 1U && answers.empty(), "the effect lane searches");
+		decision.drain();
+		expect(answers.size() == 1U && answers.back() && answers.back()->Path == "/opt/homebrew/bin/claude" && editor.is_quiescent(), "the decision lane answers with the found path");
+
+		editor.locate(record);
+		located.Answer = std::nullopt;
+		editor.locate(record);
+		effects.drain();
+		decision.drain();
+		expect(answers.size() == 2U && !answers.back(), "only the latest search is answered, and not found is an answer");
+		expect(durable.Writes == 0U, "searching saves nothing");
+
+		auto none = application::claude_wrapper_editor{ host, effects, decision, inspector(log) };
+		none.locate(record);
+		expect(answers.size() == 3U && !answers.back() && none.is_quiescent(), "with no locator nothing is found, at once");
+
+		editor.locate(record);
+		editor.shutdown();
+		effects.drain();
+		decision.drain();
+		expect(answers.size() == 3U && editor.is_quiescent(), "a shut-down editor searches and answers nothing");
+	}
 }
 
 auto main() -> int
 {
 	test_substitution_point();
 	test_editor_saves_only_accepted_paths();
+	test_claude_found_without_a_wrapper();
+	test_editor_locates_for_settings();
 	std::cout << "claude-process-wrapper-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

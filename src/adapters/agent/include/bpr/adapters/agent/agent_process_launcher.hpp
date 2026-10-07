@@ -8,6 +8,8 @@
 
 #include <memory>
 #include <optional>
+#include <span>
+#include <string>
 #include <string_view>
 
 namespace bpr::adapters::agent {
@@ -21,6 +23,22 @@ namespace bpr::adapters::agent {
 	/// without a shell. Asked when a wrapper is saved and again before every
 	/// launch through it. Reads metadata only; opens and runs nothing.
 	[[nodiscard]] auto inspect_claude_process_wrapper(std::string_view aPath) -> std::optional<core::agent_wrapper_refusal>;
+
+	/// \brief [[BPR-1301]], owner 2026-10-07. The `claude` a Claude launch
+	/// with no saved wrapper runs: the first of
+	/// `core::claude_search_candidates(aPathVariable, aUsualFolders, this
+	/// platform)` that `inspect_claude_process_wrapper` accepts, as that
+	/// absolute path.
+	///
+	/// \details The caller passes the application's own `PATH`; nothing here
+	/// reads the environment, starts a shell or runs what it finds. Asked
+	/// when Settings shows the row and again before every launch, so a
+	/// `claude` removed since is not the one that runs.
+	[[nodiscard]] auto locate_claude(std::string_view aPathVariable, std::span<const std::string> aUsualFolders) -> std::optional<core::claude_search_candidate>;
+
+	/// \brief The same over this platform's `core::usual_claude_folders` for
+	/// the home folder `aHome`: what a shipped launch searches.
+	[[nodiscard]] auto locate_claude(std::string_view aPathVariable, std::string_view aHome) -> std::optional<core::claude_search_candidate>;
 
 	/// \brief Owns one bounded child-process and protocol lifecycle.
 	///

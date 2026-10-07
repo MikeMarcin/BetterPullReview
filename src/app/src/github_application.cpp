@@ -4437,6 +4437,7 @@ namespace bpr::app {
 					= aFixtureOptions.ExternalAgentExecutable;
 				CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
 				ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
+				ClaudeSearch            = aFixtureOptions.ClaudeSearch;
 				RegisteredDeviceCourse  = aFixtureOptions.RegisteredDeviceCourse;
 				DeviceRefreshCourse     = aFixtureOptions.DeviceRefreshCourse;
 				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
@@ -5654,8 +5655,9 @@ namespace bpr::app {
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
 #endif
 #if defined(BPR_BUILD_TESTING)
-		std::optional<std::filesystem::path> CodexAgentExecutable;
-		std::optional<std::filesystem::path> ClaudeAgentExecutable;
+		std::optional<std::filesystem::path>             CodexAgentExecutable;
+		std::optional<std::filesystem::path>             ClaudeAgentExecutable;
+		std::optional<detail::claude_search_environment> ClaudeSearch;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool UseGrantedNotificationSink = false;
@@ -6725,7 +6727,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
 																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects }, nullptr,
 #if defined(BPR_AGENT_INTEGRATIONS)
-																  ClaudeWrapperSource
+																  ClaudeWrapperSource, locate_claude()
 #else
 																  nullptr
 #endif
@@ -7161,11 +7163,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						*AgentProcess);
 			}
 			if (AgentProcessProbe != nullptr) {
-				ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper);
+				ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
 			}
 			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
 	#else
-			ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper);
+			ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
 	#endif
 			{
 				// BPR-0532. The re-alignment a continued turn asks for, served
@@ -7547,17 +7549,28 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			});
 #if defined(BPR_AGENT_INTEGRATIONS)
-			ClaudeWrapperEditor = std::make_unique<application::claude_wrapper_editor>(*Profile->WorkbenchPreferences, WorkbenchEffects, DecisionLane, &adapters::agent::inspect_claude_process_wrapper);
-			Window->claude_wrapper()->set_dispatch([this](std::string aPath) {
-				if (Closing || !ClaudeWrapperEditor) {
-					return;
-				}
-				ClaudeWrapperEditor->choose(std::move(aPath), [this](const application::claude_wrapper_answer& aAnswer) {
-					if (!Closing && Window != nullptr) {
-						Window->claude_wrapper()->show_answer(aAnswer);
+			ClaudeWrapperEditor = std::make_unique<application::claude_wrapper_editor>(*Profile->WorkbenchPreferences, WorkbenchEffects, DecisionLane, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+			Window->claude_wrapper()->set_dispatch(
+				[this](std::string aPath) {
+					if (Closing || !ClaudeWrapperEditor) {
+						return;
 					}
+					ClaudeWrapperEditor->choose(std::move(aPath), [this](const application::claude_wrapper_answer& aAnswer) {
+						if (!Closing && Window != nullptr) {
+							Window->claude_wrapper()->show_answer(aAnswer);
+						}
+					});
+				},
+				[this] {
+					if (Closing || !ClaudeWrapperEditor) {
+						return;
+					}
+					ClaudeWrapperEditor->locate([this](const std::optional<core::claude_search_candidate>& aFound) {
+						if (!Closing && Window != nullptr) {
+							Window->claude_wrapper()->show_found(aFound);
+						}
+					});
 				});
-			});
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook hook, qt::prose_capture captured) { request_writing(hook, std::move(captured)); }, [this] { cancel_writing(); });
@@ -9294,6 +9307,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return false;
 #endif
 		}
+#if defined(BPR_AGENT_INTEGRATIONS)
+		/// [[BPR-1301]], owner 2026-10-07 ("Yes, search PATH (Recommended)").
+		/// Finds the `claude` a launch with no wrapper runs, from this
+		/// application's own `PATH` and home folder as they are when asked;
+		/// no shell is started to ask for a login `PATH`.
+		[[nodiscard]] auto locate_claude() const -> application::claude_locator
+		{
+	#if defined(BPR_BUILD_TESTING)
+			if (ClaudeSearch) {
+				return [search = *ClaudeSearch] { return adapters::agent::locate_claude(search.PathVariable, std::span<const std::string>{ search.UsualFolders }); };
+			}
+	#endif
+			return [] {
+				const auto path = qEnvironmentVariable(std::string{ core::agent_search_path_variable() }.c_str()).toStdString();
+				const auto home = QDir::toNativeSeparators(QDir::homePath()).toStdString();
+				return adapters::agent::locate_claude(path, std::string_view{ home });
+			};
+		}
+#endif
 		void cancel_writing()
 		{
 			WritingState.cancel();
@@ -16059,6 +16091,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::ExternalAgentExecutable)&                ExternalAgentExecutable                = Profile->ExternalAgentExecutable;
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
 		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
+		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;
 		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
 		bool                                                                      ReviewLedgerRoundTripPassed            = false;
 		bool                                                                      FixtureReviewMutationHostComposed      = false;

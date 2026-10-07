@@ -134,6 +134,12 @@ namespace bpr::core {
 	/// deliberately learned only after an explicit permitted invocation reaches
 	/// the process adapter.
 	[[nodiscard]] auto built_in_agent_profiles() -> std::vector<agent_profile>;
+
+	/// \brief [[BPR-1301]]. The name, among the allowed agent environment
+	/// names, of the executable search path. A Claude launch with no wrapper
+	/// searches the application's own value of it for `claude` (owner,
+	/// 2026-10-07); stated here, beside the allowlist that names it.
+	[[nodiscard]] auto agent_search_path_variable() noexcept -> std::string_view;
 	struct agent_host_policy;
 
 	/// \brief The two built-in Git-host policy classes.

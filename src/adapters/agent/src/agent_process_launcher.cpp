@@ -25,6 +25,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
 #if defined(Q_OS_UNIX)
 	#include <csignal>
@@ -535,6 +536,29 @@ namespace bpr::adapters::agent {
 			return core::agent_wrapper_refusal::missing;
 		}
 		return std::nullopt;
+	}
+
+	namespace {
+#if defined(Q_OS_WIN)
+		constexpr auto wrapper_platform = core::agent_wrapper_platform::windows;
+#else
+		constexpr auto wrapper_platform = core::agent_wrapper_platform::posix;
+#endif
+	}
+
+	auto locate_claude(const std::string_view aPathVariable, const std::span<const std::string> aUsualFolders) -> std::optional<core::claude_search_candidate>
+	{
+		for (auto& candidate : core::claude_search_candidates(aPathVariable, aUsualFolders, wrapper_platform)) {
+			if (!inspect_claude_process_wrapper(candidate.Path)) {
+				return std::move(candidate);
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto locate_claude(const std::string_view aPathVariable, const std::string_view aHome) -> std::optional<core::claude_search_candidate>
+	{
+		return locate_claude(aPathVariable, core::usual_claude_folders(aHome, wrapper_platform));
 	}
 
 #if defined(BPR_BUILD_TESTING) && defined(Q_OS_WIN)

@@ -78,7 +78,7 @@ namespace bpr::app {
 		/// manual lanes names its lane here.
 		review_cycle_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, core::bpr_profile_id aProfile, application::effect_executor& aEffects,
 							 application::decision_executor& aDecisions, review_cycle_syntax aSyntax = { }, application::effect_executor* aCaptures = nullptr,
-							 std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper = nullptr);
+							 std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper = nullptr, application::claude_locator aLocateClaude = { });
 		~review_cycle_desktop() override;
 		review_cycle_desktop(const review_cycle_desktop&)                    = delete;
 		auto operator=(const review_cycle_desktop&) -> review_cycle_desktop& = delete;

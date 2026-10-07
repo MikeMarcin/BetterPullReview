@@ -7,6 +7,7 @@
 #include <QLineEdit>
 #include <QPalette>
 #include <QPushButton>
+#include <QShowEvent>
 #include <QVBoxLayout>
 
 namespace bpr::qt {
@@ -77,9 +78,17 @@ namespace bpr::qt {
 		Status->setTextInteractionFlags(Qt::TextSelectableByMouse);
 		Status->hide();
 		stack->addWidget(Status);
+		// [[BPR-1301]], owner 2026-10-07. Which claude runs while the field is
+		// empty: the path itself, so the person sees exactly what will start.
+		Found = note({ }, wrapper);
+		Found->setObjectName(QStringLiteral("claudeWrapperFound"));
+		Found->setAccessibleName(tr("Claude used without a wrapper"));
+		Found->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		Found->hide();
+		stack->addWidget(Found);
 		auto* const help = note(tr("Runs in place of claude for every Claude request in this profile, with Claude's own arguments, "
 								   "folder and environment, never through a shell. Use the full path to claude, or to a program "
-								   "that sets up your provider and then runs it."),
+								   "that sets up your provider and then runs it. Leave it empty to use the claude found on PATH."),
 								wrapper);
 		help->setObjectName(QStringLiteral("claudeWrapperHelp"));
 		help->setForegroundRole(QPalette::PlaceholderText);
@@ -108,7 +117,11 @@ namespace bpr::qt {
 		});
 	}
 
-	void claude_wrapper_panel::set_dispatch(std::function<void(std::string)> aSave) { Save = std::move(aSave); }
+	void claude_wrapper_panel::set_dispatch(std::function<void(std::string)> aSave, std::function<void()> aLocate)
+	{
+		Save   = std::move(aSave);
+		Locate = std::move(aLocate);
+	}
 
 	void claude_wrapper_panel::present(const std::string_view aSaved)
 	{
@@ -120,6 +133,38 @@ namespace bpr::qt {
 		}
 		Path->setText(text(aSaved));
 		show_status(aSaved.empty() ? tr("No wrapper is saved for this profile.") : tr("Saved for this profile."));
+		// A saved wrapper always wins, so the found line says nothing then.
+		Found->setVisible(aSaved.empty() && !Found->text().isEmpty());
+		locate();
+	}
+
+	void claude_wrapper_panel::show_found(const std::optional<core::claude_search_candidate>& aFound)
+	{
+		if (!aFound) {
+			Found->setText(tr("claude not found on PATH or in the usual install folders; set a wrapper."));
+		} else if (aFound->Origin == core::claude_found_in::path) {
+			Found->setText(tr("Using %1 (found on PATH).").arg(text(aFound->Path)));
+		} else {
+			Found->setText(tr("Using %1 (found in a usual install folder, not on PATH).").arg(text(aFound->Path)));
+		}
+		Found->setVisible(Presented && Saved.empty());
+	}
+
+	void claude_wrapper_panel::showEvent(QShowEvent* const aEvent)
+	{
+		QWidget::showEvent(aEvent);
+		// Opening Settings looks again, so a claude installed or removed since
+		// is what the line names.
+		if (!aEvent->spontaneous()) {
+			locate();
+		}
+	}
+
+	void claude_wrapper_panel::locate()
+	{
+		if (Presented && Saved.empty() && Locate && isVisible()) {
+			Locate();
+		}
 	}
 
 	void claude_wrapper_panel::show_answer(const application::claude_wrapper_answer& aAnswer)

@@ -168,8 +168,14 @@ Under **Claude**, **Process wrapper** is saved for the profile ([[BPR-1301]]):
 the full path to a program run in place of `claude` for every Claude request,
 with Claude's own arguments, folder and environment and never through a shell.
 Set it to the `claude` you installed (for example the path `which claude`
-prints) or to a program that prepares your provider and then runs Claude; a
-shipped build starts no Claude without it. **Choose…** picks the file;
+prints) or to a program that prepares your provider and then runs Claude.
+Left empty, a launch runs the first `claude` it finds on the application's
+`PATH` or, after that, in the usual install folders (`~/.local/bin`,
+`~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.npm-global/bin`;
+on Windows `%USERPROFILE%\.local\bin\claude.exe`), and the row says which in a
+read-only line: "Using /opt/homebrew/bin/claude (found on PATH)." or "claude
+not found on PATH or in the usual install folders; set a wrapper." A saved
+wrapper always wins ([[BPR-1301]], owner 2026-10-07). **Choose…** picks the file;
 **Save** or Return saves the typed path; an empty field saved clears it. The
 path is checked before it is saved and again before every launch, and a
 refused path is not saved: the row says why in one line (not absolute, starts

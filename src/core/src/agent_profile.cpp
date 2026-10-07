@@ -135,6 +135,8 @@ namespace bpr::core {
 		}
 	} // namespace
 
+	auto agent_search_path_variable() noexcept -> std::string_view { return "PATH"; }
+
 	auto built_in_agent_profiles() -> std::vector<agent_profile>
 	{
 		return {

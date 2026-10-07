@@ -18,6 +18,7 @@
 #include "bpr/core/agent_context_supplement.hpp"
 
 #include <QCoreApplication>
+#include <QDir>
 
 #include <algorithm>
 #include <array>
@@ -30,6 +31,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -340,6 +342,118 @@ namespace {
 		expect(counted.Runs == 1U && counted.Executables == std::vector<std::string>{ text(wrapper) }, "no process is attempted, the bare claude included");
 	}
 
+	/// [[BPR-1301]], owner 2026-10-07. The PATH search on real files: the
+	/// first absolute entry holding an executable regular claude wins, and
+	/// nothing relative is ever looked at.
+	void test_path_search_on_real_files(const std::filesystem::path& aRoot)
+	{
+		const auto search = aRoot / "search";
+		const auto folder = [&](const std::string_view aName) {
+			const auto made = search / aName;
+			std::filesystem::create_directories(made);
+			return made;
+		};
+		const auto empty  = folder("empty");
+		const auto hollow = folder("hollow");
+		const auto first  = folder("first");
+		const auto second = folder("second");
+		const auto cwd    = folder("cwd");
+		const auto nested = folder("cwd/sub");
+		const auto usual  = folder("usual");
+		const auto claude = program_name("claude");
+		std::filesystem::create_directory(hollow / claude);
+		const auto winner  = copy_canary(first, "claude");
+		const auto shadow  = copy_canary(second, "claude");
+		const auto inCwd   = copy_canary(cwd, "claude");
+		const auto inSub   = copy_canary(nested, "claude");
+		const auto inUsual = copy_canary(usual, "claude");
+		const auto sep     = std::string{ QDir::listSeparator().toLatin1() };
+		const auto path    = [&](std::initializer_list<std::string> aEntries) {
+			auto joined = std::string{ };
+			for (const auto& item : aEntries) {
+				joined += (joined.empty() ? "" : sep) + item;
+			}
+			return joined;
+		};
+		const auto none = std::vector<std::string>{ };
+
+		const auto previous = std::filesystem::current_path();
+		std::filesystem::current_path(cwd);
+		const auto relative = path({ "", ".", "sub", text(std::filesystem::path{ "." } / "sub") });
+		expect(!adapters::agent::locate_claude(relative, std::span<const std::string>{ none }), "empty, ., and relative entries are never searched, though each holds a claude");
+		const auto found = adapters::agent::locate_claude(path({ ".", text(empty), text(hollow), text(first), text(second) }), std::span<const std::string>{ none });
+		expect(found && found->Path == text(first / claude) && found->Origin == core::claude_found_in::path, "the first absolute entry with a runnable claude wins, past an empty folder and a folder named claude");
+		std::filesystem::current_path(previous);
+		static_cast<void>(inCwd);
+		static_cast<void>(inSub);
+		static_cast<void>(shadow);
+
+		const auto usualFolders = std::vector<std::string>{ text(empty), text(usual) };
+		const auto fallback     = adapters::agent::locate_claude(path({ text(empty) }), std::span<const std::string>{ usualFolders });
+		expect(fallback && fallback->Path == text(inUsual) && fallback->Origin == core::claude_found_in::usual_folder, "with none on PATH a usual folder is searched next and says so");
+		const auto preferPath = adapters::agent::locate_claude(path({ text(second) }), std::span<const std::string>{ usualFolders });
+		expect(preferPath && preferPath->Path == text(shadow) && preferPath->Origin == core::claude_found_in::path, "PATH comes before the usual folders");
+#if defined(Q_OS_UNIX)
+		std::filesystem::permissions(winner, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+		const auto skipped = adapters::agent::locate_claude(path({ text(first), text(second) }), std::span<const std::string>{ none });
+		expect(skipped && skipped->Path == text(shadow), "a claude this user may not run is passed over");
+		std::filesystem::permissions(winner, std::filesystem::perms::owner_all);
+		const auto link = folder("linked") / "claude";
+		std::filesystem::create_symlink(winner, link);
+		const auto linked = adapters::agent::locate_claude(path({ text(link.parent_path()) }), std::span<const std::string>{ none });
+		expect(linked && linked->Path == text(link), "a link to claude is used as the path found, as Homebrew installs it");
+#endif
+#if defined(Q_OS_WIN)
+		const auto scripts = folder("scripts");
+		write_file(scripts / "claude.cmd", "@echo off\r\n");
+		write_file(scripts / "claude.bat", "@echo off\r\n");
+		write_file(scripts / "claude", "not a program\r\n");
+		expect(!adapters::agent::locate_claude(path({ text(scripts) }), std::span<const std::string>{ none }), "Windows finds only claude.exe, never a PATHEXT script");
+#endif
+		std::filesystem::remove(winner);
+		const auto afterRemoval = adapters::agent::locate_claude(path({ text(first), text(second) }), std::span<const std::string>{ none });
+		expect(afterRemoval && afterRemoval->Path == text(shadow), "a claude removed since is not found again");
+	}
+
+	/// The shipped bare claude, no wrapper, through the real launcher: the
+	/// claude found on a scratch PATH runs with Claude's exact launch, and one
+	/// removed before the launch starts nothing.
+	void test_found_claude_through_the_launcher(const std::filesystem::path& aRoot)
+	{
+		const auto folder = aRoot / "found-path";
+		std::filesystem::create_directories(folder);
+		const auto claude   = copy_canary(folder, "claude");
+		const auto entries  = text(folder);
+		auto       source   = std::make_shared<application::claude_process_wrapper_source>();
+		auto       locate   = application::claude_locator{ [entries] { return adapters::agent::locate_claude(entries, std::span<const std::string>{ }); } };
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		auto       counted  = counting_port{ launcher };
+		auto       wrapped  = application::wrapped_claude_process{ counted, source, &adapters::agent::inspect_claude_process_wrapper, locate };
+		for (const auto kind : { entry::agent_panel, entry::writing, entry::round_send }) {
+			const auto today   = build(kind, claude_profile(BPR_AGENT_CANARY_EXECUTABLE), aRoot);
+			const auto was     = launcher.run(today, 20'000);
+			const auto shipped = build(kind, claude_profile("claude"), aRoot);
+			const auto before  = counted.Runs;
+			const auto now     = wrapped.run(shipped, 20'000);
+			expect(now.Outcome == application::agent_run_outcome::success, "the claude found on PATH runs with no wrapper saved");
+			expect(counted.Runs == before + 1U && counted.Executables.back() == text(claude), "the one process started is the found claude, by its absolute path");
+			const auto argv    = event_values(now, "argv");
+			const auto argvWas = event_values(was, "argv");
+			expect(argv.size() == argvWas.size() && std::equal(argv.begin() + 1, argv.end(), argvWas.begin() + 1), "it gets exactly Claude's arguments");
+			auto env    = event_values(now, "env");
+			auto envWas = event_values(was, "env");
+			std::ranges::sort(env);
+			std::ranges::sort(envWas);
+			expect(env == envWas && event_values(now, "stdin-hex") == event_values(was, "stdin-hex"), "and exactly Claude's environment and input");
+		}
+		std::filesystem::remove(claude);
+		const auto runs = counted.Runs;
+		const auto gone = wrapped.run(build(entry::agent_panel, claude_profile("claude"), aRoot), 20'000);
+		expect(gone.Outcome == application::agent_run_outcome::failed_to_start && gone.StandardError == application::claude_not_found_message,
+			   "a claude removed between Settings and the launch ends the request as not found");
+		expect(counted.Runs == runs, "and nothing is started");
+	}
+
 	void test_other_harnesses_unchanged(const std::filesystem::path& aRoot)
 	{
 		const auto wrapper = copy_canary(aRoot, "ignored-wrapper");
@@ -375,6 +489,8 @@ try {
 #endif
 	test_launch_recheck(root);
 	test_other_harnesses_unchanged(root);
+	test_path_search_on_real_files(root);
+	test_found_claude_through_the_launcher(root);
 	std::cout << "claude-process-wrapper-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

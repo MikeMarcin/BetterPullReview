@@ -949,6 +949,21 @@ endfunction()
 # assertions remain. BPR-1304's menu repair is outside the app inventory and its
 # owner native evidence remains parked. No new app source; mutation pin unchanged.
 # Review/evidence: BPR-1303 and BPR-1305.
+# BPR-1301 v002 reseal (2026-10-08): over the BPR-1305 reseals above, rebased
+# onto 79d7c85e0; pins recomputed on the merged tree. Owner, 2026-10-07:
+# "Yes, search PATH (Recommended)". github_application.cpp, agent builds only: the window's
+# locate_claude() gives the agent host's and Send to Agent's
+# application::wrapped_claude_process, and the Process wrapper row's editor, a
+# locator that reads this application's own executable search path (its name
+# from core::agent_search_path_variable) and QDir::homePath() when asked and
+# has the agent adapter take the first executable regular claude on it or in
+# the fixed usual install folders. Only a request naming the bare `claude`
+# with no wrapper saved is pointed at it; none found ends the request
+# failed_to_start and starts nothing. Settings shows the found path read-only.
+# Tests-on only: the fixture's ClaudeSearch replaces the path and the folders.
+# No shell, grant, target, provider, credential, child environment, mutation or
+# publication path changes; host policy unchanged; mutation pin unchanged; no
+# new src/app source. Reviewed on BPR-1301.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
