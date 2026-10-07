@@ -137,3 +137,30 @@ The retained presentation cannot admit publication: the existing generation,
 selected-file and epoch-context checks still precede the accepted actor result,
 and its full material key must match before the retained view is adopted.
 This is engineering self-review of the release slice, not native owner approval.
+
+
+The authoritative `f3e866e9b` workflow completed 628 tests with zero failures
+and one configured Debug cache-bytes skip (1001.16 seconds), then built and
+verified the universal tests-disabled app, restricted runtime, notices, both
+architecture slices, macOS floor, Developer ID/hardened-runtime signatures and
+relocated launch. Apple submission stopped before upload because the default
+notary profile was absent; no tag or release was created.
+
+The owner supplied a verified replacement profile in the existing login
+Keychain and authorized release-fix commits and publication. The reviewed
+release-script correction adds an optional explicit Keychain selector to both
+app and DMG submissions. Default lookup, signing, wait, staple, Gatekeeper,
+clean-tree/test gates and private publication guards remain unchanged. Durable
+command tests execute the actual option parser and submission helper, checking
+complete argv for both artifacts, spaces, environment/CLI precedence, refusal
+of missing/empty arguments, and stop on a failed submission.
+
+The managed main checkout has a pending station transfer and remains untouched.
+The same release owner continues BPR-1305 from an independent unbound checkout
+of `f3e866e9b`, with ordinary main-branch publication and a fresh normal release
+workflow. Its station status and hook permit local work; no stop observation is
+fabricated and the managed checkout's ownership guard stays intact. Final source
+provenance and annotated tag must use the new committed producer, not `f3e866e9b`.
+
+Bash syntax, all ten source/publication/notary command tests, the documentation
+gate and whitespace checks pass for the explicit-Keychain slice.

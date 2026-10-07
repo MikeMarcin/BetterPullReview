@@ -47,6 +47,13 @@ xcrun notarytool store-credentials BetterPullReview-notary \
   --team-id YTQKP2V2A8
 ```
 
+For a profile stored in a specific existing file Keychain, pass
+`--notary-profile NAME --notary-keychain /absolute/path/to/login.keychain-db`
+to `tools/release.sh`. `APPLE_NOTARY_KEYCHAIN` supplies the optional default.
+Both app and DMG submissions use that Keychain; omitting it keeps the ordinary
+Keychain lookup. Verify access with `xcrun notarytool history --keychain-profile
+NAME --keychain /absolute/path/to/login.keychain-db` before the release build.
+
 Review the package output and release notes. Then run the non-mutating remote
 preflight:
 

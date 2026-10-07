@@ -13,6 +13,7 @@ DEFAULT_NOTARY_PROFILE="BetterPullReview-notary"
 
 CODESIGN_IDENTITY="${APPLE_CODESIGN_IDENTITY:-${DEFAULT_CODESIGN_IDENTITY}}"
 NOTARY_PROFILE="${APPLE_NOTARY_PROFILE:-${DEFAULT_NOTARY_PROFILE}}"
+NOTARY_KEYCHAIN="${APPLE_NOTARY_KEYCHAIN:-}"
 ALLOW_DIRTY=0
 SKIP_NOTARIZE=0
 SKIP_TESTS=0
@@ -30,6 +31,7 @@ Options:
   --version VERSION       Required SemVer; must match the CMake project version.
   --identity NAME         Developer ID Application identity.
   --notary-profile NAME  notarytool Keychain profile (default: ${DEFAULT_NOTARY_PROFILE}).
+  --notary-keychain PATH Existing file Keychain for the selected profile.
   --output-dir DIR       Artifact directory (default: build/releases/VERSION).
   --skip-tests           Skip the dev build and test preset.
   --skip-notarize        Build signed artifacts without submitting them to Apple.
@@ -44,6 +46,7 @@ Options:
 Environment:
   APPLE_CODESIGN_IDENTITY  Default identity for --identity.
   APPLE_NOTARY_PROFILE     Default profile for --notary-profile.
+  APPLE_NOTARY_KEYCHAIN    Default path for --notary-keychain (optional).
   MACDEPLOYQT              Exact macdeployqt executable to use.
 EOF
 }
@@ -59,6 +62,15 @@ log() {
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
+}
+
+notary_submit() {
+    local artifact="$1"
+    if [[ -n "${NOTARY_KEYCHAIN}" ]]; then
+        xcrun notarytool submit "${artifact}" --keychain-profile "${NOTARY_PROFILE}" --keychain "${NOTARY_KEYCHAIN}" --wait
+    else
+        xcrun notarytool submit "${artifact}" --keychain-profile "${NOTARY_PROFILE}" --wait
+    fi
 }
 
 project_version() {
@@ -315,6 +327,12 @@ while [[ $# -gt 0 ]]; do
             NOTARY_PROFILE="$2"
             shift 2
             ;;
+        --notary-keychain)
+            [[ $# -ge 2 ]] || fail "--notary-keychain requires a value"
+            [[ -n "$2" ]] || fail "--notary-keychain requires a nonempty path"
+            NOTARY_KEYCHAIN="$2"
+            shift 2
+            ;;
         --output-dir)
             [[ $# -ge 2 ]] || fail "--output-dir requires a value"
             OUTPUT_DIR="$2"
@@ -391,6 +409,9 @@ fi
 if [[ "${PREPARE_ONLY}" == "0" && "${SKIP_NOTARIZE}" == "0" ]]; then
     require_command spctl
     [[ -n "${NOTARY_PROFILE}" ]] || fail "A notarytool Keychain profile is required"
+    if [[ -n "${NOTARY_KEYCHAIN}" ]]; then
+        [[ -f "${NOTARY_KEYCHAIN}" ]] || fail "Notary Keychain is absent: ${NOTARY_KEYCHAIN}"
+    fi
 fi
 
 if [[ "${SKIP_TESTS}" == "0" ]]; then
@@ -483,7 +504,7 @@ rm -f "${DMG_PATH}" "${ZIP_PATH}" "${DMG_CHECKSUM_PATH}" "${ZIP_CHECKSUM_PATH}"
 if [[ "${SKIP_NOTARIZE}" == "0" ]]; then
     log "Submitting the signed application to Apple"
     ditto -c -k --keepParent "${STAGED_APP}" "${NOTARY_ZIP}"
-    xcrun notarytool submit "${NOTARY_ZIP}" --keychain-profile "${NOTARY_PROFILE}" --wait
+    notary_submit "${NOTARY_ZIP}"
     xcrun stapler staple "${STAGED_APP}"
     xcrun stapler validate "${STAGED_APP}"
     spctl --assess --type execute --verbose=4 "${STAGED_APP}"
@@ -503,7 +524,7 @@ codesign --verify --strict --verbose=4 "${DMG_PATH}"
 
 if [[ "${SKIP_NOTARIZE}" == "0" ]]; then
     log "Submitting and stapling the release DMG"
-    xcrun notarytool submit "${DMG_PATH}" --keychain-profile "${NOTARY_PROFILE}" --wait
+    notary_submit "${DMG_PATH}"
     xcrun stapler staple "${DMG_PATH}"
     xcrun stapler validate "${DMG_PATH}"
     spctl --assess --type open --context context:primary-signature --verbose=4 "${DMG_PATH}"

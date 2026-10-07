@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shlex
 from pathlib import Path
 import shutil
 import subprocess
@@ -202,6 +204,69 @@ else:
         uploaded = [item for item in map(json.loads, commands.read_text().splitlines()) if item[:3] == ["gh", "release", "create"]]
         self.assertEqual(len(uploaded), 1)
         self.assertEqual(set(uploaded[0][4:12]), {str(dist / name) for name in files} | {str(dist / (name + ".sha256")) for name in files})
+
+
+@unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")
+class NotaryCommandTests(unittest.TestCase):
+    def submit(self, options=(), environment=None, status=0):
+        script = (ROOT / "tools/release.sh").read_text()
+        # Execute the real option parser and submit helper, with no build,
+        # signing, Keychain access or network operation. Capture exact argv.
+        prefix, body = script.split('[[ "$(uname -s)" == "Darwin" ]]', 1)
+        prefix = "\n".join(
+            "ROOT_DIR=" + shlex.quote(str(ROOT)) if line.startswith("ROOT_DIR=") else line
+            for line in prefix.splitlines())
+        calls = [line.strip() for line in body.splitlines()
+                 if line.strip().startswith("notary_submit ")]
+        self.assertEqual(calls, ['notary_submit "${NOTARY_ZIP}"', 'notary_submit "${DMG_PATH}"'])
+        self.assertNotIn("xcrun notarytool submit", body)
+        harness = prefix + '\nxcrun() { printf \'%s\\0\' "$@"; return "$STUB_STATUS"; }\n'
+        harness += 'NOTARY_ZIP="/fixture with spaces/app notary.zip"\nDMG_PATH="/fixture with spaces/release.dmg"\n'
+        harness += "\n".join(calls) + "\n"
+        env = {key: value for key, value in os.environ.items()
+               if key not in ("APPLE_NOTARY_PROFILE", "APPLE_NOTARY_KEYCHAIN")}
+        env.update(environment or {})
+        env["STUB_STATUS"] = str(status)
+        result = subprocess.run(["bash", "-s", "--", *options], input=harness,
+                                env=env, text=True, capture_output=True)
+        return result, result.stdout.rstrip("\0").split("\0") if result.stdout else []
+
+    def expected(self, profile="BetterPullReview-notary", keychain=None):
+        commands = []
+        for artifact in ("/fixture with spaces/app notary.zip", "/fixture with spaces/release.dmg"):
+            commands += ["notarytool", "submit", artifact, "--keychain-profile", profile]
+            if keychain is not None:
+                commands += ["--keychain", keychain]
+            commands += ["--wait"]
+        return commands
+
+    def test_default_submissions_preserve_implicit_keychain(self):
+        result, argv = self.submit()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(argv, self.expected())
+
+    def test_environment_and_cli_preserve_paths_and_cli_precedence(self):
+        env = {"APPLE_NOTARY_PROFILE": "environment profile", "APPLE_NOTARY_KEYCHAIN": "/fixture keychains/env login.keychain-db"}
+        result, argv = self.submit(environment=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(argv, self.expected(env["APPLE_NOTARY_PROFILE"], env["APPLE_NOTARY_KEYCHAIN"]))
+        result, argv = self.submit(("--notary-profile", "chosen profile", "--notary-keychain", "/chosen keychain/login.keychain-db"), env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(argv, self.expected("chosen profile", "/chosen keychain/login.keychain-db"))
+
+    def test_missing_or_empty_keychain_argument_refuses_before_submission(self):
+        for options, message in ((["--notary-keychain"], "requires a value"),
+                                 (["--notary-keychain", ""], "requires a nonempty path")):
+            with self.subTest(options=options):
+                result, argv = self.submit(options)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+                self.assertEqual(argv, [])
+
+    def test_submission_failure_stops_the_workflow(self):
+        result, argv = self.submit(status=69)
+        self.assertEqual(result.returncode, 69)
+        self.assertEqual(argv, self.expected()[:6])
 
 
 if __name__ == "__main__":

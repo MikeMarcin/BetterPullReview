@@ -139,6 +139,13 @@ After that profile exists, `tools/release.sh --version X.Y.Z` performs the
 Apple submissions. `--skip-notarize` exists only for local package-path
 verification and does not produce a distribution-ready artifact.
 
+For a profile stored in a specific existing file Keychain, pass
+`--notary-profile NAME --notary-keychain /absolute/path/to/login.keychain-db`
+to `tools/release.sh`. `APPLE_NOTARY_KEYCHAIN` supplies the optional default.
+Both app and DMG submissions use that Keychain; omitting it keeps the ordinary
+Keychain lookup. Verify access with `xcrun notarytool history --keychain-profile
+NAME --keychain /absolute/path/to/login.keychain-db` before the release build.
+
 The Linux observations remain development build/runtime evidence, not a signed,
 bundled, or installable package claim. RFC-BPR-0014 still owns complete
 transitive dependency inventory, SBOM, other-platform signing and installers,
