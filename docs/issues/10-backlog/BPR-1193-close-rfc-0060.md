@@ -46,3 +46,25 @@ All owned acceptance criteria remain **Not run** at intake.
 | **RC60-08:** Existing provider/harness/account/host restrictions, explicit session selection and separate credentials remain in force. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
 | **RC60-09:** Late, failed, uncertain or removed-adapter deliveries preserve the cycle and never auto-resend, auto-fallback, auto-capture or auto-verify. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
 | **RC60-10:** Native installed-package, startup effects, IPC, attack corpus and removal evidence distinguish real qualification from fixtures/cross-compilation. | Focused production-path checks and applicable native or service course at closeout | Not run | None |
+
+## Owner answer (2026-10-06): amend
+
+RFC-BPR-0060's closure dependencies included RFC-BPR-0038, which is Proposed:
+its closeout [[BPR-0973]] waits on [[BPR-0958]] to [[BPR-0962]], each Blocked
+on an environment or input the owner has to supply. The coordinator put the
+question to the owner in chat: "RFC-0060 … depends on RFC-0038 … Amend its
+dependency and close on its own evidence?" The owner answered, verbatim:
+
+> Amend (Recommended)
+
+The answer came in chat. No attended candidate was prepared for it, and
+session `cbd48b91000b00f1e72e1ad62c7c384c` was not used.
+
+The amendment is recorded in RFC-BPR-0060's
+[owner amendment](../../rfcs/RFC-BPR-0060-removable-agent-adapters-and-capability-isolation.md#owner-amendment-2026-10-06-dependencies-are-what-this-rfc-uses)
+section and in the [RFC index](../../rfcs/README.md): RFC-BPR-0060 depends on
+the RFC-BPR-0014 packaging drivers it uses, all of them landed (the package
+graph [[BPR-0956]], the package audit [[BPR-0957]] and the macOS release path
+[[BPR-0908]]), not on the closure of RFC-BPR-0038. Its `depends_on` is now
+RFC-BPR-0053, 0056, 0057, 0058, 0011 and 0014, all Auto-Verified.
+RFC-BPR-0038 is not closed by the amendment.

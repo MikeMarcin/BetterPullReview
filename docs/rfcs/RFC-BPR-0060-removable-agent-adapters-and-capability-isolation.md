@@ -4,9 +4,9 @@ title: "Removable Agent Adapters and Capability Isolation"
 status: "Proposed"
 area: "BPR"
 milestone: "Review Cycles"
-depends_on: ["RFC-BPR-0053", "RFC-BPR-0056", "RFC-BPR-0057", "RFC-BPR-0058", "RFC-BPR-0011", "RFC-BPR-0014", "RFC-BPR-0038"]
+depends_on: ["RFC-BPR-0053", "RFC-BPR-0056", "RFC-BPR-0057", "RFC-BPR-0058", "RFC-BPR-0011", "RFC-BPR-0014"]
 pack_version: "review-cycles-v1"
-metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
+metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "owner_dependency_amendment": {"date": "2026-10-06", "removed_closure_dependencies": ["RFC-BPR-0038"], "uses": ["BPR-0908", "BPR-0956", "BPR-0957"], "card": "BPR-1193"}}
 ---
 
 # RFC-BPR-0060: Removable Agent Adapters and Capability Isolation
@@ -20,6 +20,48 @@ Inspect and split the current composition graph instead of merely hiding the AI 
 Apply source/export policy consistently across all channels; a CLI is not a covert corporate-policy workaround. Local same-user checks prevent accidental cross-target mistakes but do not sandbox a process with filesystem access. Imported reports, code and Markdown cannot grant authority or execute scripts. Bound IPC, archives and every parsed payload, and keep diagnostics free of review content by default.
 
 Qualify actual installed dependency closure, startup effects, native IPC and removal mid-cycle. Retain observed versus claimed model identity and delivered versus uncertain state. A missing direct adapter or unreachable external harness leaves ordinary human review functional; a forbidden disclosure remains forbidden rather than falling back to a new provider.
+
+## Owner amendment, 2026-10-06: dependencies are what this RFC uses
+
+As imported, this RFC listed RFC-BPR-0038 among its dependencies.
+RFC-BPR-0038 is Proposed: its closeout
+[BPR-0973](../issues/10-backlog/BPR-0973-close-rfc-0038.md) waits on BPR-0958
+to BPR-0962, each Blocked on an environment or input the owner has to supply.
+The owner was asked in chat whether to amend the dependency and close this RFC
+on its own evidence ("depends on RFC-0038 … Amend its dependency and close on
+its own evidence?"), and answered:
+
+> Amend (Recommended)
+
+RFC-BPR-0060 depends on the RFC-BPR-0014 packaging drivers it uses, all of
+them landed, not on RFC-BPR-0038's closure:
+
+- the package graph and its drivers, `packaging/package.py`,
+  `packaging/package_runtime.py`, `packaging/Install.cmake` and the per-platform
+  presets,
+  [BPR-0956](../issues/60-done/BPR-0956-compose-cross-platform-release-packages.md)
+  (Done), to which BPR-1179 added the agent-free and automation-off variants;
+- the package audit `scripts/verify_release_package.py`,
+  [BPR-0957](../issues/60-done/BPR-0957-verify-package-contracts-and-hostile-fixtures.md)
+  (Done), which BPR-1179 taught the omitted families;
+- the macOS release path `tools/release.sh`,
+  [BPR-0908](../issues/60-done/BPR-0908-prepare-a-private-notarized-macos-test-release.md)
+  (Done), which gained `--variant`.
+
+RFC-BPR-0014 is Auto-Verified and stays in `depends_on`. Nothing of
+RFC-BPR-0038 is used: its subject is release qualification (signing and
+notarization, vulnerability scans, clean declared baselines and permission to
+distribute), and no RC60 criterion claims any of it. RC60's packages are
+unsigned local candidates, and RC60-10 asks only that their evidence say what
+produced it.
+
+The front matter's `depends_on` keeps RFC-BPR-0053, 0056, 0057, 0058, 0011
+and 0014, and `owner_dependency_amendment` names the removed closure
+dependency and what is used instead. This amendment changes no RC60 criterion
+and does not close RFC-BPR-0038, which stays open on BPR-0973. The question
+and its answer are recorded on
+[BPR-1193](../issues/10-backlog/BPR-1193-close-rfc-0060.md) and in the
+[execution ledger](../verification/RFC-BPR-0053-0061.md).
 
 ## Normative contracts
 
