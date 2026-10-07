@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1303"
 title: "After a refresh in Review a newly chosen line draws no draft, so the label-authoring course stalls at its suggestion phase"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
