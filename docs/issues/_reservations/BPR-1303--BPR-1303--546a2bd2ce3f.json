@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1303"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "application_label_authoring_contract stalls at the suggestion phase on macOS",
+  "created": "2026-10-07T15:39:10.849610+00:00",
+  "base": "143b44d9d95b6892e93651070aaaf7a0afa262b2"
+}
