@@ -316,6 +316,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         review_bar_rect_in_window
         files_toggle_rect_in_title_row
         conversations_toggle_rect_in_title_row
+        hide_drawers_rect_in_title_row
         comparing_rect_in_bar
         previous_change_rect_in_bar
         next_change_rect_in_bar
@@ -374,6 +375,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 	foreach(control IN ITEMS
 		files_toggle_rect_in_title_row
 		conversations_toggle_rect_in_title_row
+		hide_drawers_rect_in_title_row
 		comparing_rect_in_bar
 		previous_change_rect_in_bar
 		next_change_rect_in_bar
@@ -387,7 +389,8 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 	endforeach()
 	# [[BPR-0646]] [[BPR-1129]]. The title row keeps the platform inset for the
 	# window controls and the Home button before the files toggle, and the
-	# comments toggle, the divider, account and settings at its right.
+	# comments toggle, Hide Drawers ([[BPR-1295]]), the divider, account and
+	# settings at its right. The edge bound starts after the last drawer control.
 	# [[BPR-1033]]. On Windows the caption buttons end the row after settings;
 	# their width comes off the right edge first, so the bound below stays the
 	# one for the divider, account and settings on every platform. The
@@ -396,10 +399,11 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		"${capture_facts}" window_controls_rect_in_title_row width)
 	math(EXPR left_edge_gap "${files_toggle_rect_in_title_row_x}")
 	math(EXPR right_edge_gap
-		"${title_row_rect_in_window_width} - ${conversations_toggle_rect_in_title_row_right} - ${window_controls_width}")
+		"${title_row_rect_in_window_width} - ${hide_drawers_rect_in_title_row_right} - ${window_controls_width}")
 	if(left_edge_gap GREATER 160
 			OR right_edge_gap GREATER 110
-			OR files_toggle_rect_in_title_row_right GREATER conversations_toggle_rect_in_title_row_x)
+			OR files_toggle_rect_in_title_row_right GREATER conversations_toggle_rect_in_title_row_x
+			OR conversations_toggle_rect_in_title_row_right GREATER hide_drawers_rect_in_title_row_x)
 		message(FATAL_ERROR
 			"UIforETW ${profile} title row order/edges drifted"
 		)

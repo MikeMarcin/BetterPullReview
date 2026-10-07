@@ -22616,8 +22616,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// inset, Home, repositories, files, the name, a spacer, the modality
 		// control, Home's Group, State headers and Filter (hidden outside
 		// Home), refresh, Home's discovery refresh (hidden outside Home),
-		// comments, a rule, account, settings. A hidden action is still one of
-		// the row's actions: the row pins order, not what is shown.
+		// comments, Hide Drawers ([[BPR-1295]]), a rule, account, settings.
+		// A hidden action is still one of the row's actions: the row pins order,
+		// not what is shown.
 		//
 		// [[BPR-0653]]. On Windows the title row carries two more actions: a
 		// compact menu control takes index 1, right after the inset, which
@@ -22638,7 +22639,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							   const qsizetype aIndex, const char* const aName) {
 			return widgetActionNamed(toolbarActions, aIndex + lead, aName);
 		};
-		const auto exactRowOrder = toolbarActions.size() == 16 + lead + trailing
+		const auto exactRowOrder = toolbarActions.size() == 17 + lead + trailing
 			&& widgetActionNamed(toolbarActions, 0, "workbenchStripInsetAction")
 	#if defined(_WIN32)
 			&& widgetActionNamed(toolbarActions, 1, "workbenchStripMenuAction")
@@ -22655,11 +22656,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& toolbarActions[at(10)] == window->github_refresh_action()
 			&& toolbarActions[at(11)] == window->queue_refresh_action()
 			&& toolbarActions[at(12)] == conversationsAction
-			&& named(13, "workbenchStripRightDividerAction")
-			&& toolbarActions[at(14)] == window->account_action()
-			&& toolbarActions[at(15)] == window->settings_action()
+			&& toolbarActions[at(13)] == window->toggle_drawers_action()
+			&& named(14, "workbenchStripRightDividerAction")
+			&& toolbarActions[at(15)] == window->account_action()
+			&& toolbarActions[at(16)] == window->settings_action()
 	#if defined(_WIN32)
-			&& named(16, "workbenchCaptionButtonsAction")
+			&& named(17, "workbenchCaptionButtonsAction")
 	#endif
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
@@ -22712,7 +22714,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// at its right.
 	#if defined(_WIN32)
 		const auto windowControlsInRow = exactRowOrder
-			? toolbar->actionGeometry(toolbarActions[at(16)])
+			? toolbar->actionGeometry(toolbarActions[at(17)])
 			: QRect{ };
 	#else
 		const auto windowControlsInRow = QRect{ };
@@ -23045,6 +23047,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			rectangle_json(requiredPresenters[0]->geometry()),
 			"conversations_toggle_rect_in_title_row",
 			rectangle_json(requiredPresenters[5]->geometry()),
+			"hide_drawers_rect_in_title_row",
+			rectangle_json(toolbar->actionGeometry(window->toggle_drawers_action())),
 			"window_controls_rect_in_title_row",
 			rectangle_json(windowControlsInRow),
 			"comparing_rect_in_bar",
