@@ -89,3 +89,51 @@ release workflow verifies the combined committed source.
 
 M8/M9 native, vault, crash/privacy and vulnerability gaps remain open as stated
 in the release notes. This prerelease supplies no successor RFC closeout.
+
+The combined `52d5a4866` gate completed 628 courses with six failures and the
+configured Debug cache-bytes skip. Four failures were the unchanged 100 ms
+large-review input bound; the native empty-menu course compared the Home bar's
+visible subset against the resident bar's complete View commands; the rate
+course declared recovery quiet before the re-presented tab completed.
+
+The native test now derives the resident View order from every declared window
+command, including Hide Drawers hidden on Home, and still compares the other
+native menus, Preferences merging, disabled commands, close gap and reopen.
+Its focused course passes (7.25 seconds); native owner qualification stays parked.
+
+The rate course includes queued tab presentation in its existing readiness wait.
+That exposed the actual same-head reading regression: tab restoration cleared
+and reloaded the retained diff under the new file snapshot. The bounded kept-tab
+path now retains presentation while the actor resolves the new request, then
+requires the complete published material key unchanged. Application session,
+PR authority, comparison, options, algorithm and file entry are checked;
+changed material keeps the ordinary clear/reload. Tab readiness requires the
+current workbench generation and exact published request, and kept publication
+queues its driver. An already exact selection is not revealed a second time,
+so a viewport scrolled independently of that line stays put. Finishing or
+abandoning the tab clears the revalidation marker. This changes no provider,
+credential, target, grant, mutation, storage or source-identity admission path.
+The old path failed the stronger course (scroll 33333 to 384); premature
+completion lost selection, and omitting driver notification failed readiness.
+The corrected complete course passes (22.01 seconds), including three wire
+refusals, cooldowns, explicit recovery and sibling cancellation with exact
+comparison, line 100 and scroll retained. Exact assertions and budgets remain.
+
+Profiling the benchmark's own process showed hidden conversation-card text
+measurement during Overview publication. Card data, counts and accessibility
+stay synchronous; a hidden drawer under an already visible window measures
+when shown. Standalone/pre-show geometry keeps its synchronous contract.
+No card wording, styling or layout algorithm changes. The initial general
+hidden deferral failed the excerpt/font unit course and was narrowed accordingly.
+The card and panel courses now pass (1.18 and 0.72 seconds), responsiveness and
+launch pass at unchanged budgets (9.04 and 7.82 seconds); active/pathological
+courses also pass (5.53 and 3.07 seconds). The picker experiment was removed.
+The complete diff-workbench course passes at all three scales (2.57–2.85 seconds).
+
+Reviewed the complete source delta from `52d5a4866` for these gate repairs.
+Only `github_application.cpp` and its tests-only fixture evidence header affect
+the pinned production app manifest. The ordinary mutation branch is unchanged.
+The retained presentation cannot admit publication: the existing generation,
+selected-file and epoch-context checks still precede the accepted actor result,
+and its full material key must match before the retained view is adopted.
+This is engineering self-review of the release slice, not native owner approval.

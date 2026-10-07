@@ -420,6 +420,7 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 		void paintEvent(QPaintEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
+		void showEvent(QShowEvent* aEvent) override;
 		void mousePressEvent(QMouseEvent* aEvent) override;
 		void mouseMoveEvent(QMouseEvent* aEvent) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
@@ -460,6 +461,8 @@ namespace bpr::qt {
 		void               place_open_card();
 		void               sync_edges();
 		void               rebuild_open_card();
+		void               measure_cards();
+		bool               GeometryPending = false;
 		void               choose(std::size_t aCard, bool aOpen);
 		void               set_hovered(const std::string& aId);
 		void               notify_marks();

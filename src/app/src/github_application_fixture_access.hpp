@@ -985,6 +985,7 @@ namespace bpr::app::detail {
 		std::size_t   FixtureDiffHelperInvocations = 0U;
 		bool          Pending                      = false;
 		bool          NavigationReady              = false;
+		bool          TabPresentationPending       = false;
 		bool          Quiescent                    = false;
 	};
 

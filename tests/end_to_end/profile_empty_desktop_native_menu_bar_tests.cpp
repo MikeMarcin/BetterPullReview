@@ -11,6 +11,7 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QLabel>
+#include <QMenu>
 #include <QMenuBar>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
@@ -378,6 +379,27 @@ try {
 	expect(native::main_menu_offers("Profiles", "New Window") && native::main_menu_offers("View", "Line numbers"),
 		   "and it carries the workbench menus");
 	const auto windowed = snapshot_menu_bar();
+	// [[BPR-1305]]. Home hides Hide Drawers in the window's native menu;
+	// the resident bar offers every window command, disabled. Bind its exact
+	// order to the declared View menu, including commands hidden on Home.
+	auto expectedResident = windowed;
+	expectedResident.ViewItems.clear();
+	for (auto* action : initial->window().view_menu()->actions()) {
+		if (!action->isSeparator() && action->menuRole() != QAction::PreferencesRole) {
+			expectedResident.ViewItems.push_back(action->text().remove(QLatin1Char{ '&' }).toStdString());
+		}
+	}
+	const auto viewBegin = expectedResident.Description.find("|View[");
+	const auto viewEnd   = expectedResident.Description.find(']', viewBegin);
+	expect(viewBegin != std::string::npos && viewEnd != std::string::npos, "the native description contains View");
+	auto viewCommands = std::string{ };
+	for (const auto& command : expectedResident.ViewItems) {
+		if (!viewCommands.empty()) {
+			viewCommands += ';';
+		}
+		viewCommands += command;
+	}
+	expectedResident.Description.replace(viewBegin + 6U, viewEnd - viewBegin - 6U, viewCommands);
 	check_update_menu();
 	initial->window().activateWindow();
 	focus(initial->window(), "focus returns after the update dialog");
@@ -447,9 +469,11 @@ try {
 	expect(resident.Titles == windowed.Titles, "closing the last window takes no menu off the bar");
 	expect(resident.ApplicationItems == windowed.ApplicationItems,
 		   "and no item out of the application menu, the merged Preferences item included");
-	expect(resident.ViewItems == windowed.ViewItems, "View and its commands are still offered with no window open");
+	expect(resident.ViewItems == expectedResident.ViewItems, "every declared View command is offered in order with no window open");
 	expect(!native::main_menu_item_is_enabled("View", "Line numbers")
 			   && !native::main_menu_item_is_enabled("View", "One pane")
+			   && !native::main_menu_item_is_enabled("View", "Hide Drawers")
+			   && !native::main_menu_item_is_enabled("View", "Conversations")
 			   && !native::main_menu_item_is_enabled("View", "Updates Line")
 			   && !native::main_menu_item_is_enabled("View", "Next Tab")
 			   && !native::main_menu_item_is_enabled("View", "Previous Tab")
@@ -457,8 +481,8 @@ try {
 			   && !native::main_menu_item_is_enabled("Pull Request", "Compose review")
 			   && !native::main_menu_item_is_enabled("Pull Request", "Comment"),
 		   "offered and not actionable, because no window's presentation is theirs to change");
-	expect(resident.Description == windowed.Description,
-		   "the bar a reviewer reads is the same bar before and after the last close");
+	expect(resident.Description == expectedResident.Description,
+		   "the windowless bar retains the full workbench command set");
 	expect(closing.LongestGapMs == 0 && !closing.GapOpen,
 		   "at no moment during the close was the menu bar left without its Profiles menu");
 

@@ -142,12 +142,19 @@ try {
 	const auto scroll     = surface->shared_scrollbar()->value();
 	expect(selected.has_value() && scroll > 0, "nontrivial semantic selection and scroll captured");
 	const auto exactReading = [&] {
-		return surface->current_result() && surface->current_result()->Alignment.Key == comparison
+		const auto exact = surface->current_result() && surface->current_result()->Alignment.Key == comparison
 			&& surface->selection() == selected && surface->shared_scrollbar()->value() == scroll;
+		if (!exact) {
+			std::cerr << "reading-mismatch:comparison=" << (surface->current_result() && surface->current_result()->Alignment.Key == comparison)
+					  << " selection=" << (surface->selection() == selected)
+					  << " selected-line=" << (surface->selection() ? surface->selection()->PreferredLine.Line : 0U)
+					  << " scroll=" << surface->shared_scrollbar()->value() << " expected-scroll=" << scroll << '\n';
+		}
+		return exact;
 	};
 	const auto readingQuiet = [&] {
 		const auto work = app::detail::github_application_fixture_access::diff_work_evidence(*owner);
-		return work.NavigationReady && work.WorkbenchOutstandingRequests == 0U && work.EpochOutstandingJobs == 0U && work.OutstandingJobs == 0U;
+		return work.NavigationReady && !work.TabPresentationPending && work.WorkbenchOutstandingRequests == 0U && work.EpochOutstandingJobs == 0U && work.OutstandingJobs == 0U;
 	};
 	const auto firstContext = owner->windows().front();
 	auto       backoffHeld  = true;

@@ -6126,7 +6126,8 @@ namespace bpr::app {
 		bool                                            TabFailed        = false;
 		/// \brief [[BPR-1303]]. The last accepted handoff kept the selected
 		/// diff, so Review owes the active tab's view once its files return.
-		bool RefreshKeptTabView = false;
+		bool RefreshKeptTabView      = false;
+		bool RevalidatingKeptTabView = false;
 		/// \brief Whether the modality shows a tab (Review) or the window's
 		/// comparison (Overview and Discuss, which have no tab).
 		[[nodiscard]] static auto tab_modality(const core::workbench_modality aModality) noexcept -> bool
@@ -6166,6 +6167,7 @@ namespace bpr::app {
 		{
 			const auto request = std::exchange(TabLoad, std::nullopt);
 			TabDriver.reset();
+			RevalidatingKeptTabView = false;
 			if (!request || TabHost == nullptr) {
 				return;
 			}
@@ -6178,6 +6180,7 @@ namespace bpr::app {
 		{
 			TabDriver.reset();
 			TabLoad.reset();
+			RevalidatingKeptTabView = false;
 		}
 		void schedule_tab_presentation()
 		{
@@ -6237,7 +6240,10 @@ namespace bpr::app {
 			const auto& position    = TabDriver->position();
 			const auto* surface     = Window->comparison_surface();
 			const auto& publication = SelectedDiffPublication;
-			const auto  diffReady   = publication && position.File == publication->Request.File.File
+			const auto  diffReady   = publication
+				&& publication->Request.Context.Generation == WorkbenchHost->generation()
+				&& SelectedDiffRequest == std::optional{ publication->Request }
+				&& position.File == publication->Request.File.File
 				&& publication->Request.Diff.Comparison == position.Comparison && surface->current_result()
 				&& surface->current_context() && surface->current_context()->Key == publication->Key;
 			const auto action = TabDriver->advance(EpochHost->state(), { .FilesReady = WorkbenchHost->state().Navigation.has_value(), .FileAvailable = position.File && WorkbenchHost->contains_file(*position.File), .Failed = TabFailed, .DiffReady = diffReady, .SemanticIndex = diffReady ? surface->current_semantic_index().get() : nullptr });
@@ -6265,7 +6271,11 @@ namespace bpr::app {
 				schedule_tab_presentation();
 				break;
 			case core::window_reading_restore_action::select_location:
-				finish_tab_load(Window->comparison_surface()->restore_selection(*position.Selection)
+				// [[BPR-1305]]. A same-head refresh can retain this exact
+				// selection. Revealing it again would move a viewport the
+				// reviewer scrolled independently of the selected line.
+				finish_tab_load(Window->comparison_surface()->selection() == position.Selection
+										|| Window->comparison_surface()->restore_selection(*position.Selection)
 									? core::document_tab_view_outcome::ready
 									: core::document_tab_view_outcome::unavailable);
 				break;
@@ -6342,7 +6352,8 @@ namespace bpr::app {
 				|| !WorkbenchHost->contains_file(*active->View.File)) {
 				return false;
 			}
-			RefreshKeptTabView = false;
+			RefreshKeptTabView      = false;
+			RevalidatingKeptTabView = true;
 			TabHost->refresh();
 			return true;
 		}
@@ -14554,6 +14565,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& surface->current_context()->Key == SelectedDiffPublication->Key;
 		}
 
+		/// \brief [[BPR-1305]]. Re-observe a kept tab under the new file
+		/// snapshot without clearing its reading while the actor resolves it.
+		/// The accepted same-head handoff and tab restoration bound this path;
+		/// publication still has to prove the complete material key unchanged.
+		[[nodiscard]] auto revalidates_kept_tab(const application::workbench_selected_diff_request& aRequest) const -> bool
+		{
+			return RevalidatingKeptTabView && TabLoad && SelectedDiffPublication
+				&& SelectedDiffPublication->Request.Diff.ApplicationSession == aRequest.Diff.ApplicationSession
+				&& SelectedDiffPublication->Request.Diff.Authority == aRequest.Diff.Authority
+				&& SelectedDiffPublication->Request.Diff.Comparison == aRequest.Diff.Comparison
+				&& SelectedDiffPublication->Request.Diff.OptionsDigest == aRequest.Diff.OptionsDigest
+				&& SelectedDiffPublication->Request.Diff.Algorithm == aRequest.Diff.Algorithm
+				&& SelectedDiffPublication->Request.File == aRequest.File
+				&& Window->comparison_surface()->current_result()
+				&& Window->comparison_surface()->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+		}
+
 		void begin(
 			const application::workbench_selected_diff_request& aRequest) override
 		{
@@ -14567,7 +14595,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// the draft they are writing and any publish in flight stay: clearing
 			// here dropped the draft, and the diff presented afresh put the
 			// selection on its first change instead.
-			if (shows_selected_diff(aRequest)) {
+			if (shows_selected_diff(aRequest) || revalidates_kept_tab(aRequest)) {
 				SelectedDiffRequest = aRequest;
 #if defined(BPR_BUILD_TESTING)
 				++SelectedDiffBegins;
@@ -14602,13 +14630,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// its new request without presenting it again. Different bytes under
 			// a kept request are a new diff: the selection goes, as it would have.
 			if (SelectedDiffPublication.has_value() && SelectedDiffRequest == std::optional{ aPublication.Request }
-				&& application::same_selected_diff(SelectedDiffPublication->Request, aPublication.Request)) {
+				&& (application::same_selected_diff(SelectedDiffPublication->Request, aPublication.Request)
+					|| revalidates_kept_tab(aPublication.Request))) {
 				if (SelectedDiffPublication->Key == aPublication.Key) {
 					SelectedDiffPublication = aPublication;
 #if defined(BPR_BUILD_TESTING)
 					++SelectedDiffPublications;
 					LastSelectedDiff = aPublication;
 #endif
+					schedule_tab_presentation();
 					return;
 				}
 				const auto request = aPublication.Request;
@@ -17965,6 +17995,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.FixtureDiffHelperInvocations = implementation.FixtureDiffHelperInvocations,
 			.Pending                      = host.state().Pending.has_value(),
 			.NavigationReady              = implementation.WorkbenchHost->state().Navigation.has_value(),
+			.TabPresentationPending       = implementation.TabAdvanceQueued || implementation.TabLoad.has_value() || implementation.RefreshKeptTabView,
 			.Quiescent                    = host.is_quiescent(),
 		};
 	}
@@ -17987,6 +18018,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.FixtureDiffHelperInvocations = implementation.FixtureDiffHelperInvocations,
 			.Pending                      = host.state().Pending.has_value(),
 			.NavigationReady              = implementation.WorkbenchHost->state().Navigation.has_value(),
+			.TabPresentationPending       = implementation.TabAdvanceQueued || implementation.TabLoad.has_value() || implementation.RefreshKeptTabView,
 			.Quiescent                    = host.is_quiescent(),
 		};
 	}

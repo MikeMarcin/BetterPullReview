@@ -31,6 +31,7 @@
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QShowEvent>
 #include <QTextEdit>
 #include <QTextLayout>
 #include <QTimer>
@@ -1378,13 +1379,13 @@ namespace bpr::qt {
 		if (!Hovered.empty() && !card_index(Hovered).has_value()) {
 			Hovered.clear();
 		}
-		const auto width = std::max(120, viewport()->width()) - 2 * note_margin;
-		for (auto& card : Cards) {
-			card.Rect = QRect{ note_margin, 0, width, 0 };
-			measure_closed(card, width);
+		// [[BPR-1305]]. Keep cards and their counts current while hidden,
+		// but measure their text only when the drawer can present them.
+		// Overview's initial snapshot otherwise measures every PR thread.
+		GeometryPending = true;
+		if (isVisible() || !window()->isVisible()) {
+			measure_cards();
 		}
-		rebuild_open_card();
-		place_cards(true);
 		if (LayoutObserver) {
 			LayoutObserver();
 		}
@@ -1394,6 +1395,27 @@ namespace bpr::qt {
 									 .arg(post_count())
 									 .arg(unread_post_count()));
 		notify_marks();
+	}
+
+	void conversation_cards_view::measure_cards()
+	{
+		GeometryPending  = false;
+		const auto width = std::max(120, viewport()->width()) - 2 * note_margin;
+		for (auto& card : Cards) {
+			card.Rect = QRect{ note_margin, 0, width, 0 };
+			measure_closed(card, width);
+		}
+		rebuild_open_card();
+		place_cards(true);
+	}
+
+	void conversation_cards_view::showEvent(QShowEvent* const aEvent)
+	{
+		QAbstractScrollArea::showEvent(aEvent);
+		if (GeometryPending) {
+			measure_cards();
+			notify_marks();
+		}
 	}
 
 	void conversation_cards_view::rebuild_open_card()
