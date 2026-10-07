@@ -202,14 +202,59 @@ that platform and what has actually been observed ([[BPR-1068]] and the
 | `tests-off` install runs with no display | Observed (BPR-1054) | Observed: Ubuntu 26.04 under WSL2, private Qt, `ldd` has no GUI library | Not run |
 | Release package | None | None; `package.py` also refuses Ubuntu 26.04 | None |
 | First run creates the private default profile | Fixture courses | Observed from the install on a fresh root | Fixture courses |
-| Native device sign-in | Composed (Keychain); not run live | Composed (Secret Service, checked first); flow starts, completion not run | Composed (Credential Manager); not run live |
-| `--transport gh` | Explicit opt-in | `transport_unavailable` | `transport_unavailable` |
-| Online `open`, refresh, publish, recover | Blocked by [[BPR-1302]] | Blocked by [[BPR-1302]] (observed hang) | Blocked by [[BPR-1302]] |
+| Native device sign-in | Composed (Keychain); not run live | Composed (Secret Service, checked first); completion, stored grant and restore pass against the loopback course ([[BPR-1302]]); live completion not run | Composed (Credential Manager); not run live |
+| `--transport gh` | Explicit opt-in; loopback course gh rows owed | `transport_unavailable` | `transport_unavailable` |
+| Online `open`, refresh, publish, recover | Fixed by [[BPR-1302]]; never-signed-in `open` row owed | Loopback course passes; live not run | Fixed by [[BPR-1302]]; never-signed-in `open` row owed |
 | Local draft commands, editor, owner channel | Courses pass | Courses pass | Courses pass (BPR-1227) |
 
-[[BPR-1302]]: the live remote reader waits on a shutdown-only predicate, so an
-online `open` or a gh `connect` does not return until interrupted. No platform
-has an observed live sign-in, read or publication.
+Before [[BPR-1302]] the live remote reader waited on a shutdown-only
+predicate, so an online `open`, a gh `connect` and the end of a native sign-in
+did not return until interrupted, and a completed native sign-in was not
+stored for the next command. No platform has an observed live sign-in, read or
+publication; live publication stays behind the unqualified host/transport gate
+above.
+
+## Loopback provider course
+
+`tour_cli_loopback_provider` (`tests/scripts/tour_cli_loopback_tests.py`,
+[[BPR-1302]]) runs the built `bpr` through the real remote reader, provider
+and native transport, with no fixture reader. A tests-enabled `bpr` reads
+`BPR_GITHUB_NATIVE_HTTPS_TEST_LOOPBACK=PORT:ABSOLUTE-PEM-PATH` and sends every
+native exchange through that one 127.0.0.1 CONNECT proxy, trusting that one
+disposable authority beside the system roots: the GitHub adapter's existing
+test seam. A tests-disabled build has neither the variable nor the seam. An
+invalid value refuses `transport_unavailable`; it never falls back to the
+network.
+
+Behind the proxy the course answers as github.com and api.github.com: the
+device flow, `/user`, the nine capability parts and the github-com contract
+fixture's pull request read, and Git's smart HTTP protocol v2 from a real
+`git upload-pack` over the cli-read-v1 objects. On Linux the vault is a
+private Secret Service (a private bus and a test-only keyring, as the
+`linux_secret_service_*` rows use) and the course runs, each as one `bpr`
+process under a 30-second bound: a never-signed-in `open` (exit 5
+`authentication_required`, no request), `connect --transport native` on a
+pseudo-terminal through the fake device flow, the online `open`, the first
+pinned-source read (`add`, which fetches the pinned commits), `show --source`,
+`preview --refresh`, `publish` on a pseudo-terminal (a complete draft is read
+and refused at the unqualified gate, exit 5, with no write reaching the
+fake), and `recover`. A step that does not return is interrupted and reported
+as `timeout` with the requests the fake saw; the course goes on to the next
+step. Elsewhere only the never-signed-in `open` runs, because the native vault
+there is the user's own. On macOS, outside ctest, `--gh` adds `connect` and
+`open` over `--transport gh` with the fake `gh` from
+`tests/end_to_end/rfc0015_cli_read_fixture.py` on a temporary `PATH`; inside
+ctest gh's own `sandbox-exec` cannot start, so those rows report `not-run`.
+`--seed-binary` lets a second build prepare the profile for the
+failing-before controls.
+
+`connect --transport native` now ends only when the renewal material is stored
+under the account `/user` named and the profile's binding is remembered, as
+the desktop binds it, and refuses `vault_unavailable` if GitHub authorized a
+sign-in that could not be stored. The CLI composes no renewal, so once the
+access lifetime has passed the host's restore rule fails the held session at
+once and `open` answers `authentication_required` until `connect` runs again
+(read from the host; the course does not exercise expiry).
 
 ## Fresh profile reconstruction
 
