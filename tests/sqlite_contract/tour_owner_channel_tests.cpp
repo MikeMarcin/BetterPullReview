@@ -295,10 +295,17 @@ namespace {
 		bytes[0] = static_cast<std::uint8_t>(static_cast<std::uint8_t>(tour_owner_operation::source) + 1U);
 		expect(!decode_tour_request(bytes), "no operation after source decodes");
 
-		const core::file_comparison_digest digest{ std::array<std::uint8_t, 32>{ 7U } };
-		application::tour_owner_response   answer;
-		answer.Source       = application::review_tour_source_material{ { { digest, core::diff_side::left, 2U }, { digest, core::diff_side::left, 4U }, *commit, *blob, "src/\xce\xb1.cpp" }, "one\ntwo\nthree\n" };
-		const auto answered = decode_tour_response(encode_tour_response(answer));
+		const core::file_comparison_digest       digest{ std::array<std::uint8_t, 32>{ 7U } };
+		application::tour_owner_response         answer;
+		application::review_tour_source_material material;
+		material.Source.First  = { digest, core::diff_side::left, 2U };
+		material.Source.Last   = { digest, core::diff_side::left, 4U };
+		material.Source.Commit = *commit;
+		material.Source.Blob   = *blob;
+		material.Source.Path   = "src/\xce\xb1.cpp";
+		material.Text          = "one\ntwo\nthree\n";
+		answer.Source          = std::move(material);
+		const auto answered    = decode_tour_response(encode_tour_response(answer));
 		expect(answered && answered->Source && answered->Source->Source == answer.Source->Source && answered->Source->Text == answer.Source->Text && answered->Error.empty(), "source material round-trips");
 		auto broken         = answer;
 		broken.Source->Text = "\xff";

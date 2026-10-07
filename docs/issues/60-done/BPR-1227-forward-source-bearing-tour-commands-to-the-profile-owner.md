@@ -175,3 +175,15 @@ skill package rows, both handoff courses, cycle security qualification, cycle
 CLI public path and documentation, the round-trip contract, the settings window
 and workbench settings rows, workbench settings storage, the feedback label rows
 and architecture_boundaries.
+
+## GCC 15 optimized build fix (bpr-main-linux, 2026-10-06)
+
+At `-O3 -Werror` (`app-release` with `BUILD_TESTING=ON`), GCC 15.2.0 refused
+`tests/sqlite_contract/tour_owner_channel_tests.cpp` with `maybe-uninitialized`
+on `tour_source_range::Path`. The cause was the source-material round trip's
+nested designated temporary with a defaulted `std::string`, the pattern
+`tests/AGENTS.md` warns against. The test now builds a named
+`review_tour_source_material` member by member and moves it in. The asserted
+values are unchanged. On top of `09334cf71`, the whole optimized tests-on tree
+builds without `-k 0`, and `sqlite_tour_owner_channel` passes in it and in
+`build/dev`. Test-only; no product file changed.
