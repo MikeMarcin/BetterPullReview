@@ -290,3 +290,27 @@ Criterion status:
   in a session with an unlocked keyring.
 
 The card stays In Progress for these.
+
+## Owner sign-in observed on Linux (2026-10-07)
+
+The owner ran `bash /home/mmarcin/bpr-owner-signin/run-signin.sh` at
+2026-10-07T15:17:36Z, in a visible WSL terminal on the Linux station. The setup:
+- Ubuntu 26.04 LTS, WSL2 kernel 6.18.33.2.
+- The frozen tests-off `bpr` from `399aade8e`, which contains BPR-1302's
+  `af4fa4fd8`.
+- A private session bus and a fresh gnome-keyring Secret Service.
+
+Results, read from `result.txt`, which was scanned first: no token, device
+code or credential in it, and nothing from it is committed beyond what follows.
+- Keyring ready; `capabilities` exit 0.
+- `bpr tour connect --host github.com --transport native`: the owner entered
+  the device code at `github.com/login/device`; exit 0.
+- `bpr tour open https://github.com/MikeMarcin/BPR-Test/pull/1 --json` in a
+  following process: exit 0 after 14 s, `status: ok`, `complete: true`, account
+  `7605339`, repository `MikeMarcin/BPR-Test`, pull request 1, profile 1, draft
+  revision 1, `remote_stale: false`. The stored sign-in was kept across
+  processes and the online read completed.
+- Cleanup ran. The script recorded the temporary keyring, profile and stored
+  grant as deleted, and no session folder remains under the root. The user's
+  own login keyring holds no items, so nothing was stored there.
+- No GitHub write was made.
