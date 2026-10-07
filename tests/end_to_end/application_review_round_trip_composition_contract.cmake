@@ -925,6 +925,19 @@ endfunction()
 # read from its narrative (card_post::Lead) with the label as its header. No
 # provider, grant, target, credential, storage, mutation or publication path
 # changes; mutation pin unchanged; no new src/app source. Reviewed on BPR-1086.
+# BPR-1305 prerelease-gate reseal (2026-10-07): efa26ca02..b81a1075c.
+# 29a55ef70 is the only changed pinned-scope commit. Reviewed its complete
+# diff: tests-on UIforETW capture now asserts BPR-1295's accepted Hide Drawers
+# action, shifts the following exact indices, captures that action's rectangle,
+# and retains the edge bound after the last drawer control. No production
+# behavior, grant, target, provider, credential, mutation or publication change;
+# da862cf32 also changes only the tests-on label probe: reopen the file through
+# the drawer after refresh, await its current comparison, and wait for private
+# draft/refresh transitions before the next exact body/anchor publication. The
+# original exact wire, refusal and mark assertions remain. No production host,
+# grant, provider or target changes. The native menu repair 69a2c001c is outside
+# the pinned app inventory; BPR-1304 remains parked for owner native evidence.
+# mutation pin unchanged; no new src/app source. Review/evidence: BPR-1305.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -943,7 +956,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4b06a0938f970174a2ecc24f7e24a6c3635720c1590c9b78cfea0d4d6c3f8c69"
+		"6d379895fd6da36c1310164d5edd0fac8aefb17ed39de59e0c0a8a34901bb2d0"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1141,7 +1154,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "84510e47f0206fe6262b82b93bf98b1c22a7e9980abe013250bd662bfb9865ff"
+        "5b26aa6f70cd5a137536a3851d1c7374d9375ecad0a31c0c511614efe3003ad1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

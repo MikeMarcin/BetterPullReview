@@ -29,12 +29,26 @@ The exact-order check includes all 17 actions and platform offsets; the same
 110-pixel right-edge bound starts after the last drawer control. The focused
 course passes all appearance profiles (18.77 seconds). Formatting passes.
 
-Reviewed pinned-source range `efa26ca02..29a55ef70`: only `29a55ef70` changes
+Reviewed pinned-source range `efa26ca02..b81a1075c`: `29a55ef70` and
+`da862cf32` change
 the pinned application source. Its full diff touches tests-on capture facts,
 indices, comments and geometry observations. No production effect, target,
 provider, credential, grant, publication or storage behavior changes; the
 mutation branch digest stays `e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
-The reviewed full-application and source-manifest pins are resealed accordingly.
+`da862cf32` changes only the tests-on label course: reopen the fixture file
+through the files drawer after refresh, wait for its current comparison, and
+await completed draft and refresh transitions before triggering publication.
+The exact body, anchor, native-attempt count, refusal, text retention and mark
+assertions remain. The complete label course passes in 4.84 seconds. No
+production behavior or mutation branch changes. The reviewed full-application
+and source-manifest pins are resealed accordingly.
+
+Integrated BPR-1304's committed menu repair (local `69a2c001c`, upstream
+`3ef2ce429`) and its stronger comparisons. The parked card retains the owner's
+native-session evidence requirement; the release gate is not owner UX approval.
+Merged upstream through `f750aec6b`, preserving its Windows isolation metadata.
+The duplicate ready-card copy from the cherry-pick is removed in favor of the
+upstream parked card; the issue counter retains the allocated BPR-1305 receipt.
 
 The first capsule course saw an unmounted residual disk device; its ordinary
 cleanup removed it, and the unchanged focused course passed in 73.73 seconds.
