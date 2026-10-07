@@ -24900,6 +24900,29 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				QCoreApplication::processEvents();
 				return result::pending;
 			}
+			// [[BPR-1305]]. Refresh returns to an unselected file. Reopen it
+			// through the files drawer before selecting the next draft's line.
+			if (implementation->WorkbenchHost->selected() != std::optional{ core::file_identity_of(path) }) {
+				auto* const view = window->files_drawer()->contents_view();
+				const auto  row  = drawer_row(*window, path);
+				if (view == nullptr || !row.isValid()) {
+					return result::pending;
+				}
+				view->setCurrentIndex(QModelIndex{ });
+				view->setCurrentIndex(row);
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			// Its current comparison must answer before the line is selected.
+			const auto& publication = implementation->SelectedDiffPublication;
+			const auto& comparison  = window->comparison_surface()->current_result();
+			if (!publication || !comparison || comparison->Alignment.Key != publication->Key
+				|| implementation->WorkbenchHost->generation() != publication->Request.Context.Generation
+				|| implementation->WorkbenchHost->selected() != std::optional{ publication->Request.File.File }
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				note("awaiting-current-comparison");
+				return result::pending;
+			}
 			// Chosen once and then kept selected: choosing again each tick
 			// would move the selection away and back before its draft arrives.
 			if (!probe.Line) {
@@ -24938,7 +24961,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto rootBody = [&](const QString& aBody, const std::string_view aMark, bool& aEvidence, const char* const aRender, const state_type::phase aNext) -> result {
 			const auto& draft = implementation->ReviewDraft;
 			note("draft=" + (draft ? draft->Body : std::string{ "-" }) + " publish=" + std::to_string(editor->publish_action()->isEnabled() ? 1 : 0) + " mark=" + markState());
-			if (!draft || draft->Body != aBody.toStdString() || !editor->publish_action()->isEnabled() || text() != aBody) {
+			if (!draft || draft->Body != aBody.toStdString() || !editor->publish_action()->isEnabled() || text() != aBody
+				|| implementation->PrivateDraftCommandPending || implementation->PrivateDraftSelectionPending
+				|| !window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready.") {
 				return result::pending;
 			}
 			aEvidence = markState() == aMark && probe.Anchor && draft->Anchor == *probe.Anchor;
@@ -24958,7 +24983,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0) + " native=" + std::to_string(mutations.NativePosts)
 				 + " lastLine=" + std::to_string(mutations.LastLine.value_or(0U)) + " anchor=" + std::to_string(probe.Anchor ? probe.Anchor->Line : 0U)
 				 + " side=" + mutations.LastSide + " card=" + std::to_string(found != cards->cards().end() ? 1 : 0) + " status=" + editor->mutation_status_label()->text().toStdString());
-			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || found == cards->cards().end()) {
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || found == cards->cards().end()
+				|| !window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
 				return result::pending;
 			}
 			const auto bytes = aBody.toStdString();
