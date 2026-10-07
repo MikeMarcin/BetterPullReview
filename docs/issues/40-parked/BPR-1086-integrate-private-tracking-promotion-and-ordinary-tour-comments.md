@@ -131,3 +131,52 @@ defect application rows, application_label_authoring_contract,
 qt_feedback_label_threads, qt_conversation_cards_view,
 application_writing_delivery, the round-trip contract and
 architecture_boundaries.
+
+## Owner look preparation, macOS (2026-10-07)
+
+On macOS arm64 Debug over `c01e04974`, with the frontend-design skill
+loaded, a labelled stop in the running application showed two faults. A
+stop opens with its pinned source and generated heading, so:
+
+- **Closed**, its note read from the first byte: the permalink stood beside
+  the mark, and the label did not show at all.
+- **Open**, the mark sat under the avatar beside the permalink, three lines
+  above the label it names, and the label was not set as a header the way an
+  ordinary post's is.
+
+Small fixes, all in Qt:
+
+- `card_post::Lead`. A published stop's closed note reads from its
+  narrative's first word, so its label is the semibold header beside the
+  mark, exactly like an ordinary labelled note. Conversations' first words
+  read the same way. Any other post has a lead of zero.
+- The open thread places a labelled stop's mark beside its narrative's label
+  line, in the rendered body and in View source. Every other post keeps its
+  mark under the avatar.
+- In place, the narrative's label is set as the header (secondary ink,
+  semibold), as an ordinary post's first words are.
+
+Seen in the application, dark and then light (Settings > Appearance >
+Light), closed, open, and open with View source: the mark is level with
+"issue (blocking):" in each. `--attended-tour-stop` (tests-on, with
+`--attended-open-file` on conventional-comments-v1) stages renderer.cpp's
+line 12 thread as such a stop before the first read, for the owner's look.
+The production manifest and full-application pins are resealed over the
+BPR-1293 pins; the mutation pin is unchanged.
+
+Rows at the candidate, macOS: 26 of 27 pass (`core_feedback_*`,
+`core_review_preflight`, `core_defect_workflow`, the defect application rows,
+`application_writing_delivery`, `application_feedback_counters`,
+`qt_feedback_label_threads`, `qt_conversation_cards_view`, the three
+`qt_conversation_finder_scale_*`, the three `qt_markdown_body_*`,
+`qt_defect_card`, `application_defect_composition_contract`,
+`application_review_round_trip_composition_contract` and
+`architecture_boundaries`). `qt_feedback_label_threads` now opens the stop
+and finds the mark beside the label line and nothing under the avatar.
+Restoring the old placement fails it.
+
+`application_label_authoring_contract` fails here, and it fails the same way
+on the unchanged base `c01e04974`. The course stops at its suggestion phase
+(`line=1 draft=- comment=0`): no draft is made on the chosen free line, long
+before the tour-stop phase. The macOS pass on 2026-10-06 was at `6984585b9`.
+This needs its own card; it is not this change.

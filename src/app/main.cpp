@@ -25,6 +25,7 @@
 #endif
 
 #if defined(BPR_BUILD_TESTING)
+	#include "bpr/core/review_tour_markdown.hpp"
 	#include "github_application_fixture_access.hpp"
 	#include "src/private_review_fixture_course.hpp"
 	#include "src/startup_diagnostic.hpp"
@@ -8790,13 +8791,17 @@ auto main(int argc, char** argv) -> int
 		const auto attendedPreflightLook = argument_value(argc, argv, "--attended-preflight-look");
 		// [[BPR-1293]]. On conversations-v1 after the file, its read state.
 		const auto attendedReadState = has_argument(argc, argv, "--attended-read-state");
+		// [[BPR-1086]]. On conventional-comments-v1 after the file, renderer.cpp's
+		// line 12 thread as a published tour stop whose narrative is labelled.
+		const auto attendedTourStop = has_argument(argc, argv, "--attended-tour-stop");
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
 			|| (attendedOpenSettings && (!attendedLaunch || attendedOpenFile.has_value() || attendedOpenPullRequest))
 			|| (attendedPreflightLook.has_value()
 				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
 					|| (*attendedPreflightLook != "native" && *attendedPreflightLook != "text-only" && *attendedPreflightLook != "review")))
-			|| (attendedReadState && (!attendedOpenFile.has_value() || fixtureName != "conversations-v1"))) {
+			|| (attendedReadState && (!attendedOpenFile.has_value() || fixtureName != "conversations-v1"))
+			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -9171,6 +9176,23 @@ auto main(int argc, char** argv) -> int
 						// fixture's responses only, before the first read.
 						bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_3", "issue (blocking): 1280 by 720 should be a named constant before this ships.", std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
 						bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_4", "todo (blocking): Rename Handler to OnClick while you are here.", std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
+					}
+					if (attendedTourStop) {
+						// [[BPR-1086]]. The pull request's author published a tour
+						// stop on that thread, pinned source and heading first, and
+						// labelled its narrative; the fixture's responses only,
+						// before the first read.
+						const std::array navigation{ bpr::core::tour_markdown_link{ "Previous", "https://github.com/bpr-fixtures/nested-folders/pull/21#discussion_r1" },
+													 bpr::core::tour_markdown_link{ "Tour overview", "https://github.com/bpr-fixtures/nested-folders/pull/21#pullrequestreview-9" },
+													 bpr::core::tour_markdown_link{ "Next", "https://github.com/bpr-fixtures/nested-folders/pull/21#discussion_r3" } };
+						const auto       stop = bpr::core::render_tour_stop(
+							"Why the width is clamped", 2,
+							"issue (blocking): A zero-width view divides by zero in the aspect ratio below.\n\nThe clamp keeps the renderer safe until the caller checks the size itself.",
+							navigation, "https://github.com/bpr-fixtures/nested-folders/blob/b20cb443428212543f5911e091a0ffeb407d23cf/src/engine/renderer.cpp#L10-L14");
+						if (stop) {
+							bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_2", *stop, std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
+						}
+						QTextStream{ stdout } << (stop ? "ATTENDED_TOUR_STOP_STAGED\n" : "ATTENDED_TOUR_STOP_FAILED\n");
 					}
 					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look),
 											 attendedReadState ? std::optional<std::string>{ fixtureName } : std::nullopt);

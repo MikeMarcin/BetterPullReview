@@ -914,6 +914,17 @@ endfunction()
 # counts the window already holds; no provider, grant, target, credential,
 # storage, mutation or publication path changes; mutation pin unchanged; no new
 # src/app source. Reviewed on BPR-1293.
+# BPR-1086 owner-look reseal (2026-10-07): over the BPR-1293 reseal above; no
+# intervening pinned-scope commit (the BPR-1293 pins matched at c01e04974).
+# main.cpp only, tests-on: `--attended-tour-stop` (with `--attended-open-file`
+# on conventional-comments-v1) stages renderer.cpp's line 12 thread, in the
+# fixture's responses before the first read, as a published tour stop the
+# fixture account wrote with core::render_tour_stop: pinned source, heading,
+# a labelled narrative and its navigation. github_application.cpp, tests-on:
+# the label-authoring course's tour-stop phase now expects the stop's note to
+# read from its narrative (card_post::Lead) with the label as its header. No
+# provider, grant, target, credential, storage, mutation or publication path
+# changes; mutation pin unchanged; no new src/app source. Reviewed on BPR-1086.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -932,7 +943,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8521e8de1a719b2b15a5096a150955852f78423561e512ba44157a771484f111"
+		"4b06a0938f970174a2ecc24f7e24a6c3635720c1590c9b78cfea0d4d6c3f8c69"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1130,7 +1141,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "9a2ea57969b36cb4f7964f8692a9f2685abc6615c83cdbbd6c8de6d07a971798"
+        "84510e47f0206fe6262b82b93bf98b1c22a7e9980abe013250bd662bfb9865ff"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

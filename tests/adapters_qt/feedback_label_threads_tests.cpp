@@ -312,7 +312,8 @@ namespace {
 	/// labelled it (RFC-BPR-0048, "Tour compatibility"; R19). The mark comes
 	/// from the narrative the tour owner maps; the generated heading, the
 	/// pinned source and the navigation are never read as a label, nor set as
-	/// a header; and every byte of the stop is shown and kept as written.
+	/// a header; its closed note reads from the narrative; and every byte of
+	/// the stop is kept as written.
 	void test_a_tour_stop_is_plain_unless_its_author_labelled_it()
 	{
 		const std::array navigation{ core::tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" },
@@ -369,7 +370,15 @@ namespace {
 		expect(asked.Label == core::feedback_label::question && asked.Emphasis == qt::feedback_mark_emphasis{ .Weight = qt::feedback_mark_weight::non_blocking }
 				   && asked.Name == QStringLiteral("tbutler, question (non-blocking)") && !view.mark_rect(*second).isEmpty(),
 			   "a stop its author labelled carries the label of its narrative");
-		expect(asked.HeaderLength == 0, "the generated heading before the narrative is not set as a header");
+		// The closed note reads from the narrative, so the label sits beside
+		// its mark and the pinned source and heading are not its first words.
+		const auto lead = asked.Body.mid(asked.Lead);
+		expect(asked.Lead > 0 && lead.startsWith(QStringLiteral("question (non-blocking): Should the clamp"))
+				   && asked.HeaderLength == QStringLiteral("question (non-blocking): ").size(),
+			   "the labelled stop's note starts at its narrative, its label set as the header");
+		expect(first->Posts.front().Body.mid(first->Posts.front().Lead).startsWith(QStringLiteral("The renderer owns the frame")),
+			   "a plain stop's note also starts at its narrative");
+		expect(third->Posts.front().Lead == 0, "a stop whose envelope does not map reads from its first byte");
 		expect(asked.Body == QString::fromStdString(*labelled), "the labelled stop reads as written: pinned source, heading, narrative and navigation");
 		expect(!first->Posts.front().Label.has_value() && view.mark_rect(*first).isEmpty() && first->Posts.front().HeaderLength == 0
 				   && first->Posts.front().Body == QString::fromStdString(*plain),
@@ -393,6 +402,43 @@ namespace {
 		reader.set_body(*plain, "stop-1-root");
 		expect(!reader.feedback_mark_label()->isVisibleTo(&reader), "and shows no mark for a plain stop");
 		save_render(view, "tour-stops");
+
+		// [[BPR-1086]] owner look. Open, the stop's mark sits beside its
+		// narrative's label line, below the pinned source and heading, and the
+		// label reads as a header there, as an ordinary post's does.
+		view.open_thread("stop-2");
+		settle();
+		auto* const opened = view.open_card();
+		const auto  shown  = opened != nullptr ? posts_of(*opened) : std::vector<QWidget*>{ };
+		expect(!shown.empty(), "the labelled stop opens in place");
+		auto* const inPlace = dynamic_cast<qt::markdown_body_view*>(shown.front()->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+		auto* const body    = shown.front()->findChild<QTextEdit*>(QStringLiteral("threadPostBody"));
+		auto        label   = body->document()->find(QStringLiteral("question (non-blocking):"));
+		expect(!label.isNull() && inPlace != nullptr && inPlace->header_length() == QStringLiteral("question (non-blocking):").size(), "the narrative's label is set as the header in place");
+		label.setPosition(label.selectionStart());
+		const auto line   = body->cursorRect(label);
+		const auto centre = body->viewport()->mapTo(opened, line.center()).y();
+		const auto image  = opened->grab().toImage();
+		const auto ratio  = image.devicePixelRatio();
+		const auto pixel  = [&image, ratio](const int aX, const int aY) { return QColor{ image.pixel(static_cast<int>(aX * ratio), static_cast<int>(aY * ratio)) }; };
+		const auto under  = post_mark(*opened, *shown.front());
+		const auto beside = QRect{ under.x(), centre - 8 + 1, 16, 16 };
+		expect(beside.top() > under.bottom() + 20, "the label line is well below the avatar: the pinned source and heading come first");
+		// The non-blocking mark is dashed, so its tint is looked for anywhere
+		// in its box.
+		const auto tinted = [&pixel](const QRect& aBox) {
+			for (auto y = aBox.top(); y <= aBox.bottom(); ++y) {
+				for (auto x = aBox.left(); x <= aBox.right(); ++x) {
+					if (pixel(x, y) == theme().Tints[5]) {
+						return true;
+					}
+				}
+			}
+			return false;
+		};
+		expect(tinted(beside), "the question mark is drawn beside the narrative's label line");
+		expect(!tinted(under), "negative control: nothing is drawn under the avatar beside the pinned source");
+		save_render(*opened, "tour-stop-open");
 	}
 
 	/// \brief [[BPR-1083]] v004 (owner, preview-tooltips-v003: "The tooltip

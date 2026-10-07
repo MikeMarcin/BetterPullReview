@@ -128,8 +128,13 @@ namespace bpr::qt {
 		/// "tbutler, issue (blocking)": the author, then the mark's name.
 		QString Name;
 		/// [[BPR-1290]]. How many characters of `Body` the recognized header
-		/// takes, which the notes set in semibold; zero for a plain post.
+		/// takes after `Lead`, which the notes set in semibold; zero for a
+		/// plain post.
 		qsizetype HeaderLength = 0;
+		/// [[BPR-1086]]. Where a closed note's words start: a published tour
+		/// stop's narrative, after its pinned source and generated heading, so
+		/// its label reads beside its mark; zero for any other post.
+		qsizetype Lead = 0;
 	};
 
 	/// \brief One thread's note: a review thread's root and its replies, or my draft.
@@ -481,10 +486,12 @@ namespace bpr::qt {
 		std::vector<std::size_t>                                 RetainedRoot;
 		std::vector<std::size_t>                                 RetainedDepth;
 		std::vector<std::pair<core::file_identity, std::size_t>> RetainedByFile;
-		/// [[BPR-1083]]. Each retained node's mark and header length, read once
-		/// per adopted forest from the accepted body.
+		/// [[BPR-1083]]. Each retained node's mark, header length and
+		/// ([[BPR-1086]]) lead, read once per adopted forest from the accepted
+		/// body.
 		std::vector<feedback_body_mark> RetainedMarks;
 		std::vector<qsizetype>          RetainedHeaders;
+		std::vector<qsizetype>          RetainedLeads;
 		feedback_mark_theme             MarkTheme;
 		/// [[BPR-0972]]. The first read state of each thread.
 		std::unordered_map<std::string, std::size_t>                ReadStateByThread;

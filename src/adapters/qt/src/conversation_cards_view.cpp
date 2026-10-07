@@ -126,20 +126,36 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 
-		/// \brief How much of the body's start is its header, set in semibold.
-		/// [[BPR-1086]]. A published tour stop's header sits inside its
-		/// narrative, after the generated heading, so none of its start is.
-		[[nodiscard]] auto header_length_of(const std::string_view aBody, const core::feedback_body_segment& aSegment, const core::feedback_annotation& aAnnotation) -> qsizetype
+		/// \brief [[BPR-1086]]. Where a closed note's words start. A published
+		/// tour stop's start is its pinned source and generated heading, so its
+		/// note reads from its narrative's first word; any other body from its
+		/// first byte.
+		[[nodiscard]] auto lead_of(const std::string_view aBody, const core::feedback_body_segment& aSegment) -> qsizetype
 		{
-			if (aSegment.Managed || aAnnotation.Status != core::feedback_prefix_status::recognized || !aAnnotation.Header.has_value()) {
+			if (!aSegment.Managed || !aSegment.UserBody.has_value()) {
 				return 0;
 			}
-			return feedback_text_index(aBody, aAnnotation.Header->End);
+			auto begin = std::min(aSegment.UserBody->Begin, aBody.size());
+			while (begin < aSegment.UserBody->End && begin < aBody.size() && (aBody[begin] == ' ' || aBody[begin] == '\t' || aBody[begin] == '\r' || aBody[begin] == '\n')) {
+				++begin;
+			}
+			return feedback_text_index(aBody, begin);
+		}
+
+		/// \brief How much of the body after its lead is its header, set in
+		/// semibold. [[BPR-1086]]. A published tour stop's header sits inside
+		/// its narrative, so it is counted from the narrative's first word.
+		[[nodiscard]] auto header_length_of(const std::string_view aBody, const core::feedback_annotation& aAnnotation, const qsizetype aLead) -> qsizetype
+		{
+			if (aAnnotation.Status != core::feedback_prefix_status::recognized || !aAnnotation.Header.has_value()) {
+				return 0;
+			}
+			return std::max<qsizetype>(0, feedback_text_index(aBody, aAnnotation.Header->End) - aLead);
 		}
 		[[nodiscard]] auto header_length_of(const std::string_view aBody) -> qsizetype
 		{
 			const auto segment = core::published_feedback_segment(aBody);
-			return header_length_of(aBody, segment, core::recognize_feedback_body(aBody, segment));
+			return header_length_of(aBody, core::recognize_feedback_body(aBody, segment), lead_of(aBody, segment));
 		}
 
 		/// \brief A closed note's body: one flowing paragraph, the header in
@@ -154,7 +170,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto display_of(const card_post& aPost, const QFont& aFont, const QFont& aCodeFont, const QColor& aCodeFill) -> display_text
 		{
 			auto result = display_text{ };
-			auto body   = aPost.Body;
+			auto body   = aPost.Body.mid(std::clamp<qsizetype>(aPost.Lead, 0, aPost.Body.size()));
 			body.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
 			const auto header = std::clamp<qsizetype>(aPost.HeaderLength, 0, body.size());
 			result.Text       = body.left(header);
@@ -529,8 +545,10 @@ namespace bpr::qt {
 		RetainedByFile.clear();
 		RetainedMarks.clear();
 		RetainedHeaders.clear();
+		RetainedLeads.clear();
 		RetainedMarks.reserve(Retained.size());
 		RetainedHeaders.reserve(Retained.size());
+		RetainedLeads.reserve(Retained.size());
 		RetainedFiles.reserve(Retained.size());
 		RetainedById.reserve(Retained.size());
 		for (std::size_t index = 0U; index < Retained.size(); ++index) {
@@ -547,7 +565,9 @@ namespace bpr::qt {
 																	 .Emphasis = feedback_mark_emphasis_of(annotation),
 																	 .Name     = feedback_mark_name(annotation, body) }
 											   : feedback_body_mark{ });
-			RetainedHeaders.push_back(recognized ? header_length_of(body, segment, annotation) : 0);
+			const auto lead = lead_of(body, segment);
+			RetainedLeads.push_back(lead);
+			RetainedHeaders.push_back(recognized ? header_length_of(body, annotation, lead) : 0);
 			// The first node with an identity answers for it.
 			RetainedById.emplace(Retained[index].Id, index);
 		}
@@ -1137,7 +1157,8 @@ namespace bpr::qt {
 				Measurements = measurement_generation{ .Width = aWidth };
 			}
 		}
-		const auto  body   = aCard.Posts.empty() ? QString{ } : aCard.Posts.front().Body;
+		// [[BPR-1086]]. From its lead: a published tour stop's narrative.
+		const auto  body   = aCard.Posts.empty() ? QString{ } : aCard.Posts.front().Body.mid(std::clamp<qsizetype>(aCard.Posts.front().Lead, 0, aCard.Posts.front().Body.size()));
 		const auto  marked = !aCard.Posts.empty() && aCard.Posts.front().Label.has_value();
 		const auto& cached = Measurements.Notes.find(aCard.Id);
 		if (cached != Measurements.Notes.end() && cached->second.Body == body && cached->second.Resolved == aCard.Resolved
@@ -1235,6 +1256,7 @@ namespace bpr::qt {
 					.Emphasis     = mark.Emphasis,
 					.Name         = feedback_post_name(author, mark),
 					.HeaderLength = RetainedHeaders[index],
+					.Lead         = RetainedLeads[index],
 				});
 			}
 			cardsById.emplace(node.Id, Cards.size());
@@ -1297,6 +1319,7 @@ namespace bpr::qt {
 				.Emphasis     = mark.Emphasis,
 				.Name         = feedback_post_name(author, mark),
 				.HeaderLength = RetainedHeaders[index],
+				.Lead         = RetainedLeads[index],
 			});
 		}
 		// [[BPR-1290]]. Only new, Hide resolved. The open thread and my draft

@@ -113,6 +113,7 @@ namespace bpr::qt {
 		bool                                    InPlace = false;
 		std::function<void()>                   HeightObserver;
 		qsizetype                               HeaderChars   = 0;
+		qsizetype                               HeaderStart   = 0;
 		qsizetype                               SourceColumns = 0;
 		mutable int                             CachedWidth   = -1;
 		mutable int                             CachedHeight  = 0;

@@ -25410,7 +25410,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!ready || !shown) {
 				return result::pending;
 			}
-			probe.Evidence.TourStopLabelled = rootLabel(stop) == core::feedback_label::question && stop->Posts.front().HeaderLength == 0 && !cards->mark_rect(*stop).isEmpty();
+			// [[BPR-1086]] owner look. Its note reads from the narrative, so the
+			// label, set as the header, sits beside the mark.
+			const auto& post                = stop->Posts.front();
+			probe.Evidence.TourStopLabelled = rootLabel(stop) == core::feedback_label::question && post.Lead > 0 && post.Body.mid(post.Lead).startsWith(QStringLiteral("question: Should the clamp"))
+				&& post.HeaderLength == QStringLiteral("question: ").size() && !cards->mark_rect(*stop).isEmpty();
 			render("tour-stop-labelled");
 			if (!probe.Evidence.TourStopLabelled) {
 				return fail("tour-stop-unmarked name=" + stop->Posts.front().Name.toStdString());

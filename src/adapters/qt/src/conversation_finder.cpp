@@ -150,13 +150,16 @@ namespace bpr::qt {
 			const auto annotation = core::recognize_feedback_body(aBody, segment);
 			const auto recognized = annotation.Status == core::feedback_prefix_status::recognized && annotation.Label.has_value()
 				&& annotation.Subject.has_value();
+			// [[BPR-1086]]. A published tour stop's words start at its
+			// narrative, after its pinned source and generated heading.
+			const auto narrative = segment.Managed && segment.UserBody.has_value() ? feedback_text_index(aBody, segment.UserBody->Begin) : 0;
 			if (!recognized) {
-				return { };
+				return { .Header = narrative };
 			}
 			return {
 				.Label    = annotation.Label,
 				.Emphasis = feedback_mark_emphasis_of(annotation),
-				.Header   = !segment.Managed && annotation.Header.has_value() ? feedback_text_index(aBody, annotation.Header->End) : 0,
+				.Header   = annotation.Header.has_value() ? feedback_text_index(aBody, annotation.Header->End) : narrative,
 			};
 		}
 

@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <optional>
 #include <utility>
 
 namespace bpr::qt {
@@ -79,6 +80,34 @@ namespace bpr::qt {
 				aFont.setPixelSize(std::max(1, static_cast<int>(std::lround(aFont.pixelSize() * aFactor))));
 			}
 			return aFont;
+		}
+
+		/// \brief [[BPR-1086]]. Where a published tour stop's label line is in
+		/// the post, as the reader shows it now: the stop opens with its pinned
+		/// source and generated heading, so its narrative's label is further
+		/// down and its mark goes beside it. Nothing for any other post, or
+		/// when the label is not found as shown.
+		[[nodiscard]] auto narrative_label_line(const card_post& aPost, const markdown_body_view& aReader, const QWidget& aPostView) -> std::optional<QRect>
+		{
+			if (aPost.Lead <= 0 || aPost.HeaderLength <= 0) {
+				return std::nullopt;
+			}
+			// The source shows the body as written, so the label is looked for
+			// from the narrative on; the rendered body has no pinned source or
+			// heading markup before it, only their text.
+			const auto header = aPost.Body.mid(aPost.Lead, aPost.HeaderLength).trimmed();
+			const auto source = aReader.source_visible();
+			auto       found  = source ? aReader.source_view()->document()->find(header, static_cast<int>(aPost.Lead)) : aReader.rendered_view()->document()->find(header);
+			if (found.isNull()) {
+				return std::nullopt;
+			}
+			found.setPosition(found.selectionStart());
+			const auto  line = source ? aReader.source_view()->cursorRect(found) : aReader.rendered_view()->cursorRect(found);
+			const auto* view = source ? static_cast<const QAbstractScrollArea*>(aReader.source_view()) : aReader.rendered_view();
+			if (line.isEmpty()) {
+				return std::nullopt;
+			}
+			return QRect{ view->viewport()->mapTo(&aPostView, line.topLeft()), line.size() };
 		}
 
 		[[nodiscard]] auto mark_colours(const open_card_style& aStyle, const core::feedback_label aLabel) -> feedback_mark_colours
@@ -549,6 +578,8 @@ namespace bpr::qt {
 		Reader->set_height_observer([this] {
 			updateGeometry();
 			place_children();
+			// [[BPR-1086]]. A tour stop's mark follows its label line.
+			update();
 			if (HeightChanged) {
 				HeightChanged();
 			}
@@ -662,7 +693,13 @@ namespace bpr::qt {
 		if (!Post.Label) {
 			return { };
 		}
-		return QRect{ gut_left + (avatar_size - mark_size) / 2, post_padding + 1 + avatar_size + mark_gap, mark_size, mark_size };
+		// [[BPR-1086]]. A labelled tour stop's mark sits beside its
+		// narrative's label line, below the pinned source and heading.
+		const auto beneath = post_padding + 1 + avatar_size + mark_gap;
+		if (const auto label = narrative_label_line(Post, *Reader, *this)) {
+			return QRect{ gut_left + (avatar_size - mark_size) / 2, std::max(beneath, label->center().y() - mark_size / 2 + 1), mark_size, mark_size };
+		}
+		return QRect{ gut_left + (avatar_size - mark_size) / 2, beneath, mark_size, mark_size };
 	}
 
 	auto thread_post_view::rail_rect() const -> QRectF

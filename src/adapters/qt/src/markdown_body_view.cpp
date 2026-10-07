@@ -3,6 +3,7 @@
 #include "markdown_document.hpp"
 
 #include "bpr/core/feedback_convention.hpp"
+#include "bpr/core/feedback_conversation.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 
 #include <QApplication>
@@ -665,6 +666,7 @@ namespace bpr::qt {
 		refresh_mark();
 		const auto shown  = std::string_view{ Body };
 		HeaderChars       = 0;
+		HeaderStart       = 0;
 		Fallback          = rendering_limit(shown);
 		RenderedAvailable = Fallback.isEmpty();
 		auto* document    = Rendered->document();
@@ -679,13 +681,26 @@ namespace bpr::qt {
 					// [[BPR-1083]]. The recognized header leads the first
 					// paragraph as written; rendered, `**praise:**` reads
 					// "praise:", so the header is matched as it renders.
-					const auto annotation = core::recognize_feedback_prefix(Body);
+					// [[BPR-1086]]. A published tour stop's header leads its
+					// narrative, the first paragraph after its heading, so
+					// HeaderStart is where that paragraph renders; zero for any
+					// other body.
+					const auto segment    = core::published_feedback_segment(Body);
+					const auto annotation = core::recognize_feedback_body(Body, segment);
 					if (annotation.Status == core::feedback_prefix_status::recognized && annotation.Header.has_value()) {
-						auto probe = QTextDocument{ };
-						probe.setMarkdown(source.left(feedback_text_index(Body, annotation.Header->End)), markdown_features);
+						const auto from  = segment.UserBody.has_value() ? feedback_text_index(Body, segment.UserBody->Begin) : 0;
+						auto       probe = QTextDocument{ };
+						probe.setMarkdown(source.mid(from, feedback_text_index(Body, annotation.Header->End) - from), markdown_features);
 						const auto header = probe.toPlainText().trimmed();
-						if (!header.isEmpty() && document->begin().text().startsWith(header)) {
-							HeaderChars = header.size();
+						for (auto block = document->begin(); !header.isEmpty() && block.isValid(); block = block.next()) {
+							if (block.text().startsWith(header)) {
+								HeaderStart = block.position();
+								HeaderChars = header.size();
+								break;
+							}
+							if (!segment.Managed) {
+								break;
+							}
 						}
 					}
 				}
@@ -810,20 +825,21 @@ namespace bpr::qt {
 		const auto ink  = palette().color(QPalette::Active, QPalette::Text);
 		const auto back = palette().color(QPalette::Active, QPalette::Base);
 		style_tables(*document->rootFrame(), InPlace ? QBrush{ mixed(ink, back, 0.74) } : palette().text());
-		if (InPlace && HeaderChars > 0 && HeaderChars < document->characterCount()) {
+		if (InPlace && HeaderChars > 0 && HeaderStart + HeaderChars < document->characterCount()) {
 			// The header in the notes' secondary ink and at least semibold; a
 			// header written strong stays bold.
 			const auto headerInk = mixed(ink, back, 0.28);
 			fragments.clear();
-			for (auto it = document->begin().begin(); !it.atEnd(); ++it) {
+			const auto headerEnd = static_cast<int>(HeaderStart + HeaderChars);
+			for (auto it = document->findBlock(static_cast<int>(HeaderStart)).begin(); !it.atEnd(); ++it) {
 				const auto fragment = it.fragment();
-				if (fragment.position() >= HeaderChars) {
+				if (fragment.position() >= headerEnd) {
 					break;
 				}
 				auto chars = fragment.charFormat();
 				chars.setForeground(headerInk);
 				chars.setFontWeight(std::max(chars.fontWeight(), static_cast<int>(QFont::DemiBold)));
-				const auto end = std::min(fragment.position() + fragment.length(), static_cast<int>(HeaderChars));
+				const auto end = std::min(fragment.position() + fragment.length(), headerEnd);
 				fragments.push_back({ .Position = fragment.position(), .Length = end - fragment.position(), .Format = chars });
 			}
 			auto cursor = QTextCursor{ document };
