@@ -4,6 +4,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QPalette>
 #include <QPushButton>
@@ -21,6 +22,22 @@ namespace bpr::qt {
 		[[nodiscard]] auto text(const std::string_view aText) -> QString
 		{
 			return QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size()));
+		}
+
+		/// A wrapped line shown, hidden or rewritten after the page was laid out
+		/// changes the height its form row needs; the form, the page and its
+		/// scroll area learn it only when their layouts are asked again.
+		void relayout(QWidget* const aFrom)
+		{
+			for (auto* widget = aFrom; widget != nullptr; widget = widget->parentWidget()) {
+				if (auto* const layout = widget->layout(); layout != nullptr) {
+					layout->invalidate();
+				}
+				widget->updateGeometry();
+				if (widget->isWindow()) {
+					break;
+				}
+			}
 		}
 
 		[[nodiscard]] auto note(const QString& aText, QWidget* const aParent) -> QLabel*
@@ -135,6 +152,7 @@ namespace bpr::qt {
 		show_status(aSaved.empty() ? tr("No wrapper is saved for this profile.") : tr("Saved for this profile."));
 		// A saved wrapper always wins, so the found line says nothing then.
 		Found->setVisible(aSaved.empty() && !Found->text().isEmpty());
+		relayout(Found);
 		locate();
 	}
 
@@ -148,6 +166,7 @@ namespace bpr::qt {
 			Found->setText(tr("Using %1 (found in a usual install folder, not on PATH).").arg(text(aFound->Path)));
 		}
 		Found->setVisible(Presented && Saved.empty());
+		relayout(Found);
 	}
 
 	void claude_wrapper_panel::showEvent(QShowEvent* const aEvent)
@@ -194,5 +213,6 @@ namespace bpr::qt {
 	{
 		Status->setText(aText);
 		Status->setVisible(!aText.isEmpty());
+		relayout(Status);
 	}
 }

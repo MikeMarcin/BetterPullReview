@@ -434,11 +434,20 @@ namespace {
 		panel->set_dispatch([&sent](std::string aPath) { sent.push_back(std::move(aPath)); }, [&lookups] { ++lookups; });
 		expect(found != nullptr && found->text().isEmpty() && !found->isVisibleTo(page), "nothing is claimed about claude before a lookup answers");
 		expect(lookups == 0, "a hidden row looks nothing up");
+		// Laid out at its final size first, so the found line arrives under a
+		// page that has already placed its rows.
+		workbench.settings()->resize(900, 820);
 		workbench.settings()->present(qt::settings_page::agents_and_context);
 		QApplication::processEvents();
 		expect(lookups == 1, "showing the row with no wrapper looks claude up once");
 		panel->show_found(core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude", .Origin = core::claude_found_in::path });
 		expect(found->text() == QStringLiteral("Using /opt/homebrew/bin/claude (found on PATH).") && found->isVisibleTo(page), "the found path is shown, and where it was found");
+		QApplication::processEvents();
+		auto* const help = page->findChild<QLabel*>(QStringLiteral("claudeWrapperHelp"));
+		expect(help != nullptr && help->height() >= help->heightForWidth(help->width()), "the explanation keeps its full height when the found line appears under a laid-out page");
+		if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
+			expect(workbench.settings()->grab().save(directory + QStringLiteral("/agents-and-context-claude-found.png")), "the found-line render is saved");
+		}
 		panel->show_found(core::claude_search_candidate{ .Path = "/Users/me/.local/bin/claude", .Origin = core::claude_found_in::usual_folder });
 		expect(found->text() == QStringLiteral("Using /Users/me/.local/bin/claude (found in a usual install folder, not on PATH)."), "a usual folder is named as such");
 		panel->show_found(std::nullopt);
