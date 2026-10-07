@@ -550,6 +550,12 @@ phases.
 - Linux only: macOS and Windows runs are owed. The owner look is open for the
   coordinator.
 
+### Coordinator decision (2026-10-07)
+
+Return on a single line keeps narrowing an existing range draft that ends on
+that line, because Return always uses the current selection. Alt+C reopens a
+draft unchanged. The coordinator decided this on the implementer's question.
+
 ## Build slice 2: compose in the drawer (bpr-main-mac, 2026-10-08)
 
 Drawn with `frontend-design` (loaded first, as the repository asks). Built
