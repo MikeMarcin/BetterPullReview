@@ -1313,3 +1313,46 @@ Nothing about criteria 2 and 4 changes. They stay `pending` and owe the same
 capture at 100% display scale. That capture needs the owner to change the
 display scale on JaegAW, then a station capture, then a new item naming its
 image digest. That new item, not `v001`, is what a later session should ask.
+
+## The 100% look, prepared for the owner on JaegAW, 2026-10-06 (bpr-main-win)
+
+The owner chose to clear this card in person, on the JaegAW desktop. The
+station prepared one question in a new, short attended session. It is not
+`cbd48b91`, and no earlier item is on the page.
+
+- **Session.** `39ba8abc36558edf2edecab37b68b819`, state
+  `C:\Users\mikem\.mask\attended-review\owner-bpr0653-100pct-20261006-v001`
+  (external, not committed), ready at sequence 3. The host is a loopback
+  page on JaegAW, so the owner opens it in the Windows desktop browser.
+- **Candidate.** `BPR-0653-windows-100pct-live-v001`, fingerprint
+  `d76c0fc2c3234deca11dba6e095e659b68e268b2bc619006140c626a5bdeb3ed`.
+- **The question.** Accept or Reject, with a note. At 100% display scale, is
+  the strip the title row? The criterion covers:
+  - the caption buttons at rest, hovered and pressed;
+  - the snap layouts flyout from hovering Maximize;
+  - dragging empty strip space;
+  - double-click to maximize and double-click again to restore.
+- **The image.** The unchanged image the owner accepted at 150%: `6aa27c8d…`,
+  bundle `ca3bc2b1…`, built at `85e522d8`, in [[BPR-0974]]'s candidate root.
+  Using it means both halves show one title row. Nothing in that root was
+  touched.
+- **The launcher.** `C:\Users\mikem\bpr0653-100pct-v001\launch.cmd` lives in
+  its own root, beside its manifest, and does four things:
+  - it checks both digests and the `plugins` folder;
+  - it reads the primary monitor's effective DPI, and refuses unless it is 96;
+  - it starts the image with `--render-evidence`, which means signed out, on a
+    private temporary profile, as the 150% capture did;
+  - it reports `WINDOW_UP`, `EXITED`, `NO_WINDOW` or a refusal within
+    20 s, into `launch.log`.
+
+  It never changes the display scale. The owner sets 100% first. Checked
+  headless at 150%: the digests matched, and it refused with "the primary
+  display is at 150% (144 DPI)", having launched nothing.
+
+This is the owner's live look, not a station capture, so no PNG record comes
+from it. If the PNG record is wanted too, `windows_caption_capture.ps1` can
+take it at 100% in a cleared foreground block, while the display is still at
+100%.
+
+Criteria 2 and 4 stay `pending` until the verdict is recorded here.
+Criterion 3 is unchanged. The card stays parked on human-review.
