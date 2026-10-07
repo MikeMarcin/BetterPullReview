@@ -194,3 +194,12 @@ Linux x86_64 (WSL2), GCC 15, Debug `-Werror`, `build/dev` whole tree and
   draws the state marks and renders the chips this card stores.
 - **Platforms.** Linux only; macOS and Windows runs are owed. No live GitHub.
 - **Page design** is BPR-1288's; this card used the page's existing rows.
+
+## macOS run (coordinator, 2026-10-06)
+
+At 122e5d6b7 on macOS arm64 Debug with BPR_BUILD_TOUR_CLI=ON, clean worktree:
+22/22 of the tour owner channel, tour CLI composition/process/public entry, both
+skill package rows, both handoff courses, cycle security qualification, cycle
+CLI public path and documentation, the round-trip contract, the settings window
+and workbench settings rows, workbench settings storage, the feedback label rows
+and architecture_boundaries.

@@ -166,3 +166,12 @@ Bringing the new wording over needs the change imported into AgentSkills'
 `main` and the MASK selection refreshed. That is a push to another repository,
 which needs its owner's authorization. It is left as a follow-up; no card
 exists for it yet.
+
+## macOS run (coordinator, 2026-10-06)
+
+At 122e5d6b7 on macOS arm64 Debug with BPR_BUILD_TOUR_CLI=ON, clean worktree:
+22/22 of the tour owner channel, tour CLI composition/process/public entry, both
+skill package rows, both handoff courses, cycle security qualification, cycle
+CLI public path and documentation, the round-trip contract, the settings window
+and workbench settings rows, workbench settings storage, the feedback label rows
+and architecture_boundaries.
