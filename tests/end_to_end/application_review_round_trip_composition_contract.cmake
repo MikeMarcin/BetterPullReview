@@ -925,6 +925,17 @@ endfunction()
 # read from its narrative (card_post::Lead) with the label as its header. No
 # provider, grant, target, credential, storage, mutation or publication path
 # changes; mutation pin unchanged; no new src/app source. Reviewed on BPR-1086.
+# BPR-1303 reseal (2026-10-07): over the BPR-1086 reseal above; no intervening
+# pinned-scope commit (the BPR-1086 pins matched at efa26ca02).
+# github_application.cpp only: an accepted handoff that keeps the selected diff
+# (preserves_selected_diff) leaves the workbench with no selected file after
+# its observation, so Review's active tab shows its exact view again through
+# document_tab_host::refresh, the path the return from a page with no tab
+# already takes, once for that handoff (RefreshKeptTabView,
+# represent_refreshed_tab in observe_tab_changes). A head-moving refresh keeps
+# its existing tab-comparison reload. No provider, grant, target, credential, storage,
+# mutation or publication path changes; mutation pin unchanged; no new src/app
+# source. Reviewed on BPR-1303.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -943,7 +954,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4b06a0938f970174a2ecc24f7e24a6c3635720c1590c9b78cfea0d4d6c3f8c69"
+		"776e63f14e54c22f3fe6e08319d1524ad961aaef0285c4d89e9345acbc2b6741"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1141,7 +1152,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "84510e47f0206fe6262b82b93bf98b1c22a7e9980abe013250bd662bfb9865ff"
+        "e82a09ef38c7994a9a3c6acd4870040547be27916d6f546a8855ba91326ba7db"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
