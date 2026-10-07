@@ -349,3 +349,19 @@ Asked by the coordinator on the BPR-1212 prototype
 
 Build order: after BPR-1290 (owner-look pending) and BPR-1295. The first
 build slice is the multi-line draft anchor and the keyboard line cursor.
+
+## Build slice 1, claimed by bpr-main-linux (2026-10-07)
+
+The coordinator assigned slice 1 to `bpr-main-linux`, with no visual redesign
+yet. It covers three parts:
+- **(a) Multi-line anchor:** a pull request draft anchors to a start line, an
+  end line and a side, through core and application. Publication sends
+  GitHub's multi-line review comment fields.
+- **(b) Keyboard line cursor:** the pull request code panes get a line cursor
+  that Up and Down move and Shift extends. It is visible and accessible.
+- **(c) Return and Shift+Return:** they act only while the code pane has focus
+  with a line selected. Return opens a draft in the existing composer;
+  Shift+Return prefills a suggestion fence with the selected lines.
+
+Local-project flows stay unchanged (Q2: B, the whole-file editor). The owner
+look is left to the coordinator.
