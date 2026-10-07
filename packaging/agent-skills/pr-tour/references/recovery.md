@@ -11,7 +11,7 @@
 | `editor_busy` | The desktop editor holds uncommitted input-method text. Wait for the author to finish; do not force a commit or start another writer. |
 | `owner_protocol_unsupported` | Name the CLI and desktop compatibility needed. Do not open SQLite or take the runtime lock. |
 | `context_export_refused` | The host will not send draft text to an agent it cannot verify. Keep manual authoring available; do not relabel this agent as approved or read the same text another way to get around it. |
-| `interaction_required` | Give the next normal human action. With the desktop open, `add`, `show --source` and `walk` read source only for a pull request open in it; other provider reads and settings changes need the profile to themselves, and publication needs the author at a terminal. No simulated approval. |
+| `interaction_required` | Give the next normal human action. Provider reads and settings changes need the profile to themselves, and publication needs the author at a terminal. No simulated approval. |
 | `outcome_unknown` | Run `status --request-id <id>` to see whether the owner committed it. Do not repeat the edit. |
 | uncertain or partial publication | Run read-only `recover`. Keep confirmed comment IDs; never repost comments. |
 | `authentication_required` | Explain the admitted `connect` action and run it only on an explicit setup request. Never extract tokens or change global gh authentication. |

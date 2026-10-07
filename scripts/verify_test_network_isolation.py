@@ -379,6 +379,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # fails at "differs from the package; import it again". Uncontained the
     # store's copy matches the package byte for byte and the row passes.
     "skill_bpr_cycle_package": "repository-content-outside-checkout",
+    # [[BPR-1067]]. Measured on bpr-main-win 2026-10-06 at 1992ee1eb in a
+    # tour-cli tree with tests, as registered contained, after `mask repair`
+    # deployed `.claude/skills/pr-tour` and `.agents/skills/pr-tour` as links
+    # into the MASK store: the copy check fails at ".claude/skills/pr-tour
+    # differs from the package; import it again". Uncontained, the store's copy
+    # has the package's own tree digest.
+    "skill_pr_tour_package": "repository-content-outside-checkout",
     # [[BPR-1020]]. Measured on JaegAW 2026-09-23, each registered contained by
     # a reverted trial hook; the first contained failure is named. The release
     # scripts and the modified-endpoint fixture stop at the DOS form: Git starts

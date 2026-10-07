@@ -148,3 +148,21 @@ note, with this card's reseal note after it. The digests were recomputed over
 the merged code (`PIN_CHECK_OK`). The merged tree rebuilt with no `warning C`
 line, and the same 11 rows pass 11 of 11. The acceptance revision is the
 rebased implementation commit `03deabbe7` (the push gate rebased once more).
+
+
+**Correction (2026-10-06): the pr-tour skill wording is reverted.**
+
+The edit to `packaging/agent-skills/pr-tour/references/recovery.md` is
+undone. That package must equal the canonical AgentSkills copy MASK deploys,
+and `skill_pr_tour_package` failed on the difference once `mask repair` had
+deployed `pr-tour` on this station. That row passed earlier only because no
+copy was deployed here.
+
+The deployed row still says provider reads need the profile to themselves.
+That is now conservative but not wrong in effect: an agent sees
+`interaction_required` only when a read is refused.
+
+Bringing the new wording over needs the change imported into AgentSkills'
+`main` and the MASK selection refreshed. That is a push to another repository,
+which needs its owner's authorization. It is left as a follow-up; no card
+exists for it yet.

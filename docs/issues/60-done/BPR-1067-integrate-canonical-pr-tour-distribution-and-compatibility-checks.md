@@ -123,3 +123,28 @@ network-isolated runner: `skill_pr_tour_package` passes
 `test_network_isolation_manifest` in the same tree. Claude Code on this
 station lists `pr-tour` among its skills after the repair. The Linux half of
 the owed runs is discharged; Windows is still owed.
+
+
+## Windows station run (bpr-main-win, 2026-10-06)
+
+`mask repair` deployed `pr-tour` by creating the `.agents/skills/pr-tour` and
+`.claude/skills/pr-tour` links into the MASK store. The working tree stayed
+clean.
+
+At `1992ee1eb`, `build/windows-dev-tour-cli` (`windows-dev`, Debug,
+`-DBPR_BUILD_TOUR_CLI=ON`), registered contained as it was,
+`skill_pr_tour_package` failed at ".claude/skills/pr-tour differs from the
+package; import it again". The cause is the contained read predicted above:
+outside the container, the store's copy has the package's own tree digest
+(the test's `tree_digest`, both links). It is pinned `WINDOWS_UNCONTAINED` as
+`repository-content-outside-checkout`, with the measured line, beside
+`skill_bpr_cycle_package`.
+
+With the pin, `skill_pr_tour_package` (`pr-tour-skill-tests:pass`),
+`skill_bpr_cycle_package` and `test_network_isolation_manifest` pass 3 of 3.
+The Windows half of the owed runs is discharged.
+
+The same run first failed on a real difference, which is fixed:
+[[BPR-1227]] had edited the in-repo package's `references/recovery.md`. The
+package now matches AgentSkills again. The wording change waits for an import
+into AgentSkills, which needs its owner (see BPR-1227).
