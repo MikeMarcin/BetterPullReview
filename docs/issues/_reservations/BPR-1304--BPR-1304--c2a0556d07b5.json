@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1304"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "macOS menu and window rows regressed on main",
+  "created": "2026-10-07T16:27:38.505802+00:00",
+  "base": "29a55ef701b6d206c62dcf10cc7eed266bae7c8f"
+}
