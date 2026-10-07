@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1300"
 title: "Import the protocol-6 pr-tour recovery wording into AgentSkills"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0046"]
 depends_on: ["BPR-1067", "BPR-1227"]
 metadata: {"kind": "shared-skill import", "allocated": "2026-10-06", "reservation": "docs/issues/_reservations/BPR-1300--BPR-1300--954512ccdc35.json", "requires_owner_authorization": "push to AgentSkills main"}
@@ -71,3 +71,63 @@ the owner channel itself.
   that revision.
 - AC3: `skill_pr_tour_package` passes with the MASK links deployed and
   without them, at the committed revision.
+
+## Owner answer (2026-10-06): push it
+
+The coordinator asked in chat: "may I push the improved protocol-6 pr-tour
+recovery wording to AgentSkills main (that repo's own card flow; only this
+change, leaving its 17 unrelated local commits alone), then refresh it here
+via MASK?" The owner answered, verbatim:
+
+> Yes, push it
+
+The answer covers that one push and no other AgentSkills change.
+
+## Result (2026-10-06)
+
+- **AgentSkills (AC1).** In a worktree on branch `bpr-1300-pr-tour-recovery`
+  made from `origin/main` `b75119c`, BPR-1227's row (`03deabbe7`) was applied
+  to `skills/pr-tour/references/recovery.md`. That one file and that one row
+  are the whole commit, `e7470a7`, which was pushed to `main` as a fast-forward
+  (`b75119c..e7470a7`; no force). Earlier imports (`16992cd`, `399da0d`) were
+  also plain commits with no ASK card, and no card was added here. An ASK
+  card would need a counter commit on AgentSkills `main`, which has the
+  unpushed commits. The local `main` (17 unpushed commits, modified
+  `.mask.lock.json`) was not touched. AgentSkills' `verify_documentation.py`
+  already failed on `origin/main` before the edit (`NEXT_ID` ASK-0102 below
+  the ASK-0106 high water that the local `main`'s reservations set). The
+  edit does not change that.
+- **Package and lock (AC2).** `packaging/agent-skills/pr-tour/` now takes
+  the same row. `diff -r` against AgentSkills `e7470a7` `skills/pr-tour/` is
+  clean. MASK upgraded `pr-tour` in a registered worktree, and
+  `.mask.lock.json` changed only that entry: commit `b75119c` became `e7470a7`,
+  and payload `sha256:44af3e0b…` became
+  `sha256:be63ec2848ae70f1b27affec3fadd8350077de15b8dd11e8215b063621312d43`.
+  `mask status --check` is healthy, with `claude` and `codex` deployed and
+  target-verified. Both links' trees equal the package. The upgrade ran
+  without `--dry-run` and without an approval hash, and MASK applied it
+  directly, not as a plan to review. That happened in the disposable
+  worktree, and the effect was exactly the intended entry.
+- **Row (AC3).** The row ran at `82093f40b` on macOS 26.6.2 arm64 with
+  `build/dev-tour-cli` (`-DBPR_BUILD_TOUR_CLI=ON`, `test_tour_cli_composition`
+  built at that tree). `skill_pr_tour_package` passes under the
+  network-isolated runner with the MASK links deployed. In a checkout of the
+  same commit without links, `pr_tour_skill_tests.py` passes
+  (`pr-tour-skill-tests:pass`). Control: a `.claude/skills/pr-tour` link to
+  the old `b75119c` payload fails with ".claude/skills/pr-tour differs from
+  the package; import it again".
+
+After this change lands, any checkout whose links still point at `b75119c`
+fails the row until `mask repair` moves them to the locked `e7470a7`. Linux
+and Windows station runs are owed but do not gate this card:
+
+```sh
+git pull --rebase --autostash && mask repair && cmake --preset dev -B build/dev-tour-cli -DBPR_BUILD_TOUR_CLI=ON && cmake --build build/dev-tour-cli && ctest --test-dir build/dev-tour-cli --output-on-failure -R "^skill_pr_tour_package$"
+```
+
+```powershell
+git pull --rebase --autostash; mask repair; cmake --preset windows-dev -B build/windows-dev-tour-cli -DBPR_BUILD_TOUR_CLI=ON; cmake --build build/windows-dev-tour-cli --config Debug; ctest --test-dir build/windows-dev-tour-cli -C Debug --output-on-failure -R "^skill_pr_tour_package$"
+```
+
+On Windows the row is pinned `WINDOWS_UNCONTAINED` (BPR-1067), so it reads
+the store outside the container.
