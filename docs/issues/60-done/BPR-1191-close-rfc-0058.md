@@ -110,3 +110,28 @@ skill package rows pass 13 of 13. `application_profile_cycle_handoff_public_path
 `architecture_boundaries` and `test_network_isolation_manifest`. This is the
 first Linux run of the handoff course since the owner protocol moved to 5
 ([[BPR-1279]]). The Linux half of the owed runs is discharged; Windows is still owed.
+
+
+## Windows station run (bpr-main-win, 2026-10-06)
+
+At `1992ee1eb`, Windows 11, MSVC, `build/windows-dev-tour-cli`
+(`windows-dev` preset, Debug, `-DBPR_BUILD_TOUR_CLI=ON`), after a full build
+with no `warning C` line, under the network-isolated runner: the Linux
+station's 13-row selection passes 13 of 13.
+
+- `application_profile_cycle_handoff_public_path` (13.8 s)
+- `application_profile_tour_handoff_public_path` (13.5 s)
+- `application_review_cycle_parity_public_path` (57.0 s)
+- `cycle_cli_public_path` and `cycle_cli_documentation`
+- `skill_bpr_cycle_package`
+- `sqlite_tour_owner_channel`
+- `core_review_cycle_command`
+- `review_cycle_workbench`
+- `application_review_cycle_desktop_public_path`
+- `application_review_round_trip_composition_contract`
+- `architecture_boundaries`
+- `test_network_isolation_manifest`
+
+The owner channel is now protocol 6, since [[BPR-1227]] added the tour source
+read, so the handoff courses ran at 6, not the 5 named above. The cycle
+commands are unchanged. The Windows half of the owed runs is discharged.

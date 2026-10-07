@@ -72,3 +72,28 @@ Owed, not gating: on Windows, the RC57 rows since BPR-1272 and BPR-1296
 (command in the ledger). Linux owes nothing.
 
 RFC-BPR-0057 is Auto-Verified. Docs and board only; no product file changed.
+
+
+## Windows station run (bpr-main-win, 2026-10-06)
+
+At `1992ee1eb`, Windows 11, MSVC, `build/windows-dev-tour-cli`
+(`windows-dev` preset, Debug, `-DBPR_BUILD_TOUR_CLI=ON`), after a full
+build with no `warning C` line, under the network-isolated runner: the
+ledger's RC57 Windows selection passes 9 of 9.
+
+| Row | Time (s) |
+|---|---|
+| `review_cycle_workbench` | 63.0 |
+| `review_cycle_response` | 0.6 |
+| `review_cycle_verification` | 1.3 |
+| `qt_review_cycle_view_1_0` | 22.0 |
+| `qt_review_cycle_view_2_0` | 34.0 |
+| `application_review_cycle_desktop_public_path` | 12.8 |
+| `application_review_cycle_two_round_public_path` | 20.7 |
+| `application_review_cycle_recovery_corpus` | 113.9 |
+| `test_network_isolation_manifest` | 26.8 |
+
+Three of them ran contained and six under their existing
+`WINDOWS_UNCONTAINED` pins. No new pin was needed. This covers the rows since
+BPR-1272 and BPR-1296. The tree includes [[BPR-1227]] (owner protocol v6),
+which these rows do not exercise. The Windows owed runs are discharged.
