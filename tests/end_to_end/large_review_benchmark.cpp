@@ -735,7 +735,7 @@ namespace bpr::e2e::large_review {
 			return outcome == app::detail::course_modality_result::failed
 				|| (outcome == app::detail::course_modality_result::entered && quiet(aApplication));
 		};
-		require(measure_wait(aApplication, aBudget, aReport, "read_modality", advance, settled)
+		require(measure_wait(aApplication, aBudget, aReport, "review_modality", advance, settled)
 					&& outcome == app::detail::course_modality_result::entered,
 				"Review modality did not present the comparison");
 	}
@@ -1250,7 +1250,9 @@ namespace bpr::e2e::large_review {
 		}
 		phase("rapid_selection_supersession", 10'000.0);
 		record("supersession_final_drain", aReport.SupersessionDrainMs, 1'250.0);
-		for (const auto* name : { "read_modality", "files_drawer_open", "files_drawer_close", "conversations_drawer_open", "conversations_drawer_close", "appearance_settings_open", "theme_light", "theme_dark" }) {
+		// [[BPR-1295]]. read_modality became review_modality when Read merged
+		// into Review; drawers_hide and drawers_show are Command-B both ways.
+		for (const auto* name : { "review_modality", "files_drawer_open", "files_drawer_close", "conversations_drawer_open", "conversations_drawer_close", "drawers_hide", "drawers_show", "appearance_settings_open", "theme_light", "theme_dark" }) {
 			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
 		}
 		// [[BPR-1089]]. The Overview's count switch and sort over 515 files and
@@ -1331,6 +1333,20 @@ namespace bpr::e2e::large_review {
 		toggle(window.files_drawer_toggle_action(), window.files_drawer(), "files_drawer_open");
 		toggle(window.conversations_drawer_toggle_action(), window.conversations_drawer(), "conversations_drawer_close");
 		toggle(window.conversations_drawer_toggle_action(), window.conversations_drawer(), "conversations_drawer_open");
+		// [[BPR-1295]]. Hide Drawers closes both open drawers and shows them
+		// again at their widths, each within the same input budget.
+		auto* const hideDrawers = window.toggle_drawers_action();
+		require(hideDrawers->isEnabled() && !hideDrawers->isChecked(), "Hide Drawers is offered with drawers open");
+		const auto widths = std::pair{ window.files_drawer()->width(), window.conversations_drawer()->width() };
+		require(measure_wait(aApplication, aBudget, aReport, "drawers_hide", [&] { hideDrawers->trigger(); }, [&] { return hideDrawers->isChecked()
+																														&& !window.files_drawer()->isVisible() && !window.conversations_drawer()->isVisible()
+																														&& quiet(aApplication) && rendered(); }), "Hide Drawers did not reach its rendered state");
+		save_frame("drawers_hide");
+		require(measure_wait(aApplication, aBudget, aReport, "drawers_show", [&] { hideDrawers->trigger(); }, [&] { return !hideDrawers->isChecked()
+																														&& window.files_drawer()->isVisible() && window.conversations_drawer()->isVisible()
+																														&& std::pair{ window.files_drawer()->width(), window.conversations_drawer()->width() } == widths
+																														&& quiet(aApplication) && rendered(); }), "Show Drawers did not restore both drawers at their widths");
+		save_frame("drawers_show");
 		require(measure_wait(aApplication, aBudget, aReport, "appearance_settings_open", [&] { window.open_settings(qt::settings_page::appearance); }, [&] { return window.settings() && window.settings()->isVisible() && window.appearance_settings()->isVisible()
 																																								 && !window.settings()->grab().isNull(); }), "Appearance settings did not render");
 		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
