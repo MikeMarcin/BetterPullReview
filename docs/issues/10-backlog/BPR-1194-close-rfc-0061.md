@@ -46,3 +46,54 @@ All owned acceptance criteria remain **Not run** at intake.
 | **RC61-08:** Publication preview differentiates bases and selected final content and links the actual PR while preserving local history/privacy. | Focused production-path checks and applicable native or service course at closeout | BPR-1177 share passes: the Publish as Pull Request sheet keeps P, T and R1–Rn apart, words each path, keeps a ledger of what goes to GitHub and what stays, and names the linked pull request (`review_cycle_publish_desk`, `application_review_cycle_publish_public_path`) on macOS, Linux and Windows; simulated GitHub; the owner accepted `BPR-1177-publish-sheet-v001` (session `aed7c9e8…`, event 8). BPR-1177 Done. Closeout reconciliation not run | `875192071` (product) |
 | **RC61-09:** Native width/focus/shortcuts/accessibility/IME/tab-restoration courses preserve accepted workbench design and record actual platform/user evidence; every Tab stop shows a visible focus ring, and in the read-only code Return notes the selection or the caret's line and Shift+Return begins Suggest change there (owner decision, 2026-10-02). | Focused production-path checks and applicable native or service course at closeout | BPR-1157 share passes: a focus ring on every stop and Return/Shift+Return in the code (macOS offscreen and native; Linux at `862e31a93`), accepted as `BPR-1157-native-keyboard-v002` (event 806); the owner's request with it, Escape (and Control-C on macOS) cancels the open note or suggestion, passes on macOS offscreen and native. Windows run of both owed, not gating. BPR-1157 Done. Other native courses (IME, tab restoration on Windows/Linux) not run. Closeout reconciliation not run | `73b2160fc`, `fa9f42381` (product) |
 | **RC61-10:** Named-corpus latency/memory and the eight-item/two-suggestion human-steering course measure benefit/limitations without unverified savings claims. | Focused production-path checks and applicable native or service course at closeout | BPR-1184: named-corpus latency and memory measured on macOS, Linux and Windows Release with mixed and negative findings recorded (the 514-item round's costs, BPR-1274; Windows cold open and a compare outlier); the owner accepted `BPR-1184-steering-benefit-v001` (session `db739d0e…`, event 5) with an empty note, recorded as a verdict without measured steering counts; no savings claimed. BPR-1184 Done. Closeout reconciliation not run | `397908dec` (product) |
+
+## Owner answer (2026-10-06): amend 0050, do BPR-0653
+
+RFC-BPR-0061 depended on RFC-BPR-0050, 0052 and 0037, all Proposed. The
+coordinator put the question to the owner in chat: "RFC-0061 … depends on
+RFC-0050, 0052 and 0037 …". The owner answered, verbatim:
+
+> Amend 0050, do BPR-0653
+
+The answer came in chat. No attended candidate was prepared for it, and
+session `cbd48b91000b00f1e72e1ad62c7c384c` was not used.
+
+The amendment is recorded in RFC-BPR-0061's
+[owner amendment](../../rfcs/RFC-BPR-0061-native-review-cycles-workbench-and-usability.md#owner-amendment-2026-10-06-rfc-bpr-0050-is-not-a-dependency)
+section and in the [RFC index](../../rfcs/README.md): RFC-BPR-0050 is
+dropped, because the cycle page uses none of its label controls, marks or
+settings. RFC-BPR-0052 and 0037 stay, and this card stays in Backlog until
+they are Auto-Verified. RFC-BPR-0050 is not closed by the amendment; it stays
+open on [[BPR-1100]].
+
+What BPR-0653 needs from the owner, on Windows (from the card's "What
+remains, exactly"):
+
+1. Set JaegAW's display scale to 100%. It is a system setting, so the station
+   does not change it.
+2. Let the station run `windows_caption_capture.ps1` at DPI 96, from the same
+   image `6aa27c8d…98ac4` and bundle `ca3bc2b1…8f91` as the accepted 150%
+   capture, so both halves picture one title row. Each launch is its own
+   Defender check; a flagged launch stops the capture and goes on BPR-0974.
+3. Review that capture as a new attended item naming its image digest, not
+   `BPR-0653-windows-capture-v001` and not in session `cbd48b91…`.
+
+That clears BPR-0653's criteria 2 and 4. Criterion 3 needs no owner: the
+2026-09-25 station pass at `3da31f2a` passed 19 of 20 rows with the manifest
+red only on BPR-1108's four rows, and the card says it is met once the
+coordinator accepts that red as outside the criterion or those rows run
+contained. The only shortcut is the owner's: amend criteria 2 and 4 to the
+accepted 150% capture.
+
+The chain after BPR-0653:
+
+1. [[BPR-1021]] closes RFC-BPR-0028 (BPR-0653 is its last unmet card;
+   BPR-0746 is Done by amendment).
+2. RFC-BPR-0037: its closeout [[BPR-0927]] is Done and it waits only on
+   RFC-BPR-0028 being Auto-Verified. No open card is named to record that
+   status change.
+3. [[BPR-1135]] closes RFC-BPR-0052: its seventeen card dependencies are Done,
+   and its RFC dependencies are RFC-BPR-0025 and 0029 (Auto-Verified), 0028
+   and 0037.
+4. BPR-1194 (this card) closes RFC-BPR-0061 once [[BPR-1193]] is Done and
+   RFC-BPR-0052 and 0037 are Auto-Verified.

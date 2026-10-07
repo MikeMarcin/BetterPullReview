@@ -4,9 +4,9 @@ title: "Native Review Cycles Workbench and Usability"
 status: "Proposed"
 area: "BPR"
 milestone: "Review Cycles"
-depends_on: ["RFC-BPR-0053", "RFC-BPR-0054", "RFC-BPR-0055", "RFC-BPR-0056", "RFC-BPR-0057", "RFC-BPR-0052", "RFC-BPR-0037", "RFC-BPR-0050"]
+depends_on: ["RFC-BPR-0053", "RFC-BPR-0054", "RFC-BPR-0055", "RFC-BPR-0056", "RFC-BPR-0057", "RFC-BPR-0052", "RFC-BPR-0037"]
 pack_version: "review-cycles-v1"
-metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
+metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "owner_dependency_amendment": {"date": "2026-10-06", "removed_closure_dependencies": ["RFC-BPR-0050"], "uses": [], "card": "BPR-1194"}}
 ---
 
 # RFC-BPR-0061: Native Review Cycles Workbench and Usability
@@ -84,6 +84,39 @@ an info glyph or a tooltip that a keyboard and a screen reader also reach.
 Every delivery observation keeps its accepted words as its text and tooltip,
 and the caption keeps its words behind the info glyph. The work and evidence
 are BPR-1285's.
+
+## Owner amendment, 2026-10-06: RFC-BPR-0050 is not a dependency
+
+As imported, this RFC listed RFC-BPR-0050 among its dependencies.
+RFC-BPR-0050 is Proposed; its closeout is
+[BPR-1100](../issues/10-backlog/BPR-1100-close-rfc-0050.md). The owner was
+asked in chat about this RFC's dependencies ("depends on RFC-0050, 0052 and
+0037 …") and answered:
+
+> Amend 0050, do BPR-0653
+
+The first half is this amendment. RFC-BPR-0061 uses nothing of RFC-BPR-0050:
+the cycle page links none of its label controls, marks or settings
+(`feedback_label_controls`, `feedback_label_marks`, `feedback_label_settings`),
+and a cycle note's label is read from its text by RFC-BPR-0047's recognizer
+through RFC-BPR-0055, which closed on its own amendment. RFC-BPR-0050's design
+and delivery work for the pull-request surfaces stays open on BPR-1100.
+
+RFC-BPR-0052 and RFC-BPR-0037 stay in `depends_on`: the cycle page is built in
+RFC-BPR-0052's title row, review bar, folding Updates line and document tabs,
+which RC61-02 names, and on RFC-BPR-0037's review workflow. They are expected
+to close in order once RFC-BPR-0028 does. The second half of the answer,
+BPR-0653's Windows capture, is the first step of that order:
+[BPR-0653](../issues/40-parked/BPR-0653-windows-caption-in-the-strip.md), then
+RFC-BPR-0028's closeout
+[BPR-1021](../issues/10-backlog/BPR-1021-close-rfc-0028.md), then
+RFC-BPR-0037, then RFC-BPR-0052's closeout
+[BPR-1135](../issues/10-backlog/BPR-1135-close-rfc-0052.md), then this RFC's
+closeout [BPR-1194](../issues/10-backlog/BPR-1194-close-rfc-0061.md).
+
+This amendment changes no RC61 criterion and does not close RFC-BPR-0050. The
+question and its answer are recorded on BPR-1194 and in the
+[execution ledger](../verification/RFC-BPR-0053-0061.md).
 
 ## Normative contracts
 
