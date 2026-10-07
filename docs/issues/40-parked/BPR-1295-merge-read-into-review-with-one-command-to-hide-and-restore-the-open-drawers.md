@@ -644,6 +644,19 @@ icon.
   `bugprone-signed-bitwise` at `workbench_settings_database.cpp`'s
   `OpenFlags | SQLITE_OPEN_NOFOLLOW`, a line this card does not touch.
 
+### Published
+
+The frozen candidate `0456feb78` is published as `a312aaeb3` and `bfa3e05dd`
+after a rebase onto `09334cf71`, which adds [[BPR-1089]]'s Overview label
+chips (`68f00eb15`) and its own reseal. The pins conflicted only there: both
+notes are kept, BPR-1295's now reads over BPR-1089's, and the values were
+recomputed on the merged tree (mutation pin unchanged). On the merged tree the
+focused rows pass 38 of 39 in Debug with `qt_hide_drawers_native_menu_key`;
+the one failure, `qt_pull_request_overview_page` ("Enter on the file's other
+cells still reads it"), is BPR-1089's new assertion on the Overview page alone,
+which this card does not touch; it fails the same way on plain `09334cf71`
+(checked in a scratch build of that commit).
+
 ### Owner look, session v001
 
 Pending: BPR-1295:owner-look is the owner's, not self-certified. One session,
