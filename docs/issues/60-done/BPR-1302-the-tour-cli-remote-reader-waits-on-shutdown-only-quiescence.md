@@ -388,3 +388,52 @@ Keychain; `open` of MikeMarcin/BPR-Test#1 in a new process exit 0 after
 13.83 s (bound 120 s), complete, not stale, nothing written. Cleanup: default
 Keychain restored, the login Keychain's four BetterPullReview items
 unchanged, session folder (temporary Keychain, profile, grant) removed.
+
+
+## Windows station run (bpr-main-win, 2026-10-07)
+
+At `399aade8e`, a clean tree. Windows 11 25H2, MSVC 19.51, Qt 6.11.2.
+`build/windows-dev-tour-cli` (`windows-dev`, Debug,
+`-DBPR_BUILD_TOUR_CLI=ON`) rebuilt with no `warning C` line. These are
+command-line and application rows, so no window opens. The card's Windows
+expression ran 7 of 9 passing:
+
+- **Passing:** `tour_cli_publication`, `tour_cli_composition`,
+  `tour_cli_process_commands`, `tour_cli_public_entry`,
+  `application_github_host`, `application_epoch_host` and
+  `architecture_boundaries`.
+
+- **`tour_cli_loopback_provider`: a contained refusal, not a product
+  failure.** It fails in 0.16 s, before the course starts:
+  `Path(arguments.binary).resolve(strict=True)` raises
+  `PermissionError: [WinError 5] Access is denied:
+  'C:\code\git\BetterPullReview\build\windows-dev-tour-cli\src\app\Debug\bpr.exe'`.
+  This is the `dos-volume-name` shape: CPython's `realpath` inside the
+  AppContainer. The same script, run uncontained with the row's environment,
+  passes:
+
+  ```
+  tour-cli-loopback:never-signed-in-open:pass:0.1s
+  tour-cli-loopback:native-paths:not-run:the vault here is the user's own; Linux runs them on a private Secret Service
+  tour-cli-loopback:gh-paths:not-run:the gh transport is composed on macOS only
+  tour-cli-loopback:pass
+  ```
+
+  So the never-signed-in exit 5 passes on Windows, in 0.1 s. The row needs a
+  `WINDOWS_UNCONTAINED` registration and a pin as `dos-volume-name`, with this
+  measured line, in `scripts/verify_test_network_isolation.py`. That is a CMake
+  and test change, held while main is frozen for the macOS prerelease.
+
+- **`test_network_isolation_manifest`: red, but not this card's.** It names
+  two rows that [[BPR-1089]] registered `WINDOWS_UNCONTAINED` without
+  pinning (`68f00eb15`, `10cd1cbb2`):
+  `application_overview_feedback_public_path` and
+  `application_overview_labels_public_path`. Each gets the same three
+  findings: not in the pinned Windows set, not started through the sandbox,
+  no `bpr_network_isolated` label. No other row is named.
+
+Criterion status on Windows:
+
+- The never-signed-in exit 5 passes uncontained. Its row needs the pin
+  above.
+- The native paths are not run here by design.

@@ -767,3 +767,68 @@ under the network-isolated runner, no remote mutation:
   deleted afterwards.
 
 The Linux half of the owed runs is discharged; Windows is still owed.
+
+
+## Windows station run (bpr-main-win, 2026-10-07)
+
+At `399aade8e` (it holds `3754fee9b`), a clean tree. Windows 11 25H2,
+MSVC 19.51, Qt 6.11.2. Both trees rebuilt with no `warning C` line. Every
+Qt-drawing row runs on the offscreen platform, checked from each row's
+environment. The rest are core, application, fixture and CMake-script rows.
+
+**Dev tree** (`build/windows-dev-tour-cli`, Debug, `ctest -j4`): 21 of 24
+pass. Among them:
+
+- `qt_conversation_finder_scale_100`, `_125` and `_200`;
+- `qt_composed_github` and `qt_composed_inline_drawer` at all three scales;
+- `qt_conversation_cards_view` and `qt_github_conversation_panel`;
+- `application_overview_feedback`;
+- the public-path rows;
+- the two GitHub fixture rows;
+- `application_composition_contract` (1085 s);
+- the round-trip pins and `architecture_boundaries`.
+
+**`qt_workbench_window_scale_100`, `_125` and `_200` fail** on both trees, at
+"the owner yields once and does not return at a narrower width". A
+temporary, uncommitted probe in the narrowing loop measured it the same way
+at 100% and 200%:
+
+```
+PROBE owner-gone width=1104 compact=0 text=[terminal  #20607]
+PROBE owner-returned width=1099 compact=1 title=0 text=[microsoft/terminal  #20607] minW=902
+```
+
+On Windows the identity drops its owner at 1104 px while the modality is
+still full. At 1099 px the modality turns compact, which frees width, and the
+owner comes back. The assertion dates from [[BPR-1129]], and these rows passed
+at `d8f4a67b7` ([[BPR-1295]]'s Windows run). The likely cause is this card's
+fourth modality: it moves the compact crossover below the owner's on Windows,
+where the title row also carries the caption buttons. That ordering is
+inferred from the widths, not bisected. Under the card's rule this opens a
+new card against this change; its ID is the integrator's to allocate.
+
+**Optimized tree** (`build/bpr0967-release`, MSVC `/O2`, `ctest -j1`):
+
+- The three `qt_conversation_finder` rows pass.
+- `qt_workbench_window` fails as above.
+- `application_first_tab_comparison` and
+  `application_large_review_responsiveness` fail intermittently, on one
+  budget: the longest input gap in the initial `paged_review_and_git_load`
+  phase, against its 100 ms limit. Every other phase, including all of this
+  card's Conversations phases, is inside its budget. Over four runs:
+
+  | Run | first_tab_comparison | large_review_responsiveness |
+  |---|---|---|
+  | 1 | fail, 110.7 ms | fail, 123.4 ms |
+  | 2 | fail, 104.1 ms | fail, 121.0 ms |
+  | 3 | fail, 119.1 ms | pass |
+  | 4 | pass | pass |
+
+  The phase lies outside Windows' named phases (`KnownInputMisses` is empty).
+  This is a marginal budget on this station, not a deterministic break. Its
+  cause is not established: either the load did more work since
+  `d8f4a67b7`, or the Windows margin was always this thin. It is reported
+  here, not opened as its own card.
+
+The logs are station records under
+`bpr-main-helpers\run\station-1003\bpr1302-1293`, not committed.
