@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1085"
 title: "Integrate reviewer-scoped preflight with native review decisions"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0048"]
 depends_on: ["BPR-1082", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-11","milestone":"authoring","acceptance":["R14","R15","R42"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"R14","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"Comment, Approve and Request changes keep their exact native event paths (three exclusive buttons per the owner's preflight B, BPR-1079): the composed review-submission course submits approve exactly once with my blocker open and request_changes exactly once after reading the list; request, idempotency key, grant, journal, host and provider unchanged; mutation-branch pin unchanged. 19/19 focused rows re-verified on bpr-main-linux."}},{"criterion":"R15","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"prepare_review_decision / review_decision_changes bind draft, account, target, head, summary, disposition and selected drafts; a change to any invalidates the prepared action (refused before and after the existing write confirmation, naming what changed), while resolutions, other people's labels and unselected drafts do not; core_review_preflight and the composed stale-selection/summary cases pass, with failing-before controls (15 mutations recorded in the ledger)."}},{"criterion":"R42","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"project_review_preflight is reviewer-scoped: other reviewers' blockers appear only under Others, an unknown author is uncertainty never mine, and the projection carries no disposition; the composed course shows a label edit, a relabel to blocking and the last resolution submit nothing and leave the chosen Approve in place."}},{"criterion":"owner-look","outcome":"pending","revision":"b62420807","evidence":{"kind":"observation","detail":"Reviewed on macOS with frontend-design in all four themes (b62420807): Approve's dot is the new state_attention role with per-theme built-ins, and the chip's draft and ? icons use the marks' geometry. Awaits the owner's look: attended question BPR-1085-preflight-v001, session ed68b8f1. R33's native matrix is not run."}}]
+acceptance: [{"criterion":"R14","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"Comment, Approve and Request changes keep their exact native event paths (three exclusive buttons per the owner's preflight B, BPR-1079): the composed review-submission course submits approve exactly once with my blocker open and request_changes exactly once after reading the list; request, idempotency key, grant, journal, host and provider unchanged; mutation-branch pin unchanged. 19/19 focused rows re-verified on bpr-main-linux."}},{"criterion":"R15","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"prepare_review_decision / review_decision_changes bind draft, account, target, head, summary, disposition and selected drafts; a change to any invalidates the prepared action (refused before and after the existing write confirmation, naming what changed), while resolutions, other people's labels and unselected drafts do not; core_review_preflight and the composed stale-selection/summary cases pass, with failing-before controls (15 mutations recorded in the ledger)."}},{"criterion":"R42","outcome":"pass","revision":"91a82602e","evidence":{"kind":"command","detail":"project_review_preflight is reviewer-scoped: other reviewers' blockers appear only under Others, an unknown author is uncertainty never mine, and the projection carries no disposition; the composed course shows a label edit, a relabel to blocking and the last resolution submit nothing and leave the chosen Approve in place."}},{"criterion":"owner-look","outcome":"pass","revision":"frozen-d9c5c2573-v001","evidence":{"kind":"observation","detail":"Owner Accept, no note: attended session ed68b8f1a60b465843afab5fc71393b0, candidate BPR-1085-preflight-v001 (fingerprint 6a263ac89772...), decision 3824636b-5a54-461a-8c59-9ea00c13541e, event 10; preflight published in b62420807. Platforms: Linux 19/19 at 91a82602e, Windows 19/19 at cd9b87e19, macOS 40 rows at b62420807 in all four themes. Linux/Windows runs of b62420807 are owed station commands on the card; R33's native matrix stays unrun."}}]
 ---
 
 # BPR-1085: Integrate reviewer-scoped preflight with native review decisions
@@ -170,3 +169,32 @@ Appearance > Colours." It carries a 2x sheet of all four themes.
 
 Next: read the decision. Accept satisfies owner-look and the card can finish;
 Reject comes back with the change in its note for a v002.
+
+## Owner verdict on look v001, 2026-10-06: Accept
+
+Session `ed68b8f1a60b465843afab5fc71393b0`, read with `status --after 8`:
+event 10 records **Accept** on `BPR-1085-preflight-v001` (revision
+`frozen-d9c5c2573-v001`, fingerprint `6a263ac89772…`, decision
+`3824636b-5a54-461a-8c59-9ea00c13541e`, saved 2026-10-07T02:18:28Z, actor
+human) with no note; event 11 hands back with nothing pending. The owner look
+is satisfied on the preflight published in `b62420807`, Approve's dot in the
+State attention role included. R14, R15 and R42 stand on their recorded
+evidence. The session was released and its frozen root deleted (recorded on
+[[BPR-1084]]).
+
+### Platform evidence
+
+- **Linux** (`bpr-main-linux`): 19 of 19 focused rows at `91a82602e` (above).
+- **Windows** (`bpr-main-win`, MSVC 14.51, Qt 6.11.2, `windows-dev`): the
+  shared selection 19 of 19 at `cd9b87e19` (above).
+- **macOS**: the focused rows at `cd9b87e19`, 40 rows after the look change
+  (`b62420807`) in all four themes, and the owner's look (above).
+
+### Owed station runs (not blocking)
+
+Linux and Windows have not run `b62420807`'s `state_attention` role, the chip
+icons and the resealed pins. The criteria name no per-platform run, so this is
+owed, not a blocker. The commands are on [[BPR-1084]]; add
+`application_composition_contract` and
+`application_review_round_trip_composition_contract` for the resealed pins.
+R33's native matrix stays unrun, as recorded above.
