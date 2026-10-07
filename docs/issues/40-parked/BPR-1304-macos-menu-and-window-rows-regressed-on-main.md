@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1304"
 title: "macOS menu and window rows regressed on main"
-status: "Ready"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
+parked_on: "human-review"
 metadata: {"found_by":"macOS Debug serial run of origin/main at ebb2cf11e, 2026-10-07","reservation":"docs/issues/_reservations/BPR-1304--BPR-1304--c2a0556d07b5.json","related_cards":["BPR-1295","BPR-1293","BPR-1089","BPR-0796","BPR-1303"],"acceptance":["BPR-1304:desktop-view","BPR-1304:title-row","BPR-1304:native-key-locked","BPR-1304:native-courses"]}
 ---
 
@@ -45,8 +46,10 @@ the named commit failing.
    title-row actions, so `title_row_exact_order` came out false. At
    `b078d8bdf` the row passes; at `9446afe42` it fails. The owner's
    `29a55ef70` ("Align selected-diff capture with the accepted Hide Drawers
-   control"), committed on local `main` and not yet pushed, is the fix; this
-   card verifies it and changes nothing there.
+   control"), committed on local `main` for [[BPR-1305]] and not pushed, is
+   the fix. It also drifts the round-trip full-application pin, which
+   BPR-1305 was resealing, uncommitted, when this card was pushed; so this
+   card verifies `29a55ef70` and neither carries nor changes it.
 3. **`7778886c9` ([[BPR-1293]]), the product was wrong.** It added
    Conversations (Ctrl+J) to the window's View menu and not to the desktop
    bar that mirrors it ([[BPR-0796]]), so closing the last window took
@@ -86,7 +89,7 @@ the named commit failing.
   offered and disabled; both offscreen rows pass, and fail with the product
   change removed.
 - **BPR-1304:title-row.** `application_uiforetw_selected_diff_contract` passes
-  on the candidate.
+  with `29a55ef70` ([[BPR-1305]]'s to publish).
 - **BPR-1304:native-key-locked.** `qt_hide_drawers_native_menu_key` sends its
   key in a session that refused activation.
 - **BPR-1304:native-courses.** The two cocoa courses pass in the owner's Aqua
