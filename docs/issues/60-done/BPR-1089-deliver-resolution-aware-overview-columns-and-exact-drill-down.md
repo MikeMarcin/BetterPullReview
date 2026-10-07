@@ -490,3 +490,18 @@ byte-identical to the committed
 Still owed, none blocking: the Linux and Windows reruns of the rows changed
 at `10cd1cbb2` and `36298270a`, and R33's native matrix, which goes to
 BPR-1094.
+
+
+## Windows pins (bpr-main-win, 2026-10-07)
+
+`application_overview_feedback_public_path` and
+`application_overview_labels_public_path` were registered
+`WINDOWS_UNCONTAINED` without a pin, so `test_network_isolation_manifest`
+named them on Windows. Each was measured contained for the purpose. The
+courses stop in under 0.2 s, at "FAILED: private overview-feedback course
+root" and "FAILED: private overview-labels course root". That is the same
+refusal of the private storage root as `application_setup_destination_public_path`,
+whose executable they share.
+
+Both are now pinned `dos-volume-name`. Uncontained they pass (7.0 s and
+5.9 s), and the manifest passes.
