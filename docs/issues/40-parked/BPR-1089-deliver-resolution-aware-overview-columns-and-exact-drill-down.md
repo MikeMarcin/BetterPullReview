@@ -6,7 +6,7 @@ status: "Parked"
 rfcs: ["RFC-BPR-0049", "RFC-BPR-0050"]
 depends_on: ["BPR-1083", "BPR-1087"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-15","milestone":"overview","acceptance":["R20","R21","R23","R24","R27","R31","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"sequence_after":["BPR-1088"],"coordinator_amendment":{"date":"2026-10-06","decision":"BPR-1088's landed settings (4a07f26bc) satisfy the dependency; its R20 owner look folds into BPR-1089's owner look"}}
-acceptance: [{"criterion":"R20","outcome":"pending","revision":"10cd1cbb2","evidence":{"kind":"observation","detail":"Folded from BPR-1088. macOS look pass at 10cd1cbb2 (frontend-design): Settings' Overview chips rows show the frames' short phrases. Pending: BPR-1088-settings-rows-v001 in session f703b6f5."}},{"criterion":"R21","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/application/overview_feedback_tests.cpp","detail":"No chips, issue+question and all twelve, Open and All: every file, folder, Not on a file and pull-request row's chips and Other drill into disjoint lists whose union is the included list, each list exactly its number; file rows plus Not on a file are the pull request, each conversation once (application_overview_feedback). core_feedback_partition: 2,000 generated populations x 10 scopes (directory and unattributed added) x both modes, every number's selection equals its count, dedicated + catch-all partition the included; merged file tallies equal the directory's. Qt and composed: chips issue 1, question 1, Other 1 on the same file; all twelve fold into +n with the menu reaching 13 entries."}},{"criterion":"R23","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/adapters_qt/pull_request_overview_page_tests.cpp","detail":"Open is the composed default (application_overview_feedback_public_path), follows Settings for each new pull request and never writes back; All shows each chip's breakdown: state bar, accessible 'issue 2 (1 open, 1 resolved), Other 2 (2 open) conversations'; composed after a website resolve: 'issue 1 (1 resolved), Other 1 (1 open)'."}},{"criterion":"R24","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/application/overview_feedback_tests.cpp","detail":"REST groups (unknown) give Open 0 with Uncertain 2 and resolution_unknown, never exact; an empty file under a partial collection is qualified. Qt: a cell with only an unknown-state issue shows the ? qualifier ('? 1'), the ? chip beside the switch counts unknown + not resolvable + unreadable once each with its limits in the tooltip; a blank cell is only a complete zero. Controls fail."}},{"criterion":"R27","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/end_to_end/setup_destination_public_path_tests.cpp","detail":"Composed: a click on renderer.cpp's issue chip lists exactly review-thread:PRRT_cc_1 in Discuss under 'issue · open · src/engine/renderer.cpp — 1 conversation' with focus on the list; Enter on the Comments cell opens the chip menu and Other lists exactly PRRT_cc_2; a website resolve + Refresh re-lists the same count as 0 without moving focus, and the Overview keeps its current cell. Sorting and drill-down read the same core projection (feedback_sort_key_of / select_feedback_units); folders sort by their own number."}},{"criterion":"R31","outcome":"pending","revision":"10cd1cbb2","evidence":{"kind":"observation","detail":"macOS look pass at 10cd1cbb2 (frontend-design): counts as amber digits beside the marks, ? ink 4.6:1 and up (7:1 in high contrast), Label key and menus in the page's theme, Discuss caption led by the count's mark. Pending: BPR-1089-overview-chips-v001 and -keyboard-v001 in session f703b6f5."}},{"criterion":"R33","outcome":"pending","revision":"10cd1cbb2","evidence":{"kind":"observation","detail":"Composed offscreen at 1x in light, dark and both high-contrast themes on macOS (application_overview_labels_public_path); the native matrix (125/200%, larger text, VoiceOver/Narrator, narrow/wide) is not run."}}]
+acceptance: [{"criterion":"R20","outcome":"pass","revision":"10cd1cbb2","evidence":{"kind":"observation","detail":"Owner accepted BPR-1088-settings-rows-v001 (Settings half) and BPR-1089-overview-chips-v001 (the Overview's chips driven by Settings' Overview chips) in session f703b6f564d1e41b02e337cf5f89cde3 (events 13 and 14) on the frozen build of 10cd1cbb2. The chips note about the Other tooltip's wording is answered in v002 (36298270a) and asked as tooltips-v002."}},{"criterion":"R21","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/application/overview_feedback_tests.cpp","detail":"No chips, issue+question and all twelve, Open and All: every file, folder, Not on a file and pull-request row's chips and Other drill into disjoint lists whose union is the included list, each list exactly its number; file rows plus Not on a file are the pull request, each conversation once (application_overview_feedback). core_feedback_partition: 2,000 generated populations x 10 scopes (directory and unattributed added) x both modes, every number's selection equals its count, dedicated + catch-all partition the included; merged file tallies equal the directory's. Qt and composed: chips issue 1, question 1, Other 1 on the same file; all twelve fold into +n with the menu reaching 13 entries."}},{"criterion":"R23","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/adapters_qt/pull_request_overview_page_tests.cpp","detail":"Open is the composed default (application_overview_feedback_public_path), follows Settings for each new pull request and never writes back; All shows each chip's breakdown: state bar, accessible 'issue 2 (1 open, 1 resolved), Other 2 (2 open) conversations'; composed after a website resolve: 'issue 1 (1 resolved), Other 1 (1 open)'."}},{"criterion":"R24","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/application/overview_feedback_tests.cpp","detail":"REST groups (unknown) give Open 0 with Uncertain 2 and resolution_unknown, never exact; an empty file under a partial collection is qualified. Qt: a cell with only an unknown-state issue shows the ? qualifier ('? 1'), the ? chip beside the switch counts unknown + not resolvable + unreadable once each with its limits in the tooltip; a blank cell is only a complete zero. Controls fail."}},{"criterion":"R27","outcome":"pass","revision":"36298270a","evidence":{"kind":"command","path":"tests/end_to_end/setup_destination_public_path_tests.cpp","detail":"Composed: a click on renderer.cpp's issue chip lists exactly review-thread:PRRT_cc_1 in Discuss under 'issue · open · src/engine/renderer.cpp — 1 conversation' with focus on the list; back on the Overview, Tab steps onto the issue chip, Tab onto Other, and Enter lists exactly PRRT_cc_2; a website resolve + Refresh re-lists the same count as 0 without moving focus. Qt (qt_pull_request_overview_page): Left/Right stay the tree's, Tab/Shift+Tab/Left/Right/Enter/Space/Escape on chips name exactly the chip's row and number, the ring and tooltip show, the chip survives a refresh and a sort; controls fail. The v001 route was rejected by the owner and replaced."}},{"criterion":"R31","outcome":"pending","revision":"36298270a","evidence":{"kind":"observation","detail":"Owner accepted overview-chips-v001 (marks, Open/All, ?, Label key, Discuss caption) and rejected overview-keyboard-v001 (a dark square on a selected row; no sign that Left/Right reach chips). v002 at 36298270a: the modified mark reads on plain and selected rows (no tile on the highlight), plain chip/Other/? tooltip words, and Tab onto chips with a ring and tooltip. Pending: BPR-1089-overview-keyboard-v002 and BPR-1089-tooltips-v002."}},{"criterion":"R33","outcome":"pending","revision":"36298270a","evidence":{"kind":"observation","detail":"Composed offscreen at 1x in light, dark and both high-contrast themes on macOS (application_overview_labels_public_path, now with the keyboard route and chip tooltip captured in each theme at 36298270a); the native matrix (125/200%, larger text, VoiceOver/Narrator, narrow/wide) is not run."}}]
 parked_on: "human-review"
 ---
 
@@ -89,7 +89,8 @@ text, icons and tooltips, and checked from offscreen renders only.
   - Discuss lists a drill-down exactly (`discuss_filters::Listed`), under a
     caption with a × to show every conversation again.
 
-**Keyboard route (recorded in the delivery contract).** Left and Right move
+**Keyboard route (recorded in the delivery contract; superseded by v002
+below after the owner rejected it).** Left and Right move
 along a file row's cells. Enter on the Comments cell opens a menu of every
 chip, Other, the chips folded into "+n" and ?, with Sort by. The
 context-menu key and a right-click open it on any row. Enter elsewhere still
@@ -287,7 +288,7 @@ only two warnings on lines this change did not touch; `DOCUMENTATION_OK`.
 Round-trip pins resealed over BPR-1295's reseal (fixture selection only;
 mutation pin unchanged).
 
-### Pending owner decisions (session v001)
+### Owner decisions asked in session v001
 
 One short attended session asks Accept or Reject per candidate, on a frozen
 build of `10cd1cbb2` (`/Users/jaeger/bpr1089-overview-look-v001.CPE7fj`, executable SHA-256 `9805ea59…e4624f`).
@@ -306,3 +307,149 @@ Overview, signed in as the fixture's account. Session `f703b6f564d1e41b02e337cf5
 R33's native matrix (125/200%, larger text, VoiceOver) is still not run.
 Linux and Windows reruns of the new row are owed. A window without an
 accepted handoff still shows no chips (unchanged; noted for the owner).
+
+## Owner decisions, session f703b6f5 (2026-10-06)
+
+Session `f703b6f564d1e41b02e337cf5f89cde3` was handed back at event 16. The
+cursor consumed is 16. Verdicts, verbatim:
+
+- `BPR-1088-settings-rows-v001`: **Accept** (no note). BPR-1088 is finished
+  on it.
+- `BPR-1089-overview-chips-v001`: **Accept**, with the note: ""without a
+  chip of their own" is a weird tooltip and we should adjust it."
+- `BPR-1089-overview-keyboard-v001`: **Reject**, with the note: "This black
+  square is weird looking on a highlighted row without added chip.
+
+  I see no indication that left/right does anything on overview other than
+  open/close the folders in the overview list." The attached screenshot
+  shows the selected row guide.md with a dark filled square at its left. It
+  is kept at
+  [`BPR-1089-owner-ref-overview-keyboard-v001-black-square.png`](../../design/owner-refs/BPR-1089-owner-ref-overview-keyboard-v001-black-square.png).
+
+The session is released. Its frozen root was deleted, and the v001 window
+that was still open from it was closed.
+
+## v002: the square, the words and the keyboard (bpr-main-mac, 2026-10-06)
+
+Product commit `36298270a`, rebased from `f2639c643`. Engineering owner
+`rfc-implementer` (`claude-opus-5-5`, effort high), designed with the
+`frontend-design` skill.
+
+**The dark square** was not the Comments cell. Its pixels in the
+screenshot are the operation mark of a modified file: a `#131519` tile with
+a `#0D1117` "M". The mark was filled with the palette's Mid under a Base
+letter, about 1.05:1 in the dark theme. Mid there is darker than the code
+ground, so the letter vanished and the tile read as a black square on the
+highlight. Added files kept their green tile, hence "without added chip".
+
+The mark is now the frames' `.op`, built by
+`overview_operation_mark_colours`. The tile is mixed 7% from the row's ground
+toward its text, with a 32% outline and a 74% letter, at least 4.5:1 in
+light, dark and high contrast. On a selected row there is no tile, only an
+outline and the "M" in the selection's text colour. Added, removed and
+renamed keep their coloured tiles.
+
+**Words.** The chip, Other and ? tooltips were rewritten in plain words:
+
+- Other's tooltip reads "Other labels: 2 open conversations here." with
+  "Labels not ticked in Settings' Overview chips, and comments with no
+  label."
+- The ? tooltip reads "Not counted: 6 conversations", then one reason a
+  line: "• 2 whose state is unknown", "• 1 whose label can't be read", "• 3
+  that can't be resolved".
+- The limits read "not every comment was loaded", "counted at an earlier
+  refresh", "comments couldn't be loaded" and "some comments' files are
+  unknown".
+- Every chip tooltip ends "Click or press Enter to list them".
+- The Label key says "Other labels", "Comments: all, when no label is
+  ticked" and "? beside a count: some not counted".
+- The cells' accessible text follows, as in "Other 1 open conversations; 1
+  whose state is unknown".
+
+**Keyboard route, chosen design: Tab onto the chips.** Left and Right
+already fold and unfold folders and step between a folder and its files, on
+every platform. v001 gave them a second meaning on file rows only. The same
+key then did different things on adjacent rows, and nothing on screen said
+which. Chips act on a click, so they are controls, and Tab is how every
+application reaches the next control. The ring and the tooltip appear on
+the first press, which answers "no indication". It is also the simpler of
+the brief's two shapes: no per-row-kind rule for arrow keys, and no visible
+cell cursor in a row-selection tree. The route:
+
+- Left and Right are the tree's on every row again.
+- Tab steps from the current row onto its first chip, then along the
+  chips. Past the last chip it leaves the files, as Tab always does.
+  Shift+Tab steps back, and from the first chip returns to the row.
+- Once on a chip, Left and Right move along the chips. Enter or Space lists
+  its conversations ("+n" opens its menu). Escape returns to the row. Up,
+  Down or a click elsewhere leaves the chip.
+- The chip wears a 1.5 px ring in the selection's text colour, the row's
+  only focus mark while it is on. The chip's tooltip comes up beside it,
+  and a screen reader hears the same words.
+- Enter on a row opens a file row's file, whichever cell is current. The
+  context-menu key and a right-click still open the row's chip menu.
+- The keys are named in the Comments header's and cells' tooltips, the
+  files' accessible description and a new Keys section of the Label key.
+- The chip and its row survive a refresh and a sort. A click on a chip
+  leaves no ring.
+
+**Failing-before controls** (each applied, built, run and reverted):
+
+| Mutation | Fails at |
+|---|---|
+| The old operation mark (Mid tile, Base letter) | "dark: a modified mark's letter reads on its tile, at least 4.5:1" |
+| The paint keeps the Mid tile and Base letter | "dark: no dark square on the selected row's modified mark" |
+| A selected row keeps the tile | "dark: on a selected row it is the selection's own text, with no tile" |
+| Left and Right move along a file row's cells again | "Right on a file row is the tree's: it moves to no other cell and onto no chip" |
+| No ring is drawn | "the chip the keyboard is on wears a ring in the selection's text colour; none before Tab" |
+| Tab is not taken by the files | "Tab steps from the row onto its first chip, Other, and keeps focus in the files" |
+| No tooltip comes up for a keyboard chip | "the chip's tooltip comes up beside it, in plain words, naming Enter" |
+| Other's tooltip keeps "without a chip of their own" | the same |
+| The Label key keeps the old Other wording | "the Label key calls the bubble with dots Other labels, and names the keys that reach a chip" |
+| The clause keeps "resolution unknown for" | "the unknown resolution is in the accessible text, in plain words" |
+| Another row keeps the chip | "and coming back lands on the row, not the chip it left" |
+| Enter on a chip reads the file instead | "Enter on the ? chip asks for exactly that file's uncertain conversations, and opens no file" |
+| Shift+Tab is not taken back to the row | "Shift+Tab from the first chip returns to the row" |
+| Tab is not taken (composed) | `application_overview_feedback_public_path`: "Tab steps onto the issue chip" |
+
+**Verification at `36298270a`**, macOS arm64 Debug, `build/dev` whole tree:
+
+- 55 of 55 focused rows: the feedback, overview, label, settings window,
+  workbench window, nested folders, setup destination and review submission
+  rows, both round-trip rows (pins hold),
+  `test_network_isolation_manifest`, `architecture_boundaries` and the
+  manifest rows.
+- `coding-format-check` (clang-format 23.1.1). `tidy.py` on the changed
+  translation units reports only warnings on lines this change did not touch.
+- `DOCUMENTATION_OK`.
+- `application_overview_labels_public_path` now also captures the keyboard
+  route and the chip tooltip in all four themes when given an artifact
+  root. They were inspected: the ring, the outlined "M" on the selected row,
+  and no second focus frame. The style's current-cell frame is dropped on
+  the row while a chip has the keyboard.
+
+### Pending owner decisions (session v002)
+
+One short attended session asks Accept or Reject per candidate. It runs
+on a frozen build of `36298270a` in its own root,
+`/Users/jaeger/bpr1089-overview-look-v002.QzHVx9`, with executable SHA-256
+`575cfa15…ed1317`. `python3 /Users/jaeger/bpr1089-overview-look-v002.QzHVx9/launch.py`
+opens bpr-fixtures/nested-folders#21 (`overview-labels-v1`) on its Overview,
+signed in as the fixture's account. An offscreen smoke printed
+`ATTENDED_PULL_REQUEST_OPENED`.
+
+Session `7405e2eee63e1a449593993fb935b295`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1089-look-v002`,
+repo root `/Users/jaeger/Documents/GitHub/BetterPullReview`. The host, pid
+39256, was started detached at `http://127.0.0.1:59640/` (the token is in the
+coordinator's report). Wait cursor 8.
+
+1. `BPR-1089-overview-keyboard-v002`: with a file row selected, the row
+   shows no dark square, and Tab visibly reaches its chips (ring and
+   tooltip) while Left and Right still only fold and unfold folders (R31).
+2. `BPR-1089-tooltips-v002`: the chip, Other and ? tooltips and the Label
+   key read in plain words, with nothing like "without a chip of their own"
+   (R31).
+
+R33's native matrix (125/200%, larger text, VoiceOver) is still not run.
+Linux and Windows reruns of the changed rows are owed.
