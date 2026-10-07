@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1295--BPR-1295--47ff1149b806.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0052","RFC-BPR-0005"],"related_cards":["BPR-1290","BPR-1293","BPR-1294","BPR-1021","BPR-0661","BPR-0721","BPR-0724","BPR-0727","BPR-0729","BPR-0649","BPR-0796","BPR-1132"],"acceptance":["BPR-1295:owner-answers","BPR-1295:three-modalities","BPR-1295:entries","BPR-1295:hide-restore","BPR-1295:keys-and-icon","BPR-1295:migration","BPR-1295:governing-text","BPR-1295:tests","BPR-1295:owner-look"],"owner_answers":{"date":"2026-10-06","hide_scope":"every drawer","entering_review":"remember the last arrangement","keys":"Cmd-B (Ctrl+B); Cmd-1/2/3 proposed, confirm at owner-look","icon":"beside the Comments toggle"},"sequence_after":"BPR-1290 (its src/ change is in flight; this card's code waits for it)"}
+metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1295--BPR-1295--47ff1149b806.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0052","RFC-BPR-0005"],"related_cards":["BPR-1290","BPR-1293","BPR-1294","BPR-1021","BPR-0661","BPR-0721","BPR-0724","BPR-0727","BPR-0729","BPR-0649","BPR-0796","BPR-1132"],"acceptance":["BPR-1295:owner-answers","BPR-1295:three-modalities","BPR-1295:entries","BPR-1295:hide-restore","BPR-1295:keys-and-icon","BPR-1295:migration","BPR-1295:governing-text","BPR-1295:tests","BPR-1295:owner-look"],"owner_answers":{"date":"2026-10-06","hide_scope":"every drawer","entering_review":"remember the last arrangement","keys":"Cmd-B (Ctrl+B); Cmd-1/2/3 proposed, confirm at owner-look","icon":"beside the Comments toggle"},"sequence_after":"BPR-1290 (its src/ change is in flight; this card's code waits for it)","sequence_satisfied":"BPR-1290 Done 2026-10-06; its drawer is landed on origin/main as 0a7f72068"}
 ---
 
 # BPR-1295: Merge Read into Review, with one command to hide and restore the open drawers
@@ -515,3 +515,13 @@ design ([[BPR-1290]]), or where comments that are not on a file live
 So Discuss's key does not move twice, this card leaves Discuss on ⌘4 and
 leaves ⌘3 unbound; BPR-1293 then gives ⌘3 to Conversations. Overview stays
 ⌘1 and Review takes ⌘2. Confirmed at this card's built-UI review.
+
+## Sequencing met, 2026-10-06: ready to implement
+
+This card's code was sequenced after [[BPR-1290]], whose `src/` change was in
+flight. BPR-1290 is now Done: the owner accepted built
+drawer v005 (session `f76a3bf8`), published as `0a7f72068`, and no BPR-1290
+candidate holds the drawer files any more. Nothing else in `depends_on` is
+open, so this card is eligible to claim. Implementation starts from
+`origin/main` holding `0a7f72068`; the Read paths inventoried above are those
+of that tree.
