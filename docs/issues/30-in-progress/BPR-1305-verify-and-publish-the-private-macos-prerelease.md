@@ -69,5 +69,23 @@ courses include Hide Drawers in the resident View menu, preserving the disabled
 action, shortcut, ordering and Preferences-role assertions; focused public-path
 and Qt courses pass in 7.26 and 1.03 seconds respectively.
 
+Upstream then landed BPR-1303's product correction at `bba8a8d26`, through
+`fd6c21b36`. Merge `0a3cf40ee` incorporates it and removes the test probe's
+manual file reopening, so the course exercises the restored active tab itself.
+Reviewed pinned-source range is now `efa26ca02..0a3cf40ee`: `29a55ef70`,
+`da862cf32`, `bba8a8d26` and this integration. The new production code records
+a handoff that preserves the diff and refreshes the exact active tab through
+the existing document-tab host once files return. Head-moving refresh retains
+its reload. No provider, target, grant, credential, publication or storage path
+changes; mutation digest remains unchanged. BPR-1303 records forced-off failing
+controls and 20 passing label runs. The label probe retains current-comparison,
+completed private-draft and refresh readiness checks and every exact assertion.
+
+The `4a7ac4456` full gate had no failures through more than 500 courses,
+including the full hostile composition control, capsule cleanup, label course,
+347-binary isolation, HTTPS and corrected profile courses. It was interrupted
+before packaging to integrate this upstream production fix. A fresh normal
+release workflow verifies the combined committed source.
+
 M8/M9 native, vault, crash/privacy and vulnerability gaps remain open as stated
 in the release notes. This prerelease supplies no successor RFC closeout.

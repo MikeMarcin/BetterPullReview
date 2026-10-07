@@ -925,19 +925,21 @@ endfunction()
 # read from its narrative (card_post::Lead) with the label as its header. No
 # provider, grant, target, credential, storage, mutation or publication path
 # changes; mutation pin unchanged; no new src/app source. Reviewed on BPR-1086.
-# BPR-1305 prerelease-gate reseal (2026-10-07): efa26ca02..b81a1075c.
-# 29a55ef70 is the only changed pinned-scope commit. Reviewed its complete
-# diff: tests-on UIforETW capture now asserts BPR-1295's accepted Hide Drawers
-# action, shifts the following exact indices, captures that action's rectangle,
-# and retains the edge bound after the last drawer control. No production
-# behavior, grant, target, provider, credential, mutation or publication change;
-# da862cf32 also changes only the tests-on label probe: reopen the file through
-# the drawer after refresh, await its current comparison, and wait for private
-# draft/refresh transitions before the next exact body/anchor publication. The
-# original exact wire, refusal and mark assertions remain. No production host,
-# grant, provider or target changes. The native menu repair 69a2c001c is outside
-# the pinned app inventory; BPR-1304 remains parked for owner native evidence.
-# mutation pin unchanged; no new src/app source. Review/evidence: BPR-1305.
+# BPR-1305 prerelease integration reseal (2026-10-07): efa26ca02..0a3cf40ee.
+# Pinned changes: 29a55ef70 (tests-on Hide Drawers capture), da862cf32
+# (tests-on label readiness), bba8a8d26 (BPR-1303 active-tab re-presentation),
+# and 0a3cf40ee (their integration; remove the test's manual file reopening).
+# BPR-1303 records first-bad and forced-off controls plus 20 passing label runs.
+# The accepted handoff that preserves the diff records RefreshKeptTabView;
+# once files return, the active tab refreshes its exact view through the existing
+# document-tab host. Head-moving refresh retains its comparison reload. This
+# uses the existing tab restoration path, introduces no provider/target/grant,
+# and has no mutation/publication/storage/credential change. The label course
+# now waits for that current comparison and for private draft/refresh transitions
+# before the next exact body/anchor publication; all wire, refusal and mark
+# assertions remain. BPR-1304's menu repair is outside the app inventory and its
+# owner native evidence remains parked. No new app source; mutation pin unchanged.
+# Review/evidence: BPR-1303 and BPR-1305.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -956,7 +958,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6d379895fd6da36c1310164d5edd0fac8aefb17ed39de59e0c0a8a34901bb2d0"
+		"8620e8320ea14e591f7e49d0cb23edc657a84d9aca7fa83c61046d063e7de059"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1154,7 +1156,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5b26aa6f70cd5a137536a3851d1c7374d9375ecad0a31c0c511614efe3003ad1"
+        "deff5dcab2e5bb64e326aa8caecbaa45225e706c93c77258ab27c37937225f24"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
