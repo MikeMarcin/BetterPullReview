@@ -311,13 +311,23 @@ try {
 			   "the resident desktop keeps the application's own menu bar");
 		return menu;
 	};
+	// [[BPR-1304]]. The window's View, read before the close rather than counted
+	// here: [[BPR-1295]] and [[BPR-1293]] each added an item to it.
+	const auto view_items = [](const QMenu* const aMenu) {
+		auto items = QStringList{ };
+		for (const auto* const action : aMenu->actions()) {
+			items.push_back(action->isSeparator() ? QStringLiteral("-") : action->text());
+		}
+		return items;
+	};
+	expect(initial->window().view_menu() != nullptr, "the window has its View menu");
+	const auto windowView = view_items(initial->window().view_menu());
 	initial->window().close();
 	closed_the_last_window();
 	auto* desktopMenu = resident_menu_bar();
 	expect(desktopMenu->profiles_menu()->actions().size() == 5,
 		   "which lists the three profiles, New Window and management");
-	// BPR-1295 added Hide Drawers to the resident View menu as well.
-	expect(desktopMenu->view_menu() != nullptr && desktopMenu->view_menu()->actions().size() == 8
+	expect(desktopMenu->view_menu() != nullptr && view_items(desktopMenu->view_menu()) == windowView
 			   && std::ranges::all_of(desktopMenu->view_menu()->actions(), [](const auto* aAction) {
 					  return aAction->isSeparator() || !aAction->isEnabled();
 				  }),
