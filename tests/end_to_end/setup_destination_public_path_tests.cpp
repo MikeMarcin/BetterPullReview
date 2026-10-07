@@ -2,6 +2,7 @@
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/core/pull_request_location.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -549,27 +550,24 @@ namespace {
 			   "under a caption naming the count, with focus on the list");
 		capture(window, QStringLiteral("overview-feedback-drill-down.png"));
 
-		// Back on the Overview, the keyboard reaches Other through Enter.
+		// Back on the Overview, the keyboard reaches Other: Tab steps from the
+		// row onto its chips, and Enter lists the one it is on.
 		window.choose_modality(qt::review_modality::overview);
 		QApplication::processEvents();
-		expect(view->hasFocus() && view->currentIndex() == issueCell, "the Overview gives focus back to the chip's cell");
-		QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-		QApplication::sendEvent(view, &enter);
-		QApplication::processEvents();
-		auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
-		expect(menu != nullptr && menu->objectName() == QStringLiteral("overviewCommentsMenu"), "Enter on the Comments cell opens its chips' menu");
-		const auto entries = menu->actions();
-		const auto other   = std::ranges::find_if(entries, [](QAction* aAction) { return aAction->text().startsWith(QStringLiteral("Other")); });
-		expect(other != entries.end(), "the menu names Other");
-		(*other)->trigger();
-		menu->close();
-		// On macOS's offscreen platform a closed popup hands activation to no
-		// window, where a native session returns it to the window under the
-		// menu. Give it back, so the focus checks below read the product.
-		window.activateWindow();
-		wait_for([&] { return QApplication::activeWindow() == &window; }, "the window is active again once the menu closes");
+		expect(view->hasFocus() && view->currentIndex() == issueCell, "the Overview gives focus back to the chip's row");
+		expect(!page->focused_chip(), "a click leaves no keyboard ring");
+		const auto pressKey = [&](const Qt::Key aKey) {
+			QKeyEvent down{ QEvent::KeyPress, aKey, Qt::NoModifier };
+			QApplication::sendEvent(view, &down);
+			QApplication::processEvents();
+		};
+		pressKey(Qt::Key_Tab);
+		expect(page->focused_chip() && page->focused_chip()->Label == core::feedback_label::issue, "Tab steps onto the issue chip");
+		pressKey(Qt::Key_Tab);
+		expect(page->focused_chip() && page->focused_chip()->Kind == qt::overview_comment_chip::kind::other && view->hasFocus(), "and on to Other, in the files");
+		pressKey(Qt::Key_Return);
 		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && listed() == std::set<std::string>{ "review-thread:PRRT_cc_2" }; },
-				 "Other lists exactly the suggestion thread");
+				 "Enter on Other lists exactly the suggestion thread");
 
 		// Back to the issue, then resolve it on the website: the list follows
 		// the accepted population, and focus stays on it.
@@ -677,6 +675,27 @@ namespace {
 			}
 		};
 		capture_themes("open");
+		// The keyboard route for the look: renderer.cpp's row selected, Tab on
+		// its first chip, with the chip's tooltip beside it.
+		if (const auto root = qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT"); !root.isEmpty()) {
+			for (const auto& [mode, theme] : themes) {
+				expect(github_application_fixture_access::apply_appearance_gesture(*owner, mode, 4U), "Settings applies each theme");
+				window.activateWindow();
+				page->files_view()->setFocus();
+				page->files_view()->setCurrentIndex(cell("src/engine/renderer.cpp").siblingAtColumn(qt::overview_file_model::file_column));
+				QKeyEvent tab{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+				QApplication::sendEvent(page->files_view(), &tab);
+				QApplication::processEvents();
+				expect(page->focused_chip().has_value(), "Tab is on renderer.cpp's first chip");
+				capture(window, QStringLiteral("overview-labels-keyboard-%1.png").arg(QString::fromLatin1(theme)));
+				if (auto* const tip = qt::anchored_tooltip()) {
+					expect(tip->grab().save(root + QStringLiteral("/overview-labels-keyboard-tip-%1.png").arg(QString::fromLatin1(theme))), "tooltip capture");
+				}
+				QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+				QApplication::sendEvent(page->files_view(), &escape);
+				QApplication::processEvents();
+			}
+		}
 		page->all_counts_button()->click();
 		wait_for([&] { return counted(3U, core::feedback_resolution_mode::all); }, "All is counted");
 		expect(cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString()
@@ -697,11 +716,13 @@ namespace {
 		page->label_key()->close();
 		page->files_view()->setFocus();
 		page->files_view()->setCurrentIndex(cell("src/engine/renderer.cpp"));
-		QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-		QApplication::sendEvent(page->files_view(), &enter);
+		// The row's menu, as the context-menu key and a right-click open it.
+		auto* const menu = page->make_comments_menu(cell("src/engine/renderer.cpp"));
+		expect(menu != nullptr, "renderer.cpp has a Comments menu");
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		menu->popup(page->files_view()->viewport()->mapToGlobal(page->files_view()->visualRect(cell("src/engine/renderer.cpp")).bottomLeft()));
 		QApplication::processEvents();
-		auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
-		expect(menu != nullptr && menu->palette().color(QPalette::Window) == page->palette().color(QPalette::Window), "a Comments menu shows the theme the page shows");
+		expect(menu->palette().color(QPalette::Window) == page->palette().color(QPalette::Window), "a Comments menu shows the theme the page shows");
 		const auto entries    = menu->actions();
 		const auto issueEntry = std::ranges::find_if(entries, [](QAction* aAction) { return aAction->text().startsWith(QStringLiteral("issue")); });
 		expect(issueEntry != entries.end(), "the menu names the issue chip");

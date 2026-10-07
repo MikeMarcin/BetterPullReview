@@ -14,11 +14,13 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QDateTime>
+#include <QFocusEvent>
 #include <QFont>
 #include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -630,33 +632,35 @@ namespace bpr::qt {
 			return parts.join(QStringLiteral(", "));
 		}
 
-		/// The limits and the units the count leaves out, each as a clause:
-		/// "resolution unknown for 2", "label unreadable for 1".
+		/// The limits and the units the count leaves out, each as a clause in
+		/// plain words: "2 whose state is unknown", "1 whose label can't be
+		/// read" (owner, accepting `overview-chips-v001`: the earlier wording
+		/// read as jargon).
 		[[nodiscard]] auto qualifier_clauses(const core::feedback_counter_projection& aCounts) -> QStringList
 		{
 			auto clauses = QStringList{ };
 			if (const auto unknown = state_of(aCounts.States, core::feedback_resolution::unknown); unknown != 0U) {
-				clauses.push_back(QStringLiteral("resolution unknown for %1").arg(count_text(unknown)));
+				clauses.push_back(QStringLiteral("%1 whose state is unknown").arg(count_text(unknown)));
 			}
 			if (aCounts.ScopeUnclassified != 0U) {
-				clauses.push_back(QStringLiteral("label unreadable for %1").arg(count_text(aCounts.ScopeUnclassified)));
+				clauses.push_back(QStringLiteral("%1 whose label can't be read").arg(count_text(aCounts.ScopeUnclassified)));
 			}
 			if (const auto none = state_of(aCounts.States, core::feedback_resolution::not_applicable); none != 0U && aCounts.Mode == core::feedback_resolution_mode::unresolved) {
-				clauses.push_back(QStringLiteral("%1 not resolvable").arg(count_text(none)));
+				clauses.push_back(QStringLiteral("%1 that can't be resolved").arg(count_text(none)));
 			}
 			for (const auto limit : aCounts.Limits) {
 				switch (limit) {
 				case core::feedback_count_limit::collection_partial:
-					clauses.push_back(QStringLiteral("not every comment was read"));
+					clauses.push_back(QStringLiteral("not every comment was loaded"));
 					break;
 				case core::feedback_count_limit::collection_stale:
-					clauses.push_back(QStringLiteral("from an earlier read"));
+					clauses.push_back(QStringLiteral("counted at an earlier refresh"));
 					break;
 				case core::feedback_count_limit::collection_unavailable:
-					clauses.push_back(QStringLiteral("comments unavailable"));
+					clauses.push_back(QStringLiteral("comments couldn't be loaded"));
 					break;
 				case core::feedback_count_limit::attribution_unknown:
-					clauses.push_back(QStringLiteral("some comments' files unknown"));
+					clauses.push_back(QStringLiteral("some comments' files are unknown"));
 					break;
 				case core::feedback_count_limit::classification_partial:
 				case core::feedback_count_limit::resolution_unknown:
@@ -697,21 +701,23 @@ namespace bpr::qt {
 				const auto what  = aChip.Kind == overview_comment_chip::kind::label ? feedback_label_text(*aChip.Label) + QLatin1Char{ ' ' } : QString{ };
 				auto       lines = QStringList{ };
 				if (aChip.Kind == overview_comment_chip::kind::other && aAnyColumns) {
-					lines.push_back(QStringLiteral("Other: %1 %2%3 without a chip of their own here.")
-										.arg(count_text(aChip.Count), open ? QStringLiteral("open ") : QString{ }, conversations(aChip.Count)));
+					// Other names what it holds: the labels Settings did not
+					// tick, and comments with no label.
+					lines.push_back(QStringLiteral("Other labels: %1 %2%3 here.").arg(count_text(aChip.Count), open ? QStringLiteral("open ") : QString{ }, conversations(aChip.Count)));
+					lines.push_back(QStringLiteral("Labels not ticked in Settings' Overview chips, and comments with no label."));
 				} else {
 					lines.push_back(QStringLiteral("%1 %2%3%4 here.").arg(count_text(aChip.Count), open ? QStringLiteral("open ") : QString{ }, what, conversations(aChip.Count)));
 				}
 				if (!open) {
 					lines.push_back(breakdown_text(aChip.States) + QLatin1Char{ '.' });
 				}
-				lines.push_back(QStringLiteral("Replies don't count. Click to list them."));
 				if (open) {
 					const auto unknown = state_of(aChip.States, core::feedback_resolution::unknown);
 					if (unknown != 0U) {
-						lines.push_back(QStringLiteral("%1 more: state unknown (not counted)").arg(count_text(unknown)));
+						lines.push_back(QStringLiteral("%1 more whose state is unknown, not counted.").arg(count_text(unknown)));
 					}
 				}
+				lines.push_back(QStringLiteral("Replies don't count. Click or press Enter to list them."));
 				return lines.join(QLatin1Char{ '\n' });
 			}
 			case overview_comment_chip::kind::more: {
@@ -719,19 +725,20 @@ namespace bpr::qt {
 				for (const auto& folded : aChip.Folded) {
 					lines.push_back(QStringLiteral("%1 %2").arg(chip_name(folded, aAnyColumns), count_text(folded.Count)));
 				}
-				lines.push_back(QStringLiteral("Click to choose one."));
+				lines.push_back(QStringLiteral("Click or press Enter to choose one."));
 				return lines.join(QLatin1Char{ '\n' });
 			}
 			case overview_comment_chip::kind::uncertain:
 				break;
 			}
-			auto       lines   = QStringList{ QStringLiteral("Not counted as open, or label unreadable: %1.").arg(count_text(aCounts.Uncertain)) };
-			const auto clauses = qualifier_clauses(aCounts);
-			if (!clauses.isEmpty()) {
-				lines.push_back(clauses.join(QStringLiteral(" · ")));
+			// Named as its menu entry is, then each reason on its own line.
+			auto lines = QStringList{ aCounts.Uncertain == 0U ? QStringLiteral("These counts may be incomplete:")
+															  : QStringLiteral("Not counted: %1 %2").arg(count_text(aCounts.Uncertain), conversations(aCounts.Uncertain)) };
+			for (const auto& clause : qualifier_clauses(aCounts)) {
+				lines.push_back(QStringLiteral("• ") + clause);
 			}
 			if (aCounts.Uncertain != 0U) {
-				lines.push_back(QStringLiteral("Click to list them."));
+				lines.push_back(QStringLiteral("Click or press Enter to list them."));
 			}
 			return lines.join(QLatin1Char{ '\n' });
 		}
@@ -784,6 +791,43 @@ namespace bpr::qt {
 			return onlyUnresolvable ? core::feedback_resolution::not_applicable : core::feedback_resolution::unknown;
 		}
 	} // namespace
+
+	auto overview_operation_mark_colours(const application::overview_file_operation aOperation, const QPalette& aPalette, const overview_colours& aColours, const bool aSelected,
+										 const QPalette::ColorGroup aGroup) -> overview_operation_mark
+	{
+		const auto base = aPalette.color(QPalette::Active, QPalette::Base);
+		switch (aOperation) {
+		case application::overview_file_operation::added:
+			return { .Fill = aColours.Accepted, .Outline = { }, .Letter = base };
+		case application::overview_file_operation::removed:
+			return { .Fill = aColours.Defect, .Outline = { }, .Letter = base };
+		case application::overview_file_operation::renamed:
+		case application::overview_file_operation::copied:
+		case application::overview_file_operation::type_changed:
+			return { .Fill = aColours.Marker, .Outline = { }, .Letter = base };
+		case application::overview_file_operation::modified:
+		case application::overview_file_operation::unchanged:
+			break;
+		}
+		// The selected frames' `.op`: the panel's raised tone, its rule and the
+		// secondary ink, mixed from the row's ground and text. Mid is no tile
+		// colour: in the dark theme it sits below the code ground, and Base's
+		// letter on it read as a black square on a selected row (owner,
+		// rejecting `overview-keyboard-v001`). On the highlight the mark is the
+		// selection's own text, outlined, with no tile.
+		const auto mixed = [](const QColor& aTone, const QColor& aGround, const qreal aShare) {
+			const auto channel = [aShare](const float aTo, const float aFrom) { return aFrom + (aTo - aFrom) * static_cast<float>(aShare); };
+			const auto tone    = aTone.toRgb();
+			const auto ground  = aGround.toRgb();
+			return QColor::fromRgbF(channel(tone.redF(), ground.redF()), channel(tone.greenF(), ground.greenF()), channel(tone.blueF(), ground.blueF()));
+		};
+		if (aSelected) {
+			const auto ink = aPalette.color(aGroup, QPalette::HighlightedText);
+			return { .Fill = { }, .Outline = mixed(ink, aPalette.color(aGroup, QPalette::Highlight), 0.6), .Letter = ink };
+		}
+		const auto ink = aPalette.color(QPalette::Active, QPalette::Text);
+		return { .Fill = mixed(ink, base, 0.07), .Outline = mixed(ink, base, 0.32), .Letter = mixed(ink, base, 0.74) };
+	}
 
 	auto overview_count_name(const core::feedback_count_target& aTarget, const bool aAnyColumns) -> QString
 	{
@@ -1233,7 +1277,7 @@ namespace bpr::qt {
 			case Qt::AccessibleTextRole:
 				return comments_text(*counts, true);
 			case Qt::ToolTipRole:
-				return comments_text(*counts, true) + QStringLiteral("\nEnter or the context menu lists them.");
+				return comments_text(*counts, true) + QStringLiteral("\nTab steps onto each chip; Enter lists its conversations.");
 			default:
 				break;
 			}
@@ -1355,9 +1399,9 @@ namespace bpr::qt {
 		// [[BPR-1089]]. Comments ▾ chooses the number the rows sort by.
 		if (aSection == comments_column && Feedback && (aRole == Qt::ToolTipRole || aRole == Qt::AccessibleDescriptionRole)) {
 			const auto open = Feedback->Request.Mode == core::feedback_resolution_mode::unresolved;
-			auto       tip  = QStringLiteral("%1 by label, in your Settings order; %2. Replies don't count. Click a chip to list them.")
+			auto       tip  = QStringLiteral("%1 by label, in your Settings order; %2. Replies don't count.\nClick a chip, or Tab onto it and press Enter, to list its conversations.")
 								  .arg(open ? QStringLiteral("Open conversations") : QStringLiteral("Conversations"),
-									   any_columns(Feedback) ? QStringLiteral("the speech bubble is Other") : QStringLiteral("no label chips chosen, so the bubble counts them all"));
+									   any_columns(Feedback) ? QStringLiteral("the bubble with dots holds the other labels") : QStringLiteral("no labels are ticked, so the bubble counts them all"));
 			tip += Feedback->Request.Sort ? QStringLiteral("\nSorted by %1, most first. Click to change.").arg(overview_count_name(*Feedback->Request.Sort, any_columns(Feedback)))
 										  : QStringLiteral("\nClick to sort by a label.");
 			return tip;
@@ -1480,6 +1524,19 @@ namespace bpr::qt {
 		const QStyleOptionViewItem& aOption,
 		const QModelIndex&          aIndex) const
 	{
+		// [[BPR-1089]]. While a chip of this row has the keyboard, its ring is
+		// the only focus mark: the current cell draws no frame of its own.
+		if (ChipFocus && ChipFocus->Row.isValid() && ChipFocus->Row == aIndex.siblingAtColumn(0) && (aOption.state & QStyle::State_HasFocus) != 0) {
+			auto option = aOption;
+			option.state &= ~QStyle::State_HasFocus;
+			paint_cell(aPainter, option, aIndex);
+			return;
+		}
+		paint_cell(aPainter, aOption, aIndex);
+	}
+
+	void overview_row_delegate::paint_cell(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
+	{
 		const auto folder = aIndex.data(overview_file_model::folder_role).toBool();
 		const auto column = aIndex.column();
 		// [[BPR-1089]]. The label chips, on file, folder and remainder rows alike.
@@ -1557,28 +1614,14 @@ namespace bpr::qt {
 		case overview_file_model::operation_column: {
 			const auto operation = static_cast<application::overview_file_operation>(
 				aIndex.data(overview_file_model::operation_role).toInt());
-			auto fill = option.palette.color(QPalette::Active, QPalette::Mid);
-			switch (operation) {
-			case application::overview_file_operation::added:
-				fill = Colours.Accepted;
-				break;
-			case application::overview_file_operation::removed:
-				fill = Colours.Defect;
-				break;
-			case application::overview_file_operation::renamed:
-			case application::overview_file_operation::copied:
-			case application::overview_file_operation::type_changed:
-				fill = Colours.Marker;
-				break;
-			case application::overview_file_operation::modified:
-			case application::overview_file_operation::unchanged:
-				break;
-			}
-			const auto box = QRectF{ rect.left() + 6.0, rect.center().y() - 7.0, 14.0, 14.0 };
-			aPainter->setPen(Qt::NoPen);
-			aPainter->setBrush(fill);
-			aPainter->drawRoundedRect(box, 3.0, 3.0);
-			aPainter->setPen(option.palette.color(QPalette::Active, QPalette::Base));
+			const auto selected = (option.state & QStyle::State_Selected) != 0;
+			const auto group    = (option.state & QStyle::State_Active) != 0 ? QPalette::Active : QPalette::Inactive;
+			const auto mark     = overview_operation_mark_colours(operation, option.palette, Colours, selected, group);
+			const auto box      = QRectF{ rect.left() + 6.0, rect.center().y() - 7.0, 14.0, 14.0 };
+			aPainter->setPen(mark.Outline.isValid() ? QPen{ mark.Outline, 1.0 } : QPen{ Qt::NoPen });
+			aPainter->setBrush(mark.Fill.isValid() ? QBrush{ mark.Fill } : QBrush{ Qt::NoBrush });
+			aPainter->drawRoundedRect(mark.Outline.isValid() ? box.adjusted(0.5, 0.5, -0.5, -0.5) : box, 3.0, 3.0);
+			aPainter->setPen(mark.Letter);
 			aPainter->drawText(box, Qt::AlignCenter, operation_letter(operation));
 			break;
 		}
@@ -1709,7 +1752,23 @@ namespace bpr::qt {
 			}
 			}
 		}
+		// The chip the keyboard is on wears a ring, in the selection's own
+		// text colour on the selected row, while the files have focus.
+		const auto focused = ChipFocus && ChipFocus->Row.isValid() && ChipFocus->Row == aOption.index.siblingAtColumn(0) && aOption.widget != nullptr && aOption.widget->hasFocus();
+		if (focused) {
+			const auto found = std::ranges::find_if(chips, [this](const overview_comment_chip& aChip) { return aChip.Kind == ChipFocus->Kind && aChip.Label == ChipFocus->Label; });
+			if (found != chips.end()) {
+				aPainter->setBrush(Qt::NoBrush);
+				aPainter->setPen(QPen{ aOption.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Highlight), 1.5 });
+				aPainter->drawRoundedRect(found->Box.adjusted(-3.0, -2.0, 3.0, 2.0), 5.0, 5.0);
+			}
+		}
 		aPainter->restore();
+	}
+
+	void overview_row_delegate::set_chip_focus(std::optional<overview_chip_focus> aFocus)
+	{
+		ChipFocus = std::move(aFocus);
 	}
 
 	// ---- overview_participant_row -------------------------------------------
@@ -1982,9 +2041,11 @@ namespace bpr::qt {
 			"Every file with its operation, line counts, whether it changed "
 			"since my last review, my read state, comment counts and my note; "
 			"activate a file to read it; click a folder, or use Left and Right, to hide and show its files; "
-			"on a Comments cell, Enter or the context-menu key lists its conversations"));
+			"Tab steps from a row onto its comment chips, Enter or Space lists a chip's conversations and Escape returns to the row; "
+			"the context-menu key lists every chip of the row"));
 		Files->setModel(Model);
-		Files->setItemDelegate(new overview_row_delegate{ Colours, Files });
+		RowDelegate = new overview_row_delegate{ Colours, Files };
+		Files->setItemDelegate(RowDelegate);
 		// [[BPR-1213]]. Flat rows: no indentation, so every file aligns at the
 		// same left column; the folder cell draws its own disclosure.
 		Files->setRootIsDecorated(false);
@@ -2029,8 +2090,14 @@ namespace bpr::qt {
 		});
 		connect(Files, &QAbstractItemView::activated, this, &pull_request_overview_page::open_file_at);
 		// [[BPR-1089]]. A chip opens the conversations it counted: a click on
-		// it, Enter on its cell, or the context-menu key or a right-click on
-		// its row, whose menu reaches every chip, Other, "+n" and ?.
+		// it, Enter or Space once Tab has stepped onto it, or the context-menu
+		// key or a right-click on its row, whose menu reaches every chip,
+		// Other, "+n" and ?. Another row leaves the chip.
+		connect(Files->selectionModel(), &QItemSelectionModel::currentRowChanged, this, [this](const QModelIndex& aCurrent) {
+			if (ChipFocus && ChipFocus->Row != aCurrent.siblingAtColumn(0)) {
+				focus_chip({ }, nullptr);
+			}
+		});
 		Files->viewport()->installEventFilter(this);
 		Files->installEventFilter(this);
 		Files->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -2993,61 +3060,172 @@ namespace bpr::qt {
 				const auto  chip  = mouse->button() == Qt::LeftButton ? chip_at(mouse->position().toPoint()) : std::nullopt;
 				if (chip) {
 					if (type == QEvent::MouseButtonPress) {
-						// The chip's cell becomes current, so the keyboard
-						// continues from it; a chip opens no file.
+						// The chip's row becomes current; a chip opens no file.
+						// The pointer leaves no keyboard ring behind.
 						Files->setCurrentIndex(chip->first);
+						focus_chip({ }, nullptr);
 						Files->setFocus(Qt::MouseFocusReason);
 					} else if (type == QEvent::MouseButtonRelease) {
-						const auto row = Model->feedback_row(chip->first);
-						switch (chip->second.Kind) {
-						case overview_comment_chip::kind::label:
-							drill(row->first, row->second, { .Kind = core::feedback_count_kind::dedicated, .Label = chip->second.Label });
-							break;
-						case overview_comment_chip::kind::other:
-							drill(row->first, row->second, { .Kind = core::feedback_count_kind::catchall });
-							break;
-						case overview_comment_chip::kind::uncertain:
-							if (chip->second.Count != 0U) {
-								drill(row->first, row->second, { .Kind = core::feedback_count_kind::uncertain });
-							}
-							break;
-						case overview_comment_chip::kind::more:
-							open_comments_menu(chip->first, Files->viewport()->mapToGlobal(chip->second.Box.bottomLeft().toPoint()));
-							break;
-						}
+						activate_chip(chip->first, chip->second);
 					}
 					return true;
 				}
 			}
 		} else if (aObject == Files && aEvent->type() == QEvent::KeyPress) {
-			const auto* key     = static_cast<QKeyEvent*>(aEvent);
-			const auto  current = Files->currentIndex();
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && key->modifiers() == Qt::NoModifier
-				&& current.column() == overview_file_model::comments_column && Model->feedback_at(current) != nullptr) {
-				open_comments_menu(current, Files->viewport()->mapToGlobal(Files->visualRect(current).bottomLeft()));
+			if (handle_files_key(*static_cast<QKeyEvent*>(aEvent))) {
 				return true;
 			}
-			// Enter on a file's other cells reads it. Qt's item view emits no
-			// activation for Return on macOS, so the page opens it itself.
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && key->modifiers() == Qt::NoModifier && current.isValid()
-				&& !current.data(overview_file_model::folder_role).toBool()) {
-				open_file_at(current);
-				return true;
+		} else if (aObject == Files && aEvent->type() == QEvent::FocusIn) {
+			// Tab into the files lands on the row, as it always has.
+			const auto reason = static_cast<QFocusEvent*>(aEvent)->reason();
+			if (reason == Qt::TabFocusReason || reason == Qt::BacktabFocusReason) {
+				focus_chip({ }, nullptr);
 			}
-			// Left and Right move along a file's cells, as they fold a folder.
-			const auto across = (key->key() == Qt::Key_Left || key->key() == Qt::Key_Right) && key->modifiers() == Qt::NoModifier;
-			if (across && current.isValid() && !current.data(overview_file_model::folder_role).toBool()) {
-				auto column = current.column();
-				do {
-					column += key->key() == Qt::Key_Right ? 1 : -1;
-				} while (column >= 0 && column < overview_file_model::column_count && Files->isColumnHidden(column));
-				if (column >= 0 && column < overview_file_model::column_count) {
-					Files->setCurrentIndex(current.siblingAtColumn(column));
-					return true;
-				}
-			}
+		} else if (aObject == Files && aEvent->type() == QEvent::FocusOut && ChipFocus) {
+			Files->viewport()->update();
 		}
 		return QWidget::eventFilter(aObject, aEvent);
+	}
+
+	auto pull_request_overview_page::handle_files_key(const QKeyEvent& aKey) -> bool
+	{
+		const auto current   = Files->currentIndex();
+		const auto modifiers = aKey.modifiers() & ~Qt::KeypadModifier;
+		const auto plain     = modifiers == Qt::NoModifier;
+		const auto enter     = aKey.key() == Qt::Key_Return || aKey.key() == Qt::Key_Enter;
+		const auto chips     = current.isValid() ? row_chips(current) : std::vector<overview_comment_chip>{ };
+		const auto at        = focused_chip_position(chips);
+		// Tab steps from the row onto its chips and along them; past the last
+		// it leaves the files as Tab always does. Shift+Tab steps back to the
+		// row. The tree keeps Left and Right for folders until a chip is on.
+		if (aKey.key() == Qt::Key_Tab && plain) {
+			if (!at) {
+				if (chips.empty()) {
+					return false;
+				}
+				focus_chip(current, &chips.front());
+				return true;
+			}
+			if (*at + 1U < chips.size()) {
+				focus_chip(current, &chips[*at + 1U]);
+				return true;
+			}
+			focus_chip({ }, nullptr);
+			return false;
+		}
+		if (aKey.key() == Qt::Key_Backtab || (aKey.key() == Qt::Key_Tab && modifiers == Qt::ShiftModifier)) {
+			if (!at) {
+				return false;
+			}
+			focus_chip(current, *at == 0U ? nullptr : &chips[*at - 1U]);
+			return true;
+		}
+		if (at) {
+			if ((aKey.key() == Qt::Key_Left || aKey.key() == Qt::Key_Right) && plain) {
+				const auto next = aKey.key() == Qt::Key_Right ? std::min(*at + 1U, chips.size() - 1U) : (*at == 0U ? 0U : *at - 1U);
+				focus_chip(current, &chips[next]);
+				return true;
+			}
+			if ((enter || aKey.key() == Qt::Key_Space) && plain) {
+				activate_chip(current.siblingAtColumn(overview_file_model::comments_column), chips[*at]);
+				return true;
+			}
+			if (aKey.key() == Qt::Key_Escape && plain) {
+				focus_chip({ }, nullptr);
+				return true;
+			}
+		}
+		// Enter on a file's row reads it, whichever cell is current. Qt's item
+		// view emits no activation for Return on macOS, so the page opens it
+		// itself.
+		if (enter && plain && current.isValid() && !current.data(overview_file_model::folder_role).toBool()) {
+			open_file_at(current);
+			return true;
+		}
+		return false;
+	}
+
+	auto pull_request_overview_page::row_chips(const QModelIndex& aRow) const -> std::vector<overview_comment_chip>
+	{
+		const auto  cell   = aRow.siblingAtColumn(overview_file_model::comments_column);
+		const auto* counts = cell.isValid() ? Model->feedback_at(cell) : nullptr;
+		if (counts == nullptr || Files->isColumnHidden(overview_file_model::comments_column)) {
+			return { };
+		}
+		return overview_comment_chips(*counts, Files->visualRect(cell), Files->font());
+	}
+
+	auto pull_request_overview_page::focused_chip_position(const std::vector<overview_comment_chip>& aChips) const -> std::optional<std::size_t>
+	{
+		if (!ChipFocus || !ChipFocus->Row.isValid() || ChipFocus->Row != Files->currentIndex().siblingAtColumn(0)) {
+			return std::nullopt;
+		}
+		const auto found = std::ranges::find_if(aChips, [this](const overview_comment_chip& aChip) { return aChip.Kind == ChipFocus->Kind && aChip.Label == ChipFocus->Label; });
+		return found == aChips.end() ? std::nullopt : std::optional{ static_cast<std::size_t>(found - aChips.begin()) };
+	}
+
+	auto pull_request_overview_page::focused_chip() const -> std::optional<overview_comment_chip>
+	{
+		const auto chips = row_chips(Files->currentIndex());
+		const auto at    = focused_chip_position(chips);
+		return at ? std::optional{ chips[*at] } : std::nullopt;
+	}
+
+	void pull_request_overview_page::focus_chip(const QModelIndex& aRow, const overview_comment_chip* const aChip)
+	{
+		if (aChip == nullptr) {
+			if (!ChipFocus) {
+				return;
+			}
+			ChipFocus.reset();
+		} else {
+			auto focus  = overview_chip_focus{ };
+			focus.Row   = QPersistentModelIndex{ aRow.siblingAtColumn(0) };
+			focus.Kind  = aChip->Kind;
+			focus.Label = aChip->Label;
+			ChipFocus   = std::move(focus);
+		}
+		RowDelegate->set_chip_focus(ChipFocus);
+		Files->viewport()->update();
+		if (aChip == nullptr) {
+			return;
+		}
+		// The keyboard cannot hover: the chip's tooltip comes up beside it, and
+		// a screen reader hears the same words.
+		const auto  cell   = aRow.siblingAtColumn(overview_file_model::comments_column);
+		const auto* counts = Model->feedback_at(cell);
+		if (counts == nullptr) {
+			return;
+		}
+		const auto tip = chip_tooltip(*aChip, *counts, any_columns(Model->feedback()));
+		show_anchored_tooltip(*Files->viewport(), aChip->Box.toAlignedRect(), tip);
+		QAccessibleAnnouncementEvent announcement{ Files, QString{ tip }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }) };
+		announcement.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&announcement);
+	}
+
+	void pull_request_overview_page::activate_chip(const QModelIndex& aCell, const overview_comment_chip& aChip)
+	{
+		const auto row = Model->feedback_row(aCell);
+		if (!row) {
+			return;
+		}
+		switch (aChip.Kind) {
+		case overview_comment_chip::kind::label:
+			drill(row->first, row->second, { .Kind = core::feedback_count_kind::dedicated, .Label = aChip.Label });
+			break;
+		case overview_comment_chip::kind::other:
+			drill(row->first, row->second, { .Kind = core::feedback_count_kind::catchall });
+			break;
+		case overview_comment_chip::kind::uncertain:
+			if (aChip.Count != 0U) {
+				drill(row->first, row->second, { .Kind = core::feedback_count_kind::uncertain });
+			}
+			break;
+		case overview_comment_chip::kind::more:
+			open_comments_menu(aCell, Files->viewport()->mapToGlobal(aChip.Box.bottomLeft().toPoint()));
+			break;
+		}
 	}
 
 	namespace {
@@ -3126,8 +3304,10 @@ namespace bpr::qt {
 		const auto bubble = [ink, faded](const bool aOther) {
 			return painted_glyph_icon([aOther](QPainter& aPainter, const qreal aSide, const QColor& aInk) { paint_bubble(aPainter, QRectF{ 0.0, 0.0, aSide, aSide }, aInk, aOther); }, ink, faded);
 		};
-		entry(bubble(true), QStringLiteral("Other: the rest"), QStringLiteral("Other: conversations without a chip of their own"), QStringLiteral("Conversations without a chip of their own"));
-		entry(bubble(false), QStringLiteral("Comments: all, no chip chosen"), QStringLiteral("Comments: every conversation, when no chip is chosen"), QStringLiteral("Every conversation, when no chip is chosen"));
+		entry(bubble(true), QStringLiteral("Other labels"), QStringLiteral("Other labels: labels not ticked in Settings' Overview chips, and comments with no label"),
+			  QStringLiteral("Labels not ticked in Settings' Overview chips, and comments with no label"));
+		entry(bubble(false), QStringLiteral("Comments: all, when no label is ticked"), QStringLiteral("Comments: every conversation, when no label is ticked in Settings"),
+			  QStringLiteral("Every conversation, when no label is ticked in Settings' Overview chips"));
 		auto state  = Colours.States;
 		state.Faint = feedback_state_faint(palette());
 		for (const auto resolution : { core::feedback_resolution::unresolved, core::feedback_resolution::resolved, core::feedback_resolution::unknown, core::feedback_resolution::not_applicable }) {
@@ -3135,11 +3315,23 @@ namespace bpr::qt {
 			words[0]   = words[0].toUpper();
 			entry(QIcon{ feedback_state_mark_pixmap(resolution, state, ratio) }, words, words, words);
 		}
-		entry(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) }, QStringLiteral("? beside a count: not counted as open, or label unreadable"),
-			  QStringLiteral("Question mark beside a count: conversations not counted as open, or whose label is unreadable"), QStringLiteral("Click it to list them"));
+		entry(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) }, QStringLiteral("? beside a count: some not counted"),
+			  QStringLiteral("Question mark beside a count: some conversations are not counted, such as those whose state is unknown"),
+			  QStringLiteral("Its tooltip says why. Click it or press Enter on it to list them"));
+		// The keys, where someone looking up the marks will see them.
+		heading(QStringLiteral("Keys"));
+		// No mark of their own, but indented as the entries above are.
+		auto blank = QPixmap{ QSize{ 16, 16 } * ratio };
+		blank.setDevicePixelRatio(ratio);
+		blank.fill(Qt::transparent);
+		const auto keys = [&](const QString& aText) { entry(QIcon{ blank }, aText, aText, aText); };
+		keys(QStringLiteral("Tab: from a row onto its chips, then along them"));
+		keys(QStringLiteral("Left and Right: along the chips, once on one"));
+		keys(QStringLiteral("Enter or Space: list a chip's conversations"));
+		keys(QStringLiteral("Esc: back to the row"));
 		list->setCurrentRow(1);
 		const auto rows = list->count();
-		list->setMinimumSize(QSize{ list->sizeHintForColumn(0) + 24, std::min(rows, 24) * list->sizeHintForRow(1) + 8 });
+		list->setMinimumSize(QSize{ list->sizeHintForColumn(0) + 24, std::min(rows, 32) * list->sizeHintForRow(1) + 8 });
 		popup->adjustSize();
 		const auto anchor = LabelKey->mapToGlobal(QPoint{ LabelKey->width() - popup->width(), LabelKey->height() + 2 });
 		popup->move(anchor);

@@ -10,6 +10,7 @@
 #include <QColor>
 #include <QHash>
 #include <QModelIndex>
+#include <QPalette>
 #include <QPixmap>
 #include <QString>
 #include <QStyledItemDelegate>
@@ -27,6 +28,7 @@
 class QAction;
 class QFont;
 class QHBoxLayout;
+class QKeyEvent;
 class QMenu;
 class QLabel;
 class QPaintEvent;
@@ -89,6 +91,32 @@ namespace bpr::qt {
 	/// this one layout.
 	[[nodiscard]] auto overview_comment_chips(const core::feedback_counter_projection& aCounts, const QRect& aCell, const QFont& aFont)
 		-> std::vector<overview_comment_chip>;
+
+	/// \brief [[BPR-1089]]. The chip the keyboard is on: Tab steps from a row
+	/// onto its chips, and the row and the chip's kind and label name it, so it
+	/// survives a refresh that moves the row or a chip.
+	struct overview_chip_focus
+	{
+		QPersistentModelIndex               Row;
+		overview_comment_chip::kind         Kind = overview_comment_chip::kind::label;
+		std::optional<core::feedback_label> Label;
+	};
+
+	/// \brief [[BPR-1089]]. How a file's operation mark is drawn: a coloured
+	/// tile for added, removed and renamed; for modified, a quiet tile mixed
+	/// from the row's ground and text, with an outline and a secondary-ink
+	/// letter, and on a selected row only an outline and a letter in the
+	/// selection's own text colour, so no dark square sits on the highlight.
+	struct overview_operation_mark
+	{
+		/// The tile, or no colour for an outline only.
+		QColor Fill;
+		/// The outline, or no colour for a tile without one.
+		QColor Outline;
+		QColor Letter;
+	};
+	[[nodiscard]] auto overview_operation_mark_colours(application::overview_file_operation aOperation, const QPalette& aPalette, const overview_colours& aColours,
+													   bool aSelected, QPalette::ColorGroup aGroup = QPalette::Active) -> overview_operation_mark;
 
 	/// \brief [[BPR-1089]]. The fixed width of the Comments column.
 	inline constexpr int overview_comments_width = 216;
@@ -213,12 +241,17 @@ namespace bpr::qt {
 		/// \brief Where a folder cell draws its disclosure mark, in view coordinates.
 		[[nodiscard]] static auto disclosure_rect(const QStyleOptionViewItem& aOption) -> QRect;
 
+		/// \brief [[BPR-1089]]. The chip to ring while the view has focus.
+		void set_chip_focus(std::optional<overview_chip_focus> aFocus);
+
 	private:
 		[[nodiscard]] static auto disclosure_width(const QStyleOptionViewItem& aOption) -> int;
+		void                      paint_cell(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
 		void                      paint_folder(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
 		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts, core::feedback_resolution_mode aMode) const;
 
-		const overview_colours& Colours;
+		const overview_colours&            Colours;
+		std::optional<overview_chip_focus> ChipFocus;
 	};
 
 	/// \brief One participant: avatar initial, login, role and standing.
@@ -337,9 +370,9 @@ namespace bpr::qt {
 		void choose_mode(core::feedback_resolution_mode aMode);
 		/// \brief Sorts the rows by one number, or by file with none.
 		void choose_sort(std::optional<core::feedback_count_target> aSort);
-		/// \brief The menu of one row's chips: what Enter on a Comments cell,
-		/// the context-menu key and a right-click open. Null for a row with
-		/// none. The caller owns it.
+		/// \brief The menu of one row's chips: what the context-menu key and a
+		/// right-click open, and "+n". Null for a row with none. The caller
+		/// owns it.
 		[[nodiscard]] auto make_comments_menu(const QModelIndex& aIndex) -> QMenu*;
 		/// \brief The Comments header's sort menu. The caller owns it.
 		[[nodiscard]] auto make_sort_menu() -> QMenu*;
@@ -350,6 +383,9 @@ namespace bpr::qt {
 		/// \brief A count's mark as its chip draws it: the label's mark, the
 		/// speech bubble (with dots for Other) or the ? state mark.
 		[[nodiscard]] auto count_mark(const core::feedback_count_target& aTarget, bool aAnyColumns) const -> QPixmap;
+		/// \brief [[BPR-1089]]. The chip the keyboard is on, laid out in its
+		/// cell, or none: Tab steps from a row onto its chips.
+		[[nodiscard]] auto focused_chip() const -> std::optional<overview_comment_chip>;
 		/// \brief Opens the Label key, as Alt+K does.
 		void               show_label_key();
 		[[nodiscard]] auto label_key() const noexcept -> QWidget*;
@@ -397,6 +433,15 @@ namespace bpr::qt {
 		/// \brief Opens the file whose row holds `aIndex`, if it is a file.
 		void               open_file_at(const QModelIndex& aIndex);
 		[[nodiscard]] auto chip_at(const QPoint& aViewportPosition) const -> std::optional<std::pair<QModelIndex, overview_comment_chip>>;
+		/// [[BPR-1089]]. A row's chips, laid out in its Comments cell.
+		[[nodiscard]] auto row_chips(const QModelIndex& aRow) const -> std::vector<overview_comment_chip>;
+		/// The focused chip's place among the current row's chips.
+		[[nodiscard]] auto focused_chip_position(const std::vector<overview_comment_chip>& aChips) const -> std::optional<std::size_t>;
+		void               focus_chip(const QModelIndex& aRow, const overview_comment_chip* aChip);
+		/// What a click on a chip does, and Enter or Space on a focused one.
+		void activate_chip(const QModelIndex& aCell, const overview_comment_chip& aChip);
+		/// The keyboard on the files: the tree's own keys, and Tab onto chips.
+		[[nodiscard]] auto handle_files_key(const QKeyEvent& aKey) -> bool;
 		bool               eventFilter(QObject* aObject, QEvent* aEvent) override;
 		void               changeEvent(QEvent* aEvent) override;
 
@@ -444,6 +489,8 @@ namespace bpr::qt {
 		QToolButton*                                          Uncertain     = nullptr;
 		QToolButton*                                          LabelKey      = nullptr;
 		QWidget*                                              LabelKeyPopup = nullptr;
+		overview_row_delegate*                                RowDelegate   = nullptr;
+		std::optional<overview_chip_focus>                    ChipFocus;
 	};
 } // namespace bpr::qt
 

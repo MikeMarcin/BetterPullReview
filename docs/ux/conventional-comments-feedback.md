@@ -461,17 +461,43 @@ in `pull_request_overview_page`. The figures come from
   scope, label and mode, which are the same conversations the number counted.
 - **Accessible text** (derived from RFC-BPR-0050). A count's accessible
   description carries the label, the unit ("conversations"), the mode and any
-  limit, as in "issue: 2 open conversations; resolution unknown for 3".
-- **The keyboard route to a single chip** (derived, BPR-1089; the owner's
-  frames show only the pointer). Left and Right move along a file row's
-  cells. Enter on the Comments cell opens a menu of every chip, Other, the
-  chips folded into "+n" and ?, with a Sort by submenu; the context-menu key
-  (Shift+F10) and a right-click open the same menu on any row, folders and
-  Not on a file included. Enter on any other cell still opens the file; the
-  page opens it itself, because Qt's item view emits no activation for
-  Return on macOS (BPR-1089 macOS run). The
-  cell stays current across a refresh, a sort and a trip to Discuss and back.
-  Changing chips or mode makes no provider request (BPR-1087).
+  limit, as in "issue 2 open conversations; 3 whose state is unknown".
+- **The keyboard route to a single chip** (BPR-1089, v002; the owner's
+  frames show only the pointer). The owner rejected v001, where Left and
+  Right moved along a file row's cells and Enter on the Comments cell opened
+  a menu: "I see no indication that left/right does anything on overview
+  other than open/close the folders in the overview list." Left and Right
+  are the tree's again on every row: they fold and unfold folders and, where
+  the platform does so, step between a folder and its files. A row's chips
+  are reached the way any control is, with Tab:
+  - Tab steps from the current row onto its first chip, then along the
+    chips (label chips, Other, "+n", ?). Past the last chip Tab leaves the
+    files, as it always does. Shift+Tab steps back, and from the first chip
+    returns to the row.
+  - Once on a chip, Left and Right move along the chips. Enter or Space
+    lists the chip's conversations ("+n" opens its menu). Escape returns to
+    the row. Up, Down or a click on another row leaves the chip.
+  - The chip the keyboard is on wears a 1.5 px rounded ring in the
+    selection's text colour, the only focus mark on the row while it is on.
+    Its tooltip comes up beside it, since the keyboard cannot hover, and a
+    screen reader hears the same words.
+  - Enter on a row opens a file row's file, whichever cell is current. The
+    page opens it itself, because Qt's item view emits no activation for
+    Return on macOS (BPR-1089 macOS run).
+  - The context-menu key (Shift+F10) and a right-click still open the menu
+    of every chip on any row, folders and Not on a file included.
+  - The keys are named in the Comments header's and cells' tooltips, in the
+    files' accessible description and under Keys in the Label key.
+  - The chip and its row stay current across a refresh, a sort and a trip
+    to Discuss and back. A click on a chip leaves no ring. Changing chips or
+    mode makes no provider request (BPR-1087).
+
+  Why Tab rather than Left and Right on file rows: Left and Right already
+  mean fold, unfold and parent or child in a tree on every platform. Giving
+  them a second meaning on file rows only makes the same key do different
+  things on adjacent rows, with nothing on screen saying which. Chips act on
+  a click, so they are controls, and Tab is how every application reaches
+  the next control. The ring and the tooltip appear on the first press.
 - **As built** (BPR-1089):
   - **Decisions.** `core::project_feedback_counters` also gives each chip's
     state breakdown and the ? count, `Uncertain`: resolution unknown or not
@@ -504,8 +530,8 @@ in `pull_request_overview_page`. The figures come from
     Every tooltip is anchored to its chip.
   - **Beside the Files heading.** Open (with the round open mark) and All,
     the ? chip and the Label key (Alt+K; ⌥K on macOS, as its tooltip says).
-    The Label key is a list of the twelve marks with names and codes, Other,
-    Comments, the four state marks and ?. The Label key and the Comments and
+    The Label key is a list of the twelve marks with names and codes, Other
+    labels, Comments, the four state marks, ? and the keys that reach a chip. The Label key and the Comments and
     Sort by menus are windows of their own and propagate the page's palette
     (`Qt::WA_WindowPropagation`), so they show the theme the window shows; in
     a dark theme the key had been white with invisible bubble glyphs.
@@ -523,8 +549,25 @@ in `pull_request_overview_page`. The figures come from
   - **Mode.** Each pull request's Overview starts at Settings' Overview
     counts. A choice on the Overview belongs to that view and is never
     written back.
+  - **Words** (owner, accepting `overview-chips-v001`: "'without a chip of
+    their own' is a weird tooltip and we should adjust it"). Other's tooltip
+    reads "Other labels: 2 open conversations here." over "Labels not ticked
+    in Settings' Overview chips, and comments with no label." The ? tooltip
+    reads "Not counted: 6 conversations" with one reason a line: "2 whose
+    state is unknown", "1 whose label can't be read", "3 that can't be
+    resolved", "not every comment was loaded", "counted at an earlier
+    refresh", "comments couldn't be loaded", "some comments' files are
+    unknown". Every chip tooltip ends "Click or press Enter to list them."
+  - **The operation mark** (owner, rejecting `overview-keyboard-v001`: "This
+    black square is weird looking on a highlighted row without added chip").
+    A modified file's mark was Mid filled under a Base letter, about 1.05:1
+    in the dark theme. It is now the frames' `.op`: a tile 7% of the way from
+    the ground to the text, a 32% outline and a 74% letter (at least 4.5:1).
+    On a selected row it has no tile, only an outline and a letter in the
+    selection's text colour. Added, removed and renamed keep their coloured
+    tiles.
   - **Accessible text.** A cell reads as in "issue 1, Other 1 open
-    conversations; resolution unknown for 1", or in All "issue 2 (1 open,
+    conversations; 1 whose state is unknown", or in All "issue 2 (1 open,
     1 resolved), Other 2 (2 open) conversations".
 - **Open: owner look.** Built on Linux from offscreen renders without the
   frontend-design skill, which is not installed on that station. R33's
