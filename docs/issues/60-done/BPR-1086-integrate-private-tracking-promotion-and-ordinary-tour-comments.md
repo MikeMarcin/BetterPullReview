@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1086"
 title: "Integrate private tracking, promotion and ordinary tour comments"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0051"]
 depends_on: ["BPR-1082", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-12","milestone":"authoring","acceptance":["R16","R17","R18","R19"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"R16","outcome":"pass","revision":"ea0b7e839","evidence":{"kind":"command","detail":"Issue recognition offers tracking (the label-independent thread menu's Classify as defect) and never creates, closes, verifies or withdraws a defect: application_label_authoring_contract shows three issue roots across refreshes with no defect until the explicit gesture; website relabel and resolve leave the defect unchanged (needs_verification, Verify still offered, nothing submitted); application_defect_correlation covers every starting state with resolution, an applied suggestion's code change and an author reply. Controls fail (resolution verifying; relabel withdrawing). 19/19 focused rows re-verified on bpr-main-linux."}},{"criterion":"R17","outcome":"pass","revision":"ea0b7e839","evidence":{"kind":"command","detail":"core_feedback_private_promotion: squash (exact and reviewer-authored, two labelled sources), note copy and finding conversion put exactly the accepted bytes in the draft and publication proposal; no severity, category or model/effort facts, no (blocking) derived from a critical severity, no stacked headers."}},{"criterion":"R18","outcome":"pass","revision":"ea0b7e839","evidence":{"kind":"command","detail":"All three live promotion paths compose through the shared draft; squash lineage reaches the finding and its run; the note copy and finding conversion record no lineage by design (recorded); defect-seeded issue drafts are absent and not fabricated."}},{"criterion":"R19","outcome":"pass","revision":"ea0b7e839","evidence":{"kind":"command","detail":"core_feedback_tour_coexistence (plain and labelled stops, index and an ordinary thread count five units, links none, order/ordinals/navigation survive, a label edit changes only the narrative); core::published_feedback_segment now reads a published stop's narrative so a labelled stop shows its mark (qt_feedback_label_threads, course phase); application_writing_delivery: no tour hook asks for a label. Control: Qt reading from the first byte fails."}},{"criterion":"owner-look","outcome":"pending","revision":"d1d823b0c","evidence":{"kind":"observation","detail":"Prepared on macOS: the stop's closed note reads from its narrative and its open mark sits beside the narrative's label line (d1d823b0c). Attended session 3c97131edbcdb10d6ebf32f373e8b434, candidate BPR-1086-tour-stop-v001 (frozen-d1d823b0c-v001), one Accept or Reject: a labelled tour stop shows its label mark. The coordinator chose (a) for the Track-as-defect question."}}]
+acceptance: [{"criterion":"R16","outcome":"pass","revision":"ea0b7e839","evidence":{"kind":"command","detail":"Issue recognition offers tracking (the label-independent thread menu's Classify as defect) and never creates, closes, verifies or withdraws a defect: application_label_authoring_contract shows three issue roots across refreshes with no defect until the explicit gesture; website relabel and resolve leave the defect unchanged (needs_verification, Verify still offered, nothing submitted); application_defect_correlation covers every starting state with resolution, an applied suggestion's code change and an author reply. Controls fail (resolution verifying; relabel withdrawing). 19/19 focused rows re-verified on bpr-main-linux."}},{"criterion":"R17","outcome":"pass","revision":"ea0b7e839","evidence":{"kind":"command","detail":"core_feedback_private_promotion: squash (exact and reviewer-authored, two labelled sources), note copy and finding conversion put exactly the accepted bytes in the draft and publication proposal; no severity, category or model/effort facts, no (blocking) derived from a critical severity, no stacked headers."}},{"criterion":"R18","outcome":"pass","revision":"ea0b7e839","evidence":{"kind":"command","detail":"All three live promotion paths compose through the shared draft; squash lineage reaches the finding and its run; the note copy and finding conversion record no lineage by design (recorded); defect-seeded issue drafts are absent and not fabricated."}},{"criterion":"R19","outcome":"pass","revision":"ea0b7e839","evidence":{"kind":"command","detail":"core_feedback_tour_coexistence (plain and labelled stops, index and an ordinary thread count five units, links none, order/ordinals/navigation survive, a label edit changes only the narrative); core::published_feedback_segment now reads a published stop's narrative so a labelled stop shows its mark (qt_feedback_label_threads, course phase); application_writing_delivery: no tour hook asks for a label. Control: Qt reading from the first byte fails."}},{"criterion":"owner-look","outcome":"pass","revision":"d1d823b0c","evidence":{"kind":"observation","detail":"Owner accepted BPR-1086-tour-stop-v001 ('A labelled tour stop shows its label mark', the one question set) with no note: decision 7df759f9, event 4, handed back at 5, session 3c97131edbcdb10d6ebf32f373e8b434, on the frozen build of d1d823b0c (executable SHA-256 7431dc5c5ced6239...)."}}]
 ---
 
 # BPR-1086: Integrate private tracking, promotion and ordinary tour comments
@@ -200,3 +199,27 @@ Session `3c97131edbcdb10d6ebf32f373e8b434`, state
 checkout `/Users/jaeger/Documents/GitHub/BetterPullReview`, one candidate
 ready and protected at sequence 3: `BPR-1086-tour-stop-v001`, Accept or
 Reject, "A labelled tour stop shows its label mark".
+
+## Owner decision, session 3c97131e (2026-10-07)
+
+Session `3c97131edbcdb10d6ebf32f373e8b434`, read from cursor 3 to event 5
+(handed back).
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1086-tour-stop-v001` | Accept (`7df759f9`, 15:39:29Z) | (none) |
+
+The verdict was given on the frozen build of `d1d823b0c` (executable SHA-256
+`7431dc5c…`). It satisfies the owner look, asked as one question: "A labelled
+tour stop shows its label mark". R16 to R19 stand on their recorded evidence
+at `ea0b7e839` ([Acceptance](#acceptance) and the
+[macOS run](#macos-run-coordinator-2026-10-06)). The coordinator's answer to
+the Track-as-defect question stays (a). The card is Done.
+
+The session's candidate was released (`resume-development --all`, event 6).
+The host was already stopped. The frozen root
+`/Users/jaeger/bpr1086-tour-stop-v001.p3QPO9` was deleted.
+
+`application_label_authoring_contract`'s macOS stall at its suggestion phase
+predates this change; BPR-1303 is allocated for it. Windows runs remain owed and
+do not block; a failure there opens a new card against this change.
