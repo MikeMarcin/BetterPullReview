@@ -66,24 +66,30 @@ settings. RFC-BPR-0052 and 0037 stay, and this card stays in Backlog until
 they are Auto-Verified. RFC-BPR-0050 is not closed by the amendment; it stays
 open on [[BPR-1100]].
 
-What BPR-0653 needs from the owner, on Windows (from the card's "What
-remains, exactly"):
+What BPR-0653 needs from the owner, on Windows. The station prepared it on
+2026-10-06 (BPR-0653's section "The 100% look, prepared for the owner on
+JaegAW"), and the owner chose to clear it in person:
 
-1. Set JaegAW's display scale to 100%. It is a system setting, so the station
-   does not change it.
-2. Let the station run `windows_caption_capture.ps1` at DPI 96, from the same
-   image `6aa27c8d…98ac4` and bundle `ca3bc2b1…8f91` as the accepted 150%
-   capture, so both halves picture one title row. Each launch is its own
-   Defender check; a flagged launch stops the capture and goes on BPR-0974.
-3. Review that capture as a new attended item naming its image digest, not
-   `BPR-0653-windows-capture-v001` and not in session `cbd48b91…`.
+1. On JaegAW, set the primary display's scale to 100%. It is a system
+   setting, and nothing changes it for the owner.
+2. Run `C:\Users\mikem\bpr0653-100pct-v001\launch.cmd`. It checks the
+   image's digests, refuses unless the display is at 96 DPI, starts the image
+   the owner accepted at 150% (`6aa27c8d…`, bundle `ca3bc2b1…`) signed out on
+   a private temporary profile, and reports `WINDOW_UP`, `EXITED`,
+   `NO_WINDOW` or a refusal within 20 s into `launch.log`.
+3. In the Windows desktop browser, open attended session
+   `39ba8abc36558edf2edecab37b68b819` (a loopback page on JaegAW; not
+   `cbd48b91…`) and answer its one item, `BPR-0653-windows-100pct-live-v001`,
+   Accept or Reject with a note: at 100%, is the strip the title row (the
+   caption buttons at rest, hovered and pressed; the snap layouts flyout;
+   dragging empty strip space; double-click to maximize and to restore)?
+4. Hand the session back, and set the display scale back if wanted.
 
-That clears BPR-0653's criteria 2 and 4. Criterion 3 needs no owner: the
+That answers BPR-0653's criteria 2 and 4. Criterion 3 needs no owner: the
 2026-09-25 station pass at `3da31f2a` passed 19 of 20 rows with the manifest
 red only on BPR-1108's four rows, and the card says it is met once the
 coordinator accepts that red as outside the criterion or those rows run
-contained. The only shortcut is the owner's: amend criteria 2 and 4 to the
-accepted 150% capture.
+contained.
 
 The chain after BPR-0653:
 
