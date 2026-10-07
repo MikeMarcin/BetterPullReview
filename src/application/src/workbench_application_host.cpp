@@ -855,7 +855,7 @@ namespace bpr::application {
 				defaults.Home             = { };
 				defaults.Geometry         = { };
 				defaults.UpdatesLine      = core::workbench_updates_line::folded;
-				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults, Layout.WritingHooks };
+				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults, Layout.WritingHooks, Layout.ClaudeWrapper };
 				PendingPreferenceDefaults = true;
 				if (!Preferences->apply_defaults(PendingPreferences->NewWindowDefaults)) {
 					PendingPreferences.reset();
@@ -1649,7 +1649,7 @@ namespace bpr::application {
 				defaults.Home        = { };
 				defaults.Geometry    = { };
 				defaults.UpdatesLine = core::workbench_updates_line::folded;
-				Preferences->adopt_loaded({ aResult->Behaviour, defaults, aResult->WritingHooks });
+				Preferences->adopt_loaded({ aResult->Behaviour, defaults, aResult->WritingHooks, aResult->ClaudeWrapper });
 			}
 			Layout = *aResult;
 			if (profile_defaults_scoped()) {

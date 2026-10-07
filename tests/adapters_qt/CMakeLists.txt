@@ -961,6 +961,22 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "agent-launch-canary-tests:pass"
         TIMEOUT 120
 )
+# [[BPR-1301]]. The Claude process wrapper through the real launcher: path
+# checks on real files, and a recording copy of the canary that must receive
+# exactly what today's Claude launch does.
+bpr_add_executable(test_better_pull_review_qt_claude_process_wrapper_tests claude_process_wrapper_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_claude_process_wrapper_tests PRIVATE BetterPullReview::AdapterAgent BetterPullReview::Platform Qt6::Core $<$<PLATFORM_ID:Windows>:Advapi32>)
+target_compile_definitions(test_better_pull_review_qt_claude_process_wrapper_tests PRIVATE
+    "BPR_AGENT_CANARY_EXECUTABLE=\"$<TARGET_FILE:test_better_pull_review_agent_canary>\"")
+add_dependencies(test_better_pull_review_qt_claude_process_wrapper_tests test_better_pull_review_agent_canary)
+bpr_enable_hardening(test_better_pull_review_qt_claude_process_wrapper_tests)
+bpr_enable_warnings(test_better_pull_review_qt_claude_process_wrapper_tests)
+bpr_add_network_isolated_test(NAME qt_claude_process_wrapper COMMAND test_better_pull_review_qt_claude_process_wrapper_tests)
+set_tests_properties(qt_claude_process_wrapper PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "claude-process-wrapper-tests:pass"
+    TIMEOUT 120)
+
 # [[BPR-1229]]. The durable private-input course, split from the canary on
 # every platform: it opens a private SQLite store under a scratch root, which
 # the Windows AppContainer refuses, while the launch courses above stay

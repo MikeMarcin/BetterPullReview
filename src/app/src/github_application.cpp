@@ -75,6 +75,7 @@
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/adapters/agent/agent_process_launcher.hpp"
 	#include "bpr/adapters/mcp/mcp_context_helper.hpp"
+	#include "bpr/application/claude_process_wrapper.hpp"
 #endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
@@ -6672,7 +6673,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// Suggest change is coloured by the panes' classifier over the same
 			// definitions, on the lane every classifier over them runs on.
 			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
-																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects });
+																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects }, nullptr,
+#if defined(BPR_AGENT_INTEGRATIONS)
+																  ClaudeWrapperSource
+#else
+																  nullptr
+#endif
+			);
 			// [[BPR-1177]]. Publish as Pull Request acts as the account this
 			// profile's session accepted, through its own publication catalog.
 			CycleDesktop->set_publishing({
@@ -7103,7 +7110,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					= std::make_unique<composition_agent_process_launcher_probe>(
 						*AgentProcess);
 			}
+			if (AgentProcessProbe != nullptr) {
+				ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper);
+			}
 			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
+	#else
+			ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper);
 	#endif
 			{
 				// BPR-0532. The re-alignment a continued turn asks for, served
@@ -7120,11 +7132,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					AgentWorkspaceNeighbourhood,
 					*this,
 					*EpochHost,
-	#if defined(BPR_BUILD_TESTING)
-					*AgentProcessProbe,
-	#else
-					*AgentProcess,
-	#endif
+					*ClaudeProcess,
 					[](const std::string& aName) -> std::optional<std::string> {
 						if (!qEnvironmentVariableIsSet(aName.c_str())) {
 							return std::nullopt;
@@ -7480,8 +7488,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						cancel_writing();
 					}
 					Window->writing_hooks()->present(aPreferences.WritingHooks);
+#if defined(BPR_AGENT_INTEGRATIONS)
+					// [[BPR-1301]]. The next Claude launch reads what this
+					// profile has just published, and so does the row.
+					ClaudeWrapperSource->set(aPreferences.ClaudeWrapper);
+					Window->claude_wrapper()->present(aPreferences.ClaudeWrapper);
+#endif
 				}
 			});
+#if defined(BPR_AGENT_INTEGRATIONS)
+			ClaudeWrapperEditor = std::make_unique<application::claude_wrapper_editor>(*Profile->WorkbenchPreferences, WorkbenchEffects, DecisionLane, &adapters::agent::inspect_claude_process_wrapper);
+			Window->claude_wrapper()->set_dispatch([this](std::string aPath) {
+				if (Closing || !ClaudeWrapperEditor) {
+					return;
+				}
+				ClaudeWrapperEditor->choose(std::move(aPath), [this](const application::claude_wrapper_answer& aAnswer) {
+					if (!Closing && Window != nullptr) {
+						Window->claude_wrapper()->show_answer(aAnswer);
+					}
+				});
+			});
+#endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook hook, qt::prose_capture captured) { request_writing(hook, std::move(captured)); }, [this] { cancel_writing(); });
 			WorkbenchHost = std::make_unique<
@@ -15180,6 +15207,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				PrivateReview->shutdown();
 			}
 			Profile->WorkbenchPreferences->unsubscribe(WritingHookSubscription);
+#if defined(BPR_AGENT_INTEGRATIONS)
+			if (ClaudeWrapperEditor) {
+				ClaudeWrapperEditor->shutdown();
+			}
+#endif
 			if (TourHost) {
 				TourHost->shutdown();
 			}
@@ -15273,6 +15305,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (TourPublication && !TourPublication->is_quiescent())
 				|| (TourHost && !TourHost->is_quiescent())
 				|| (CycleDesktop && !CycleDesktop->is_quiescent())
+#if defined(BPR_AGENT_INTEGRATIONS)
+				|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
+#endif
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (PrivateReview && !PrivateReview->is_quiescent())
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
@@ -16038,8 +16073,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	#if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<composition_agent_process_launcher_probe> AgentProcessProbe;
 	#endif
-		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
-		std::unique_ptr<application::agent_invocation_host>      AgentHost;
+		/// [[BPR-1301]]. The profile's Claude process wrapper as last
+		/// published, and the one port that points every Claude launch of
+		/// this window's agent host at it. Declared before the host that
+		/// holds the port, so the port outlives it.
+		std::shared_ptr<application::claude_process_wrapper_source> ClaudeWrapperSource = std::make_shared<application::claude_process_wrapper_source>();
+		std::unique_ptr<application::wrapped_claude_process>        ClaudeProcess;
+		std::unique_ptr<application::claude_wrapper_editor>         ClaudeWrapperEditor;
+		std::unique_ptr<composition_agent_invocation_projection>    AgentProjections;
+		std::unique_ptr<application::agent_invocation_host>         AgentHost;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
 		// through, so it is destroyed before that host is.
 		std::unique_ptr<application::agent_realignment_port> Realigner;

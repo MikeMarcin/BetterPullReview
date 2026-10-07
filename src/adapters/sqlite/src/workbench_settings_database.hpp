@@ -62,7 +62,11 @@ namespace bpr::adapters::sqlite::detail {
 	/// columns, and keeps every other field it had. Stored columns that name
 	/// an unknown or repeated label are read without them and reported; the
 	/// rest of the row still loads.
-	inline constexpr std::int64_t workbench_settings_schema_version = 13;
+	///
+	/// Fourteen since [[BPR-1301]]: the profile's Claude process wrapper, in
+	/// the profile row. A migrated row reads none and keeps every other field
+	/// it had. An agent-free build reads and writes it back unchanged.
+	inline constexpr std::int64_t workbench_settings_schema_version = 14;
 
 	/// \brief Owns the durable workbench layout database.
 	///

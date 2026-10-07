@@ -117,6 +117,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
         PRIVATE
             src/agent_chat_session_host.cpp
             src/agent_comment_workshop_host.cpp
+            src/claude_process_wrapper.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
             src/agent_realignment.cpp

@@ -217,6 +217,20 @@ namespace bpr::application {
 		}
 		return host.submit(candidate);
 	}
+	auto workbench_preferences_host::apply_claude_wrapper(std::string aPath) -> bool
+	{
+		auto& host = *Implementation;
+		if (host.Closing || !host.Accepted || !core::storable_agent_wrapper(aPath)) {
+			return false;
+		}
+		auto candidate          = host.QueuedCandidate.value_or(host.PendingCandidate.value_or(*host.Accepted));
+		candidate.ClaudeWrapper = std::move(aPath);
+		if (host.Pending) {
+			host.QueuedCandidate = std::move(candidate);
+			return true;
+		}
+		return host.submit(candidate);
+	}
 	void workbench_preferences_host::cancel() { Implementation->cancel(); }
 	void workbench_preferences_host::shutdown()
 	{

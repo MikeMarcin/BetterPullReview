@@ -3165,7 +3165,7 @@ namespace bpr::qt {
 	{
 		auto* const agents      = new QWidget;
 		auto* const column      = new QVBoxLayout{ agents };
-		auto* const explanation = new QLabel{ QStringLiteral("The selected host determines which agent profiles are allowed. Choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel."), agents };
+		auto* const explanation = new QLabel{ QStringLiteral("The selected host determines which agent profiles are allowed. The request choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel."), agents };
 		explanation->setWordWrap(true);
 		column->addWidget(explanation);
 		auto* const form    = new QFormLayout{ };
@@ -3212,6 +3212,11 @@ namespace bpr::qt {
 		connect(draft, &QCheckBox::toggled, AgentPanel->draft_selector(), &QCheckBox::setChecked);
 		connect(AgentPanel->draft_selector(), &QCheckBox::toggled, agents, refresh);
 		AgentPanel->set_configuration_observer(refresh);
+		// [[BPR-1301]]. Saved for the profile, unlike the choices above, so
+		// it sits apart under its own heading, beside the writing hooks.
+		ClaudeWrapper = new claude_wrapper_panel{ agents };
+		column->addSpacing(12);
+		column->addWidget(ClaudeWrapper);
 		WritingHooks = new writing_hooks_panel{ agents };
 		column->addWidget(WritingHooks);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
@@ -9248,7 +9253,7 @@ namespace bpr::qt {
 
 	void workbench_window::withdraw_agent_surfaces()
 	{
-		for (auto* const widget : std::initializer_list<QWidget*>{ AgentPanel, SideChat, FindingQueue }) {
+		for (auto* const widget : std::initializer_list<QWidget*>{ AgentPanel, SideChat, FindingQueue, ClaudeWrapper }) {
 			if (widget != nullptr) {
 				widget->hide();
 			}

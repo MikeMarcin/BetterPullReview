@@ -33,6 +33,60 @@ external_terminal
 
 The external-terminal fallback is mandatory when a corporate harness exposes no supported machine-readable interface.
 
+### Claude process wrapper
+
+[[BPR-1301]]. Settings > Agents & context offers one setting per application
+profile, **Process wrapper** under **Claude**, modelled on the VS Code
+extension's `claudeProcessWrapper`. It is one absolute path to a program run in
+place of `claude` for every Claude stream-JSON launch of that profile: the
+agent panel, side chat, comment workshop, tool-free writing and Review Cycle
+Send to Agent. A wrapper is either a separately installed `claude` or a
+program that prepares a provider (Bedrock, a gateway, credentials it fetches
+itself) and then runs Claude. It is how a shipped build reaches Claude at all:
+the registry names the bare `claude`, and the launch performs no `PATH`
+search, so without a wrapper a Claude request ends as `failed_to_start`.
+
+- **A path, never a command line.** The text is not split, quoted or expanded
+  (`~` and variables included) and no shell runs it. It is accepted only as an
+  absolute path to an existing regular file this user may execute, through a
+  symbolic link or not, with no control character and at most 1,024 bytes. On
+  Windows it must be an `.exe`: `CreateProcessW` runs a `.bat` or `.cmd`
+  through `cmd.exe`, so those are refused (owner, 2026-10-06, "Accept (.exe
+  only)"). A Unix script with a `#!` line is started by the kernel from the
+  file, which is not a shell string. Each refusal has its own one-line reason,
+  and a refused value is not saved.
+- **Checked twice.** The adapter inspects the file when the reviewer saves it
+  and again before every launch. A wrapper removed or no longer executable ends
+  that request as `failed_to_start` naming the wrapper; nothing is started and
+  there is no fallback to the bare `claude`.
+- **Exactly Claude's launch.** One substitution point,
+  `application::wrapped_claude_process`, sits in front of the supervised
+  launcher and replaces only the executable. The wrapper receives Claude's
+  exact arguments with nothing added (BetterPullReview bundles no Claude, so
+  unlike the VS Code extension it passes no bundled path), the same working
+  directory, stdin context, environment allowlist, supervisor, process group,
+  Job Object and three-handle list. The core profile registry stays immutable
+  and host policy decides by profile identity, so every verdict, including
+  the explicit-GHES rule, is the one the profile already had. Codex and the
+  external terminal are unaffected.
+- **No environment widening.** Provider configuration lives in
+  `~/.claude/settings.json`, reached through the allowlisted `HOME`, or is set
+  by the wrapper itself; a wrapper that wants `AWS_PROFILE` or a gateway URL
+  sets it inside its own script.
+- **Sign-in is Claude's.** BetterPullReview has no agent sign-in prompt or
+  check, so it offers no "don't prompt to sign in" switch (owner, 2026-10-06,
+  "Accept (no switch)"); the page says in one line that sign-in is left to
+  Claude and the wrapper.
+- **Trust.** The wrapper is code the reviewer chose, at the same trust as
+  choosing which `claude` to run, and BetterPullReview does not verify that it
+  runs Claude. Under an explicit GHES host the "approved corporate harness" is
+  whatever that reviewer's wrapper runs. The tool-free writing restrictions are
+  Claude flags, so a writing run is only as tool-free as the wrapper keeps it.
+  The path is profile data, not a credential: it is stored and shown as typed
+  and never logged with arguments or environment.
+- **Agent-free builds** have neither row. The stored value stays in the
+  profile's settings, carried through every other preference write unread.
+
 ## Host policy
 
 Git hosts map to allowed or required agent profiles. A corporate GHES profile can require the corporate Claude harness and forbid a personal provider. Unknown hosts have AI disabled until explicitly mapped.

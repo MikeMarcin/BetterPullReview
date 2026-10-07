@@ -277,7 +277,9 @@ All API, Git, diff, syntax, Markdown, agent, and settings inputs are untrusted. 
 
 ## Process handling
 
-- Resolve executables explicitly.
+- Resolve executables explicitly. A Claude process wrapper ([[BPR-1301]]) is
+  the reviewer's own absolute path, inspected when saved and again before each
+  launch; nothing searches `PATH`, and a refused wrapper starts nothing.
 - Invoke with argument arrays, never a shell.
 - Use bounded stdin/stdout/stderr, timeouts, cancellation, and redaction.
 - Pass prompts and request bodies through stdin or protocol messages, not command lines.
@@ -1564,6 +1566,40 @@ of this code: its package audit forbids the launcher, the protocol decoders, the
 agent hosts, the MCP supervisor and the round sender. A build without local
 automation binds no owner command endpoint and ships no `bpr`. Neither removes
 or rewrites a stored cycle, and the reviewer's Copy, Save and manual loop remain.
+
+## Claude process wrapper (BPR-1301)
+
+A profile may name one program to run in place of `claude`
+([AI agent boundary](ai-agent-boundary.md#claude-process-wrapper)). It widens
+what a Claude launch can be, never what it receives:
+
+- **Trust.** The wrapper is code the reviewer chose, at the trust of choosing
+  which `claude` binary to run. BetterPullReview does not verify that it runs
+  Claude or anything at all. It runs under the "Approved Claude" profile, so on
+  an explicit GHES host the approved corporate harness is whatever that
+  reviewer's wrapper runs; host policy still decides by profile, before any
+  wrapper is read.
+- **Tool-free writing.** Its restrictions (`--tools ""`, `--disallowedTools
+  "*"`, an empty MCP configuration, `--bare` and the rest) are Claude flags
+  passed to the wrapper unchanged. A wrapper can drop them, so a writing run
+  is only as tool-free as the wrapper keeps it. The decoder still refuses a
+  run whose init frame reports tools or MCP servers, or that answers with
+  anything but text.
+- **Unchanged environment and handles.** The wrapper gets exactly Claude's
+  arguments, working directory, stdin and allowlisted environment, through the
+  same supervisor, process group, Job Object and three-handle list. No name is
+  added for it; provider settings come from `~/.claude/settings.json` through
+  `HOME` or from the wrapper itself.
+- **No shell, no discovery, no fallback.** The path is never split or
+  expanded and never run through a shell; Windows `.bat` and `.cmd` files,
+  which `CreateProcessW` would run through `cmd.exe`, are refused, and only an
+  `.exe` is accepted there. It is inspected when saved and again before each
+  launch; a removed or non-executable wrapper ends the request as
+  `failed_to_start`, and the bare `claude` is not tried.
+- **Storage.** The path is profile data in `workbench-settings.sqlite3`, bounded
+  and free of control characters at admission, removed by profile purge, and
+  never logged with arguments or environment. An agent-free build carries it
+  unread.
 
 ### Qualified boundaries and residual risks (BPR-1181)
 

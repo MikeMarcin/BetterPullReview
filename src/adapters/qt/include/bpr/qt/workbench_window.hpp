@@ -17,6 +17,7 @@
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/claude_wrapper_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
@@ -805,6 +806,8 @@ namespace bpr::qt {
 			-> github_conversation_panel*;
 		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
 		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
+		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
+		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
 		/// \brief The side chat, placed beside the agent launcher it belongs to.
 		///
 		/// \details BPR-0513. The panel is composed here because the drawer is
@@ -1817,7 +1820,8 @@ namespace bpr::qt {
 		github_pull_request_panel*                         PullRequestPanel   = nullptr;
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;
-		writing_hooks_panel*                               WritingHooks = nullptr;
+		writing_hooks_panel*                               WritingHooks  = nullptr;
+		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
 		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow = nullptr;
 		QWidget*                                           AccountsPanel  = nullptr;

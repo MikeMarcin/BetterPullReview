@@ -882,6 +882,21 @@ endfunction()
 # no qualification. No grant, target, provider, token, mutation or
 # publication path changes; mutation pin unchanged; no new src/app source.
 # Reviewed on BPR-1068.
+# BPR-1301 reseal (2026-10-06): over the BPR-1068 reseal above; no
+# intervening pinned-scope commit. github_application.cpp, agent builds only:
+# each window holds its profile's Claude process wrapper as last published
+# (set from the same preferences subscription as the writing hooks), and the
+# agent host's process port is application::wrapped_claude_process in front of
+# the existing launcher (in front of the tests-on probe), which replaces the
+# executable of a Claude stream-JSON request alone and re-inspects the path
+# before launch. Settings > Agents & context's Process wrapper row dispatches
+# to application::claude_wrapper_editor, which has the agent adapter inspect
+# the file on the effect lane and then writes the profile preference; the
+# editor joins window shutdown and quiescence. review_cycle_desktop.{hpp,cpp}
+# take the same source and wrap Send to Agent's launcher the same way. No grant,
+# target, provider, credential, environment, mutation or publication path
+# changes; host policy unchanged; mutation pin unchanged; no new src/app
+# source. Reviewed on BPR-1301.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -900,7 +915,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"eaf49c94ba53afa431e1e1687ca0e9e1e5f1b54c4bbb7c2d38b49605a9fee816"
+		"01bb34a997084e2063cf7fe1ad5010f7f6839039eb4bb915fe384120bd56ede0"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1098,7 +1113,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "3d8e96ea03448f80e38c3f38ee506e4d668714f413383cda6423cc77a5f949c0"
+        "dd3e864694f5209e4faa2f38292e45f65f2547811dfe910755f5507488e1150a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

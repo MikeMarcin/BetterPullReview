@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMetaObject>
 #include <QPlainTextEdit>
 #include <QPoint>
 #include <QPushButton>
@@ -30,7 +31,9 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -372,6 +375,65 @@ namespace {
 		expect(!settings->isVisible(), "Escape in an empty field still closes Settings");
 	}
 
+	/// \brief [[BPR-1301]]. Agents & context's Claude rows: the wrapper path,
+	/// saved only through the host, and the one line about sign-in. Withdrawing
+	/// the agent surfaces, as an agent-free build does, takes both away.
+	void test_agents_page_claude_wrapper_rows()
+	{
+		qt::workbench_window workbench;
+		auto* const          page    = workbench.settings()->page_widget(qt::settings_page::agents_and_context);
+		auto* const          panel   = workbench.claude_wrapper();
+		auto* const          path    = page->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
+		auto* const          save    = page->findChild<QPushButton*>(QStringLiteral("claudeWrapperSave"));
+		auto* const          choose  = page->findChild<QPushButton*>(QStringLiteral("claudeWrapperChoose"));
+		auto* const          status  = page->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus"));
+		auto* const          signIn  = page->findChild<QLabel*>(QStringLiteral("claudeSignIn"));
+		auto* const          heading = page->findChild<QLabel*>(QStringLiteral("claudeWrapperHeading"));
+		expect(panel != nullptr && path != nullptr && save != nullptr && choose != nullptr && status != nullptr && signIn != nullptr && heading != nullptr,
+			   "Agents & context mounts the Claude rows");
+		expect(heading->text() == QStringLiteral("Claude") && path->text().isEmpty() && status->text().isEmpty(), "nothing is claimed before the profile publishes");
+		expect(signIn->text() == QStringLiteral("Sign-in is left to Claude and the wrapper; BetterPullReview never asks you to sign in to Claude."),
+			   "one line says sign-in is Claude's and the wrapper's (owner, 2026-10-06: no switch)");
+		expect(page->findChildren<QCheckBox*>().size() == 1, "no sign-in switch is offered; the only check box is the private draft");
+
+		auto sent = std::vector<std::string>{ };
+		panel->set_dispatch([&sent](std::string aPath) { sent.push_back(std::move(aPath)); });
+		path->setText(QStringLiteral("/Users/me/bin/claude gateway ✓"));
+		save->click();
+		expect(sent == std::vector<std::string>{ "/Users/me/bin/claude gateway ✓" }, "Save hands the exact typed path to the host, spaces and all");
+		expect(status->text() == QStringLiteral("Checking…"), "the row says the path is being checked");
+		panel->show_answer({ .Path = sent.back(), .Refusal = core::agent_wrapper_refusal::not_executable });
+		expect(status->text() == QStringLiteral("Not saved. You do not have permission to run this file."), "a refusal says why in one line");
+		expect(path->text() == QStringLiteral("/Users/me/bin/claude gateway ✓"), "the refused text stays to be corrected");
+		QMetaObject::invokeMethod(path, "returnPressed");
+		expect(sent.size() == 2U, "Return saves too");
+		panel->show_answer({ .Path = sent.back(), .Submitted = true });
+		expect(status->text() == QStringLiteral("Saving…"), "an accepted path is being written");
+		panel->present("/Users/me/bin/claude gateway ✓");
+		expect(status->text() == QStringLiteral("Saved for this profile.") && path->text() == QStringLiteral("/Users/me/bin/claude gateway ✓"), "the published wrapper is shown as saved");
+		// For a look at the rows as drawn, when BPR_SETTINGS_RENDER_DIR is set.
+		if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
+			workbench.settings()->present(qt::settings_page::agents_and_context);
+			workbench.settings()->resize(900, 820);
+			QApplication::processEvents();
+			expect(workbench.settings()->grab().save(directory + QStringLiteral("/agents-and-context-claude.png")), "the Agents & context render is saved");
+		}
+		path->clear();
+		save->click();
+		expect(sent.back().empty() && status->text() == QStringLiteral("Clearing…"), "an empty field clears the wrapper");
+		panel->present({ });
+		expect(status->text() == QStringLiteral("No wrapper is saved for this profile.") && path->text().isEmpty(), "a cleared profile says so");
+		panel->show_answer({ .Path = "/x" });
+		expect(status->text() == QStringLiteral("Not saved. This profile's settings are not available yet."), "an unavailable profile is said plainly");
+
+		auto* const settings = workbench.settings();
+		settings->search_field()->setText(QStringLiteral("process wrapper"));
+		expect(result_names(*settings).contains(QStringLiteral("Process wrapper")), "the wrapper row is found by search");
+		workbench.withdraw_agent_surfaces();
+		settings->search_field()->setText(QStringLiteral("process wrapper"));
+		expect(panel->isHidden() && !result_names(*settings).contains(QStringLiteral("Process wrapper")), "withdrawn agent surfaces take the Claude rows with them");
+	}
+
 	/// \brief [[BPR-1289]]. The index is the pages as shown: a withdrawn page is
 	/// never searched, and a newly placed setting is found without a second list.
 	void test_settings_search_reads_the_pages_as_shown()
@@ -455,6 +517,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_shortcut_selects_the_active_workbench();
 	test_settings_search_finds_and_goes_to_a_setting();
 	test_settings_search_reads_the_pages_as_shown();
+	test_agents_page_claude_wrapper_rows();
 	std::cout << "settings-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }

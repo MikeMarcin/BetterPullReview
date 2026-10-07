@@ -520,6 +520,57 @@ namespace {
 #endif
 }
 
+#if defined(BPR_AGENT_INTEGRATIONS)
+namespace {
+	/// \brief [[BPR-1301]]. Send to Agent with the shipped profiles, whose
+	/// Claude is the bare `claude`, and a Claude process wrapper saved for the
+	/// window: the harness copy saved as the wrapper is what runs, with
+	/// exactly Claude's arguments and the round on its input.
+	void sends_through_a_wrapper(const std::filesystem::path& aFixture, const std::filesystem::path& aProfileRoot, const std::filesystem::path& aScratch)
+	{
+		const auto project = aScratch / "wrapper-project";
+		write_file(project / "README.md", "# Wrapped\n");
+		const auto folder = aScratch / "wrapper";
+		std::filesystem::create_directories(folder);
+		const auto wrapper = folder / ("claude-gateway" + aFixture.extension().string());
+		std::filesystem::copy_file(aFixture, wrapper);
+		auto source = std::make_shared<application::claude_process_wrapper_source>();
+		source->set(wrapper.string());
+
+		auto lanes  = application::manual_executor{ };
+		auto window = qt::workbench_window{ };
+		window.resize(1280, 800);
+		window.show();
+		auto desktop = app::review_cycle_desktop{ window, aProfileRoot, core::bpr_profile_id{ 1 }, lanes, lanes, { }, &lanes, source };
+		desktop.set_send_profiles(core::built_in_agent_profiles());
+		auto* const page = open_cycle(desktop, window, lanes, project);
+		desktop.host().comment({ .Primary = core::cycle_whole_target{ }, .Body = "Run what I chose." });
+		settle(lanes);
+		const auto subject = *desktop.host().selected();
+		static_cast<void>(settle_store<application::cycle_write_receipt>(aProfileRoot, subject, [](auto& aRuntime, auto aDone) {
+			auto bytes = std::array<std::uint8_t, 32>{ };
+			bytes[0]   = 0xC8;
+			aRuntime.set_channel_permission(application::cycle_operation_id{ bytes }, core::cycle_data_classification::unclassified, core::cycle_disclosure_channel::agent_adapter,
+											core::cycle_channel_permission::allowed, std::move(aDone));
+		}));
+		auto* const sheet = compose(*page, lanes);
+		sheet->route_button(core::cycle_share_route::send_to_agent)->click();
+		settle(lanes);
+		choose(*sheet, core::claude_stream_json_profile_id, { });
+		const auto document = desktop.host().projection().Share->Document;
+		sheet->send_button()->click();
+		wait_for_send(desktop, lanes);
+		expect(sends_in(folder) == 1U && read_file(folder / "send-1.args") == "-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose",
+			   "the wrapper ran in place of the bare claude, with exactly Claude's arguments");
+		expect(framed_text(read_file(folder / "send-1.stdin")) == QString::fromStdString(document), "and read the round exactly as Claude would");
+		expect(contains(sheet->status()->text(), QStringLiteral("Claude finished its turn on F1")), "the send finished as Claude's: " + sheet->status()->text().toStdString());
+		close_sheet(*sheet, lanes);
+		desktop.shutdown();
+		settle(lanes);
+	}
+}
+#endif
+
 auto main(int aArgc, char** aArgv) -> int
 try {
 	QApplication app{ aArgc, aArgv };
@@ -535,6 +586,7 @@ try {
 #if defined(BPR_AGENT_INTEGRATIONS)
 	expect(!arguments.empty(), "the stand-in harness is named");
 	sends_through_the_real_adapter(std::filesystem::path{ arguments.front() }, root, scratch.path());
+	sends_through_a_wrapper(std::filesystem::path{ arguments.front() }, root, scratch.path());
 #else
 	const auto reopen = option("--reopen");
 	reads_without_the_adapter(reopen ? *reopen : root, scratch.path(), reopen.has_value());

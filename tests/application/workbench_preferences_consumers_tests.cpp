@@ -131,6 +131,47 @@ namespace {
 		expect(owner.is_quiescent(), "inline reentrant effects finish exactly once");
 	}
 
+	/// \brief [[BPR-1301]]. A window host that owns its preferences adopts
+	/// the stored Claude process wrapper with the rest of the record, so a
+	/// later preference write keeps it. An agent-free build never reads it,
+	/// and this is what keeps it stored there.
+	void test_owned_preferences_keep_the_claude_wrapper()
+	{
+		struct legacy_port final : application::workbench_settings_port
+		{
+			auto load(std::stop_token) -> application::workbench_settings_result<application::workbench_layout_settings> override { return Stored; }
+			auto store(const application::workbench_layout_settings& aLayout, std::stop_token) -> application::workbench_settings_result<void> override
+			{
+				Stored = aLayout;
+				++Writes;
+				return { };
+			}
+			application::workbench_layout_settings Stored;
+			std::size_t                            Writes = 0;
+		};
+		legacy_port port;
+		port.Stored.ClaudeWrapper = "/opt/tools/claude-gateway";
+		application::manual_executor            effects, decision;
+		observations                            observer;
+		projection                              projected;
+		application::workbench_application_host host{ { }, observer, port, effects, decision, projected, core::application_session_id{ 1 } };
+		host.restore();
+		effects.drain();
+		decision.drain();
+		auto changed     = application::review_behaviour_settings{ };
+		changed.MarkRead = application::review_mark_read_behaviour::when_fully_seen;
+		host.apply_behaviour(changed);
+		for (auto round = 0; round < 4; ++round) {
+			effects.drain();
+			decision.drain();
+		}
+		expect(port.Writes != 0 && port.Stored.Behaviour.MarkRead == application::review_mark_read_behaviour::when_fully_seen, "the behaviour change is written");
+		expect(port.Stored.ClaudeWrapper == "/opt/tools/claude-gateway", "the adopted record keeps the wrapper through another write");
+		host.shutdown();
+		effects.drain();
+		decision.drain();
+	}
+
 	/// \brief [[BPR-1088]]. The label helper, the Overview's starting count and
 	/// the label columns follow the profile's existing preference authority:
 	/// one durable write fans out to every window of the profile, another
@@ -276,6 +317,7 @@ int main()
 	test_refused_subscription_has_no_effect_authority();
 	test_reentrant_preference_fanout();
 	test_label_preferences_follow_the_profile_authority();
+	test_owned_preferences_keep_the_claude_wrapper();
 	{
 		state                                   firstState, otherState;
 		fake_settings_store                     port{ firstState, { } }, otherPort{ otherState, { } };

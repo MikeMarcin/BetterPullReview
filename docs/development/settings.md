@@ -164,6 +164,20 @@ context is included only when selected. Start and cancel remain in the review's
 agent panel. Settings cannot create an agent credential, broaden host policy or
 publish an agent's output. Unsupported launch capabilities remain explained.
 
+Under **Claude**, **Process wrapper** is saved for the profile ([[BPR-1301]]):
+the full path to a program run in place of `claude` for every Claude request,
+with Claude's own arguments, folder and environment and never through a shell.
+Set it to the `claude` you installed (for example the path `which claude`
+prints) or to a program that prepares your provider and then runs Claude; a
+shipped build starts no Claude without it. **Choose…** picks the file;
+**Save** or Return saves the typed path; an empty field saved clears it. The
+path is checked before it is saved and again before every launch, and a
+refused path is not saved: the row says why in one line (not absolute, starts
+with `~`, nothing there, a folder, not executable, and on Windows not an `.exe`
+or a `.bat`/`.cmd`, which only `cmd.exe` runs). The **Sign-in** line says sign-in
+is left to Claude and the wrapper; BetterPullReview never asks you to sign in
+to Claude. See the [AI agent boundary](../architecture/ai-agent-boundary.md#claude-process-wrapper).
+
 ## Storage & privacy
 
 The local data location is read-only. It contains repository caches, retained

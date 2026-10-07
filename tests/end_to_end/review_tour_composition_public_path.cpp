@@ -374,7 +374,7 @@ auto main(int argc, char** argv) -> int
 		std::unique_ptr<app::github_application> started;
 		bool                                     terminal = false;
 		auto                                     startup  = access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,
-																		  app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing"), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && std::string_view{ argv[1] } == "--writing" ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt },
+																		  app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper"), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && std::string_view{ argv[1] } == "--writing" ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt },
 																		  [&](auto aResult) { terminal = true; if (aResult) { started = std::move(*aResult); } });
 		wait([&] { return terminal && startup && startup->is_quiescent(); }, "startup terminal");
 		expect(started != nullptr, "startup succeeds");
@@ -413,6 +413,58 @@ auto main(int argc, char** argv) -> int
 			return result;
 		}
 
+		// [[BPR-1301]]. The shipped composition names the bare `claude`, which
+		// no build can start. Through the real Settings rows the reviewer saves
+		// a wrapper, and the same writing request then runs it, through the
+		// agent host, the supervised launcher and the restricted protocol. The
+		// wrapper is still there after a restart.
+		if (argc > 2 && std::string_view{ argv[1] } == "--writing-wrapper") {
+			auto* panel    = window.agent_panel();
+			auto* selector = panel->profile_selector();
+			select_file(window, "review.cpp");
+			wait([&] { return selector->count() > 0; }, "agent offerings follow accepted source");
+			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())));
+			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == core::claude_stream_json_profile_id; }, "writing host ready");
+			window.open_review_tour();
+			editor.show_problem();
+			auto* prose  = editor.writing_editor(core::writing_hook::problem);
+			auto* magic  = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
+			magic->click();
+			saved(editor);
+			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;magic->click();wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
+			const auto select = [&] {auto cursor=prose->textCursor();cursor.setPosition(3);cursor.setPosition(7,QTextCursor::KeepAnchor);prose->setTextCursor(cursor); };
+			select();
+			const auto captured = *prose->capture();
+			run();
+			expect(prose->raw() == captured.Raw, "failing-before control: with no wrapper the shipped bare claude cannot start and nothing changes");
+			auto* rows   = window.claude_wrapper();
+			auto* path   = rows->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
+			auto* save   = rows->findChild<QPushButton*>(QStringLiteral("claudeWrapperSave"));
+			auto* answer = rows->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus"));
+			path->setText(QStringLiteral("relative/agent"));
+			save->click();
+			wait([&] { return answer->text().startsWith(QStringLiteral("Not saved.")); }, "a relative wrapper is answered");
+			expect(answer->text() == QStringLiteral("Not saved. The path is not absolute; write the full path from the root."), "a relative wrapper is refused in one line");
+			path->setText(QString::fromLocal8Bit(argv[2]));
+			save->click();
+			wait([&] { return answer->text() == QStringLiteral("Saved for this profile."); }, "the wrapper is saved for the profile");
+			select();
+			run();
+			const auto expected = captured.Raw.substr(0, captured.Selection.Begin) + "Rewritten 😀\r\nexact." + captured.Raw.substr(captured.Selection.End);
+			if (prose->raw() != expected) {
+				std::cerr << "writing status: " << status->text().toStdString() << " agent: " << panel->status_text().toStdString() << '\n';
+			}
+			expect(prose->raw() == expected, "the same writing request runs the saved wrapper with Claude's exact tool-free arguments");
+			shutdown(*application);
+			application.reset();
+			application    = make();
+			auto* reopened = application->window().claude_wrapper()->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
+			wait([&] { return reopened->text() == QString::fromLocal8Bit(argv[2]); }, "the wrapper survives a restart");
+			shutdown(*application);
+			std::cout << "review-tour-writing-wrapper:pass\n";
+			return EXIT_SUCCESS;
+		}
 		if (argc > 2 && std::string_view{ argv[1] } == "--writing") {
 			const auto mutationBefore = access::review_mutation_evidence(*application);
 			auto*      panel          = window.agent_panel();

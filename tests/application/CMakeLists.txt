@@ -947,6 +947,15 @@ bpr_add_network_isolated_test(NAME application_agent_chat_replies COMMAND test_b
 set_tests_properties(application_agent_chat_replies PROPERTIES PASS_REGULAR_EXPRESSION "agent-chat-reply-tests:pass" TIMEOUT 30)
 endif()
 
+if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1301]]
+bpr_add_executable(test_better_pull_review_claude_process_wrapper_host_tests claude_process_wrapper_tests.cpp)
+target_link_libraries(test_better_pull_review_claude_process_wrapper_host_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_claude_process_wrapper_host_tests)
+bpr_enable_warnings(test_better_pull_review_claude_process_wrapper_host_tests)
+bpr_add_network_isolated_test(NAME application_claude_process_wrapper COMMAND test_better_pull_review_claude_process_wrapper_host_tests)
+set_tests_properties(application_claude_process_wrapper PROPERTIES PASS_REGULAR_EXPRESSION "claude-process-wrapper-host-tests:pass" TIMEOUT 30)
+endif()
+
 bpr_add_executable(test_review_tour_host review_tour_host_tests.cpp)
 target_link_libraries(test_review_tour_host PRIVATE BetterPullReview::Application)
 bpr_enable_hardening(test_review_tour_host)

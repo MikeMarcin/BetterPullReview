@@ -2,12 +2,26 @@
 #define BPR_SRC_ADAPTERS_AGENT_INCLUDE_BPR_ADAPTERS_AGENT_AGENT_PROCESS_LAUNCHER_HPP
 
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/core/agent_wrapper.hpp"
 
 #include <QObject>
 
 #include <memory>
+#include <optional>
+#include <string_view>
 
 namespace bpr::adapters::agent {
+	/// \brief [[BPR-1301]]. Whether a Claude process wrapper path names a
+	/// program this user may run, under this platform's path rules.
+	///
+	/// \details The text is read first (`core::inspect_agent_wrapper_text`).
+	/// Then the file: it must exist and, after any symbolic links, be a
+	/// regular file; on Unix this user must be allowed to execute it, and on
+	/// Windows it must be an `.exe`, the only kind `CreateProcessW` starts
+	/// without a shell. Asked when a wrapper is saved and again before every
+	/// launch through it. Reads metadata only; opens and runs nothing.
+	[[nodiscard]] auto inspect_claude_process_wrapper(std::string_view aPath) -> std::optional<core::agent_wrapper_refusal>;
+
 	/// \brief Owns one bounded child-process and protocol lifecycle.
 	///
 	/// \details The child environment is constructed empty and receives only

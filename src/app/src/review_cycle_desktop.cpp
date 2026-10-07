@@ -232,7 +232,7 @@ namespace bpr::app {
 
 	review_cycle_desktop::review_cycle_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, const core::bpr_profile_id aProfile,
 											   application::effect_executor& aEffects, application::decision_executor& aDecisions, const review_cycle_syntax aSyntax,
-											   application::effect_executor* aCaptures)
+											   application::effect_executor* aCaptures, [[maybe_unused]] std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper)
 		: Window{ aWindow }
 		, Source{ adapters::workspace::make_local_workspace_source() }
 		, ProfileRoot{ aProfileRoot }
@@ -349,7 +349,10 @@ namespace bpr::app {
 		// [[BPR-1180]]. Send to Agent: the installed profiles through the same
 		// supervised launch every other use of them has, one send at a time on
 		// its own worker. The child gets only each profile's allowed names.
-		SendProcesses = std::make_unique<adapters::agent::agent_process_launcher>();
+		// [[BPR-1301]]. A Claude send runs the profile's wrapper when one is
+		// saved, exactly as every other Claude launch of the window does.
+		SendLauncher  = std::make_unique<adapters::agent::agent_process_launcher>();
+		SendProcesses = std::make_unique<application::wrapped_claude_process>(*SendLauncher, std::move(aClaudeWrapper), &adapters::agent::inspect_claude_process_wrapper);
 		SendLane      = std::make_unique<worker_executor>();
 		Sender        = std::make_shared<application::agent_round_sender>(*SendProcesses, [](const std::string& aName) -> std::optional<std::string> {
 			if (!qEnvironmentVariableIsSet(aName.c_str())) {

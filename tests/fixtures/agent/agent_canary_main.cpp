@@ -192,6 +192,10 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1301]]. Set for a tool-free writing launch, whose decoder
+	/// requires the init frame to report no tools and no MCP servers.
+	bool ToolFreeLaunch = false;
+
 	void begin_output(const protocol aProtocol)
 	{
 		switch (aProtocol) {
@@ -202,8 +206,9 @@ namespace {
 			break;
 		case protocol::claude_stream_json:
 			write_partial(
-				"{\"type\":\"system\",\"subtype\":\"init\","
-				"\"session_id\":\"canary-session\",\"model\":\"canary-configured\",\"claude_code_version\":\"fixture-1\"}\n");
+				std::string{ "{\"type\":\"system\",\"subtype\":\"init\","
+							 "\"session_id\":\"canary-session\",\"model\":\"canary-configured\",\"claude_code_version\":\"fixture-1\"" }
+				+ (ToolFreeLaunch ? ",\"tools\":[],\"mcp_servers\":[]" : "") + "}\n");
 			break;
 		case protocol::codex_app_server:
 		case protocol::external_terminal:
@@ -622,6 +627,7 @@ auto main(int argc, char** argv) -> int
 	}
 
 	const auto protocol = selected_protocol(argc, argv);
+	ToolFreeLaunch      = has_argument(argc, argv, "--disallowedTools");
 #if defined(_WIN32)
 	if (const auto guard = argument_after(argc, argv, "--probe-inherited-handles"); !guard.empty()) {
 		probe_inherited_handles(protocol, guard);

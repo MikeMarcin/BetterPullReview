@@ -22,7 +22,9 @@
 #include <filesystem>
 #include <functional>
 #include <span>
+#include <string>
 #include <string_view>
+#include <system_error>
 
 #if defined(Q_OS_UNIX)
 	#include <csignal>
@@ -497,6 +499,42 @@ namespace bpr::adapters::agent {
 		Implementation->CancellationGeneration.fetch_add(
 			1U,
 			std::memory_order_acq_rel);
+	}
+
+	auto inspect_claude_process_wrapper(const std::string_view aPath) -> std::optional<core::agent_wrapper_refusal>
+	{
+#if defined(Q_OS_WIN)
+		constexpr auto platform = core::agent_wrapper_platform::windows;
+#else
+		constexpr auto platform = core::agent_wrapper_platform::posix;
+#endif
+		if (const auto refusal = core::inspect_agent_wrapper_text(aPath, platform)) {
+			return refusal;
+		}
+		try {
+			const auto path   = std::filesystem::path{ std::u8string{ reinterpret_cast<const char8_t*>(aPath.data()), aPath.size() } };
+			auto       error  = std::error_code{ };
+			const auto status = std::filesystem::status(path, error);
+			if (error || status.type() == std::filesystem::file_type::not_found) {
+				return core::agent_wrapper_refusal::missing;
+			}
+			if (status.type() == std::filesystem::file_type::directory) {
+				return core::agent_wrapper_refusal::directory;
+			}
+			if (status.type() != std::filesystem::file_type::regular) {
+				return core::agent_wrapper_refusal::not_regular_file;
+			}
+#if defined(Q_OS_UNIX)
+			// The kernel's own answer for this user, groups and ACLs included,
+			// rather than a reading of the mode bits.
+			if (::access(path.c_str(), X_OK) != 0) {
+				return core::agent_wrapper_refusal::not_executable;
+			}
+#endif
+		} catch (...) {
+			return core::agent_wrapper_refusal::missing;
+		}
+		return std::nullopt;
 	}
 
 #if defined(BPR_BUILD_TESTING) && defined(Q_OS_WIN)

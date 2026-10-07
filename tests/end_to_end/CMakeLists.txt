@@ -3725,6 +3725,13 @@ bpr_add_network_isolated_test(NAME application_review_tour_writing
     COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")
 set_tests_properties(application_review_tour_writing PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-writing:pass")
+# [[BPR-1301]]. The shipped bare claude, then the same writing request
+# through a Claude process wrapper saved on Settings > Agents & context.
+bpr_add_network_isolated_test(NAME application_review_tour_writing_wrapper
+    WINDOWS_UNCONTAINED
+    COMMAND test_review_tour_composition_public_path --writing-wrapper "$<TARGET_FILE:test_scoped_writing_agent>")
+set_tests_properties(application_review_tour_writing_wrapper PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-writing-wrapper:pass")
 
 # RFC-BPR-0023 / BPR-0587: three fresh processes use the actual workbench,
 # private profile, existing process launcher and designated synthetic wire.
