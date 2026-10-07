@@ -40,12 +40,12 @@
       "source": "agentskills"
     },
     {
-      "commit": "b75119cd7a39310407827c5275799ab25f84f39f",
+      "commit": "e7470a7635d60fc65505593908a3cc39f3ef93be",
       "git_object_format": "sha1",
       "id": "pr-tour",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/pr-tour",
-      "payload_digest": "sha256:44af3e0b667643e542f72f18d144560464bb97ba549afa6790901faa83ad5174",
+      "payload_digest": "sha256:be63ec2848ae70f1b27affec3fadd8350077de15b8dd11e8215b063621312d43",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
