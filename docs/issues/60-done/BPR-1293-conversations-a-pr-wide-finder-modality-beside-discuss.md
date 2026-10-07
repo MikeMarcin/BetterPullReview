@@ -745,3 +745,25 @@ was already stopped. The frozen root
 
 The [owed station runs](#owed-station-runs-not-blocking) remain owed and do
 not block. A failure there opens a new card against this change.
+
+## Linux station run (bpr-main-linux, 2026-10-07)
+
+At `5eeddac74` (contains `3754fee9b`), Ubuntu 26.04 under WSL2, GCC 15.2.0,
+under the network-isolated runner, no remote mutation:
+- **`build/dev`** (the card's first expression): 24 of 24 pass. That covers
+  `core_workbench_interaction`, `application_overview_feedback`, the three
+  `qt_conversation_finder_scale_*`, `qt_workbench_window_scale_*`,
+  `qt_composed_github_scale_*` and `qt_composed_inline_drawer_scale_*` rows,
+  `qt_conversation_cards_view`, `qt_github_conversation_panel`,
+  `application_attended_recent_replay`,
+  `application_setup_destination_public_path`,
+  `application_profile_multi_window_public_path`, both composition contracts
+  (`application_composition_contract` takes 849 s), `architecture_boundaries`,
+  `github_recorded_fixture_contract` and `github_contract_fixture_security`.
+- **Optimized tests-on tree** (`app-release`, `-O3 -Werror`, built clean, run
+  `-j1` once idle; the second expression): 8 of 8 pass.
+  `application_large_review_responsiveness`, `application_first_tab_comparison`,
+  the conversation-finder rows and the workbench-window rows. The tree was
+  deleted afterwards.
+
+The Linux half of the owed runs is discharged; Windows is still owed.
