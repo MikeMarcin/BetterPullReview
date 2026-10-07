@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1293"
 title: "Conversations: a PR-wide finder modality beside Discuss"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner chat, 2026-10-06, during BPR-1290","reservation":"docs/issues/_reservations/BPR-1293--BPR-1293--370e927e88e9.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0037","RFC-BPR-0052"],"related_cards":["BPR-1290","BPR-1295","BPR-1294","BPR-1089","BPR-1021","BPR-1135","BPR-0418","BPR-0211","BPR-0649","BPR-0926","BPR-0929"],"implementation_note":"Build faithful to docs/design/BPR-1290-inline-drawer-v2 with the frontend-design skill; owner review is required","owner_decision":{"date":"2026-10-06","prototype":"I like that a lot.","placement":"What if we were to replace discuss with conversations.","answers_date":"2026-10-06","q1":"Hide drawers","q2":"just keep discuss for now even after 1294"},"open_questions":[],"acceptance":["BPR-1293:owner-decision","BPR-1293:owner-questions","BPR-1293:modality","BPR-1293:finder","BPR-1293:pick","BPR-1293:keys","BPR-1293:entries","BPR-1293:discuss-kept","BPR-1293:governing-text","BPR-1293:tests","BPR-1293:owner-look"],"sequence_after":"BPR-1290 and BPR-1295 (all three change the modality strip, workbench_window.cpp and the window tests; this card's code waits for both)"}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1293:owner-decision","outcome":"pass","revision":"3754fee9b","evidence":{"kind":"observation","detail":"The owner's words on prototype v2 ('I like that a lot.') and the placement ('What if we were to replace discuss with conversations.') are recorded verbatim in the card's Owner decision, 2026-10-06."}},{"criterion":"BPR-1293:owner-questions","outcome":"pass","revision":"3754fee9b","evidence":{"kind":"observation","detail":"Q1 'Hide drawers' and Q2 'just keep discuss for now even after 1294' are recorded verbatim in Owner answers, 2026-10-06, before the build; the build hides drawers in Conversations and keeps Discuss."}},{"criterion":"BPR-1293:modality","outcome":"pass","revision":"7778886c9","evidence":{"kind":"command","detail":"workbench_modality::conversations in the core and Qt enums with its own segment, tooltip, accessible and object names; the strip is Overview Cmd1, Review Cmd2, Discuss Cmd3, Conversations Cmd4 per the owner amendment; the drawer toggle is the Comments drawer. core_workbench_interaction and qt_workbench_window_scale_* pass on macOS arm64 Debug; the Ctrl+3 Discuss / Ctrl+4 Conversations key scans find each sequence once."}},{"criterion":"BPR-1293:finder","outcome":"pass","revision":"7778886c9","evidence":{"kind":"command","detail":"qt_conversation_finder_scale_{100,125,200}: the row rule (flat, the prototype's deep shape, a leaf at a fork, hostile parents, a 20,000-post chain), conversations on a file only, search over words/person/file/line, Only new, Hide resolved, one label, +n folding never folding new posts or the picked one, keys, and renders in light, dark and both high-contrast themes at larger text and 640 px with nothing clipped. Failing-before controls: every reply its own row; new posts folding."}},{"criterion":"BPR-1293:pick","outcome":"pass","revision":"7778886c9","evidence":{"kind":"command","detail":"Window test test_conversations_finds_and_picks_into_review through the real core: Review, then the file, Comments opened if closed, the thread opened in place at the picked post washed amber once the file's comparison shows; reopening starts on that conversation with its path traced (also seen offscreen in the real application on conversations-v1). Controls: the file selected before Review; the thread opened before its file shows (large review)."}},{"criterion":"BPR-1293:keys","outcome":"pass","revision":"7778886c9","evidence":{"kind":"command","detail":"Cmd+J and the drawer's finder button enter Conversations from Overview, Review and Discuss with the search focused; Cmd+J or Esc on an empty search returns to the origin modality; drawers hidden with states unchanged and Cmd+B disabled (core refusal conversations_finds_a_conversation). Key scans: Ctrl+3, Ctrl+4 and Ctrl+J each once. Controls: Cmd+B offered in Conversations; drawers shown in Conversations; Conversations on Ctrl+3."}},{"criterion":"BPR-1293:entries","outcome":"pass","revision":"7778886c9","evidence":{"kind":"command","detail":"#discussion_r links, the published-post reveal and defect navigation (a thread on a file) open the thread in place in Review; #pullrequestreview-, Show them, a Discuss card's Open in code and the preflight rows land where they did. The window course test_conversations_finds_and_picks_into_review checks the entries by identity; the setup-destination, restoration, review-submission and attended-recent-replay public paths pass unchanged at 7778886c9."}},{"criterion":"BPR-1293:discuss-kept","outcome":"pass","revision":"7778886c9","evidence":{"kind":"command","detail":"Discuss's page, arrangement, preset, file scope, filters, summary, map, feed, Open in code, tooltip and names are unchanged; only its key is Cmd3 (owner amendment). qt_github_conversation_panel, qt_conversation_cards_view, qt_composed_github_scale_* and the Discuss public paths pass with only the key and modality loops changed."}},{"criterion":"BPR-1293:governing-text","outcome":"pass","revision":"7778886c9","evidence":{"kind":"command","detail":"The workbench specification (Modalities, shortcuts, defects, thread map), RFC-BPR-0028's Conversations section and RFC-BPR-0052's tab paragraph and AC-06 with BPR-1135's AC-06 row word for word describe the build; python3 scripts/verify_documentation.py --root . printed DOCUMENTATION_OK."}},{"criterion":"BPR-1293:tests","outcome":"pass","revision":"7778886c9","evidence":{"kind":"command","detail":"57 of 57 focused rows on macOS arm64 Debug, merged tree, including core_workbench_interaction, qt_conversation_finder_scale_*, qt_workbench_window_scale_*, qt_composed_github_scale_* (selector trap), qt_composed_inline_drawer_scale_*, architecture_boundaries and application_large_review_responsiveness; optimized tests-on tree 32 of 32 with budgets enforced (conversations_enter 9.9 ms, pick 18.4 ms, pick to thread open 110.5 ms). Linux and Windows station runs owed, not blocking."}},{"criterion":"BPR-1293:owner-look","outcome":"pass","revision":"7778886c9","evidence":{"kind":"observation","detail":"Owner accepted BPR-1293-conversations-v001 ('Conversations (Cmd4) matches the prototype', the one question the coordinator set) with no note: decision 941b04a3, event 5, session 2588378b1ac64914f3302695cdb348bf, on the frozen build of 7778886c9 (executable SHA-256 83f003ddfe0b8e9e...)."}}]
 ---
 
 # BPR-1293: Conversations: a PR-wide finder modality beside Discuss
@@ -721,3 +721,27 @@ Linux and Windows have not run this change. At `origin/main` holding
 - `bpr-main-win`: `cmake --preset windows-dev && cmake --build --preset windows-dev && ctest --preset windows-dev -j4 --output-on-failure -R` with the same first expression, then the optimized tree (`build/bpr0967-release`, MSVC `/O2`) with the second.
 
 A failure there opens a new card against this change.
+
+## Owner decision, session 2588378b (2026-10-07)
+
+Session `2588378b1ac64914f3302695cdb348bf`, read from cursor 4 to event 5. The
+owner said "handed back" in chat. The session had recorded no handed-back
+event, but the decision is saved.
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1293-conversations-v001` | Accept (`941b04a3`, 14:51:07Z) | (none) |
+
+The verdict was given on the frozen build of `7778886c9`. It satisfies
+BPR-1293:owner-look, asked as the one question the coordinator set:
+"Conversations (⌘4) matches the prototype". Every other criterion stands on
+its recorded evidence at `7778886c9` ([Built v001](#built-v001-2026-10-06)
+and [Verification on the candidate](#verification-on-the-candidate)). The
+card is Done.
+
+The session's candidate was released (`resume-development --all`, event 6). The host
+was already stopped. The frozen root
+`/Users/jaeger/bpr1293-conversations-v001.sRXUZr` was deleted.
+
+The [owed station runs](#owed-station-runs-not-blocking) remain owed and do
+not block. A failure there opens a new card against this change.
