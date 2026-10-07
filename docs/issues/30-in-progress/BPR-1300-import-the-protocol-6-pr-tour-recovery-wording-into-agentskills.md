@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1300"
 title: "Import the protocol-6 pr-tour recovery wording into AgentSkills"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0046"]
 depends_on: ["BPR-1067", "BPR-1227"]
 metadata: {"kind": "shared-skill import", "allocated": "2026-10-06", "reservation": "docs/issues/_reservations/BPR-1300--BPR-1300--954512ccdc35.json", "requires_owner_authorization": "push to AgentSkills main"}
