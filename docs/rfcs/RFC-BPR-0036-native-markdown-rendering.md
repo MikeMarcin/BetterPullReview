@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0036"
 title: "Native Markdown Rendering for Review Content"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0005", "RFC-BPR-0006", "RFC-BPR-0008"]
@@ -21,8 +21,9 @@ of md4qt with native Qt for GFM (mandate r2). The
 and the delivered component/composition boundary. Both milestones have technical
 acceptance at `a3ab46ee7c2b3fb26e3c43d71c1658ea64ba1d5f`;
 [the ledger](../verification/RFC-BPR-0036.md) records native macOS evidence and
-limitations. RFC status remains Proposed because RFC-BPR-0008 and canonical
-predecessors are not all Auto-Verified.
+limitations. RFC status was Proposed until RFC-BPR-0008 and canonical
+predecessors were Auto-Verified; [[BPR-1299]] closed it on 2026-10-06 once
+[[BPR-1290]] v005 restored rendering in open-thread posts.
 Implementation is [[BPR-0916]]; verification and
 closeout are [[BPR-0917]]. Registration baseline: `7ad0e43eb92c217ac6cd01fc478bde2968d217a0`.
 

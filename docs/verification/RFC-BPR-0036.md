@@ -374,3 +374,35 @@ here.
 Published after a rebase over `06a3c530b`: promotion `ceb7c9e6c` (recorded
 `5cbac5a6b`), claim `d60d83399` (recorded `c012afeaa`) and this record
 `03d814ec8`.
+
+## Status-only close under BPR-1299: closed (2026-10-06)
+
+[[BPR-1290]] v005 (`0a7f72068`) restored rendering in every post of the open
+thread, in the drawer and in Discuss, and restored `qt_composed_markdown`'s
+conversation assertions against the drawer. Rerun at `origin/main`
+`e16f78366`, macOS 26.6.2 arm64, `build/dev` (Debug):
+
+- The 17-row focused selection above passes 17 of 17.
+- The native Cocoa course passes (`composed-markdown-tests:pass`; composed
+  test SHA-256 `732a9d31077dd205…`). A 50,742-byte body lays out in 34 ms and
+  the 1,027-byte pathological fallback takes 12 ms at DPR 2.
+- `conversation-1`, `-2`, `-4` and `-5` show the open post rendered in all
+  four appearances: heading, inline styles, quote, nested list, tasks, code,
+  bordered table and links, with hostile HTML and the `file:` image inert.
+  `overview-native`, the long and wide captures and `source-fallback` hold.
+  Closed notes' one-line summaries show the first post as written; that is
+  the navigation-summary contract this RFC was accepted under at `a3ab46ee`,
+  not a regression.
+
+| Criterion | At `e16f78366` | Result |
+|---|---|---|
+| AC-01 | Overview and every open-thread post render the declared subset through the shipped composition | Pass |
+| AC-02 | `original_body()`, View source and Copy source per post and in the overview; explicit fallback | Pass |
+| AC-03 | Link identity through the window's admission per post; no resource effects | Pass |
+| AC-04 | Tab into each post's reader, reading to the end, source switching; four appearances; three scales (macOS) | Pass |
+| AC-05 | Measured long and pathological bodies; unchanged refresh keeps selection | Pass |
+| AC-06 | Uncapped long description reaches its final paragraph; documentation current | Pass |
+
+RFC-BPR-0036 is Auto-Verified. BPR-0917's limits stand: no VoiceOver
+certification, physical input, Windows or Linux native qualification, or live
+service.
