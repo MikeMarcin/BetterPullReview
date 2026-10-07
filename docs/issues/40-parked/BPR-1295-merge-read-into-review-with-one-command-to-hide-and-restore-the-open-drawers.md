@@ -646,9 +646,10 @@ icon.
 
 ### Published
 
-The frozen candidate `0456feb78` is published as `a312aaeb3` and `bfa3e05dd`
-after a rebase onto `09334cf71`, which adds [[BPR-1089]]'s Overview label
-chips (`68f00eb15`) and its own reseal. The pins conflicted only there: both
+The frozen candidate `0456feb78` is published as `9446afe42` and `04d029511`
+after a rebase onto `b078d8bdf`, which adds [[BPR-1089]]'s Overview label
+chips (`68f00eb15`) with its own reseal, and otherwise only board moves and
+[[BPR-1227]]'s owner-channel test fix (`c30e8bcf0`). The pins conflicted only there: both
 notes are kept, BPR-1295's now reads over BPR-1089's, and the values were
 recomputed on the merged tree (mutation pin unchanged). On the merged tree the
 focused rows pass 38 of 39 in Debug with `qt_hide_drawers_native_menu_key`;
