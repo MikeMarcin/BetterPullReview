@@ -4,16 +4,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPECTED_REPOSITORY="MikeMarcin/BetterPullReview"
 DRY_RUN=0
+PRERELEASE=0
 NOTES_FILE=""
 VERSION=""
 
 usage() {
     cat <<EOF
-Usage: tools/publish-release.sh --version VERSION --notes-file PATH [--dry-run]
+Usage: tools/publish-release.sh --version VERSION --notes-file PATH [--prerelease] [--dry-run]
 
 Publish already verified macOS artifacts to the private GitHub repository.
 The command refuses to push a tag or create a release unless GitHub reports
 ${EXPECTED_REPOSITORY} as PRIVATE immediately before each remote mutation.
+--prerelease marks the GitHub release as a prerelease and keeps it out of Latest.
 EOF
 }
 
@@ -45,6 +47,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dry-run)
             DRY_RUN=1
+            shift
+            ;;
+        --prerelease)
+            PRERELEASE=1
             shift
             ;;
         -h|--help)
@@ -117,12 +123,16 @@ git -C "${ROOT_DIR}" tag -a "${TAG}" -m "${TAG}"
 git -C "${ROOT_DIR}" push --atomic origin main "${TAG}"
 
 private_repository_guard
+set --
+if [[ "${PRERELEASE}" == "1" ]]; then
+    set -- --prerelease --latest=false
+fi
 gh release create "${TAG}" \
     "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" "${SOURCE}" "${SOURCE_SHA}" \
     --repo "${EXPECTED_REPOSITORY}" \
     --title "BetterPullReview ${TAG}" \
     --notes-file "${NOTES_FILE}" \
-    --verify-tag
+    --verify-tag "$@"
 
 gh release view "${TAG}" --repo "${EXPECTED_REPOSITORY}" \
     --json isDraft,isPrerelease,tagName,url

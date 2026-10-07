@@ -70,6 +70,9 @@ inherits repository access; there is no separate public/private switch for an
 individual release. Stop on any partial failure and report the tag, push, and
 release state without automatically retrying a potentially completed mutation.
 
+For a requested prerelease, add `--prerelease` to both preflight and publication.
+This sets GitHub's prerelease flag and leaves the stable Latest release in place.
+
 Verify the returned release URL, tag, all eight uploaded assets (DMG, app ZIP,
 SPDX, corresponding-source ZIP, and one SHA-256 file for each), and repository
 visibility. The source ZIP must be the exact versioned asset referenced by
