@@ -510,6 +510,23 @@ returns with its note for a v003.
 `claude/bpr1301-v002` for the coordinator to merge after the release, not to
 `origin/main`.
 
+The rebase onto `origin/main` efa26ca02 renamed baa098e4d to a2c7b2ce3 and
+ecb7dd771 (the frozen look's build) to c96ea197d; their round-trip pins were
+resealed over BPR-1086's in the commit after the park. Merged tree: 15/15
+focused wrapper, settings, preferences, writing, cycle-send, round-trip and
+architecture rows; DOCUMENTATION_OK.
+
+Integrated 2026-10-08 onto `origin/main` 79d7c85e0, after the freeze lifted:
+a2c7b2ce3 is now 594c61cbd and c96ea197d (the frozen look's build) is now
+ffcb3a2e7 (`git range-diff`: identical; only the first commit's card and
+round-trip note text changed). The frozen root and session ee2391ed keep the
+c96ea197d identity. The round-trip pins were
+recomputed on the merged tree over BPR-1305's reseals (full application
+ef0bef84…, app manifest b01cca50…; mutation pin unchanged). Merged tree:
+18/18 focused wrapper, settings, preferences, writing, cycle-send, launch
+canary, round-trip, composition (application, agent invocation, tour public
+path) and architecture rows; DOCUMENTATION_OK.
+
 ### Owed station runs (not blocking)
 
 Linux and Windows have not run this change (v001 or v002). At a revision

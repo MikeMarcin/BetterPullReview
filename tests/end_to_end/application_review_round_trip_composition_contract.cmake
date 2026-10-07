@@ -950,20 +950,20 @@ endfunction()
 # owner native evidence remains parked. No new app source; mutation pin unchanged.
 # Review/evidence: BPR-1303 and BPR-1305.
 # BPR-1301 v002 reseal (2026-10-08): over the BPR-1305 reseals above, rebased
-# onto 79d7c85e0; pins recomputed on the merged tree. Owner, 2026-10-07:
-# "Yes, search PATH (Recommended)". github_application.cpp, agent builds only: the window's
-# locate_claude() gives the agent host's and Send to Agent's
+# onto 79d7c85e0; pins recomputed on the merged tree. Owner, 2026-10-07: "Yes,
+# search PATH (Recommended)". github_application.cpp, agent builds only: the
+# window's locate_claude() gives the agent host's and Send to Agent's
 # application::wrapped_claude_process, and the Process wrapper row's editor, a
 # locator that reads this application's own executable search path (its name
-# from core::agent_search_path_variable) and QDir::homePath() when asked and
-# has the agent adapter take the first executable regular claude on it or in
-# the fixed usual install folders. Only a request naming the bare `claude`
-# with no wrapper saved is pointed at it; none found ends the request
-# failed_to_start and starts nothing. Settings shows the found path read-only.
-# Tests-on only: the fixture's ClaudeSearch replaces the path and the folders.
-# No shell, grant, target, provider, credential, child environment, mutation or
-# publication path changes; host policy unchanged; mutation pin unchanged; no
-# new src/app source. Reviewed on BPR-1301.
+# from core::agent_search_path_variable) and QDir::homePath() when asked and has
+# the agent adapter take the first executable regular claude on it or in the
+# fixed usual install folders. Only a request naming the bare `claude` with no
+# wrapper saved is pointed at it; none found ends the request failed_to_start
+# and starts nothing. Settings shows the found path read-only. Tests-on only:
+# the fixture's ClaudeSearch replaces the path and the folders. No shell, grant,
+# target, provider, credential, child environment, mutation or publication path
+# changes; host policy unchanged; mutation pin unchanged; no new src/app source.
+# Reviewed on BPR-1301.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -982,7 +982,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4b6d580b9a9adc68715a395bf9eefdabfc69a81f3cd332729f45441a581b0268"
+		"ef0bef84e4f8f8dad08c21762e9ecfb81861c935d5268aab627a0cfb9d0f6592"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1180,7 +1180,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8b14d7cf7c266693ad6d01f556a4a51dc396a5aa63e1a5d80592548b154efc4c"
+        "b01cca508daa6e591938837b8fac9d553f9d64a729c27bcf6cd3a3636596e9d5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
