@@ -6124,6 +6124,9 @@ namespace bpr::app {
 		std::optional<core::file_identity>              ObservedTabFile;
 		bool                                            TabAdvanceQueued = false;
 		bool                                            TabFailed        = false;
+		/// \brief [[BPR-1303]]. The last accepted handoff kept the selected
+		/// diff, so Review owes the active tab's view once its files return.
+		bool RefreshKeptTabView = false;
 		/// \brief Whether the modality shows a tab (Review) or the window's
 		/// comparison (Overview and Discuss, which have no tab).
 		[[nodiscard]] static auto tab_modality(const core::workbench_modality aModality) noexcept -> bool
@@ -6310,6 +6313,9 @@ namespace bpr::app {
 			if (const auto* active = activeTab(); active != nullptr && active->View.Comparison != accepted) {
 				TabHost->apply(core::select_tab_comparison_intent{ .Comparison = accepted });
 			}
+			if (represent_refreshed_tab()) {
+				return;
+			}
 			const auto selected     = WorkbenchHost->selected();
 			const auto previousFile = std::exchange(ObservedTabFile, selected);
 			if (const auto* active = activeTab(); selected.has_value()
@@ -6317,6 +6323,28 @@ namespace bpr::app {
 				TabHost->apply(core::open_in_active_tab_intent{ .File = *selected });
 			}
 			observe_tab_reading();
+		}
+		/// \brief [[BPR-1303]]. A pull request's refresh observes its files
+		/// under the new snapshot's authority, and that observation leaves the
+		/// workbench with no selected file. When the refresh kept the head,
+		/// Review kept the earlier diff on screen, so a line chosen there drew
+		/// no draft and Comment stayed unavailable until the reviewer chose a
+		/// file or left Review. Since BPR-1293 keeps Review after Publish,
+		/// every inline publish led there. The active tab shows its exact view
+		/// again, as it does on the way back from a page with no tab, once for
+		/// that refresh.
+		auto represent_refreshed_tab() -> bool
+		{
+			const auto& tabs   = TabHost->state();
+			const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+			if (!RefreshKeptTabView || active == nullptr || !active->View.File.has_value() || TabLoad || ReadingRestoration
+				|| PendingRestoration || WorkbenchHost->selected().has_value() || !WorkbenchHost->state().Navigation.has_value()
+				|| !WorkbenchHost->contains_file(*active->View.File)) {
+				return false;
+			}
+			RefreshKeptTabView = false;
+			TabHost->refresh();
+			return true;
 		}
 		// The reading position of the view on screen, for the load that
 		// presented it. A tab gesture queues behind this observation.
@@ -12042,7 +12070,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				load_defects();
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
-				if (!preserves_selected_diff(EpochHost->state(), aHandoff)) {
+				// [[BPR-1303]]. A refresh that moves the head changes the
+				// tab's comparison, and that reloads the tab; one that keeps
+				// the diff leaves the workbench with no file and is owed it.
+				RefreshKeptTabView = preserves_selected_diff(EpochHost->state(), aHandoff);
+				if (!RefreshKeptTabView) {
 					clear_diff_selection();
 				}
 				if (WorkbenchHost != nullptr) {
@@ -24900,20 +24932,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				QCoreApplication::processEvents();
 				return result::pending;
 			}
-			// [[BPR-1305]]. Refresh returns to an unselected file. Reopen it
-			// through the files drawer before selecting the next draft's line.
-			if (implementation->WorkbenchHost->selected() != std::optional{ core::file_identity_of(path) }) {
-				auto* const view = window->files_drawer()->contents_view();
-				const auto  row  = drawer_row(*window, path);
-				if (view == nullptr || !row.isValid()) {
-					return result::pending;
-				}
-				view->setCurrentIndex(QModelIndex{ });
-				view->setCurrentIndex(row);
-				QCoreApplication::processEvents();
-				return result::pending;
-			}
-			// Its current comparison must answer before the line is selected.
+			// [[BPR-1305]]. Its refreshed comparison must answer before the line is selected.
 			const auto& publication = implementation->SelectedDiffPublication;
 			const auto& comparison  = window->comparison_surface()->current_result();
 			if (!publication || !comparison || comparison->Alignment.Key != publication->Key

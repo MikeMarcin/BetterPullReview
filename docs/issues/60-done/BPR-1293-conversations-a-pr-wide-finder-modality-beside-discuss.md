@@ -832,3 +832,18 @@ new card against this change; its ID is the integrator's to allocate.
 
 The logs are station records under
 `bpr-main-helpers\run\station-1003\bpr1302-1293`, not committed.
+
+**Bisected (bpr-main-win, 2026-10-07).** In a detached worktree
+(`C:\code\git\bpr-bisect`), Release, the test target and the sandbox runner
+only, `qt_workbench_window_scale_100`:
+
+- passes at `5d5de1c02` (26.2 s), the parent of this card's implementation
+  commit, which already holds every other source change between
+  `d8f4a67b7` and `3754fee9b`: `10cd1cbb2`, `3632c4035`, `053c3df17`,
+  `36298270a` and `14643f6a7`;
+- fails at `7778886c9`, this card's implementation commit, at "the owner
+  yields once and does not return at a narrower width".
+
+Nothing after `7778886c9` up to `3754fee9b` touches `src` or `tests/adapters_qt`.
+So the fourth modality alone causes the Windows owner-yield regression. No
+fix is made while main is frozen.
