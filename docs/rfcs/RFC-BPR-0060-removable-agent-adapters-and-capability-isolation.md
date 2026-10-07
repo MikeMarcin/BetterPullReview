@@ -60,7 +60,7 @@ and 0014, and `owner_dependency_amendment` names the removed closure
 dependency and what is used instead. This amendment changes no RC60 criterion
 and does not close RFC-BPR-0038, which stays open on BPR-0973. The question
 and its answer are recorded on
-[BPR-1193](../issues/10-backlog/BPR-1193-close-rfc-0060.md) and in the
+[BPR-1193](../issues/20-ready/BPR-1193-close-rfc-0060.md) and in the
 [execution ledger](../verification/RFC-BPR-0053-0061.md).
 
 ## Normative contracts
