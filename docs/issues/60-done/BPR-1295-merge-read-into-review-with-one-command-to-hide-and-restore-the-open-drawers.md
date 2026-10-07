@@ -694,3 +694,56 @@ Linux and Windows have not run this change. At `origin/main` holding
 `qt_hide_drawers_native_menu_key` is macOS only. A failure there opens a new
 card against this change.
 
+
+## Windows station run (bpr-main-win, 2026-10-06)
+
+At `d8f4a67b7`, a clean tree, on Windows 11 with MSVC. Both trees rebuilt with
+no `warning C` line. Every Qt-drawing row runs on the offscreen platform, as
+checked from each row's environment. The six rows without a platform setting
+create no window: core, application, storage and CMake-script rows. Nothing
+touched the desktop.
+
+**The `windows-dev` tree** (`build/windows-dev-tour-cli`, Debug,
+`ctest -j4`). The first expression passes 21 of 21: 14 rows contained and 7
+under their existing pins.
+
+- `qt_workbench_window_scale_100`, `_125` and `_200` (163, 168 and 177 s)
+- `qt_composed_github_scale_100`, `_125` and `_200`
+- `qt_composed_inline_drawer_scale_100`, `_125` and `_200`
+- `application_profile_window_review_restoration_public_path` (438 s)
+- `application_composition_contract` (1035 s)
+- the remaining core, application, storage and public-path rows
+
+**The optimized tree** (`build/bpr0967-release`, MSVC `/O2`, tests on,
+`ctest -j1`). The second expression passes 20 of 20:
+
+- every `application_large_review_*` row, including `cache_bytes` (165 s,
+  run, not skipped) and `history` (133 s);
+- `application_first_tab_comparison`;
+- the drawer and window rows at all three scales.
+
+**Ctrl+B on Windows, checked against the source.** Nothing collides with it.
+
+- **Holders.** Only two actions hold it:
+  - the window's Hide Drawers, which is window-scoped;
+  - the windowless desktop menu bar's copy, which is disabled and exists
+    only while no window does. On Windows an emptied desktop quits by
+    default, so the two never coexist, and Qt cannot find them ambiguous.
+- **Standard keys.** No standard key the app uses resolves to Ctrl+B on
+  Windows. `QKeySequence::Bold` is unused.
+- **Text controls.** Single-line `QLineEdit`s have no Ctrl+B binding on
+  Windows. Their Emacs keys are macOS-only. Multi-line editors claim the key
+  through `editor_key_yield`.
+- **The system.** Ctrl+B is no Windows system hotkey. Win+B, which focuses
+  the notification area, is Qt's `Meta+B`.
+- **Mnemonics.** "Hide &Drawers" shares its mnemonic with no other View menu
+  entry.
+- **The title row.** In [[BPR-0653]]'s Windows title row, the new
+  `workbenchToggleDrawersButton` is a `QToolButton`. `empty_surface_at`
+  therefore answers client for it, not `HTCAPTION`, so a click presses the
+  button rather than dragging the window. This is read from the source. The
+  real-platform hit-test row (`application_windows_title_row`) shows a window,
+  so it waits for the owner to clear the desktop.
+
+`qt_hide_drawers_native_menu_key` is macOS only. The Windows half of the owed
+runs is discharged. No new card is opened.
