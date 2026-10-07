@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1084"
 title: "Preserve and compose native suggested changes"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0048", "RFC-BPR-0050"]
 depends_on: ["BPR-1082", "BPR-1083"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-10","milestone":"authoring","acceptance":["R12","R13","R32"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"R12","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"core_feedback_suggestion_preservation: 25 header edits x 9 fence bodies (multiline, deletion, range, CRLF/tab, Unicode, two fences) x 6 headers through header edit, composition edit, draft plan and tour-stop plan (6,750 runs) plus the pack header-edit cases keep every byte after the header and every anchor; control (CR stripped after the header) fails. application_label_authoring_contract: issue-with-patch reaches the fixture with the exact body, path, side and line. Limitation, recorded on the card for its own card: the desktop QPlainTextEdit draft and reply editors read a CRLF body back as LF, so a CRLF body written elsewhere loses CRs on its first desktop edit; the core keeps CRLF."}},{"criterion":"R13","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"decide_suggestion_applicability (core, pure): no_patch / native / textual_only with reason, from classify_review_body and plan_review_publication, never relocating; core_suggestion_applicability covers all 18 placement x capability x currency cases and the pack's issue-with-suggestion, suggestion-without-patch and unsupported-native-patch cases; the composed course shows suggestion-without-patch publishing prose only and an unsupported line refused incompatible_body with no file post, text kept and then marked text only. Controls fail."}},{"criterion":"R32","outcome":"pending","revision":"b62420807","evidence":{"kind":"observation","detail":"The suggested-change mark is a 16 px ring around a plus over a minus, solid for native and dashed for text only (macOS look pass with frontend-design, b62420807); qt_review_draft_editor checks the ring at 1x and 2x with a control. Awaits the owner's look: attended question BPR-1084-suggestion-mark-v001, session ed68b8f1."}}]
+acceptance: [{"criterion":"R12","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"core_feedback_suggestion_preservation: 25 header edits x 9 fence bodies (multiline, deletion, range, CRLF/tab, Unicode, two fences) x 6 headers through header edit, composition edit, draft plan and tour-stop plan (6,750 runs) plus the pack header-edit cases keep every byte after the header and every anchor; control (CR stripped after the header) fails. application_label_authoring_contract: issue-with-patch reaches the fixture with the exact body, path, side and line. Limitation, recorded on the card for its own card: the desktop QPlainTextEdit draft and reply editors read a CRLF body back as LF, so a CRLF body written elsewhere loses CRs on its first desktop edit; the core keeps CRLF."}},{"criterion":"R13","outcome":"pass","revision":"cc094c1d4","evidence":{"kind":"command","detail":"decide_suggestion_applicability (core, pure): no_patch / native / textual_only with reason, from classify_review_body and plan_review_publication, never relocating; core_suggestion_applicability covers all 18 placement x capability x currency cases and the pack's issue-with-suggestion, suggestion-without-patch and unsupported-native-patch cases; the composed course shows suggestion-without-patch publishing prose only and an unsupported line refused incompatible_body with no file post, text kept and then marked text only. Controls fail."}},{"criterion":"R32","outcome":"pass","revision":"frozen-d9c5c2573-v001","evidence":{"kind":"observation","detail":"Owner Accept, no note: attended session ed68b8f1a60b465843afab5fc71393b0, candidate BPR-1084-suggestion-mark-v001 (fingerprint 1d3609783bfa...), decision bbdbf047-70d7-45e3-8724-49b758df6fab, event 9; mark published in b62420807 (src/tests identical to the frozen d9c5c2573). Platforms: Linux at cc094c1d4, Windows 19/19 at cd9b87e19, macOS 17 rows at cd9b87e19 and 40 rows at b62420807. Linux/Windows runs of b62420807's look change are owed station commands on the card, not blockers."}}]
 ---
 
 # BPR-1084: Preserve and compose native suggested changes
@@ -276,3 +275,35 @@ BPR-1083's issue marks.
 
 Next: read the decision. Accept satisfies R32 and the card finishes once its
 other criteria stand; Reject comes back with the change in its note for a v002.
+
+## Owner verdict on look v001, 2026-10-06: Accept
+
+Session `ed68b8f1a60b465843afab5fc71393b0`, read with `status --after 8`:
+event 9 records **Accept** on `BPR-1084-suggestion-mark-v001` (revision
+`frozen-d9c5c2573-v001`, fingerprint `1d3609783bfa…`, decision
+`bbdbf047-70d7-45e3-8724-49b758df6fab`, saved 2026-10-07T02:18:16Z, actor
+human) with no note; event 11 hands back with nothing pending. R32's owner
+look is satisfied on the mark published in `b62420807`. R12 and R13 stand on
+their recorded evidence; their inputs are unchanged. The session was released
+(`resume-development --all`) and its frozen root
+`/Users/jaeger/bpr1084-1085-look-review-v001.Jerfb4` deleted.
+
+### Platform evidence
+
+- **Linux** (`bpr-main-linux`, Debug `build/dev` and `build/core-only`): the
+  implementation at `cc094c1d4` (above).
+- **Windows** (`bpr-main-win`, MSVC 14.51, Qt 6.11.2, `windows-dev`): the
+  shared selection 19 of 19 at `cd9b87e19` (above).
+- **macOS**: the 17 focused rows at `cd9b87e19`, then 40 rows after the look
+  change and rebase (`b62420807`), and the owner's look (above).
+
+### Owed station runs (not blocking)
+
+Linux and Windows have not run the look change in `b62420807` (the ring mark
+and its `qt_review_draft_editor` check). The criteria name no per-platform
+run, so this is owed, not a blocker, at `origin/main` holding `b62420807`:
+
+- `bpr-main-linux`: `ctest --preset dev --output-on-failure -R '^(qt_review_draft_editor|qt_review_submission_editor_scale_.*|qt_conversation_cards_view|qt_appearance_profile|qt_colour_role_list|qt_appearance_role_display|qt_appearance_settings_panel|core_theme_exchange|core_review_preflight|application_review_submission_composition_.*|architecture_boundaries)$'` after `cmake --build --preset dev`.
+- `bpr-main-win`: the same expression with `ctest --preset windows-dev -j4`.
+
+[[BPR-1085]] owes the same run; one run serves both cards.
