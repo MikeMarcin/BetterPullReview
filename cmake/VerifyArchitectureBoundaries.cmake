@@ -5105,11 +5105,13 @@ string(
     "${linux_secret_service_contents}"
 )
 list(LENGTH linux_verified_service_gates linux_verified_service_gate_count)
-if(NOT linux_verified_service_gate_count EQUAL 3)
+# [[BPR-1068]] The fourth gate is the store-readiness question a headless
+# sign-in asks before it starts; it reaches no item.
+if(NOT linux_verified_service_gate_count EQUAL 4)
     message(
         FATAL_ERROR
         "Linux Secret Service adapter must verify the selected service before "
-        "every store, retrieve, and delete item lifecycle"
+        "every store, retrieve, and delete item lifecycle and the store-readiness check"
     )
 endif()
 

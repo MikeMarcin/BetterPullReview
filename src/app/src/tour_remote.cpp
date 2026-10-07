@@ -307,6 +307,11 @@ namespace bpr::app {
 				if (HostProfile->hostname() != "github.com") {
 					return refuse("device_flow_unavailable", "The registered native device sign-in is available only on github.com. GHES requires its existing admitted credential setup.", 5);
 				}
+				// [[BPR-1068]] Ask the vault before a person is shown a code: a
+				// sign-in that could not be stored is refused, not started.
+				if (auto setup = platform_vault_setup_required()) {
+					return refuse("vault_unavailable", std::move(*setup), 5);
+				}
 				auto wire = make_native_https_credential_free_transport(*HostProfile, { .Request = core::request_id{ 1 }, .ApplicationSession = Session, .Profile = HostProfile->profile(), .IdentityGeneration = core::github_identity_generation{ 1 } });
 				if (!wire) {
 					return refuse("authentication_unavailable", "Native device transport is unavailable.", 5);

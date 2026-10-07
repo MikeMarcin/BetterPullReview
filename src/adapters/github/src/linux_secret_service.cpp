@@ -876,6 +876,30 @@ namespace bpr::adapters::github {
 				return application::github_credential_delete_disposition::deleted;
 			}
 
+			// [[BPR-1068]] The gate `store` passes before it touches an item:
+			// the verified service, its session and an unlocked default
+			// collection. No item is searched, read, written or unlocked.
+			[[nodiscard]] auto store_readiness() noexcept
+				-> std::expected<void, application::github_credential_vault_failure>
+			{
+				const auto lock    = std::scoped_lock{ OperationMutex };
+				const auto service = service_proxy();
+				if (!service.has_value()) {
+					return std::unexpected{ service.error() };
+				}
+				const auto collection = default_collection(*service);
+				if (!collection.has_value()) {
+					return std::unexpected{ collection.error() };
+				}
+				object_owner<SecretCollection> collection_owner{ *collection };
+				if (secret_collection_get_locked(collection_owner.get())) {
+					return std::unexpected{
+						application::github_credential_vault_failure::locked
+					};
+				}
+				return { };
+			}
+
 		private:
 			[[nodiscard]] auto service_proxy() noexcept -> std::expected<SecretService*,
 																		 application::github_credential_vault_failure>
@@ -1819,6 +1843,26 @@ namespace bpr::adapters::github {
 		}
 		return make_vault(
 			effect_lane, std::move(*backend), std::move(*refresh_backend), aBprProfile);
+	}
+
+	auto linux_secret_service_store_readiness() noexcept
+		-> std::expected<void, application::github_credential_vault_failure>
+	{
+		try {
+			native_linux_secret_service_backend backend{
+				linux_secret_service_schema_scope::production,
+				linux_secret_service_slot::credential, core::default_bpr_profile_id
+			};
+			return backend.store_readiness();
+		} catch (const std::bad_alloc&) {
+			return std::unexpected{
+				application::github_credential_vault_failure::allocation_failure
+			};
+		} catch (...) {
+			return std::unexpected{
+				application::github_credential_vault_failure::operation_failed
+			};
+		}
 	}
 
 	auto make_linux_secret_service_integration_test_vault(

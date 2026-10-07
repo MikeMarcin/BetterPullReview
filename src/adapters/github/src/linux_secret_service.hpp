@@ -152,6 +152,17 @@ namespace bpr::adapters::github {
 		core::bpr_profile_id          aBprProfile = core::default_bpr_profile_id)
 		-> linux_secret_service_vault_factory_result;
 
+	/// @brief Whether a store would reach an unlocked default collection now.
+	///
+	/// [[BPR-1068]]. A caller about to ask a person to authorize a sign-in asks
+	/// this first, so a session with no Secret Service, or a locked default
+	/// collection, is refused before anything is requested from the provider.
+	/// It runs the same verified-service, session and default-collection gate
+	/// as `store`, and searches, reads, writes and unlocks nothing. A later
+	/// store can still fail; this answers only for the moment it is asked.
+	[[nodiscard]] auto linux_secret_service_store_readiness() noexcept
+		-> std::expected<void, application::github_credential_vault_failure>;
+
 	/// \brief Uses isolated integration namespaces for the immutable BPR profile.
 	[[nodiscard]] auto make_linux_secret_service_integration_test_vault(
 		application::effect_executor& effect_lane,

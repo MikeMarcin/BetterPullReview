@@ -1273,6 +1273,9 @@ void selected_retrieve_service_gate() {
 void selected_delete_service_gate() {
     const auto service = service_proxy();
 }
+void selected_store_readiness_service_gate() {
+    const auto service = service_proxy();
+}
 
 void selected_secret_service_lifecycle() {
     SecretSchema schema{};

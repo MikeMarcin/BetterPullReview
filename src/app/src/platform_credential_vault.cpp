@@ -27,4 +27,27 @@ namespace bpr::app {
 		return vault ? std::move(*vault) : nullptr;
 #endif
 	}
+
+	auto platform_vault_setup_required() -> std::optional<std::string>
+	{
+#if defined(__linux__)
+		const auto ready = adapters::github::linux_secret_service_store_readiness();
+		if (ready) {
+			return std::nullopt;
+		}
+		if (ready.error() == application::github_credential_vault_failure::locked) {
+			return "The Secret Service default collection is locked, so a sign-in could not be stored. "
+				   "Nothing was requested from GitHub. BPR never unlocks or prompts: unlock the default "
+				   "(login) keyring in this session, then rerun this command.";
+		}
+		return "No unlocked Secret Service default collection is reachable on this session's D-Bus, "
+			   "so a sign-in could not be stored. Nothing was requested from GitHub. Run this command "
+			   "in a session whose bus has a Secret Service provider (for example gnome-keyring) with "
+			   "an unlocked default collection. Without a desktop, start one first, for example "
+			   "dbus-run-session -- sh, then gnome-keyring-daemon --unlock --components=secrets "
+			   "with the keyring password on standard input, then rerun.";
+#else
+		return std::nullopt;
+#endif
+	}
 }
