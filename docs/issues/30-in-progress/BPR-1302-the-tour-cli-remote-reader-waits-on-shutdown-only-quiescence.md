@@ -274,3 +274,19 @@ Record each result, the revision and the OS, Qt and compiler here. On both,
 `tour_cli_loopback_provider` runs the never-signed-in `open` (exit 5 within
 its 30 s bound, elapsed printed); on macOS the `--gh` run adds gh `connect`
 and `open`.
+
+## Coordinator verification (bpr-main-linux, 2026-10-06)
+
+At `2edfc10ab`, in `build/dev-tour-cli`, 18 of 18 pass: `tour_cli_loopback_provider`
+(19.0 s), the other `tour_cli_*` rows, the five `linux_secret_service_*` rows,
+`application_github_host`, `application_epoch_host`, `cycle_cli_public_path`,
+`sqlite_tour_owner_channel`, `architecture_boundaries`,
+`test_network_isolation_manifest` and the composition contract. No pin drifted.
+
+Criterion status:
+- The never-signed-in exit 5: Linux passes; macOS and Windows owed.
+- The loopback course and its controls: pass on Linux.
+- BPR-1068's device-flow completion: waits on the owner entering the code
+  in a session with an unlocked keyring.
+
+The card stays In Progress for these.
