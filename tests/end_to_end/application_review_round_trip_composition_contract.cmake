@@ -838,6 +838,19 @@ endfunction()
 # records nothing and writes nothing. No target, credential, mutation or
 # publication path changes; mutation pin unchanged; no new src/app source.
 # Reviewed on BPR-1227.
+# BPR-1089 reseal (2026-10-06): over the BPR-1227 reseal above; no
+# intervening pinned-scope commit (1d7625992 changed cycle_cli.cpp, whose
+# digests the pins did not move). github_application.cpp composes BPR-1087's
+# feedback_counter_model into the window: the accepted snapshot is observed
+# into the label buckets before the overview is published; the Overview's
+# request (Settings' chips, the view's mode and sort) is answered with
+# project_overview_feedback from the kept tallies; a count's activation lists
+# exactly its conversations in Discuss through list_overview_drill_down, and a
+# refresh lists the same count again from the new population. Two window
+# dispatches and four members are added. It reads only the accepted snapshot
+# the window already holds; no provider, grant, target, credential, mutation
+# or publication path changes; mutation pin unchanged; no new src/app source.
+# Reviewed on BPR-1089.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -856,7 +869,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"646294960a57a8d0fa33383a78802f4752dfdb54a0f3c1c178dc2fee62ce5440"
+		"b78d8e6ea98e16d60599b91dd0d2ac15036d02e5a9cf2cf78384a7850f97f44a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1054,7 +1067,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "dbc1598e1e01b91d7a33c9d284f103155d7cda0cbf60d11923f1ec2f853abce5"
+        "845656e71b4d67ac4f2d352af4d99a3a46c52eb8c608ceb1db13734ab41853ad"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

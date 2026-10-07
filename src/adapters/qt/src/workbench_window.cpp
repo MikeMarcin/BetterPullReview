@@ -4607,6 +4607,12 @@ namespace bpr::qt {
 			AskedBehaviour.reset();
 			apply_behaviour_controls();
 			apply_label_marks();
+			// [[BPR-1089]]. The Overview's chips and where its count starts.
+			if (OverviewPage != nullptr) {
+				OverviewPage->set_label_columns(Behaviour.LabelColumns);
+				OverviewPage->set_default_mode(Behaviour.OverviewCounts == application::review_overview_counts::all ? core::feedback_resolution_mode::all
+																													: core::feedback_resolution_mode::unresolved);
+			}
 			apply_label_helper();
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
@@ -5571,6 +5577,77 @@ namespace bpr::qt {
 		apply_modality_surface();
 	}
 
+	void workbench_window::publish(const application::overview_feedback_projection& aFeedback)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->present_feedback(aFeedback);
+		}
+	}
+
+	void workbench_window::set_overview_feedback_dispatch(std::function<void(const application::overview_feedback_request&)> aDispatch)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_feedback_dispatch(std::move(aDispatch));
+		}
+	}
+
+	void workbench_window::set_overview_drill_down_dispatch(std::function<void(const application::overview_drill_down&)> aDispatch)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_drill_down_dispatch(std::move(aDispatch));
+		}
+	}
+
+	void workbench_window::list_conversations(const application::overview_drill_down_listing& aListing, const bool aReveal)
+	{
+		if (ConversationPanel == nullptr || Modality == nullptr) {
+			return;
+		}
+		// The caption says which count it was: the label, the mode, where.
+		const auto  anyColumns = Behaviour.LabelColumns.Count != 0U;
+		const auto& down       = aListing.DrillDown;
+		auto        where      = QString{ };
+		switch (down.Row) {
+		case application::overview_feedback_row_kind::file:
+		case application::overview_feedback_row_kind::folder:
+			where = down.Path.empty() ? QStringLiteral("/") : QString::fromStdString(down.Path);
+			break;
+		case application::overview_feedback_row_kind::remainder:
+			where = QStringLiteral("Not on a file");
+			break;
+		case application::overview_feedback_row_kind::pull_request:
+			where = QStringLiteral("Pull request");
+			break;
+		}
+		auto parts = QStringList{ overview_count_name(down.Target, anyColumns) };
+		if (down.Target.Kind != core::feedback_count_kind::uncertain) {
+			parts.push_back(aListing.Mode == core::feedback_resolution_mode::unresolved ? QStringLiteral("open") : QStringLiteral("all"));
+		}
+		parts.push_back(where);
+		const auto count       = static_cast<qulonglong>(aListing.Count);
+		const auto caption     = QStringLiteral("%1 — %2 %3").arg(parts.join(QStringLiteral(" · ")), QString::number(count), count == 1U ? QStringLiteral("conversation") : QStringLiteral("conversations"));
+		const auto description = QStringLiteral("Listed from the Overview: exactly the conversations this count counted. Show every conversation clears it.");
+		if (aReveal) {
+			if (OverviewPage != nullptr && OverviewPage->isAncestorOf(QApplication::focusWidget())) {
+				OverviewReturnFocus = QApplication::focusWidget();
+			}
+			choose_home(false);
+			choose_modality(review_modality::discuss);
+		}
+		ConversationPanel->list_conversations(aListing.Conversations, caption, description);
+		if (aReveal) {
+			ConversationPanel->cards()->setFocus(Qt::OtherFocusReason);
+			QAccessibleAnnouncementEvent event{ ConversationPanel, QStringLiteral("Discuss lists %1").arg(caption) };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
+	}
+
+	auto workbench_window::conversation_listing_active() const -> bool
+	{
+		return ConversationPanel != nullptr && ConversationPanel->listing().has_value();
+	}
+
 	void workbench_window::clear_overview()
 	{
 		PresentedOverview.reset();
@@ -6354,9 +6431,16 @@ namespace bpr::qt {
 		if (CompositionPage != nullptr) {
 			page = CompositionPage;
 		}
+		const auto enteringOverview = page == OverviewPage && CentreStack->currentWidget() != OverviewPage;
 		CentreStack->setCurrentWidget(page);
 		apply_drawer_layout();
 		update_review_readiness();
+		// [[BPR-1089]]. Back on the Overview after a count opened Discuss, the
+		// same cell has focus.
+		if (enteringOverview && OverviewReturnFocus) {
+			OverviewReturnFocus->setFocus(Qt::OtherFocusReason);
+			OverviewReturnFocus.clear();
+		}
 		if (enteringDiscuss && CompositionPage == nullptr && DiscussReturnFocus) {
 			DiscussReturnFocus->setFocus(Qt::OtherFocusReason);
 		}
@@ -6859,6 +6943,7 @@ namespace bpr::qt {
 		commentLabelsReset->setAccessibleDescription(QStringLiteral("Returns the label helper, label marks, Overview counts and Overview chips to their defaults; nothing else changes"));
 		aColumn->addWidget(BehaviourEditor);
 		apply_behaviour_controls();
+		refresh_open_count_mark();
 	}
 
 	void workbench_window::set_label_tints(const feedback_label_tints& aTints)
@@ -6904,6 +6989,34 @@ namespace bpr::qt {
 		if (LabelColumnsEditor != nullptr) {
 			LabelColumnsEditor->set_theme(theme);
 		}
+		// [[BPR-1089]]. The Overview's chips, and the round open mark beside
+		// Settings' Open, in the theme's attention amber.
+		auto states = default_feedback_state_colours(palette());
+		if (AttentionColour.has_value()) {
+			states.Open = *AttentionColour;
+		}
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_label_marks(theme);
+			OverviewPage->set_attention_colour(states.Open);
+		}
+		refresh_open_count_mark();
+	}
+
+	void workbench_window::refresh_open_count_mark()
+	{
+		// [[BPR-1089]]. Settings' Open carries the round open state mark the
+		// Overview draws beside its own Open, in the theme's attention amber.
+		if (BehaviourOptions[7].empty()) {
+			return;
+		}
+		auto states = default_feedback_state_colours(palette());
+		if (AttentionColour.has_value()) {
+			states.Open = *AttentionColour;
+		}
+		auto* const open = BehaviourOptions[7].front();
+		open->setIcon(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unresolved, states, devicePixelRatioF()) });
+		open->setIconSize(QSize{ 16, 16 });
+		open->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 	}
 
 	void workbench_window::apply_label_helper()

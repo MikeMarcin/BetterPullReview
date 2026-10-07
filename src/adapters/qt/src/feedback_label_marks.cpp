@@ -13,6 +13,7 @@
 #include <QUtf8StringView>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <utility>
@@ -539,6 +540,105 @@ namespace bpr::qt {
 	{
 		return { .Tints = feedback_label_tints_of(builtin_appearance_palette(
 					 aPalette.color(QPalette::Base).lightnessF() < 0.5 ? core::appearance_variant::dark : core::appearance_variant::light)) };
+	}
+
+	auto default_feedback_state_colours(const QPalette& aPalette) -> feedback_state_colours
+	{
+		const auto palette  = builtin_appearance_palette(aPalette.color(QPalette::Base).lightnessF() < 0.5 ? core::appearance_variant::dark : core::appearance_variant::light);
+		const auto resolved = to_presentation_color(palette[core::index_of(core::appearance_role::state_accepted)]);
+		return { .Open       = to_presentation_color(palette[core::index_of(core::appearance_role::state_attention)]),
+				 .Resolved   = resolved,
+				 .OnResolved = feedback_mark_blocking_ink(resolved),
+				 .Faint      = aPalette.color(QPalette::PlaceholderText) };
+	}
+
+	void paint_feedback_state_mark(QPainter& aPainter, const QRectF& aBox, const core::feedback_resolution aState, const feedback_state_colours& aColours)
+	{
+		// States are round and labels square, so the two never share a shape.
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		const auto side   = std::min(aBox.width(), aBox.height()) * (13.0 / 16.0);
+		const auto disc   = QRectF{ aBox.center().x() - side / 2.0, aBox.center().y() - side / 2.0, side, side };
+		const auto inset  = feedback_mark_border / 2.0;
+		const auto ring   = disc.adjusted(inset, inset, -inset, -inset);
+		const auto centre = disc.center();
+		switch (aState) {
+		case core::feedback_resolution::unresolved:
+			aPainter.setPen(Qt::NoPen);
+			aPainter.setBrush(aColours.Open);
+			aPainter.drawEllipse(disc);
+			break;
+		case core::feedback_resolution::resolved: {
+			aPainter.setPen(Qt::NoPen);
+			aPainter.setBrush(aColours.Resolved);
+			aPainter.drawEllipse(disc);
+			auto tick = QPen{ aColours.OnResolved, 1.6 };
+			tick.setCapStyle(Qt::RoundCap);
+			tick.setJoinStyle(Qt::RoundJoin);
+			aPainter.setPen(tick);
+			const auto unit = side / 13.0;
+			aPainter.drawPolyline(std::array{ QPointF{ centre.x() - 3.0 * unit, centre.y() }, QPointF{ centre.x() - 0.8 * unit, centre.y() + 2.2 * unit },
+											  QPointF{ centre.x() + 3.2 * unit, centre.y() - 2.2 * unit } }
+									  .data(),
+								  3);
+			break;
+		}
+		case core::feedback_resolution::unknown: {
+			auto pen = QPen{ aColours.Faint, feedback_mark_border };
+			pen.setCapStyle(Qt::FlatCap);
+			pen.setDashPattern({ feedback_mark_dash / feedback_mark_border, feedback_mark_dash_gap / feedback_mark_border });
+			aPainter.setPen(pen);
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawEllipse(ring);
+			auto font = aPainter.font();
+			font.setPixelSize(std::max(6, static_cast<int>(std::lround(side * 0.62))));
+			font.setBold(true);
+			aPainter.setFont(font);
+			aPainter.setPen(aColours.Faint);
+			aPainter.drawText(disc, Qt::AlignCenter, QStringLiteral("?"));
+			break;
+		}
+		case core::feedback_resolution::not_applicable: {
+			aPainter.setPen(QPen{ aColours.Faint, feedback_mark_border });
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawEllipse(ring);
+			auto bar = QPen{ aColours.Faint, feedback_mark_border };
+			bar.setCapStyle(Qt::FlatCap);
+			aPainter.setPen(bar);
+			aPainter.drawLine(QPointF{ centre.x() - side * 0.23, centre.y() }, QPointF{ centre.x() + side * 0.23, centre.y() });
+			break;
+		}
+		}
+		aPainter.restore();
+	}
+
+	auto feedback_state_mark_pixmap(const core::feedback_resolution aState, const feedback_state_colours& aColours, const qreal aDevicePixelRatio) -> QPixmap
+	{
+		const auto ratio  = std::max<qreal>(1.0, aDevicePixelRatio);
+		const auto pixels = static_cast<int>(std::ceil(feedback_mark_size * ratio));
+		auto       image  = QImage{ pixels, pixels, QImage::Format_ARGB32_Premultiplied };
+		image.fill(Qt::transparent);
+		image.setDevicePixelRatio(ratio);
+		{
+			auto painter = QPainter{ &image };
+			paint_feedback_state_mark(painter, QRectF{ 0.0, 0.0, feedback_mark_size, feedback_mark_size }, aState, aColours);
+		}
+		return QPixmap::fromImage(std::move(image));
+	}
+
+	auto feedback_state_text(const core::feedback_resolution aState) -> QString
+	{
+		switch (aState) {
+		case core::feedback_resolution::unresolved:
+			return QStringLiteral("open");
+		case core::feedback_resolution::resolved:
+			return QStringLiteral("resolved");
+		case core::feedback_resolution::unknown:
+			return QStringLiteral("state unknown");
+		case core::feedback_resolution::not_applicable:
+			break;
+		}
+		return QStringLiteral("not resolvable");
 	}
 
 	void paint_feedback_letters(QPainter& aPainter, const QRectF& aBox, const core::feedback_label aLabel, const QColor& aInk)

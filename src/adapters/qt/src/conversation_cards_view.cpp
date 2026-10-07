@@ -1304,6 +1304,11 @@ namespace bpr::qt {
 						|| (Filters.UnresolvedOnly && aCard.Resolved));
 			});
 		}
+		// [[BPR-1089]]. A drill-down lists exactly the counted conversations:
+		// no open thread or draft is kept beside them.
+		if (Filters.Listed) {
+			std::erase_if(Cards, [this](const thread_card& aCard) { return !Filters.Listed->contains(aCard.Id); });
+		}
 		if (Feed && ExcerptLocator) {
 			for (auto& card : Cards) {
 				if (!card.Draft && card.Side.has_value() && card.Line.has_value() && *card.Line > 0U) {
@@ -1978,7 +1983,7 @@ namespace bpr::qt {
 			painter.setPen(colours.Faint);
 			painter.drawText(QRect{ note_margin + 4, note_margin + 4, width() - 2 * note_margin - 8, 60 },
 							 Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
-							 Filters.UnreadOnly || Filters.UnresolvedOnly
+							 Filters.UnreadOnly || Filters.UnresolvedOnly || Filters.Listed
 								 ? QStringLiteral("No threads match these filters.")
 								 : Scope == cards_scope::this_file ? QStringLiteral("No threads on this file.")
 																   : QStringLiteral("No threads on this pull request."));

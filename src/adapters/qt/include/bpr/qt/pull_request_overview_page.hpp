@@ -2,7 +2,9 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_PULL_REQUEST_OVERVIEW_PAGE_HPP
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/pull_request_overview.hpp"
+#include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QAbstractItemModel>
 #include <QColor>
@@ -22,7 +24,9 @@
 #include <vector>
 
 class QAction;
+class QFont;
 class QHBoxLayout;
+class QMenu;
 class QLabel;
 class QPaintEvent;
 class QPlainTextEdit;
@@ -48,7 +52,45 @@ namespace bpr::qt {
 		QColor Defect{ 0xCF, 0x22, 0x2E };
 		/// "My last review" amber, the same mark the epoch line uses.
 		QColor Marker{ 0xD2, 0x99, 0x22 };
+		/// [[BPR-1089]]. The label marks' tints and style, and the four round
+		/// state marks' colours, for the Comments column's chips.
+		feedback_mark_theme    Marks;
+		feedback_state_colours States;
 	};
+
+	/// \brief [[BPR-1089]]. One chip of a Comments cell, where it is drawn.
+	struct overview_comment_chip
+	{
+		enum class kind : std::uint8_t {
+			/// A dedicated label: its mark and its count.
+			label,
+			/// The catch-all, or every conversation when no chip is chosen.
+			other,
+			/// "+n": the chips that did not fit; its menu names them.
+			more,
+			/// The round qualifier: units the count leaves out or cannot
+			/// classify, or a count that is not exact.
+			uncertain,
+		};
+		kind                                Kind = kind::label;
+		std::optional<core::feedback_label> Label;
+		std::size_t                         Count = 0U;
+		core::feedback_state_counts         States{ };
+		/// For `more`: the folded chips, in order.
+		std::vector<overview_comment_chip> Folded;
+		QRectF                             Box;
+	};
+
+	/// \brief [[BPR-1089]]. The chips of one Comments cell, laid out in it: the
+	/// non-zero chips in the Settings order, Other last, "+n" when the fixed
+	/// column cannot hold them all, and the qualifier at the right edge when
+	/// anything is uncertain. Painting, tooltips and pointer activation all read
+	/// this one layout.
+	[[nodiscard]] auto overview_comment_chips(const core::feedback_counter_projection& aCounts, const QRect& aCell, const QFont& aFont)
+		-> std::vector<overview_comment_chip>;
+
+	/// \brief [[BPR-1089]]. The fixed width of the Comments column.
+	inline constexpr int overview_comments_width = 216;
 
 	/// \brief The overview's files, grouped by folder.
 	///
@@ -83,6 +125,8 @@ namespace bpr::qt {
 			read_role,
 			threads_role,
 			unresolved_role,
+			/// [[BPR-1089]]. True on the "Not on a file" row.
+			remainder_role,
 		};
 
 		explicit overview_file_model(QObject* aParent = nullptr);
@@ -107,6 +151,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto row_at(const QModelIndex& aIndex) const
 			-> const application::overview_file_row*;
 
+		/// \brief [[BPR-1089]]. Takes the Comments column's counts, or drops
+		/// them with none. Only that column changes; the "Not on a file" row
+		/// comes and goes at the end.
+		void               apply_feedback(std::optional<application::overview_feedback_projection> aFeedback);
+		[[nodiscard]] auto feedback() const noexcept -> const std::optional<application::overview_feedback_projection>&;
+		/// \brief The counts of a file, folder or remainder row, or none.
+		[[nodiscard]] auto feedback_at(const QModelIndex& aIndex) const -> const core::feedback_counter_projection*;
+		/// \brief The row a drill-down from this index names.
+		[[nodiscard]] auto feedback_row(const QModelIndex& aIndex) const
+			-> std::optional<std::pair<application::overview_feedback_row_kind, std::string>>;
+		/// \brief The "Not on a file" row, when shown.
+		[[nodiscard]] auto remainder_index(int aColumn = 0) const -> QModelIndex;
+
 	private:
 		struct node
 		{
@@ -116,6 +173,8 @@ namespace bpr::qt {
 			std::vector<std::unique_ptr<node>>            Children;
 			std::size_t                                   FileCount = 0U;
 			int                                           Row       = 0;
+			/// [[BPR-1089]]. The "Not on a file" row.
+			bool Remainder = false;
 		};
 
 		static void        build_tree(node& aRoot, const std::vector<application::overview_file_row>& aRows);
@@ -126,10 +185,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto node_at(const QModelIndex& aIndex) const -> const node*;
 		[[nodiscard]] auto index_of(const node& aNode, int aColumn = 0) const -> QModelIndex;
 
+		void               sync_remainder();
+		[[nodiscard]] auto comments_text(const core::feedback_counter_projection& aCounts, bool aAccessible) const -> QString;
+
 		node                  Root;
 		QHash<QString, node*> FileNodes;
 		std::vector<node*>    FileOrder;
 		std::size_t           FolderCount = 0U;
+		/// [[BPR-1089]]. The counts, and each file's and folder's place in them.
+		std::optional<application::overview_feedback_projection> Feedback;
+		QHash<QString, std::size_t>                              FileFeedback;
+		QHash<QString, std::size_t>                              FolderFeedback;
 	};
 
 	/// \brief Paints the overview table's marks: operation, changed, read, comments.
@@ -149,6 +215,7 @@ namespace bpr::qt {
 	private:
 		[[nodiscard]] static auto disclosure_width(const QStyleOptionViewItem& aOption) -> int;
 		void                      paint_folder(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
+		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts, core::feedback_resolution_mode aMode, bool aSoft) const;
 
 		const overview_colours& Colours;
 	};
@@ -194,6 +261,14 @@ namespace bpr::qt {
 	using overview_path_dispatch = std::function<void(const QString&)>;
 	using overview_entry_dispatch
 		= std::function<void(application::overview_entry_kind, const QString&)>;
+	/// [[BPR-1089]]. The view's chips, mode and sort, for the host to count.
+	using overview_feedback_dispatch = std::function<void(const application::overview_feedback_request&)>;
+	/// [[BPR-1089]]. One number of one row, activated.
+	using overview_drill_down_dispatch = std::function<void(const application::overview_drill_down&)>;
+
+	/// \brief [[BPR-1089]]. A count's words: "issue", "Other", "Comments",
+	/// "Not counted".
+	[[nodiscard]] auto overview_count_name(const core::feedback_count_target& aTarget, bool aAnyColumns) -> QString;
 
 	/// \brief RFC-BPR-0028's overview: what changed and who has signed off.
 	///
@@ -240,6 +315,41 @@ namespace bpr::qt {
 		/// \brief A file row activated: open it in Read.
 		void set_file_dispatch(overview_path_dispatch aDispatch);
 
+		/// \brief [[BPR-1089]]. Takes the host's counts for the view's request.
+		/// \details A projection for another request than the view's current
+		/// one is dropped; the next answer replaces it.
+		void present_feedback(const application::overview_feedback_projection& aFeedback);
+		/// \brief The reviewer's chips, in their order, from Settings.
+		void set_label_columns(const core::feedback_label_columns& aColumns);
+		/// \brief Where a pull request's Overview starts counting (Settings).
+		/// \details The active mode is the view's own: this applies to the
+		/// next pull request presented, or to this one before its mode was
+		/// chosen.
+		void set_default_mode(core::feedback_resolution_mode aMode);
+		void set_label_marks(const feedback_mark_theme& aTheme);
+		void set_attention_colour(const QColor& aColour);
+		void set_feedback_dispatch(overview_feedback_dispatch aDispatch);
+		void set_drill_down_dispatch(overview_drill_down_dispatch aDispatch);
+		/// \brief The view's current request: its chips, mode and sort.
+		[[nodiscard]] auto feedback_request() const -> application::overview_feedback_request;
+		/// \brief Chooses the mode, as the switch does.
+		void choose_mode(core::feedback_resolution_mode aMode);
+		/// \brief Sorts the rows by one number, or by file with none.
+		void choose_sort(std::optional<core::feedback_count_target> aSort);
+		/// \brief The menu of one row's chips: what Enter on a Comments cell,
+		/// the context-menu key and a right-click open. Null for a row with
+		/// none. The caller owns it.
+		[[nodiscard]] auto make_comments_menu(const QModelIndex& aIndex) -> QMenu*;
+		/// \brief The Comments header's sort menu. The caller owns it.
+		[[nodiscard]] auto make_sort_menu() -> QMenu*;
+		[[nodiscard]] auto open_counts_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto all_counts_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto uncertain_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto label_key_button() const noexcept -> QToolButton*;
+		/// \brief Opens the Label key, as Alt+K does.
+		void               show_label_key();
+		[[nodiscard]] auto label_key() const noexcept -> QWidget*;
+
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto summary_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
@@ -272,6 +382,17 @@ namespace bpr::qt {
 		void refresh_folder_icons();
 		void present_entry(const application::pull_request_overview_projection& aProjection);
 		void rebuild_participants(const std::vector<application::overview_participant>& aParticipants);
+		/// [[BPR-1089]]. The rows in the order the sort or the file order gives.
+		[[nodiscard]] auto ordered_rows() const -> std::vector<application::overview_file_row>;
+		void               apply_rows();
+		void               dispatch_feedback_request();
+		void               present_feedback_controls();
+		void               refresh_feedback_icons();
+		void               drill(application::overview_feedback_row_kind aRow, const std::string& aPath, const core::feedback_count_target& aTarget);
+		void               open_comments_menu(const QModelIndex& aIndex, const QPoint& aGlobal);
+		[[nodiscard]] auto chip_at(const QPoint& aViewportPosition) const -> std::optional<std::pair<QModelIndex, overview_comment_chip>>;
+		bool               eventFilter(QObject* aObject, QEvent* aEvent) override;
+		void               changeEvent(QEvent* aEvent) override;
 
 		std::optional<application::pull_request_overview_projection> Projection;
 		overview_colours                                             Colours;
@@ -303,6 +424,20 @@ namespace bpr::qt {
 		QLabel*                                                      SinceHeading         = nullptr;
 		QLabel*                                                      Values[overview_value_count]{ };
 		QPushButton*                                                 Entry = nullptr;
+		// [[BPR-1089]]. The Comments column's view state and controls.
+		core::feedback_label_columns                          Columns{ };
+		core::feedback_resolution_mode                        DefaultMode = core::default_feedback_resolution_mode;
+		core::feedback_resolution_mode                        Mode        = core::default_feedback_resolution_mode;
+		bool                                                  ModeChosen  = false;
+		std::optional<core::feedback_count_target>            Sort;
+		std::optional<application::overview_feedback_request> AskedFeedback;
+		overview_feedback_dispatch                            FeedbackDispatch;
+		overview_drill_down_dispatch                          DrillDownDispatch;
+		QToolButton*                                          OpenCounts    = nullptr;
+		QToolButton*                                          AllCounts     = nullptr;
+		QToolButton*                                          Uncertain     = nullptr;
+		QToolButton*                                          LabelKey      = nullptr;
+		QWidget*                                              LabelKeyPopup = nullptr;
 	};
 } // namespace bpr::qt
 

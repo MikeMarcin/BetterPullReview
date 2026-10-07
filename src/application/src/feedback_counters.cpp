@@ -93,14 +93,17 @@ namespace bpr::application {
 		// Which paths changed, and whether a change reaches every scope: a new
 		// pull request, a new coverage, or a conversation whose file is unknown
 		// (it limits every file and folder count).
-		auto       full     = replaced || collection != Population.Collection;
-		auto       affected = std::set<std::string>{ };
-		const auto touch    = [&](const core::feedback_counter_unit& aUnit) {
+		auto       full         = replaced || collection != Population.Collection;
+		auto       affected     = std::set<std::string>{ };
+		auto       unattributed = false;
+		const auto touch        = [&](const core::feedback_counter_unit& aUnit) {
 			if (aUnit.Anchor.Status == core::feedback_anchor_status::unknown) {
 				full = true;
 			}
 			if (const auto* path = file_path(aUnit)) {
 				affected.insert(*path);
+			} else {
+				unattributed = true;
 			}
 		};
 		if (!full) {
@@ -134,6 +137,9 @@ namespace bpr::application {
 
 		// Every scope a conversation is in now.
 		auto present = std::set<scope_key>{ { feedback_counter_scope_kind::pull_request, std::string{ } } };
+		if (!Unattributed.empty()) {
+			present.insert({ feedback_counter_scope_kind::unattributed, std::string{ } });
+		}
 		for (const auto& [path, units] : UnitsByPath) {
 			present.insert({ feedback_counter_scope_kind::file, path });
 			for_each_folder(path, [&](std::string aFolder) { present.insert({ feedback_counter_scope_kind::folder, std::move(aFolder) }); });
@@ -143,6 +149,9 @@ namespace bpr::application {
 			retally = present;
 		} else {
 			retally.insert({ feedback_counter_scope_kind::pull_request, std::string{ } });
+			if (unattributed) {
+				retally.insert({ feedback_counter_scope_kind::unattributed, std::string{ } });
+			}
 			for (const auto& path : affected) {
 				retally.insert({ feedback_counter_scope_kind::file, path });
 				for_each_folder(path, [&](std::string aFolder) { retally.insert({ feedback_counter_scope_kind::folder, std::move(aFolder) }); });
@@ -216,19 +225,32 @@ namespace bpr::application {
 	{
 		UnitsByPath.clear();
 		UnknownAnchors.clear();
+		Unattributed.clear();
 		for (std::size_t index = 0U; index < Population.Units.size(); ++index) {
 			const auto& unit = Population.Units[index];
 			if (const auto* path = file_path(unit)) {
 				UnitsByPath[*path].push_back(index);
-			} else if (unit.Anchor.Status == core::feedback_anchor_status::unknown) {
+				continue;
+			}
+			Unattributed.push_back(index);
+			if (unit.Anchor.Status == core::feedback_anchor_status::unknown) {
 				UnknownAnchors.push_back(index);
 			}
 		}
 	}
 
+	auto feedback_counter_model::tally_of(const core::feedback_counter_scope& aScope) const -> core::feedback_counter_tally
+	{
+		if (const auto* kept = tally(aScope)) {
+			return *kept;
+		}
+		return tally_scope({ aScope.Kind, aScope.Path });
+	}
+
 	/// One scope's tally from only the conversations it can hold, plus the
-	/// conversations whose file is unknown, which limit every file and folder
-	/// count; the core counts them exactly as it counts the whole population.
+	/// conversations whose file is unknown, which limit every file, folder and
+	/// directory count; the core counts them exactly as it counts the whole
+	/// population.
 	auto feedback_counter_model::tally_scope(const scope_key& aKey) const -> core::feedback_counter_tally
 	{
 		const auto where = core::feedback_counter_scope{ .Kind = aKey.first, .Path = aKey.second };
@@ -241,9 +263,22 @@ namespace bpr::application {
 				part.Units.push_back(Population.Units[index]);
 			}
 		};
+		if (aKey.first == feedback_counter_scope_kind::unattributed) {
+			// Every unit it holds, and nothing a file holds.
+			take(Unattributed);
+			return core::tally_feedback_counters(part, where);
+		}
 		if (aKey.first == feedback_counter_scope_kind::file) {
 			if (const auto found = UnitsByPath.find(aKey.second); found != UnitsByPath.end()) {
 				take(found->second);
+			}
+		} else if (aKey.first == feedback_counter_scope_kind::directory) {
+			// The files directly in it: the core reads only those.
+			const auto prefix = aKey.second.empty() ? std::string{ } : aKey.second + '/';
+			for (auto found = UnitsByPath.lower_bound(prefix); found != UnitsByPath.end() && found->first.starts_with(prefix); ++found) {
+				if (found->first.find('/', prefix.size()) == std::string::npos) {
+					take(found->second);
+				}
 			}
 		} else {
 			const auto prefix = aKey.second + '/';

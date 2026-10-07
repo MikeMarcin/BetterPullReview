@@ -12,6 +12,8 @@
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QListWidget>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -947,6 +949,388 @@ namespace {
 
 } // namespace
 
+namespace {
+	// ---- [[BPR-1089]]: label chips, the count switch and the drill-down ----
+
+	struct unit_spec
+	{
+		std::string                         Id;
+		std::optional<core::feedback_label> Label;
+		core::feedback_resolution           State = core::feedback_resolution::unresolved;
+		std::string                         Path;
+		/// A root whose label is not known.
+		bool Unreadable = false;
+	};
+
+	[[nodiscard]] auto feedback_key() -> core::cached_review_key
+	{
+		auto key         = core::cached_review_key{ };
+		key.Authority[0] = 1U;
+		key.Profile      = core::host_profile_id{ 1U };
+		key.Host         = core::git_host_id{ 1U };
+		key.Account      = core::github_account_id{ 1U };
+		key.Locator      = { "EpicGames", "UnrealEngine" };
+		key.Number       = core::pull_request_number{ 14366U };
+		return key;
+	}
+
+	[[nodiscard]] auto population(const std::vector<unit_spec>& aUnits) -> core::feedback_population
+	{
+		auto set   = core::feedback_annotation_set{ };
+		set.Scope  = feedback_key();
+		set.Epoch  = 1U;
+		auto facts = std::vector<core::feedback_conversation_facts>{ };
+		for (const auto& unit : aUnits) {
+			auto conversation   = core::feedback_conversation{ };
+			conversation.Id     = unit.Id;
+			conversation.Root   = "r";
+			conversation.Status = unit.Unreadable ? core::feedback_root_status::unclassified : unit.Label ? core::feedback_root_status::labelled
+																										  : core::feedback_root_status::plain;
+			conversation.Label  = unit.Unreadable ? std::nullopt : unit.Label;
+			set.Conversations.push_back(std::move(conversation));
+			auto fact       = core::feedback_conversation_facts{ };
+			fact.Id         = unit.Id;
+			fact.Resolution = unit.State;
+			if (!unit.Path.empty()) {
+				fact.Anchor.Status = core::feedback_anchor_status::file;
+				fact.Anchor.Path   = unit.Path;
+			}
+			facts.push_back(std::move(fact));
+		}
+		std::ranges::sort(set.Conversations, { }, &core::feedback_conversation::Id);
+		auto built = core::build_feedback_population(set, facts, core::feedback_collection::complete);
+		expect(built.Refusal == core::feedback_population_refusal::none, "a test population is admitted");
+		return std::move(built.Population);
+	}
+
+	/// The host's answer for one request, made with the core's own tallies.
+	[[nodiscard]] auto feedback_for(const core::feedback_population& aPopulation, const application::overview_feedback_request& aRequest,
+									const std::vector<std::string>& aFiles) -> application::overview_feedback_projection
+	{
+		const auto columns = core::labels_of(aRequest.Columns);
+		const auto counts  = [&](core::feedback_counter_scope aWhere) {
+			return core::project_feedback_counters(core::tally_feedback_counters(aPopulation, aWhere), columns, aRequest.Mode);
+		};
+		auto result    = application::overview_feedback_projection{ };
+		result.Request = aRequest;
+		auto folders   = std::set<std::string>{ };
+		for (const auto& file : aFiles) {
+			auto row   = application::overview_feedback_row{ };
+			row.Kind   = application::overview_feedback_row_kind::file;
+			row.Path   = file;
+			row.Counts = counts({ .Kind = core::feedback_counter_scope_kind::file, .Path = file });
+			result.Files.push_back(std::move(row));
+			const auto slash = file.rfind('/');
+			folders.insert(slash == std::string::npos ? std::string{ } : file.substr(0U, slash));
+		}
+		for (const auto& folder : folders) {
+			auto row   = application::overview_feedback_row{ };
+			row.Kind   = application::overview_feedback_row_kind::folder;
+			row.Path   = folder;
+			row.Counts = counts({ .Kind = core::feedback_counter_scope_kind::directory, .Path = folder });
+			result.Folders.push_back(std::move(row));
+		}
+		result.Remainder.Kind     = application::overview_feedback_row_kind::remainder;
+		result.Remainder.Counts   = counts({ .Kind = core::feedback_counter_scope_kind::unattributed });
+		result.PullRequest.Kind   = application::overview_feedback_row_kind::pull_request;
+		result.PullRequest.Counts = counts({ });
+		return result;
+	}
+
+	const auto lighting  = std::string{ "Engine/Renderer/HairStrandsLighting.cpp" };
+	const auto voxel     = std::string{ "Engine/Renderer/HairStrandsVoxelization.cpp" };
+	const auto deep      = std::string{ "Engine/Shaders/HairStrandsDeepShadow.usf" };
+	const auto all_files = std::vector<std::string>{ lighting, voxel, deep };
+
+	[[nodiscard]] auto mixed_review() -> core::feedback_population
+	{
+		using core::feedback_label;
+		using core::feedback_resolution;
+		return population({
+			{ .Id = "review-thread:a", .Label = feedback_label::issue, .State = feedback_resolution::unresolved, .Path = lighting },
+			{ .Id = "review-thread:b", .Label = feedback_label::issue, .State = feedback_resolution::resolved, .Path = lighting },
+			{ .Id = "review-thread:c", .Label = feedback_label::question, .State = feedback_resolution::unresolved, .Path = lighting },
+			{ .Id = "review-thread:d", .Label = std::nullopt, .State = feedback_resolution::unresolved, .Path = lighting },
+			{ .Id = "review-thread:e", .Label = feedback_label::nitpick, .State = feedback_resolution::unresolved, .Path = voxel },
+			{ .Id = "review-thread:f", .Label = feedback_label::issue, .State = feedback_resolution::unknown, .Path = voxel },
+			{ .Id = "review-thread:g", .Label = feedback_label::praise, .State = feedback_resolution::unresolved, .Path = { } },
+			{ .Id = "issue-comment:h", .Label = feedback_label::note, .State = feedback_resolution::not_applicable, .Path = { } },
+		});
+	}
+
+	[[nodiscard]] auto request_for(std::vector<core::feedback_label> aColumns, core::feedback_resolution_mode aMode) -> application::overview_feedback_request
+	{
+		auto request    = application::overview_feedback_request{ };
+		request.Columns = *core::make_feedback_label_columns(aColumns);
+		request.Mode    = aMode;
+		return request;
+	}
+
+	[[nodiscard]] auto cell(qt::pull_request_overview_page& aPage, const std::string& aPath) -> QModelIndex
+	{
+		return aPage.file_model()->index_for_path(QString::fromStdString(aPath)).siblingAtColumn(qt::overview_file_model::comments_column);
+	}
+
+	[[nodiscard]] auto chips_of(qt::pull_request_overview_page& aPage, const QModelIndex& aCell) -> std::vector<qt::overview_comment_chip>
+	{
+		const auto* counts = aPage.file_model()->feedback_at(aCell);
+		expect(counts != nullptr, "the cell has counts");
+		return qt::overview_comment_chips(*counts, aPage.files_view()->visualRect(aCell), aPage.files_view()->font());
+	}
+
+	void click_at(QWidget& aWidget, const QPointF aPoint)
+	{
+		QMouseEvent press{ QEvent::MouseButtonPress, aPoint, aWidget.mapToGlobal(aPoint), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, aPoint, aWidget.mapToGlobal(aPoint), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(&aWidget, &press);
+		QApplication::sendEvent(&aWidget, &release);
+		settle();
+	}
+
+	/// No chips, a typical subset and all twelve each show a disjoint
+	/// breakdown with Other once; All shows the breakdown; unknown is never a
+	/// clean zero; the ? chip, the remainder row and the header follow; the
+	/// description's geometry does not move.
+	void test_label_chips_show_the_selected_breakdown()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1'300, 760);
+		auto asked = std::vector<application::overview_feedback_request>{ };
+		page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+		page.present(projection());
+		page.show();
+		settle();
+		const auto bodyBefore = page.body_view()->geometry();
+		expect(asked.size() == 1U && asked.back().Columns.Count == 0U && asked.back().Mode == core::feedback_resolution_mode::unresolved && !asked.back().Sort,
+			   "presenting a pull request asks once for no chips, Open, in file order");
+		expect(!page.open_counts_button()->isVisible() && !page.uncertain_button()->isVisible(), "no switch before the host answers");
+		auto* const model  = page.file_model();
+		auto        resets = 0;
+		QObject::connect(model, &QAbstractItemModel::modelReset, [&] { ++resets; });
+		const auto review = mixed_review();
+
+		// No chips: the speech bubble counts every open conversation.
+		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		settle();
+		expect(page.open_counts_button()->isVisible() && page.open_counts_button()->isChecked() && page.all_counts_button()->isVisible()
+				   && page.label_key_button()->isVisible() && !page.open_counts_button()->icon().isNull(),
+			   "the answer shows Open, with its round open mark, and All, and the Label key");
+		auto chips = chips_of(page, cell(page, lighting));
+		expect(chips.size() == 1U && chips[0].Kind == qt::overview_comment_chip::kind::other && chips[0].Count == 3U,
+			   "no chips: one bubble counting the three open conversations on HairStrandsLighting.cpp");
+		expect(cell(page, lighting).data().toString() == QStringLiteral("Comments 3"), "the cell's text names the count");
+		expect(page.files_view()->columnWidth(qt::overview_file_model::comments_column) == qt::overview_comments_width, "the Comments column has its fixed width");
+		expect(model->headerData(qt::overview_file_model::comments_column, Qt::Horizontal, Qt::DisplayRole).toString() == QStringLiteral("Comments ▾"), "the header offers its menu");
+
+		// A typical subset: issue and question, Other once.
+		page.set_label_columns(*core::make_feedback_label_columns(std::vector{ core::feedback_label::issue, core::feedback_label::question }));
+		expect(asked.size() == 2U && asked.back().Columns.Count == 2U, "choosing chips asks again");
+		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		settle();
+		chips = chips_of(page, cell(page, lighting));
+		expect(chips.size() == 3U && chips[0].Label == core::feedback_label::issue && chips[0].Count == 1U && chips[1].Label == core::feedback_label::question
+				   && chips[1].Count == 1U && chips[2].Kind == qt::overview_comment_chip::kind::other && chips[2].Count == 1U,
+			   "issue 1, question 1 and Other 1 (the plain thread): disjoint, the resolved issue in none");
+		expect(cell(page, lighting).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 1, question 1, Other 1 open conversations"),
+			   "the cell's accessible text names label, count, unit and mode");
+		const auto voxelChips = chips_of(page, cell(page, voxel));
+		expect(voxelChips.size() == 2U && voxelChips[0].Kind == qt::overview_comment_chip::kind::other && voxelChips[1].Kind == qt::overview_comment_chip::kind::uncertain,
+			   "an issue of unknown state is not counted as open, and the cell says so with its ? mark rather than look clear");
+		expect(cell(page, voxel).data(Qt::AccessibleTextRole).toString() == QStringLiteral("Other 1 open conversations; resolution unknown for 1"),
+			   "the unknown resolution is in the accessible text");
+		expect(page.uncertain_button()->isVisible() && page.uncertain_button()->text() == QStringLiteral("2")
+				   && page.uncertain_button()->toolTip().contains(QStringLiteral("resolution unknown for 1")),
+			   "the ? chip beside the switch counts the unknown issue and the not-resolvable comment");
+		expect(chips_of(page, cell(page, deep)).empty() && cell(page, deep).data().toString().isEmpty(), "a complete zero is blank, and only a complete zero");
+		const auto remainder = model->remainder_index(qt::overview_file_model::file_column);
+		expect(remainder.isValid() && remainder.row() == model->rowCount() - 1 && remainder.data().toString() == QStringLiteral("Not on a file")
+				   && !remainder.data(qt::overview_file_model::folder_role).toBool() && model->folder_count() == 2U,
+			   "a last row, Not on a file, holds the unanchored and pull request conversations and is no folder");
+		const auto* rest = model->feedback_at(remainder.siblingAtColumn(qt::overview_file_model::comments_column));
+		expect(rest != nullptr && rest->Catchall == 1U && rest->Uncertain == 1U, "Not on a file: the open praise in Other, the comment not resolvable");
+		const auto folder = model->index_for_path(QString::fromStdString(lighting)).parent().siblingAtColumn(qt::overview_file_model::comments_column);
+		expect(model->feedback_at(folder) != nullptr && model->feedback_at(folder)->Included == 4U, "the Engine/Renderer folder row counts its two files' open conversations");
+
+		// Only a conversation of unknown state: Open counts none, and the cell
+		// still is not blank.
+		page.present_feedback(feedback_for(population({ { .Id = "review-thread:u", .Label = core::feedback_label::issue, .State = core::feedback_resolution::unknown, .Path = lighting } }),
+										   asked.back(), all_files));
+		settle();
+		chips = chips_of(page, cell(page, lighting));
+		expect(chips.size() == 1U && chips[0].Kind == qt::overview_comment_chip::kind::uncertain && cell(page, lighting).data().toString() == QStringLiteral("? 1"),
+			   "zero open beside one of unknown state shows ?, never a blank clean zero");
+
+		// All twelve: chips fold into +n inside the fixed column.
+		auto twelve = std::vector<core::feedback_label>{ };
+		auto many   = std::vector<unit_spec>{ };
+		for (std::size_t label = 0U; label < core::feedback_label_count; ++label) {
+			twelve.push_back(static_cast<core::feedback_label>(label));
+			many.push_back({ .Id = "review-thread:m" + std::to_string(label), .Label = static_cast<core::feedback_label>(label), .State = core::feedback_resolution::unresolved, .Path = lighting });
+		}
+		many.push_back({ .Id = "review-thread:plain", .Label = std::nullopt, .State = core::feedback_resolution::unresolved, .Path = lighting });
+		page.set_label_columns(*core::make_feedback_label_columns(twelve));
+		page.present_feedback(feedback_for(population(many), asked.back(), all_files));
+		settle();
+		chips           = chips_of(page, cell(page, lighting));
+		const auto more = std::ranges::find(chips, qt::overview_comment_chip::kind::more, &qt::overview_comment_chip::Kind);
+		expect(more != chips.end() && more->Count + static_cast<std::size_t>(more - chips.begin()) == 13U && more->Folded.back().Kind == qt::overview_comment_chip::kind::other,
+			   "all twelve and Other: the chips that fit, then +n naming the rest, Other last");
+		const auto cellRect = page.files_view()->visualRect(cell(page, lighting));
+		expect(std::ranges::all_of(chips, [&](const qt::overview_comment_chip& aChip) { return cellRect.contains(aChip.Box.toAlignedRect()); }), "every chip stays inside the fixed column");
+		auto* const menu = page.make_comments_menu(cell(page, lighting));
+		expect(menu != nullptr && std::ranges::count_if(menu->actions(), [](QAction* aAction) { return aAction->isEnabled() && aAction->menu() == nullptr && !aAction->isSeparator(); }) == 13,
+			   "the cell's menu reaches all twelve chips and Other");
+		delete menu;
+
+		// All: the counts show their breakdown.
+		page.set_label_columns(*core::make_feedback_label_columns(std::vector{ core::feedback_label::issue }));
+		page.all_counts_button()->click();
+		expect(asked.back().Mode == core::feedback_resolution_mode::all && page.all_counts_button()->isChecked(), "All asks for every conversation");
+		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		settle();
+		chips = chips_of(page, cell(page, lighting));
+		expect(chips[0].Label == core::feedback_label::issue && chips[0].Count == 2U && chips[0].States == core::feedback_state_counts{ 1U, 1U, 0U, 0U },
+			   "in All the issue chip counts two, one open and one resolved");
+		expect(cell(page, lighting).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 2 (1 open, 1 resolved), Other 2 (2 open) conversations"),
+			   "and each count says its breakdown");
+
+		// A stale answer, for a request no longer current, is dropped.
+		page.present_feedback(feedback_for(review, request_for({ }, core::feedback_resolution_mode::unresolved), all_files));
+		expect(model->feedback()->Request.Mode == core::feedback_resolution_mode::all, "an answer to an earlier request is dropped");
+		expect(resets == 0, "no count, chip or mode change resets the model");
+		expect(page.body_view()->geometry() == bodyBefore, "the description keeps its geometry");
+
+		// The Label key lists all twelve marks with their codes; Escape closes it.
+		page.show_label_key();
+		settle();
+		auto* const key  = page.label_key();
+		auto* const list = key != nullptr ? key->findChild<QListWidget*>(QStringLiteral("overviewLabelKeyList")) : nullptr;
+		expect(key != nullptr && key->isVisible() && list != nullptr && list->count() == 1 + 12 + 1 + 2 + 4 + 1 && list->item(4)->text().contains(QStringLiteral(":is:"))
+				   && list->item(4)->data(Qt::AccessibleTextRole).toString().startsWith(QStringLiteral("issue, shortcode is")),
+			   "the Label key names every mark and its shortcode, and the state marks");
+		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(key, &escape);
+		settle();
+		expect(!key->isVisible(), "Escape closes the Label key");
+	}
+
+	/// Pointer, keyboard and menu activation each name exactly the chip's row
+	/// and number; a chip opens no file; Enter elsewhere still reads the file;
+	/// the current cell survives a refresh and a sort.
+	void test_chip_activation_names_exactly_its_count()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1'300, 760);
+		auto asked   = std::vector<application::overview_feedback_request>{ };
+		auto drilled = std::vector<application::overview_drill_down>{ };
+		auto opened  = std::vector<QString>{ };
+		page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+		page.set_drill_down_dispatch([&](const application::overview_drill_down& aDown) { drilled.push_back(aDown); });
+		page.set_file_dispatch([&](const QString& aPath) { opened.push_back(aPath); });
+		page.present(projection());
+		page.set_label_columns(*core::make_feedback_label_columns(std::vector{ core::feedback_label::issue, core::feedback_label::question }));
+		page.show();
+		settle();
+		const auto review = mixed_review();
+		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		settle();
+		auto* const view  = page.files_view();
+		auto* const model = page.file_model();
+
+		// A click on the issue chip.
+		auto chips = chips_of(page, cell(page, lighting));
+		click_at(*view->viewport(), chips[0].Box.center());
+		expect(drilled.size() == 1U && drilled[0].Row == application::overview_feedback_row_kind::file && drilled[0].Path == lighting
+				   && drilled[0].Target == core::feedback_count_target{ .Kind = core::feedback_count_kind::dedicated, .Label = core::feedback_label::issue },
+			   "a click on the issue chip asks for exactly that file's issue count");
+		expect(opened.empty() && view->currentIndex() == cell(page, lighting), "the chip opens no file and its cell becomes current");
+		click_at(*view->viewport(), chips[2].Box.center());
+		expect(drilled.back().Target.Kind == core::feedback_count_kind::catchall, "a click on Other asks for the catch-all");
+
+		// Keyboard: Right reaches the Comments cell; Enter opens its menu.
+		view->setFocus();
+		view->setCurrentIndex(model->index_for_path(QString::fromStdString(voxel)).siblingAtColumn(qt::overview_file_model::file_column));
+		for (auto step = 0; step < 8 && view->currentIndex().column() != qt::overview_file_model::comments_column; ++step) {
+			key(*view, Qt::Key_Right);
+		}
+		expect(view->currentIndex() == cell(page, voxel), "Right moves along the file's cells to Comments");
+		key(*view, Qt::Key_Return);
+		auto* popup = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+		expect(popup != nullptr && popup->objectName() == QStringLiteral("overviewCommentsMenu") && popup->title().contains(QStringLiteral("HairStrandsVoxelization.cpp")),
+			   "Enter on a Comments cell opens the menu of its chips");
+		const auto entries    = popup->actions();
+		const auto notCounted = std::ranges::find_if(entries, [](QAction* aAction) { return aAction->text().startsWith(QStringLiteral("Not counted")); });
+		expect(notCounted != entries.end(), "the menu reaches the ? count");
+		(*notCounted)->trigger();
+		popup->close();
+		settle();
+		expect(drilled.back().Path == voxel && drilled.back().Target.Kind == core::feedback_count_kind::uncertain, "its ? entry asks for exactly that file's uncertain conversations");
+		expect(opened.empty(), "no file opened from the Comments cell");
+		key(*view, Qt::Key_Left);
+		key(*view, Qt::Key_Left);
+		key(*view, Qt::Key_Left);
+		key(*view, Qt::Key_Left);
+		key(*view, Qt::Key_Left);
+		key(*view, Qt::Key_Return);
+		expect(opened.size() == 1U && opened[0] == QString::fromStdString(voxel), "Enter on the file's other cells still reads it");
+
+		// The remainder and the ? chip beside the switch.
+		auto* const restMenu = page.make_comments_menu(model->remainder_index());
+		expect(restMenu != nullptr, "Not on a file has a menu");
+		restMenu->actions().front()->trigger();
+		delete restMenu;
+		expect(drilled.back().Row == application::overview_feedback_row_kind::remainder && drilled.back().Target.Kind == core::feedback_count_kind::catchall,
+			   "Not on a file's entries ask for the remainder row");
+		page.uncertain_button()->click();
+		expect(drilled.back().Row == application::overview_feedback_row_kind::pull_request && drilled.back().Target.Kind == core::feedback_count_kind::uncertain,
+			   "the ? chip asks for every uncertain conversation of the pull request");
+
+		// Focus across a refresh: the current cell stays, nothing resets.
+		view->setCurrentIndex(cell(page, lighting));
+		auto resets = 0;
+		auto moves  = 0;
+		QObject::connect(model, &QAbstractItemModel::modelReset, [&] { ++resets; });
+		QObject::connect(model, &QAbstractItemModel::rowsMoved, [&] { ++moves; });
+		auto refreshed = review;
+		refreshed.Units.pop_back();
+		page.present_feedback(feedback_for(refreshed, asked.back(), all_files));
+		settle();
+		expect(view->currentIndex() == cell(page, lighting) && resets == 0 && moves == 0, "a refresh keeps the current Comments cell and resets nothing");
+
+		// Sorting by a label: the menu asks, the answer's order moves rows and
+		// keeps the current cell.
+		auto* const sort       = page.make_sort_menu();
+		const auto  sortItems  = sort->actions();
+		const auto  byQuestion = std::ranges::find_if(sortItems, [](QAction* aAction) { return aAction->text() == QStringLiteral("question"); });
+		expect(byQuestion != sortItems.end(), "the sort menu offers each chosen label");
+		(*byQuestion)->trigger();
+		delete sort;
+		expect(asked.back().Sort == core::feedback_count_target{ .Kind = core::feedback_count_kind::dedicated, .Label = core::feedback_label::question },
+			   "choosing a label asks for that sort");
+		auto sorted  = feedback_for(refreshed, asked.back(), all_files);
+		sorted.Order = { deep, voxel, lighting };
+		page.present_feedback(sorted);
+		settle();
+		expect(model->index_for_path(QString::fromStdString(voxel)).row() == 0 && model->index_for_path(QString::fromStdString(lighting)).row() == 1
+				   && view->currentIndex() == cell(page, lighting) && resets == 0,
+			   "the rows take the answer's order by move, and the current cell follows its file");
+		expect(model->headerData(qt::overview_file_model::comments_column, Qt::Horizontal, Qt::DisplayRole).toString() == QStringLiteral("Comments ↓ ▾")
+				   && model->headerData(qt::overview_file_model::comments_column, Qt::Horizontal, Qt::ToolTipRole).toString().contains(QStringLiteral("Sorted by question")),
+			   "the header says it is sorted, and by what");
+
+		// Another pull request starts again from the Settings default.
+		page.choose_mode(core::feedback_resolution_mode::unresolved);
+		const auto before = asked.size();
+		page.set_default_mode(core::feedback_resolution_mode::all);
+		expect(asked.size() == before && page.open_counts_button()->isChecked(), "a new Settings default leaves a view whose mode was chosen as it is");
+		auto other   = projection();
+		other.Number = core::pull_request_number{ 1U };
+		page.present(other);
+		settle();
+		expect(asked.back().Mode == core::feedback_resolution_mode::all && !asked.back().Sort && !model->feedback(), "another pull request starts at the default, unsorted, with no counts");
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -964,6 +1348,8 @@ auto main(int argc, char** argv) -> int
 	test_retained_description_reader();
 	test_body_edits_clamp_retained_selection();
 	test_many_participants_scroll_without_compressing_or_overpainting();
+	test_label_chips_show_the_selected_breakdown();
+	test_chip_activation_names_exactly_its_count();
 	std::cout << "pull-request-overview-page-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

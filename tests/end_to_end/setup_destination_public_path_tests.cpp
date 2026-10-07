@@ -7,8 +7,10 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_refusal.hpp"
@@ -31,6 +33,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
@@ -59,6 +63,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string_view>
 #include <utility>
 
@@ -453,6 +458,143 @@ namespace {
 		unchanged();
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "nested-folders course quiescence");
+	}
+
+	/// [[BPR-1089]]. The Conventional Comments pull request on the Overview it
+	/// opens on, through the real composition: the counts come from the
+	/// composed label buckets, the chips from Reviews & queue › Comment labels,
+	/// and a chip's activation lists exactly its conversations in Discuss,
+	/// which follows a resolve on the fixture server without moving focus.
+	void run_overview_feedback_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated overview-feedback course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private overview-feedback course root");
+		// A Refresh reads the pull request again, as the website edits it.
+		options.RepeatReadSessions = true;
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::conventional_comments_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "overview-feedback course startup");
+		expect(owner != nullptr, "overview-feedback course application");
+		auto& window = owner->window();
+		window.resize(1400, 900);
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); },
+				 "overview-feedback course connection, signed in, so the pull request is read as the fixture account");
+		submit(window, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const page  = window.overview_page();
+		auto* const view  = page->files_view();
+		auto* const model = page->file_model();
+		const auto  cell  = [&](const char* aPath) {
+			return model->index_for_path(QString::fromUtf8(aPath)).siblingAtColumn(qt::overview_file_model::comments_column);
+		};
+		const auto counted = [&](const std::uint8_t aColumns, const core::feedback_resolution_mode aMode) {
+			return model->feedback().has_value() && model->feedback()->Request.Columns.Count == aColumns && model->feedback()->Request.Mode == aMode;
+		};
+		wait_for([&] { return page->isVisible() && page->presented() && model->file_count() == 17U && counted(0U, core::feedback_resolution_mode::unresolved); },
+				 "the pull request opens on Overview and the composition counts its conversations");
+		// No chips: the bubble counts every open conversation; six threads, all
+		// native and labelled, so nothing is uncertain.
+		expect(cell("src/engine/renderer.cpp").data().toString() == QStringLiteral("Comments 2") && cell("src/main.cpp").data().toString() == QStringLiteral("Comments 1")
+				   && cell("docs/guide.md").data().toString().isEmpty() && model->feedback()->PullRequest.Counts.Included == 6U && !page->uncertain_button()->isVisible(),
+			   "no chips: renderer.cpp 2, main.cpp 1, a file without conversations blank, six open in all, nothing uncertain");
+		expect(page->open_counts_button()->isVisible() && page->open_counts_button()->isChecked(), "Open is the composed default");
+		capture(window, QStringLiteral("overview-feedback-no-chips.png"));
+
+		// A typical subset, chosen in Settings: issue and nitpick.
+		auto* const editor = window.label_columns_editor();
+		expect(editor != nullptr, "Reviews & queue offers the Overview chips");
+		editor->item_of(core::feedback_label::issue)->setCheckState(Qt::Checked);
+		wait_for([&] { return counted(1U, core::feedback_resolution_mode::unresolved); }, "a chip ticked in Settings reaches the Overview through the profile's setting");
+		editor->item_of(core::feedback_label::nitpick)->setCheckState(Qt::Checked);
+		wait_for([&] { return counted(2U, core::feedback_resolution_mode::unresolved); }, "a second chip reaches the Overview");
+		expect(cell("src/engine/renderer.cpp").data().toString() == QStringLiteral("issue 1 · Other 1") && cell("src/main.cpp").data().toString() == QStringLiteral("nitpick 1")
+				   && cell("src/ui/widgets/button.cpp").data().toString() == QStringLiteral("Other 1"),
+			   "renderer.cpp: issue 1 and Other 1 (the suggestion); main.cpp: nitpick 1; button.cpp: Other 1 (the chore)");
+		capture(window, QStringLiteral("overview-feedback-two-chips.png"));
+
+		// A click on renderer.cpp's issue chip lists exactly that conversation.
+		window.choose_modality(qt::review_modality::overview);
+		QApplication::processEvents();
+		const auto issueCell = cell("src/engine/renderer.cpp");
+		const auto chips     = qt::overview_comment_chips(*model->feedback_at(issueCell), view->visualRect(issueCell), view->font());
+		expect(!chips.empty() && chips.front().Label == core::feedback_label::issue, "the first chip is the issue chip");
+		const auto  point = chips.front().Box.center();
+		QMouseEvent press{ QEvent::MouseButtonPress, point, view->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, point, view->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(view->viewport(), &press);
+		QApplication::sendEvent(view->viewport(), &release);
+		auto* const panel  = window.conversation_panel();
+		const auto  listed = [&] {
+			auto ids = std::set<std::string>{ };
+			for (const auto& card : panel->cards()->cards()) {
+				ids.insert(card.Id);
+			}
+			return ids;
+		};
+		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && panel->listing().has_value() && listed() == std::set<std::string>{ "review-thread:PRRT_cc_1" }; },
+				 "Discuss lists exactly renderer.cpp's open issue");
+		expect(panel->listing_caption()->text() == QStringLiteral("issue · open · src/engine/renderer.cpp — 1 conversation") && panel->cards()->hasFocus(),
+			   "under a caption naming the count, with focus on the list");
+		capture(window, QStringLiteral("overview-feedback-drill-down.png"));
+
+		// Back on the Overview, the keyboard reaches Other through Enter.
+		window.choose_modality(qt::review_modality::overview);
+		QApplication::processEvents();
+		expect(view->hasFocus() && view->currentIndex() == issueCell, "the Overview gives focus back to the chip's cell");
+		QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(view, &enter);
+		QApplication::processEvents();
+		auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+		expect(menu != nullptr && menu->objectName() == QStringLiteral("overviewCommentsMenu"), "Enter on the Comments cell opens its chips' menu");
+		const auto entries = menu->actions();
+		const auto other   = std::ranges::find_if(entries, [](QAction* aAction) { return aAction->text().startsWith(QStringLiteral("Other")); });
+		expect(other != entries.end(), "the menu names Other");
+		(*other)->trigger();
+		menu->close();
+		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && listed() == std::set<std::string>{ "review-thread:PRRT_cc_2" }; },
+				 "Other lists exactly the suggestion thread");
+
+		// Back to the issue, then resolve it on the website: the list follows
+		// the accepted population, and focus stays on it.
+		window.choose_modality(qt::review_modality::overview);
+		QApplication::processEvents();
+		QApplication::sendEvent(view->viewport(), &press);
+		QApplication::sendEvent(view->viewport(), &release);
+		wait_for([&] { return listed() == std::set<std::string>{ "review-thread:PRRT_cc_1" }; }, "the issue is listed again");
+		// The thread is resolved on the website; a public Refresh reads it.
+		github_application_fixture_access::stage_server_root(*owner, "PRRT_cc_1", std::nullopt, true);
+		window.github_refresh_action()->trigger();
+		wait_for([&] { return listed().empty() && panel->listing_caption()->text().endsWith(QStringLiteral("— 0 conversations")); },
+				 "after the resolve, the open issue count lists nothing, and says so", [&] { std::cerr << "caption=" << panel->listing_caption()->text().toStdString() << " included=" << model->feedback()->PullRequest.Counts.Included << " status=" << window.github_status_text() << " refresh=" << window.github_refresh_action()->isEnabled() << '\n'; });
+		expect(panel->cards()->hasFocus() && window.current_modality() == qt::review_modality::discuss, "the refresh moved no focus");
+		window.choose_modality(qt::review_modality::overview);
+		QApplication::processEvents();
+		expect(cell("src/engine/renderer.cpp").data().toString() == QStringLiteral("Other 1") && view->currentIndex() == issueCell,
+			   "the Overview counts the resolved issue nowhere in Open, and the current cell is kept");
+		// All: the resolved issue is back, with its breakdown.
+		page->all_counts_button()->click();
+		wait_for([&] { return counted(2U, core::feedback_resolution_mode::all); }, "All is counted from the kept buckets");
+		expect(cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 1 (1 resolved), Other 1 (1 open) conversations"),
+			   "All counts the resolved issue and says its state");
+		capture(window, QStringLiteral("overview-feedback-all.png"));
+		// A website edit to the suggestion's root makes it an issue: it leaves
+		// Other and joins the issue chip, never both.
+		github_application_fixture_access::stage_server_root(*owner, "PRRT_cc_2", std::string{ "issue (non-blocking): Clamp the width to at least one pixel." }, std::nullopt);
+		window.github_refresh_action()->trigger();
+		wait_for([&] { return cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 2 (1 open, 1 resolved) conversations"); },
+				 "a website label edit moves the conversation from Other to issue", [&] { std::cerr << "cell=" << cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString().toStdString() << '\n'; });
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "overview-feedback course quiescence");
 	}
 
 	void run_modified_missing_endpoint_course()
@@ -1679,6 +1821,11 @@ try {
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--nested-overview-folders")) {
 		run_nested_overview_folders_course();
 		std::cout << "nested-overview-folders-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--overview-feedback")) {
+		run_overview_feedback_course();
+		std::cout << "overview-feedback-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--link-locations")) {

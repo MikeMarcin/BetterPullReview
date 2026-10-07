@@ -111,6 +111,10 @@ namespace {
 			expect(page->isAncestorOf(widget), "every row is on Reviews & queue");
 		}
 		expect(heading->text() == QStringLiteral("Comment labels"), "the section is named Comment labels");
+		// [[BPR-1089]]. Open carries the round open state mark the Overview
+		// draws beside its own Open; All carries none.
+		expect(!open->icon().isNull() && open->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && open->text() == QStringLiteral("Open") && all->icon().isNull(),
+			   "Overview counts: Open shows the round open mark beside its word");
 		const auto top = [page](const QWidget* aWidget) { return aWidget->mapTo(page, QPoint{ 0, 0 }).y(); };
 		f.Window.settings()->resize(1'100, 900);
 		f.Window.settings()->present(qt::settings_page::reviews_and_queue);

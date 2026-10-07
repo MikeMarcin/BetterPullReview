@@ -20,6 +20,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -81,6 +82,9 @@ namespace bpr::qt {
 		bool UnreadOnly = false;
 		/// Hide resolved threads.
 		bool UnresolvedOnly = false;
+		/// [[BPR-1089]]. Exactly these conversations, by root identity: an
+		/// Overview count's drill-down. None lists every conversation.
+		std::optional<std::set<std::string>> Listed;
 
 		auto operator<=>(const discuss_filters&) const = default;
 	};

@@ -483,6 +483,59 @@ namespace {
 			   "authority clear removes every prior conversation identity");
 	}
 
+	/// [[BPR-1089]]. An Overview count's drill-down lists exactly its
+	/// conversations: the whole pull request in scope, no other filter, the
+	/// list kept across a refresh with the current thread, and cleared by the
+	/// glyph or by Clear filters.
+	void test_an_overview_count_lists_exactly_its_conversations()
+	{
+		qt::github_conversation_panel panel;
+		panel.resize(1400, 900);
+		auto data = two_files();
+		data.push_back(conversation{ .Id = "issue", .Kind = application::github_conversation_kind::issue_comment, .Body = "PR-wide comment" });
+		data.push_back(conversation{ .Id = "review", .Kind = application::github_conversation_kind::review, .Body = "Review summary" });
+		panel.adopt(data, QStringLiteral("Accepted conversations"));
+		panel.set_discuss(true);
+		panel.show();
+		process_events();
+		auto cleared = 0;
+		panel.set_listing_cleared([&] { ++cleared; });
+		panel.scope_this_file_button()->setChecked(true);
+		panel.filter_unresolved_button()->setChecked(true);
+		const auto ids = [&panel] {
+			auto result = std::set<std::string>{ };
+			for (const auto& card : panel.cards()->cards()) {
+				result.insert(card.Id);
+			}
+			return result;
+		};
+		panel.list_conversations({ "issue", "left-root" }, QStringLiteral("issue · open · src/left.cpp — 2 conversations"), QStringLiteral("Listed from the Overview"));
+		process_events();
+		expect(ids() == std::set<std::string>{ "issue", "left-root" } && panel.listing().has_value() && panel.listing_caption()->isVisibleTo(&panel)
+				   && panel.listing_caption()->text().startsWith(QStringLiteral("issue · open")),
+			   "Discuss lists exactly the two counted conversations under the count's caption");
+		expect(panel.scope_whole_pull_request_button()->isChecked() && !panel.filter_unresolved_button()->isChecked() && !panel.filter_unread_button()->isChecked(),
+			   "the whole pull request is in scope and no other filter narrows the list");
+		panel.view()->setCurrentIndex(panel.model()->index_for_id("left-root"));
+		process_events();
+		auto refreshed = data;
+		refreshed.push_back(root("new-root", "src/new.cpp"));
+		panel.adopt(refreshed, QStringLiteral("Accepted conversations"));
+		process_events();
+		expect(ids() == std::set<std::string>{ "issue", "left-root" } && panel.cards()->current_thread() == "left-root",
+			   "a refresh keeps the list exact and the current thread");
+		panel.list_conversations({ "right-root" }, QStringLiteral("question · open · src/right.cpp — 1 conversation"), QStringLiteral("Listed from the Overview"));
+		process_events();
+		expect(ids() == std::set<std::string>{ "right-root" }, "listing again replaces the list");
+		panel.clear_listing_button()->click();
+		process_events();
+		expect(!panel.listing() && ids().size() == 5U && !panel.listing_caption()->isVisibleTo(&panel) && cleared == 1, "the glyph shows every conversation again");
+		panel.list_conversations({ "review" }, QStringLiteral("Not counted · Pull request — 1 conversation"), QStringLiteral("Listed from the Overview"));
+		panel.findChild<QToolButton*>(QStringLiteral("conversationClearFilters"))->click();
+		process_events();
+		expect(!panel.listing() && ids().size() == 5U && cleared == 2, "Clear filters clears the list too");
+	}
+
 	void test_contextual_scope_survives_clear_and_refresh()
 	{
 		qt::github_conversation_panel panel;
@@ -612,6 +665,7 @@ auto main(int argc, char** argv) -> int
 	test_later_threads_are_hidden_with_their_replies();
 	test_invalid_projected_side_is_never_guessed_as_right();
 	test_pr_wide_index_and_selected_detail();
+	test_an_overview_count_lists_exactly_its_conversations();
 	test_contextual_scope_survives_clear_and_refresh();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;

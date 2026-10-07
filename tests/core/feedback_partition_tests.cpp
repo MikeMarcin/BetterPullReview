@@ -141,7 +141,12 @@ namespace {
 	{
 		return { .Kind = feedback_counter_scope_kind::folder, .Path = std::move(aPath) };
 	}
-	auto at_file(std::string aPath, bool aOutdated = false) -> feedback_anchor
+	auto directory(std::string aPath) -> feedback_counter_scope
+	{
+		return { .Kind = feedback_counter_scope_kind::directory, .Path = std::move(aPath) };
+	}
+	const auto unattributed = feedback_counter_scope{ .Kind = feedback_counter_scope_kind::unattributed };
+	auto       at_file(std::string aPath, bool aOutdated = false) -> feedback_anchor
 	{
 		return { .Status = feedback_anchor_status::file, .Path = std::move(aPath), .Outdated = aOutdated };
 	}
@@ -605,6 +610,86 @@ namespace {
 		expect(has_limit(view, feedback_count_limit::classification_partial), "the unmapped stop qualifies the count");
 	}
 
+	/// [[BPR-1089]]. The Overview's numbers: no chips, a typical subset and
+	/// all twelve each split one file's conversations disjointly, the
+	/// catch-all once; All keeps the breakdown; the ? count holds the unknown,
+	/// the not resolvable and the unlabelled once each; every number's
+	/// drill-down is exactly its conversations; the sort is numeric with the
+	/// qualified first at a tie; a directory and the unattributed remainder
+	/// are scopes of their own.
+	void overview_numbers()
+	{
+		auto       conversations = std::vector{ labelled("i1", feedback_label::issue), labelled("i2", feedback_label::issue), labelled("i3", feedback_label::issue),
+												labelled("q1", feedback_label::question), labelled("n1", feedback_label::nitpick), labelled("p1", feedback_label::praise),
+												feedback_conversation{ .Id = "plain", .Status = feedback_root_status::plain, .Root = "r" },
+												feedback_conversation{ .Id = "custom", .Status = feedback_root_status::unknown_label, .Root = "r" },
+												feedback_conversation{ .Id = "bad", .Status = feedback_root_status::unclassified, .Root = "r" },
+												labelled("top", feedback_label::issue), labelled("pr", feedback_label::note) };
+		const auto set           = classified(conversations);
+		auto       pr            = facts("pr", feedback_resolution::not_applicable, { });
+		pr.Anchor                = feedback_anchor{ };
+		const auto population    = populate(set, { facts("i1", feedback_resolution::unresolved, at_file("src/a.cpp")), facts("i2", feedback_resolution::resolved, at_file("src/a.cpp")), facts("i3", feedback_resolution::unknown, at_file("src/a.cpp")), facts("q1", feedback_resolution::unresolved, at_file("src/a.cpp")), facts("n1", feedback_resolution::unresolved, at_file("src/a.cpp")), facts("p1", feedback_resolution::unresolved, at_file("src/b.cpp")), facts("plain", feedback_resolution::unresolved, at_file("src/a.cpp")), facts("custom", feedback_resolution::resolved, at_file("src/a.cpp")), facts("bad", feedback_resolution::unresolved, at_file("src/a.cpp")), facts("top", feedback_resolution::unresolved, at_file("README.md")), pr });
+		const auto a             = file("src/a.cpp");
+		auto       allTwelve     = std::vector<feedback_label>{ };
+		for (std::size_t label = 0U; label < feedback_label_count; ++label) {
+			allTwelve.push_back(static_cast<feedback_label>(label));
+		}
+		const auto ids = [&](const feedback_counter_scope& aWhere, const std::vector<feedback_label>& aColumns, feedback_resolution_mode aMode, feedback_count_target aTarget) {
+			return select_feedback_units(population, aWhere, aColumns, aMode, aTarget).Ids;
+		};
+		using strings = std::vector<std::string>;
+		// No chips: the catch-all is everything Open counts.
+		const auto none = counts_for(population, a, { }, feedback_resolution_mode::unresolved);
+		expect(none.Dedicated.empty() && none.Catchall == 5U && none.Included == 5U, "no chips: the catch-all counts every open conversation");
+		expect(ids(a, { }, feedback_resolution_mode::unresolved, { .Kind = feedback_count_kind::catchall }) == strings{ "bad", "i1", "n1", "plain", "q1" }, "no chips: the catch-all lists exactly the open conversations");
+		// A typical subset: issue and question, the rest in Other once.
+		const auto typical = counts_for(population, a, { feedback_label::issue, feedback_label::question }, feedback_resolution_mode::unresolved);
+		expect(dedicated(typical, feedback_label::issue) == 1U && dedicated(typical, feedback_label::question) == 1U && typical.Catchall == 3U && conserved(typical),
+			   "a typical subset: issue 1, question 1, Other 3 (nitpick, plain, unlabelled)");
+		expect(ids(a, { feedback_label::issue, feedback_label::question }, feedback_resolution_mode::unresolved, { .Kind = feedback_count_kind::dedicated, .Label = feedback_label::issue }) == strings{ "i1" },
+			   "the issue chip lists the open issue only");
+		expect(ids(a, { feedback_label::issue, feedback_label::question }, feedback_resolution_mode::unresolved, { .Kind = feedback_count_kind::catchall }) == strings{ "bad", "n1", "plain" },
+			   "Other lists the nitpick, the plain and the unlabelled conversations");
+		// All twelve: Other still holds the plain, custom and unlabelled.
+		const auto twelve = counts_for(population, a, allTwelve, feedback_resolution_mode::all);
+		expect(dedicated(twelve, feedback_label::issue) == 3U && twelve.Catchall == 3U && twelve.Included == 8U && conserved(twelve)
+				   && twelve.CatchallParts == feedback_catchall_parts{ .Plain = 1U, .Custom = 1U, .Unclassified = 1U },
+			   "all twelve in All: issue 3, and Other holds the plain, custom and unlabelled once");
+		// All shows the breakdown: the issue is one open, one resolved, one unknown.
+		const auto issueStates = std::ranges::find(twelve.Dedicated, feedback_label::issue, &feedback_dedicated_count::Label)->States;
+		expect(issueStates == feedback_state_counts{ 1U, 1U, 1U, 0U } && twelve.CatchallStates == feedback_state_counts{ 2U, 1U, 0U, 0U },
+			   "All keeps each chip's state breakdown");
+		expect(dedicated(counts_for(population, a, allTwelve, feedback_resolution_mode::unresolved), feedback_label::issue) == 1U, "Open counts only the positively unresolved issue");
+		// The ? count: the unknown issue and the unlabelled root, once each.
+		expect(typical.Uncertain == 2U && ids(a, { }, feedback_resolution_mode::all, { .Kind = feedback_count_kind::uncertain }) == strings{ "bad", "i3" },
+			   "the ? count lists the unknown and the unlabelled, each once");
+		expect(!typical.Exact && has_limit(typical, feedback_count_limit::resolution_unknown), "unknown resolution qualifies the Open count");
+		// The unattributed remainder and a directory are scopes.
+		const auto remainder = counts_for(population, unattributed, { feedback_label::note }, feedback_resolution_mode::unresolved);
+		expect(remainder.Included == 0U && remainder.ScopeTotal == 1U && remainder.Uncertain == 1U && !has_limit(remainder, feedback_count_limit::attribution_unknown),
+			   "the pull request comment is not on a file, not open, and counted by ?");
+		expect(ids(unattributed, { }, feedback_resolution_mode::all, { .Kind = feedback_count_kind::included }) == strings{ "pr" }, "the remainder lists the pull request comment");
+		const auto src = counts_for(population, directory("src"), { }, feedback_resolution_mode::all);
+		expect(src.ScopeTotal == 9U && counts_for(population, directory(""), { }, feedback_resolution_mode::all).ScopeTotal == 1U, "a directory holds its own files only; the root directory holds README.md");
+		// Refusals.
+		expect(select_feedback_units(population, a, std::vector{ feedback_label::issue }, feedback_resolution_mode::all, { .Kind = feedback_count_kind::dedicated, .Label = feedback_label::question }).Refusal == feedback_selection_refusal::unselected_label,
+			   "a label without a chip has no drill-down");
+		expect(select_feedback_units(population, a, std::vector{ feedback_label::issue, feedback_label::issue }, feedback_resolution_mode::all, { }).Refusal == feedback_selection_refusal::duplicate_column, "a repeated chip is refused");
+		expect(select_feedback_units(population, { .Kind = feedback_counter_scope_kind::directory, .Path = "src/" }, std::vector<feedback_label>{ }, feedback_resolution_mode::all, { }).Refusal == feedback_selection_refusal::invalid_scope, "a bad directory path is refused");
+		auto other = tally_feedback_counters(population, file("src/b.cpp"));
+		other.Epoch += 1U;
+		expect(!merge_feedback_counter_tallies(std::vector{ tally_feedback_counters(population, a), other }, directory("src")).Valid, "tallies of different epochs do not merge");
+		expect(!merge_feedback_counter_tallies(std::span<const feedback_counter_tally>{ }, directory("src")).Valid, "no parts name no pull request");
+		// Sorting: numbers first, then the qualified at a tie.
+		expect(feedback_sorts_before({ .Count = 3U }, { .Count = 2U, .Qualified = true }) && !feedback_sorts_before({ .Count = 2U, .Qualified = true }, { .Count = 3U }),
+			   "a larger count sorts first");
+		expect(feedback_sorts_before({ .Count = 2U, .Qualified = true }, { .Count = 2U }) && !feedback_sorts_before({ .Count = 2U }, { .Count = 2U, .Qualified = true })
+				   && !feedback_sorts_before({ .Count = 2U }, { .Count = 2U }),
+			   "at a tie the qualified count sorts first; equal keys keep the caller's order");
+		expect(feedback_sort_key_of(typical, { .Kind = feedback_count_kind::dedicated, .Label = feedback_label::issue }) == feedback_sort_key{ .Count = 1U, .Qualified = true },
+			   "a sort key is the projection's own number and exactness");
+	}
+
 	// --- Generated populations -----------------------------------------------
 
 	struct splitmix64
@@ -630,7 +715,7 @@ namespace {
 	{
 		splitmix64                       random{ 1078U };
 		const std::array<const char*, 5> paths{ "src/a.cpp", "src/b.cpp", "src/x/c.cpp", "doc/d.md", "top.txt" };
-		const std::array                 scopes{ pull_request, file("src/a.cpp"), file("top.txt"), folder("src"), folder("src/x"), folder("") };
+		const std::array                 scopes{ pull_request, file("src/a.cpp"), file("top.txt"), folder("src"), folder("src/x"), folder(""), directory("src"), directory("src/x"), directory(""), unattributed };
 		const std::array                 roots{ feedback_root_status::labelled, feedback_root_status::labelled, feedback_root_status::labelled, feedback_root_status::unknown_label, feedback_root_status::plain,
 												feedback_root_status::unclassified, feedback_root_status::root_missing, feedback_root_status::root_deleted, feedback_root_status::root_ambiguous };
 		std::size_t                      checked = 0U;
@@ -654,6 +739,21 @@ namespace {
 			}
 			std::ranges::reverse(observed);
 			const auto population = populate(classified(conversations), observed, feedback_collection::complete);
+			// [[BPR-1089]]. A directory's tally is its files' tallies merged.
+			for (const auto& [where, members] : { std::pair{ directory("src"), std::vector<std::string>{ "src/a.cpp", "src/b.cpp" } },
+												  std::pair{ directory("src/x"), std::vector<std::string>{ "src/x/c.cpp" } },
+												  std::pair{ directory(""), std::vector<std::string>{ "top.txt" } } }) {
+				std::vector<feedback_counter_tally> fileTallies;
+				for (const auto& member : members) {
+					fileTallies.push_back(tally_feedback_counters(population, file(member)));
+				}
+				const auto merged = merge_feedback_counter_tallies(fileTallies, where);
+				const auto direct = tally_feedback_counters(population, where);
+				expect(merged.Valid && direct.Valid && merged.Labelled == direct.Labelled && merged.Plain == direct.Plain && merged.Custom == direct.Custom
+						   && merged.Unclassified == direct.Unclassified && merged.Unattributed == direct.Unattributed
+						   && merged.AttributionUnknown == direct.AttributionUnknown && merged.Where == where && merged.Epoch == direct.Epoch,
+					   "a directory's merged file tallies equal its own tally");
+			}
 			for (const auto& where : scopes) {
 				const auto tally = tally_feedback_counters(population, where);
 				for (const auto mode : { feedback_resolution_mode::unresolved, feedback_resolution_mode::all }) {
@@ -669,7 +769,8 @@ namespace {
 					std::map<feedback_label, std::size_t> expectedLabels;
 					std::size_t                           expectedCatchall = 0U;
 					std::size_t                           expectedTotal    = 0U;
-					bool                                  lostAnchor       = false;
+					std::vector<std::string>              expectedUncertain;
+					bool                                  lostAnchor = false;
 					std::vector<std::string>              seen;
 					for (const auto& item : observed) {
 						if (std::ranges::find(seen, item.Id) != seen.end()) {
@@ -679,14 +780,37 @@ namespace {
 						if (item.Origin != feedback_unit_origin::published || item.Deleted) {
 							continue;
 						}
-						lostAnchor          = lostAnchor || item.Anchor.Status == feedback_anchor_status::unknown;
-						const auto& path    = item.Anchor.Path;
-						const bool  inScope = where.Kind == feedback_counter_scope_kind::pull_request
-							|| (path && (where.Kind == feedback_counter_scope_kind::file ? *path == where.Path : where.Path.empty() || path->starts_with(where.Path + "/")));
+						lostAnchor           = lostAnchor || item.Anchor.Status == feedback_anchor_status::unknown;
+						const auto& path     = item.Anchor.Path;
+						const auto  parentOf = [](const std::string& aPath) { const auto slash = aPath.rfind('/'); return slash == std::string::npos ? std::string{ } : aPath.substr(0U, slash); };
+						bool        inScope  = false;
+						switch (where.Kind) {
+						case feedback_counter_scope_kind::pull_request:
+							inScope = true;
+							break;
+						case feedback_counter_scope_kind::file:
+							inScope = path && *path == where.Path;
+							break;
+						case feedback_counter_scope_kind::folder:
+							inScope = path && (where.Path.empty() || path->starts_with(where.Path + "/"));
+							break;
+						case feedback_counter_scope_kind::directory:
+							inScope = path && parentOf(*path) == where.Path;
+							break;
+						case feedback_counter_scope_kind::unattributed:
+							inScope = !path;
+							break;
+						}
 						if (!inScope) {
 							continue;
 						}
 						++expectedTotal;
+						const auto known      = std::ranges::find(conversations, item.Id, &feedback_conversation::Id);
+						const auto labelKnown = known != conversations.end()
+							&& (known->Status == feedback_root_status::labelled || known->Status == feedback_root_status::plain || known->Status == feedback_root_status::unknown_label);
+						if (item.Resolution == feedback_resolution::unknown || item.Resolution == feedback_resolution::not_applicable || !labelKnown) {
+							expectedUncertain.push_back(item.Id);
+						}
 						if (mode == feedback_resolution_mode::unresolved && item.Resolution != feedback_resolution::unresolved) {
 							continue;
 						}
@@ -701,8 +825,42 @@ namespace {
 					for (const auto& column : view.Dedicated) {
 						expect(column.Count == expectedLabels[column.Label], "generated dedicated count");
 					}
-					expect(has_limit(view, feedback_count_limit::attribution_unknown) == (lostAnchor && where.Kind != feedback_counter_scope_kind::pull_request), "generated attribution coverage");
+					const auto fileBound = where.Kind != feedback_counter_scope_kind::pull_request && where.Kind != feedback_counter_scope_kind::unattributed;
+					expect(has_limit(view, feedback_count_limit::attribution_unknown) == (lostAnchor && fileBound), "generated attribution coverage");
 					expect(has_limit(view, feedback_count_limit::classification_partial) == (view.ScopeUnclassified != 0U), "generated classification coverage");
+					// [[BPR-1089]]. Every number's drill-down lists exactly what it
+					// counted, and the dedicated and catch-all lists partition the
+					// included one.
+					std::ranges::sort(expectedUncertain);
+					const auto select = [&](const feedback_count_target& aTarget) {
+						const auto chosen = select_feedback_units(population, where, columns, mode, aTarget);
+						expect(chosen.Refusal == feedback_selection_refusal::none && chosen.Epoch == population.Epoch, "generated selection accepted at the population's epoch");
+						expect(chosen.Ids.size() == feedback_count_of(view, aTarget), "generated selection is exactly the count");
+						expect(std::ranges::is_sorted(chosen.Ids) && std::ranges::adjacent_find(chosen.Ids) == chosen.Ids.end(), "generated selection in identity order, each once");
+						return chosen.Ids;
+					};
+					const auto included = select({ .Kind = feedback_count_kind::included });
+					auto       parts    = select({ .Kind = feedback_count_kind::catchall });
+					for (const auto& column : view.Dedicated) {
+						const auto ids = select({ .Kind = feedback_count_kind::dedicated, .Label = column.Label });
+						parts.insert(parts.end(), ids.begin(), ids.end());
+					}
+					std::ranges::sort(parts);
+					expect(parts == included, "generated dedicated and catch-all drill-downs partition the included one");
+					expect(select({ .Kind = feedback_count_kind::uncertain }) == expectedUncertain && view.Uncertain == expectedUncertain.size(), "generated uncertain drill-down and count");
+					std::array<std::size_t, feedback_resolution_count> stateSum{ };
+					const auto                                         addStates = [&](const feedback_state_counts& aStates) {
+						for (std::size_t at = 0U; at < aStates.size(); ++at) {
+							stateSum[at] += aStates[at];
+						}
+					};
+					addStates(view.CatchallStates);
+					for (const auto& column : view.Dedicated) {
+						addStates(column.States);
+						expect(column.Count == (mode == feedback_resolution_mode::all ? column.States[0] + column.States[1] + column.States[2] + column.States[3] : column.States[0]),
+							   "generated dedicated count is its breakdown's included states");
+					}
+					expect(stateSum == view.States, "generated breakdowns sum to the scope's states");
 					++checked;
 				}
 			}
@@ -754,6 +912,7 @@ auto main(int aArgc, char** aArgv) -> int
 	coverage();
 	transitions();
 	tour_roots();
+	overview_numbers();
 	const auto random = generated(2000U, 40U);
 	const auto bulk   = large();
 	std::cout << "pack subset projections: " << projections << '\n';

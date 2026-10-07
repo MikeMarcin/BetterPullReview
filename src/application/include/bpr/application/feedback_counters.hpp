@@ -59,11 +59,20 @@ namespace bpr::application {
 		auto observe(const core::cached_review_key& aScope, const github_pull_request_snapshot& aSnapshot, bool aStale = false) -> feedback_counter_update;
 
 		[[nodiscard]] auto generation() const noexcept -> std::uint64_t { return Generation; }
+		/// Whether a snapshot has been admitted.
+		[[nodiscard]] auto observed() const noexcept -> bool { return Observed; }
 		[[nodiscard]] auto population() const noexcept -> const core::feedback_population& { return Population; }
-		/// Every scope with a kept tally: the pull request first, then folders
-		/// and files in path order.
+		/// Every scope with a kept tally: the pull request first, then files and
+		/// folders in path order, then, [[BPR-1089]], the unattributed
+		/// remainder while any conversation has no exact file.
 		[[nodiscard]] auto scopes() const -> std::vector<core::feedback_counter_scope>;
 		[[nodiscard]] auto tally(const core::feedback_counter_scope& aScope) const -> const core::feedback_counter_tally*;
+		/// \brief [[BPR-1089]]. The tally of any scope at the kept observation:
+		/// the kept one, or one taken now from only the conversations that
+		/// scope can hold. A file with no conversation gets a valid empty
+		/// tally that still carries the observation's coverage, so a file's
+		/// zero is never more certain than the snapshot it came from.
+		[[nodiscard]] auto tally_of(const core::feedback_counter_scope& aScope) const -> core::feedback_counter_tally;
 		/// \brief The counts one scope shows for these columns and this mode,
 		/// from its kept tally only.
 		[[nodiscard]] auto project(const core::feedback_counter_scope& aScope, std::span<const core::feedback_label> aColumns,
@@ -75,11 +84,13 @@ namespace bpr::application {
 		[[nodiscard]] auto tally_scope(const scope_key& aKey) const -> core::feedback_counter_tally;
 		void               index_units();
 
-		core::feedback_annotation_set                     Annotations;
-		core::feedback_population                         Population;
-		bool                                              Observed = false;
-		std::map<std::string, std::vector<std::size_t>>   UnitsByPath;
-		std::vector<std::size_t>                          UnknownAnchors;
+		core::feedback_annotation_set                   Annotations;
+		core::feedback_population                       Population;
+		bool                                            Observed = false;
+		std::map<std::string, std::vector<std::size_t>> UnitsByPath;
+		std::vector<std::size_t>                        UnknownAnchors;
+		/// [[BPR-1089]]. Units with no exact file: unanchored or unknown.
+		std::vector<std::size_t>                          Unattributed;
 		std::map<scope_key, core::feedback_counter_tally> Tallies;
 		std::uint64_t                                     Generation = 0U;
 	};

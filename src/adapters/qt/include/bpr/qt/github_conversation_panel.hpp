@@ -155,6 +155,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto notice_label() const noexcept -> QLabel*;
 		/// \brief Discuss's scope, file and filter row.
 		[[nodiscard]] auto discuss_controls() const noexcept -> QWidget*;
+		/// \brief [[BPR-1089]]. Lists exactly these conversations, the ones an
+		/// Overview count counted, under a caption that says which count. The
+		/// whole pull request is in scope and the other filters are off, so
+		/// nothing narrows the list further. Listing again replaces it; the
+		/// current thread is kept while it is listed.
+		void list_conversations(std::vector<std::string> aConversations, const QString& aCaption, const QString& aDescription);
+		/// \brief Shows every conversation again.
+		void               clear_listing();
+		[[nodiscard]] auto listing() const noexcept -> const std::optional<std::set<std::string>>&;
+		[[nodiscard]] auto listing_caption() const noexcept -> QLabel*;
+		[[nodiscard]] auto clear_listing_button() const noexcept -> QToolButton*;
+		/// \brief Told when the reviewer clears the listing.
+		void set_listing_cleared(std::function<void()> aCleared);
 
 	private:
 		/// \brief Tells the notes which thread the selection authority is on.
@@ -164,31 +177,38 @@ namespace bpr::qt {
 		void refresh_projection();
 		void arrange_filters();
 
-		QLabel*                         AvailabilityLabel  = nullptr;
-		QToolButton*                    RevealButton       = nullptr;
-		QStackedWidget*                 Stack              = nullptr;
-		QTreeView*                      View               = nullptr;
-		github_conversation_model*      Model              = nullptr;
-		conversation_cards_view*        Cards              = nullptr;
-		QWidget*                        DiscussControls    = nullptr;
-		QGridLayout*                    DiscussGrid        = nullptr;
-		QWidget*                        ReadTools          = nullptr;
-		QHBoxLayout*                    ReadToolsRow       = nullptr;
-		QToolButton*                    ScopeThisFile      = nullptr;
-		QToolButton*                    ScopeWholePr       = nullptr;
-		QComboBox*                      DiscussFileChoice  = nullptr;
-		QToolButton*                    FilterUnread       = nullptr;
-		QToolButton*                    FilterUnresolved   = nullptr;
-		QLabel*                         DiscussSummary     = nullptr;
-		QLabel*                         Notice             = nullptr;
-		bool                            Discuss            = false;
-		bool                            HasThreads         = false;
-		bool                            DiscussInitialized = false;
-		std::set<core::source_line_ref> SemanticAnchors;
-		std::string                     DiscussSelection;
-		cards_scope                     DiscussScope = cards_scope::whole_pull_request;
-		discuss_filters                 DiscussFilters;
-		discuss_filters                 ReadFilters;
+		QLabel*                    AvailabilityLabel = nullptr;
+		QToolButton*               RevealButton      = nullptr;
+		QStackedWidget*            Stack             = nullptr;
+		QTreeView*                 View              = nullptr;
+		github_conversation_model* Model             = nullptr;
+		conversation_cards_view*   Cards             = nullptr;
+		QWidget*                   DiscussControls   = nullptr;
+		QGridLayout*               DiscussGrid       = nullptr;
+		QWidget*                   ReadTools         = nullptr;
+		QHBoxLayout*               ReadToolsRow      = nullptr;
+		QToolButton*               ScopeThisFile     = nullptr;
+		QToolButton*               ScopeWholePr      = nullptr;
+		QComboBox*                 DiscussFileChoice = nullptr;
+		QToolButton*               FilterUnread      = nullptr;
+		QToolButton*               FilterUnresolved  = nullptr;
+		QLabel*                    DiscussSummary    = nullptr;
+		/// [[BPR-1089]]. The drill-down's caption and its clear button.
+		QWidget*                             ListingRow     = nullptr;
+		QLabel*                              ListingCaption = nullptr;
+		QToolButton*                         ClearListing   = nullptr;
+		std::optional<std::set<std::string>> Listing;
+		std::function<void()>                ListingCleared;
+		void                                 apply_filters();
+		QLabel*                              Notice             = nullptr;
+		bool                                 Discuss            = false;
+		bool                                 HasThreads         = false;
+		bool                                 DiscussInitialized = false;
+		std::set<core::source_line_ref>      SemanticAnchors;
+		std::string                          DiscussSelection;
+		cards_scope                          DiscussScope = cards_scope::whole_pull_request;
+		discuss_filters                      DiscussFilters;
+		discuss_filters                      ReadFilters;
 		/// [[BPR-0985]]. The panel made the current row current by itself;
 		/// the reviewer did not choose it.
 		bool DefaultCurrent = false;

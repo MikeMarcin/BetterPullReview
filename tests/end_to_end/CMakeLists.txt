@@ -2955,6 +2955,17 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_nested_overview_folders_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 60
     PASS_REGULAR_EXPRESSION "nested-overview-folders-public-path:pass")
+# [[BPR-1089]]. The Conventional Comments pull request on Overview: the composed
+# label counts, Settings' chips, the exact drill-down into Discuss by pointer and
+# keyboard, and the list following a resolve on the fixture server.
+bpr_add_network_isolated_test(
+    NAME application_overview_feedback_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --overview-feedback
+)
+set_tests_properties(application_overview_feedback_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "overview-feedback-public-path:pass")
 
 bpr_add_executable(test_attended_recent_replay attended_recent_replay_tests.cpp)
 target_link_libraries(test_attended_recent_replay PRIVATE BetterPullReview::Composition BetterPullReview::AdapterGitHub)

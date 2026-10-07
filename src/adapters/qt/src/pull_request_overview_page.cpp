@@ -1,6 +1,8 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include <QAction>
+#include <QActionGroup>
 
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "painted_glyph_icon.hpp"
@@ -17,7 +19,11 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QListWidget>
+#include <QMenu>
+#include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
@@ -28,6 +34,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QStyle>
 #include <QStyleOptionViewItem>
@@ -44,8 +51,11 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <numeric>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -566,7 +576,291 @@ namespace bpr::qt {
 			}
 		}
 
+		// [[BPR-1089]]. The Comments column's words and drawing.
+
+		/// The "Not on a file" row's place among folder paths: no folder has it.
+		const auto remainder_path = QStringLiteral("\x01not-on-a-file");
+
+		constexpr qreal chip_mark = 16.0;
+		constexpr qreal chip_gap  = 5.0;
+
+		[[nodiscard]] auto chip_font(const QFont& aFont) -> QFont
+		{
+			auto font = aFont;
+			font.setPointSizeF(font.pointSizeF() * 0.85);
+			font.setWeight(QFont::DemiBold);
+			return font;
+		}
+
+		[[nodiscard]] auto pill_width(const QFontMetrics& aMetrics, const std::size_t aCount) -> qreal
+		{
+			return std::max<qreal>(18.0, aMetrics.horizontalAdvance(QString::number(static_cast<qulonglong>(aCount))) + 8.0);
+		}
+
+		[[nodiscard]] auto state_of(const core::feedback_state_counts& aStates, const core::feedback_resolution aState) -> std::size_t
+		{
+			return aStates[static_cast<std::size_t>(aState)];
+		}
+
+		[[nodiscard]] auto mode_word(const core::feedback_resolution_mode aMode) -> QString
+		{
+			return aMode == core::feedback_resolution_mode::unresolved ? QStringLiteral("open") : QString{ };
+		}
+
+		[[nodiscard]] auto conversations(const std::size_t aCount) -> QString
+		{
+			return aCount == 1U ? QStringLiteral("conversation") : QStringLiteral("conversations");
+		}
+
+		/// "1 open, 1 resolved, 1 state unknown": a breakdown in the states'
+		/// order, zeros left out.
+		[[nodiscard]] auto breakdown_text(const core::feedback_state_counts& aStates) -> QString
+		{
+			auto parts = QStringList{ };
+			for (std::size_t state = 0U; state < core::feedback_resolution_count; ++state) {
+				if (aStates[state] != 0U) {
+					parts.push_back(QStringLiteral("%1 %2").arg(count_text(aStates[state]), feedback_state_text(static_cast<core::feedback_resolution>(state))));
+				}
+			}
+			return parts.join(QStringLiteral(", "));
+		}
+
+		/// The limits and the units the count leaves out, each as a clause:
+		/// "resolution unknown for 2", "label unreadable for 1".
+		[[nodiscard]] auto qualifier_clauses(const core::feedback_counter_projection& aCounts) -> QStringList
+		{
+			auto clauses = QStringList{ };
+			if (const auto unknown = state_of(aCounts.States, core::feedback_resolution::unknown); unknown != 0U) {
+				clauses.push_back(QStringLiteral("resolution unknown for %1").arg(count_text(unknown)));
+			}
+			if (aCounts.ScopeUnclassified != 0U) {
+				clauses.push_back(QStringLiteral("label unreadable for %1").arg(count_text(aCounts.ScopeUnclassified)));
+			}
+			if (const auto none = state_of(aCounts.States, core::feedback_resolution::not_applicable); none != 0U && aCounts.Mode == core::feedback_resolution_mode::unresolved) {
+				clauses.push_back(QStringLiteral("%1 not resolvable").arg(count_text(none)));
+			}
+			for (const auto limit : aCounts.Limits) {
+				switch (limit) {
+				case core::feedback_count_limit::collection_partial:
+					clauses.push_back(QStringLiteral("not every comment was read"));
+					break;
+				case core::feedback_count_limit::collection_stale:
+					clauses.push_back(QStringLiteral("from an earlier read"));
+					break;
+				case core::feedback_count_limit::collection_unavailable:
+					clauses.push_back(QStringLiteral("comments unavailable"));
+					break;
+				case core::feedback_count_limit::attribution_unknown:
+					clauses.push_back(QStringLiteral("some comments' files unknown"));
+					break;
+				case core::feedback_count_limit::classification_partial:
+				case core::feedback_count_limit::resolution_unknown:
+					break; // said above, with their numbers
+				}
+			}
+			return clauses;
+		}
+
+		[[nodiscard]] auto any_columns(const std::optional<application::overview_feedback_projection>& aFeedback) -> bool
+		{
+			return aFeedback.has_value() && aFeedback->Request.Columns.Count != 0U;
+		}
+
+		[[nodiscard]] auto chip_name(const overview_comment_chip& aChip, const bool aAnyColumns) -> QString
+		{
+			switch (aChip.Kind) {
+			case overview_comment_chip::kind::label:
+				return feedback_label_text(*aChip.Label);
+			case overview_comment_chip::kind::other:
+				return aAnyColumns ? QStringLiteral("Other") : QStringLiteral("Comments");
+			case overview_comment_chip::kind::more:
+				return QStringLiteral("More");
+			case overview_comment_chip::kind::uncertain:
+				break;
+			}
+			return QStringLiteral("Not counted");
+		}
+
+		/// One chip's tooltip, next to it: what it counts, in which state, and
+		/// what it leaves out.
+		[[nodiscard]] auto chip_tooltip(const overview_comment_chip& aChip, const core::feedback_counter_projection& aCounts, const bool aAnyColumns) -> QString
+		{
+			const auto open = aCounts.Mode == core::feedback_resolution_mode::unresolved;
+			switch (aChip.Kind) {
+			case overview_comment_chip::kind::label:
+			case overview_comment_chip::kind::other: {
+				const auto what  = aChip.Kind == overview_comment_chip::kind::label ? feedback_label_text(*aChip.Label) + QLatin1Char{ ' ' } : QString{ };
+				auto       lines = QStringList{ };
+				if (aChip.Kind == overview_comment_chip::kind::other && aAnyColumns) {
+					lines.push_back(QStringLiteral("Other: %1 %2%3 without a chip of their own here.")
+										.arg(count_text(aChip.Count), open ? QStringLiteral("open ") : QString{ }, conversations(aChip.Count)));
+				} else {
+					lines.push_back(QStringLiteral("%1 %2%3%4 here.").arg(count_text(aChip.Count), open ? QStringLiteral("open ") : QString{ }, what, conversations(aChip.Count)));
+				}
+				if (!open) {
+					lines.push_back(breakdown_text(aChip.States) + QLatin1Char{ '.' });
+				}
+				lines.push_back(QStringLiteral("Replies don't count. Click to list them."));
+				if (open) {
+					const auto unknown = state_of(aChip.States, core::feedback_resolution::unknown);
+					if (unknown != 0U) {
+						lines.push_back(QStringLiteral("%1 more: state unknown (not counted)").arg(count_text(unknown)));
+					}
+				}
+				return lines.join(QLatin1Char{ '\n' });
+			}
+			case overview_comment_chip::kind::more: {
+				auto lines = QStringList{ };
+				for (const auto& folded : aChip.Folded) {
+					lines.push_back(QStringLiteral("%1 %2").arg(chip_name(folded, aAnyColumns), count_text(folded.Count)));
+				}
+				lines.push_back(QStringLiteral("Click to choose one."));
+				return lines.join(QLatin1Char{ '\n' });
+			}
+			case overview_comment_chip::kind::uncertain:
+				break;
+			}
+			auto       lines   = QStringList{ QStringLiteral("Not counted as open, or label unreadable: %1.").arg(count_text(aCounts.Uncertain)) };
+			const auto clauses = qualifier_clauses(aCounts);
+			if (!clauses.isEmpty()) {
+				lines.push_back(clauses.join(QStringLiteral(" · ")));
+			}
+			if (aCounts.Uncertain != 0U) {
+				lines.push_back(QStringLiteral("Click to list them."));
+			}
+			return lines.join(QLatin1Char{ '\n' });
+		}
+
+		/// A speech bubble: Comments with no chip chosen; with three dots in
+		/// it, Other, the rest.
+		void paint_bubble(QPainter& aPainter, const QRectF& aBox, const QColor& aInk, const bool aOther)
+		{
+			aPainter.save();
+			aPainter.setRenderHint(QPainter::Antialiasing, true);
+			const auto unit   = aBox.width() / 16.0;
+			auto       bubble = QPainterPath{ };
+			const auto body   = QRectF{ aBox.left() + 1.5 * unit, aBox.top() + 2.5 * unit, 13.0 * unit, 9.0 * unit };
+			bubble.addRoundedRect(body, 2.5 * unit, 2.5 * unit);
+			auto tail = QPainterPath{ };
+			tail.moveTo(body.left() + 3.0 * unit, body.bottom() - 0.5 * unit);
+			tail.lineTo(body.left() + 3.0 * unit, aBox.top() + 14.5 * unit);
+			tail.lineTo(body.left() + 6.5 * unit, body.bottom() - 0.5 * unit);
+			bubble = bubble.united(tail);
+			aPainter.setPen(QPen{ aInk, 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawPath(bubble);
+			if (aOther) {
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(aInk);
+				for (const auto dot : { -3.0, 0.0, 3.0 }) {
+					aPainter.drawEllipse(QPointF{ body.center().x() + dot * unit, body.center().y() }, 0.9 * unit, 0.9 * unit);
+				}
+			}
+			aPainter.restore();
+		}
+
+		/// A key: the Label key's icon.
+		void paint_key(QPainter& aPainter, const qreal aSide, const QColor& aInk)
+		{
+			const auto unit = aSide / 16.0;
+			aPainter.setPen(QPen{ aInk, std::max<qreal>(1.25, aSide / 11.0), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawEllipse(QPointF{ 5.0 * unit, 8.0 * unit }, 3.0 * unit, 3.0 * unit);
+			aPainter.drawLine(QPointF{ 8.0 * unit, 8.0 * unit }, QPointF{ 14.0 * unit, 8.0 * unit });
+			aPainter.drawLine(QPointF{ 12.0 * unit, 8.0 * unit }, QPointF{ 12.0 * unit, 10.5 * unit });
+			aPainter.drawLine(QPointF{ 14.0 * unit, 8.0 * unit }, QPointF{ 14.0 * unit, 10.5 * unit });
+		}
+
+		/// Whether the cell's qualifier is the unknown mark or, with only
+		/// conversations that have no resolution, the not-resolvable one.
+		[[nodiscard]] auto qualifier_state(const core::feedback_counter_projection& aCounts) -> core::feedback_resolution
+		{
+			const auto onlyUnresolvable = aCounts.Exact && state_of(aCounts.States, core::feedback_resolution::unknown) == 0U && aCounts.ScopeUnclassified == 0U;
+			return onlyUnresolvable ? core::feedback_resolution::not_applicable : core::feedback_resolution::unknown;
+		}
 	} // namespace
+
+	auto overview_count_name(const core::feedback_count_target& aTarget, const bool aAnyColumns) -> QString
+	{
+		switch (aTarget.Kind) {
+		case core::feedback_count_kind::dedicated:
+			return aTarget.Label ? feedback_label_text(*aTarget.Label) : QString{ };
+		case core::feedback_count_kind::catchall:
+			return aAnyColumns ? QStringLiteral("Other") : QStringLiteral("Comments");
+		case core::feedback_count_kind::uncertain:
+			return QStringLiteral("Not counted");
+		case core::feedback_count_kind::included:
+			break;
+		}
+		return QStringLiteral("Comments");
+	}
+
+	auto overview_comment_chips(const core::feedback_counter_projection& aCounts, const QRect& aCell, const QFont& aFont) -> std::vector<overview_comment_chip>
+	{
+		const auto metrics = QFontMetrics{ chip_font(aFont) };
+		auto       chips   = std::vector<overview_comment_chip>{ };
+		for (const auto& column : aCounts.Dedicated) {
+			if (column.Count != 0U) {
+				auto chip   = overview_comment_chip{ };
+				chip.Kind   = overview_comment_chip::kind::label;
+				chip.Label  = column.Label;
+				chip.Count  = column.Count;
+				chip.States = column.States;
+				chips.push_back(std::move(chip));
+			}
+		}
+		if (aCounts.Catchall != 0U) {
+			auto chip   = overview_comment_chip{ };
+			chip.Kind   = overview_comment_chip::kind::other;
+			chip.Count  = aCounts.Catchall;
+			chip.States = aCounts.CatchallStates;
+			chips.push_back(std::move(chip));
+		}
+		const auto qualified = aCounts.Uncertain != 0U || !aCounts.Exact;
+		const auto top       = static_cast<qreal>(aCell.center().y()) - chip_mark / 2.0 + 0.5;
+		const auto left      = aCell.left() + 6.0;
+		const auto right     = aCell.right() - 4.0 - (qualified ? chip_mark + 4.0 : 0.0);
+		const auto widthOf   = [&](const overview_comment_chip& aChip) { return chip_mark + 2.0 + pill_width(metrics, aChip.Count); };
+		auto       total     = 0.0;
+		for (const auto& chip : chips) {
+			total += widthOf(chip) + chip_gap;
+		}
+		auto shown = chips.size();
+		if (left + total - chip_gap > right) {
+			// Fold the tail into "+n" so the chips that are shown stay whole.
+			const auto moreWidth = [&](const std::size_t aFolded) { return metrics.horizontalAdvance(QStringLiteral("+%1").arg(aFolded)) + 10.0; };
+			auto       used      = 0.0;
+			shown                = 0U;
+			while (shown < chips.size() && left + used + widthOf(chips[shown]) + chip_gap + moreWidth(chips.size() - shown - 1U) <= right) {
+				used += widthOf(chips[shown]) + chip_gap;
+				++shown;
+			}
+		}
+		auto result = std::vector<overview_comment_chip>{ };
+		auto x      = left;
+		for (std::size_t index = 0U; index < shown; ++index) {
+			auto chip = chips[index];
+			chip.Box  = QRectF{ x, top, widthOf(chip), chip_mark };
+			x += chip.Box.width() + chip_gap;
+			result.push_back(std::move(chip));
+		}
+		if (shown < chips.size()) {
+			auto more   = overview_comment_chip{ };
+			more.Kind   = overview_comment_chip::kind::more;
+			more.Count  = chips.size() - shown;
+			more.Folded = std::vector<overview_comment_chip>{ chips.begin() + static_cast<std::ptrdiff_t>(shown), chips.end() };
+			more.Box    = QRectF{ x, top, metrics.horizontalAdvance(QStringLiteral("+%1").arg(more.Count)) + 10.0, chip_mark };
+			result.push_back(std::move(more));
+		}
+		if (qualified) {
+			auto qualifier  = overview_comment_chip{ };
+			qualifier.Kind  = overview_comment_chip::kind::uncertain;
+			qualifier.Count = aCounts.Uncertain;
+			qualifier.Box   = QRectF{ aCell.right() - 4.0 - chip_mark, top, chip_mark, chip_mark };
+			result.push_back(std::move(qualifier));
+		}
+		return result;
+	}
 
 	// ---- overview_file_model ------------------------------------------------
 
@@ -683,7 +977,7 @@ namespace bpr::qt {
 			for (const auto& child : parent->Children) {
 				if (child->File) {
 					FileNodes.insert(child->Path, child.get());
-				} else {
+				} else if (!child->Remainder) {
 					++FolderCount;
 					pending.push_back(child.get());
 				}
@@ -710,8 +1004,148 @@ namespace bpr::qt {
 		}
 		auto desired = node{ };
 		build_tree(desired, aRows);
+		// [[BPR-1089]]. The "Not on a file" row stays last, as it is.
+		if (!Root.Children.empty() && Root.Children.back()->Remainder) {
+			auto remainder       = std::make_unique<node>();
+			remainder->Path      = remainder_path;
+			remainder->Remainder = true;
+			remainder->Parent    = &desired;
+			remainder->Row       = static_cast<int>(desired.Children.size());
+			desired.Children.push_back(std::move(remainder));
+		}
 		reconcile(Root, desired);
 		rebuild_lookup(aRows);
+	}
+
+	void overview_file_model::apply_feedback(std::optional<application::overview_feedback_projection> aFeedback)
+	{
+		const auto had = Feedback.has_value();
+		Feedback       = std::move(aFeedback);
+		FileFeedback.clear();
+		FolderFeedback.clear();
+		if (Feedback) {
+			for (std::size_t index = 0U; index < Feedback->Files.size(); ++index) {
+				FileFeedback.insert(text(Feedback->Files[index].Path), index);
+			}
+			for (std::size_t index = 0U; index < Feedback->Folders.size(); ++index) {
+				FolderFeedback.insert(text(Feedback->Folders[index].Path), index);
+			}
+		}
+		sync_remainder();
+		// Only the Comments column moves: one change per parent's run of rows.
+		auto pending = std::vector<const node*>{ &Root };
+		while (!pending.empty()) {
+			const auto* parent = pending.back();
+			pending.pop_back();
+			if (!parent->Children.empty()) {
+				emit dataChanged(index(0, comments_column, index_of(*parent)), index(static_cast<int>(parent->Children.size()) - 1, comments_column, index_of(*parent)));
+			}
+			for (const auto& child : parent->Children) {
+				if (!child->File && !child->Remainder) {
+					pending.push_back(child.get());
+				}
+			}
+		}
+		if (had != Feedback.has_value()) {
+			emit headerDataChanged(Qt::Horizontal, comments_column, comments_column);
+		}
+	}
+
+	void overview_file_model::sync_remainder()
+	{
+		const auto shown  = !Root.Children.empty() && Root.Children.back()->Remainder;
+		const auto wanted = Feedback.has_value() && Feedback->Remainder.Counts.ScopeTotal != 0U;
+		if (shown == wanted) {
+			return;
+		}
+		const auto row = static_cast<int>(Root.Children.size()) - (shown ? 1 : 0);
+		if (wanted) {
+			beginInsertRows({ }, row, row);
+			auto remainder       = std::make_unique<node>();
+			remainder->Path      = remainder_path;
+			remainder->Remainder = true;
+			remainder->Parent    = &Root;
+			remainder->Row       = row;
+			Root.Children.push_back(std::move(remainder));
+			endInsertRows();
+		} else {
+			beginRemoveRows({ }, row, row);
+			Root.Children.pop_back();
+			endRemoveRows();
+		}
+	}
+
+	auto overview_file_model::feedback() const noexcept -> const std::optional<application::overview_feedback_projection>&
+	{
+		return Feedback;
+	}
+
+	auto overview_file_model::feedback_at(const QModelIndex& aIndex) const -> const core::feedback_counter_projection*
+	{
+		const auto* item = node_at(aIndex);
+		if (item == nullptr || !Feedback) {
+			return nullptr;
+		}
+		if (item->Remainder) {
+			return &Feedback->Remainder.Counts;
+		}
+		const auto& lookup = item->File ? FileFeedback : FolderFeedback;
+		const auto  found  = lookup.constFind(item->Path);
+		if (found == lookup.cend()) {
+			return nullptr;
+		}
+		return item->File ? &Feedback->Files[*found].Counts : &Feedback->Folders[*found].Counts;
+	}
+
+	auto overview_file_model::feedback_row(const QModelIndex& aIndex) const
+		-> std::optional<std::pair<application::overview_feedback_row_kind, std::string>>
+	{
+		const auto* item = node_at(aIndex);
+		if (item == nullptr || feedback_at(aIndex) == nullptr) {
+			return std::nullopt;
+		}
+		if (item->Remainder) {
+			return std::pair{ application::overview_feedback_row_kind::remainder, std::string{ } };
+		}
+		return std::pair{ item->File ? application::overview_feedback_row_kind::file : application::overview_feedback_row_kind::folder, item->Path.toStdString() };
+	}
+
+	auto overview_file_model::remainder_index(const int aColumn) const -> QModelIndex
+	{
+		return !Root.Children.empty() && Root.Children.back()->Remainder ? index_of(*Root.Children.back(), aColumn) : QModelIndex{ };
+	}
+
+	auto overview_file_model::comments_text(const core::feedback_counter_projection& aCounts, const bool aAccessible) const -> QString
+	{
+		const auto anyColumns = any_columns(Feedback);
+		const auto all        = aCounts.Mode == core::feedback_resolution_mode::all;
+		auto       parts      = QStringList{ };
+		// In All each count says its breakdown, as its state bar shows it.
+		const auto part = [&](const QString& aName, const std::size_t aCount, const core::feedback_state_counts& aStates) {
+			parts.push_back(aAccessible && all ? QStringLiteral("%1 %2 (%3)").arg(aName, count_text(aCount), breakdown_text(aStates)) : QStringLiteral("%1 %2").arg(aName, count_text(aCount)));
+		};
+		for (const auto& column : aCounts.Dedicated) {
+			if (column.Count != 0U) {
+				part(feedback_label_text(column.Label), column.Count, column.States);
+			}
+		}
+		if (aCounts.Catchall != 0U) {
+			part(anyColumns ? QStringLiteral("Other") : QStringLiteral("Comments"), aCounts.Catchall, aCounts.CatchallStates);
+		}
+		if (!aAccessible) {
+			if (aCounts.Uncertain != 0U || !aCounts.Exact) {
+				parts.push_back(QStringLiteral("? %1").arg(count_text(aCounts.Uncertain)));
+			}
+			return parts.join(QStringLiteral(" · "));
+		}
+		const auto open    = mode_word(aCounts.Mode);
+		auto       said    = parts.isEmpty() ? QStringLiteral("No %1conversations").arg(open.isEmpty() ? QString{ } : open + QLatin1Char{ ' ' })
+											 : QStringLiteral("%1 %2conversations").arg(parts.join(QStringLiteral(", ")), open.isEmpty() ? QString{ } : open + QLatin1Char{ ' ' });
+		const auto clauses = qualifier_clauses(aCounts);
+		if (!clauses.isEmpty()) {
+			said += QStringLiteral("; ") + clauses.join(QStringLiteral("; "));
+		}
+		return said;
 	}
 
 	void overview_file_model::update_rows(const std::span<const application::overview_file_row> aRows)
@@ -781,6 +1215,34 @@ namespace bpr::qt {
 	{
 		const auto* item = node_at(aIndex);
 		if (item == nullptr) {
+			return { };
+		}
+		if (aRole == remainder_role) {
+			return item->Remainder;
+		}
+		const auto* counts = aIndex.column() == comments_column ? feedback_at(aIndex) : nullptr;
+		if (counts != nullptr) {
+			switch (aRole) {
+			case Qt::DisplayRole:
+				return comments_text(*counts, false);
+			case Qt::AccessibleTextRole:
+				return comments_text(*counts, true);
+			case Qt::ToolTipRole:
+				return comments_text(*counts, true) + QStringLiteral("\nEnter or the context menu lists them.");
+			default:
+				break;
+			}
+		}
+		if (item->Remainder) {
+			if (aRole == folder_role) {
+				return false;
+			}
+			if (aIndex.column() == file_column && aRole == Qt::DisplayRole) {
+				return QStringLiteral("Not on a file");
+			}
+			if (aIndex.column() == file_column && (aRole == Qt::ToolTipRole || aRole == Qt::AccessibleTextRole)) {
+				return QStringLiteral("Not on a file: unanchored threads, pull request comments and review summaries");
+			}
 			return { };
 		}
 		if (!item->File) {
@@ -882,8 +1344,24 @@ namespace bpr::qt {
 	auto overview_file_model::headerData(const int aSection, const Qt::Orientation aOrientation, const int aRole) const
 		-> QVariant
 	{
-		if (aOrientation != Qt::Horizontal || aRole != Qt::DisplayRole) {
+		if (aOrientation != Qt::Horizontal) {
 			return { };
+		}
+		// [[BPR-1089]]. Comments ▾ chooses the number the rows sort by.
+		if (aSection == comments_column && Feedback && (aRole == Qt::ToolTipRole || aRole == Qt::AccessibleDescriptionRole)) {
+			const auto open = Feedback->Request.Mode == core::feedback_resolution_mode::unresolved;
+			auto       tip  = QStringLiteral("%1 by label, in your Settings order; %2. Replies don't count. Click a chip to list them.")
+								  .arg(open ? QStringLiteral("Open conversations") : QStringLiteral("Conversations"),
+									   any_columns(Feedback) ? QStringLiteral("the speech bubble is Other") : QStringLiteral("no label chips chosen, so the bubble counts them all"));
+			tip += Feedback->Request.Sort ? QStringLiteral("\nSorted by %1, most first. Click to change.").arg(overview_count_name(*Feedback->Request.Sort, any_columns(Feedback)))
+										  : QStringLiteral("\nClick to sort by a label.");
+			return tip;
+		}
+		if (aRole != Qt::DisplayRole) {
+			return { };
+		}
+		if (aSection == comments_column && Feedback) {
+			return Feedback->Request.Sort ? QStringLiteral("Comments ↓ ▾") : QStringLiteral("Comments ▾");
 		}
 		switch (aSection) {
 		case operation_column:
@@ -999,6 +1477,20 @@ namespace bpr::qt {
 	{
 		const auto folder = aIndex.data(overview_file_model::folder_role).toBool();
 		const auto column = aIndex.column();
+		// [[BPR-1089]]. The label chips, on file, folder and remainder rows alike.
+		if (column == overview_file_model::comments_column) {
+			const auto* model  = dynamic_cast<const overview_file_model*>(aIndex.model());
+			const auto* counts = model != nullptr ? model->feedback_at(aIndex) : nullptr;
+			if (counts != nullptr) {
+				auto option = aOption;
+				initStyleOption(&option, aIndex);
+				option.text.clear();
+				const auto* style = option.widget != nullptr ? option.widget->style() : QApplication::style();
+				style->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
+				paint_chips(aPainter, option, *counts, model->feedback()->Request.Mode, folder || aIndex.data(overview_file_model::remainder_role).toBool());
+				return;
+			}
+		}
 		const auto marked = !folder
 			&& (column == overview_file_model::operation_column
 				|| column == overview_file_model::changed_column
@@ -1022,6 +1514,10 @@ namespace bpr::qt {
 				option.palette.setColor(QPalette::Text, Colours.Defect);
 			}
 			if (!folder && column == overview_file_model::note_column) {
+				option.palette.setColor(QPalette::Text, option.palette.color(QPalette::PlaceholderText));
+			}
+			if (aIndex.data(overview_file_model::remainder_role).toBool()) {
+				option.font.setWeight(QFont::DemiBold);
 				option.palette.setColor(QPalette::Text, option.palette.color(QPalette::PlaceholderText));
 			}
 			const auto* const style = option.widget != nullptr ? option.widget->style() : QApplication::style();
@@ -1137,6 +1633,90 @@ namespace bpr::qt {
 		}
 		default:
 			break;
+		}
+		aPainter->restore();
+	}
+
+	void overview_row_delegate::paint_chips(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts,
+											const core::feedback_resolution_mode aMode, const bool aSoft) const
+	{
+		const auto chips = overview_comment_chips(aCounts, aOption.rect, aOption.font);
+		if (chips.empty()) {
+			return; // a complete zero: blank, and nothing else is blank
+		}
+		aPainter->save();
+		aPainter->setRenderHint(QPainter::Antialiasing, true);
+		const auto  selected   = (aOption.state & QStyle::State_Selected) != 0;
+		const auto  group      = (aOption.state & QStyle::State_Active) != 0 ? QPalette::Active : QPalette::Inactive;
+		const auto  ink        = aOption.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text);
+		const auto* model      = dynamic_cast<const overview_file_model*>(aOption.index.model());
+		const auto  anyColumns = model != nullptr && any_columns(model->feedback());
+		const auto  open       = aMode == core::feedback_resolution_mode::unresolved;
+		aPainter->setFont(chip_font(aOption.font));
+		for (const auto& chip : chips) {
+			const auto& box = chip.Box;
+			switch (chip.Kind) {
+			case overview_comment_chip::kind::label:
+			case overview_comment_chip::kind::other: {
+				const auto mark = QRectF{ box.left(), box.top(), chip_mark, chip_mark };
+				if (chip.Kind == overview_comment_chip::kind::label) {
+					paint_feedback_mark(*aPainter, mark, *chip.Label, { }, feedback_mark_colours_for(Colours.Marks, *chip.Label, aOption.palette));
+				} else {
+					paint_bubble(*aPainter, mark, ink, anyColumns);
+				}
+				// The count: in Open, the open amber; in All, a neutral count
+				// with the state breakdown beneath it.
+				// All keeps room under the count for its 2.5 px state bar.
+				const auto pill = QRectF{ mark.right() + 2.0, box.top() + (open ? 0.5 : 0.0), box.width() - chip_mark - 2.0, open ? 15.0 : 13.5 };
+				if (open && !aSoft) {
+					aPainter->setPen(Qt::NoPen);
+					aPainter->setBrush(Colours.States.Open);
+					aPainter->drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+					aPainter->setPen(feedback_mark_blocking_ink(Colours.States.Open));
+				} else if (open) {
+					aPainter->setBrush(Qt::NoBrush);
+					aPainter->setPen(QPen{ Colours.States.Open, 1.2 });
+					aPainter->drawRoundedRect(pill.adjusted(0.6, 0.6, -0.6, -0.6), pill.height() / 2.0, pill.height() / 2.0);
+					aPainter->setPen(ink);
+				} else {
+					aPainter->setBrush(aOption.palette.color(group, QPalette::AlternateBase));
+					aPainter->setPen(QPen{ aOption.palette.color(group, QPalette::Mid), 1.0 });
+					aPainter->drawRoundedRect(pill.adjusted(0.5, 0.5, -0.5, -0.5), pill.height() / 2.0, pill.height() / 2.0);
+					aPainter->setPen(ink);
+				}
+				aPainter->drawText(pill, Qt::AlignCenter, QString::number(static_cast<qulonglong>(chip.Count)));
+				if (!open) {
+					// Open, resolved, unknown and not resolvable, in proportion.
+					const auto total = std::accumulate(chip.States.begin(), chip.States.end(), std::size_t{ 0U });
+					const auto bar   = QRectF{ pill.left() + 2.0, pill.bottom() + 0.75, pill.width() - 4.0, 2.5 };
+					const auto fills = std::array{ Colours.States.Open, Colours.States.Resolved, aOption.palette.color(group, QPalette::PlaceholderText), aOption.palette.color(group, QPalette::Mid) };
+					auto       x     = bar.left();
+					aPainter->setPen(Qt::NoPen);
+					for (std::size_t state = 0U; state < chip.States.size() && total != 0U; ++state) {
+						const auto width = bar.width() * static_cast<qreal>(chip.States[state]) / static_cast<qreal>(total);
+						if (width > 0.0) {
+							aPainter->setBrush(fills[state]);
+							aPainter->drawRect(QRectF{ x, bar.top(), width, bar.height() });
+							x += width;
+						}
+					}
+				}
+				break;
+			}
+			case overview_comment_chip::kind::more:
+				aPainter->setBrush(Qt::NoBrush);
+				aPainter->setPen(QPen{ aOption.palette.color(group, QPalette::Mid), 1.0 });
+				aPainter->drawRoundedRect(box.adjusted(0.5, 1.0, -0.5, -1.0), 7.0, 7.0);
+				aPainter->setPen(ink);
+				aPainter->drawText(box, Qt::AlignCenter, QStringLiteral("+%1").arg(chip.Count));
+				break;
+			case overview_comment_chip::kind::uncertain: {
+				auto states  = Colours.States;
+				states.Faint = selected ? ink : aOption.palette.color(group, QPalette::PlaceholderText);
+				paint_feedback_state_mark(*aPainter, box, qualifier_state(aCounts), states);
+				break;
+			}
+			}
 		}
 		aPainter->restore();
 	}
@@ -1339,6 +1919,65 @@ namespace bpr::qt {
 		ExpandFolders   = folderButton(QStringLiteral("Expand all folders"), QStringLiteral("overviewExpandFolders"));
 		connect(CollapseFolders, &QToolButton::clicked, this, [this] { collapse_all_folders(); });
 		connect(ExpandFolders, &QToolButton::clicked, this, [this] { expand_all_folders(); });
+		// [[BPR-1089]]. Open or All, the ? chip and the Label key (owner,
+		// BPR-1079 Overview states), with their names in tooltips.
+		const auto countsButton = [main](const QString& aText, const QString& aName, const QString& aAccessible, const QString& aTip) {
+			auto* const button = new QToolButton{ main };
+			button->setObjectName(aName);
+			button->setText(aText);
+			button->setAccessibleName(aAccessible);
+			button->setToolTip(aTip);
+			button->setCheckable(true);
+			button->setAutoExclusive(true);
+			button->setAutoRaise(true);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			button->setIconSize(QSize{ 16, 16 });
+			button->hide();
+			anchor_tooltips(*button);
+			return button;
+		};
+		OpenCounts = countsButton(QStringLiteral("Open"), QStringLiteral("overviewModeOpen"), QStringLiteral("Open conversations"), QStringLiteral("Unresolved conversations (default)"));
+		AllCounts  = countsButton(QStringLiteral("All"), QStringLiteral("overviewModeAll"), QStringLiteral("All conversations"), QStringLiteral("Every conversation: open, resolved, unknown"));
+		AllCounts->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		connect(OpenCounts, &QToolButton::toggled, this, [this](const bool aOn) {
+			if (aOn) {
+				choose_mode(core::feedback_resolution_mode::unresolved);
+			}
+		});
+		connect(AllCounts, &QToolButton::toggled, this, [this](const bool aOn) {
+			if (aOn) {
+				choose_mode(core::feedback_resolution_mode::all);
+			}
+		});
+		Uncertain = new QToolButton{ main };
+		Uncertain->setObjectName(QStringLiteral("overviewUncertain"));
+		Uncertain->setAutoRaise(true);
+		Uncertain->setFocusPolicy(Qt::StrongFocus);
+		Uncertain->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		Uncertain->setIconSize(QSize{ 16, 16 });
+		Uncertain->hide();
+		anchor_tooltips(*Uncertain);
+		connect(Uncertain, &QToolButton::clicked, this, [this] { drill(application::overview_feedback_row_kind::pull_request, { }, { .Kind = core::feedback_count_kind::uncertain }); });
+		LabelKey = folderButton(QStringLiteral("Label key"), QStringLiteral("overviewLabelKey"));
+		LabelKey->setToolTip(QStringLiteral("Label key (Alt+K)"));
+		LabelKey->setAccessibleDescription(QStringLiteral("Lists every label mark with its name and shortcode, and the state marks"));
+		anchor_tooltips(*LabelKey);
+		connect(LabelKey, &QToolButton::clicked, this, [this] { show_label_key(); });
+		auto* const keyShortcut = new QShortcut{ QKeySequence{ Qt::ALT | Qt::Key_K }, this };
+		keyShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+		keyShortcut->setObjectName(QStringLiteral("overviewLabelKeyShortcut"));
+		connect(keyShortcut, &QShortcut::activated, this, [this] {
+			if (Model->feedback()) {
+				show_label_key();
+			}
+		});
+		headingRow->addWidget(OpenCounts);
+		headingRow->addWidget(AllCounts);
+		headingRow->addSpacing(4);
+		headingRow->addWidget(Uncertain);
+		headingRow->addWidget(LabelKey);
+		headingRow->addSpacing(6);
 		headingRow->addWidget(CollapseFolders);
 		headingRow->addWidget(ExpandFolders);
 		mainColumn->addLayout(headingRow);
@@ -1351,7 +1990,8 @@ namespace bpr::qt {
 		Files->setAccessibleDescription(QStringLiteral(
 			"Every file with its operation, line counts, whether it changed "
 			"since my last review, my read state, comment counts and my note; "
-			"activate a file to read it; click a folder, or use Left and Right, to hide and show its files"));
+			"activate a file to read it; click a folder, or use Left and Right, to hide and show its files; "
+			"on a Comments cell, Enter or the context-menu key lists its conversations"));
 		Files->setModel(Model);
 		Files->setItemDelegate(new overview_row_delegate{ Colours, Files });
 		// [[BPR-1213]]. Flat rows: no indentation, so every file aligns at the
@@ -1405,6 +2045,41 @@ namespace bpr::qt {
 			} else if (Cached && !path.isEmpty() && CachedSourceDispatch) {
 				CachedSourceDispatch(path);
 			}
+		});
+		// [[BPR-1089]]. A chip opens the conversations it counted: a click on
+		// it, Enter on its cell, or the context-menu key or a right-click on
+		// its row, whose menu reaches every chip, Other, "+n" and ?.
+		Files->viewport()->installEventFilter(this);
+		Files->installEventFilter(this);
+		Files->setContextMenuPolicy(Qt::CustomContextMenu);
+		connect(Files, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPosition) {
+			auto index = Files->indexAt(aPosition);
+			if (!index.isValid()) {
+				index = Files->currentIndex();
+			}
+			open_comments_menu(index, Files->viewport()->mapToGlobal(aPosition));
+		});
+		Files->header()->setSectionsClickable(true);
+		connect(Files->header(), &QHeaderView::sectionClicked, this, [this](const int aSection) {
+			if (aSection != overview_file_model::comments_column || !Model->feedback()) {
+				return;
+			}
+			auto* const menu = make_sort_menu();
+			menu->setAttribute(Qt::WA_DeleteOnClose);
+			const auto left = Files->header()->sectionViewportPosition(aSection);
+			menu->popup(Files->header()->mapToGlobal(QPoint{ left, Files->header()->height() }));
+		});
+		anchor_tooltips(*Files->viewport(), [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
+			if (const auto chip = chip_at(aPosition)) {
+				const auto* counts = Model->feedback_at(chip->first);
+				return anchored_tooltip_target{ .Anchor = chip->second.Box.toAlignedRect(), .Text = chip_tooltip(chip->second, *counts, any_columns(Model->feedback())) };
+			}
+			const auto index = Files->indexAt(aPosition);
+			const auto text  = index.isValid() ? index.data(Qt::ToolTipRole).toString() : QString{ };
+			if (text.isEmpty()) {
+				return std::nullopt;
+			}
+			return anchored_tooltip_target{ .Anchor = Files->visualRect(index), .Text = text };
 		});
 		mainColumn->addWidget(Files, 1);
 		CachedThreadsHeading = make_heading(QString{ }, QStringLiteral("overviewCachedThreadsHeading"), main);
@@ -1519,6 +2194,9 @@ namespace bpr::qt {
 		columns->addWidget(main, 1);
 		columns->addWidget(sideScroll);
 
+		Colours.Marks  = default_feedback_mark_theme(palette());
+		Colours.States = default_feedback_state_colours(palette());
+		refresh_feedback_icons();
 		clear();
 	}
 
@@ -1537,7 +2215,18 @@ namespace bpr::qt {
 		CachedThreadsHeading->hide();
 		const auto bodyChanged = Projection.has_value() && Projection->Body != aProjection.Body;
 		const auto updateBody  = !Projection.has_value() || bodyChanged;
-		Projection             = aProjection;
+		// [[BPR-1089]]. Another pull request starts from the Settings default,
+		// in file order, with no counts until the host answers for it.
+		const auto samePullRequest = Projection.has_value() && Projection->Owner == aProjection.Owner && Projection->RepositoryName == aProjection.RepositoryName
+			&& Projection->Number == aProjection.Number;
+		if (!samePullRequest) {
+			ModeChosen = false;
+			Mode       = DefaultMode;
+			Sort.reset();
+			AskedFeedback.reset();
+			Model->apply_feedback(std::nullopt);
+		}
+		Projection = aProjection;
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
 			Files->setColumnHidden(column, false);
 		}
@@ -1586,8 +2275,10 @@ namespace bpr::qt {
 
 		const auto& since = aProjection.SinceLastReview;
 		present_files_heading(aProjection);
-		Model->apply(aProjection.Files);
+		apply_rows();
 		update_folder_controls();
+		present_feedback_controls();
+		dispatch_feedback_request();
 
 		rebuild_participants(aProjection.Participants);
 
@@ -1715,8 +2406,14 @@ namespace bpr::qt {
 		ReadDescription->setVisible(false);
 		FilesHeading->setText(QStringLiteral("Files"));
 		FilesHeading->setToolTip({ });
+		ModeChosen = false;
+		Mode       = DefaultMode;
+		Sort.reset();
+		AskedFeedback.reset();
+		Model->apply_feedback(std::nullopt);
 		Model->apply({ });
 		update_folder_controls();
+		present_feedback_controls();
 		rebuild_participants({ });
 		SinceHeading->setText(QStringLiteral("Since my last review"));
 		for (auto* const value : Values) {
@@ -1896,7 +2593,12 @@ namespace bpr::qt {
 		Colours.Unread   = aProfile.color(core::appearance_role::state_unread);
 		Colours.Accepted = aProfile.color(core::appearance_role::state_accepted);
 		Colours.Defect   = aProfile.color(core::appearance_role::state_defect);
+		// [[BPR-1089]]. The state marks: open amber and resolved green.
+		Colours.States.Open       = aProfile.color(core::appearance_role::state_attention);
+		Colours.States.Resolved   = Colours.Accepted;
+		Colours.States.OnResolved = feedback_mark_blocking_ink(Colours.Accepted);
 		refresh_folder_icons();
+		refresh_feedback_icons();
 		update();
 		Files->viewport()->update();
 	}
@@ -1967,6 +2669,510 @@ namespace bpr::qt {
 	auto pull_request_overview_page::colours() const noexcept -> const overview_colours&
 	{
 		return Colours;
+	}
+
+	// ---- [[BPR-1089]]: the Comments column's chips --------------------------
+
+	auto pull_request_overview_page::feedback_request() const -> application::overview_feedback_request
+	{
+		auto request    = application::overview_feedback_request{ };
+		request.Columns = Columns;
+		request.Mode    = Mode;
+		request.Sort    = Sort;
+		return request;
+	}
+
+	void pull_request_overview_page::dispatch_feedback_request()
+	{
+		if (!Projection || Cached || !FeedbackDispatch) {
+			return;
+		}
+		const auto request = feedback_request();
+		if (AskedFeedback == std::optional{ request }) {
+			return;
+		}
+		AskedFeedback = request;
+		FeedbackDispatch(request);
+	}
+
+	void pull_request_overview_page::present_feedback(const application::overview_feedback_projection& aFeedback)
+	{
+		// An answer to an earlier request is replaced by the one on its way.
+		if (!Projection || Cached || aFeedback.Request != feedback_request()) {
+			return;
+		}
+		const auto reorder = !Model->feedback() || Model->feedback()->Order != aFeedback.Order;
+		Model->apply_feedback(aFeedback);
+		if (reorder) {
+			apply_rows();
+		}
+		present_feedback_controls();
+	}
+
+	auto pull_request_overview_page::ordered_rows() const -> std::vector<application::overview_file_row>
+	{
+		if (!Projection) {
+			return { };
+		}
+		const auto& feedback = Model->feedback();
+		if (!feedback || feedback->Order.empty()) {
+			return Projection->Files;
+		}
+		auto byPath = std::unordered_map<std::string_view, const application::overview_file_row*>{ };
+		byPath.reserve(Projection->Files.size());
+		for (const auto& row : Projection->Files) {
+			byPath.emplace(row.Path, &row);
+		}
+		auto rows = std::vector<application::overview_file_row>{ };
+		rows.reserve(Projection->Files.size());
+		for (const auto& path : feedback->Order) {
+			if (const auto found = byPath.find(path); found != byPath.end()) {
+				rows.push_back(*found->second);
+				byPath.erase(found);
+			}
+		}
+		for (const auto& row : Projection->Files) {
+			if (byPath.contains(row.Path)) {
+				rows.push_back(row);
+			}
+		}
+		return rows;
+	}
+
+	void pull_request_overview_page::apply_rows()
+	{
+		if (!Projection) {
+			return;
+		}
+		// File order needs no copy of the rows.
+		if (const auto& feedback = Model->feedback(); !feedback || feedback->Order.empty()) {
+			Model->apply(Projection->Files);
+			return;
+		}
+		Model->apply(ordered_rows());
+	}
+
+	void pull_request_overview_page::present_feedback_controls()
+	{
+		const auto& feedback = Model->feedback();
+		const auto  shown    = feedback.has_value() && Projection.has_value() && !Cached;
+		{
+			const QSignalBlocker openBlocker{ OpenCounts };
+			const QSignalBlocker allBlocker{ AllCounts };
+			OpenCounts->setChecked(Mode == core::feedback_resolution_mode::unresolved);
+			AllCounts->setChecked(Mode == core::feedback_resolution_mode::all);
+		}
+		OpenCounts->setVisible(shown);
+		AllCounts->setVisible(shown);
+		LabelKey->setVisible(shown);
+		const auto* whole     = shown ? &feedback->PullRequest.Counts : nullptr;
+		const auto  qualified = whole != nullptr && (whole->Uncertain != 0U || !whole->Exact);
+		Uncertain->setVisible(qualified);
+		if (qualified) {
+			Uncertain->setText(count_text(whole->Uncertain));
+			auto chip  = overview_comment_chip{ };
+			chip.Kind  = overview_comment_chip::kind::uncertain;
+			chip.Count = whole->Uncertain;
+			Uncertain->setToolTip(chip_tooltip(chip, *whole, any_columns(feedback)));
+			Uncertain->setAccessibleName(QStringLiteral("Not counted: %1").arg(count_text(whole->Uncertain)));
+			Uncertain->setAccessibleDescription(qualifier_clauses(*whole).join(QStringLiteral("; ")));
+			Uncertain->setEnabled(whole->Uncertain != 0U);
+		}
+		auto* const header = Files->header();
+		if (shown) {
+			header->setSectionResizeMode(overview_file_model::comments_column, QHeaderView::Fixed);
+			header->resizeSection(overview_file_model::comments_column, overview_comments_width);
+		} else {
+			header->setSectionResizeMode(overview_file_model::comments_column, QHeaderView::ResizeToContents);
+		}
+	}
+
+	void pull_request_overview_page::refresh_feedback_icons()
+	{
+		const auto ratio = devicePixelRatioF();
+		auto       state = Colours.States;
+		state.Faint      = palette().color(QPalette::PlaceholderText);
+		OpenCounts->setIcon(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unresolved, state, ratio) });
+		Uncertain->setIcon(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) });
+		LabelKey->setIcon(painted_glyph_icon(paint_key, palette().color(QPalette::Text), palette().color(QPalette::Disabled, QPalette::Text)));
+	}
+
+	void pull_request_overview_page::set_label_columns(const core::feedback_label_columns& aColumns)
+	{
+		if (Columns == aColumns) {
+			return;
+		}
+		Columns = aColumns;
+		// A sort by a chip that is gone returns to the file order.
+		if (Sort && ((Sort->Kind == core::feedback_count_kind::dedicated && std::ranges::find(core::labels_of(Columns), Sort->Label) == core::labels_of(Columns).end()) || (Sort->Kind == core::feedback_count_kind::catchall && Columns.Count == 0U))) {
+			Sort.reset();
+		}
+		dispatch_feedback_request();
+	}
+
+	void pull_request_overview_page::set_default_mode(const core::feedback_resolution_mode aMode)
+	{
+		DefaultMode = aMode;
+		if (!ModeChosen && Mode != aMode) {
+			Mode = aMode;
+			present_feedback_controls();
+			dispatch_feedback_request();
+		}
+	}
+
+	void pull_request_overview_page::choose_mode(const core::feedback_resolution_mode aMode)
+	{
+		ModeChosen = true;
+		if (Mode == aMode) {
+			return;
+		}
+		Mode = aMode;
+		present_feedback_controls();
+		dispatch_feedback_request();
+	}
+
+	void pull_request_overview_page::choose_sort(std::optional<core::feedback_count_target> aSort)
+	{
+		if (Sort == aSort) {
+			return;
+		}
+		Sort = std::move(aSort);
+		dispatch_feedback_request();
+	}
+
+	void pull_request_overview_page::set_label_marks(const feedback_mark_theme& aTheme)
+	{
+		Colours.Marks = aTheme;
+		Files->viewport()->update();
+	}
+
+	void pull_request_overview_page::set_attention_colour(const QColor& aColour)
+	{
+		Colours.States.Open = aColour;
+		refresh_feedback_icons();
+		Files->viewport()->update();
+	}
+
+	void pull_request_overview_page::set_feedback_dispatch(overview_feedback_dispatch aDispatch)
+	{
+		FeedbackDispatch = std::move(aDispatch);
+		AskedFeedback.reset();
+		dispatch_feedback_request();
+	}
+
+	void pull_request_overview_page::set_drill_down_dispatch(overview_drill_down_dispatch aDispatch)
+	{
+		DrillDownDispatch = std::move(aDispatch);
+	}
+
+	void pull_request_overview_page::drill(const application::overview_feedback_row_kind aRow, const std::string& aPath, const core::feedback_count_target& aTarget)
+	{
+		if (!DrillDownDispatch || !Model->feedback()) {
+			return;
+		}
+		auto down   = application::overview_drill_down{ };
+		down.Row    = aRow;
+		down.Path   = aPath;
+		down.Target = aTarget;
+		DrillDownDispatch(down);
+	}
+
+	auto pull_request_overview_page::chip_at(const QPoint& aViewportPosition) const -> std::optional<std::pair<QModelIndex, overview_comment_chip>>
+	{
+		const auto index = Files->indexAt(aViewportPosition);
+		if (!index.isValid() || index.column() != overview_file_model::comments_column) {
+			return std::nullopt;
+		}
+		const auto* counts = Model->feedback_at(index);
+		if (counts == nullptr) {
+			return std::nullopt;
+		}
+		for (auto& chip : overview_comment_chips(*counts, Files->visualRect(index), Files->font())) {
+			if (chip.Box.contains(QPointF{ aViewportPosition })) {
+				return std::pair{ index, std::move(chip) };
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto pull_request_overview_page::make_comments_menu(const QModelIndex& aIndex) -> QMenu*
+	{
+		const auto  cell   = aIndex.siblingAtColumn(overview_file_model::comments_column);
+		const auto* counts = Model->feedback_at(cell);
+		const auto  row    = Model->feedback_row(cell);
+		if (counts == nullptr || !row) {
+			return nullptr;
+		}
+		const auto  anyColumns = any_columns(Model->feedback());
+		const auto  name       = row->first == application::overview_feedback_row_kind::remainder ? QStringLiteral("Not on a file")
+			: row->second.empty()                                                                 ? QStringLiteral("/")
+																								  : text(row->second);
+		auto* const menu       = new QMenu{ this };
+		menu->setObjectName(QStringLiteral("overviewCommentsMenu"));
+		menu->setTitle(QStringLiteral("Comments: %1").arg(name));
+		menu->setAccessibleName(menu->title());
+		const auto ratio  = devicePixelRatioF();
+		const auto open   = counts->Mode == core::feedback_resolution_mode::unresolved;
+		const auto amount = [&](const std::size_t aCount, const core::feedback_state_counts& aStates) {
+			return open ? QStringLiteral("%1 open").arg(count_text(aCount)) : QStringLiteral("%1 (%2)").arg(count_text(aCount), breakdown_text(aStates));
+		};
+		const auto add = [&](const QIcon& aIcon, const QString& aText, const core::feedback_count_target& aTarget) {
+			auto* const action = menu->addAction(aIcon, aText);
+			connect(action, &QAction::triggered, this, [this, kind = row->first, path = row->second, aTarget] { drill(kind, path, aTarget); });
+		};
+		for (const auto& column : counts->Dedicated) {
+			if (column.Count != 0U) {
+				add(QIcon{ feedback_mark_pixmap(column.Label, { }, feedback_mark_colours_for(Colours.Marks, column.Label, palette()), ratio) },
+					QStringLiteral("%1: %2").arg(feedback_label_text(column.Label), amount(column.Count, column.States)), { .Kind = core::feedback_count_kind::dedicated, .Label = column.Label });
+			}
+		}
+		if (counts->Catchall != 0U) {
+			const auto bubble = painted_glyph_icon([anyColumns](QPainter& aPainter, const qreal aSide, const QColor& aInk) { paint_bubble(aPainter, QRectF{ 0.0, 0.0, aSide, aSide }, aInk, anyColumns); },
+												   palette().color(QPalette::Text), palette().color(QPalette::Disabled, QPalette::Text));
+			add(bubble, QStringLiteral("%1: %2").arg(anyColumns ? QStringLiteral("Other") : QStringLiteral("Comments"), amount(counts->Catchall, counts->CatchallStates)),
+				{ .Kind = core::feedback_count_kind::catchall });
+		}
+		if (counts->Uncertain != 0U) {
+			auto state  = Colours.States;
+			state.Faint = palette().color(QPalette::PlaceholderText);
+			add(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) }, QStringLiteral("Not counted: %1").arg(count_text(counts->Uncertain)),
+				{ .Kind = core::feedback_count_kind::uncertain });
+		}
+		if (menu->actions().isEmpty()) {
+			menu->addAction(open ? QStringLiteral("No open conversations") : QStringLiteral("No conversations"))->setEnabled(false);
+		}
+		const auto clauses = qualifier_clauses(*counts);
+		if (!clauses.isEmpty()) {
+			menu->addSeparator();
+			menu->addAction(clauses.join(QStringLiteral("; ")))->setEnabled(false);
+		}
+		menu->addSeparator();
+		auto* const sort = make_sort_menu();
+		sort->setParent(menu, sort->windowFlags());
+		menu->addMenu(sort);
+		return menu;
+	}
+
+	auto pull_request_overview_page::make_sort_menu() -> QMenu*
+	{
+		auto* const menu = new QMenu{ QStringLiteral("Sort by"), this };
+		menu->setObjectName(QStringLiteral("overviewSortMenu"));
+		auto* const group      = new QActionGroup{ menu };
+		const auto  anyColumns = Columns.Count != 0U;
+		const auto  add        = [&](const QString& aText, std::optional<core::feedback_count_target> aTarget) {
+			auto* const action = menu->addAction(aText);
+			action->setCheckable(true);
+			action->setChecked(Sort == aTarget);
+			group->addAction(action);
+			connect(action, &QAction::triggered, this, [this, aTarget] { choose_sort(aTarget); });
+		};
+		add(QStringLiteral("File order"), std::nullopt);
+		add(QStringLiteral("All comments"), core::feedback_count_target{ .Kind = core::feedback_count_kind::included });
+		for (const auto label : core::labels_of(Columns)) {
+			add(feedback_label_text(label), core::feedback_count_target{ .Kind = core::feedback_count_kind::dedicated, .Label = label });
+		}
+		if (anyColumns) {
+			add(QStringLiteral("Other"), core::feedback_count_target{ .Kind = core::feedback_count_kind::catchall });
+		}
+		add(QStringLiteral("Not counted"), core::feedback_count_target{ .Kind = core::feedback_count_kind::uncertain });
+		return menu;
+	}
+
+	void pull_request_overview_page::open_comments_menu(const QModelIndex& aIndex, const QPoint& aGlobal)
+	{
+		auto* const menu = make_comments_menu(aIndex);
+		if (menu == nullptr) {
+			return;
+		}
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		menu->popup(aGlobal);
+	}
+
+	bool pull_request_overview_page::eventFilter(QObject* const aObject, QEvent* const aEvent)
+	{
+		if (aObject == Files->viewport()) {
+			const auto type = aEvent->type();
+			if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick) {
+				const auto* mouse = static_cast<QMouseEvent*>(aEvent);
+				const auto  chip  = mouse->button() == Qt::LeftButton ? chip_at(mouse->position().toPoint()) : std::nullopt;
+				if (chip) {
+					if (type == QEvent::MouseButtonPress) {
+						// The chip's cell becomes current, so the keyboard
+						// continues from it; a chip opens no file.
+						Files->setCurrentIndex(chip->first);
+						Files->setFocus(Qt::MouseFocusReason);
+					} else if (type == QEvent::MouseButtonRelease) {
+						const auto row = Model->feedback_row(chip->first);
+						switch (chip->second.Kind) {
+						case overview_comment_chip::kind::label:
+							drill(row->first, row->second, { .Kind = core::feedback_count_kind::dedicated, .Label = chip->second.Label });
+							break;
+						case overview_comment_chip::kind::other:
+							drill(row->first, row->second, { .Kind = core::feedback_count_kind::catchall });
+							break;
+						case overview_comment_chip::kind::uncertain:
+							if (chip->second.Count != 0U) {
+								drill(row->first, row->second, { .Kind = core::feedback_count_kind::uncertain });
+							}
+							break;
+						case overview_comment_chip::kind::more:
+							open_comments_menu(chip->first, Files->viewport()->mapToGlobal(chip->second.Box.bottomLeft().toPoint()));
+							break;
+						}
+					}
+					return true;
+				}
+			}
+		} else if (aObject == Files && aEvent->type() == QEvent::KeyPress) {
+			const auto* key     = static_cast<QKeyEvent*>(aEvent);
+			const auto  current = Files->currentIndex();
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && key->modifiers() == Qt::NoModifier
+				&& current.column() == overview_file_model::comments_column && Model->feedback_at(current) != nullptr) {
+				open_comments_menu(current, Files->viewport()->mapToGlobal(Files->visualRect(current).bottomLeft()));
+				return true;
+			}
+			// Left and Right move along a file's cells, as they fold a folder.
+			const auto across = (key->key() == Qt::Key_Left || key->key() == Qt::Key_Right) && key->modifiers() == Qt::NoModifier;
+			if (across && current.isValid() && !current.data(overview_file_model::folder_role).toBool()) {
+				auto column = current.column();
+				do {
+					column += key->key() == Qt::Key_Right ? 1 : -1;
+				} while (column >= 0 && column < overview_file_model::column_count && Files->isColumnHidden(column));
+				if (column >= 0 && column < overview_file_model::column_count) {
+					Files->setCurrentIndex(current.siblingAtColumn(column));
+					return true;
+				}
+			}
+		}
+		return QWidget::eventFilter(aObject, aEvent);
+	}
+
+	namespace {
+		/// [[BPR-1089]]. The Label key: every mark with its name and shortcode,
+		/// and what the other numbers and the round marks mean. A list, so the
+		/// keyboard and a screen reader can walk it; Escape closes it.
+		class overview_label_key final : public QFrame
+		{
+		public:
+			explicit overview_label_key(QWidget* aParent)
+				: QFrame{ aParent, Qt::Popup }
+			{
+				setObjectName(QStringLiteral("overviewLabelKeyPopup"));
+				setAccessibleName(QStringLiteral("Label key"));
+				setFrameShape(QFrame::StyledPanel);
+				auto* const layout = new QVBoxLayout{ this };
+				layout->setContentsMargins(4, 4, 4, 4);
+				List = new QListWidget{ this };
+				List->setObjectName(QStringLiteral("overviewLabelKeyList"));
+				List->setAccessibleName(QStringLiteral("Label key"));
+				List->setFrameShape(QFrame::NoFrame);
+				List->setIconSize(QSize{ 16, 16 });
+				List->setSelectionMode(QAbstractItemView::SingleSelection);
+				layout->addWidget(List);
+			}
+			QListWidget* List = nullptr;
+
+		protected:
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (aEvent->key() == Qt::Key_Escape) {
+					close();
+					return;
+				}
+				QFrame::keyPressEvent(aEvent);
+			}
+		};
+	} // namespace
+
+	void pull_request_overview_page::show_label_key()
+	{
+		auto* popup = static_cast<overview_label_key*>(LabelKeyPopup);
+		if (popup == nullptr) {
+			popup         = new overview_label_key{ this };
+			LabelKeyPopup = popup;
+		}
+		auto* const list = popup->List;
+		list->clear();
+		const auto ratio   = devicePixelRatioF();
+		const auto heading = [list](const QString& aText) {
+			auto* const item = new QListWidgetItem{ aText, list };
+			auto        font = item->font();
+			font.setWeight(QFont::DemiBold);
+			item->setFont(font);
+			item->setFlags(Qt::ItemIsEnabled);
+		};
+		const auto entry = [list](const QIcon& aIcon, const QString& aText, const QString& aAccessible, const QString& aTip) {
+			auto* const item = new QListWidgetItem{ aIcon, aText, list };
+			item->setData(Qt::AccessibleTextRole, aAccessible);
+			item->setToolTip(aTip);
+		};
+		heading(QStringLiteral("Labels (the first comment of a conversation)"));
+		for (std::size_t index = 0U; index < core::feedback_label_count; ++index) {
+			const auto label = static_cast<core::feedback_label>(index);
+			const auto code  = QString::fromUtf8(feedback_shortcode(label).data(), static_cast<qsizetype>(feedback_shortcode(label).size()));
+			entry(QIcon{ feedback_mark_pixmap(label, { }, feedback_mark_colours_for(Colours.Marks, label, palette()), ratio) },
+				  QStringLiteral("%1   :%2:").arg(feedback_label_text(label), code), QStringLiteral("%1, shortcode %2: %3").arg(feedback_label_text(label), code, feedback_label_description(label)),
+				  feedback_label_description(label));
+		}
+		heading(QStringLiteral("Other numbers"));
+		const auto ink    = palette().color(QPalette::Text);
+		const auto faded  = palette().color(QPalette::Disabled, QPalette::Text);
+		const auto bubble = [ink, faded](const bool aOther) {
+			return painted_glyph_icon([aOther](QPainter& aPainter, const qreal aSide, const QColor& aInk) { paint_bubble(aPainter, QRectF{ 0.0, 0.0, aSide, aSide }, aInk, aOther); }, ink, faded);
+		};
+		entry(bubble(true), QStringLiteral("Other: the rest"), QStringLiteral("Other: conversations without a chip of their own"), QStringLiteral("Conversations without a chip of their own"));
+		entry(bubble(false), QStringLiteral("Comments: all, no chip chosen"), QStringLiteral("Comments: every conversation, when no chip is chosen"), QStringLiteral("Every conversation, when no chip is chosen"));
+		auto state  = Colours.States;
+		state.Faint = palette().color(QPalette::PlaceholderText);
+		for (const auto resolution : { core::feedback_resolution::unresolved, core::feedback_resolution::resolved, core::feedback_resolution::unknown, core::feedback_resolution::not_applicable }) {
+			auto words = feedback_state_text(resolution);
+			words[0]   = words[0].toUpper();
+			entry(QIcon{ feedback_state_mark_pixmap(resolution, state, ratio) }, words, words, words);
+		}
+		entry(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) }, QStringLiteral("? beside a count: not counted as open, or label unreadable"),
+			  QStringLiteral("Question mark beside a count: conversations not counted as open, or whose label is unreadable"), QStringLiteral("Click it to list them"));
+		list->setCurrentRow(1);
+		const auto rows = list->count();
+		list->setMinimumSize(QSize{ list->sizeHintForColumn(0) + 24, std::min(rows, 24) * list->sizeHintForRow(1) + 8 });
+		popup->adjustSize();
+		const auto anchor = LabelKey->mapToGlobal(QPoint{ LabelKey->width() - popup->width(), LabelKey->height() + 2 });
+		popup->move(anchor);
+		popup->show();
+		list->setFocus(Qt::PopupFocusReason);
+	}
+
+	void pull_request_overview_page::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange) {
+			refresh_folder_icons();
+			refresh_feedback_icons();
+		}
+	}
+
+	auto pull_request_overview_page::label_key() const noexcept -> QWidget*
+	{
+		return LabelKeyPopup;
+	}
+
+	auto pull_request_overview_page::open_counts_button() const noexcept -> QToolButton*
+	{
+		return OpenCounts;
+	}
+
+	auto pull_request_overview_page::all_counts_button() const noexcept -> QToolButton*
+	{
+		return AllCounts;
+	}
+
+	auto pull_request_overview_page::uncertain_button() const noexcept -> QToolButton*
+	{
+		return Uncertain;
+	}
+
+	auto pull_request_overview_page::label_key_button() const noexcept -> QToolButton*
+	{
+		return LabelKey;
 	}
 
 	void pull_request_overview_page::set_prepare_tour_action(QAction* aAction)

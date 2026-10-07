@@ -92,6 +92,7 @@ add_library(
         src/review_preflight_observation.cpp
         src/feedback_sources.cpp
         src/feedback_counters.cpp
+        src/overview_feedback.cpp
         src/pull_request_overview.cpp
         src/git_protocol_v2.cpp
         src/git_smart_transport_port.cpp

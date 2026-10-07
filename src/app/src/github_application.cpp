@@ -119,10 +119,12 @@
 #include "bpr/application/document_tab_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
+#include "bpr/application/feedback_counters.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/observing_review_ledger_store.hpp"
+#include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
@@ -6813,6 +6815,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						WorkbenchHost->apply_behaviour(aSettings);
 					}
 				});
+			// [[BPR-1089]]. The Overview's chips: its request is counted from the
+			// kept label buckets, and a count's activation lists exactly its
+			// conversations in Discuss. Neither asks a provider.
+			Window->set_overview_feedback_dispatch(
+				[this](const application::overview_feedback_request& aRequest) {
+					if (!Closing) {
+						FeedbackRequest = aRequest;
+						publish_overview_feedback();
+					}
+				});
+			Window->set_overview_drill_down_dispatch(
+				[this](const application::overview_drill_down& aDrillDown) {
+					if (!Closing && FeedbackRequest) {
+						open_feedback_drill_down(aDrillDown, *FeedbackRequest, true);
+					}
+				});
 			// [[BPR-0783]]. Home's arrangement is this window's, so it travels
 			// the same durable path as the window's layout: Qt reports the view
 			// it now shows, the host validates and persists it, and the record
@@ -11233,8 +11251,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// so a receipt change moves only its own rows.
 		std::optional<application::pull_request_overview_projection> PublishedOverview;
 		application::overview_receipt_index                          OverviewReceipts;
-		std::uint64_t                                                OverviewReceiptUpdates = 0U;
-		std::uint64_t                                                OverviewReceiptRows    = 0U;
+		/// [[BPR-1089]]. The accepted snapshot's label buckets ([[BPR-1087]]),
+		/// the snapshot they hold, the Overview's request for them, and the
+		/// count Discuss lists with the request it was counted under.
+		application::feedback_counter_model                                                                FeedbackCounters;
+		std::optional<core::provider_snapshot_id>                                                          FeedbackSnapshot;
+		std::optional<application::overview_feedback_request>                                              FeedbackRequest;
+		std::optional<std::pair<application::overview_drill_down, application::overview_feedback_request>> FeedbackDrillDown;
+		std::uint64_t                                                                                      OverviewFeedbackPublications = 0U;
+		std::uint64_t                                                                                      OverviewReceiptUpdates       = 0U;
+		std::uint64_t                                                                                      OverviewReceiptRows          = 0U;
 
 		[[nodiscard]] auto observe_read_state() -> std::optional<observed_read_state>
 		{
@@ -11516,9 +11542,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!snapshot.has_value()) {
 				PublishedOverview.reset();
 				OverviewReceipts.clear();
+				FeedbackSnapshot.reset();
+				FeedbackDrillDown.reset();
 				Window->clear_overview();
 				return;
 			}
+			// [[BPR-1089]]. The label buckets follow the snapshot before the
+			// overview is presented, so its rows are counted from the same one.
+			observe_feedback_counters();
 			++OverviewBuilds;
 			OverviewReceiptRevision.reset();
 			OverviewReceipts.clear();
@@ -11583,6 +11614,72 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 									   !context.Receipts.empty());
 			}
 			Window->publish(*PublishedOverview);
+		}
+
+		/// \brief [[BPR-1089]]. Adopts a newly accepted snapshot into the label
+		/// buckets, and republishes the Overview's counts and any listed count.
+		void observe_feedback_counters()
+		{
+			if (Closing || Window == nullptr || !WindowRead || !LastAcceptedHandoff) {
+				return;
+			}
+			const auto& snapshot = WindowRead->accepted_snapshot();
+			if (!snapshot.has_value() || FeedbackSnapshot == std::optional{ snapshot->Snapshot }) {
+				return;
+			}
+			FeedbackSnapshot     = snapshot->Snapshot;
+			const auto& handoff  = *LastAcceptedHandoff;
+			const auto  observed = FeedbackCounters.observe(
+				core::cached_review_key{ handoff.HostAuthority.bytes(), handoff.Profile, handoff.Host, handoff.Account, handoff.Locator, handoff.Number }, *snapshot);
+			if (!observed.Admitted) {
+				return;
+			}
+			publish_overview_feedback();
+			// A listed count follows the accepted population; the reviewer's
+			// place in Discuss stays where it is.
+			if (FeedbackDrillDown) {
+				if (Window->conversation_listing_active()) {
+					open_feedback_drill_down(FeedbackDrillDown->first, FeedbackDrillDown->second, false);
+				} else {
+					FeedbackDrillDown.reset();
+				}
+			}
+		}
+
+		[[nodiscard]] auto overview_file_paths() const -> std::vector<std::string>
+		{
+			auto paths = std::vector<std::string>{ };
+			if (WindowRead && WindowRead->accepted_snapshot()) {
+				paths.reserve(WindowRead->accepted_snapshot()->Files.size());
+				for (const auto& file : WindowRead->accepted_snapshot()->Files) {
+					paths.push_back(file.Path);
+				}
+			}
+			return paths;
+		}
+
+		void publish_overview_feedback()
+		{
+			if (Closing || Window == nullptr || !FeedbackRequest || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			if (auto projection = application::project_overview_feedback(FeedbackCounters, overview_file_paths(), *FeedbackRequest)) {
+				++OverviewFeedbackPublications;
+				Window->publish(*projection);
+			}
+		}
+
+		void open_feedback_drill_down(const application::overview_drill_down& aDrillDown, const application::overview_feedback_request& aRequest, const bool aReveal)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto listing = application::list_overview_drill_down(FeedbackCounters, overview_file_paths(), aRequest, aDrillDown);
+			if (!listing) {
+				return;
+			}
+			FeedbackDrillDown = std::pair{ aDrillDown, aRequest };
+			Window->list_conversations(*listing, aReveal);
 		}
 
 		/// \brief Brings the published overview up to the ledger's durable receipts.

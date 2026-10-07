@@ -385,6 +385,21 @@ namespace bpr::qt {
 		/// Without a presented overview there is nothing to change.
 		void publish(const application::overview_receipt_update& aUpdate);
 		void publish(const application::overview_history_update& aUpdate);
+		/// \brief [[BPR-1089]]. Adopts the host's label counts for the
+		/// Overview's request: its chips, mode and sort.
+		void publish(const application::overview_feedback_projection& aFeedback);
+		/// \brief [[BPR-1089]]. Where the Overview's request goes: whenever its
+		/// chips (from Settings), its mode or its sort change.
+		void set_overview_feedback_dispatch(std::function<void(const application::overview_feedback_request&)> aDispatch);
+		/// \brief [[BPR-1089]]. Where an Overview count's activation goes.
+		void set_overview_drill_down_dispatch(std::function<void(const application::overview_drill_down&)> aDispatch);
+		/// \brief [[BPR-1089]]. Lists exactly the conversations one Overview
+		/// count counted, in Discuss. With \p aReveal, Discuss is shown and
+		/// takes focus; without it (a refresh of the same count) the list
+		/// changes in place and focus stays where it is.
+		void list_conversations(const application::overview_drill_down_listing& aListing, bool aReveal);
+		/// \brief Whether Discuss still lists an Overview count's conversations.
+		[[nodiscard]] auto conversation_listing_active() const -> bool;
 		/// \brief [[BPR-0733]]. Adopts the window's recently viewed pull requests.
 		///
 		/// \details Home lists them between the open bar and the review queue,
@@ -1235,6 +1250,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto strip_identity_minimum() const -> int;
 		/// \brief Shows the overview or the comparison for the current modality.
 		void apply_modality_surface();
+		void refresh_open_count_mark();
 		/// \brief [[BPR-0648]]. Re-aligns the comment cards and the gutter marks.
 		void refresh_cards();
 		/// \brief Scopes the comments drawer to the window's conversation anchor.
@@ -1581,6 +1597,9 @@ namespace bpr::qt {
 		QWidget*                                     CompositionPage        = nullptr;
 		QPointer<QWidget>                            CompositionReturnFocus;
 		QPointer<QWidget>                            DiscussReturnFocus;
+		/// [[BPR-1089]]. Where focus was on the Overview when a count opened
+		/// Discuss, so going back to the Overview finds the same cell.
+		QPointer<QWidget> OverviewReturnFocus;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 

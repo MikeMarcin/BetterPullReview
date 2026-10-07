@@ -276,7 +276,31 @@ namespace bpr::qt {
 			ScopeWholePr->setChecked(true);
 			FilterUnread->setChecked(false);
 			FilterUnresolved->setChecked(false);
+			clear_listing();
 		});
+		// [[BPR-1089]]. An Overview count's drill-down: its caption, and a
+		// glyph that shows every conversation again.
+		ListingRow = new QWidget{ DiscussControls };
+		ListingRow->setObjectName(QStringLiteral("conversationListingRow"));
+		auto* const listingLayout = new QHBoxLayout{ ListingRow };
+		listingLayout->setContentsMargins(0, 0, 0, 0);
+		listingLayout->setSpacing(4);
+		ListingCaption = new QLabel{ ListingRow };
+		ListingCaption->setObjectName(QStringLiteral("conversationListingCaption"));
+		ListingCaption->setWordWrap(true);
+		detail::set_plain_text_label(ListingCaption);
+		ClearListing = new QToolButton{ ListingRow };
+		ClearListing->setObjectName(QStringLiteral("conversationClearListing"));
+		ClearListing->setText(QStringLiteral("×"));
+		ClearListing->setAutoRaise(true);
+		ClearListing->setToolTip(QStringLiteral("Show every conversation"));
+		ClearListing->setAccessibleName(QStringLiteral("Show every conversation"));
+		ClearListing->setFocusPolicy(Qt::StrongFocus);
+		listingLayout->addWidget(ListingCaption, 1);
+		listingLayout->addWidget(ClearListing);
+		DiscussGrid->addWidget(ListingRow, 3, 0, 1, 3);
+		ListingRow->hide();
+		connect(ClearListing, &QToolButton::clicked, this, [this] { clear_listing(); });
 
 		Cards = new conversation_cards_view{ loaded };
 		Cards->setMinimumHeight(fontMetrics().lineSpacing() * 6);
@@ -299,14 +323,8 @@ namespace bpr::qt {
 		Stack->addWidget(loaded);
 		layout->addWidget(Stack, 1);
 
-		const auto applyFilters = [this] {
-			Cards->set_filters(discuss_filters{
-				.UnreadOnly     = FilterUnread->isChecked(),
-				.UnresolvedOnly = FilterUnresolved->isChecked(),
-			});
-		};
-		connect(FilterUnread, &QToolButton::toggled, this, [applyFilters](bool) { applyFilters(); });
-		connect(FilterUnresolved, &QToolButton::toggled, this, [applyFilters](bool) { applyFilters(); });
+		connect(FilterUnread, &QToolButton::toggled, this, [this](bool) { apply_filters(); });
+		connect(FilterUnresolved, &QToolButton::toggled, this, [this](bool) { apply_filters(); });
 		Cards->set_layout_observer([this] { refresh_summary(); });
 		connect(ScopeThisFile, &QToolButton::toggled, this, [this](const bool aChecked) {
 			if (aChecked) {
@@ -358,7 +376,69 @@ namespace bpr::qt {
 		setTabOrder(ScopeThisFile, ScopeWholePr);
 		setTabOrder(ScopeWholePr, DiscussFileChoice);
 		setTabOrder(DiscussFileChoice, clearFilters);
-		setTabOrder(clearFilters, Cards);
+		setTabOrder(clearFilters, ClearListing);
+		setTabOrder(ClearListing, Cards);
+	}
+
+	void github_conversation_panel::apply_filters()
+	{
+		auto filters           = discuss_filters{ };
+		filters.UnreadOnly     = FilterUnread->isChecked();
+		filters.UnresolvedOnly = FilterUnresolved->isChecked();
+		filters.Listed         = Listing;
+		Cards->set_filters(std::move(filters));
+	}
+
+	void github_conversation_panel::list_conversations(std::vector<std::string> aConversations, const QString& aCaption, const QString& aDescription)
+	{
+		// The whole pull request, nothing else filtered: exactly the list.
+		{
+			const QSignalBlocker unread{ FilterUnread };
+			const QSignalBlocker unresolved{ FilterUnresolved };
+			FilterUnread->setChecked(false);
+			FilterUnresolved->setChecked(false);
+		}
+		ScopeWholePr->setChecked(true);
+		Listing = std::set<std::string>{ std::make_move_iterator(aConversations.begin()), std::make_move_iterator(aConversations.end()) };
+		ListingCaption->setText(aCaption);
+		ListingCaption->setAccessibleName(aCaption);
+		ListingCaption->setAccessibleDescription(aDescription);
+		ListingCaption->setToolTip(aDescription);
+		ListingRow->show();
+		apply_filters();
+	}
+
+	void github_conversation_panel::clear_listing()
+	{
+		if (!Listing) {
+			return;
+		}
+		Listing.reset();
+		ListingRow->hide();
+		apply_filters();
+		if (ListingCleared) {
+			ListingCleared();
+		}
+	}
+
+	auto github_conversation_panel::listing() const noexcept -> const std::optional<std::set<std::string>>&
+	{
+		return Listing;
+	}
+
+	auto github_conversation_panel::listing_caption() const noexcept -> QLabel*
+	{
+		return ListingCaption;
+	}
+
+	auto github_conversation_panel::clear_listing_button() const noexcept -> QToolButton*
+	{
+		return ClearListing;
+	}
+
+	void github_conversation_panel::set_listing_cleared(std::function<void()> aCleared)
+	{
+		ListingCleared = std::move(aCleared);
 	}
 
 	void github_conversation_panel::arrange_filters()

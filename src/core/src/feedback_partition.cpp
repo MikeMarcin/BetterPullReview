@@ -28,9 +28,18 @@ namespace bpr::core {
 			case feedback_counter_scope_kind::file:
 				return !aScope.Path.empty() && clean_path(aScope.Path);
 			case feedback_counter_scope_kind::folder:
+			case feedback_counter_scope_kind::directory:
 				return clean_path(aScope.Path);
+			case feedback_counter_scope_kind::unattributed:
+				return aScope.Path.empty();
 			}
 			return false;
+		}
+		/// Scopes that hold units by their exact file, so a unit whose file is
+		/// unknown may be missing from them.
+		auto file_bound(feedback_counter_scope_kind aKind) noexcept -> bool
+		{
+			return aKind != feedback_counter_scope_kind::pull_request && aKind != feedback_counter_scope_kind::unattributed;
 		}
 
 		auto index_of(feedback_resolution aResolution) noexcept -> std::size_t
@@ -78,6 +87,37 @@ namespace bpr::core {
 			std::size_t total = 0U;
 			for_each_row(aTally, [&](const feedback_state_counts& aRow) { total += included(aRow, aMode); });
 			return total;
+		}
+
+		/// Whether a root's label is known: labelled, plain or a custom label.
+		/// Every other root counts in the `Unclassified` row.
+		auto classified(feedback_root_status aRoot) noexcept -> bool
+		{
+			switch (aRoot) {
+			case feedback_root_status::labelled:
+			case feedback_root_status::unknown_label:
+			case feedback_root_status::plain:
+				return true;
+			case feedback_root_status::unclassified:
+			case feedback_root_status::root_missing:
+			case feedback_root_status::root_deleted:
+			case feedback_root_status::root_ambiguous:
+				break;
+			}
+			return false;
+		}
+		/// The units the Open count leaves out or cannot classify, from one
+		/// tally: every unknown and not-applicable state, and the unclassified
+		/// units of the other two states, so no unit is counted twice.
+		auto uncertain_total(const feedback_counter_tally& aTally, const feedback_state_counts& aStates) noexcept -> std::size_t
+		{
+			return aStates[index_of(feedback_resolution::unknown)] + aStates[index_of(feedback_resolution::not_applicable)]
+				+ aTally.Unclassified[index_of(feedback_resolution::unresolved)] + aTally.Unclassified[index_of(feedback_resolution::resolved)];
+		}
+		/// Whether a unit is one of `uncertain_total`'s.
+		auto uncertain_unit(const feedback_counter_unit& aUnit) noexcept -> bool
+		{
+			return aUnit.Resolution == feedback_resolution::unknown || aUnit.Resolution == feedback_resolution::not_applicable || !classified(aUnit.Root);
 		}
 
 		/// The tally row a unit's root classification counts in.
@@ -258,6 +298,34 @@ namespace bpr::core {
 		}
 		return "unknown";
 	}
+	auto stable_name(feedback_count_kind aKind) noexcept -> std::string_view
+	{
+		switch (aKind) {
+		case feedback_count_kind::included:
+			return "included";
+		case feedback_count_kind::dedicated:
+			return "dedicated";
+		case feedback_count_kind::catchall:
+			return "catchall";
+		case feedback_count_kind::uncertain:
+			return "uncertain";
+		}
+		return "unknown";
+	}
+	auto stable_name(feedback_selection_refusal aRefusal) noexcept -> std::string_view
+	{
+		switch (aRefusal) {
+		case feedback_selection_refusal::none:
+			return "none";
+		case feedback_selection_refusal::invalid_scope:
+			return "invalid_scope";
+		case feedback_selection_refusal::duplicate_column:
+			return "duplicate_column";
+		case feedback_selection_refusal::unselected_label:
+			return "unselected_label";
+		}
+		return "unknown";
+	}
 	auto stable_name(feedback_projection_refusal aRefusal) noexcept -> std::string_view
 	{
 		switch (aRefusal) {
@@ -319,12 +387,20 @@ namespace bpr::core {
 		if (aScope.Kind == feedback_counter_scope_kind::pull_request) {
 			return true;
 		}
-		if (aUnit.Anchor.Status != feedback_anchor_status::file || !aUnit.Anchor.Path) {
+		const auto exact = aUnit.Anchor.Status == feedback_anchor_status::file && aUnit.Anchor.Path;
+		if (aScope.Kind == feedback_counter_scope_kind::unattributed) {
+			return !exact;
+		}
+		if (!exact) {
 			return false;
 		}
 		const std::string_view path = *aUnit.Anchor.Path;
 		if (aScope.Kind == feedback_counter_scope_kind::file) {
 			return path == aScope.Path;
+		}
+		if (aScope.Kind == feedback_counter_scope_kind::directory) {
+			const auto slash = path.rfind('/');
+			return slash == std::string_view::npos ? aScope.Path.empty() : path.substr(0U, slash) == aScope.Path;
 		}
 		return aScope.Path.empty() || (path.size() > aScope.Path.size() && path.starts_with(aScope.Path) && path[aScope.Path.size()] == '/');
 	}
@@ -337,7 +413,7 @@ namespace bpr::core {
 		}
 		tally.Valid = true;
 		for (const auto& unit : aPopulation.Units) {
-			if (aScope.Kind != feedback_counter_scope_kind::pull_request && unit.Anchor.Status == feedback_anchor_status::unknown) {
+			if (file_bound(aScope.Kind) && unit.Anchor.Status == feedback_anchor_status::unknown) {
 				tally.AttributionUnknown = true;
 			}
 			if (!in_feedback_counter_scope(unit, aScope)) {
@@ -370,12 +446,20 @@ namespace bpr::core {
 			slot = true;
 		}
 		for (const auto label : aColumns) {
-			projection.Dedicated.push_back({ .Label = label, .Count = included(aTally.Labelled[static_cast<std::size_t>(label)], aMode) });
+			const auto& row = aTally.Labelled[static_cast<std::size_t>(label)];
+			projection.Dedicated.push_back({ .Label = label, .Count = included(row, aMode), .States = row });
 		}
-		auto& parts = projection.CatchallParts;
+		auto&      parts = projection.CatchallParts;
+		const auto add   = [&](const feedback_state_counts& aRow) { std::ranges::transform(projection.CatchallStates, aRow, projection.CatchallStates.begin(), std::plus{ }); };
 		for (std::size_t label = 0U; label < feedback_label_count; ++label) {
 			parts.Unselected += selected[label] ? 0U : included(aTally.Labelled[label], aMode);
+			if (!selected[label]) {
+				add(aTally.Labelled[label]);
+			}
 		}
+		add(aTally.Plain);
+		add(aTally.Custom);
+		add(aTally.Unclassified);
 		parts.Plain                  = included(aTally.Plain, aMode);
 		parts.Custom                 = included(aTally.Custom, aMode);
 		parts.Unclassified           = included(aTally.Unclassified, aMode);
@@ -385,7 +469,128 @@ namespace bpr::core {
 		projection.States            = state_totals(aTally);
 		projection.ScopeTotal        = sum(projection.States);
 		projection.ScopeUnclassified = sum(aTally.Unclassified);
+		projection.Uncertain         = uncertain_total(aTally, projection.States);
 		add_limits(projection, aTally);
 		return projection;
+	}
+
+	auto merge_feedback_counter_tallies(std::span<const feedback_counter_tally> aParts, const feedback_counter_scope& aWhere) -> feedback_counter_tally
+	{
+		auto merged = feedback_counter_tally{ .Where = aWhere };
+		if (aParts.empty()) {
+			return merged;
+		}
+		const auto& first = aParts.front();
+		merged.Scope      = first.Scope;
+		merged.Epoch      = first.Epoch;
+		merged.Collection = first.Collection;
+		const auto agrees = [&](const feedback_counter_tally& aPart) {
+			return aPart.Valid && aPart.Scope == first.Scope && aPart.Epoch == first.Epoch && aPart.Collection == first.Collection;
+		};
+		if (!valid_scope(aWhere) || !std::ranges::all_of(aParts, agrees)) {
+			return merged;
+		}
+		const auto add = [](feedback_state_counts& aInto, const feedback_state_counts& aRow) { std::ranges::transform(aInto, aRow, aInto.begin(), std::plus{ }); };
+		for (const auto& part : aParts) {
+			for (std::size_t label = 0U; label < feedback_label_count; ++label) {
+				add(merged.Labelled[label], part.Labelled[label]);
+			}
+			add(merged.Plain, part.Plain);
+			add(merged.Custom, part.Custom);
+			add(merged.Unclassified, part.Unclassified);
+			add(merged.Unattributed, part.Unattributed);
+			merged.AttributionUnknown = merged.AttributionUnknown || part.AttributionUnknown;
+		}
+		merged.Valid = true;
+		return merged;
+	}
+
+	auto feedback_count_of(const feedback_counter_projection& aProjection, const feedback_count_target& aTarget) noexcept -> std::size_t
+	{
+		switch (aTarget.Kind) {
+		case feedback_count_kind::included:
+			return aProjection.Included;
+		case feedback_count_kind::dedicated:
+			for (const auto& column : aProjection.Dedicated) {
+				if (aTarget.Label == column.Label) {
+					return column.Count;
+				}
+			}
+			return 0U;
+		case feedback_count_kind::catchall:
+			return aProjection.Catchall;
+		case feedback_count_kind::uncertain:
+			return aProjection.Uncertain;
+		}
+		return 0U;
+	}
+
+	auto select_feedback_units(const feedback_population& aPopulation, const feedback_counter_scope& aWhere, std::span<const feedback_label> aColumns,
+							   feedback_resolution_mode aMode, const feedback_count_target& aTarget) -> feedback_unit_selection
+	{
+		auto selection = feedback_unit_selection{ .Scope = aPopulation.Scope, .Epoch = aPopulation.Epoch };
+		if (!valid_scope(aWhere)) {
+			selection.Refusal = feedback_selection_refusal::invalid_scope;
+			return selection;
+		}
+		std::array<bool, feedback_label_count> selected{ };
+		for (const auto label : aColumns) {
+			auto& slot = selected[static_cast<std::size_t>(label)];
+			if (slot) {
+				selection.Refusal = feedback_selection_refusal::duplicate_column;
+				return selection;
+			}
+			slot = true;
+		}
+		if (aTarget.Kind == feedback_count_kind::dedicated && (!aTarget.Label || !selected[static_cast<std::size_t>(*aTarget.Label)])) {
+			selection.Refusal = feedback_selection_refusal::unselected_label;
+			return selection;
+		}
+		// The same rules as the tally and the projection: the scope test, the
+		// row a root counts in, and the states a mode includes.
+		const auto dedicatedTo = [&](const feedback_counter_unit& aUnit) -> std::optional<feedback_label> {
+			if (aUnit.Root == feedback_root_status::labelled && aUnit.Label && selected[static_cast<std::size_t>(*aUnit.Label)]) {
+				return aUnit.Label;
+			}
+			return std::nullopt;
+		};
+		for (const auto& unit : aPopulation.Units) {
+			if (!in_feedback_counter_scope(unit, aWhere)) {
+				continue;
+			}
+			const auto inMode = includes(aMode, index_of(unit.Resolution));
+			auto       counts = false;
+			switch (aTarget.Kind) {
+			case feedback_count_kind::included:
+				counts = inMode;
+				break;
+			case feedback_count_kind::dedicated:
+				counts = inMode && dedicatedTo(unit) == aTarget.Label;
+				break;
+			case feedback_count_kind::catchall:
+				counts = inMode && !dedicatedTo(unit);
+				break;
+			case feedback_count_kind::uncertain:
+				counts = uncertain_unit(unit);
+				break;
+			}
+			if (counts) {
+				selection.Ids.push_back(unit.Id);
+			}
+		}
+		return selection;
+	}
+
+	auto feedback_sort_key_of(const feedback_counter_projection& aProjection, const feedback_count_target& aTarget) noexcept -> feedback_sort_key
+	{
+		return { .Count = feedback_count_of(aProjection, aTarget), .Qualified = !aProjection.Exact };
+	}
+
+	auto feedback_sorts_before(const feedback_sort_key& aLeft, const feedback_sort_key& aRight) noexcept -> bool
+	{
+		if (aLeft.Count != aRight.Count) {
+			return aLeft.Count > aRight.Count;
+		}
+		return aLeft.Qualified && !aRight.Qualified;
 	}
 }

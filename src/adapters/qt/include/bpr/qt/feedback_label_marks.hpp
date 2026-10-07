@@ -3,6 +3,7 @@
 
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/feedback_convention.hpp"
+#include "bpr/core/feedback_partition.hpp"
 
 #include <QColor>
 #include <QPainterPath>
@@ -205,6 +206,34 @@ namespace bpr::qt {
 	/// dashed when non-blocking, drawn so that its right edge stays at
 	/// `aRight` whatever its width. If-minor does not change a rail.
 	void paint_feedback_rail(QPainter& aPainter, qreal aRight, qreal aTop, qreal aBottom, const QColor& aColour, feedback_mark_emphasis aEmphasis);
+
+	/// \brief [[BPR-1089]]. The colours of the four round state marks (owner,
+	/// BPR-1079 Overview states: "Four round state marks: open, resolved,
+	/// unknown and not resolvable").
+	/// \details Open is the theme's attention amber and resolved its accepted
+	/// green; unknown and not resolvable are drawn in the faint ink, never in
+	/// either, so neither reads as resolved or as open.
+	struct feedback_state_colours
+	{
+		QColor Open;
+		QColor Resolved;
+		/// The ink on a resolved disc.
+		QColor OnResolved;
+		QColor Faint;
+	};
+	/// \brief The built-in state colours for a palette: the attention and
+	/// accepted roles of the variant its base colour implies.
+	[[nodiscard]] auto default_feedback_state_colours(const QPalette& aPalette) -> feedback_state_colours;
+	/// \brief Draws one round state mark in a 16 px box, centred: open, a
+	/// filled disc; resolved, a disc with a tick; unknown, a dashed ring with a
+	/// question mark; not resolvable, a ring with a bar. Each differs by shape,
+	/// so the state reads in greyscale.
+	void paint_feedback_state_mark(QPainter& aPainter, const QRectF& aBox, core::feedback_resolution aState, const feedback_state_colours& aColours);
+	/// \brief One state mark as a pixmap for a control's icon.
+	[[nodiscard]] auto feedback_state_mark_pixmap(core::feedback_resolution aState, const feedback_state_colours& aColours, qreal aDevicePixelRatio) -> QPixmap;
+	/// \brief A state's name, as a reader says it: "open", "resolved",
+	/// "state unknown", "not resolvable".
+	[[nodiscard]] auto feedback_state_text(core::feedback_resolution aState) -> QString;
 
 	/// \brief What one body shows as a mark.
 	/// \details Only a `recognized` prefix gets a mark (contract, derived):

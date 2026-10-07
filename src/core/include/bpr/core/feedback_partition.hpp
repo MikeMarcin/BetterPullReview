@@ -188,6 +188,14 @@ namespace bpr::core {
 		file,
 		/// Files at or below `Path`; an empty path is every file.
 		folder,
+		/// [[BPR-1089]]. Files directly in `Path`, not in a folder below it;
+		/// an empty path is the files at the repository root. The Overview's
+		/// flat folder row lists exactly these files.
+		directory,
+		/// [[BPR-1089]]. Units with no exact file: unanchored threads, pull
+		/// request comments, review summaries and units whose file is unknown.
+		/// The Overview's "Not on a file" row. `Path` is empty.
+		unattributed,
 	};
 
 	/// \brief Which units one count covers.
@@ -221,11 +229,12 @@ namespace bpr::core {
 		feedback_state_counts                                   Plain{ };
 		feedback_state_counts                                   Custom{ };
 		feedback_state_counts                                   Unclassified{ };
-		/// Units in this scope with no exact file. Only the pull request has
-		/// them; it is the remainder file rows cannot show.
+		/// Units in this scope with no exact file. Only the pull request and
+		/// the unattributed scope have them; it is the remainder file rows
+		/// cannot show.
 		feedback_state_counts Unattributed{ };
-		/// The population holds a unit whose file is unknown, so a file or
-		/// folder count may be missing it.
+		/// The population holds a unit whose file is unknown, so a file,
+		/// folder or directory count may be missing it.
 		bool AttributionUnknown = false;
 	};
 
@@ -253,8 +262,11 @@ namespace bpr::core {
 	struct feedback_dedicated_count
 	{
 		feedback_label Label;
-		std::size_t    Count                                                     = 0U;
-		auto           operator==(const feedback_dedicated_count&) const -> bool = default;
+		std::size_t    Count = 0U;
+		/// [[BPR-1089]]. The label's units in the scope by resolution state, in
+		/// every mode, so a count shows its breakdown.
+		feedback_state_counts States{ };
+		auto                  operator==(const feedback_dedicated_count&) const -> bool = default;
 	};
 
 	/// \brief What the catch-all holds, by reason.
@@ -293,14 +305,21 @@ namespace bpr::core {
 		feedback_resolution_mode              Mode = default_feedback_resolution_mode;
 		std::vector<feedback_dedicated_count> Dedicated;
 		std::size_t                           Catchall = 0U;
-		feedback_catchall_parts               CatchallParts;
-		std::size_t                           Included = 0U;
+		/// [[BPR-1089]]. The catch-all's units by resolution state, in every
+		/// mode.
+		feedback_state_counts   CatchallStates{ };
+		feedback_catchall_parts CatchallParts;
+		std::size_t             Included = 0U;
 		/// Included units with no exact file.
 		std::size_t           Unattributed = 0U;
 		std::size_t           ScopeTotal   = 0U;
 		feedback_state_counts States{ };
 		/// Units in the scope, of any state, whose root label is not known.
-		std::size_t                       ScopeUnclassified = 0U;
+		std::size_t ScopeUnclassified = 0U;
+		/// [[BPR-1089]]. Units in the scope, in every mode, that the Open
+		/// count leaves out or cannot classify: resolution unknown or not
+		/// applicable, or root label not known. Each unit once.
+		std::size_t                       Uncertain = 0U;
 		std::vector<feedback_count_limit> Limits;
 		bool                              Exact = false;
 	};
@@ -308,6 +327,90 @@ namespace bpr::core {
 	/// \brief Partition a tally for one ordered column choice and mode.
 	[[nodiscard]] auto project_feedback_counters(const feedback_counter_tally& aTally, std::span<const feedback_label> aColumns,
 												 feedback_resolution_mode aMode) -> feedback_counter_projection;
+
+	/// \brief [[BPR-1089]]. One tally from the tallies of disjoint scopes that
+	/// together make \p aWhere, such as the files of a directory.
+	/// \details The rows are added. The result is valid when \p aWhere is a
+	/// valid scope and every part is valid and names the same pull request,
+	/// epoch and coverage; at least one part is needed to name them. A file
+	/// whose units are unknown limits the result if it limits any part. The
+	/// caller vouches that the parts are disjoint and cover \p aWhere; the
+	/// core cannot see the units behind a tally.
+	[[nodiscard]] auto merge_feedback_counter_tallies(std::span<const feedback_counter_tally> aParts, const feedback_counter_scope& aWhere)
+		-> feedback_counter_tally;
+
+	/// \brief [[BPR-1089]]. Which of a projection's numbers is meant: the
+	/// one a chip shows, a drill-down lists and a sort orders by.
+	enum class feedback_count_kind : std::uint8_t {
+		/// Every unit the mode includes.
+		included,
+		/// One dedicated label's units the mode includes.
+		dedicated,
+		/// The catch-all's units the mode includes.
+		catchall,
+		/// The `Uncertain` units, in every mode.
+		uncertain,
+	};
+	[[nodiscard]] auto stable_name(feedback_count_kind aKind) noexcept -> std::string_view;
+
+	/// \brief One number of a projection. `Label` is set exactly when
+	/// `dedicated`.
+	struct feedback_count_target
+	{
+		feedback_count_kind           Kind                                                   = feedback_count_kind::included;
+		std::optional<feedback_label> Label                                                  = std::nullopt;
+		auto                          operator==(const feedback_count_target&) const -> bool = default;
+	};
+
+	/// \brief The number a projection gives for one target; zero for a label
+	/// the projection has no column for.
+	[[nodiscard]] auto feedback_count_of(const feedback_counter_projection& aProjection, const feedback_count_target& aTarget) noexcept -> std::size_t;
+
+	enum class feedback_selection_refusal : std::uint8_t {
+		none,
+		/// The scope path is not valid for its kind.
+		invalid_scope,
+		/// A label selected twice.
+		duplicate_column,
+		/// A dedicated target without a label, or with one that has no column.
+		unselected_label,
+	};
+	[[nodiscard]] auto stable_name(feedback_selection_refusal aRefusal) noexcept -> std::string_view;
+
+	/// \brief The conversations one number counts.
+	struct feedback_unit_selection
+	{
+		feedback_selection_refusal Refusal = feedback_selection_refusal::none;
+		cached_review_key          Scope;
+		std::uint64_t              Epoch = 0U;
+		/// Conversation identities in identity order, each once.
+		std::vector<std::string> Ids;
+	};
+
+	/// \brief [[BPR-1089]]. The exact conversations behind one number: a
+	/// drill-down lists what the count counted (RFC-BPR-0049 R27).
+	/// \details It reads the population with the scope, column choice and
+	/// mode the projection was made with, and the same rules the tally and
+	/// projection apply, so its size is `feedback_count_of` for the projection
+	/// of `tally_feedback_counters(aPopulation, aWhere)` with these columns and
+	/// this mode, and the population's epoch names the accepted state.
+	[[nodiscard]] auto select_feedback_units(const feedback_population& aPopulation, const feedback_counter_scope& aWhere, std::span<const feedback_label> aColumns,
+											 feedback_resolution_mode aMode, const feedback_count_target& aTarget) -> feedback_unit_selection;
+
+	/// \brief [[BPR-1089]]. How a scope sorts by one number: the number, and
+	/// whether it is qualified (the projection is not exact).
+	struct feedback_sort_key
+	{
+		std::size_t Count                                              = 0U;
+		bool        Qualified                                          = false;
+		auto        operator==(const feedback_sort_key&) const -> bool = default;
+	};
+	[[nodiscard]] auto feedback_sort_key_of(const feedback_counter_projection& aProjection, const feedback_count_target& aTarget) noexcept -> feedback_sort_key;
+	/// \brief Whether \p aLeft sorts before \p aRight: a larger number first;
+	/// at an equal number, a qualified one first, since its true value may be
+	/// larger. Numbers, never rendered text, decide; equal keys are left to
+	/// the caller's own order.
+	[[nodiscard]] auto feedback_sorts_before(const feedback_sort_key& aLeft, const feedback_sort_key& aRight) noexcept -> bool;
 }
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_FEEDBACK_PARTITION_HPP

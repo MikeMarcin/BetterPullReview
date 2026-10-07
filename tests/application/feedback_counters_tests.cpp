@@ -104,6 +104,7 @@ namespace {
 	auto pr() -> feedback_counter_scope { return { .Kind = feedback_counter_scope_kind::pull_request }; }
 	auto file(std::string aPath) -> feedback_counter_scope { return { .Kind = feedback_counter_scope_kind::file, .Path = std::move(aPath) }; }
 	auto folder(std::string aPath) -> feedback_counter_scope { return { .Kind = feedback_counter_scope_kind::folder, .Path = std::move(aPath) }; }
+	auto unattributed() -> feedback_counter_scope { return { .Kind = feedback_counter_scope_kind::unattributed }; }
 
 	auto count(const core::feedback_counter_tally& aTally, feedback_label aLabel, feedback_resolution aState) -> std::size_t
 	{
@@ -132,12 +133,14 @@ namespace {
 	}
 
 	/// The core's own reading of the whole population, scope by scope: the
-	/// pull request, every anchored file and every folder above one.
+	/// pull request, every anchored file and every folder above one, and,
+	/// [[BPR-1089]], the unattributed remainder when a unit has no exact file.
 	auto oracle(const core::feedback_population& aPopulation) -> std::map<std::pair<int, std::string>, core::feedback_counter_tally>
 	{
 		auto scopes = std::vector<feedback_counter_scope>{ pr() };
 		for (const auto& unit : aPopulation.Units) {
 			if (unit.Anchor.Status != core::feedback_anchor_status::file || !unit.Anchor.Path) {
+				scopes.push_back(unattributed());
 				continue;
 			}
 			scopes.push_back(file(*unit.Anchor.Path));
@@ -218,8 +221,13 @@ namespace {
 		expect(a != nullptr && src != nullptr && count(*a, feedback_label::suggestion, feedback_resolution::resolved) == 1U
 				   && count(*a, feedback_label::praise, feedback_resolution::unresolved) == 0U && count(*src, feedback_label::praise, feedback_resolution::unresolved) == 1U,
 			   "a folder counts its files' conversations, and its parent folder those of every child");
-		expect(keys(model.scopes()) == keys({ pr(), file("src/a/x.cpp"), file("src/a/y.cpp"), file("src/b/z.cpp"), folder("src"), folder("src/a"), folder("src/b") }),
-			   "the scopes are the pull request, the three files and their folders; the unanchored question has no file");
+		expect(keys(model.scopes()) == keys({ pr(), file("src/a/x.cpp"), file("src/a/y.cpp"), file("src/b/z.cpp"), folder("src"), folder("src/a"), folder("src/b"), unattributed() }),
+			   "the scopes are the pull request, the three files and their folders, and the remainder; the unanchored question has no file");
+		const auto* remainder = model.tally(unattributed());
+		expect(remainder != nullptr && count(*remainder, feedback_label::question, feedback_resolution::unresolved) == 1U
+				   && count(*remainder, feedback_label::nitpick, feedback_resolution::not_applicable) == 1U
+				   && count(*remainder, feedback_label::thought, feedback_resolution::not_applicable) == 1U && count(*remainder, feedback_label::issue, feedback_resolution::unresolved) == 0U,
+			   "the remainder holds the unanchored question, the pull request comment and the review summary, and no file's conversation");
 		expect_matches_oracle(model, "first snapshot");
 	}
 

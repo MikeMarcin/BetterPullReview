@@ -1253,6 +1253,11 @@ namespace bpr::e2e::large_review {
 		for (const auto* name : { "read_modality", "files_drawer_open", "files_drawer_close", "conversations_drawer_open", "conversations_drawer_close", "appearance_settings_open", "theme_light", "theme_dark" }) {
 			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
 		}
+		// [[BPR-1089]]. The Overview's count switch and sort over 515 files and
+		// 1,000 threads, each one input against the unchanged 100 ms target.
+		for (const auto* name : { "overview_counts_all", "overview_counts_open", "overview_sort_by_comments", "overview_file_order" }) {
+			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
+		}
 		require(!aReport.ChangeActionMs.empty() && aReport.InputsDuringMeasurement != 0U && aReport.WheelEvents == 1000U,
 				"responsiveness budgets lack real navigation and input observations");
 		record("next_change_dispatch", std::ranges::max(aReport.ChangeActionMs), aReport.InputIntervalLimitMs);
@@ -1915,6 +1920,25 @@ namespace bpr::e2e::large_review {
 				require(report.Rendered, "approximate full-window capture failed");
 				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "approximate course bypassed the real diff host");
 			} else {
+				// [[BPR-1089]]. The Overview the review opens on counts its 1,000
+				// threads by label; Open to All and back, and a sort by every
+				// conversation and back to file order, are each one input
+				// answered from the kept label buckets.
+				if (report.ResponsivenessCourse) {
+					auto* const page     = window.overview_page();
+					const auto  answered = [&](const core::feedback_resolution_mode aMode, const bool aSorted) {
+						const auto& feedback = page->file_model()->feedback();
+						return feedback.has_value() && feedback->Request.Mode == aMode && feedback->Request.Sort.has_value() == aSorted
+							&& feedback->Order.empty() != aSorted && quiet(*application);
+					};
+					require(window.showing_overview() && answered(core::feedback_resolution_mode::unresolved, false)
+								&& page->file_model()->feedback()->PullRequest.Counts.ScopeTotal == 1000U,
+							"the Overview counts all 1,000 threads before any input");
+					require(measure_wait(*application, budget, report, "overview_counts_all", [&] { page->all_counts_button()->click(); }, [&] { return answered(core::feedback_resolution_mode::all, false); }), "Overview All timed out");
+					require(measure_wait(*application, budget, report, "overview_counts_open", [&] { page->open_counts_button()->click(); }, [&] { return answered(core::feedback_resolution_mode::unresolved, false); }), "Overview Open timed out");
+					require(measure_wait(*application, budget, report, "overview_sort_by_comments", [&] { page->choose_sort(core::feedback_count_target{ .Kind = core::feedback_count_kind::included }); }, [&] { return answered(core::feedback_resolution_mode::unresolved, true); }), "Overview sort timed out");
+					require(measure_wait(*application, budget, report, "overview_file_order", [&] { page->choose_sort(std::nullopt); }, [&] { return answered(core::feedback_resolution_mode::unresolved, false); }), "Overview file order timed out");
+				}
 				// [[BPR-0940]]. The ordinary course reads the large file where a
 				// reviewer does: in Read, so its measurement, navigation and
 				// wheel run on the visible comparison and its render shows it.

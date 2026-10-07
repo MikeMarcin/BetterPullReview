@@ -462,12 +462,61 @@ in `pull_request_overview_page`. The figures come from
 - **Accessible text** (derived from RFC-BPR-0050). A count's accessible
   description carries the label, the unit ("conversations"), the mode and any
   limit, as in "issue: 2 open conversations; resolution unknown for 3".
-- **Open: the keyboard route to a single chip.** The owner's frames show only
-  the pointer gesture. BPR-1089 picks a keyboard route within the table's
-  existing focus model and records it. One example is Enter on a Comments cell
-  opening a menu of its chips. The route must reach every chip, Other and
-  "+n", and keep focus across refresh. Changing chips or mode makes no
-  provider request (BPR-1087).
+- **The keyboard route to a single chip** (derived, BPR-1089; the owner's
+  frames show only the pointer). Left and Right move along a file row's
+  cells. Enter on the Comments cell opens a menu of every chip, Other, the
+  chips folded into "+n" and ?, with a Sort by submenu; the context-menu key
+  (Shift+F10) and a right-click open the same menu on any row, folders and
+  Not on a file included. Enter on any other cell still opens the file. The
+  cell stays current across a refresh, a sort and a trip to Discuss and back.
+  Changing chips or mode makes no provider request (BPR-1087).
+- **As built** (BPR-1089):
+  - **Decisions.** `core::project_feedback_counters` also gives each chip's
+    state breakdown and the ? count, `Uncertain`: resolution unknown or not
+    resolvable, or label unreadable, each conversation once.
+    `core::select_feedback_units` lists the conversations behind any number
+    with the same scope, chips and mode, so a drill-down is exactly its
+    count. `core::feedback_sorts_before` orders by the number, a qualified
+    count first at a tie. Two core scopes are added: `directory`, a flat
+    folder row's own files, and `unattributed`, Not on a file.
+  - **Composition.** `application::project_overview_feedback` answers the
+    Overview's request (the chips from Settings, the view's mode and sort)
+    from BPR-1087's kept tallies, composed in `github_application`. A folder
+    row is its listed files. Not on a file also holds any conversation on a
+    file the pull request no longer lists, so the rows together count each
+    conversation once.
+  - **The cell.** The Comments column is 216 px. A chip is the 16 px mark and
+    its count: in Open an attention-amber count, outlined on folder and Not
+    on a file rows; in All a neutral count over a state bar (open, resolved,
+    unknown, not resolvable). Other is a speech bubble with three dots; with
+    no chip chosen it is a plain bubble, Comments. A round qualifier sits at
+    the cell's right edge whenever the count is not exact or leaves anything
+    out: ? in a dashed ring, or the not-resolvable mark when that is all it
+    is. A blank cell is a complete zero. Every tooltip is anchored to its
+    chip.
+  - **Beside the Files heading.** Open (with the round open mark) and All,
+    the ? chip and the Label key (Alt+K; ⌥K on macOS). The Label key is a
+    list of the twelve marks with names and codes, Other, Comments, the four
+    state marks and ?.
+  - **Drill-down.** Discuss lists exactly the counted conversations under a
+    caption such as "issue · open · src/engine/renderer.cpp — 1
+    conversation". The whole pull request is in scope and no other filter
+    applies; × or Clear filters shows every conversation again. A refresh
+    reads the same count again from the new accepted population, in place,
+    without moving focus.
+  - **Sort.** Comments ▾ or the menu's Sort by offers File order, All
+    comments, each chip, Other and Not counted. Folders sort by their own
+    number, then their files; ties keep the file order. The header reads
+    "Comments ↓ ▾" while sorted, and its tooltip names the number.
+  - **Mode.** Each pull request's Overview starts at Settings' Overview
+    counts. A choice on the Overview belongs to that view and is never
+    written back.
+  - **Accessible text.** A cell reads as in "issue 1, Other 1 open
+    conversations; resolution unknown for 1", or in All "issue 2 (1 open,
+    1 resolved), Other 2 (2 open) conversations".
+- **Open: owner look.** Built on Linux from offscreen renders without the
+  frontend-design skill, which is not installed on that station. R33's
+  native matrix has not been run.
 
 ### Review submission preflight (BPR-1085; RFC-BPR-0048)
 
@@ -580,9 +629,9 @@ Comments drawer's own filter is not touched.
   keeps the page's "Reset" button and gains the tooltip "Reset comment
   labels". Every row dispatches the whole review-behaviour record and shows
   what the host publishes, so a refused or failed save reverts.
-- **Derived** (BPR-1088). The Overview counts row carries no round state
-  mark yet: BPR-1089 draws the four state marks, and the row can adopt the
-  open one then. A stored chip list naming an unknown or repeated label shows
+- **Derived** (BPR-1088). The Overview counts row's Open carries the round
+  open state mark, in the theme's attention amber (BPR-1089, which draws the
+  four state marks). A stored chip list naming an unknown or repeated label shows
   a line under the list: "Some saved chips were left out: 1 unknown label and
   2 repeats. The rest keep their order. Change a chip or Reset to save this
   list."
@@ -617,7 +666,6 @@ description reader (RFC-BPR-0050). Offscreen renders are layout evidence only.
 
 ## Open, not decided here
 
-- The keyboard route to a single Overview chip (BPR-1089 records it).
 - Live website interoperability with a real GitHub host (verification
   milestone). It uses `MikeMarcin/BPR-Test` only.
 - Headless parity for prefix edits (BPR-1092). The CLI takes labels by name
