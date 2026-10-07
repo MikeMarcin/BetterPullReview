@@ -55,6 +55,9 @@ network, or process effects.
 - Every attended review opens its own new, short session (a fresh `--state`
   directory). Never add candidates to or restart the long default session
   `cbd48b91…`; the owner asked for short sessions on 2026-10-04.
+- Implementers never drive or capture the owner's live macOS desktop
+  (`screencapture`, `cliclick`, foreground windows): it may be screen-shared.
+  Use offscreen renders and the frozen build; the owner looks themselves.
 - Ask one question per candidate criterion. A question riding a criterion about
   something else comes back unanswered (BPR-0744 v008 and v009).
 - Ask a keep-or-change judgment as Accept or Reject, with the change in the
