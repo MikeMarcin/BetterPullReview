@@ -437,3 +437,9 @@ Criterion status on Windows:
 - The never-signed-in exit 5 passes uncontained. Its row needs the pin
   above.
 - The native paths are not run here by design.
+
+
+**Pinned (bpr-main-win, 2026-10-07).** The coordinator allowed test
+registration under the freeze. `tour_cli_loopback_provider` is now registered
+`WINDOWS_UNCONTAINED` and pinned `dos-volume-name`, with the measured line
+above. On Windows it passes (0.21 s), as does `test_network_isolation_manifest`.

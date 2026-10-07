@@ -364,3 +364,15 @@ remote mutation:
 Host and Qt. The core profile registry and host policy are unchanged. No
 `PATH` discovery of `claude` is added; that is a separate decision if wanted.
 No environment-variables setting.
+
+
+## Windows pin (bpr-main-win, 2026-10-07)
+
+`application_review_tour_writing_wrapper` was registered `WINDOWS_UNCONTAINED`
+without a pin, so `test_network_isolation_manifest` named it on Windows.
+Measured contained, it exits 1 before printing a line (0.09 s), like
+`application_review_tour_writing`, which runs the same composed course.
+
+It is now pinned `dos-volume-name`. Uncontained it passes (10.4 s), and the
+manifest passes. This is only the registration. The card's own Windows rows
+wait for v002.

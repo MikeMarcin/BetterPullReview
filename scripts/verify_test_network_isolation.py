@@ -123,6 +123,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # so the same refusal; pinned by that shape, not yet measured contained.
     "application_personal_discovery_public_path": "dos-volume-name",
     "application_setup_destination_public_path": "dos-volume-name",
+    # [[BPR-1089]]. Measured on bpr-main-win 2026-10-07 at e31a3f357, each
+    # registered contained for the measurement: the courses stop at "FAILED:
+    # private overview-feedback course root" and "FAILED: private
+    # overview-labels course root" in under 0.2 s, the same refusal of the
+    # private storage root as the setup-destination row whose executable they
+    # share; both are registered uncontained and pass there.
+    "application_overview_feedback_public_path": "dos-volume-name",
+    "application_overview_labels_public_path": "dos-volume-name",
     # BPR-0622: measured on JaegAW 2026-09-17. Contained, the canary course exits
     # 3 with no output at std::filesystem::canonical of its root argument, the
     # same lowbox refusal as the BPR-0806 rows; it passes uncontained.
@@ -217,6 +225,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # exits 1 before printing a line. Not traced further; the same composed tour
     # course as application_review_tour_composition_public_path.
     "application_review_tour_writing": "dos-volume-name",
+    # [[BPR-1301]]. Measured on bpr-main-win 2026-10-07 at e31a3f357, registered
+    # contained for the measurement: like application_review_tour_writing, the
+    # same composed tour course, it exits 1 before printing a line (0.09 s).
+    # Registered uncontained, it passes.
+    "application_review_tour_writing_wrapper": "dos-volume-name",
     # [[BPR-1148]], [[BPR-1149]]. The product opens a chosen root and resolves it
     # with GetFinalPathNameByHandleW(VOLUME_NAME_DOS), the rows keep their stores
     # under a scratch root, and they build fixtures with Git; each is the obstacle
@@ -386,6 +399,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # differs from the package; import it again". Uncontained, the store's copy
     # has the package's own tree digest.
     "skill_pr_tour_package": "repository-content-outside-checkout",
+    # [[BPR-1302]]. Measured on bpr-main-win 2026-10-07 at 399aade8e, as
+    # registered contained: before the course starts,
+    # `Path(arguments.binary).resolve(strict=True)` raises "PermissionError:
+    # [WinError 5] Access is denied" on the built bpr.exe, CPython's realpath
+    # in the container. Uncontained with the row's environment it prints
+    # `tour-cli-loopback:never-signed-in-open:pass:0.1s` and
+    # `tour-cli-loopback:pass`.
+    "tour_cli_loopback_provider": "dos-volume-name",
     # [[BPR-1020]]. Measured on JaegAW 2026-09-23, each registered contained by
     # a reverted trial hook; the first contained failure is named. The release
     # scripts and the modified-endpoint fixture stop at the DOS form: Git starts
