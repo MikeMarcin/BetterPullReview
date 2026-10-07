@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1302"
 title: "The tour CLI's live remote reader waits on shutdown-only host quiescence, so online open and connect never return"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P1"
