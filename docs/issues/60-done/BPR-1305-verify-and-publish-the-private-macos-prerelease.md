@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1305"
 title: "Verify and publish the private macOS 0.1.4 prerelease"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 metadata: {"platforms":["mac"],"owner":"macos-prerelease","scope":"Owner-authorized private prerelease; no RFC-0038 closeout"}
@@ -164,3 +164,35 @@ provenance and annotated tag must use the new committed producer, not `f3e866e9b
 
 Bash syntax, all ten source/publication/notary command tests, the documentation
 gate and whitespace checks pass for the explicit-Keychain slice.
+
+
+## Published and verified
+
+Published [BetterPullReview v0.1.4](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.1.4)
+on 2026-10-07 through the normal release and publication scripts. Producer
+and peeled annotated tag are `ab0d3b8626fd67561538190ed4e34f5c5731f395`.
+The complete fresh development gate passed: 627 passing tests, zero failures,
+and the one configured Debug cache-bytes skip, 1131.02 seconds total. No
+`--skip-tests`, `--skip-notarize` or `--allow-dirty` option was used.
+
+The universal tests-disabled build passed restricted-runtime, architecture,
+macOS-floor, notices/source, relocated-launch and Developer ID/hardened-runtime
+verification. Apple accepted app submission `04a7a4c5-4a88-4946-87ed-91d36edf1858`
+and DMG submission `84e81593-6b7c-4027-98af-d0412860825d`. Both staple and validate
+actions passed; both Gatekeeper assessments reported Notarized Developer ID.
+
+Private preflight and atomic main/tag publication passed. The release is neither
+draft nor stable: GitHub reports prerelease, repository PRIVATE, and Latest
+remains v0.1.3. All eight assets were downloaded and compared byte-for-byte by
+SHA-256 with the verified producer outputs and GitHub's asset digests. The four
+product checksum files and exact version/source-revision binding passed again
+on the downloaded app ZIP, SPDX and corresponding-source ZIP. Installed source
+references select the separate versioned source asset, digest
+`fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156`.
+The published release notes match the committed notes.
+
+This closes BPR-1305's private prerelease scope. BPR-1304's native owner review
+stays parked, and RFC-BPR-0038/M8/M9 qualification gaps remain explicit in the
+release notes. Source-recipient access and indefinite retention obligations
+remain in force; offline binding is not legal or release-qualification approval.
+The managed checkout's station-transfer state was not changed.
