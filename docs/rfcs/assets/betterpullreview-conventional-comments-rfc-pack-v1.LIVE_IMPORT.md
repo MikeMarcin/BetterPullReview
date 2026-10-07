@@ -35,7 +35,7 @@ The five closeout cards (one per RFC, as authored) are retitled "Verify and clos
 | `PACK-CC-11` | [BPR-1085](../../issues/60-done/BPR-1085-integrate-reviewer-scoped-preflight-with-native-review-decisions.md) |
 | `PACK-CC-12` | [BPR-1086](../../issues/40-parked/BPR-1086-integrate-private-tracking-promotion-and-ordinary-tour-comments.md) |
 | `PACK-CC-13` | [BPR-1087](../../issues/60-done/BPR-1087-project-accepted-label-buckets-and-bounded-counter-deltas.md) |
-| `PACK-CC-14` | [BPR-1088](../../issues/40-parked/BPR-1088-persist-scoped-label-column-and-authoring-preferences.md) |
+| `PACK-CC-14` | [BPR-1088](../../issues/60-done/BPR-1088-persist-scoped-label-column-and-authoring-preferences.md) |
 | `PACK-CC-15` | [BPR-1089](../../issues/40-parked/BPR-1089-deliver-resolution-aware-overview-columns-and-exact-drill-down.md) |
 | `PACK-CC-16` | [BPR-1090](../../issues/10-backlog/BPR-1090-author-canonical-default-convention-guidance-and-hook-ownership-map.md) |
 | `PACK-CC-17` | [BPR-1091](../../issues/10-backlog/BPR-1091-wire-optional-convention-aware-hooks-through-the-existing-workshop.md) |
