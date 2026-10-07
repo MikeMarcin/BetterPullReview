@@ -3810,6 +3810,45 @@ namespace {
 		}
 	}
 
+	// [[BPR-1302]]. A caller driving the decision lane waits for a running
+	// host's work with is_running_idle. is_quiescent is the shutdown
+	// predicate: the tour CLI waited on it and never returned.
+	auto test_running_idleness_is_distinct_from_shutdown_quiescence() -> void
+	{
+		host_fixture fixture;
+		expect(fixture.Host.is_running_idle() && !fixture.Host.is_quiescent(),
+			   "a running host that owes nothing is idle and not quiescent");
+		static_cast<void>(establish_native_session(fixture));
+		fixture.Lane.drain();
+		expect(fixture.Host.accepted_session().has_value() && fixture.Host.is_running_idle()
+				   && !fixture.Host.is_quiescent(),
+			   "an accepted session leaves the running host idle, never quiescent");
+
+		fixture.Host.dispatch(core::open_pull_request_intent{
+			.Repository = { .Owner = "openai", .Name = "better-pull-review" },
+			.Number     = core::pull_request_number{ 27U },
+		});
+		expect(!fixture.Host.is_running_idle() && !fixture.Host.is_quiescent(),
+			   "an outstanding pull request read is work in flight");
+		const auto request = fixture.Provider.PullRequests.front().Request;
+		fixture.Provider.PullRequests.front().Completion(
+			application::github_pull_request_success{
+				.Request  = request,
+				.Snapshot = snapshot(request),
+			});
+		expect(!fixture.Host.is_running_idle(),
+			   "a completion queued on the lane is not yet answered");
+		fixture.Lane.drain();
+		expect(fixture.Host.accepted_snapshot().has_value() && fixture.Host.is_running_idle()
+				   && !fixture.Host.is_quiescent(),
+			   "the drained lane leaves the accepted read and an idle running host");
+
+		fixture.Host.shutdown();
+		fixture.Lane.drain();
+		expect(!fixture.Host.is_running_idle() && fixture.Host.is_quiescent(),
+			   "after shutdown the host is quiescent and no longer running-idle");
+	}
+
 	auto test_shutdown_cancels_and_suppresses_late_completion() -> void
 	{
 		host_fixture fixture;
@@ -7470,6 +7509,7 @@ auto main() -> int
 	test_accepted_publication_account();
 	test_retained_mutation_lease_is_revoked_on_shutdown();
 	test_accepted_snapshot_handoff_and_exact_invalidation();
+	test_running_idleness_is_distinct_from_shutdown_quiescence();
 	test_success_projection_is_safe_atomic_and_conversation_complete();
 	test_unanchored_line_thread_projects_without_a_guessed_line();
 	test_every_provider_failure_maps_to_safe_pull_request_failure();

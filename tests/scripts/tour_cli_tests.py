@@ -16,6 +16,7 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 VAULT_REFUSED = "No unlocked Secret Service default collection is reachable"
 VAULT_LOCKED = "The Secret Service default collection is locked"
 NOTHING_REQUESTED = "Nothing was requested from GitHub."
+DEVICE_UNREACHED = "The GitHub device sign-in could not reach GitHub or did not complete."
 
 
 def terminal_connect(binary, environment, data_root, seconds=20):
@@ -84,12 +85,14 @@ def linux_headless_sign_in(binary):
             keyring = session.start_keyring(session.tool("gnome-keyring-daemon"), session.tool("dbus-send"), bus,
                                             root / "keyring")
             # An unlocked default collection passes into the device flow, whose request
-            # then meets the test's network boundary and waits: no code is shown and
-            # nothing is sent. The test interrupts it, as a person would.
+            # then meets the test's network boundary and fails: no code is shown and
+            # nothing is sent. [[BPR-1302]] It used to look like a wait the test had to
+            # interrupt (exit 130): the terminal waited on shutdown-only quiescence. It
+            # now ends at once with the flow's own refusal.
             code, output = terminal_connect(binary, environment("unlocked", {"DBUS_SESSION_BUS_ADDRESS": bus.address}),
                                             root / "unlocked" / "data", seconds=5)
-            assert code == 130 and VAULT_REFUSED not in output and VAULT_LOCKED not in output, (code, output)
-            assert "enter code" not in output, output
+            assert code == 5 and VAULT_REFUSED not in output and VAULT_LOCKED not in output, (code, output)
+            assert DEVICE_UNREACHED in output and "enter code" not in output, output
             # The same collection locked: refused with the unlock instruction.
             alias = session.bus_call(session.tool("dbus-send"), bus.address, session.SECRET_SERVICE,
                                      "/org/freedesktop/secrets", "org.freedesktop.Secret.Service.ReadAlias",

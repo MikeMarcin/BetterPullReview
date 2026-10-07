@@ -847,6 +847,12 @@ MACOS_LOOPBACK_AUTHORITIES = {
     # the api.github.com and release-assets hosts are only names inside the
     # tunnel.
     "release_update_native_https": 1,
+    # [[BPR-1302]]. tour_cli_loopback_tests.py binds its one configured port at
+    # 127.0.0.1 as the CONNECT proxy and TLS origin under a fixture authority it
+    # generates, refuses a non-loopback peer, and hands the built `bpr` that
+    # port through the test-only seam. github.com and api.github.com are only
+    # names inside the tunnel.
+    "tour_cli_loopback_provider": 1,
 }
 MACOS_UNRELATED_ENDPOINT_PROBE = "test_network_isolation_unrelated"
 PRE_BOUNDARY_INJECTION_VARIABLES = (

@@ -18,10 +18,11 @@
 #include "tour_decisions.hpp"
 #include "tour_runtime.hpp"
 #include <QCoreApplication>
+#include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QRandomGenerator>
 #include <QStandardPaths>
-#include <QThread>
 #include <QTimer>
 #include <deque>
 #include <future>
@@ -55,6 +56,89 @@ namespace bpr::app {
 			QTimer                Timer;
 			std::function<void()> Expiry;
 		};
+#if defined(BPR_BUILD_TESTING)
+		// [[BPR-1302]] Test-enabled builds only. `BPR_GITHUB_NATIVE_HTTPS_TEST_LOOPBACK`
+		// names `PORT:ABSOLUTE-PEM-PATH`: every native exchange then goes through
+		// that one loopback CONNECT proxy and also trusts that one disposable
+		// fixture authority, the adapter's existing test seam. Nothing else about
+		// the provider, the transport or the hosts changes. A tests-disabled
+		// build has neither the variable nor the factories.
+		struct loopback_selection
+		{
+			bool                                           Requested = false;
+			std::optional<native_https_test_configuration> Configuration;
+		};
+		auto loopback_from_environment() -> loopback_selection
+		{
+			const auto value = qEnvironmentVariable("BPR_GITHUB_NATIVE_HTTPS_TEST_LOOPBACK");
+			if (value.isEmpty()) {
+				return { };
+			}
+			loopback_selection result;
+			result.Requested     = true;
+			const auto separator = value.indexOf(u':');
+			bool       parsed    = false;
+			const auto port      = separator > 0 ? value.left(separator).toUShort(&parsed) : std::uint16_t{ 0 };
+			QFile      authority{ value.mid(separator + 1) };
+			if (!parsed || port == 0U || !QDir::isAbsolutePath(authority.fileName()) || !authority.open(QIODevice::ReadOnly)) {
+				return result;
+			}
+			const auto pem = authority.read(64 * 1024);
+			if (pem.isEmpty() || !authority.atEnd()) {
+				return result;
+			}
+			native_https_test_configuration configuration;
+			configuration.ProxyHost               = "127.0.0.1";
+			configuration.ProxyPort               = port;
+			configuration.TrustedCaCertificatePem = pem.toStdString();
+			result.Configuration                  = std::move(configuration);
+			return result;
+		}
+		class loopback_wire_transport_factory final : public github_wire_transport_factory_port
+		{
+		public:
+			explicit loopback_wire_transport_factory(native_https_test_configuration aConfiguration)
+				: Configuration{ std::move(aConfiguration) }
+			{ }
+			auto make_bootstrap(const validated_github_host_profile& aProfile, core::github_session_request_context aContext, application::github_credential_material aCredential) noexcept -> github_wire_transport_factory_result override
+			{
+				return wrap(make_native_https_bootstrap_transport_for_test(aProfile, aContext, std::move(aCredential), Configuration));
+			}
+			auto make_account(const validated_github_host_profile& aProfile, application::github_credential_retrieve_success aCredential) noexcept -> github_wire_transport_factory_result override
+			{
+				return wrap(make_native_https_account_transport_for_test(aProfile, std::move(aCredential), Configuration));
+			}
+			auto make_anonymous(const validated_github_host_profile& aProfile, core::github_session_request_context aContext) noexcept -> github_wire_transport_factory_result override
+			{
+				return wrap(make_native_https_anonymous_read_transport_for_test(aProfile, aContext, Configuration));
+			}
+
+		private:
+			static auto wrap(native_https_transport_factory_result aResult) noexcept -> github_wire_transport_factory_result
+			{
+				if (!aResult) {
+					application::github_provider_error error;
+					error.Failure = application::github_provider_failure::unavailable;
+					return std::unexpected{ error };
+				}
+				return std::shared_ptr<github_wire_transport_port>{ std::move(*aResult) };
+			}
+			native_https_test_configuration Configuration;
+		};
+#endif
+		// [[BPR-1302]] A device flow that ended without authorization says how.
+		// Before, the terminal waited on shutdown-only quiescence and these
+		// endings looked like a hang until interrupted.
+		auto device_stage_message(core::device_authorization_stage aStage) -> std::string
+		{
+			using stage = core::device_authorization_stage;
+			switch (aStage) {
+			case stage::denied:   return "The GitHub device sign-in was denied. Nothing was stored.";
+			case stage::expired:  return "The device code expired before it was entered. Nothing was stored; connect again.";
+			case stage::disabled: return "Device sign-in is disabled for this GitHub application. Nothing was stored.";
+			default:              return "The GitHub device sign-in could not reach GitHub or did not complete. Nothing was stored; check the network and connect again.";
+			}
+		}
 		class terminal_device_projection final : public application::device_authorization_projection_port
 		{
 		public:
@@ -91,7 +175,7 @@ namespace bpr::app {
 						std::cerr << "Using the explicitly selected gh executable and its configured identity within the qualified process boundary.\n";
 					}
 					Host->dispatch(core::activate_host_profile_intent{ HostProfile->profile() });
-					wait([&] { return Host->is_quiescent(); });
+					wait([&] { return Host->is_running_idle(); });
 				} else {
 					auto connected = device_connect();
 					if (!connected) {
@@ -117,14 +201,14 @@ namespace bpr::app {
 					if (!Host->restore_device_profile(authority, [&](auto) { restored = true; })) {
 						return refuse("authentication_required", "Run bpr tour connect --host " + aHostname + " --transport native.", 5);
 					}
-					wait([&] { return restored && Host->is_quiescent(); });
+					wait([&] { return restored && Host->is_running_idle(); });
 				}
-				wait([&] { return Host->is_quiescent(); });
+				wait([&] { return Host->is_running_idle(); });
 				if (!Host->accepted_session()) {
 					return refuse("authentication_required", "No current account was admitted. Run bpr tour connect --host " + aHostname + " --transport " + (aGh ? "gh" : "native") + " explicitly.", 5);
 				}
 				Host->dispatch(core::open_pull_request_intent{ aRepository, aNumber });
-				wait([&] { return Host->is_quiescent(); });
+				wait([&] { return Host->is_running_idle(); });
 				if (!Host->accepted_snapshot() || !Handoff) {
 					return refuse("read_unavailable", "The bounded paged PR read was unavailable or incomplete. No empty tour was inferred.", 7);
 				}
@@ -200,7 +284,7 @@ namespace bpr::app {
 					Epoch      = std::make_unique<application::epoch_application_host>(core::epoch_state{ .ApplicationSession = Session }, *Cache, *Catalog, *Entropy, *EpochClock, Effects, Decisions, static_cast<application::epoch_projection_port&>(*this));
 					Epoch->accept(std::move(*Handoff));
 					Handoff.reset();
-					wait([&] { return Epoch->is_quiescent(); });
+					wait([&] { return Epoch->is_running_idle(); });
 				}
 				auto context = application::review_tour_source_context(*Epoch, authority, aSource);
 				if (!context) {
@@ -232,12 +316,33 @@ namespace bpr::app {
 				wait([&] { return result.wait_for(std::chrono::milliseconds{ 0 }) == std::future_status::ready; });
 				return result.get();
 			}
-			void publish(const application::github_presentation_update&) override { }
+			// [[BPR-1302]] The desktop's bind_device_refresh_authority for the one
+			// case this terminal composes: a sign-in this process just
+			// authorized. The accepted session's publication names the account,
+			// and binding here, inside that turn, queues the renewal material's
+			// store before the host's own renewability probe, as on the desktop.
+			void publish(const application::github_presentation_update& aUpdate) override
+			{
+				if (!Device || !Host || RefreshBound || !aUpdate.Session || Device->state().Stage != core::device_authorization_stage::authorized) {
+					return;
+				}
+				const auto authority  = Host->accepted_credential_authority();
+				const auto generation = Host->accepted_identity_generation();
+				if (!authority || generation.value() == 0U || !Host->accepted_device_lifetime()) {
+					return;
+				}
+				RefreshBound = true;
+				Device->bind_refresh_authority(*authority, generation);
+			}
 			void accept(application::accepted_pull_request_handoff aHandoff) override { Handoff = std::move(aHandoff); }
 			void invalidate(application::pull_request_authority_invalidation) override { Handoff.reset(); }
+			// [[BPR-1302]] Waits while the terminal drives the decision lane. A step
+			// waits on the running host's idleness (`is_running_idle`), never on
+			// `is_quiescent`, which is true only after shutdown; only stop() and
+			// cancellation wait for that. Underlying read/transport and device
+			// hosts own their finite time bounds.
 			void wait(const std::function<bool()>& aDone)
 			{
-				// Underlying read/transport and device hosts own their finite time bounds.
 				do {
 					if (tour_cancelled() && !Cancelling) {
 						Cancelling = true;
@@ -259,7 +364,7 @@ namespace bpr::app {
 					if (aDone() || (Cancelling && (!Host || Host->is_quiescent()) && (!Device || Device->is_quiescent()) && (!Epoch || Epoch->is_quiescent()) && Effects.idle())) {
 						break;
 					}
-					QThread::msleep(1);
+					Decisions.wait_for_post(std::chrono::milliseconds{ 10 });
 				} while (true);
 			}
 			auto initialize(const std::string& aHostname, bool aGh) -> tour_cli_result<void>
@@ -279,6 +384,14 @@ namespace bpr::app {
 				}
 				HostProfile                                                 = std::make_unique<validated_github_host_profile>(*validated);
 				std::shared_ptr<github_wire_transport_factory_port> factory = std::make_shared<native_github_wire_transport_factory>();
+#if defined(BPR_BUILD_TESTING)
+				if (Loopback.Requested) {
+					if (!Loopback.Configuration || aGh) {
+						return refuse("transport_unavailable", "The loopback test configuration is invalid.", 5);
+					}
+					factory = std::make_shared<loopback_wire_transport_factory>(*Loopback.Configuration);
+				}
+#endif
 #if defined(__APPLE__)
 				if (aGh) {
 					factory = make_opted_in_cli_transport_factory();
@@ -312,7 +425,12 @@ namespace bpr::app {
 				if (auto setup = platform_vault_setup_required()) {
 					return refuse("vault_unavailable", std::move(*setup), 5);
 				}
-				auto wire = make_native_https_credential_free_transport(*HostProfile, { .Request = core::request_id{ 1 }, .ApplicationSession = Session, .Profile = HostProfile->profile(), .IdentityGeneration = core::github_identity_generation{ 1 } });
+				const core::github_session_request_context context{ .Request = core::request_id{ 1 }, .ApplicationSession = Session, .Profile = HostProfile->profile(), .IdentityGeneration = core::github_identity_generation{ 1 } };
+#if defined(BPR_BUILD_TESTING)
+				auto wire = Loopback.Configuration ? make_native_https_credential_free_transport_for_test(*HostProfile, context, *Loopback.Configuration) : make_native_https_credential_free_transport(*HostProfile, context);
+#else
+				auto wire = make_native_https_credential_free_transport(*HostProfile, context);
+#endif
 				if (!wire) {
 					return refuse("authentication_unavailable", "Native device transport is unavailable.", 5);
 				}
@@ -324,7 +442,23 @@ namespace bpr::app {
 				Enrollment      = std::make_unique<application::github_host_device_authorization_enrollment>(*Host);
 				Device          = std::make_unique<application::device_authorization_application_host>(core::device_authorization_state{ .ApplicationSession = Session }, *DeviceTransport, *Vault, *Enrollment, *Clock, Timer, Decisions, DeviceProjection, application::device_authorization_host_limits{ }, application::device_authorization_browser_handoff{ }, application::device_authorization_capability{ .Registered = true, .Profile = HostProfile->profile() });
 				Device->dispatch(core::begin_device_authorization_intent{ HostProfile->profile() });
-				wait([&] { return !Device->state().Pending && Device->is_quiescent() && Host->is_quiescent() && Persistence->is_quiescent(); });
+				// [[BPR-1302]] The flow, the session it enrolls, the renewal
+				// material stored under the account `/user` names (bound in
+				// publish(), as the desktop binds it) and the binding that lets
+				// the next process restore this sign-in. Once the renewal is
+				// scheduled the device host keeps a timer armed, so that state,
+				// not its quiescence, is the end of its part.
+				wait([&] {
+					const auto refresh = Device->refresh_observation().State;
+					const auto device  = Device->is_quiescent() || refresh == application::device_authorization_refresh_state::scheduled || refresh == application::device_authorization_refresh_state::reenrollment_required;
+					return !Device->state().Pending && device && Host->is_running_idle() && Persistence->is_quiescent();
+				});
+				if (const auto stage = Device->state().Stage; stage != core::device_authorization_stage::authorized) {
+					return refuse(stage == core::device_authorization_stage::denied ? "authentication_denied" : "authentication_unavailable", device_stage_message(stage), 5);
+				}
+				if (Host->accepted_session() && !Host->accepted_device_binding_durable()) {
+					return refuse("vault_unavailable", "GitHub authorized this sign-in, but it could not be stored for later commands. Check the vault and connect again.", 5);
+				}
 				return { };
 			}
 			void stop()
@@ -347,7 +481,11 @@ namespace bpr::app {
 				Decisions.drain();
 			}
 
-			bool                                                 Cancelling = false;
+			bool Cancelling   = false;
+			bool RefreshBound = false;
+#if defined(BPR_BUILD_TESTING)
+			loopback_selection Loopback = loopback_from_environment();
+#endif
 			std::filesystem::path                                Root;
 			core::bpr_profile_id                                 Profile;
 			worker_executor                                      Effects;

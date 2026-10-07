@@ -478,6 +478,12 @@ namespace bpr::application {
 			CompletionGate->Host.store(nullptr, std::memory_order_release);
 		}
 
+		// [[BPR-1302]]. Nothing this host started is still owed an answer: no
+		// provider, vault, binding, setup or restore operation and no read
+		// window's work. Shutdown quiescence and running idleness are this one
+		// fact under opposite lifecycles, so both predicates read it here.
+		[[nodiscard]] auto outstanding_work_settled() const noexcept -> bool;
+
 		template <typename Action>
 		void run_turn(Action&& aAction)
 		{
@@ -4920,24 +4926,31 @@ namespace bpr::application {
 
 	auto github_application_host::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Closing
-			&& (!Implementation->ReadWindow || Implementation->ReadWindow->is_quiescent())
-			&& std::all_of(Implementation->AttachedWindows.begin(), Implementation->AttachedWindows.end(),
+		return Implementation->Closing && Implementation->outstanding_work_settled();
+	}
+
+	auto github_application_host::is_running_idle() const noexcept -> bool
+	{
+		return !Implementation->Closing && Implementation->outstanding_work_settled()
+			&& !Implementation->TurnActive && Implementation->DeferredIngress.empty()
+			&& !Implementation->DeferredIngressScheduled;
+	}
+
+	auto github_application_host::implementation::outstanding_work_settled() const noexcept -> bool
+	{
+		return (!ReadWindow || ReadWindow->is_quiescent())
+			&& std::all_of(AttachedWindows.begin(), AttachedWindows.end(),
 						   [](const auto& aSlot) { return aSlot.Host->is_quiescent(); })
-			&& Implementation->OutstandingSetup == 0U
-			&& Implementation->OutstandingBindings == 0U
-			&& Implementation->OutstandingRestoreCompletions == 0U
-			&& !Implementation->BindingErasePending
-			&& std::holds_alternative<std::monostate>(
-				   Implementation->PendingProvider)
-			&& Implementation->ActiveVaultOperation
-			== implementation::vault_operation::none
+			&& OutstandingSetup == 0U
+			&& OutstandingBindings == 0U
+			&& OutstandingRestoreCompletions == 0U
+			&& !BindingErasePending
+			&& std::holds_alternative<std::monostate>(PendingProvider)
+			&& ActiveVaultOperation == vault_operation::none
 			// [[BPR-0540]]. The refresh slot's erasure is part of the exact
 			// cleanup, so composition keeps this host and the vault alive
 			// until the vault has answered for it too.
-			&& Implementation->OutstandingRefreshDeletes.load(
-				   std::memory_order_acquire)
-			== 0U;
+			&& OutstandingRefreshDeletes.load(std::memory_order_acquire) == 0U;
 	}
 
 	auto github_application_host::shutdown_cleanup_failed() const noexcept -> bool

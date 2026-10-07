@@ -356,7 +356,22 @@ namespace bpr::application {
 			-> const github_rate_limit_state&;
 		[[nodiscard]] auto capability_cache_size() const noexcept -> std::size_t;
 		[[nodiscard]] auto is_closing() const noexcept -> bool;
+		/// \brief Returns true only after `shutdown()` once nothing is owed.
+		///
+		/// \details The safe-to-destroy predicate. It requires closing, so it
+		/// never becomes true while the host runs; do not wait on it for a
+		/// running host's work ([[BPR-1302]]).
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		/// \brief [[BPR-1302]] Returns true while the host runs and owes nothing.
+		///
+		/// \details No provider, vault, binding, setup or restore operation is
+		/// outstanding, no read window has work in flight, and no turn or
+		/// deferred ingress is pending. False once closing. A caller that
+		/// drives the decision lane itself waits on this after an intent, with
+		/// the lane drained, and then reads the accepted state. The
+		/// renewability probe is not counted: it may never answer, and nothing
+		/// a read waits for depends on it.
+		[[nodiscard]] auto is_running_idle() const noexcept -> bool;
 		[[nodiscard]] auto shutdown_cleanup_failed() const noexcept -> bool;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
 		[[nodiscard]] auto epoch_handoff_delivery_failed() const noexcept -> bool;

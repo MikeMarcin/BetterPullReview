@@ -2076,6 +2076,17 @@ namespace bpr::application {
 			});
 		}
 
+		// [[BPR-1302]]. No job, blob call, turn, deferred ingress, invalidation,
+		// diagnostic, shutdown, offer or actor work is outstanding. Shutdown
+		// quiescence and running idleness are this one fact under opposite
+		// lifecycles.
+		[[nodiscard]] auto outstanding_work_settled() const noexcept -> bool
+		{
+			return job_count() == 0U && blob_calls_idle() && !TurnActive && DeferredIngress.empty()
+				&& deferred_invalidations_empty() && !DeferredIngressScheduled && !DeferredDiagnostic
+				&& !DeferredShutdown && !PendingOfferToken && actors_idle();
+		}
+
 		[[nodiscard]] auto job_count() const noexcept -> std::size_t
 		{
 			std::scoped_lock lock{ JobsMutex };
@@ -8034,16 +8045,12 @@ namespace bpr::application {
 
 	auto epoch_application_host::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Closing && Implementation->job_count() == 0U
-			&& Implementation->blob_calls_idle()
-			&& !Implementation->TurnActive
-			&& Implementation->DeferredIngress.empty()
-			&& Implementation->deferred_invalidations_empty()
-			&& !Implementation->DeferredIngressScheduled
-			&& !Implementation->DeferredDiagnostic
-			&& !Implementation->DeferredShutdown
-			&& !Implementation->PendingOfferToken
-			&& Implementation->actors_idle();
+		return Implementation->Closing && Implementation->outstanding_work_settled();
+	}
+
+	auto epoch_application_host::is_running_idle() const noexcept -> bool
+	{
+		return !Implementation->Closing && Implementation->outstanding_work_settled();
 	}
 
 	auto epoch_application_host::outstanding_jobs() const noexcept -> std::size_t

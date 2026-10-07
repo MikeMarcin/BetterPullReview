@@ -27,6 +27,23 @@ if(BPR_BUILD_TOUR_CLI)
         "${PROJECT_SOURCE_DIR}/packaging/agent-skills/pr-tour" "$<TARGET_FILE:test_tour_cli_composition>")
     bpr_add_network_isolated_test(NAME tour_cli_public_entry
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_tests.py" "$<TARGET_FILE:app_bpr>")
+    # [[BPR-1302]]. The real `bpr` through the real remote reader against a
+    # loopback GitHub: one CONNECT proxy and TLS origin at 127.0.0.1 under a
+    # disposable authority, reached through the adapter's BUILD_TESTING-only
+    # seam. Linux signs in through the device flow into a private Secret
+    # Service and then opens, reads pinned source, refreshes, publishes (to the
+    # unqualified gate, no writes) and recovers; every platform refuses a
+    # never-signed-in open at once. Each step is bounded, so a hang fails in
+    # seconds at its own path.
+    set(bpr_tour_loopback_openssl "")
+    if(NOT WIN32)
+        find_program(BPR_TOUR_LOOPBACK_OPENSSL NAMES openssl REQUIRED)
+        set(bpr_tour_loopback_openssl --openssl "${BPR_TOUR_LOOPBACK_OPENSSL}")
+    endif()
+    bpr_add_network_isolated_test(NAME tour_cli_loopback_provider LOOPBACK_PORT_COUNT 1
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_loopback_tests.py" "$<TARGET_FILE:app_bpr>"
+        ${bpr_tour_loopback_openssl})
+    set_tests_properties(tour_cli_loopback_provider PROPERTIES TIMEOUT 300 PASS_REGULAR_EXPRESSION "tour-cli-loopback:pass")
     # [[BPR-1167]]. `bpr cycle` as real processes in a near-empty environment:
     # open, note, review, freeze, export, capture, compare and response import
     # on a fixture folder, with the contract's typed refusals and one writer.

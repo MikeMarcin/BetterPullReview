@@ -136,7 +136,17 @@ namespace bpr::application {
 
 		[[nodiscard]] auto state() const noexcept -> const core::epoch_state&;
 		[[nodiscard]] auto is_closing() const noexcept -> bool;
+		/// \brief Returns true only after `shutdown()` once nothing is owed.
+		///
+		/// \details Requires closing, so it never becomes true while the host
+		/// runs ([[BPR-1302]]).
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		/// \brief [[BPR-1302]] Returns true while the host runs and owes nothing.
+		///
+		/// \details No job, blob call, actor work, turn or deferred ingress is
+		/// outstanding. False once closing. A caller that drives the decision
+		/// lane waits on this after `accept`, with the lane drained.
+		[[nodiscard]] auto is_running_idle() const noexcept -> bool;
 		[[nodiscard]] auto outstanding_jobs() const noexcept -> std::size_t;
 		[[nodiscard]] auto queued_actor_work() const noexcept -> std::size_t;
 		[[nodiscard]] auto deferred_ordinary_ingress() const noexcept
