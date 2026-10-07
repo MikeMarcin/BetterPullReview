@@ -131,3 +131,22 @@ git pull --rebase --autostash; mask repair; cmake --preset windows-dev -B build/
 
 On Windows the row is pinned `WINDOWS_UNCONTAINED` (BPR-1067), so it reads
 the store outside the container.
+
+
+## Windows station run (bpr-main-win, 2026-10-06)
+
+At `f94614933`, `git pull` came first. Then `mask repair` re-linked
+`.claude/skills/pr-tour` and `.agents/skills/pr-tour` to the new store
+payload (`be63ec28…`), with no other change.
+
+Both links are byte-identical to `packaging/agent-skills/pr-tour` (`diff -r`),
+so the deployed `recovery.md` carries the protocol-6 source-read row.
+
+`build/windows-dev-tour-cli` needed no rebuild: only `.mask.lock.json`,
+the package and docs had changed since its last build at `766f2513a`. Under
+the network-isolated runner, these pass 3 of 3:
+
+- `skill_pr_tour_package` (`pr-tour-skill-tests:pass`), under its
+  `WINDOWS_UNCONTAINED` pin from [[BPR-1067]];
+- `skill_bpr_cycle_package`;
+- `test_network_isolation_manifest`.
