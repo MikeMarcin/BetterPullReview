@@ -150,3 +150,16 @@ the network-isolated runner, these pass 3 of 3:
   `WINDOWS_UNCONTAINED` pin from [[BPR-1067]];
 - `skill_bpr_cycle_package`;
 - `test_network_isolation_manifest`.
+
+## Linux station run (bpr-main-linux, 2026-10-06)
+
+At `62e8e9596` (contains `f94614933`), WSL2, GCC 15.2.0: `mask repair`
+re-pointed `.agents/skills/pr-tour` and `.claude/skills/pr-tour` to the
+store payload `sha256:be63ec28…1d43`. That is the payload `.mask.lock.json`
+pins for `pr-tour` at AgentSkills `e7470a7`. The working tree stayed clean.
+`mask info pr-tour` still prints commit `b75119cd7`, because it reads this
+station's tap catalog, not the lock; the deployed payload is the locked one.
+In `build/dev-tour-cli` (`-DBPR_BUILD_TOUR_CLI=ON`), under the
+network-isolated runner, `skill_pr_tour_package` passes
+(`pr-tour-skill-tests:pass`), and so do `skill_bpr_cycle_package` and
+`test_network_isolation_manifest`.
