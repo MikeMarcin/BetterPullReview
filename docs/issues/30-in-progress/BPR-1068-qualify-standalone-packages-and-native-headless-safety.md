@@ -64,17 +64,20 @@ or qualification claim.
 
 Completing `bpr tour connect --host github.com --transport native` needs the
 owner to open `https://github.com/login/device` and enter the code the
-terminal prints. It was not asked: with [[BPR-1302]] the completed `connect`
-would store the grant and then not return, and the following `open` would
-hang. Ask after BPR-1302 lands, in a session with an unlocked keyring, then
-`open` a `MikeMarcin/BPR-Test` pull request.
+terminal prints. It was not asked while [[BPR-1302]] stood, because the
+completed `connect` would have stored the grant and then not returned. BPR-1302
+is fixed on Linux (`af4fa4fd8`): the loopback course completes a native
+`connect` and the following online `open`. The owner step is now ready (see
+"Owner sign-in step" below).
 
 ## Owed station runs
 
 Neither run is a release or qualification claim. Never enter a device code;
 interrupt the native `connect` once it prints one, and record the outcome.
-Expect the online `open` to hang until [[BPR-1302]] is fixed; interrupt it
-after 30 seconds.
+Since [[BPR-1302]] (`af4fa4fd8`), the online `open` on a never-signed-in
+profile returns at once with exit 5 `authentication_required`. If it runs
+longer than 30 seconds, that is a BPR-1302 regression on this platform:
+interrupt it and record it on BPR-1302.
 
 macOS (Terminal, from the checkout):
 
@@ -91,7 +94,7 @@ env -u DISPLAY "$root/install/bin/bpr" tour capabilities --json
 "$root/install/bin/bpr" tour connect --host github.com --transport native --data-root "$root/data"
 "$root/install/bin/bpr" tour open https://github.com/MikeMarcin/BPR-Test/pull/1 --json --data-root "$root/data"
 cmake --preset dev -B build/dev-tour-cli -DBPR_BUILD_TOUR_CLI=ON && cmake --build build/dev-tour-cli
-ctest --test-dir build/dev-tour-cli --output-on-failure -R "^(tour_cli_publication|tour_cli_terminal_publication|tour_cli_composition|tour_cli_process_commands|tour_cli_public_entry|skill_pr_tour_package|cycle_cli_public_path|cycle_cli_documentation|sqlite_tour_owner_channel|architecture_boundaries|test_network_isolation_manifest)$"
+ctest --test-dir build/dev-tour-cli --output-on-failure -R "^(tour_cli_publication|tour_cli_terminal_publication|tour_cli_composition|tour_cli_process_commands|tour_cli_public_entry|tour_cli_loopback_provider|skill_pr_tour_package|cycle_cli_public_path|cycle_cli_documentation|sqlite_tour_owner_channel|architecture_boundaries|test_network_isolation_manifest)$"
 rm -rf "$root"
 ```
 
@@ -111,7 +114,7 @@ cmake --install build/tour-cli --component TourCLI --prefix "$root\install"
 & "$root\install\bin\bpr.exe" tour connect --host github.com --transport native --data-root "$root\data"
 & "$root\install\bin\bpr.exe" tour open https://github.com/MikeMarcin/BPR-Test/pull/1 --json --data-root "$root\data"
 cmake --preset windows-dev -B build/windows-dev-tour-cli -DBPR_BUILD_TOUR_CLI=ON; cmake --build build/windows-dev-tour-cli --config Debug
-ctest --test-dir build/windows-dev-tour-cli -C Debug --output-on-failure -R "^(tour_cli_publication|tour_cli_terminal_publication|tour_cli_composition|tour_cli_process_commands|tour_cli_public_entry|skill_pr_tour_package|cycle_cli_public_path|cycle_cli_documentation|sqlite_tour_owner_channel|architecture_boundaries|test_network_isolation_manifest)$"
+ctest --test-dir build/windows-dev-tour-cli -C Debug --output-on-failure -R "^(tour_cli_publication|tour_cli_terminal_publication|tour_cli_composition|tour_cli_process_commands|tour_cli_public_entry|tour_cli_loopback_provider|skill_pr_tour_package|cycle_cli_public_path|cycle_cli_documentation|sqlite_tour_owner_channel|architecture_boundaries|test_network_isolation_manifest)$"
 Remove-Item -Recurse -Force $root
 ```
 
@@ -136,3 +139,29 @@ passes in `build/dev`). The format check passes.
 The card stays In Progress. AC44-12 is not met on Linux while [[BPR-1302]]
 (online tour reads never return) is open. Windows and macOS are owed, as
 listed above.
+
+## Owner sign-in step (prepared 2026-10-07)
+
+This step runs on the Linux station, in a visible WSL terminal on the Windows
+PC that hosts it. The browser step can be on any device.
+
+- **Build:** a frozen tests-off `bpr` built from `399aade8e` (contains BPR-1302's
+  `af4fa4fd8`) is installed in `/home/mmarcin/bpr-owner-signin/install`.
+- **Run:** `bash /home/mmarcin/bpr-owner-signin/run-signin.sh [PR]`. The
+  one-page guide is `/home/mmarcin/bpr-owner-signin/INSTRUCTIONS.md`.
+- **What the script does:**
+  1. Starts a private session bus and a fresh gnome-keyring (the real Secret
+     Service) with a random, unkept password, under a temporary root.
+  2. Runs `bpr tour connect --host github.com --transport native`; the owner
+     enters the code at `https://github.com/login/device`.
+  3. Runs a bounded (120 s) online `open` of `MikeMarcin/BPR-Test` pull
+     request 1.
+  4. Deletes the root, the keyring and the stored grant.
+- **Results:** written to `/home/mmarcin/bpr-owner-signin/result.txt`. The
+  device code goes to the terminal only, never to that file.
+- **Dry run without a terminal** (no code requested): keyring ready,
+  capabilities exit 0 with the linux platform block, `connect` exit 3
+  `interaction_required`, and cleanup done.
+
+A macOS-built `bpr` would observe the macOS (Keychain) row, not this Linux
+row.
