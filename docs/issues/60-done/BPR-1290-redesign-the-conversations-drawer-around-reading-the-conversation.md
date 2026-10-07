@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1290"
 title: "Redesign the Conversations drawer around reading the conversation"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1290--BPR-1290--127a0d0a37cd.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0050","RFC-BPR-0052"],"related_cards":["BPR-1083","BPR-1212","BPR-1288","BPR-1293","BPR-1294","BPR-0418","BPR-0456","BPR-0648","BPR-0649"],"owner_references":["docs/design/owner-refs/BPR-1290-owner-ref-conversations-drawer.webp","docs/design/owner-refs/BPR-1290-owner-ref-split-tabs.webp","docs/design/owner-refs/BPR-1290-owner-ref-built-drawer-v002.webp","docs/design/owner-refs/BPR-1290-owner-ref-built-drawer-v003.webp"],"requested_skill":"frontend-design","acceptance":["BPR-1290:inventory","BPR-1290:direction","BPR-1290:reading","BPR-1290:navigation","BPR-1290:depth","BPR-1290:kept","BPR-1290:themes","BPR-1290:owner-look"]}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1290:inventory","outcome":"pass","revision":"0a7f72068","evidence":{"kind":"observation","detail":"The inventory table under 'What the drawer does today, and why' was complete before design round v1 and is the basis of :kept."}},{"criterion":"BPR-1290:direction","outcome":"pass","revision":"0a7f72068","evidence":{"kind":"observation","detail":"Owner chose the inline drawer prototype in chat, 2026-10-06: 'I like it' (recorded under 'Owner verdict on the inline drawer prototype')."}},{"criterion":"BPR-1290:reading","outcome":"pass","revision":"0a7f72068","evidence":{"kind":"command","detail":"macOS v005: qt_composed_inline_drawer_scale_{100,125,200} open a thread in place pinned at its line and as tall as its posts, every post with author, BPR-1083 mark and rail, unread state and complete body rendered through markdown_body_view in place with no vertical scroll of its own; Reply opens in place. Linux and Windows passed the v001 rows at 1fecfaef5."}},{"criterion":"BPR-1290:navigation","outcome":"pass","revision":"0a7f72068","evidence":{"kind":"command","detail":"Inline rows cover margin notes, gutter markers, out-of-view chips, Shift-click on scroll-bar ticks (Windows rerun 3/3 at 3036a08af), Only new and Hide resolved, Up/Down, Return, Esc, R, N, Command+Return and Shift+F10, and the line reveal both ways; negative controls fail as expected."}},{"criterion":"BPR-1290:depth","outcome":"pass","revision":"0a7f72068","evidence":{"kind":"command","detail":"Thread map, path caption, post list and body pane are absent from the drawer (negative controls in qt_composed_inline_drawer); a deep thread reads in posting order with 'answers' naming; branching-thread-v1 reads correctly."}},{"criterion":"BPR-1290:kept","outcome":"pass","revision":"0a7f72068","evidence":{"kind":"observation","detail":"Kept rows (unread/Mark read, Resolve, Reply, draft Publish/Edit/Delete, defect badges, Shift+F10 menu, Support details, line sync, gutter marks, Notes, Tour, Discuss) exercised by the 41 Debug rows; governing text amended in the specification's Conversation drawer and thread-map sections and RFC-BPR-0028; posts render per the BPR-1299 correction; DOCUMENTATION_OK."}},{"criterion":"BPR-1290:themes","outcome":"pass","revision":"0a7f72068","evidence":{"kind":"command","detail":"Inline rows render light, dark and high-contrast larger text at 100/125/200 scale, 280/375 px and Discuss widths without clipping, colours from the palette; drawer drags 280-760 px. macOS v005; Linux and Windows at v001."}},{"criterion":"BPR-1290:owner-look","outcome":"pass","revision":"frozen-7fb9997b1-v005","evidence":{"kind":"observation","detail":"Owner Accept, no note: attended session f76a3bf839eafd23b24baa2da0e15979, candidate BPR-1290-built-drawer-v005 (fingerprint 08e46c30552e...), decision 53123a21-bb9d-4c71-906f-e0566a6d58f5, event 5; published as 0a7f72068. Linux/Windows runs of v005's rows are owed station commands on the card, not blockers."}}]
 ---
 
 # BPR-1290: Redesign the Conversations drawer around reading the conversation
@@ -1183,3 +1183,46 @@ posts render Markdown."
 Next: read the session's decision. Accept satisfies :owner-look and the card
 finishes. Reject comes back with what differs in its note, for a v006
 candidate.
+
+## Owner verdict on built drawer v005, 2026-10-06: Accept
+
+Session `f76a3bf839eafd23b24baa2da0e15979`, read with `status --after 4`:
+event 5 records **Accept** on `BPR-1290-built-drawer-v005` (revision
+`frozen-7fb9997b1-v005`, fingerprint `08e46c30552e…`, decision
+`53123a21-bb9d-4c71-906f-e0566a6d58f5`, saved 2026-10-07T02:13:23Z, actor
+human) with no note; event 6 hands back with nothing pending. That satisfies
+BPR-1290:owner-look on the candidate published as `0a7f72068`. The session was
+released (`resume-development --all`) and its frozen root
+`/Users/jaeger/bpr1290-inline-drawer-review-v005.sSilse` deleted. The
+attachment folders `/Users/jaeger/bpr1290-owner-attachments-v002` and `-v003`
+were deleted; their screenshots are committed as
+`docs/design/owner-refs/BPR-1290-owner-ref-built-drawer-v002.webp` and `-v003.webp`.
+
+Later `origin/main` commits touch `conversation_cards_view.cpp` only for
+[[BPR-1086]]'s tour-stop header (a published tour stop's label is read inside
+its narrative); the accepted drawer is unchanged by them.
+
+### Platform evidence
+
+- **macOS** (v005, `7fb9997b1` = `0a7f72068`): the 41 Debug rows, the
+  optimized drawer and Markdown rows with the 100 ms checks enforced, and the
+  frozen build's own offscreen run and inline rows, all listed under
+  [Verification on the candidate](#verification-on-the-candidate-4). The
+  owner's look was on macOS.
+- **Linux** (`bpr-main-linux`, WSL2, GCC 15.2.0): v001 at `1fecfaef5`, 21 of 21
+  in the dev tree and 21 of 21 in the optimized tests-on tree (above).
+- **Windows** (`bpr-main-win`, MSVC 14.51, Qt 6.11.2): v001 at `1fecfaef5`,
+  21 of 21 in `windows-dev` and the 18 large-review rows optimized; the
+  Shift-click rerun at `3036a08af`, 3 of 3 in both trees (above).
+
+### Owed station runs (not blocking)
+
+The acceptance criteria name no per-platform run, and `platforms` is
+eligibility metadata, so this card finishes on the macOS evidence and the
+owner's Accept. Linux and Windows have not run v002 to v005's rows. Owed, at
+`origin/main` holding `0a7f72068`, with no remote mutation:
+
+- `bpr-main-linux`: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev --output-on-failure -R '^(qt_composed_inline_drawer_scale_.*|qt_composed_markdown_.*|qt_conversation_cards_view|qt_github_conversation_panel|qt_github_thread_map_scale_.*|qt_feedback_label_threads|qt_markdown_body_.*|qt_public_preview_conversation|qt_review_draft_editor|architecture_boundaries)$'`
+- `bpr-main-win`: `cmake --preset windows-dev && cmake --build --preset windows-dev && ctest --preset windows-dev -j4 --output-on-failure -R` with the same expression.
+
+A failure there opens a new card against this drawer; it does not reopen this one.
