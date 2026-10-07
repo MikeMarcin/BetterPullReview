@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1293"
 title: "Conversations: a PR-wide finder modality beside Discuss"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
