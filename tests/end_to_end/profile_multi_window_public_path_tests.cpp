@@ -234,7 +234,7 @@ namespace {
 		const auto bytes = QJsonDocument{ aReport }.toJson(QJsonDocument::Indented);
 		expect(report.write(bytes) == bytes.size() && report.flush(), "complete Dif JSON report written");
 		std::cout << "dif-integration-report:pass\n";
-		aWindow.modality()->action(qt::review_modality::read)->trigger();
+		aWindow.modality()->action(qt::review_modality::review)->trigger();
 	}
 	void select_file(app::github_application& aOwner, qt::workbench_window& aWindow)
 	{
@@ -258,7 +258,7 @@ namespace {
                           << " workbench=" << work.WorkbenchOutstandingRequests
                           << " status=" << aWindow.status_text().toStdString() << '\n';
             } }, 60000);
-		aWindow.modality()->action(qt::review_modality::read)->trigger();
+		aWindow.modality()->action(qt::review_modality::review)->trigger();
 		auto* files = aWindow.files_drawer()->contents_view();
 		auto* model = aWindow.files_drawer()->contents();
 		wait_for([&] { return model->index_for_file(core::file_identity_of("review.cpp")).isValid(); }, "accepted review lists the exact requested file");
@@ -449,7 +449,7 @@ try {
 	QApplication::processEvents();
 	expect(windowA->showing_home() && windowA->comparison_surface()->current_result() == comparisonA,
 		   "Home covers the live review without replacing its comparison");
-	windowA->modality()->action(qt::review_modality::read)->trigger();
+	windowA->modality()->action(qt::review_modality::review)->trigger();
 	QApplication::processEvents();
 	expect(!windowA->showing_home()
 			   && windowA->comparison_surface()->current_result() == comparisonA
@@ -507,7 +507,7 @@ try {
 	const auto serverThread         = std::string{ serverSnapshot->ReviewThreads.front().Thread.value() };
 	const auto serverRoot           = "review-comment:" + std::string{ serverSnapshot->ReviewThreads.front().Comments.front().Comment.value() };
 	const auto serverThreadIdentity = "review-thread:" + serverThread;
-	// The retained Read selection is deliberately a different source line.
+	// The retained Review selection is deliberately a different source line.
 	// Discuss shows the whole conversation, not only threads on that line.
 	windowA->modality()->action(qt::review_modality::discuss)->trigger();
 	expect(windowA->conversation_model()->index_for_id(serverRoot).isValid(), "Discuss renders the existing server root before refresh");
@@ -716,8 +716,8 @@ try {
 			   && windowB->comparison_surface()->shared_scrollbar()->value() == receiptScrollB
 			   && windowC->comparison_surface()->shared_scrollbar()->value() == receiptScrollC,
 		   "conversation receipt fanout preserves independent comparisons, selections, and scroll");
-	windowB->modality()->action(qt::review_modality::read)->trigger();
-	windowC->modality()->action(qt::review_modality::read)->trigger();
+	windowB->modality()->action(qt::review_modality::review)->trigger();
+	windowC->modality()->action(qt::review_modality::review)->trigger();
 	// Returning from Discuss restores the active tab on the next decision
 	// turn. Finish that public transition before choosing a new reading line.
 	QApplication::processEvents();
@@ -728,7 +728,7 @@ try {
 		};
 		return ready(*windowB) && ready(*windowC);
 	},
-			 "returning Read tabs finish restoring before choosing the draft line");
+			 "returning Review tabs finish restoring before choosing the draft line");
 	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 2U)
 			   && windowC->comparison_surface()->select_conversation_line(core::diff_side::right, 2U),
 		   "both windows select the same review anchor");

@@ -281,7 +281,7 @@ try {
 	window->home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/17"));
 	window->home_open_action()->trigger();
 	until([&] { return owner->status(first)->EpochStatus == core::epoch_status::ready; }, "real Git producer publishes an exact epoch");
-	window->modality()->action(qt::review_modality::read)->trigger();
+	window->modality()->action(qt::review_modality::review)->trigger();
 	auto* files = window->files_drawer()->contents_view();
 	auto* model = window->files_drawer()->contents();
 	until([&] { return model->index_for_file(core::file_identity_of("review.cpp")).isValid(); }, "exact fixture file is selectable");

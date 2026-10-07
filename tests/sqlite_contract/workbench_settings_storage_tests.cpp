@@ -595,7 +595,6 @@ namespace {
 			.RepositoriesWidth  = 260U,
 			.Behaviour          = {
 				.OpenModality     = application::review_open_modality::last_used,
-				.ContinueModality = application::review_continue_modality::review,
 				.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
 				.ReturnComparison = application::review_return_comparison::since_last_review,
 				.CommentsFilter   = application::review_comments_filter::unresolved,
@@ -684,7 +683,6 @@ namespace {
 			.RepositoriesWidth  = 260U,
 			.Behaviour          = {
 				.OpenModality     = application::review_open_modality::last_used,
-				.ContinueModality = application::review_continue_modality::review,
 				.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
 				.ReturnComparison = application::review_return_comparison::since_last_review,
 				.CommentsFilter   = application::review_comments_filter::unresolved,
@@ -840,7 +838,6 @@ namespace {
 			.RepositoriesWidth  = 260U,
 			.Behaviour          = {
 				.OpenModality     = application::review_open_modality::last_used,
-				.ContinueModality = application::review_continue_modality::review,
 				.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
 				.ReturnComparison = application::review_return_comparison::since_last_review,
 				.CommentsFilter   = application::review_comments_filter::unresolved,
@@ -1004,7 +1001,6 @@ namespace {
 			auto changed      = *loaded;
 			changed.Behaviour = application::review_behaviour_settings{
 				.OpenModality     = application::review_open_modality::last_used,
-				.ContinueModality = application::review_continue_modality::review,
 				.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
 				.ReturnComparison = application::review_return_comparison::since_last_upload,
 				.CommentsFilter   = application::review_comments_filter::unresolved,
@@ -1213,7 +1209,7 @@ namespace {
 		auto       database = workbench_settings_database::open(scratch.file("windows.sqlite3"), { });
 		expect(database.has_value(), "window store opens");
 		auto defaults                   = distinct_layout();
-		defaults.Behaviour.OpenModality = application::review_open_modality::read;
+		defaults.Behaviour.OpenModality = application::review_open_modality::review;
 		defaults.OnePane                = core::workbench_one_pane::enabled;
 		expect(database->store(defaults, { }).has_value(), "profile defaults and behaviour are durable");
 		const auto first  = core::bpr_window_id{ std::numeric_limits<std::uint64_t>::max() };
@@ -1447,7 +1443,7 @@ namespace {
 		auto layout = (*window)->load({ });
 		expect(layout && layout->FilesWidth == 432, "missing bound window receives profile defaults");
 		layout->FilesWidth             = 654;
-		layout->Behaviour.OpenModality = application::review_open_modality::read;
+		layout->Behaviour.OpenModality = application::review_open_modality::review;
 		expect((*window)->store(*layout, { }).has_value(), "bound geometry stores");
 		const auto retained = (*defaults)->load_preferences({ });
 		expect(retained && *retained == *preferences, "bound write cannot rewrite defaults or behaviour");
@@ -1596,7 +1592,6 @@ namespace {
 		chosen.RepositoriesWidth          = 360U;
 		chosen.OnePane                    = core::workbench_one_pane::enabled;
 		chosen.Behaviour.OpenModality     = application::review_open_modality::last_used;
-		chosen.Behaviour.ContinueModality = application::review_continue_modality::review;
 		chosen.Behaviour.MarkRead         = application::review_mark_read_behaviour::when_fully_seen;
 		chosen.Behaviour.ReturnComparison = application::review_return_comparison::since_last_upload;
 		chosen.Behaviour.CommentsFilter   = application::review_comments_filter::unresolved;
@@ -1619,6 +1614,51 @@ namespace {
 	/// \brief [[BPR-1088]]. A version-twelve profile gains the label helper
 	/// (off), the Overview's starting count (Open) and no label columns, and
 	/// keeps every other field, its writing hooks and its window rows.
+	/// \brief [[BPR-1295]]. Read merged into Review. A stored open_modality 1
+	/// opens in Review under its new name; continue_modality of either value
+	/// is accepted and ignored; and every write keeps that retired column
+	/// valid with 1, Review. No schema change: the CHECKs are as they were.
+	void test_read_settings_open_in_review_and_continue_modality_is_ignored()
+	{
+		const auto scratch            = scratch_directory{ };
+		const auto path               = scratch.file("read-merged.sqlite3");
+		auto       chosen             = settled_profile();
+		chosen.Behaviour.OpenModality = application::review_open_modality::overview;
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value() && db->store(chosen, { }).has_value(), "a full profile row stores");
+			expect(integer_pragma(path, "SELECT continue_modality FROM workbench_preferences") == 1,
+				   "a write keeps the retired continue_modality valid as 1, Review");
+		}
+		// The rows an older build wrote: opens in Read (1), Continue review
+		// enters Read (0) and, in the second pass, Review (1).
+		for (const auto continued : { 0, 1 }) {
+			{
+				::sqlite3* raw = nullptr;
+				expect(::sqlite3_open_v2(path.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK,
+					   "the store reopens raw");
+				const auto sql = "UPDATE workbench_preferences SET open_modality = 1, continue_modality = "
+					+ std::to_string(continued) + ";";
+				expect(::sqlite3_exec(raw, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK,
+					   "an older build's Read row is written");
+				(void)::sqlite3_close_v2(raw);
+			}
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value(), "the store with a Read row opens");
+			const auto loaded = db->load({ });
+			expect(loaded.has_value(), "a stored Read and either Continue value load");
+			expect(loaded->Behaviour.OpenModality == application::review_open_modality::review,
+				   "a pull request that opened in Read opens in Review");
+			auto expected                   = chosen;
+			expected.Behaviour.OpenModality = application::review_open_modality::review;
+			expect(*loaded == expected, "nothing else in the row changes, and Continue's value is not read");
+			expect(db->store(*loaded, { }).has_value(), "the loaded row stores again");
+			expect(integer_pragma(path, "SELECT open_modality FROM workbench_preferences") == 1
+					   && integer_pragma(path, "SELECT continue_modality FROM workbench_preferences") == 1,
+				   "and is written back as Review, with continue_modality 1");
+		}
+	}
+
 	void test_label_preferences_migrate_from_twelve_without_resetting_anything_else()
 	{
 		const auto scratch = scratch_directory{ };
@@ -1796,6 +1836,7 @@ try {
 	test_authoritative_window_retention();
 	test_feedback_marks_round_trip_and_migrate_from_eleven();
 	test_label_preferences_migrate_from_twelve_without_resetting_anything_else();
+	test_read_settings_open_in_review_and_continue_modality_is_ignored();
 	test_all_twelve_label_columns_persist_in_order();
 	test_unknown_or_repeated_stored_columns_load_safely_and_explain();
 	test_label_preference_storage_outside_its_bounds_fails_closed();

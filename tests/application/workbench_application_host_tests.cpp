@@ -1166,8 +1166,7 @@ namespace {
 	{
 		auto       durable = fake_settings{ };
 		const auto chosen  = application::review_behaviour_settings{
-			.OpenModality     = application::review_open_modality::read,
-			.ContinueModality = application::review_continue_modality::review,
+			.OpenModality     = application::review_open_modality::review,
 			.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
 			.ReturnComparison = application::review_return_comparison::since_last_review,
 			.CommentsFilter   = application::review_comments_filter::unread,

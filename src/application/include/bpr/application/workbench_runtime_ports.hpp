@@ -465,17 +465,15 @@ namespace bpr::application {
 	};
 
 	/// \brief Which modality a pull request opens in ([[BPR-0661]]).
+	///
+	/// \details [[BPR-1295]]. Read merged into Review on 2026-10-06. The
+	/// stored value 1 keeps its number and now names Review, so a reviewer
+	/// who chose to open in Read opens in Review.
 	enum class review_open_modality : std::uint8_t {
 		overview,
-		read,
+		review,
 		/// The modality the reviewer last used in this session.
 		last_used,
-	};
-
-	/// \brief Which modality Continue review enters ([[BPR-0661]]).
-	enum class review_continue_modality : std::uint8_t {
-		read,
-		review,
 	};
 
 	/// \brief When a file is marked read ([[BPR-0661]]).
@@ -564,16 +562,17 @@ namespace bpr::application {
 	///
 	/// \details [[BPR-0661]]. RFC-BPR-0028's Reviews & queue rows. Stored
 	/// beside the layout in the workbench settings record, validated by the
-	/// host, honoured by the window: the modality on open and on Continue
-	/// review, whether a file marks itself read once fully seen, the
+	/// host, honoured by the window: the modality on open, whether a file
+	/// marks itself read once fully seen, the
 	/// comparison on return, the comments drawer's first filter and, since
 	/// [[BPR-0721]], whether the drawers carry their own controls. Every
 	/// default is the behaviour the window had before the preference existed,
 	/// except the drawer controls, which the owner asked to have off.
 	struct review_behaviour_settings
 	{
-		review_open_modality       OpenModality     = review_open_modality::overview;
-		review_continue_modality   ContinueModality = review_continue_modality::read;
+		review_open_modality OpenModality = review_open_modality::overview;
+		/// [[BPR-1295]]. "Continue review enters" is gone with Read: Start
+		/// and Continue review both enter Review.
 		review_mark_read_behaviour MarkRead         = review_mark_read_behaviour::by_hand;
 		review_return_comparison   ReturnComparison = review_return_comparison::whole_pr;
 		review_comments_filter     CommentsFilter   = review_comments_filter::all;
@@ -611,8 +610,6 @@ namespace bpr::application {
 	{
 		return static_cast<std::uint8_t>(aSettings.OpenModality)
 			<= static_cast<std::uint8_t>(review_open_modality::last_used)
-			&& static_cast<std::uint8_t>(aSettings.ContinueModality)
-			<= static_cast<std::uint8_t>(review_continue_modality::review)
 			&& static_cast<std::uint8_t>(aSettings.MarkRead)
 			<= static_cast<std::uint8_t>(review_mark_read_behaviour::when_fully_seen)
 			&& static_cast<std::uint8_t>(aSettings.ReturnComparison)
@@ -847,11 +844,14 @@ namespace bpr::application {
 	/// workbench. The host publishes nothing when no domain changed.
 	struct workbench_projection
 	{
-		workbench_request_context                         Context;
-		std::optional<core::workbench_selection_delta>    Selection;
-		std::optional<core::workbench_drawer_delta>       Drawers;
-		std::optional<core::workbench_line_numbers_delta> LineNumbers;
-		std::optional<core::workbench_one_pane_delta>     OnePane;
+		workbench_request_context                      Context;
+		std::optional<core::workbench_selection_delta> Selection;
+		std::optional<core::workbench_drawer_delta>    Drawers;
+		/// [[BPR-1295]]. What showing the drawers would open, published when
+		/// it changes, so the hide-and-show command can name it.
+		std::optional<core::workbench_drawer_restore_delta> DrawerRestore;
+		std::optional<core::workbench_line_numbers_delta>   LineNumbers;
+		std::optional<core::workbench_one_pane_delta>       OnePane;
 		/// [[BPR-1130]]. The Updates line's fold, published when it changes
 		/// and once when this window's choice is restored.
 		std::optional<core::workbench_updates_line_delta>     UpdatesLine;
@@ -886,6 +886,7 @@ namespace bpr::application {
 	{
 		return !aProjection.Selection.has_value()
 			&& !aProjection.Drawers.has_value()
+			&& !aProjection.DrawerRestore.has_value()
 			&& !aProjection.LineNumbers.has_value()
 			&& !aProjection.OnePane.has_value()
 			&& !aProjection.UpdatesLine.has_value()

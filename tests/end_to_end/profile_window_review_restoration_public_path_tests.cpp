@@ -223,9 +223,9 @@ namespace {
 		auto&                                           window = *aOwner.window(aContext);
 		std::optional<core::comparison_anchor_identity> expectedLeft;
 		std::optional<core::comparison_anchor_identity> expectedRight;
-		// Read and Review own the active tab's pair; Overview and Discuss own
+		// Review owns the active tab's pair; Overview and Discuss own
 		// the window's. Enter the reading surface before changing its pair.
-		window.modality()->action(qt::review_modality::read)->trigger();
+		window.modality()->action(qt::review_modality::review)->trigger();
 		QApplication::processEvents();
 		wait_for([&] { const auto status = aOwner.status(aContext); return status && status->EpochStatus == core::epoch_status::ready; }, "reading epoch ready");
 		if (aRow == 1 || aCrossUpload) {
@@ -639,7 +639,7 @@ auto main(int aArgc, char** aArgv) -> int
 			activate(0, original);
 			first->modality()->action(qt::review_modality::discuss)->trigger();
 			wait_for([&] { return core::parse_git_commit_oid(first->epoch_selectors()->right_oid_editor()->text().toStdString()) == changed.Comparison.Right.Commit; }, "Discuss presents window comparison");
-			first->modality()->action(qt::review_modality::read)->trigger();
+			first->modality()->action(qt::review_modality::review)->trigger();
 			activate(0, original);
 			activate(1, changed);
 			std::cerr << "tabs-course:duplicate-reading\n";
@@ -811,10 +811,10 @@ auto main(int aArgc, char** aArgv) -> int
 		wait_for([&] { return first->session_panel()->status() == core::github_status::pull_request_ready && !first->showing_home(); }, "the opened row settles on its review");
 		const auto shownReads   = github_application_fixture_access::evidence(*owner).AccountReadCount;
 		const auto shownPreview = owner->status().PublicPreviewRequests;
-		// Read first, so landing on Overview is the row's doing and not a view
+		// Review first, so landing on Overview is the row's doing and not a view
 		// that was already there.
-		first->choose_modality(qt::review_modality::read);
-		expect(first->current_modality() == qt::review_modality::read, "the shown review is read before Home");
+		first->choose_modality(qt::review_modality::review);
+		expect(first->current_modality() == qt::review_modality::review, "the shown review is in Review before Home");
 		first->home_action()->trigger();
 		wait_for([&] { return first->showing_home(); }, "Home shows over the open review");
 		open_recent(*owner, firstContext, 17);

@@ -263,7 +263,7 @@ namespace {
 		wait_for([&] { return window.github_open_action()->isEnabled(); }, "folder course connection");
 		submit(window, QStringLiteral("https://github.com/bpr-fixtures/large-review/pull/17"));
 		wait_for([&] { return owner->status().EpochStatus == core::epoch_status::ready && window.files_tree()->tree_model()->file_count() == 515U; }, "folder course exact comparison");
-		window.modality()->action(qt::review_modality::read)->trigger();
+		window.modality()->action(qt::review_modality::review)->trigger();
 		if (!window.files_drawer_toggle_action()->isChecked()) {
 			window.files_drawer_toggle_action()->trigger();
 		}
@@ -621,7 +621,7 @@ namespace {
 		wait_for([&] { return window.github_open_action()->isEnabled(); }, "missing endpoint connection");
 		submit(window, QStringLiteral("https://github.com/octo-org/review-repository/pull/17"));
 		wait_for([&] { return owner->status().EpochStatus == core::epoch_status::ready && window.files_tree()->tree_model()->file_count() == 2U; }, "missing endpoint exact comparison");
-		window.modality()->action(qt::review_modality::read)->trigger();
+		window.modality()->action(qt::review_modality::review)->trigger();
 		if (!window.files_drawer_toggle_action()->isChecked()) {
 			window.files_drawer_toggle_action()->trigger();
 		}
@@ -727,7 +727,7 @@ namespace {
 				&& selection->PreferredLine.Side == core::diff_side::right && selection->PreferredLine.Line == 1U;
 		},
 				 "a file link with a head-side line selects exactly that file and line");
-		expect(!window.showing_home() && window.current_modality() == qt::review_modality::read, "a file location is shown in Read");
+		expect(!window.showing_home() && window.current_modality() == qt::review_modality::review, "a file location is shown in Review");
 		expect(!window.statusBar()->currentMessage().contains(QStringLiteral("unavailable")), "an exact location says nothing");
 		const auto opened = reads();
 
@@ -1391,7 +1391,7 @@ namespace {
 				   && window.comparison_surface()->current_result() == nullptr,
 			   "refused PR has neither a selected file nor comparison before Discuss");
 		read_cli_source_update_discussion(window);
-		window.modality()->action(qt::review_modality::read)->trigger();
+		window.modality()->action(qt::review_modality::review)->trigger();
 		auto* const files  = window.files_drawer()->contents_view();
 		const auto  review = window.files_drawer()->contents()->index_for_file(
 			core::file_identity_of("review.cpp"));

@@ -101,6 +101,12 @@ namespace bpr::tests::native_menu {
 	/// main menu, which is how a menu bar shortcut reaches a resident application
 	/// with no window. Returns false when there is no main menu to resolve it.
 	[[nodiscard]] auto send_command_key(char aKey) -> bool;
+	/// \brief [[BPR-1295]]. Sends a Command-key key-down addressed to the key
+	/// window, as a keystroke arrives, through `-[NSApplication sendEvent:]`.
+	///
+	/// \details AppKit offers a key equivalent to the key window and then to
+	/// the main menu. Returns false when there is no key window or main menu.
+	[[nodiscard]] auto send_command_key_to_key_window(char aKey) -> bool;
 	/// \brief Performs the named item of the named main-menu menu as a click would.
 	[[nodiscard]] auto perform_main_menu_item(std::string_view aMenuTitle, std::string_view aItemTitle) -> bool;
 }

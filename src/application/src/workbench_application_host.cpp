@@ -1766,6 +1766,10 @@ namespace bpr::application {
 			if (PublishedDrawers != drawers) {
 				projection.Drawers = drawers;
 			}
+			const auto restore = core::project_workbench_drawer_restore(State);
+			if (PublishedDrawerRestore != restore) {
+				projection.DrawerRestore = restore;
+			}
 			const auto lineNumbers = core::workbench_line_numbers_delta{
 				.State = State.LineNumbers,
 			};
@@ -1846,15 +1850,16 @@ namespace bpr::application {
 			if (empty(projection)) {
 				return;
 			}
-			PublishedSelection   = selection;
-			PublishedDrawers     = drawers;
-			PublishedLineNumbers = lineNumbers;
-			PublishedUpdatesLine = updatesLine;
-			PublishedOnePane     = onePane;
-			PublishedCommands    = commands;
-			PublishedLayout      = layout;
-			PublishedBehaviour   = Layout.Behaviour;
-			RepublishBehaviour   = false;
+			PublishedSelection     = selection;
+			PublishedDrawers       = drawers;
+			PublishedDrawerRestore = restore;
+			PublishedLineNumbers   = lineNumbers;
+			PublishedUpdatesLine   = updatesLine;
+			PublishedOnePane       = onePane;
+			PublishedCommands      = commands;
+			PublishedLayout        = layout;
+			PublishedBehaviour     = Layout.Behaviour;
+			RepublishBehaviour     = false;
 			if (projection.HomeView.has_value()) {
 				PublishedHome = projection.HomeView;
 			}
@@ -1942,6 +1947,7 @@ namespace bpr::application {
 
 		std::optional<core::workbench_selection_delta>        PublishedSelection;
 		std::optional<core::workbench_drawer_delta>           PublishedDrawers;
+		std::optional<core::workbench_drawer_restore_delta>   PublishedDrawerRestore;
 		std::optional<core::workbench_line_numbers_delta>     PublishedLineNumbers;
 		std::optional<core::workbench_updates_line_delta>     PublishedUpdatesLine;
 		std::optional<core::workbench_one_pane_delta>         PublishedOnePane;

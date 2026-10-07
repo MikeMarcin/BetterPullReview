@@ -79,6 +79,20 @@ not tied to the Read or Discuss modalities.
 It does not hold or read pull request comments or review summaries that are not
 on a file. Those are [[BPR-1294]]'s open problem.
 
+## Owner amendment, 2026-10-06: Discuss on ⌘3, Conversations on ⌘4
+
+The owner, in chat on 2026-10-06, relayed by the coordinator, verbatim:
+
+> can we swap discuss to 3 and conversations to 4
+
+This supersedes every key assignment below that puts Conversations on ⌘3 and
+Discuss on ⌘4, including the acceptance criteria's. **Conversations is ⌘4
+(Ctrl+4); Discuss stays on ⌘3**, where [[BPR-1295]] put it, so its key does
+not move. ⌘J still goes to Conversations. The strip's order is unchanged by
+the keys: where this card names the segment's place, read it with the keys
+swapped (Conversations' tooltip names ⌘4 and ⌘J). It also supersedes the
+coordinator's earlier note on [[BPR-1295]] that Discuss keeps ⌘4.
+
 ## Owner direction, 2026-10-06
 
 In chat, about the inline drawer prototype
@@ -477,6 +491,10 @@ the board keeps a card with unfinished dependencies in Backlog. Q1 and Q2 were
 answered on 2026-10-06.
 
 ## Acceptance
+
+Read with the [owner amendment of 2026-10-06](#owner-amendment-2026-10-06-discuss-on-3-conversations-on-4):
+wherever a criterion below gives Conversations ⌘3 and Discuss ⌘4, the keys
+are Conversations ⌘4 and Discuss ⌘3.
 
 Amended 2026-10-06 for the owner's answers: :modality, :keys, :entries,
 :governing-text, :tests and :owner-look follow them, and :removed is replaced

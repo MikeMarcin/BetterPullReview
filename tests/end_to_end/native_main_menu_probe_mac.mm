@@ -278,6 +278,27 @@ namespace bpr::tests::native_menu {
 		return true;
 	}
 
+	auto send_command_key_to_key_window(const char aKey) -> bool
+	{
+		NSWindow* const window = [NSApp keyWindow];
+		if (window == nil || [NSApp mainMenu] == nil) {
+			return false;
+		}
+		NSString* characters = [NSString stringWithFormat:@"%c", aKey];
+		NSEvent*  event      = [NSEvent keyEventWithType:NSEventTypeKeyDown
+											 location:NSZeroPoint
+										modifierFlags:NSEventModifierFlagCommand
+											timestamp:[[NSProcessInfo processInfo] systemUptime]
+										 windowNumber:[window windowNumber]
+											  context:nil
+										   characters:characters
+						  charactersIgnoringModifiers:characters
+											isARepeat:NO
+											  keyCode:aKey == 'b' ? 11 : 0];
+		[NSApp sendEvent:event];
+		return true;
+	}
+
 	auto perform_main_menu_item(const std::string_view aMenuTitle, const std::string_view aItemTitle) -> bool
 	{
 		NSMenu*         menu  = find_menu(aMenuTitle, aItemTitle);

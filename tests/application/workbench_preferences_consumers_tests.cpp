@@ -88,7 +88,7 @@ namespace {
 			application::workbench_application_host rejected{ { }, observer, port, effects, decision, projected, core::application_session_id{ 1 }, { }, nullptr, nullptr, &owner, core::bpr_profile_id{ refusal == 0 ? 2U : 1U } };
 			rejected.restore();
 			auto changed         = application::review_behaviour_settings{ };
-			changed.OpenModality = application::review_open_modality::read;
+			changed.OpenModality = application::review_open_modality::review;
 			rejected.apply_behaviour(changed);
 			rejected.resize(core::workbench_drawer::files, 555);
 			effects.drain();
@@ -117,7 +117,7 @@ namespace {
 			if (!changed) {
 				changed           = true;
 				auto next         = application::review_behaviour_settings{ };
-				next.OpenModality = application::review_open_modality::read;
+				next.OpenModality = application::review_open_modality::review;
 				expect(owner.apply_behaviour(next), "reentrant subscriber durably changes preferences");
 			}
 		});
@@ -126,7 +126,7 @@ namespace {
 		});
 		expect(first != 0 && second != 0, "reentrant test attaches two consumers");
 		owner.restore();
-		expect(received == std::vector{ application::review_open_modality::read }, "older fanout cannot follow reentrant accepted preferences");
+		expect(received == std::vector{ application::review_open_modality::review }, "older fanout cannot follow reentrant accepted preferences");
 		owner.shutdown();
 		expect(owner.is_quiescent(), "inline reentrant effects finish exactly once");
 	}
@@ -141,7 +141,7 @@ namespace {
 	{
 		state durable, otherDurable;
 		auto  stored                                     = application::review_behaviour_settings{ };
-		stored.OpenModality                              = application::review_open_modality::read;
+		stored.OpenModality                              = application::review_open_modality::review;
 		stored.LabelColumns                              = *core::make_feedback_label_columns(std::array{ core::feedback_label::issue });
 		stored.LabelColumnsRecovery                      = application::review_label_columns_recovery{ .Unknown = 1U, .Repeated = 0U };
 		durable.Preferences.Behaviour                    = stored;
@@ -189,7 +189,7 @@ namespace {
 		expect(first.layout().Behaviour == chosen && second.layout().Behaviour == chosen && lastBehaviour(secondProjection) == chosen,
 			   "the accepted edit reaches the other window of the profile, and the report is gone");
 		expect(other.layout().Behaviour == application::review_behaviour_settings{ } && otherDurable.Writes == 0U, "the other profile is unaffected");
-		expect(durable.Preferences.NewWindowDefaults.FilesWidth == 400U && durable.Preferences.Behaviour.OpenModality == application::review_open_modality::read,
+		expect(durable.Preferences.NewWindowDefaults.FilesWidth == 400U && durable.Preferences.Behaviour.OpenModality == application::review_open_modality::review,
 			   "no other preference is reset by the label edit");
 
 		auto twice                    = chosen;
@@ -253,7 +253,7 @@ namespace {
 		reset.LabelColumns   = application::review_behaviour_settings{ }.LabelColumns;
 		second.apply_behaviour(reset);
 		settle();
-		expect(durable.Preferences.Behaviour == reset && first.layout().Behaviour == reset && reset.OpenModality == application::review_open_modality::read,
+		expect(durable.Preferences.Behaviour == reset && first.layout().Behaviour == reset && reset.OpenModality == application::review_open_modality::review,
 			   "a scoped reset writes the label defaults only and reaches both windows");
 
 		auto otherChoice        = application::review_behaviour_settings{ };
@@ -324,7 +324,7 @@ int main()
 		   "two window gestures preserve independent persisted geometry");
 	const auto windows  = durable.Windows;
 	auto       chosen   = application::review_behaviour_settings{ };
-	chosen.OpenModality = application::review_open_modality::read;
+	chosen.OpenModality = application::review_open_modality::review;
 	first.apply_behaviour(chosen);
 	expect(first.layout().Behaviour != chosen && second.layout().Behaviour != chosen, "behaviour changes remain unaccepted before durable completion");
 	settle();

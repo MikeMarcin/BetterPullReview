@@ -31,7 +31,7 @@ authored and directly requested pull requests of the saved repositories
 ## Primary layout
 
 ```text
-┌ Title row: Home | Repositories | Files | name ········ Overview Review Conversations Discuss | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
+┌ Title row: Home | Repositories | Files | name ········ Overview Review Discuss Conversations | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
 ├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ ········ Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
@@ -52,22 +52,26 @@ hide-drawers icon, account and settings; on Windows the application menu and
 the caption buttons.
 
 **Modalities** ([[BPR-1295]], owner direction 2026-10-06). The modalities are
-Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3; proposed, and
-confirmed at the built UI). Read is merged into Review: every path that entered
+Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3), set per
+modality rather than by position; `Ctrl+4` is left for Conversations. The
+owner, 2026-10-06, verbatim: "can we swap discuss to 3 and conversations to
+4". Read is merged into Review: every path that entered
 Read (an Overview file row, Continue review, Open in code, Resume, a link to a
 file, a tour) enters Review. Review remembers the drawer arrangement it last
 had in the window, hidden drawers included, and applies its preset (Files and
 Comments open, Repositories as they were) only on the window's first entry and
-when ⌘2 is pressed while already in Review. BPR-1295 is Ready and is built
-after [[BPR-1290]]; until then the window still offers Read on ⌘2, Review on
-⌘3 and Discuss on ⌘4.
+when ⌘2 is pressed while already in Review (the strip's Review button is the
+same gesture). Entering Review any other way, while it shows, changes nothing.
+"Continue review enters" is gone from Settings: Start and Continue review both
+enter Review, and "A pull request opens in" offers Overview, Review and Last
+used, a stored Read opening in Review.
 
 **Conversations beside Discuss** ([[BPR-1293]], owner decision 2026-10-06,
 amended by the owner's answers the same day: "Hide drawers" and "just keep
 discuss for now even after 1294"). Conversations is added and Discuss is
-kept: the modalities are Overview, Review, Conversations and Discuss, on
-`Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4), so Discuss moves from ⌘3 to ⌘4 and keeps its
-behaviour. `Ctrl+J` (⌘J) goes straight to Conversations from Overview, Review
+kept: the modalities are Overview, Review, Discuss and Conversations, on
+`Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4); Discuss keeps ⌘3 and its behaviour and
+Conversations takes ⌘4 (the owner's swap, above). `Ctrl+J` (⌘J) goes straight to Conversations from Overview, Review
 or Discuss, as does the finder button at the top of the Comments drawer. It puts the finder of
 [prototype v2](../design/BPR-1290-inline-drawer-v2/index.html) in the main
 pane, for navigation only: one row per conversation on a file, grouped by
@@ -640,7 +644,8 @@ never invents enabled state.
 | Comment, or Reply to the selected thread | `Alt+C` (Option-C) |
 | Back from a composition page | `Esc` |
 | Hide or show every drawer ([[BPR-1295]]) | `Ctrl+B` (⌘B) |
-| Overview, Review, Conversations, Discuss ([[BPR-1295]], [[BPR-1293]]; proposed) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3`, `Ctrl+4` (⌘1-⌘4) |
+| Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
+| Conversations ([[BPR-1293]], once built) | `Ctrl+4` (⌘4) |
 | Find a conversation: go to Conversations, or back ([[BPR-1293]]) | `Ctrl+J` (⌘J) |
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
@@ -657,7 +662,9 @@ editor) therefore claims `Ctrl+B` in `ShortcutOverride` and does nothing with
 it, as the label body claims ⌘L. Hiding the drawers never takes a composer away
 mid-sentence, and the key stays free for Markdown Bold. Single-line fields do
 not claim it; when hiding removes the focused field, focus moves to the
-comparison ([[BPR-1295]]).
+comparison ([[BPR-1295]]). On macOS the View menu's item carries ⌘B as a
+native key equivalent, and the same claim keeps it from firing there, because
+Qt asks the focus object before AppKit's menu takes the key.
 
 The bar contains one presenter for each semantic action at every supported
 width. Review details is an item of the comparison's menu. Seen, Reviewed, Accepted, and

@@ -975,7 +975,7 @@ namespace {
 		bool                        BudgetExpired      = false;
 		bool                        PresentationPassed = false;
 		// [[BPR-0647]]. The overview course over the fixture: the page shown
-		// with every file, and Continue review back in Read.
+		// with every file, and Continue review back in Review.
 		bool OverviewShown    = false;
 		bool OverviewReturned = false;
 		// [[BPR-0919]]. The recorded public path keeps Start review distinct
@@ -2844,8 +2844,7 @@ namespace {
 	{
 		const auto& context     = aWindow.comparison_surface()->current_context();
 		const auto* panel       = aWindow.conversation_panel();
-		const auto  tabModality = aWindow.current_modality() == bpr::qt::review_modality::read
-			|| aWindow.current_modality() == bpr::qt::review_modality::review;
+		const auto  tabModality = aWindow.current_modality() == bpr::qt::review_modality::review;
 		if (aIdentity.ComparisonPending || panel->anchor_line() || tabModality != aIdentity.TabModality) {
 			return false;
 		}
@@ -4715,7 +4714,7 @@ namespace {
 		if (aRun.LabelAuthoringProbe) {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
 			stream << (aRun.LabelAuthoringPassed ? "LABEL_AUTHORING_OK\n" : "LABEL_AUTHORING_FAILED\n")
-				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.ReadEmptyDirected << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
+				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.ReviewEmptyDirected << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
 				   << evidence.ShortcodeApplied << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
 				   << evidence.PublishedMarked << evidence.PatchMarkedNative << evidence.PatchPublishedExact << evidence.ProseUnmarkedExact
 				   << evidence.RefusedTextKept << evidence.RefusedMarkedTextOnly << evidence.ReplyMarkedNative << evidence.IssueOffersTracking
@@ -5137,7 +5136,7 @@ namespace {
 
 	// [[BPR-1083]]. `--attended-open-file`: before a person looks, the
 	// fixture's account signs in, the pull request opens from the Home bar and
-	// the named file is selected in Read, the way a reviewer would get there.
+	// the named file is selected in Review, the way a reviewer would get there.
 	// It then leaves the window to the person and prints one line saying
 	// whether it got there. [[BPR-1287]]. With no path
 	// (`--attended-open-pull-request`) it stops once the pull request is open.
@@ -6079,7 +6078,7 @@ namespace {
 					advance_uiforetw_selected_diff_probe(aApplication, *aRun);
 					break;
 				}
-				// [[BPR-1083]]. The course opens its own file in Read, so it
+				// [[BPR-1083]]. The course opens its own file in Review, so it
 				// starts as soon as the pull request is being read rather than
 				// after a presentation check that needs a file selected first.
 				if (aRun->LabelAuthoringProbe) {
@@ -6662,7 +6661,7 @@ namespace {
 						// [[BPR-0647]]. The overview over the fixture: Overview
 						// shows the host-decided page with every file of the
 						// pull request and its one action enabled; Continue
-						// review returns to Read. The modality the course had
+						// review returns to Review. The modality the course had
 						// is restored before the render evidence, so that
 						// evidence is of the state the course reached.
 						const auto modalityBefore = window.current_modality();
@@ -6680,7 +6679,7 @@ namespace {
 						}
 						QApplication::processEvents();
 						aRun->OverviewReturned = !window.showing_overview()
-							&& window.current_modality() == bpr::qt::review_modality::read;
+							&& window.current_modality() == bpr::qt::review_modality::review;
 						window.choose_modality(modalityBefore);
 						QApplication::processEvents();
 						aRun->PresentationPassed = aRun->OverviewShown && aRun->OverviewReturned;
@@ -7164,23 +7163,22 @@ namespace {
 				// the drawer to open on the restored unread filter.
 				const auto seed = aRun->EpochPhase
 					== bpr::app::detail::github_epoch_fixture_phase::seed;
+				// [[BPR-1295]]. "Continue review enters" went with Read: Continue
+				// review enters Review with no preference, and the course still
+				// proves it does.
 				if (seed && !aRun->ReviewBehaviourPreferencesSelected) {
-					auto* const continueReview
-						= window.findChild<QToolButton*>(QStringLiteral("continueModalityReview"));
 					auto* const unread
 						= window.findChild<QToolButton*>(QStringLiteral("commentsFilterUnread"));
-					if (continueReview == nullptr || unread == nullptr) {
+					if (unread == nullptr || window.findChild<QToolButton*>(QStringLiteral("continueModalityReview")) != nullptr) {
 						fail_automated_run(aApplication, *aRun);
 						break;
 					}
-					continueReview->click();
 					unread->click();
 					aRun->ReviewBehaviourPreferencesSelected = true;
 					break;
 				}
 				const auto expected = bpr::application::review_behaviour_settings{
-					.ContinueModality = bpr::application::review_continue_modality::review,
-					.CommentsFilter   = bpr::application::review_comments_filter::unread,
+					.CommentsFilter = bpr::application::review_comments_filter::unread,
 				};
 				if (window.behaviour() != expected) {
 					break;
@@ -8746,7 +8744,7 @@ auto main(int argc, char** argv) -> int
 		// where the Home bar's public-preview reading is read-only.
 		const auto attendedOpenFile = argument_value(argc, argv, "--attended-open-file");
 		// [[BPR-1287]]. The same, stopping at the pull request's own opening
-		// page, so a person can go to Read with no file chosen.
+		// page, so a person can go to Review with no file chosen.
 		const auto attendedOpenPullRequest = has_argument(argc, argv, "--attended-open-pull-request");
 		// [[BPR-1289]]. Or opening Settings over Home, for a look at Settings.
 		const auto attendedOpenSettings = has_argument(argc, argv, "--attended-open-settings");

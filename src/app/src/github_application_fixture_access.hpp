@@ -581,7 +581,7 @@ namespace bpr::app::detail {
 	{
 		/// [[BPR-1287]]. Read with no file chosen shows the direction to open
 		/// one, not two empty panes.
-		bool ReadEmptyDirected = false;
+		bool ReviewEmptyDirected = false;
 		/// The file opened in Read with its threads in the drawer.
 		bool FileShown = false;
 		/// Its labelled threads' cards carry the marks the bodies name.

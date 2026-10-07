@@ -4734,7 +4734,7 @@ namespace {
 				   && open->Repository == core::repository_locator{ .Owner = "better-pull-review", .Name = "desktop" }
 				   && open->Number == core::pull_request_number{ 73U },
 			   "clicking a row opens its pull request through the GitHub intent");
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		publish_pull_request(window);
 		QApplication::processEvents();
 		expect(window.current_modality() == qt::review_modality::overview,
@@ -4848,7 +4848,7 @@ namespace {
 				   && open->Repository == core::repository_locator{ .Owner = "better-pull-review", .Name = "desktop" }
 				   && open->Number == core::pull_request_number{ 73U },
 			   "choosing a pull request row opens it through the GitHub intent");
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		publish_pull_request(window);
 		QApplication::processEvents();
 		expect(window.current_modality() == qt::review_modality::overview,

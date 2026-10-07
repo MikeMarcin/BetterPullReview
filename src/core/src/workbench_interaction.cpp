@@ -212,6 +212,39 @@ namespace bpr::core {
 
 		/// \brief The one drawer state a drawer names; a switch, so a drawer
 		/// this function does not know is a compile error, never an alias.
+		/// \brief [[BPR-1295]]. Hiding and showing the drawers is Review's.
+		///
+		/// \details Unlike a single drawer's toggle it is disabled where it
+		/// cannot act: Overview keeps every drawer collapsed, and in Discuss
+		/// the conversation is the page. Like a drawer's, it does not wait for
+		/// a comparison: the room is the reviewer's either way.
+		[[nodiscard]] constexpr auto drawers_rejection(
+			const workbench_interaction_state& aState) noexcept
+			-> workbench_reason_code
+		{
+			switch (aState.Modality) {
+			case workbench_modality::overview:
+				return workbench_reason_code::overview_keeps_drawers_collapsed;
+			case workbench_modality::discuss:
+				return workbench_reason_code::discuss_shows_the_conversation;
+			case workbench_modality::review:
+				break;
+			}
+			return workbench_reason_code::none;
+		}
+
+		[[nodiscard]] constexpr auto drawers_command(
+			const workbench_interaction_state& aState) noexcept
+			-> workbench_command_projection
+		{
+			const auto rejection = drawers_rejection(aState);
+			return {
+				.Id             = workbench_command_id::toggle_drawers,
+				.Enabled        = rejection == workbench_reason_code::none,
+				.DisabledReason = rejection,
+			};
+		}
+
 		[[nodiscard]] constexpr auto drawer_state_of(
 			workbench_interaction_state& aState,
 			const workbench_drawer       aDrawer) noexcept -> workbench_drawer_state&
@@ -236,6 +269,41 @@ namespace bpr::core {
 				.Conversations = aState.ConversationsDrawer,
 				.Repositories  = aState.RepositoriesDrawer,
 			};
+		}
+
+		[[nodiscard]] constexpr auto expanded(
+			const workbench_drawer_state aDrawerState) noexcept -> bool
+		{
+			return aDrawerState == workbench_drawer_state::expanded;
+		}
+
+		[[nodiscard]] constexpr auto any_expanded(
+			const workbench_drawer_delta& aDrawers) noexcept -> bool
+		{
+			return expanded(aDrawers.Files) || expanded(aDrawers.Conversations)
+				|| expanded(aDrawers.Repositories);
+		}
+
+		/// \brief [[BPR-1295]]. Review's preset from the drawers as they are:
+		/// Files and Comments open, Repositories as they were.
+		[[nodiscard]] constexpr auto review_preset(
+			const workbench_drawer_delta& aDrawers) noexcept
+			-> workbench_drawer_delta
+		{
+			return {
+				.Files         = workbench_drawer_state::expanded,
+				.Conversations = workbench_drawer_state::expanded,
+				.Repositories  = aDrawers.Repositories,
+			};
+		}
+
+		constexpr void adopt_drawers(
+			workbench_interaction_state&  aState,
+			const workbench_drawer_delta& aDrawers) noexcept
+		{
+			aState.FilesDrawer         = aDrawers.Files;
+			aState.ConversationsDrawer = aDrawers.Conversations;
+			aState.RepositoriesDrawer  = aDrawers.Repositories;
 		}
 
 		[[nodiscard]] constexpr auto toggled(
@@ -301,6 +369,21 @@ namespace bpr::core {
 			return aOutput;
 		}
 
+		/// \brief [[BPR-1295]]. The drawer and command facts that changed
+		/// since `aBefore` and `aCommands` were read.
+		[[nodiscard]] auto drawer_changes(
+			const workbench_interaction_state& aState,
+			const workbench_drawer_delta&      aBefore,
+			const workbench_command_delta&     aCommands)
+			-> workbench_interaction_output
+		{
+			auto output = workbench_interaction_output{ };
+			if (const auto after = published_drawers(aState); after != aBefore) {
+				output.Drawers = after;
+			}
+			return with_changed_commands(aState, aCommands, output);
+		}
+
 		[[nodiscard]] auto apply_drawer(
 			workbench_interaction_state& aState,
 			const workbench_drawer       aDrawer,
@@ -324,14 +407,14 @@ namespace bpr::core {
 				};
 			}
 
-			const auto before = project_workbench_commands(aState);
-			retained          = aRequested;
-			return with_changed_commands(
-				aState,
-				before,
-				workbench_interaction_output{
-					.Drawers = published_drawers(aState),
-				});
+			const auto before  = published_drawers(aState);
+			const auto command = project_workbench_commands(aState);
+			retained           = aRequested;
+			// [[BPR-1295]]. A drawer opened by hand while the drawers are
+			// hidden is the reviewer's new arrangement; showing the drawers
+			// can no longer undo it, so the remembered set is dropped.
+			aState.HiddenDrawers.reset();
+			return drawer_changes(aState, before, command);
 		}
 
 		[[nodiscard]] auto apply_line_numbers(
@@ -462,25 +545,82 @@ namespace bpr::core {
 			const set_workbench_modality_intent& aIntent)
 			-> workbench_interaction_output
 		{
+			const auto before  = published_drawers(aState);
+			const auto command = project_workbench_commands(aState);
+			const auto leaving = aState.Modality;
+			const auto target  = aIntent.Modality;
+			if (target == workbench_modality::review) {
+				if (leaving == workbench_modality::review && aState.ReviewEntered) {
+					// [[BPR-1295]]. Review is already shown: entering it again
+					// keeps what the reviewer arranged, and choosing it again is
+					// the way back to its preset.
+					if (aIntent.Entry == workbench_modality_entry::choose) {
+						adopt_drawers(aState, review_preset(before));
+						aState.HiddenDrawers.reset();
+					}
+				} else if (aState.ReviewArrangement.has_value()) {
+					// Review keeps the arrangement it last had in this window,
+					// hidden drawers included.
+					const auto arrangement = *aState.ReviewArrangement;
+					adopt_drawers(aState, arrangement.Drawers);
+					aState.HiddenDrawers = arrangement.Hidden;
+				} else {
+					// The window's first entry to Review.
+					adopt_drawers(aState, review_preset(before));
+					aState.HiddenDrawers.reset();
+				}
+				aState.ReviewArrangement.reset();
+				aState.ReviewEntered = true;
+				aState.Modality      = target;
+				return drawer_changes(aState, before, command);
+			}
+			if (leaving == target) {
+				return { };
+			}
+			if (leaving == workbench_modality::review && aState.ReviewEntered) {
+				aState.ReviewArrangement = workbench_review_arrangement{
+					.Drawers = before,
+					.Hidden  = aState.HiddenDrawers,
+				};
+			}
+			aState.HiddenDrawers.reset();
+			aState.Modality = target;
 			// [[BPR-0727]]. The modality is retained for the drawer rule it
 			// carries; Overview collapses the three drawers in the same
 			// decision so the rule holds from the moment it is chosen.
-			if (aState.Modality == aIntent.Modality) {
-				return { };
+			if (target == workbench_modality::overview) {
+				aState.FilesDrawer         = workbench_drawer_state::collapsed;
+				aState.ConversationsDrawer = workbench_drawer_state::collapsed;
+				aState.RepositoriesDrawer  = workbench_drawer_state::collapsed;
 			}
-			aState.Modality = aIntent.Modality;
-			if (aIntent.Modality != workbench_modality::overview) {
-				return { };
+			return drawer_changes(aState, before, command);
+		}
+
+		/// \brief [[BPR-1295]]. Hides every open drawer, or shows them again.
+		[[nodiscard]] auto apply(
+			workbench_interaction_state& aState,
+			const toggle_workbench_drawers_intent&)
+			-> workbench_interaction_output
+		{
+			if (const auto rejection = drawers_rejection(aState);
+				rejection != workbench_reason_code::none) {
+				return { .Reason = rejection };
 			}
-			const auto before          = published_drawers(aState);
-			aState.FilesDrawer         = workbench_drawer_state::collapsed;
-			aState.ConversationsDrawer = workbench_drawer_state::collapsed;
-			aState.RepositoriesDrawer  = workbench_drawer_state::collapsed;
-			const auto after           = published_drawers(aState);
-			if (before == after) {
-				return { };
+			const auto before  = published_drawers(aState);
+			const auto command = project_workbench_commands(aState);
+			if (any_expanded(before)) {
+				aState.HiddenDrawers = before;
+				adopt_drawers(aState,
+							  workbench_drawer_delta{
+								  .Files         = workbench_drawer_state::collapsed,
+								  .Conversations = workbench_drawer_state::collapsed,
+								  .Repositories  = workbench_drawer_state::collapsed,
+							  });
+			} else {
+				adopt_drawers(aState, project_workbench_drawer_restore(aState).Drawers);
+				aState.HiddenDrawers.reset();
 			}
-			return { .Drawers = after };
+			return drawer_changes(aState, before, command);
 		}
 
 		[[nodiscard]] auto apply(
@@ -618,8 +758,18 @@ namespace bpr::core {
 				drawer_command(aState, workbench_command_id::toggle_repositories_drawer),
 				line_numbers_command(aState, workbench_command_id::toggle_one_pane),
 				drawer_command(aState, workbench_command_id::toggle_updates_line),
+				drawers_command(aState),
 			},
 			.Policy = aState.NavigationPolicy,
+		};
+	}
+
+	auto project_workbench_drawer_restore(
+		const workbench_interaction_state& aState) noexcept
+		-> workbench_drawer_restore_delta
+	{
+		return {
+			.Drawers = aState.HiddenDrawers.value_or(review_preset(published_drawers(aState))),
 		};
 	}
 

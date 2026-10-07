@@ -3,6 +3,7 @@
 
 #include <QFrame>
 #include <QIcon>
+#include <QKeySequence>
 #include <QPalette>
 #include <QPointer>
 #include <QProxyStyle>
@@ -52,6 +53,12 @@ namespace bpr::qt {
 		compose_review,
 		/// [[BPR-1129]]. Comment, a speech balloon on the review bar.
 		comment,
+		/// [[BPR-1295]]. Hide drawers: a window with a filled column at each
+		/// side, the drawers that are showing.
+		drawers_shown,
+		/// [[BPR-1295]]. Show drawers: the same window with both columns
+		/// outlined, the drawers that are hidden.
+		drawers_hidden,
 	};
 
 	/// \brief Paints one strip glyph for a palette.
@@ -215,17 +222,26 @@ namespace bpr::qt {
 		bool Marked = false;
 	};
 
-	/// \brief The four review modalities, in strip order.
+	/// \brief The three review modalities, in strip order.
+	///
+	/// \details [[BPR-1295]]. Read merged into Review on 2026-10-06.
 	enum class review_modality : std::uint8_t {
 		overview,
-		read,
 		review,
 		discuss,
 	};
 
-	inline constexpr std::size_t review_modality_count = 4U;
+	inline constexpr std::size_t review_modality_count = 3U;
 
 	[[nodiscard]] auto review_modality_title(review_modality aModality) -> QString;
+
+	/// \brief [[BPR-1295]]. The key that chooses a modality.
+	///
+	/// \details Set per modality rather than by strip position: Overview
+	/// Ctrl+1, Review Ctrl+2 and Discuss Ctrl+3 (Command on macOS). Ctrl+4 is
+	/// left for Conversations ([[BPR-1293]]); the owner, 2026-10-06: "can we
+	/// swap discuss to 3 and conversations to 4".
+	[[nodiscard]] auto review_modality_shortcut(review_modality aModality) -> QKeySequence;
 
 	using review_modality_dispatch = std::function<void(review_modality)>;
 
@@ -248,7 +264,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto compact() const noexcept -> bool;
 		/// \brief Shows each name as its three-character prefix, the strip's last yield.
 		///
-		/// \details [[BPR-0653]]. Only the visible text shortens: Ove, Rea, Rev and
+		/// \details [[BPR-0653]]. Only the visible text shortens: Ove, Rev and
 		/// Dis. The accessible names and tooltips keep the full words.
 		void               set_abbreviated(bool aAbbreviated);
 		[[nodiscard]] auto abbreviated() const noexcept -> bool;

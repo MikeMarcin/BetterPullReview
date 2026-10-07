@@ -747,8 +747,17 @@ namespace bpr::qt {
 		/// published; `none` until one is.
 		[[nodiscard]] auto last_refusal() const noexcept -> core::workbench_reason_code;
 		[[nodiscard]] auto current_modality() const noexcept -> review_modality;
-		/// \brief Chooses a modality exactly as the strip or its shortcut would.
-		void choose_modality(review_modality aModality);
+		/// \brief Enters a modality, or chooses it as the strip or its key does.
+		///
+		/// \details [[BPR-1295]]. Every path that lands in a modality enters
+		/// it, and Review then keeps the arrangement it last had in this
+		/// window. `choose` is the strip's button and key: choosing Review
+		/// while it shows applies its preset.
+		void choose_modality(review_modality aModality, core::workbench_modality_entry aEntry = core::workbench_modality_entry::enter);
+		/// \brief [[BPR-1295]]. Hide Drawers: hides every open drawer, or
+		/// shows the ones it hid; Command-B (Ctrl+B), the View menu and the
+		/// title row's button beside the Comments toggle.
+		[[nodiscard]] auto toggle_drawers_action() const noexcept -> QAction*;
 		/// \brief The strip's account button: sign-in while signed out,
 		/// the accounts settings page once signed in.
 		[[nodiscard]] auto account_action() const noexcept -> QAction*;
@@ -1285,8 +1294,8 @@ namespace bpr::qt {
 		void enter_overview_at(
 			application::overview_entry_kind aEntry,
 			const QString&                   aPath);
-		/// \brief Selects a file-row or thread path and enters Read.
-		void enter_read_at(const QString& aPath);
+		/// \brief Selects a file-row or thread path and enters Review.
+		void enter_review_at(const QString& aPath);
 		/// [[BPR-0657]]. Selects a thread's line on the comparison, as a click on
 		/// it would, so the draft a card starts anchors on the thread's line.
 		[[nodiscard]] auto select_thread_line(const std::string& aIdentity) -> bool;
@@ -1326,6 +1335,17 @@ namespace bpr::qt {
 		void               apply_line_numbers();
 		void               dispatch_one_pane_toggle();
 		void               apply_one_pane();
+		/// \brief [[BPR-1295]]. Re-asserts the drawers the core decided and
+		/// sends the hide-and-show gesture.
+		void dispatch_drawers_toggle();
+		/// \brief [[BPR-1295]]. The command's check, glyph, words and
+		/// enablement, from the core's projection.
+		void apply_drawers_toggle();
+		/// \brief [[BPR-1295]]. The drawer panel holding focus, if one does.
+		[[nodiscard]] auto drawer_holding_focus() const -> QWidget*;
+		/// \brief [[BPR-1295]]. A drawer that hid the focused control gives
+		/// focus to the comparison rather than to whatever is next.
+		void keep_focus_out_of_hidden_drawers(QWidget* aHeld);
 		/// \brief [[BPR-1130]]. The disclosure's gesture: re-asserts the fold
 		/// the core holds and sends the toggle.
 		void dispatch_updates_line_toggle();
@@ -1571,8 +1591,12 @@ namespace bpr::qt {
 		QAction*                                               ProfileStatusSeparator = nullptr;
 		std::optional<application::profile_management_failure> ProfileFailure;
 
-		QAction*                                                     LineNumbersAction    = nullptr;
-		QAction*                                                     OnePaneAction        = nullptr;
+		QAction* LineNumbersAction = nullptr;
+		QAction* OnePaneAction     = nullptr;
+		/// [[BPR-1295]]. Hide Drawers, and the filter by which an editable
+		/// multi-line editor keeps its key.
+		QAction*                                                     ToggleDrawersAction  = nullptr;
+		QObject*                                                     EditorKeyYield       = nullptr;
 		QAction*                                                     ReviewDetailsAction  = nullptr;
 		QToolButton*                                                 ReviewControlsButton = nullptr;
 		QMenu*                                                       ReviewControlsMenu   = nullptr;
@@ -1837,11 +1861,13 @@ namespace bpr::qt {
 		std::string                                                                  MarkdownAuthority;
 
 		/// [[BPR-0668]]. Whether the comparison gave the drawer any files.
-		bool                               FileRowsPresent          = false;
-		bool                               ApplyingQueuePreferences = false;
-		core::workbench_command_delta      Commands;
-		core::workbench_drawer_delta       DrawerStates;
-		core::workbench_line_numbers_delta LineNumberState;
+		bool                          FileRowsPresent          = false;
+		bool                          ApplyingQueuePreferences = false;
+		core::workbench_command_delta Commands;
+		core::workbench_drawer_delta  DrawerStates;
+		/// [[BPR-1295]]. What showing the drawers would open, as published.
+		core::workbench_drawer_restore_delta DrawerRestore;
+		core::workbench_line_numbers_delta   LineNumberState;
 		/// [[BPR-1130]]. The fold the core decided; folded until it says otherwise.
 		core::workbench_updates_line_delta                    UpdatesLineState;
 		core::workbench_one_pane_delta                        OnePaneState;

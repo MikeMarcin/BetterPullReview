@@ -15,12 +15,15 @@
 #include <QListView>
 #include <QListWidget>
 #include <QPushButton>
+#include <QShortcut>
 #include <QTemporaryDir>
 #include <QThread>
 
+#include <algorithm>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <map>
 
 namespace {
 	using namespace bpr;
@@ -175,7 +178,40 @@ namespace {
 		window.home_open_action()->trigger();
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "UIforETW opens through Home");
 		wait_for([&] { return owner->status(context)->EpochStatus == core::epoch_status::ready; }, "UIforETW retained comparison ready");
-		window.modality()->action(qt::review_modality::read)->trigger();
+		window.modality()->action(qt::review_modality::review)->trigger();
+		// [[BPR-1295]]. In the assembled window no two window- or
+		// application-wide commands share a key, and Ctrl+B is Hide Drawers.
+		{
+			auto seen = std::map<QString, QString>{ };
+			for (auto* const action : window.findChildren<QAction*>()) {
+				// A key is the window's when an object it is added to lives in
+				// this window; a dialog's keys are the dialog's.
+				const auto here = std::ranges::any_of(action->associatedObjects(), [&window](const QObject* aObject) {
+					const auto* const widget = qobject_cast<const QWidget*>(aObject);
+					return widget != nullptr && widget->window() == &window;
+				});
+				if (!here || (action->shortcutContext() != Qt::WindowShortcut && action->shortcutContext() != Qt::ApplicationShortcut)) {
+					continue;
+				}
+				for (const auto& sequence : action->shortcuts()) {
+					const auto text           = sequence.toString(QKeySequence::PortableText);
+					const auto [where, fresh] = seen.emplace(text, action->objectName());
+					expect(fresh || where->second == action->objectName(),
+						   "the key " + text.toStdString() + " is held by " + where->second.toStdString() + " and " + action->objectName().toStdString());
+				}
+			}
+			for (auto* const shortcut : window.findChildren<QShortcut*>()) {
+				if (qobject_cast<const QWidget*>(shortcut->parent()) != nullptr && qobject_cast<const QWidget*>(shortcut->parent())->window() == &window
+					&& (shortcut->context() == Qt::WindowShortcut || shortcut->context() == Qt::ApplicationShortcut)) {
+					const auto text = shortcut->key().toString(QKeySequence::PortableText);
+					expect(text.isEmpty() || seen.emplace(text, QStringLiteral("shortcut")).second,
+						   "the key " + text.toStdString() + " is held twice in the assembled window");
+				}
+			}
+			expect(seen[QStringLiteral("Ctrl+B")] == QStringLiteral("toggleWorkbenchDrawersAction")
+					   && seen.contains(QStringLiteral("Ctrl+3")) && !seen.contains(QStringLiteral("Ctrl+4")),
+				   "the assembled window gives Ctrl+B to Hide Drawers and Ctrl+3 to Discuss, and leaves Ctrl+4 free");
+		}
 		auto*       files = window.files_drawer()->contents_view();
 		QModelIndex selected;
 		wait_for([&] {

@@ -269,7 +269,7 @@ namespace {
 	{
 		fixture f;
 		auto    chosen        = application::review_behaviour_settings{ };
-		chosen.OpenModality   = application::review_open_modality::read;
+		chosen.OpenModality   = application::review_open_modality::review;
 		chosen.CommentsFilter = application::review_comments_filter::unresolved;
 		chosen.DrawerControls = application::review_drawer_controls::shown;
 		chosen.FeedbackMarks  = application::review_feedback_marks::letters;

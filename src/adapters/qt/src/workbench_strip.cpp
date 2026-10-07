@@ -198,6 +198,21 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 13.5, 7.5 }, QPointF{ 16.5, 10.5 });
 				break;
 			}
+			case strip_glyph::drawers_shown:
+			case strip_glyph::drawers_hidden: {
+				// A window with a column at each side. Showing, the columns are
+				// filled: the drawers take that room. Hidden, they are outlines
+				// and the code has the window.
+				aPainter.drawRect(QRectF{ 3.0, 5.0, 18.0, 14.0 });
+				aPainter.drawLine(QPointF{ 8.0, 5.0 }, QPointF{ 8.0, 19.0 });
+				aPainter.drawLine(QPointF{ 16.0, 5.0 }, QPointF{ 16.0, 19.0 });
+				if (aGlyph == strip_glyph::drawers_shown) {
+					const auto ink = aPainter.pen().color();
+					aPainter.fillRect(QRectF{ 3.0, 5.0, 5.0, 14.0 }, ink);
+					aPainter.fillRect(QRectF{ 16.0, 5.0, 5.0, 14.0 }, ink);
+				}
+				break;
+			}
 			case strip_glyph::comment: {
 				// A speech balloon with its tail at the lower left.
 				auto balloon = QPainterPath{ };
@@ -674,8 +689,6 @@ namespace bpr::qt {
 		switch (aModality) {
 		case review_modality::overview:
 			return QStringLiteral("Overview");
-		case review_modality::read:
-			return QStringLiteral("Read");
 		case review_modality::review:
 			return QStringLiteral("Review");
 		case review_modality::discuss:
@@ -684,20 +697,33 @@ namespace bpr::qt {
 		return QStringLiteral("Review");
 	}
 
+	auto review_modality_shortcut(const review_modality aModality) -> QKeySequence
+	{
+		switch (aModality) {
+		case review_modality::overview:
+			return QKeySequence{ QStringLiteral("Ctrl+1") };
+		case review_modality::review:
+			return QKeySequence{ QStringLiteral("Ctrl+2") };
+		case review_modality::discuss:
+			return QKeySequence{ QStringLiteral("Ctrl+3") };
+		}
+		return QKeySequence{ };
+	}
+
 	namespace {
 		[[nodiscard]] auto modality_purpose(const review_modality aModality)
 			-> QString
 		{
 			switch (aModality) {
 			case review_modality::overview:
+				// [[BPR-1295]]. It said Overview opened the files drawer, but
+				// Overview has closed every drawer since [[BPR-0674]].
 				return QStringLiteral(
-					"Open the files drawer and close the comments drawer to read "
-					"the pull request overview.");
-			case review_modality::read:
-				return QStringLiteral(
-					"Collapse the files drawer and keep comments beside the code.");
+					"Read the pull request overview, with every drawer closed.");
 			case review_modality::review:
-				return QStringLiteral("Open the files and comments drawers.");
+				return QStringLiteral(
+					"Review the code in the drawers you last arranged. Choose "
+					"Review again to open Files and Comments.");
 			case review_modality::discuss:
 				return QStringLiteral(
 					"Collapse the files drawer and give the conversation the room.");
@@ -712,7 +738,7 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("workbenchModalityControl"));
 		setAccessibleName(QStringLiteral("Review modality"));
 		setAccessibleDescription(QStringLiteral(
-			"Overview, Read, Review and Discuss presets for which drawers are open"));
+			"Overview, Review and Discuss presets for which drawers are open"));
 		setFocusPolicy(Qt::NoFocus);
 		auto* const row = new QHBoxLayout{ this };
 		row->setContentsMargins(2, 2, 2, 2);
@@ -724,8 +750,7 @@ namespace bpr::qt {
 			action->setObjectName(
 				QStringLiteral("reviewModality%1Action").arg(title));
 			action->setCheckable(true);
-			action->setShortcut(
-				QKeySequence{ QStringLiteral("Ctrl+%1").arg(index + 1U) });
+			action->setShortcut(review_modality_shortcut(modality));
 			action->setShortcutContext(Qt::WindowShortcut);
 			action->setToolTip(modality_purpose(modality));
 			action->setStatusTip(action->toolTip());

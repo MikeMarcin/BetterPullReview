@@ -82,22 +82,39 @@ namespace bpr::core {
 		/// [[BPR-0727]]. Overview keeps every drawer collapsed; a drawer opened
 		/// by hand is refused while it is the modality.
 		overview_keeps_drawers_collapsed,
+		/// [[BPR-1295]]. In Discuss the conversation is the page, not a
+		/// drawer, so hiding and showing the drawers is not offered there.
+		discuss_shows_the_conversation,
 	};
 
 	/// \brief The review modality the window has chosen.
 	///
 	/// \details [[BPR-0727]]. The modality is a preset for which drawers are
-	/// open; the window chooses it and the core retains it because one
-	/// modality carries a rule about drawer gestures: Overview is a page about
+	/// open; the window chooses it and the core retains it because two
+	/// modalities carry rules about drawer gestures. Overview is a page about
 	/// the whole pull request, not a column between three drawers, so while it
 	/// is chosen a drawer stays collapsed and a gesture to open one is refused
-	/// with `overview_keeps_drawers_collapsed`. The other three presets are
-	/// exact set-drawer intents the window sends, as before.
+	/// with `overview_keeps_drawers_collapsed`. [[BPR-1295]]: Review keeps the
+	/// arrangement it last had in the window, so entering it is the core's
+	/// decision too. Discuss's preset is exact set-drawer intents the window
+	/// sends, as before. Read merged into Review on 2026-10-06.
 	enum class workbench_modality : std::uint8_t {
 		overview,
-		read,
 		review,
 		discuss,
+	};
+
+	/// \brief [[BPR-1295]]. How a modality is being entered.
+	///
+	/// \details `enter` is every path that lands in a modality: a link, Resume,
+	/// Continue review, Open in code, a tour stop, a restored window.
+	/// `choose` is the reviewer pressing the modality's key or strip button.
+	/// The two differ in one place: choosing Review while the window is
+	/// already in Review applies Review's preset, which is the way back to it;
+	/// entering Review there changes nothing.
+	enum class workbench_modality_entry : std::uint8_t {
+		enter,
+		choose,
 	};
 
 	/// \brief Describes the bounded workbench navigation cursor record.
@@ -199,12 +216,29 @@ namespace bpr::core {
 	///
 	/// \details [[BPR-0727]]. Choosing Overview collapses the three drawers
 	/// as part of the same decision, so the rule that Overview keeps them
-	/// collapsed holds from the moment it is chosen.
+	/// collapsed holds from the moment it is chosen. [[BPR-1295]]: entering
+	/// Review restores the arrangement Review last had in this window, or
+	/// applies its preset (Files and Comments open, Repositories as they
+	/// were) on the window's first entry and when Review is chosen again
+	/// while it shows.
 	struct set_workbench_modality_intent
 	{
-		workbench_modality Modality = workbench_modality::review;
+		workbench_modality       Modality = workbench_modality::review;
+		workbench_modality_entry Entry    = workbench_modality_entry::enter;
 
 		auto operator<=>(const set_workbench_modality_intent&) const = default;
+	};
+
+	/// \brief [[BPR-1295]]. Hides every open drawer, or shows them again.
+	///
+	/// \details With any drawer open, every drawer collapses and the core
+	/// remembers which were open. With none open, the remembered drawers
+	/// open again, or Review's preset when nothing is remembered. Overview
+	/// refuses it with `overview_keeps_drawers_collapsed` and Discuss with
+	/// `discuss_shows_the_conversation`.
+	struct toggle_workbench_drawers_intent
+	{
+		auto operator<=>(const toggle_workbench_drawers_intent&) const = default;
 	};
 
 	/// \brief Describes the set workbench line numbers intent record.
@@ -270,7 +304,8 @@ namespace bpr::core {
 		set_workbench_one_pane_intent,
 		toggle_workbench_one_pane_intent,
 		set_workbench_updates_line_intent,
-		toggle_workbench_updates_line_intent>;
+		toggle_workbench_updates_line_intent,
+		toggle_workbench_drawers_intent>;
 
 	enum class workbench_navigation_target : std::uint8_t {
 		exact_file,
@@ -310,9 +345,11 @@ namespace bpr::core {
 		/// [[BPR-1130]]. The Updates disclosure; always offered, as a drawer
 		/// toggle is.
 		toggle_updates_line,
+		/// [[BPR-1295]]. Hide or show every drawer; offered in Review only.
+		toggle_drawers,
 	};
 
-	inline constexpr std::size_t workbench_command_count = 10U;
+	inline constexpr std::size_t workbench_command_count = 11U;
 
 	/// \brief Describes the workbench command projection record.
 	struct workbench_command_projection
@@ -357,6 +394,32 @@ namespace bpr::core {
 		workbench_drawer_state Repositories  = workbench_drawer_state::expanded;
 
 		auto operator<=>(const workbench_drawer_delta&) const = default;
+	};
+
+	/// \brief [[BPR-1295]]. What showing the drawers would open.
+	///
+	/// \details The drawers the hide-and-show command remembered when it hid
+	/// them, or Review's preset when it remembers none. The host publishes it
+	/// when it changes, so the command can name what returns without
+	/// deciding it.
+	struct workbench_drawer_restore_delta
+	{
+		workbench_drawer_delta Drawers;
+
+		auto operator<=>(const workbench_drawer_restore_delta&) const = default;
+	};
+
+	/// \brief [[BPR-1295]]. The drawer arrangement Review keeps.
+	///
+	/// \details Retained while another modality shows, and restored when
+	/// Review is entered again: the three drawer states and, when the drawers
+	/// were hidden, the set the command will show.
+	struct workbench_review_arrangement
+	{
+		workbench_drawer_delta                Drawers;
+		std::optional<workbench_drawer_delta> Hidden;
+
+		auto operator<=>(const workbench_review_arrangement&) const = default;
 	};
 
 	/// \brief Describes the workbench line numbers delta record.
@@ -424,6 +487,16 @@ namespace bpr::core {
 		workbench_modality                         Modality            = workbench_modality::review;
 		/// [[BPR-1130]]. A new window starts folded.
 		workbench_updates_line UpdatesLine = workbench_updates_line::folded;
+		/// [[BPR-1295]]. The drawers the hide-and-show command hid, present
+		/// only while every drawer is collapsed by it. Opening a drawer by
+		/// hand, or choosing Review in Review, drops it.
+		std::optional<workbench_drawer_delta> HiddenDrawers;
+		/// [[BPR-1295]]. Review's arrangement, held while another modality
+		/// shows. While Review shows, the live drawers are its arrangement.
+		std::optional<workbench_review_arrangement> ReviewArrangement;
+		/// [[BPR-1295]]. Whether Review has been entered in this window; until
+		/// it has, entering it applies its preset.
+		bool ReviewEntered = false;
 
 		auto operator<=>(const workbench_interaction_state&) const = default;
 	};
@@ -443,10 +516,21 @@ namespace bpr::core {
 	/// enabled: the room a drawer takes is the reviewer's to give back, and the
 	/// one refusal, Overview keeping its drawers collapsed ([[BPR-0727]]),
 	/// is explained by the gesture's reason rather than by a dead control,
-	/// because the strip may not carry a disabled toggle.
+	/// because the strip may not carry a disabled toggle. [[BPR-1295]]: the
+	/// command that hides and shows every drawer is the exception the owner
+	/// accepted; it acts only in Review and is disabled with its reason in
+	/// Overview and Discuss.
 	[[nodiscard]] auto project_workbench_commands(
 		const workbench_interaction_state& aState) noexcept
 		-> workbench_command_delta;
+
+	/// \brief [[BPR-1295]]. What showing the drawers would open now.
+	///
+	/// \details The remembered set while the command has the drawers hidden,
+	/// otherwise Review's preset from the current drawers.
+	[[nodiscard]] auto project_workbench_drawer_restore(
+		const workbench_interaction_state& aState) noexcept
+		-> workbench_drawer_restore_delta;
 
 	/// \brief Applies one bounded host navigation observation to the state.
 	///

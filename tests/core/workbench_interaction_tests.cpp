@@ -592,6 +592,8 @@ namespace {
 			return toggle_workbench_one_pane_intent{ };
 		case workbench_command_id::toggle_updates_line:
 			return toggle_workbench_updates_line_intent{ };
+		case workbench_command_id::toggle_drawers:
+			return toggle_workbench_drawers_intent{ };
 		case workbench_command_id::toggle_line_numbers:
 			return toggle_workbench_line_numbers_intent{ };
 		case workbench_command_id::previous_change:
@@ -644,8 +646,12 @@ namespace {
 
 	auto test_command_projection() -> void
 	{
-		const auto diff  = change_fixture();
-		const auto cases = std::array<labelled_state, 10U>{ {
+		const auto diff          = change_fixture();
+		auto       overviewState = active(resident(2U, 3U));
+		overviewState.Modality   = workbench_modality::overview;
+		auto discussState        = active(resident(2U, 3U));
+		discussState.Modality    = workbench_modality::discuss;
+		const auto cases         = std::array<labelled_state, 12U>{ {
 			{ "inactive", workbench_interaction_state{ } },
 			{ "empty order", active(unselected(0U)) },
 			{ "no selection", active(unselected(3U)) },
@@ -660,6 +666,8 @@ namespace {
 			{ "comparing with no change selected",
 			  comparing(change_cursor(diff, std::nullopt),
 						change_navigation_policy::wrap) },
+			{ "in Overview", overviewState },
+			{ "in Discuss", discussState },
 		} };
 		for (const auto& state : cases) {
 			check_command_agreement(state);
@@ -669,13 +677,15 @@ namespace {
 		// room back: those are about the window, not about a comparison, and
 		// gating them left a reviewer unable to collapse a full drawer.
 		// [[BPR-1130]]. The Updates disclosure is the fourth, for the same
-		// reason: it gives back the timeline's row.
+		// reason: it gives back the timeline's row. [[BPR-1295]]: hiding every
+		// drawer is the fifth; a new window's core is in Review.
 		const auto     inactive      = project_workbench_commands(workbench_interaction_state{ });
 		constexpr auto drawerCommand = [](const workbench_command_id aId) {
 			return aId == workbench_command_id::toggle_files_drawer
 				|| aId == workbench_command_id::toggle_conversations_drawer
 				|| aId == workbench_command_id::toggle_repositories_drawer
-				|| aId == workbench_command_id::toggle_updates_line;
+				|| aId == workbench_command_id::toggle_updates_line
+				|| aId == workbench_command_id::toggle_drawers;
 		};
 		expect(std::ranges::none_of(inactive.Commands,
 									[&drawerCommand](const workbench_command_projection& aCommand) {
@@ -686,7 +696,7 @@ namespace {
 								   [&drawerCommand](const workbench_command_projection& aCommand) {
 									   return !drawerCommand(aCommand.Id) || aCommand.Enabled;
 								   }),
-			   "and offers all four of those");
+			   "and offers all five of those");
 		expect(std::ranges::all_of(
 				   inactive.Commands,
 				   [&drawerCommand](const workbench_command_projection& aCommand) {
@@ -1007,7 +1017,7 @@ namespace {
 				   && set.OnePane->State == workbench_one_pane::enabled
 				   && state.OnePane == workbench_one_pane::enabled,
 			   "an exact set carries a persisted setting back into the core");
-		for (const auto modality : { workbench_modality::read, workbench_modality::review, workbench_modality::overview, workbench_modality::discuss }) {
+		for (const auto modality : { workbench_modality::review, workbench_modality::overview, workbench_modality::discuss }) {
 			(void)transition(state, set_workbench_modality_intent{ .Modality = modality });
 			expect(state.OnePane == workbench_one_pane::enabled, "modality never reclaims the pane preference");
 		}
@@ -1050,7 +1060,7 @@ namespace {
 		// of this window touches it.
 		auto live = active(resident(2U, 3U));
 		static_cast<void>(transition(live, toggle_workbench_updates_line_intent{ }));
-		for (const auto modality : { workbench_modality::overview, workbench_modality::read, workbench_modality::review, workbench_modality::discuss }) {
+		for (const auto modality : { workbench_modality::overview, workbench_modality::review, workbench_modality::discuss }) {
 			static_cast<void>(transition(live, set_workbench_modality_intent{ .Modality = modality }));
 			expect(live.UpdatesLine == workbench_updates_line::open, "no modality folds the line");
 		}
@@ -1201,28 +1211,238 @@ namespace {
 				   == workbench_interaction_output{ },
 			   "asking for the collapsed state Overview already keeps publishes nothing");
 
-		for (const auto modality : { workbench_modality::read,
-									 workbench_modality::review,
+		for (const auto modality : { workbench_modality::review,
 									 workbench_modality::discuss }) {
 			const auto chosen = transition(
 				state, set_workbench_modality_intent{ .Modality = modality });
-			expect(chosen == workbench_interaction_output{ } && state.Modality == modality,
-				   "choosing another modality retains it and leaves the drawers to its preset");
+			expect(chosen.Reason == workbench_reason_code::none && state.Modality == modality,
+				   "choosing another modality retains it");
+			// Repositories, which neither Review's preset nor Discuss's opens.
 			const auto opened = transition(
-				state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files });
+				state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories });
 			expect(opened.Reason == workbench_reason_code::none
 					   && opened.Drawers.has_value()
-					   && opened.Drawers->Files == workbench_drawer_state::expanded,
+					   && opened.Drawers->Repositories == workbench_drawer_state::expanded,
 				   "outside Overview a drawer opens by hand");
 			const auto closed = transition(
-				state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files });
+				state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories });
 			expect(closed.Drawers.has_value()
-					   && closed.Drawers->Files == workbench_drawer_state::collapsed,
+					   && closed.Drawers->Repositories == workbench_drawer_state::collapsed,
 				   "and closes again");
 			static_cast<void>(transition(
 				state,
 				set_workbench_modality_intent{ .Modality = workbench_modality::overview }));
 		}
+	}
+	/// \brief Reads the three drawer states as one value.
+	[[nodiscard]] auto drawers_of(const workbench_interaction_state& aState)
+		-> workbench_drawer_delta
+	{
+		return {
+			.Files         = aState.FilesDrawer,
+			.Conversations = aState.ConversationsDrawer,
+			.Repositories  = aState.RepositoriesDrawer,
+		};
+	}
+
+	[[nodiscard]] constexpr auto arrangement(
+		const workbench_drawer_state aFiles,
+		const workbench_drawer_state aConversations,
+		const workbench_drawer_state aRepositories) -> workbench_drawer_delta
+	{
+		return { .Files = aFiles, .Conversations = aConversations, .Repositories = aRepositories };
+	}
+
+	constexpr auto open   = workbench_drawer_state::expanded;
+	constexpr auto closed = workbench_drawer_state::collapsed;
+
+	[[nodiscard]] auto enter(workbench_interaction_state&   aState,
+							 const workbench_modality       aModality,
+							 const workbench_modality_entry aEntry = workbench_modality_entry::enter)
+		-> workbench_interaction_output
+	{
+		return transition(aState, set_workbench_modality_intent{ .Modality = aModality, .Entry = aEntry });
+	}
+
+	[[nodiscard]] auto toggle_drawers_command(const workbench_interaction_state& aState)
+		-> workbench_command_projection
+	{
+		return project_workbench_commands(aState).Commands[static_cast<std::size_t>(workbench_command_id::toggle_drawers)];
+	}
+
+	/// \brief [[BPR-1295]]. Review keeps the arrangement it last had; its
+	/// preset applies on the window's first entry and on choosing Review in
+	/// Review.
+	auto test_review_remembers_its_arrangement() -> void
+	{
+		// A new window: the core is in Review by default, but Review has
+		// not been entered. A pull request opens on Overview.
+		auto state = active(resident(2U, 3U));
+		expect(!state.ReviewEntered && !state.ReviewArrangement && !state.HiddenDrawers,
+			   "a new window has entered no Review and remembers nothing");
+		static_cast<void>(enter(state, workbench_modality::overview));
+		expect(!state.ReviewArrangement.has_value(),
+			   "leaving the default state before any entry keeps no arrangement for Review");
+
+		// The first entry applies the preset: Files and Comments open,
+		// Repositories as they were (Overview collapsed them).
+		const auto first = enter(state, workbench_modality::review);
+		expect(first.Drawers.has_value() && *first.Drawers == arrangement(open, open, closed)
+				   && drawers_of(state) == arrangement(open, open, closed) && state.ReviewEntered,
+			   "the window's first entry to Review applies its preset");
+		expect(first.Commands.has_value()
+				   && first.Commands->Commands[static_cast<std::size_t>(workbench_command_id::toggle_drawers)].Enabled,
+			   "and offers the hide-and-show command, which Overview disabled");
+
+		// The reviewer arranges Review by hand: Files closed, Repositories open.
+		static_cast<void>(transition(state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files }));
+		static_cast<void>(transition(state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories }));
+		const auto mine = arrangement(closed, open, open);
+		expect(drawers_of(state) == mine, "the fixture arrangement is the reviewer's");
+
+		// Every way out and back keeps it: Overview, Discuss (whose preset the
+		// window sends as exact intents), and an entry while already in Review.
+		for (const auto away : { workbench_modality::overview, workbench_modality::discuss }) {
+			static_cast<void>(enter(state, away));
+			if (away == workbench_modality::discuss) {
+				static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::files, .State = closed }));
+				static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories, .State = closed }));
+			}
+			expect(state.ReviewArrangement.has_value() && state.ReviewArrangement->Drawers == mine,
+				   "leaving Review keeps its arrangement");
+			const auto back = enter(state, workbench_modality::review);
+			expect(drawers_of(state) == mine && !state.ReviewArrangement.has_value(),
+				   "entering Review again restores the arrangement it last had, not the preset");
+			expect(away == workbench_modality::discuss || (back.Drawers.has_value() && *back.Drawers == mine),
+				   "and publishes the restored drawers");
+		}
+		expect(enter(state, workbench_modality::review) == workbench_interaction_output{ } && drawers_of(state) == mine,
+			   "entering Review while it shows changes nothing");
+
+		// Choosing Review while it shows is the way back to the preset.
+		const auto chosen = enter(state, workbench_modality::review, workbench_modality_entry::choose);
+		expect(chosen.Drawers.has_value() && *chosen.Drawers == arrangement(open, open, open)
+				   && drawers_of(state) == arrangement(open, open, open),
+			   "choosing Review in Review applies the preset, Repositories as they were");
+
+		// Choosing Review from another modality restores, as entering does.
+		static_cast<void>(transition(state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::conversations }));
+		static_cast<void>(enter(state, workbench_modality::overview));
+		static_cast<void>(enter(state, workbench_modality::review, workbench_modality_entry::choose));
+		expect(drawers_of(state) == arrangement(open, closed, open),
+			   "choosing Review from Overview restores Review's arrangement");
+
+		// Windows are independent: another window's first entry is its preset.
+		auto other = active(resident(1U, 3U));
+		static_cast<void>(enter(other, workbench_modality::discuss));
+		static_cast<void>(transition(other, set_workbench_drawer_intent{ .Drawer = workbench_drawer::files, .State = closed }));
+		static_cast<void>(enter(other, workbench_modality::review));
+		expect(drawers_of(other) == arrangement(open, open, open),
+			   "a second window's first entry from Discuss applies the preset, Repositories as they were");
+
+		// Negative control: a core that ignored the remembered arrangement
+		// would land on the preset, which differs from the reviewer's here.
+		expect(arrangement(open, open, closed) != mine && arrangement(open, open, open) != mine,
+			   "the remembered arrangement differs from every preset this test could land on");
+	}
+
+	/// \brief [[BPR-1295]]. One command hides every open drawer and shows
+	/// exactly those again.
+	auto test_drawers_hide_and_show_exactly() -> void
+	{
+		auto state = active(resident(2U, 3U));
+		static_cast<void>(enter(state, workbench_modality::review));
+		// Every subset of open drawers comes back exactly.
+		for (std::uint8_t mask = 1U; mask < 8U; ++mask) {
+			const auto subset = arrangement((mask & 1U) != 0U ? open : closed,
+											(mask & 2U) != 0U ? open : closed,
+											(mask & 4U) != 0U ? open : closed);
+			static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::files, .State = subset.Files }));
+			static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::conversations, .State = subset.Conversations }));
+			static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories, .State = subset.Repositories }));
+			expect(drawers_of(state) == subset && project_workbench_drawer_restore(state).Drawers == arrangement(open, open, subset.Repositories),
+				   "with drawers open, showing would open Review's preset; nothing is remembered");
+			const auto hidden = transition(state, toggle_workbench_drawers_intent{ });
+			expect(hidden.Reason == workbench_reason_code::none && hidden.Drawers.has_value()
+					   && *hidden.Drawers == arrangement(closed, closed, closed)
+					   && state.HiddenDrawers == std::optional{ subset },
+				   "hiding closes every drawer and remembers which were open");
+			expect(project_workbench_drawer_restore(state).Drawers == subset,
+				   "showing would open exactly the remembered set");
+			const auto shown = transition(state, toggle_workbench_drawers_intent{ });
+			expect(shown.Drawers.has_value() && *shown.Drawers == subset && drawers_of(state) == subset
+					   && !state.HiddenDrawers.has_value(),
+				   "showing opens exactly the remembered set and forgets it");
+		}
+
+		// Nothing remembered and nothing open: Review's preset.
+		static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::files, .State = closed }));
+		static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::conversations, .State = closed }));
+		static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories, .State = closed }));
+		const auto preset = transition(state, toggle_workbench_drawers_intent{ });
+		expect(preset.Drawers.has_value() && *preset.Drawers == arrangement(open, open, closed),
+			   "with every drawer closed by hand and nothing remembered, showing opens Files and Comments");
+
+		// A drawer opened by hand while hidden drops the memory.
+		static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories, .State = open }));
+		static_cast<void>(transition(state, toggle_workbench_drawers_intent{ }));
+		expect(state.HiddenDrawers == std::optional{ arrangement(open, open, open) }, "all three hidden");
+		static_cast<void>(transition(state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::conversations }));
+		expect(!state.HiddenDrawers.has_value() && drawers_of(state) == arrangement(closed, open, closed),
+			   "opening Comments by hand while hidden opens it alone and drops the memory");
+		const auto handHides = transition(state, toggle_workbench_drawers_intent{ });
+		expect(handHides.Drawers.has_value() && *handHides.Drawers == arrangement(closed, closed, closed)
+				   && state.HiddenDrawers == std::optional{ arrangement(closed, open, closed) },
+			   "the next press hides what is open now, not the old set");
+		static_cast<void>(transition(state, toggle_workbench_drawers_intent{ }));
+
+		// Choosing Review in Review drops it too.
+		static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories, .State = open }));
+		static_cast<void>(transition(state, toggle_workbench_drawers_intent{ }));
+		static_cast<void>(enter(state, workbench_modality::review, workbench_modality_entry::choose));
+		expect(!state.HiddenDrawers.has_value() && drawers_of(state) == arrangement(open, open, closed),
+			   "choosing Review in Review applies the preset and forgets the hidden set");
+
+		// Leaving Review and coming back keeps it, hidden drawers included.
+		static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories, .State = open }));
+		static_cast<void>(transition(state, toggle_workbench_drawers_intent{ }));
+		for (const auto away : { workbench_modality::overview, workbench_modality::discuss }) {
+			static_cast<void>(enter(state, away));
+			expect(!state.HiddenDrawers.has_value(), "no other modality holds the hidden set");
+			static_cast<void>(enter(state, workbench_modality::review));
+			expect(drawers_of(state) == arrangement(closed, closed, closed)
+					   && state.HiddenDrawers == std::optional{ arrangement(open, open, open) },
+				   "a window that left Review with its drawers hidden comes back hidden");
+		}
+		static_cast<void>(transition(state, toggle_workbench_drawers_intent{ }));
+		expect(drawers_of(state) == arrangement(open, open, open), "and the command still restores the same set");
+
+		// Overview refuses with its reason; Discuss disables the command.
+		static_cast<void>(enter(state, workbench_modality::overview));
+		const auto inOverview = state;
+		expect(rejected(transition(state, toggle_workbench_drawers_intent{ }), workbench_reason_code::overview_keeps_drawers_collapsed)
+				   && state == inOverview,
+			   "Overview refuses the command with overview_keeps_drawers_collapsed");
+		expect(!toggle_drawers_command(state).Enabled
+				   && toggle_drawers_command(state).DisabledReason == workbench_reason_code::overview_keeps_drawers_collapsed,
+			   "and projects it disabled with that reason");
+		static_cast<void>(enter(state, workbench_modality::discuss));
+		const auto inDiscuss = state;
+		expect(rejected(transition(state, toggle_workbench_drawers_intent{ }), workbench_reason_code::discuss_shows_the_conversation)
+				   && state == inDiscuss,
+			   "Discuss refuses it, the conversation being the page");
+		expect(!toggle_drawers_command(state).Enabled
+				   && toggle_drawers_command(state).DisabledReason == workbench_reason_code::discuss_shows_the_conversation,
+			   "and projects it disabled");
+		static_cast<void>(enter(state, workbench_modality::review));
+		expect(toggle_drawers_command(state).Enabled && toggle_drawers_command(state).DisabledReason == workbench_reason_code::none,
+			   "Review offers it");
+
+		// Like a drawer toggle, it does not wait for a comparison.
+		auto       inactive  = workbench_interaction_state{ };
+		const auto noSurface = transition(inactive, toggle_workbench_drawers_intent{ });
+		expect(noSurface.Reason == workbench_reason_code::none && drawers_of(inactive) == arrangement(closed, closed, closed),
+			   "with no workbench active the drawers still hide");
 	}
 } // namespace
 
@@ -1242,5 +1462,7 @@ int main()
 	test_line_number_state();
 	test_one_pane_state();
 	test_updates_line_state();
+	test_review_remembers_its_arrangement();
+	test_drawers_hide_and_show_exactly();
 	return EXIT_SUCCESS;
 }

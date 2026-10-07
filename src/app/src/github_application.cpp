@@ -6006,11 +6006,12 @@ namespace bpr::app {
 			if (aSuccess) {
 				AcceptedReadingPosition = pending.Position;
 				restoration_notice({ });
-				// Resume returns the saved file in Read. Leaving it on Overview
-				// would immediately replace an older tab's pair with the window's.
+				// Resume returns the saved file in Review, in the arrangement
+				// it last had ([[BPR-1295]]). Leaving it on Overview would
+				// immediately replace an older tab's pair with the window's.
 				if (pending.Position && pending.Position->File) {
-					TabModality = core::workbench_modality::read;
-					Window->choose_modality(qt::review_modality::read);
+					TabModality = core::workbench_modality::review;
+					Window->choose_modality(qt::review_modality::review);
 				}
 				// [[BPR-1132]]. Resume brings the tabs back once the active
 				// tab's reading is on screen; its load completes from there.
@@ -6102,11 +6103,11 @@ namespace bpr::app {
 		std::optional<core::file_identity>              ObservedTabFile;
 		bool                                            TabAdvanceQueued = false;
 		bool                                            TabFailed        = false;
-		/// \brief Whether the modality shows a tab (Read and Review) or the
-		/// window's comparison (Overview and Discuss, which have no tab).
+		/// \brief Whether the modality shows a tab (Review) or the window's
+		/// comparison (Overview and Discuss, which have no tab).
 		[[nodiscard]] static auto tab_modality(const core::workbench_modality aModality) noexcept -> bool
 		{
-			return aModality == core::workbench_modality::read || aModality == core::workbench_modality::review;
+			return aModality == core::workbench_modality::review;
 		}
 		[[nodiscard]] auto tab_view_presented(const core::window_review_position& aView) const -> bool
 		{
@@ -6182,7 +6183,7 @@ namespace bpr::app {
 			if (const auto previous = std::exchange(TabModality, modality);
 				previous.has_value() && tab_modality(*previous) != tab_modality(modality)) {
 				// Overview and Discuss have no tab: they show the window's
-				// comparison. Back in Read or Review the active tab's exact
+				// comparison. Back in Review the active tab's exact
 				// file, pair and reading position return.
 				abandon_tab_load();
 				const auto& tabs = TabHost->state();
@@ -6271,7 +6272,7 @@ namespace bpr::app {
 			const auto& accepted = *epoch.AcceptedComparison;
 			const auto  showsTab = tab_modality(WorkbenchHost->state().Modality);
 			// With no active tab, an epoch gesture still chooses the window's
-			// pair, including in Read or Review. The first file must inherit
+			// pair, including in Review. The first file must inherit
 			// that accepted pair rather than restore a remembered earlier one.
 			if (!TabHost->state().WindowComparison || !TabHost->state().Active || !showsTab) {
 				if (TabHost->state().WindowComparison != std::optional{ accepted }) {
@@ -8963,7 +8964,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			abandon_tab_load();
-			TabModality       = core::workbench_modality::read;
+			TabModality       = core::workbench_modality::review;
 			PendingTourSource = aSource;
 			const auto file   = core::file_identity_of(aSource->Path);
 			if (WorkbenchHost->selected() != file) {
@@ -12571,12 +12572,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return;
 				}
 				pending.File = file;
-				// A link is an explicit new reading choice. Entering Read must
-				// not restore the tab's previous file over that choice.
+				// A link is an explicit new reading choice. Entering Review
+				// must not restore the tab's previous file over that choice.
 				abandon_tab_load();
-				TabModality = core::workbench_modality::read;
+				TabModality = core::workbench_modality::review;
 				Window->choose_home(false);
-				Window->choose_modality(qt::review_modality::read);
+				Window->choose_modality(qt::review_modality::review);
 				if (WorkbenchHost->selected() != file) {
 					WorkbenchHost->apply(core::select_workbench_file_intent{ file });
 				}
@@ -15756,7 +15757,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::optional<std::uint32_t>          ThreadlessLine;
 		};
 		std::optional<threaded_reply_probe_state> ThreadedReplyProbe;
-		// [[BPR-1083]]. One fixture file opened in Read, for an attended look
+		// [[BPR-1083]]. One fixture file opened in Review, for an attended look
 		// and for the label-authoring course.
 		struct fixture_file_reveal_state
 		{
@@ -15776,7 +15777,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		struct label_authoring_probe_state
 		{
 			enum class phase {
-				awaiting_read_empty,
+				awaiting_review_empty,
 				awaiting_file,
 				awaiting_marks,
 				awaiting_line_draft,
@@ -15821,7 +15822,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::size_t                          NativeBefore = 0U;
 			/// The free line chosen for the next root comment, chosen once.
 			std::optional<std::uint32_t> Line;
-			phase                        Phase = phase::awaiting_read_empty;
+			phase                        Phase = phase::awaiting_review_empty;
 			std::string                  Diagnostic;
 			std::size_t                  Renders = 0U;
 			/// Characters still to type, one a tick once the draft has the
@@ -17857,8 +17858,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			switch (aModality) {
 			case qt::review_modality::overview:
 				return core::workbench_modality::overview;
-			case qt::review_modality::read:
-				return core::workbench_modality::read;
 			case qt::review_modality::review:
 				return core::workbench_modality::review;
 			case qt::review_modality::discuss:
@@ -17873,8 +17872,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			switch (aModality) {
 			case core::workbench_modality::overview:
 				return QStringLiteral("Overview");
-			case core::workbench_modality::read:
-				return QStringLiteral("Read");
 			case core::workbench_modality::review:
 				return QStringLiteral("Review");
 			case core::workbench_modality::discuss:
@@ -24553,8 +24550,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (view == nullptr || !row.isValid() || window->showing_home()) {
 				return result::pending;
 			}
-			// The reviewer's way in: Read on the strip, then the file's row.
-			window->choose_modality(qt::review_modality::read);
+			// The reviewer's way in: Review on the strip, then the file's row.
+			window->choose_modality(qt::review_modality::review);
 			QCoreApplication::processEvents();
 			view->setCurrentIndex(row);
 			reveal.Phase = state_type::phase::awaiting_diff;
@@ -24563,7 +24560,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto& last = implementation->LastSelectedDiff;
 		if (!last.has_value() || last->Request.File.PresentationPath != aPath
 			|| window->comparison_surface()->current_result() == nullptr
-			|| window->current_modality() != qt::review_modality::read) {
+			|| window->current_modality() != qt::review_modality::review) {
 			return result::pending;
 		}
 		reveal.Phase = state_type::phase::shown;
@@ -24588,8 +24585,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (draft && draft->Body == aBody && draft->State == core::review_draft_state::drafting && editor->body_editor()->toPlainText().toStdString() == aBody) {
 			return result::shown;
 		}
-		if (window->current_modality() != qt::review_modality::read) {
-			window->choose_modality(qt::review_modality::read);
+		if (window->current_modality() != qt::review_modality::review) {
+			window->choose_modality(qt::review_modality::review);
 			QCoreApplication::processEvents();
 			return result::pending;
 		}
@@ -24730,7 +24727,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		// A root comment on the next current-head line no thread is on.
 		const auto rootDraft = [&](const QString& aBody, const state_type::phase aNext) -> result {
-			// Back from the last comment's page to the code, in Read.
+			// Back from the last comment's page to the code, in Review.
 			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 			if (inlinePage != nullptr && inlinePage->isVisibleTo(window)) {
 				auto* const back = inlinePage->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
@@ -24741,8 +24738,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				QCoreApplication::processEvents();
 				return result::pending;
 			}
-			if (window->current_modality() != qt::review_modality::read) {
-				window->choose_modality(qt::review_modality::read);
+			if (window->current_modality() != qt::review_modality::review) {
+				window->choose_modality(qt::review_modality::review);
 				QCoreApplication::processEvents();
 				return result::pending;
 			}
@@ -24819,19 +24816,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		};
 		switch (probe.Phase) {
-		case state_type::phase::awaiting_read_empty: {
-			// [[BPR-1287]]. Read before any file is chosen.
+		case state_type::phase::awaiting_review_empty: {
+			// [[BPR-1287]]. Review before any file is chosen.
 			auto* const surface = window->comparison_surface();
 			note("files=" + std::to_string(drawer_row(*window, path).isValid() ? 1 : 0) + " idle=" + std::to_string(surface->idle() ? 1 : 0));
 			if (implementation->WorkbenchHost->outstanding_requests() != 0U || !drawer_row(*window, path).isValid() || window->showing_home()) {
 				return result::pending;
 			}
-			window->choose_modality(qt::review_modality::read);
+			window->choose_modality(qt::review_modality::review);
 			QCoreApplication::processEvents();
-			probe.Evidence.ReadEmptyDirected = window->current_modality() == qt::review_modality::read && surface->idle()
+			probe.Evidence.ReviewEmptyDirected = window->current_modality() == qt::review_modality::review && surface->idle()
 				&& surface->idle_page()->isVisibleTo(window) && !surface->left_pane()->isVisibleTo(window)
 				&& surface->idle_open_first_button()->isEnabled();
-			render("read-no-file");
+			render("review-no-file");
 			probe.Phase = state_type::phase::awaiting_file;
 			return result::pending;
 		}
@@ -24883,7 +24880,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		}
 		case state_type::phase::awaiting_line_draft: {
-			// The first current-head line no thread is on, chosen in Read.
+			// The first current-head line no thread is on, chosen in Review.
 			auto line = std::optional<std::uint32_t>{ };
 			for (auto candidate = std::uint32_t{ 0U }; candidate < 32U && !line; ++candidate) {
 				if (window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate)
@@ -25068,7 +25065,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		case state_type::phase::awaiting_reply_open: {
 			// A reply written in place in renderer.cpp's first thread, beside
-			// the code in Read, where the drawer writes replies in place.
+			// the code in Review, where the drawer writes replies in place.
 			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 			note("page=" + std::to_string(inlinePage != nullptr && inlinePage->isVisibleTo(window) ? 1 : 0) + " modality=" + std::to_string(static_cast<int>(window->current_modality())));
 			if (inlinePage != nullptr && inlinePage->isVisibleTo(window)) {
@@ -25080,8 +25077,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				QCoreApplication::processEvents();
 				return result::pending;
 			}
-			if (window->current_modality() != qt::review_modality::read) {
-				window->choose_modality(qt::review_modality::read);
+			if (window->current_modality() != qt::review_modality::review) {
+				window->choose_modality(qt::review_modality::review);
 				QCoreApplication::processEvents();
 				return result::pending;
 			}
@@ -25123,7 +25120,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& cards->reply_editor() != nullptr && cards->reply_editor()->toPlainText() == replyBody;
 			render("reply-in-place-native");
 			const auto& evidence = probe.Evidence;
-			const auto  all      = evidence.ReadEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
+			const auto  all      = evidence.ReviewEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
 				&& evidence.ChipApplied && evidence.ShortcutApplied && evidence.Published && evidence.PublishedMarked && evidence.PatchMarkedNative
 				&& evidence.PatchPublishedExact && evidence.ProseUnmarkedExact && evidence.RefusedTextKept && evidence.RefusedMarkedTextOnly && evidence.ReplyMarkedNative;
 			if (!all) {

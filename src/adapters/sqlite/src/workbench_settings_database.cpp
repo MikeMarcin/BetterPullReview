@@ -25,6 +25,11 @@ namespace bpr::adapters::sqlite::detail {
 		constexpr auto OpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
 			| SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_EXRESCODE;
 
+		/// \brief [[BPR-1295]]. What every write stores in the retired
+		/// `continue_modality` column: 1, the Review it named, which is what
+		/// Continue review enters since Read merged into Review.
+		constexpr std::int64_t retired_continue_modality = 1;
+
 		/// \brief The widest table this store admits, in columns.
 		///
 		/// \details `window_layout` has twenty-three columns after the Updates
@@ -1030,11 +1035,11 @@ namespace bpr::adapters::sqlite::detail {
 				   8,
 				   static_cast<std::int64_t>(aSettings.Behaviour.OpenModality))
 				!= SQLITE_OK
-			|| ::sqlite3_bind_int64(
-				   statement->Value,
-				   9,
-				   static_cast<std::int64_t>(aSettings.Behaviour.ContinueModality))
-				!= SQLITE_OK
+			// [[BPR-1295]]. continue_modality is no longer read. The column
+			// stays until a schema change that touches the table drops it,
+			// and every write keeps it valid with 1, Review, which is what
+			// Continue review enters now.
+			|| ::sqlite3_bind_int64(statement->Value, 9, retired_continue_modality) != SQLITE_OK
 			|| ::sqlite3_bind_int64(
 				   statement->Value,
 				   10,
@@ -1318,9 +1323,9 @@ namespace bpr::adapters::sqlite::detail {
 		const auto openModality = preference_of(
 			::sqlite3_column_int64(statement->Value, 7),
 			application::review_open_modality::last_used);
-		const auto continueModality = preference_of(
-			::sqlite3_column_int64(statement->Value, 8),
-			application::review_continue_modality::review);
+		// [[BPR-1295]]. Column 8, continue_modality, is not read: a stored
+		// Read and a stored Review both mean Review now. open_modality 1 is
+		// Review under its new name.
 		const auto markRead = preference_of(
 			::sqlite3_column_int64(statement->Value, 9),
 			application::review_mark_read_behaviour::when_fully_seen);
@@ -1343,7 +1348,7 @@ namespace bpr::adapters::sqlite::detail {
 		const auto overviewCounts = preference_of(
 			::sqlite3_column_int64(statement->Value, 21),
 			application::review_overview_counts::all);
-		if (!onePane || !openModality || !continueModality || !markRead || !returnComparison
+		if (!onePane || !openModality || !markRead || !returnComparison
 			|| !commentsFilter || !drawerControls || !feedbackMarks || !labelHelper || !overviewCounts) {
 			return std::unexpected(failure::integrity_failure);
 		}
@@ -1389,7 +1394,6 @@ namespace bpr::adapters::sqlite::detail {
 				::sqlite3_column_int64(statement->Value, 6)),
 			.Behaviour = {
 				.OpenModality         = *openModality,
-				.ContinueModality     = *continueModality,
 				.MarkRead             = *markRead,
 				.ReturnComparison     = *returnComparison,
 				.CommentsFilter       = *commentsFilter,

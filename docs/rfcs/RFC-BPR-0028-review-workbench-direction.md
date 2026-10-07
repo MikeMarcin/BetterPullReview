@@ -176,7 +176,10 @@ the main pane, grouped by file, for navigation only; picking one enters Review
 on its file with the thread open in the comments drawer at the picked post.
 ⌘J goes straight to it. The drawers are hidden while it shows, without
 changing their states, and ⌘B is disabled there. Discuss is kept as it is,
-even after [[BPR-1294]].
+even after [[BPR-1294]]. Amended 2026-10-06 by the owner ("can we swap
+discuss to 3 and conversations to 4"): Discuss is ⌘3 and Conversations ⌘4.
+[[BPR-1295]] builds Overview ⌘1, Review ⌘2 and Discuss ⌘3 and leaves ⌘4 for
+[[BPR-1293]].
 
 **Overview.** A pull request opens on an overview: title, author and branches,
 description, a files table grouped by folder with operation, added and removed
@@ -314,10 +317,13 @@ design rounds.
   Overview, Review, Conversations and Discuss on ⌘1 to ⌘4; ⌘J goes straight
   to Conversations; while it shows the drawers are hidden without changing
   their states, and ⌘B is disabled there.
+  Amended 2026-10-06 by the owner ("can we swap discuss to 3 and
+  conversations to 4"): Discuss is ⌘3 and Conversations ⌘4.
 - AC-04 The overview shows every file with the listed columns from projections
   the host already publishes, plus participants and the since-my-last-review
   summary, and Continue review lands on the first unseen change.
-- AC-05 Read shows this file's threads aligned to their lines with unread state
+- AC-05 Review (Read until [[BPR-1295]] merged it into Review, 2026-10-06)
+  shows this file's threads aligned to their lines with unread state
   and drafts, in both presentations; in one pane a thread names a side and a
   line and sits against the row carrying that identity, so a thread on a
   removed line sits against its struck row and a thread on an added line
@@ -343,7 +349,8 @@ design rounds.
 - AC-10 The three fixed Settings pages exist with live controls, and every
   other page names where its settings will live.
 - AC-08 A recorded conversation with more than twenty posts and three branches
-  reads correctly in Read and Discuss (the owner's stated stress case).
+  reads correctly in Review and Discuss (the owner's stated stress case; Read
+  until [[BPR-1295]] merged it into Review, 2026-10-06).
   Amended 2026-10-06 by the owner's verdict on [[BPR-1290]]'s inline drawer
   prototype ("I like it"): it reads in place, every post in posting order with
   its complete body, and a reply that answers anything but the first post
@@ -803,9 +810,9 @@ cmd+b is a reasonable option on mac for hiding clutter."
 
 The Modalities, Overview, Read, Drawers and Settings paragraphs and AC-03
 above carry dated amendments that cite this; their original wording is kept
-beside each. **AC-05 and AC-08 say Read; from 2026-10-06 that means Review.**
-They are not edited in place while [[BPR-1290]]'s amendment to the same
-criteria is in flight; whichever change lands second words them with Review.
+beside each. **AC-05 and AC-08 said Read; from 2026-10-06 that means Review.**
+[[BPR-1290]]'s amendment to the same criteria landed first, and
+[[BPR-1295]] then worded both with Review in place.
 Elsewhere in this document, too, where Read is named, read Review. The amendment
 changes the modalities and the drawer commands, not this RFC's closeout
 dependencies. [[BPR-1295]] builds it after [[BPR-1290]] lands, and the owner
@@ -832,7 +839,8 @@ even after 1294".
 
 So **Conversations is added and Discuss is kept**, even after [[BPR-1294]].
 The modalities are Overview ⌘1, Review ⌘2, Conversations ⌘3 and Discuss ⌘4
-(Read merged into Review above). Conversations is the
+(Read merged into Review above; the owner swapped the last two the same day,
+below). Conversations is the
 finder in the main pane, as prototype v2 draws it: one row per conversation
 on a file, grouped by file, branching only where a post has two or more
 replies that have replies, with search and the Only new, Hide resolved and
@@ -844,7 +852,9 @@ their states, and ⌘B is disabled there. Pull request comments and review
 summaries that are not on a file are not in it; Discuss still reads them, and
 [[BPR-1294]] looks for a better home.
 
-Discuss keeps its behaviour; only its key moves from ⌘3 to ⌘4. A
+Discuss keeps its behaviour. Amended 2026-10-06 by the owner, verbatim:
+"can we swap discuss to 3 and conversations to 4". Discuss is ⌘3 and
+Conversations ⌘4, so Discuss's key does not move at all. A
 `#discussion_r` link, the reveal after an inline comment is published, and
 defect navigation to a thread the drawer does not hold open the thread in
 place in Review rather than in Discuss; a `#pullrequestreview-` link and an

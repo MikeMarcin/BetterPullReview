@@ -25,6 +25,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
@@ -58,6 +59,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -91,6 +93,7 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <source_location>
@@ -785,7 +788,8 @@ namespace {
 		// [[BPR-1129]]. The title row, left to right: the platform inset, Home,
 		// Repositories, Files, the name and a spacer; then the modality, Home's
 		// own three controls (hidden outside Home), refresh, Home's discovery
-		// refresh (hidden outside Home), comments, a rule, account, settings.
+		// refresh (hidden outside Home), comments, Hide Drawers ([[BPR-1295]],
+		// immediately right of comments), a rule, account, settings.
 #if defined(_WIN32)
 		// [[BPR-0653]]. On Windows the title row carries the compact menu
 		// control after the inset, and the caption buttons end it.
@@ -797,7 +801,7 @@ namespace {
 		const auto lead  = qsizetype{ 0 };
 		const auto trail = qsizetype{ 0 };
 #endif
-		const auto titleRow = actions.size() == 16 + lead + trail
+		const auto titleRow = actions.size() == 17 + lead + trail
 			&& named(actions, 0, "workbenchStripInsetAction")
 			&& actions[1 + lead] == window.home_action()
 			&& actions[2 + lead] == window.repositories_drawer_toggle_action()
@@ -811,9 +815,10 @@ namespace {
 			&& actions[10 + lead] == window.github_refresh_action()
 			&& actions[11 + lead] == window.queue_refresh_action()
 			&& actions[12 + lead] == conversations
-			&& named(actions, 13 + lead, "workbenchStripRightDividerAction")
-			&& actions[14 + lead] == window.account_action()
-			&& actions[15 + lead] == window.settings_action();
+			&& actions[13 + lead] == window.toggle_drawers_action()
+			&& named(actions, 14 + lead, "workbenchStripRightDividerAction")
+			&& actions[15 + lead] == window.account_action()
+			&& actions[16 + lead] == window.settings_action();
 		if (!titleRow) {
 			for (auto index = qsizetype{ 0 }; index < actions.size(); ++index) {
 				std::cerr << "title row " << index << ": " << actions[index]->objectName().toStdString() << '\n';
@@ -1328,11 +1333,11 @@ namespace {
 		expect(action->isChecked()
 				   && window.comparison_surface()->one_pane_enabled(),
 			   "the published choice reaches the composed comparison surface");
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::discuss);
 		window.choose_modality(qt::review_modality::review);
 		expect(action->isChecked()
 				   && window.comparison_surface()->one_pane_enabled(),
-			   "switching Read to Review retains the one-pane presentation");
+			   "switching Discuss to Review retains the one-pane presentation");
 
 		auto refusedProjection = both_files_enabled();
 		refusedProjection.Commands->Commands[static_cast<std::size_t>(
@@ -1480,9 +1485,11 @@ namespace {
 			const auto  which  = static_cast<qt::review_modality>(index);
 			auto* const action = modality->action(which);
 			auto* const button = modality->button(which);
+			// [[BPR-1295]]. Set per modality, not by position: Ctrl+4 is left
+			// for Conversations ([[BPR-1293]]).
+			const auto key = std::array{ QStringLiteral("Ctrl+1"), QStringLiteral("Ctrl+2"), QStringLiteral("Ctrl+3") }[index];
 			expect(action != nullptr && action->isCheckable()
-					   && action->shortcut()
-						   == QKeySequence{ QStringLiteral("Ctrl+%1").arg(index + 1U) }
+					   && action->shortcut() == QKeySequence{ key }
 					   && action->shortcutContext() == Qt::WindowShortcut
 					   && button != nullptr && button->isVisibleTo(window.modality())
 					   && button->focusPolicy() == Qt::StrongFocus
@@ -1491,10 +1498,10 @@ namespace {
 					   && window.focus_order().contains(button),
 				   "each modality is a checkable, shortcut-bearing, focusable stop");
 		}
-		expect(modality->action(qt::review_modality::review)->isChecked()
-				   && !modality->action(qt::review_modality::read)->isChecked()
+		expect(qt::review_modality_count == 3U && modality->action(qt::review_modality::review)->isChecked()
+				   && !modality->action(qt::review_modality::overview)->isChecked()
 				   && modality->button(qt::review_modality::review)->isChecked()
-				   && !modality->button(qt::review_modality::read)->isChecked(),
+				   && !modality->button(qt::review_modality::discuss)->isChecked(),
 			   "exactly the current modality reads checked, on the action and "
 			   "on its segment");
 		// The host's first projection carries the drawers; the segment must
@@ -1509,12 +1516,11 @@ namespace {
 			   "its segment");
 
 		// [[BPR-0675]] [[BPR-0674]]. A drawer'''s room does not depend on a
-		// comparison, so a modality asks for its preset whether or not one has
+		// comparison, so a modality asks for its drawers whether or not one has
 		// resolved. That is the case that matters: a reviewer whose comparison
 		// is still coming is exactly who wants the room arranged.
-		log.Workbench.clear();
-		modality->action(qt::review_modality::read)->trigger();
-		QApplication::processEvents();
+		// [[BPR-1295]]. Review's drawers are the core's to decide: the window
+		// sends the modality, chosen from the strip, and no drawer of its own.
 		const auto drawerRequests = [&log] {
 			auto asked = std::vector<std::pair<core::workbench_drawer, core::workbench_drawer_state>>{ };
 			for (const auto& intent : log.Workbench) {
@@ -1525,78 +1531,49 @@ namespace {
 			}
 			return asked;
 		};
-		expect(window.current_modality() == qt::review_modality::read
-				   && modality->action(qt::review_modality::read)->isChecked()
-				   && !modality->action(qt::review_modality::review)->isChecked()
-				   && drawerRequests().size() == 3U,
-			   "a modality asks for its three drawers with no comparison open");
-
-		// [[BPR-0674]]. Overview is the centre'''s page, so it asks for every
-		// drawer to be collapsed. The owner met it 150 pixels wide between
-		// three of them.
-		log.Workbench.clear();
-		modality->action(qt::review_modality::overview)->trigger();
-		QApplication::processEvents();
-		expect(drawerRequests()
-				   == std::vector<std::pair<core::workbench_drawer, core::workbench_drawer_state>>{
-					   { core::workbench_drawer::files, core::workbench_drawer_state::collapsed },
-					   { core::workbench_drawer::conversations, core::workbench_drawer_state::collapsed },
-					   { core::workbench_drawer::repositories, core::workbench_drawer_state::collapsed } },
-			   "Overview asks for all three drawers collapsed");
-
-		window.publish(every_primary_command_offered());
-		QApplication::processEvents();
-		const auto drawerIntents = [&log] {
-			auto states = std::vector<core::set_workbench_drawer_intent>{ };
+		const auto modalityRequests = [&log] {
+			auto asked = std::vector<core::set_workbench_modality_intent>{ };
 			for (const auto& intent : log.Workbench) {
-				if (const auto* const set
-					= std::get_if<core::set_workbench_drawer_intent>(&intent);
-					set != nullptr) {
-					states.push_back(*set);
+				if (const auto* const set = std::get_if<core::set_workbench_modality_intent>(&intent); set != nullptr) {
+					asked.push_back(*set);
 				}
 			}
-			return states;
+			return asked;
 		};
-		// [[BPR-0674]]. Three drawers, three exact set intents, in that order.
-		const auto expectPreset = [&](const qt::review_modality          aModality,
-									  const core::workbench_drawer_state aFiles,
-									  const core::workbench_drawer_state aConversations,
-									  const core::workbench_drawer_state aRepositories,
-									  const char* const                  aMessage) {
+		const auto expectChosen = [&](const qt::review_modality                                                           aModality,
+									  const core::workbench_modality                                                      aCore,
+									  const std::vector<std::pair<core::workbench_drawer, core::workbench_drawer_state>>& aDrawers,
+									  const char* const                                                                   aMessage) {
 			log.Workbench.clear();
 			modality->action(aModality)->trigger();
 			QApplication::processEvents();
-			const auto states = drawerIntents();
-			expect(states.size() == 3U
-					   && states[0]
-						   == core::set_workbench_drawer_intent{
-							   .Drawer = core::workbench_drawer::files,
-							   .State  = aFiles }
-					   && states[1] == core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = aConversations } && states[2] == core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::repositories, .State = aRepositories } && window.current_modality() == aModality,
+			expect(window.current_modality() == aModality && modality->action(aModality)->isChecked()
+					   && modalityRequests()
+						   == std::vector{ core::set_workbench_modality_intent{ .Modality = aCore, .Entry = core::workbench_modality_entry::choose } }
+					   && drawerRequests() == aDrawers,
 				   aMessage);
 		};
-		// Overview is the centre's own page and takes the whole centre.
-		expectPreset(qt::review_modality::overview,
-					 core::workbench_drawer_state::collapsed,
-					 core::workbench_drawer_state::collapsed,
-					 core::workbench_drawer_state::collapsed,
-					 "Overview closes every drawer through exact set intents");
-		// [[BPR-0724]]: the repositories tree is no part of reading a file.
-		expectPreset(qt::review_modality::read,
-					 core::workbench_drawer_state::collapsed,
-					 core::workbench_drawer_state::expanded,
-					 core::workbench_drawer_state::collapsed,
-					 "Read collapses files and repositories and keeps comments beside the code");
-		expectPreset(qt::review_modality::review,
-					 core::workbench_drawer_state::expanded,
-					 core::workbench_drawer_state::expanded,
-					 window.repositories_drawer()->state(),
-					 "Review opens both drawers");
-		expectPreset(qt::review_modality::discuss,
-					 core::workbench_drawer_state::collapsed,
-					 core::workbench_drawer_state::expanded,
-					 window.repositories_drawer()->state(),
-					 "Discuss collapses files and gives the conversation the room");
+		// [[BPR-0674]]. Overview is the centre's page; the core collapses every
+		// drawer in the same decision that chooses it.
+		expectChosen(qt::review_modality::overview, core::workbench_modality::overview, { },
+					 "Overview is chosen with no comparison open, and the core closes its drawers");
+		expectChosen(qt::review_modality::review, core::workbench_modality::review, { },
+					 "Review is chosen from the strip; the core restores or presets its drawers");
+		expectChosen(qt::review_modality::review, core::workbench_modality::review, { },
+					 "choosing Review again is the same gesture; the core applies its preset");
+		expectChosen(qt::review_modality::discuss, core::workbench_modality::discuss,
+					 { { core::workbench_drawer::files, core::workbench_drawer_state::collapsed },
+					   { core::workbench_drawer::conversations, core::workbench_drawer_state::expanded } },
+					 "Discuss collapses files and gives the conversation the room with two exact intents");
+		// Every other way in enters rather than chooses.
+		log.Workbench.clear();
+		window.choose_modality(qt::review_modality::review);
+		expect(modalityRequests()
+				   == std::vector{ core::set_workbench_modality_intent{ .Modality = core::workbench_modality::review, .Entry = core::workbench_modality_entry::enter } },
+			   "a programmatic entry to Review enters it, keeping the arrangement it last had");
+		window.choose_modality(qt::review_modality::discuss);
+		window.publish(every_primary_command_offered());
+		QApplication::processEvents();
 
 		// A manual toggle never moves the segment: the preset stands until
 		// the next modality is chosen.
@@ -2724,10 +2701,10 @@ namespace {
 		};
 		window.publish(opened);
 		process_events();
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		process_events();
 		expect(window.conversations_drawer()->width() == 375,
-			   "Read opens the conversations drawer at its default width");
+			   "Review opens the conversations drawer at its default width");
 
 		drag_conversations_handle(window, 280);
 		process_events();
@@ -2752,7 +2729,7 @@ namespace {
 			   "no Agent tools control is clipped at 280 pixels; the column scrolls");
 		notesPages->setCurrentIndex(0);
 		process_events();
-		window.tray_tabs()->setCurrentIndex(0);
+		window.ai_tools_action()->setChecked(false);
 		process_events();
 
 		drag_conversations_handle(window, 100);
@@ -2777,10 +2754,10 @@ namespace {
 		window.choose_home(true);
 		process_events();
 		expect(window.showing_home(), "Home shows over the open review");
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		process_events();
 		expect(!window.showing_home() && window.conversations_drawer()->width() == 300,
-			   "back in Read the drawer keeps the persisted 300 rather than lifting to 375");
+			   "back in Review the drawer keeps the persisted 300 rather than lifting to 375");
 		window.hide();
 	}
 
@@ -2929,8 +2906,8 @@ namespace {
 			   "the conversations handle under a resting pointer shows the split cursor");
 
 		// A modality change relays the drawers ([[BPR-0649]] Discuss widens the
-		// conversation; Read returns it), and the pointer has not moved.
-		window.choose_modality(qt::review_modality::read);
+		// conversation; Review returns it), and the pointer has not moved.
+		window.choose_modality(qt::review_modality::review);
 		process_events();
 		expect(pointerHolds("after a modality change"),
 			   "after a modality change the resting pointer is still on the handle "
@@ -2963,10 +2940,10 @@ namespace {
 		window.choose_modality(qt::review_modality::discuss);
 		process_events();
 		expect(!handle->isVisible(), "Discuss's main page has no conversation-drawer resize seam");
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		process_events();
 		rest();
-		expect(pointerHolds("after a drag, Discuss and Read"),
+		expect(pointerHolds("after a drag, Discuss and Review"),
 			   "after a Discuss round trip the restored drawer seam handles hover with the split cursor");
 
 		// The files handle is the same seam on the other side.
@@ -5836,7 +5813,7 @@ namespace {
 			   "the mark sits before the track, which starts after it");
 
 		// Nothing folds or opens on its own.
-		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
+		for (const auto modality : { qt::review_modality::overview,
 									 qt::review_modality::discuss, qt::review_modality::review }) {
 			window.choose_modality(modality);
 			process_events();
@@ -7295,7 +7272,7 @@ namespace {
 		const auto candidate = inlineEditor->rejected_candidate();
 		expect(candidate.has_value(), "fixture retains an exact rejected inline candidate");
 		inlineGestures.clear();
-		for (const auto mode : { qt::review_modality::review, qt::review_modality::read, qt::review_modality::discuss }) {
+		for (const auto mode : { qt::review_modality::review, qt::review_modality::discuss }) {
 			window.choose_modality(mode);
 			process_events();
 			auto* invoking = window.modality()->button(mode);
@@ -7498,7 +7475,7 @@ namespace {
 		expect(sameFileAfterReply != cards.end(), "the same-file conversation survives the refused reply");
 		expect(clickIn("review-thread:late", "threadShowLine"), "Discuss offers Open in code on the open thread");
 		process_events();
-		expect(window.current_modality() == qt::review_modality::read
+		expect(window.current_modality() == qt::review_modality::review
 				   && !window.conversation_panel()->discuss()
 				   && window.conversation_model()->id_for_index(window.conversation_view()->currentIndex())
 					   == "review-thread:late"
@@ -8304,40 +8281,51 @@ namespace {
 			expect(found != nullptr, "every preference option is a named button");
 			return found;
 		};
-		expect(button("openModalityOverview")->isChecked() && button("continueModalityRead")->isChecked()
+		expect(button("openModalityOverview")->isChecked()
 				   && button("markReadByHand")->isChecked() && button("returnComparisonWholePr")->isChecked()
 				   && button("commentsFilterAll")->isChecked(),
 			   "the rows start at the defaults, the behaviour the window had");
-		button("openModalityRead")->click();
-		expect(records.size() == 1U && records.back().OpenModality == application::review_open_modality::read
-				   && records.back().ContinueModality == application::review_continue_modality::read,
+		// [[BPR-1295]]. Overview, Review and Last used; no Read, and no
+		// "Continue review enters" row: Continue review enters Review.
+		expect(window.findChild<QToolButton*>(QStringLiteral("openModalityRead")) == nullptr
+				   && window.findChild<QToolButton*>(QStringLiteral("continueModalityRead")) == nullptr
+				   && window.findChild<QToolButton*>(QStringLiteral("continueModalityReview")) == nullptr
+				   && button("openModalityReview")->text() == QStringLiteral("Review")
+				   && button("openModalityOverview")->group() == button("openModalityLastUsed")->group()
+				   && button("openModalityOverview")->group()->buttons().size() == 3,
+			   "A pull request opens in offers Overview, Review and Last used, and Continue review has no row");
+		button("openModalityReview")->click();
+		expect(records.size() == 1U && records.back() == application::review_behaviour_settings{ .OpenModality = application::review_open_modality::review },
 			   "choosing an option dispatches the whole record with that one change");
 
-		auto published             = application::review_behaviour_settings{ };
-		published.ContinueModality = application::review_continue_modality::review;
-		published.CommentsFilter   = application::review_comments_filter::unread;
-		auto projection            = application::workbench_projection{ };
-		projection.Behaviour       = published;
+		auto published           = application::review_behaviour_settings{ };
+		published.MarkRead       = application::review_mark_read_behaviour::when_fully_seen;
+		published.CommentsFilter = application::review_comments_filter::unread;
+		auto projection          = application::workbench_projection{ };
+		projection.Behaviour     = published;
 		window.publish(projection);
 		expect(records.size() == 1U && window.behaviour() == published
-				   && button("openModalityOverview")->isChecked() && button("continueModalityReview")->isChecked()
+				   && button("openModalityOverview")->isChecked() && button("markReadWhenFullySeen")->isChecked()
 				   && button("commentsFilterUnread")->isChecked(),
 			   "the page follows what the host publishes without dispatching again, so a refused change reverts");
 
+		button("openModalityLastUsed")->click();
 		button("resetReadingBehaviour")->click();
-		expect(records.size() == 2U
-				   && records.back() == application::review_behaviour_settings{ .ContinueModality = application::review_continue_modality::review },
-			   "Reset on the reading group returns its rows to the defaults and leaves the modality rules alone");
-		button("resetModalityRules")->click();
 		expect(records.size() == 3U
-				   && records.back() == application::review_behaviour_settings{ .CommentsFilter = application::review_comments_filter::unread },
-			   "Reset on the modality group returns its rows and leaves the reading rows as shown");
+				   && records.back() == application::review_behaviour_settings{ .OpenModality = application::review_open_modality::last_used },
+			   "Reset on the reading group returns its rows to the defaults and leaves the modality rules alone");
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		button("resetModalityRules")->click();
+		expect(records.size() == 4U
+				   && records.back() == application::review_behaviour_settings{ },
+			   "Reset on the modality group returns its rows to the defaults");
+		window.publish(projection);
 		// [[BPR-0721]]. The drawers group: one row, off by default, its own
 		// Reset.
 		expect(button("drawerControlsHidden")->isChecked() && !button("drawerControlsShown")->isChecked(),
 			   "the drawer controls start hidden, the owner's direction");
 		button("drawerControlsShown")->click();
-		expect(records.size() == 4U
+		expect(records.size() == 5U
 				   && records.back().DrawerControls == application::review_drawer_controls::shown
 				   && records.back().CommentsFilter == application::review_comments_filter::unread,
 			   "choosing Shown dispatches the whole record with the drawer controls shown");
@@ -8346,7 +8334,7 @@ namespace {
 		projection.Behaviour = shown;
 		window.publish(projection);
 		button("resetDrawers")->click();
-		expect(records.size() == 5U && records.back() == published,
+		expect(records.size() == 6U && records.back() == published,
 			   "Reset on the drawers group hides the controls again and leaves the other groups alone");
 	}
 
@@ -8456,17 +8444,14 @@ namespace {
 		window.publish(overview);
 		process_events();
 
-		auto behaviour      = application::workbench_projection{ };
-		behaviour.Behaviour = application::review_behaviour_settings{
-			.ContinueModality = application::review_continue_modality::review,
-		};
-		window.publish(behaviour);
+		// [[BPR-1295]]. Continue review enters Review with no preference.
+		auto behaviour = application::workbench_projection{ };
 		window.choose_modality(qt::review_modality::overview);
 		process_events();
 		window.overview_page()->entry_button()->click();
 		process_events();
 		expect(window.current_modality() == qt::review_modality::review,
-			   "Continue review enters Review when the preference says so");
+			   "Continue review enters Review");
 
 		const auto openFromHome = [&window, &opened] {
 			const auto before = opened;
@@ -8483,11 +8468,11 @@ namespace {
 			});
 			process_events();
 		};
-		behaviour.Behaviour = application::review_behaviour_settings{ .OpenModality = application::review_open_modality::read };
+		behaviour.Behaviour = application::review_behaviour_settings{ .OpenModality = application::review_open_modality::review };
 		window.publish(behaviour);
 		openFromHome();
-		expect(window.current_modality() == qt::review_modality::read,
-			   "a pull request opened from Home opens in Read when the preference says so");
+		expect(window.current_modality() == qt::review_modality::review,
+			   "a pull request opened from Home opens in Review when the preference says so");
 
 		behaviour.Behaviour = application::review_behaviour_settings{ .OpenModality = application::review_open_modality::last_used };
 		window.publish(behaviour);
@@ -9383,14 +9368,260 @@ namespace {
 			"absent activation also leaves preferences untouched");
 	}
 
+	/// [[BPR-1295]]. One key, delivered as a platform plugin delivers it:
+	/// through `QWindowSystemInterface`, which offers it to the shortcut map
+	/// first (a `ShortcutOverride` to the focus widget) and then to the window.
+	/// On macOS QtGui leaves the shortcut offer to the cocoa plugin, which
+	/// makes it before the key event, so this does the same there.
+	void deliver_key(qt::workbench_window& aWindow, const int aKey, const Qt::KeyboardModifiers aModifiers)
+	{
+#if defined(Q_OS_MACOS)
+		const auto taken = QWindowSystemInterface::handleShortcutEvent(aWindow.windowHandle(), 0UL, aKey, aModifiers, 0U, 0U, 0U);
+		QApplication::processEvents();
+		if (taken) {
+			return;
+		}
+#endif
+		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+				aWindow.windowHandle(), type, aKey, aModifiers, QString{ });
+			QApplication::processEvents();
+		}
+	}
+
+	/// [[BPR-1295]]. Hide Drawers through the real core: the window's gestures
+	/// are transitions of a core state, and what the core decided comes back
+	/// as the host would publish it. Command-B (Ctrl+B) hides every open drawer
+	/// from the code, a drawer's list and a single-line field, and shows exactly
+	/// those again at their widths; an editable multi-line editor keeps the key.
+	/// The button sits right of the Comments toggle and shows the state.
+	void test_hide_drawers_command_key_icon_and_editor_yield()
+	{
+		auto  state   = core::workbench_interaction_state{ };
+		auto  toggles = 0;
+		auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+		auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			projection.Refusal       = aRefusal;
+			shown->publish(projection);
+		};
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				if (std::holds_alternative<core::toggle_workbench_drawers_intent>(aIntent)) {
+					++toggles;
+				}
+				const auto output = core::transition(state, aIntent);
+				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file  = core::file_identity_of("src/file.cpp");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 1U };
+		auto first       = application::workbench_projection{ };
+		first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" } };
+		first.Layout     = application::workbench_layout_delta{ .FilesWidth = 330U, .ConversationsWidth = 410U, .RepositoriesWidth = 300U };
+		window.publish(first);
+		publish(std::nullopt);
+		static_cast<void>(publish_fixture(window, computed_comparison("old\n", "new\n", 0U, file)));
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+		// The window's first Review is its preset; Repositories are put away by
+		// hand so the set to restore is Files and Comments.
+		window.repositories_drawer_toggle_action()->trigger();
+		process_events();
+		auto* const action   = window.toggle_drawers_action();
+		auto* const files    = window.files_drawer();
+		auto* const comments = window.conversations_drawer();
+		auto* const repos    = window.repositories_drawer();
+		const auto  open     = [](const qt::workbench_drawer_panel* aPanel) {
+			return aPanel->state() == core::workbench_drawer_state::expanded && aPanel->isVisible();
+		};
+		expect(open(files) && open(comments) && !open(repos), "the fixture is Review with Files and Comments open");
+		const auto widths = std::pair{ files->width(), comments->width() };
+
+		// The command and its button.
+		const auto key = action->shortcut().toString(QKeySequence::NativeText);
+		expect(action->objectName() == QStringLiteral("toggleWorkbenchDrawersAction") && action->isCheckable()
+				   && action->shortcut() == QKeySequence{ QStringLiteral("Ctrl+B") }
+				   && action->shortcutContext() == Qt::WindowShortcut && action->isEnabled() && !action->isChecked()
+				   && action->toolTip() == QStringLiteral("Hide drawers (%1)").arg(key),
+			   "Hide Drawers is a checkable window command on Ctrl+B (Command-B on macOS), offered in Review");
+		expect(window.view_menu()->actions().indexOf(action) == window.view_menu()->actions().indexOf(window.one_pane_action()) + 1,
+			   "the View menu carries it right after One pane");
+		auto* const toolbar  = window.primary_toolbar();
+		auto* const button   = qobject_cast<QToolButton*>(toolbar->widgetForAction(action));
+		auto* const toggle   = toolbar->widgetForAction(window.conversations_drawer_toggle_action());
+		const auto  actions  = toolbar->actions();
+		const auto  position = actions.indexOf(action);
+		expect(button != nullptr && toggle != nullptr && button->isVisible()
+				   && position == actions.indexOf(window.conversations_drawer_toggle_action()) + 1
+				   && actions[position + 1]->objectName() == QStringLiteral("workbenchStripRightDividerAction")
+				   && button->geometry().left() > toggle->geometry().right()
+				   && button->geometry().left() - toggle->geometry().right() < 12,
+			   "its button sits immediately right of the Comments toggle, before the rule");
+		expect(button->toolButtonStyle() == Qt::ToolButtonIconOnly && button->focusPolicy() == Qt::StrongFocus
+				   && button->accessibleName() == QStringLiteral("Hide drawers")
+				   && button->accessibleDescription() == action->toolTip() && !button->icon().isNull()
+				   && button->height() == toggle->height(),
+			   "it is an icon-only, focusable stop, named and described as its tooltip, the toggles' size");
+		const auto shownIcon = action->icon().pixmap(QSize{ 16, 16 }).toImage();
+		save_render(window, QStringLiteral("hide-drawers-shown"));
+
+		// From the code.
+		auto* const code = window.comparison_surface()->right_pane();
+		code->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(QApplication::focusWidget() == code, "the code has the keyboard");
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(toggles == 1 && !open(files) && !open(comments) && !open(repos) && action->isChecked()
+				   && QApplication::focusWidget() == code,
+			   "Command-B in the code hides every drawer and leaves the keyboard in the code");
+		expect(action->toolTip() == QStringLiteral("Show Files and Comments (%1)").arg(key)
+				   && button->accessibleName() == QStringLiteral("Show Files and Comments")
+				   && action->icon().pixmap(QSize{ 16, 16 }).toImage() != shownIcon,
+			   "hidden, the button is checked, names what returns and draws the outlined glyph");
+		save_render(window, QStringLiteral("hide-drawers-hidden"));
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(toggles == 2 && open(files) && open(comments) && !open(repos) && !action->isChecked()
+				   && std::pair{ files->width(), comments->width() } == widths,
+			   "again, it shows exactly Files and Comments at the widths they had");
+
+		// From a drawer's list: the list goes, so the keyboard goes to the code.
+		window.files_tree()->setFocus(Qt::OtherFocusReason);
+		process_events();
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(toggles == 3 && !open(files) && !open(comments) && code->hasFocus(),
+			   "from the files list it hides the drawers and gives the keyboard to the code");
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+
+		// From a single-line field.
+		window.files_filter()->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(QApplication::focusWidget() == window.files_filter(), "the files filter has the keyboard");
+		const auto filterText = window.files_filter()->text();
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(toggles == 5 && !open(files) && code->hasFocus() && window.files_filter()->text() == filterText,
+			   "a single-line field lets the key through: the drawers hide and the code takes the keyboard");
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(toggles == 6 && open(files) && open(comments), "and it shows them again");
+
+		// An editable multi-line editor keeps the key and does nothing with it.
+		window.ai_tools_action()->setChecked(true);
+		window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->setCurrentIndex(1);
+		process_events();
+		window.private_notes()->present({ .Scope = 1U, .Available = true });
+		window.private_notes()->new_review_action()->trigger();
+		process_events();
+		auto* const note = window.private_notes()->body_editor();
+		note->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(note->isVisible() && !note->isReadOnly() && QApplication::focusWidget() == note,
+			   "a note being written in the Conversations drawer has the keyboard");
+		note->setPlainText(QStringLiteral("half a sentence"));
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(toggles == 6 && open(files) && open(comments) && note->hasFocus()
+				   && note->toPlainText() == QStringLiteral("half a sentence"),
+			   "with an editable note focused, Command-B does nothing: no gesture, no drawer moves, no text");
+		expect(!action->isEnabled() && action->toolTip() == QStringLiteral("The text you are writing keeps %1. Click the code first.").arg(key),
+			   "while it is written the command is disabled and says why, so no menu item can take the key");
+		// Negative control: the same key with the same note made read-only goes
+		// to the command, so the yield is the editor's, not a dead key.
+		note->setReadOnly(true);
+		code->setFocus(Qt::OtherFocusReason);
+		note->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(action->isEnabled(), "a read-only view does not disable the command");
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(toggles == 7 && !open(comments), "a read-only multi-line view lets the key through");
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		note->setReadOnly(false);
+		window.ai_tools_action()->setChecked(false);
+
+		// A hand toggle while hidden drops the memory: Comments opens alone,
+		// and the next press hides what is open now.
+		action->trigger();
+		window.conversations_drawer_toggle_action()->trigger();
+		process_events();
+		expect(!open(files) && open(comments) && !action->isChecked(), "Comments opens alone by hand");
+		action->trigger();
+		action->trigger();
+		expect(!open(files) && open(comments), "the command then restores Comments alone");
+
+		// Disabled outside Review and on Home.
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		expect(!action->isEnabled() && action->toolTip() == QStringLiteral("Overview keeps every drawer closed"),
+			   "Overview disables the command and says why");
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
+		expect(!action->isEnabled() && action->toolTip() == QStringLiteral("In Discuss the conversation is the page"),
+			   "Discuss disables it and says why");
+		const auto before = toggles;
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(toggles == before, "a disabled command takes no key");
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		expect(action->isEnabled() && !open(files) && open(comments),
+			   "back in Review the command is offered and Review's arrangement is back");
+		window.choose_home(true);
+		process_events();
+		expect(!action->isEnabled() && !button->isVisible(), "Home has no review: the command is disabled and its button gone");
+		window.choose_home(false);
+		process_events();
+
+		// No two commands of the assembled window share a key. A widget-scoped
+		// key (Esc in a list, Return in a field) belongs to that widget alone;
+		// the window- and application-wide ones must be unique.
+		const auto wide = [](const Qt::ShortcutContext aContext) {
+			return aContext == Qt::WindowShortcut || aContext == Qt::ApplicationShortcut;
+		};
+		auto       seen = std::map<QString, QString>{ };
+		const auto here = [&window](const QObject* aObject) {
+			const auto* const widget = qobject_cast<const QWidget*>(aObject);
+			return widget != nullptr && widget->window() == &window;
+		};
+		for (auto* const candidate : window.findChildren<QAction*>()) {
+			if (!wide(candidate->shortcutContext()) || !std::ranges::any_of(candidate->associatedObjects(), here)) {
+				continue;
+			}
+			for (const auto& sequence : candidate->shortcuts()) {
+				const auto text           = sequence.toString(QKeySequence::PortableText);
+				const auto [where, fresh] = seen.emplace(text, candidate->objectName());
+				expect(fresh || where->second == candidate->objectName(),
+					   "the key " + text.toStdString() + " is held by " + where->second.toStdString() + " and "
+						   + candidate->objectName().toStdString());
+			}
+		}
+		for (auto* const shortcut : window.findChildren<QShortcut*>()) {
+			if (!wide(shortcut->context()) || !here(shortcut->parent())) {
+				continue;
+			}
+			const auto text = shortcut->key().toString(QKeySequence::PortableText);
+			expect(text.isEmpty() || !seen.contains(text), "the key " + text.toStdString() + " is held by a shortcut and an action");
+		}
+		expect(seen.contains(QStringLiteral("Ctrl+B")) && seen.contains(QStringLiteral("Ctrl+1")) && seen.contains(QStringLiteral("Ctrl+2"))
+				   && seen.contains(QStringLiteral("Ctrl+3")) && !seen.contains(QStringLiteral("Ctrl+4")),
+			   "Ctrl+B hides the drawers, Ctrl+1, 2 and 3 choose Overview, Review and Discuss, and Ctrl+4 is free");
+		window.hide();
+	}
+
 	void test_overview_refuses_a_hand_opened_drawer_and_says_so()
 	{
 		// [[BPR-0727]]. Choosing Overview tells the core the modality before
 		// its preset; a toggle in Overview still leaves as a gesture, the
 		// core's refusal comes back as a published reason, and the window
 		// shows it in the status bar while the toggle stays enabled and
-		// unchecked. Read, Review and Discuss send their presets after their
-		// modality, so their drawers open as before.
+		// unchecked. [[BPR-1295]]: the core collapses Overview's drawers in
+		// the decision that chooses it, and decides Review's; only Discuss
+		// sends its preset after its modality.
 		intent_log           log;
 		qt::workbench_window window{
 			[&log](core::workbench_interaction_intent aIntent) {
@@ -9406,12 +9637,11 @@ namespace {
 		log.Workbench.clear();
 		window.choose_modality(qt::review_modality::overview);
 		process_events();
-		expect(log.Workbench.size() == 4U
+		expect(log.Workbench.size() == 1U
 				   && log.Workbench.front()
 					   == core::workbench_interaction_intent{ core::set_workbench_modality_intent{
-						   .Modality = core::workbench_modality::overview } }
-				   && std::holds_alternative<core::set_workbench_drawer_intent>(log.Workbench[1]),
-			   "choosing Overview dispatches the modality before its three drawer presets");
+						   .Modality = core::workbench_modality::overview } },
+			   "choosing Overview dispatches the modality alone; the core closes the drawers with it");
 		auto collapsed    = application::workbench_projection{ };
 		collapsed.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
 										  core::workbench_drawer_state::collapsed);
@@ -9436,28 +9666,20 @@ namespace {
 		process_events();
 		expect(window.last_refusal() == core::workbench_reason_code::overview_keeps_drawers_collapsed
 				   && window.statusBar()->currentMessage()
-					   == QStringLiteral("Overview keeps every drawer collapsed. Choose Read, Review "
+					   == QStringLiteral("Overview keeps every drawer collapsed. Choose Review "
 										 "or Discuss to open one.")
 				   && !files->isChecked()
 				   && !window.conversations_drawer_toggle_action()->isChecked(),
 			   "the published refusal is visible in the status bar and every drawer stays collapsed");
 
 		log.Workbench.clear();
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		process_events();
-		const auto* const readModality        = log.Workbench.empty()
-			? nullptr
-			: std::get_if<core::set_workbench_modality_intent>(&log.Workbench.front());
-		auto              conversationsOpened = false;
-		for (const auto& intent : log.Workbench) {
-			if (const auto* const set = std::get_if<core::set_workbench_drawer_intent>(&intent);
-				set != nullptr && set->Drawer == core::workbench_drawer::conversations) {
-				conversationsOpened = set->State == core::workbench_drawer_state::expanded;
-			}
-		}
-		expect(readModality != nullptr && readModality->Modality == core::workbench_modality::read
-				   && conversationsOpened,
-			   "Read sends its modality first and then opens the conversations drawer");
+		const auto* const reviewModality = log.Workbench.size() == 1U
+			? std::get_if<core::set_workbench_modality_intent>(&log.Workbench.front())
+			: nullptr;
+		expect(reviewModality != nullptr && reviewModality->Modality == core::workbench_modality::review,
+			   "Review sends its modality alone; the core decides which drawers it opens");
 		auto opened    = application::workbench_projection{ };
 		opened.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
 									   core::workbench_drawer_state::expanded);
@@ -9550,7 +9772,7 @@ namespace {
 				   && before.height() == qt::epoch_line::height_pixels && panesTop() == before.bottom() + 1,
 			   "opening the line moves the bar nowhere; the timeline is one 34-pixel row above the panes");
 
-		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
+		for (const auto modality : { qt::review_modality::overview,
 									 qt::review_modality::review, qt::review_modality::discuss }) {
 			window.choose_modality(modality);
 			process_events();
@@ -9598,7 +9820,7 @@ namespace {
 		window.publish(application::github_presentation_update{
 			.LoadingOverview = application::github_loading_overview_projection{
 				.Title = "Loading readiness", .Body = "", .AuthorLogin = "octocat", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 1U, .ReportedCommits = 1U } });
-		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
+		for (const auto modality : { qt::review_modality::overview,
 									 qt::review_modality::review, qt::review_modality::discuss }) {
 			window.choose_modality(modality);
 			window.resize(window.minimumWidth(), 820);
@@ -9750,7 +9972,7 @@ namespace {
 	{
 		// [[BPR-0647]]. The Overview modality shows the host-decided overview in
 		// place of the comparison. Start review and Continue review keep distinct
-		// modality semantics; a file row remains a plain Read gesture.
+		// modality semantics; a file row remains a plain Review gesture.
 		intent_log           log;
 		auto                 githubIntents = std::size_t{ 0U };
 		qt::workbench_window window{
@@ -9833,15 +10055,10 @@ namespace {
 				   && std::get_if<core::select_workbench_file_intent>(&log.Workbench.front()) != nullptr
 				   && std::get<core::select_workbench_file_intent>(log.Workbench.front()).File
 					   == workbench_file(2U)
-				   && window.current_modality() == qt::review_modality::read,
-			   "Continue review keeps its intended entry file and default Read destination");
+				   && window.current_modality() == qt::review_modality::review,
+			   "Continue review keeps its intended entry file and enters Review");
 
 		window.choose_modality(qt::review_modality::overview);
-		auto behaviour      = application::workbench_projection{ };
-		behaviour.Behaviour = application::review_behaviour_settings{
-			.ContinueModality = application::review_continue_modality::review,
-		};
-		window.publish(behaviour);
 		log.Workbench.clear();
 		const auto first = window.overview_page()->file_model()->index_for_path(QStringLiteral("src/a.cpp"));
 		window.overview_page()->files_view()->activated(first);
@@ -9850,8 +10067,8 @@ namespace {
 				   && std::get_if<core::select_workbench_file_intent>(&log.Workbench.front()) != nullptr
 				   && std::get<core::select_workbench_file_intent>(log.Workbench.front()).File
 					   == workbench_file(1U)
-				   && window.current_modality() == qt::review_modality::read,
-			   "activating a file row selects that file and enters Read independently of Continue preference");
+				   && window.current_modality() == qt::review_modality::review,
+			   "activating a file row selects that file and enters Review");
 		expect(githubIntents == 0U,
 			   "Start review, Continue review, and file-row navigation publish no GitHub intent");
 
@@ -10775,7 +10992,7 @@ namespace {
 			core::motion_observation::full));
 		process_events();
 		expect(inCorner(), "the accepted placement repairs the negative control with the same widget");
-		for (const auto mode : { qt::review_modality::overview, qt::review_modality::read,
+		for (const auto mode : { qt::review_modality::overview,
 								 qt::review_modality::review, qt::review_modality::discuss }) {
 			window.choose_modality(mode);
 			process_events();
@@ -10817,7 +11034,7 @@ namespace {
 			   "the corner returns when the message clears");
 		// Review of BPR-0775, finding 1: a message already showing when Home
 		// arrives is not painted over either.
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		process_events();
 		window.statusBar()->showMessage(QStringLiteral("A message before Home"));
 		window.choose_home(true);
@@ -10829,7 +11046,7 @@ namespace {
 		expect(corner->isVisible() && dif->isVisible() && dif->parentWidget() == &window,
 			   "the corner appears once that message clears");
 
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		process_events();
 		expect(!window.showing_home() && inCorner(),
 			   "returning to the review preserves the corner independently of private tab selection");
@@ -11001,7 +11218,7 @@ namespace {
 		};
 		window.resize(1'280, 852);
 		window.show();
-		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
 		auto projection      = every_primary_command_offered();
 		projection.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .ActionableCount = 17U } };
 		window.publish(projection);
@@ -11276,6 +11493,7 @@ auto main(int argc, char** argv) -> int
 	test_identical_overview_skips_rebuild_but_restores_cleared_files();
 	test_receipt_update_moves_only_its_rows();
 	test_overview_refuses_a_hand_opened_drawer_and_says_so();
+	test_hide_drawers_command_key_icon_and_editor_yield();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;

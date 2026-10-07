@@ -3144,6 +3144,27 @@ if(APPLE)
         PASS_REGULAR_EXPRESSION "profile-empty-desktop-native-menu-bar:pass")
 endif()
 
+if(APPLE)
+    # [[BPR-1295]]. Hide Drawers' Command-B on the native menu bar: an editable
+    # note keeps the key, a list gives it to the command. AppKit's View menu
+    # carries the key equivalent, which the offscreen window course cannot see.
+    # It needs the owner's Aqua session, as the course above does.
+    bpr_add_executable(test_hide_drawers_native_menu_key
+        hide_drawers_native_menu_key_tests.cpp
+        native_main_menu_probe_mac.mm)
+    target_link_libraries(test_hide_drawers_native_menu_key PRIVATE
+        BetterPullReview::Composition "${BPR_TEST_APPKIT_FRAMEWORK}" objc)
+    target_include_directories(test_hide_drawers_native_menu_key SYSTEM PRIVATE
+        "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+    target_compile_features(test_hide_drawers_native_menu_key PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_hide_drawers_native_menu_key)
+    bpr_enable_warnings(test_hide_drawers_native_menu_key)
+    bpr_add_network_isolated_test(NAME qt_hide_drawers_native_menu_key COMMAND test_hide_drawers_native_menu_key)
+    set_tests_properties(qt_hide_drawers_native_menu_key PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=cocoa" RUN_SERIAL TRUE TIMEOUT 120
+        PASS_REGULAR_EXPRESSION "hide-drawers-native-menu:pass")
+endif()
+
 # [[BPR-0891]]'s sweep. The in-place updater is macOS only. Its installation
 # transaction and helper are compiled only there, and elsewhere
 # `release_update_staging.cpp` answers `unsupported_platform` and stages

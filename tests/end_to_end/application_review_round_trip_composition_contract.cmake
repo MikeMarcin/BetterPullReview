@@ -851,6 +851,19 @@ endfunction()
 # the window already holds; no provider, grant, target, credential, mutation
 # or publication path changes; mutation pin unchanged; no new src/app source.
 # Reviewed on BPR-1089.
+# BPR-1295 reseal (2026-10-06): over the BPR-1089 reseal above; no other
+# intervening pinned-scope commit (the BPR-1227 pins matched at bb9254ff3,
+# and BPR-1089's 68f00eb15 is reviewed and resealed above). Read merged into Review. github_application.cpp:
+# Resume, a link to a file and a tour stop enter Review instead of Read and
+# keep their tab as Review's; a tab is shown in Review alone; the course
+# helpers and fixture reveals choose Review, and the label probe's first bit
+# is renamed ReviewEmptyDirected (github_application_fixture_access.hpp).
+# main.cpp: the overview and epoch courses expect Review, and the review
+# behaviour course no longer clicks "Continue review enters", which is gone;
+# Continue review still has to enter Review and publish nothing. Presentation
+# and course wording only: no grant, target, provider, credential, storage,
+# mutation or publication path changes; mutation pin unchanged; no new src/app
+# source. Reviewed on BPR-1295.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -869,7 +882,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"b78d8e6ea98e16d60599b91dd0d2ac15036d02e5a9cf2cf78384a7850f97f44a"
+		"2507bdb4db4f77f545b4eb29d6f4620bb5f6ef6622e7efeb1ddaac734884b5d9"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1067,7 +1080,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "845656e71b4d67ac4f2d352af4d99a3a46c52eb8c608ceb1db13734ab41853ad"
+        "85314b5b40f005e7936a473f32674339b033029a95a6074d1886b7a0af39736a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

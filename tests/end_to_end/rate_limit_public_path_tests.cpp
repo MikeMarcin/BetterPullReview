@@ -126,7 +126,7 @@ try {
 	const auto snapshot = app::detail::github_application_fixture_access::large_review_snapshot(*owner);
 	expect(snapshot.has_value() && snapshot->Files.size() == 515U && snapshot->ReviewThreads.size() == 1000U, "exact large review input");
 	wait_for([&] { return owner->status().EpochStatus == core::epoch_status::ready; }, "real Git epoch ready");
-	window->modality()->action(qt::review_modality::read)->trigger();
+	window->modality()->action(qt::review_modality::review)->trigger();
 	const auto file  = core::file_identity_of("large/comparison.cpp");
 	auto*      files = window->files_drawer();
 	wait_for([&] { return files->contents()->index_for_file(file).isValid(); }, "large file appears in actual drawer");

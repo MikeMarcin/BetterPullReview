@@ -322,7 +322,7 @@ Consumers: the inline composition page and reply drafts
   before. The composed `application_label_authoring_contract` found it.
 - **Attended setup** (BPR-1083 v002). A tests-on `--attended-launch` with
   `--attended-open-file PATH` signs in with the fixture's account, opens the
-  fixture pull request from the Home bar and selects `PATH` in Read, then
+  fixture pull request from the Home bar and selects `PATH` in Review, then
   prints `ATTENDED_FILE_SHOWN:PATH`. Without it the window opens on Home,
   whose bar reads a pull request in public preview, where comments are
   read-only (the owner's `chip-menu-v001` rejection). The automated

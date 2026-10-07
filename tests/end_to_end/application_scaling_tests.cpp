@@ -250,7 +250,7 @@ try {
 					   && repositoriesAfter.FullBuilds == repositoriesBefore.FullBuilds,
 				   "public refresh publishes one queue item and rebuilds no retained queue or repository catalogue");
 		}
-		window->modality()->action(qt::review_modality::read)->trigger();
+		window->modality()->action(qt::review_modality::review)->trigger();
 		auto*      surface = window->comparison_surface();
 		auto*      files   = window->files_drawer();
 		const auto quiet   = [&] {
@@ -386,12 +386,12 @@ try {
 			window->modality()->action(qt::review_modality::overview)->trigger();
 			QApplication::processEvents();
 			const auto overviewShown = window->current_modality() == qt::review_modality::overview;
-			window->modality()->action(qt::review_modality::read)->trigger();
+			window->modality()->action(qt::review_modality::review)->trigger();
 			QApplication::processEvents();
 			const auto held = access::scaling_evidence(*owner);
 			std::cout << "held_ledger lane_turn_ms=" << turnMs << " admitted=" << held.Ledger.Commands - heldBefore.Ledger.Commands
 					  << " completions=" << held.Ledger.Completions - heldBefore.Ledger.Completions << '\n';
-			expect(turnMs < 1000 && overviewShown && window->current_modality() == qt::review_modality::read,
+			expect(turnMs < 1000 && overviewShown && window->current_modality() == qt::review_modality::review,
 				   "while the store is held the decision lane runs posted work and modality gestures at once");
 			expect(held.Ledger.Commands == heldBefore.Ledger.Commands + 1U && held.Ledger.Completions == heldBefore.Ledger.Completions
 					   && window->review_editor()->shown_receipt() == shownBefore,

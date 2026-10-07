@@ -719,13 +719,13 @@ namespace bpr::e2e::large_review {
 
 	/// [[BPR-0858]]. The review opens on Overview, which shows the pull request
 	/// in place of the comparison, so a course that reads the comparison's own
-	/// status label first enters Read through the strip's public modality. It
-	/// states Read and the comparison it needs through the step every course
+	/// status label first enters Review through the strip's public modality. It
+	/// states Review and the comparison it needs through the step every course
 	/// shares ([[BPR-0863]]), which names the modality and what it withholds
 	/// when it cannot.
-	void enter_read(app::github_application& aApplication, benchmark_report& aReport, QElapsedTimer& aBudget)
+	void enter_review(app::github_application& aApplication, benchmark_report& aReport, QElapsedTimer& aBudget)
 	{
-		auto       step    = app::detail::course_modality_step{ .Modality = qt::review_modality::read, .Needs = { .Comparison = true } };
+		auto       step    = app::detail::course_modality_step{ .Modality = qt::review_modality::review, .Needs = { .Comparison = true } };
 		auto       outcome = app::detail::course_modality_result::pending;
 		const auto advance = [&] { outcome = access::enter_course_modality(aApplication, step); };
 		const auto settled = [&] {
@@ -737,7 +737,7 @@ namespace bpr::e2e::large_review {
 		};
 		require(measure_wait(aApplication, aBudget, aReport, "read_modality", advance, settled)
 					&& outcome == app::detail::course_modality_result::entered,
-				"Read modality did not present the comparison");
+				"Review modality did not present the comparison");
 	}
 
 	void select_epoch(qt::epoch_comparison_control& aControl, std::int64_t aOrdinal, core::comparison_side aSide)
@@ -977,7 +977,7 @@ namespace bpr::e2e::large_review {
 		const auto settled  = [&] { return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U; };
 		require(measure_wait(aApplication, aBudget, aReport, "first_tab_second_head", [&] { window.github_refresh_action()->trigger(); }, [&] { return controls.right_oid_editor()->text().toStdString() == aManifest.heads[1] && settled(); }), "second head refresh timed out");
 		aReport.EpochsObserved = 2U;
-		enter_read(aApplication, aReport, aBudget);
+		enter_review(aApplication, aReport, aBudget);
 		require(measure_wait(aApplication, aBudget, aReport, "first_tab_history", [&] { controls.refresh_action()->trigger(); }, [&] { return controls.history_model()->epoch_count() == 2U && settled(); }), "first-tab history timed out");
 		require(measure_wait(aApplication, aBudget, aReport, "first_tab_base", [&] { select_epoch(controls, 1, core::comparison_side::left); }, settled), "first-tab base selection timed out");
 		require(measure_wait(aApplication, aBudget, aReport, "first_tab_head", [&] { select_epoch(controls, 1, core::comparison_side::right); }, settled), "first-tab head selection timed out");
@@ -1324,10 +1324,11 @@ namespace bpr::e2e::large_review {
 																												&& quiet(aApplication) && rendered(); }), "drawer did not reach its rendered state");
 			save_frame(aPhase);
 		};
-		require(!window.files_drawer_toggle_action()->isChecked() && window.conversations_drawer_toggle_action()->isChecked(),
-				"Read starts with Files closed and Conversations open");
-		toggle(window.files_drawer_toggle_action(), window.files_drawer(), "files_drawer_open");
+		// [[BPR-1295]]. The window's first entry to Review applies its preset.
+		require(window.files_drawer_toggle_action()->isChecked() && window.conversations_drawer_toggle_action()->isChecked(),
+				"Review starts with Files and Conversations open");
 		toggle(window.files_drawer_toggle_action(), window.files_drawer(), "files_drawer_close");
+		toggle(window.files_drawer_toggle_action(), window.files_drawer(), "files_drawer_open");
 		toggle(window.conversations_drawer_toggle_action(), window.conversations_drawer(), "conversations_drawer_close");
 		toggle(window.conversations_drawer_toggle_action(), window.conversations_drawer(), "conversations_drawer_open");
 		require(measure_wait(aApplication, aBudget, aReport, "appearance_settings_open", [&] { window.open_settings(qt::settings_page::appearance); }, [&] { return window.settings() && window.settings()->isVisible() && window.appearance_settings()->isVisible()
@@ -1836,7 +1837,7 @@ namespace bpr::e2e::large_review {
 			} else if (report.HistoryCourse) {
 				run_history(*application, manifest, report, budget, argv[3]);
 			} else if (report.UnavailableCourse) {
-				enter_read(*application, report, budget);
+				enter_review(*application, report, budget);
 				const auto limitedPath = report.Extended.PathologicalCourse ? QStringLiteral("generated/table.inc") : QStringLiteral("large/comparison.cpp");
 				require(measure_wait(*application, budget, report, "unavailable_file_selection", [&] { select_file(window, limitedPath); }, [&] { return selected(surface, limitedPath) && quiet(*application) && !window.grab().isNull(); }), "unavailable selection timed out");
 				const auto alignment   = surface.current_result()->Alignment;
@@ -1897,7 +1898,7 @@ namespace bpr::e2e::large_review {
 				require((report.Extended.PathologicalCourse || report.RecoverySegments <= report.UnavailableSegmentLimit) && !surface.current_result()->AlignmentApproximate, "supported file must compute exactly within the segment limit");
 				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "unavailable course bypassed the real diff host");
 			} else if (report.ApproximateCourse) {
-				enter_read(*application, report, budget);
+				enter_review(*application, report, budget);
 				require(measure_wait(*application, budget, report, "approximate_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application); }), "approximate selection timed out");
 				const auto& result = *surface.current_result();
 				require(result.Alignment.Content == core::diff_content_state::text && result.Alignment.Diagnostic.Code == core::diff_reason_code::none, "work-limited host result must still publish a text comparison");
@@ -1940,9 +1941,9 @@ namespace bpr::e2e::large_review {
 					require(measure_wait(*application, budget, report, "overview_file_order", [&] { page->choose_sort(std::nullopt); }, [&] { return answered(core::feedback_resolution_mode::unresolved, false); }), "Overview file order timed out");
 				}
 				// [[BPR-0940]]. The ordinary course reads the large file where a
-				// reviewer does: in Read, so its measurement, navigation and
+				// reviewer does: in Review, so its measurement, navigation and
 				// wheel run on the visible comparison and its render shows it.
-				enter_read(*application, report, budget);
+				enter_review(*application, report, budget);
 				const auto          beforeMeasurement = surface.statistics().MeasurementBatches;
 				QTimer              inputDuringMeasurement;
 				QElapsedTimer       measurementInputClock;
@@ -2042,12 +2043,12 @@ namespace bpr::e2e::large_review {
 				const auto topLine = [](const QPlainTextEdit* const aPane) {
 					return aPane->cursorForPosition(QPoint{ 0, 0 }).block().text();
 				};
-				require(window.modality()->current() == qt::review_modality::read && surface.isVisible()
+				require(window.modality()->current() == qt::review_modality::review && surface.isVisible()
 							&& surface.left_pane()->isVisible() && surface.right_pane()->isVisible()
 							&& selected(surface, QStringLiteral("large/comparison.cpp"))
 							&& topLine(surface.left_pane()) == QStringLiteral("int sample_00000 = 0;")
 							&& topLine(surface.right_pane()) == QStringLiteral("int sample_00000 = 1;"),
-						"the full-window render shows Read with the large file's first source lines in both panes");
+						"the full-window render shows Review with the large file's first source lines in both panes");
 				report.WindowWidth      = window.width();
 				report.WindowHeight     = window.height();
 				report.DevicePixelRatio = window.devicePixelRatioF();
