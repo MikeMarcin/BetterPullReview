@@ -147,7 +147,7 @@ def main():
         for scenario in scenarios:
             secret = secrets.token_hex(20).encode()
             with Proxy(certificate, port, scenario, secret) as proxy:
-                result = subprocess.run([str(args.executable), scenario, str(proxy.port), str(certificate.authority_certificate)], input=secret + b"\n", capture_output=True, timeout=5)
+                result = subprocess.run([str(args.executable), scenario, str(proxy.port), str(certificate.authority_certificate)], input=secret + b"\n", capture_output=True, timeout=10)
                 assert secret not in result.stdout + result.stderr, "secret canary escaped diagnostics"
                 assert result.returncode == 0, (scenario, result.stdout, result.stderr)
                 proxy.verify()

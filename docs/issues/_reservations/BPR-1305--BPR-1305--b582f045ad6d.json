@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1305"
+  ],
+  "reserve_for": "macos-prerelease",
+  "purpose": "",
+  "created": "2026-10-07T16:29:27.713354+00:00",
+  "base": "e8aca948d47e920ccb3b7ae38e116da77a8cb2e0"
+}

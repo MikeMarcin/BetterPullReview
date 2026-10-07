@@ -316,7 +316,8 @@ try {
 	auto* desktopMenu = resident_menu_bar();
 	expect(desktopMenu->profiles_menu()->actions().size() == 5,
 		   "which lists the three profiles, New Window and management");
-	expect(desktopMenu->view_menu() != nullptr && desktopMenu->view_menu()->actions().size() == 7
+	// BPR-1295 added Hide Drawers to the resident View menu as well.
+	expect(desktopMenu->view_menu() != nullptr && desktopMenu->view_menu()->actions().size() == 8
 			   && std::ranges::all_of(desktopMenu->view_menu()->actions(), [](const auto* aAction) {
 					  return aAction->isSeparator() || !aAction->isEnabled();
 				  }),

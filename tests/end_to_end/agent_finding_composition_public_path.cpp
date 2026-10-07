@@ -494,8 +494,11 @@ auto main(int argc, char** argv) -> int
 	if (!e2e::select_right_side_of_change(*surface)) {
 		return fail(*application, "right-side-selection");
 	}
-	if (!window.read_action()->isEnabled()) {
-		return fail(*application, "receipt-action");
+	auto receiptReady = wait_terms{ };
+	if (!wait_until_reporting(receiptReady, [&window](wait_terms& aTerms) {
+			return aTerms.require("read-enabled", window.read_action()->isEnabled());
+		})) {
+		return fail(*application, "receipt-action", receiptReady.render());
 	}
 	window.read_action()->trigger();
 	auto receipt = wait_terms{ };

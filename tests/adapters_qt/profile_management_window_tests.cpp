@@ -349,17 +349,19 @@ namespace {
 		auto* const view = menu.view_menu();
 		expect(view != nullptr && view->title() == QStringLiteral("&View"), "the desktop bar offers View");
 		const auto viewActions = view->actions();
-		expect(viewActions.size() == 7 && viewActions[0]->text() == QStringLiteral("&Line numbers")
+		expect(viewActions.size() == 8 && viewActions[0]->text() == QStringLiteral("&Line numbers")
 				   && viewActions[1]->text() == QStringLiteral("&One pane")
-				   && viewActions[2]->text() == QStringLiteral("&Updates Line") && viewActions[2]->isCheckable()
-				   && viewActions[3]->text() == QStringLiteral("Next Tab")
-				   && viewActions[4]->text() == QStringLiteral("Previous Tab") && viewActions[5]->isSeparator()
-				   && viewActions[6]->text() == QStringLiteral("&Settings…"),
+				   && viewActions[2]->text() == QStringLiteral("Hide &Drawers") && viewActions[2]->isCheckable()
+				   && viewActions[3]->text() == QStringLiteral("&Updates Line") && viewActions[3]->isCheckable()
+				   && viewActions[4]->text() == QStringLiteral("Next Tab")
+				   && viewActions[5]->text() == QStringLiteral("Previous Tab") && viewActions[6]->isSeparator()
+				   && viewActions[7]->text() == QStringLiteral("&Settings…"),
 			   "with the window menu's own commands, in the window menu's own order");
 		expect(!viewActions[0]->isEnabled() && !viewActions[1]->isEnabled() && !viewActions[2]->isEnabled()
-				   && !viewActions[3]->isEnabled() && !viewActions[4]->isEnabled() && !viewActions[6]->isEnabled(),
+				   && !viewActions[3]->isEnabled() && !viewActions[4]->isEnabled() && !viewActions[5]->isEnabled()
+				   && !viewActions[7]->isEnabled(),
 			   "none of them actionable, because no window's presentation is theirs to change");
-		expect(viewActions[6]->menuRole() == QAction::PreferencesRole,
+		expect(viewActions[7]->menuRole() == QAction::PreferencesRole,
 			   "and Settings keeps the preferences role, so the application menu keeps its merged item");
 
 		// [[BPR-1035]]. And the window's Pull Request menu, between Profiles and
@@ -415,18 +417,18 @@ namespace {
 		expect(fileActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
 				   && pullRequestActions[3]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
 				   && pullRequestActions[4]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
-				   && viewActions[2]->shortcut().isEmpty(),
+				   && viewActions[3]->shortcut().isEmpty(),
 			   "Close Tab and composition retain their keys, and Updates Line claims none");
 #if defined(Q_OS_MACOS)
-		expect(viewActions[3]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
-				   && viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
+		expect(viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
+				   && viewActions[5]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
 			   "tab navigation keeps the physical Control key on macOS");
 #else
-		expect(viewActions[3]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
-				   && viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
+		expect(viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
+				   && viewActions[5]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[1], fileActions[2], viewActions[2], viewActions[3], viewActions[4], pullRequestActions[3], pullRequestActions[4], pullRequestActions[5], pullRequestActions[6], helpActions[0], helpActions[2], helpActions[3] }) {
+		for (auto* const action : { fileActions[1], fileActions[2], viewActions[2], viewActions[3], viewActions[4], viewActions[5], pullRequestActions[3], pullRequestActions[4], pullRequestActions[5], pullRequestActions[6], helpActions[0], helpActions[2], helpActions[3] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,

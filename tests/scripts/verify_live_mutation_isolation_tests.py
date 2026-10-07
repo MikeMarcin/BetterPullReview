@@ -11,6 +11,7 @@ known.
 from __future__ import annotations
 
 import sys
+import subprocess
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -34,6 +35,7 @@ from scripts.verify_live_mutation_isolation import (  # noqa: E402
     object_manifest_entries,
     port_implementations,
     symbol_command,
+    symbols,
 )
 
 
@@ -76,6 +78,36 @@ def tree_with_only_the_fake(root: Path) -> None:
         "src/application/src/review_mutation_coordinator.cpp",
         "// uses application::review_mutation_port& but implements nothing\n",
     )
+
+
+class NativeSymbolTests(unittest.TestCase):
+    @mock.patch("scripts.verify_live_mutation_isolation.subprocess.run")
+    @mock.patch("scripts.verify_live_mutation_isolation.symbol_command")
+    def test_decorated_native_table_keeps_forbidden_and_control_identifiers(
+        self, command: mock.Mock, run: mock.Mock
+    ) -> None:
+        command.return_value = ["nm", "test-binary"]
+        table = (
+            "0000000100003a10 T _ZN3bpr11application26review_mutation_coordinator7publishEv\n"
+            "0000000100003b20 T _ZN3bpr8adapters6github29live_review_mutation_provider6submitEv\n"
+        )
+        run.return_value = subprocess.CompletedProcess(command.return_value, 0, table, "")
+        observed = symbols("test-binary")
+        self.assertIsNotNone(observed)
+        self.assertIn(POSITIVE_CONTROL_SYMBOL, observed)
+        self.assertEqual(len(forbidden_symbols_in(observed)), 1)
+        run.assert_called_once_with(
+            command.return_value, capture_output=True, text=True, check=False
+        )
+
+    @mock.patch("scripts.verify_live_mutation_isolation.subprocess.run")
+    @mock.patch("scripts.verify_live_mutation_isolation.symbol_command")
+    def test_an_unreadable_native_table_still_refuses(
+        self, command: mock.Mock, run: mock.Mock
+    ) -> None:
+        command.return_value = ["nm", "test-binary"]
+        run.return_value = subprocess.CompletedProcess(command.return_value, 1, "", "unreadable")
+        self.assertIsNone(symbols("test-binary"))
 
 
 class PortInventoryTests(unittest.TestCase):

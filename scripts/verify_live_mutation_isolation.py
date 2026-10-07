@@ -250,7 +250,12 @@ def object_symbols(objects: Sequence[str]) -> str | None:
 
 
 def symbols(binary: str) -> str | None:
-    """Demangled symbol table, or None when no inspector can read it."""
+    """Native symbol table, or None when no inspector can read it.
+
+    Both checked identifiers appear literally in Itanium and MSVC decorated
+    names. Demangling every unrelated template symbol adds no coverage and
+    expands the largest application tables beyond 150 MiB per executable.
+    """
     command = symbol_command(binary)
     if command is None:
         return None
@@ -259,17 +264,7 @@ def symbols(binary: str) -> str | None:
     )
     if listed.returncode != 0:
         return None
-    demangler = shutil.which("c++filt")
-    if demangler is None:
-        return listed.stdout
-    demangled = subprocess.run(
-        [demangler],
-        input=listed.stdout,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return demangled.stdout if demangled.returncode == 0 else listed.stdout
+    return listed.stdout
 
 
 def _check_sources(root: pathlib.Path) -> list[str]:

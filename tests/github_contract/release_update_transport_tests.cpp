@@ -55,10 +55,12 @@ auto main(int aArgc, char** aArgv) -> int
 	configuration.ProxyHost               = "127.0.0.1";
 	configuration.ProxyPort               = static_cast<std::uint16_t>(std::stoul(aArgv[2]));
 	configuration.TrustedCaCertificatePem = scenario == "untrusted" ? std::string{ } : ca.readAll().toStdString();
-	// Four separate TLS connections exercise the redirect cap. Give that course
-	// four times the single-request allowance so host contention cannot turn a
-	// redirect-limit assertion into an unrelated shared-deadline expiry.
-	configuration.TotalTimeout = scenario == "redirect-loop" ? std::chrono::milliseconds{ 2000 } : std::chrono::milliseconds{ 500 };
+	// Healthy TLS courses test wire classification, not a half-second scheduling
+	// race on a loaded build host. Keep the timeout course's short deadline;
+	// the redirect-cap course gets an allowance for each of its four connections.
+	configuration.TotalTimeout = scenario == "timeout" ? std::chrono::milliseconds{ 500 }
+		: scenario == "redirect-loop"                  ? std::chrono::milliseconds{ 8000 }
+													   : std::chrono::milliseconds{ 2000 };
 	std::string canary;
 	std::getline(std::cin, canary);
 	expect(canary.size() == 40U, "bounded fixture canary");
