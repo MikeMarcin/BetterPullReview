@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1295"
 title: "Merge Read into Review, with one command to hide and restore the open drawers"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner chat, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1295--BPR-1295--47ff1149b806.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0052","RFC-BPR-0005"],"related_cards":["BPR-1290","BPR-1293","BPR-1294","BPR-1021","BPR-0661","BPR-0721","BPR-0724","BPR-0727","BPR-0729","BPR-0649","BPR-0796","BPR-1132"],"acceptance":["BPR-1295:owner-answers","BPR-1295:three-modalities","BPR-1295:entries","BPR-1295:hide-restore","BPR-1295:keys-and-icon","BPR-1295:migration","BPR-1295:governing-text","BPR-1295:tests","BPR-1295:owner-look"],"owner_answers":{"date":"2026-10-06","hide_scope":"every drawer","entering_review":"remember the last arrangement","keys":"Cmd-B (Ctrl+B); Cmd-1/2/3 proposed, confirm at owner-look","icon":"beside the Comments toggle"},"sequence_after":"BPR-1290 (its src/ change is in flight; this card's code waits for it)","sequence_satisfied":"BPR-1290 Done 2026-10-06; its drawer is landed on origin/main as 0a7f72068"}
+parked_on: "human-review"
 ---
 
 # BPR-1295: Merge Read into Review, with one command to hide and restore the open drawers
@@ -516,6 +517,19 @@ So Discuss's key does not move twice, this card leaves Discuss on ⌘4 and
 leaves ⌘3 unbound; BPR-1293 then gives ⌘3 to Conversations. Overview stays
 ⌘1 and Review takes ⌘2. Confirmed at this card's built-UI review.
 
+## Owner amendment, 2026-10-06: Discuss on ⌘3, Conversations on ⌘4
+
+The owner, in chat on 2026-10-06, relayed by the coordinator, verbatim:
+
+> can we swap discuss to 3 and conversations to 4
+
+This supersedes the coordinator's note above ("Discuss keeps ⌘4") and the
+key assignments in the amendments before it. This card builds **⌘1 Overview,
+⌘2 Review and ⌘3 Discuss**, and leaves ⌘4 unbound; [[BPR-1293]] gives ⌘4 to
+Conversations (recorded there too). BPR-1295:keys-and-icon reads "⌘1, ⌘2 and
+⌘3 choose Overview, Review and Discuss", with ⌘4 free. The owner-look
+question on the keys asks about ⌘1 Overview, ⌘2 Review and ⌘3 Discuss.
+
 ## Sequencing met, 2026-10-06: ready to implement
 
 This card's code was sequenced after [[BPR-1290]], whose `src/` change was in
@@ -525,3 +539,144 @@ candidate holds the drawer files any more. Nothing else in `depends_on` is
 open, so this card is eligible to claim. Implementation starts from
 `origin/main` holding `0a7f72068`; the Read paths inventoried above are those
 of that tree.
+
+## Built v001, 2026-10-06
+
+Candidate `0456feb78` (implementation `ab311fba5` plus the benchmark's two
+phases), on `origin/main` at `c5d9c7fc1`. Drawn with `frontend-design` for the
+icon.
+
+- **Core** (`workbench_interaction`). `workbench_modality` is Overview, Review
+  and Discuss. `set_workbench_modality_intent` gains `Entry` (`enter` or
+  `choose`). The core keeps Review's arrangement (`ReviewArrangement`, the three
+  drawers and the hidden set) while another modality shows and restores it on
+  entry; its preset (Files and Comments open, Repositories as they were)
+  applies on the window's first entry (`ReviewEntered`) and on `choose` while
+  Review shows. `toggle_workbench_drawers_intent` hides every open drawer into
+  `HiddenDrawers` and shows exactly that set, or the preset;
+  `project_workbench_drawer_restore` names what Show opens. A hand-opened
+  drawer and `choose` in Review drop the set. Overview refuses with
+  `overview_keeps_drawers_collapsed`, Discuss with the new
+  `discuss_shows_the_conversation`. `workbench_command_count` is 11.
+- **Host.** `workbench_projection::DrawerRestore`, published when it changes.
+  Nothing new is stored.
+- **Qt.** The strip has three segments, keys set per modality: Ctrl+1, Ctrl+2,
+  Ctrl+3 (the owner's swap; Ctrl+4 free). Choosing from the strip sends
+  `choose`; every other path sends `enter`, so only Discuss still sends a preset.
+  Hide Drawers (`toggleWorkbenchDrawersAction`, Ctrl+B, window context) is in
+  View after One pane, on the windowless bar disabled, and in the title row
+  immediately right of the Comments toggle (`workbenchToggleDrawersButton`,
+  icon only, strong focus). Glyph: a window with filled side panels while
+  shown, outlined and checked while hidden. Tooltip "Hide drawers (⌘B)" or
+  "Show Files and Comments (⌘B)"; disabled with "Overview keeps every drawer
+  closed", "In Discuss the conversation is the page", on Home, and while an
+  editable multi-line editor in the window has focus ("The text you are
+  writing keeps ⌘B. Click the code first."). Such an editor also claims the
+  key in `ShortcutOverride` and drops it. A drawer that held focus when it hid
+  gives focus to the code. Settings: "A pull request opens in" is Overview,
+  Review, Last used; "Continue review enters" is gone. Inference adopts
+  Review for every restored shape. The Overview tooltip no longer says it
+  opens the files drawer.
+- **Why disabled while composing, not only the key claim.** The new native
+  course found that on cocoa the View menu item's key equivalent fires with a
+  note focused, and no `ShortcutOverride` reaches Qt
+  (`note focused: toggles=1`). With the command disabled while an editor has
+  the keyboard, AppKit's item is disabled and the key goes to the editor.
+- **SQLite.** No schema change. `open_modality` 1 is Review; `continue_modality`
+  is not read and every write stores 1.
+- **Entries.** Overview's file row, Start and Continue review, Discuss's Open in
+  code, Resume, a link to a file, Prepare tour and tour stops enter Review.
+- **Governing text.** RFC-BPR-0028's Modalities paragraph, AC-03 (swap), AC-05
+  and AC-08 (Review in place) and its two owner sections; [[BPR-1021]]'s rows
+  word for word; [[BPR-1293]] records the swap; the specification's Modalities,
+  Conversations, title-row diagram, shortcut table and ⌘B rule;
+  `conventional-comments-feedback.md`. `DOCUMENTATION_OK`.
+- **Round-trip pins** resealed with notes for the `src/app` wording and course
+  changes (Resume, link and tour entries, tab modality, course helpers,
+  `ReviewEmptyDirected`, the review-behaviour course). The pins matched at
+  `bb9254ff3`; the mutation pin is unchanged.
+
+### Verification on the candidate
+
+- Debug (`build/dev`), macOS arm64: `core_workbench_interaction`,
+  `application_workbench_host`, `application_workbench_preferences_consumers`,
+  `sqlite_workbench_settings_storage`, `qt_workbench_window_scale_{100,125,200}`,
+  `qt_composed_*` (github, inline drawer, markdown, home, loading, filters),
+  `qt_feedback_label_settings`, `application_composition_contract`,
+  `application_review_round_trip_composition_contract`,
+  `architecture_boundaries`, `architecture_boundary_contract`, and the end-to-end
+  rows the card names (setup destination, profile multi-window, window layout,
+  restart and review restoration, scaling paths, attended replay, release
+  maintenance, offline inventory, rate limit, agent invocation and finding,
+  review submission, label authoring, overview and review behaviour, first
+  tab): all passed. `qt_hide_drawers_native_menu_key` (cocoa) passed.
+- **New rows.**
+  - Core: `test_review_remembers_its_arrangement`,
+    `test_drawers_hide_and_show_exactly` (every subset of open drawers comes
+    back exactly).
+  - Window: `test_hide_drawers_command_key_icon_and_editor_yield`, through the
+    real core. It covers the key from the code, the files list and the files
+    filter; restore at the same widths; an editable note keeping the key (the
+    command disabled, no text, no gesture) and a read-only one not; a hand
+    toggle dropping the memory; disabled in Overview, Discuss and Home; the
+    button's place, size, focus, names and glyph; and no window- or
+    application-wide key held twice (Ctrl+1/2/3 used, Ctrl+4 free).
+  - SQLite: `test_read_settings_open_in_review_and_continue_modality_is_ignored`.
+  - `application_attended_recent_replay`: the same key scan on the assembled
+    window.
+  - `qt_hide_drawers_native_menu_key`: AppKit's View menu offers Hide Drawers;
+    ⌘B sent to the key window with a note focused hides and types nothing,
+    with the item disabled; from the files list it hides and restores.
+- **Failing-before controls**, mutations of the fixed product, each failing its
+  row: Show ignoring the remembered set; entering Review ignoring its
+  arrangement; a hand open keeping the set (core); no editor yield (window);
+  the icon left of the Comments toggle (title-row order); Discuss on Ctrl+4
+  (keys). The native course failed on the product before the
+  disabled-while-composing change.
+- **Optimized tests-on tree** (the frozen root's, Release, `-j1`), 27 of 27,
+  `BudgetsEnforced` true, no input failures or known misses: drawers_hide 17.2
+  and 17.7 ms, drawers_show 25.9 and 25.0 ms, review_modality 33.0 and 33.6 ms,
+  files and comments toggles 20.9 to 37.4 ms; the large-review, first-tab,
+  unavailable and approximate rows; the window, inline drawer, markdown and
+  cards rows; the native course.
+- Format: clang-format on every changed file. clang-tidy on the changed product
+  translation units: clean apart from a pre-existing
+  `bugprone-signed-bitwise` at `workbench_settings_database.cpp`'s
+  `OpenFlags | SQLITE_OPEN_NOFOLLOW`, a line this card does not touch.
+
+### Owner look, session v001
+
+Pending: BPR-1295:owner-look is the owner's, not self-certified. One session,
+four candidates, one question each, Accept or Reject.
+
+- Session `c8c64c2b945c0d65c6a50addb4129319`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1295-merged-v001`,
+  ready at event cursor 16. Candidates (revision `frozen-0456feb78-v001`):
+  `BPR-1295-merged-review-v001` (the merged Review), `BPR-1295-hide-drawers-v001`
+  (the ⌘B toggle), `BPR-1295-icon-placement-v001` (the icon's place, with the
+  frozen tree's 2x renders), `BPR-1295-modality-keys-v001` (⌘1 Overview, ⌘2
+  Review, ⌘3 Discuss). The host was started detached and answered on loopback.
+- Frozen root `/Users/jaeger/bpr1295-merged-review-v001.Gjexql`: `git archive`
+  of `0456feb78` built there Release with tests on, source read-only;
+  executable SHA-256 `4152c8d47ee4e6ce…`. Offscreen with the launcher's
+  arguments it printed `ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp`.
+- Launch: `python3 /Users/jaeger/bpr1295-merged-review-v001.Gjexql/launch.py`
+  (`--overview` stops on Overview). It checks the build and the fixture tree
+  first and reports an exit within seconds.
+
+Next: read the session's decisions (`status --after 16`). Four Accepts satisfy
+:owner-look and the card finishes; a Reject comes back with its note for a v002.
+
+### Owed station runs (not blocking)
+
+Linux and Windows have not run this change. At `origin/main` holding
+`0456feb78`, no remote mutation:
+
+- `bpr-main-linux`: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev --output-on-failure -R '^(core_workbench_interaction|application_workbench_host|application_workbench_preferences_consumers|sqlite_workbench_settings_storage|qt_workbench_window_scale_.*|qt_composed_github_scale_.*|qt_composed_inline_drawer_scale_.*|qt_feedback_label_settings|application_attended_recent_replay|application_setup_destination_public_path|application_profile_multi_window_public_path|application_profile_window_review_restoration_public_path|application_review_round_trip_composition_contract|application_composition_contract|architecture_boundaries)$'`,
+  then in the optimized tests-on tree
+  (`cmake --preset app-release -B build/app-release-tests -DBUILD_TESTING=ON -DCMAKE_TEST_BUILD_DEPENDS=ON && cmake --build build/app-release-tests && ctest --test-dir build/app-release-tests -j1 --output-on-failure -R '^(application_large_review_.*|application_first_tab_comparison|qt_composed_inline_drawer_scale_.*|qt_workbench_window_scale_.*)$'`).
+- `bpr-main-win`: `cmake --preset windows-dev && cmake --build --preset windows-dev && ctest --preset windows-dev -j4 --output-on-failure -R` with the same first expression, then the optimized tree (`build/bpr0967-release`, MSVC `/O2`) with the second.
+
+`qt_hide_drawers_native_menu_key` is macOS only. A failure there opens a new
+card against this change.
+
