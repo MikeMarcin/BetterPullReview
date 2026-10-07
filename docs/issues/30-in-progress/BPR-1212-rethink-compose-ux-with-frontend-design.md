@@ -366,6 +366,190 @@ yet. It covers three parts:
 Local-project flows stay unchanged (Q2: B, the whole-file editor). The owner
 look is left to the coordinator.
 
+### Slice 1 implementation (bpr-main-linux, 2026-10-07)
+
+Engineering owner `rfc-implementer` (`claude-opus-5-5`, effort high) on
+`bpr-main-linux` (WSL2, GCC 15.2.0, Qt 6.11.2). main is frozen for a macOS
+prerelease, so the work is on branch `bpr-1212-slice1`, rebased onto
+`origin/main` at `fd6c21b36`; product commit `6f3bd33de`. Nothing is pushed.
+The `frontend-design` skill is not installed on this station; the slice has
+no visual redesign and reuses the panes' current-line band and text selection
+and a plain editor label. [[BPR-1084]] (Done) is reused, not duplicated: its
+`classify_review_body` recognises the prefilled block and its mark marks it.
+
+**(a) Multi-line anchor.**
+- Core: `review_comment_draft::StartLine` and
+  `review_publication_proposal::StartLine` beside the anchor, which stays the
+  last line (GitHub's `line`). `valid_comment_range`: a range is a new comment
+  on the right whose first line precedes its anchor. A revisioned edit with
+  `ChangeRange` sets the first line in the same revision as the body, refused
+  otherwise as `review_draft_rejection::invalid_range`. Answering a thread
+  drops the first line. An invalid range never begins publishing.
+- `core::decide_comment_range` (new `review_comment_range.hpp`) decides a
+  selection's two ends: one line is its own anchor, refused only on the left
+  (`base_side`, Flagged 4) or past the document. Several lines must be on one
+  side (`mixed_side`) and inside one hunk (`outside_hunk`, `crosses_hunk`),
+  where `github_review_hunks` draws hunks as GitHub's diff does: the change
+  groups with three lines of context, touching ones merged.
+  `core::suggestion_prefill` makes the block (part c).
+- Host: `review_mutation_application_host` refuses any other range before a
+  request exists. The idempotency key gains a leading range prefix only for a
+  range, so a single line's key is unchanged.
+- GitHub adapter: `start_line` and `start_side` follow the single-line fields
+  in the same sorted key order, written only for a range. A range on a reply
+  or as a file comment is refused before the wire. GitHub's answer is the
+  range's receipt only with its exact start line and side, and a single line's
+  only without them. A range's body counts as needing a line subject, so a
+  refusal is `incompatible_body` with the text kept, never a file comment with
+  one line's link.
+- Storage: the private draft record keeps a range as codec version 2 (the
+  first line after the version 1 fields). Single-line drafts keep their
+  version 1 bytes, and every earlier row reads as one line. No SQL schema
+  change. The store refuses an invalid range on write and on read.
+- Fixture server: it records `start_line` and `start_side` as received, and a
+  range's thread reads back with `startLine`.
+
+**(b) Keyboard line cursor** (`diff_workbench`).
+- With a code pane focused, Up and Down move the selected line on its side,
+  and Shift extends the pane's own text selection. The cursor is the moving
+  end, and the semantic selection follows it. With no line on that pane, the
+  first press selects the first line in view.
+- The mouse and keyboard share one selection: a click, a drag or a Shift-click
+  then Shift+Down extends what the mouse selected.
+- The cursor keeps itself in view through the linked scroll, and a pane never
+  scrolls on its own.
+- Each move is announced politely, once ("Line 22 of the later version
+  selected", "Lines 22 to 24 selected").
+- Each pane's accessible description names Up, Down, Shift, Return and
+  Shift+Return (Return on macOS, Enter elsewhere).
+- One pane moves by rows.
+
+**(c) Return and Shift+Return.**
+- The pane claims them in `ShortcutOverride` only while it has focus. Keypad
+  Enter is Return, and no other modifier is taken. Text fields, the drawer,
+  menus, Home and the link map keep their own Return.
+- The window asks `decide_comment_range`. A refusal opens nothing and the
+  status line says why:
+  - a left line gives Comment's reason;
+  - lines on two sides, or outside one hunk, each get their own reason;
+  - with no line, "Select a line first: click it, or move to it with Up and
+    Down while the code has focus."
+- Otherwise the window selects the range's last line, hands the range to the
+  composition and opens the existing composer.
+- The composition decides again from the accepted diff. Once the line's draft
+  is there, it sends one ordinary revisioned edit (`ChangeRange`) through the
+  durable store. For Shift+Return the edit adds a block of the right side's
+  exact lines: without line endings, in a fence longer than any backtick run
+  in them, as the whole body of an empty draft or once after existing text.
+  The caret goes to the end of the block's last line, and the editor shows
+  "Lines a to b".
+- Alt+C keeps reply-first and reopens the line's draft as it is. The Review
+  Cycles flows are untouched.
+
+**Tests** (Linux, Debug `build/dev` and `build/core-only`, at `6f3bd33de`):
+- `core_review_comment_range` (new) covers hunks on the real engine,
+  every refusal, the prefill bytes, and the draft and proposal range.
+- `github_mutation_contract` gains the range's exact bytes, the
+  single-line key equal to an independent recomputation of the pre-range key,
+  the refusals, and the response matching.
+- `application_comment_range_draft_store` (new) runs the real SQLite
+  store and draft owners: restart, v1/v2 bytes, refusal, proposal and key.
+- `qt_diff_workbench_scale_100/125/200` gain the cursor, Shift, the mouse,
+  view keeping, one pane, the announcements, the descriptions, keypad Enter
+  and modifiers.
+- `qt_workbench_line_draft` (new, `--line-draft`) checks the status-line
+  reasons, the request and the composer, and the keys left to the composer
+  and drawer.
+- `application_line_draft_contract` (new, `--line-draft-course`) is the
+  composed public path. With the focused right pane it drives Shift+Down
+  twice and then Shift+Return, gets a draft on lines 9 to 11 with the block,
+  and the fixture server receives `line` 11, `start_line` 9 and both sides
+  `RIGHT`. `LINE_DRAFT_EVIDENCE:111111`.
+- `application_label_authoring_contract` now ends with the same phases and
+  passes (26 rows, see below).
+- Also pass: `core_review_round_trip`, `core_revisioned_review_draft`,
+  `core_suggestion_applicability`, `core_feedback_suggestion_preservation`,
+  `core_feedback_draft_edit`, `github_recorded_fixture_contract`,
+  `github_review_comment_permalink`, `application_feedback_draft_store`,
+  `application_private_review_host`, `application_review_mutation`,
+  `application_review_mutation_application_host`, `qt_review_draft_editor`,
+  `qt_conversation_cards_view`, `qt_composed_github_scale_100`,
+  `architecture_boundaries`, `architecture_boundary_contract`,
+  `test_network_isolation_manifest`,
+  `application_review_round_trip_composition_contract` and
+  `application_composition_contract` (1,024 s). The core-only rows pass,
+  with `core_dependency_boundary` and `core_boundary_contract`.
+- `coding-format-check` (clang-format 22.1.8) and `DOCUMENTATION_OK` pass. A
+  clang 22 `-fsyntax-only` pass over every changed unit is clean (Mac
+  warnings).
+
+**Failing-before controls** (each mutation applied, the row run, then
+reverted, and the row green again):
+
+| Mutation | Row | Failure |
+|---|---|---|
+| No `crosses_hunk` check | `core_review_comment_range` | "two hunks' lines are refused as crossing a hunk" |
+| Fence always three backticks | `core_review_comment_range` | "a line holding backtick runs gets a longer fence…" |
+| `ChangeRange` unvalidated | `core_review_comment_range` | "a first line that does not precede the anchor is refused…" |
+| No `start_line` on the wire | `github_mutation_contract` | "lines 9 to 13 send start_line 9 and start_side RIGHT…" |
+| Response start unchecked | `github_mutation_contract` | "an answer without the exact start line and side is not the range" |
+| Key ignores the range | `github_mutation_contract` | "a range's key differs from its last line's…" |
+| Codec always version 1 | `application_comment_range_draft_store` | "storage holds the range as version 2" |
+| Shift does not extend | `qt_diff_workbench_scale_100` | "Shift+Down extends the selection; the cursor is its moving end" |
+| Any modifier taken | `qt_diff_workbench_scale_100` | "no other modifier is taken" |
+| Description without keys | `qt_diff_workbench_scale_100` | "each code pane's accessible description names Up, Down, Shift, Return and Shift+Return" |
+| Base side not refused | `qt_workbench_line_draft` | "Return on a left line opens nothing and the status line gives the reason" |
+| No suggestion prefill | `application_line_draft_contract` | the course waits at the prefill phase until the run budget expires (`LINE_DRAFT_EVIDENCE:000000`) |
+| Range not set on the draft | `application_line_draft_contract` | `LINE_DRAFT_EVIDENCE:111000` |
+
+**100 ms gates.** The optimized tests-on tree was built with
+`cmake --preset app-release -B build/app-release-tests -DBUILD_TESTING=ON -DCMAKE_TEST_BUILD_DEPENDS=ON`
+(GCC 15 `-O3`, no warning in project code). With the machine idle, `-j1`
+passes 10 of 10, and the tree was then deleted:
+- `application_large_review_responsiveness` measures three new phases on
+  `large/comparison.cpp`: `keyboard_line_down` 9.0 ms, `keyboard_line_extend`
+  8.7 ms and `keyboard_line_reveal` (Down from a line out of view) 10.2 ms.
+  Across all 31 phases there are no `InputBudgetFailures`, the largest pulse
+  interval is 69.6 ms, and budgets are enforced.
+- `application_first_tab_comparison`: no `InputBudgetFailures`, budgets
+  enforced.
+- `qt_workbench_window_scale_100/125/200`: 22.5, 23.7 and 27.2 s.
+- `qt_workbench_line_draft`, `qt_diff_workbench_scale_100`,
+  `core_review_comment_range`, `application_comment_range_draft_store` and
+  `application_line_draft_contract` also pass there.
+
+**Pin.** `application_review_round_trip_composition_contract` is resealed over
+the BPR-1303 seal. After the rebase, `full_application` is `953799a2…` and
+`production_app_manifest` is `915c9317…`. The `production_mutation_branch`
+pin is unchanged (`e067befe…`). The dated "BPR-1212 slice 1 reseal" comment
+sits above `bpr_lf_normalized_sha256`.
+
+**Finding (already handled on main).** At the claim (`c3ab0094d`) the
+label-authoring course stalled after its first publication: the next line got
+no draft. A bisect found the cause at `7778886c9` (BPR-1293): the
+published-comment reveal opens in Review, and after that refresh the
+workbench kept no selected file. That is [[BPR-1303]], fixed on main at
+`bba8a8d26`. After the rebase the full course passes with this slice's
+phases.
+
+**Limits.**
+- The hunks come from the accepted comparison and diff options (whitespace
+  options, a base other than GitHub's merge base). Where GitHub disagrees, its
+  422 is `incompatible_body` with the text kept.
+- Several lines outside every hunk are refused, even where a host allows
+  comments outside a hunk.
+- A range's uncertain publication is not matched by the read-only pending
+  repair (`repair_pending_publications`). It stays pending, which is the safe
+  direction; the in-request reconciliation does match it.
+- GitHub's two-sided ranges (`start_side` differing from `side`) are not
+  offered.
+- Return always takes the selection, so Return on one line narrows a kept
+  range draft on that line.
+- The composed course does not publish a single line itself. The
+  label-authoring phases before it do, and the contract test pins its bytes.
+- Linux only: macOS and Windows runs are owed. The owner look is open for the
+  coordinator.
+
 ## Build slice 2: compose in the drawer (bpr-main-mac, 2026-10-08)
 
 Drawn with `frontend-design` (loaded first, as the repository asks). Built
