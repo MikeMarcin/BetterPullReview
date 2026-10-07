@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1301"
 title: "A Claude process wrapper and an option to skip the login prompt for agent launches"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
