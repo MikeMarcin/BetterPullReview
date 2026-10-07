@@ -164,8 +164,8 @@ That is now conservative but not wrong in effect: an agent sees
 
 Bringing the new wording over needs the change imported into AgentSkills'
 `main` and the MASK selection refreshed. That is a push to another repository,
-which needs its owner's authorization. It is left as a follow-up; no card
-exists for it yet.
+which needs its owner's authorization. It is left as a follow-up, now
+[[BPR-1300]] (allocated 2026-10-06).
 
 ## macOS run (coordinator, 2026-10-06)
 
