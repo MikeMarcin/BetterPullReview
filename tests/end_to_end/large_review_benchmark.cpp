@@ -9,6 +9,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -1255,6 +1256,16 @@ namespace bpr::e2e::large_review {
 		for (const auto* name : { "review_modality", "files_drawer_open", "files_drawer_close", "conversations_drawer_open", "conversations_drawer_close", "drawers_hide", "drawers_show", "appearance_settings_open", "theme_light", "theme_dark" }) {
 			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
 		}
+		// [[BPR-1293]]. Conversations: in, a search, its clearing, out and a
+		// pick, each one input; the pick's file opening as a file selection.
+		for (const auto* name : { "conversations_enter", "conversations_search", "conversations_search_clear", "conversations_leave", "conversations_pick" }) {
+			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
+		}
+		phase("conversations_pick_open", 2'500.0);
+		{
+			const auto found = std::ranges::find(aReport.Phases, "conversations_pick_open", &phase_measurement::Name);
+			record("conversations_pick_open_input_gap", found->MaxPulseIntervalMs, aReport.InputIntervalLimitMs, !known_input_miss("conversations_pick_open"));
+		}
 		// [[BPR-1089]]. The Overview's count switch and sort over 515 files and
 		// 1,000 threads, each one input against the unchanged 100 ms target.
 		for (const auto* name : { "overview_counts_all", "overview_counts_open", "overview_sort_by_comments", "overview_file_order" }) {
@@ -1361,6 +1372,47 @@ namespace bpr::e2e::large_review {
 					&& aApplication.status().ClassificationSubmissions == classification,
 				"drawer/theme interaction changed comparison identity or reclassified source");
 		verify_large(surface, aManifest);
+		// [[BPR-1293]]. Conversations over 1,000 threads in 512 files: Command-J
+		// in and out, a search and its clearing, each one input against the
+		// 100 ms target; then a pick, whose input is measured alone and whose
+		// file load and thread opening are measured as a file selection is.
+		{
+			auto* const finder  = window.finder();
+			auto* const enter   = window.show_conversations_action();
+			const auto  rows    = [finder] { return std::ranges::count_if(finder->shown_keys(), [](const std::string& aKey) { return aKey.starts_with("row:"); }); };
+			const auto  widthsC = std::pair{ window.files_drawer()->width(), window.conversations_drawer()->width() };
+			require(finder != nullptr && enter != nullptr && enter->isEnabled(), "Conversations is offered");
+			// The page, not the code, is what Conversations renders.
+			const auto page = [&] {
+				frame = window.grab();
+				require(finder->isVisible() && !frame.isNull(), "Conversations frame failed");
+				++aReport.InteractionFrames;
+				return true;
+			};
+			require(measure_wait(aApplication, aBudget, aReport, "conversations_enter", [&] { enter->trigger(); }, [&] { return window.current_modality() == qt::review_modality::conversations && finder->isVisible()
+																															 && rows() == 1000 && !window.files_drawer()->isVisible() && page(); }), "Conversations did not render every conversation");
+			save_frame("conversations_enter");
+			require(measure_wait(aApplication, aBudget, aReport, "conversations_search", [&] { finder->search_field()->setText(QStringLiteral("observation 0042")); }, [&] { return rows() == 1 && page(); }), "the search did not find its one conversation");
+			require(measure_wait(aApplication, aBudget, aReport, "conversations_search_clear", [&] { finder->search_field()->clear(); }, [&] { return rows() == 1000 && page(); }), "clearing the search did not show every conversation");
+			require(measure_wait(aApplication, aBudget, aReport, "conversations_leave", [&] { enter->trigger(); }, [&] { return window.current_modality() == qt::review_modality::review && !finder->isVisible()
+																															 && window.files_drawer()->isVisible() && window.conversations_drawer()->isVisible()
+																															 && std::pair{ window.files_drawer()->width(), window.conversations_drawer()->width() } == widthsC
+																															 && quiet(aApplication) && rendered(); }), "Command-J did not return to Review as it was");
+			enter->trigger();
+			finder->search_field()->setText(QStringLiteral("observation 0042"));
+			QApplication::processEvents();
+			require(rows() == 1, "the pick's conversation is the one shown");
+			const auto thread = std::string{ "review-thread:SYNTHETIC_THREAD_SYNTHETIC_COMMENT_900042" };
+			auto*      cards  = window.conversation_panel()->cards();
+			require(measure_wait(aApplication, aBudget, aReport, "conversations_pick", [&] {
+				auto ret = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+				QApplication::sendEvent(finder->search_field(), &ret); }, [&] { return window.current_modality() == qt::review_modality::review && !finder->isVisible() && window.conversations_drawer()->isVisible() && rendered(); }), "a pick did not enter Review");
+			require(measure_wait(aApplication, aBudget, aReport, "conversations_pick_open", [] { }, [&] { return selected(surface, source_path(42)) && cards->open_thread_id() == thread
+																											  && cards->picked_post() == "review-comment:SYNTHETIC_COMMENT_900042" && cards->open_card() != nullptr
+																											  && quiet(aApplication) && rendered(); }), "the picked conversation did not open in place on its file");
+			save_frame("conversations_pick_open");
+			finder->search_field()->clear();
+		}
 		require(measure_wait(aApplication, aBudget, aReport, "generated_source_render", [&] { select_file(window, QStringLiteral("generated/table.inc")); }, [&] { return selected(surface, QStringLiteral("generated/table.inc")) && quiet(aApplication) && rendered(); }), "generated source timed out");
 		verify_generated(surface, aManifest);
 		aReport.Extended.ExactGeneratedSource = true;

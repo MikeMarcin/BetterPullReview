@@ -317,6 +317,43 @@ namespace {
 		expect(!row_of(unread, overview_feedback_row_kind::file, "README.md").Counts.Exact && !unread.PullRequest.Counts.Exact,
 			   "with no inline collection, an empty file's zero is qualified");
 	}
+
+	/// \brief [[BPR-1293]]. Conversations' label filter lists, per label, the
+	/// conversations the Overview's chips count: a conversation is its root's
+	/// label, in every state, across the whole pull request.
+	void test_each_label_lists_the_conversations_it_counts()
+	{
+		auto empty = feedback_counter_model{ };
+		expect(!application::project_conversation_labels(empty), "nothing is listed before a snapshot is admitted");
+		auto model = feedback_counter_model{ };
+		static_cast<void>(model.observe(review_key(), snapshot()));
+		const auto labels = application::project_conversation_labels(model);
+		expect(labels.has_value() && labels->Generation == model.generation(), "the lists name the generation they were read at");
+		const auto listing = [&labels](const feedback_label aLabel) {
+			const auto found = std::ranges::find(labels->Labels, aLabel, &application::conversation_label_listing::Label);
+			return found == labels->Labels.end() ? std::vector<std::string>{ } : found->Conversations;
+		};
+		expect(listing(feedback_label::issue)
+				   == std::vector<std::string>{ "review-thread:t1", "review-thread:t2", "review-thread:t4", "review-thread:t8" },
+			   "issue lists its four threads, the resolved one and the one off the listed files included");
+		expect(listing(feedback_label::question) == std::vector<std::string>{ "review-thread:t6", "review-thread:t9" },
+			   "a reply's label is not the conversation's: t1's question reply does not list t1 under question");
+		expect(listing(feedback_label::praise) == std::vector<std::string>{ "review-thread:t7" }, "a resolved conversation is listed");
+		expect(listing(feedback_label::note) == std::vector<std::string>{ "issue-comment:c1" }
+				   && listing(feedback_label::thought) == std::vector<std::string>{ "review:r1" },
+			   "pull request comments and review summaries are listed too; Conversations keeps only what it shows");
+		expect(std::ranges::none_of(labels->Labels, [](const auto& aListing) { return aListing.Conversations.empty(); })
+				   && std::ranges::find(labels->Labels, feedback_label::typo, &application::conversation_label_listing::Label) == labels->Labels.end(),
+			   "only the labels the pull request uses are listed");
+		expect(std::ranges::is_sorted(labels->Labels, { }, [](const auto& aListing) { return static_cast<int>(aListing.Label); }),
+			   "in catalog order");
+		// The same numbers the Overview's chips give, with every label a chip and All.
+		const auto counted = *application::project_overview_feedback(model, listed, request(all_twelve(), feedback_resolution_mode::all));
+		for (const auto& entry : labels->Labels) {
+			expect(core::feedback_count_of(counted.PullRequest.Counts, { .Kind = feedback_count_kind::dedicated, .Label = entry.Label }) == entry.Conversations.size(),
+				   "each list is exactly the pull request's chip count for its label");
+		}
+	}
 }
 
 auto main() -> int
@@ -325,6 +362,7 @@ try {
 	test_a_new_mode_or_chip_reads_no_conversation();
 	test_the_sort_is_numeric_with_folders_first();
 	test_unknown_resolution_never_reads_as_a_clean_zero();
+	test_each_label_lists_the_conversations_it_counts();
 	std::cout << "overview-feedback-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

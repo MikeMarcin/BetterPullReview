@@ -1,0 +1,961 @@
+{
+	"conversations": [
+		{
+			"draft": false,
+			"f": "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
+			"id": "h78",
+			"line": 78,
+			"posts": [
+				{
+					"a": "jiayin",
+					"b": "note: `UnreadPosts` is per post now, so a map's new state isn't invented any more.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "praise: Yes, and that's what lets the finder mark new replies.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "t38",
+			"line": 38,
+			"posts": [
+				{
+					"a": "jiayin",
+					"b": "nitpick (non-blocking): `card_gap` and `card_margin` are both 8; one constant would do.",
+					"id": null,
+					"p": null,
+					"t": "4d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "They drift apart at Discuss widths, so I kept both.",
+					"id": null,
+					"p": null,
+					"t": "4d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "praise: Fair, and the names say why.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				}
+			],
+			"res": true,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "t430",
+			"line": 430,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "question: Who still calls `set_feed()` once Discuss has its own list?",
+					"id": null,
+					"p": null,
+					"t": "2h",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "t656",
+			"line": 656,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "issue (blocking): `set_current_thread()` keeps a reply's id when no card holds it, so `Current` can name nothing.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "question: Should it clear `Current` instead, or keep the last card?",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "praise: Good catch, this explains the lost highlight after a refresh.",
+					"id": null,
+					"p": null,
+					"t": "3h",
+					"u": true
+				},
+				{
+					"a": "tbutler",
+					"b": "Clear it. I'll push the fix with a test.",
+					"id": null,
+					"p": null,
+					"t": "2h",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "t667",
+			"line": 667,
+			"posts": [
+				{
+					"a": "reviewer-one",
+					"b": "question: Should this traversal keep the selected node when the card list is rebuilt?",
+					"id": "r",
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "author-two",
+					"b": "It does: `Current` holds an id, not a row, so a rebuild can't move it.",
+					"id": "a1",
+					"p": "r",
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "Unless the card that held the id is gone after the rebuild.",
+					"id": "a2",
+					"p": "a1",
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "reviewer-four",
+					"b": "question: Then what does `Current` name? Nothing, until the next click?",
+					"id": "a3",
+					"p": "a2",
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "reviewer-one",
+					"b": "That's the bug tbutler filed on line 656.",
+					"id": "a4",
+					"p": "a3",
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "author-two",
+					"b": "Right. I'll fall back to the nearest card in file order.",
+					"id": "a5",
+					"p": "a4",
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "thought: Nearest by line, or by position in the list?",
+					"id": "a6",
+					"p": "a5",
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "reviewer-four",
+					"b": "By line. The list order changes with the scope.",
+					"id": "a7",
+					"p": "a6",
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "reviewer-one",
+					"b": "praise: Line it is. That also keeps the code view still.",
+					"id": "a8",
+					"p": "a7",
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "question: What about a parent that arrives after its child, on the next page?",
+					"id": "b1",
+					"p": "r",
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "reviewer-four",
+					"b": "The child is promoted to a root until its parent lands.",
+					"id": "b2",
+					"p": "b1",
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "reviewer-one",
+					"b": "And when it lands, does the selection jump?",
+					"id": "b3",
+					"p": "b2",
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "author-two",
+					"b": "It shouldn't. The id is the same; only its depth changes.",
+					"id": "b4",
+					"p": "b3",
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "issue (blocking): The test only loads one page, so paging is never exercised here.",
+					"id": "b5",
+					"p": "b4",
+					"t": "3h",
+					"u": true
+				},
+				{
+					"a": "reviewer-four",
+					"b": "todo: Adding a two-page case to the hostile fixtures.",
+					"id": "b6",
+					"p": "b5",
+					"t": "2h",
+					"u": true
+				},
+				{
+					"a": "reviewer-one",
+					"b": "Thanks. Ping me when it's up.",
+					"id": "b7",
+					"p": "b6",
+					"t": "40m",
+					"u": true
+				},
+				{
+					"a": "reviewer-four",
+					"b": "suggestion (non-blocking, if-minor): Look the id up in an index instead of walking every card's posts.",
+					"id": "c1",
+					"p": "r",
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "reviewer-one",
+					"b": "The index would need rebuilding on every refresh too.",
+					"id": "c2",
+					"p": "c1",
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "author-two",
+					"b": "It's built in `relayout()` already, so the lookup is free here.",
+					"id": "c3",
+					"p": "c2",
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "Then the walk becomes a lookup. Worth it at 500 cards?",
+					"id": "d1",
+					"p": "c3",
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "reviewer-four",
+					"b": "Measured: 0.4 ms against 0.02. Not urgent.",
+					"id": "d2",
+					"p": "d1",
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "author-two",
+					"b": "nitpick: Leave a comment pointing at the measurement, then.",
+					"id": "d3",
+					"p": "d2",
+					"t": "20h",
+					"u": false
+				},
+				{
+					"a": "reviewer-one",
+					"b": "Agreed. Branch A's fix first, this after.",
+					"id": "d4",
+					"p": "d3",
+					"t": "18h",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "thought (perf): Aside: `relayout()` also runs twice on a scope change. Separate card?",
+					"id": "x1",
+					"p": "c3",
+					"t": "20h",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "Yes, filed it. The second pass finds nothing to do.",
+					"id": "x2",
+					"p": "x1",
+					"t": "18h",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "praise: Thanks for splitting it out.",
+					"id": "x3",
+					"p": "x2",
+					"t": "25m",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": true
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "t927",
+			"line": 927,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "suggestion: `relayout()` is 200 lines; measuring and placing could be two functions.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "They share `compactMeasurements`, so splitting means passing it around.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "Passing one struct is fine. The measuring half has no side effects.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "tbutler",
+					"b": "thought: Then the placing half could be tested without fonts.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "Which would have caught the 280 px clipping last week.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "note (perf): `relayout()` runs twice on a scope change; the second pass finds nothing to do.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "Splitting after this lands, on its own card.",
+					"id": null,
+					"p": null,
+					"t": "3h",
+					"u": true
+				},
+				{
+					"a": "tbutler",
+					"b": "praise: Thanks, happy with that.",
+					"id": null,
+					"p": null,
+					"t": "1h",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "t1080",
+			"line": 1080,
+			"posts": [
+				{
+					"a": "observer-three",
+					"b": "Why `width - 2 * card_margin` and not the viewport's `contentsRect()`?",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "The viewport has no margins here, so `contentsRect()` is the same width.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "nitpick (non-blocking): Then a comment saying so would stop the next person asking.",
+					"id": null,
+					"p": null,
+					"t": "40m",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": true,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "d1142",
+			"line": 1142,
+			"posts": [
+				{
+					"a": "fixture-author",
+					"b": "todo (if-minor): Say in the header that `TargetY` includes the scroll offset.",
+					"id": null,
+					"p": null,
+					"t": "draft",
+					"u": false
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "t1176",
+			"line": 1176,
+			"posts": [
+				{
+					"a": "jiayin",
+					"b": "thought (perf): `std::max` here pushes every later card down one by one; does a run of close lines cost a pass each?",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "tbutler",
+					"b": "It's one pass over sorted cards, so linear either way.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "Right, I misread the loop.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				}
+			],
+			"res": true,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/conversation_cards_view.cpp",
+			"id": "t1510",
+			"line": 1510,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "chore (non-blocking): Say in a comment that Shift+F10 and the Menu key open the same thread menu.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "+1, the second half of the condition on 1512 is easy to miss.",
+					"id": null,
+					"p": null,
+					"t": "25m",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/github_conversation_delegate.cpp",
+			"id": "e477",
+			"line": 477,
+			"posts": [
+				{
+					"a": "observer-three",
+					"b": "nitpick: The cache key leaves out the label marks theme, so switching themes keeps the old heights.",
+					"id": null,
+					"p": null,
+					"t": "1h",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/github_conversation_model.cpp",
+			"id": "m419",
+			"line": 419,
+			"posts": [
+				{
+					"a": "reviewer-four",
+					"b": "suggestion (non-blocking): `apply()` moves rows one at a time; a reset would be cheaper past 500 rows.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "author-two",
+					"b": "A reset loses the selection, which is the thing this pull request keeps.",
+					"id": null,
+					"p": null,
+					"t": "50m",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/github_conversation_panel.cpp",
+			"id": "n571",
+			"line": 571,
+			"posts": [
+				{
+					"a": "jiayin",
+					"b": "question: Once the drawer is inline only, who still calls `synchronize_map_focus()`?",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "observer-three",
+					"b": "The finder would, if it keeps the picked reply.",
+					"id": null,
+					"p": null,
+					"t": "2h",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/github_conversation_panel.cpp",
+			"id": "n826",
+			"line": 826,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "thought: Restoring by identity is what keeps the picked reply after a refresh. Worth a test that picks a deep one.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "todo (if-minor): Adding it to the branching fixture.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/github_thread_map.cpp",
+			"id": "g282",
+			"line": 282,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "question: Why an explicit stack and not recursion?",
+					"id": null,
+					"p": null,
+					"t": "4d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "A hostile fixture is 10,000 deep; recursion would run out of stack.",
+					"id": null,
+					"p": null,
+					"t": "4d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "That's `valid-deep-wide-tree`'s cousin in the hostile set.",
+					"id": null,
+					"p": null,
+					"t": "4d",
+					"u": false
+				},
+				{
+					"a": "tbutler",
+					"b": "thought: Then the comment should say depth is the reason, not taste.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "It says pre-order is the point; depth isn't mentioned.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "reviewer-four",
+					"b": "Could `Depth` be computed when placing instead of here?",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "suggestion: Keep it here; placing reads it for every edge.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "tbutler",
+					"b": "Agreed, and name the bound on `pending`.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "praise: The no-crossing property in one sentence is lovely.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "reviewer-four",
+					"b": "nitpick (non-blocking): `order.reserve` could come first. It already does; ignore me.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "Leaving it.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "tbutler",
+					"b": "Rebased on main; the hostile fixtures still pass.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "issue (blocking): A parent that arrives on the next page is promoted to a root and never re-parented.",
+					"id": null,
+					"p": null,
+					"t": "5h",
+					"u": true
+				},
+				{
+					"a": "fixture-author",
+					"b": "The map is rebuilt when that page lands, so it re-parents then.",
+					"id": null,
+					"p": null,
+					"t": "4h",
+					"u": true
+				},
+				{
+					"a": "tbutler",
+					"b": "question: Is there a test for that?",
+					"id": null,
+					"p": null,
+					"t": "3h",
+					"u": true
+				},
+				{
+					"a": "jiayin",
+					"b": "Not yet. I'll add one with the paged fixture.",
+					"id": null,
+					"p": null,
+					"t": "2h",
+					"u": true
+				},
+				{
+					"a": "fixture-author",
+					"b": "Thanks, I'll wait for it.",
+					"id": null,
+					"p": null,
+					"t": "1h",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/github_thread_map.cpp",
+			"id": "g469",
+			"line": 469,
+			"posts": [
+				{
+					"a": "reviewer-four",
+					"b": "question: Should a focus change announce itself when the drawer moved it?",
+					"id": null,
+					"p": null,
+					"t": "3h",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/github_thread_map.cpp",
+			"id": "g711",
+			"line": 711,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "nitpick: `reveal_branch()` could share its margin with `reveal()`.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "Done.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				}
+			],
+			"res": true,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/adapters/qt/src/workbench_drawer.cpp",
+			"id": "w288",
+			"line": 288,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "chore (non-blocking): `insert_or_move()` could log its moves under the diagnostics flag.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "jiayin",
+					"b": "Done in the next push.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				}
+			],
+			"res": true,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/application/src/github_projection_mapping.cpp",
+			"id": "p168",
+			"line": 168,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "issue (blocking): Carry `ReplyTo`, not the root. Where does a first comment fall back?",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "A first comment's `ReplyTo` is empty, so it falls back to the root.",
+					"id": null,
+					"p": null,
+					"t": "3d",
+					"u": false
+				},
+				{
+					"a": "tbutler",
+					"b": "Then say so in a test.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "todo: Adding one.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				}
+			],
+			"res": false,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/application/src/github_projection_mapping.cpp",
+			"id": "p312",
+			"line": 312,
+			"posts": [
+				{
+					"a": "jiayin",
+					"b": "suggestion: Say why `ParentId` is empty here; it reads like a bug.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				},
+				{
+					"a": "tbutler",
+					"b": "Agreed.",
+					"id": null,
+					"p": null,
+					"t": "2d",
+					"u": false
+				}
+			],
+			"res": true,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "src/core/src/private_thread_lineage.cpp",
+			"id": "q44",
+			"line": 44,
+			"posts": [
+				{
+					"a": "tbutler",
+					"b": "praise: The version check before advancing reads well.",
+					"id": null,
+					"p": null,
+					"t": "4d",
+					"u": false
+				}
+			],
+			"res": true,
+			"tree": false
+		},
+		{
+			"draft": false,
+			"f": "tests/adapters_qt/github_thread_map_tests.cpp",
+			"id": "s438",
+			"line": 438,
+			"posts": [
+				{
+					"a": "jiayin",
+					"b": "issue: This guards against read state the ledger now carries; it should check the map uses it instead.",
+					"id": null,
+					"p": null,
+					"t": "1d",
+					"u": false
+				},
+				{
+					"a": "fixture-author",
+					"b": "question: Rename it, or let `test_unread_nodes_are_filled_from_the_ledger_state` cover it?",
+					"id": null,
+					"p": null,
+					"t": "4h",
+					"u": true
+				},
+				{
+					"a": "jiayin",
+					"b": "Let 599 cover it and delete this one.",
+					"id": null,
+					"p": null,
+					"t": "3h",
+					"u": true
+				}
+			],
+			"res": false,
+			"tree": false
+		}
+	],
+	"source": "docs/design/BPR-1290-inline-drawer-v2/index.html, its C0 conversations, extracted verbatim"
+}

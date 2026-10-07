@@ -425,50 +425,50 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+# [[BPR-1293]]. Conversations, the pull request's finder: rows, branches,
+# folding, search, the three filters, the keys and the pick, with its renders
+# in light and dark at each of the three scales.
 bpr_add_executable(
-    test_better_pull_review_qt_github_thread_map_tests
-    github_thread_map_tests.cpp
+    test_better_pull_review_qt_conversation_finder_tests
+    conversation_finder_tests.cpp
 )
 
 target_link_libraries(
-    test_better_pull_review_qt_github_thread_map_tests
+    test_better_pull_review_qt_conversation_finder_tests
     PRIVATE
         glaze::glaze
         BetterPullReview::AdapterQt
 )
 target_compile_definitions(
-    test_better_pull_review_qt_github_thread_map_tests
+    test_better_pull_review_qt_conversation_finder_tests
     PRIVATE
-        "BPR_DEEP_THREAD_FIXTURE=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/conversations/deep-thread-v1/projection.json\""
+        "BPR_BRANCHING_THREAD_FIXTURE=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/conversations/branching-thread-v1/projection.json\""
 )
 bpr_enable_hardening(
-    test_better_pull_review_qt_github_thread_map_tests
+    test_better_pull_review_qt_conversation_finder_tests
 )
 bpr_enable_warnings(
-    test_better_pull_review_qt_github_thread_map_tests
+    test_better_pull_review_qt_conversation_finder_tests
 )
 
-# Three scales, because the map sizes every node to its own label and a
-# fractional device pixel ratio is where a layout that assumed integer metrics
-# stops agreeing with what it painted.
-foreach(bpr_thread_map_scale 100 125 200)
-    if(bpr_thread_map_scale STREQUAL "100")
-        set(bpr_thread_map_factor 1.0)
-    elseif(bpr_thread_map_scale STREQUAL "125")
-        set(bpr_thread_map_factor 1.25)
+foreach(bpr_finder_scale 100 125 200)
+    if(bpr_finder_scale STREQUAL "100")
+        set(bpr_finder_factor 1.0)
+    elseif(bpr_finder_scale STREQUAL "125")
+        set(bpr_finder_factor 1.25)
     else()
-        set(bpr_thread_map_factor 2.0)
+        set(bpr_finder_factor 2.0)
     endif()
     bpr_add_network_isolated_test(
-        NAME "qt_github_thread_map_scale_${bpr_thread_map_scale}"
-        COMMAND test_better_pull_review_qt_github_thread_map_tests
+        NAME "qt_conversation_finder_scale_${bpr_finder_scale}"
+        COMMAND test_better_pull_review_qt_conversation_finder_tests
     )
     set_tests_properties(
-        "qt_github_thread_map_scale_${bpr_thread_map_scale}"
+        "qt_conversation_finder_scale_${bpr_finder_scale}"
         PROPERTIES
             ENVIRONMENT
-                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_thread_map_factor};BPR_EXPECTED_QT_SCALE=${bpr_thread_map_factor};BPR_QT_THREAD_MAP_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-thread-map-${bpr_thread_map_scale}.png"
-            PASS_REGULAR_EXPRESSION "thread-map-tests:pass"
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_finder_factor};BPR_EXPECTED_QT_SCALE=${bpr_finder_factor};BPR_QT_FINDER_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/conversation-finder-${bpr_finder_scale}"
+            PASS_REGULAR_EXPRESSION "conversation-finder-tests:pass"
             TIMEOUT 120
     )
 endforeach()

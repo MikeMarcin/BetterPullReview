@@ -1,0 +1,13 @@
+[
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"message": "Keep the selected conversation across a rebuild"
+		},
+		"node_id": "C_22222222",
+		"sha": "2222222222222222222222222222222222222222"
+	}
+]

@@ -279,6 +279,15 @@ CONSTRUCTIONS = (
         "Folders": 13,
         "Threads": "scripts/build_inline_drawer_fixture.py",
     },
+    # [[BPR-1293]]. Prototype v2's ten files; its served tree gains the
+    # generator's twenty-one review threads.
+    {
+        "Directory": "conversations-v1",
+        "Generator": "scripts/build_conversations_fixture.py",
+        "Files": 10,
+        "Folders": 5,
+        "Threads": "scripts/build_conversations_fixture.py",
+    },
 )
 
 

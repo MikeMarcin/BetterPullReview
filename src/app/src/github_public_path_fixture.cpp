@@ -489,6 +489,28 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "inline-drawer-v1/objects.pack" },
 				};
+			// [[BPR-1293]]. Constructed by `scripts/build_conversations_fixture.py`:
+			// prototype v2's ten files and twenty-one conversations, one head.
+			case github_public_path_fixture::conversations_v1:
+				return {
+					.ContractDirectory   = "conversations-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 418U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "conversations",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "9a0c46377e514e4760639ffa972cd5812b30c5b2",
+					.HeadOneOid          = "f05373e1184e7067994839ecbe6e2db7a933fa97",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "conversations-v1/objects.pack" },
+				};
 			case github_public_path_fixture::nested_folders_v1:
 				return {
 					.ContractDirectory   = "nested-folders-v1",

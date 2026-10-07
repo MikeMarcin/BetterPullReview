@@ -53,6 +53,7 @@ add_library(
         src/markdown_body_view.cpp
         src/pull_request_overview_page.cpp
         src/conversation_cards_view.cpp
+        src/conversation_finder.cpp
         src/conversation_glyphs.cpp
         src/painted_glyph_icon.cpp
         src/conversation_open_card.cpp
@@ -77,7 +78,6 @@ add_library(
         src/epoch_history_model.cpp
         src/foundation_window.cpp
         src/github_conversation_model.cpp
-        src/github_thread_map.cpp
     src/github_conversation_panel.cpp
     src/github_pull_request_panel.cpp
         src/measured_alignment_axis.cpp

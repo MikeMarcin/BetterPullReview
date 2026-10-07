@@ -693,6 +693,8 @@ namespace bpr::qt {
 			return QStringLiteral("Review");
 		case review_modality::discuss:
 			return QStringLiteral("Discuss");
+		case review_modality::conversations:
+			return QStringLiteral("Conversations");
 		}
 		return QStringLiteral("Review");
 	}
@@ -706,6 +708,8 @@ namespace bpr::qt {
 			return QKeySequence{ QStringLiteral("Ctrl+2") };
 		case review_modality::discuss:
 			return QKeySequence{ QStringLiteral("Ctrl+3") };
+		case review_modality::conversations:
+			return QKeySequence{ QStringLiteral("Ctrl+4") };
 		}
 		return QKeySequence{ };
 	}
@@ -727,6 +731,11 @@ namespace bpr::qt {
 			case review_modality::discuss:
 				return QStringLiteral(
 					"Collapse the files drawer and give the conversation the room.");
+			case review_modality::conversations:
+				// [[BPR-1293]]. The card's words, with both keys named.
+				return QStringLiteral("Find a conversation in the pull request (%1, %2)")
+					.arg(review_modality_shortcut(review_modality::conversations).toString(QKeySequence::NativeText),
+						 QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText));
 			}
 			return QString{ };
 		}
@@ -738,7 +747,8 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("workbenchModalityControl"));
 		setAccessibleName(QStringLiteral("Review modality"));
 		setAccessibleDescription(QStringLiteral(
-			"Overview, Review and Discuss presets for which drawers are open"));
+			"Overview, Review and Discuss presets for which drawers are open, "
+			"and Conversations, which finds a conversation in the pull request"));
 		setFocusPolicy(Qt::NoFocus);
 		auto* const row = new QHBoxLayout{ this };
 		row->setContentsMargins(2, 2, 2, 2);

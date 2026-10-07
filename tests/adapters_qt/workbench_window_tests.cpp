@@ -11,7 +11,6 @@
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
-#include "bpr/qt/github_thread_map.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
@@ -1190,7 +1189,7 @@ namespace {
 			   "a disabled drawer toggle carries its exact core reason");
 		expect(conversations->isChecked()
 				   && conversations->toolTip()
-					   == QStringLiteral("Hide the conversation drawer and give "
+					   == QStringLiteral("Hide the comments drawer and give "
 										 "its width to the comparison."),
 			   "an expanded drawer offers the gesture that collapses it");
 
@@ -1221,7 +1220,7 @@ namespace {
 			   "the decided drawer state reaches the toggle and the drawer");
 		expect(conversations->toolTip()
 				   == QStringLiteral(
-					   "Show the conversation drawer at its saved width."),
+					   "Show the comments drawer at its saved width."),
 			   "a collapsed drawer offers the gesture that reopens it");
 		expect(window.statistics().DrawerUpdates == 2U,
 			   "each published drawer delta is observed exactly once");
@@ -1485,9 +1484,9 @@ namespace {
 			const auto  which  = static_cast<qt::review_modality>(index);
 			auto* const action = modality->action(which);
 			auto* const button = modality->button(which);
-			// [[BPR-1295]]. Set per modality, not by position: Ctrl+4 is left
-			// for Conversations ([[BPR-1293]]).
-			const auto key = std::array{ QStringLiteral("Ctrl+1"), QStringLiteral("Ctrl+2"), QStringLiteral("Ctrl+3") }[index];
+			// [[BPR-1295]]. Set per modality, not by position. [[BPR-1293]]:
+			// Conversations takes Ctrl+4, after Discuss on Ctrl+3.
+			const auto key = std::array{ QStringLiteral("Ctrl+1"), QStringLiteral("Ctrl+2"), QStringLiteral("Ctrl+3"), QStringLiteral("Ctrl+4") }[index];
 			expect(action != nullptr && action->isCheckable()
 					   && action->shortcut() == QKeySequence{ key }
 					   && action->shortcutContext() == Qt::WindowShortcut
@@ -1498,7 +1497,7 @@ namespace {
 					   && window.focus_order().contains(button),
 				   "each modality is a checkable, shortcut-bearing, focusable stop");
 		}
-		expect(qt::review_modality_count == 3U && modality->action(qt::review_modality::review)->isChecked()
+		expect(qt::review_modality_count == 4U && modality->action(qt::review_modality::review)->isChecked()
 				   && !modality->action(qt::review_modality::overview)->isChecked()
 				   && modality->button(qt::review_modality::review)->isChecked()
 				   && !modality->button(qt::review_modality::discuss)->isChecked(),
@@ -1565,6 +1564,25 @@ namespace {
 					 { { core::workbench_drawer::files, core::workbench_drawer_state::collapsed },
 					   { core::workbench_drawer::conversations, core::workbench_drawer_state::expanded } },
 					 "Discuss collapses files and gives the conversation the room with two exact intents");
+		// [[BPR-1293]]. Conversations has no preset: it sends its modality and
+		// no drawer at all.
+		expectChosen(qt::review_modality::conversations, core::workbench_modality::conversations, { },
+					 "Conversations is chosen from the strip with no drawer intent");
+		expect(modality->button(qt::review_modality::conversations)->text().startsWith(QStringLiteral("Conversations"))
+				   && modality->button(qt::review_modality::conversations)->toolTip()
+					   == QStringLiteral("Find a conversation in the pull request (%1, %2)")
+							  .arg(QKeySequence{ QStringLiteral("Ctrl+4") }.toString(QKeySequence::NativeText), QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText))
+				   && modality->button(qt::review_modality::conversations)->accessibleName() == QStringLiteral("Conversations modality")
+				   && modality->action(qt::review_modality::conversations)->objectName() == QStringLiteral("reviewModalityConversationsAction")
+				   && modality->button(qt::review_modality::conversations)->objectName() == QStringLiteral("reviewModalityConversationsButton")
+				   && modality->button(qt::review_modality::discuss)->toolTip() == QStringLiteral("Collapse the files drawer and give the conversation the room.")
+				   && modality->button(qt::review_modality::discuss)->objectName() == QStringLiteral("reviewModalityDiscussButton"),
+			   "Conversations' segment names both its keys; Discuss's tooltip and names are unchanged");
+		// The strip is in its keys' order: Discuss third, Conversations fourth.
+		const auto place = [modality](const qt::review_modality aWhich) { return modality->layout()->indexOf(modality->button(aWhich)); };
+		expect(place(qt::review_modality::overview) == 0 && place(qt::review_modality::review) == 1 && place(qt::review_modality::discuss) == 2
+				   && place(qt::review_modality::conversations) == 3,
+			   "the strip reads Overview, Review, Discuss, Conversations");
 		// Every other way in enters rather than chooses.
 		log.Workbench.clear();
 		window.choose_modality(qt::review_modality::review);
@@ -5814,7 +5832,7 @@ namespace {
 
 		// Nothing folds or opens on its own.
 		for (const auto modality : { qt::review_modality::overview,
-									 qt::review_modality::discuss, qt::review_modality::review }) {
+									 qt::review_modality::discuss, qt::review_modality::conversations, qt::review_modality::review }) {
 			window.choose_modality(modality);
 			process_events();
 			expect(window.updates_line_open() && inWindow(bar) == barRect,
@@ -9564,6 +9582,12 @@ namespace {
 		process_events();
 		expect(!action->isEnabled() && action->toolTip() == QStringLiteral("In Discuss the conversation is the page"),
 			   "Discuss disables it and says why");
+		window.choose_modality(qt::review_modality::conversations);
+		process_events();
+		expect(!action->isEnabled() && action->toolTip() == QStringLiteral("In Conversations the finder is the page"),
+			   "Conversations disables it too and says why");
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
 		const auto before = toggles;
 		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
 		expect(toggles == before, "a disabled command takes no key");
@@ -9608,8 +9632,246 @@ namespace {
 			expect(text.isEmpty() || !seen.contains(text), "the key " + text.toStdString() + " is held by a shortcut and an action");
 		}
 		expect(seen.contains(QStringLiteral("Ctrl+B")) && seen.contains(QStringLiteral("Ctrl+1")) && seen.contains(QStringLiteral("Ctrl+2"))
-				   && seen.contains(QStringLiteral("Ctrl+3")) && !seen.contains(QStringLiteral("Ctrl+4")),
-			   "Ctrl+B hides the drawers, Ctrl+1, 2 and 3 choose Overview, Review and Discuss, and Ctrl+4 is free");
+				   && seen.at(QStringLiteral("Ctrl+3")) == QStringLiteral("reviewModalityDiscussAction")
+				   && seen.at(QStringLiteral("Ctrl+4")) == QStringLiteral("reviewModalityConversationsAction")
+				   && seen.at(QStringLiteral("Ctrl+J")) == QStringLiteral("showWorkbenchConversationsAction"),
+			   "Ctrl+B hides the drawers, Ctrl+1 to 4 choose Overview, Review, Discuss and Conversations, and Ctrl+J goes to Conversations");
+		window.hide();
+	}
+
+	/// [[BPR-1293]]. Conversations through the real core: Command-J, Ctrl+4,
+	/// the strip and the drawer's finder button go there from Overview, Review
+	/// and Discuss with the search focused; the drawers are hidden there and no
+	/// drawer state changes on the way in or out; Command-B is disabled; Esc on
+	/// an empty search and Command-J go back where it was entered from; and a
+	/// pick enters Review on the conversation's file, opens Comments if it is
+	/// closed and opens the thread in place at the picked post once the file's
+	/// comparison shows it.
+	void test_conversations_finds_and_picks_into_review()
+	{
+		auto  state   = core::workbench_interaction_state{ };
+		auto  intents = std::vector<core::workbench_interaction_intent>{ };
+		auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+		auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			projection.Refusal       = aRefusal;
+			shown->publish(projection);
+		};
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				intents.push_back(aIntent);
+				const auto output = core::transition(state, aIntent);
+				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file  = core::file_identity_of("src/file.cpp");
+		const auto other = core::file_identity_of("src/other.cpp");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+		auto first       = application::workbench_projection{ };
+		first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" }, { .File = other, .Path = "src/other.cpp" } };
+		first.Layout     = application::workbench_layout_delta{ .FilesWidth = 330U, .ConversationsWidth = 410U, .RepositoriesWidth = 300U };
+		window.publish(first);
+		publish(std::nullopt);
+		const auto node = [](std::string aId, std::optional<std::string> aParent, std::string aAuthor, std::string aBody, std::string aPath, std::optional<std::uint32_t> aLine) {
+			auto made               = application::github_conversation_projection{ };
+			made.Id                 = std::move(aId);
+			made.ParentId           = std::move(aParent);
+			made.Kind               = made.ParentId ? application::github_conversation_kind::review_comment : application::github_conversation_kind::review_thread;
+			made.AuthorLogin        = std::move(aAuthor);
+			made.Body               = std::move(aBody);
+			made.Path               = std::move(aPath);
+			made.Line               = aLine;
+			made.DiffSide           = application::github_conversation_diff_side::right;
+			made.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			return made;
+		};
+		auto pull                   = application::github_pull_request_projection{ };
+		pull.ReviewThreadCount      = 2U;
+		pull.ReviewThreadsAvailable = true;
+		pull.Conversations          = {
+			node("review-thread:late", std::nullopt, { }, { }, "src/file.cpp", 22U),
+			node("review-comment:late-1", "review-thread:late", "tbutler", "issue: the late thread", "src/file.cpp", 22U),
+			node("review-comment:late-2", "review-comment:late-1", "jiayin", "a reply", "src/file.cpp", 22U),
+			node("review-thread:off", std::nullopt, { }, { }, "src/other.cpp", 5U),
+			node("review-comment:off-1", "review-thread:off", "jiayin", "question: on the other file?", "src/other.cpp", 5U),
+			node("review-comment:off-2", "review-comment:off-1", "tbutler", "yes, the second post", "src/other.cpp", 5U),
+			node("review-comment:off-3", "review-comment:off-1", "jiayin", "and a third", "src/other.cpp", 5U),
+		};
+		auto pullComment        = application::github_conversation_projection{ };
+		pullComment.Id          = "issue-comment:c1";
+		pullComment.Kind        = application::github_conversation_kind::issue_comment;
+		pullComment.AuthorLogin = "tbutler";
+		pullComment.Body        = "A pull request comment";
+		pull.Conversations.push_back(pullComment);
+		window.publish(application::github_presentation_update{ .PullRequest = pull });
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto later = text;
+		later.replace(later.find("line 5"), 6U, "changed line 5");
+		static_cast<void>(publish_fixture(window, computed_comparison(text, later, 0U, file)));
+		window.set_conversation_endpoint_placement(false, true);
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+		window.repositories_drawer_toggle_action()->trigger();
+		process_events();
+		auto* const finder   = window.finder();
+		auto* const action   = window.show_conversations_action();
+		auto* const hide     = window.toggle_drawers_action();
+		auto* const files    = window.files_drawer();
+		auto* const comments = window.conversations_drawer();
+		const auto  drawers  = [&state] { return std::tuple{ state.FilesDrawer, state.ConversationsDrawer, state.RepositoriesDrawer }; };
+		expect(finder != nullptr && action != nullptr && action->objectName() == QStringLiteral("showWorkbenchConversationsAction")
+				   && action->shortcut() == QKeySequence{ QStringLiteral("Ctrl+J") } && action->shortcutContext() == Qt::WindowShortcut && action->isEnabled()
+				   && window.view_menu()->actions().contains(action),
+			   "Command-J is a window command in the View menu, offered with a pull request open");
+		expect(window.conversations_drawer_toggle_action()->text() == QStringLiteral("&Comments drawer")
+				   && window.conversations_drawer_toggle_action()->iconText() == QStringLiteral("Comments drawer")
+				   && comments->accessibleName() == QStringLiteral("Comments drawer"),
+			   "the drawer's toggle and panel are named Comments; only the modality is Conversations");
+
+		// From Review with its drawers hidden by the command: entering and
+		// leaving changes no drawer state, and Review comes back as it was.
+		window.comparison_surface()->right_pane()->setFocus(Qt::OtherFocusReason);
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		const auto hidden = drawers();
+		expect(!files->isVisible() && !comments->isVisible() && hide->isChecked(), "the fixture hides Review's drawers with Command-B");
+		intents.clear();
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		expect(window.current_modality() == qt::review_modality::conversations && finder->isVisible()
+				   && window.findChild<QWidget*>(QStringLiteral("workbenchConversationsPage"))->isAncestorOf(finder)
+				   && finder->search_field()->hasFocus(),
+			   "Command-J goes to Conversations, the finder filling the centre with its search focused");
+		expect(drawers() == hidden && !files->isVisible() && !comments->isVisible() && !window.repositories_drawer()->isVisible()
+				   && std::ranges::none_of(intents, [](const core::workbench_interaction_intent& aIntent) { return std::holds_alternative<core::set_workbench_drawer_intent>(aIntent); }),
+			   "the drawers are hidden there, and entering sends no drawer intent and changes no drawer");
+		expect(!hide->isEnabled() && hide->toolTip() == QStringLiteral("In Conversations the finder is the page"), "Command-B is disabled there and says why");
+		const auto before = intents.size();
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(intents.size() == before && drawers() == hidden, "Command-B does nothing in Conversations");
+		const auto rows = finder->shown_keys();
+		expect(rows == std::vector<std::string>{ "file:src/file.cpp", "row:review-thread:late/review-comment:late-1", "file:src/other.cpp", "row:review-thread:off/review-comment:off-1" },
+			   "every conversation on a file, grouped by file; the pull request comment is Discuss's");
+		save_render(window, QStringLiteral("conversations-page"));
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		expect(window.current_modality() == qt::review_modality::review && drawers() == hidden && hide->isChecked()
+				   && window.comparison_surface()->right_pane()->hasFocus(),
+			   "Command-J again returns to Review as it was, drawers hidden, keyboard in the code");
+		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
+		expect(files->isVisible() && comments->isVisible(), "and Command-B still shows the set it hid");
+		// With Review's drawers open, Conversations hides them without
+		// closing them, and Review shows them again.
+		const auto open = drawers();
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		expect(window.current_modality() == qt::review_modality::conversations && !files->isVisible() && !comments->isVisible() && drawers() == open
+				   && window.central_splitter()->sizes().at(0) == 0 && window.central_splitter()->sizes().at(1) == 0,
+			   "open drawers are hidden while Conversations shows, their states unchanged, and the finder takes the width");
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		expect(window.current_modality() == qt::review_modality::review && files->isVisible() && comments->isVisible() && drawers() == open,
+			   "back in Review they show again");
+
+		// From Overview and from Discuss; Esc on an empty search goes back.
+		for (const auto from : { qt::review_modality::overview, qt::review_modality::discuss }) {
+			window.choose_modality(from);
+			process_events();
+			const auto there = drawers();
+			deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+			expect(window.current_modality() == qt::review_modality::conversations && finder->search_field()->hasFocus() && drawers() == there,
+				   "Command-J enters Conversations from Overview and Discuss, changing no drawer");
+			finder->search_field()->setText(QStringLiteral("other"));
+			auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+			QApplication::sendEvent(finder->search_field(), &escape);
+			process_events();
+			expect(window.current_modality() == qt::review_modality::conversations && finder->search_field()->text().isEmpty(), "Esc clears the search first");
+			QApplication::sendEvent(finder->search_field(), &escape);
+			process_events();
+			expect(window.current_modality() == from && drawers() == there, "Esc on an empty search returns to the modality it came from");
+		}
+		// Ctrl+4 and the strip choose it too.
+		window.modality()->action(qt::review_modality::conversations)->trigger();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::conversations, "Ctrl+4 and the strip's segment choose Conversations");
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+
+		// The drawer's finder button.
+		auto* const button = window.conversations_finder_button();
+		expect(button != nullptr && button->isVisible() && button->focusPolicy() == Qt::StrongFocus && !button->icon().isNull()
+				   && button->toolTip() == QStringLiteral("Find a conversation in the pull request (%1)").arg(action->shortcut().toString(QKeySequence::NativeText))
+				   && button->accessibleName() == QStringLiteral("Find a conversation in the pull request"),
+			   "the Comments drawer carries the finder button, named, with its key in its tooltip");
+		button->click();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::conversations && finder->search_field()->hasFocus(), "the finder button goes to Conversations");
+
+		// A pick: Review on the conversation's file, Comments opened by hand,
+		// the thread in place at the picked post once the file shows.
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		window.conversations_drawer_toggle_action()->trigger();
+		process_events();
+		expect(state.ConversationsDrawer == core::workbench_drawer_state::collapsed, "the fixture closes Comments in Review");
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		const auto offRow = std::string{ "row:review-thread:off/review-comment:off-1" };
+		const auto second = finder->bead_rect(offRow, "review-comment:off-2");
+		expect(!second.isEmpty(), "the second post's bead is shown");
+		intents.clear();
+		auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ second.center() }, finder->list()->viewport()->mapToGlobal(QPointF{ second.center() }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(finder->list()->viewport(), &press);
+		process_events();
+		const auto asked = [&intents]<typename T>(std::type_identity<T>) {
+			return std::ranges::count_if(intents, [](const core::workbench_interaction_intent& aIntent) { return std::holds_alternative<T>(aIntent); });
+		};
+		const auto selected = std::ranges::find_if(intents, [](const core::workbench_interaction_intent& aIntent) { return std::holds_alternative<core::select_workbench_file_intent>(aIntent); });
+		const auto review   = std::ranges::find_if(intents, [](const core::workbench_interaction_intent& aIntent) { return std::holds_alternative<core::set_workbench_modality_intent>(aIntent); });
+		expect(window.current_modality() == qt::review_modality::review && review != intents.end() && selected != intents.end() && review < selected
+				   && std::get<core::select_workbench_file_intent>(*selected).File == other,
+			   "a pick enters Review, then selects its file through the files drawer's intent");
+		expect(asked(std::type_identity<core::set_workbench_drawer_intent>{ }) == 1 && state.ConversationsDrawer == core::workbench_drawer_state::expanded && comments->isVisible(),
+			   "and opens Comments, which was closed");
+		expect(window.conversation_panel()->cards()->open_thread_id().empty() || window.conversation_panel()->cards()->open_thread_id() != "review-thread:off",
+			   "the thread waits for its file's comparison");
+		// The host's answer to the file selection: the cursor, then the file's
+		// comparison.
+		state.Navigation = core::workbench_navigation_cursor{ .File = other, .Ordinal = 2U, .ActionableCount = 2U, .PreviousAvailable = true };
+		auto moved       = application::workbench_projection{ };
+		moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		window.publish(moved);
+		static_cast<void>(publish_fixture(window, computed_comparison(text, later, 1U, other)));
+		window.set_conversation_endpoint_placement(false, true);
+		process_events();
+		auto* const cards = window.conversation_panel()->cards();
+		expect(cards->open_thread_id() == "review-thread:off" && cards->picked_post() == "review-comment:off-2" && cards->open_card() != nullptr,
+			   "once the file shows, the thread opens in place at the picked post");
+		expect(window.conversation_model()->id_for_index(window.conversation_view()->currentIndex()) == "review-comment:off-2",
+			   "and the selection names the picked post, as a revealed comment's does");
+		save_render(window, QStringLiteral("conversations-picked"));
+		// Reopening starts on that conversation, its path traced.
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		expect(finder->cursor_key() == offRow, "reopening Conversations starts on the conversation open in Review");
+		// Return picks the cursor's conversation; this file already shows, so
+		// it opens at once.
+		auto ret = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(finder->search_field(), &ret);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::review && cards->open_thread_id() == "review-thread:off" && cards->picked_post() == "review-comment:off-1",
+			   "Return picks the row's first post");
+		// A conversation on a file reached by identity opens in Review in
+		// place; a review summary is not on a file.
+		expect(window.reveal_conversation_in_review("review-comment:off-3") && cards->picked_post() == "review-comment:off-3",
+			   "a post named by identity opens in place in Review");
+		expect(!window.reveal_conversation_in_review("issue-comment:c1") && !window.reveal_conversation_in_review("review:r9"),
+			   "a pull request comment or a review is not opened in Review");
 		window.hide();
 	}
 
@@ -9773,7 +10035,7 @@ namespace {
 			   "opening the line moves the bar nowhere; the timeline is one 34-pixel row above the panes");
 
 		for (const auto modality : { qt::review_modality::overview,
-									 qt::review_modality::review, qt::review_modality::discuss }) {
+									 qt::review_modality::review, qt::review_modality::discuss, qt::review_modality::conversations }) {
 			window.choose_modality(modality);
 			process_events();
 			const auto row = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
@@ -9821,7 +10083,7 @@ namespace {
 			.LoadingOverview = application::github_loading_overview_projection{
 				.Title = "Loading readiness", .Body = "", .AuthorLogin = "octocat", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 1U, .ReportedCommits = 1U } });
 		for (const auto modality : { qt::review_modality::overview,
-									 qt::review_modality::review, qt::review_modality::discuss }) {
+									 qt::review_modality::review, qt::review_modality::discuss, qt::review_modality::conversations }) {
 			window.choose_modality(modality);
 			window.resize(window.minimumWidth(), 820);
 			fold_updates_line(window);
@@ -10993,7 +11255,7 @@ namespace {
 		process_events();
 		expect(inCorner(), "the accepted placement repairs the negative control with the same widget");
 		for (const auto mode : { qt::review_modality::overview,
-								 qt::review_modality::review, qt::review_modality::discuss }) {
+								 qt::review_modality::review, qt::review_modality::discuss, qt::review_modality::conversations }) {
 			window.choose_modality(mode);
 			process_events();
 			expect(inCorner(), "each ordinary review surface uses the corner");
@@ -11494,6 +11756,7 @@ auto main(int argc, char** argv) -> int
 	test_receipt_update_moves_only_its_rows();
 	test_overview_refuses_a_hand_opened_drawer_and_says_so();
 	test_hide_drawers_command_key_icon_and_editor_yield();
+	test_conversations_finds_and_picks_into_review();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -156,6 +156,30 @@ namespace bpr::qt {
 				aPainter.drawRoundedRect(QRectF{ 8.5, 8.5, 11.0, 12.0 }, 2.0, 2.0);
 				polyline(aPainter, { { 4.5, 16.0 }, { 4.5, 4.5 }, { 16.0, 4.5 } });
 				break;
+			case conversation_glyph::finder: {
+				// The prototype's path: three posts, the reply line from the
+				// first, and a lens over the fourth.
+				aPainter.drawEllipse(QPointF{ 5.0, 6.0 }, 2.0, 2.0);
+				aPainter.drawEllipse(QPointF{ 12.0, 6.0 }, 2.0, 2.0);
+				aPainter.drawEllipse(QPointF{ 12.0, 17.0 }, 2.0, 2.0);
+				aPainter.drawLine(QPointF{ 7.0, 6.0 }, QPointF{ 10.0, 6.0 });
+				auto reply = QPainterPath{ };
+				reply.moveTo(5.0, 8.0);
+				reply.lineTo(5.0, 12.0);
+				reply.arcTo(QRectF{ 5.0, 7.0, 10.0, 10.0 }, 180.0, 90.0);
+				aPainter.drawPath(reply);
+				aPainter.drawEllipse(QPointF{ 18.5, 17.5 }, 3.0, 3.0);
+				aPainter.drawLine(QPointF{ 20.7, 19.7 }, QPointF{ 22.5, 21.5 });
+				break;
+			}
+			case conversation_glyph::search:
+				aPainter.drawEllipse(QPointF{ 10.5, 10.5 }, 6.0, 6.0);
+				aPainter.drawLine(QPointF{ 15.0, 15.0 }, QPointF{ 20.0, 20.0 });
+				break;
+			case conversation_glyph::tag:
+				polyline(aPainter, { { 3.5, 12.0 }, { 3.5, 4.5 }, { 11.0, 4.5 }, { 20.5, 14.0 }, { 13.0, 21.5 }, { 3.5, 12.0 } });
+				dot(aPainter, { 7.6, 8.6 }, 1.3);
+				break;
 			}
 		}
 

@@ -869,6 +869,18 @@ BPR-1293 builds it after [[BPR-1290]] and [[BPR-1295]], and the owner accepts
 it at the built UI. The amendment adds a modality, not a closeout dependency
 of this RFC; [[BPR-1021]]'s rows follow the criteria's wording.
 
+Built 2026-10-06 ([[BPR-1293]]). The strip reads in its keys' order, Overview
+⌘1, Review ⌘2, Discuss ⌘3 and Conversations ⌘4, and ⌘J and the Comments
+drawer's finder button go to Conversations too. The core has a fourth
+modality that changes no drawer on the way in or out and refuses ⌘B there
+with its own reason. A conversation's label is its root's, read from
+[[BPR-1087]]'s counts, so the finder's label filter agrees with the
+Overview's chips. The drawer toggle is named the Comments drawer. The kept
+`github_thread_map` was not reused, since the finder draws branches as rows,
+and is removed. A long conversation (AC-08) is found in Conversations with its
+branches as rows and read whole in Review's drawer, the picked post washed
+amber. The workbench specification's Modalities paragraph says the rest.
+
 ## Owner decision, 2026-09-24: the scaffolding moves to RFC-BPR-0052
 
 [[BPR-1106]]'s design round ran in the separate session that decision

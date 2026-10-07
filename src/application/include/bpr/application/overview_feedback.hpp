@@ -121,6 +121,36 @@ namespace bpr::application {
 	[[nodiscard]] auto list_overview_drill_down(const feedback_counter_model& aModel, std::span<const std::string> aFiles,
 												const overview_feedback_request& aRequest, const overview_drill_down& aDrillDown)
 		-> std::optional<overview_drill_down_listing>;
+
+	/// \brief [[BPR-1293]]. The conversations one label counts.
+	struct conversation_label_listing
+	{
+		core::feedback_label Label = core::feedback_label::praise;
+		/// Conversation identities, each once, in identity order.
+		std::vector<std::string> Conversations;
+
+		auto operator==(const conversation_label_listing&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1293]]. Which conversations each label counts, for the
+	/// label filter of Conversations.
+	/// \details The same units and labels the Overview's chips count
+	/// ([[BPR-1087]]): a conversation is its root's label, every state is
+	/// included, and the whole pull request is the scope. Conversations lists
+	/// only those on a file, so it keeps the identities it shows.
+	struct conversation_labels_projection
+	{
+		/// The counter model's generation the lists were read at.
+		std::uint64_t Generation = 0U;
+		/// Only the labels some conversation carries, in catalog order.
+		std::vector<conversation_label_listing> Labels;
+
+		auto operator==(const conversation_labels_projection&) const -> bool = default;
+	};
+
+	/// \brief Every label's conversations from the model's kept population.
+	/// Nothing before the model has admitted a snapshot.
+	[[nodiscard]] auto project_conversation_labels(const feedback_counter_model& aModel) -> std::optional<conversation_labels_projection>;
 }
 
 #endif

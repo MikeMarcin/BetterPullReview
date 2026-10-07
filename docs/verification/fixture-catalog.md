@@ -106,6 +106,23 @@ them under ?. No conversation has an unknown resolution: that needs the REST
 fallback, which a GraphQL fixture does not take. Constructed, not recorded;
 `application_overview_labels_public_path` pins its counts.
 
+### `conversations-v1`, prototype v2's pull request
+
+Added for [[BPR-1293]], so Conversations can be judged against its prototype
+(`docs/design/BPR-1290-inline-drawer-v2`). `scripts/build_conversations_fixture.py`
+writes the prototype's ten files, verbatim from its `code.js`, into
+`tests/fixtures/github/pull-requests/conversations-v1/construction.json`, with
+the prototype's changed-line ranges; the same pack and contract builders serve
+it as `bpr-fixtures/conversations#418`, and the script's `--threads` step gives
+the served tree the prototype's twenty-one conversations (91 posts, its draft
+excepted), extracted verbatim into `sources/conversations.json`. Line 667's is
+branching-thread-v1's shape with an aside that has replies of its own. Posts
+are in the order their ages say they were written, so the prototype's new posts
+end every conversation, and the builder's `read_state.json` names the last post
+seen in each; `--attended-open-file … --attended-read-state` records that
+through the review ledger before a person looks. Constructed, not recorded; its
+fixture test regenerates the construction and the served tree byte for byte.
+
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,
 transport metadata, remote URLs, patches, source content, email addresses,
@@ -1376,6 +1393,7 @@ normative description.
 | Read | the comparison | collapsed | expanded | collapsed |
 | Review | the comparison | expanded | expanded | unchanged |
 | Discuss | the conversation, full width | collapsed, hidden | expanded, its panel moved to the centre | unchanged, hidden |
+| Conversations ([[BPR-1293]]) | the finder, full width | unchanged, hidden | unchanged, hidden | unchanged, hidden |
 
 - Overview collapses all three drawers, and the core refuses a drawer opened by
   hand until another modality is chosen ([[BPR-0727]]). Read and Discuss

@@ -222,25 +222,31 @@ namespace bpr::qt {
 		bool Marked = false;
 	};
 
-	/// \brief The three review modalities, in strip order.
+	/// \brief The four review modalities, in strip order, which is their
+	/// keys' order.
 	///
 	/// \details [[BPR-1295]]. Read merged into Review on 2026-10-06.
+	/// [[BPR-1293]]. Conversations, the pull request's finder, is fourth on
+	/// Ctrl+4, after Discuss on Ctrl+3 (the owner, 2026-10-06: "can we swap
+	/// discuss to 3 and conversations to 4").
 	enum class review_modality : std::uint8_t {
 		overview,
 		review,
 		discuss,
+		conversations,
 	};
 
-	inline constexpr std::size_t review_modality_count = 3U;
+	inline constexpr std::size_t review_modality_count = 4U;
 
 	[[nodiscard]] auto review_modality_title(review_modality aModality) -> QString;
 
 	/// \brief [[BPR-1295]]. The key that chooses a modality.
 	///
 	/// \details Set per modality rather than by strip position: Overview
-	/// Ctrl+1, Review Ctrl+2 and Discuss Ctrl+3 (Command on macOS). Ctrl+4 is
-	/// left for Conversations ([[BPR-1293]]); the owner, 2026-10-06: "can we
-	/// swap discuss to 3 and conversations to 4".
+	/// Ctrl+1, Review Ctrl+2, Discuss Ctrl+3 and Conversations Ctrl+4
+	/// (Command on macOS); the owner, 2026-10-06: "can we swap discuss to 3
+	/// and conversations to 4". Ctrl+J also goes to Conversations, from the
+	/// window's own action ([[BPR-1293]]).
 	[[nodiscard]] auto review_modality_shortcut(review_modality aModality) -> QKeySequence;
 
 	using review_modality_dispatch = std::function<void(review_modality)>;
@@ -264,8 +270,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto compact() const noexcept -> bool;
 		/// \brief Shows each name as its three-character prefix, the strip's last yield.
 		///
-		/// \details [[BPR-0653]]. Only the visible text shortens: Ove, Rev and
-		/// Dis. The accessible names and tooltips keep the full words.
+		/// \details [[BPR-0653]]. Only the visible text shortens: Ove, Rev,
+		/// Dis and Con. The accessible names and tooltips keep the full words.
 		void               set_abbreviated(bool aAbbreviated);
 		[[nodiscard]] auto abbreviated() const noexcept -> bool;
 		[[nodiscard]] auto current() const noexcept -> review_modality;

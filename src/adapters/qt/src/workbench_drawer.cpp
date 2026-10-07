@@ -61,7 +61,9 @@ namespace bpr::qt {
 			case core::workbench_drawer::files:
 				return QStringLiteral("Files drawer");
 			case core::workbench_drawer::conversations:
-				return QStringLiteral("Conversations drawer");
+				// [[BPR-1293]]. Comments, as its tab says; Conversations is
+				// the modality.
+				return QStringLiteral("Comments drawer");
 			case core::workbench_drawer::repositories:
 				return QStringLiteral("Repositories drawer");
 			}

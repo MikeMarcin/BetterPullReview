@@ -53,9 +53,10 @@ the caption buttons.
 
 **Modalities** ([[BPR-1295]], owner direction 2026-10-06). The modalities are
 Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3), set per
-modality rather than by position; `Ctrl+4` is left for Conversations. The
-owner, 2026-10-06, verbatim: "can we swap discuss to 3 and conversations to
-4". Read is merged into Review: every path that entered
+modality rather than by position, and Conversations on `Ctrl+4` (⌘4) since
+[[BPR-1293]]. The owner, 2026-10-06, verbatim: "can we swap discuss to 3 and
+conversations to 4". The strip reads in its keys' order: Overview, Review,
+Discuss, Conversations. Read is merged into Review: every path that entered
 Read (an Overview file row, Continue review, Open in code, Resume, a link to a
 file, a tour) enters Review. Review remembers the drawer arrangement it last
 had in the window, hidden drawers included, and applies its preset (Files and
@@ -86,8 +87,36 @@ into view. ⌘J again, or Esc on an empty search, returns to where it was
 entered from. Pull request comments and review summaries that are not on a
 file are not listed; Discuss still reads them ([[BPR-1294]]). The drawers are
 hidden while Conversations shows, as Discuss hides them, and nothing changes
-their states. BPR-1293 is Ready and is built after BPR-1290 and BPR-1295;
-until then the window offers no Conversations.
+their states: Review comes back with the arrangement it last had, hidden
+drawers included, and Discuss's preset is not applied. Its segment's tooltip
+names both keys ("Find a conversation in the pull request (⌘4, ⌘J)"); the
+drawer toggle is named the Comments drawer, so only the modality is called
+Conversations.
+
+As built ([[BPR-1293]]): the page is `conversation_finder`, which reads the
+forest the Comments drawer reads, the ledger's read state and [[BPR-1087]]'s
+label lists, and decides nothing. A conversation's label is its root's, as the
+Overview's chips count it; the label menu counts the conversations on a file,
+and a post carrying the chosen label is ringed in its tint while the others
+fade. A row folds its oldest read posts into "+n" past nine; new posts, the
+path to the picked post, the search's and the label's never fold, and "+n"
+unfolds the row. The keyboard is the prototype's: typing goes to the search, Up
+and Down move between rows (Up from the first returns to the search), Left and
+Right walk a row's posts with a preview of each or fold and unfold a file, and
+Return picks; hovering a post's avatar previews it. Entering focuses the search
+with the cursor on the conversation open in Review, its path from the first
+comment to the picked post traced in amber; the search, the filters, the folded
+files and the cursor are kept in the window, in memory only. A pick waits for
+its file's comparison before it opens the thread, so the drawer's notes are that
+file's; the picked post is then brought into view once the code has settled,
+the foot of a thread taller than what is left below its line coming from the
+drawer's own overflow. My unpublished comment is a row with a lock on its
+file's group. Three entries land the same way a pick does: a
+`#discussion_r<id>` link the read identified, the reveal of an inline comment
+just published (Review stays, the thread open at the published post), and
+Previous or Next defect for a thread the drawer does not hold. A
+`#pullrequestreview-` link, an older-pair tab's Show them, a Discuss card's Open
+in code and the review page's preflight rows land where they did.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
@@ -285,9 +314,9 @@ column, and RFC-BPR-0032 gives it one job per row.
   its `R<n>` line is selected when the comparison on screen ends at the pull
   request's head. `#discussion_r<id>` reveals the comment when the read
   identified it by that number (a signed-out read does; an authenticated read
-  names comments by node identity only): in Discuss today, and once
-  [[BPR-1293]] lands Review opens on its file with the thread open in place at
-  that post. `#pullrequestreview-<id>` reveals that review in Discuss.
+  names comments by node identity only): Review opens on its file with the
+  thread open in place at that post ([[BPR-1293]]; it was Discuss before).
+  `#pullrequestreview-<id>` reveals that review in Discuss.
   Everything else — a commit page, a base-side `L<n>`
   line (GitHub numbers it against a merge base the comparison does not use),
   an `#issuecomment-` link, a digest naming no changed file, an unread
@@ -645,7 +674,7 @@ never invents enabled state.
 | Back from a composition page | `Esc` |
 | Hide or show every drawer ([[BPR-1295]]) | `Ctrl+B` (⌘B) |
 | Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
-| Conversations ([[BPR-1293]], once built) | `Ctrl+4` (⌘4) |
+| Conversations ([[BPR-1293]]) | `Ctrl+4` (⌘4) |
 | Find a conversation: go to Conversations, or back ([[BPR-1293]]) | `Ctrl+J` (⌘J) |
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
@@ -1022,7 +1051,9 @@ opens the thread's actions. A classified thread also has a text badge with its
 state, severity and category; its tooltip and accessible description explain
 the state and retained context. Reclassify opens the existing severity and
 category controls. Previous defect, Next defect and Defects N/M sit beside
-Next new comment under Comments. The private tab contains none of them. Choosing Notes is RFC-BPR-0031's explicit
+Next new comment under Comments; a defect's thread the drawer does not hold
+opens in Review on its file, in place, when it is on a file, and in Discuss
+when it is not ([[BPR-1293]]). The private tab contains none of them. Choosing Notes is RFC-BPR-0031's explicit
 move into the AI tools: when its content is shown, it permits the existing
 compare_glance cue, dispatches no agent or review action, and never opens a
 collapsed drawer. Under [[BPR-1209]], the single Dif rests at 28 logical pixels in the
@@ -1129,12 +1160,14 @@ request, which is what the owner wanted the map for ("Not to move around a
 single conversation, I mean to find the right conversation"), moves to a view
 of its own, [[BPR-1293]].
 
-The Treeverse-style map the owner chose on 2026-08-21 ([[BPR-0418]]) is kept
-as a widget, `github_thread_map`, with its layout rules and tests, for
-BPR-1293 to reuse: nodes laid out one row per depth in pre-order so no two
-edges cross, the root-to-selection path drawn heaviest and everything
-downstream of it lighter, and an unexpected shape costing nesting and never a
-row. It is composed nowhere until BPR-1293 places it.
+The Treeverse-style map the owner chose on 2026-08-21 ([[BPR-0418]]) was kept
+as a widget, `github_thread_map`, for BPR-1293 to reuse. Conversations draws a
+conversation's branches as rows instead, as prototype v2 does, so the map was
+not reused and is removed with its tests ([[BPR-1293]]). What it held is kept
+where it applies: the finder lays rows out in pre-order with an explicit stack,
+traces the path from the first comment to the picked post in amber, and an
+unexpected shape (a parent that is absent, later or itself) costs nesting,
+never a post.
 
 Selection still has one owner: the drawer's conversation model and its
 current index, which the code reveal, the anchor marker, the reply target and

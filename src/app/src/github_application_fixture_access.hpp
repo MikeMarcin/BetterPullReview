@@ -69,6 +69,10 @@ namespace bpr::app::detail {
 		/// threads on all its files, pull request comments and review
 		/// summaries, for judging the Overview's label chips.
 		overview_labels_v1,
+		/// [[BPR-1293]]. Prototype v2's pull request: twenty-one conversations
+		/// in ten files, one of them branching, for judging Conversations
+		/// against its prototype.
+		conversations_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -1273,6 +1277,15 @@ namespace bpr::app::detail {
 		/// listed; the gesture is the drawer's own selection.
 		[[nodiscard]] static auto reveal_fixture_file(github_application& aApplication, std::string_view aPath)
 			-> fixture_file_reveal_result;
+		/// \brief [[BPR-1293]]. For an attended look: \p aThread read through
+		/// \p aComment, recorded through the review ledger as Mark read
+		/// records it, so the posts after it are new. False when the accepted
+		/// pull request has no such thread or post.
+		static auto mark_fixture_read_through(github_application& aApplication, const std::string& aThread, const std::string& aComment) -> bool;
+		/// \brief [[BPR-1293]]. Every thread of a constructed fixture read
+		/// through the post its `read_state.json` names; nothing for a fixture
+		/// without one, or one naming a thread or post the read lacks.
+		static auto apply_fixture_read_state(github_application& aApplication, const std::string& aFixture) -> std::optional<std::size_t>;
 		/// \brief [[BPR-1084]] and [[BPR-1085]]. For an attended look, in Read
 		/// on a revealed file: a new comment on the first `aSide` line no thread
 		/// is on, holding `aBody`, through the window's own Comment action and

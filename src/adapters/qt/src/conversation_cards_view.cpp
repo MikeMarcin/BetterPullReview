@@ -33,6 +33,7 @@
 #include <QScrollBar>
 #include <QTextEdit>
 #include <QTextLayout>
+#include <QTimer>
 #include <QToolButton>
 #include <QWheelEvent>
 
@@ -40,6 +41,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
+#include <limits>
 #include <map>
 #include <optional>
 #include <set>
@@ -505,6 +507,8 @@ namespace bpr::qt {
 		Draft.reset();
 		Current.clear();
 		Open.clear();
+		Picked.clear();
+		PickedNext.clear();
 		Hovered.clear();
 		Replying.clear();
 		ReadState.clear();
@@ -1345,6 +1349,7 @@ namespace bpr::qt {
 		}
 		if (!Open.empty() && !card_index(Open).has_value()) {
 			Open.clear();
+			Picked.clear();
 			Replying.clear();
 		}
 		if (!Hovered.empty() && !card_index(Hovered).has_value()) {
@@ -1385,7 +1390,7 @@ namespace bpr::qt {
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
 			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated))
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed)) + QString::number(card.UnreadCount)
-			+ card.Excerpt + Viewer;
+			+ card.Excerpt + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked);
 		for (const auto& post : card.Posts) {
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QString::number(static_cast<int>(post.Unread));
 		}
@@ -1410,6 +1415,7 @@ namespace bpr::qt {
 			.Viewer            = Viewer,
 			.ResolutionOffered = ResolutionOffered,
 			.Feed              = Feed,
+			.Picked            = Picked,
 		};
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
 		style.Colours.CodeInk        = CodeInk;
@@ -1669,6 +1675,58 @@ namespace bpr::qt {
 		OpenCard->set_notch(notch);
 		if (!OpenCard->isVisible()) {
 			OpenCard->show();
+		}
+		// [[BPR-1293]]. A picked post is brought into view once, after the
+		// code has settled with the card hanging at its line: every frame of
+		// the line's reveal restarts the wait, so the two never pull apart.
+		if (RevealPicked && !Picked.empty()) {
+			if (PickedReveal == nullptr) {
+				PickedReveal = new QTimer{ this };
+				PickedReveal->setSingleShot(true);
+				PickedReveal->setInterval(120);
+				connect(PickedReveal, &QTimer::timeout, this, [this] {
+					if (!RevealPicked || OpenCard == nullptr || Picked.empty()) {
+						return;
+					}
+					const auto opened = card_index(Open);
+					if (PickedRevealSteps == 0 && opened.has_value() && aligned() && !(Cards[*opened].Placed && Cards[*opened].TargetY >= 0 && Cards[*opened].TargetY < viewport()->height())) {
+						return;
+					}
+					// The code takes a long move in parts: a step that leaves the
+					// post outside the view is taken again, while it moves.
+					for (auto* const view : OpenCard->posts()) {
+						if (view->post().Id != Picked) {
+							continue;
+						}
+						const auto place = QRect{ view->mapTo(viewport(), QPoint{ 0, 0 }), view->size() };
+						// Clear of the chips on the top and bottom edges.
+						const auto visible = viewport()->rect().adjusted(0, edge_reach + 8, 0, -(edge_reach + 8));
+						if (visible.contains(place) || (place.height() > visible.height() && place.top() >= visible.top() && place.top() < visible.bottom())
+							|| PickedRevealSteps >= 8 || place.top() == PickedRevealLast) {
+							RevealPicked = false;
+							return;
+						}
+						++PickedRevealSteps;
+						PickedRevealLast = place.top();
+						// The foot of a thread taller than what is left below
+						// its line is the notes' own overflow; the code moves
+						// only for what the overflow cannot give.
+						auto* const bar   = verticalScrollBar();
+						const auto  move  = place.bottom() > visible.bottom() ? std::min(place.bottom() - visible.bottom(), place.top() - visible.top())
+							: place.top() < visible.top()                     ? place.top() - visible.top()
+																			  : 0;
+						const auto  taken = std::clamp(bar->value() + move, bar->minimum(), bar->maximum()) - bar->value();
+						bar->setValue(bar->value() + taken);
+						if (taken != move) {
+							reveal_reading(place.translated(0, -taken));
+						}
+						PickedReveal->start();
+						return;
+					}
+					RevealPicked = false;
+				});
+			}
+			PickedReveal->start();
 		}
 	}
 
@@ -2074,8 +2132,11 @@ namespace bpr::qt {
 		}
 		const auto chosen = Cards[aCard].Id;
 		Current           = chosen;
-		if (aOpen && Open != chosen) {
-			Open = chosen;
+		// [[BPR-1293]]. A pick names its post; any other opening drops it.
+		auto picked = std::exchange(PickedNext, std::string{ });
+		if (aOpen && (Open != chosen || picked != Picked)) {
+			Open   = chosen;
+			Picked = std::move(picked);
 			if (Replying != chosen) {
 				Replying.clear();
 			}
@@ -2102,6 +2163,31 @@ namespace bpr::qt {
 		}
 	}
 
+	void conversation_cards_view::open_thread_at(const std::string& aId, const std::string& aPost)
+	{
+		const auto index = card_index(aId);
+		if (!index.has_value()) {
+			return;
+		}
+		const auto& posts = Cards[*index].Posts;
+		PickedNext        = std::ranges::any_of(posts, [&aPost](const card_post& aCardPost) { return aCardPost.Id == aPost; }) ? aPost : std::string{ };
+		choose(*index, true);
+		if (Picked.empty() || OpenCard == nullptr) {
+			return;
+		}
+		// The post is brought into view once the card hangs at its line on
+		// screen: the line's own reveal moves the code first.
+		RevealPicked      = true;
+		PickedRevealSteps = 0;
+		PickedRevealLast  = std::numeric_limits<int>::min();
+		place_open_card();
+	}
+
+	auto conversation_cards_view::picked_post() const noexcept -> const std::string&
+	{
+		return Picked;
+	}
+
 	void conversation_cards_view::toggle_thread(const std::string& aId)
 	{
 		if (!aId.empty() && Open == aId) {
@@ -2117,6 +2203,8 @@ namespace bpr::qt {
 			return;
 		}
 		Open.clear();
+		Picked.clear();
+		RevealPicked = false;
 		Replying.clear();
 		verticalScrollBar()->setValue(Feed ? verticalScrollBar()->value() : 0);
 		relayout();

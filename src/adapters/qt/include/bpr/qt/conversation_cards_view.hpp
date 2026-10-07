@@ -32,6 +32,7 @@ class QContextMenuEvent;
 class QMenu;
 class QPlainTextEdit;
 class QToolButton;
+class QTimer;
 class QKeyEvent;
 class QMouseEvent;
 class QPaintEvent;
@@ -336,6 +337,13 @@ namespace bpr::qt {
 		/// \brief [[BPR-1290]]. Opens one thread in place, closing any other,
 		/// makes it current and reports it as the reviewer's choice.
 		void open_thread(const std::string& aId);
+		/// \brief [[BPR-1293]]. Opens one thread in place, as `open_thread`
+		/// does, with one of its posts picked: washed amber and brought into
+		/// view. A post the thread does not hold picks nothing.
+		void open_thread_at(const std::string& aId, const std::string& aPost);
+		/// \brief The picked post of the open thread, or empty. Opening
+		/// another thread, or closing this one, drops it.
+		[[nodiscard]] auto picked_post() const noexcept -> const std::string&;
 		/// \brief Opens a closed thread or closes the open one.
 		void toggle_thread(const std::string& aId);
 		/// \brief Closes the open thread, keeping it current.
@@ -499,7 +507,15 @@ namespace bpr::qt {
 		QString                                                     Viewer;
 		std::string                                                 Current;
 		std::string                                                 Open;
-		std::string                                                 Hovered;
+		/// [[BPR-1293]]. The open thread's picked post, and the one a pick
+		/// is about to open with.
+		std::string Picked;
+		std::string PickedNext;
+		bool        RevealPicked      = false;
+		QTimer*     PickedReveal      = nullptr;
+		int         PickedRevealSteps = 0;
+		int         PickedRevealLast  = 0;
+		std::string Hovered;
 		/// The thread whose reply editor is shown in its open card.
 		std::string                    Replying;
 		std::vector<thread_read_state> ReadState;

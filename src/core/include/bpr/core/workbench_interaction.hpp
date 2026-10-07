@@ -85,6 +85,9 @@ namespace bpr::core {
 		/// [[BPR-1295]]. In Discuss the conversation is the page, not a
 		/// drawer, so hiding and showing the drawers is not offered there.
 		discuss_shows_the_conversation,
+		/// [[BPR-1293]]. Conversations is a page that finds a conversation;
+		/// its drawers are hidden, so hiding and showing them is not offered.
+		conversations_finds_a_conversation,
 	};
 
 	/// \brief The review modality the window has chosen.
@@ -97,11 +100,15 @@ namespace bpr::core {
 	/// with `overview_keeps_drawers_collapsed`. [[BPR-1295]]: Review keeps the
 	/// arrangement it last had in the window, so entering it is the core's
 	/// decision too. Discuss's preset is exact set-drawer intents the window
-	/// sends, as before. Read merged into Review on 2026-10-06.
+	/// sends, as before. Read merged into Review on 2026-10-06. [[BPR-1293]]:
+	/// Conversations is a page that finds a conversation across the pull
+	/// request. It has no preset: entering and leaving it changes no drawer,
+	/// and the window hides the drawers while it shows, as Discuss does.
 	enum class workbench_modality : std::uint8_t {
 		overview,
 		review,
 		discuss,
+		conversations,
 	};
 
 	/// \brief [[BPR-1295]]. How a modality is being entered.
@@ -234,8 +241,9 @@ namespace bpr::core {
 	/// \details With any drawer open, every drawer collapses and the core
 	/// remembers which were open. With none open, the remembered drawers
 	/// open again, or Review's preset when nothing is remembered. Overview
-	/// refuses it with `overview_keeps_drawers_collapsed` and Discuss with
-	/// `discuss_shows_the_conversation`.
+	/// refuses it with `overview_keeps_drawers_collapsed`, Discuss with
+	/// `discuss_shows_the_conversation` and Conversations with
+	/// `conversations_finds_a_conversation` ([[BPR-1293]]).
 	struct toggle_workbench_drawers_intent
 	{
 		auto operator<=>(const toggle_workbench_drawers_intent&) const = default;
@@ -519,7 +527,7 @@ namespace bpr::core {
 	/// because the strip may not carry a disabled toggle. [[BPR-1295]]: the
 	/// command that hides and shows every drawer is the exception the owner
 	/// accepted; it acts only in Review and is disabled with its reason in
-	/// Overview and Discuss.
+	/// Overview, Discuss and Conversations.
 	[[nodiscard]] auto project_workbench_commands(
 		const workbench_interaction_state& aState) noexcept
 		-> workbench_command_delta;

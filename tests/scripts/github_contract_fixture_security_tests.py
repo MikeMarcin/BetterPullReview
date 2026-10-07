@@ -187,6 +187,14 @@ FIXTURES = {
             "ListIssueComments": "synthetic",
         },
     },
+    # [[BPR-1293]]. Prototype v2's pull request, written by
+    # scripts/build_conversations_fixture.py.
+    "conversations-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "conversations", 418),
+        "mirrors": None,
+        "response_fields": {"ListReviewThreads": "synthetic"},
+    },
 }
 
 # The real commits the recording names. They must appear nowhere in a served

@@ -5146,7 +5146,8 @@ namespace {
 		bpr::app::github_application& aApplication,
 		std::string                   aPath,
 		QString                       aPullRequest,
-		std::optional<std::string>    aLook = std::nullopt)
+		std::optional<std::string>    aLook      = std::nullopt,
+		std::optional<std::string>    aReadState = std::nullopt)
 	{
 		enum class step : std::uint8_t {
 			connect,
@@ -5161,7 +5162,7 @@ namespace {
 		auto        state = std::make_shared<reveal_state>(reveal_state{ .Started = automated_clock::now() });
 		auto* const timer = new QTimer{ &aApplication.window() };
 		timer->setInterval(50);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, path = std::move(aPath), pullRequest = std::move(aPullRequest), look = std::move(aLook), alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, path = std::move(aPath), pullRequest = std::move(aPullRequest), look = std::move(aLook), readState = std::move(aReadState), alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -5200,6 +5201,12 @@ namespace {
 				case bpr::app::detail::fixture_file_reveal_result::pending:
 					return;
 				case bpr::app::detail::fixture_file_reveal_result::shown:
+					// [[BPR-1293]]. The fixture's read state, recorded through the
+					// review ledger before the person looks.
+					if (readState) {
+						const auto marked = bpr::app::detail::github_application_fixture_access::apply_fixture_read_state(aApplication, *readState);
+						QTextStream{ stdout } << (marked ? QStringLiteral("ATTENDED_READ_STATE:%1").arg(*marked) : QStringLiteral("ATTENDED_READ_STATE_FAILED")) << '\n';
+					}
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
 					if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
@@ -8278,6 +8285,21 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationIdentities = std::move(identities),
 					.ExpectedThreadId               = std::nullopt,
 				};
+			} else if (*fixture == "conversations-v1") {
+				// [[BPR-1293]]. Prototype v2's pull request; see
+				// `scripts/build_conversations_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::conversations_v1;
+				fixtureName            = "conversations-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "conversations",
+					.Number                   = 418,
+					.ExpectedTitle            = "Keep the selected conversation across a rebuild",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 21,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else {
 				QTextStream{ stdout } << "PUBLIC_PATH_FAILED\n";
 				return EXIT_FAILURE;
@@ -8766,12 +8788,15 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1084]] and [[BPR-1085]]. Or, on conventional-comments-v1 after
 		// the file, a seeded suggestion draft and, for `review`, the preflight.
 		const auto attendedPreflightLook = argument_value(argc, argv, "--attended-preflight-look");
+		// [[BPR-1293]]. On conversations-v1 after the file, its read state.
+		const auto attendedReadState = has_argument(argc, argv, "--attended-read-state");
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
 			|| (attendedOpenSettings && (!attendedLaunch || attendedOpenFile.has_value() || attendedOpenPullRequest))
 			|| (attendedPreflightLook.has_value()
 				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
-					|| (*attendedPreflightLook != "native" && *attendedPreflightLook != "text-only" && *attendedPreflightLook != "review")))) {
+					|| (*attendedPreflightLook != "native" && *attendedPreflightLook != "text-only" && *attendedPreflightLook != "review")))
+			|| (attendedReadState && (!attendedOpenFile.has_value() || fixtureName != "conversations-v1"))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -9147,7 +9172,8 @@ auto main(int argc, char** argv) -> int
 						bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_3", "issue (blocking): 1280 by 720 should be a named constant before this ships.", std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
 						bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_4", "todo (blocking): Rename Handler to OnClick while you are here.", std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
 					}
-					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look));
+					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look),
+											 attendedReadState ? std::optional<std::string>{ fixtureName } : std::nullopt);
 				}
 				if (heldOpenForInspection && attendedOpenSettings) {
 					schedule_attended_settings(*application);

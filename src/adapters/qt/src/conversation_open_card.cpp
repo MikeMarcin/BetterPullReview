@@ -682,6 +682,12 @@ namespace bpr::qt {
 		auto        painter = QPainter{ this };
 		const auto& colours = Style.Colours;
 		painter.setRenderHint(QPainter::Antialiasing, true);
+		// [[BPR-1293]]. The post picked in Conversations is washed amber with
+		// an amber edge, as the prototype marks it.
+		if (!Style.Picked.empty() && Style.Picked == Post.Id) {
+			painter.fillRect(rect(), colours.RouteSoft);
+			painter.fillRect(QRect{ 0, 0, 3, height() }, colours.Route);
+		}
 		if (RuleAbove) {
 			painter.setPen(QPen{ with_alpha(colours.Rule, 0.6), 1.0 });
 			painter.drawLine(QPointF{ 0.0, 0.5 }, QPointF{ static_cast<qreal>(width()), 0.5 });

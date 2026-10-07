@@ -1,0 +1,1833 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_conversations",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/adapters/qt/src/github_conversation_delegate.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/adapters/qt/src/github_conversation_model.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/adapters/qt/src/github_conversation_panel.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/adapters/qt/src/github_thread_map.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/adapters/qt/src/workbench_drawer.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/application/src/github_projection_mapping.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/core/src/private_thread_lineage.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/adapters_qt/github_thread_map_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/conversations:418:files",
+						"hasNextPage": false
+					},
+					"totalCount": 10
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_418",
+				"reviewThreads": {
+					"nodes": [
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "note: `UnreadPosts` is per post now, so a map's new state isn't invented any more.",
+										"id": "PRRC_cv_h78_1",
+										"line": 78,
+										"originalLine": 78,
+										"outdated": false,
+										"path": "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "praise: Yes, and that's what lets the finder mark new replies.",
+										"id": "PRRC_cv_h78_2",
+										"line": 78,
+										"originalLine": 78,
+										"outdated": false,
+										"path": "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
+										"replyTo": {
+											"id": "PRRC_cv_h78_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfaDc4XzI=",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_h78",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 78,
+							"originalLine": 78,
+							"path": "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "nitpick (non-blocking): `card_gap` and `card_margin` are both 8; one constant would do.",
+										"id": "PRRC_cv_t38_1",
+										"line": 38,
+										"originalLine": 38,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "They drift apart at Discuss widths, so I kept both.",
+										"id": "PRRC_cv_t38_2",
+										"line": 38,
+										"originalLine": 38,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t38_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "praise: Fair, and the names say why.",
+										"id": "PRRC_cv_t38_3",
+										"line": 38,
+										"originalLine": 38,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t38_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdDM4XzM=",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_t38",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 38,
+							"originalLine": 38,
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "question: Who still calls `set_feed()` once Discuss has its own list?",
+										"id": "PRRC_cv_t430_1",
+										"line": 430,
+										"originalLine": 430,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdDQzMF8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_t430",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 430,
+							"originalLine": 430,
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue (blocking): `set_current_thread()` keeps a reply's id when no card holds it, so `Current` can name nothing.",
+										"id": "PRRC_cv_t656_1",
+										"line": 656,
+										"originalLine": 656,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "question: Should it clear `Current` instead, or keep the last card?",
+										"id": "PRRC_cv_t656_2",
+										"line": 656,
+										"originalLine": 656,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t656_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "praise: Good catch, this explains the lost highlight after a refresh.",
+										"id": "PRRC_cv_t656_3",
+										"line": 656,
+										"originalLine": 656,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t656_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Clear it. I'll push the fix with a test.",
+										"id": "PRRC_cv_t656_4",
+										"line": 656,
+										"originalLine": 656,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t656_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdDY1Nl80",
+									"hasNextPage": false
+								},
+								"totalCount": 4
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_t656",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 656,
+							"originalLine": 656,
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-one",
+											"login": "reviewer-one"
+										},
+										"bodyText": "question: Should this traversal keep the selected node when the card list is rebuilt?",
+										"id": "PRRC_cv_t667_1",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_author-two",
+											"login": "author-two"
+										},
+										"bodyText": "It does: `Current` holds an id, not a row, so a rebuild can't move it.",
+										"id": "PRRC_cv_t667_2",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "Unless the card that held the id is gone after the rebuild.",
+										"id": "PRRC_cv_t667_3",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_2"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "question: What about a parent that arrives after its child, on the next page?",
+										"id": "PRRC_cv_t667_4",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "question: Then what does `Current` name? Nothing, until the next click?",
+										"id": "PRRC_cv_t667_5",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_3"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-one",
+											"login": "reviewer-one"
+										},
+										"bodyText": "That's the bug tbutler filed on line 656.",
+										"id": "PRRC_cv_t667_6",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_5"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_author-two",
+											"login": "author-two"
+										},
+										"bodyText": "Right. I'll fall back to the nearest card in file order.",
+										"id": "PRRC_cv_t667_7",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_6"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "thought: Nearest by line, or by position in the list?",
+										"id": "PRRC_cv_t667_8",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_7"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "The child is promoted to a root until its parent lands.",
+										"id": "PRRC_cv_t667_9",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_4"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-one",
+											"login": "reviewer-one"
+										},
+										"bodyText": "And when it lands, does the selection jump?",
+										"id": "PRRC_cv_t667_10",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_9"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "suggestion (non-blocking, if-minor): Look the id up in an index instead of walking every card's posts.",
+										"id": "PRRC_cv_t667_11",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-one",
+											"login": "reviewer-one"
+										},
+										"bodyText": "The index would need rebuilding on every refresh too.",
+										"id": "PRRC_cv_t667_12",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_11"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "By line. The list order changes with the scope.",
+										"id": "PRRC_cv_t667_13",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_8"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-one",
+											"login": "reviewer-one"
+										},
+										"bodyText": "praise: Line it is. That also keeps the code view still.",
+										"id": "PRRC_cv_t667_14",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_13"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_author-two",
+											"login": "author-two"
+										},
+										"bodyText": "It shouldn't. The id is the same; only its depth changes.",
+										"id": "PRRC_cv_t667_15",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_10"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_author-two",
+											"login": "author-two"
+										},
+										"bodyText": "It's built in `relayout()` already, so the lookup is free here.",
+										"id": "PRRC_cv_t667_16",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_12"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "Then the walk becomes a lookup. Worth it at 500 cards?",
+										"id": "PRRC_cv_t667_17",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_16"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "Measured: 0.4 ms against 0.02. Not urgent.",
+										"id": "PRRC_cv_t667_18",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_17"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_author-two",
+											"login": "author-two"
+										},
+										"bodyText": "nitpick: Leave a comment pointing at the measurement, then.",
+										"id": "PRRC_cv_t667_19",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_18"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "thought (perf): Aside: `relayout()` also runs twice on a scope change. Separate card?",
+										"id": "PRRC_cv_t667_20",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_16"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-one",
+											"login": "reviewer-one"
+										},
+										"bodyText": "Agreed. Branch A's fix first, this after.",
+										"id": "PRRC_cv_t667_21",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_19"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Yes, filed it. The second pass finds nothing to do.",
+										"id": "PRRC_cv_t667_22",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_20"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "issue (blocking): The test only loads one page, so paging is never exercised here.",
+										"id": "PRRC_cv_t667_23",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_15"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "todo: Adding a two-page case to the hostile fixtures.",
+										"id": "PRRC_cv_t667_24",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_23"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-one",
+											"login": "reviewer-one"
+										},
+										"bodyText": "Thanks. Ping me when it's up.",
+										"id": "PRRC_cv_t667_25",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_24"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "praise: Thanks for splitting it out.",
+										"id": "PRRC_cv_t667_26",
+										"line": 667,
+										"originalLine": 667,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t667_22"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdDY2N18yNg==",
+									"hasNextPage": false
+								},
+								"totalCount": 26
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_t667",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 667,
+							"originalLine": 667,
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "suggestion: `relayout()` is 200 lines; measuring and placing could be two functions.",
+										"id": "PRRC_cv_t927_1",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "They share `compactMeasurements`, so splitting means passing it around.",
+										"id": "PRRC_cv_t927_2",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t927_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Passing one struct is fine. The measuring half has no side effects.",
+										"id": "PRRC_cv_t927_3",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t927_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "thought: Then the placing half could be tested without fonts.",
+										"id": "PRRC_cv_t927_4",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t927_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "Which would have caught the 280 px clipping last week.",
+										"id": "PRRC_cv_t927_5",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t927_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "note (perf): `relayout()` runs twice on a scope change; the second pass finds nothing to do.",
+										"id": "PRRC_cv_t927_6",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t927_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Splitting after this lands, on its own card.",
+										"id": "PRRC_cv_t927_7",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t927_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "praise: Thanks, happy with that.",
+										"id": "PRRC_cv_t927_8",
+										"line": 927,
+										"originalLine": 927,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t927_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdDkyN184",
+									"hasNextPage": false
+								},
+								"totalCount": 8
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_t927",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 927,
+							"originalLine": 927,
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "Why `width - 2 * card_margin` and not the viewport's `contentsRect()`?",
+										"id": "PRRC_cv_t1080_1",
+										"line": 1080,
+										"originalLine": 1080,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "The viewport has no margins here, so `contentsRect()` is the same width.",
+										"id": "PRRC_cv_t1080_2",
+										"line": 1080,
+										"originalLine": 1080,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t1080_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "nitpick (non-blocking): Then a comment saying so would stop the next person asking.",
+										"id": "PRRC_cv_t1080_3",
+										"line": 1080,
+										"originalLine": 1080,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t1080_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdDEwODBfMw==",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_t1080",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 1080,
+							"originalLine": 1080,
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "thought (perf): `std::max` here pushes every later card down one by one; does a run of close lines cost a pass each?",
+										"id": "PRRC_cv_t1176_1",
+										"line": 1176,
+										"originalLine": 1176,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "It's one pass over sorted cards, so linear either way.",
+										"id": "PRRC_cv_t1176_2",
+										"line": 1176,
+										"originalLine": 1176,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t1176_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "Right, I misread the loop.",
+										"id": "PRRC_cv_t1176_3",
+										"line": 1176,
+										"originalLine": 1176,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t1176_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdDExNzZfMw==",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_t1176",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 1176,
+							"originalLine": 1176,
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "chore (non-blocking): Say in a comment that Shift+F10 and the Menu key open the same thread menu.",
+										"id": "PRRC_cv_t1510_1",
+										"line": 1510,
+										"originalLine": 1510,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "+1, the second half of the condition on 1512 is easy to miss.",
+										"id": "PRRC_cv_t1510_2",
+										"line": 1510,
+										"originalLine": 1510,
+										"outdated": false,
+										"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_t1510_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdDE1MTBfMg==",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_t1510",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 1510,
+							"originalLine": 1510,
+							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "nitpick: The cache key leaves out the label marks theme, so switching themes keeps the old heights.",
+										"id": "PRRC_cv_e477_1",
+										"line": 477,
+										"originalLine": 477,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_conversation_delegate.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfZTQ3N18x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_e477",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 477,
+							"originalLine": 477,
+							"path": "src/adapters/qt/src/github_conversation_delegate.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "suggestion (non-blocking): `apply()` moves rows one at a time; a reset would be cheaper past 500 rows.",
+										"id": "PRRC_cv_m419_1",
+										"line": 419,
+										"originalLine": 419,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_conversation_model.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_author-two",
+											"login": "author-two"
+										},
+										"bodyText": "A reset loses the selection, which is the thing this pull request keeps.",
+										"id": "PRRC_cv_m419_2",
+										"line": 419,
+										"originalLine": 419,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_conversation_model.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_m419_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfbTQxOV8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_m419",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 419,
+							"originalLine": 419,
+							"path": "src/adapters/qt/src/github_conversation_model.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "question: Once the drawer is inline only, who still calls `synchronize_map_focus()`?",
+										"id": "PRRC_cv_n571_1",
+										"line": 571,
+										"originalLine": 571,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_conversation_panel.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_observer-three",
+											"login": "observer-three"
+										},
+										"bodyText": "The finder would, if it keeps the picked reply.",
+										"id": "PRRC_cv_n571_2",
+										"line": 571,
+										"originalLine": 571,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_conversation_panel.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_n571_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfbjU3MV8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_n571",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 571,
+							"originalLine": 571,
+							"path": "src/adapters/qt/src/github_conversation_panel.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "thought: Restoring by identity is what keeps the picked reply after a refresh. Worth a test that picks a deep one.",
+										"id": "PRRC_cv_n826_1",
+										"line": 826,
+										"originalLine": 826,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_conversation_panel.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "todo (if-minor): Adding it to the branching fixture.",
+										"id": "PRRC_cv_n826_2",
+										"line": 826,
+										"originalLine": 826,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_conversation_panel.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_n826_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfbjgyNl8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_n826",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 826,
+							"originalLine": 826,
+							"path": "src/adapters/qt/src/github_conversation_panel.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "question: Why an explicit stack and not recursion?",
+										"id": "PRRC_cv_g282_1",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "A hostile fixture is 10,000 deep; recursion would run out of stack.",
+										"id": "PRRC_cv_g282_2",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "That's `valid-deep-wide-tree`'s cousin in the hostile set.",
+										"id": "PRRC_cv_g282_3",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "thought: Then the comment should say depth is the reason, not taste.",
+										"id": "PRRC_cv_g282_4",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "It says pre-order is the point; depth isn't mentioned.",
+										"id": "PRRC_cv_g282_5",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "Could `Depth` be computed when placing instead of here?",
+										"id": "PRRC_cv_g282_6",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "suggestion: Keep it here; placing reads it for every edge.",
+										"id": "PRRC_cv_g282_7",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Agreed, and name the bound on `pending`.",
+										"id": "PRRC_cv_g282_8",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "praise: The no-crossing property in one sentence is lovely.",
+										"id": "PRRC_cv_g282_9",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "nitpick (non-blocking): `order.reserve` could come first. It already does; ignore me.",
+										"id": "PRRC_cv_g282_10",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Leaving it.",
+										"id": "PRRC_cv_g282_11",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Rebased on main; the hostile fixtures still pass.",
+										"id": "PRRC_cv_g282_12",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "issue (blocking): A parent that arrives on the next page is promoted to a root and never re-parented.",
+										"id": "PRRC_cv_g282_13",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "The map is rebuilt when that page lands, so it re-parents then.",
+										"id": "PRRC_cv_g282_14",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "question: Is there a test for that?",
+										"id": "PRRC_cv_g282_15",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "Not yet. I'll add one with the paged fixture.",
+										"id": "PRRC_cv_g282_16",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Thanks, I'll wait for it.",
+										"id": "PRRC_cv_g282_17",
+										"line": 282,
+										"originalLine": 282,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g282_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfZzI4Ml8xNw==",
+									"hasNextPage": false
+								},
+								"totalCount": 17
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_g282",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 282,
+							"originalLine": 282,
+							"path": "src/adapters/qt/src/github_thread_map.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "question: Should a focus change announce itself when the drawer moved it?",
+										"id": "PRRC_cv_g469_1",
+										"line": 469,
+										"originalLine": 469,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfZzQ2OV8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_g469",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 469,
+							"originalLine": 469,
+							"path": "src/adapters/qt/src/github_thread_map.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "nitpick: `reveal_branch()` could share its margin with `reveal()`.",
+										"id": "PRRC_cv_g711_1",
+										"line": 711,
+										"originalLine": 711,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Done.",
+										"id": "PRRC_cv_g711_2",
+										"line": 711,
+										"originalLine": 711,
+										"outdated": false,
+										"path": "src/adapters/qt/src/github_thread_map.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_g711_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfZzcxMV8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_g711",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 711,
+							"originalLine": 711,
+							"path": "src/adapters/qt/src/github_thread_map.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "chore (non-blocking): `insert_or_move()` could log its moves under the diagnostics flag.",
+										"id": "PRRC_cv_w288_1",
+										"line": 288,
+										"originalLine": 288,
+										"outdated": false,
+										"path": "src/adapters/qt/src/workbench_drawer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "Done in the next push.",
+										"id": "PRRC_cv_w288_2",
+										"line": 288,
+										"originalLine": 288,
+										"outdated": false,
+										"path": "src/adapters/qt/src/workbench_drawer.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_w288_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfdzI4OF8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_w288",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 288,
+							"originalLine": 288,
+							"path": "src/adapters/qt/src/workbench_drawer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue (blocking): Carry `ReplyTo`, not the root. Where does a first comment fall back?",
+										"id": "PRRC_cv_p168_1",
+										"line": 168,
+										"originalLine": 168,
+										"outdated": false,
+										"path": "src/application/src/github_projection_mapping.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "A first comment's `ReplyTo` is empty, so it falls back to the root.",
+										"id": "PRRC_cv_p168_2",
+										"line": 168,
+										"originalLine": 168,
+										"outdated": false,
+										"path": "src/application/src/github_projection_mapping.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_p168_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Then say so in a test.",
+										"id": "PRRC_cv_p168_3",
+										"line": 168,
+										"originalLine": 168,
+										"outdated": false,
+										"path": "src/application/src/github_projection_mapping.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_p168_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "todo: Adding one.",
+										"id": "PRRC_cv_p168_4",
+										"line": 168,
+										"originalLine": 168,
+										"outdated": false,
+										"path": "src/application/src/github_projection_mapping.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_p168_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfcDE2OF80",
+									"hasNextPage": false
+								},
+								"totalCount": 4
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_p168",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 168,
+							"originalLine": 168,
+							"path": "src/application/src/github_projection_mapping.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "suggestion: Say why `ParentId` is empty here; it reads like a bug.",
+										"id": "PRRC_cv_p312_1",
+										"line": 312,
+										"originalLine": 312,
+										"outdated": false,
+										"path": "src/application/src/github_projection_mapping.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Agreed.",
+										"id": "PRRC_cv_p312_2",
+										"line": 312,
+										"originalLine": 312,
+										"outdated": false,
+										"path": "src/application/src/github_projection_mapping.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_p312_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfcDMxMl8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_p312",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 312,
+							"originalLine": 312,
+							"path": "src/application/src/github_projection_mapping.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "praise: The version check before advancing reads well.",
+										"id": "PRRC_cv_q44_1",
+										"line": 44,
+										"originalLine": 44,
+										"outdated": false,
+										"path": "src/core/src/private_thread_lineage.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfcTQ0XzE=",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_q44",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 44,
+							"originalLine": 44,
+							"path": "src/core/src/private_thread_lineage.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "issue: This guards against read state the ledger now carries; it should check the map uses it instead.",
+										"id": "PRRC_cv_s438_1",
+										"line": 438,
+										"originalLine": 438,
+										"outdated": false,
+										"path": "tests/adapters_qt/github_thread_map_tests.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "question: Rename it, or let `test_unread_nodes_are_filled_from_the_ledger_state` cover it?",
+										"id": "PRRC_cv_s438_2",
+										"line": 438,
+										"originalLine": 438,
+										"outdated": false,
+										"path": "tests/adapters_qt/github_thread_map_tests.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_s438_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "Let 599 cover it and delete this one.",
+										"id": "PRRC_cv_s438_3",
+										"line": 438,
+										"originalLine": 438,
+										"outdated": false,
+										"path": "tests/adapters_qt/github_thread_map_tests.cpp",
+										"replyTo": {
+											"id": "PRRC_cv_s438_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY3ZfczQzOF8z",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cv_s438",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 438,
+							"originalLine": 438,
+							"path": "tests/adapters_qt/github_thread_map_tests.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						}
+					],
+					"pageInfo": {
+						"endCursor": "Y3Vyc29yOlBSUlRfY3ZfczQzOA==",
+						"hasNextPage": false
+					},
+					"totalCount": 21
+				}
+			}
+		}
+	}
+}

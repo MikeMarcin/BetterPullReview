@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/conversations",
+	"id": 2,
+	"name": "conversations",
+	"node_id": "R_conversations",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

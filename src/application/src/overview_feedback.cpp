@@ -3,6 +3,7 @@
 #include "bpr/application/feedback_counters.hpp"
 
 #include <algorithm>
+#include <array>
 #include <map>
 #include <numeric>
 #include <set>
@@ -217,5 +218,31 @@ namespace bpr::application {
 		listing.Count     = core::feedback_count_of(counts, aDrillDown.Target);
 		listing.Limits    = counts.Limits;
 		return listing;
+	}
+
+	auto project_conversation_labels(const feedback_counter_model& aModel) -> std::optional<conversation_labels_projection>
+	{
+		if (!aModel.observed()) {
+			return std::nullopt;
+		}
+		// Every label is a column, so each conversation is counted under its
+		// own root label and nowhere else; `all` keeps every state.
+		auto columns = std::array<core::feedback_label, core::feedback_label_count>{ };
+		for (std::size_t index = 0U; index < columns.size(); ++index) {
+			columns[index] = core::feedback_label_catalog()[index].Label;
+		}
+		auto       result = conversation_labels_projection{ .Generation = aModel.generation() };
+		const auto where  = scope(feedback_counter_scope_kind::pull_request);
+		for (const auto label : columns) {
+			auto selection = core::select_feedback_units(aModel.population(), where, columns, core::feedback_resolution_mode::all,
+														 core::feedback_count_target{ .Kind = core::feedback_count_kind::dedicated, .Label = label });
+			if (selection.Refusal != core::feedback_selection_refusal::none) {
+				return std::nullopt;
+			}
+			if (!selection.Ids.empty()) {
+				result.Labels.push_back({ .Label = label, .Conversations = std::move(selection.Ids) });
+			}
+		}
+		return result;
 	}
 }

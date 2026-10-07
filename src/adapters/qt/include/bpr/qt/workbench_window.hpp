@@ -18,6 +18,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/claude_wrapper_panel.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
@@ -445,8 +446,28 @@ namespace bpr::qt {
 		void present_link_location_notice(const QString& aText);
 		/// \brief [[BPR-0987]]. Reveals one conversation of the open pull request
 		/// in Discuss, as a press on its row would; false when the window does
-		/// not list it.
+		/// not list it. [[BPR-1293]]: a conversation on a file opens in Review
+		/// instead, in place at the named post, as a pick in Conversations does.
 		[[nodiscard]] auto reveal_conversation(const std::string& aIdentity) -> bool;
+		/// \brief [[BPR-1293]]. Opens a conversation on a file in Review: the
+		/// file through the files drawer's intent, Review in the arrangement
+		/// it last had, the Comments drawer if it is closed (a manual open),
+		/// and the thread in place at \p aPost, once the file's comparison
+		/// shows it. False when the window has no such conversation.
+		auto open_conversation_in_review(const std::string& aThread, const std::string& aPost) -> bool;
+		/// \brief [[BPR-1293]]. Opens a conversation on a file in Review, named
+		/// by its root or any of its posts; false for one that is not on a file.
+		auto reveal_conversation_in_review(const std::string& aIdentity) -> bool;
+		/// \brief [[BPR-1293]]. Conversations, the pull request's finder page.
+		[[nodiscard]] auto finder() const noexcept -> conversation_finder*;
+		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Conversations, and
+		/// from it back to the modality it was entered from.
+		[[nodiscard]] auto show_conversations_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1293]]. The finder button at the top of the Comments drawer.
+		[[nodiscard]] auto conversations_finder_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1293]]. [[BPR-1087]]'s conversations per label, for
+		/// the finder's label filter.
+		void set_conversation_labels(std::optional<application::conversation_labels_projection> aLabels);
 
 		/// \brief Routes profile gestures and desktop management/quit to their composition owner.
 		void set_profile_management_dispatch(application::profile_management_dispatch aDispatch,
@@ -1313,6 +1334,15 @@ namespace bpr::qt {
 		/// [[BPR-1046]]. Completes or refuses a reply that waited for its
 		/// thread's comparison, once a comparison has arrived.
 		void resume_deferred_reply();
+		/// \brief [[BPR-1293]]. ⌘J: Conversations, or back from it.
+		void toggle_conversations();
+		/// \brief [[BPR-1293]]. Back to the modality Conversations was entered from.
+		void leave_conversations();
+		/// \brief [[BPR-1293]]. Opens a waiting pick once its file's
+		/// comparison shows its thread; drops it once another file shows.
+		void resume_conversation_pick();
+		/// \brief [[BPR-1293]]. Tells the finder where Review is.
+		void present_finder_reading();
 		// [[BPR-0661]]. The preference rows and what honours them.
 		void build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
 		void apply_behaviour_controls();
@@ -1618,12 +1648,29 @@ namespace bpr::qt {
 		QStackedWidget*                              CentreStack            = nullptr;
 		QWidget*                                     ComparisonPage         = nullptr;
 		QWidget*                                     DiscussPage            = nullptr;
-		QVBoxLayout*                                 ConversationLayout     = nullptr;
-		QScrollArea*                                 ComposeReviewPage      = nullptr;
-		QScrollArea*                                 ComposeInlinePage      = nullptr;
-		QWidget*                                     CompositionPage        = nullptr;
-		QPointer<QWidget>                            CompositionReturnFocus;
-		QPointer<QWidget>                            DiscussReturnFocus;
+		/// [[BPR-1293]]. Conversations' page and its finder.
+		QWidget*             ConversationsPage         = nullptr;
+		conversation_finder* Finder                    = nullptr;
+		QAction*             ShowConversationsAction   = nullptr;
+		QToolButton*         ConversationsFinderButton = nullptr;
+		/// The modality Conversations was entered from, and where focus was.
+		std::optional<review_modality> ConversationsReturn;
+		QPointer<QWidget>              ConversationsReturnFocus;
+		/// A pick waiting for its file's comparison to show the thread.
+		struct conversation_pick
+		{
+			std::string                                 Thread;
+			std::string                                 Post;
+			core::file_identity                         File{ };
+			std::optional<core::file_comparison_digest> Before;
+		};
+		std::optional<conversation_pick> PendingPick;
+		QVBoxLayout*                     ConversationLayout = nullptr;
+		QScrollArea*                     ComposeReviewPage  = nullptr;
+		QScrollArea*                     ComposeInlinePage  = nullptr;
+		QWidget*                         CompositionPage    = nullptr;
+		QPointer<QWidget>                CompositionReturnFocus;
+		QPointer<QWidget>                DiscussReturnFocus;
 		/// [[BPR-1089]]. Where focus was on the Overview when a count opened
 		/// Discuss, so going back to the Overview finds the same cell.
 		QPointer<QWidget> OverviewReturnFocus;

@@ -208,9 +208,12 @@ namespace {
 						   "the key " + text.toStdString() + " is held twice in the assembled window");
 				}
 			}
+			// [[BPR-1293]]. Conversations takes Ctrl+4, and Ctrl+J goes to it.
 			expect(seen[QStringLiteral("Ctrl+B")] == QStringLiteral("toggleWorkbenchDrawersAction")
-					   && seen.contains(QStringLiteral("Ctrl+3")) && !seen.contains(QStringLiteral("Ctrl+4")),
-				   "the assembled window gives Ctrl+B to Hide Drawers and Ctrl+3 to Discuss, and leaves Ctrl+4 free");
+					   && seen[QStringLiteral("Ctrl+3")] == QStringLiteral("reviewModalityDiscussAction")
+					   && seen[QStringLiteral("Ctrl+4")] == QStringLiteral("reviewModalityConversationsAction")
+					   && seen[QStringLiteral("Ctrl+J")] == QStringLiteral("showWorkbenchConversationsAction"),
+				   "the assembled window gives Ctrl+B to Hide Drawers, Ctrl+3 to Discuss, and Ctrl+4 and Ctrl+J to Conversations, each once");
 		}
 		auto*       files = window.files_drawer()->contents_view();
 		QModelIndex selected;

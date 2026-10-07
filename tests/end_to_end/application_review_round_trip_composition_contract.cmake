@@ -897,6 +897,23 @@ endfunction()
 # target, provider, credential, environment, mutation or publication path
 # changes; host policy unchanged; mutation pin unchanged; no new src/app
 # source. Reviewed on BPR-1301.
+# BPR-1293 reseal (2026-10-06): over the BPR-1301 reseal above, rebased; no
+# other intervening pinned-scope commit (the BPR-1301 pins matched at f5a64e041).
+# Conversations, a fourth modality. github_application.cpp: the course's
+# modality names gain Conversations ("conversations" for its centre); a
+# `#discussion_r` link the read identified and the reveal of a just-published
+# inline comment open the thread in place in Review through the window's
+# reveal_conversation_in_review, a review link still revealing in Discuss; each
+# accepted snapshot's label lists (project_conversation_labels over the kept
+# feedback_counter_model) go to the window; the appearance gives the finder its
+# colours and code font. Tests-on only: the conversations-v1 fixture's host
+# profile, and an attended look's read state recorded through the same review
+# ledger call Mark read makes (mark_conversation_read_through,
+# apply_fixture_read_state). main.cpp: `--github-fixture conversations-v1` and
+# `--attended-read-state`. It reads only the accepted snapshot and the kept
+# counts the window already holds; no provider, grant, target, credential,
+# storage, mutation or publication path changes; mutation pin unchanged; no new
+# src/app source. Reviewed on BPR-1293.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -915,7 +932,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"01bb34a997084e2063cf7fe1ad5010f7f6839039eb4bb915fe384120bd56ede0"
+		"8521e8de1a719b2b15a5096a150955852f78423561e512ba44157a771484f111"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1113,7 +1130,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "dd3e864694f5209e4faa2f38292e45f65f2547811dfe910755f5507488e1150a"
+        "9a2ea57969b36cb4f7964f8692a9f2685abc6615c83cdbbd6c8de6d07a971798"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

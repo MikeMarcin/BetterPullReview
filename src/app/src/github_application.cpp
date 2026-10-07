@@ -164,6 +164,8 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -975,6 +977,15 @@ namespace bpr::app {
 						github_com_2022_11_28,
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed Overview labels",
+				};
+			case detail::github_public_path_fixture::conversations_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed conversations",
 				};
 			}
 			return { };
@@ -10001,8 +10012,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto identity = "review-comment:" + pending.Comment;
+			// [[BPR-1293]]. Review stays: the thread opens in place at the
+			// published post.
 			if (Window->conversation_model()->index_for_id(identity).isValid()
-				&& Window->reveal_conversation(identity)) {
+				&& Window->reveal_conversation_in_review(identity)) {
 				PendingPublishedConversation.reset();
 			}
 		}
@@ -11498,6 +11511,51 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			QueueHost->refresh(QueueActivity->Ref, QueueActivity->Activity);
 		}
 
+#if defined(BPR_BUILD_TESTING)
+		/// \brief [[BPR-1293]]. An attended look's read state: the thread
+		/// read through \p aComment exactly as Mark read records it at its
+		/// latest post, so the posts after it are new.
+		auto mark_conversation_read_through(const std::string& aThread, const std::string& aComment) -> bool
+		{
+			if (Closing || ReviewLedgerHost == nullptr || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return false;
+			}
+			const auto* const thread = accepted_thread(aThread);
+			if (thread == nullptr) {
+				return false;
+			}
+			auto seen = std::optional<core::conversation_post_observation>{ };
+			for (const auto& comment : thread->Comments) {
+				if ("review-comment:" + std::string{ comment.Comment.value() } == aComment) {
+					seen = post_observation(comment, WindowRead->accepted_snapshot()->Viewer.Login);
+				}
+			}
+			if (!seen.has_value()) {
+				return false;
+			}
+			ReviewLedgerHost->mark_conversation_read(
+				core::conversation_observation{
+					.Conversation  = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
+					.LatestComment = seen->Comment,
+					.LatestEdit    = seen->Edit,
+				},
+				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
+					if (!aMarked.has_value()) {
+						return;
+					}
+					const auto cached = cached_thread(aThread);
+					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
+					if (!unseen.has_value()) {
+						unseen = publish_read_state();
+					}
+					if (unseen.has_value()) {
+						refresh_queue_unseen(*unseen);
+					}
+				}));
+			return true;
+		}
+#endif
+
 		void mark_conversation_read(const std::string& aThread)
 		{
 			if (Closing || ReviewLedgerHost == nullptr) {
@@ -11671,6 +11729,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!observed.Admitted) {
 				return;
 			}
+			// [[BPR-1293]]. Conversations' label filter counts as the Overview's
+			// chips do, from the same kept population.
+			Window->set_conversation_labels(application::project_conversation_labels(FeedbackCounters));
 			publish_overview_feedback();
 			// A listed count follows the accepted population; the reviewer's
 			// place in Discuss stays where it is.
@@ -12583,7 +12644,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			case core::pull_request_location_action::none:        finish_link_location(core::pull_request_location_refusal::none, true); return;
 			case core::pull_request_location_action::unavailable: finish_link_location(target.Refusal, true); return;
 			case core::pull_request_location_action::reveal_conversation:
-				if (Window->reveal_conversation(target.Conversation)) {
+				// [[BPR-1293]]. A comment on a file is read in Review, in place
+				// at that post; a review, which is not on a file, in Discuss.
+				if (Window->reveal_conversation_in_review(target.Conversation) || Window->reveal_conversation(target.Conversation)) {
 					finish_link_location(core::pull_request_location_refusal::none, true);
 				} else {
 					finish_link_location(pending.Destination.Target.Kind == core::pull_request_location_kind::review ? core::pull_request_location_refusal::review_not_read
@@ -15090,6 +15153,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				conversations->cards()->set_code_colours(
 					AppearanceProfile->color(core::appearance_role::code_background),
 					AppearanceProfile->color(core::appearance_role::syntax_normal));
+			}
+			// [[BPR-1293]]. Conversations' blue, amber and line numbers.
+			if (auto* const finder = Window->finder(); finder != nullptr) {
+				finder->set_colours(AppearanceProfile->color(core::appearance_role::state_unread), QColor{ 0xD2, 0x99, 0x22 });
+				finder->set_code_font(AppearanceProfile->code_font());
 			}
 
 			// Read back off the window rather than off the profile. The claim
@@ -17913,6 +17981,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return core::workbench_modality::review;
 			case qt::review_modality::discuss:
 				return core::workbench_modality::discuss;
+			case qt::review_modality::conversations:
+				return core::workbench_modality::conversations;
 			}
 			return core::workbench_modality::review;
 		}
@@ -17927,6 +17997,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return QStringLiteral("Review");
 			case core::workbench_modality::discuss:
 				return QStringLiteral("Discuss");
+			case core::workbench_modality::conversations:
+				return QStringLiteral("Conversations");
 			}
 			return QStringLiteral("unknown");
 		}
@@ -18023,6 +18095,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			: offered.Comparison                  ? QStringLiteral("comparison")
 			: window.current_modality() == qt::review_modality::discuss
 			? QStringLiteral("discussion")
+			: window.current_modality() == qt::review_modality::conversations
+			? QStringLiteral("conversations")
 			: QStringLiteral("other");
 		auto       sizes  = QStringList{ };
 		if (window.central_splitter() != nullptr) {
@@ -24569,6 +24643,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			break;
 		}
 		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::mark_fixture_read_through(
+		github_application& aApplication, const std::string& aThread, const std::string& aComment) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->mark_conversation_read_through(aThread, aComment);
+	}
+
+	auto detail::github_application_fixture_access::apply_fixture_read_state(github_application& aApplication, const std::string& aFixture)
+		-> std::optional<std::size_t>
+	{
+		auto file = QFile{ QString::fromStdString((std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aFixture / "read_state.json").string()) };
+		if (!file.open(QIODevice::ReadOnly)) {
+			return std::nullopt;
+		}
+		const auto threads = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("threads")).toObject();
+		auto       marked  = std::size_t{ 0U };
+		for (auto entry = threads.begin(); entry != threads.end(); ++entry) {
+			if (entry.value().isNull()) {
+				continue;
+			}
+			if (!mark_fixture_read_through(aApplication, entry.key().toStdString(), entry.value().toString().toStdString())) {
+				return std::nullopt;
+			}
+			++marked;
+		}
+		return marked;
 	}
 
 	auto detail::github_application_fixture_access::reveal_fixture_file(
