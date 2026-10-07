@@ -549,7 +549,15 @@ namespace bpr::qt {
 		return { .Open       = to_presentation_color(palette[core::index_of(core::appearance_role::state_attention)]),
 				 .Resolved   = resolved,
 				 .OnResolved = feedback_mark_blocking_ink(resolved),
-				 .Faint      = aPalette.color(QPalette::PlaceholderText) };
+				 .Faint      = feedback_state_faint(aPalette) };
+	}
+
+	auto feedback_state_faint(const QPalette& aPalette, const QPalette::ColorGroup aGroup) -> QColor
+	{
+		const auto ink  = aPalette.color(aGroup, QPalette::Text);
+		const auto base = aPalette.color(aGroup, QPalette::Base);
+		const auto mix  = [](const float aInk, const float aBase) { return aInk + (aBase - aInk) * 0.32F; };
+		return QColor::fromRgbF(mix(ink.redF(), base.redF()), mix(ink.greenF(), base.greenF()), mix(ink.blueF(), base.blueF()));
 	}
 
 	void paint_feedback_state_mark(QPainter& aPainter, const QRectF& aBox, const core::feedback_resolution aState, const feedback_state_colours& aColours)

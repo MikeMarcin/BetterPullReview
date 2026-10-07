@@ -2966,6 +2966,17 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_overview_feedback_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
     PASS_REGULAR_EXPRESSION "overview-feedback-public-path:pass")
+# [[BPR-1089]]. overview-labels-v1, the pull request the owner's Overview look
+# opens: its counts in Open and All, Settings' chips in order, the ? count, and
+# the Label key, a Comments menu and Discuss's caption in the page's theme.
+bpr_add_network_isolated_test(
+    NAME application_overview_labels_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --overview-labels
+)
+set_tests_properties(application_overview_labels_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "overview-labels-public-path:pass")
 
 bpr_add_executable(test_attended_recent_replay attended_recent_replay_tests.cpp)
 target_link_libraries(test_attended_recent_replay PRIVATE BetterPullReview::Composition BetterPullReview::AdapterGitHub)

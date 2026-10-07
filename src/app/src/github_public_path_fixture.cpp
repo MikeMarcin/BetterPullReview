@@ -443,6 +443,29 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "nested-folders-v1/objects.pack" },
 				};
+			// [[BPR-1089]]. The nested-folders pull request, pack and identity
+			// alike, with many labelled threads, pull request comments and
+			// review summaries (`scripts/build_overview_labels_fixture.py`).
+			case github_public_path_fixture::overview_labels_v1:
+				return {
+					.ContractDirectory   = "overview-labels-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 21U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "nested-folders",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "c58160c2ffe27d7cf5e6759d78b80f023547c789",
+					.HeadOneOid          = "b20cb443428212543f5911e091a0ffeb407d23cf",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "nested-folders-v1/objects.pack" },
+				};
 			// [[BPR-1290]]. Constructed by `scripts/build_inline_drawer_fixture.py`:
 			// the conventional-comments files and threads plus a long file with
 			// threads at its lines, its own pack and one head.

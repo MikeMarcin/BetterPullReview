@@ -1,3 +1,4 @@
+#include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include <QTextEdit>
@@ -10,6 +11,7 @@
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QHeaderView>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
@@ -27,6 +29,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
@@ -1071,6 +1074,32 @@ namespace {
 		return aPage.file_model()->index_for_path(QString::fromStdString(aPath)).siblingAtColumn(qt::overview_file_model::comments_column);
 	}
 
+	/// The selected design draws a chip's count as its digits beside the
+	/// mark: in Open, in the open amber, with no fill behind them, on file and
+	/// folder rows alike. True when the count's box holds that ink, but less
+	/// of it than a filled pill would.
+	[[nodiscard]] auto count_is_amber_text(qt::pull_request_overview_page& aPage, const qt::overview_comment_chip& aChip) -> bool
+	{
+		auto* const viewport = aPage.files_view()->viewport();
+		const auto  image    = viewport->grab().toImage();
+		const auto  scale    = image.devicePixelRatio();
+		const auto  open     = aPage.colours().States.Open;
+		const auto  amberish = [&](const QColor aColour) {
+			return std::abs(aColour.red() - open.red()) + std::abs(aColour.green() - open.green()) + std::abs(aColour.blue() - open.blue()) < 60;
+		};
+		const auto count  = QRectF{ aChip.Box.left() + 16.0 + 3.0, aChip.Box.top(), aChip.Box.width() - 19.0, aChip.Box.height() };
+		auto       amber  = 0;
+		auto       pixels = 0;
+		for (auto y = count.top(); y < count.bottom(); y += 0.5) {
+			for (auto x = count.left(); x < count.right(); x += 0.5) {
+				amber += amberish(image.pixelColor(QPoint{ static_cast<int>(x * scale), static_cast<int>(y * scale) })) ? 1 : 0;
+				++pixels;
+			}
+		}
+		// Digits ink a small share of their box; a filled pill most of it.
+		return amber > 0 && amber * 3 < pixels;
+	}
+
 	[[nodiscard]] auto chips_of(qt::pull_request_overview_page& aPage, const QModelIndex& aCell) -> std::vector<qt::overview_comment_chip>
 	{
 		const auto* counts = aPage.file_model()->feedback_at(aCell);
@@ -1133,6 +1162,26 @@ namespace {
 			   "issue 1, question 1 and Other 1 (the plain thread): disjoint, the resolved issue in none");
 		expect(cell(page, lighting).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 1, question 1, Other 1 open conversations"),
 			   "the cell's accessible text names label, count, unit and mode");
+		const auto lightingFolder = model->index_for_path(QString::fromStdString(lighting)).parent().siblingAtColumn(qt::overview_file_model::comments_column);
+		page.files_view()->clearSelection();
+		settle();
+		expect(count_is_amber_text(page, chips[0]) && count_is_amber_text(page, chips_of(page, lightingFolder).front()),
+			   "in Open, a count is amber digits with no fill, on a file row and its folder row alike");
+		// The ? mark's quiet ink stays readable: at least 4.5:1, 7:1 on a
+		// high-contrast palette (black on white).
+		const auto contrast = [](const QColor& aOne, const QColor& aTwo) {
+			const auto channel = [](const double aValue) { return aValue <= 0.03928 ? aValue / 12.92 : std::pow((aValue + 0.055) / 1.055, 2.4); };
+			const auto lum     = [&](const QColor& aColour) { return 0.2126 * channel(aColour.redF()) + 0.7152 * channel(aColour.greenF()) + 0.0722 * channel(aColour.blueF()); };
+			const auto one     = lum(aOne);
+			const auto two     = lum(aTwo);
+			return (std::max(one, two) + 0.05) / (std::min(one, two) + 0.05);
+		};
+		auto stark = page.palette();
+		stark.setColor(QPalette::Text, Qt::black);
+		stark.setColor(QPalette::Base, Qt::white);
+		expect(contrast(qt::feedback_state_faint(page.palette()), page.palette().color(QPalette::Base)) >= 4.5
+				   && contrast(qt::feedback_state_faint(stark), Qt::white) >= 7.0,
+			   "the ? mark's ink is quiet but at least 4.5:1, and 7:1 in high contrast");
 		const auto voxelChips = chips_of(page, cell(page, voxel));
 		expect(voxelChips.size() == 2U && voxelChips[0].Kind == qt::overview_comment_chip::kind::other && voxelChips[1].Kind == qt::overview_comment_chip::kind::uncertain,
 			   "an issue of unknown state is not counted as open, and the cell says so with its ? mark rather than look clear");

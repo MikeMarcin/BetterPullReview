@@ -174,6 +174,19 @@ FIXTURES = {
         "mirrors": None,
         "response_fields": {"ListReviewThreads": "synthetic"},
     },
+    # [[BPR-1089]]. The nested-folders contract with 34 labelled threads, pull
+    # request comments and review summaries, written by
+    # scripts/build_overview_labels_fixture.py.
+    "overview-labels-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        "response_fields": {
+            "ListReviewThreads": "synthetic",
+            "ListReviews": "synthetic",
+            "ListIssueComments": "synthetic",
+        },
+    },
 }
 
 # The real commits the recording names. They must appear nowhere in a served

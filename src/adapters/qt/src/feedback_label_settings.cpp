@@ -39,8 +39,8 @@ namespace bpr::qt {
 			return static_cast<core::feedback_label>(index);
 		}
 
-		/// \brief Paints the rule, the grip, and each row's description after
-		/// its ID; the check, mark, ID, selection and focus are the style's.
+		/// \brief Paints the rule, the grip, and each row's phrase at its
+		/// right edge; the check, mark, ID, selection and focus are the style's.
 		class columns_delegate final : public QStyledItemDelegate
 		{
 		public:
@@ -89,7 +89,7 @@ namespace bpr::qt {
 					if (room.width() > metrics.averageCharWidth() * 4) {
 						aPainter->setPen(quiet);
 						aPainter->setFont(textOption.font);
-						aPainter->drawText(room, Qt::AlignVCenter | Qt::AlignLeft, metrics.elidedText(feedback_label_description(*label), Qt::ElideRight, room.width()));
+						aPainter->drawText(room, Qt::AlignVCenter | Qt::AlignRight, metrics.elidedText(feedback_label_phrase(*label), Qt::ElideRight, room.width()));
 					}
 				}
 				aPainter->restore();
@@ -117,6 +117,39 @@ namespace bpr::qt {
 		private:
 			feedback_label_columns_editor& Editor;
 		};
+	}
+
+	auto feedback_label_phrase(const core::feedback_label aLabel) -> QString
+	{
+		// BPR-1079 frames v2. The catalog's sentence is the row's tooltip; at
+		// the row's width it would be cut short.
+		switch (aLabel) {
+		case core::feedback_label::praise:
+			return QStringLiteral("Something done well");
+		case core::feedback_label::nitpick:
+			return QStringLiteral("Trivial preference");
+		case core::feedback_label::suggestion:
+			return QStringLiteral("An improvement");
+		case core::feedback_label::issue:
+			return QStringLiteral("A concrete problem");
+		case core::feedback_label::todo:
+			return QStringLiteral("Small necessary change");
+		case core::feedback_label::question:
+			return QStringLiteral("Asks for clarification");
+		case core::feedback_label::thought:
+			return QStringLiteral("An idea, not a request");
+		case core::feedback_label::chore:
+			return QStringLiteral("Process work first");
+		case core::feedback_label::note:
+			return QStringLiteral("Information only");
+		case core::feedback_label::typo:
+			return QStringLiteral("Spelling");
+		case core::feedback_label::polish:
+			return QStringLiteral("Quick quality fix");
+		case core::feedback_label::quibble:
+			return QStringLiteral("Minor preference");
+		}
+		return { };
 	}
 
 	feedback_label_columns_editor::feedback_label_columns_editor(QWidget* const aParent)

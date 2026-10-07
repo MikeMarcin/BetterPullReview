@@ -467,7 +467,9 @@ in `pull_request_overview_page`. The figures come from
   cells. Enter on the Comments cell opens a menu of every chip, Other, the
   chips folded into "+n" and ?, with a Sort by submenu; the context-menu key
   (Shift+F10) and a right-click open the same menu on any row, folders and
-  Not on a file included. Enter on any other cell still opens the file. The
+  Not on a file included. Enter on any other cell still opens the file; the
+  page opens it itself, because Qt's item view emits no activation for
+  Return on macOS (BPR-1089 macOS run). The
   cell stays current across a refresh, a sort and a trip to Discuss and back.
   Changing chips or mode makes no provider request (BPR-1087).
 - **As built** (BPR-1089):
@@ -485,22 +487,32 @@ in `pull_request_overview_page`. The figures come from
     row is its listed files. Not on a file also holds any conversation on a
     file the pull request no longer lists, so the rows together count each
     conversation once.
-  - **The cell.** The Comments column is 216 px. A chip is the 16 px mark and
-    its count: in Open an attention-amber count, outlined on folder and Not
-    on a file rows; in All a neutral count over a state bar (open, resolved,
-    unknown, not resolvable). Other is a speech bubble with three dots; with
+  - **The cell.** The Comments column is 216 px. A chip is the 16 px mark and,
+    3 px after it, its count as digits with no fill, as the selected frames
+    draw `.lchip .cnt`: in Open in the theme's attention amber on file,
+    folder and Not on a file rows alike; in All in the text ink over a state
+    bar (open, resolved, unknown, not resolvable). A selected row keeps its
+    highlighted ink (macOS look pass, frontend-design; the Linux build drew
+    filled and outlined amber pills, which the frames use only outside a
+    chip). Other is a speech bubble with three dots; with
     no chip chosen it is a plain bubble, Comments. A round qualifier sits at
     the cell's right edge whenever the count is not exact or leaves anything
     out: ? in a dashed ring, or the not-resolvable mark when that is all it
-    is. A blank cell is a complete zero. Every tooltip is anchored to its
-    chip.
+    is. Those two marks are drawn in `feedback_state_faint`, the text colour
+    32% of the way to the base: at least 4.5:1, over 7:1 in high contrast
+    (the placeholder grey gave 3:1 and 4:1). A blank cell is a complete zero.
+    Every tooltip is anchored to its chip.
   - **Beside the Files heading.** Open (with the round open mark) and All,
-    the ? chip and the Label key (Alt+K; ⌥K on macOS). The Label key is a
-    list of the twelve marks with names and codes, Other, Comments, the four
-    state marks and ?.
+    the ? chip and the Label key (Alt+K; ⌥K on macOS, as its tooltip says).
+    The Label key is a list of the twelve marks with names and codes, Other,
+    Comments, the four state marks and ?. The Label key and the Comments and
+    Sort by menus are windows of their own and propagate the page's palette
+    (`Qt::WA_WindowPropagation`), so they show the theme the window shows; in
+    a dark theme the key had been white with invisible bubble glyphs.
   - **Drill-down.** Discuss lists exactly the counted conversations under a
     caption such as "issue · open · src/engine/renderer.cpp — 1
-    conversation". The whole pull request is in scope and no other filter
+    conversation", led by the count's own mark (the label's mark, the
+    bubble or ?) and followed directly by ×, on one line. The whole pull request is in scope and no other filter
     applies; × or Clear filters shows every conversation again. A refresh
     reads the same count again from the new accepted population, in place,
     without moving focus.
@@ -623,7 +635,9 @@ Comments drawer's own filter is not touched.
   The chips are one list: ticked rows first in their Overview order with a
   grip, a rule, then the rest in catalog order; each row is a check box, the
   label's mark in the style and tints on screen, its ID and, at 340 px or
-  wider, its description; each row's tooltip is its description, plus "Drag
+  wider, its short phrase from the selected frames ("A concrete problem"),
+  right-aligned in the quiet ink (macOS look pass; the catalog sentence was
+  cut short at the row's width); each row's tooltip is its description, plus "Drag
   to reorder (⌥↑ ⌥↓)" on a ticked row, anchored under the row. The list is as
   tall as its rows, so it never scrolls inside the page. The section's Reset
   keeps the page's "Reset" button and gains the tooltip "Reset comment

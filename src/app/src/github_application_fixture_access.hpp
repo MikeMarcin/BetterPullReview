@@ -65,6 +65,10 @@ namespace bpr::app::detail {
 		/// 1557-line file with eight threads, for judging the inline drawer
 		/// against its prototype.
 		inline_drawer_v1,
+		/// [[BPR-1089]]. The nested-folders pull request with 34 labelled
+		/// threads on all its files, pull request comments and review
+		/// summaries, for judging the Overview's label chips.
+		overview_labels_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

@@ -20,6 +20,7 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QFontMetrics>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -32,6 +33,7 @@
 #include <array>
 #include <cstdlib>
 #include <iostream>
+#include <set>
 #include <string_view>
 #include <vector>
 
@@ -351,6 +353,19 @@ namespace {
 		f.Window.settings()->resize(1'100, 900);
 		settle();
 		expect(chips->descriptions_shown() == (chips->width() >= qt::feedback_label_columns_editor::description_width), "descriptions show only where the list is wide enough");
+		// Each row's phrase is the design's short one, whole beside its ID at
+		// the narrowest width that shows it (grip, check and mark take 70 px).
+		const auto metrics = QFontMetrics{ chips->font() };
+		auto       phrases = std::set<QString>{ };
+		for (std::size_t index = 0U; index < core::feedback_label_count; ++index) {
+			const auto label  = static_cast<core::feedback_label>(index);
+			const auto phrase = qt::feedback_label_phrase(label);
+			phrases.insert(phrase);
+			expect(!phrase.isEmpty() && phrase != qt::feedback_label_description(label)
+					   && 70 + metrics.horizontalAdvance(qt::feedback_label_text(label)) + 12 + metrics.horizontalAdvance(phrase) + 6 <= qt::feedback_label_columns_editor::description_width,
+				   "each label's row phrase is short and fits whole beside its ID");
+		}
+		expect(phrases.size() == core::feedback_label_count, "the twelve phrases differ");
 	}
 } // namespace
 

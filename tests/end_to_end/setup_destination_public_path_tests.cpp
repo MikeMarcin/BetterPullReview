@@ -41,6 +41,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyleOptionViewItem>
@@ -53,6 +54,7 @@
 #include <QTreeView>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -561,6 +563,11 @@ namespace {
 		expect(other != entries.end(), "the menu names Other");
 		(*other)->trigger();
 		menu->close();
+		// On macOS's offscreen platform a closed popup hands activation to no
+		// window, where a native session returns it to the window under the
+		// menu. Give it back, so the focus checks below read the product.
+		window.activateWindow();
+		wait_for([&] { return QApplication::activeWindow() == &window; }, "the window is active again once the menu closes");
 		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && listed() == std::set<std::string>{ "review-thread:PRRT_cc_2" }; },
 				 "Other lists exactly the suggestion thread");
 
@@ -595,6 +602,164 @@ namespace {
 				 "a website label edit moves the conversation from Other to issue", [&] { std::cerr << "cell=" << cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString().toStdString() << '\n'; });
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "overview-feedback course quiescence");
+	}
+
+	// [[BPR-1089]]. The owner's Overview look opens overview-labels-v1: 34
+	// threads on all 17 files, three pull request comments and two review
+	// summaries. Its counts are the ones the owner judges, so they are pinned
+	// here; with BPR_SETUP_ARTIFACT_ROOT set, each theme is captured.
+	void run_overview_labels_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated overview-labels course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private overview-labels course root");
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::overview_labels_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "overview-labels course startup");
+		expect(owner != nullptr, "overview-labels course application");
+		auto& window = owner->window();
+		window.resize(1400, 900);
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "overview-labels course connection");
+		submit(window, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const page  = window.overview_page();
+		auto* const model = page->file_model();
+		const auto  cell  = [&](const char* aPath) {
+			return model->index_for_path(QString::fromUtf8(aPath)).siblingAtColumn(qt::overview_file_model::comments_column);
+		};
+		const auto counted = [&](const std::uint8_t aColumns, const core::feedback_resolution_mode aMode) {
+			return model->feedback().has_value() && model->feedback()->Request.Columns.Count == aColumns && model->feedback()->Request.Mode == aMode;
+		};
+		wait_for([&] { return page->isVisible() && page->presented() && model->file_count() == 17U && counted(0U, core::feedback_resolution_mode::unresolved); },
+				 "the pull request opens on Overview with its conversations counted");
+		// No chips: 27 open threads (34, seven resolved); ? holds the three pull
+		// request comments and two review summaries (no resolution) and the
+		// link-first file comment (label unreadable).
+		const auto& pull      = model->feedback()->PullRequest.Counts;
+		const auto  remainder = [&](const int aRole) { return model->remainder_index(qt::overview_file_model::comments_column).data(aRole).toString(); };
+		expect(pull.Included == 27U && pull.Uncertain == 6U && page->uncertain_button()->isVisible() && page->uncertain_button()->text() == QStringLiteral("6"),
+			   "27 open conversations and six the Open count leaves out or cannot read");
+		expect(cell("src/engine/renderer.cpp").data().toString() == QStringLiteral("Comments 5") && cell("src/ui/widgets/button.cpp").data().toString() == QStringLiteral("Comments 2 · ? 1")
+				   && remainder(Qt::DisplayRole) == QStringLiteral("Comments 1 · ? 5"),
+			   "renderer.cpp 5; button.cpp 2 with its unreadable label as ?; Not on a file 1 with the five unresolvable as ?");
+		// Settings' chips, each published before the next, keep their order.
+		auto* const editor = window.label_columns_editor();
+		auto        ticked = std::uint8_t{ 0U };
+		for (const auto label : { core::feedback_label::issue, core::feedback_label::question, core::feedback_label::suggestion }) {
+			editor->item_of(label)->setCheckState(Qt::Checked);
+			++ticked;
+			wait_for([&] { return counted(ticked, core::feedback_resolution_mode::unresolved); }, "each chip ticked in Settings reaches the Overview");
+		}
+		const auto folder = model->index_for_path(QStringLiteral("src/engine/renderer.cpp")).parent().siblingAtColumn(qt::overview_file_model::comments_column);
+		expect(cell("src/engine/renderer.cpp").data().toString() == QStringLiteral("issue 2 · question 1 · Other 2")
+				   && cell("src/ui/widgets/slider.cpp").data().toString() == QStringLiteral("issue 1 · suggestion 1")
+				   && folder.data().toString() == QStringLiteral("issue 2 · question 2 · Other 3") && remainder(Qt::DisplayRole) == QStringLiteral("issue 1 · ? 5"),
+			   "chips in Settings order: renderer.cpp, slider.cpp, the src/engine folder and Not on a file");
+		const auto themes         = std::array{ std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" },
+												std::pair{ core::appearance_mode::high_contrast_light, "hc-light" }, std::pair{ core::appearance_mode::high_contrast_dark, "hc-dark" } };
+		const auto capture_themes = [&](const char* aName) {
+			if (qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT").isEmpty()) {
+				return;
+			}
+			for (const auto& [mode, theme] : themes) {
+				expect(github_application_fixture_access::apply_appearance_gesture(*owner, mode, 4U), "Settings applies each theme");
+				QApplication::processEvents();
+				capture(window, QStringLiteral("overview-labels-%1-%2.png").arg(QString::fromLatin1(aName), QString::fromLatin1(theme)));
+			}
+		};
+		capture_themes("open");
+		page->all_counts_button()->click();
+		wait_for([&] { return counted(3U, core::feedback_resolution_mode::all); }, "All is counted");
+		expect(cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString()
+					   == QStringLiteral("issue 2 (2 open), question 1 (1 open), suggestion 1 (1 resolved), Other 3 (2 open, 1 resolved) conversations")
+				   && remainder(Qt::AccessibleTextRole) == QStringLiteral("issue 3 (1 open, 2 not resolvable), question 1 (1 not resolvable), Other 2 (2 not resolvable) conversations"),
+			   "All gives each chip its breakdown, the unresolvable ones on Not on a file");
+		capture_themes("all");
+		// The Label key and a Comments menu are windows of their own; in a
+		// dark theme they show the page's colours, not the application's.
+		expect(github_application_fixture_access::apply_appearance_gesture(*owner, core::appearance_mode::dark, 4U), "Settings applies the dark theme");
+		QApplication::processEvents();
+		page->label_key_button()->click();
+		QApplication::processEvents();
+		expect(page->label_key() != nullptr && page->label_key()->isVisible()
+				   && page->label_key()->findChild<QListWidget*>()->palette().color(QPalette::Base) == page->palette().color(QPalette::Base)
+				   && page->palette().color(QPalette::Base).lightnessF() < 0.5,
+			   "the Label key shows the dark theme the page shows");
+		page->label_key()->close();
+		page->files_view()->setFocus();
+		page->files_view()->setCurrentIndex(cell("src/engine/renderer.cpp"));
+		QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(page->files_view(), &enter);
+		QApplication::processEvents();
+		auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+		expect(menu != nullptr && menu->palette().color(QPalette::Window) == page->palette().color(QPalette::Window), "a Comments menu shows the theme the page shows");
+		const auto entries    = menu->actions();
+		const auto issueEntry = std::ranges::find_if(entries, [](QAction* aAction) { return aAction->text().startsWith(QStringLiteral("issue")); });
+		expect(issueEntry != entries.end(), "the menu names the issue chip");
+		(*issueEntry)->trigger();
+		menu->close();
+		window.activateWindow();
+		wait_for([&] { return QApplication::activeWindow() == &window; }, "the window is active again once the menu closes");
+		// Discuss's caption leads with the count's own mark and its × follows
+		// the words, not the far edge.
+		auto* const panel = window.conversation_panel();
+		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && panel->listing().has_value() && panel->listing()->size() == 2U; },
+				 "renderer.cpp's two open issues are listed");
+		const auto* const mark  = panel->findChild<QLabel*>(QStringLiteral("conversationListingMark"));
+		const auto* const clear = panel->findChild<QToolButton*>(QStringLiteral("conversationClearListing"));
+		expect(mark != nullptr && mark->isVisible() && !mark->pixmap().isNull() && mark->geometry().right() < panel->listing_caption()->geometry().left(),
+			   "the caption leads with the issue mark");
+		expect(clear != nullptr && clear->geometry().left() - panel->listing_caption()->geometry().right() < 16, "× sits right after the caption");
+		if (const auto root = qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT"); !root.isEmpty()) {
+			// The Label key, the drill-down's caption and the Settings section,
+			// each in every theme, for the look.
+			page->open_counts_button()->click();
+			wait_for([&] { return counted(3U, core::feedback_resolution_mode::unresolved); }, "Open again for the look");
+			for (const auto& [mode, theme] : themes) {
+				expect(github_application_fixture_access::apply_appearance_gesture(*owner, mode, 4U), "Settings applies each theme");
+				window.choose_modality(qt::review_modality::overview);
+				QApplication::processEvents();
+				page->label_key_button()->click();
+				QApplication::processEvents();
+				expect(page->label_key() != nullptr && page->label_key()->isVisible(), "the Label key opens");
+				expect(page->label_key()->grab().save(root + QStringLiteral("/overview-labels-key-%1.png").arg(QString::fromLatin1(theme))), "Label key capture");
+				page->label_key()->close();
+				const auto  issue = cell("src/engine/renderer.cpp");
+				const auto  chips = qt::overview_comment_chips(*model->feedback_at(issue), page->files_view()->visualRect(issue), page->files_view()->font());
+				const auto  point = chips.front().Box.center();
+				QMouseEvent press{ QEvent::MouseButtonPress, point, page->files_view()->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QMouseEvent release{ QEvent::MouseButtonRelease, point, page->files_view()->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+				QApplication::sendEvent(page->files_view()->viewport(), &press);
+				QApplication::sendEvent(page->files_view()->viewport(), &release);
+				wait_for([&] { return window.current_modality() == qt::review_modality::discuss && window.conversation_panel()->listing().has_value(); }, "the issue chip lists in Discuss");
+				capture(window, QStringLiteral("overview-labels-discuss-%1.png").arg(QString::fromLatin1(theme)));
+				auto* const settings = window.settings();
+				expect(settings != nullptr && editor->window() == settings, "the Overview chips live in Settings");
+				settings->present(qt::settings_page::reviews_and_queue);
+				settings->resize(900, 700);
+				QApplication::processEvents();
+				for (auto* area = editor->parentWidget(); area != nullptr; area = area->parentWidget()) {
+					if (auto* const scroll = qobject_cast<QScrollArea*>(area)) {
+						scroll->ensureWidgetVisible(editor, 0, 160);
+						break;
+					}
+				}
+				QApplication::processEvents();
+				expect(settings->grab().save(root + QStringLiteral("/overview-labels-settings-%1.png").arg(QString::fromLatin1(theme))), "Settings capture");
+				settings->hide();
+			}
+		}
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "overview-labels course quiescence");
 	}
 
 	void run_modified_missing_endpoint_course()
@@ -1826,6 +1991,11 @@ try {
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--overview-feedback")) {
 		run_overview_feedback_course();
 		std::cout << "overview-feedback-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--overview-labels")) {
+		run_overview_labels_course();
+		std::cout << "overview-labels-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--link-locations")) {

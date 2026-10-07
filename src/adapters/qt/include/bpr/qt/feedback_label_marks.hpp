@@ -7,6 +7,7 @@
 
 #include <QColor>
 #include <QPainterPath>
+#include <QPalette>
 #include <QPixmap>
 #include <QPointF>
 #include <QRectF>
@@ -224,6 +225,11 @@ namespace bpr::qt {
 	/// \brief The built-in state colours for a palette: the attention and
 	/// accepted roles of the variant its base colour implies.
 	[[nodiscard]] auto default_feedback_state_colours(const QPalette& aPalette) -> feedback_state_colours;
+	/// \brief The quiet ink of the unknown and not-resolvable marks: the text
+	/// colour 32% of the way to the base. The placeholder grey was too
+	/// faint for a mark that carries meaning (3:1 in light, 4:1 in high
+	/// contrast); this keeps at least 4.5:1, and over 7:1 in high contrast.
+	[[nodiscard]] auto feedback_state_faint(const QPalette& aPalette, QPalette::ColorGroup aGroup = QPalette::Active) -> QColor;
 	/// \brief Draws one round state mark in a 16 px box, centred: open, a
 	/// filled disc; resolved, a disc with a tick; unknown, a dashed ring with a
 	/// question mark; not resolvable, a ring with a bar. Each differs by shape,

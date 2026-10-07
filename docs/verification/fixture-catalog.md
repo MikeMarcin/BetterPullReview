@@ -91,6 +91,21 @@ gives the served tree conventional-comments-v1's six threads and the
 prototype's eight on the long file. Constructed, not recorded; its fixture test
 regenerates the construction and the served tree byte for byte.
 
+### `overview-labels-v1`, many labelled conversations across the folders
+
+Added for [[BPR-1089]], so the Overview's label chips, Open and All, the ?
+count and the drill-down can be judged on more than a handful of threads.
+`scripts/build_overview_labels_fixture.py` copies the nested-folders contract
+(its pull request, files and pack) and serves 34 review threads on all 17 files
+and one on a file the pull request no longer lists, three pull request comments
+and two review summaries: every Conventional Comments label, several on one
+file, seven resolved and one outdated thread, a plain root and a custom label
+(Other), and a file comment that begins with a link, whose label the counter
+cannot read (?). The comments and summaries have no resolution, so Open counts
+them under ?. No conversation has an unknown resolution: that needs the REST
+fallback, which a GraphQL fixture does not take. Constructed, not recorded;
+`application_overview_labels_public_path` pins its counts.
+
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,
 transport metadata, remote URLs, patches, source content, email addresses,

@@ -20,6 +20,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QListWidget>
 #include <QMenu>
@@ -592,9 +593,13 @@ namespace bpr::qt {
 			return font;
 		}
 
-		[[nodiscard]] auto pill_width(const QFontMetrics& aMetrics, const std::size_t aCount) -> qreal
+		/// The space between a chip's mark and its count.
+		constexpr qreal count_gap = 3.0;
+
+		/// A count is its digits, wide enough for All's state bar beneath it.
+		[[nodiscard]] auto count_width(const QFontMetrics& aMetrics, const std::size_t aCount) -> qreal
 		{
-			return std::max<qreal>(18.0, aMetrics.horizontalAdvance(QString::number(static_cast<qulonglong>(aCount))) + 8.0);
+			return std::max<qreal>(10.0, aMetrics.horizontalAdvance(QString::number(static_cast<qulonglong>(aCount))) + 2.0);
 		}
 
 		[[nodiscard]] auto state_of(const core::feedback_state_counts& aStates, const core::feedback_resolution aState) -> std::size_t
@@ -820,7 +825,7 @@ namespace bpr::qt {
 		const auto top       = static_cast<qreal>(aCell.center().y()) - chip_mark / 2.0 + 0.5;
 		const auto left      = aCell.left() + 6.0;
 		const auto right     = aCell.right() - 4.0 - (qualified ? chip_mark + 4.0 : 0.0);
-		const auto widthOf   = [&](const overview_comment_chip& aChip) { return chip_mark + 2.0 + pill_width(metrics, aChip.Count); };
+		const auto widthOf   = [&](const overview_comment_chip& aChip) { return chip_mark + count_gap + count_width(metrics, aChip.Count); };
 		auto       total     = 0.0;
 		for (const auto& chip : chips) {
 			total += widthOf(chip) + chip_gap;
@@ -1487,7 +1492,7 @@ namespace bpr::qt {
 				option.text.clear();
 				const auto* style = option.widget != nullptr ? option.widget->style() : QApplication::style();
 				style->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
-				paint_chips(aPainter, option, *counts, model->feedback()->Request.Mode, folder || aIndex.data(overview_file_model::remainder_role).toBool());
+				paint_chips(aPainter, option, *counts, model->feedback()->Request.Mode);
 				return;
 			}
 		}
@@ -1638,7 +1643,7 @@ namespace bpr::qt {
 	}
 
 	void overview_row_delegate::paint_chips(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts,
-											const core::feedback_resolution_mode aMode, const bool aSoft) const
+											const core::feedback_resolution_mode aMode) const
 	{
 		const auto chips = overview_comment_chips(aCounts, aOption.rect, aOption.font);
 		if (chips.empty()) {
@@ -1664,31 +1669,17 @@ namespace bpr::qt {
 				} else {
 					paint_bubble(*aPainter, mark, ink, anyColumns);
 				}
-				// The count: in Open, the open amber; in All, a neutral count
-				// with the state breakdown beneath it.
-				// All keeps room under the count for its 2.5 px state bar.
-				const auto pill = QRectF{ mark.right() + 2.0, box.top() + (open ? 0.5 : 0.0), box.width() - chip_mark - 2.0, open ? 15.0 : 13.5 };
-				if (open && !aSoft) {
-					aPainter->setPen(Qt::NoPen);
-					aPainter->setBrush(Colours.States.Open);
-					aPainter->drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
-					aPainter->setPen(feedback_mark_blocking_ink(Colours.States.Open));
-				} else if (open) {
-					aPainter->setBrush(Qt::NoBrush);
-					aPainter->setPen(QPen{ Colours.States.Open, 1.2 });
-					aPainter->drawRoundedRect(pill.adjusted(0.6, 0.6, -0.6, -0.6), pill.height() / 2.0, pill.height() / 2.0);
-					aPainter->setPen(ink);
-				} else {
-					aPainter->setBrush(aOption.palette.color(group, QPalette::AlternateBase));
-					aPainter->setPen(QPen{ aOption.palette.color(group, QPalette::Mid), 1.0 });
-					aPainter->drawRoundedRect(pill.adjusted(0.5, 0.5, -0.5, -0.5), pill.height() / 2.0, pill.height() / 2.0);
-					aPainter->setPen(ink);
-				}
-				aPainter->drawText(pill, Qt::AlignCenter, QString::number(static_cast<qulonglong>(chip.Count)));
+				// The count is its digits beside the mark, as the selected design
+				// draws it: in Open, the open amber on every row; in All, the
+				// text ink with the state breakdown beneath it. A selected row
+				// keeps its highlighted ink, so the digits stay legible.
+				const auto pill = QRectF{ mark.right() + count_gap, box.top() + (open ? 0.5 : 0.0), box.width() - chip_mark - count_gap, open ? 15.0 : 13.5 };
+				aPainter->setPen(open && !selected ? Colours.States.Open : ink);
+				aPainter->drawText(pill, Qt::AlignLeft | Qt::AlignVCenter, QString::number(static_cast<qulonglong>(chip.Count)));
 				if (!open) {
 					// Open, resolved, unknown and not resolvable, in proportion.
 					const auto total = std::accumulate(chip.States.begin(), chip.States.end(), std::size_t{ 0U });
-					const auto bar   = QRectF{ pill.left() + 2.0, pill.bottom() + 0.75, pill.width() - 4.0, 2.5 };
+					const auto bar   = QRectF{ pill.left(), pill.bottom() + 0.75, pill.width(), 2.5 };
 					const auto fills = std::array{ Colours.States.Open, Colours.States.Resolved, aOption.palette.color(group, QPalette::PlaceholderText), aOption.palette.color(group, QPalette::Mid) };
 					auto       x     = bar.left();
 					aPainter->setPen(Qt::NoPen);
@@ -1712,7 +1703,7 @@ namespace bpr::qt {
 				break;
 			case overview_comment_chip::kind::uncertain: {
 				auto states  = Colours.States;
-				states.Faint = selected ? ink : aOption.palette.color(group, QPalette::PlaceholderText);
+				states.Faint = selected ? ink : feedback_state_faint(aOption.palette, group);
 				paint_feedback_state_mark(*aPainter, box, qualifier_state(aCounts), states);
 				break;
 			}
@@ -1960,7 +1951,7 @@ namespace bpr::qt {
 		anchor_tooltips(*Uncertain);
 		connect(Uncertain, &QToolButton::clicked, this, [this] { drill(application::overview_feedback_row_kind::pull_request, { }, { .Kind = core::feedback_count_kind::uncertain }); });
 		LabelKey = folderButton(QStringLiteral("Label key"), QStringLiteral("overviewLabelKey"));
-		LabelKey->setToolTip(QStringLiteral("Label key (Alt+K)"));
+		LabelKey->setToolTip(QStringLiteral("Label key (%1)").arg(QKeySequence{ Qt::ALT | Qt::Key_K }.toString(QKeySequence::NativeText)));
 		LabelKey->setAccessibleDescription(QStringLiteral("Lists every label mark with its name and shortcode, and the state marks"));
 		anchor_tooltips(*LabelKey);
 		connect(LabelKey, &QToolButton::clicked, this, [this] { show_label_key(); });
@@ -2036,16 +2027,7 @@ namespace bpr::qt {
 				Files->setExpanded(folder, !Files->isExpanded(folder));
 			}
 		});
-		connect(Files, &QAbstractItemView::activated, this, [this](const QModelIndex& aIndex) {
-			const auto path = aIndex.siblingAtColumn(overview_file_model::file_column)
-								  .data(overview_file_model::path_role)
-								  .toString();
-			if (Projection && !path.isEmpty() && FileDispatch) {
-				FileDispatch(path);
-			} else if (Cached && !path.isEmpty() && CachedSourceDispatch) {
-				CachedSourceDispatch(path);
-			}
-		});
+		connect(Files, &QAbstractItemView::activated, this, &pull_request_overview_page::open_file_at);
 		// [[BPR-1089]]. A chip opens the conversations it counted: a click on
 		// it, Enter on its cell, or the context-menu key or a right-click on
 		// its row, whose menu reaches every chip, Other, "+n" and ?.
@@ -2791,7 +2773,7 @@ namespace bpr::qt {
 	{
 		const auto ratio = devicePixelRatioF();
 		auto       state = Colours.States;
-		state.Faint      = palette().color(QPalette::PlaceholderText);
+		state.Faint      = feedback_state_faint(palette());
 		OpenCounts->setIcon(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unresolved, state, ratio) });
 		Uncertain->setIcon(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) });
 		LabelKey->setIcon(painted_glyph_icon(paint_key, palette().color(QPalette::Text), palette().color(QPalette::Disabled, QPalette::Text)));
@@ -2908,6 +2890,9 @@ namespace bpr::qt {
 			: row->second.empty()                                                                 ? QStringLiteral("/")
 																								  : text(row->second);
 		auto* const menu       = new QMenu{ this };
+		// A popup is its own window, which takes the application's palette
+		// rather than the theme the window shows, unless it propagates.
+		menu->setAttribute(Qt::WA_WindowPropagation);
 		menu->setObjectName(QStringLiteral("overviewCommentsMenu"));
 		menu->setTitle(QStringLiteral("Comments: %1").arg(name));
 		menu->setAccessibleName(menu->title());
@@ -2934,7 +2919,7 @@ namespace bpr::qt {
 		}
 		if (counts->Uncertain != 0U) {
 			auto state  = Colours.States;
-			state.Faint = palette().color(QPalette::PlaceholderText);
+			state.Faint = feedback_state_faint(palette());
 			add(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) }, QStringLiteral("Not counted: %1").arg(count_text(counts->Uncertain)),
 				{ .Kind = core::feedback_count_kind::uncertain });
 		}
@@ -2956,6 +2941,7 @@ namespace bpr::qt {
 	auto pull_request_overview_page::make_sort_menu() -> QMenu*
 	{
 		auto* const menu = new QMenu{ QStringLiteral("Sort by"), this };
+		menu->setAttribute(Qt::WA_WindowPropagation);
 		menu->setObjectName(QStringLiteral("overviewSortMenu"));
 		auto* const group      = new QActionGroup{ menu };
 		const auto  anyColumns = Columns.Count != 0U;
@@ -2986,6 +2972,16 @@ namespace bpr::qt {
 		}
 		menu->setAttribute(Qt::WA_DeleteOnClose);
 		menu->popup(aGlobal);
+	}
+
+	void pull_request_overview_page::open_file_at(const QModelIndex& aIndex)
+	{
+		const auto path = aIndex.siblingAtColumn(overview_file_model::file_column).data(overview_file_model::path_role).toString();
+		if (Projection && !path.isEmpty() && FileDispatch) {
+			FileDispatch(path);
+		} else if (Cached && !path.isEmpty() && CachedSourceDispatch) {
+			CachedSourceDispatch(path);
+		}
 	}
 
 	bool pull_request_overview_page::eventFilter(QObject* const aObject, QEvent* const aEvent)
@@ -3031,6 +3027,13 @@ namespace bpr::qt {
 				open_comments_menu(current, Files->viewport()->mapToGlobal(Files->visualRect(current).bottomLeft()));
 				return true;
 			}
+			// Enter on a file's other cells reads it. Qt's item view emits no
+			// activation for Return on macOS, so the page opens it itself.
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && key->modifiers() == Qt::NoModifier && current.isValid()
+				&& !current.data(overview_file_model::folder_role).toBool()) {
+				open_file_at(current);
+				return true;
+			}
 			// Left and Right move along a file's cells, as they fold a folder.
 			const auto across = (key->key() == Qt::Key_Left || key->key() == Qt::Key_Right) && key->modifiers() == Qt::NoModifier;
 			if (across && current.isValid() && !current.data(overview_file_model::folder_role).toBool()) {
@@ -3058,6 +3061,9 @@ namespace bpr::qt {
 				: QFrame{ aParent, Qt::Popup }
 			{
 				setObjectName(QStringLiteral("overviewLabelKeyPopup"));
+				// Its own window: it shows the theme the page shows, not the
+				// application's palette.
+				setAttribute(Qt::WA_WindowPropagation);
 				setAccessibleName(QStringLiteral("Label key"));
 				setFrameShape(QFrame::StyledPanel);
 				auto* const layout = new QVBoxLayout{ this };
@@ -3123,7 +3129,7 @@ namespace bpr::qt {
 		entry(bubble(true), QStringLiteral("Other: the rest"), QStringLiteral("Other: conversations without a chip of their own"), QStringLiteral("Conversations without a chip of their own"));
 		entry(bubble(false), QStringLiteral("Comments: all, no chip chosen"), QStringLiteral("Comments: every conversation, when no chip is chosen"), QStringLiteral("Every conversation, when no chip is chosen"));
 		auto state  = Colours.States;
-		state.Faint = palette().color(QPalette::PlaceholderText);
+		state.Faint = feedback_state_faint(palette());
 		for (const auto resolution : { core::feedback_resolution::unresolved, core::feedback_resolution::resolved, core::feedback_resolution::unknown, core::feedback_resolution::not_applicable }) {
 			auto words = feedback_state_text(resolution);
 			words[0]   = words[0].toUpper();
@@ -3173,6 +3179,30 @@ namespace bpr::qt {
 	auto pull_request_overview_page::label_key_button() const noexcept -> QToolButton*
 	{
 		return LabelKey;
+	}
+
+	auto pull_request_overview_page::count_mark(const core::feedback_count_target& aTarget, const bool aAnyColumns) const -> QPixmap
+	{
+		const auto ratio = devicePixelRatioF();
+		switch (aTarget.Kind) {
+		case core::feedback_count_kind::dedicated:
+			if (aTarget.Label) {
+				return feedback_mark_pixmap(*aTarget.Label, { }, feedback_mark_colours_for(Colours.Marks, *aTarget.Label, palette()), ratio);
+			}
+			break;
+		case core::feedback_count_kind::uncertain: {
+			auto state  = Colours.States;
+			state.Faint = feedback_state_faint(palette());
+			return feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio);
+		}
+		case core::feedback_count_kind::catchall:
+		case core::feedback_count_kind::included:
+			break;
+		}
+		const auto other = aTarget.Kind == core::feedback_count_kind::catchall && aAnyColumns;
+		return painted_glyph_icon([other](QPainter& aPainter, const qreal aSide, const QColor& aInk) { paint_bubble(aPainter, QRectF{ 0.0, 0.0, aSide, aSide }, aInk, other); },
+								  palette().color(QPalette::Text), palette().color(QPalette::Disabled, QPalette::Text))
+			.pixmap(QSize{ 16, 16 }, ratio);
 	}
 
 	void pull_request_overview_page::set_prepare_tour_action(QAction* aAction)

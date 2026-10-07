@@ -11,6 +11,7 @@
 #include <optional>
 #include <set>
 
+#include <QPixmap>
 #include <QWidget>
 
 #include <cstdint>
@@ -160,7 +161,7 @@ namespace bpr::qt {
 		/// whole pull request is in scope and the other filters are off, so
 		/// nothing narrows the list further. Listing again replaces it; the
 		/// current thread is kept while it is listed.
-		void list_conversations(std::vector<std::string> aConversations, const QString& aCaption, const QString& aDescription);
+		void list_conversations(std::vector<std::string> aConversations, const QString& aCaption, const QString& aDescription, const QPixmap& aMark = { });
 		/// \brief Shows every conversation again.
 		void               clear_listing();
 		[[nodiscard]] auto listing() const noexcept -> const std::optional<std::set<std::string>>&;
@@ -195,6 +196,7 @@ namespace bpr::qt {
 		QLabel*                    DiscussSummary    = nullptr;
 		/// [[BPR-1089]]. The drill-down's caption and its clear button.
 		QWidget*                             ListingRow     = nullptr;
+		QLabel*                              ListingMark    = nullptr;
 		QLabel*                              ListingCaption = nullptr;
 		QToolButton*                         ClearListing   = nullptr;
 		std::optional<std::set<std::string>> Listing;

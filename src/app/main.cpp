@@ -8238,6 +8238,21 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 6,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "overview-labels-v1") {
+				// [[BPR-1089]]. The nested-folders pull request with many
+				// labelled conversations; see `scripts/build_overview_labels_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::overview_labels_v1;
+				fixtureName            = "overview-labels-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move renderer, shaders and widgets into nested folders",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 39,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "inline-drawer-v1") {
 				// [[BPR-1290]]. conventional-comments-v1's threads plus a long
 				// file with eight; see `scripts/build_inline_drawer_fixture.py`.

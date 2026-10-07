@@ -864,6 +864,15 @@ endfunction()
 # and course wording only: no grant, target, provider, credential, storage,
 # mutation or publication path changes; mutation pin unchanged; no new src/app
 # source. Reviewed on BPR-1295.
+# BPR-1089 macOS look reseal (2026-10-06): over the BPR-1295 reseal above; no
+# intervening pinned-scope commit. main.cpp and the fixture table add the
+# constructed overview-labels-v1 pull request (the nested-folders pull request
+# and pack with 34 labelled threads, pull request comments and review
+# summaries, scripts/build_overview_labels_fixture.py) for the owner's
+# Overview look; github_application.cpp names its fixture label. Fixture
+# selection only: no grant, target, provider, credential, mutation or
+# publication path changes; mutation pin unchanged; no new src/app source.
+# Reviewed on BPR-1089.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -882,7 +891,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"2507bdb4db4f77f545b4eb29d6f4620bb5f6ef6622e7efeb1ddaac734884b5d9"
+		"eaf49c94ba53afa431e1e1687ca0e9e1e5f1b54c4bbb7c2d38b49605a9fee816"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1080,7 +1089,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "85314b5b40f005e7936a473f32674339b033029a95a6074d1886b7a0af39736a"
+        "2563113f01f31b00d39c57f419382c1d0529fdd1543ddfa5478c4945f741440d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

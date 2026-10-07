@@ -10,6 +10,7 @@
 #include <QColor>
 #include <QHash>
 #include <QModelIndex>
+#include <QPixmap>
 #include <QString>
 #include <QStyledItemDelegate>
 #include <QVariant>
@@ -215,7 +216,7 @@ namespace bpr::qt {
 	private:
 		[[nodiscard]] static auto disclosure_width(const QStyleOptionViewItem& aOption) -> int;
 		void                      paint_folder(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
-		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts, core::feedback_resolution_mode aMode, bool aSoft) const;
+		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts, core::feedback_resolution_mode aMode) const;
 
 		const overview_colours& Colours;
 	};
@@ -346,6 +347,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto all_counts_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto uncertain_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto label_key_button() const noexcept -> QToolButton*;
+		/// \brief A count's mark as its chip draws it: the label's mark, the
+		/// speech bubble (with dots for Other) or the ? state mark.
+		[[nodiscard]] auto count_mark(const core::feedback_count_target& aTarget, bool aAnyColumns) const -> QPixmap;
 		/// \brief Opens the Label key, as Alt+K does.
 		void               show_label_key();
 		[[nodiscard]] auto label_key() const noexcept -> QWidget*;
@@ -390,6 +394,8 @@ namespace bpr::qt {
 		void               refresh_feedback_icons();
 		void               drill(application::overview_feedback_row_kind aRow, const std::string& aPath, const core::feedback_count_target& aTarget);
 		void               open_comments_menu(const QModelIndex& aIndex, const QPoint& aGlobal);
+		/// \brief Opens the file whose row holds `aIndex`, if it is a file.
+		void               open_file_at(const QModelIndex& aIndex);
 		[[nodiscard]] auto chip_at(const QPoint& aViewportPosition) const -> std::optional<std::pair<QModelIndex, overview_comment_chip>>;
 		bool               eventFilter(QObject* aObject, QEvent* aEvent) override;
 		void               changeEvent(QEvent* aEvent) override;

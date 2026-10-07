@@ -285,9 +285,14 @@ namespace bpr::qt {
 		auto* const listingLayout = new QHBoxLayout{ ListingRow };
 		listingLayout->setContentsMargins(0, 0, 0, 0);
 		listingLayout->setSpacing(4);
+		// The count's own mark leads, as on its chip; × follows the words.
+		ListingMark = new QLabel{ ListingRow };
+		ListingMark->setObjectName(QStringLiteral("conversationListingMark"));
 		ListingCaption = new QLabel{ ListingRow };
 		ListingCaption->setObjectName(QStringLiteral("conversationListingCaption"));
-		ListingCaption->setWordWrap(true);
+		// One line at its own width, so × follows the words; it may shrink
+		// in a narrow panel rather than widen it.
+		ListingCaption->setMinimumWidth(1);
 		detail::set_plain_text_label(ListingCaption);
 		ClearListing = new QToolButton{ ListingRow };
 		ClearListing->setObjectName(QStringLiteral("conversationClearListing"));
@@ -296,8 +301,10 @@ namespace bpr::qt {
 		ClearListing->setToolTip(QStringLiteral("Show every conversation"));
 		ClearListing->setAccessibleName(QStringLiteral("Show every conversation"));
 		ClearListing->setFocusPolicy(Qt::StrongFocus);
-		listingLayout->addWidget(ListingCaption, 1);
+		listingLayout->addWidget(ListingMark);
+		listingLayout->addWidget(ListingCaption);
 		listingLayout->addWidget(ClearListing);
+		listingLayout->addStretch(1);
 		DiscussGrid->addWidget(ListingRow, 3, 0, 1, 3);
 		ListingRow->hide();
 		connect(ClearListing, &QToolButton::clicked, this, [this] { clear_listing(); });
@@ -389,7 +396,7 @@ namespace bpr::qt {
 		Cards->set_filters(std::move(filters));
 	}
 
-	void github_conversation_panel::list_conversations(std::vector<std::string> aConversations, const QString& aCaption, const QString& aDescription)
+	void github_conversation_panel::list_conversations(std::vector<std::string> aConversations, const QString& aCaption, const QString& aDescription, const QPixmap& aMark)
 	{
 		// The whole pull request, nothing else filtered: exactly the list.
 		{
@@ -400,6 +407,8 @@ namespace bpr::qt {
 		}
 		ScopeWholePr->setChecked(true);
 		Listing = std::set<std::string>{ std::make_move_iterator(aConversations.begin()), std::make_move_iterator(aConversations.end()) };
+		ListingMark->setPixmap(aMark);
+		ListingMark->setVisible(!aMark.isNull());
 		ListingCaption->setText(aCaption);
 		ListingCaption->setAccessibleName(aCaption);
 		ListingCaption->setAccessibleDescription(aDescription);

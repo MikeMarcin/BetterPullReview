@@ -24,12 +24,17 @@ class QResizeEvent;
 /// no preference of its own: a refused or failed edit is answered by the
 /// published record, which the list then shows again.
 namespace bpr::qt {
+	/// \brief A label's short phrase in its Overview chips row, as the
+	/// selected design writes it: "A concrete problem" for issue.
+	[[nodiscard]] auto feedback_label_phrase(core::feedback_label aLabel) -> QString;
+
 	/// \brief The twelve labels as a checklist: ticked ones first, in the
 	/// order the Overview shows them, then a rule, then the rest in catalog
 	/// order.
 	/// \details Each row is a checkbox, the label's mark in the style and
-	/// tints on screen, its ID and, when the list is wide enough, its catalog
-	/// description. A ticked row carries a grip and can be dragged into
+	/// tints on screen, its ID and, when the list is wide enough, its short
+	/// phrase at the right edge (the catalog description is the row's
+	/// tooltip). A ticked row carries a grip and can be dragged into
 	/// place; Alt+Up and Alt+Down (⌥↑ ⌥↓ on macOS) move the current ticked
 	/// row by one. Ticking adds a label at the end; unticking removes it.
 	/// Every change reports the whole new selection once. Tooltips sit right

@@ -5700,7 +5700,8 @@ namespace bpr::qt {
 			choose_home(false);
 			choose_modality(review_modality::discuss);
 		}
-		ConversationPanel->list_conversations(aListing.Conversations, caption, description);
+		ConversationPanel->list_conversations(aListing.Conversations, caption, description,
+											  OverviewPage != nullptr ? OverviewPage->count_mark(down.Target, anyColumns) : QPixmap{ });
 		if (aReveal) {
 			ConversationPanel->cards()->setFocus(Qt::OtherFocusReason);
 			QAccessibleAnnouncementEvent event{ ConversationPanel, QStringLiteral("Discuss lists %1").arg(caption) };

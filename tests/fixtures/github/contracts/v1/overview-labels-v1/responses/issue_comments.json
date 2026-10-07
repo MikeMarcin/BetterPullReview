@@ -1,0 +1,26 @@
+[
+	{
+		"body": "issue: The release notes do not mention the moved folders.",
+		"node_id": "IC_ol_1",
+		"user": {
+			"login": "tbutler",
+			"node_id": "U_fixture_tbutler"
+		}
+	},
+	{
+		"body": "praise: Thanks for splitting the shaders out.",
+		"node_id": "IC_ol_2",
+		"user": {
+			"login": "jiayin",
+			"node_id": "U_fixture_jiayin"
+		}
+	},
+	{
+		"body": "Rebased on main; the checks pass.",
+		"node_id": "IC_ol_3",
+		"user": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		}
+	}
+]
