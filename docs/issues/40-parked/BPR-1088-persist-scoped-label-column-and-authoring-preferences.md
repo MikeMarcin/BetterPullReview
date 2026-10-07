@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0048", "RFC-BPR-0049"]
 depends_on: ["BPR-1082", "BPR-1087"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-14","milestone":"overview","acceptance":["R20","R28","R41"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
 parked_on: "human-review"
-acceptance: [{"criterion":"R20","outcome":"pending","revision":"4a07f26bc","evidence":{"kind":"observation","detail":"Built: Reviews & queue > Comment labels > Overview chips selects and orders any subset of the twelve labels (drag, Alt+Up/Down), independent of the label helper and marks; core_feedback_label_columns, sqlite_workbench_settings_storage (all twelve persist in order; repeats/unknowns refused, stored bad lists load kept-and-counted with a recovery notice) and qt_feedback_label_settings pass on bpr-main-linux. Pending: the owner look at the section (offscreen renders only; frontend-design skill not installed on this station)."}},{"criterion":"R28","outcome":"pass","revision":"4a07f26bc","evidence":{"kind":"command","detail":"application_workbench_preferences_consumers test_label_preferences_follow_the_profile_authority: one durable write reaches both windows of a profile, a second profile is untouched both ways, failed writes never accepted and the asking window told, cancellation claims nothing, scoped reset writes only the label defaults; qt_feedback_label_settings Reset scoped with the drawer filter kept. Failing-before controls recorded on the card. 14/14 focused rows re-verified on bpr-main-linux at 1fd74b34c."}},{"criterion":"R41","outcome":"pass","revision":"4a07f26bc","evidence":{"kind":"command","detail":"sqlite_workbench_settings_storage migrates a v12 profile with every other field off default (letters, hooks, window row) to v13 with helper off, Open, no chips and every other field equal; two windows editing at once settle on the accepted record and a mid-flight change-back ends on the last choice (host and window fixes, controls fail). application_label_authoring_contract passes with the helper reaching the editor only through the setting."}}]
+acceptance: [{"criterion":"R20","outcome":"pending","revision":"10cd1cbb2","evidence":{"kind":"observation","detail":"Built (4a07f26bc); macOS look pass at 10cd1cbb2: rows show the frames' short phrases, right-aligned, full description as tooltip. Pending: BPR-1088-settings-rows-v001 in session f703b6f5 on the frozen build of 10cd1cbb2."}},{"criterion":"R28","outcome":"pass","revision":"4a07f26bc","evidence":{"kind":"command","detail":"application_workbench_preferences_consumers test_label_preferences_follow_the_profile_authority: one durable write reaches both windows of a profile, a second profile is untouched both ways, failed writes never accepted and the asking window told, cancellation claims nothing, scoped reset writes only the label defaults; qt_feedback_label_settings Reset scoped with the drawer filter kept. Failing-before controls recorded on the card. 14/14 focused rows re-verified on bpr-main-linux at 1fd74b34c."}},{"criterion":"R41","outcome":"pass","revision":"4a07f26bc","evidence":{"kind":"command","detail":"sqlite_workbench_settings_storage migrates a v12 profile with every other field off default (letters, hooks, window row) to v13 with helper off, Open, no chips and every other field equal; two windows editing at once settle on the accepted record and a mid-flight change-back ends on the last choice (host and window fixes, controls fail). application_label_authoring_contract passes with the helper reaching the editor only through the setting."}}]
 ---
 
 # BPR-1088: Persist scoped label-column and authoring preferences
@@ -203,3 +203,19 @@ skill package rows, both handoff courses, cycle security qualification, cycle
 CLI public path and documentation, the round-trip contract, the settings window
 and workbench settings rows, workbench settings storage, the feedback label rows
 and architecture_boundaries.
+
+## macOS run and look pass (bpr-main-mac, 2026-10-06)
+
+The macOS run of this card's rows passes at `10cd1cbb2` with BPR-1089's
+(57 of 57; see [[BPR-1089]]). Look pass with the `frontend-design` skill:
+each Overview chips row now shows the selected frames' short phrase ("A
+concrete problem") at its right edge in the quiet ink, and the catalog
+sentence stays the tooltip. At 340 px the sentence was cut short.
+`qt::feedback_label_phrase` holds the twelve phrases, and
+`qt_feedback_label_settings` checks that each is distinct and fits whole
+beside its ID. The Settings window keeps the system palette in every theme,
+while the marks inside it take the review window's tints; this is shared
+with BPR-1083's accepted Label marks row and is left as it is.
+
+The owner look is `BPR-1088-settings-rows-v001` in BPR-1089's session on the
+frozen build of `10cd1cbb2` (`/Users/jaeger/bpr1089-overview-look-v001.CPE7fj`). Session `f703b6f564d1e41b02e337cf5f89cde3`, state `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1089-1088-look-v001`, repo root `/Users/jaeger/Documents/GitHub/BetterPullReview`, host pid 23597 started detached (`http://127.0.0.1:54687/`, token in the coordinator's report), cursor 12.

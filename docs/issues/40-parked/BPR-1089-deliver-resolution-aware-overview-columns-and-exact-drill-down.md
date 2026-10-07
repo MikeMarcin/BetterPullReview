@@ -6,7 +6,7 @@ status: "Parked"
 rfcs: ["RFC-BPR-0049", "RFC-BPR-0050"]
 depends_on: ["BPR-1083", "BPR-1087"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-15","milestone":"overview","acceptance":["R20","R21","R23","R24","R27","R31","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"sequence_after":["BPR-1088"],"coordinator_amendment":{"date":"2026-10-06","decision":"BPR-1088's landed settings (4a07f26bc) satisfy the dependency; its R20 owner look folds into BPR-1089's owner look"}}
-acceptance: [{"criterion":"R20","outcome":"pending","revision":"68f00eb15","evidence":{"kind":"observation","detail":"Folded from BPR-1088 by the coordinator's amendment. Settings' Overview chips now drive the Overview: application_overview_feedback_public_path ticks issue and nitpick in Reviews & queue > Comment labels and the composed Overview counts them (renderer.cpp issue 1 + Other 1, main.cpp nitpick 1). Settings' Open carries the round open mark (qt_feedback_label_settings). Pending: the owner look at Settings and the Overview (offscreen renders only; frontend-design skill not installed on this station)."}},{"criterion":"R21","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/application/overview_feedback_tests.cpp","detail":"No chips, issue+question and all twelve, Open and All: every file, folder, Not on a file and pull-request row's chips and Other drill into disjoint lists whose union is the included list, each list exactly its number; file rows plus Not on a file are the pull request, each conversation once (application_overview_feedback). core_feedback_partition: 2,000 generated populations x 10 scopes (directory and unattributed added) x both modes, every number's selection equals its count, dedicated + catch-all partition the included; merged file tallies equal the directory's. Qt and composed: chips issue 1, question 1, Other 1 on the same file; all twelve fold into +n with the menu reaching 13 entries."}},{"criterion":"R23","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/adapters_qt/pull_request_overview_page_tests.cpp","detail":"Open is the composed default (application_overview_feedback_public_path), follows Settings for each new pull request and never writes back; All shows each chip's breakdown: state bar, accessible 'issue 2 (1 open, 1 resolved), Other 2 (2 open) conversations'; composed after a website resolve: 'issue 1 (1 resolved), Other 1 (1 open)'."}},{"criterion":"R24","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/application/overview_feedback_tests.cpp","detail":"REST groups (unknown) give Open 0 with Uncertain 2 and resolution_unknown, never exact; an empty file under a partial collection is qualified. Qt: a cell with only an unknown-state issue shows the ? qualifier ('? 1'), the ? chip beside the switch counts unknown + not resolvable + unreadable once each with its limits in the tooltip; a blank cell is only a complete zero. Controls fail."}},{"criterion":"R27","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/end_to_end/setup_destination_public_path_tests.cpp","detail":"Composed: a click on renderer.cpp's issue chip lists exactly review-thread:PRRT_cc_1 in Discuss under 'issue · open · src/engine/renderer.cpp — 1 conversation' with focus on the list; Enter on the Comments cell opens the chip menu and Other lists exactly PRRT_cc_2; a website resolve + Refresh re-lists the same count as 0 without moving focus, and the Overview keeps its current cell. Sorting and drill-down read the same core projection (feedback_sort_key_of / select_feedback_units); folders sort by their own number."}},{"criterion":"R31","outcome":"pending","revision":"68f00eb15","evidence":{"kind":"observation","detail":"Built: every chip draws through feedback_mark_theme (icons or letters, theme tints), four round state marks by shape, the Label key lists all twelve marks with names and shortcodes plus the state marks, accessible text per cell and per menu entry, anchored tooltips. Pending: owner look; offscreen renders only."}},{"criterion":"R33","outcome":"pending","revision":"68f00eb15","evidence":{"kind":"observation","detail":"The surface works in the composed application offscreen (Linux, 1x, 1400x900) by pointer and keyboard. The native matrix (100/125/200%, themes, larger text, VoiceOver/Narrator, narrow/wide) is not run."}}]
+acceptance: [{"criterion":"R20","outcome":"pending","revision":"10cd1cbb2","evidence":{"kind":"observation","detail":"Folded from BPR-1088. macOS look pass at 10cd1cbb2 (frontend-design): Settings' Overview chips rows show the frames' short phrases. Pending: BPR-1088-settings-rows-v001 in session f703b6f5."}},{"criterion":"R21","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/application/overview_feedback_tests.cpp","detail":"No chips, issue+question and all twelve, Open and All: every file, folder, Not on a file and pull-request row's chips and Other drill into disjoint lists whose union is the included list, each list exactly its number; file rows plus Not on a file are the pull request, each conversation once (application_overview_feedback). core_feedback_partition: 2,000 generated populations x 10 scopes (directory and unattributed added) x both modes, every number's selection equals its count, dedicated + catch-all partition the included; merged file tallies equal the directory's. Qt and composed: chips issue 1, question 1, Other 1 on the same file; all twelve fold into +n with the menu reaching 13 entries."}},{"criterion":"R23","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/adapters_qt/pull_request_overview_page_tests.cpp","detail":"Open is the composed default (application_overview_feedback_public_path), follows Settings for each new pull request and never writes back; All shows each chip's breakdown: state bar, accessible 'issue 2 (1 open, 1 resolved), Other 2 (2 open) conversations'; composed after a website resolve: 'issue 1 (1 resolved), Other 1 (1 open)'."}},{"criterion":"R24","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/application/overview_feedback_tests.cpp","detail":"REST groups (unknown) give Open 0 with Uncertain 2 and resolution_unknown, never exact; an empty file under a partial collection is qualified. Qt: a cell with only an unknown-state issue shows the ? qualifier ('? 1'), the ? chip beside the switch counts unknown + not resolvable + unreadable once each with its limits in the tooltip; a blank cell is only a complete zero. Controls fail."}},{"criterion":"R27","outcome":"pass","revision":"68f00eb15","evidence":{"kind":"command","path":"tests/end_to_end/setup_destination_public_path_tests.cpp","detail":"Composed: a click on renderer.cpp's issue chip lists exactly review-thread:PRRT_cc_1 in Discuss under 'issue · open · src/engine/renderer.cpp — 1 conversation' with focus on the list; Enter on the Comments cell opens the chip menu and Other lists exactly PRRT_cc_2; a website resolve + Refresh re-lists the same count as 0 without moving focus, and the Overview keeps its current cell. Sorting and drill-down read the same core projection (feedback_sort_key_of / select_feedback_units); folders sort by their own number."}},{"criterion":"R31","outcome":"pending","revision":"10cd1cbb2","evidence":{"kind":"observation","detail":"macOS look pass at 10cd1cbb2 (frontend-design): counts as amber digits beside the marks, ? ink 4.6:1 and up (7:1 in high contrast), Label key and menus in the page's theme, Discuss caption led by the count's mark. Pending: BPR-1089-overview-chips-v001 and -keyboard-v001 in session f703b6f5."}},{"criterion":"R33","outcome":"pending","revision":"10cd1cbb2","evidence":{"kind":"observation","detail":"Composed offscreen at 1x in light, dark and both high-contrast themes on macOS (application_overview_labels_public_path); the native matrix (125/200%, larger text, VoiceOver/Narrator, narrow/wide) is not run."}}]
 parked_on: "human-review"
 ---
 
@@ -224,3 +224,85 @@ reseal" comment). The mutation-branch pin did not move (`e067befe…a5df`).
 - **Coverage** is still BPR-1087's available or unavailable read; "stale" is
   not yet reported by the composition after a failed refresh.
 - **Live GitHub** not used.
+
+## macOS run and look pass (bpr-main-mac, 2026-10-06)
+
+Product commit `10cd1cbb2` (rebased over `ffd5b0314`). Engineering owner
+`rfc-implementer` (`claude-opus-5-5`, effort high), designed with the
+`frontend-design` skill against the selected design
+(`docs/design/BPR-1079-feedback-ux-selected.html`, frames v2).
+
+**macOS failures, fixed with root causes.**
+
+- `qt_pull_request_overview_page`, "Enter on the file's other cells still
+  reads it", also failing on plain `09334cf71`: Qt's `QAbstractItemView`
+  emits no `activated()` for Return on macOS (its macOS branch tries an edit
+  and ignores the key), so no file opened from the keyboard there. The page's
+  key filter now opens the file itself (`open_file_at`), the same dispatch as
+  activation. The check is unchanged.
+- `application_overview_feedback_public_path`, "the refresh moved no focus":
+  on macOS's offscreen platform a closed popup hands activation to no window,
+  where a native session gives it back to the window under the menu. The
+  course re-activates the window after the menu before its focus checks.
+
+**Look pass** (light, dark, high-contrast light and dark; offscreen 1x renders
+of the composed window):
+
+- A chip's count is digits 3 px after its mark with no fill: amber in Open on
+  file, folder and Not on a file rows alike, the text ink over the state bar
+  in All. The frames draw `.lchip .cnt` that way; the filled and outlined
+  pills came from the bare `.cnt` rules the Overview does not use.
+- The ? and not-resolvable marks are drawn in `feedback_state_faint` (text
+  32% toward base): 4.6 to 5.0:1 in light, 5.5 to 6.3:1 in dark, 7.0 and
+  8.6:1 in high contrast. The placeholder grey gave 3.0 to 5.2:1.
+- The Label key and the Comments and Sort by menus propagate the page's
+  palette (`Qt::WA_WindowPropagation`). In dark themes the key was white,
+  with its bubble glyphs nearly or wholly invisible. The key's tooltip names
+  ⌥K natively.
+- Discuss's drill-down caption leads with the count's own mark (label mark,
+  bubble or ?), and × follows the words on one line, not at the far edge.
+
+**Fixture.** `overview-labels-v1` (`scripts/build_overview_labels_fixture.py`):
+the nested-folders pull request with 34 labelled threads on all 17 files, one
+on a file no longer listed, 3 pull request comments and 2 review summaries;
+seven resolved, one outdated, a plain root, a custom label, and a link-first
+file comment (unreadable label). It has no unknown-resolution case: that needs
+the REST fallback, which a GraphQL fixture does not take.
+`application_overview_labels_public_path` pins its counts (27 open, ? 6;
+renderer.cpp "issue 2 · question 1 · Other 2"; slider.cpp in Settings order;
+the src/engine folder; Not on a file "issue 1 · ? 5"; All's breakdowns) and
+checks that the Label key, a Comments menu and the caption follow the theme.
+
+**Failing-before controls** (applied, built, run, reverted): a filled pill
+fails "in Open, a count is amber digits with no fill"; no window propagation
+fails "the Label key shows the dark theme the page shows".
+
+**Verification at `10cd1cbb2`**, macOS arm64 Debug, `build/dev` whole tree:
+57 of 57 focused rows (both cards' rows, the label, settings, overview,
+conversation, workbench and composed scales, the round-trip contract,
+`github_contract_fixture_security`, `architecture_boundaries`,
+`test_network_isolation_manifest` and the new row); `coding-format-check`
+(clang-format 23.1.1); `tidy.py` on the changed translation units reports
+only two warnings on lines this change did not touch; `DOCUMENTATION_OK`.
+Round-trip pins resealed over BPR-1295's reseal (fixture selection only;
+mutation pin unchanged).
+
+### Pending owner decisions (session v001)
+
+One short attended session asks Accept or Reject per candidate, on a frozen
+build of `10cd1cbb2` (`/Users/jaeger/bpr1089-overview-look-v001.CPE7fj`, executable SHA-256 `9805ea59…e4624f`).
+`python3 /Users/jaeger/bpr1089-overview-look-v001.CPE7fj/launch.py` opens bpr-fixtures/nested-folders#21 on its
+Overview, signed in as the fixture's account. Session `f703b6f564d1e41b02e337cf5f89cde3`, state `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1089-1088-look-v001`, repo root `/Users/jaeger/Documents/GitHub/BetterPullReview`, host pid 23597 started detached (`http://127.0.0.1:54687/`, token in the coordinator's report), cursor 12:
+
+1. `BPR-1089-overview-chips-v001`: the chips and their controls (Open/All,
+   ?, Label key, Discuss caption) read clearly and match Overview B in light,
+   dark and high contrast, consistent with the BPR-1083 marks (R20, R31).
+2. `BPR-1089-overview-keyboard-v001`: Left/Right move along a file row's
+   cells; on the Comments cell, Enter, the menu key or right-click opens the
+   chip menu; Enter elsewhere opens the file.
+3. `BPR-1088-settings-rows-v001`: BPR-1088's Settings rows (its R20, folded
+   here).
+
+R33's native matrix (125/200%, larger text, VoiceOver) is still not run.
+Linux and Windows reruns of the new row are owed. A window without an
+accepted handoff still shows no chips (unchanged; noted for the owner).
