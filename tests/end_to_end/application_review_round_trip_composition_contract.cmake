@@ -873,6 +873,15 @@ endfunction()
 # selection only: no grant, target, provider, credential, mutation or
 # publication path changes; mutation pin unchanged; no new src/app source.
 # Reviewed on BPR-1089.
+# BPR-1068 reseal (2026-10-06): over the BPR-1089 macOS look reseal above; no
+# other intervening pinned-scope commit. Production manifest only;
+# github_application.cpp is unchanged. platform_credential_vault.{hpp,cpp}
+# add a Linux read-only Secret Service readiness check, which touches no item;
+# tour_remote.cpp asks it before a native device flow starts and refuses with
+# vault_unavailable; tour_cli.cpp's capabilities names its platform and claims
+# no qualification. No grant, target, provider, token, mutation or
+# publication path changes; mutation pin unchanged; no new src/app source.
+# Reviewed on BPR-1068.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1089,7 +1098,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2563113f01f31b00d39c57f419382c1d0529fdd1543ddfa5478c4945f741440d"
+        "3d8e96ea03448f80e38c3f38ee506e4d668714f413383cda6423cc77a5f949c0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

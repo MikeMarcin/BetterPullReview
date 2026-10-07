@@ -119,3 +119,20 @@ Record each command's result, the revision and the OS, Qt and compiler on
 this card, and in the ledger section's platform. The capabilities `platform`
 block should read macos (Keychain, gh "explicit opt-in") and windows
 (Credential Manager, gh "unavailable"), both "not yet qualified".
+
+## Coordinator verification (bpr-main-linux, 2026-10-06)
+
+At `3ddbd244d`, the composition contract failed: `3632c4035` and `053c3df17`
+changed pinned `src/app` sources (`platform_credential_vault.{hpp,cpp}`,
+`tour_remote.cpp`, `tour_cli.cpp`) without a reseal. The production manifest
+is resealed with a dated "BPR-1068 reseal" note. `full_application` and the
+mutation pin did not move. In `build/dev-tour-cli`, 17 of 17 pass: the
+`tour_cli_*` rows, the five `linux_secret_service_*` rows,
+`cycle_cli_public_path`, `skill_pr_tour_package`, `sqlite_tour_owner_channel`,
+`architecture_boundaries`, `architecture_boundary_contract`,
+`test_network_isolation_manifest` and the composition contract (it also
+passes in `build/dev`). The format check passes.
+
+The card stays In Progress. AC44-12 is not met on Linux while [[BPR-1302]]
+(online tour reads never return) is open. Windows and macOS are owed, as
+listed above.
