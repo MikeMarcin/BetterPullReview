@@ -197,3 +197,63 @@ Linux half of AC44-12 now:
   no TourCLI route, and this host is outside the Ubuntu 24.04 / RHEL 10
   baseline. The installed TourCLI component is the observed standalone form.
 - macOS and Windows halves are owed (commands above).
+
+## macOS station run (2026-10-07)
+
+macOS 26.6.2 (25G83) arm64, Homebrew clang 23.1.1, CMake 4.4.3, Qt 6.11.2 (CPM
+cache). Revision `e1463a556`. Built with `cmake --preset tour-cli && cmake
+--build --preset tour-cli` and installed with `cmake --install build/tour-cli
+--component TourCLI` into an owner-private temporary root, which was deleted
+afterwards. Ledger: "Verification closeout — standalone package and native
+headless safety, macOS".
+
+| Capability | macOS observation |
+|---|---|
+| Separately installable `bpr` | `bin/bpr`, `bin/qt.conf`, private QtCore and QtNetwork frameworks, the SecureTransport TLS plugin under `lib/bpr/plugins/tls`. `LC_RPATH @executable_path/../lib`; `otool -L` names only the private Qt frameworks and system frameworks and libraries (Security, CoreFoundation, IOKit, DiskArbitration, UniformTypeIdentifiers, libc++, libSystem); no GUI framework. Ad hoc, linker-signed. No license, notice or SPDX file |
+| Release-grade package | None, as on Linux: `package.py` has no `TourCLI` route |
+| Discovery | `capabilities` (with `DISPLAY` unset) and `--json`: exit 0. `platform` = macos, Keychain, gh "explicit opt-in", "development install; no release package", "not yet qualified" |
+| First-run profile | Offline `open` of BPR-Test #1 on a fresh `--data-root`: exit 2 `target_ambiguous` (no saved target), after it made `state/v1/profile-registry.sqlite3` (profile 1 `Default`) and `review-tours.sqlite3`, directories 0700 and files 0600 |
+| Root safety | relative `--data-root`: exit 2 `invalid_profile_root`. An existing 0755 root: exit 7 `profile_unavailable`, left 0755. A symlink to a valid root: exit 7 `profile_unavailable` |
+| Machine targeting | `status --json` without `--profile`: exit 2 `target_ambiguous` |
+| Sign-in without a terminal | native `connect` with stdin `/dev/null`, `--json`: exit 3 `interaction_required` |
+| GHES | native `connect --host ghe.example.com` on a pty: exit 5, "available only on github.com" |
+| Native sign-in, live, interrupted | on a pty: GitHub's device URL and a code (redacted), then SIGINT, exit 130, "no remote content writes were issued". No code was entered. On macOS the vault check before the code is a no-op (Keychain answers ready) |
+| Online `open`, never signed in | exit 5 `authentication_required` in 0.04 s, against `MikeMarcin/BPR-Test#1` |
+| Native sign-in with the Keychain, loopback | Rehearsed (see [[BPR-1302]] "macOS station run"): every native path passes with the grant in a temporary default Keychain; the login Keychain is untouched |
+| gh transport | Not run against the owner's own gh, except once by mistake. A check of the vault (`connect --transport gh` with `PATH=/usr/bin:/bin`) found the owner's Homebrew `gh` through the product's fallback directories and connected account 7605339: one `/user` read and no write. The binding went to the temporary root, which was deleted, and nothing went to the Keychain. With a `HOME` that has no `Library/Keychains`, both transports refuse `vault_unavailable` |
+| Focused rows | `build/dev-tour-cli`: the twelve rows listed above plus `application_github_host` and `application_epoch_host`, 14 of 14 |
+
+The tests-off binary has no `BPR_GITHUB_NATIVE_HTTPS_TEST_LOOPBACK` string.
+It does link one `_for_test` symbol,
+`make_github_cli_process_runner_for_test`. That symbol is the gh runner's
+existing unconditional seam, which `architecture_boundaries` pins. It is
+unreachable from the product and is not BPR-1302's seam.
+
+## Owner sign-in step, macOS (prepared 2026-10-07)
+
+- **Build:** a frozen tests-off `bpr` (TourCLI install) from `e1463a556`, in
+  `/Users/jaeger/bpr-owner-signin/install`. Its sha256 is `fab6b0ab…`.
+- **Run:** `bash /Users/jaeger/bpr-owner-signin/run-signin.sh [PR]`, with
+  the guide in `/Users/jaeger/bpr-owner-signin/INSTRUCTIONS.md`. The script:
+  1. Makes the user's default Keychain a new Keychain file under a session
+     folder, with a random password that is never written down.
+  2. Runs native `connect`; the owner enters the code at
+     `https://github.com/login/device`.
+  3. Runs a 120 s bounded `open` of `MikeMarcin/BPR-Test` pull request 1 in a
+     following process.
+  4. On every exit, restores the previous default Keychain and search list,
+     and deletes the temporary Keychain and the session folder.
+- **Why a temporary Keychain:** the login Keychain already holds the desktop
+  app's items for profile 1, account 7605339 on github.com. A fresh tour
+  profile 1 signed in as the same account produces the same service and
+  account names. So it would overwrite the desktop's sign-in, and removing
+  the item afterwards would delete it.
+- **Results:** in `/Users/jaeger/bpr-owner-signin/result.txt`: exit codes,
+  timings, item counts and named non-secret fields. The device code goes to
+  the terminal only.
+- **Checks already run:**
+  - Without a terminal: capabilities exit 0, `connect` exit 3, the open exit
+    5 in 0.13 s, the default Keychain restored, and the login items
+    unchanged.
+  - On a pty with Ctrl-C at the code prompt: exit 130 and the same cleanup.
+  - The loopback rehearsal of the same Keychain arrangement.

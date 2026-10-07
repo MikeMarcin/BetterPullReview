@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"found_by":"bpr-main-linux, BPR-1068's Linux run, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1302--BPR-1302--bb2b61bce2e0.json","related_rfcs":["RFC-BPR-0044"],"related_cards":["BPR-1068","BPR-1055","BPR-1059","BPR-1222"],"blocks":"AC44-12 (first-run auth setup) and every live use of bpr tour open, refresh, publish and recover"}
-acceptance: [{"criterion":"BPR-1302:never-signed-in-open","outcome":"pass","revision":"af4fa4fd8","evidence":{"kind":"command","detail":"Linux: tour_cli_loopback_provider's never-signed-in open exits 5 authentication_required in 0.0 s with no request; the tests-off bpr against MikeMarcin/BPR-Test exits 5 in 0.01 s; 18/18 focused rows at 2edfc10ab on bpr-main-linux. macOS and Windows station runs are owed (commands on the card); the coordinator accepted finishing with them owed."}},{"criterion":"BPR-1302:loopback-course","outcome":"pass","revision":"af4fa4fd8","evidence":{"kind":"command","detail":"tour_cli_loopback_provider drives native connect, online open, the pinned-source add and show --source, refresh and recover to completion against a 127.0.0.1 fake GitHub (publish stops at the existing unqualified gate, no write); with is_quiescent restored all 8 paths time out at the bound; epoch-only revert times out the two source paths; removing the renewal binding fails the next open; the Closing&& mutation fails application_github_host."}},{"criterion":"BPR-1302:owner-device-flow","outcome":"pass","revision":"399aade8e","evidence":{"kind":"observation","detail":"2026-10-07T15:17:36Z, Linux station, frozen tests-off bpr from 399aade8e: the owner entered the device code; native connect exit 0; the following process's open of MikeMarcin/BPR-Test#1 exit 0 after 14 s, complete, account 7605339. Temporary keyring, profile and grant deleted; no write."}}]
+acceptance: [{"criterion":"BPR-1302:never-signed-in-open","outcome":"pass","revision":"af4fa4fd8","evidence":{"kind":"command","detail":"Linux: tour_cli_loopback_provider's never-signed-in open exits 5 authentication_required in 0.0 s with no request; the tests-off bpr against MikeMarcin/BPR-Test exits 5 in 0.01 s; 18/18 focused rows at 2edfc10ab on bpr-main-linux. macOS 2026-10-07 at e1463a556: the course row passes (0.0 s) and the tests-off bpr exits 5 in 0.04 s, 14/14 focused rows. The Windows station run is owed (commands on the card); the coordinator accepted finishing with it owed."}},{"criterion":"BPR-1302:loopback-course","outcome":"pass","revision":"af4fa4fd8","evidence":{"kind":"command","detail":"tour_cli_loopback_provider drives native connect, online open, the pinned-source add and show --source, refresh and recover to completion against a 127.0.0.1 fake GitHub (publish stops at the existing unqualified gate, no write); with is_quiescent restored all 8 paths time out at the bound; epoch-only revert times out the two source paths; removing the renewal binding fails the next open; the Closing&& mutation fails application_github_host."}},{"criterion":"BPR-1302:owner-device-flow","outcome":"pass","revision":"399aade8e","evidence":{"kind":"observation","detail":"2026-10-07T15:17:36Z, Linux station, frozen tests-off bpr from 399aade8e: the owner entered the device code; native connect exit 0; the following process's open of MikeMarcin/BPR-Test#1 exit 0 after 14 s, complete, account 7605339. Temporary keyring, profile and grant deleted; no write."}}]
 ---
 
 # BPR-1302: The tour CLI's live remote reader waits on shutdown-only host quiescence, so online open and connect never return
@@ -315,3 +315,65 @@ code or credential in it, and nothing from it is committed beyond what follows.
   grant as deleted, and no session folder remains under the root. The user's
   own login keyring holds no items, so nothing was stored there.
 - No GitHub write was made.
+
+## macOS station run (2026-10-07)
+
+macOS 26.6.2 (25G83) arm64, Homebrew clang 23.1.1, CMake 4.4.3, Ninja 1.13.2,
+Qt 6.11.2 (CPM cache), OpenSSL 3.6.4, Apple git 2.50.1, Python 3.14.7. Revision
+`e1463a556`, in a worktree off `origin/main`.
+
+- **Focused rows.** `build/dev-tour-cli` (`cmake --preset dev -B
+  build/dev-tour-cli -DBPR_BUILD_TOUR_CLI=ON`): this card's ten rows and
+  BPR-1068's four others pass, 14 of 14. `tour_cli_loopback_provider` passes
+  with `never-signed-in-open:pass:0.0s`; inside ctest it reports the native
+  and gh rows not run, by design.
+- **Never-signed-in `open`, tests-off.** The `tour-cli` install's `bpr tour
+  open https://github.com/MikeMarcin/BPR-Test/pull/1 --json` on a fresh root
+  exits 5 `authentication_required` in 0.04 s. It sends no request.
+- **The `--gh` station command fails both gh rows.** `gh-connect` and
+  `gh-open` exit 5 `vault_unavailable` with no gh call. `gh_paths` sets
+  `HOME` to the fixture's empty home. macOS then finds no default Keychain,
+  so `make_platform_vault` returns nothing. The reader builds the vault for
+  both transports, so the gh path refuses before it starts gh. The same
+  refusal reproduces with the tests-off `bpr` and any `HOME` that has no
+  `Library/Keychains`.
+- **The rows with a Keychain in that home.** A scratch run, not committed,
+  created an empty Keychain file at `HOME/Library/Keychains/login.keychain-db`
+  in the fixture home and changed nothing else. The fake `gh` then passes
+  the product's macOS checks:
+  - `gh connect` printed `Connected account 1001 on github.com.` and exited 0.
+  - `gh open` exited 0 with `status: ok`, `complete: true`, the fixture's
+    `octo-org/review-repository` #17 and account 1001.
+  - The course still marks both rows failed. Its evidence is the fake's
+    `calls.jsonl`, and gh's own sandbox denies that write: the fixture's
+    `record_operation` swallows `PermissionError`. So the log stays empty.
+  - Making the rows pass needs two course changes: a throwaway Keychain
+    under the fixture home on macOS, and checks on `bpr`'s own output in
+    place of the denied trace. Not changed here.
+- **Native rows on macOS, rehearsed.** A scratch harness, not committed,
+  ran the course's `never_signed_in` and `native_paths` against the
+  tests-on `bpr`. The user's default Keychain was a temporary Keychain file
+  for the run (`security default-keychain -d user -s`), and the previous
+  default and search list were restored afterwards. All eight paths pass:
+  - native `connect` (8.8 s)
+  - online `open` (4.5 s)
+  - first pinned-source read (7.2 s)
+  - `show --source` (5.0 s)
+  - refresh (4.2 s)
+  - publish at the unqualified gate, with no write (4.0 s)
+  - recover (4.8 s)
+
+  The grant landed in the temporary Keychain: two items, the credential
+  `…file-keychain.v2` and the refresh `…file-keychain.v1`. The fake reports
+  no violation and no write. The login Keychain's four BetterPullReview
+  items have the same service, account and modification date as before.
+- **Live sign-in, interrupted.** The tests-off `bpr tour connect --host
+  github.com --transport native` on a pseudo-terminal printed GitHub's
+  device URL and a code (redacted). SIGINT ended it with exit 130 and "no
+  remote content writes were issued". No code was entered.
+
+Criterion status on macOS:
+- The never-signed-in exit 5 passes.
+- In the loopback course, the native paths pass under a temporary Keychain.
+- The gh rows are not passable as written (above).
+- Windows is still owed.
