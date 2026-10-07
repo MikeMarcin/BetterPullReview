@@ -336,6 +336,14 @@ offscreen: up for 24 seconds). Samples to paste:
 Next: `status --after 6` on that state; two Accepts satisfy :owner-look and
 the card finishes; a Reject returns with its note for a v002.
 
+### Published commits
+
+The rebase before publication renamed b07a3f44d (the code, the frozen look's
+build) to 14643f6a7 over origin/main 4ba7b3fbe; its round-trip manifest pin
+was resealed over BPR-1068's. Merged tree: 23/23 focused wrapper, settings,
+preferences, writing, cycle-send, round-trip, architecture and overview rows;
+DOCUMENTATION_OK.
+
 ### Open decision, not built
 
 With no wrapper saved, a shipped build cannot start Claude (bare `claude`, no
