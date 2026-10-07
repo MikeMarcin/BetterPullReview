@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1295"
 title: "Merge Read into Review, with one command to hide and restore the open drawers"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
