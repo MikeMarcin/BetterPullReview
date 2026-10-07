@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1301"
+  ],
+  "reserve_for": "claude-process-wrapper",
+  "purpose": "A Claude process wrapper and an option to skip the login prompt for agent launches",
+  "created": "2026-10-07T04:18:29.501715+00:00",
+  "base": "81010858470b7c10677f536041c594744a6595a2"
+}
