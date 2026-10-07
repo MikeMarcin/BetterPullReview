@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1301"
 title: "A Claude process wrapper and an option to skip the login prompt for agent launches"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner request in chat, 2026-10-06, with a screenshot of the VS Code Claude Code extension settings","reservation":"docs/issues/_reservations/BPR-1301--BPR-1301--ddc91c168c32.json","reference":"https://code.claude.com/docs/en/vs-code#use-third-party-providers","owner_questions":["BPR-1301:q-sign-in-switch","BPR-1301:q-windows-scripts"],"implementation_note":"Use the frontend-design skill for the Settings rows; owner review is required","acceptance":["BPR-1301:wrapper-path","BPR-1301:wrapper-launch","BPR-1301:unset-unchanged","BPR-1301:launch-recheck","BPR-1301:scope","BPR-1301:persist","BPR-1301:sign-in","BPR-1301:agent-free","BPR-1301:documents","BPR-1301:owner-look"]}
+metadata: {"origin":"Owner request in chat, 2026-10-06, with a screenshot of the VS Code Claude Code extension settings","reservation":"docs/issues/_reservations/BPR-1301--BPR-1301--ddc91c168c32.json","reference":"https://code.claude.com/docs/en/vs-code#use-third-party-providers","owner_questions":["BPR-1301:q-sign-in-switch","BPR-1301:q-windows-scripts"],"implementation_note":"Use the frontend-design skill for the Settings rows; owner review is required","acceptance":["BPR-1301:wrapper-path","BPR-1301:wrapper-launch","BPR-1301:unset-unchanged","BPR-1301:launch-recheck","BPR-1301:scope","BPR-1301:persist","BPR-1301:sign-in","BPR-1301:agent-free","BPR-1301:documents","BPR-1301:owner-look"],"owner_answers":{"date":"2026-10-06","BPR-1301:q-sign-in-switch":"Accept (no switch)","BPR-1301:q-windows-scripts":"Accept (.exe only)"}}
 ---
 
 # BPR-1301: A Claude process wrapper and an option to skip the login prompt for agent launches
@@ -165,7 +165,9 @@ context: "Claude process wrapper", an executable path, empty by default.
 
 **Don't prompt to sign in.** Requested as a switch that suppresses BPR's own
 login or authentication prompt or check. BPR has none (inventory 4), so the
-switch would change nothing; see owner question 1 before building it.
+switch would change nothing. The owner accepted question 1: no switch is
+built, and the page says in one line, under the wrapper, that sign-in is left
+to Claude and the wrapper.
 
 ## Security
 
@@ -201,6 +203,15 @@ switch would change nothing; see owner question 1 before building it.
    wrapper must be an `.exe` (or another directly executable image) and
    `.bat`/`.cmd` are refused with a one-line reason. **Reject:** say in the
    note how a Windows script wrapper should be started.
+
+## Owner answers
+
+The owner answered both questions in chat on 2026-10-06, verbatim:
+
+- **BPR-1301:q-sign-in-switch:** "Accept (no switch)". No switch; one line on
+  Agents & context says sign-in is left to Claude and the wrapper.
+- **BPR-1301:q-windows-scripts:** "Accept (.exe only)". A Windows wrapper must
+  be an `.exe`; `.bat` and `.cmd` are refused with a one-line reason.
 
 ## Acceptance
 
