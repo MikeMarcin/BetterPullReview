@@ -54,6 +54,8 @@ results are in the [ledger](../../verification/RFC-BPR-0044-0046.md),
 | Console/process, owner channel, editor/temp, output safety | `tour_cli_public_entry`, `tour_cli_process_commands`, `tour_cli_composition`, `tour_cli_publication`, `tour_cli_terminal_publication`, `sqlite_tour_owner_channel`, `cycle_cli_public_path`, `runtime_process_surface`, `github_cli_process_runner`, the five `linux_secret_service_*` rows, `architecture_boundaries` and its contract: 20 of 20 at `112665f81`; the installed `bpr` passes `tour_cli_tests.py` and `cycle_cli_tests.py` in the network sandbox |
 | Feature discovery and docs | `capabilities` names linux, its vault, gh unavailable, "development install; no release package", "not yet qualified". `tour-cli.md` gains "Platform status"; it and `release-packages.md` no longer imply a release package or a Linux system Qt |
 
+`git pull --rebase` renamed the three commits on publication: `112665f81` is `3632c4035` on main, `4320b41ca` is `053c3df17` and the documentation commit is `95cf88b15`. The evidence above was produced on `112665f81` and `4320b41ca`, before the rebase brought unrelated upstream changes.
+
 AC44-12 is not met on Linux: the auth setup cannot be shown complete while
 [[BPR-1302]] stands, and no release package exists. Nothing here is a release
 or qualification claim.

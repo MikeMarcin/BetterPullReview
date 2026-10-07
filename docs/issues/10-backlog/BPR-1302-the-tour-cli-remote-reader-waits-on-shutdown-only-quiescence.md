@@ -12,7 +12,8 @@ metadata: {"found_by":"bpr-main-linux, BPR-1068's Linux run, 2026-10-06","reserv
 
 # BPR-1302: The tour CLI's live remote reader waits on shutdown-only host quiescence, so online open and connect never return
 
-Found by bpr-main-linux on 2026-10-06 during [[BPR-1068]], at `112665f81`.
+Found by bpr-main-linux on 2026-10-06 during [[BPR-1068]], at `112665f81`. That commit
+was published as `3632c4035`; the line numbers below are unchanged by the rename.
 
 ## Observation
 
