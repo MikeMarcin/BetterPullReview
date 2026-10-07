@@ -162,7 +162,10 @@ The configure presets are `macos-release-agent-free`,
 names ending `-agent-free-automation-off`, which turn both families off. Each
 inherits its full preset and has its own build directory. The `tour-cli` preset
 builds without agent integrations: the `TourCLI` install component (`bpr`, the
-supervisor and its private Qt) is the agent-free command-line package.
+supervisor and its private Qt) is the agent-free command-line package. It is a
+CMake install component, not a release artifact: `packaging/package.py` builds
+only the desktop's `Runtime` component, and the installed `TourCLI` tree
+carries no notices, SBOM or corresponding-source reference ([[BPR-1068]]).
 
 ```sh
 # macOS, unpublished local preparation of either variant

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1302"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-1068 Linux run: tour CLI live remote reader waits on shutdown-only host quiescence (replaces a colliding BPR-1301)",
+  "created": "2026-10-07T05:15:25.973782+00:00",
+  "base": "c6ea28778939f8ad7353b81999d207a5cc115f57"
+}

@@ -33,3 +33,87 @@ Acceptance ownership: AC44-12
 Milestone: **verification-closeout**. Pack alias PACK-PRTOUR-17 was allocated as live `BPR-1068` at import, preserving original plan lineage.
 
 Run focused tests and record command/result/producing revision. Reuse unchanged valid parent evidence. An implementation card does not authorize real company PR writes, remote pushes, credentials, paid model calls, agent permission changes or upstream skill installation. Use existing isolated fixtures and separately authorized designated acceptance. Missing capabilities/evidence remain explicit. No GitHub Actions or new model-routing topology is introduced.
+
+## Linux station run (bpr-main-linux, 2026-10-06)
+
+Ubuntu 26.04 LTS x86_64 under WSL2, GCC 15.2.0, Qt 6.11.2. Start
+`b078d8bdf`; product changes `112665f81` (Secret Service readiness before
+sign-in) and `4320b41ca` (capabilities `platform` block). Full commands and
+results are in the [ledger](../../verification/RFC-BPR-0044-0046.md),
+"Verification closeout — standalone package and native headless safety, Linux".
+
+| Capability | Linux observation |
+|---|---|
+| Separately installable `bpr` | `tour-cli` preset and the `TourCLI` component install into a private root; `RUNPATH $ORIGIN/../lib`, private Qt and ICU, no GUI library, no system Qt. Runs with no display, no session bus and an invalid QPA |
+| Release-grade package | Not possible here, and none exists: `package.py` has no `TourCLI` route (it packages the desktop's `Runtime` component) and refuses Ubuntu 26.04; the install carries no notices, SBOM or source reference |
+| First-run profile without the desktop | Offline `open` on a fresh root creates the owner-private registry with profile 1 `Default` and the tour store (0700/0600); root and targeting refusals hold |
+| Native sign-in, vault absent or locked | Before `112665f81` the device flow started with nowhere to store the grant. Now exit 5 `vault_unavailable`, "Nothing was requested from GitHub", with the setup or unlock step |
+| Native sign-in, unlocked keyring | Passes the check; the GitHub device URL and a code (redacted) appear; interrupted, exit 130. Completion not run (human step below) |
+| gh transport, GHES | `transport_unavailable`; `device_flow_unavailable` |
+| Online `open` | Does not return: [[BPR-1302]] (filed by this run) |
+| Console/process, owner channel, editor/temp, output safety | `tour_cli_public_entry`, `tour_cli_process_commands`, `tour_cli_composition`, `tour_cli_publication`, `tour_cli_terminal_publication`, `sqlite_tour_owner_channel`, `cycle_cli_public_path`, `runtime_process_surface`, `github_cli_process_runner`, the five `linux_secret_service_*` rows, `architecture_boundaries` and its contract: 20 of 20 at `112665f81`; the installed `bpr` passes `tour_cli_tests.py` and `cycle_cli_tests.py` in the network sandbox |
+| Feature discovery and docs | `capabilities` names linux, its vault, gh unavailable, "development install; no release package", "not yet qualified". `tour-cli.md` gains "Platform status"; it and `release-packages.md` no longer imply a release package or a Linux system Qt |
+
+AC44-12 is not met on Linux: the auth setup cannot be shown complete while
+[[BPR-1302]] stands, and no release package exists. Nothing here is a release
+or qualification claim.
+
+### Human step, not taken
+
+Completing `bpr tour connect --host github.com --transport native` needs the
+owner to open `https://github.com/login/device` and enter the code the
+terminal prints. It was not asked: with [[BPR-1302]] the completed `connect`
+would store the grant and then not return, and the following `open` would
+hang. Ask after BPR-1302 lands, in a session with an unlocked keyring, then
+`open` a `MikeMarcin/BPR-Test` pull request.
+
+## Owed station runs
+
+Neither run is a release or qualification claim. Never enter a device code;
+interrupt the native `connect` once it prints one, and record the outcome.
+Expect the online `open` to hang until [[BPR-1302]] is fixed; interrupt it
+after 30 seconds.
+
+macOS (Terminal, from the checkout):
+
+```sh
+cd /absolute/path/to/BetterPullReview && git pull --rebase --autostash
+cmake --preset tour-cli && cmake --build --preset tour-cli
+root=$(mktemp -d "$HOME/bpr1068.XXXXXX") && chmod 700 "$root"
+cmake --install build/tour-cli --component TourCLI --prefix "$root/install"
+otool -L "$root/install/bin/bpr"
+env -u DISPLAY "$root/install/bin/bpr" tour capabilities
+env -u DISPLAY "$root/install/bin/bpr" tour capabilities --json
+"$root/install/bin/bpr" tour open https://github.com/MikeMarcin/BPR-Test/pull/1 --offline --json --data-root "$root/data"; ls -la "$root/data/state/v1"
+"$root/install/bin/bpr" tour connect --host github.com --transport native --json --data-root "$root/data" </dev/null
+"$root/install/bin/bpr" tour connect --host github.com --transport native --data-root "$root/data"
+"$root/install/bin/bpr" tour open https://github.com/MikeMarcin/BPR-Test/pull/1 --json --data-root "$root/data"
+cmake --preset dev -B build/dev-tour-cli -DBPR_BUILD_TOUR_CLI=ON && cmake --build build/dev-tour-cli
+ctest --test-dir build/dev-tour-cli --output-on-failure -R "^(tour_cli_publication|tour_cli_terminal_publication|tour_cli_composition|tour_cli_process_commands|tour_cli_public_entry|skill_pr_tour_package|cycle_cli_public_path|cycle_cli_documentation|sqlite_tour_owner_channel|architecture_boundaries|test_network_isolation_manifest)$"
+rm -rf "$root"
+```
+
+Windows (PowerShell in a native x64 tools environment, from the checkout;
+the `TourCLI` install deploys no Qt on Windows, so a start failure such as
+exit `-1073741515` is itself the observation to record):
+
+```powershell
+Set-Location C:\absolute\path\to\BetterPullReview; git pull --rebase --autostash
+cmake --preset tour-cli; cmake --build --preset tour-cli
+$root = Join-Path $env:TEMP ("bpr1068-" + [guid]::NewGuid()); New-Item -ItemType Directory $root | Out-Null
+cmake --install build/tour-cli --component TourCLI --prefix "$root\install"
+& "$root\install\bin\bpr.exe" tour capabilities; "exit $LASTEXITCODE"
+& "$root\install\bin\bpr.exe" tour capabilities --json
+& "$root\install\bin\bpr.exe" tour open https://github.com/MikeMarcin/BPR-Test/pull/1 --offline --json --data-root "$root\data"; Get-ChildItem "$root\data\state\v1"
+& "$root\install\bin\bpr.exe" tour connect --host github.com --transport gh --json --data-root "$root\data"
+& "$root\install\bin\bpr.exe" tour connect --host github.com --transport native --data-root "$root\data"
+& "$root\install\bin\bpr.exe" tour open https://github.com/MikeMarcin/BPR-Test/pull/1 --json --data-root "$root\data"
+cmake --preset windows-dev -B build/windows-dev-tour-cli -DBPR_BUILD_TOUR_CLI=ON; cmake --build build/windows-dev-tour-cli --config Debug
+ctest --test-dir build/windows-dev-tour-cli -C Debug --output-on-failure -R "^(tour_cli_publication|tour_cli_terminal_publication|tour_cli_composition|tour_cli_process_commands|tour_cli_public_entry|skill_pr_tour_package|cycle_cli_public_path|cycle_cli_documentation|sqlite_tour_owner_channel|architecture_boundaries|test_network_isolation_manifest)$"
+Remove-Item -Recurse -Force $root
+```
+
+Record each command's result, the revision and the OS, Qt and compiler on
+this card, and in the ledger section's platform. The capabilities `platform`
+block should read macos (Keychain, gh "explicit opt-in") and windows
+(Credential Manager, gh "unavailable"), both "not yet qualified".

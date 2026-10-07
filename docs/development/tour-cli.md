@@ -20,13 +20,21 @@ desktop window or load Qt GUI, Widgets, QPA, WebEngine, syntax, tray, or updater
 services. The Git adapter retains its existing isolated process supervisor.
 
 The macOS development install deploys Qt Core, Qt Network and its native TLS
-plugin with paths relative to `bin/bpr`. Other platforms currently use their
-installed Qt runtime. This development install is not a signed release package;
-release dependency notices, corresponding source, native qualification and
-distribution are tracked by the extension's later verification milestone.
+plugin with paths relative to `bin/bpr`. The Linux install does the same with
+Qt Core, Network, their ICU and the OpenSSL TLS plugin under `lib/`
+([[BPR-1267]]), so it needs no Qt on the system. Windows currently uses its
+installed Qt runtime. On every platform this is a development install, not a
+release package: `packaging/package.py` packages only the desktop's `Runtime`
+component, and the `TourCLI` install carries no notices, SBOM or
+corresponding-source reference ([[BPR-1068]]). To remove it, delete the files
+listed in `build/tour-cli/install_manifest_TourCLI.txt`.
 
 Capability discovery reports implemented commands explicitly. Human text is the
-default; `--json` writes one `bpr.tour.cli-result.v1` envelope. Unsupported options
+default; `--json` writes one `bpr.tour.cli-result.v1` envelope. Its `platform`
+object, and the human Platform line, name this build's platform, its native
+vault and whether the gh transport exists there, and say "development install;
+no release package" and "not yet qualified" on every platform (see "Platform
+status" below). Unsupported options
 refuse before command execution. Available commands include `connect`, `open`, `status`, `show`, `edit`, `add`,
 `move`, `remove`, `ready`, `undo`, `redo`, `walk`, `preview`, `publish`, `recover`, and `capabilities`.
 `open` accepts a full HTTPS PR URL from any directory, or a decimal PR number
@@ -38,7 +46,16 @@ The first open creates an owner-private local default profile through the shared
 initializer. Native sign-in is explicit: `bpr tour connect --host github.com
 --transport native` in a terminal uses the existing device flow and vault. It
 prints the verification URL without launching a browser. Unsupported native
-vaults and GHES device enrollment refuse with setup instructions. Explicit
+vaults and GHES device enrollment refuse with setup instructions. On Linux the
+vault is the Secret Service default collection on the session D-Bus, which BPR
+never unlocks, creates or prompts for. `connect` asks it first and, with no
+session bus, no Secret Service on the bus or a locked collection, refuses
+`vault_unavailable` (exit 5) with "Nothing was requested from GitHub." and the
+setup or unlock step, before any code is shown ([[BPR-1068]]). Without a
+desktop, start a session with an unlocked keyring first, for example
+`dbus-run-session -- sh`, then in that shell `gnome-keyring-daemon --unlock
+--components=secrets` with the keyring password on standard input, then
+`bpr tour connect`. Explicit
 `--transport gh` opts into the existing macOS gh executable/configuration trust
 boundary and selects its configured identity; it never extracts tokens.
 
@@ -173,6 +190,26 @@ does not enable live Tour writes. Unsupported vaults, platforms and authority
 remain typed refusals. Live host, native package and actual human/agent
 qualification remain later acceptance work. The current exact-plan preview is
 bounded to 400,000 UTF-8 bytes; larger plans refuse before prompting.
+
+## Platform status
+
+Nothing below is a qualification. Each row is what the shipped `bpr` does on
+that platform and what has actually been observed ([[BPR-1068]] and the
+[RFC-BPR-0044–0046 ledger](../verification/RFC-BPR-0044-0046.md)).
+
+| Capability | macOS | Linux | Windows |
+|---|---|---|---|
+| `tests-off` install runs with no display | Observed (BPR-1054) | Observed: Ubuntu 26.04 under WSL2, private Qt, `ldd` has no GUI library | Not run |
+| Release package | None | None; `package.py` also refuses Ubuntu 26.04 | None |
+| First run creates the private default profile | Fixture courses | Observed from the install on a fresh root | Fixture courses |
+| Native device sign-in | Composed (Keychain); not run live | Composed (Secret Service, checked first); flow starts, completion not run | Composed (Credential Manager); not run live |
+| `--transport gh` | Explicit opt-in | `transport_unavailable` | `transport_unavailable` |
+| Online `open`, refresh, publish, recover | Blocked by [[BPR-1302]] | Blocked by [[BPR-1302]] (observed hang) | Blocked by [[BPR-1302]] |
+| Local draft commands, editor, owner channel | Courses pass | Courses pass | Courses pass (BPR-1227) |
+
+[[BPR-1302]]: the live remote reader waits on a shutdown-only predicate, so an
+online `open` or a gh `connect` does not return until interrupted. No platform
+has an observed live sign-in, read or publication.
 
 ## Fresh profile reconstruction
 
