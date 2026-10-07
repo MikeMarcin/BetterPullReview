@@ -191,10 +191,12 @@ namespace bpr::qt {
 		/// Qt composition notification after accepted presentation changes.
 		std::function<void()> PresentationObserver;
 
-		QPlainTextEdit* Body           = nullptr;
-		QLabel*         TargetLabel    = nullptr;
-		QLabel*         ReplyTarget    = nullptr;
-		QLabel*         MutationStatus = nullptr;
+		QPlainTextEdit* Body        = nullptr;
+		QLabel*         TargetLabel = nullptr;
+		QLabel*         ReplyTarget = nullptr;
+		/// [[BPR-1212]]. The shown draft's lines when it covers several.
+		QLabel* RangeTarget    = nullptr;
+		QLabel* MutationStatus = nullptr;
 		/// [[BPR-1329]]. What the last Publish of the shown draft came to, in
 		/// words: publishing, published, or why not. Kept apart from the
 		/// status line's other messages so a surface that shows only the
@@ -351,6 +353,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-0657]]. Names the thread the shown draft answers; shown only while it does.
 		[[nodiscard]] auto reply_target_label() const noexcept -> QLabel*;
 		void               describe_reply_target(const QString& aDescription);
+		/// \brief [[BPR-1212]]. "Lines 9 to 13" while the shown draft covers
+		/// several lines; hidden for one line.
+		[[nodiscard]] auto range_target_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1212]]. Puts the body's caret at a position, as a
+		/// suggestion started from the code does at the end of its last line.
+		void place_body_caret(int aPosition);
 		/// \brief [[BPR-1084]]. What the thread the shown reply answers is
 		/// attached to, from the accepted conversation projection, or none.
 		/// \details Only the mark beside Publish reads it. A reply with none

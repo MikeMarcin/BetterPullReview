@@ -290,6 +290,12 @@ namespace bpr::adapters::github::detail {
 			std::uint64_t    Line = 0U;
 			std::string_view Path;
 			std::string_view Side;
+			/// [[BPR-1212]]. GitHub's multi-line fields, written only for a
+			/// range: absent members are skipped, so a single line's bytes are
+			/// exactly what they were. Keys stay in the sorted order of Qt's
+			/// compact JSON that the durable fingerprints were sealed with.
+			std::optional<std::uint64_t>    StartLine;
+			std::optional<std::string_view> StartSide;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
@@ -297,7 +303,9 @@ namespace bpr::adapters::github::detail {
 					"commit_id", &comment_submission_json::CommitId,
 					"line", &comment_submission_json::Line,
 					"path", &comment_submission_json::Path,
-					"side", &comment_submission_json::Side);
+					"side", &comment_submission_json::Side,
+					"start_line", &comment_submission_json::StartLine,
+					"start_side", &comment_submission_json::StartSide);
 			};
 		};
 
@@ -760,7 +768,7 @@ namespace bpr::adapters::github::detail {
 				return aRequest.Proposal.Body;
 			}
 			if (aRequest.Representation != core::review_publication_representation::file_comment_with_permalink
-				|| aRequest.Proposal.ReplyToThread || !aRequest.Source || !aRequest.Source->Endpoint || !aRequest.LiveBinding
+				|| aRequest.Proposal.ReplyToThread || aRequest.Proposal.StartLine || !aRequest.Source || !aRequest.Source->Endpoint || !aRequest.LiveBinding
 				|| aRequest.Source->Endpoint->path().generic_string() != aRequest.LiveBinding->Anchor.Path
 				|| aRequest.Source->Comparison.Authority.Account != aRequest.ActingIdentity
 				|| core::classify_review_body(aRequest.Proposal.Body) != core::review_body_compatibility::portable) {
@@ -785,13 +793,18 @@ namespace bpr::adapters::github::detail {
 				const auto object = file_comment_submission_json{ .Body = *body, .CommitId = std::string{ commit.view() }, .Path = binding.Anchor.Path };
 				return glz::write<review_json_options{ }>(object).value_or(std::string{ });
 			}
-			const auto object = comment_submission_json{
+			const auto side   = binding.Anchor.Semantic.Side == core::diff_side::left ? std::string_view{ "LEFT" } : std::string_view{ "RIGHT" };
+			auto       object = comment_submission_json{
 				.Body     = aRequest.Proposal.Body,
 				.CommitId = commit.view(),
 				.Line     = static_cast<std::uint64_t>(binding.Anchor.Semantic.Line) + 1U,
 				.Path     = binding.Anchor.Path,
-				.Side     = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT",
+				.Side     = side,
 			};
+			if (aRequest.Proposal.StartLine) {
+				object.StartLine = static_cast<std::uint64_t>(*aRequest.Proposal.StartLine) + 1U;
+				object.StartSide = side;
+			}
 			auto bytes = glz::write<review_json_options{ }>(object);
 			if (!bytes) {
 				return { };
@@ -1124,9 +1137,14 @@ namespace bpr::adapters::github::detail {
 				|| (!fileSubject && !aResponse.Line)) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
+			// [[BPR-1212]]. A range is ours only with its exact first line on
+			// the same side; a single line only without one, so a range ending
+			// at the same line with the same text is never taken for it.
+			const auto expectedStart = aExpected.Proposal.StartLine ? std::optional<std::uint64_t>{ static_cast<std::uint64_t>(*aExpected.Proposal.StartLine) + 1U } : std::nullopt;
 			if (aResponse.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
 				|| fileSubject != wantsFile || !expectedBody || aResponse.Body != *expectedBody
 				|| (!fileSubject && (aResponse.Side != expectedSide || *aResponse.Line - 1U != binding.Anchor.Semantic.Line))
+				|| (!fileSubject && (aResponse.StartLine != expectedStart || (expectedStart ? aResponse.StartSide != expectedSide : aResponse.StartSide.has_value())))
 				|| aResponse.User.Id != binding.ActingIdentity.DatabaseId
 				|| aResponse.User.NodeId != binding.ActingIdentity.NodeId
 				|| aResponse.User.Login != binding.ActingIdentity.Login) {
@@ -2003,6 +2021,10 @@ namespace bpr::adapters::github::detail {
 		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
 			|| !application::valid(*aRequest.LiveBinding)
 			|| aRequest.Proposal.Anchor != aRequest.LiveBinding->Anchor.Semantic
+			|| (aRequest.Proposal.StartLine
+				&& (aRequest.Proposal.ReplyToThread || aRequest.Proposal.Anchor.Side != core::diff_side::right
+					|| *aRequest.Proposal.StartLine >= aRequest.Proposal.Anchor.Line
+					|| aRequest.Representation != core::review_publication_representation::native_line))
 			|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
 			|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
 			|| aRequest.Proposal.Disposition != core::review_disposition::comment
@@ -3224,7 +3246,7 @@ namespace bpr::adapters::github::detail {
 			const auto evidence    = PublicationCapabilities.lookup(capability_key(Configuration, aRequest), publication_now());
 			const auto observation = core::review_publication_observation{ .Placement         = source.Placement,
 																		   .Capability        = evidence ? evidence->State : core::off_hunk_creation_capability::unknown,
-																		   .Body              = core::classify_review_body(aRequest.Proposal.Body),
+																		   .Body              = aRequest.Proposal.StartLine ? core::review_body_compatibility::requires_line_subject : core::classify_review_body(aRequest.Proposal.Body),
 																		   .State             = current ? current->State : publication_state::initial,
 																		   .Eligible          = true,
 																		   .CapabilityCurrent = evidence.has_value() };

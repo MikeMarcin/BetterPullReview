@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <utility>
 
 class QEvent;
 class QLabel;
@@ -268,6 +269,24 @@ namespace bpr::qt {
 		[[nodiscard]] auto selected_source_range() const -> std::optional<std::pair<core::source_line_ref, core::source_line_ref>>;
 		/// \brief Reveals an exact interval after its owner validates commit/blob/path identity.
 		[[nodiscard]] auto restore_source_range(core::source_line_ref aFirst, core::source_line_ref aLast) -> bool;
+		/// \brief [[BPR-1212]]. Told when Return (false) or Shift+Return (true)
+		/// is pressed while a code pane itself has keyboard focus. Keypad Enter
+		/// is Return; any other modifier is left to the pane. Without a sink
+		/// the keys keep the pane's own behaviour.
+		void set_line_draft_dispatch(std::function<void(bool aSuggest)> aDispatch);
+		/// \brief [[BPR-1212]]. The selected lines a new comment would cover,
+		/// first and last, from the one selection the mouse and the keyboard
+		/// share: the pane's selected lines when they hold the selected line,
+		/// otherwise that line alone. None with no line selected. The ends may
+		/// name different sides in one pane; the core refuses that.
+		[[nodiscard]] auto line_draft_range() const -> std::optional<std::pair<core::source_line_ref, core::source_line_ref>>;
+		/// \brief [[BPR-1212]]. Moves the keyboard line cursor of the pane
+		/// that has focus, or of the right pane, as Up and Down (`aStep`
+		/// -1 or 1) do, extending the selection with `aExtend` as Shift does.
+		/// \returns Whether a line was selected.
+		auto move_line_cursor(int aStep, bool aExtend) -> bool;
+		/// \brief The last polite announcement made for the comparison.
+		[[nodiscard]] auto last_announcement() const noexcept -> const QString&;
 		[[nodiscard]] auto reveal_conversation_line(
 			core::diff_side aSide,
 			std::uint32_t   aLine) -> bool;
@@ -519,8 +538,13 @@ namespace bpr::qt {
 		void emit_selection(bool aInteractive = false) noexcept;
 		void emit_reading_gesture() noexcept;
 		void emit_selection_observer(bool aInteractive) noexcept;
-		void clear_projection(QString aStatus);
-		void set_idle(bool aIdle);
+		/// \brief [[BPR-1212]]. Up, Down and Return on one pane; true when taken.
+		[[nodiscard]] auto handle_line_key(QPlainTextEdit* aPane, QEvent* aEvent) -> bool;
+		auto               move_pane_line_cursor(QPlainTextEdit* aPane, int aStep, bool aExtend) -> bool;
+		auto               move_unified_line_cursor(int aStep, bool aExtend) -> bool;
+		void               announce_line_selection();
+		void               clear_projection(QString aStatus);
+		void               set_idle(bool aIdle);
 
 		QLabel* Status      = nullptr;
 		bool    StatusShown = true;
@@ -609,6 +633,8 @@ namespace bpr::qt {
 		std::function<void(core::diff_side, std::uint32_t)> LineMarkDispatch;
 		std::function<void(core::diff_side, std::uint32_t)> ThreadTickDispatch;
 		void                                                refresh_thread_ticks();
+		/// [[BPR-1212]]. Return and Shift+Return in a code pane.
+		std::function<void(bool)> LineDraftDispatch;
 	};
 } // namespace bpr::qt
 

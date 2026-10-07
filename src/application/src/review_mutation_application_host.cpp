@@ -429,6 +429,14 @@ namespace bpr::application {
 			if (!core::supported_comment_target(selected.PreferredLine.Side, aRequest.Proposal.ReplyToThread.has_value())) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
+			// [[BPR-1212]]. A range is a new comment on the right whose first
+			// line precedes its anchor, the last line; whether both are in one
+			// hunk was decided against the diff before the draft took it.
+			if (aRequest.Proposal.StartLine
+				&& (aRequest.Proposal.ReplyToThread || aRequest.Proposal.Anchor.Side != core::diff_side::right
+					|| *aRequest.Proposal.StartLine >= aRequest.Proposal.Anchor.Line)) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
 			if (!publication.RightPath.has_value() || !key.RightBlob.has_value()
 				|| !publication.RightEndpoint.has_value()) {
 				return std::unexpected(review_mutation_failure::unsupported);

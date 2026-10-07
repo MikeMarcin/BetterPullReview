@@ -49,7 +49,8 @@ namespace bpr::core {
 			result.Refusal = revisioned_draft_refusal::bounds;
 			return result;
 		}
-		if (aCommand.Command.Kind > review_draft_command_kind::fail_publish || (aCommand.ChangeReplyTarget && aCommand.Command.Kind != review_draft_command_kind::edit)) {
+		if (aCommand.Command.Kind > review_draft_command_kind::fail_publish || (aCommand.ChangeReplyTarget && aCommand.Command.Kind != review_draft_command_kind::edit)
+			|| (aCommand.ChangeRange && (aCommand.Command.Kind != review_draft_command_kind::edit || aCommand.ChangeReplyTarget)) || (!aCommand.ChangeRange && aCommand.StartLine)) {
 			result.Refusal = revisioned_draft_refusal::invalid_command;
 			return result;
 		}
@@ -80,6 +81,20 @@ namespace bpr::core {
 		auto next = applied.Draft;
 		if (aCommand.ChangeReplyTarget) {
 			next.ReplyToThread = aCommand.ReplyToThread;
+			// [[BPR-1212]]. A reply is anchored by its thread, which has no
+			// range of its own: answering a thread keeps the text and the
+			// anchor and drops the first line.
+			if (next.ReplyToThread) {
+				next.StartLine.reset();
+			}
+		}
+		if (aCommand.ChangeRange) {
+			next.StartLine = aCommand.StartLine;
+			if (!valid_comment_range(next)) {
+				result.Refusal = revisioned_draft_refusal::policy;
+				result.Policy  = review_draft_rejection::invalid_range;
+				return result;
+			}
 		}
 		const auto composition = aCommand.Composition ? aCommand.Composition : aDraft.Composition;
 		if (next == aDraft.Draft && composition == aDraft.Composition) {

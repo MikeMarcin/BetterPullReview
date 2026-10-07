@@ -1516,6 +1516,26 @@ namespace bpr::qt {
 			}
 			aPane.setExtraSelections(selections);
 		}
+		/// \brief [[BPR-1212]]. What a code pane's description adds: the keys
+		/// that move and extend its selected line, and the two that start a
+		/// comment or a suggestion on it, named as the platform names them
+		/// (Return on macOS, Enter elsewhere), as Review Cycles does.
+		[[nodiscard]] auto line_keys_description() -> QString
+		{
+#if defined(Q_OS_MACOS)
+			const auto enter = QStringLiteral("Return");
+#else
+			const auto enter = QStringLiteral("Enter");
+#endif
+			return QStringLiteral("Up and Down move the selected line; with Shift they extend the selection. %1 comments on the selected lines; Shift+%1 suggests a change to them.").arg(enter);
+		}
+
+		/// \brief [[BPR-1212]]. A key the line cursor takes: no modifier but
+		/// Shift, and the keypad's, which Enter on the keypad carries.
+		[[nodiscard]] auto line_key_modifiers(const QKeyEvent& aEvent) noexcept -> bool
+		{
+			return (aEvent.modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier;
+		}
 	} // namespace
 
 	struct diff_workbench::unified_presentation
@@ -1568,11 +1588,11 @@ namespace bpr::qt {
 		Left = new source_pane{ Comparison };
 		Left->setObjectName(QStringLiteral("diffLeftSource"));
 		Left->setAccessibleName(QStringLiteral("Earlier source"));
-		Left->setAccessibleDescription(QStringLiteral("Read-only earlier file version"));
+		Left->setAccessibleDescription(QStringLiteral("Read-only earlier file version. ") + line_keys_description());
 		Right = new source_pane{ Comparison };
 		Right->setObjectName(QStringLiteral("diffRightSource"));
 		Right->setAccessibleName(QStringLiteral("Later source"));
-		Right->setAccessibleDescription(QStringLiteral("Read-only later file version"));
+		Right->setAccessibleDescription(QStringLiteral("Read-only later file version. ") + line_keys_description());
 		for (auto* const source : { Left, Right }) {
 			source->setReadOnly(true);
 			source->setLineWrapMode(QPlainTextEdit::NoWrap);
@@ -1599,7 +1619,7 @@ namespace bpr::qt {
 		Unified->setVerticalScrollBar(new thread_tick_scroll_bar{ Qt::Vertical, Unified });
 		Unified->setObjectName(QStringLiteral("diffUnifiedSource"));
 		Unified->setAccessibleName(QStringLiteral("Unified source comparison"));
-		Unified->setAccessibleDescription(QStringLiteral("Base and head line numbers; removed lines followed by added lines in each change"));
+		Unified->setAccessibleDescription(QStringLiteral("Base and head line numbers; removed lines followed by added lines in each change. ") + line_keys_description());
 		Unified->setReadOnly(true);
 		Unified->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Unified->setCenterOnScroll(true);
@@ -1738,6 +1758,12 @@ namespace bpr::qt {
 			[this](const diff_link_map_identity& aIdentity) {
 				select_link(aIdentity, true);
 			});
+
+		// [[BPR-1212]]. After the scroll controller's filters, so the line
+		// cursor sees Up, Down and Return on a pane first.
+		for (auto* const source : { Left, Right, Unified }) {
+			source->installEventFilter(this);
+		}
 
 		QWidget::setTabOrder(Left, LinkMap);
 		QWidget::setTabOrder(LinkMap, Right);
@@ -2356,6 +2382,270 @@ namespace bpr::qt {
 		editor->setTextCursor(cursor);
 		return true;
 	}
+	void diff_workbench::set_line_draft_dispatch(std::function<void(bool)> aDispatch)
+	{
+		LineDraftDispatch = std::move(aDispatch);
+	}
+
+	auto diff_workbench::last_announcement() const noexcept -> const QString&
+	{
+		return LastAnnouncement;
+	}
+
+	auto diff_workbench::line_draft_range() const -> std::optional<std::pair<core::source_line_ref, core::source_line_ref>>
+	{
+		if (!CurrentResult || !SemanticIndex || !Interaction.Selection) {
+			return std::nullopt;
+		}
+		const auto preferred = Interaction.Selection->PreferredLine;
+		auto       first     = preferred;
+		auto       last      = preferred;
+		if (OnePaneEnabled) {
+			// The rows the pane's selection covers, when it holds the selected
+			// line's row; each end keeps the side its row shows.
+			const auto cursor = Unified->textCursor();
+			const auto row    = unified_row_for(preferred.Side, preferred.Line);
+			if (cursor.hasSelection() && row) {
+				const auto  begin = Unified->document()->findBlock(cursor.selectionStart()).blockNumber();
+				const auto  end   = Unified->document()->findBlock(cursor.selectionEnd() - 1).blockNumber();
+				const auto& rows  = UnifiedPresentation->Rows;
+				if (begin >= 0 && end >= begin && static_cast<std::size_t>(end) < rows.size() && *row >= static_cast<std::uint32_t>(begin) && *row <= static_cast<std::uint32_t>(end)) {
+					const auto at = [&rows, &preferred](const int aRow) {
+						const auto& source = rows[static_cast<std::size_t>(aRow)];
+						return core::source_line_ref{ .Comparison = preferred.Comparison, .Side = source.Head ? core::diff_side::right : core::diff_side::left, .Line = source.Head.value_or(source.Base.value_or(0U)) };
+					};
+					first = at(begin);
+					last  = at(end);
+				}
+			}
+			return std::pair{ first, last };
+		}
+		const auto* const editor = preferred.Side == core::diff_side::left ? Left : Right;
+		const auto        cursor = editor->textCursor();
+		if (cursor.hasSelection()) {
+			const auto block = [editor](const int aPosition) {
+				return static_cast<std::uint32_t>(std::max(0, editor->document()->findBlock(aPosition).blockNumber()));
+			};
+			const auto begin = block(cursor.selectionStart());
+			const auto end   = block(cursor.selectionEnd() - 1);
+			// A selection ending at the start of a line covers that line only
+			// when it is the selected one, as a Shift-click on it makes it. A
+			// selection left elsewhere on the pane is not this line's.
+			if (preferred.Line >= begin && preferred.Line <= std::max(end, block(cursor.selectionEnd()))) {
+				first.Line = std::min(begin, preferred.Line);
+				last.Line  = std::max(end, preferred.Line);
+			}
+		}
+		return std::pair{ first, last };
+	}
+
+	auto diff_workbench::handle_line_key(QPlainTextEdit* const aPane, QEvent* const aEvent) -> bool
+	{
+		auto* const key = static_cast<QKeyEvent*>(aEvent);
+		if (!line_key_modifiers(*key) || (aPane == Unified) != OnePaneEnabled) {
+			return false;
+		}
+		const auto enter = key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter;
+		const auto arrow = key->key() == Qt::Key_Up || key->key() == Qt::Key_Down;
+		if ((enter && !LineDraftDispatch) || (arrow && !CurrentResult) || (!enter && !arrow)) {
+			return false;
+		}
+		// The pane claims the key before any window shortcut can take it.
+		key->accept();
+		if (aEvent->type() == QEvent::ShortcutOverride) {
+			return true;
+		}
+		const auto shift = key->modifiers().testFlag(Qt::ShiftModifier);
+		if (enter) {
+			const auto dispatch = LineDraftDispatch;
+			dispatch(shift);
+			return true;
+		}
+		static_cast<void>(move_pane_line_cursor(aPane, key->key() == Qt::Key_Up ? -1 : 1, shift));
+		return true;
+	}
+
+	auto diff_workbench::move_line_cursor(const int aStep, const bool aExtend) -> bool
+	{
+		auto* pane = OnePaneEnabled ? Unified : Right;
+		if (!OnePaneEnabled && Left->hasFocus()) {
+			pane = Left;
+		}
+		return move_pane_line_cursor(pane, aStep, aExtend);
+	}
+
+	auto diff_workbench::move_pane_line_cursor(QPlainTextEdit* const aPane, const int aStep, const bool aExtend) -> bool
+	{
+		if (!CurrentResult || !SemanticIndex) {
+			return false;
+		}
+		if (aPane == Unified) {
+			return move_unified_line_cursor(aStep, aExtend);
+		}
+		const auto side  = aPane == Left ? core::diff_side::left : core::diff_side::right;
+		const auto count = side == core::diff_side::left ? CurrentResult->Alignment.LeftLineCount : CurrentResult->Alignment.RightLineCount;
+		if (count == 0U) {
+			return false;
+		}
+		auto* const document = aPane->document();
+		const auto  block    = [document](const int aPosition) {
+			return static_cast<std::uint32_t>(std::max(0, document->findBlock(aPosition).blockNumber()));
+		};
+		// Where the cursor is: the selected line, or the moving end of the
+		// pane's selection when that holds it. With no line on this pane, the
+		// first line in view is selected and nothing moves yet.
+		auto moving = std::optional<std::uint32_t>{ };
+		auto anchor = std::optional<std::uint32_t>{ };
+		if (Interaction.Selection && Interaction.Selection->PreferredLine.Side == side && Interaction.Selection->PreferredLine.Line < count) {
+			const auto preferred = Interaction.Selection->PreferredLine.Line;
+			moving               = preferred;
+			anchor               = preferred;
+			const auto cursor    = aPane->textCursor();
+			if (cursor.hasSelection()) {
+				const auto from  = block(cursor.anchor());
+				const auto ended = block(cursor.position());
+				auto       to    = ended;
+				// A selection dragged to the start of the next line ends above
+				// it, unless that line is the selected one (a Shift-click).
+				if (to > from && to != preferred && cursor.position() == document->findBlock(cursor.position()).position()) {
+					--to;
+				}
+				if (preferred >= std::min(from, ended) && preferred <= std::max(from, ended)) {
+					anchor = from;
+					moving = to;
+				}
+			}
+		}
+		auto next = std::uint32_t{ 0U };
+		if (!moving) {
+			next   = std::min(block(aPane->cursorForPosition(QPoint{ 0, 0 }).position()), count - 1U);
+			anchor = next;
+		} else {
+			const auto target = static_cast<std::int64_t>(*moving) + aStep;
+			next              = static_cast<std::uint32_t>(std::clamp<std::int64_t>(target, 0, static_cast<std::int64_t>(count) - 1));
+		}
+		if (!aExtend) {
+			anchor = next;
+		}
+		if (!select_line(side, next, true)) {
+			return false;
+		}
+		// The cursor keeps itself in view through the linked scroll, never by
+		// scrolling one pane on its own.
+		if (!source_line_visible(side, next) && Interaction.Selection) {
+			static_cast<void>(reveal_exact_line(*Interaction.Selection, Interaction.Selection->PreferredLine));
+		}
+		const auto first = document->findBlockByNumber(static_cast<int>(*anchor));
+		const auto last  = document->findBlockByNumber(static_cast<int>(next));
+		if (first.isValid() && last.isValid()) {
+			auto cursor = QTextCursor{ document };
+			if (*anchor == next) {
+				cursor.setPosition(last.position());
+			} else if (*anchor < next) {
+				cursor.setPosition(first.position());
+				cursor.setPosition(last.position() + last.length() - 1, QTextCursor::KeepAnchor);
+			} else {
+				cursor.setPosition(first.position() + first.length() - 1);
+				cursor.setPosition(last.position(), QTextCursor::KeepAnchor);
+			}
+			auto* const vertical   = aPane->verticalScrollBar();
+			auto* const horizontal = aPane->horizontalScrollBar();
+			const auto  top        = vertical->value();
+			const auto  left       = horizontal->value();
+			aPane->setTextCursor(cursor);
+			vertical->setValue(top);
+			horizontal->setValue(left);
+		}
+		announce_line_selection();
+		return true;
+	}
+
+	auto diff_workbench::move_unified_line_cursor(const int aStep, const bool aExtend) -> bool
+	{
+		const auto& rows = UnifiedPresentation->Rows;
+		if (rows.empty()) {
+			return false;
+		}
+		auto* const document = Unified->document();
+		const auto  rowOf    = [document](const int aPosition) {
+			return static_cast<std::uint32_t>(std::max(0, document->findBlock(aPosition).blockNumber()));
+		};
+		const auto count  = static_cast<std::uint32_t>(rows.size());
+		auto       moving = std::optional<std::uint32_t>{ };
+		auto       anchor = std::optional<std::uint32_t>{ };
+		if (Interaction.Selection) {
+			if (const auto row = unified_row_for(Interaction.Selection->PreferredLine.Side, Interaction.Selection->PreferredLine.Line)) {
+				moving            = *row;
+				anchor            = *row;
+				const auto cursor = Unified->textCursor();
+				if (cursor.hasSelection()) {
+					const auto from = rowOf(cursor.anchor());
+					auto       to   = rowOf(cursor.position());
+					if (to > from && cursor.position() == document->findBlock(cursor.position()).position()) {
+						--to;
+					}
+					if (*row >= std::min(from, to) && *row <= std::max(from, to)) {
+						anchor = from;
+						moving = to;
+					}
+				}
+			}
+		}
+		auto next = std::uint32_t{ 0U };
+		if (!moving) {
+			next   = std::min(rowOf(Unified->cursorForPosition(QPoint{ 0, 0 }).position()), count - 1U);
+			anchor = next;
+		} else {
+			next = static_cast<std::uint32_t>(std::clamp<std::int64_t>(static_cast<std::int64_t>(*moving) + aStep, 0, static_cast<std::int64_t>(count) - 1));
+		}
+		if (!aExtend) {
+			anchor = next;
+		}
+		const auto& identity = rows[next];
+		if (!select_line(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)), true)) {
+			return false;
+		}
+		const auto first = document->findBlockByNumber(static_cast<int>(*anchor));
+		const auto last  = document->findBlockByNumber(static_cast<int>(next));
+		if (first.isValid() && last.isValid()) {
+			auto cursor = QTextCursor{ document };
+			if (*anchor == next) {
+				cursor.setPosition(last.position());
+			} else if (*anchor < next) {
+				cursor.setPosition(first.position());
+				cursor.setPosition(last.position() + last.length() - 1, QTextCursor::KeepAnchor);
+			} else {
+				cursor.setPosition(first.position() + first.length() - 1);
+				cursor.setPosition(last.position(), QTextCursor::KeepAnchor);
+			}
+			const auto left = Unified->horizontalScrollBar()->value();
+			const auto top  = Unified->verticalScrollBar()->value();
+			Unified->setTextCursor(cursor);
+			Unified->horizontalScrollBar()->setValue(left);
+			Unified->verticalScrollBar()->setValue(top);
+		}
+		if (!source_line_visible(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)))) {
+			reveal_unified_row(next);
+		}
+		announce_line_selection();
+		return true;
+	}
+
+	/// \brief [[BPR-1212]]. Says the selected line or lines, once a move.
+	void diff_workbench::announce_line_selection()
+	{
+		const auto range = line_draft_range();
+		if (!range) {
+			return;
+		}
+		const auto side  = range->second.Side == core::diff_side::left ? QStringLiteral("earlier") : QStringLiteral("later");
+		const auto first = static_cast<qulonglong>(std::min(range->first.Line, range->second.Line)) + 1U;
+		const auto last  = static_cast<qulonglong>(std::max(range->first.Line, range->second.Line)) + 1U;
+		announce_accessible_status(first == last && range->first.Side == range->second.Side
+									   ? QStringLiteral("Line %1 of the %2 version selected").arg(first).arg(side)
+									   : QStringLiteral("Lines %1 to %2 selected").arg(first).arg(last));
+	}
+
 	auto diff_workbench::selection() const noexcept
 		-> const std::optional<core::semantic_selection>&
 	{
@@ -2473,6 +2763,11 @@ namespace bpr::qt {
 	auto diff_workbench::eventFilter(QObject* const aWatched, QEvent* const aEvent)
 		-> bool
 	{
+		if ((aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::ShortcutOverride)
+			&& (aWatched == Left || aWatched == Right || aWatched == Unified)
+			&& handle_line_key(static_cast<QPlainTextEdit*>(aWatched), aEvent)) {
+			return true;
+		}
 		if (OnePaneEnabled && aWatched == UnifiedMap && aEvent->type() == QEvent::Wheel) {
 			QApplication::sendEvent(Unified->viewport(), aEvent);
 			return true;

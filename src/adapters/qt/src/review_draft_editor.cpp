@@ -13,6 +13,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <utility>
@@ -81,6 +82,12 @@ namespace bpr::qt {
 		Members.ReplyTarget->setWordWrap(true);
 		Members.ReplyTarget->hide();
 		layout->addWidget(Members.ReplyTarget);
+		Members.RangeTarget = new QLabel{ this };
+		Members.RangeTarget->setObjectName(QStringLiteral("reviewRangeTarget"));
+		Members.RangeTarget->setAccessibleName(QStringLiteral("Commenting on"));
+		Members.RangeTarget->setWordWrap(true);
+		Members.RangeTarget->hide();
+		layout->addWidget(Members.RangeTarget);
 		Members.MutationStatus = new QLabel{ this };
 		Members.MutationStatus->setObjectName(
 			QStringLiteral("reviewMutationStatus"));
@@ -648,6 +655,18 @@ namespace bpr::qt {
 			&& Members.ShownDraft->ReplyToThread.has_value());
 	}
 
+	auto review_draft_editor::range_target_label() const noexcept -> QLabel*
+	{
+		return Members.RangeTarget;
+	}
+
+	void review_draft_editor::place_body_caret(const int aPosition)
+	{
+		auto cursor = Members.Body->textCursor();
+		cursor.setPosition(std::clamp(aPosition, 0, static_cast<int>(Members.Body->document()->characterCount()) - 1));
+		Members.Body->setTextCursor(cursor);
+	}
+
 	void review_draft_editor::describe_reply_placement(std::optional<core::suggestion_placement_observation> aPlacement)
 	{
 		if (Members.ReplyPlacement == aPlacement) {
@@ -839,6 +858,9 @@ namespace bpr::qt {
 		// [[BPR-0657]]. The thread named is shown only while the draft answers one.
 		Members.ReplyTarget->setVisible(
 			aDraft.ReplyToThread.has_value() && !Members.ReplyTarget->text().isEmpty());
+		// [[BPR-1212]]. A draft on several lines says which, one-based.
+		Members.RangeTarget->setText(aDraft.StartLine ? tr("Lines %1 to %2").arg(static_cast<qulonglong>(*aDraft.StartLine) + 1U).arg(static_cast<qulonglong>(aDraft.Anchor.Line) + 1U) : QString{ });
+		Members.RangeTarget->setVisible(aDraft.StartLine.has_value());
 		if (body_text() != aDraft.Body) {
 			Members.ApplyingPresentation = true;
 			Members.Body->setPlainText(QString::fromStdString(aDraft.Body));
@@ -991,6 +1013,8 @@ namespace bpr::qt {
 		Members.ShownDraft.reset();
 		Members.ShownReceipt.reset();
 		Members.PublicationStatus.clear();
+		Members.RangeTarget->clear();
+		Members.RangeTarget->hide();
 		Members.ApplyingPresentation = true;
 		if (!Members.Revisioned.Candidate) {
 			Members.Body->clear();

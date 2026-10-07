@@ -205,10 +205,21 @@ namespace bpr::adapters::sqlite::detail {
 	{
 		private_codec codec;
 		std::uint64_t version = (std::is_same_v<T, core::agent_run_provenance> || std::is_same_v<T, application::private_publication_record>) ? 2 : 1;
+		// [[BPR-1212]]. A draft on several lines is version 2, with its first
+		// line after the version 1 fields; a single-line draft keeps exactly
+		// its version 1 bytes, and every stored version 1 row reads as one line.
+		if constexpr (std::is_same_v<T, application::private_draft_record>) {
+			version = aValue.Draft.Draft.StartLine ? 2 : 1;
+		}
 		codec.value(version);
 		codec.value(aValue);
 		if constexpr (std::is_same_v<T, core::agent_run_provenance>) {
 			codec.value(aValue.OutputItemBytes);
+		}
+		if constexpr (std::is_same_v<T, application::private_draft_record>) {
+			if (version == 2) {
+				codec.value(*aValue.Draft.Draft.StartLine);
+			}
 		}
 		if constexpr (std::is_same_v<T, application::private_publication_record>) {
 			codec.values(aValue.IdempotencyKey, aValue.ReceiptReserve, aValue.ActorNode, aValue.ActorDatabaseId, aValue.ActorLogin, aValue.Path, aValue.AcceptedHead);
@@ -229,7 +240,7 @@ namespace bpr::adapters::sqlite::detail {
 		codec.Input           = aBytes;
 		std::uint64_t version = 0;
 		codec.value(version);
-		if (version != 1 && !((std::is_same_v<T, core::agent_run_provenance> || std::is_same_v<T, application::private_publication_record>) && version == 2)) {
+		if (version != 1 && !((std::is_same_v<T, core::agent_run_provenance> || std::is_same_v<T, application::private_publication_record> || std::is_same_v<T, application::private_draft_record>) && version == 2)) {
 			return { };
 		}
 		T result{ };
@@ -242,6 +253,13 @@ namespace bpr::adapters::sqlite::detail {
 		if constexpr (std::is_same_v<T, application::private_publication_record>) {
 			if (version == 2) {
 				codec.values(result.IdempotencyKey, result.ReceiptReserve, result.ActorNode, result.ActorDatabaseId, result.ActorLogin, result.Path, result.AcceptedHead);
+			}
+		}
+		if constexpr (std::is_same_v<T, application::private_draft_record>) {
+			if (version == 2) {
+				auto start = std::uint32_t{ 0U };
+				codec.value(start);
+				result.Draft.Draft.StartLine = start;
 			}
 		}
 		if (!codec.Good || !codec.Input.empty()) {

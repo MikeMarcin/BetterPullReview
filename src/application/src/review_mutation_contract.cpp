@@ -161,8 +161,15 @@ namespace bpr::application {
 		const core::review_mutation_target&      aTarget) -> std::string
 	{
 		auto material = std::string{ };
+		// [[BPR-1212]]. A range and one line at its last line are different
+		// publications. The range's own prefix leads, so a single line's key
+		// is the same as it always was.
+		if (aProposal.StartLine) {
+			material = "bpr-review-comment-range-v1";
+			append(material, *aProposal.StartLine);
+		}
 		if (aProposal.Durable) {
-			material = "bpr-durable-review-publication-v1";
+			material += "bpr-durable-review-publication-v1";
 			append(material, aProposal.Durable->Incarnation);
 			append(material, aProposal.Durable->DraftRevision);
 		}

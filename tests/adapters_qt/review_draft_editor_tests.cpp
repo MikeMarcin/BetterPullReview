@@ -1145,6 +1145,7 @@ namespace {
 					 body,
 					 targetLabel,
 					 replyTarget,
+					 rangeTarget,
 					 mutationStatus,
 					 publicationStatus,
 					 workshopOriginal,
@@ -1171,6 +1172,8 @@ namespace {
 		static_assert(std::is_same_v<decltype(refusedLine), const std::optional<core::source_line_ref>>);
 		static_assert(std::is_same_v<decltype(revisioned), const qt::revisioned_draft_editor_state>);
 		static_assert(std::is_same_v<decltype(retryPublication), const bool>);
+		// [[BPR-1212]]. The shown draft's lines when it covers several: text.
+		static_assert(std::is_same_v<decltype(rangeTarget), QLabel* const>);
 		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void()>>);
 		// [[BPR-1329]]. What the last Publish came to, in words: presentation.
 		static_assert(std::is_same_v<decltype(publicationStatus), const QString>);

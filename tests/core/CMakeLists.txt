@@ -900,3 +900,12 @@ target_link_libraries(test_better_pull_review_line_endings_tests PRIVATE BetterP
 bpr_enable_hardening(test_better_pull_review_line_endings_tests)
 bpr_enable_warnings(test_better_pull_review_line_endings_tests)
 bpr_add_network_isolated_test(NAME core_line_endings COMMAND test_better_pull_review_line_endings_tests)
+
+# [[BPR-1212]]. A new comment on one line or several: the range GitHub takes,
+# its typed refusals, the draft and proposal that carry it, and the suggestion
+# a selection starts.
+bpr_add_executable(test_review_comment_range review_comment_range_tests.cpp)
+target_link_libraries(test_review_comment_range PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_review_comment_range)
+bpr_enable_warnings(test_review_comment_range)
+bpr_add_network_isolated_test(NAME core_review_comment_range COMMAND test_review_comment_range)

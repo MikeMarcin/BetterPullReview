@@ -7986,6 +7986,116 @@ namespace {
 		window.hide();
 	}
 
+	// [[BPR-1212]]. Return and Shift+Return in the code: the window asks the
+	// core about the selection, says in the status line why there is no
+	// comment, and otherwise selects the range's last line, hands the range
+	// to the composition and opens the existing composer. Only a code pane
+	// takes the keys.
+	void test_return_in_the_code_starts_a_draft_on_the_selection()
+	{
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 5\n"), std::string{ "line 5" }.size(), "changed line 5");
+		const auto           diff = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		qt::workbench_window window;
+		window.resize(1'400, 900);
+		window.show();
+		process_events();
+		window.set_conversation_endpoint_placement(false, true);
+		auto* const surface = publish_fixture(window, diff);
+		window.set_conversation_endpoint_placement(false, true);
+		auto requests = std::vector<qt::workbench_line_draft_request>{ };
+		auto accept   = true;
+		window.set_line_draft_dispatch([&requests, &accept](const qt::workbench_line_draft_request& aRequest) {
+			requests.push_back(aRequest);
+			return accept;
+		});
+		const auto key = [](QWidget& aWidget, const Qt::Key aKey, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
+			auto shortcut = QKeyEvent{ QEvent::ShortcutOverride, aKey, aModifiers };
+			QCoreApplication::sendEvent(&aWidget, &shortcut);
+			auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+			QCoreApplication::sendEvent(&aWidget, &press);
+			auto release = QKeyEvent{ QEvent::KeyRelease, aKey, aModifiers };
+			QCoreApplication::sendEvent(&aWidget, &release);
+			process_events();
+		};
+		auto* const page    = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+		auto* const right   = surface->right_pane();
+		auto* const left    = surface->left_pane();
+		const auto  message = [&window] { return window.statusBar()->currentMessage(); };
+		expect(page != nullptr && !page->isVisibleTo(&window), "the composer starts closed");
+
+		// Flagged 4: a left line takes no new comment, and says so.
+		expect(surface->select_conversation_line(core::diff_side::left, 4U), "a left line is selected");
+		left->setFocus(Qt::OtherFocusReason);
+		key(*left, Qt::Key_Return);
+		expect(requests.empty() && !page->isVisibleTo(&window) && message().contains(QStringLiteral("right, current-head side")),
+			   "Return on a left line opens nothing and the status line gives the reason");
+
+		// Lines outside one hunk are refused before any draft takes them.
+		expect(surface->select_conversation_line(core::diff_side::right, 14U), "an unchanged right line far from the change");
+		right->setFocus(Qt::OtherFocusReason);
+		key(*right, Qt::Key_Down, Qt::ShiftModifier);
+		key(*right, Qt::Key_Return, Qt::ShiftModifier);
+		expect(requests.empty() && !page->isVisibleTo(&window) && message().contains(QStringLiteral("within one hunk")),
+			   "Shift+Return on lines outside a hunk opens nothing and says why");
+
+		// Three lines in the hunk, extended from the keyboard: the request
+		// carries both ends, the last line is selected, and the composer opens.
+		expect(surface->select_conversation_line(core::diff_side::right, 3U), "a right line in the hunk");
+		key(*right, Qt::Key_Down, Qt::ShiftModifier);
+		key(*right, Qt::Key_Down, Qt::ShiftModifier);
+		key(*right, Qt::Key_Return, Qt::ShiftModifier);
+		expect(requests.size() == 1U && requests.back().First.Line == 3U && requests.back().Last.Line == 5U && requests.back().Suggest
+				   && requests.back().First.Side == core::diff_side::right && requests.back().Last.Side == core::diff_side::right,
+			   "Shift+Return hands lines 4 to 6 to the composition as a suggestion");
+		expect(surface->selection() && surface->selection()->PreferredLine.Line == 5U && page->isVisibleTo(&window) && message().isEmpty(),
+			   "the range's last line is selected and the existing composer opens");
+		window.close_review_composition();
+		process_events();
+
+		// One line with Return; keypad Enter is Return.
+		right->setFocus(Qt::OtherFocusReason);
+		expect(surface->select_conversation_line(core::diff_side::right, 6U), "one right line");
+		key(*right, Qt::Key_Enter, Qt::KeypadModifier);
+		expect(requests.size() == 2U && requests.back().First.Line == 6U && requests.back().Last.Line == 6U && !requests.back().Suggest && page->isVisibleTo(&window),
+			   "keypad Enter on one line asks for a comment on it");
+		window.close_review_composition();
+		process_events();
+
+		// Keys in a text field or the drawer are theirs.
+		auto* const body = window.review_editor()->body_editor();
+		body->setReadOnly(false);
+		body->setFocus(Qt::OtherFocusReason);
+		key(*body, Qt::Key_Return);
+		key(*body, Qt::Key_Return, Qt::ShiftModifier);
+		auto* const cards = window.conversation_panel() != nullptr ? window.conversation_panel()->cards() : nullptr;
+		if (cards != nullptr) {
+			key(*cards, Qt::Key_Return);
+		}
+		expect(requests.size() == 2U, "Return in the composer or the drawer starts no draft from the code");
+
+		// A composition that cannot take it says why in the status line.
+		accept = false;
+		right->setFocus(Qt::OtherFocusReason);
+		key(*right, Qt::Key_Return);
+		expect(requests.size() == 3U && !page->isVisibleTo(&window) && !message().isEmpty(), "a refused request opens nothing and says why");
+		accept = true;
+
+		// With no line selected, the status line says how to select one.
+		surface->clear();
+		process_events();
+		right->setFocus(Qt::OtherFocusReason);
+		key(*right, Qt::Key_Return);
+		expect(requests.size() == 3U && !page->isVisibleTo(&window) && message().contains(QStringLiteral("Select a line first"))
+				   && message().contains(QStringLiteral("Up and Down")),
+			   "with no line selected Return opens nothing and the status line says how to select one");
+		window.hide();
+	}
+
 	// [[BPR-1046]]. Reply names its thread only once the thread's own line is
 	// selected, which is what composes the draft that answers it. While that
 	// file's comparison is still loading, the reply waits for it. A comparison
@@ -12764,6 +12874,12 @@ auto main(int argc, char** argv) -> int
 	}
 	// [[BPR-0985]]. The conversation courses, which the full run does not reach
 	// past that same assertion: which thread moves code, and when.
+	// [[BPR-1212]]. Return and Shift+Return in the code, reached directly.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--line-draft"))) {
+		test_return_in_the_code_starts_a_draft_on_the_selection();
+		std::cout << "workbench-line-draft:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--conversation-reveal"))) {
 		test_discard_and_back_keep_the_comments_drawer();
 		test_compose_in_the_drawer();

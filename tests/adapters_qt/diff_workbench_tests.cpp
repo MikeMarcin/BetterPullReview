@@ -3762,6 +3762,191 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-1212]]. One key as a keyboard delivers it to the focused
+	/// widget: the shortcut pass, then the press. True when the press was
+	/// taken.
+	auto press_key(QWidget& aSurface, const Qt::Key aKey, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) -> bool
+	{
+		auto shortcut = QKeyEvent{ QEvent::ShortcutOverride, aKey, aModifiers };
+		shortcut.ignore();
+		QCoreApplication::sendEvent(&aSurface, &shortcut);
+		auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+		press.ignore();
+		const auto taken   = QCoreApplication::sendEvent(&aSurface, &press) && press.isAccepted();
+		auto       release = QKeyEvent{ QEvent::KeyRelease, aKey, aModifiers };
+		QCoreApplication::sendEvent(&aSurface, &release);
+		process_events();
+		return taken;
+	}
+
+	[[nodiscard]] auto line_range_of(const qt::diff_workbench& aWorkbench) -> std::optional<std::pair<std::uint32_t, std::uint32_t>>
+	{
+		const auto range = aWorkbench.line_draft_range();
+		if (!range) {
+			return std::nullopt;
+		}
+		return std::pair{ range->first.Line, range->second.Line };
+	}
+
+	void test_the_keyboard_line_cursor_and_return()
+	{
+		// Two hundred lines with a change in the middle, taller than the view.
+		auto left  = std::string{ };
+		auto right = std::string{ };
+		for (auto line = 0; line < 200; ++line) {
+			left += "line " + std::to_string(line) + "\n";
+			right += (line >= 100 && line < 104 ? "changed " : "line ") + std::to_string(line) + "\n";
+		}
+		const auto diff      = computed(left, right, { }, 90U);
+		auto       workbench = qt::diff_workbench{ };
+		auto       drafts    = std::vector<bool>{ };
+		workbench.resize(1'000, 520);
+		workbench.show();
+		const auto request = context(diff, 190U, 190U);
+		workbench.set_loading(request);
+		workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		settle_geometry(workbench);
+		auto* const rightPane = workbench.right_pane();
+		auto* const leftPane  = workbench.left_pane();
+
+		for (auto* const pane : { leftPane, rightPane, static_cast<QPlainTextEdit*>(workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"))) }) {
+			const auto description = pane->accessibleDescription();
+#if defined(Q_OS_MACOS)
+			const auto enter = QStringLiteral("Return");
+#else
+			const auto enter = QStringLiteral("Enter");
+#endif
+			expect(description.contains(QStringLiteral("Up and Down move the selected line")) && description.contains(QStringLiteral("with Shift they extend"))
+					   && description.contains(enter + QStringLiteral(" comments")) && description.contains(QStringLiteral("Shift+") + enter + QStringLiteral(" suggests")),
+				   "each code pane's accessible description names Up, Down, Shift, Return and Shift+Return");
+		}
+
+		// Without a sink, Return is the pane's own and is not taken.
+		rightPane->setFocus(Qt::OtherFocusReason);
+		expect(!press_key(*rightPane, Qt::Key_Return), "with nothing to start a draft, Return stays the pane's");
+		workbench.set_line_draft_dispatch([&drafts](const bool aSuggest) { drafts.push_back(aSuggest); });
+
+		expect(workbench.reveal_conversation_line(core::diff_side::right, 20U), "a line is selected and in view");
+		settle_geometry(workbench);
+		const auto topBefore     = rightPane->verticalScrollBar()->value();
+		auto       announcements = std::vector<accessible_announcement>{ };
+		{
+			const auto capture = scoped_accessibility_capture{ announcements };
+			expect(press_key(*rightPane, Qt::Key_Down), "Down is taken by the focused code pane");
+		}
+		expect(workbench.selection() && workbench.selection()->PreferredLine.Side == core::diff_side::right && workbench.selection()->PreferredLine.Line == 21U,
+			   "Down moves the selected line by one");
+		expect(!rightPane->textCursor().hasSelection() && line_range_of(workbench) == std::pair{ 21U, 21U }, "a plain move selects one line");
+		expect(rightPane->verticalScrollBar()->value() == topBefore, "a move inside the view does not scroll");
+		expect(announcement_count(announcements, &workbench, QStringLiteral("Line 22 of the later version selected")) == 1U, "the selected line is announced once, politely");
+
+		expect(press_key(*rightPane, Qt::Key_Down, Qt::ShiftModifier) && press_key(*rightPane, Qt::Key_Down, Qt::ShiftModifier), "Shift+Down is taken");
+		expect(workbench.selection()->PreferredLine.Line == 23U && line_range_of(workbench) == std::pair{ 21U, 23U },
+			   "Shift+Down extends the selection; the cursor is its moving end");
+		expect(rightPane->textCursor().hasSelection() && rightPane->textCursor().selectedText().contains(QStringLiteral("line 21")) && rightPane->textCursor().selectedText().contains(QStringLiteral("line 23")),
+			   "the extended lines wear the pane's own text selection");
+		expect(workbench.last_announcement() == QStringLiteral("Lines 22 to 24 selected"), "the range is announced");
+		for (auto step = 0; step < 3; ++step) {
+			expect(press_key(*rightPane, Qt::Key_Up, Qt::ShiftModifier), "Shift+Up is taken");
+		}
+		expect(workbench.selection()->PreferredLine.Line == 20U && line_range_of(workbench) == std::pair{ 20U, 21U }, "Shift+Up past the anchor extends the other way");
+		expect(press_key(*rightPane, Qt::Key_Down) && line_range_of(workbench) == std::pair{ 21U, 21U } && !rightPane->textCursor().hasSelection(),
+			   "Down without Shift collapses to the next line");
+
+		// Return and Shift+Return, keypad Enter, and no other modifier.
+		drafts.clear();
+		expect(press_key(*rightPane, Qt::Key_Return) && press_key(*rightPane, Qt::Key_Return, Qt::ShiftModifier)
+				   && press_key(*rightPane, Qt::Key_Enter, Qt::KeypadModifier) && press_key(*rightPane, Qt::Key_Enter, Qt::KeypadModifier | Qt::ShiftModifier),
+			   "Return, Shift+Return and keypad Enter are taken by the focused pane");
+		expect(drafts == std::vector<bool>{ false, true, false, true }, "Return asks for a comment and Shift+Return for a suggestion");
+		static_cast<void>(press_key(*rightPane, Qt::Key_Return, Qt::ControlModifier));
+		static_cast<void>(press_key(*rightPane, Qt::Key_Return, Qt::AltModifier));
+		static_cast<void>(press_key(*rightPane, Qt::Key_Down, Qt::AltModifier));
+		expect(drafts.size() == 4U && workbench.selection()->PreferredLine.Line == 21U, "no other modifier is taken");
+		auto* const detail = workbench.detail_pane();
+		detail->setFocus(Qt::OtherFocusReason);
+		static_cast<void>(press_key(*detail, Qt::Key_Return));
+		static_cast<void>(press_key(*workbench.link_map(), Qt::Key_Return));
+		expect(drafts.size() == 4U, "Return in the detail pane or the link map starts nothing");
+
+		// The mouse and the keyboard share one selection.
+		const auto rowCentre = [rightPane](const int aLine) {
+			return rightPane->cursorRect(QTextCursor{ rightPane->document()->findBlockByNumber(aLine) }).center();
+		};
+		expect(workbench.reveal_conversation_line(core::diff_side::right, 24U), "the lines to click are in view");
+		settle_geometry(workbench);
+		send_click(*rightPane->viewport(), rowCentre(25));
+		process_events();
+		if (const auto range = line_range_of(workbench); workbench.selection()->PreferredLine.Line != 25U || range != std::pair{ 25U, 25U }) {
+			std::cerr << "click: preferred=" << workbench.selection()->PreferredLine.Line << " range=" << (range ? range->first : 9999U) << "-" << (range ? range->second : 9999U)
+					  << " point=" << rowCentre(25).x() << "," << rowCentre(25).y() << '\n';
+		}
+		expect(workbench.selection()->PreferredLine.Line == 25U && line_range_of(workbench) == std::pair{ 25U, 25U }, "a click selects its line");
+		auto shiftClick = QMouseEvent{ QEvent::MouseButtonPress, rowCentre(28), rowCentre(28), rightPane->viewport()->mapToGlobal(rowCentre(28)), Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier };
+		QCoreApplication::sendEvent(rightPane->viewport(), &shiftClick);
+		auto shiftRelease = QMouseEvent{ QEvent::MouseButtonRelease, rowCentre(28), rowCentre(28), rightPane->viewport()->mapToGlobal(rowCentre(28)), Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier };
+		QCoreApplication::sendEvent(rightPane->viewport(), &shiftRelease);
+		process_events();
+		expect(line_range_of(workbench) == std::pair{ 25U, 28U }, "Shift-click extends the same selection");
+		rightPane->setFocus(Qt::OtherFocusReason);
+		expect(press_key(*rightPane, Qt::Key_Down, Qt::ShiftModifier) && line_range_of(workbench) == std::pair{ 25U, 29U },
+			   "Shift+Down extends what the mouse selected");
+		expect(workbench.select_conversation_line(core::diff_side::right, 60U) && line_range_of(workbench) == std::pair{ 60U, 60U },
+			   "a selection left elsewhere on the pane is not the selected line's");
+
+		// The cursor keeps itself in view through the linked scroll, both ways.
+		expect(workbench.select_conversation_line(core::diff_side::right, 10U), "back near the top");
+		for (auto step = 0; step < 120; ++step) {
+			static_cast<void>(press_key(*rightPane, Qt::Key_Down));
+			expect(workbench.source_line_visible(core::diff_side::right, workbench.selection()->PreferredLine.Line), "Down keeps the selected line in view");
+		}
+		expect(workbench.selection()->PreferredLine.Line == 130U && rightPane->verticalScrollBar()->value() > topBefore, "the view followed the cursor down");
+		const auto leftTop  = leftPane->cursorForPosition(QPoint{ 0, 0 }).blockNumber();
+		const auto rightTop = rightPane->cursorForPosition(QPoint{ 0, 0 }).blockNumber();
+		expect(std::abs(leftTop - rightTop) <= 4, "the panes stay linked while the cursor scrolls them");
+		for (auto step = 0; step < 140; ++step) {
+			static_cast<void>(press_key(*rightPane, Qt::Key_Up));
+		}
+		expect(workbench.selection()->PreferredLine.Line == 0U && workbench.source_line_visible(core::diff_side::right, 0U), "Up stops at the first line, in view");
+		expect(workbench.select_conversation_line(core::diff_side::right, 199U) && press_key(*rightPane, Qt::Key_Down)
+				   && workbench.selection()->PreferredLine.Line == 199U,
+			   "Down stops at the last line");
+
+		// The left pane moves its own side.
+		leftPane->setFocus(Qt::OtherFocusReason);
+		expect(press_key(*leftPane, Qt::Key_Down), "the left pane takes Down");
+		expect(workbench.selection()->PreferredLine.Side == core::diff_side::left, "with the left pane focused, Down selects a left line");
+		expect(press_key(*leftPane, Qt::Key_Down, Qt::ShiftModifier) && line_range_of(workbench).has_value()
+				   && workbench.line_draft_range()->first.Side == core::diff_side::left && workbench.line_draft_range()->second.Side == core::diff_side::left,
+			   "a left range stays on the left, where the core refuses it");
+
+		// One pane: rows, each end on its own side.
+		workbench.set_one_pane_enabled(true);
+		process_events();
+		auto* const unified = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+		expect(workbench.select_conversation_line(core::diff_side::right, 90U), "a right line in one pane");
+		unified->setFocus(Qt::OtherFocusReason);
+		expect(press_key(*unified, Qt::Key_Down, Qt::ShiftModifier) && press_key(*unified, Qt::Key_Down, Qt::ShiftModifier),
+			   "the one-pane view takes Shift+Down");
+		const auto oneRange = workbench.line_draft_range();
+		expect(oneRange && oneRange->first == core::source_line_ref{ diff.Alignment.Digest, core::diff_side::right, 90U } && oneRange->second.Line == 92U,
+			   "one pane's rows extend the same way");
+		drafts.clear();
+		expect(press_key(*unified, Qt::Key_Return, Qt::ShiftModifier) && drafts == std::vector<bool>{ true }, "Shift+Return in one pane asks for a suggestion");
+		workbench.set_one_pane_enabled(false);
+		process_events();
+
+		// With no line selected Return still asks; the window says how to select one.
+		workbench.clear();
+		process_events();
+		drafts.clear();
+		rightPane->setFocus(Qt::OtherFocusReason);
+		static_cast<void>(press_key(*rightPane, Qt::Key_Return));
+		expect(drafts == std::vector<bool>{ false } && !workbench.line_draft_range(), "with nothing selected the request comes with no range");
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -3800,6 +3985,7 @@ auto main(int argc, char** argv) -> int
 	test_dark_intraline_preserves_readable_syntax_hues();
 	test_group_selection_washes_every_line();
 	test_the_reading_line_wears_the_current_line_band();
+	test_the_keyboard_line_cursor_and_return();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }

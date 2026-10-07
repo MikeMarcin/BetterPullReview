@@ -3711,6 +3711,9 @@ namespace bpr::app::detail {
 						Evidence.LastSide = sent.value("side").toString().toStdString();
 						Evidence.LastLine = sent.value("line").isDouble() ? std::optional<std::uint32_t>{ static_cast<std::uint32_t>(sent.value("line").toInt()) } : std::nullopt;
 						Evidence.LastFile = file;
+						// [[BPR-1212]]. Present only when the request carried them.
+						Evidence.LastStartLine = sent.contains("start_line") && sent.value("start_line").isDouble() ? std::optional<std::uint32_t>{ static_cast<std::uint32_t>(sent.value("start_line").toInt()) } : std::nullopt;
+						Evidence.LastStartSide = sent.contains("start_side") ? std::optional<std::string>{ sent.value("start_side").toString().toStdString() } : std::nullopt;
 					}
 					// [[BPR-1084]]. A suggested change the label-authoring course
 					// writes on a line GitHub will not take an inline comment on.
@@ -3725,18 +3728,23 @@ namespace bpr::app::detail {
 					Comments.append(object);
 					Evidence.StoredComments = static_cast<std::size_t>(Comments.size());
 					const auto line         = file ? QJsonValue{ QJsonValue::Null } : object.value("line");
-					const auto post         = QJsonObject{ { "id", id }, { "body", object.value("body") }, { "bodyText", object.value("body") }, { "path", object.value("path") }, { "line", line }, { "originalLine", line }, { "outdated", false }, { "author", QJsonObject{ { "id", text(actor.NodeId) }, { "login", text(actor.Login) } } }, { "replyTo", QJsonValue{ QJsonValue::Null } } };
-					const auto thread       = QJsonObject{ { "id", QStringLiteral("PRRT_composed_%1").arg(Comments.size()) },
-														   { "isResolved", false },
-														   { "isOutdated", false },
-														   { "viewerCanResolve", true },
-														   { "viewerCanUnresolve", false },
-														   { "subjectType", file ? "FILE" : "LINE" },
-														   { "path", object.value("path") },
-														   { "diffSide", file ? QJsonValue{ "RIGHT" } : object.value("side") },
-														   { "line", line },
-														   { "originalLine", line },
-														   { "comments", QJsonObject{ { "totalCount", 1 }, { "nodes", QJsonArray{ post } }, { "pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", "composed-end" } } } } } };
+					auto       post         = QJsonObject{ { "id", id }, { "body", object.value("body") }, { "bodyText", object.value("body") }, { "path", object.value("path") }, { "line", line }, { "originalLine", line }, { "outdated", false }, { "author", QJsonObject{ { "id", text(actor.NodeId) }, { "login", text(actor.Login) } } }, { "replyTo", QJsonValue{ QJsonValue::Null } } };
+					// [[BPR-1212]]. A range's thread reads back with its first line.
+					if (!file && object.contains("start_line")) {
+						post.insert("startLine", object.value("start_line"));
+						post.insert("originalStartLine", object.value("start_line"));
+					}
+					const auto thread = QJsonObject{ { "id", QStringLiteral("PRRT_composed_%1").arg(Comments.size()) },
+													 { "isResolved", false },
+													 { "isOutdated", false },
+													 { "viewerCanResolve", true },
+													 { "viewerCanUnresolve", false },
+													 { "subjectType", file ? "FILE" : "LINE" },
+													 { "path", object.value("path") },
+													 { "diffSide", file ? QJsonValue{ "RIGHT" } : object.value("side") },
+													 { "line", line },
+													 { "originalLine", line },
+													 { "comments", QJsonObject{ { "totalCount", 1 }, { "nodes", QJsonArray{ post } }, { "pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", "composed-end" } } } } } };
 					{
 						const std::scoped_lock lock{ State->Mutex };
 						State->CreatedReviewThreads.push_back(thread);

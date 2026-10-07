@@ -26,6 +26,12 @@ namespace bpr::core {
 		review_draft_scope_id      Scope             = { };
 		/// New immutable candidate correlation, required when editing linked prose.
 		std::optional<review_composition_link> Composition = { };
+		/// [[BPR-1212]]. With an edit, sets the draft's first line to
+		/// `StartLine` (none makes it one line) in the same revision as the
+		/// body. The anchor, its last line, never moves; a range GitHub would
+		/// refuse is a policy refusal (`review_draft_rejection::invalid_range`).
+		bool                         ChangeRange = false;
+		std::optional<std::uint32_t> StartLine   = { };
 	};
 	enum class revisioned_draft_refusal : std::uint8_t { none,
 														 conflict,

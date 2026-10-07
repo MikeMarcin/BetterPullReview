@@ -1428,6 +1428,29 @@ namespace bpr::e2e::large_review {
 		save_frame("large_source_revisit");
 		verify_large(surface, aManifest);
 		require(surface.current_result()->Alignment.Key == comparison, "fallback recovery changed exact anchors");
+		// [[BPR-1212]]. The keyboard line cursor on the large source: one
+		// Down, one Shift+Down, and one Down from a line out of view, which
+		// reveals the next through the linked scroll.
+		{
+			auto* const right = surface.right_pane();
+			const auto  key   = [right](const Qt::Key aKey, const Qt::KeyboardModifiers aModifiers) {
+				auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+				QApplication::sendEvent(right, &press);
+			};
+			const auto line = [&surface]() -> std::uint32_t {
+				return surface.selection() ? surface.selection()->PreferredLine.Line : 0xFFFF'FFFFU;
+			};
+			right->setFocus(Qt::OtherFocusReason);
+			require(surface.reveal_conversation_line(core::diff_side::right, 40U), "the large source takes a selected line");
+			require(measure_wait(aApplication, aBudget, aReport, "keyboard_line_down", [&] { key(Qt::Key_Down, Qt::NoModifier); }, [&] { return line() == 41U && quiet(aApplication) && rendered(); }), "Down did not move the selected line");
+			require(measure_wait(aApplication, aBudget, aReport, "keyboard_line_extend", [&] { key(Qt::Key_Down, Qt::ShiftModifier); }, [&] {
+				const auto range = surface.line_draft_range();
+				return line() == 42U && range && range->first.Line == 41U && range->second.Line == 42U && quiet(aApplication) && rendered(); }), "Shift+Down did not extend the selection");
+			const auto far = surface.current_result()->Alignment.RightLineCount / 2U;
+			require(surface.select_conversation_line(core::diff_side::right, far) && !surface.source_line_visible(core::diff_side::right, far + 1U), "a line out of view is selected");
+			require(measure_wait(aApplication, aBudget, aReport, "keyboard_line_reveal", [&] { key(Qt::Key_Down, Qt::NoModifier); }, [&] { return line() == far + 1U && surface.source_line_visible(core::diff_side::right, far + 1U) && quiet(aApplication) && rendered(); }), "Down from a line out of view did not reveal the next");
+			save_frame("keyboard_line_reveal");
+		}
 	}
 
 	void close_active_work(app::github_application& aApplication, const fixture_manifest& aManifest,

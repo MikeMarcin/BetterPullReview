@@ -1540,6 +1540,68 @@ namespace {
 		response.Body = "[" + fixture_json(comment) + "]";
 		expect(!parse_staged_review_response(response, request), "cross-PR returned web link refused");
 	}
+
+	// [[BPR-1212]]. A comment on several lines sends GitHub's multi-line
+	// fields; one line sends exactly the bytes and key it always did.
+	[[nodiscard]] auto range_request(const std::uint32_t aStart) -> application::review_mutation_request
+	{
+		auto value               = request();
+		value.Proposal.StartLine = aStart;
+		value.IdempotencyKey     = application::idempotency_key_for(value.Proposal, value.Target);
+		return value;
+	}
+
+	void test_a_range_sends_githubs_multi_line_fields()
+	{
+		const auto single = request();
+		expect(single.IdempotencyKey == "5871cf205188372ebc5fbfffcccda1351bef269f18041abe642b2f36fd03766c",
+			   "a single line's idempotency key is the one sealed before ranges existed");
+		const auto ranged = range_request(8U);
+		expect(ranged.IdempotencyKey != single.IdempotencyKey && ranged.IdempotencyKey != range_request(9U).IdempotencyKey,
+			   "a range's key differs from its last line's and from another range's");
+		const auto compiled = compile_review_comment_request(ranged);
+		expect(compiled.has_value()
+				   && compiled->Body
+					   == "{\"body\":\"Please rename this.\","
+						  "\"commit_id\":\"1111111111111111111111111111111111111111\","
+						  "\"line\":13,\"path\":\"fixture/review.txt\",\"side\":\"RIGHT\","
+						  "\"start_line\":9,\"start_side\":\"RIGHT\"}",
+			   "lines 9 to 13 send start_line 9 and start_side RIGHT after the single-line fields, in sorted key order");
+		expect(validate_outbound_review_mutation_request(*compiled).has_value(), "the range request revalidates canonically");
+		auto tampered = *compiled;
+		tampered.Body.replace(tampered.Body.find("\"start_line\":9"), 14U, "\"start_line\":8");
+		expect(!validate_outbound_review_mutation_request(tampered).has_value(), "a changed start line is a wire tamper");
+		const auto plain = compile_review_comment_request(single);
+		expect(plain && plain->Body.find("start_") == std::string::npos, "one line sends no multi-line field");
+
+		for (const auto start : { 12U, 13U }) {
+			expect(!compile_review_comment_request(range_request(start)).has_value(), "a start at or after the last line is refused before the wire");
+		}
+		auto reply                   = range_request(8U);
+		reply.Proposal.ReplyToThread = "PRRT_kwDOFixture";
+		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+		expect(!compile_review_comment_request(reply).has_value(), "a reply never carries a range");
+		auto file           = range_request(8U);
+		file.Representation = core::review_publication_representation::file_comment_with_permalink;
+		expect(!compile_review_comment_request(file).has_value(), "a range never falls back to a file comment with one line's link");
+
+		const auto rangeResponse = [](const std::string_view aStart) {
+			auto body = comment_body();
+			body.insert(body.find(",\"body\""), std::string{ aStart });
+			return body;
+		};
+		const auto exact = parse_review_comment_response({ .Status = 201, .Body = rangeResponse(",\"start_line\":9,\"start_side\":\"RIGHT\"") }, ranged);
+		expect(exact.has_value() && exact->NodeId == "PRRC_fixture_44", "GitHub's answer with the range's start line is the range's receipt");
+		for (const auto wrong : { std::string_view{ "" }, std::string_view{ ",\"start_line\":null,\"start_side\":null" }, std::string_view{ ",\"start_line\":8,\"start_side\":\"RIGHT\"" },
+								  std::string_view{ ",\"start_line\":9,\"start_side\":\"LEFT\"" }, std::string_view{ ",\"start_line\":9" } }) {
+			const auto refused = parse_review_comment_response({ .Status = 201, .Body = rangeResponse(wrong) }, ranged);
+			expect(!refused.has_value() && refused.error() == review_mutation_contract_failure::identity_mismatch, "an answer without the exact start line and side is not the range");
+		}
+		expect(parse_review_comment_response({ .Status = 201, .Body = rangeResponse(",\"start_line\":null,\"start_side\":null") }, single).has_value(),
+			   "a single line still takes GitHub's null multi-line fields");
+		const auto stray = parse_review_comment_response({ .Status = 201, .Body = rangeResponse(",\"start_line\":9,\"start_side\":\"RIGHT\"") }, single);
+		expect(!stray.has_value() && stray.error() == review_mutation_contract_failure::identity_mismatch, "a range ending at the line is not the single line's receipt");
+	}
 } // namespace
 
 auto main() -> int
@@ -1556,6 +1618,7 @@ auto main() -> int
 	test_staged_batch_contract();
 	test_staged_response_contract();
 	test_exact_wire_compilation_and_tamper_rejection();
+	test_a_range_sends_githubs_multi_line_fields();
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
 	test_every_operation_names_its_exchange();
 	test_a_reply_is_reconciled_through_its_thread();

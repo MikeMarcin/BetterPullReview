@@ -80,6 +80,8 @@ namespace bpr::core {
 			return "discarded_draft";
 		case review_draft_rejection::not_publishing:
 			return "not_publishing";
+		case review_draft_rejection::invalid_range:
+			return "invalid_range";
 		}
 		return "none";
 	}
@@ -131,6 +133,9 @@ namespace bpr::core {
 			}
 			if (!meaningful(aDraft.Body)) {
 				return refuse(review_draft_rejection::empty_body);
+			}
+			if (!valid_comment_range(aDraft)) {
+				return refuse(review_draft_rejection::invalid_range);
 			}
 			next.State = review_draft_state::publishing;
 			break;
@@ -222,6 +227,7 @@ namespace bpr::core {
 			.Body          = aDraft.Body,
 			.Disposition   = aDisposition,
 			.ReplyToThread = aDraft.ReplyToThread,
+			.StartLine     = aDraft.StartLine,
 		};
 	}
 } // namespace bpr::core

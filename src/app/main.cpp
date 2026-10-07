@@ -1138,6 +1138,8 @@ namespace {
 		bool                                                   PublishedFileSwitchPassed = false;
 		bpr::app::detail::published_file_switch_probe_evidence PublishedFileSwitchEvidence;
 		std::string                                            PublishedFileSwitchDiagnostic;
+		// [[BPR-1212]]. `--line-draft-course`: only the course's line-draft phases.
+		bool LineDraftCourse = false;
 		std::optional<bpr::app::detail::defect_composition_probe>
 			DefectCompositionProbe;
 		// [[BPR-0654]]. `--overview-since-review`.
@@ -4727,6 +4729,9 @@ namespace {
 				   << evidence.PublishedMarked << evidence.PatchMarkedNative << evidence.PatchPublishedExact << evidence.ProseUnmarkedExact
 				   << evidence.RefusedTextKept << evidence.RefusedMarkedTextOnly << evidence.ReplyMarkedNative << evidence.IssueOffersTracking
 				   << evidence.TrackedOnlyByGesture << evidence.RelabelKeptDefect << evidence.ResolveOnlyEvidence << evidence.TourStopLabelled << '\n';
+			// [[BPR-1212]]. The keyboard line cursor and Return in the code.
+			stream << "LINE_DRAFT_EVIDENCE:" << evidence.LeftLineRefused << evidence.SingleLineOpenedPlain << evidence.KeyboardRangeSelected
+				   << evidence.SuggestionPrefilled << evidence.RangePublishedExact << evidence.NoLineExplained << '\n';
 			stream << "LABEL_AUTHORING_DIAGNOSTIC:" << QString::fromStdString(aRun.LabelAuthoringDiagnostic) << '\n';
 		}
 		if (aRun.PublishedFileSwitchProbe) {
@@ -5326,7 +5331,7 @@ namespace {
 		automated_run&                aRun)
 	{
 		const auto result = bpr::app::detail::github_application_fixture_access::exercise_label_authoring(
-			aApplication, aRun.LabelAuthoringEvidenceDirectory);
+			aApplication, aRun.LabelAuthoringEvidenceDirectory, aRun.LineDraftCourse);
 		aRun.LabelAuthoringDiagnostic = bpr::app::detail::github_application_fixture_access::label_authoring_diagnostic(aApplication);
 		if (result == bpr::app::detail::label_authoring_probe_result::pending) {
 			return;
@@ -8850,8 +8855,9 @@ auto main(int argc, char** argv) -> int
 		}
 		const auto attendedPullRequest    = QStringLiteral("%1/%2#%3").arg(QString::fromStdString(fixtureExpectations.Owner), QString::fromStdString(fixtureExpectations.Repository), QString::number(fixtureExpectations.Number));
 		const auto labelAuthoringEvidence = argument_value(argc, argv, "--label-authoring-evidence");
+		const auto lineDraftCourse        = has_argument(argc, argv, "--line-draft-course");
 		if ((labelAuthoringProbe && (fixtureName != "conventional-comments-v1" || attendedLaunch || selfTest || renderPath.has_value()))
-			|| (labelAuthoringEvidence.has_value() && !labelAuthoringProbe)) {
+			|| (labelAuthoringEvidence.has_value() && !labelAuthoringProbe) || (lineDraftCourse && !labelAuthoringProbe)) {
 			QTextStream{ stdout } << "LABEL_AUTHORING_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -9192,6 +9198,7 @@ auto main(int argc, char** argv) -> int
 								.PublishedFileSwitchProbe        = publishedFileSwitchProbe,
 								.PublishedFileSwitchTiming       = publishedFileSwitchTiming == std::optional<std::string_view>{ "late" } ? bpr::app::detail::published_file_switch_timing::late : publishedFileSwitchTiming == std::optional<std::string_view>{ "draft" } ? bpr::app::detail::published_file_switch_timing::draft
 																																																																		   : bpr::app::detail::published_file_switch_timing::settled,
+								.LineDraftCourse                 = lineDraftCourse,
 								.DefectCompositionProbe          = defectCompositionProbe,
 								.OverviewSinceReviewRequested    = overviewSinceReview,
 								.ReviewBehaviourRequested        = reviewBehaviour,

@@ -130,6 +130,20 @@ namespace bpr::qt {
 	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
 	/// [[BPR-0657]]. A card's Reply: the thread identity the next draft answers.
 	using workbench_review_reply_dispatch = std::function<void(const std::string&)>;
+	/// [[BPR-1212]]. Return (or Shift+Return, `Suggest`) in a code pane: the
+	/// selection's two ends, which the window has already found acceptable
+	/// to the core and whose last line it has selected, so the composition
+	/// can anchor the line's draft to them. The answer says whether it took
+	/// the request: an editable draft is coming.
+	struct workbench_line_draft_request
+	{
+		core::source_line_ref First;
+		core::source_line_ref Last;
+		bool                  Suggest = false;
+
+		auto operator<=>(const workbench_line_draft_request&) const = default;
+	};
+	using workbench_line_draft_dispatch = std::function<bool(const workbench_line_draft_request&)>;
 	/// [[BPR-0657]]. A card's Resolve or Unresolve, with what the window knows
 	/// of the thread and the server so the composition can decide it.
 	struct thread_resolution_gesture
@@ -486,6 +500,12 @@ namespace bpr::qt {
 		void set_review_submission_dispatch(review_submission_editor_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
+		/// \brief [[BPR-1212]]. Where Return and Shift+Return in the code go.
+		void set_line_draft_dispatch(workbench_line_draft_dispatch aDispatch);
+		/// \brief [[BPR-1212]]. Return (false) or Shift+Return (true) with the
+		/// code focused: a draft on the selected lines in the existing
+		/// composer, or the reason there is none in the status line.
+		void begin_line_draft(bool aSuggest);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
 		void set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Whether the composed provider resolves threads; with
@@ -1904,6 +1924,7 @@ namespace bpr::qt {
 		bool                                                         RepositoryDraftOpen      = false;
 		workbench_saved_server_dispatch                              SavedServerDispatch;
 		workbench_review_reply_dispatch                              ReviewReplyDispatch;
+		workbench_line_draft_dispatch                                LineDraftDispatch;
 		/// [[BPR-1046]]. A Reply pressed while its thread's comparison was
 		/// loading; the next comparison to arrive completes or refuses it.
 		std::optional<std::string>           DeferredReply;

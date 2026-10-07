@@ -67,6 +67,14 @@ namespace bpr::core {
 		/// [[BPR-0657]]. The thread this draft answers, by the provider's
 		/// opaque thread identity, or none for a new root comment at the line.
 		std::optional<std::string> ReplyToThread;
+		/// [[BPR-1212]]. The zero-based first line of a comment on several
+		/// lines, or none for one line. `Anchor` is then the range's last
+		/// line, which is what GitHub calls `line`; this is its `start_line`,
+		/// on the anchor's own side and comparison. A range is a new comment
+		/// on the right side and always starts above its anchor
+		/// (`valid_comment_range`); a reply is anchored by its thread and has
+		/// none.
+		std::optional<std::uint32_t> StartLine = { };
 
 		[[nodiscard]] auto shared() const noexcept -> bool
 		{
@@ -82,6 +90,18 @@ namespace bpr::core {
 	[[nodiscard]] constexpr auto supported_comment_target(const diff_side aSide, const bool aReply) noexcept -> bool
 	{
 		return aSide == diff_side::right || (aSide == diff_side::left && aReply);
+	}
+
+	/// \brief [[BPR-1212]]. Whether a draft's line range is one GitHub can take.
+	/// \details One line always is. A range is a new comment, on the right side,
+	/// whose first line is above its last: GitHub refuses a reply with a
+	/// `start_line`, a range across sides and a start that does not precede
+	/// the end. Whether both ends sit in one hunk is decided against the diff
+	/// by `decide_comment_range`.
+	[[nodiscard]] constexpr auto valid_comment_range(const review_comment_draft& aDraft) noexcept -> bool
+	{
+		return !aDraft.StartLine.has_value()
+			|| (!aDraft.ReplyToThread.has_value() && aDraft.Anchor.Side == diff_side::right && *aDraft.StartLine < aDraft.Anchor.Line);
 	}
 
 	/// \brief Names one command a reviewer can issue against a draft.
@@ -119,6 +139,8 @@ namespace bpr::core {
 		already_published,
 		discarded_draft,
 		not_publishing,
+		/// [[BPR-1212]]. A line range GitHub would refuse (`valid_comment_range`).
+		invalid_range,
 	};
 
 	/// \brief Returns the stable name for the supplied value.
@@ -222,6 +244,9 @@ namespace bpr::core {
 		std::optional<std::string> ReplyToThread;
 
 		std::optional<durable_review_publication_identity> Durable = { };
+		/// [[BPR-1212]]. Carried from the draft: the range's first line, or
+		/// none for one line. `Anchor` is the range's last line.
+		std::optional<std::uint32_t> StartLine = { };
 
 		auto operator<=>(const review_publication_proposal&) const = default;
 	};

@@ -765,8 +765,9 @@ never invents enabled state.
 | Toggle source line numbers | `Alt+Shift+5` |
 | Compose review | `Alt+R` (Option-R) |
 | Comment, or Reply to the selected thread | `Alt+C` (Option-C) |
-| Add comment on the selected line, in the code ([[BPR-1212]]) | `Return` (keypad `Enter` too) |
-| Suggest change on the selected line, in the code ([[BPR-1212]]) | `Shift+Return` |
+| Move the selected line; with Shift, extend the selection ([[BPR-1212]]) | `Up`, `Down`; `Shift+Up`, `Shift+Down`, in a code pane |
+| Add comment on the selected lines, in the code ([[BPR-1212]]) | `Return` (keypad `Enter` too) |
+| Suggest change on the selected lines, in the code ([[BPR-1212]]) | `Shift+Return` |
 | Publish the draft written in the drawer | `Ctrl+Return` (⌘↩) |
 | Open the drawer's draft in Discuss, and back to the code | `Ctrl+Shift+Return` (⌘⇧↩) |
 | Back from Discuss's composer; leave a drawer draft (kept when written, dropped when empty) | `Esc` |
@@ -774,6 +775,14 @@ never invents enabled state.
 | Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
 | Conversations ([[BPR-1293]]) | `Ctrl+4` (⌘4) |
 | Find a conversation: go to Conversations, or back ([[BPR-1293]]) | `Ctrl+J` (⌘J) |
+
+The code-pane keys act only while a code pane itself has keyboard focus
+([[BPR-1212]]; owner Q1, 2026-10-06). They are not window shortcuts: the pane
+claims them in `ShortcutOverride`, so a text field, the drawer, a menu, Home
+and the link map keep their own Return, and Alt+C keeps its reply-first
+behaviour. No modifier but Shift is taken; keypad Enter is Return. Each pane's
+accessible description names the keys, as Review Cycles' source view does.
+The local project's Return and Shift+Return are unchanged ([[BPR-1157]]).
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
 the composed epoch control already holds `Alt+1` through `Alt+3` with
@@ -916,6 +925,31 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
 - Selecting a line, hunk, ribbon, comment, or defect synchronizes all relevant
   surfaces through the one semantic alignment model.
 - The lower pane is a full-width line-over-line detail view for the selected change group.
+- A keyboard line cursor ([[BPR-1212]]). With a code pane focused, Up and
+  Down move the selected line on that pane's side, and Shift+Up and
+  Shift+Down extend the selection from where it began; the cursor is the
+  selection's moving end and the semantic selection follows it. With no line
+  on that pane, the first press selects the first line in view. The cursor
+  keeps itself in view through the shared comparison scroll, never by
+  scrolling one pane alone. The mouse and the keyboard share one selection: a
+  click selects a line, a drag or Shift-click selects lines in the pane's own
+  text selection, and Shift+Up and Shift+Down extend either. The selected
+  line wears the current-line band and extended lines the pane's text
+  selection; nothing new is drawn. A move is announced once, politely ("Line
+  12 of the later version selected", "Lines 9 to 13 selected"). In one pane
+  the same keys move by rows, and each end keeps its row's side.
+- Return comments on the selected lines and Shift+Return suggests a change to
+  them, in the existing composer ([[BPR-1212]]). The core decides the
+  selection first (`core::decide_comment_range`): a new comment needs the
+  right side; several lines must be on one side and inside one hunk of the
+  pull request's diff (the change groups with three lines of context, as
+  GitHub's diff draws them). A refusal opens nothing and says why in the
+  status line: a left line (the reason Comment gives), lines on two sides,
+  lines outside one hunk, or, with no line selected, "Select a line first:
+  click it, or move to it with Up and Down while the code has focus."
+  Otherwise the range's last line is selected, its draft takes the range, and
+  the composer opens. Return always starts on the selection; Alt+C keeps
+  reopening the line's draft as it is.
 - Comments are shown beside code in the right drawer, not inserted into the source layout.
 
 Conversation synchronization is exact rather than proximity-based. Selecting a
@@ -1373,6 +1407,27 @@ still shown as before. The review details still open below on request.
 Owner hand-back 49 amends the review bar's last width yield: when compact
 positions still cannot fit, their numbers yield into the tooltips. File and
 Changes remain before their arrows, joined by a separate accent rail.
+
+## Comments on several lines
+
+[[BPR-1212]]. A pull-request draft anchors to a first line, a last line and a
+side. The anchor stays the last line, which is GitHub's `line`; the first is
+`review_comment_draft::StartLine`, GitHub's `start_line`, absent for one line.
+A range is a new comment on the right side whose first line precedes its
+last; a reply has none, and answering a thread drops a draft's first line.
+The host refuses any other range before publication, and the GitHub adapter
+refuses it before the wire.
+
+Publication sends `start_line` and `start_side` after the single-line fields,
+in the same sorted key order; a single line sends exactly the bytes it always
+did, and its idempotency key is unchanged. A range's key and wire fingerprint
+differ from its last line's. GitHub's answer is the range's receipt only with
+the exact first line and side, and a single line's only without them. A range
+never falls back to a file comment with one line's link: GitHub's refusal of
+it is `incompatible_body`, with the text kept. A stored draft on several lines
+is version 2 of the private draft record, with its first line after the
+version 1 fields; single-line drafts keep their version 1 bytes, and every
+earlier row reads as one line.
 
 ## Source-line comments outside a hunk
 

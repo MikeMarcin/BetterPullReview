@@ -16,6 +16,8 @@ cmake_minimum_required(VERSION 4.4.2)
 # after one native attempt on that exact line, with no file comment, its text
 # kept and the mark then saying text only; and a reply written in place in a
 # thread on a current line is marked native in both editors.
+# [[BPR-1212]]. Then the keyboard line cursor and Return in the code, the
+# phases application_line_draft_contract runs on their own.
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -53,6 +55,7 @@ foreach(marker IN ITEMS
     PUBLIC_PATH_OK
     LABEL_AUTHORING_OK
     LABEL_AUTHORING_EVIDENCE:11111111111111111111
+    LINE_DRAFT_EVIDENCE:111111
 )
     string(FIND "${probe_output}" "${marker}" found)
     if(found EQUAL -1)

@@ -397,6 +397,10 @@ namespace bpr::app::detail {
 		std::string                  LastSide;
 		std::optional<std::uint32_t> LastLine;
 		bool                         LastFile = false;
+		/// [[BPR-1212]]. The last created comment's multi-line fields as
+		/// received: none when it sent no `start_line` or `start_side`.
+		std::optional<std::uint32_t> LastStartLine;
+		std::optional<std::string>   LastStartSide;
 
 		auto operator<=>(const review_mutation_fixture_evidence&) const = default;
 	};
@@ -657,6 +661,26 @@ namespace bpr::app::detail {
 		/// labelled `question`, is marked from its narrative and kept byte for
 		/// byte.
 		bool TourStopLabelled = false;
+		/// [[BPR-1212]]. Return on a left-side line with the left pane focused
+		/// opened nothing and the status line said why (Flagged 4).
+		bool LeftLineRefused = false;
+		/// Return on one free line opened the composer on its draft, with no
+		/// first line and no range shown.
+		bool SingleLineOpenedPlain = false;
+		/// Shift+Down twice from a selected right line, with the right pane
+		/// focused, selected three lines inside one hunk.
+		bool KeyboardRangeSelected = false;
+		/// Shift+Return opened the composer on a draft anchored to the last of
+		/// them with the first as its start, its body the right side's exact
+		/// lines in a suggestion block, and the caret at the block's last line.
+		bool SuggestionPrefilled = false;
+		/// Publish sent GitHub's multi-line fields: the fixture server received
+		/// the block, `line` the last line, `start_line` the first, and both
+		/// sides RIGHT.
+		bool RangePublishedExact = false;
+		/// With no line selected, Return opened nothing and the status line
+		/// said how to select one.
+		bool NoLineExplained = false;
 
 		auto operator<=>(const label_authoring_probe_evidence&) const = default;
 	};
@@ -1356,7 +1380,7 @@ namespace bpr::app::detail {
 		/// thread marks, then a new comment labelled by `:qu:`, the chip and ⌘L,
 		/// published, and its mark after a refresh. Saves window renders into
 		/// `aEvidenceDirectory` when one is named.
-		[[nodiscard]] static auto exercise_label_authoring(github_application& aApplication, const std::optional<std::string>& aEvidenceDirectory)
+		[[nodiscard]] static auto exercise_label_authoring(github_application& aApplication, const std::optional<std::string>& aEvidenceDirectory, bool aLineDraftOnly = false)
 			-> label_authoring_probe_result;
 		[[nodiscard]] static auto label_authoring_evidence(const github_application& aApplication)
 			-> label_authoring_probe_evidence;

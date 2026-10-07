@@ -5,6 +5,8 @@
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/core/review_comment_range.hpp"
+
 #include "conversation_glyphs.hpp"
 
 #include "bpr/core/review_publication_policy.hpp"
@@ -1921,6 +1923,8 @@ namespace bpr::qt {
 				static_cast<void>(begin_new_comment(false));
 			}
 		});
+		// [[BPR-1212]]. Return and Shift+Return in the code (owner, Q1).
+		ComparisonSurface->set_line_draft_dispatch([this](const bool aSuggest) { begin_line_draft(aSuggest); });
 		ComparisonSurface->set_thread_tick_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { go_to_thread_at(aSide, aLine); });
 		ConversationPanel->cards()->set_marks_observer([this] {
 			apply_thread_marks();
@@ -8025,6 +8029,73 @@ namespace bpr::qt {
 	void workbench_window::set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch)
 	{
 		ReviewReplyDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_line_draft_dispatch(workbench_line_draft_dispatch aDispatch)
+	{
+		LineDraftDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::begin_line_draft(const bool aSuggest)
+	{
+		// [[BPR-1212]]. The pane took the key only because it has focus; what
+		// follows is the comment the selection allows, or why there is none.
+		const auto refuse = [this](const QString& aReason) {
+			statusBar()->showMessage(aReason, 10000);
+		};
+		const auto range = ComparisonSurface != nullptr ? ComparisonSurface->line_draft_range() : std::nullopt;
+		if (!range) {
+			refuse(tr("Select a line first: click it, or move to it with Up and Down while the code has focus."));
+			return;
+		}
+		if (comparing_off_current_head()) {
+			refuse(tr("Select the pull request's current head; this tab compares an earlier update."));
+			return;
+		}
+		const auto& result = ComparisonSurface->current_result();
+		if (!result) {
+			refuse(tr("Wait for the comparison to load, then select a line."));
+			return;
+		}
+		const auto decision = core::decide_comment_range(result->Alignment, range->first, range->second);
+		switch (decision.Refusal) {
+		case core::comment_range_refusal::none:
+			break;
+		case core::comment_range_refusal::base_side:
+			// Flagged 4: a new comment cannot go on a left-side line.
+			refuse(tr("New comments need a line on the right, current-head side. Select a right-side line, or reply to an existing thread."));
+			return;
+		case core::comment_range_refusal::mixed_side:
+			refuse(tr("Select lines on one side to comment on them together."));
+			return;
+		case core::comment_range_refusal::outside_hunk:
+		case core::comment_range_refusal::crosses_hunk:
+			refuse(tr("GitHub takes a comment on several lines only inside one changed region. Select lines within one hunk, or a single line."));
+			return;
+		case core::comment_range_refusal::mixed_comparison:
+		case core::comment_range_refusal::outside_document:
+			refuse(tr("Select a line of this comparison."));
+			return;
+		}
+		// The draft composes on its last line, which GitHub anchors it to.
+		const auto selection = ComparisonSurface->selection();
+		if ((!selection || selection->PreferredLine != decision.Anchor)
+			&& !ComparisonSurface->select_conversation_line(decision.Anchor.Side, decision.Anchor.Line)) {
+			refuse(tr("Select a line of this comparison."));
+			return;
+		}
+		update_comment_target();
+		auto request    = workbench_line_draft_request{ };
+		request.First   = range->first.Line <= range->second.Line ? range->first : range->second;
+		request.Last    = decision.Anchor;
+		request.Suggest = aSuggest;
+		if (!LineDraftDispatch || !LineDraftDispatch(request)) {
+			refuse(CommentAction != nullptr && !CommentAction->isEnabled() ? CommentAction->toolTip()
+																		   : tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment."));
+			return;
+		}
+		statusBar()->clearMessage();
+		open_review_composition(true);
 	}
 
 	void workbench_window::set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch)

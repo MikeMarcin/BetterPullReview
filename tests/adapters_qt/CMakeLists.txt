@@ -1231,6 +1231,19 @@ set_tests_properties(qt_workbench_conversation_reveal PROPERTIES
     TIMEOUT 60
 )
 
+# [[BPR-1212]]. Return and Shift+Return in the code: the status-line
+# reasons, the range handed to the composition, and the keys staying in a
+# text field or the drawer.
+bpr_add_network_isolated_test(
+    NAME qt_workbench_line_draft
+    COMMAND test_better_pull_review_qt_workbench_window_tests --line-draft
+)
+set_tests_properties(qt_workbench_line_draft PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+    PASS_REGULAR_EXPRESSION "workbench-line-draft:pass"
+    TIMEOUT 60
+)
+
 # [[BPR-0934]]. The window's Overview courses, reached directly past the
 # epoch-row assertion [[BPR-0940]] owns.
 bpr_add_network_isolated_test(
