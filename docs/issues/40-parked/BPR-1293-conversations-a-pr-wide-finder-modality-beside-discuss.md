@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1293"
 title: "Conversations: a PR-wide finder modality beside Discuss"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner chat, 2026-10-06, during BPR-1290","reservation":"docs/issues/_reservations/BPR-1293--BPR-1293--370e927e88e9.json","related_rfcs":["RFC-BPR-0005","RFC-BPR-0028","RFC-BPR-0037","RFC-BPR-0052"],"related_cards":["BPR-1290","BPR-1295","BPR-1294","BPR-1089","BPR-1021","BPR-1135","BPR-0418","BPR-0211","BPR-0649","BPR-0926","BPR-0929"],"implementation_note":"Build faithful to docs/design/BPR-1290-inline-drawer-v2 with the frontend-design skill; owner review is required","owner_decision":{"date":"2026-10-06","prototype":"I like that a lot.","placement":"What if we were to replace discuss with conversations.","answers_date":"2026-10-06","q1":"Hide drawers","q2":"just keep discuss for now even after 1294"},"open_questions":[],"acceptance":["BPR-1293:owner-decision","BPR-1293:owner-questions","BPR-1293:modality","BPR-1293:finder","BPR-1293:pick","BPR-1293:keys","BPR-1293:entries","BPR-1293:discuss-kept","BPR-1293:governing-text","BPR-1293:tests","BPR-1293:owner-look"],"sequence_after":"BPR-1290 and BPR-1295 (all three change the modality strip, workbench_window.cpp and the window tests; this card's code waits for both)"}
+parked_on: "human-review"
 ---
 
 # BPR-1293: Conversations: a PR-wide finder modality beside Discuss
@@ -570,3 +571,153 @@ gesture it starts is a file selection and a thread selection that already
 exist. It does not change Discuss's behaviour beyond its key, give comments
 that are not on a file a new home ([[BPR-1294]]), redesign the drawer
 ([[BPR-1290]]) or change Review's arrangement and ⌘B ([[BPR-1295]]).
+
+## Built v001, 2026-10-06
+
+Candidate `7778886c9`, on `origin/main` at `f5a64e041`. Drawn with
+`frontend-design` against prototype v2. One implementation commit; the claim is
+`5d5de1c02`.
+
+- **Core** (`workbench_interaction`). `workbench_modality::conversations`.
+  Entering and leaving it changes no drawer; Review comes back with the
+  arrangement it last had, hidden drawers included. ⌘B is refused there with
+  the new `conversations_finds_a_conversation`.
+- **Strip.** Overview ⌘1, Review ⌘2, Discuss ⌘3, Conversations ⌘4, in that
+  order. The card's text ("the strip's order is unchanged by the keys … read it
+  with the keys swapped") was read as the segments following their keys,
+  since each segment prints its key; the owner-look shows it. Conversations'
+  tooltip names both keys; Discuss's segment, tooltip and names are unchanged.
+  The drawer toggle and panel are named the Comments drawer.
+- **⌘J** (`showWorkbenchConversationsAction`, View menu, window context) and
+  the Comments drawer's finder button go to Conversations from Overview,
+  Review or Discuss; ⌘J again, or Esc on an empty search, goes back to where it
+  was entered from, focus included. The drawers are hidden there.
+- **The finder** (`conversation_finder`, Qt). Rows grouped by file, a header
+  that stays at the top while its rows scroll, line, mark, words, one avatar per
+  post in posting order, the new count, resolved tick or my draft's lock; blue
+  new dots, the amber row and path for where Review is, resolved rows faded.
+  Branch rows only where a post has two or more replies that have replies.
+  "+n" folds the oldest read posts past nine, never new posts, the path to the
+  picked post, the search's or the label's; it unfolds the row. Search over
+  words, a person ("you" for me), a file or a line; Only new with its count,
+  Hide resolved, and the label menu. Keys as the prototype: typing goes to the
+  search, Up and Down (Up past the first row returns to the search), Left and
+  Right along a row's avatars with a preview or folding a file, Return picks;
+  hovering an avatar previews its post. The list model applies filters by
+  identity (inserts and removes, no reset) and the cursor stays on its row or
+  on none. It rebuilds from the forest only when shown.
+- **Counts.** The label filter reads [[BPR-1087]]'s `feedback_counter_model`
+  through the new `application::project_conversation_labels`: a conversation is
+  its root's label, every state, so the finder's label counts are the
+  Overview's chips' numbers for the conversations on a file. The "Only new"
+  count is the ledger's read state, which BPR-1087 does not count. Marks are
+  the shared label marks (Icons or Letters).
+- **Thread map.** Not reused: the finder draws branches as rows.
+  `github_thread_map` and its test are removed; its rules that apply (pre-order
+  with an explicit stack, the traced path, an unexpected shape costing nesting
+  and never a post) live in the finder.
+- **Pick.** Review, then the file through the files drawer's intent (in that
+  order, so the tab driver keeps the file), Comments opened by an exact set
+  intent if it is closed, and once that file's comparison is the one shown the
+  thread opens in place at the picked post: `conversation_cards_view::open_thread_at`
+  washes the post amber and brings it into view once the code has settled, the
+  foot of a tall thread from the drawer's own overflow. The selection authority
+  names the picked post.
+- **Entries.** A `#discussion_r` link the read identified, the reveal of a
+  just-published inline comment and Previous/Next defect for a thread the
+  drawer does not hold open in Review in place (a defect thread not on a file
+  still goes to Discuss). `#pullrequestreview-`, Show them, a Discuss card's
+  Open in code and the review page's preflight rows land where they did.
+  Comment in Conversations answers the picked thread, as in Discuss.
+- **Fixture** `conversations-v1`: prototype v2's pull request, its ten files
+  verbatim from `code.js` and its 21 conversations (91 posts), line 667
+  branching with an aside that has replies; posts in the order their ages say,
+  so `read_state.json` reproduces the prototype's new posts through the ledger
+  (`--attended-read-state`, tests-on).
+- **Governing text.** The specification's Modalities paragraph (as built),
+  links, shortcut table, defect and thread-map passages; RFC-BPR-0028's
+  Conversations section; RFC-BPR-0052's tab paragraph and AC-06, with
+  [[BPR-1135]]'s AC-06 row word for word; the fixture catalog.
+  `DOCUMENTATION_OK`.
+- **Round-trip pins** resealed with a note over BPR-1301's (mutation pin
+  unchanged).
+
+### Verification on the candidate
+
+- Debug (`build/dev`), macOS arm64, merged tree: 57 of 57 focused rows, among
+  them `core_workbench_interaction`, `application_overview_feedback`,
+  `qt_conversation_finder_scale_{100,125,200}`, `qt_workbench_window_scale_*`,
+  `qt_composed_github_scale_*`, `qt_composed_inline_drawer_scale_*`,
+  `qt_composed_markdown_*`, `qt_conversation_cards_view`,
+  `qt_github_conversation_panel`, `qt_pull_request_overview_page`,
+  `application_attended_recent_replay`, the setup-destination, multi-window,
+  restoration, review-submission and overview-labels public paths,
+  `application_review_round_trip_composition_contract`,
+  `application_composition_contract`, `architecture_boundaries`,
+  `github_recorded_fixture_contract`, `github_contract_fixture_security` and
+  `application_large_review_responsiveness`. Before the rebase,
+  `application_profile_multi_window_public_path` failed once at "New Window
+  remains usable after initial retirement" under `-j4`; it passed alone twice
+  and in the merged run.
+- **New rows.** Core: `test_conversations_changes_no_drawer` and the modality
+  loops. `qt_conversation_finder_scale_*`: the row rule (flat, the prototype's
+  deep shape, a leaf at a fork, hostile parents, a 20,000-post chain),
+  conversations on a file only, search, filters, labels, folding, keys,
+  pointer picks, and renders light, dark and both high-contrast at larger text
+  and 640 px with nothing clipped. Window: `test_conversations_finds_and_picks_into_review`
+  through the real core (⌘J, Ctrl+4, the strip and the button from every
+  modality; hidden drawers with states unchanged; ⌘B disabled; Esc; the pick's
+  order, the Comments open, the wait for the file's comparison, the picked
+  post; entries by identity). Application: `test_each_label_lists_the_conversations_it_counts`.
+  Large review: `conversations_enter`, `_search`, `_search_clear`, `_leave`,
+  `_pick` against 100 ms and `_pick_open` against 2,500 ms with its input gap.
+  The key scans: Ctrl+3 Discuss, Ctrl+4 and Ctrl+J Conversations, each once.
+- **Failing-before controls**, mutations of the product, each failing its row:
+  ⌘B offered in Conversations; Conversations opening Comments (core); every
+  reply its own row; new posts folding (finder); drawers shown in
+  Conversations; the file selected before Review; Conversations on Ctrl+3
+  (window); the thread opened before its file shows (large review).
+- **Optimized tests-on tree** (the frozen root's, Release, `-j1`): 32 of 32,
+  `BudgetsEnforced` true, no input failures or known misses:
+  conversations_enter 9.9 ms, search 1.8, clear 2.5, leave 29.4, pick 18.4,
+  pick to thread open 110.5 (input gap 10.8); drawers_hide 18.5,
+  review_modality 32.3.
+- The real application, offscreen on `conversations-v1`: the finder as drawn,
+  the deep pick opening at its last post washed amber, and the path traced on
+  reopening (checked with a local capture not committed).
+- Format: the coding standard's clang-format on every changed file.
+
+### Owner look, session v001
+
+Pending: BPR-1293:owner-look is the owner's, not self-certified. On the
+coordinator's instruction it is one question, Accept or Reject, "Conversations
+(⌘4) matches the prototype", rather than the four this card's criterion lists;
+a note carries any change.
+
+- Session `2588378b1ac64914f3302695cdb348bf`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261006-bpr1293-conversations-v001`,
+  ready at event cursor 4. Candidate `BPR-1293-conversations-v001` (revision
+  `frozen-7778886c9-v001`). The host was started detached and answered on
+  loopback.
+- Frozen root `/Users/jaeger/bpr1293-conversations-v001.sRXUZr`: `git archive`
+  of `7778886c9` built there Release with tests on, with its own CPM cache
+  clone, source read-only; executable SHA-256 `83f003ddfe0b8e9e…`. Offscreen
+  the launcher printed `ATTENDED_READ_STATE:18` and `ATTENDED_FILE_SHOWN`.
+- Launch: `python3 /Users/jaeger/bpr1293-conversations-v001.sRXUZr/launch.py`.
+  It checks the build and the fixture tree first and reports an exit within
+  seconds.
+
+Next: read the session's decision (`status --after 4`). Accept satisfies
+:owner-look and the card finishes; Reject comes back with its note for a v002.
+
+### Owed station runs (not blocking)
+
+Linux and Windows have not run this change. At `origin/main` holding
+`7778886c9`, no remote mutation:
+
+- `bpr-main-linux`: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev --output-on-failure -R '^(core_workbench_interaction|application_overview_feedback|qt_conversation_finder_scale_.*|qt_workbench_window_scale_.*|qt_composed_github_scale_.*|qt_composed_inline_drawer_scale_.*|qt_conversation_cards_view|qt_github_conversation_panel|application_attended_recent_replay|application_setup_destination_public_path|application_profile_multi_window_public_path|application_review_round_trip_composition_contract|application_composition_contract|architecture_boundaries|github_recorded_fixture_contract|github_contract_fixture_security)$'`,
+  then in the optimized tests-on tree
+  (`cmake --preset app-release -B build/app-release-tests -DBUILD_TESTING=ON -DCMAKE_TEST_BUILD_DEPENDS=ON && cmake --build build/app-release-tests && ctest --test-dir build/app-release-tests -j1 --output-on-failure -R '^(application_large_review_responsiveness|application_first_tab_comparison|qt_conversation_finder_scale_.*|qt_workbench_window_scale_.*)$'`).
+- `bpr-main-win`: `cmake --preset windows-dev && cmake --build --preset windows-dev && ctest --preset windows-dev -j4 --output-on-failure -R` with the same first expression, then the optimized tree (`build/bpr0967-release`, MSVC `/O2`) with the second.
+
+A failure there opens a new card against this change.
