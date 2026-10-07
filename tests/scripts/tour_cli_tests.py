@@ -122,6 +122,14 @@ def main():
     human = subprocess.run([binary, "tour", "capabilities"], env=environment,
                            capture_output=True, text=True, check=True, timeout=15)
     assert human.stdout.startswith("bpr tour") and not human.stdout.startswith("{")
+    # [[BPR-1068]] Discovery names its own platform and claims no qualification.
+    platform = value["data"]["platform"]
+    expected_os = "macos" if sys.platform == "darwin" else "windows" if sys.platform == "win32" else "linux"
+    assert platform["os"] == expected_os, platform
+    assert platform["qualification"] == "not yet qualified", platform
+    assert platform["package"] == "development install; no release package", platform
+    assert platform["gh_transport"] == ("explicit opt-in" if expected_os == "macos" else "unavailable"), platform
+    assert f"Platform: {expected_os}, not yet qualified." in human.stdout, human.stdout
     refused = subprocess.run([binary, "tour", "capabilities", "--yes", "--json"],
                              env=environment, capture_output=True, text=True, timeout=15)
     assert refused.returncode == 2 and json.loads(refused.stdout)["status"] == "error"
