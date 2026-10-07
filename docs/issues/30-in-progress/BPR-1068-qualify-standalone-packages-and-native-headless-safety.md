@@ -257,3 +257,14 @@ unreachable from the product and is not BPR-1302's seam.
     unchanged.
   - On a pty with Ctrl-C at the code prompt: exit 130 and the same cleanup.
   - The loopback rehearsal of the same Keychain arrangement.
+
+## macOS owner sign-in (2026-10-07)
+
+The owner ran `/Users/jaeger/bpr-owner-signin/run-signin.sh` (bpr sha256
+fab6b0ab…4d6f, built from e1463a556, tour-cli, tests off, Release) at
+15:42Z. capabilities exit 0 (macos, Keychain, gh explicit opt-in, not yet
+qualified); native connect exit 0 (account 7605339) into a temporary default
+Keychain; `open` of MikeMarcin/BPR-Test#1 in a new process exit 0 after
+13.83 s (bound 120 s), complete, not stale, nothing written. Cleanup: default
+Keychain restored, the login Keychain's four BetterPullReview items
+unchanged, session folder (temporary Keychain, profile, grant) removed.

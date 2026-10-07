@@ -377,3 +377,14 @@ Criterion status on macOS:
 - In the loopback course, the native paths pass under a temporary Keychain.
 - The gh rows are not passable as written (above).
 - Windows is still owed.
+
+## macOS owner sign-in (2026-10-07)
+
+The owner ran `/Users/jaeger/bpr-owner-signin/run-signin.sh` (bpr sha256
+fab6b0ab…4d6f, built from e1463a556, tour-cli, tests off, Release) at
+15:42Z. capabilities exit 0 (macos, Keychain, gh explicit opt-in, not yet
+qualified); native connect exit 0 (account 7605339) into a temporary default
+Keychain; `open` of MikeMarcin/BPR-Test#1 in a new process exit 0 after
+13.83 s (bound 120 s), complete, not stale, nothing written. Cleanup: default
+Keychain restored, the login Keychain's four BetterPullReview items
+unchanged, session folder (temporary Keychain, profile, grant) removed.
