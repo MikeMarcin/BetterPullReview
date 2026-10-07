@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1302"
 title: "The tour CLI's live remote reader waits on shutdown-only host quiescence, so online open and connect never return"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"found_by":"bpr-main-linux, BPR-1068's Linux run, 2026-10-06","reservation":"docs/issues/_reservations/BPR-1302--BPR-1302--bb2b61bce2e0.json","related_rfcs":["RFC-BPR-0044"],"related_cards":["BPR-1068","BPR-1055","BPR-1059","BPR-1222"],"blocks":"AC44-12 (first-run auth setup) and every live use of bpr tour open, refresh, publish and recover"}
+acceptance: [{"criterion":"BPR-1302:never-signed-in-open","outcome":"pass","revision":"af4fa4fd8","evidence":{"kind":"command","detail":"Linux: tour_cli_loopback_provider's never-signed-in open exits 5 authentication_required in 0.0 s with no request; the tests-off bpr against MikeMarcin/BPR-Test exits 5 in 0.01 s; 18/18 focused rows at 2edfc10ab on bpr-main-linux. macOS and Windows station runs are owed (commands on the card); the coordinator accepted finishing with them owed."}},{"criterion":"BPR-1302:loopback-course","outcome":"pass","revision":"af4fa4fd8","evidence":{"kind":"command","detail":"tour_cli_loopback_provider drives native connect, online open, the pinned-source add and show --source, refresh and recover to completion against a 127.0.0.1 fake GitHub (publish stops at the existing unqualified gate, no write); with is_quiescent restored all 8 paths time out at the bound; epoch-only revert times out the two source paths; removing the renewal binding fails the next open; the Closing&& mutation fails application_github_host."}},{"criterion":"BPR-1302:owner-device-flow","outcome":"pass","revision":"399aade8e","evidence":{"kind":"observation","detail":"2026-10-07T15:17:36Z, Linux station, frozen tests-off bpr from 399aade8e: the owner entered the device code; native connect exit 0; the following process's open of MikeMarcin/BPR-Test#1 exit 0 after 14 s, complete, account 7605339. Temporary keyring, profile and grant deleted; no write."}}]
 ---
 
 # BPR-1302: The tour CLI's live remote reader waits on shutdown-only host quiescence, so online open and connect never return
