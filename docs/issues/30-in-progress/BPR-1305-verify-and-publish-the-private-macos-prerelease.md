@@ -130,7 +130,7 @@ launch pass at unchanged budgets (9.04 and 7.82 seconds); active/pathological
 courses also pass (5.53 and 3.07 seconds). The picker experiment was removed.
 The complete diff-workbench course passes at all three scales (2.57–2.85 seconds).
 
-Reviewed the complete source delta from `52d5a4866` for these gate repairs.
+Reviewed the complete source delta `52d5a4866..7289987eb` for these gate repairs.
 Only `github_application.cpp` and its tests-only fixture evidence header affect
 the pinned production app manifest. The ordinary mutation branch is unchanged.
 The retained presentation cannot admit publication: the existing generation,

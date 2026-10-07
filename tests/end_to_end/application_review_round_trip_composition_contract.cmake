@@ -925,6 +925,15 @@ endfunction()
 # read from its narrative (card_post::Lead) with the label as its header. No
 # provider, grant, target, credential, storage, mutation or publication path
 # changes; mutation pin unchanged; no new src/app source. Reviewed on BPR-1086.
+# BPR-1305 gate repair reseal: reviewed 52d5a4866..7289987eb.
+# The application and fixture header preserve the exact current request during
+# same-head kept-tab revalidation and report pending tab work to tests. Fresh
+# actor publication still must pass generation/file/epoch admission and the
+# full material key comparison; different material keeps clear/reload. No
+# provider, credential, target, grant, storage or mutation path changes. Native
+# menu and hidden-card geometry corrections affect Qt/test presentation only.
+# Direct failures and corrected focused courses are recorded on BPR-1305.
+# The production mutation branch is unchanged. This is engineering self-review.
 # BPR-1305 prerelease integration reseal (2026-10-07): efa26ca02..0a3cf40ee.
 # Pinned changes: 29a55ef70 (tests-on Hide Drawers capture), da862cf32
 # (tests-on label readiness), bba8a8d26 (BPR-1303 active-tab re-presentation),
@@ -958,7 +967,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8620e8320ea14e591f7e49d0cb23edc657a84d9aca7fa83c61046d063e7de059"
+		"4b6d580b9a9adc68715a395bf9eefdabfc69a81f3cd332729f45441a581b0268"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1156,7 +1165,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "deff5dcab2e5bb64e326aa8caecbaa45225e706c93c77258ab27c37937225f24"
+        "8b14d7cf7c266693ad6d01f556a4a51dc396a5aa63e1a5d80592548b154efc4c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
