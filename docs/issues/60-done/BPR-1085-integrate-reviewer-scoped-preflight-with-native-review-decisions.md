@@ -198,3 +198,29 @@ owed, not a blocker. The commands are on [[BPR-1084]]; add
 `application_composition_contract` and
 `application_review_round_trip_composition_contract` for the resealed pins.
 R33's native matrix stays unrun, as recorded above.
+
+
+## Windows station run (bpr-main-win, 2026-10-06)
+
+At `fe64f5541`, a clean tree, on Windows 11 with MSVC:
+
+- **Tree.** `build/windows-dev-tour-cli`, the `windows-dev` preset with
+  `-DBPR_BUILD_TOUR_CLI=ON`, Debug.
+- **Build.** Rebuilt with no `warning C` line.
+- **Runner.** The network-isolated runner, `ctest -j4`. The Qt rows ran on
+  the offscreen platform, so nothing touched the desktop.
+
+One pass ran BPR-1290's expression and BPR-1084/1085's together. All 32 rows
+pass, 32 of 32: 27 contained and 5 under their existing `WINDOWS_UNCONTAINED`
+pins.
+
+This card's owed rows pass:
+
+- [[BPR-1084]]'s 16 rows, including the appearance rows that carry the
+  `state_attention` role and the chip icons;
+- `application_composition_contract` (1045.7 s, uncontained);
+- `application_review_round_trip_composition_contract`, for the resealed
+  pins.
+
+The Windows half of the owed run is discharged. R33's native matrix stays
+unrun, as recorded above.

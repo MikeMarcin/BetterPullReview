@@ -307,3 +307,36 @@ run, so this is owed, not a blocker, at `origin/main` holding `b62420807`:
 - `bpr-main-win`: the same expression with `ctest --preset windows-dev -j4`.
 
 [[BPR-1085]] owes the same run; one run serves both cards.
+
+
+## Windows station run (bpr-main-win, 2026-10-06)
+
+At `fe64f5541`, a clean tree, on Windows 11 with MSVC:
+
+- **Tree.** `build/windows-dev-tour-cli`, the `windows-dev` preset with
+  `-DBPR_BUILD_TOUR_CLI=ON`, Debug.
+- **Build.** Rebuilt with no `warning C` line.
+- **Runner.** The network-isolated runner, `ctest -j4`. The Qt rows ran on
+  the offscreen platform, so nothing touched the desktop.
+
+One pass ran BPR-1290's expression and BPR-1084/1085's together. All 32 rows
+pass, 32 of 32: 27 contained and 5 under their existing `WINDOWS_UNCONTAINED`
+pins.
+
+This card's expression covers 16 rows, all passing:
+
+- `qt_review_draft_editor` (the ring mark)
+- `qt_review_submission_editor_scale_100`, `_125` and `_200`
+- `qt_conversation_cards_view`
+- `qt_appearance_profile`
+- `qt_colour_role_list`
+- `qt_appearance_role_display`
+- `qt_appearance_settings_panel`
+- `core_theme_exchange`
+- `core_review_preflight`
+- `application_review_submission_composition_public_path`,
+  `_scale_125` and `_scale_200` (31.8 to 33.2 s)
+- `architecture_boundaries`
+
+The same pass serves [[BPR-1085]]. The Windows half of the owed run is
+discharged.

@@ -1226,3 +1226,33 @@ owner's Accept. Linux and Windows have not run v002 to v005's rows. Owed, at
 - `bpr-main-win`: `cmake --preset windows-dev && cmake --build --preset windows-dev && ctest --preset windows-dev -j4 --output-on-failure -R` with the same expression.
 
 A failure there opens a new card against this drawer; it does not reopen this one.
+
+
+## Windows station run (bpr-main-win, 2026-10-06)
+
+At `fe64f5541`, a clean tree, on Windows 11 with MSVC:
+
+- **Tree.** `build/windows-dev-tour-cli`, the `windows-dev` preset with
+  `-DBPR_BUILD_TOUR_CLI=ON`, Debug.
+- **Build.** Rebuilt with no `warning C` line.
+- **Runner.** The network-isolated runner, `ctest -j4`. The Qt rows ran on
+  the offscreen platform, so nothing touched the desktop.
+
+One pass ran BPR-1290's expression and BPR-1084/1085's together. All 32 rows
+pass, 32 of 32: 27 contained and 5 under their existing `WINDOWS_UNCONTAINED`
+pins.
+
+This card's 19 rows, all passing:
+
+- `qt_composed_inline_drawer_scale_100`, `_125` and `_200` (10.7, 12.8 and 17.6 s)
+- `qt_composed_markdown_1_0`, `_1_25` and `_2_0`
+- `qt_markdown_body_1_0`, `_1_25` and `_2_0`
+- `qt_github_thread_map_scale_100`, `_125` and `_200`
+- `qt_conversation_cards_view`
+- `qt_github_conversation_panel`
+- `qt_feedback_label_threads`
+- `qt_public_preview_conversation`
+- `qt_review_draft_editor`
+- `architecture_boundaries`
+
+The Windows half of the owed runs is discharged. No new card is opened.
