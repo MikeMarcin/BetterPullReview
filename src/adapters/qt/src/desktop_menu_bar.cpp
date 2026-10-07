@@ -120,6 +120,13 @@ namespace bpr::qt {
 		toggleDrawers->setCheckable(true);
 		toggleDrawers->setShortcut(QKeySequence{ QStringLiteral("Ctrl+B") });
 		toggleDrawers->setEnabled(false);
+		// [[BPR-1293]] [[BPR-1304]]. Conversations, after Hide Drawers as in the
+		// window's menu. BPR-1293 gave the window's View this item and not this
+		// bar's, so the last close took it off the bar.
+		auto* const conversations = ViewMenu->addAction(QStringLiteral("&Conversations"));
+		conversations->setObjectName(QStringLiteral("desktopShowConversationsAction"));
+		conversations->setShortcut(QKeySequence{ QStringLiteral("Ctrl+J") });
+		conversations->setEnabled(false);
 		auto* const updatesLine = ViewMenu->addAction(QStringLiteral("&Updates Line"));
 		updatesLine->setObjectName(QStringLiteral("desktopToggleUpdatesLineAction"));
 		updatesLine->setCheckable(true);
