@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1089"
 title: "Deliver resolution-aware Overview columns and exact drill-down"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0049", "RFC-BPR-0050"]
 depends_on: ["BPR-1083", "BPR-1087"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-15","milestone":"overview","acceptance":["R20","R21","R23","R24","R27","R31","R33"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"sequence_after":["BPR-1088"],"coordinator_amendment":{"date":"2026-10-06","decision":"BPR-1088's landed settings (4a07f26bc) satisfy the dependency; its R20 owner look folds into BPR-1089's owner look"}}
