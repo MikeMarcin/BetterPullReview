@@ -393,6 +393,11 @@ namespace bpr::application {
 				return core::epoch_failure::git_tool_probe_failed;
 			case git_smart_transport_step::git_qualification:
 				return core::epoch_failure::git_tool_unsupported;
+			case git_smart_transport_step::cli_version:
+			case git_smart_transport_step::cli_capability_probe:
+				return core::epoch_failure::gh_tool_probe_failed;
+			case git_smart_transport_step::cli_qualification:
+				return core::epoch_failure::gh_tool_unsupported;
 			default:
 				return core::epoch_failure::unavailable;
 			}

@@ -96,6 +96,22 @@ namespace bpr::adapters::github::detail {
 		invalid_certificate_directory,
 	};
 
+	/// \brief The closed set of local `gh` help topics the Git-object path checks.
+	/// \details Each names one `gh` operation that path invokes: the REST read
+	/// shape, the exact-revision repository clone and the credential helper that
+	/// clone launches. A probe runs only `gh <topic> --help`.
+	enum class gh_cli_help_topic : std::uint8_t {
+		api,
+		repo_clone,
+		auth_git_credential,
+	};
+
+	inline constexpr std::array gh_cli_required_help_topics{
+		gh_cli_help_topic::api,
+		gh_cli_help_topic::repo_clone,
+		gh_cli_help_topic::auth_git_credential,
+	};
+
 	class validated_gh_cli_configuration final
 	{
 	public:
@@ -141,6 +157,10 @@ namespace bpr::adapters::github::detail {
 			-> github_cli_process_request;
 		friend auto compile_gh_cli_auth_status_request(
 			const validated_gh_cli_configuration& aConfiguration)
+			-> github_cli_process_request;
+		friend auto compile_gh_cli_help_request(
+			const validated_gh_cli_configuration& aConfiguration,
+			gh_cli_help_topic                     aTopic)
 			-> github_cli_process_request;
 		friend auto compile_gh_cli_exact_blob_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
@@ -196,8 +216,33 @@ namespace bpr::adapters::github::detail {
 		malformed_response,
 	};
 
-	/// \brief Tests the exact bounded version line against the JSON floor.
+	/// \brief Minimum `gh` release, RFC-BPR-0015's account-discovery and API floor.
+	/// \details 2.96 is where the structured `auth status --json hosts` inventory
+	/// that admits a CLI profile was established. No later operation the app runs
+	/// needs a newer release; those are checked by local help probes instead.
+	inline constexpr std::array<unsigned, 3U> minimum_gh_cli_version{ 2U, 96U, 0U };
+
+	/// \brief Tests a bounded `gh --version` banner against the minimum.
+	/// \details Admits `gh version MAJOR.MINOR.PATCH` followed by a space, newline,
+	/// `-` or the end, at or above the minimum, including later major versions.
+	/// Malformed or overflowing numbers are refused.
+	[[nodiscard]] auto supported_gh_cli_version(std::string_view aOutput) -> bool;
+
+	/// \brief The account-inventory admission; the same banner policy.
 	[[nodiscard]] auto supported_gh_cli_auth_status_version(std::string_view aOutput)
+		-> bool;
+
+	/// \brief Compiles one closed, write-denied, credential-free `gh <topic> --help`.
+	/// \details No network, request body or repository input. Output is bounded to
+	/// 32 KiB and the run to 10 seconds; only a completed zero exit with no
+	/// standard error returns output, so a failed probe never exposes partial text.
+	[[nodiscard]] auto compile_gh_cli_help_request(
+		const validated_gh_cli_configuration& aConfiguration,
+		gh_cli_help_topic                     aTopic)
+		-> github_cli_process_request;
+
+	/// \brief Tests completed help output for the flags and usage the app invokes.
+	[[nodiscard]] auto gh_cli_help_admits(gh_cli_help_topic aTopic, std::string_view aHelp)
 		-> bool;
 
 	/// \brief Compiles the explicit, token-free active-account inventory request.

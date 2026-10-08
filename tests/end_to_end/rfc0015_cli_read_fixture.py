@@ -245,6 +245,16 @@ def fake_gh():
     args = sys.argv[1:]
     if args[:2] == ["repo", "clone"]:
         return clone_fixture(directory, fixture, args)
+    if args in (["api", "--help"], ["repo", "clone", "--help"], ["auth", "git-credential", "--help"]):
+        # The local capability probes the Git-object path runs before cloning.
+        print({
+            "api": "FLAGS\n  -H, --header key:value\n      --hostname string\n"
+                   "  -i, --include\n      --input file\n  -X, --method string",
+            "repo": "USAGE\n  gh repo clone <repository> [<directory>] [-- <gitflags>...]\n\n"
+                    "FLAGS\n      --no-upstream   Do not add an upstream remote",
+            "auth": "USAGE\n  gh auth git-credential [flags]",
+        }[args[0]])
+        return 0
     if args == ["--version"]:
         record_operation(directory, "version")
         print("gh version 2.100.0 (synthetic local fixture)")

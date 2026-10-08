@@ -87,6 +87,11 @@ namespace bpr::qt {
 				return QStringLiteral("Configure Git 2.49 or later with exact revision cloning, then retry.");
 			case core::epoch_reason_code::git_tool_probe_failed:
 				return QStringLiteral("The configured Git could not be checked. Check its executable and retry.");
+			case core::epoch_reason_code::gh_tool_unsupported:
+				return QStringLiteral(
+					"Configure GitHub CLI 2.96 or later with its api, repo clone and git credential commands, then retry.");
+			case core::epoch_reason_code::gh_tool_probe_failed:
+				return QStringLiteral("The configured GitHub CLI could not be checked. Check its executable and retry.");
 			case core::epoch_reason_code::unavailable:
 				return QStringLiteral("The exact comparison is unavailable.");
 			case core::epoch_reason_code::catalog_conflict:

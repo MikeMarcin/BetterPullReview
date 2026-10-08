@@ -229,6 +229,30 @@ obligation; no normalization or alias rule follows from this support decision.
 The immutable imported draft and historical qualification evidence retain
 their original meaning.
 
+### Owner gh support-policy decision — 2026-10-07
+
+The owner extended the support amendment to `gh`: admission must be
+capability-based, not the exact 2.100.0/2.101.0 allowlist. The repair keeps a
+minimum only where an operation needs one, `gh` 2.96 (RFC-BPR-0015's existing
+floor for `gh auth status --active --json hosts`), and admits later majors. It
+then runs bounded, credential-free, write-denied local help probes of the
+operations the app invokes: `gh api`, `gh repo clone` and
+`gh auth git-credential`. All tool checks run before the first credentialed
+call. An unsupported `gh` and a failed probe reach Qt as distinct typed
+reasons, as for Git. Confinement, account and host authority, bounds and
+exact-object verification are unchanged. The 0.1.4 incident logs show that
+`gh` passed the old allowlist, so this change is not the incident's cause or
+fix.
+
+### Owner evidence strategy — 2026-10-07
+
+The owner cannot run a native diagnosis. The diagnosis review was withdrawn
+with no verdict. The remaining work uses the two private anonymized logs
+(never committed), makes the most defensible repairs, and defers
+affected-installation confirmation to the next pre-release. AC01's
+selected-tool facts, AC05 and the affected parts of AC06 remain explicit open
+gaps until that feedback arrives. Nothing here claims the incident is fixed.
+
 ## Acceptance criteria
 
 - **AC01:** The selected tool/version-probe facts and matching acquisition

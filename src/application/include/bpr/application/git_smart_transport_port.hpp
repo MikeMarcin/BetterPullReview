@@ -107,6 +107,7 @@ namespace bpr::application {
 		local_pack,
 		pack_read,
 		git_capability_probe,
+		cli_capability_probe,
 	};
 
 	/// \brief Describes the git smart transport error record.

@@ -16,6 +16,7 @@
 #include <optional>
 #include <span>
 #include <thread>
+#include <utility>
 #include <vector>
 namespace {
 	using namespace bpr;
@@ -205,6 +206,35 @@ namespace {
 	{
 		const auto executable = std::filesystem::path{ aArguments[0].toStdString() };
 		const auto root       = executable.parent_path();
+		if (aArguments.size() >= 3 && aArguments.back() == "--help") {
+			if (std::filesystem::exists(root / "wait-gh-help")) {
+				std::this_thread::sleep_for(std::chrono::seconds{ 20 });
+			}
+			if (std::filesystem::exists(root / "overflow-gh-help")) {
+				std::cout << std::string(64U * 1024U, 'x');
+				return 0;
+			}
+			if (std::filesystem::exists(root / "stderr-gh-help")) {
+				std::cerr << "warning\n";
+			}
+			const auto    topic = aArguments.mid(1, aArguments.size() - 2).join('-').toStdString();
+			std::ifstream help{ root / ("gh-help-" + topic) };
+			if (help) {
+				std::cout << help.rdbuf();
+			} else if (topic == "api") {
+				std::cout << "FLAGS\n  -H, --header key:value\n      --hostname string\n  -i, --include\n      --input file\n  -X, --method string\n";
+			} else if (topic == "repo-clone") {
+				std::cout << "USAGE\n  gh repo clone <repository> [<directory>] [-- <gitflags>...]\n\nFLAGS\n      --no-upstream   Do not add an upstream remote\n";
+			} else if (topic == "auth-git-credential") {
+				std::cout << "USAGE\n  gh auth git-credential [flags]\n";
+			} else {
+				return 1;
+			}
+			int           exit = 0;
+			std::ifstream status{ root / "gh-help-exit" };
+			status >> exit;
+			return exit;
+		}
 		if (aArguments.size() == 2 && aArguments[1] == "--version") {
 			std::ifstream version{ root / "version" };
 			if (version) {
@@ -590,17 +620,73 @@ namespace {
 		expect(git(root, { sparseScope, "cat-file", "-t", tree }) == "tree", "sparse pack contains root tree");
 		const auto inventory = git(root, { sparseScope, "cat-file", "--batch-all-objects", "--batch-check=%(objecttype)" });
 		expect(!inventory.contains("blob") && inventory.count("commit") == 2, "sparse pack excludes blobs and retains exact wants only");
-		for (const auto version : { "gh version 2.99.0 (fixture)\n", "gh version 2.102.0 (fixture)\n", "gh version 2.101.0-unsafe (fixture)\n" }) {
-			write(root / "version", version);
+		const auto expectCliRefusal = [&](std::string_view aWhy, application::git_smart_transport_step aStep, application::git_smart_transport_failure aFailure) {
+			// The sandboxed fake cannot record calls, so a viewer read or clone
+			// reached before refusal would fail and change the reported step.
+			write(root / "fail-viewer", "1");
+			write(root / "fail-clone", "1");
 			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
-			const auto          unsupported = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, refused, limits, { });
-			expect(!unsupported && refused.Received.empty() && !refused.Finished,
-				   "older, unknown future and prerelease CLI versions cannot acquire objects");
-			const auto* error = std::get_if<application::git_smart_transport_error>(&unsupported.error());
-			expect(error && error->Failure == application::git_smart_transport_failure::unavailable
-					   && error->Step == application::git_smart_transport_step::cli_qualification,
-				   "unsupported versions retain the actual qualification boundary");
+			const auto          refusal = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, refused, limits, { });
+			const auto*         error   = refusal ? nullptr : std::get_if<application::git_smart_transport_error>(&refusal.error());
+			std::filesystem::remove(root / "fail-viewer");
+			std::filesystem::remove(root / "fail-clone");
+			expect(error && error->Step == aStep && error->Failure == aFailure && refused.Received.empty() && !refused.Finished,
+				   std::string{ "refused gh keeps its typed boundary before any viewer read or remote acquisition: " } + std::string{ aWhy });
+		};
+		for (const std::string_view banner : { "gh version 2.95.9 (fixture)\n", "gh version 2.96\n", "gh version 2.101.0junk\n",
+											   "gh version 99999999999999999999.0.0\n", "gh 2.101.0\n", "unclassified fixture output\n" }) {
+			write(root / "version", banner);
+			expectCliRefusal(banner, application::git_smart_transport_step::cli_qualification, application::git_smart_transport_failure::unavailable);
 		}
+		for (const std::string_view banner : { "gh version 2.96.0 (fixture)\n", "gh version 2.101.0 (2026-09-15)\n", "gh version 2.120.0 (2027-03-01)\n",
+											   "gh version 3.0.0 (future)\n", "gh version 2.130.1-rc.1\n" }) {
+			write(root / "version", banner);
+			recording_pack_sink admitted{ core::git_hash_algorithm::sha1 };
+			expect(application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, admitted, limits, { }).has_value() && admitted.Finished,
+				   "the minimum, the owner's 2.101.0 and newer or later-major gh are admitted once their operations are proven");
+		}
+		write(root / "version", "gh version 2.120.0 (fixture)\n");
+		for (const auto& [topic, help] : std::array<std::pair<std::string_view, std::string_view>, 9U>{ {
+				 { "api", "FLAGS\n      --hostname string\n  -i, --include\n      --input file\n  -X, --method string\n" },
+				 { "api", "FLAGS\n  -H, --header key:value\n  -i, --include\n      --input file\n  -X, --method string\n" },
+				 { "api", "FLAGS\n  -H, --header key:value\n      --hostname string\n      --input file\n  -X, --method string\n" },
+				 { "api", "FLAGS\n  -H, --header key:value\n      --hostname string\n  -i, --include\n  -X, --method string\n" },
+				 { "api", "FLAGS\n  -H, --header key:value\n      --hostname string\n  -i, --include\n      --input file\n" },
+				 { "repo-clone", "USAGE\n  gh repo clone <repository> [<directory>]\n      --no-upstream\n" },
+				 { "repo-clone", "USAGE\n  gh repo clone <repository> [<directory>] [-- <gitflags>...]\n" },
+				 { "auth-git-credential", "USAGE\n  gh auth login [flags]\n" },
+				 { "auth-git-credential", "" },
+			 } }) {
+			write(root / ("gh-help-" + std::string{ topic }), help);
+			expectCliRefusal(topic, application::git_smart_transport_step::cli_qualification, application::git_smart_transport_failure::unavailable);
+			std::filesystem::remove(root / ("gh-help-" + std::string{ topic }));
+		}
+		write(root / "gh-help-exit", "1");
+		expectCliRefusal("nonzero help exit", application::git_smart_transport_step::cli_capability_probe, application::git_smart_transport_failure::unavailable);
+		std::filesystem::remove(root / "gh-help-exit");
+		write(root / "stderr-gh-help", "1");
+		expectCliRefusal("help on standard error", application::git_smart_transport_step::cli_capability_probe, application::git_smart_transport_failure::unavailable);
+		std::filesystem::remove(root / "stderr-gh-help");
+		write(root / "overflow-gh-help", "1");
+		expectCliRefusal("oversized help", application::git_smart_transport_step::cli_capability_probe, application::git_smart_transport_failure::response_limit);
+		std::filesystem::remove(root / "overflow-gh-help");
+		write(root / "wait-gh-help", "1");
+		{
+			std::stop_source    stop;
+			std::jthread        cancel{ [&] { std::this_thread::sleep_for(std::chrono::milliseconds{ 400 }); stop.request_stop(); } };
+			recording_pack_sink cancelledSink{ core::git_hash_algorithm::sha1 };
+			const auto          started   = std::chrono::steady_clock::now();
+			const auto          cancelled = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, cancelledSink, limits, stop.get_token());
+			const auto*         error     = cancelled ? nullptr : std::get_if<application::git_smart_transport_error>(&cancelled.error());
+			expect(error && error->Failure == application::git_smart_transport_failure::cancelled && cancelledSink.Received.empty()
+					   && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 3 },
+				   "cancelling a running gh probe is bounded, reaped and publishes nothing");
+		}
+		expectCliRefusal("help timeout", application::git_smart_transport_step::cli_capability_probe, application::git_smart_transport_failure::timeout);
+		std::filesystem::remove(root / "wait-gh-help");
+		recording_pack_sink repairedSink{ core::git_hash_algorithm::sha1 };
+		expect(application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, repairedSink, limits, { }).has_value() && repairedSink.Finished,
+			   "a repaired gh retries through the same exact authority");
 		write(root / "version", "gh version 2.101.0 (fixture)\n");
 		write(root / "missing-sparse", "1");
 		recording_pack_sink missingSparseSink{ core::git_hash_algorithm::sha1 };

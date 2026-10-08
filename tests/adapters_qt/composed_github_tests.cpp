@@ -209,7 +209,7 @@ namespace {
 			   "only the server with a GitHub CLI profile has the GitHub CLI offer, and it is not offered while GitHub CLI is already the card's way in");
 		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
 			   "the CLI card shows a wrapped literal warning before Connect");
-		for (const auto* phrase : { "this server", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "gh 2.100.0 or 2.101.0", "32 MiB", "does not authorize publishing" }) {
+		for (const auto* phrase : { "this server", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "gh 2.96 or later", "Git 2.49 or later", "checked locally", "32 MiB", "does not authorize publishing" }) {
 			expect(warning->text().contains(QString::fromLatin1(phrase)), "CLI warning states each residual trust risk and read boundary");
 		}
 		const auto host = QString::fromStdString(cliCard->hostname());
@@ -260,7 +260,7 @@ namespace {
 		}
 		expect(words <= 70, "the decision before the disclosure reads in one breath, at most 70 words, not the former paragraph of every risk");
 		const auto details = question->detailedText();
-		for (const auto* phrase : { "no per-request account selector", "no exact account guarantee", "redirects", "socket routing", "CA certificates", "child-process", "environment overrides", "needs migration", "temporary object store", "shell credential helper", "gh 2.100.0 or 2.101.0", "Apple Git 2.50.1", "32 MiB", "supervised temporary-store limit", "never reads, stores or passes your gh token", "own confirmation" }) {
+		for (const auto* phrase : { "no per-request account selector", "no exact account guarantee", "redirects", "socket routing", "CA certificates", "child-process", "environment overrides", "needs migration", "temporary object store", "shell credential helper", "gh 2.96 or later", "Git 2.49 or later", "checked locally", "32 MiB", "supervised temporary-store limit", "never reads, stores or passes your gh token", "own confirmation" }) {
 			expect(details.contains(QString::fromLatin1(phrase)),
 				   std::string{ "every residual risk the long warning named is behind the disclosure: " } + phrase);
 		}
