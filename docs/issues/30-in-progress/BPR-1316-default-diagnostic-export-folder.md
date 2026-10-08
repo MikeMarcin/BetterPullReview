@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1316"
 title: "Resolve and present a user-owned diagnostic export default"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0064"]
 depends_on: []
 priority: "P1"
