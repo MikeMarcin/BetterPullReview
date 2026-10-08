@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1338"
 title: "Open the pull request on GitHub from a button beside its title, and from Home's rows"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
