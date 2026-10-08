@@ -66,7 +66,14 @@ namespace bpr::adapters::sqlite::detail {
 	/// Fourteen since [[BPR-1301]]: the profile's Claude process wrapper, in
 	/// the profile row. A migrated row reads none and keeps every other field
 	/// it had. An agent-free build reads and writes it back unchanged.
-	inline constexpr std::int64_t workbench_settings_schema_version = 15;
+	///
+	/// Fifteen: a window's Overview summary fraction, in the per-window table.
+	///
+	/// Sixteen since [[BPR-1090]]: the review-feedback hook's override, in
+	/// the profile row. A migrated row reads it empty, the shipped default, and
+	/// keeps every other field it had, the four review-preparation overrides
+	/// and each window's summary fraction included.
+	inline constexpr std::int64_t workbench_settings_schema_version = 16;
 
 	/// \brief Owns the durable workbench layout database.
 	///

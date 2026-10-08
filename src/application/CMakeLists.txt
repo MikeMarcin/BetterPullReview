@@ -3,6 +3,12 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/problem-stat
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/solution-summary.md" WRITING_SOLUTION)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-outline.md" WRITING_OUTLINE)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-stop-comment.md" WRITING_COMMENT)
+# [[BPR-1090]] The review-feedback guidance, from the RFC-BPR-0051 pack fragment.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-feedback.md" WRITING_FEEDBACK)
+# An edited resource reconfigures, so the built defaults never lag their text.
+foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
+endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)
 add_library(
     better_pull_review_application

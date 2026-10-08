@@ -34,16 +34,17 @@ namespace bpr::adapters::sqlite::detail {
 		///
 		/// \details `window_layout` has twenty-three columns after the Updates
 		/// line's fold ([[BPR-1130]]) joined native geometry and Home, and
-		/// `workbench_preferences` twenty-five since the label helper, the
+		/// `workbench_preferences` twenty-six since the label helper, the
 		/// Overview's starting count and its label columns ([[BPR-1088]],
-		/// version thirteen) and the Claude process wrapper ([[BPR-1301]],
-		/// version fourteen). `SQLITE_LIMIT_COLUMN` bounds a table
+		/// version thirteen), the Claude process wrapper ([[BPR-1301]],
+		/// version fourteen) and the review-feedback hook ([[BPR-1090]],
+		/// version sixteen). `SQLITE_LIMIT_COLUMN` bounds a table
 		/// definition, the values of one INSERT, and the result of one `SELECT *`
-		/// alike, so below this a version-fourteen file could not even be parsed,
+		/// alike, so below this a version-sixteen file could not even be parsed,
 		/// let alone read: a column added later has to raise this in the same
 		/// schema step. Three admissible tables bound the whole enumerated
 		/// schema at three times this.
-		constexpr std::size_t MaximumTableColumns = 25U;
+		constexpr std::size_t MaximumTableColumns = 26U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -139,10 +140,25 @@ namespace bpr::adapters::sqlite::detail {
 				  // `claude` as it did. The bound is
 				  // `core::maximum_agent_wrapper_bytes`, written out for the
 				  // same reason as the label columns'.
-				  "claude_wrapper TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claude_wrapper AS BLOB)) <= 1024)) STRICT";
+				  "claude_wrapper TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claude_wrapper AS BLOB)) <= 1024),"
+				  // [[BPR-1090]]. Schema version 16: the review-feedback
+				  // hook's override, empty for the shipped default, so a
+				  // migrated row follows the default and a later default
+				  // reaches it while an override stays as written.
+				  "writing_feedback TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_feedback AS BLOB)) <= 8192)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
+		static_assert(core::maximum_writing_instruction_bytes == 8192U);
+		/// \brief The zero-based result column of one hook's override in the
+		/// profile row's SELECT; its INSERT parameter is one more. The four
+		/// review-preparation hooks are adjacent; [[BPR-1090]] the feedback
+		/// hook came later and sits last.
+		[[nodiscard]] constexpr auto writing_hook_column(const std::size_t aHook) noexcept -> int
+		{
+			return aHook < core::review_preparation_hook_count ? static_cast<int>(15 + aHook) : 24;
+		}
+		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 1U, "a new hook needs its own column");
 		static_assert(core::maximum_agent_wrapper_bytes == 1024U);
 		static_assert(static_cast<std::int64_t>(application::review_label_helper::on) == 1);
 		static_assert(static_cast<std::int64_t>(application::review_overview_counts::all) == 1);
@@ -259,6 +275,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 11                       ? ",feedback_marks"
 				: aVersion <= 12                       ? ",label_helper"
 				: aVersion <= 13                       ? ",claude_wrapper"
+				: aVersion <= 15                       ? ",writing_feedback"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -289,7 +306,7 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
 				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
 				+ (aVersion >= 12 ? ",feedback_marks" : "") + (aVersion >= 13 ? ",label_helper,overview_counts,label_columns" : "")
-				+ (aVersion >= 14 ? ",claude_wrapper" : "");
+				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -306,7 +323,7 @@ namespace bpr::adapters::sqlite::detail {
 					+ (aVersion >= 7 ? ",one_pane" : "")
 					+ (aVersion >= 8 ? ",home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort" : "")
 					+ (aVersion >= 9 ? ",geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized" : "")
-					+ (aVersion >= 10 ? ",updates_line" : "");
+					+ (aVersion >= 10 ? ",updates_line" : "") + (aVersion >= 15 ? ",summary_fraction" : "");
 				statements.push_back("INSERT INTO window_layout(" + windowColumns + ") SELECT " + windowColumns + " FROM old_window_layout");
 				statements.emplace_back("DROP TABLE old_window_layout");
 			}
@@ -635,11 +652,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to fourteen specifically,
+			// migration named here carries versions one to fifteen specifically,
 			// written out rather than derived from the constant, so a version
 			// this build has no step for is refused rather than handed to the
 			// wrong one.
-			if (*current < 0 || *current > 14) {
+			if (*current < 0 || *current > 15) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -987,8 +1004,8 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24) "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1005,7 +1022,7 @@ namespace bpr::adapters::sqlite::detail {
 			"drawer_controls = excluded.drawer_controls,"
 			"one_pane = excluded.one_pane, writing_revision = excluded.writing_revision, writing_problem = excluded.writing_problem, writing_solution = excluded.writing_solution, writing_outline = excluded.writing_outline, writing_stop = excluded.writing_stop, feedback_marks = excluded.feedback_marks,"
 			"label_helper = excluded.label_helper, overview_counts = excluded.overview_counts, label_columns = excluded.label_columns,"
-			"claude_wrapper = excluded.claude_wrapper");
+			"claude_wrapper = excluded.claude_wrapper, writing_feedback = excluded.writing_feedback");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1015,7 +1032,7 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		for (std::size_t i = 0; i < core::writing_hook_count; ++i) {
 			const auto& text = aSettings.WritingHooks.Overrides[i];
-			if (sqlite3_bind_text(statement->Value, static_cast<int>(16 + i), text.data(), static_cast<int>(text.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
+			if (sqlite3_bind_text(statement->Value, writing_hook_column(i) + 1, text.data(), static_cast<int>(text.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
 				return std::unexpected(failure::integrity_failure);
 			}
 		}
@@ -1315,7 +1332,7 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1405,7 +1422,7 @@ namespace bpr::adapters::sqlite::detail {
 		core::writing_hook_settings hooks;
 		hooks.Revision = static_cast<std::uint64_t>(sqlite3_column_int64(statement->Value, 14));
 		for (std::size_t i = 0; i < core::writing_hook_count; ++i) {
-			const auto  column = static_cast<int>(15 + i);
+			const auto  column = writing_hook_column(i);
 			const auto  count  = sqlite3_column_bytes(statement->Value, column);
 			const auto* text   = reinterpret_cast<const char*>(sqlite3_column_text(statement->Value, column));
 			if (!text || count < 0 || count > static_cast<int>(core::maximum_writing_instruction_bytes)) {

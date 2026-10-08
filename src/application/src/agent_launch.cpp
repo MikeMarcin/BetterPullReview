@@ -1512,7 +1512,8 @@ namespace bpr::application {
 
 	auto build_writing_prompt(const core::writing_hook_settings& aSettings, const core::writing_request& aRequest, std::span<const writing_source> aSources) -> std::optional<std::string>
 	{
-		if (!core::valid(aSettings) || aSources.size() > 8 || aRequest.Selection.Begin > aRequest.Selection.End || aRequest.Selection.End > aRequest.Raw.size()) {
+		// [[BPR-1090]] The review-feedback hook writes no tour field, so it builds no writing prompt.
+		if (!core::valid(aSettings) || aRequest.Target.Hook >= core::writing_hook::feedback || aSources.size() > 8 || aRequest.Selection.Begin > aRequest.Selection.End || aRequest.Selection.End > aRequest.Raw.size()) {
 			return std::nullopt;
 		}
 		for (std::size_t index = 0; index < aSources.size(); ++index) {
@@ -1556,7 +1557,7 @@ namespace bpr::application {
 	}
 	auto decode_writing_result(std::string_view aJson, core::writing_hook aHook, std::span<const writing_source> aSources, bool aRequiresEvidence) -> std::optional<writing_result>
 	{
-		if (aSources.size() > 8 || aJson.size() > 32768 || !core::valid_writing_utf8(aJson)) {
+		if (aHook >= core::writing_hook::feedback || aSources.size() > 8 || aJson.size() > 32768 || !core::valid_writing_utf8(aJson)) {
 			return std::nullopt;
 		}
 		for (std::size_t index = 0; index < aSources.size(); ++index) {

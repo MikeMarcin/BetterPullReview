@@ -7,6 +7,7 @@
 #include "bpr/qt/resident_filter.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "bpr/qt/writing_hooks_panel.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -538,7 +539,7 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook selected, std::string instructions) { ++saves;settings.Overrides[static_cast<std::size_t>(selected)]=std::move(instructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 4 && !text->toPlainText().isEmpty(), "four shipped hooks preview without inference");
+		expect(hook->count() == 6 && hook->itemText(4).isEmpty() && hook->itemText(5) == "Review feedback" && !text->toPlainText().isEmpty(), "four tour hooks, a separator and review feedback preview without inference");
 		for (int i = 0; i < 4; ++i) {
 			hook->setCurrentIndex(i);
 			text->setPlainText("precise");
@@ -549,6 +550,28 @@ auto main(int argc, char** argv) -> int
 		expect(settings.Overrides[3].empty() && settings.Overrides[0] == "precise", "restore only current hook");
 		panel->findChild<QPushButton*>("writingHookTest")->click();
 		expect(tests == 1, "explicit test produces exactly one intent");
+		// [[BPR-1090]] The fifth hook: its own version, its own override, its reset, and a line that
+		// says it is sent only while the label helper is on. Test is for tour fields only.
+		auto* scope  = panel->findChild<QLabel*>("writingHookScope");
+		auto* source = panel->findChild<QLabel*>("writingHookSource");
+		auto* test   = panel->findChild<QPushButton*>("writingHookTest");
+		hook->setCurrentIndex(3);
+		expect(scope->isHidden() && test->isEnabled() && source->text().contains("review-preparation-v1"), "a tour hook shows no feedback line and can be tested");
+		hook->setCurrentIndex(5);
+		expect(panel->selected_hook() == core::writing_hook::feedback && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "the feedback row previews the shipped guidance");
+		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v1"), "with the label helper off the row says the guidance is off");
+		expect(!test->isEnabled() && !test->toolTip().isEmpty(), "the tour-field test is unavailable for the feedback hook, with the reason");
+		test->click();
+		expect(tests == 1, "and clicking it asks for nothing");
+		panel->present_label_helper(application::review_label_helper::on);
+		expect(scope->text().startsWith("On."), "turning the label helper on turns the guidance on");
+		text->setPlainText("Team rule");
+		panel->findChild<QPushButton*>("writingHookSave")->click();
+		expect(settings.Overrides[4] == "Team rule" && settings.Overrides[0] == "precise" && source->text().contains("Profile override"), "the feedback override is its own");
+		panel->findChild<QPushButton*>("writingHookReset")->click();
+		expect(settings.Overrides[4].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "Restore default brings back the shipped guidance");
+		panel->present_label_helper(application::review_label_helper::off);
+		expect(scope->text().startsWith("Off."), "and turning the helper off again says so");
 	}
 
 	test_adopting_a_panel_replaces_the_notice();

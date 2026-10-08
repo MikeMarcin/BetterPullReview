@@ -2,6 +2,7 @@
 #define BPR_APP_TOUR_ASSIST_HPP
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/tour_assist.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
 #include "tour_cli_types.hpp"
 #include <chrono>
 #include <filesystem>
@@ -43,10 +44,17 @@ namespace bpr::app {
 	[[nodiscard]] auto tour_assist_issue(application::review_tour_host& aHost, const core::writing_hook_settings& aSettings, const tour_assist_query& aQuery, std::vector<application::writing_source> aExtra, std::int64_t aNow) -> tour_cli_result<tour_assist_issued>;
 	/// \brief The JSON the caller prints for a completed request: what was applied, notes, and any proposal.
 	[[nodiscard]] auto tour_assist_outcome_json(const application::tour_service_result& aResult, const application::review_tour_host& aHost) -> std::string;
-	/// \brief Effective hooks, with the shipped version and each override's revision.
-	[[nodiscard]] auto tour_hooks_json(const core::writing_hook_settings& aSettings) -> std::string;
+	/// \brief The profile's hooks and, for the feedback hook, whether the label helper sends it ([[BPR-1090]]).
+	struct tour_hook_state
+	{
+		core::writing_hook_settings      Hooks;
+		application::review_label_helper LabelHelper = application::review_label_helper::off;
+	};
+	/// \brief Effective hooks, with each one's shipped version, whether it applies now, and the override revision.
+	[[nodiscard]] auto tour_hooks_json(const tour_hook_state& aState) -> std::string;
 	/// \brief Reads and rewrites the profile-owned hook overrides. Only the profile owner may call these.
+	[[nodiscard]] auto load_tour_hook_state(const std::filesystem::path& aRoot) -> tour_cli_result<tour_hook_state>;
 	[[nodiscard]] auto load_tour_hook_settings(const std::filesystem::path& aRoot) -> tour_cli_result<core::writing_hook_settings>;
-	[[nodiscard]] auto store_tour_hook_override(const std::filesystem::path& aRoot, core::writing_hook aHook, std::string aInstructions) -> tour_cli_result<core::writing_hook_settings>;
+	[[nodiscard]] auto store_tour_hook_override(const std::filesystem::path& aRoot, core::writing_hook aHook, std::string aInstructions) -> tour_cli_result<tour_hook_state>;
 }
 #endif

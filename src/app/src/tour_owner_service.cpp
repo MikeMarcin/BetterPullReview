@@ -163,11 +163,11 @@ namespace bpr::app {
 			}
 			const tour_store_lane lane = [](std::function<void()> aTask) { aTask(); };
 			if (request->Operation == application::tour_owner_operation::hooks_show) {
-				const auto settings = load_tour_hook_settings(Root);
-				if (!settings) {
-					return error_response(settings.error().Code, settings.error().Message);
+				const auto state = load_tour_hook_state(Root);
+				if (!state) {
+					return error_response(state.error().Code, state.error().Message);
 				}
-				return adapters::sqlite::encode_tour_response({ .Json = tour_hooks_json(*settings) });
+				return adapters::sqlite::encode_tour_response({ .Json = tour_hooks_json(*state) });
 			}
 			auto store  = adapters::sqlite::make_review_tour_store(Root, Profile);
 			auto loaded = load_local_tour(*store, request->Draft, lane);

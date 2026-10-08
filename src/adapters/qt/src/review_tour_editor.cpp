@@ -520,6 +520,7 @@ namespace bpr::qt {
 		case core::writing_hook::solution: return Roadmap->currentIndex() == 1;
 		case core::writing_hook::comment:  return Roadmap->currentIndex() == 2 && selected_stop() && Body->isVisible() && !Body->viewport()->visibleRegion().isEmpty();
 		case core::writing_hook::outline:  return Roadmap->currentIndex() == 2;
+		case core::writing_hook::feedback: return false; // [[BPR-1090]] No tour field takes the feedback hook.
 		}
 		return false;
 	}

@@ -18,6 +18,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
@@ -595,6 +596,18 @@ auto main(int argc, char** argv) -> int
 			hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions"))->setPlainText(QStringLiteral("EMPTY_CANARY. Recover supported explanation with source references. No tools or publication."));
 			hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave"))->click();
 			wait([&] { return hooks->findChild<QLabel*>(QStringLiteral("writingHookSource"))->text().contains("Profile override"); }, "profile hook persisted through real Settings path");
+			// [[BPR-1090]] The review-feedback row follows the profile's real label helper preference.
+			{
+				auto* choice = hooks->findChild<QComboBox*>(QStringLiteral("writingHookChoice"));
+				auto* scope  = hooks->findChild<QLabel*>(QStringLiteral("writingHookScope"));
+				choice->setCurrentIndex(choice->findText(QStringLiteral("Review feedback")));
+				expect(scope->text().startsWith("Off.") && !hooks->findChild<QPushButton*>(QStringLiteral("writingHookTest"))->isEnabled(), "the feedback row starts off with the label helper off");
+				window.label_helper_switch()->setChecked(true);
+				wait([&] { return scope->text().startsWith("On."); }, "turning on the label helper in Settings turns the feedback guidance on");
+				window.label_helper_switch()->setChecked(false);
+				wait([&] { return scope->text().startsWith("Off."); }, "and turning it off turns the guidance off");
+				choice->setCurrentIndex(3);
+			}
 			const auto beforeStop = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
 			editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic"))->click();
 			wait([&] {const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>beforeStop && evidence.Quiescent; }, "current stop process completed");

@@ -124,9 +124,10 @@ link and the existing root remains the route until its final update.
 
 ## Optional writing assistance
 
-[Settings → Agents & context → AI assistance · Review preparation](settings.md#review-preparation-writing-hooks)
-holds four independent hooks: Problem statement, Solution summary, Tour outline
-and Tour-stop comment. Each has a versioned effective source, Restore default and
+[Settings → Agents & context → AI assistance · Writing instructions](settings.md#review-preparation-writing-hooks)
+holds four independent tour hooks: Problem statement, Solution summary, Tour outline
+and Tour-stop comment. A fifth, Review feedback, is for comment workshop requests,
+not tour fields. Each has a versioned effective source, Restore default and
 an explicitly invoked nonpublishing Test. Changes are profile scoped.
 
 The field button rewrites the captured selection, including whitespace, or the

@@ -321,9 +321,18 @@ selected stop, and a stale edit is a `revision_conflict` that keeps both texts.
 ## Hooks and assistance for the active agent
 
 `hooks show [HOOK]`, `hooks edit HOOK [--file PATH|-]` and `hooks reset HOOK` read
-and change the profile's four writing hooks (problem, solution, outline, comment),
-the same overrides the desktop's Agents & context settings edit; each change advances
-the hook revision. `hooks show` also works beside a running desktop; `edit` and
+and change the profile's five writing hooks, the same overrides the desktop's Agents
+& context settings edit; each change advances the hook revision. Four are the tour's
+(problem, solution, outline, comment, version `review-preparation-v1`). The fifth,
+`feedback` ([[BPR-1090]]), is the review-feedback conventions guidance
+(`review-feedback-v1`): it writes no tour field, so `assist context --hook feedback`
+is `invalid_hook`, and comment workshop requests carry it only while the label helper
+is on. Each listed hook gives its `version`, whether it is `customized` and whether it
+is `active`; the listing gives `label_helper`, and its text marks the feedback hook
+off while the helper is off. An override is kept exactly as written across upgrades;
+a hook with none follows the shipped default, and `reset` returns it there. A running
+desktop older than the feedback hook answers `hooks show feedback` with
+`owner_protocol_unsupported` (exit 4). `hooks show` also works beside a running desktop; `edit` and
 `reset` need the profile to themselves (a running desktop's settings are its own).
 
 `assist context` prepares a request for text and launches no model. It resolves the

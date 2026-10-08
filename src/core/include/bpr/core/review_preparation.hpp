@@ -8,11 +8,19 @@
 #include <string>
 #include <string_view>
 namespace bpr::core {
+	/// \brief The profile's writing hooks. The first four are the tour's
+	/// review-preparation hooks, each writing one tour field. [[BPR-1090]]
+	/// `feedback` is the review-feedback guidance: it writes no tour field, so
+	/// no `writing_target` names it, and a comment workshop request carries it
+	/// only while the label helper is on.
 	enum class writing_hook : std::uint8_t { problem,
 											 solution,
 											 outline,
-											 comment };
-	inline constexpr std::size_t writing_hook_count                = 4;
+											 comment,
+											 feedback };
+	inline constexpr std::size_t writing_hook_count = 5;
+	/// \brief The review-preparation hooks, `problem` to `comment`.
+	inline constexpr std::size_t review_preparation_hook_count     = 4;
 	inline constexpr std::size_t maximum_writing_instruction_bytes = 8192;
 	/// \brief Profile-owned text overrides; empty selects the shipped version.
 	struct writing_hook_settings

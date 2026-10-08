@@ -7555,6 +7555,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						cancel_writing();
 					}
 					Window->writing_hooks()->present(aPreferences.WritingHooks);
+					// [[BPR-1090]] The feedback hook's row says whether the label helper sends it.
+					Window->writing_hooks()->present_label_helper(aPreferences.Behaviour.LabelHelper);
 #if defined(BPR_AGENT_INTEGRATIONS)
 					// [[BPR-1301]]. The next Claude launch reads what this
 					// profile has just published, and so does the row.
@@ -9683,6 +9685,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		void test_writing_hook(core::writing_hook aHook)
 		{
+			if (aHook >= core::writing_hook::feedback) {
+				// [[BPR-1090]] The sample is a tour field; the feedback guidance is tried in the comment workshop.
+				Window->writing_hooks()->show_notice("Test uses a tour field. Ask the comment workshop to try the review-feedback guidance.");
+				return;
+			}
 			cancel_writing();
 			const auto& prefs    = Profile->WorkbenchPreferences->accepted();
 			const auto  selected = Window->agent_panel()->selected_profile();

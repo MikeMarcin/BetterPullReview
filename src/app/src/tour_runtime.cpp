@@ -526,11 +526,11 @@ namespace bpr::app {
 			}
 			return decoded->Json;
 		}
-		const auto settings = self.effect([&] { return load_tour_hook_settings(self.Root); });
-		if (!settings) {
-			return std::unexpected(settings.error());
+		const auto state = self.effect([&] { return load_tour_hook_state(self.Root); });
+		if (!state) {
+			return std::unexpected(state.error());
 		}
-		return tour_hooks_json(*settings);
+		return tour_hooks_json(*state);
 	}
 	auto tour_runtime::hooks_store(core::writing_hook aHook, std::string aInstructions) -> tour_cli_result<std::string>
 	{
@@ -541,11 +541,11 @@ namespace bpr::app {
 		if (self.Forward) {
 			return failure("interaction_required", "A running desktop owns these settings. Change the hook in its Agents & context settings, or close it first.", 3);
 		}
-		const auto settings = self.effect([&] { return store_tour_hook_override(self.Root, aHook, std::move(aInstructions)); });
-		if (!settings) {
-			return std::unexpected(settings.error());
+		const auto state = self.effect([&] { return store_tour_hook_override(self.Root, aHook, std::move(aInstructions)); });
+		if (!state) {
+			return std::unexpected(state.error());
 		}
-		return tour_hooks_json(*settings);
+		return tour_hooks_json(*state);
 	}
 	auto tour_runtime::prepare_publication(std::string_view aDraft, bool aGh, tour_publication_options aOptions, std::string_view aAttempt, bool aRecover) -> tour_cli_result<tour_publication_preview>
 	{

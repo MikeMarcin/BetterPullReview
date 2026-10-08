@@ -294,6 +294,18 @@ is private and changes no tour field. An unavailable agent or source context
 leaves manual preparation available. Overrides contain text instructions only;
 they grant no tool, publication or broader editing authority.
 
+#### Review feedback guidance
+
+The same list holds a fifth hook below a separator, **Review feedback**
+([[BPR-1090]], owner decision 2026-10-08). Its default is the conventions guidance
+shipped as `review-feedback-v1`: the twelve labels, the decorations, and the
+difference between a `suggestion` label and a GitHub suggested change and between
+a label and a review decision. Comment workshop requests carry it only while
+Reviews & queue › Comment labels › Label helper is on; a line under the source label
+says On or Off. It writes no tour field, so its Test button is unavailable. Save
+keeps the profile's text across upgrades; Restore default follows the shipped text
+again. `bpr tour hooks show|edit|reset feedback` reads and changes the same override.
+
 #### Tool-free review-preparation delivery
 
 The writing buttons use the currently selected agent profile. The bounded writing

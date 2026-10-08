@@ -69,13 +69,14 @@ namespace bpr::app {
 		case core::writing_hook::solution: return "solution";
 		case core::writing_hook::outline:  return "outline";
 		case core::writing_hook::comment:  return "comment";
+		case core::writing_hook::feedback: return "feedback";
 		}
 		return "problem";
 	}
 	auto parse_tour_hook(std::string_view aName) -> std::optional<core::writing_hook>
 	{
-		for (const auto hook : { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment }) {
-			if (aName == tour_hook_name(hook)) {
+		for (std::size_t index = 0; index < core::writing_hook_count; ++index) {
+			if (const auto hook = static_cast<core::writing_hook>(index); aName == tour_hook_name(hook)) {
 				return hook;
 			}
 		}
@@ -83,6 +84,9 @@ namespace bpr::app {
 	}
 	auto tour_assist_issue(application::review_tour_host& aHost, const core::writing_hook_settings& aSettings, const tour_assist_query& aQuery, std::vector<application::writing_source> aExtra, std::int64_t aNow) -> tour_cli_result<tour_assist_issued>
 	{
+		if (aQuery.Hook >= core::writing_hook::feedback) {
+			return refuse("invalid_hook", "The feedback hook writes no tour field. Use problem, solution, outline or comment.", 2);
+		}
 		const auto shown = aHost.presentation();
 		if (!shown.Draft || shown.Loading) {
 			return refuse("owner_busy", "The draft is loading. Nothing was issued; retry shortly.", 4);
@@ -260,16 +264,21 @@ namespace bpr::app {
 		}
 		return compact(outcome);
 	}
-	auto tour_hooks_json(const core::writing_hook_settings& aSettings) -> std::string
+	auto tour_hooks_json(const tour_hook_state& aState) -> std::string
 	{
-		QJsonArray hooks;
+		const auto& settings = aState.Hooks;
+		const bool  helper   = aState.LabelHelper == application::review_label_helper::on;
+		QJsonArray  hooks;
 		for (std::size_t index = 0; index < core::writing_hook_count; ++index) {
 			const auto hook = static_cast<core::writing_hook>(index);
-			hooks.append(QJsonObject{ { "name", text(tour_hook_name(hook)) }, { "customized", !aSettings.Overrides[index].empty() }, { "instructions", text(application::effective_writing_hook(aSettings, hook)) } });
+			// [[BPR-1090]] The feedback hook goes only with comment workshop requests, and only while the
+			// label helper is on; the review-preparation hooks apply whenever their field is assisted.
+			const bool active = hook != core::writing_hook::feedback || helper;
+			hooks.append(QJsonObject{ { "name", text(tour_hook_name(hook)) }, { "version", text(application::writing_hook_version_of(hook)) }, { "customized", !settings.Overrides[index].empty() }, { "active", active }, { "instructions", text(application::effective_writing_hook(settings, hook)) } });
 		}
-		return compact(QJsonObject{ { "version", text(application::writing_hook_version) }, { "revision", id_text(aSettings.Revision) }, { "hooks", hooks } });
+		return compact(QJsonObject{ { "version", text(application::writing_hook_version) }, { "revision", id_text(settings.Revision) }, { "label_helper", helper ? "on" : "off" }, { "hooks", hooks } });
 	}
-	auto load_tour_hook_settings(const std::filesystem::path& aRoot) -> tour_cli_result<core::writing_hook_settings>
+	auto load_tour_hook_state(const std::filesystem::path& aRoot) -> tour_cli_result<tour_hook_state>
 	{
 		auto store = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = aRoot });
 		if (!store) {
@@ -279,9 +288,13 @@ namespace bpr::app {
 		if (!loaded) {
 			return refuse("storage_unavailable", "The profile's hook settings are unavailable.", 7);
 		}
-		return loaded->WritingHooks;
+		return tour_hook_state{ loaded->WritingHooks, loaded->Behaviour.LabelHelper };
 	}
-	auto store_tour_hook_override(const std::filesystem::path& aRoot, core::writing_hook aHook, std::string aInstructions) -> tour_cli_result<core::writing_hook_settings>
+	auto load_tour_hook_settings(const std::filesystem::path& aRoot) -> tour_cli_result<core::writing_hook_settings>
+	{
+		return load_tour_hook_state(aRoot).transform([](tour_hook_state aState) { return std::move(aState.Hooks); });
+	}
+	auto store_tour_hook_override(const std::filesystem::path& aRoot, core::writing_hook aHook, std::string aInstructions) -> tour_cli_result<tour_hook_state>
 	{
 		auto store = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = aRoot });
 		if (!store) {
@@ -300,6 +313,6 @@ namespace bpr::app {
 		if (!(*store)->store_preferences(candidate, { })) {
 			return refuse("storage_unavailable", "The hook change was not saved.", 7);
 		}
-		return candidate.WritingHooks;
+		return tour_hook_state{ std::move(candidate.WritingHooks), candidate.Behaviour.LabelHelper };
 	}
 }

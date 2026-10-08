@@ -1,9 +1,11 @@
+#include "../../src/app/src/profile_admission.hpp"
 #include "../../src/app/src/tour_cli.hpp"
 #include "../../src/app/src/tour_owner_service.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/review_tour_fixture.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
+#include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -304,7 +306,7 @@ namespace {
 		expect(more.Exit == 0 && more.json()["data"].toObject()["assist"].toObject()["reason"] == "insufficient_context" && problem() == text, "insufficient context is reported and changes nothing");
 		// Hooks are shared settings: what the CLI shows and edits is what the desktop uses.
 		auto hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
-		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 4, "the four hooks");
+		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 5, "the four tour hooks and review feedback");
 		const auto beforeHooks = hooks.json()["data"].toObject()["hooks_revision"].toString();
 		auto       pending     = context({ "--hook", "problem", "--field", "problem" });
 		auto       custom      = call({ "tour", "hooks", "edit", "problem", "--file", put("hook.txt", "Write tersely."), "--profile", "1", "--json" });
@@ -313,6 +315,48 @@ namespace {
 		auto tersely = context({ "--hook", "problem", "--field", "problem" });
 		expect(tersely.json()["data"].toObject()["assist"].toObject()["hook"].toObject()["instructions"] == "Write tersely." && tersely.json()["data"].toObject()["assist"].toObject()["prompt"].toString().contains("Write tersely."), "the effective hook is the customized one");
 		expect(call({ "tour", "hooks", "reset", "problem", "--profile", "1", "--json" }).Exit == 0 && call({ "tour", "hooks", "show", "problem", "--profile", "1", "--json" }).json()["data"].toObject()["hooks"].toArray()[0].toObject()["customized"] == false, "reset returns to the shipped hook");
+		// [[BPR-1090]] The fifth hook, review feedback: listed, edited and reset like the others; it
+		// says when the label helper keeps it from being sent, and it is never a tour field's hook.
+		{
+			const auto  listed = hooks.json()["data"].toObject()["hooks"].toArray();
+			QStringList names;
+			for (const auto& entry : listed) {
+				names.append(entry.toObject()["name"].toString());
+			}
+			expect(names == QStringList{ "problem", "solution", "outline", "comment", "feedback" }, "the hooks are listed in their stable order, feedback last");
+			const auto shipped = listed[4].toObject();
+			expect(shipped["version"] == "review-feedback-v1" && listed[0].toObject()["version"] == "review-preparation-v1", "each hook names its own default's version");
+			expect(shipped["customized"] == false && shipped["active"] == false && hooks.json()["data"].toObject()["label_helper"] == "off", "a new profile follows the default, and with the label helper off it is not sent");
+			expect(shipped["instructions"].toString().contains("`quibble`: ") && shipped["instructions"].toString().contains("GitHub suggested change"), "the shipped guidance is the default conventions text");
+			const auto human = call({ "tour", "hooks", "show", "feedback", "--profile", "1" });
+			expect(human.Exit == 0 && human.Out.starts_with("feedback (shipped) · off while the label helper is off\n"), "the listing says the hook is off while the label helper is off");
+			const auto before    = hooks.json()["data"].toObject()["hooks"].toArray();
+			auto       edited    = call({ "tour", "hooks", "edit", "feedback", "--file", put("feedback.txt", "Team rule: decorate every issue."), "--profile", "1", "--json" });
+			const auto afterEdit = edited.json()["data"].toObject()["hooks"].toArray();
+			expect(edited.Exit == 0 && afterEdit[4].toObject()["customized"] == true && afterEdit[4].toObject()["instructions"] == "Team rule: decorate every issue.", "an edit stores the profile's own guidance");
+			for (int index = 0; index < 4; ++index) {
+				expect(afterEdit[index].toObject()["customized"] == before[index].toObject()["customized"] && afterEdit[index].toObject()["instructions"] == before[index].toObject()["instructions"], "a feedback edit leaves the tour hooks as they were");
+			}
+			auto reread = call({ "tour", "hooks", "show", "feedback", "--profile", "1", "--json" });
+			expect(reread.json()["data"].toObject()["hooks"].toArray()[4].toObject()["instructions"] == "Team rule: decorate every issue.", "the override survives a new process");
+			expect(code(context({ "--hook", "feedback", "--field", "problem" })) == "invalid_hook", "the feedback hook writes no tour field");
+			{
+				auto admitted = app::admit_profile(dataRoot, "1");
+				expect(admitted.has_value(), "the profile admits for a settings write");
+				auto store = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = admitted->Root });
+				expect(store.has_value(), "the profile's settings open");
+				auto preferences = (*store)->load_preferences({ });
+				expect(preferences.has_value(), "and load");
+				preferences->Behaviour.LabelHelper = application::review_label_helper::on;
+				expect((*store)->store_preferences(*preferences, { }).has_value(), "the label helper is turned on as Settings would");
+			}
+			auto helped = call({ "tour", "hooks", "show", "feedback", "--profile", "1", "--json" });
+			expect(helped.json()["data"].toObject()["label_helper"] == "on" && helped.json()["data"].toObject()["hooks"].toArray()[4].toObject()["active"] == true, "with the label helper on the guidance is sent");
+			expect(call({ "tour", "hooks", "show", "feedback", "--profile", "1" }).Out.starts_with("feedback (customized)\n"), "and the listing no longer says off");
+			auto       reset    = call({ "tour", "hooks", "reset", "feedback", "--profile", "1", "--json" });
+			const auto restored = reset.json()["data"].toObject()["hooks"].toArray()[4].toObject();
+			expect(reset.Exit == 0 && restored["customized"] == false && restored["instructions"] == shipped["instructions"], "reset restores the shipped default");
+		}
 		// An outline is a body-free proposal; the author chooses from it.
 		auto outline = context({ "--hook", "outline", "--sources", "src/a.cpp:1-3,src/b.cpp:2-4" });
 		expect(outline.Exit == 0 && outline.json()["data"].toObject()["assist"].toObject()["sources"].toArray().size() >= 2, "an outline context carries the named code ranges");
@@ -384,7 +428,11 @@ namespace {
 			expect(binding.has_value(), "the holder owns the profile");
 			owner_thread serving{ *binding };
 			auto         hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
-			expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 4, "the owner answers hooks from its own settings");
+			expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 5, "the owner answers hooks from its own settings");
+			// [[BPR-1090]] The owner channel carries the fifth hook and the label helper with it.
+			const auto owned = call({ "tour", "hooks", "show", "feedback", "--profile", "1", "--json" }).json()["data"].toObject();
+			expect(owned["label_helper"] == "off" && owned["hooks"].toArray()[4].toObject()["name"] == "feedback" && owned["hooks"].toArray()[4].toObject()["active"] == false, "the owner lists the feedback hook and that it is off");
+			expect(call({ "tour", "hooks", "edit", "feedback", "--file", put("hook.txt", "x"), "--profile", "1", "--json" }).Exit == 3, "nor is a running owner's feedback hook edited from outside");
 			expect(call({ "tour", "hooks", "edit", "problem", "--file", put("hook.txt", "x"), "--profile", "1", "--json" }).Exit == 3, "a running owner's settings are not edited from outside");
 			expect(call({ "tour", "assist", "context", "--hook", "outline", "--sources", "src/a.cpp:1-3", "--profile", "1", "--draft", id, "--json" }).Exit == 3, "source reads are not forwarded");
 			auto ambiguous = context({ "--hook", "problem", "--field", "problem", "--quote", "Cache" });

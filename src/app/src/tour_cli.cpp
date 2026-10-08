@@ -662,7 +662,7 @@ namespace bpr::app {
 				const char* const exportPolicy = tour_assist_policy() == tour_assist_export_policy::open
 					? "open"
 					: (tour_assist_policy() == tour_assist_export_policy::manual_only ? "manual_only" : "invalid");
-				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v6 (a named pipe on Windows) for local draft commands, assist and pinned source reads; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", exportPolicy } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" }, { "platform", platform_status() } },
+				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v6 (a named pipe on Windows) for local draft commands, assist and pinned source reads; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "profile_hooks", QJsonArray{ "problem", "solution", "outline", "comment", "feedback" } }, { "feedback_hook_version", QString::fromUtf8(application::review_feedback_hook_version.data(), static_cast<qsizetype>(application::review_feedback_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", exportPolicy } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" }, { "platform", platform_status() } },
 									 "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover, hooks, assist, outline\nNo GUI or AI provider required.\nPlatform: " + platform_status()["os"].toString() + ", " + platform_status()["qualification"].toString() + ". Native vault: " + platform_status()["native_vault"].toString() + ". gh transport: " + platform_status()["gh_transport"].toString() + ".\n",
 									 { } };
 			}
@@ -953,7 +953,7 @@ namespace bpr::app {
 			if (aOptions.Positional.size() == 2) {
 				hook = parse_tour_hook(aOptions.Positional[1].toStdString());
 				if (!hook) {
-					return refuse("invalid_hook", "Use problem, solution, outline or comment.");
+					return refuse("invalid_hook", "Use problem, solution, outline, comment or feedback.");
 				}
 			}
 			auto shown = aRuntime->hooks_show();
@@ -962,10 +962,16 @@ namespace bpr::app {
 			}
 			std::string effective;
 			if (hook) {
+				bool listed = false;
 				for (const auto& entry : assist_json(text(*shown))["hooks"].toArray()) {
 					if (entry.toObject()["name"].toString().toStdString() == tour_hook_name(*hook)) {
 						effective = entry.toObject()["instructions"].toString().toStdString();
+						listed    = true;
 					}
+				}
+				// [[BPR-1090]] An owner built before the feedback hook lists four; say so rather than show nothing.
+				if (!listed) {
+					return refuse("owner_protocol_unsupported", "The running desktop does not have this hook. Update it, or close it and retry.", 4);
 				}
 			}
 			if (sub == "edit" || sub == "reset") {
@@ -1001,11 +1007,12 @@ namespace bpr::app {
 				}
 			}
 			const auto   document = assist_json(text(*shown));
-			presentation result{ QJsonObject{ { "hooks", document["hooks"] }, { "hooks_revision", document["revision"] }, { "hook_version", document["version"] } }, { }, { } };
+			presentation result{ QJsonObject{ { "hooks", document["hooks"] }, { "hooks_revision", document["revision"] }, { "hook_version", document["version"] }, { "label_helper", document["label_helper"] } }, { }, { } };
 			for (const auto& entry : document["hooks"].toArray()) {
 				const auto object = entry.toObject();
 				if (!hook || object["name"].toString().toStdString() == tour_hook_name(*hook)) {
-					result.Human += object["name"].toString() + (object["customized"].toBool() ? " (customized)\n" : " (shipped)\n");
+					// [[BPR-1090]] The feedback hook says when it is not sent, so an edit to it is not mistaken for a live one.
+					result.Human += object["name"].toString() + (object["customized"].toBool() ? " (customized)" : " (shipped)") + (object["active"].toBool(true) ? QString{ } : QStringLiteral(" · off while the label helper is off")) + "\n";
 					if (hook) {
 						result.Human += object["instructions"].toString() + "\n";
 					}
@@ -1065,7 +1072,8 @@ namespace bpr::app {
 			}
 			if (sub == "context") {
 				const auto hook = parse_tour_hook(aOptions.Values.value("--hook").toStdString());
-				if (!hook) {
+				// [[BPR-1090]] The feedback hook is guidance for comment workshop requests; it writes no tour field.
+				if (!hook || *hook >= core::writing_hook::feedback) {
 					return refuse("invalid_hook", "Use --hook problem, solution, outline or comment.");
 				}
 				tour_assist_query query{ .Hook = *hook, .Session = aOptions.Values.value("--session", "cli").toStdString() };

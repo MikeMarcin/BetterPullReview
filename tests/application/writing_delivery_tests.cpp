@@ -1,6 +1,9 @@
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/feedback_convention.hpp"
+#include "bpr/core/sha256.hpp"
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 namespace {
@@ -107,6 +110,53 @@ int main()
 			expect(text.find(name + ":") == std::string_view::npos && text.find(name + " (") == std::string_view::npos, "no tour hook asks for a feedback label");
 		}
 		expect(text.find("(blocking)") == std::string_view::npos && text.find("Conventional Comments") == std::string_view::npos, "nor for a decoration or the convention");
+	}
+	// [[BPR-1090]] The fifth hook, review feedback: the default conventions
+	// guidance (owner, 2026-10-08). It teaches the whole catalog without a
+	// model, is versioned, follows a profile override, and is sent with a
+	// workshop request only while the label helper is on.
+	{
+		const auto feedback = application::default_writing_hook(core::writing_hook::feedback);
+		expect(!feedback.empty() && feedback.size() <= core::maximum_writing_instruction_bytes && core::valid_writing_utf8(feedback), "the feedback hook ships a default an override could replace");
+		for (const auto& entry : core::feedback_label_catalog()) {
+			const auto line = "`" + std::string{ entry.Id } + "`: ";
+			expect(feedback.find(line) != std::string_view::npos, "the default teaches every catalog label");
+			expect(core::find_feedback_label(entry.Id) == entry.Label, "by its exact catalog ID");
+		}
+		for (const auto* taught : { "`blocking`", "`non-blocking`", "`if-minor`", "GitHub suggested change", "fenced `suggestion` code block", "Request changes", "does not create a GitHub Issue", "Plain prose without a label is always valid", "never to fill a quota", "Keep uncertainty as a question" }) {
+			expect(feedback.find(taught) != std::string_view::npos, "the default teaches the decorations and the native review and suggestion distinctions");
+		}
+		// The text is pinned to its version: changing it without renaming the version fails here.
+		const auto  digest = core::sha256(std::span{ reinterpret_cast<const std::uint8_t*>(feedback.data()), feedback.size() });
+		std::string hex;
+		for (const auto byte : digest) {
+			char pair[3] = { };
+			std::snprintf(pair, sizeof pair, "%02x", byte);
+			hex += pair;
+		}
+		expect(application::review_feedback_hook_version == "review-feedback-v1" && hex == "45579439d8fefcba722d502241f9ba8b96fe39eb035b90e03a71c76c701773fc", "review-feedback-v1 names exactly this default text");
+		expect(application::writing_hook_version_of(core::writing_hook::feedback) == application::review_feedback_hook_version && application::writing_hook_version_of(core::writing_hook::comment) == application::writing_hook_version, "each hook reports its own default's version");
+
+		core::writing_hook_settings settings;
+		expect(application::effective_writing_hook(settings, core::writing_hook::feedback) == feedback, "an empty override follows the shipped default");
+		expect(application::workshop_feedback_guidance(settings, application::review_label_helper::off).empty(), "the label helper off sends no guidance");
+		expect(application::workshop_feedback_guidance(settings, application::review_label_helper::on) == feedback, "the label helper on sends the shipped default");
+		settings.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)] = "Team rule: always decorate.";
+		expect(application::effective_writing_hook(settings, core::writing_hook::feedback) == "Team rule: always decorate." && application::workshop_feedback_guidance(settings, application::review_label_helper::on) == "Team rule: always decorate.", "an override replaces the default and is what a workshop request carries");
+		expect(application::workshop_feedback_guidance(settings, application::review_label_helper::off).empty(), "nor is an override sent while the helper is off");
+		for (std::size_t hook = 0; hook < core::review_preparation_hook_count; ++hook) {
+			expect(application::effective_writing_hook(settings, static_cast<core::writing_hook>(hook)) == application::default_writing_hook(static_cast<core::writing_hook>(hook)), "a feedback override leaves the tour hooks on their defaults");
+		}
+		settings.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)].clear();
+		expect(application::effective_writing_hook(settings, core::writing_hook::feedback) == feedback, "reset restores the shipped default");
+
+		// The feedback hook writes no tour field: it builds no writing prompt and decodes no writing result.
+		core::writing_request feedbackRequest;
+		feedbackRequest.Target.Hook   = core::writing_hook::feedback;
+		feedbackRequest.Raw           = "The cache reduces repeated work.";
+		feedbackRequest.Selection.End = feedbackRequest.Raw.size();
+		expect(!application::build_writing_prompt(settings, feedbackRequest, sources), "no tour writing prompt is built from the feedback hook");
+		expect(!application::decode_writing_result(prefix + R"("x","notes":[]})", core::writing_hook::feedback, sources, false), "and no writing result decodes against it");
 	}
 	std::cout << "writing-delivery-tests:pass\n";
 }
