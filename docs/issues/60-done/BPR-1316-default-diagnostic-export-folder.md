@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1316"
 title: "Resolve and present a user-owned diagnostic export default"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0064"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r1"}
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"ca51d5df7ed9564a44f971ae792956a093f60965","evidence":{"kind":"observation","detail":"Production QStandardPaths Downloads/Documents/home resolves on composition effect lane using shared readonly output-parent admission. Controlled localized/redirected, missing/empty, unwritable/unsafe and total-unavailable observations pass; no directory/file/permission mutation. Qt retry retains preview."}},{"criterion":"C2","outcome":"pass","revision":"ca51d5df7ed9564a44f971ae792956a093f60965","evidence":{"kind":"command","detail":"Dev public composition passes 9.03s: signed-out Help/Settings both modes with disk-root cwd, fresh initial path despite chooser history, exact suggested name, alternate frozen bytes, cancel/overwrite/stale refusal; Qt100/125/200 and SQLite adapter pass. Core-only output pass0.43s. Format, all6 touched-TU warnings-as-errors tidy, docs gate+67 tests pass. Actual native chooser remains BPR1317C2 pending."}}]
 ---
 
 # Resolve and present a user-owned diagnostic export default
