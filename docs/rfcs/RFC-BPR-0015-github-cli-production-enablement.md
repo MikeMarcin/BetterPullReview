@@ -325,3 +325,7 @@ model, build and test guide, supported CLI version/digest/source policy,
 configuration and CA trust contract, account-selection UX, process-containment
 design, diagnostics/redaction policy, verification ledger, and issue board.
 Document unsupported platforms explicitly rather than weakening a gate.
+
+## Adopted affected-installation qualification scope — 2026-10-07
+
+The owner selected qualification of their Git and restoration of exact file viewing, registered in [RFC-BPR-0065](RFC-BPR-0065-ghes-exact-file-comparison.md). This authorizes extending the exact Apple Git constraint only after direct acquisition, confinement, bounds and exact-object evidence for the precisely identified installation. The current admitted installation remains unchanged until that evidence; no arbitrary version range or new platform is qualified by adoption. Actor-login snapshot rejection has its own attributable reproducer and evidence-backed repair. Existing CLI/account/credential/confinement/cancellation contracts and historical accepted cards/plan exits remain intact. BPR-1319–1323 owns the new runtime/native/owner evidence; both private diagnostic logs remain outside commits.

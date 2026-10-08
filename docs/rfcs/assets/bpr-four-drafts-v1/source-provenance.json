@@ -1,0 +1,61 @@
+{
+  "schema": "bpr.four-draft-provenance.v1",
+  "baseline": "f3e866e9b90505d4604c55b6ad7e1ef598e5bbc2",
+  "mandate_revision": "four-drafts-r1",
+  "sources": [
+    {
+      "path": "docs/proposals/saved-repository-onboarding/proposed-home-amendment.md",
+      "sha256": "e5884c208c5da37514fbe635f4350cd0a22a5fafd3a7ed13a841eaa33f8f4bf5",
+      "retained": "docs/rfcs/assets/bpr-four-drafts-v1/saved-repository-onboarding/proposed-home-amendment.md",
+      "transformation": "relative links rebased; source prose preserved"
+    },
+    {
+      "path": "docs/proposals/saved-repository-onboarding/RFC-DRAFT-0001-saved-repository-onboarding.md",
+      "sha256": "53467b47c61cc401a2a888d959f265709bd94fafc7321d395ff4f51bf4b8bc40",
+      "retained": "docs/rfcs/assets/bpr-four-drafts-v1/saved-repository-onboarding/RFC-DRAFT-0001-saved-repository-onboarding.md",
+      "transformation": "relative links rebased; source prose preserved"
+    },
+    {
+      "path": "docs/proposals/resizable-overview-summary/proposed-description-amendment.md",
+      "sha256": "81a934341d73adebac79ba830bea312272ff65477cb0e4bdec3f9aa3e9d772bc",
+      "retained": "docs/rfcs/assets/bpr-four-drafts-v1/resizable-overview-summary/proposed-description-amendment.md",
+      "transformation": "relative links rebased; source prose preserved"
+    },
+    {
+      "path": "docs/proposals/resizable-overview-summary/RFC-DRAFT-0002-resizable-overview-summary.md",
+      "sha256": "a40840216a51c7436cd6e61824e7e950f619c2dfb8d95b564d5c2cc38d0b508e",
+      "retained": "docs/rfcs/assets/bpr-four-drafts-v1/resizable-overview-summary/RFC-DRAFT-0002-resizable-overview-summary.md",
+      "transformation": "relative links rebased; source prose preserved"
+    },
+    {
+      "path": "docs/proposals/diagnostic-export-location/RFC-DRAFT-0003-diagnostic-export-location.md",
+      "sha256": "6731c77685f439d898541e5029e26c641b4de4ceec3f2526ca47f981960a3552",
+      "retained": "docs/rfcs/assets/bpr-four-drafts-v1/diagnostic-export-location/RFC-DRAFT-0003-diagnostic-export-location.md",
+      "transformation": "relative links rebased; source prose preserved"
+    },
+    {
+      "path": "artifacts/rfc-drafts/ghes-exact-file-comparison/proposed-qualification-amendment.md",
+      "sha256": "8b4551da05c02562f5231f893a332e4f5c7366d2bcc9ad29a446cf7d593763d5",
+      "retained": "docs/rfcs/assets/bpr-four-drafts-v1/ghes-exact-file-comparison/proposed-qualification-amendment.md",
+      "transformation": "relative links rebased; source prose preserved"
+    },
+    {
+      "path": "artifacts/rfc-drafts/ghes-exact-file-comparison/RFC-DRAFT-0004-ghes-exact-file-comparison.md",
+      "sha256": "9ab4ea606fc561f1f757d96bf1aa03575d5608503398fb89c470d0b8c7847c4e",
+      "retained": "docs/rfcs/assets/bpr-four-drafts-v1/ghes-exact-file-comparison/RFC-DRAFT-0004-ghes-exact-file-comparison.md",
+      "transformation": "relative links rebased; GHES retrieval locations and attachment links excluded"
+    }
+  ],
+  "exclusions": [
+    "Both original diagnostic logs",
+    "Full retrieval provenance",
+    "Private target or payload",
+    "Build output and transient logs"
+  ],
+  "rfc_mapping": {
+    "RFC-DRAFT-0001": "RFC-BPR-0062",
+    "RFC-DRAFT-0002": "RFC-BPR-0063",
+    "RFC-DRAFT-0003": "RFC-BPR-0064",
+    "RFC-DRAFT-0004": "RFC-BPR-0065"
+  }
+}

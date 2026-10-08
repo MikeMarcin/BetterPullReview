@@ -1,0 +1,27 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1306",
+    "BPR-1307",
+    "BPR-1308",
+    "BPR-1309",
+    "BPR-1310",
+    "BPR-1311",
+    "BPR-1312",
+    "BPR-1313",
+    "BPR-1314",
+    "BPR-1315",
+    "BPR-1316",
+    "BPR-1317",
+    "BPR-1318",
+    "BPR-1319",
+    "BPR-1320",
+    "BPR-1321",
+    "BPR-1322",
+    "BPR-1323"
+  ],
+  "reserve_for": "four-drafts-r1-main",
+  "purpose": "Register four owner drafts and milestone acceptance",
+  "created": "2026-10-07T23:56:53.513679+00:00",
+  "base": "f3e866e9b90505d4604c55b6ad7e1ef598e5bbc2"
+}
