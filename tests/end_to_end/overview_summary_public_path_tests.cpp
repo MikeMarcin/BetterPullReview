@@ -218,7 +218,7 @@ int main(int aArgc, char** aArgv)
 	full->click();
 	settle();
 	render(*application, QStringLiteral("full-reader"));
-	expect(back->isVisible() && back->isChecked() && back->accessibleName() == QStringLiteral("Exit full view") && !page->files_view()->isVisible() && corner(), "composed full reader has Exit full view in the same reader corner");
+	expect(back->isVisible() && !back->isChecked() && !back->isCheckable() && back->accessibleName() == QStringLiteral("Exit full view") && !page->files_view()->isVisible() && corner(), "composed full reader has Exit full view in the same reader corner");
 	back->click();
 	settle();
 	expect(page->summary_fraction() == fraction && source->textCursor().hasSelection() && page->files_view()->currentIndex() == retainedFile && page->files_view()->verticalScrollBar()->value() == retainedFileScroll, "full-reader return keeps normal fraction, source selection and Files place");

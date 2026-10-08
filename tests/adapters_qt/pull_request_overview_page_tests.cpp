@@ -548,7 +548,7 @@ namespace {
 					auto* edit = page.body_view()->source_view();
 					auto* read = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
 					auto* back = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
-					expect(read->isVisible() && !read->isChecked(), "overflow exposes the named reading action");
+					expect(read->isVisible() && !read->isCheckable(), "overflow exposes the named reading action");
 					expect(edit->viewport()->height() > 4 * edit->fontMetrics().lineSpacing(), "normal summary has a larger shared allocation with separate reader controls");
 					expect(edit->verticalScrollBarPolicy() == Qt::ScrollBarAsNeeded && edit->verticalScrollBar()->maximum() > 0, "normal summary scrolls the complete body");
 					QWheelEvent previewWheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, { }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
@@ -565,7 +565,7 @@ namespace {
 					QApplication::sendEvent(read, &press);
 					QApplication::sendEvent(read, &release);
 					settle();
-					expect(back->isVisible() && back->isChecked() && !page.files_view()->isVisible() && edit->hasFocus(), "keyboard activation opens local reader and focuses text");
+					expect(back->isVisible() && !back->isChecked() && back->accessibleName() == QStringLiteral("Exit full view") && !page.files_view()->isVisible() && edit->hasFocus(), "keyboard activation opens local reader and focuses text");
 					expect(edit->maximumHeight() == QWIDGETSIZE_MAX && page.body_view()->height() > 650 && edit->viewport()->height() > page.height() * 2 / 3, "expanded reader fills available space without a height cap, including its source controls and fallback explanation");
 					QKeyEvent pageDown{ QEvent::KeyPress, Qt::Key_PageDown, Qt::NoModifier };
 					QApplication::sendEvent(edit, &pageDown);

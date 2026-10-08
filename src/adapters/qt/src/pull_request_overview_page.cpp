@@ -164,6 +164,10 @@ namespace bpr::qt {
 			setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 			queue_layout();
 		}
+		[[nodiscard]] auto expanded() const -> bool
+		{
+			return Expanded;
+		}
 
 	protected:
 		bool event(QEvent* aEvent) override
@@ -2023,7 +2027,8 @@ namespace bpr::qt {
 		mainColumn->insertWidget(mainColumn->indexOf(SummarySplit), EmptyBody);
 		FullView = new QToolButton{ Body };
 		FullView->setObjectName(QStringLiteral("overviewFullView"));
-		FullView->setCheckable(true);
+		// Not checkable: Exit keeps Enter's quiet auto-raised style and only the
+		// glyph, name and tooltip change (owner, overview-v003 rejection).
 		FullView->setAutoRaise(true);
 		FullView->setFocusPolicy(Qt::StrongFocus);
 		FullView->setText(QStringLiteral("Enter full view"));
@@ -2035,7 +2040,7 @@ namespace bpr::qt {
 		FullView->setBackgroundRole(QPalette::Base);
 		FullView->setAutoFillBackground(true);
 		Body->set_corner(FullView);
-		connect(FullView, &QToolButton::clicked, this, [this](const bool aChecked) { set_description_expanded(aChecked); });
+		connect(FullView, &QToolButton::clicked, this, [this] { set_description_expanded(!Body->expanded()); });
 		Body->LayoutChanged = [this] { SummarySplit->queue_layout(); };
 		FilesPane           = new QWidget{ SummarySplit };
 		FilesPane->setObjectName(QStringLiteral("overviewFilesPane"));
@@ -2426,7 +2431,7 @@ namespace bpr::qt {
 		FullView->setVisible(!aProjection.Body.empty());
 		SummarySplit->queue_layout();
 		EmptyBody->setVisible(aProjection.Body.empty());
-		if (aProjection.Body.empty() && FullView->isChecked()) {
+		if (aProjection.Body.empty() && Body->expanded()) {
 			set_description_expanded(false);
 		}
 		if (bodyChanged) {
@@ -2717,7 +2722,6 @@ namespace bpr::qt {
 		Files->setVisible(!aExpanded);
 		FilesHeading->setVisible(!aExpanded);
 		update_folder_controls();
-		FullView->setChecked(aExpanded);
 		FullView->setText(aExpanded ? QStringLiteral("Exit full view") : QStringLiteral("Enter full view"));
 		FullView->setAccessibleName(FullView->text());
 		FullView->setToolTip(aExpanded ? QStringLiteral("Exit full view (Return to Files)") : FullView->text());
@@ -3483,7 +3487,7 @@ namespace bpr::qt {
 			refresh_folder_icons();
 			refresh_feedback_icons();
 			if (FullView) {
-				FullView->setIcon(full_view_icon(palette(), FullView->isChecked()));
+				FullView->setIcon(full_view_icon(palette(), Body->expanded()));
 			}
 		}
 	}
