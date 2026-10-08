@@ -1,11 +1,13 @@
 #include "bpr/application/github_provider_port.hpp"
 
+#include <array>
 #include <concepts>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -352,6 +354,34 @@ namespace {
 		}
 		expect(!application::validate(valid_snapshot(), pull_request_context()).ActorConflict, "valid snapshot carries no invented actor conflict");
 		expect(application::validate(valid_snapshot(), pull_request_context()).Detail == error::none, "valid snapshot has no diagnostic failure");
+
+		// [[BPR-1321]] Equal logins agree only when a bot observation meets another bot observation.
+		using kind = application::github_actor_kind;
+		for (const auto& [authorKind, commentKind, admitted] : std::array{
+				 std::tuple{ kind::bot, kind::bot, true },
+				 std::tuple{ kind::user, kind::user, true },
+				 std::tuple{ kind::user, kind::unobserved, true },
+				 std::tuple{ kind::user, kind::other, true },
+				 std::tuple{ kind::bot, kind::user, false },
+				 std::tuple{ kind::unobserved, kind::bot, false },
+				 std::tuple{ kind::bot, kind::other, false },
+			 }) {
+			auto snapshot                               = valid_snapshot();
+			snapshot.PullRequest.Author->Kind           = authorKind;
+			snapshot.Commits.front().Author->Kind       = authorKind;
+			snapshot.IssueComments.front().Author->Kind = commentKind;
+			const auto result                           = application::validate(snapshot, pull_request_context());
+			expect(result.valid() == admitted, "actor type agreement is required only where a bot is stated");
+			expect(admitted
+					   || (result.Detail == error::relationship_actor_login && result.ActorConflict
+						   && result.ActorConflict->First == origin::pull_request
+						   && result.ActorConflict->Conflicting == origin::issue_comment
+						   && !result.ActorConflict->AsciiCaseOnly),
+				   "a bot type disagreement keeps the actor-login diagnostic and its provenance");
+		}
+		auto unknownKind                     = valid_snapshot();
+		unknownKind.PullRequest.Author->Kind = static_cast<kind>(255);
+		expect(application::validate(unknownKind, pull_request_context()).Error == error::invalid_enum, "an unknown actor type is refused");
 	}
 
 	auto test_valid_models_and_identity_correlation() -> void
