@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1314"
 title: "Verify composed resizable Overview and prepare owner review"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0063"]
 depends_on: ["BPR-1313"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r4"}
-acceptance: [{"criterion":"C1","outcome":"pass","revision":"c4e49f971fa9a34004f29eded0bf19f2131d486f","evidence":{"kind":"command","detail":"Exact source: focused Qt plus composed Overview at 100/125/200% pass4/4 (13.72s), 90 actual composed offscreen renders across five states/six appearances; independent boundary scroll, reader/document/model retention, full-reader/Discuss return, public Refresh, review entry, actual file comparison, provider writes0. Host/SQLite/two-window restart pass; format and focused/full new-test warnings-as-errors tidy pass. Unchanged architecture verifier passes clean exact exported source; main-root artifact contamination recorded separately."}},{"criterion":"C2","outcome":"pending","revision":"c4e49f971fa9a34004f29eded0bf19f2131d486f:1dcafcb8a6f1d9d4a547c1ec641476c43b97bcf64b841378bac1a4ad94edfeec","evidence":{"kind":"artifact","detail":"Fresh ready/protected session850a898a7ca136bf05449dc7a20a21cf cursor3, candidateBPR-1314-overview-v001 fingerprint ec530b0b1949c6f6d574caf0f81785993f28b8e593a300c4ff495e42961bc5b6; separate loopback server34482/session51945. One Accept/Reject owner judgment and native pointer/keyboard/accessibility/appearance observations pending. Self-contained source/build/cache retained; no verdict inferred. Coordinator owns wait and intake."}}]
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"980c088733bbed1938ad322f851f5e4e9fc4e7cb","evidence":{"kind":"command","detail":"All10focused Overview/reader/composed rows pass; exact keyboard/contextSelectAll copy with collapsed cursor/sentinel in rendered/source/262144Bfallback preserves CRLF/fences/links/Unicode/trailingblanks, sourcepartial originalbytes, renderedpartial equivalentMarkdown perowner amendment, noHTMLMIME. Retainedresize/persistence/authority/fileidentity/model/providerwrite controls pass. Selfcontained exactfrozenpublic3/3 pass16.34s, unchanged architecture/coreboundaries3/3 cleanexport pass12.10s. Format/changedline tidy pass;12offscreenpreviews inspected, nativeappearance unclaimed."}},{"criterion":"C2","outcome":"pending","revision":"980c088733bbed1938ad322f851f5e4e9fc4e7cb:8555f3b60861b83f7b318d582a4cfbab2f1ba32c2ab24203d8d4b75ae6233623:0536774777e1f3f25f5f5d96e67743c1c963bb183680456430b10b94ab370aec","evidence":{"kind":"artifact","detail":"Fresh ready/protected session0b30e747d6abc3cfdb73b8e7753a1b79 cursor3 candidateBPR-1314-overview-v002 fingerprint3a57f91c6334ee7b3ea4a3df56f7bcf451d84813dcc73fcb47e57823a229da18. Server98005/PID15097 URL in overview-review-runtime-v002.json; source/build/cache own frozenroot. OneAccept/Reject owner/nativeinput/VoiceOver/appearance judgment pending; priorv001 Reject remainsboundtov001 only. Coordinator/root owns server/intake; no verdict consumed or inferred."}}]
+parked_on: "human-review"
 ---
 
 # Verify composed resizable Overview and prepare owner review
@@ -46,3 +47,22 @@ under mandate `four-drafts-r2`, integrator dispatch `parallel-integrator-r2-001`
 
 
 Unattended Qt/composed courses and offscreen renders pass at source c4e49f971fa9a34004f29eded0bf19f2131d486f; required owner/native judgment stays pending. Fresh ready/protected session 850a898a7ca136bf05449dc7a20a21cf cursor 3 contains one Accept/Reject candidate BPR-1314-overview-v001, fingerprint ec530b0b1949c6f6d574caf0f81785993f28b8e593a300c4ff495e42961bc5b6. Frozen executable SHA-256: 1dcafcb8a6f1d9d4a547c1ec641476c43b97bcf64b841378bac1a4ad94edfeec. See [ledger](../../verification/RFC-BPR-0062-0065.md); the coordinator owns human intake and the handoff server.
+
+## Corrected candidate v002
+
+Overview source `1c5c28ce9` is included in combined source
+`980c088733bbed1938ad322f851f5e4e9fc4e7cb`. All ten focused rows pass;
+the self-contained frozen candidate's three public scales pass16.34s and three
+unchanged architecture/core boundary checks pass12.10s. The full-selection
+copy guarantee and approved partial normalization are recorded above.
+
+Fresh session `0b30e747d6abc3cfdb73b8e7753a1b79`, cursor3, contains one ready
+protected candidate `BPR-1314-overview-v002`, fingerprint
+`3a57f91c6334ee7b3ea4a3df56f7bcf451d84813dcc73fcb47e57823a229da18`.
+Executable SHA-256 is
+`8555f3b60861b83f7b318d582a4cfbab2f1ba32c2ab24203d8d4b75ae6233623`.
+The frozen source/build/cache and launcher are inside their own v002 root.
+Required owner/native judgment remains pending. The coordinator owns server
+98005/PID15097, durable intake and manual resume; no new verdict is consumed.
+The earlier v001 paragraph is historical, and its rejection remains bound to
+that exact candidate. See the current [ledger](../../verification/RFC-BPR-0062-0065.md).
