@@ -258,8 +258,12 @@ namespace bpr::qt {
 		QString Lines;
 		/// What the draft's suggestion block changes, when it has one.
 		std::optional<core::suggested_change> Change;
-		/// Why Publish is unavailable, or empty.
+		/// What the last Publish came to ([[BPR-1329]]), else why Publish is
+		/// unavailable, or empty.
 		QString Notice;
+		/// [[BPR-1329]]. The draft editor offers Publish again as a retry of
+		/// the same publication.
+		bool Retry = false;
 
 		auto operator==(const draft_composer_presentation&) const -> bool = default;
 	};

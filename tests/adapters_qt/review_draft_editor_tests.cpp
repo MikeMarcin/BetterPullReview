@@ -1146,6 +1146,7 @@ namespace {
 					 targetLabel,
 					 replyTarget,
 					 mutationStatus,
+					 publicationStatus,
 					 workshopOriginal,
 					 workshopProposal,
 					 workshopOperation,
@@ -1171,6 +1172,8 @@ namespace {
 		static_assert(std::is_same_v<decltype(revisioned), const qt::revisioned_draft_editor_state>);
 		static_assert(std::is_same_v<decltype(retryPublication), const bool>);
 		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void()>>);
+		// [[BPR-1329]]. What the last Publish came to, in words: presentation.
+		static_assert(std::is_same_v<decltype(publicationStatus), const QString>);
 
 		static_assert(std::is_same_v<decltype(applying), const bool>);
 		// [[BPR-1298]]. The body last presented, for its line endings: text.

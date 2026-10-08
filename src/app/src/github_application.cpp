@@ -8852,18 +8852,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& aRecord.Authority == aAuthority;
 		}
 
+		/// \brief Whether this publication may go over the session's GitHub
+		/// CLI, asking the person when it would.
+		///
+		/// \details [[BPR-1329]]. A refusal names its reason in \p aRefusal
+		/// when one is given: `cancelled` when the person declined, otherwise
+		/// `undesignated_target`, the session, pull request or account having
+		/// changed or gone, before or while the person was asked.
 		[[nodiscard]] auto confirm_cli_publication(
 			application::review_mutation_target_binding  aTarget,
 			application::review_mutation_acting_identity aActor,
-			const QString&                               aOperation) const -> bool
+			const QString&                               aOperation,
+			application::review_mutation_failure*        aRefusal = nullptr) const -> bool
 		{
+			const auto refuse = [aRefusal](const application::review_mutation_failure aFailure) {
+				if (aRefusal != nullptr) {
+					*aRefusal = aFailure;
+				}
+				return false;
+			};
 			if (!Host || !WindowRead || !Host->accepted_session()
 				|| !WindowRead->accepted_snapshot()) {
-				return false;
+				return refuse(application::review_mutation_failure::undesignated_target);
 			}
 			const auto* profile = find_profile(Host->accepted_session()->Profile);
 			if (!profile || profile->authentication_transport() != application::github_authentication_transport::github_cli) {
-				return profile != nullptr;
+				return profile != nullptr || refuse(application::review_mutation_failure::undesignated_target);
 			}
 			const auto exactCurrent = [this, &aTarget, &aActor] {
 				if (!Host || !WindowRead || !Host->accepted_session()
@@ -8888,7 +8902,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					&& aTarget.Hostname.value() == selected->hostname();
 			};
 			if (!exactCurrent()) {
-				return false;
+				return refuse(application::review_mutation_failure::undesignated_target);
 			}
 			// [[BPR-0797]]. Asked at run time, and compiled into both graphs,
 			// for exactly the reason the label and the factory above are. This
@@ -8923,7 +8937,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						.arg(aTarget.Number.value())
 						.arg(QString::fromStdString(aActor.Login)),
 					QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-				return consent == QMessageBox::Yes && exactCurrent();
+				if (consent != QMessageBox::Yes) {
+					return refuse(application::review_mutation_failure::cancelled);
+				}
+				// The question runs its own event loop; what it was asked
+				// about must still be what the session holds.
+				return exactCurrent() || refuse(application::review_mutation_failure::undesignated_target);
 			}
 #endif
 			// Only the macOS prompt above reads the operation; every other graph
@@ -8932,7 +8951,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #if defined(BPR_BUILD_TESTING)
 			return true;
 #else
-			return false;
+			return refuse(application::review_mutation_failure::unavailable);
 #endif
 		}
 
@@ -10628,12 +10647,30 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto& aCommand = aRevisionedCommand.Command;
-			if (aCommand.Kind == core::review_draft_command_kind::begin_publish
-				&& (!InlineReviewBinding || !confirm_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, QStringLiteral("Publish inline comment")))) {
-				settle(false);
-				return;
+			const auto  publish  = aCommand.Kind == core::review_draft_command_kind::begin_publish;
+			// [[BPR-1329]]. A Publish that stops here says why, where the draft
+			// is shown; it used to stop without a word.
+			const auto refusePublish = [this, publish](const QString& aReason) {
+				if (publish && !Closing && Window && Window->review_editor()) {
+					Window->review_editor()->present_publication_refusal(aReason);
+				}
+			};
+			if (publish) {
+				auto refusal = application::review_mutation_failure::undesignated_target;
+				if (!InlineReviewBinding || !confirm_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, QStringLiteral("Publish inline comment"), &refusal)) {
+					if (!Closing && Window && Window->review_editor()) {
+						if (refusal == application::review_mutation_failure::cancelled) {
+							refusePublish(QStringLiteral("Not published: you cancelled the GitHub CLI confirmation. Your draft is kept."));
+						} else {
+							Window->review_editor()->present(refusal);
+						}
+					}
+					settle(false);
+					return;
+				}
 			}
 			if (Closing || !ReviewDraft || !ReviewMutationHost || !SharedDrafts) {
+				refusePublish(QStringLiteral("Not published: the pull request was refreshed before this could be sent. Your draft is kept; publish it again."));
 				settle(false);
 				return;
 			}
@@ -10643,6 +10680,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (PrivateReview && PrivateDraftsReady) {
 				if (aRevisionedCommand.Scope != DraftScope || aRevisionedCommand.ExpectedRevision != ReviewDraftRevision || aCommand.Id != ReviewDraft->Id) {
 					Window->review_editor()->present_conflict({ .Accepted = { *ReviewDraft, ReviewDraftRevision, DraftScope }, .Refusal = core::revisioned_draft_refusal::conflict });
+					refusePublish(QStringLiteral("Not published: this draft changed before it could be sent. Check it and publish again."));
 					settle(false);
 					return;
 				}
@@ -10659,6 +10697,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return;
 				}
 				if (PrivateDraftCommandPending) {
+					refusePublish(QStringLiteral("Not published: your last change to this draft is still being saved. Publish again in a moment."));
 					settle(false);
 					return;
 				}
@@ -10672,6 +10711,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					};
 					if (Closing || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
+						if (!Closing && owner == SharedDrafts && aRevisionedCommand.Command.Kind == core::review_draft_command_kind::begin_publish && Window && Window->review_editor()) {
+							Window->review_editor()->present_publication_refusal(QStringLiteral("Not published: this draft could not be saved for publishing. Your text is kept; publish it again."));
+						}
 						answer(false);
 						return;
 					}
@@ -10768,6 +10810,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			PendingReviewMutation = context;
 			Window->review_editor()->allow_publication_retry(false);
+			editor->present_publication_started();
 		}
 
 		void adopt_review_selection(
@@ -17997,6 +18040,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto detail::github_application_fixture_access::held_review_submission_terminals(const github_application& aApplication) -> std::size_t
 	{
 		const auto& gate = aApplication.Implementation->ReviewSubmissionDecisionGate;
+		return gate ? gate->pending() : 0U;
+	}
+	void detail::github_application_fixture_access::hold_review_mutation_terminals(github_application& aApplication, bool aHold)
+	{
+		auto& gate = aApplication.Implementation->ReviewMutationDecisionGate;
+		if (gate) {
+			if (aHold) {
+				gate->hold();
+			} else {
+				gate->release();
+			}
+		}
+	}
+	auto detail::github_application_fixture_access::held_review_mutation_terminals(const github_application& aApplication) -> std::size_t
+	{
+		const auto& gate = aApplication.Implementation->ReviewMutationDecisionGate;
 		return gate ? gate->pending() : 0U;
 	}
 

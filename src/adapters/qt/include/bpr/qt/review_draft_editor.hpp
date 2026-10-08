@@ -195,6 +195,11 @@ namespace bpr::qt {
 		QLabel*         TargetLabel    = nullptr;
 		QLabel*         ReplyTarget    = nullptr;
 		QLabel*         MutationStatus = nullptr;
+		/// [[BPR-1329]]. What the last Publish of the shown draft came to, in
+		/// words: publishing, published, or why not. Kept apart from the
+		/// status line's other messages so a surface that shows only the
+		/// publication (the draft written in the drawer) can show it.
+		QString PublicationStatus;
 		/// The reviewer's own text, shown beside the proposal rather than
 		/// replaced by it. Read-only: the editable original is `Body`.
 		QPlainTextEdit* WorkshopOriginal = nullptr;
@@ -355,6 +360,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
 		[[nodiscard]] auto mutation_status_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto mutation_status_text() const -> QString;
+		/// \brief [[BPR-1329]]. What the shown draft's last Publish came to:
+		/// empty before one, "Publishing…" while it runs, then the result or
+		/// the reason it did not happen.
+		[[nodiscard]] auto publication_status() const -> const QString&;
+		/// \brief [[BPR-1329]]. Whether Publish is offered as a retry of the
+		/// same publication.
+		[[nodiscard]] auto publication_retry_offered() const -> bool;
+		/// \brief [[BPR-1329]]. The publication was handed to GitHub.
+		void present_publication_started();
+		/// \brief [[BPR-1329]]. Publish was refused before anything was sent,
+		/// for \p aReason.
+		void               present_publication_refusal(const QString& aReason);
 		[[nodiscard]] auto publish_action() const noexcept -> QAction*;
 		void               allow_publication_retry(bool);
 		[[nodiscard]] auto discard_action() const noexcept -> QAction*;
@@ -411,6 +428,7 @@ namespace bpr::qt {
 
 	private:
 		void render_draft(const core::review_comment_draft& aDraft);
+		void set_publication_status(const QString& aText);
 		void settle_in_flight();
 		void emit_draft(core::review_draft_command_kind aKind);
 		void emit_receipt(core::file_receipt_command_kind aKind);

@@ -1398,7 +1398,9 @@ namespace bpr::qt {
 		if (!Writing || ReplyBox == nullptr) {
 			return;
 		}
-		Publishable = aDraft.has_value() && aDraft->Publishable && aDraft->Editable;
+		// [[BPR-1329]]. A draft that is publishing is not written, but a retry
+		// of that same publication is still offered.
+		Publishable = aDraft.has_value() && aDraft->Publishable && (aDraft->Editable || aDraft->Retry);
 		Labels->set_helper(aDraft.has_value() && aDraft->LabelHelper);
 		ReplyBox->setReadOnly(!aDraft.has_value() || !aDraft->Editable);
 		if (aDraft.has_value() && ReplyBox->toPlainText() != aDraft->Body) {
@@ -1436,11 +1438,20 @@ namespace bpr::qt {
 			static_cast<state_label*>(DraftState)->set_text(fenced ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
 		}
 		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines);
-		LastNotice = aDraft.has_value() ? aDraft->Notice : QString{ };
+		const auto former = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
 		if (!LastNotice.isEmpty()) {
 			ReplyStatus->setText(LastNotice);
 			ReplyStatus->setAccessibleName(LastNotice);
 			ReplyStatus->show();
+		} else if (!former.isEmpty() && ReplyStatus->text() == former) {
+			// [[BPR-1329]]. A notice that no longer holds goes with it.
+			ReplyStatus->hide();
+		}
+		if (Publish != nullptr) {
+			const auto retry = aDraft.has_value() && aDraft->Retry;
+			Publish->setText(retry ? QStringLiteral("Retry") : QStringLiteral("Publish"));
+			Publish->setAccessibleName(retry ? QStringLiteral("Retry publishing this comment") : QStringLiteral("Publish"));
+			Publish->updateGeometry();
 		}
 		refresh_reply_controls();
 		if (HeightChanged) {

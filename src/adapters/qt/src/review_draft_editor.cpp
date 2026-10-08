@@ -311,6 +311,41 @@ namespace bpr::qt {
 		return Members.MutationStatus->text();
 	}
 
+	auto review_draft_editor::publication_status() const -> const QString&
+	{
+		return Members.PublicationStatus;
+	}
+
+	auto review_draft_editor::publication_retry_offered() const -> bool
+	{
+		return Members.RetryPublication && Members.ShownDraft
+			&& Members.ShownDraft->State == core::review_draft_state::publishing;
+	}
+
+	void review_draft_editor::present_publication_started()
+	{
+		++Members.Statistics.MutationUpdates;
+		set_publication_status(tr("Publishing your comment to GitHub…"));
+	}
+
+	void review_draft_editor::present_publication_refusal(const QString& aReason)
+	{
+		++Members.Statistics.MutationUpdates;
+		set_publication_status(aReason);
+	}
+
+	void review_draft_editor::set_publication_status(const QString& aText)
+	{
+		Members.MutationStatus->setText(aText);
+		if (Members.PublicationStatus == aText) {
+			return;
+		}
+		Members.PublicationStatus = aText;
+		if (Members.PresentationObserver) {
+			Members.PresentationObserver();
+		}
+	}
+
 	void review_draft_editor::allow_publication_retry(bool aAllowed)
 	{
 		Members.RetryPublication = aAllowed;
@@ -478,6 +513,11 @@ namespace bpr::qt {
 				return;
 			}
 			auto command = core::revisioned_review_draft_command{ { revisioned.Accepted->Draft.Id, aKind, std::move(body) }, revisioned.Accepted->Revision, false, { }, revisioned.Accepted->Scope };
+			if (aKind == core::review_draft_command_kind::begin_publish) {
+				// [[BPR-1329]]. A new Publish says nothing yet; the composition
+				// answers it with progress, a result or a reason.
+				set_publication_status({ });
+			}
 			if (aKind == core::review_draft_command_kind::edit) {
 				revisioned.Candidate = command;
 				revisioned.InFlight  = true;
@@ -791,6 +831,10 @@ namespace bpr::qt {
 	void review_draft_editor::render_draft(const core::review_comment_draft& aDraft)
 	{
 		++Members.Statistics.Presentations;
+		// [[BPR-1329]]. What a publication came to belongs to its own draft.
+		if (!Members.ShownDraft || Members.ShownDraft->Id != aDraft.Id) {
+			Members.PublicationStatus.clear();
+		}
 		Members.ShownDraft = aDraft;
 		// [[BPR-0657]]. The thread named is shown only while the draft answers one.
 		Members.ReplyTarget->setVisible(
@@ -878,35 +922,35 @@ namespace bpr::qt {
 		++Members.Statistics.MutationUpdates;
 		switch (aFailure) {
 		case application::review_mutation_failure::unavailable:
-			Members.MutationStatus->setText(QStringLiteral(
+			set_publication_status(QStringLiteral(
 				"Publication result is unavailable; retry is safe."));
 			break;
 		case application::review_mutation_failure::target_unavailable:
-			Members.MutationStatus->setText(QStringLiteral(
+			set_publication_status(QStringLiteral(
 				"The account cannot see the publication target; refresh and check access."));
 			break;
 		case application::review_mutation_failure::malformed_response:
-			Members.MutationStatus->setText(QStringLiteral(
+			set_publication_status(QStringLiteral(
 				"The server returned an invalid publication response; retry is safe."));
 			break;
 		case application::review_mutation_failure::refused_by_server:
-			Members.MutationStatus->setText(
+			set_publication_status(
 				QStringLiteral("The server refused publication."));
 			break;
 		case application::review_mutation_failure::undesignated_target:
-			Members.MutationStatus->setText(QStringLiteral(
+			set_publication_status(QStringLiteral(
 				"Publication was refused because the pull request changed."));
 			break;
 		case application::review_mutation_failure::target_moved:
-			Members.MutationStatus->setText(QStringLiteral(
+			set_publication_status(QStringLiteral(
 				"Publication target can no longer be named."));
 			break;
 		case application::review_mutation_failure::stale_head:
-			Members.MutationStatus->setText(QStringLiteral(
+			set_publication_status(QStringLiteral(
 				"Publication was refused because the pull request head moved."));
 			break;
 		case application::review_mutation_failure::incompatible_body:
-			Members.MutationStatus->setText(QStringLiteral(
+			set_publication_status(QStringLiteral(
 				"This comment needs a supported inline line anchor. Your draft text is kept."));
 			// [[BPR-1084]]. GitHub refused an inline comment on this line and
 			// a suggestion cannot go as a file comment: the mark says so
@@ -917,11 +961,11 @@ namespace bpr::qt {
 			refresh_suggestion_mark();
 			break;
 		case application::review_mutation_failure::unsupported:
-			Members.MutationStatus->setText(QStringLiteral(
+			set_publication_status(QStringLiteral(
 				"Publication is unavailable for this target. Your draft text is kept."));
 			break;
 		case application::review_mutation_failure::cancelled:
-			Members.MutationStatus->setText(
+			set_publication_status(
 				QStringLiteral("Publication was cancelled."));
 			break;
 		}
@@ -932,7 +976,7 @@ namespace bpr::qt {
 		const application::reconciliation_result&   aReconciliation)
 	{
 		++Members.Statistics.MutationUpdates;
-		Members.MutationStatus->setText(
+		set_publication_status(
 			QStringLiteral("Published %1%2; refreshed %3 comment(s).")
 				.arg(QString::fromStdString(aReceipt.ServerCommentId))
 				.arg(aReceipt.Duplicate ? QStringLiteral(" by safe retry")
@@ -946,6 +990,7 @@ namespace bpr::qt {
 		++Members.Statistics.Presentations;
 		Members.ShownDraft.reset();
 		Members.ShownReceipt.reset();
+		Members.PublicationStatus.clear();
 		Members.ApplyingPresentation = true;
 		if (!Members.Revisioned.Candidate) {
 			Members.Body->clear();

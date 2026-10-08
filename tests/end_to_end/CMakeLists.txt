@@ -2865,6 +2865,21 @@ if(APPLE)
     set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
 endif()
 
+# [[BPR-1329]]. An inline draft published from its Comments-drawer card over a
+# GitHub CLI session, through the per-publication confirmation answered Yes:
+# the drawer says it is publishing, then shows the posted thread, or says why
+# not and offers Retry. Registered only on macOS for the same reason as the
+# row above: the GitHub CLI way in and its confirmation are `__APPLE__` code.
+bpr_add_executable(test_inline_publish_cli_consent inline_publish_cli_consent_tests.cpp)
+target_link_libraries(test_inline_publish_cli_consent PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_inline_publish_cli_consent PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_inline_publish_cli_consent)
+bpr_enable_warnings(test_inline_publish_cli_consent)
+if(APPLE)
+    bpr_add_network_isolated_test(NAME application_inline_publish_cli_consent COMMAND test_inline_publish_cli_consent)
+    set_tests_properties(application_inline_publish_cli_consent PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "inline-publish-cli-consent-tests:pass")
+endif()
+
 # The same native sink and canary course now run on Windows; no platform privacy waiver.
 bpr_add_executable(test_application_logging application_logging_tests.cpp)
 target_link_libraries(test_application_logging PRIVATE BetterPullReview::Composition)

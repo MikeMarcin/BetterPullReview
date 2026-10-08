@@ -1035,6 +1035,18 @@ endfunction()
 # intent. No grant,
 # target, provider, credential, GitHub write, mutation or publication path;
 # mutation pin unchanged. Reviewed on BPR-1328.
+# BPR-1329 reseal: over the BPR-1328 reseal at 352b12937; github_application.cpp
+# and the fixture-access header only.
+# confirm_cli_publication still asks its one macOS question in the same gate
+# and still re-checks the exact session after Yes; it now also names why it
+# refused (declined, session or target changed, unavailable) through an
+# optional out-parameter. dispatch_review_draft presents that reason, and the
+# reason for every Publish its private-draft path stops before sending, on the
+# draft editor; finish_review_draft_command says Publishing once the host took
+# the request. Two fixture-only accessors hold or release the fixture's
+# review-mutation decision gate. No grant, target, provider, credential,
+# transport, GitHub write, mutation or publication path changes; mutation pin
+# unchanged. Reviewed on BPR-1329.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1053,7 +1065,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8c684804a264438a398d3c18752c840f0db85d56a64368e26e7e288a5cedb618"
+		"141d706c27f23a584129c2e8e98f77f6d748d06a968575d12dd24911bb655959"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1255,7 +1267,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "06bb4584b89d43a5e51bae91ad5ae208cd840e42ef7a416bfef2f8d4a9d77b31"
+        "93757ed586d290afc02324a4b773c14f21614b3c2d6466c3a8c425e21812ede0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -1123,6 +1123,11 @@ namespace bpr::app::detail {
 			-> github_public_path_fixture_evidence;
 		static void               hold_review_submission_terminals(github_application& aApplication, bool aHold);
 		[[nodiscard]] static auto held_review_submission_terminals(const github_application& aApplication) -> std::size_t;
+		/// \brief [[BPR-1329]]. Holds, or releases, every inline publication's
+		/// terminal on its way to the window, so a course can see what is shown
+		/// while one is in flight.
+		static void               hold_review_mutation_terminals(github_application& aApplication, bool aHold);
+		[[nodiscard]] static auto held_review_mutation_terminals(const github_application& aApplication) -> std::size_t;
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;

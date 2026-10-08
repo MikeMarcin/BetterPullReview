@@ -7841,8 +7841,10 @@ namespace bpr::qt {
 			cards->present_draft(std::nullopt);
 			return;
 		}
-		auto notice = QString{ };
-		if (!ReviewEditor->publish_action()->isEnabled() && !body.trimmed().isEmpty()) {
+		// [[BPR-1329]]. What the last Publish came to comes first: publishing,
+		// or why it did not happen. Otherwise, why Publish is unavailable.
+		auto notice = ReviewEditor->publication_status();
+		if (notice.isEmpty() && !ReviewEditor->publish_action()->isEnabled() && !body.trimmed().isEmpty()) {
 			notice = ReviewEditor->publish_action()->toolTip();
 		}
 		cards->present_draft(draft_composer_presentation{
@@ -7853,6 +7855,7 @@ namespace bpr::qt {
 			.Lines       = words,
 			.Change      = std::move(change),
 			.Notice      = notice,
+			.Retry       = ReviewEditor->publication_retry_offered(),
 		});
 	}
 
