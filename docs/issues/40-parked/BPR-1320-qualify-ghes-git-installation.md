@@ -40,3 +40,26 @@ executable paths and source/build correspondence remain unavailable. Local
 Git-155 evidence does not qualify that installation or private GHES access.
 Original C1/C2 remain intact; actual affected installation and rendered PR
 recovery obligations are not replaced by fixture or capability-policy evidence.
+
+## Native diagnosis candidate v001 (dispatch r5, 2026-10-08)
+
+A tests-off build of exact source `980c08873` is frozen in the ignored
+`artifacts/four-drafts-r1/ghes-native-frozen-v001/`, with a self-contained
+ad-hoc-signed arm64 bundle (executable SHA-256 `bcc9fdad…7548`, macOS 26+),
+a launcher (`6eb8ba94…1911`) that starts it in a fresh isolated profile via
+`CFFIXED_USER_HOME` and refuses early, and read-only operator instructions
+with a facts script. In the frozen source the CLI path takes the first `git`
+on the app's PATH with no override (`src/app/src/github_cli_runtime.cpp:194`);
+an app opened from Finder gets `/usr/bin:/bin:/usr/sbin:/sbin`, so it selects
+the `/usr/bin/git` xcode-select shim. `gh` remains admitted only at exactly
+2.100.0 or 2.101.0 (`gh_cli_git_smart_transport.cpp:451`); the owner's 2.101.0
+is inside it. No diagnostic export records the selected tool paths or
+versions, so those facts come only from the facts script.
+
+Fresh session `b366df1f04624eb90e90d47c9262e52d` (cursor 9) asks three
+separate questions: the reviewed tool facts from the affected Mac
+(`BPR-1320-tool-facts-v001`), whether the affected PR loads
+(`BPR-1321-pr-loads-v001`), and whether changed files show exact contents
+(`BPR-1320-files-render-v001`). This is a diagnosis run, not BPR-1322
+acceptance. Local smoke on the build Mac (Git 2.50.1 Apple Git-155) is not
+the affected installation. C1 stays pending.
