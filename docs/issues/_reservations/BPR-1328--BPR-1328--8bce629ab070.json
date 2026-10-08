@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1328"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Change arrows continue across files instead of greying out",
+  "created": "2026-10-08T18:15:15.564359+00:00",
+  "base": "2fe84cd26a3ad1053b895456812ca6a64cdb7c62"
+}
