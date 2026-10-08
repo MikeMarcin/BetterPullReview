@@ -19,8 +19,9 @@ namespace bpr::application {
 	{
 		std::optional<core::pending_setup_destination> Pending;
 		std::string                                    Notice;
-		bool                                           Opened    = false;
-		bool                                           Navigated = false;
+		bool                                           Opened             = false;
+		bool                                           Navigated          = false;
+		bool                                           RepositoryPrepared = false;
 	};
 
 	struct submit_setup_destination
@@ -33,7 +34,12 @@ namespace bpr::application {
 	};
 	struct cancel_setup_destination
 	{ };
-	using setup_destination_intent   = std::variant<submit_setup_destination, continue_setup_destination, cancel_setup_destination>;
+	/// \brief Explicit preparation for a repository draft, never a final Add gesture.
+	struct submit_repository_setup
+	{
+		std::string Text;
+	};
+	using setup_destination_intent   = std::variant<submit_setup_destination, continue_setup_destination, cancel_setup_destination, submit_repository_setup>;
 	using setup_destination_dispatch = std::function<void(setup_destination_intent)>;
 }
 #endif

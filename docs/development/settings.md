@@ -109,12 +109,23 @@ does not know, or one label twice, the row says how many were left out; the
 rest keep their order, and changing a chip or Reset saves the list as shown.
 
 Observer rules match local repository, author or path facts. Add/remove changes
-the local rule and its matched membership. Saved repositories keep an exact
-host/account/repository choice; saving one is not a GitHub subscription or a
-promise of personal discovery. RFC-BPR-0026 owns automatic authored/requested
-review discovery. Removing a saved repository affects that local record only.
-Rule and repository controls explain unavailable storage or missing authority;
-failed saves preserve the accepted list.
+the local rule and its matched membership. **Add repository** opens the same
+native dialog as signed-in Home. Enter an HTTPS repository root or owner/name
+for the displayed host, check the exact account and host, then choose Add
+repository. The record belongs to that BPR profile and account. It starts the
+bounded authored/requested discovery owned by RFC-BPR-0026; it changes no GitHub
+subscription or review and opens no pull request. Saving succeeds only after
+local persistence accepts the record. A duplicate has its own confirmation;
+a refused save keeps the draft and accepted list for an explicit retry.
+
+A different repository host requires explicit account/server preparation.
+Preparation retains the draft; cancellation saves nothing, and returning from
+sign-in requires checking the destination and choosing Add repository again.
+Cancel or Escape discards the draft and restores the invoking focus. The list
+and Remove remain in Settings. Removing affects the local saved record only;
+failed changes preserve the accepted list. The open-PR Save Repository shortcut
+continues to save its known repository directly through the same persistence
+and result path.
 
 ## Appearance
 

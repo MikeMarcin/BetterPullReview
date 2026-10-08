@@ -9158,60 +9158,103 @@ namespace {
 	void test_saved_repository_gestures_round_trip_through_the_dispatch()
 	{
 		qt::workbench_window window;
-		auto                 intents = std::vector<application::saved_repository_intent>{ };
-		window.set_saved_repository_dispatch(
-			[&intents](application::saved_repository_intent aIntent) {
-				intents.push_back(std::move(aIntent));
-			});
-		auto* const editor = window.saved_repositories_editor();
-		expect(editor != nullptr
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(editor)
-				   && !window.home_page()->isAncestorOf(editor)
-				   && !window.focus_order().contains(window.saved_repository_name()),
-			   "the saved-repositories editor lives on Reviews and queue, off Home and out of the workbench's order");
-		expect(!window.add_saved_repository_action()->isEnabled()
-				   && !window.remove_saved_repository_action()->isEnabled(),
-			   "before a ready projection neither Save nor Remove is offered");
-
-		const auto kept = application::saved_repository{
-			.Host = "github.com", .Account = "reviewer", .Repository = "octo/app"
-		};
-		auto projection = application::queue_landing_projection{
-			.Status  = application::queue_landing_status::ready,
-			.Session = application::queue_session_id{ .Host = "github.com", .Account = "reviewer", .Generation = 1U },
-		};
-		projection.SavedRepositories = { kept };
+		auto                 removals  = std::vector<application::saved_repository_intent>{ };
+		auto                 additions = std::vector<application::repository_addition_intent>{ };
+		auto                 setups    = std::vector<application::setup_destination_intent>{ };
+		window.set_saved_repository_dispatch([&](auto aIntent) { removals.push_back(std::move(aIntent)); });
+		window.set_repository_addition_dispatch([&](auto aIntent) { additions.push_back(std::move(aIntent)); });
+		window.set_setup_destination_dispatch([&](auto aIntent) { setups.push_back(std::move(aIntent)); });
+		const auto kept       = application::saved_repository{ .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" };
+		auto       projection = application::queue_landing_projection{ .Status            = application::queue_landing_status::ready,
+																	   .Session           = { .Host = "github.com", .Account = "reviewer", .Generation = 1U },
+																	   .SavedRepositories = { kept } };
 		window.publish(projection);
-		auto* const tree = window.repositories_tree()->tree_model();
-		expect(tree->rowCount() == 1 && tree->index(0, 0).data(qt::repositories_tree_model::saved_role).toBool(),
-			   "the tree lists the saved repository the projection carries");
-		auto* const selector = window.findChild<QComboBox*>(QStringLiteral("savedRepositorySelector"));
-		expect(selector != nullptr && selector->count() == 1
-				   && selector->itemText(0) == QStringLiteral("octo/app"),
-			   "the editor lists the saved repository");
-		expect(!window.add_saved_repository_action()->isEnabled(),
-			   "Save waits for an owner/name");
-		window.saved_repository_name()->setText(QStringLiteral("nope"));
-		expect(!window.add_saved_repository_action()->isEnabled(),
-			   "a name that is not owner/name is not offered");
-		window.saved_repository_name()->setText(QStringLiteral(" octo/tools "));
-		expect(window.add_saved_repository_action()->isEnabled(), "an owner/name is offered");
+		window.show();
+		process_events();
 		window.add_saved_repository_action()->trigger();
-		expect(intents == std::vector{ application::saved_repository_intent{ .Action = application::saved_repository_action::add, .Repository = { .Host = "github.com", .Account = "reviewer", .Repository = "octo/tools" } } },
-			   "Save leaves as an add intent for the session's account, trimmed");
+		process_events();
+		auto* dialog = window.repository_addition_dialog();
+		auto* input  = window.saved_repository_name();
+		auto* add    = dialog->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"));
+		auto* notice = dialog->findChild<QLabel*>(QStringLiteral("repositoryAdditionStatus"));
+		expect(dialog->isVisible() && input->hasFocus() && !window.saved_repositories_editor()->isAncestorOf(input),
+			   "Settings opens the one native focused dialog, without a competing inline input");
+		expect(dialog->findChild<QLabel*>(QStringLiteral("repositoryAdditionDestination"))->text() == QStringLiteral("Save for @reviewer on github.com"),
+			   "the final destination is shown before Add");
+		input->setText(QStringLiteral(" octo/tools "));
+		add->click();
+		expect(additions.size() == 1U && additions.back().Text == " octo/tools " && additions.back().Destination == projection.Session && additions.back().Gesture != 0U,
+			   "the raw gesture leaves with exactly its displayed authority; parsing remains application-owned");
+		auto result         = application::repository_addition_result{ };
+		result.Gesture      = additions.back().Gesture;
+		result.Destination  = additions.back().Destination;
+		result.Status       = core::repository_addition_status::saving;
+		projection.Addition = result;
+		window.publish(projection);
+		expect(!add->isEnabled() && !input->isEnabled() && notice->text() == QStringLiteral("Adding repository…"), "saving is visible and prevents repeated submission");
+		result.Status       = core::repository_addition_status::unavailable;
+		projection.Addition = result;
+		window.publish(projection);
+		expect(add->isEnabled() && input->text() == QStringLiteral(" octo/tools ") && notice->text().contains(QStringLiteral("retry")), "storage refusal retains input and permits a fresh retry");
+		add->click();
+		result.Gesture      = additions.back().Gesture;
+		result.Status       = core::repository_addition_status::already_added;
+		projection.Addition = result;
+		window.publish(projection);
+		expect(dialog->isVisible() && notice->text() == QStringLiteral("This repository is already added."), "the duplicate has its own visible terminal");
+		// A changed accepted session retires even a retained earlier terminal.
+		projection.Session.Account    = "another-reviewer";
+		projection.Session.Generation = 2U;
+		window.publish(projection);
+		expect(notice->text().contains(QStringLiteral("destination changed")) && input->text() == QStringLiteral(" octo/tools ") && additions.size() == 2U,
+			   "replacement requires a new gesture with the new displayed destination");
+		input->setText(QStringLiteral("https://unknown.example/octo/tools"));
+		add->click();
+		result.Gesture      = additions.back().Gesture;
+		result.Destination  = additions.back().Destination;
+		result.Status       = core::repository_addition_status::destination_changed;
+		result.Target       = application::repository_addition_target{ .Hostname = "unknown.example", .Repository = { "octo", "tools" } };
+		projection.Addition = result;
+		window.publish(projection);
+		dialog->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->click();
+		expect(!dialog->isVisible() && setups.size() == 1U && std::get<application::submit_repository_setup>(setups.back()).Text == input->text().toStdString(),
+			   "an explicit preparation gesture retains the draft outside the dialog");
+		window.present_setup_destination({ });
+		expect(dialog->isVisible() && input->text() == QStringLiteral("https://unknown.example/octo/tools") && additions.size() == 3U,
+			   "cancelled preparation returns to the unchanged draft and makes no Add gesture");
+		dialog->reject();
+		expect(input->text().isEmpty() && additions.size() == 3U, "dialog cancel discards the draft without saving");
+		auto* selector = window.findChild<QComboBox*>(QStringLiteral("savedRepositorySelector"));
 		selector->setCurrentIndex(0);
-		expect(window.remove_saved_repository_action()->isEnabled(), "a selected saved repository can be removed");
 		window.remove_saved_repository_action()->trigger();
-		expect(intents.size() == 2U && intents.back().Action == application::saved_repository_action::remove
-				   && intents.back().Repository == kept,
-			   "Remove leaves as a remove intent for the selected saved repository");
-
-		auto signedOut    = projection;
-		signedOut.Session = application::queue_session_id{ };
-		window.publish(signedOut);
-		expect(!window.add_saved_repository_action()->isEnabled()
-				   && !window.remove_saved_repository_action()->isEnabled(),
-			   "without an account in the session there is nothing to save for");
+		expect(removals.size() == 1U && removals.back().Action == application::saved_repository_action::remove && removals.back().Repository == kept,
+			   "Settings still removes the selected exact durable record");
+		projection.Session = { .Host = "engineering.enterprise.example", .Account = "reviewer-with-a-long-account-identity", .Generation = 3U };
+		window.publish(projection);
+		window.settings()->present(qt::settings_page::reviews_and_queue);
+		process_events();
+		auto* invoker = window.findChild<QToolButton*>(QStringLiteral("addSavedRepositoryButton"));
+		invoker->setFocus(Qt::OtherFocusReason);
+		window.open_repository_addition();
+		dialog->resize(360, 290);
+		process_events();
+		auto* destination = dialog->findChild<QLabel*>(QStringLiteral("repositoryAdditionDestination"));
+		expect(destination->text().contains(QStringLiteral("reviewer-with-a-long-account-identity")) && destination->text().contains(QStringLiteral("engineering.enterprise.example"))
+				   && destination->wordWrap() && destination->width() <= dialog->width(),
+			   "narrow dialog keeps the full account and host in wrapped plain text");
+		input->setText(QStringLiteral("organization-with-a-long-name/repository-with-a-long-name"));
+		auto* accessible = QAccessible::queryAccessibleInterface(input);
+		expect(accessible && accessible->role() == QAccessible::EditableText && !accessible->text(QAccessible::Name).isEmpty() && !accessible->text(QAccessible::Description).isEmpty(),
+			   "native repository input exposes its name, purpose and editable role");
+		const auto beforeKeyboard = additions.size();
+		auto       enter          = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(input, &enter);
+		expect(additions.size() == beforeKeyboard + 1U && additions.back().Destination == projection.Session, "default Add completes by keyboard under the displayed exact destination");
+		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(dialog, &escape);
+		process_events();
+		expect(!dialog->isVisible() && input->text().isEmpty() && invoker->hasFocus(), "Escape discards the draft and restores the invoking focus");
+		window.hide();
 	}
 
 	void test_queue_filter_controls_are_accessible_incremental_and_focus_stable()
@@ -10676,6 +10719,9 @@ namespace {
 		projection.Session           = { .Host = "github.com", .Account = "octo-reviewer", .Generation = 3U };
 		projection.SavedRepositories = { { .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app" } };
 		projection.Discovery         = aStatus;
+		if (aStatus.Problem == application::queue_discovery_problem::no_saved_repository) {
+			projection.SavedRepositories.clear();
+		}
 		return projection;
 	}
 
@@ -10690,10 +10736,11 @@ namespace {
 		window.resize(1'280, 820);
 		auto discovery = std::vector<application::queue_discovery_intent>{ };
 		auto follows   = std::vector<application::queue_follow_intent>{ };
-		auto saves     = std::vector<application::saved_repository_intent>{ };
+		auto saves     = std::vector<application::repository_addition_intent>{ };
 		window.set_queue_discovery_dispatch([&discovery](application::queue_discovery_intent aIntent) { discovery.push_back(aIntent); });
 		window.set_queue_follow_dispatch([&follows](application::queue_follow_intent aIntent) { follows.push_back(std::move(aIntent)); });
-		window.set_saved_repository_dispatch([&saves](application::saved_repository_intent aIntent) { saves.push_back(std::move(aIntent)); });
+		window.set_saved_repository_dispatch([](application::saved_repository_intent) { });
+		window.set_repository_addition_dispatch([&saves](application::repository_addition_intent aIntent) { saves.push_back(std::move(aIntent)); });
 		window.show();
 		process_events();
 		sign_in(window);
@@ -10739,9 +10786,9 @@ namespace {
 			 QStringLiteral("Not refreshed: GitHub could not be reached."),
 			 "an offline first refresh says so");
 		says({ .Host = "github.com", .Account = "octo-reviewer", .State = state::unavailable, .Problem = problem::no_saved_repository },
-			 QStringLiteral("Save a repository to find the pull requests in it that need me."),
+			 QStringLiteral("Add a repository to find my pull requests and review requests."),
 			 "with nothing saved Home says what to do");
-		says({ .State = state::unavailable, .Problem = problem::no_account }, QString{ }, "with no account session there is no sentence");
+		says({ .State = state::unavailable, .Problem = problem::no_account }, QStringLiteral("Personal discovery is unavailable. Saved repositories are kept."), "discovery unavailability retains the saved collection and Add action");
 		expect(!window.queue_refresh_action()->isEnabled(), "and nothing to refresh");
 
 		// Leaving Home and coming back asks discovery to catch up.
@@ -10768,8 +10815,8 @@ namespace {
 		save->trigger();
 		const auto opened = core::pull_request_ref{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/tools", .Number = 7 };
 		expect(follows.size() == 1U && follows.back().Ref == opened && follows.back().Follow && follows.back().Title == "Opened by link"
-				   && saves.size() == 1U && saves.back().Action == application::saved_repository_action::add
-				   && saves.back().Repository == application::saved_repository{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/tools" },
+				   && saves.size() == 1U && saves.back().Gesture != 0U
+				   && saves.back().Text == "octo-org/tools" && saves.back().Destination == discovery_projection(status).Session,
 			   "Follow and Save Repository send the queue's typed intents for exactly the open pull request");
 		expect(!follow->isChecked(), "the check mark waits for the queue");
 		auto followed = discovery_projection(status);
@@ -11623,6 +11670,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-0990]]. Home's discovery glyph, sentence and the Pull Request menu,
 	// reached directly past the epoch-row assertion [[BPR-0940]] owns.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
+		test_saved_repository_gestures_round_trip_through_the_dispatch();
 		test_home_strip_holds_group_state_headers_filter_and_refresh();
 		test_home_discovery_glyph_status_and_pull_request_menu();
 		// RFC-BPR-0026 AC-04: the window's own filter beside the profile's.

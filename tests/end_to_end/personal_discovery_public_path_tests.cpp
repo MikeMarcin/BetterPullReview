@@ -8,9 +8,11 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -18,19 +20,29 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
+#include <QDialog>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QPixmap>
+#include <QPointer>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QToolButton>
+
+#include <sqlite3.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <set>
 #include <string>
 #include <tuple>
@@ -141,6 +153,9 @@ auto main(int aArgc, char** aArgv) -> int
 try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
+	const auto    attended        = QApplication::arguments().contains(QStringLiteral("--attended"));
+	const auto    renderArgument  = QApplication::arguments().indexOf(QStringLiteral("--render-directory"));
+	const auto    renderDirectory = renderArgument >= 0 ? QApplication::arguments().value(renderArgument + 1) : QString{ };
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private discovery test root");
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
@@ -156,6 +171,9 @@ try {
 	// refuse the activation and never reach those steps.
 	options.PublicPreviewEnabledCourse = true;
 	options.PersonalDiscovery          = repository_with_unrelated_pull_requests();
+	options.SharedDeviceVault          = app::detail::make_shared_github_fixture_vault();
+	options.Offline                    = std::make_shared<app::detail::github_offline_fixture>();
+	options.RateLimit                  = std::make_shared<app::detail::github_rate_limit_fixture>();
 	const auto unrelated               = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
 	expect(unrelated >= 2'000U, "the saved repository holds at least 2,000 unrelated open pull requests");
 
@@ -217,25 +235,101 @@ try {
 	// says what would change that.
 	windowA->home_landing()->primary_button()->click();
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session");
-	wait_for([&] { return windowA->home_discovery_status()->isVisible() && windowA->home_discovery_status()->text() == QStringLiteral("Save a repository to find the pull requests in it that need me."); },
+	wait_for([&] { return windowA->home_discovery_status()->isVisible() && windowA->home_discovery_status()->text() == QStringLiteral("Add a repository to find my pull requests and review requests."); },
 			 "with nothing saved Home says to save a repository", diagnose);
 	expect(discovery().Composed && discovery().Status.Account == viewer && evidence().DiscoverySearches == 0U && discovery().Statistics.Submitted == 0U,
 		   "the account session is adopted and nothing is searched");
 	expect(windowA->queue_refresh_action()->isVisible() && windowA->queue_refresh_action()->isEnabled(), "Home's refresh glyph can run for the account");
 
-	// Discovery needs no pull request: a repository saved from Settings before
+	// [[BPR-1310]]. This exact composed fixture is also the attended candidate.
+	// It uses its own temporary private profile and never reaches a live provider.
+	if (attended) {
+		QApplication::setQuitOnLastWindowClosed(true);
+		std::cout << "REPOSITORY_HOME_READY: fixture account octo-reviewer on github.com; no live GitHub reads\n"
+				  << std::flush;
+		QApplication::exec();
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "attended fixture drains");
+		desktop.reset();
+		expect(e2e::remove_course_root(temporary), "attended fixture removes its private root");
+		return EXIT_SUCCESS;
+	}
+	if (!renderDirectory.isEmpty()) {
+		expect(QDir{ }.mkpath(renderDirectory), "render output directory exists");
+		const auto modes = std::array{ core::appearance_mode::system, core::appearance_mode::light, core::appearance_mode::dark,
+									   core::appearance_mode::high_contrast_system, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark };
+		for (const auto mode : modes) {
+			windowA->appearance_settings()->choose_mode(mode);
+			wait_for([&] { return owner->status().ProfileMode == mode; }, "rendered composed appearance is accepted");
+			for (const auto width : { 1100, 520 }) {
+				windowA->resize(width, 760);
+				QApplication::processEvents();
+				const auto prefix = renderDirectory + QStringLiteral("/%1-%2").arg(QString::fromUtf8(core::stable_name(mode))).arg(width);
+				expect(windowA->grab().save(prefix + QStringLiteral("-home.png")), "real Home render saved");
+				windowA->open_repository_addition();
+				windowA->saved_repository_name()->setText(QStringLiteral("organization-with-a-long-name/repository-with-a-long-name"));
+				windowA->repository_addition_dialog()->resize(width == 520 ? 360 : 480, 270);
+				QApplication::processEvents();
+				expect(windowA->repository_addition_dialog()->palette().color(QPalette::Window) == windowA->palette().color(QPalette::Window), "dialog inherits the accepted profile appearance");
+				expect(windowA->repository_addition_dialog()->grab().save(prefix + QStringLiteral("-dialog.png")), "real dialog render saved");
+				windowA->repository_addition_dialog()->reject();
+			}
+		}
+		windowA->resize(1100, 760);
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "rendered fixture drains");
+		desktop.reset();
+		expect(e2e::remove_course_root(temporary), "rendered fixture removes its private root");
+		std::cout << "repository-home-render:pass\n";
+		return EXIT_SUCCESS;
+	}
+	const auto openAddition = [&] {
+		windowA->findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->click();
+		wait_for([&] { return windowA->repository_addition_dialog() && windowA->repository_addition_dialog()->isVisible(); }, "Home opens shared addition");
+	};
+	const auto addDraft = [&](const QString& aText) {
+		windowA->saved_repository_name()->setText(aText);
+		windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"))->click();
+	};
+	const auto notice     = [&] { return windowA->repository_addition_dialog()->findChild<QLabel*>(QStringLiteral("repositoryAdditionStatus"))->text(); };
+	const auto savedCount = [&] { return windowA->findChild<QComboBox*>(QStringLiteral("savedRepositorySelector"))->count(); };
+	openAddition();
+	addDraft(QStringLiteral("https://github.com/octo-org/empty-repository/pull/17"));
+	wait_for([&] { return notice().contains(QStringLiteral("without a pull-request path")); }, "PR-shaped repository input is refused");
+	expect(savedCount() == 0 && evidence().DiscoverySearches == 0U, "invalid input saves and searches nothing");
+	addDraft(QStringLiteral("https://unknown.example/octo-org/empty-repository"));
+	wait_for([&] { return windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->isVisible(); }, "foreign host requires explicit preparation");
+	windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->click();
+	wait_for([&] { return windowA->sign_in_dialog() && windowA->sign_in_dialog()->isVisible() && windowA->enterprise_server_draft()->isVisible(); }, "explicit preparation opens server setup");
+	windowA->sign_in_dialog()->reject();
+	wait_for([&] { return windowA->repository_addition_dialog()->isVisible(); }, "cancelled setup returns to draft");
+	expect(savedCount() == 0 && windowA->saved_repository_name()->text().contains(QStringLiteral("unknown.example")) && evidence().DiscoverySearches == 0U,
+		   "cancelled setup keeps draft without saving or discovering under another host");
+	windowA->repository_addition_dialog()->reject();
+	windowA->settings()->hide();
+
+	// Discovery needs no pull request: a repository saved from Home before
 	// anything is opened is searched at once. This one holds nothing for the
 	// viewer, so it costs the two searches and no detail read.
-	wait_for([&] { return windowA->saved_repository_name() != nullptr; }, "Settings' saved repositories editor exists");
+	expect(windowA->findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->isVisible(), "Home offers Add repository after sign-in with no PR");
+	windowA->findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->click();
+	wait_for([&] { return windowA->repository_addition_dialog() && windowA->repository_addition_dialog()->isVisible(); }, "Home opens the shared addition dialog");
 	windowA->saved_repository_name()->setText(QStringLiteral("octo-org/empty-repository"));
 	wait_for([&] { return windowA->add_saved_repository_action()->isEnabled(); }, "an account session can save a repository before any pull request is opened");
 	const auto signedIn = evidence().AccountReadOperations.size();
-	windowA->add_saved_repository_action()->trigger();
+	windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"))->click();
+	wait_for([&] { return !windowA->repository_addition_dialog()->isVisible(); }, "durable save closes the dialog");
 	wait_for([&] { return discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; }, "a saved repository is searched with no pull request opened", diagnose);
 	expect(evidence().DiscoverySearches == 2U && evidence().DiscoveryDetailReads == 0U
 			   && reads_since(evidence(), signedIn) == std::vector<std::string>{ "SearchPersonalPullRequests", "SearchPersonalPullRequests" },
 		   "with no pull request opened, saving a repository reads exactly its two personal searches");
 	expect(windowA->home_discovery_status()->text().endsWith(QStringLiteral(" in 1 saved repository.")), "Home says it searched the one saved repository");
+
+	openAddition();
+	addDraft(QStringLiteral("https://github.com/octo-org/empty-repository/"));
+	wait_for([&] { return notice() == QStringLiteral("This repository is already added."); }, "canonical duplicate is shown through real store state");
+	expect(savedCount() == 1 && evidence().DiscoverySearches == 2U, "duplicate saves and searches nothing again");
+	windowA->repository_addition_dialog()->reject();
 
 	// A pull request opened by link is recently viewed, and nothing else.
 	submit(*windowA, 17);
@@ -347,6 +441,41 @@ try {
 		   "the refresh is the same bounded personal reads, and nothing else");
 	expect(queue_numbers(*windowA).contains(4003) && queue_numbers(*windowB).contains(4003) && queue_numbers(*windowB).contains(17), "both windows keep the list");
 
+	// A second SQLite connection holds the real fixture store's write lock.
+	// A failed durable add leaves the input and collection intact; it cannot say saved.
+	sqlite3* raw           = nullptr;
+	auto     queueDatabase = std::filesystem::path{ };
+	for (const auto& entry : std::filesystem::recursive_directory_iterator(root)) {
+		if (entry.path().filename() == "review-queue.sqlite3") {
+			queueDatabase = entry.path();
+			break;
+		}
+	}
+	expect(!queueDatabase.empty() && sqlite3_open_v2(queueDatabase.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "fixture opens its own queue store");
+	auto blocker = std::unique_ptr<sqlite3, decltype(&sqlite3_close)>{ raw, sqlite3_close };
+	expect(sqlite3_exec(raw, "BEGIN IMMEDIATE", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture blocks durable queue writes");
+	openAddition();
+	addDraft(QStringLiteral("octo-org/offline-repository"));
+	wait_for([&] { return notice().contains(QStringLiteral("could not be saved locally")); }, "real storage refusal is visible", diagnose);
+	expect(savedCount() == 2 && windowA->saved_repository_name()->text() == QStringLiteral("octo-org/offline-repository") && evidence().DiscoverySearches == 10U,
+		   "storage refusal retains the draft, no record or discovery or review is created");
+	expect(sqlite3_exec(raw, "ROLLBACK", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture releases durable queue lock");
+	blocker.reset();
+
+	// Offline and secondary limits affect discovery, never the accepted local save.
+	windowA->home_action()->trigger();
+	options.Offline->Offline = true;
+	addDraft(QStringLiteral("octo-org/offline-repository"));
+	wait_for([&] { return !windowA->repository_addition_dialog()->isVisible() && discovery().Quiescent && discovery().Status.Problem == application::queue_discovery_problem::offline; }, "offline save remains durable with accurate discovery", diagnose);
+	expect(savedCount() == 3 && windowA->home_discovery_status()->text().contains(QStringLiteral("could not be reached")), "offline discovery keeps saved records and prior rows");
+	options.Offline->Offline = false;
+	options.RateLimit->Mode  = 2U;
+	openAddition();
+	addDraft(QStringLiteral("octo-org/limited-repository"));
+	wait_for([&] { return !windowA->repository_addition_dialog()->isVisible() && discovery().Quiescent && discovery().Status.Problem == application::queue_discovery_problem::secondary_rate_limited; }, "limited save remains durable with accurate discovery", diagnose);
+	expect(savedCount() == 4 && options.RateLimit->Responses > 0U && windowA->home_discovery_status()->text().contains(QStringLiteral("slow down")), "secondary limit keeps four saved records and communicates delay");
+	options.RateLimit->Mode = 0U;
+
 	expect(app::detail::github_application_fixture_access::review_mutation_evidence(*owner).Submissions == 0U, "nothing here asked GitHub to change anything");
 
 	// [[BPR-1103]]. The profile's work drains, the desktop goes, and the
@@ -355,6 +484,21 @@ try {
 	// only once the desktop's runtimes are deleted from the event loop.
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the profile's work drains before teardown");
+	auto retiredDesktop = QPointer<qt::profile_management_window>{ desktop->management_window() };
+	expect(retiredDesktop, "desktop retirement has a lifetime witness");
+	desktop.reset();
+	wait_for([&] { return retiredDesktop.isNull(); }, "old desktop releases its runtime and profile lease before restart");
+	owner    = nullptr;
+	terminal = false;
+	desktop  = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) { terminal = true; if (aResult) { owner = *aResult; } else {std::cerr << "restart refusal=" << static_cast<int>(aResult.error()) << '\n';} });
+	wait_for([&] { return terminal && owner != nullptr; }, "same private profile restarts");
+	owner->show();
+	wait_for([&] { return !owner->windows().empty(); }, "restored window is admitted");
+	windowA = owner->window(owner->windows().front());
+	wait_for([&] { return savedCount() == 4; }, "all successful records survive profile restart");
+	owner->begin_shutdown();
+	wait_for([&] { return owner->status().ShutdownComplete; }, "restarted profile drains");
 	desktop.reset();
 	expect(e2e::remove_course_root(temporary), "the course's temporary root is removed");
 	std::cout << "personal-discovery-public-path:pass\n";

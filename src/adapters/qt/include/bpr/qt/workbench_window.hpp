@@ -523,6 +523,11 @@ namespace bpr::qt {
 			workbench_queue_preferences_dispatch aDispatch);
 		/// \brief Where Save and Forget go, from the tree and from Settings.
 		void set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch);
+		/// \brief The final Add gesture, correlated with its displayed accepted session.
+		void set_repository_addition_dispatch(std::function<void(application::repository_addition_intent)> aDispatch);
+		/// \brief Opens the shared Home/Settings draft; effects remain host-owned.
+		void               open_repository_addition();
+		[[nodiscard]] auto repository_addition_dialog() const noexcept -> QDialog*;
 		/// \brief [[BPR-0990]]. Where the Pull Request menu's Follow goes.
 		void set_queue_follow_dispatch(workbench_queue_follow_dispatch aDispatch);
 		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
@@ -1457,6 +1462,9 @@ namespace bpr::qt {
 		void confirm_forget_server(const application::saved_server& aServer);
 		void dispatch_saved_repository(application::saved_repository_action aAction);
 		void update_saved_repository_actions();
+		void update_repository_destination();
+		void present_repository_addition(const application::repository_addition_result& aResult);
+		void repository_addition_notice(const QString& aText);
 		// [[BPR-0990]]. Discovery's glyph and sentence, and the open pull
 		// request's Follow and Save repository.
 		void               update_discovery_controls();
@@ -1766,6 +1774,8 @@ namespace bpr::qt {
 		QToolButton*                                       RemoveQueueRuleButton     = nullptr;
 		QLabel*                                            QueueStatus               = nullptr;
 		QLabel*                                            HomeDiscoveryStatus       = nullptr;
+		QWidget*                                           HomeRepositoryRow         = nullptr;
+		QToolButton*                                       HomeAddRepositoryButton   = nullptr;
 		QAction*                                           QueueRefreshAction        = nullptr;
 		QMenu*                                             PullRequestMenu           = nullptr;
 		QAction*                                           FollowPullRequest         = nullptr;
@@ -1774,28 +1784,40 @@ namespace bpr::qt {
 		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
 		// The open pull request as the queue names it: owner/name, number and
 		// title, and whether it was read signed out.
-		std::string                           OpenQueueRepository;
-		std::int64_t                          OpenQueueNumber = 0;
-		std::string                           OpenQueueTitle;
-		bool                                  OpenQueuePublicPreview = false;
-		QLabel*                               SettingsQueueStatus    = nullptr;
-		QLineEdit*                            HomeOpenBar            = nullptr;
-		QLabel*                               HomeOpenLabel          = nullptr;
-		QWidget*                              HomeOpenFrame          = nullptr;
-		QAction*                              HomeFocusBarAction     = nullptr;
-		QAction*                              HomeOpenAction         = nullptr;
-		QLabel*                               HomeOpenNotice         = nullptr;
-		QPushButton*                          HomeOpenDetails        = nullptr;
-		home_refusal*                         HomeRefusal            = nullptr;
-		QString                               HomeSetupNotice;
-		QString                               HomeRestorationNotice;
-		QString                               HomeRefusalDetails;
-		QString                               DismissedHomeRefusal;
-		std::vector<core::observer_rule>      QueueRules;
-		application::queue_landing_projection QueueProjection;
-		workbench_saved_repository_dispatch   SavedRepositoryDispatch;
-		workbench_saved_server_dispatch       SavedServerDispatch;
-		workbench_review_reply_dispatch       ReviewReplyDispatch;
+		std::string                                                  OpenQueueRepository;
+		std::int64_t                                                 OpenQueueNumber = 0;
+		std::string                                                  OpenQueueTitle;
+		bool                                                         OpenQueuePublicPreview = false;
+		QLabel*                                                      SettingsQueueStatus    = nullptr;
+		QLineEdit*                                                   HomeOpenBar            = nullptr;
+		QLabel*                                                      HomeOpenLabel          = nullptr;
+		QWidget*                                                     HomeOpenFrame          = nullptr;
+		QAction*                                                     HomeFocusBarAction     = nullptr;
+		QAction*                                                     HomeOpenAction         = nullptr;
+		QLabel*                                                      HomeOpenNotice         = nullptr;
+		QPushButton*                                                 HomeOpenDetails        = nullptr;
+		home_refusal*                                                HomeRefusal            = nullptr;
+		QString                                                      HomeSetupNotice;
+		QString                                                      HomeRestorationNotice;
+		QString                                                      HomeRefusalDetails;
+		QString                                                      DismissedHomeRefusal;
+		std::vector<core::observer_rule>                             QueueRules;
+		application::queue_landing_projection                        QueueProjection;
+		workbench_saved_repository_dispatch                          SavedRepositoryDispatch;
+		std::function<void(application::repository_addition_intent)> RepositoryAdditionDispatch;
+		QDialog*                                                     RepositoryAdditionDialog = nullptr;
+		QLabel*                                                      RepositoryDestination    = nullptr;
+		QLabel*                                                      RepositoryAdditionStatus = nullptr;
+		QPushButton*                                                 RepositoryAddButton      = nullptr;
+		QPushButton*                                                 RepositoryPrepareButton  = nullptr;
+		QPointer<QWidget>                                            RepositoryInvoker;
+		application::queue_session_id                                RepositoryDisplayedDestination;
+		std::uint64_t                                                RepositoryGesture        = 0U;
+		std::uint64_t                                                RepositoryPendingGesture = 0U;
+		bool                                                         RepositorySaving         = false;
+		bool                                                         RepositoryPreparing      = false;
+		workbench_saved_server_dispatch                              SavedServerDispatch;
+		workbench_review_reply_dispatch                              ReviewReplyDispatch;
 		/// [[BPR-1046]]. A Reply pressed while its thread's comparison was
 		/// loading; the next comparison to arrive completes or refuses it.
 		std::optional<std::string>           DeferredReply;

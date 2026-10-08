@@ -20,9 +20,9 @@ namespace bpr::core {
 		aPending.Stage = setup_destination_stage::add_server;
 		if (found != aProfiles.end()) {
 			aPending.Profile = found->Profile;
-			aPending.Stage   = found->Authenticated ? setup_destination_stage::ready
-				: found->PreviewAvailable           ? setup_destination_stage::public_preview
-													: setup_destination_stage::sign_in;
+			aPending.Stage   = found->Authenticated                                                            ? setup_destination_stage::ready
+				: found->PreviewAvailable && aPending.Destination.Kind == setup_destination_kind::pull_request ? setup_destination_stage::public_preview
+																											   : setup_destination_stage::sign_in;
 		}
 		return aPending;
 	}

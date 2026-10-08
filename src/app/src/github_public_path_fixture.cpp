@@ -578,17 +578,17 @@ namespace bpr::app::detail {
 				{ .Name = "X-RateLimit-Resource", .Value = std::move(resource) });
 		}
 
-		[[nodiscard]] auto rate_limit_response(const github_rate_limit_fixture& aFixture, const unsigned aMode) -> wire_response
+		[[nodiscard]] auto rate_limit_response(const github_rate_limit_fixture& aFixture, const unsigned aMode, const read_operation aOperation) -> wire_response
 		{
 			const auto secondary = aMode == 2U;
 			auto       limited   = wire_response{ .Status = 403, .Headers = response_headers(), .Body = secondary ? R"({"message":"You have exceeded a secondary rate limit. Please wait."})" : R"({"message":"API rate limit exceeded."})" };
-			append_rate_limit_headers(limited, read_operation::get_repository);
+			append_rate_limit_headers(limited, aOperation);
 			for (auto& header : limited.Headers) {
 				if (header.Name == "X-RateLimit-Reset") {
 					header.Value = std::to_string(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() + aFixture.ResetAfterSeconds);
 				}
-				if (header.Name == "X-RateLimit-Remaining") {
-					header.Value = secondary ? "4999" : "0";
+				if (header.Name == "X-RateLimit-Remaining" && !secondary) {
+					header.Value = "0";
 				}
 			}
 			limited.Headers.push_back({ .Name = "Retry-After", .Value = std::to_string(aFixture.RetryAfterSeconds) });
@@ -2126,12 +2126,12 @@ namespace bpr::app::detail {
 					++State->RateLimit->Requests;
 				}
 				if (Role == fixture_transport_role::account && State->RateLimit
-					&& aRequest.Wire.Operation == read_operation::get_repository
+					&& (aRequest.Wire.Operation == read_operation::get_repository || aRequest.Wire.Operation == read_operation::search_personal_pull_requests)
 					&& State->RateLimit->Mode.load() != 0U) {
 					if (!adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
 					}
-					auto limited                              = rate_limit_response(*State->RateLimit, State->RateLimit->Mode.load());
+					auto limited                              = rate_limit_response(*State->RateLimit, State->RateLimit->Mode.load(), aRequest.Wire.Operation);
 					State->RateLimit->LastResponseNanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 					++State->RateLimit->Responses;
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(limited) };

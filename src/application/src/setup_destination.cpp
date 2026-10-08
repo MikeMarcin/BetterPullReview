@@ -257,6 +257,25 @@ namespace bpr::application {
 		: Port{ aPort }
 	{ }
 	auto setup_destination_host::pending() const -> const std::optional<core::pending_setup_destination>& { return Pending; }
+	void setup_destination_host::submit_repository(const std::string_view aText)
+	{
+		Pending.reset();
+		const auto target = parse_repository_addition(aText, Port.shorthand_hostname());
+		if (!target || NextRequest == std::numeric_limits<std::uint64_t>::max()) {
+			present("Enter owner/name or a complete HTTPS repository URL.");
+			return;
+		}
+		auto destination       = core::setup_destination{ };
+		destination.Hostname   = target->Hostname;
+		destination.Repository = target->Repository;
+		destination.Kind       = core::setup_destination_kind::repository;
+		Pending                = core::pending_setup_destination{
+			.Request     = core::setup_request_id{ NextRequest++ },
+			.Owner       = Port.owner(),
+			.Destination = std::move(destination),
+		};
+		resolve();
+	}
 	void setup_destination_host::present(std::string aNotice, const bool aOpened, const bool aNavigated)
 	{
 		Port.present({ .Pending = Pending, .Notice = std::move(aNotice), .Opened = aOpened, .Navigated = aNavigated });
@@ -365,7 +384,9 @@ namespace bpr::application {
 	{
 		if (Pending && Pending->Request == aRequest && Pending->Owner == Port.owner()) {
 			Pending->Stage = core::setup_destination_stage::opening;
-			present("Sign-in accepted. Opening the requested pull request.");
+			present(Pending->Destination.Kind == core::setup_destination_kind::repository
+						? "Sign-in accepted. Return to the repository draft and choose Add repository."
+						: "Sign-in accepted. Opening the requested pull request.");
 		}
 	}
 
@@ -387,7 +408,13 @@ namespace bpr::application {
 		// [[BPR-0987]]. Whether the location can be shown is decided once the
 		// receiving window has accepted the pull request, and said there.
 		if (!Pending) {
-			present({ }, true, opening == setup_destination_opening::navigated);
+			if (opening == setup_destination_opening::repository_prepared) {
+				Port.present({ .RepositoryPrepared = true });
+			} else if (opening == setup_destination_opening::unavailable) {
+				present("The sign-in destination changed. Prepare the repository again.");
+			} else {
+				present({ }, true, opening == setup_destination_opening::navigated);
+			}
 		}
 	}
 	void setup_destination_host::previewed(const core::setup_request_id aRequest,

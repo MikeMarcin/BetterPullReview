@@ -16,6 +16,8 @@ namespace bpr::application {
 	enum class setup_destination_opening : std::uint8_t {
 		reading,
 		navigated,
+		repository_prepared,
+		unavailable,
 	};
 
 	/// \brief Host-owned default-environment observations and setup capabilities.
@@ -41,6 +43,8 @@ namespace bpr::application {
 	public:
 		explicit setup_destination_host(setup_destination_port& aPort);
 		void submit(std::string_view aText);
+		/// \brief Reuses explicit setup/sign-in; completion grants no repository save.
+		void submit_repository(std::string_view aText);
 		void continue_setup(core::setup_request_id aRequest);
 		/// \brief Binds an account choice to the current exact-host navigation.
 		[[nodiscard]] auto begin_authentication(core::setup_request_id aRequest, core::host_profile_id aProfile) -> bool;
