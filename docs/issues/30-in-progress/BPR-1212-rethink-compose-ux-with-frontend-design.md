@@ -493,3 +493,32 @@ Return/Shift+Return. When it lands, rebase this slice onto it: route its
 Return/Shift+Return to `begin_new_comment`, take the range from the draft's
 anchor for the bracket, the "Lines a–b" words and the suggestion's lines
 (`draft_source_lines`), and keep one fence builder (`core::suggestion_fence_body`).
+
+### Owner look, session v001 (pending)
+
+One new short session, not the long default one. Five questions, each Accept
+or Reject with the change in the note; none is self-certified.
+
+- Session `aae8f3fcd307cfca3bfb8ae0b28f1b83`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1212-compose-v001`
+  (repository root `/Users/jaeger/Documents/GitHub/BetterPullReview`), all five
+  candidates ready at event cursor 15. The review host runs detached.
+- Candidates, revision `frozen-80bea4636-v001`: `draft-in-drawer-v001`,
+  `right-click-v001`, `maximize-to-discuss-v001`, `publish-draft-v001`; and
+  `start-a-review-v001` (revision `design-80bea4636-v1`, the design frames).
+- Frozen root `/Users/jaeger/bpr1212-compose-look-v001.T6ZCxT`: the
+  `git archive` of `80bea4636` built there with the dev preset (tests on),
+  app target only; executable SHA-256 `763b42b37854…`. Offscreen on it,
+  `--github-fixture inline-drawer-v1 --attended-open-file
+  src/ui/conversation_cards_view.cpp` printed `ATTENDED_FILE_SHOWN`.
+- `80bea4636` landed on `main` as `a90419791`, rebased over BPR-1331
+  (`88957a791`): only `workbench_window.cpp`'s anonymous namespace merged,
+  each side's helper kept. The frozen build is the reviewed candidate.
+- Launch: `python3 /Users/jaeger/bpr1212-compose-look-v001.T6ZCxT/launch.py`
+  (the 1557-line file in Review); `--frames` opens the start-a-review frames.
+  It checks the build, its fingerprint and the fixture tree first and reports
+  an early exit.
+
+Next: read the session's decisions. Accepts on the four built candidates
+answer AC5 and AC6 for slice 2; a Reject comes back as a v002 candidate. An
+Accept on `start-a-review-v001` starts its own build milestone.
