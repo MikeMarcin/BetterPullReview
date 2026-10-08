@@ -104,31 +104,91 @@ The existing Detail pane becomes **Line details**. No second pane is added.
 - **C5 (owner).** The owner looks at a frozen build with long changed lines
   and answers Accept or Reject for "line details strip".
 
-## Checkpoint (2026-10-08, bpr-main-mac implementer)
+## Verification (2026-10-08, bpr-main-mac implementer)
 
-Branch `claude/line-details-strip`, rebased on `origin/main` at `5efe30739`.
-Commits: `0e4ef5ba1` (Line details), `c32e467e4` (fixture, course, row bands,
-one-line replacement rule), `ed2ab5f7d` (pin reseal over `512c2836b`).
-Design: `frontend-design:frontend-design` loaded first; the strip inherits the
-panes' code font, gutter roles and diff colours, with nothing added. The
-gutter shows line number and −/+ only, every wrapped line of a row wears the
-row's band, and the emphasis is the one strong mark.
+Design: `frontend-design:frontend-design` was loaded before any UI work. The
+strip inherits the panes' code font, gutter roles and diff colours and adds
+nothing of its own. The gutter shows only the line number and −/+, every wrapped
+line of a row wears the row's band, and the character emphasis is the one
+strong mark. Offscreen renders were used for self-critique only. They found the
+band covering only the first wrapped line and a one-line unpaired replacement
+reading "No matching line"; both are fixed.
 
-Verification at `c32e467e4` (dev, macOS arm64 Debug, offscreen), all passing:
+**Candidate.** `f6f247e8b` on `origin/main` `495f8752a`, which carries
+BPR-1212 slice 1's keyboard line cursor and BPR-1336's zoom. The cursor moves
+the selection through `select_line` and extends it through the pane's text
+selection, so Line details follows both. Zoom gives the workbench its font, so
+the strip scales with it.
+
+**Frozen root.** `artifacts/bpr-1334/line-details-frozen-v001/` holds
+`source/`, which is `git archive f6f247e8b` (sha256 `4e961eaa…`, `diff -rq`
+clean against HEAD). Beside it is `build/`, a Release build with tests on
+(Apple clang 21 `-O3`, Qt 6.11.2, macOS 26.6.2, M4 Pro), and `launch.py`
+(sha256 `6cb2a7c4…`), which checks the fixture tree and the executable and
+reports an exit within 30 s. The attended executable
+`build/tests/end_to_end/line_details_public_path` (sha256 `dc5e412e…`)
+reaches `LINE_DETAILS_ATTENDED_READY` offscreen in 1.4 s.
+
+**Focused rows at the candidate (frozen build, offscreen).** 16 of 17 pass:
 `core_diff_semantics`, `qt_diff_workbench_scale_{100,125,200}`,
 `qt_workbench_window_scale_100`, `qt_workbench_focus_order_scale_100`,
 `qt_settings_window`, `sqlite_workbench_settings_storage`,
 `application_workbench_host`, `application_diff_workbench_public_path`,
 `application_profile_window_layout_public_path`,
 `application_line_details_public_path`, `github_recorded_fixture_contract`,
-`github_contract_fixture_security`; format check passes. Failing-before
-controls (each mutation reverted after): range ignored, cursor hold removed,
-emphasis dropped, strip tied to Review details, profile column not written,
-held height dropped, UTF-8 back-off removed, emphasis unclipped, similar pairs
-read unchanged, one-line replacement rule off. Each fails its named check.
+`github_contract_fixture_security`, `architecture_boundaries` and
+`application_review_round_trip_composition_contract`.
+`application_uiforetw_selected_diff_contract` fails only
+`title_row_exact_order`. BPR-1338 (`e8e1567c4`) added
+`workbenchOpenOnGithubAction` to the title row, and the probe pins the row at
+17 actions; neither was updated. It passed at this card's pre-rebase
+candidate (`bb3308e81`), whose Line details change put the strip's floors
+behind View > Line Details (below). Documentation: `DOCUMENTATION_OK`;
+`verify_documentation_tests` 67/67. Format check passes. clang-tidy on the
+changed translation units reports only findings that predate this card, once
+the cloned-branch finding in `line_details` was fixed.
 
-Disk ran out twice during this card. Other worktrees' builds filled it, so the
-Debug tree was deleted after these runs. The optimized rows and the owner look
-run from one frozen tests-on Release build:
-`artifacts/bpr-1334/line-details-frozen-v001/` (source exported from
-`ed2ab5f7d`, archive sha256 `9da95165…`).
+**Failing-before controls** (each mutation reverted after it was run): range
+ignored; cursor hold removed; emphasis dropped; strip tied to Review details;
+profile column not written; held height dropped; UTF-8 back-off removed;
+emphasis unclipped; similar pairs read as unchanged; one-line replacement rule
+off. Each fails its named check.
+
+**UIforETW height floors.** At `ed2ab5f7d` the capture failed
+`UIFORETW_CAPTURE_LAYOUT_FAILED:985:728:open=694`. Line details, on by
+default, took about eight text lines from the panes. The capture's focused
+review now hides it through View > Line Details, beside the drawers and
+Review details. The floors are unchanged, so a new chrome row still fails
+them. At the default layout the panes are shorter by the strip's height. That
+is the trade the owner's "on by default" asks for, and the owner look covers
+it.
+
+**Large-review rows (the 18).** At the final binaries the run passed 18/18 at
+load average 6–10: `large_file_selection` 23.3 ms,
+`large_source_revisit_render` 12.1, `approximate_file_selection` 16.8,
+`first_tab_file` 13.9, `epoch_selection_supersession` 14.6; the largest gated
+phase is 42.3 ms (`unavailable_file_selection`). Earlier runs at the same
+product (`ed2ab5f7d`, `bb3308e81`) during load averages of 40–134 on 14 cores
+from other worktrees' builds failed 1–3 rows each in moving phases. Two of
+those were `paged_review_and_git_load` and `fixture_connect`, which run before
+any comparison exists. A/B runs alternated with an `origin/main` control build
+(`5efe30739`) under the same load. Responsiveness was equal in three pairs
+(11–32 ms on every phase on both sides). The control failed too under load
+(`large_file_selection` 151 ms), and `epoch_selection_supersession` overlapped
+(control 22–86, candidate 15–153). No regression was found; the clean gate is
+the low-load run above.
+
+**Pins.** Round-trip pins resealed over 68978f145..HEAD. That range includes
+BPR-1336's and BPR-1338's unsealed pinned-scope commits, reviewed in the
+contract's note. Mutation pin unchanged.
+
+## Owner look (C5, pending)
+
+One new short session, `54a2166987592a13adcae6767089fe2c`, with state in
+`/Users/jaeger/.mask/bpr-1334-line-details-20261008-v001/attended-review`
+(repository root: the main checkout). It holds one Accept/Reject candidate,
+`BPR-1334-line-details-v001`, at revision `f6f247e8b` (fingerprint
+`1f420af2…`), ready and protected. Launch command:
+`python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1334/line-details-frozen-v001/launch.py`.
+C1–C4 rest on the direct evidence above. C5 waits on the owner and is not
+self-certified.
