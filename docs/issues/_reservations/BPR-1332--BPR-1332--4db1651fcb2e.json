@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1332"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "qt_composed_inline_drawer_scale rows fail: post body does not fit or show all lines",
+  "created": "2026-10-08T19:18:09.841041+00:00",
+  "base": "3e40e465d80b6d30777112202f987fbd0d5ad139"
+}
