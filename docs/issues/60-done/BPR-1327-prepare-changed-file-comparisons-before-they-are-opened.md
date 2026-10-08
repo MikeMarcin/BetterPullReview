@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1327"
 title: "Prepare changed-file comparisons before they are opened"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac","win","linux"]
 metadata: {"origin":"owner chat 2026-10-08","kind":"performance","related_issues":["BPR-0967","BPR-0905","BPR-0794","BPR-0795"],"branch":"claude/bpr-1327-prefetch"}
+acceptance: [{"criterion":"AC1 (measure)","outcome":"pass","revision":"17a9a7568","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1327-prepare-changed-file-comparisons-before-they-are-opened.md","detail":"Small live-shaped review (application_epoch_host live_shaped_open_latency, measured live round trips 1700/1881 ms): both sides of a modified file 3,407 ms first / 3,425 ms later before, 0.15 / 0.10 ms once prepared. Large review (515 files, application_large_review_prepared_open, real composition and local Git) at the final merged head, load 9: unprepared opens 79-83 ms, first open while its window is prepared 123 ms, later prepared opens 18.0-18.8 ms."}},{"criterion":"AC2 (prepare)","outcome":"pass","revision":"17a9a7568","evidence":{"kind":"command","detail":"core_comparison_preparation (order: current, after, before, window of 16 moving with the cursor); application_epoch_host and application_diff_host prepared-open tests (a prepared open performs no network read and no diff computation, against unprepared controls); application_large_review_prepared_open: 5 of 5 later opens answered by preparation."}},{"criterion":"AC3 (bounds)","outcome":"pass","revision":"17a9a7568","evidence":{"kind":"command","detail":"application_diff_host and application_epoch_host: prepared share at most a quarter of entries and an eighth of bytes (16 entries, 8 MiB), never evicting a reviewer-opened comparison; verified blob retention 256 blobs / 16 MiB; batched reads of at most 16 blobs of 512 KiB each via read_exact_blobs (gh_cli_git_smart_transport); cancellation on pull-request, comparison or account change and on close. application_large_review_cache_entries and cache_bytes pass with the prepared share bounded separately; no limit changed."}},{"criterion":"AC4 (responsiveness)","outcome":"pass","revision":"17a9a7568","evidence":{"kind":"command","command":"ctest -j1 -V -R '^(application_large_review_.*|application_unavailable_diff_public_path|application_approximate_diff_public_path|application_first_tab_comparison|large_review_replay_contract|large_review_fixture_contract)$'","detail":"macOS arm64 optimized tests-on tree at the merged head, load 9.2 -> 6.0: 19/19 pass in 245.0 s; every report BudgetsEnforced true, empty InputBudgetFailures, KnownInputMisses and UnenforcedLimitMisses; largest pulse interval 54.2 ms of 100. Also 19/19 at 9a8208fba (load 9) and at 76b4b4f99 (load 18 -> 9). An earlier run at e84d30975 under load 4.6 -> 41 failed the launch row; an interleaved preparation-off/on A/B at load 92-117 failed it in all six runs either way. The trend recorded on the card: under CPU saturation, opens are slower with preparation on."}},{"criterion":"AC5 (tests)","outcome":"pass","revision":"17a9a7568","evidence":{"kind":"command","detail":"Failing-before controls: diff host prepared-open test runs an unprepared control; epoch host live-shaped test asserts the control pays two network reads per open; the prepared-open course runs preparation off first and requires every prepared open to beat every unprepared one; cancellation, budget caps and the large-review window each have host tests. Focused rows at the merged head: core_comparison_preparation, application_diff_host, application_epoch_host, application_workbench_host, gh_cli_git_smart_transport, github_provider, application_composition_contract, application_profile_window_review_restoration_public_path, architecture_boundaries and application_review_round_trip_composition_contract (resealed, mutation pin unchanged) pass."}},{"criterion":"Owner decision: network preparation always on or behind a setting","outcome":"pass","revision":"17a9a7568","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1327-prepare-changed-file-comparisons-before-they-are-opened.md","detail":"Owner, chat 2026-10-08, verbatim: \"Always on (Recommended)\". Preparation stays always on with no setting; no code change."}}]
 ---
 
 # Prepare changed-file comparisons before they are opened
@@ -191,7 +192,11 @@ same macOS arm64 optimized tests-on tree (`dev` preset,
 `CMAKE_BUILD_TYPE=Release`), rebuilt at each merged head. The numbers below
 are at the final one.
 
-- **Round-trip pin.** Recomputed on the merged tree in `bbfbdee06`. The
+- **Round-trip pin.** Recomputed on the merged tree in `bbfbdee06`, which is
+  `17a9a7568` after a last rebase onto `3c7c56620`. That rebase brought cards
+  and one GCC fix in `inline_publish_cli_consent_tests.cpp`, outside the
+  pinned set and these rows; the pin and `architecture_boundaries` pass
+  there. The
   BPR-1327 note sits over the BPR-1338 follow-up reseal and BPR-1340's
   manifest value. Full application `a24ce58c…`, production app manifest
   `beda7ead…`, mutation pin unchanged.
