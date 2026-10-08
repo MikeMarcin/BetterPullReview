@@ -258,10 +258,13 @@ their original meaning.
 
 ## Handoff
 
-This is an unadopted draft with its original incident attachment, separate
-from the live RFC and issue board. No root-cause repair or runtime pass is
-claimed. The accompanying [proposed qualification amendment](assets/bpr-four-drafts-v1/ghes-exact-file-comparison/proposed-qualification-amendment.md)
-identifies the adopted constraint that the owner's selected direction changes. Registration,
-issue allocation, live dependency assignment and acceptance belong to a later
-authorized implementation session. Resume by collecting the missing bounded
-tool and actor-provenance facts and reproducing both failures.
+Registered under the four-draft pack at immutable baseline
+`f3e866e9b90505d4604c55b6ad7e1ef598e5bbc2`. BPR-1319 supplies separate
+reproducers and closed actor-origin diagnostics; source `980c08873` replaces
+exact Git-banner equality with required-operation admission and actionable
+refusals. Synthetic and local installed-tool evidence do not establish the
+owner's configured Git-157, legitimate actor representation or affected
+enterprise rendered outcome. BPR-1320 retains its native installation wait,
+BPR-1321 retains its provenance blocker, and required BPR-1322 owner acceptance
+remains dependency-ineligible. The [ledger](../verification/RFC-BPR-0062-0065.md)
+records the live continuation without committing private logs or targets.
