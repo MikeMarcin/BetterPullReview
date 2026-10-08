@@ -1,5 +1,7 @@
 #include "bpr/application/setup_destination.hpp"
 
+#include "bpr/application/repository_addition_input.hpp"
+
 #include <algorithm>
 #include <charconv>
 #include <cstdint>
@@ -104,6 +106,56 @@ namespace bpr::application {
 			}
 			return result;
 		}
+	}
+
+	auto parse_repository_addition(std::string_view aText, const std::string_view aDefaultHostname)
+		-> std::expected<repository_addition_target, repository_addition_input_problem>
+	{
+		using problem = repository_addition_input_problem;
+		if (aText.size() > 4096U) {
+			return std::unexpected{ problem::too_long };
+		}
+		constexpr auto whitespace = std::string_view{ " \t\r\n" };
+		const auto     first      = aText.find_first_not_of(whitespace);
+		if (first == std::string_view::npos) {
+			return std::unexpected{ problem::empty };
+		}
+		aText = aText.substr(first, aText.find_last_not_of(whitespace) - first + 1U);
+		if (std::ranges::any_of(aText, [](const unsigned char aByte) { return aByte <= 32U || aByte >= 127U || aByte == '\\'; })) {
+			return std::unexpected{ problem::invalid_character };
+		}
+		auto hostname = aDefaultHostname;
+		if (aText.starts_with("https://")) {
+			aText.remove_prefix(8U);
+			const auto slash = aText.find('/');
+			if (slash == std::string_view::npos) {
+				return std::unexpected{ problem::repository_root_required };
+			}
+			hostname = aText.substr(0U, slash);
+			aText.remove_prefix(slash + 1U);
+			if (aText.ends_with('/')) {
+				aText.remove_suffix(1U);
+			}
+		}
+		if (!valid_host(hostname)) {
+			return std::unexpected{ problem::invalid_host };
+		}
+		const auto slash = aText.find('/');
+		if (slash == std::string_view::npos || aText.find('/', slash + 1U) != std::string_view::npos
+			|| aText.find_first_of("?#:") != std::string_view::npos) {
+			return std::unexpected{ problem::repository_root_required };
+		}
+		auto result     = repository_addition_target{ };
+		result.Hostname = hostname;
+		std::ranges::transform(result.Hostname, result.Hostname.begin(), [](const char aValue) {
+			return aValue >= 'A' && aValue <= 'Z' ? static_cast<char>(aValue + ('a' - 'A')) : aValue;
+		});
+		result.Repository.Owner = aText.substr(0U, slash);
+		result.Repository.Name  = aText.substr(slash + 1U);
+		if (!core::valid(result.Repository)) {
+			return std::unexpected{ problem::invalid_repository };
+		}
+		return result;
 	}
 
 	auto parse_setup_destination(std::string_view aText) -> std::optional<core::setup_destination>
