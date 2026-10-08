@@ -39,3 +39,15 @@ paths/source-build facts and a new read-only failure observation. Source
 `e61614205` supplies the privacy-safe diagnostic foundation; combined
 `980c08873` repairs the independent Git capability gate and leaves true actor
 conflicts rejecting. No private log/content is staged or committed.
+
+## Provenance collection path (dispatch r5, 2026-10-08)
+
+Session `b366df1f04624eb90e90d47c9262e52d` candidate `BPR-1321-pr-loads-v001`
+asks whether the originally affected PR loads in the frozen `980c08873`
+candidate. On Reject the owner exports an anonymized diagnostic, which carries
+only `actor_conflict=<origin>,<origin>,ascii_case_only|different`
+(`github_provider.cpp:76-82`, closed export filter in
+`release_diagnostic_snapshot.cpp`). That supplies the attributable origin
+facts this card is blocked on. An Accept would mean the rejection did not
+recur on that PR, which needs its own analysis before any repair. The blocker
+stays until one of those results is returned.
