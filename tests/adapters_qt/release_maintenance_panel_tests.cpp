@@ -8,6 +8,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QKeyEvent>
@@ -193,10 +194,17 @@ namespace {
 		projection                                        Projection{ *Panel };
 		application::release_maintenance_application_host Host{ Storage, Lifecycle, Effects, Decisions, Projection };
 		std::vector<core::release_maintenance_intent>     Intents;
+		application::diagnostic_export_directory          Directory = QDir::tempPath().toStdString();
+		std::optional<core::release_maintenance_intent>   DirectoryRequest;
+		bool                                              HoldDirectory = false;
 		fixture()
 		{
 			Panel->set_profile_label(QStringLiteral("<b>Fixture</b>"));
-			Panel->set_dispatch({ .Intent = [this](auto aIntent) { Intents.push_back(aIntent); Host.dispatch(aIntent); }, .Export = { } });
+			Panel->set_dispatch({ .Intent = [this](auto aIntent) { Intents.push_back(aIntent); Host.dispatch(aIntent); }, .Export = { }, .ChooseExportDirectory = [this](auto aIntent) {
+					DirectoryRequest = aIntent;
+					if (!HoldDirectory) {
+						Panel->present_export_directory(aIntent, Directory);
+					} } });
 			Projection.publish({ Host.state(), core::release_maintenance_commands(Host.state()), { }, { }, reason::none });
 			Window.settings()->adopt_panel(qt::settings_page::storage_and_privacy, Panel);
 			Window.settings()->resize(760, 480);
@@ -327,6 +335,32 @@ namespace {
 		test.Panel->action(command::preview_diagnostics)->trigger();
 		expect(test.Intents.size() == previous, "disabled presentation cannot emit an intent");
 	}
+	void directory_refusal_retry_and_stale_completion()
+	{
+		fixture test;
+		test.Panel->action(command::preview_diagnostics)->trigger();
+		test.drain();
+		const auto frozen = test.Host.state().Prepared;
+		const auto bytes  = test.Panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"))->toPlainText();
+		test.Directory    = std::unexpected(reason::unavailable);
+		test.Panel->action(command::export_diagnostics)->trigger();
+		expect(!test.Panel->findChild<QFileDialog*>() && test.Host.state().Prepared == frozen, "no eligible directory opens no arbitrary picker and keeps exact preview");
+		expect(test.Panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceStatus"))->text().contains(QStringLiteral("try Save again")), "directory refusal offers retry beside Save");
+		test.Directory = QDir::tempPath().toStdString();
+		test.Panel->action(command::export_diagnostics)->trigger();
+		QPointer<QFileDialog> chooser = test.Panel->findChild<QFileDialog*>();
+		expect(chooser && chooser->isVisible() && chooser->directory().absolutePath() == QDir::tempPath(), "retry supplies the admitted explicit directory");
+		expect(chooser->selectedFiles().front().endsWith(QStringLiteral("/BetterPullReview-diagnostics.txt")) && !chooser->testOption(QFileDialog::DontUseNativeDialog), "existing suggestion and native dialog selection remain");
+		chooser->reject();
+		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		expect(test.Host.state().Prepared == frozen && test.Panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"))->toPlainText() == bytes, "picker cancellation retains frozen bytes");
+		test.HoldDirectory = true;
+		test.Panel->action(command::export_diagnostics)->trigger();
+		const auto oldRequest = *test.DirectoryRequest;
+		test.Host.invalidate();
+		test.Panel->present_export_directory(oldRequest, test.Directory);
+		expect(!test.Panel->findChild<QFileDialog*>(), "late directory observation cannot reopen an invalidated preview");
+	}
 	void destructive_confirmation_and_stale_selection()
 	{
 		fixture test;
@@ -404,6 +438,7 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication application{ aArgc, aArgv };
 	preview_keyboard_and_incremental();
 	stale_save_and_unavailable();
+	directory_refusal_retry_and_stale_completion();
 	destructive_confirmation_and_stale_selection();
 	cancel_barrier_and_partial_failure();
 	not_private_refusal_is_named();

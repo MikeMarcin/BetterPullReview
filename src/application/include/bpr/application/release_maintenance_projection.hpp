@@ -3,11 +3,14 @@
 
 #include "bpr/core/release_maintenance.hpp"
 
+#include <expected>
 #include <functional>
 #include <memory>
 #include <string>
 
 namespace bpr::application {
+	/// \brief An admitted initial directory, or no eligible standard user folder.
+	using diagnostic_export_directory = std::expected<std::string, core::release_maintenance_reason>;
 	/// \brief Bounded maintenance presentation; no storage, vault, output capability or effect request.
 	struct release_maintenance_projection
 	{
@@ -23,6 +26,7 @@ namespace bpr::application {
 	{
 		std::function<void(core::release_maintenance_intent)>              Intent;
 		std::function<void(core::release_maintenance_intent, std::string)> Export;
+		std::function<void(core::release_maintenance_intent)>              ChooseExportDirectory;
 	};
 }
 #endif

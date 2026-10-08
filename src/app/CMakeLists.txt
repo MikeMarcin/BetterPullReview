@@ -79,6 +79,7 @@ if(BPR_BUILD_QT)
             src/profile_desktop.cpp
             src/platform_credential_vault.cpp
             src/release_maintenance_controls.cpp
+            src/diagnostic_export_directory.cpp
             src/diagnostic_controls.cpp
             src/release_update_desktop.cpp
             src/review_submission_workflow.cpp

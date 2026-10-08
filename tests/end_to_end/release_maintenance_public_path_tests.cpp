@@ -2,6 +2,9 @@
 #include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
+#include "bpr/adapters/sqlite/release_maintenance_files.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/logging/quill_log.hpp"
@@ -33,9 +36,12 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTimer>
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -64,17 +70,67 @@ namespace {
 		std::ifstream file{ aPath, std::ios::binary };
 		return { std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } };
 	}
-	void choose(qt::release_maintenance_panel& aPanel, const QString& aDestination, bool aTrigger = true)
+	auto save_dialog(qt::release_maintenance_panel& aPanel) -> QFileDialog*
 	{
-		if (aTrigger) {
-			aPanel.action(command::export_diagnostics)->trigger();
-		}
-		QFileDialog* dialog = nullptr;
 		for (auto* candidate : aPanel.findChildren<QFileDialog*>(QStringLiteral("releaseMaintenanceSaveDialog"))) {
 			if (candidate->isVisible()) {
-				dialog = candidate;
+				return candidate;
 			}
 		}
+		return nullptr;
+	}
+	auto open_save(qt::release_maintenance_panel& aPanel) -> QFileDialog*
+	{
+		aPanel.action(command::export_diagnostics)->trigger();
+		until([&] { return save_dialog(aPanel); }, "effect-lane folder observation returns to the native chooser projection");
+		auto*      dialog  = save_dialog(aPanel);
+		const auto initial = app::resolve_diagnostic_export_directory(app::diagnostic_export_locations());
+		expect(initial.has_value(), "OS standard folder observation is available");
+		expect(dialog->directory().absolutePath() == QString::fromStdString(*initial), "composed chooser explicitly starts in admitted OS folder despite cwd/history");
+		expect(QFileInfo{ dialog->selectedFiles().front() }.fileName() == QStringLiteral("BetterPullReview-diagnostics.txt"), "chooser retains existing suggested filename");
+		return dialog;
+	}
+	void controlled_directories(const QString& aRoot)
+	{
+		namespace fs = std::filesystem;
+		std::array<fs::path, 3>      locations;
+		const std::array<QString, 3> names{ QStringLiteral("Téléchargements déplacés"), QStringLiteral("文書"), QStringLiteral("home") };
+		for (std::size_t index = 0U; index < locations.size(); ++index) {
+			locations[index] = app::native_filesystem_path(aRoot + QStringLiteral("/") + names[index]);
+			expect(fs::create_directory(locations[index]) && adapters::sqlite::make_storage_root_owner_private(locations[index]), "controlled OS-location observation is owner controlled");
+		}
+		const auto observed = [&] {
+			std::vector<std::pair<fs::path, fs::perms>> entries;
+			for (const auto& entry : fs::recursive_directory_iterator{ app::native_filesystem_path(aRoot) }) {
+				entries.emplace_back(entry.path(), entry.status().permissions());
+			}
+			std::ranges::sort(entries);
+			return entries;
+		};
+		const auto before = observed();
+		expect(app::resolve_diagnostic_export_directory(locations) == application::diagnostic_export_directory{ (aRoot + QStringLiteral("/") + names[0]).toStdString() }, "redirected localized Downloads is retained verbatim");
+		locations[0] = app::native_filesystem_path(aRoot + QStringLiteral("/missing-downloads"));
+		expect(app::resolve_diagnostic_export_directory(locations) == application::diagnostic_export_directory{ (aRoot + QStringLiteral("/") + names[1]).toStdString() }, "missing Downloads falls back to localized Documents");
+		locations[1].clear();
+		expect(app::resolve_diagnostic_export_directory(locations) == application::diagnostic_export_directory{ (aRoot + QStringLiteral("/") + names[2]).toStdString() }, "empty Documents falls back to home");
+#if !defined(_WIN32)
+		const auto home = locations[2];
+		fs::permissions(home, fs::perms::owner_read | fs::perms::owner_exec);
+		expect(!app::resolve_diagnostic_export_directory(locations), "unwritable home supplies typed total unavailability");
+		fs::permissions(home, fs::perms::owner_all);
+		fs::permissions(home, fs::perms::owner_all | fs::perms::others_write);
+		expect(!app::resolve_diagnostic_export_directory(locations), "directory refused by output policy cannot be a default");
+		fs::permissions(home, fs::perms::owner_all);
+#endif
+		locations[2] = app::native_filesystem_path(aRoot + QStringLiteral("/missing-home"));
+		expect(!app::resolve_diagnostic_export_directory(locations), "complete absence returns no arbitrary location");
+		locations = { fs::path{ }, fs::path{ "relative" }, fs::current_path().root_path() };
+		expect(!app::resolve_diagnostic_export_directory(locations), "empty, relative and volume-root locations never substitute for user folders");
+		expect(observed() == before, "discovery creates no file/directory and changes no permissions");
+	}
+	void choose(qt::release_maintenance_panel& aPanel, const QString& aDestination, bool aTrigger = true)
+	{
+		QFileDialog* dialog = aTrigger ? open_save(aPanel) : save_dialog(aPanel);
 		expect(dialog && dialog->isVisible(), "public Export action opens save selection");
 		dialog->setDirectory(QFileInfo{ aDestination }.absolutePath());
 		auto* filename = dialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
@@ -100,7 +156,10 @@ namespace {
 
 auto main(int aArgc, char** aArgv) -> int
 try {
-	QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+	const bool attended = aArgc > 1 && std::string_view{ aArgv[1] } == "--attended";
+	if (!attended) {
+		QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+	}
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary{ qEnvironmentVariable("QUALIFICATION_TARGET_ROOT", QDir::tempPath()) + QStringLiteral("/maintenance-XXXXXX") };
@@ -109,6 +168,13 @@ try {
 	// beside the root has a private parent.
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "private application root");
+	controlled_directories(QFileInfo{ temporary.path() }.canonicalFilePath());
+	const auto standardLocations = app::diagnostic_export_locations();
+	expect(standardLocations[0] == app::native_filesystem_path(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation))
+			   && standardLocations[1] == app::native_filesystem_path(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+			   && standardLocations[2] == app::native_filesystem_path(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)),
+		   "production discovery asks OS standard Downloads, Documents and home in order");
+	expect(QDir::setCurrent(QDir::rootPath()), "composed export starts with disk-root working directory");
 	{
 		application::diagnostic_preferences preferences;
 		preferences.Privacy = application::diagnostic_privacy::include_locally;
@@ -157,6 +223,23 @@ try {
 	auto*      window = owner->window(first);
 	expect(window, "real workbench available");
 	window->show();
+	if (attended) {
+		std::cout << "DIAGNOSTIC_EXPORT_ATTENDED_READY signed-out synthetic-profile cwd=root native-dialogs=enabled\n"
+				  << std::flush;
+		QTimer shutdown;
+		QObject::connect(&shutdown, &QTimer::timeout, &application, [&] {
+			if (desktop->is_quiescent()) {
+				QApplication::quit();
+			}
+		});
+		shutdown.start(100);
+		const auto result = QApplication::exec();
+		desktop->quit();
+		until([&] { return desktop->is_quiescent(); }, "attended desktop drains native maintenance");
+		desktop.reset();
+		expect(e2e::remove_course_root(temporary), "attended synthetic profile removed");
+		return result;
+	}
 	const auto helpExport = [&](const char* aName) {
 		auto* action = window->findChild<QAction*>(QString::fromUtf8(aName));
 		expect(action && action->isEnabled(), "Help export action is available while signed out");
@@ -173,6 +256,10 @@ try {
 	auto* directPanel = dynamic_cast<qt::release_maintenance_panel*>(directDialog->parentWidget());
 	expect(directPanel && !directPanel->window()->isVisible(), "Settings stays closed for direct Help export");
 	until([&] { return directPanel->action(command::export_diagnostics)->isEnabled(); }, "first Help export waits for native startup and prepares exact preview");
+	const auto helpFrozen = directPanel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"))->toPlainText();
+	open_save(*directPanel)->reject();
+	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+	expect(directPanel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"))->toPlainText() == helpFrozen && directPanel->action(command::export_diagnostics)->isEnabled(), "signed-out Help cancellation retains exact frozen preview");
 	directDialog->reject();
 	until([&] { return !directPanel->action(command::export_diagnostics)->isEnabled(); }, "Cancel discards the direct export preview");
 	window->open_settings(qt::settings_page::storage_and_privacy);
@@ -208,7 +295,12 @@ try {
 	const auto bytes = preview->toPlainText().toStdString();
 	expect(bytes.starts_with("{\"format\":\"bpr-diagnostics-v2\"") && bytes.find("998877") == std::string::npos && bytes.find("887766") == std::string::npos, "actual mixed-mode log exports with fresh anonymized identities");
 	expect(bytes.find("Unknown schema field fields") != std::string::npos, "useful safe explanation survives the public preview");
-	const auto originals = tests::read_diagnostic_logs(root);
+	const auto originals        = tests::read_diagnostic_logs(root);
+	auto*      cancelledChooser = open_save(*panel);
+	cancelledChooser->setDirectory(temporary.path());
+	cancelledChooser->reject();
+	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+	expect(preview->toPlainText().toStdString() == bytes, "alternate chooser navigation and cancel preserve exact preview");
 	// Appends after preparation must not change the confirmed export.
 	{
 		std::ofstream append{ root / "logs/diagnostics.log", std::ios::app };
@@ -233,6 +325,19 @@ try {
 				  << " destination-exists=" << QFileInfo::exists(destination) << '\n';
 	}
 	expect(exported == bytes, "export bytes equal exact frozen preview despite later append and non-ASCII save path");
+	panel->action(command::preview_diagnostics)->trigger();
+	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "fresh preview prepares stale chooser course");
+	QPointer<QFileDialog> staleChooser     = open_save(*panel);
+	const auto            staleDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/stale.txt");
+	staleChooser->setDirectory(temporary.path());
+	staleChooser->findChild<QLineEdit*>(QStringLiteral("fileNameEdit"))->setText(QStringLiteral("stale.txt"));
+	directDialog->reject();
+	until([&] { return !staleChooser || !staleChooser->isVisible(); }, "preview cancellation dismisses the exact stale chooser after its serialized terminal");
+	if (staleChooser) {
+		static_cast<QDialog*>(staleChooser)->accept();
+	}
+	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+	expect(!QFileInfo::exists(staleDestination), "late stale chooser acceptance cannot write");
 	expect(tests::read_diagnostic_logs(root).size() >= originals.size(), "export leaves original records intact");
 	panel->action(command::preview_diagnostics)->trigger();
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "new explicit preview is required for another export");
@@ -246,6 +351,8 @@ try {
 	identifying->click();
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "identifying preview prepared separately");
 	const auto identifyingBytes = preview->toPlainText().toStdString();
+	open_save(*panel)->reject();
+	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 	expect(identifyingBytes.find("\"request\":998877") != std::string::npos && identifyingBytes.find("\"request\":0") != std::string::npos, "identifying preview retains captured identifiers without reversing capture redaction");
 	expect(identifyingBytes.find("BPR_CANARY_") == std::string::npos, "identifying mode cannot release forbidden content");
 	auto* disclosure    = panel->findChild<QDialog*>(QStringLiteral("diagnosticExportDialog"));
@@ -258,7 +365,7 @@ try {
 	helpExport("exportIdentifyingDiagnosticsAction");
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "Help prepares a fresh identifying preview");
 	const auto confirmedBytes = preview->toPlainText().toStdString();
-	panel->action(command::export_diagnostics)->trigger();
+	open_save(*panel);
 	const auto identifyingDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/identifying.txt");
 	choose(*panel, identifyingDestination, false);
 	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "confirmed identifying write completed");

@@ -218,6 +218,21 @@ overwrite or upload API exists. If publication succeeds but a final durability
 check fails, an error can leave that user-selected file; callers must not claim
 that every failure rolls back a published export.
 
+RFC-BPR-0064 adds a read-only initial-directory observation. On each Save,
+composition's effect worker asks platform standard-folder discovery for Downloads,
+Documents and home, in that order. The output adapter shares its native parent
+admission with this observation and requires current write/search access. No
+folder is created, enumerated or chmodded; no filename is admitted or saved yet.
+Empty, missing, unsafe, unwritable and volume-root defaults are refused. Qt
+receives only an admitted initial path or typed unavailability and sets the native
+chooser directory explicitly before opening, with the existing filename/suffix.
+An unavailable observation preserves the preview and enables a new Save retry.
+Completion is scoped to the still-current prepared preview; cancellation or
+replacement cannot reopen its chooser. Help/Settings and both privacy modes use
+this same path. Each invocation rediscovers the locations, independent of cwd or
+dialog history. The separately selected filename still goes through ordinary
+output admission at write time; this observation supplies no write authority.
+
 ### Native inventory, vault ordering and recovery
 
 Both POSIX and Windows enforce native private-storage admission, no symlink/

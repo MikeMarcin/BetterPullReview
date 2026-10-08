@@ -1633,47 +1633,32 @@ namespace bpr::adapters::sqlite {
 			return std::unexpected(reason::io_failure);
 		}
 	}
-	auto admit_release_diagnostic_output(const std::filesystem::path& aPath)
-		-> std::expected<std::shared_ptr<application::release_diagnostic_output>, reason>
-	{
-		try {
-#if !defined(_WIN32)
-			if (!aPath.is_absolute() || aPath.lexically_normal() != aPath || !aPath.has_filename()) {
+	namespace {
+		auto admit_output_directory(const std::filesystem::path& aPath) -> std::shared_ptr<local_output>
+		{
+			if (!aPath.is_absolute() || aPath.lexically_normal() != aPath) {
 				fail(reason::invalid_authority);
 			}
-			const auto parentPath = aPath.parent_path();
-			if (std::filesystem::canonical(parentPath) != parentPath) {
+#if !defined(_WIN32)
+			if (std::filesystem::canonical(aPath) != aPath) {
 				fail(reason::invalid_authority);
 			}
 			auto output        = std::make_shared<local_output>();
-			output->ParentPath = parentPath;
-			output->Name       = aPath.filename().string();
-			output->Parent     = descriptor{ ::open(parentPath.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) };
+			output->ParentPath = aPath;
+			output->Parent     = descriptor{ ::open(aPath.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) };
 			struct stat status{ };
-			if (output->Parent.Value < 0 || ::fstat(output->Parent.Value, &status) != 0) {
+			if (output->Parent.Value < 0 || ::fstat(output->Parent.Value, &status) != 0 || ::faccessat(output->Parent.Value, ".", W_OK | X_OK, AT_EACCESS) != 0) {
 				fail(reason::invalid_authority);
 			}
 			output->Device = static_cast<std::uint64_t>(status.st_dev);
 			output->Inode  = static_cast<std::uint64_t>(status.st_ino);
-			if (!output->still_owned()) {
-				fail(reason::invalid_authority);
-			}
-			struct stat existing{ };
-			if (::fstatat(output->Parent.Value, output->Name.c_str(), &existing, AT_SYMLINK_NOFOLLOW) == 0 || errno != ENOENT) {
-				fail(reason::selection_changed);
-			}
-			return output;
 #else
-			if (!aPath.is_absolute() || aPath.lexically_normal() != aPath || !aPath.has_filename()) {
-				fail(reason::invalid_authority);
-			}
-			const auto canonicalTarget = win::canonical_windows_root(aPath);
-			const auto canonical       = win::canonical_windows_root(aPath.parent_path());
-			if (!canonicalTarget || !canonical) {
+			const auto canonical = win::canonical_windows_root(aPath);
+			if (!canonical) {
 				fail(reason::invalid_authority);
 			}
 			auto ancestors = win::validate_ancestor_chain(*canonical);
-			auto parent    = win::open_existing_object(*canonical, win::windows_object_kind::directory, FILE_LIST_DIRECTORY | FILE_TRAVERSE, false);
+			auto parent    = win::open_existing_object(*canonical, win::windows_object_kind::directory, FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_ADD_FILE, false);
 			if (!ancestors || !parent || !output_parent_owned(parent->Value)) {
 				fail(reason::invalid_authority);
 			}
@@ -1685,8 +1670,52 @@ namespace bpr::adapters::sqlite {
 			output->Parent           = descriptor{ std::exchange(parent->Value, INVALID_HANDLE_VALUE) };
 			output->Parent.Ancestors = std::move(*ancestors);
 			output->ParentPath       = *canonical;
-			output->Name             = aPath.filename();
 			output->Identity         = *identity;
+#endif
+			if (!output->still_owned()) {
+				fail(reason::invalid_authority);
+			}
+			return output;
+		}
+	}
+
+	auto admit_release_diagnostic_directory(const std::filesystem::path& aPath) -> result
+	{
+		try {
+			static_cast<void>(admit_output_directory(aPath));
+			return { };
+		} catch (const failure& error) {
+			return std::unexpected(error.Reason);
+		} catch (...) {
+			return std::unexpected(reason::io_failure);
+		}
+	}
+
+	auto admit_release_diagnostic_output(const std::filesystem::path& aPath)
+		-> std::expected<std::shared_ptr<application::release_diagnostic_output>, reason>
+	{
+		try {
+#if !defined(_WIN32)
+			if (!aPath.is_absolute() || aPath.lexically_normal() != aPath || !aPath.has_filename()) {
+				fail(reason::invalid_authority);
+			}
+			auto output  = admit_output_directory(aPath.parent_path());
+			output->Name = aPath.filename().string();
+			struct stat existing{ };
+			if (::fstatat(output->Parent.Value, output->Name.c_str(), &existing, AT_SYMLINK_NOFOLLOW) == 0 || errno != ENOENT) {
+				fail(reason::selection_changed);
+			}
+			return output;
+#else
+			if (!aPath.is_absolute() || aPath.lexically_normal() != aPath || !aPath.has_filename()) {
+				fail(reason::invalid_authority);
+			}
+			const auto canonicalTarget = win::canonical_windows_root(aPath);
+			if (!canonicalTarget) {
+				fail(reason::invalid_authority);
+			}
+			auto output  = admit_output_directory(aPath.parent_path());
+			output->Name = aPath.filename();
 			if (!output->still_owned() || ::GetFileAttributesW(canonicalTarget->c_str()) != INVALID_FILE_ATTRIBUTES
 				|| ::GetLastError() != ERROR_FILE_NOT_FOUND) {
 				fail(reason::selection_changed);
