@@ -29,6 +29,7 @@
 #include <QTextEdit>
 #include <QTextFragment>
 #include <QTextTable>
+#include <QToolButton>
 #include <QTreeView>
 
 #include <algorithm>
@@ -265,7 +266,9 @@ int main(int argc, char** argv)
 	auto* overview = window.overview_page();
 	auto* reader   = overview->body_view();
 	structures(*reader);
-	overview->findChild<QPushButton*>(QStringLiteral("overviewReadDescription"))->click();
+	auto* fullView = overview->findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+	expect(fullView != nullptr, "composed Overview exposes its full-view corner control");
+	fullView->click();
 	settle();
 	expect(reader->height() > 700, "expanded overview fills the workbench without a six-line cap");
 	expect(opener.Addresses.empty(), "rendering, layout and native accessibility perform no browser effect");

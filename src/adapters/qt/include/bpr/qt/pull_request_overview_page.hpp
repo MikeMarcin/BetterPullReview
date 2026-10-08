@@ -470,8 +470,7 @@ namespace bpr::qt {
 		QWidget*                                                     Header               = nullptr;
 		QWidget*                                                     Side                 = nullptr;
 		QLabel*                                                      EmptyBody            = nullptr;
-		QPushButton*                                                 ReadDescription      = nullptr;
-		QPushButton*                                                 ReturnToFiles        = nullptr;
+		QToolButton*                                                 FullView             = nullptr;
 		QLabel*                                                      CachedThreadsHeading = nullptr;
 		QPlainTextEdit*                                              CachedThreads        = nullptr;
 		QPlainTextEdit*                                              CachedDiscussion     = nullptr;

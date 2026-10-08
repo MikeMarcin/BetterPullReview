@@ -1,6 +1,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
@@ -10,6 +11,7 @@
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
+#include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
@@ -175,6 +177,143 @@ Final content: Ω 日本語 😀
 		expect(reader->toPlainText() == QStringLiteral("Replacement") && !reader->textCursor().hasSelection(), "identity replacement clears prior document selection");
 		aView.clear();
 		expect(aView.original_body().empty() && reader->toPlainText().isEmpty(), "clear invalidates both retained bodies");
+	}
+
+	void check_context_controls_and_selection_copy(qt::markdown_body_view& aView)
+	{
+		const auto body = std::string{ "# Heading\r\n\r\nBefore *emphasis* and `inline code` and [link](https://example.test/copy).\r\n\r\nfirst\r\nsecond Ω 😀\r\n" };
+		aView.set_context_controls(true);
+		aView.set_body(body, "context-copy:1");
+		settle();
+		expect(!aView.findChild<QPushButton*>(QStringLiteral("markdownSourceToggle"))->isVisible()
+				   && !aView.findChild<QPushButton*>(QStringLiteral("markdownCopySource"))->isVisible(),
+			   "context reader has no source action row");
+		auto*      rendered = aView.rendered_view();
+		auto*      document = rendered->document();
+		const auto revision = document->revision();
+		auto       cursor   = document->find(QStringLiteral("emphasis"));
+		const auto end      = document->find(QStringLiteral("second Ω 😀"));
+		cursor.setPosition(end.selectionEnd(), QTextCursor::KeepAnchor);
+		rendered->setTextCursor(cursor);
+		rendered->copy();
+		const auto* mime = QApplication::clipboard()->mimeData();
+		expect(mime->formats() == QStringList{ QStringLiteral("text/plain") }, "rendered partial selection has text MIME only");
+		const auto markdown = mime->text();
+		std::cout << "partial-copy-content=" << QString{ markdown }.replace(QLatin1Char{ '\n' }, QStringLiteral("\\n")).toStdString() << '\n';
+		auto probe = QTextDocument{ };
+		probe.setMarkdown(markdown, QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML);
+		expect(probe.toPlainText().contains(QStringLiteral("emphasis and inline code and link.")), "copied Markdown retains selected reading content");
+		expect(probe.find(QStringLiteral("emphasis")).charFormat().fontItalic()
+				   && probe.find(QStringLiteral("inline code")).charFormat().fontFixedPitch()
+				   && probe.find(QStringLiteral("link")).charFormat().anchorHref() == QStringLiteral("https://example.test/copy")
+				   && probe.toPlainText().contains(QStringLiteral("first")) && probe.toPlainText().contains(QStringLiteral("second Ω 😀")),
+			   "partial copy keeps equivalent emphasis, code, link destinations and multiline Unicode as Markdown");
+		rendered->selectAll();
+		const auto binding = QKeySequence::keyBindings(QKeySequence::Copy).front()[0];
+		key(*rendered, binding.key(), binding.keyboardModifiers());
+		expect(QApplication::clipboard()->mimeData()->data(QStringLiteral("text/plain")).toStdString() == body
+				   && !QApplication::clipboard()->mimeData()->hasHtml(),
+			   "keyboard Copy of full rendered selection returns exact authored Markdown without HTML");
+		rendered->customContextMenuRequested(QPoint{ 12, 12 });
+		settle();
+		auto* menu = rendered->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+		expect(menu != nullptr, "reader right-click opens the native context menu");
+		auto* toggle = menu->findChild<QAction*>(QStringLiteral("markdownContextSourceToggle"));
+		expect(toggle && toggle->text() == QStringLiteral("View source") && toggle->isEnabled(), "View source is in the reader context menu");
+		toggle->trigger();
+		menu->close();
+		settle();
+		expect(aView.source_visible() && rendered->document() == document && document->revision() == revision && rendered->textCursor().hasSelection(), "context source switch retains the rendered document and selection");
+		auto*      source          = aView.source_view();
+		auto       sourceSelection = QTextCursor{ source->document() };
+		const auto selectedText    = QStringLiteral("first\nsecond Ω 😀");
+		const auto start           = source->toPlainText().indexOf(selectedText);
+		expect(start >= 0, "source multiline content exists");
+		sourceSelection.setPosition(static_cast<int>(start));
+		sourceSelection.setPosition(static_cast<int>(start + selectedText.size()), QTextCursor::KeepAnchor);
+		expect(sourceSelection.hasSelection(), "source multiline selection exists");
+		source->setTextCursor(sourceSelection);
+		source->copy();
+		expect(QApplication::clipboard()->mimeData()->data(QStringLiteral("text/plain")).toStdString() == "first\r\nsecond Ω 😀"
+				   && !QApplication::clipboard()->mimeData()->hasHtml(),
+			   "source selection Copy retains exact UTF-8 and original CRLF");
+		source->customContextMenuRequested(QPoint{ 12, 12 });
+		settle();
+		menu   = source->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+		toggle = menu->findChild<QAction*>(QStringLiteral("markdownContextSourceToggle"));
+		expect(toggle->text() == QStringLiteral("Rendered"), "source menu offers return to rendered reading");
+		aView.set_body("replacement body", "context-copy:2");
+		toggle->trigger();
+		menu->close();
+		settle();
+		expect(!aView.source_visible() && aView.original_body() == "replacement body", "a stale source menu cannot switch replacement reading state");
+		aView.set_body("before _italic_ after", "context-normalization:1");
+		rendered->setTextCursor(rendered->document()->find(QStringLiteral("italic")));
+		rendered->copy();
+		const auto copied = QApplication::clipboard()->text();
+		expect(copied.contains(QStringLiteral("italic")) && !QApplication::clipboard()->mimeData()->hasHtml(), "partial rendered copying supplies Markdown text without HTML");
+		std::cout << "rendered-copy-observation: original=_italic_ selected=italic clipboard=" << QString{ copied }.replace(QLatin1Char{ '\n' }, QStringLiteral("\\n")).toStdString() << '\n';
+		aView.set_context_controls(false);
+	}
+
+	auto context_action(QWidget& aEditor, const QString& aLabel) -> std::pair<QMenu*, QAction*>
+	{
+		aEditor.customContextMenuRequested(QPoint{ 12, 12 });
+		settle();
+		for (auto* menu : aEditor.findChildren<QMenu*>(QStringLiteral("markdownReaderContextMenu"))) {
+			if (!menu->isVisible()) {
+				continue;
+			}
+			for (auto* action : menu->actions()) {
+				if (QString{ action->text() }.remove(QLatin1Char{ '&' }).section(QLatin1Char{ '\t' }, 0, 0).compare(aLabel, Qt::CaseInsensitive) == 0) {
+					return { menu, action };
+				}
+			}
+		}
+		expect(false, "native context action exists");
+		return { };
+	}
+
+	void check_select_all_original_guarantee(qt::markdown_body_view& aView)
+	{
+		const auto original      = std::string{ "# Original style\r\n\r\nBefore _italic_ and [link](https://example.test/original \"title\"). Ω 😀\r\n\r\n~~~cpp\r\n\treturn 1;\r\n~~~\r\n\r\n  \r\n\r\n" };
+		const auto suffix        = std::string{ "\r\nΩ 😀\r\n\r\n" };
+		const auto bodies        = std::vector<std::string>{ original, "paragraph\n\n\n", std::string(262'144 - suffix.size(), 'x') + suffix };
+		const auto selectBinding = QKeySequence::keyBindings(QKeySequence::SelectAll).front()[0];
+		const auto copyBinding   = QKeySequence::keyBindings(QKeySequence::Copy).front()[0];
+		aView.set_context_controls(true);
+		int identity = 0;
+		for (const auto& body : bodies) {
+			aView.set_body(body, "select-all:" + std::to_string(++identity));
+			settle();
+			if (body == original) {
+				expect(aView.rendered_available(), "original-style fence/links/Unicode body renders before full-copy guarantee");
+			}
+			for (const auto sourceMode : { false, true }) {
+				aView.show_source(sourceMode);
+				settle();
+				auto* editor = aView.source_visible() ? static_cast<QWidget*>(aView.source_view()) : static_cast<QWidget*>(aView.rendered_view());
+				aView.source_visible() ? aView.source_view()->moveCursor(QTextCursor::Start) : aView.rendered_view()->moveCursor(QTextCursor::Start);
+				QApplication::clipboard()->setText(QStringLiteral("keyboard-copy sentinel"));
+				editor->setFocus();
+				key(*editor, selectBinding.key(), selectBinding.keyboardModifiers());
+				key(*editor, copyBinding.key(), copyBinding.keyboardModifiers());
+				expect(QApplication::clipboard()->mimeData()->data(QStringLiteral("text/plain")).toStdString() == body && !QApplication::clipboard()->mimeData()->hasHtml(), "native Select All then Copy guarantees exact original bytes in rendered/source/fallback modes");
+				aView.source_visible() ? aView.source_view()->moveCursor(QTextCursor::Start) : aView.rendered_view()->moveCursor(QTextCursor::Start);
+				QApplication::clipboard()->setText(QStringLiteral("context-copy sentinel"));
+				auto [selectMenu, selectAction] = context_action(*editor, QStringLiteral("Select All"));
+				selectAction->trigger();
+				selectMenu->close();
+				settle();
+				auto [copyMenu, copyAction] = context_action(*editor, QStringLiteral("Copy"));
+				expect(copyAction->isEnabled(), "native context Copy is enabled after context Select All");
+				copyAction->trigger();
+				copyMenu->close();
+				settle();
+				expect(QApplication::clipboard()->mimeData()->data(QStringLiteral("text/plain")).toStdString() == body && !QApplication::clipboard()->mimeData()->hasHtml(), "context Select All then Copy guarantees original Markdown including CRLF, fence spelling and trailing blanks");
+			}
+		}
+		aView.set_context_controls(false);
 	}
 
 	/// \brief The resource course's scratch directory, at a random name that
@@ -411,6 +550,8 @@ try {
 	settle();
 	check_corpus(view);
 	check_source_and_refresh(view);
+	check_context_controls_and_selection_copy(view);
+	check_select_all_original_guarantee(view);
 	check_resources(view);
 	check_links(view);
 	check_bounds(view);

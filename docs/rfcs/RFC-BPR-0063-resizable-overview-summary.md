@@ -25,9 +25,13 @@ space consumed below the body. View source moves to the reader context menu;
 Overview no longer needs a separate Copy source control. Ordinary selection
 copying yields Markdown source text rather than an HTML clipboard payload.
 Exact source-mode byte copying and original provider-body authority remain.
-Rendered partial selections may serialize their selected native document
-fragment as Markdown; they do not claim byte-exact original offsets. Full
-selection can retain the original body. Original AC01–AC05, resizing,
+The owner subsequently accepted equivalent Markdown for rendered partial
+selections on the explicit condition that **Select All → Copy guarantees the
+original Markdown**. This supersedes the intermediate exact-partial request.
+Source-view selections retain original UTF-8 bytes and line endings; neither
+reading mode places HTML on the clipboard. The full-selection guarantee includes
+CRLF, source delimiter spelling, links, fences, Unicode and trailing whitespace.
+Original AC01–AC05, resizing,
 persistence and retained reading/file semantics remain in force, and a new
 exact candidate still needs the required owner/native observations.
 

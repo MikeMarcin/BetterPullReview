@@ -19,6 +19,7 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
@@ -65,6 +66,21 @@
 #include <vector>
 
 namespace bpr::qt {
+	namespace {
+		auto full_view_icon(const QPalette& aPalette, const bool aExpanded) -> QIcon
+		{
+			return painted_glyph_icon([aExpanded](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 10.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				const auto corner = aExpanded ? 0.56 : 0.8;
+				const auto other  = aExpanded ? 0.44 : 0.2;
+				aPainter.drawLine(QPointF{ 0.56 * aSide, other * aSide }, QPointF{ 0.8 * aSide, other * aSide });
+				aPainter.drawLine(QPointF{ corner * aSide, 0.2 * aSide }, QPointF{ corner * aSide, 0.44 * aSide });
+				aPainter.drawLine(QPointF{ 0.2 * aSide, (1.0 - other) * aSide }, QPointF{ 0.44 * aSide, (1.0 - other) * aSide });
+				aPainter.drawLine(QPointF{ (1.0 - corner) * aSide, 0.56 * aSide }, QPointF{ (1.0 - corner) * aSide, 0.8 * aSide });
+			},
+									  aPalette.color(QPalette::Active, QPalette::ButtonText), aPalette.color(QPalette::Disabled, QPalette::ButtonText));
+		}
+	}
 	// One shared reader keeps both native documents through normal/expanded layout.
 	class overview_description_view final : public QWidget
 	{
@@ -72,7 +88,8 @@ namespace bpr::qt {
 		explicit overview_description_view(QWidget* aParent)
 			: QWidget{ aParent }
 		{
-			Reader       = new markdown_body_view{ this };
+			Reader = new markdown_body_view{ this };
+			Reader->set_context_controls(true);
 			auto* layout = new QVBoxLayout{ this };
 			layout->setContentsMargins(0, 0, 0, 0);
 			layout->addWidget(Reader);
@@ -1923,33 +1940,35 @@ namespace bpr::qt {
 		TechnicalRow->setSpacing(6);
 		headerLayout->addLayout(TechnicalRow);
 
-		ReturnToFiles = new QPushButton{ QStringLiteral("Return to Files"), main };
-		ReturnToFiles->setObjectName(QStringLiteral("overviewReturnToFiles"));
-		ReturnToFiles->setAccessibleName(ReturnToFiles->text());
-		mainColumn->addWidget(ReturnToFiles, 0, Qt::AlignLeft);
-		connect(ReturnToFiles, &QPushButton::clicked, this, [this] { set_description_expanded(false); });
-
 		SummarySplit = new overview_summary_splitter{ main };
 		SummarySplit->setObjectName(QStringLiteral("overviewSummarySplitter"));
 		mainColumn->addWidget(SummarySplit, 1);
 		SummaryPane = new QWidget{ SummarySplit };
 		SummaryPane->setObjectName(QStringLiteral("overviewSummaryPane"));
-		auto* summaryColumn = new QVBoxLayout{ SummaryPane };
+		auto* summaryColumn = new QGridLayout{ SummaryPane };
 		summaryColumn->setContentsMargins(0, 0, 0, 0);
-		summaryColumn->setSpacing(4);
+		summaryColumn->setSpacing(2);
+		summaryColumn->setColumnStretch(0, 1);
+		summaryColumn->setRowStretch(0, 1);
 		Body = new overview_description_view{ SummaryPane };
 		Body->setObjectName(QStringLiteral("overviewBody"));
 		Body->setAccessibleName(QStringLiteral("Pull request description"));
 		Body->Reader->setAccessibleName(QStringLiteral("Pull request description"));
-		summaryColumn->addWidget(Body, 1);
+		summaryColumn->addWidget(Body, 0, 0);
 		EmptyBody = new QLabel{ QStringLiteral("No description"), main };
 		EmptyBody->setObjectName(QStringLiteral("overviewNoDescription"));
 		mainColumn->insertWidget(mainColumn->indexOf(SummarySplit), EmptyBody);
-		ReadDescription = new QPushButton{ QStringLiteral("Read full description"), main };
-		ReadDescription->setObjectName(QStringLiteral("overviewReadDescription"));
-		ReadDescription->setAccessibleName(ReadDescription->text());
-		summaryColumn->addWidget(ReadDescription, 0, Qt::AlignLeft);
-		connect(ReadDescription, &QPushButton::clicked, this, [this] { set_description_expanded(true); });
+		FullView = new QToolButton{ SummaryPane };
+		FullView->setObjectName(QStringLiteral("overviewFullView"));
+		FullView->setCheckable(true);
+		FullView->setAutoRaise(true);
+		FullView->setFocusPolicy(Qt::StrongFocus);
+		FullView->setText(QStringLiteral("Enter full view"));
+		FullView->setAccessibleName(FullView->text());
+		FullView->setToolTip(FullView->text());
+		FullView->setIcon(full_view_icon(palette(), false));
+		summaryColumn->addWidget(FullView, 0, 1, Qt::AlignTop | Qt::AlignRight);
+		connect(FullView, &QToolButton::clicked, this, [this](const bool aChecked) { set_description_expanded(aChecked); });
 		Body->LayoutChanged = [this] { SummarySplit->queue_layout(); };
 		FilesPane           = new QWidget{ SummarySplit };
 		FilesPane->setObjectName(QStringLiteral("overviewFilesPane"));
@@ -1959,8 +1978,8 @@ namespace bpr::qt {
 		SummarySplit->addWidget(SummaryPane);
 		SummarySplit->addWidget(FilesPane);
 		SummarySplit->LineHeight     = [this] { return Body->line_height(); };
-		SummarySplit->NaturalHeight  = [this] { return Body->natural_height() + ReadDescription->sizeHint().height() + 4; };
-		SummarySplit->SummaryMinimum = [this] { return 3 * Body->line_height() + Body->chrome_height() + ReadDescription->sizeHint().height() + 4; };
+		SummarySplit->NaturalHeight  = [this] { return std::max(Body->natural_height(), FullView->sizeHint().height()); };
+		SummarySplit->SummaryMinimum = [this] { return std::max(3 * Body->line_height() + Body->chrome_height(), FullView->sizeHint().height()); };
 		SummarySplit->FilesMinimum   = [this] { return FilesHeading->sizeHint().height() + 4 + Files->header()->sizeHint().height() + 3 * std::max(Files->fontMetrics().height() + 8, Files->sizeHintForRow(0)); };
 		auto* escape                 = new QShortcut{ QKeySequence{ Qt::Key_Escape }, this };
 		escape->setContext(Qt::WidgetWithChildrenShortcut);
@@ -2337,10 +2356,10 @@ namespace bpr::qt {
 		}
 		Body->setVisible(!aProjection.Body.empty());
 		SummaryPane->setVisible(!aProjection.Body.empty());
-		ReadDescription->setVisible(!aProjection.Body.empty() && ReturnToFiles->isHidden());
+		FullView->setVisible(!aProjection.Body.empty());
 		SummarySplit->queue_layout();
 		EmptyBody->setVisible(aProjection.Body.empty());
-		if (aProjection.Body.empty() && !ReturnToFiles->isHidden()) {
+		if (aProjection.Body.empty() && FullView->isChecked()) {
 			set_description_expanded(false);
 		}
 		if (bodyChanged) {
@@ -2481,7 +2500,7 @@ namespace bpr::qt {
 		SummaryPane->setVisible(false);
 		EmptyBody->setVisible(false);
 		SummaryPane->setVisible(false);
-		ReadDescription->setVisible(false);
+		FullView->setVisible(false);
 		FilesHeading->setText(QStringLiteral("Files"));
 		FilesHeading->setToolTip({ });
 		ModeChosen = false;
@@ -2534,7 +2553,7 @@ namespace bpr::qt {
 		Body->present_body(aObservation.Body);
 		Body->setVisible(!aObservation.Body.empty());
 		SummaryPane->setVisible(!aObservation.Body.empty());
-		ReadDescription->setVisible(!aObservation.Body.empty());
+		FullView->setVisible(!aObservation.Body.empty());
 		SummarySplit->queue_layout();
 		FilesHeading->setText(QStringLiteral("Files — %1 reported; catalogue loading…").arg(count_text(aObservation.ReportedFiles)));
 		SinceHeading->setText(QStringLiteral("Review state — loading…"));
@@ -2631,8 +2650,12 @@ namespace bpr::qt {
 		Files->setVisible(!aExpanded);
 		FilesHeading->setVisible(!aExpanded);
 		update_folder_controls();
-		ReturnToFiles->setVisible(aExpanded);
-		ReadDescription->setVisible(!aExpanded && Projection.has_value() && !Projection->Body.empty());
+		FullView->setChecked(aExpanded);
+		FullView->setText(aExpanded ? QStringLiteral("Exit full view") : QStringLiteral("Enter full view"));
+		FullView->setAccessibleName(FullView->text());
+		FullView->setToolTip(aExpanded ? QStringLiteral("Exit full view (Return to Files)") : FullView->text());
+		FullView->setIcon(full_view_icon(palette(), aExpanded));
+		FullView->setVisible(!Body->Reader->original_body().empty());
 		EmptyBody->setVisible(!aExpanded && Projection.has_value() && Projection->Body.empty());
 		findChild<QShortcut*>(QStringLiteral("overviewDescriptionEscape"))->setEnabled(aExpanded);
 		if (aExpanded) {
@@ -2640,7 +2663,7 @@ namespace bpr::qt {
 		} else if (isVisible()) {
 			Files->setFocus(Qt::OtherFocusReason);
 		}
-		QWidget::setTabOrder(ReturnToFiles, Body);
+		QWidget::setTabOrder(FullView, Body);
 	}
 
 	void pull_request_overview_page::set_summary_fraction(const std::optional<std::uint32_t> aFraction)
@@ -3392,6 +3415,9 @@ namespace bpr::qt {
 		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange) {
 			refresh_folder_icons();
 			refresh_feedback_icons();
+			if (FullView) {
+				FullView->setIcon(full_view_icon(palette(), FullView->isChecked()));
+			}
 		}
 	}
 

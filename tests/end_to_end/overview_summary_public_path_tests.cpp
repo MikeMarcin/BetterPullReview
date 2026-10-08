@@ -17,6 +17,8 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollBar>
@@ -25,6 +27,7 @@
 #include <QTemporaryDir>
 #include <QTextEdit>
 #include <QThread>
+#include <QToolButton>
 #include <QTreeView>
 #include <QWheelEvent>
 
@@ -137,9 +140,20 @@ int main(int aArgc, char** aArgv)
 		expect(e2e::remove_course_root(temporary), "attended private root cleaned");
 		return result;
 	}
-	auto*       text     = reader->rendered_view();
-	auto*       document = text->document();
-	const auto  revision = document->revision();
+	auto*      text     = reader->rendered_view();
+	auto*      document = text->document();
+	const auto revision = document->revision();
+	auto*      fullView = page->findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+	expect(fullView && fullView->accessibleName() == QStringLiteral("Enter full view")
+			   && fullView->mapTo(page, QPoint{ }).y() == reader->mapTo(page, QPoint{ }).y()
+			   && reader->rendered_view()->height() == reader->height(),
+		   "composed top-right full-view control and reader reclaim action rows");
+	text->selectAll();
+	text->copy();
+	expect(QApplication::clipboard()->mimeData()->data(QStringLiteral("text/plain")).toStdString() == body
+			   && !QApplication::clipboard()->mimeData()->hasHtml(),
+		   "composed rendered selection copies original Markdown with no HTML");
+	text->setTextCursor(QTextCursor{ document });
 	QWheelEvent wheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, { }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 	QApplication::sendEvent(text->viewport(), &wheel);
 	expect(text->verticalScrollBar()->value() > 0 && page->files_view()->verticalScrollBar()->value() == 0, "normal Markdown wheel scrolls independently of Files");
@@ -165,7 +179,14 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready && window.github_refresh_action()->isEnabled(); }, "ordinary public Refresh settles");
 	settle();
 	expect(page->summary_fraction() == fraction && text->document() == document && document->revision() == revision && resets == 0, "same-body public Refresh retains fraction, reader revision and Files model");
-	reader->show_source(true);
+	text->customContextMenuRequested(QPoint{ 12, 12 });
+	settle();
+	auto* context = text->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+	expect(context != nullptr, "composed reader opens its context menu");
+	auto* sourceAction = context->findChild<QAction*>(QStringLiteral("markdownContextSourceToggle"));
+	expect(sourceAction && sourceAction->text() == QStringLiteral("View source"), "composed source switching is in the reader context menu");
+	sourceAction->trigger();
+	context->close();
 	settle();
 	auto* source = reader->source_view();
 	QApplication::sendEvent(source->viewport(), &wheel);
@@ -177,15 +198,17 @@ int main(int aArgc, char** aArgv)
 	source->copy();
 	expect(QApplication::clipboard()->text().toStdString() == body, "complete admitted source remains selectable and copyable in normal pane");
 	render(*application, QStringLiteral("source-resized"));
-	auto*      full         = page->findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
-	auto*      back         = page->findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
+	expect(!QApplication::clipboard()->mimeData()->hasHtml(), "composed source copying supplies no HTML");
+	auto*      full         = page->findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+	auto*      back         = page->findChild<QToolButton*>(QStringLiteral("overviewFullView"));
 	const auto retainedFile = page->file_model()->index_for_path(QString::fromStdString(page->projection()->Files.back().Path));
 	page->files_view()->setCurrentIndex(retainedFile);
 	page->files_view()->scrollTo(retainedFile);
 	const auto retainedFileScroll = page->files_view()->verticalScrollBar()->value();
 	full->click();
 	settle();
-	expect(back->isVisible() && !page->files_view()->isVisible(), "composed full reader has Return to Files");
+	render(*application, QStringLiteral("full-reader"));
+	expect(back->isVisible() && back->isChecked() && back->accessibleName() == QStringLiteral("Exit full view") && !page->files_view()->isVisible(), "composed full reader has Return to Files");
 	back->click();
 	settle();
 	expect(page->summary_fraction() == fraction && source->textCursor().hasSelection() && page->files_view()->currentIndex() == retainedFile && page->files_view()->verticalScrollBar()->value() == retainedFileScroll, "full-reader return keeps normal fraction, source selection and Files place");
