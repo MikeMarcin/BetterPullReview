@@ -36,4 +36,9 @@ namespace bpr::core {
 		}
 		return file_progress_mark::unread;
 	}
+
+	auto progress_done(const file_receipt& aReceipt) noexcept -> bool
+	{
+		return aReceipt.Accepted || aReceipt.Read == file_read_state::read;
+	}
 } // namespace bpr::core

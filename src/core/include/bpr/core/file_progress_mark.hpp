@@ -32,6 +32,16 @@ namespace bpr::core {
 
 	/// \brief Decides the mark a receipt shows.
 	[[nodiscard]] auto progress_mark(const file_receipt& aReceipt) noexcept -> file_progress_mark;
+
+	/// \brief [[BPR-1339]]. Whether a file counts as done in my review progress.
+	///
+	/// \details A file is done once it is read or accepted. The owner,
+	/// 2026-10-08: "Rule gap, marking it read updates it to read. Accepted is
+	/// stronger than read or unread". Acceptance does not set the read fact,
+	/// so revoking it leaves the file as far read as it was; it only counts
+	/// the file as done while it holds. Exclusion is not considered: an
+	/// excluded file counts by how far it was read, as it always has.
+	[[nodiscard]] auto progress_done(const file_receipt& aReceipt) noexcept -> bool;
 } // namespace bpr::core
 
 #endif

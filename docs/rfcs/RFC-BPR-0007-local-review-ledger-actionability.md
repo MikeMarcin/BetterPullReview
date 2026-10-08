@@ -63,6 +63,17 @@ note could no longer name it. The owner accepted keeping the path:
 
 File receipts attach to `FileMaterialId`. A new epoch preserves a receipt only when the compared material identity remains equivalent. Conversation receipts record the latest seen/accepted comment identity and edit version. New or edited comments reopen unread state.
 
+Amended 2026-10-08 by the owner's rule on [[BPR-1339]], verbatim: "Rule gap,
+marking it read updates it to read. Accepted is stronger than read or unread".
+Read, accepted and excluded stay independent facts on the receipt: accepting a
+file does not mark it read, and revoking acceptance shows its read state again.
+Where one state is shown or counted, accepted outranks read, seen and unread:
+the file's mark is `core::progress_mark` (excluded, then accepted, then the
+read progression, [[BPR-1331]]), and a file is done in my review progress once
+it is read or accepted (`core::progress_done`). Overview's read column and the
+Files drawer show the mark; "Files read", the "not read" count and Continue
+review's next file count done files.
+
 Where review state targets a diff location, it uses RFC-BPR-0004's stable file,
 epoch, source-line/boundary, change-group, or move-relation identity. The ledger
 never persists Qt indexes, visual row numbers, ribbon paths, measured

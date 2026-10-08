@@ -1,6 +1,7 @@
 #include "bpr/application/pull_request_overview.hpp"
 
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/file_progress_mark.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -17,6 +18,17 @@
 
 namespace bpr::application {
 	namespace {
+		/// \brief [[BPR-1339]]. Whether a row counts as done, as
+		/// `core::progress_done` decided for the receipt the row carries: it
+		/// was read, or its mark is accepted, which it is only while the
+		/// receipt is accepted (the core never builds one accepted and
+		/// excluded).
+		[[nodiscard]] auto row_done(const overview_file_row& aRow) noexcept -> bool
+		{
+			return aRow.Read == std::optional{ core::file_read_state::read }
+			|| aRow.Mark == std::optional{ core::file_progress_mark::accepted };
+		}
+
 		[[nodiscard]] auto operation_of(const github_file_change aChange) noexcept
 			-> overview_file_operation
 		{
@@ -358,7 +370,8 @@ namespace bpr::application {
 			const auto receipt  = std::ranges::lower_bound(receipts, identity, { }, [](const core::file_receipt* aReceipt) { return aReceipt->File; });
 			if (receipt != receipts.end() && (*receipt)->File == identity) {
 				row.Read = (*receipt)->Read;
-				if ((*receipt)->Read == core::file_read_state::read) {
+				row.Mark = core::progress_mark(**receipt);
+				if (core::progress_done(**receipt)) {
 					++projection.Progress.FilesRead;
 				}
 			}
@@ -384,16 +397,14 @@ namespace bpr::application {
 
 		// The one action. A first visit starts at the first file; otherwise
 		// the review continues at the first file that changed since my last
-		// review, else the first file I have not read.
+		// review, else the first file not yet done: neither read nor accepted.
 		const auto firstVisit = !lastReviewed.has_value() && aContext.Receipts.empty();
 		projection.Entry      = firstVisit ? overview_entry_kind::start_review : overview_entry_kind::continue_review;
 		const auto changed    = std::ranges::find_if(projection.Files, [](const overview_file_row& aRow) {
 			return aRow.Changed == overview_change_since_review::changed
 				|| aRow.Changed == overview_change_since_review::added;
 		});
-		const auto unread     = std::ranges::find_if(projection.Files, [](const overview_file_row& aRow) {
-			return !aRow.Read.has_value() || *aRow.Read != core::file_read_state::read;
-		});
+		const auto unread     = std::ranges::find_if(projection.Files, [](const overview_file_row& aRow) { return !row_done(aRow); });
 		if (!firstVisit && changed != projection.Files.end()) {
 			projection.EntryPath = changed->Path;
 		} else if (!firstVisit && unread != projection.Files.end()) {
@@ -410,14 +421,14 @@ namespace bpr::application {
 		const bool                              aAnyReceipt)
 	{
 		Rows.clear();
-		Unread.clear();
+		NotDone.clear();
 		FirstChanged.reset();
 		Rows.reserve(aProjection.Files.size());
 		for (std::size_t row = 0U; row < aProjection.Files.size(); ++row) {
 			const auto& file = aProjection.Files[row];
 			Rows.emplace_back(core::file_identity_of(file.Path), row);
-			if (!file.Read.has_value() || *file.Read != core::file_read_state::read) {
-				Unread.insert(row);
+			if (!row_done(file)) {
+				NotDone.insert(row);
 			}
 			if (!FirstChanged.has_value()
 				&& (file.Changed == overview_change_since_review::changed
@@ -436,7 +447,7 @@ namespace bpr::application {
 	void overview_receipt_index::clear() noexcept
 	{
 		Rows.clear();
-		Unread.clear();
+		NotDone.clear();
 		FirstChanged.reset();
 		Adopted = false;
 	}
@@ -460,19 +471,23 @@ namespace bpr::application {
 			// each row its file's receipt.
 			AnyReceipt = true;
 			for (const auto& [file, index] : std::ranges::equal_range(Rows, receipt.File, { }, &std::pair<core::file_identity, std::size_t>::first)) {
+				// [[BPR-1339]]. An Accept or an Exclude moves the mark and not
+				// the read state, so both are compared.
 				auto&      row     = aProjection.Files[index];
-				const auto wasRead = row.Read == std::optional{ core::file_read_state::read };
-				const auto isRead  = receipt.Read == core::file_read_state::read;
-				if (row.Read == std::optional{ receipt.Read }) {
+				const auto mark    = core::progress_mark(receipt);
+				const auto wasDone = row_done(row);
+				const auto isDone  = core::progress_done(receipt);
+				if (row.Read == std::optional{ receipt.Read } && row.Mark == std::optional{ mark }) {
 					continue;
 				}
 				row.Read = receipt.Read;
-				if (isRead && !wasRead) {
+				row.Mark = mark;
+				if (isDone && !wasDone) {
 					++aProjection.Progress.FilesRead;
-					Unread.erase(index);
-				} else if (wasRead && !isRead) {
+					NotDone.erase(index);
+				} else if (wasDone && !isDone) {
 					--aProjection.Progress.FilesRead;
-					Unread.insert(index);
+					NotDone.insert(index);
 				}
 				update.Rows.push_back(row);
 			}
@@ -482,8 +497,8 @@ namespace bpr::application {
 		aProjection.Entry     = firstVisit ? overview_entry_kind::start_review : overview_entry_kind::continue_review;
 		if (!firstVisit && FirstChanged.has_value()) {
 			aProjection.EntryPath = aProjection.Files[*FirstChanged].Path;
-		} else if (!firstVisit && !Unread.empty()) {
-			aProjection.EntryPath = aProjection.Files[*Unread.begin()].Path;
+		} else if (!firstVisit && !NotDone.empty()) {
+			aProjection.EntryPath = aProjection.Files[*NotDone.begin()].Path;
 		} else if (!aProjection.Files.empty()) {
 			aProjection.EntryPath = aProjection.Files.front().Path;
 		} else {

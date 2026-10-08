@@ -5,6 +5,7 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/file_progress_mark.hpp"
 #include "bpr/core/review_ledger.hpp"
 
 #include <cstddef>
@@ -55,8 +56,12 @@ namespace bpr::application {
 		overview_change_since_review Changed   = overview_change_since_review::unchanged;
 		/// My read state, absent when the ledger holds no receipt for the file.
 		std::optional<core::file_read_state> Read;
-		std::size_t                          ThreadCount           = 0U;
-		std::size_t                          UnresolvedThreadCount = 0U;
+		/// [[BPR-1339]]. The one mark the row shows, `core::progress_mark` of
+		/// the receipt: accepted is stronger than read, seen and unread. Absent
+		/// with no receipt.
+		std::optional<core::file_progress_mark> Mark;
+		std::size_t                             ThreadCount           = 0U;
+		std::size_t                             UnresolvedThreadCount = 0U;
 		/// Unread posts on the file; absent until the ledger keeps post read
 		/// state ([[BPR-0648]]).
 		std::optional<std::size_t> UnreadCount;
@@ -150,6 +155,7 @@ namespace bpr::application {
 
 	struct overview_review_progress
 	{
+		/// [[BPR-1339]]. Files read or accepted (`core::progress_done`).
 		std::size_t                FilesRead    = 0U;
 		std::size_t                FilesTotal   = 0U;
 		std::size_t                PrivateNotes = 0U;
@@ -223,9 +229,9 @@ namespace bpr::application {
 
 	/// \brief What one or more durable receipt changes did to a published overview.
 	///
-	/// \details [[BPR-0972]]. The changed rows carry their new read state; the
-	/// progress and the one action are the overview's new values. Nothing else
-	/// in the overview is a function of receipts.
+	/// \details [[BPR-0972]]. The changed rows carry their new read state and
+	/// mark ([[BPR-1339]]); the progress and the one action are the overview's
+	/// new values. Nothing else in the overview is a function of receipts.
 	struct overview_receipt_update
 	{
 		std::vector<overview_file_row> Rows;
@@ -240,8 +246,8 @@ namespace bpr::application {
 	///
 	/// \details [[BPR-0972]]. `adopt` indexes a complete projection once, in
 	/// O(N log N). `apply` then answers each changed receipt with a binary
-	/// search and keeps the unread rows ordered, so the first unread file is
-	/// known without walking the files. It decides exactly what
+	/// search and keeps the rows not yet done ordered, so the first such file
+	/// is known without walking the files. It decides exactly what
 	/// `project_pull_request_overview` decides for the same inputs; a file it
 	/// was not given refuses the update, and the caller projects again.
 	class overview_receipt_index final
@@ -265,11 +271,12 @@ namespace bpr::application {
 
 	private:
 		std::vector<std::pair<core::file_identity, std::size_t>> Rows;
-		std::set<std::size_t>                                    Unread;
-		std::optional<std::size_t>                               FirstChanged;
-		bool                                                     Adopted           = false;
-		bool                                                     LastReviewedKnown = false;
-		bool                                                     AnyReceipt        = false;
+		/// Rows not yet done: neither read nor accepted ([[BPR-1339]]).
+		std::set<std::size_t>      NotDone;
+		std::optional<std::size_t> FirstChanged;
+		bool                       Adopted           = false;
+		bool                       LastReviewedKnown = false;
+		bool                       AnyReceipt        = false;
 	};
 
 	/// \brief Retains the update rows the epoch host publishes.

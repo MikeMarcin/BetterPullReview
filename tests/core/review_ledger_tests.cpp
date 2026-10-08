@@ -630,6 +630,28 @@ namespace {
 				   && core::name(mark::accepted) == "accepted" && core::name(mark::excluded) == "excluded",
 			   "every progress mark names itself");
 	}
+
+	/// [[BPR-1339]]. The owner, 2026-10-08: "Accepted is stronger than read or
+	/// unread". A file is done once read or accepted, and acceptance alone
+	/// never makes it read.
+	void test_an_accepted_file_is_done_without_being_read()
+	{
+		auto       receipt = receipt_for(1U, 1U);
+		const auto step    = [&receipt](const kind aKind) {
+			const auto outcome = core::apply(receipt, command_for(receipt, aKind));
+			expect(outcome.Rejection == core::file_receipt_rejection::none, "each step of the done walk is legal");
+			receipt = outcome.Receipt;
+			return core::progress_done(receipt);
+		};
+		expect(!core::progress_done(receipt), "a fresh receipt is not done");
+		expect(!step(kind::mark_seen), "a seen file is not done");
+		expect(step(kind::accept), "an accepted file is done though only seen");
+		expect(receipt.Read == core::file_read_state::seen, "accepting a file does not mark it read");
+		expect(!step(kind::revoke_acceptance), "revoking acceptance leaves a seen file not done");
+		expect(step(kind::mark_read), "a read file is done");
+		expect(step(kind::accept) && step(kind::mark_unread), "an accepted file stays done when marked unread");
+		expect(!step(kind::revoke_acceptance), "and is not done once acceptance is revoked");
+	}
 } // namespace
 
 auto main() -> int
@@ -650,6 +672,7 @@ auto main() -> int
 	test_a_filter_changes_membership_and_not_the_ranking_rule();
 	test_every_enumerator_names_itself();
 	test_one_progress_mark_sums_up_a_receipt();
+	test_an_accepted_file_is_done_without_being_read();
 
 	std::cout << "review-ledger-core-tests:pass\n";
 	return EXIT_SUCCESS;

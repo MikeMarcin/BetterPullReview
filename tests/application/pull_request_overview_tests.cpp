@@ -2,6 +2,7 @@
 
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/file_progress_mark.hpp"
 
 #include <array>
 #include <cstdint>
@@ -443,6 +444,60 @@ namespace {
 		}
 	}
 
+	// [[BPR-1339]]. The owner, 2026-10-08: "Accepted is stronger than read or
+	// unread". An accepted row shows accepted whatever its read state, counts
+	// as done, and is not where Continue review lands; an Accept that leaves
+	// the read state alone still moves the row.
+	void test_an_accepted_file_shows_accepted_and_counts_as_done()
+	{
+		auto review = snapshot();
+		review.Files.clear();
+		for (unsigned index = 0; index < 4U; ++index) {
+			review.Files.push_back(application::github_file_record{
+				.Path   = "src/file" + std::to_string(index) + ".cpp",
+				.Change = application::github_file_change::modified,
+			});
+		}
+		const auto path    = [&review](const unsigned aIndex) { return review.Files[aIndex].Path; };
+		auto       context = application::overview_context{ };
+		context.Receipts.push_back(receipt(path(0U), core::file_read_state::seen));
+		auto projection = application::project_pull_request_overview(review, context);
+		auto index      = application::overview_receipt_index{ };
+		index.adopt(projection, false, true);
+		expect(row_named(projection, path(0U)).Mark == std::optional{ core::file_progress_mark::seen } && !row_named(projection, path(1U)).Mark.has_value(),
+			   "a row carries its receipt's mark, and none without a receipt");
+		expect(projection.Progress.FilesRead == 0U && projection.EntryPath == std::optional{ path(0U) }, "a seen file is not done");
+
+		const auto step = [&](const unsigned aIndex, const core::file_read_state aRead, const bool aAccepted, const bool aExcluded, const char* const aMessage) {
+			auto changed     = receipt(path(aIndex), aRead);
+			changed.Accepted = aAccepted;
+			changed.Excluded = aExcluded;
+			std::erase_if(context.Receipts, [&changed](const core::file_receipt& aReceipt) { return aReceipt.File == changed.File; });
+			context.Receipts.push_back(changed);
+			const auto update = index.apply(projection, std::vector{ changed });
+			expect(update.has_value() && update->Rows.size() == 1U && update->Rows.front().Path == path(aIndex), aMessage);
+			expect(projection == application::project_pull_request_overview(review, context), "an applied receipt decides what a complete projection decides");
+		};
+		step(0U, core::file_read_state::seen, true, false, "accepting a seen file moves its row though its read state did not move");
+		expect(row_named(projection, path(0U)).Mark == std::optional{ core::file_progress_mark::accepted }
+				   && row_named(projection, path(0U)).Read == std::optional{ core::file_read_state::seen },
+			   "the accepted row shows accepted and keeps its read state");
+		expect(projection.Progress.FilesRead == 1U && projection.EntryPath == std::optional{ path(1U) },
+			   "the accepted file counts as done and Continue review moves past it");
+		step(1U, core::file_read_state::read, false, false, "a read file moves its row");
+		expect(projection.Progress.FilesRead == 2U && projection.EntryPath == std::optional{ path(2U) }, "a read file counts as done");
+		step(1U, core::file_read_state::read, true, false, "accepting a read file moves its row");
+		expect(row_named(projection, path(1U)).Mark == std::optional{ core::file_progress_mark::accepted } && projection.Progress.FilesRead == 2U,
+			   "accepting a read file shows accepted and counts it once");
+		step(2U, core::file_read_state::unread, false, true, "excluding a file moves its row");
+		expect(row_named(projection, path(2U)).Mark == std::optional{ core::file_progress_mark::excluded } && projection.Progress.FilesRead == 2U,
+			   "an excluded unread file shows excluded and is not done");
+		step(0U, core::file_read_state::seen, false, false, "revoking acceptance moves the row back");
+		expect(row_named(projection, path(0U)).Mark == std::optional{ core::file_progress_mark::seen } && projection.Progress.FilesRead == 1U
+				   && projection.EntryPath == std::optional{ path(0U) },
+			   "a revoked file shows its read state again and is not done");
+	}
+
 	void test_history_header_matches_complete_projection()
 	{
 		for (const auto count : { 32U, 4096U }) {
@@ -472,6 +527,7 @@ auto main() -> int
 {
 	test_history_header_matches_complete_projection();
 	test_receipt_updates_match_a_complete_projection();
+	test_an_accepted_file_shows_accepted_and_counts_as_done();
 	test_first_visit_starts_at_the_first_file();
 	test_continue_lands_on_the_first_changed_then_unread_file();
 	test_comment_groups_stand_in_for_threads_when_signed_out();

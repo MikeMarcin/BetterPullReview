@@ -189,6 +189,9 @@ comment badges and my note; participants with their sign-off state; a
 me, my unresolved threads, checks); my review progress; and one action,
 Continue review (Start review on first visit), which enters Read at the first
 unseen change. Amended 2026-10-06 ([[BPR-1295]]): both enter Review.
+Amended 2026-10-08 ([[BPR-1339]]): "my read state" is the file's progress mark,
+where accepted is stronger than read or unread (RFC-BPR-0007's receipt
+semantics), and my review progress counts a file read or accepted as done.
 
 **Read** (Review since 2026-10-06, [[BPR-1295]]). Side-by-side diff with the product theme and the DiffLinkMap between
 the panes. Gutter marks: amber for a line with a thread, blue for a new one.

@@ -7,6 +7,7 @@
 #include "../support/resize_cursor_hold_check.hpp"
 
 #include "bpr/application/pull_request_overview.hpp"
+#include "bpr/core/file_progress_mark.hpp"
 
 #include <QAbstractScrollArea>
 #include <QAccessible>
@@ -70,14 +71,17 @@ namespace {
 	{
 		const auto slash = aPath.rfind('/');
 		return application::overview_file_row{
-			.Path                  = aPath,
-			.Folder                = slash == std::string::npos ? std::string{ } : aPath.substr(0U, slash),
-			.Name                  = slash == std::string::npos ? aPath : aPath.substr(slash + 1U),
-			.Operation             = aOperation,
-			.Additions             = 12U,
-			.Deletions             = aOperation == application::overview_file_operation::added ? 0U : 3U,
-			.Changed               = aChanged,
-			.Read                  = aRead,
+			.Path      = aPath,
+			.Folder    = slash == std::string::npos ? std::string{ } : aPath.substr(0U, slash),
+			.Name      = slash == std::string::npos ? aPath : aPath.substr(slash + 1U),
+			.Operation = aOperation,
+			.Additions = 12U,
+			.Deletions = aOperation == application::overview_file_operation::added ? 0U : 3U,
+			.Changed   = aChanged,
+			.Read      = aRead,
+			// As the projection decides it for a receipt with no acceptance or
+			// exclusion: the read progression.
+			.Mark                  = aRead.has_value() ? std::optional{ static_cast<core::file_progress_mark>(static_cast<int>(*aRead)) } : std::nullopt,
 			.ThreadCount           = aThreads,
 			.UnresolvedThreadCount = aUnresolved,
 			.Note                  = aNote,
@@ -1675,6 +1679,88 @@ namespace {
 		settle();
 		expect(asked.back().Mode == core::feedback_resolution_mode::all && !asked.back().Sort && !model->feedback(), "another pull request starts at the default, unsorted, with no counts");
 	}
+
+	/// \brief [[BPR-1339]]. The read column shows the row's mark: an accepted
+	/// file says and draws accepted whatever its read state, in a mark of its
+	/// own, and a receipt update that only accepts moves it. The owner,
+	/// 2026-10-08: "Accepted is stronger than read or unread".
+	void test_the_read_column_shows_the_mark()
+	{
+		using mark       = core::file_progress_mark;
+		auto projected   = projection();
+		projected.Files  = { };
+		const auto marks = std::vector<std::pair<std::string, std::optional<mark>>>{
+			{ "none", std::nullopt }, { "seen", mark::seen }, { "read", mark::read }, { "accepted", mark::accepted }, { "excluded", mark::excluded }
+		};
+		for (const auto& [name, value] : marks) {
+			const auto read = value == std::optional{ mark::read } ? std::optional{ core::file_read_state::read }
+				: value.has_value()                                ? std::optional{ core::file_read_state::seen }
+																   : std::nullopt;
+			auto       file = row("Marks/" + name + ".cpp", application::overview_file_operation::modified, application::overview_change_since_review::unchanged, read);
+			file.Mark       = value;
+			projected.Files.push_back(file);
+		}
+		qt::pull_request_overview_page page;
+		page.resize(1'100, 700);
+		page.present(projected);
+		page.show();
+		settle();
+		auto* const model = page.file_model();
+		auto* const view  = page.files_view();
+		const auto  cell  = [&](const std::string& aName) {
+			return model->index_for_path(QString::fromStdString("Marks/" + aName + ".cpp")).siblingAtColumn(qt::overview_file_model::read_column);
+		};
+		for (const auto& [name, value] : marks) {
+			const auto word = name == "none" ? QStringLiteral("unread") : QString::fromStdString(name);
+			expect(cell(name).data(Qt::AccessibleTextRole).toString() == word && cell(name).data(Qt::ToolTipRole).toString() == word,
+				   "the read column says the row's mark: " + name);
+			expect(cell(name).siblingAtColumn(0).data(qt::overview_file_model::progress_role).toInt() == (value.has_value() ? static_cast<int>(*value) : -1),
+				   "the row carries its mark: " + name);
+		}
+		expect(cell("accepted").siblingAtColumn(0).data(qt::overview_file_model::read_role).toInt() == static_cast<int>(core::file_read_state::seen),
+			   "the accepted row keeps its read state underneath");
+
+		const auto ratio = view->viewport()->grab().toImage().devicePixelRatio();
+		const auto crop  = [&](const QImage& aImage, const std::string& aName) {
+			const auto rect = view->visualRect(cell(aName));
+			return aImage.copy(QRectF{ rect.left() * ratio, rect.top() * ratio, 26.0 * ratio, rect.height() * ratio }.toRect());
+		};
+		// The accepted mark: the read dot's colour round a tick cut out of its
+		// middle.
+		const auto tickCut = [&](const QImage& aCell) {
+			auto filled = 0;
+			for (auto y = 0; y < aCell.height(); ++y) {
+				for (auto x = 0; x < aCell.width(); ++x) {
+					filled += aCell.pixelColor(x, y) == page.colours().Accepted ? 1 : 0;
+				}
+			}
+			return filled > 0 && aCell.pixelColor(QPoint{ static_cast<int>(13.0 * ratio), aCell.height() / 2 }) != page.colours().Accepted;
+		};
+		const auto image = view->viewport()->grab().toImage();
+		for (std::size_t one = 0U; one < marks.size(); ++one) {
+			for (auto two = one + 1U; two < marks.size(); ++two) {
+				expect(crop(image, marks[one].first) != crop(image, marks[two].first), "each mark draws differently: " + marks[one].first + " and " + marks[two].first);
+			}
+		}
+		expect(tickCut(crop(image, "accepted")) && !tickCut(crop(image, "read")), "the accepted mark is the read dot with a tick cut out of it");
+
+		const auto root = qEnvironmentVariable("BPR_OVERVIEW_MARK_RENDER_ROOT");
+		if (!root.isEmpty()) {
+			const auto rows = view->visualRect(cell("none")).united(view->visualRect(cell("excluded")));
+			expect(view->viewport()->grab(QRect{ 0, rows.top() - 2, 560, rows.height() + 4 }).save(root + QStringLiteral("/overview-marks.png")), "the marks render is saved");
+		}
+
+		// An update that only accepts moves the row and its mark.
+		auto update     = application::overview_receipt_update{ };
+		auto changed    = projected.Files[2];
+		changed.Mark    = mark::accepted;
+		update.Rows     = { changed };
+		update.Progress = projected.Progress;
+		page.apply_receipts(update);
+		settle();
+		expect(cell("read").data(Qt::AccessibleTextRole).toString() == QStringLiteral("accepted"), "a receipt update that accepts a read file shows accepted");
+		expect(tickCut(crop(view->viewport()->grab().toImage(), "read")), "and draws the accepted mark");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -1699,6 +1785,7 @@ auto main(int argc, char** argv) -> int
 	test_label_chips_show_the_selected_breakdown();
 	test_chip_activation_names_exactly_its_count();
 	test_modified_mark_reads_on_every_row();
+	test_the_read_column_shows_the_mark();
 	std::cout << "pull-request-overview-page-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

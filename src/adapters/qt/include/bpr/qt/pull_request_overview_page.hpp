@@ -153,6 +153,9 @@ namespace bpr::qt {
 			changed_role,
 			/// -1 without a receipt, else the `core::file_read_state` value.
 			read_role,
+			/// [[BPR-1339]]. -1 without a receipt, else the
+			/// `core::file_progress_mark` the row shows.
+			progress_role,
 			threads_role,
 			unresolved_role,
 			/// [[BPR-1089]]. True on the "Not on a file" row.

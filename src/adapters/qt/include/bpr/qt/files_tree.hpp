@@ -109,6 +109,9 @@ namespace bpr::qt {
 			deletions_role,
 			/// -1 unknown, else `core::file_read_state`.
 			read_role,
+			/// [[BPR-1339]]. -1 unknown, else the `core::file_progress_mark`
+			/// the overview decided.
+			progress_role,
 			/// -1 unknown, else the unread comment count.
 			unread_role,
 			/// True when the overview says the file changed since my last review.

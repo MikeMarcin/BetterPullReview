@@ -2,6 +2,7 @@
 #include <QAction>
 #include <QActionGroup>
 
+#include "bpr/core/file_progress_mark.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -31,6 +32,8 @@
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QPalette>
 #include <QPen>
 #include <QPlainTextEdit>
@@ -60,6 +63,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <numbers>
 #include <numeric>
 #include <optional>
 #include <string>
@@ -401,20 +405,16 @@ namespace bpr::qt {
 			return { };
 		}
 
-		[[nodiscard]] auto read_text(const std::optional<core::file_read_state>& aRead) -> QString
+		/// \brief [[BPR-1339]]. The read column's word: the row's mark, where
+		/// accepted is stronger than read, seen and unread; unread with no
+		/// receipt.
+		[[nodiscard]] auto read_text(const application::overview_file_row& aRow) -> QString
 		{
-			if (!aRead.has_value()) {
+			if (!aRow.Mark.has_value()) {
 				return QStringLiteral("unread");
 			}
-			switch (*aRead) {
-			case core::file_read_state::read:
-				return QStringLiteral("read");
-			case core::file_read_state::seen:
-				return QStringLiteral("seen");
-			case core::file_read_state::unread:
-				break;
-			}
-			return QStringLiteral("unread");
+			const auto word = core::name(*aRow.Mark);
+			return QString::fromLatin1(word.data(), static_cast<qsizetype>(word.size()));
 		}
 
 		[[nodiscard]] auto role_text(const application::overview_participant_role aRole) -> QString
@@ -1421,6 +1421,8 @@ namespace bpr::qt {
 			return static_cast<int>(row->Changed);
 		case read_role:
 			return row->Read.has_value() ? static_cast<int>(*row->Read) : -1;
+		case progress_role:
+			return row->Mark.has_value() ? static_cast<int>(*row->Mark) : -1;
 		case threads_role:
 			return static_cast<qulonglong>(row->ThreadCount);
 		case unresolved_role:
@@ -1443,7 +1445,7 @@ namespace bpr::qt {
 					? QStringLiteral("Not yet resolved: compare since my last review to find out")
 					: changed_text(row->Changed);
 			case read_column:
-				return read_text(row->Read);
+				return read_text(*row);
 			case comments_column:
 				return QStringLiteral("%1 threads, %2 unresolved")
 					.arg(count_text(row->ThreadCount), count_text(row->UnresolvedThreadCount));
@@ -1466,7 +1468,7 @@ namespace bpr::qt {
 			case changed_column:
 				return changed_text(row->Changed);
 			case read_column:
-				return aRole == Qt::AccessibleTextRole ? read_text(row->Read) : QString{ };
+				return aRole == Qt::AccessibleTextRole ? read_text(*row) : QString{ };
 			case comments_column:
 				if (row->ThreadCount == 0U) {
 					return QString{ };
@@ -1734,20 +1736,44 @@ namespace bpr::qt {
 		}
 		case overview_file_model::read_column: {
 			// A hollow dot unread, a half dot seen, a filled dot read: three
-			// shapes, so the state survives without its colour.
-			const auto read   = aIndex.data(overview_file_model::read_role).toInt();
-			const auto centre = QPointF{ rect.left() + 13.0, static_cast<qreal>(rect.center().y()) };
+			// shapes, so the state survives without its colour. [[BPR-1339]]
+			// adds [[BPR-1331]]'s two stronger marks in the same circle: the
+			// filled dot with a tick cut out of it accepted, a ring struck
+			// through excluded.
+			constexpr auto radius = 4.5;
+			const auto     mark   = aIndex.data(overview_file_model::progress_role).toInt();
+			const auto     centre = QPointF{ rect.left() + 13.0, static_cast<qreal>(rect.center().y()) };
+			if (mark == static_cast<int>(core::file_progress_mark::accepted)) {
+				// One unit wider than the read dot, as the review bar's
+				// accepted mark is, so the cut tick keeps its weight.
+				auto disc = QPainterPath{ };
+				disc.addEllipse(centre, radius + 1.0, radius + 1.0);
+				auto tick = QPainterPath{ };
+				// The review bar's tick, scaled from its 8-unit disc to 5.5.
+				tick.moveTo(centre + QPointF{ -2.75, 0.15 });
+				tick.lineTo(centre + QPointF{ -0.7, 2.2 });
+				tick.lineTo(centre + QPointF{ 2.9, -2.05 });
+				auto cut = QPainterPathStroker{ };
+				cut.setWidth(1.5);
+				cut.setCapStyle(Qt::RoundCap);
+				cut.setJoinStyle(Qt::RoundJoin);
+				aPainter->fillPath(disc.subtracted(cut.createStroke(tick)), Colours.Accepted);
+				break;
+			}
 			aPainter->setPen(QPen{ ink, 1.2 });
 			aPainter->setBrush(Qt::NoBrush);
-			aPainter->drawEllipse(centre, 4.5, 4.5);
-			if (read == static_cast<int>(core::file_read_state::read)) {
+			aPainter->drawEllipse(centre, radius, radius);
+			if (mark == static_cast<int>(core::file_progress_mark::excluded)) {
+				const auto reach = radius * std::numbers::sqrt2 / 2.0;
+				aPainter->drawLine(centre + QPointF{ -reach, reach }, centre + QPointF{ reach, -reach });
+			} else if (mark == static_cast<int>(core::file_progress_mark::read)) {
 				aPainter->setBrush(Colours.Accepted);
 				aPainter->setPen(Qt::NoPen);
-				aPainter->drawEllipse(centre, 4.5, 4.5);
-			} else if (read == static_cast<int>(core::file_read_state::seen)) {
+				aPainter->drawEllipse(centre, radius, radius);
+			} else if (mark == static_cast<int>(core::file_progress_mark::seen)) {
 				aPainter->setBrush(ink);
 				aPainter->setPen(Qt::NoPen);
-				aPainter->drawPie(QRectF{ centre.x() - 4.5, centre.y() - 4.5, 9.0, 9.0 }, 90 * 16, 180 * 16);
+				aPainter->drawPie(QRectF{ centre.x() - radius, centre.y() - radius, 2.0 * radius, 2.0 * radius }, 90 * 16, 180 * 16);
 			}
 			break;
 		}

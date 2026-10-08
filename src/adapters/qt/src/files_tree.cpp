@@ -1,4 +1,5 @@
 #include "bpr/qt/files_tree.hpp"
+#include "bpr/core/file_progress_mark.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/resident_filter.hpp"
 
@@ -779,6 +780,8 @@ namespace bpr::qt {
 			return overview != nullptr ? static_cast<qulonglong>(overview->Deletions) : qulonglong{ 0 };
 		case read_role:
 			return overview != nullptr && overview->Read.has_value() ? static_cast<int>(*overview->Read) : -1;
+		case progress_role:
+			return overview != nullptr && overview->Mark.has_value() ? static_cast<int>(*overview->Mark) : -1;
 		case unread_role:
 			return overview != nullptr && overview->UnreadCount.has_value()
 				? static_cast<int>(*overview->UnreadCount)
@@ -870,7 +873,7 @@ namespace bpr::qt {
 		initStyleOption(&option, aIndex);
 		const auto  folder  = aIndex.data(files_tree_model::folder_role).toBool();
 		const auto  unread  = aIndex.data(files_tree_model::unread_role).toInt();
-		const auto  read    = aIndex.data(files_tree_model::read_role).toInt();
+		const auto  mark    = aIndex.data(files_tree_model::progress_role).toInt();
 		const auto& colours = option.palette;
 		const auto  faint   = colours.color(QPalette::Active, QPalette::PlaceholderText);
 		// The row's own text is drawn here so the counts can sit at the right.
@@ -898,14 +901,16 @@ namespace bpr::qt {
 		auto rect = option.rect.adjusted(4, 0, -4, 0);
 		// [[BPR-0656]] [[BPR-0658]]. The read-state dot before a file: the
 		// accent while comments are unread, a faint ring while the file itself
-		// is unread, nothing once read.
+		// is unread, nothing once read. [[BPR-1339]]: the ring follows the
+		// file's mark, so an accepted file, done however far it was read,
+		// shows none.
 		if (!folder) {
 			const auto centre = QPointF{ static_cast<qreal>(rect.left()) + 4.0, static_cast<qreal>(rect.center().y()) + 0.5 };
 			if (unread > 0) {
 				aPainter->setPen(Qt::NoPen);
 				aPainter->setBrush(Accent);
 				aPainter->drawEllipse(centre, 3.0, 3.0);
-			} else if (read == static_cast<int>(core::file_read_state::unread)) {
+			} else if (mark == static_cast<int>(core::file_progress_mark::unread)) {
 				aPainter->setPen(QPen{ faint, 1.0 });
 				aPainter->setBrush(Qt::NoBrush);
 				aPainter->drawEllipse(centre, 3.0, 3.0);
