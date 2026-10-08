@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1339"
 title: "An accepted file shows as accepted on Overview, and counts as done"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
+parked_on: "human-review"
 metadata: {"kind":"bug","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1339--BPR-1339--66d5f024f602.json","related_cards":["BPR-1331","BPR-0647","BPR-0656","BPR-0972","BPR-1211"],"acceptance":["BPR-1339:reproduced","BPR-1339:rule","BPR-1339:overview-mark","BPR-1339:counts","BPR-1339:owner-look"]}
 ---
 
@@ -116,7 +117,8 @@ Marking read moved the row at once, as the owner said.
 ## Verification
 
 macOS arm64, `build/dev` (debug info off for disk), offscreen, candidate
-`e431a9087` (rebased on `2cbab3dd0`):
+`e431a9087` (rebased on `2cbab3dd0`; it landed as `2573a8acf` on `55dec39a4`,
+whose new commits touch none of this card's files):
 
 - `ctest -R '^(core_review_ledger|application_pull_request_overview|qt_pull_request_overview_page|qt_files_tree|application_accepted_file_in_overview|qt_review_state_icon|qt_workbench_window_scale_(100|125|200)|application_active_changed_scaling|application_overview_summary_(1|2)|architecture_boundaries)$'`:
   all pass. `qt_pull_request_overview_page` also passes at `QT_SCALE_FACTOR=2`.
@@ -143,3 +145,30 @@ Windows and Linux have not run this change; it adds no platform code.
 - `BPR-1339:overview-mark`: pass at `e431a9087`.
 - `BPR-1339:counts`: pass at `e431a9087`.
 - `BPR-1339:owner-look`: pending.
+
+## Owner look, session v001
+
+Pending: `BPR-1339:owner-look` is the owner's. One short session, one
+candidate, one question, Accept or Reject.
+
+- Session `1f11263fa5bc958f20f92909f9d7e841`, its own fresh state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1339-overview-accepted-v001`,
+  ready and protected at event cursor 3. Candidate
+  `BPR-1339-overview-accepted-mark-v001` ("Overview's accepted mark",
+  revision `frozen-2573a8acf-v001`), with the 2x render of the five marks. The
+  host was started detached and answered on loopback.
+- Frozen root `/Users/jaeger/bpr1339-overview-accepted-v001.3IHAyM`:
+  `git archive` of `2573a8acf` into `src/`, configured with `app-release` and
+  `BUILD_TESTING=ON` into `src/build/app-release-tests`, built
+  `better_pull_review`, source read-only; executable SHA-256
+  `6abb9eb9c18145054bea05d03386c43b64b0bc9d0a35fe100816ea8037e8bd95`.
+  Offscreen with the launcher's arguments it printed
+  `ATTENDED_FILE_SHOWN:src/engine/renderer.cpp`.
+- Launch: `python3 /Users/jaeger/bpr1339-overview-accepted-v001.3IHAyM/launch.py`
+  (`conventional-comments-v1`, signed in, `src/engine/renderer.cpp` open in
+  Review). It checks the build and the fixture tree first and reports an exit
+  within seconds.
+
+Next: read the session's decisions (`status --after 3`). Accept satisfies
+`:owner-look` and the card finishes; a Reject comes back with its note for a
+v002.
