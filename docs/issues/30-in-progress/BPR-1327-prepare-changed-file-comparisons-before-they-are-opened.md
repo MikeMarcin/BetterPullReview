@@ -178,6 +178,77 @@ optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`):
   `application_private_review_native` failed once at the base and once with
   this change, and passed on the rerun.
 
+### After the rebase onto `e84d30975` (2026-10-08)
+
+The branch was rebased onto `4cfc15256`, then onto `e84d30975`, with no
+conflict. Upstream brought the BPR-1324, BPR-1325 and BPR-1334 cards, a
+one-line local rename in `src/adapters/qt/src/writing_hooks_panel.cpp`
+(BPR-1090) and a note in `src/adapters/qt/AGENTS.md`. Both sides' cards are
+kept. Outside `docs/issues` the candidate tree `6e7b6135f` is the tested tree
+`93e95a14e`. Same macOS arm64 optimized tests-on tree.
+
+- **Round-trip pin.** Recomputed on the merged tree:
+  `application_review_round_trip_composition_contract` passes with BPR-1327's
+  digests unchanged (full application `7a3dcf93…`, production app manifest
+  `05ea96e1…`). The upstream rename is outside the pinned set, so no reseal
+  and no new note in the contract was needed.
+- **Focused rows.** `core_comparison_preparation`, `application_diff_host`,
+  `application_epoch_host`, `application_workbench_host`,
+  `gh_cli_git_smart_transport`, `github_provider`,
+  `application_composition_contract`,
+  `application_profile_window_review_restoration_public_path` and
+  `architecture_boundaries`: 9/9 pass.
+- **Large-review rows, `-j1`, budgets enforced.** 18 of 19 pass in 288.4 s.
+  Every report has `BudgetsEnforced` true and empty `UnenforcedLimitMisses`.
+  Load was 4.6 at the start and 41 at the end: another agent's build began
+  during the run. `application_large_review_launch` failed with "Mac fixture
+  responsiveness budget exceeded". Every phase in it ran at about ten times
+  its usual cost (drawer opens 440–490 ms, `large_file_selection` 688 ms).
+  `application_large_review_prepared_open` passed in the same run: unprepared
+  opens 161–173 ms, the first open while its window was prepared 248 ms,
+  later prepared opens 22.2–41.6 ms, 5 of 5 answered by preparation.
+- **Launch row A/B under the same load.** A temporary benchmark binary turned
+  preparation off at startup. Its source change was reverted and the real
+  binary restored byte for byte. The launch row ran interleaved off/on three
+  times at load 92–117. All six runs failed the same budget, with
+  preparation off as well as on, so the failure does not depend on
+  preparation. One trend: `conversations_pick_open` took 249–727 ms with
+  preparation on against 164–185 ms off, and `large_file_selection` took
+  1,327–4,017 against 956–1,601. With all 14 cores saturated the preparation
+  worker competes with the reviewer's open for CPU. At load 2 the same row
+  passed (above), so this trend is recorded and not treated as a budget miss.
+- The machine stayed at load 40–220 for the next 90 minutes and no quiet
+  window came. AC4 therefore rests on the quiet pre-rebase run above, 19/19
+  at load 2. Outside cards, that tree differs from this one only by the
+  upstream rename. The launch row's quiet confirmation on this exact tree is
+  owed to a quiet station: see the commands below.
+- `verify_documentation.py`: DOCUMENTATION_OK.
+
+### Owed: Windows and Linux
+
+On `bpr-main-win` (MSVC) and `bpr-main-linux` (GCC), at the pushed `main`
+commit or later, run the focused rows and the 19 large-review rows on an
+optimized tests-on tree with the station otherwise idle. Then remove the tree.
+
+```powershell
+git -C C:\code\git\BetterPullReview pull --ff-only
+cmake -S C:\code\git\BetterPullReview --preset windows-app-release -B C:\code\git\BetterPullReview\build\bpr1327-release -DBUILD_TESTING=ON -DBPR_DISTRIBUTION_BUILD=OFF -DBPR_DEPENDENCY_OFFLINE=ON
+cmake --build C:\code\git\BetterPullReview\build\bpr1327-release
+ctest --test-dir C:\code\git\BetterPullReview\build\bpr1327-release -j1 --output-on-failure -R "^(core_comparison_preparation|application_diff_host|application_epoch_host|application_workbench_host|gh_cli_git_smart_transport|github_provider|architecture_boundaries|application_review_round_trip_composition_contract|large_review_fixture_contract|large_review_replay_contract|application_large_review_.*|application_unavailable_diff_public_path|application_approximate_diff_public_path|application_first_tab_comparison)$"
+```
+
+```sh
+git -C /home/mmarcin/BetterPullReview pull --ff-only
+cmake -S /home/mmarcin/BetterPullReview --preset app-release -B /home/mmarcin/BetterPullReview/build/bpr1327-release -DBUILD_TESTING=ON -DBPR_DEPENDENCY_OFFLINE=ON
+cmake --build /home/mmarcin/BetterPullReview/build/bpr1327-release
+ctest --test-dir /home/mmarcin/BetterPullReview/build/bpr1327-release -j1 --output-on-failure -R '^(core_comparison_preparation|application_diff_host|application_epoch_host|application_workbench_host|gh_cli_git_smart_transport|github_provider|architecture_boundaries|application_review_round_trip_composition_contract|large_review_fixture_contract|large_review_replay_contract|application_large_review_.*|application_unavailable_diff_public_path|application_approximate_diff_public_path|application_first_tab_comparison)$'
+```
+
+Expect 27 rows passing. On both stations the large-review reports should
+show `BudgetsEnforced` true, empty `InputBudgetFailures` and empty
+`UnenforcedLimitMisses`. `application_large_review_prepared_open` should
+show `PreparedHits` equal to the prepared opens.
+
 ## Owner decision (chat, 2026-10-08)
 
 The question: preparation reads, over the network, the contents of up to 16
