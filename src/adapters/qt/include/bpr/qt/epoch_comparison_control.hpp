@@ -185,6 +185,11 @@ namespace bpr::qt {
 		bool                                                    HistoryWindowStale = false;
 		QString                                                 LastAnnouncement;
 		epoch_comparison_control_statistics                     Statistics;
+
+		/// [[BPR-1340]]. Where focus went when the readiness line took the
+		/// focused Updates line's place, so the line can have it back.
+		QPointer<QWidget> LineFocusParkedOn;
+		bool              LineFocusParked = false;
 	};
 }
 

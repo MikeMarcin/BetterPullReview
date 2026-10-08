@@ -5090,6 +5090,16 @@ namespace bpr::application {
 							if (const auto observed = clock->observe_utc(); observed && core::valid(*observed)) {
 								auto reconciled = reconcile_timeline(*offered, std::move(*stored), *observed);
 								reconciled      = reconcile_local_occurrences(*offered, std::move(reconciled), **opened, currentEpoch, aStop);
+								// [[BPR-1340]]. A new process has no cache open yet, and only a
+								// new head's commit opened one, so an update recorded undated
+								// stayed "Date unavailable" while the head did not move. Open the
+								// actor's cache here when there is a date to read; a refusal
+								// leaves the date unavailable and the offer unchanged.
+								if (std::ranges::any_of(reconciled.Occurrences, [](const auto& aOccurrence) {
+										return aOccurrence.DateSource == core::epoch_occurrence_date_source::unavailable;
+									})) {
+									static_cast<void>(open_actor_cache(*effectActor, *caches, expectedCache, aStop));
+								}
 								enrich_commit_dates(reconciled, effectActor->Cache.get(), aStop);
 								std::ranges::sort(reconciled.Occurrences, core::epoch_occurrence_less);
 								if ((*opened)->record_occurrences(reconciled, aStop)) {

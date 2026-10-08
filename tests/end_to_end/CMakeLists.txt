@@ -3771,6 +3771,25 @@ bpr_bound_automated_run(application_epoch_ordinary_update_recreated
     TIMEOUT 400 BUDGET_MS ${bpr_fixture_run_budget_ms} RUNS 6 RESERVE_MS 10000
 )
 
+# [[BPR-1340]]. The Updates line's handles drag apart from the whole-PR pair and
+# step by key, and an update left undated is dated again on the next open.
+bpr_add_network_isolated_test(
+    NAME application_epoch_update_line_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/epoch_update_line_public_path.py"
+        --application $<TARGET_FILE:app_better_pull_review>
+        --budget-ms ${bpr_fixture_run_budget_ms}
+        --logs "${PROJECT_BINARY_DIR}/update-line-logs"
+)
+set_tests_properties(application_epoch_update_line_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "EPOCH_UPDATE_LINE_OK:1"
+)
+bpr_bound_automated_run(application_epoch_update_line_public_path
+    TIMEOUT 400 BUDGET_MS ${bpr_fixture_run_budget_ms} RUNS 4 RESERVE_MS 10000
+)
+
 bpr_add_executable(test_rate_limit_public_path rate_limit_public_path_tests.cpp)
 target_link_libraries(test_rate_limit_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_rate_limit_public_path PRIVATE BPR_BUILD_TESTING=1)

@@ -900,7 +900,7 @@ namespace {
 			}
 			return 0;
 		}
-		if (aArguments.contains("show") && aArguments.contains("--format=%ct")) {
+		if (aArguments.contains("log") && aArguments.contains("--no-walk") && aArguments.contains("--format=%ct")) {
 			std::cout << read_text(fake_isolation_root() / "committer-output");
 			return 0;
 		}
@@ -1727,6 +1727,16 @@ namespace {
 				{ .Repository = repository, .Commit = object<application::git_commit_id>(dated, aAlgorithm) }, { });
 			require(time && *time == 946688400,
 					"committer UTC seconds are distinct from author time and do not apply the local offset twice");
+			// [[BPR-1340]]. A sparse acquisition stores a wanted head with its
+			// tree but without its parent. Its committer time is in the commit
+			// itself, so the missing ancestor must not make it unavailable.
+			const auto sparse     = run_fixture_git(repository, { "hash-object", "-t", "commit", "-w", "--stdin" },
+													"tree " + tree + "\nparent " + missingText + "\nauthor Fixture <fixture@example.invalid> 946684800 +0000\n"
+																								 "committer Fixture <fixture@example.invalid> 946692000 +0000\n\nsparse head without its parent\n");
+			const auto sparseTime = adapter->read_committer_time_seconds(
+				{ .Repository = repository, .Commit = object<application::git_commit_id>(sparse, aAlgorithm) }, { });
+			require(sparseTime && *sparseTime == 946692000,
+					"a head stored without its parent still has its committer date");
 			const auto missingTime = adapter->read_committer_time_seconds(
 				{ .Repository = repository, .Commit = object<application::git_commit_id>(missingText, aAlgorithm) }, { });
 			require(missingTime && !*missingTime, "missing commit leaves committer date unavailable");

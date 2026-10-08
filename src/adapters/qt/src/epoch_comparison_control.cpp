@@ -766,8 +766,28 @@ namespace bpr::qt {
 		ReadinessLabel->setText(Readiness);
 		ReadinessLabel->setToolTip(Readiness);
 		ReadinessLabel->setAccessibleDescription(Readiness);
+		const auto lineShown = TrackOpen && Readiness.isEmpty();
+		// [[BPR-1340]]. A step or a drag on the line starts a comparison, and
+		// while it resolves the readiness line stands in the line's place.
+		// Hiding the focused line hands focus to whatever Qt finds next, so
+		// the second Right went to that widget. The line takes focus back
+		// when it returns, unless something else has taken it meanwhile.
+		const auto lineFocused = !Line->isHidden() && Line->window() != nullptr && Line->window()->focusWidget() == Line;
+		if (!lineShown && lineFocused) {
+			LineFocusParked = true;
+		}
 		ReadinessLabel->setVisible(TrackOpen && !Readiness.isEmpty());
-		Line->setVisible(TrackOpen && Readiness.isEmpty());
+		Line->setVisible(lineShown);
+		if (!lineShown && lineFocused) {
+			LineFocusParkedOn = Line->window()->focusWidget();
+		}
+		if (lineShown && LineFocusParked) {
+			LineFocusParked = false;
+			if (Line->window() != nullptr && Line->window()->focusWidget() == LineFocusParkedOn.data()) {
+				Line->setFocus(Qt::OtherFocusReason);
+			}
+			LineFocusParkedOn.clear();
+		}
 		update_comparing_text();
 	}
 

@@ -67,12 +67,14 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
+#include <QWindow>
 
 #if defined(BPR_BUILD_TESTING)
 	#include <QFont>
 	#include <QGuiApplication>
 	#include <QImage>
 	#include <QItemSelectionModel>
+	#include <QKeyEvent>
 	#include <QListView>
 	#include <QMessageBox>
 	#include <QMouseEvent>
@@ -920,6 +922,18 @@ namespace {
 			std::optional<bpr::qt::epoch_line_stop> RewrittenBaseRight;
 			bool                                    HistoricalGestureSent = false;
 			bool                                    HistoricalHandleMoved = false;
+			// [[BPR-1340]]. Drags each of the line's two handles to another
+			// update through the window, as a pointer does, and waits for the
+			// comparison the core publishes back.
+			bool                                    DragCourse     = false;
+			bool                                    DragLineOpened = false;
+			int                                     DragStage      = 0;
+			std::optional<bpr::qt::epoch_line_stop> DragTarget;
+			bool                                    DragRightMoved = false;
+			bool                                    DragLeftMoved  = false;
+			bool                                    DragKeyMoved   = false;
+			QStringList                             DragSteps;
+			QString                                 DragGate;
 			// [[BPR-0829]]. Whether the plain enabled course saw every force-push
 			// occurrence on the line retained before it offered the writes.
 			bool HistoricalRetained = false;
@@ -950,6 +964,9 @@ namespace {
 			std::size_t             SettledOccurrenceCount   = 0U;
 			bool                    SettledHistoryIncomplete = false;
 			QString                 SettledHistoryText;
+			// [[BPR-1340]]. Every node's date label, oldest first, so a course
+			// reads what the line says under each update.
+			QStringList SettledLineLabels;
 			// [[BPR-0316]]. The forced selection with no fixture under it.
 			// `SelectionForced` alone activates the mode and stops -- the
 			// verdict for a shipped enabled selection, which reaches zero
@@ -2019,6 +2036,32 @@ namespace {
 		};
 		QCoreApplication::sendEvent(&aSurface, &press);
 		QCoreApplication::sendEvent(&aSurface, &release);
+	}
+
+	/// \brief [[BPR-1340]]. A left-button drag on `aWidget` from `aFrom` to
+	/// `aTo`, delivered to its top-level window as the platform delivers a
+	/// pointer: the window picks the widget under the press and keeps sending
+	/// it the moves and the release, through every filter on the way.
+	void send_window_drag(QWidget& aWidget, const QPoint& aFrom, const QPoint& aTo)
+	{
+		auto* const top    = aWidget.window();
+		auto* const target = top != nullptr ? top->windowHandle() : nullptr;
+		if (target == nullptr) {
+			return;
+		}
+		const auto deliver = [&](const QEvent::Type aType, const QPoint& aAt, const Qt::MouseButton aButton, const Qt::MouseButtons aButtons) {
+			const auto local = QPointF{ aWidget.mapTo(top, aAt) };
+			auto       event = QMouseEvent{ aType, local, local, QPointF{ aWidget.mapToGlobal(aAt) }, aButton, aButtons, Qt::NoModifier };
+			QCoreApplication::sendEvent(target, &event);
+		};
+		deliver(QEvent::MouseMove, aFrom, Qt::NoButton, Qt::NoButton);
+		deliver(QEvent::MouseButtonPress, aFrom, Qt::LeftButton, Qt::LeftButton);
+		constexpr auto steps = 4;
+		for (auto step = 1; step <= steps; ++step) {
+			const auto at = aFrom + ((aTo - aFrom) * step) / steps;
+			deliver(QEvent::MouseMove, at, Qt::NoButton, Qt::LeftButton);
+		}
+		deliver(QEvent::MouseButtonRelease, aTo, Qt::LeftButton, Qt::NoButton);
 	}
 
 	[[nodiscard]] auto capture_diff_interaction_evidence(
@@ -4261,6 +4304,19 @@ namespace {
 								   ? "PUBLIC_PREVIEW_REWRITTEN_BASE_UNAVAILABLE_OK\n"
 								   : "PUBLIC_PREVIEW_REWRITTEN_BASE_UNAVAILABLE_FAILED\n");
 				}
+				// [[BPR-1340]]. After the enabled verdict, whose rows the public
+				// path matches in one run of lines.
+				stream << "PUBLIC_PREVIEW_EPOCH_LINE_LABELS:" << aRun.PublicPreview.SettledLineLabels.join(QStringLiteral(" | ")) << '\n';
+				if (aRun.PublicPreview.DragCourse) {
+					stream << "PUBLIC_PREVIEW_HANDLE_DRAG_GATE:" << aRun.PublicPreview.DragGate << '\n'
+						   << "PUBLIC_PREVIEW_HANDLE_DRAG_STEPS:" << aRun.PublicPreview.DragSteps.join(QStringLiteral(" | ")) << '\n'
+						   << "PUBLIC_PREVIEW_HANDLE_DRAG_MOVED:left=" << (aRun.PublicPreview.DragLeftMoved ? 1 : 0)
+						   << ":right=" << (aRun.PublicPreview.DragRightMoved ? 1 : 0)
+						   << ":key=" << (aRun.PublicPreview.DragKeyMoved ? 1 : 0) << '\n'
+						   << (aRun.PublicPreview.DragRightMoved && aRun.PublicPreview.DragLeftMoved && aRun.PublicPreview.DragKeyMoved
+								   ? "PUBLIC_PREVIEW_HANDLE_DRAG_OK\n"
+								   : "PUBLIC_PREVIEW_HANDLE_DRAG_FAILED\n");
+				}
 				if (aRun.PublicPreview.HistoricalCourse) {
 					stream << (aRun.PublicPreview.HistoricalHandleMoved
 								   ? "PUBLIC_PREVIEW_HISTORICAL_HANDLE_OK\n"
@@ -5748,6 +5804,10 @@ namespace {
 							aRun->PublicPreview.SettledOccurrenceCount   = line->update_count();
 							aRun->PublicPreview.SettledHistoryText       = line->history_text();
 							aRun->PublicPreview.SettledHistoryIncomplete = line->history_text().startsWith(QStringLiteral("Incomplete history"));
+							aRun->PublicPreview.SettledLineLabels.clear();
+							for (std::size_t index = 0U; index < line->update_count(); ++index) {
+								aRun->PublicPreview.SettledLineLabels.append(line->label_text(index));
+							}
 						}
 						if (aRun->PublicPreview.MissingHistoricalBase) {
 							const auto* line                               = window.epoch_selectors()->line();
@@ -5846,6 +5906,92 @@ namespace {
 							}
 							aRun->PublicPreview.HistoricalRetained = events > 0U && retained == events;
 							if (!aRun->PublicPreview.HistoricalRetained) {
+								break;
+							}
+						}
+						// [[BPR-1340]]. Each handle is dragged, through the window, to
+						// another update, then the right handle steps by key; the run
+						// waits each time until the comparison the core publishes back
+						// puts that handle there and is ready again. The course starts
+						// from the whole-PR pair, whose two handles share the newest
+						// node, which is where the owner could not take the left one.
+						if (aRun->PublicPreview.DragCourse && !aRun->PublicPreview.DragKeyMoved) {
+							using bpr::core::comparison_anchor_kind;
+							using bpr::qt::epoch_line_stop;
+							auto* const line  = window.epoch_selectors()->line();
+							const auto  ready = aApplication.status().EpochStatus == bpr::core::epoch_status::ready;
+							const auto  left  = line->left_stop();
+							const auto  right = line->right_stop();
+							const auto  named = [](const std::optional<epoch_line_stop>& aStop) {
+								return aStop ? QStringLiteral("%1%2").arg(aStop->Kind == comparison_anchor_kind::epoch_base ? QStringLiteral("base") : QStringLiteral("head")).arg(aStop->Update) : QStringLiteral("none");
+							};
+							aRun->PublicPreview.DragGate = QStringLiteral("stage %1 visible %2 offered %3 ready %4 left %5 right %6 target %7")
+															   .arg(aRun->PublicPreview.DragStage)
+															   .arg(line->isVisible() ? 1 : 0)
+															   .arg(line->selection_offered() ? 1 : 0)
+															   .arg(ready ? 1 : 0)
+															   .arg(named(left), named(right), named(aRun->PublicPreview.DragTarget));
+							// The Updates line opens as the reviewer opens it, from the
+							// review bar's disclosure, once.
+							if (!line->isVisible() && !aRun->PublicPreview.DragLineOpened) {
+								if (auto* const disclosure = window.findChild<QToolButton*>(QStringLiteral("reviewBarUpdates")); disclosure != nullptr) {
+									aRun->PublicPreview.DragLineOpened = true;
+									disclosure->click();
+								}
+								break;
+							}
+							if (!ready || !line->isVisible() || !line->selection_offered() || !left || !right || line->update_count() < 3U) {
+								break;
+							}
+							const auto drag = [&](const epoch_line_stop& aFrom, const epoch_line_stop& aTo) {
+								aRun->PublicPreview.DragTarget = aTo;
+								aRun->PublicPreview.DragSteps.append(QStringLiteral("%1->%2").arg(named(aFrom), named(aTo)));
+								send_window_drag(*line, line->stop_position(aFrom), line->stop_position(aTo));
+								++aRun->PublicPreview.DragStage;
+							};
+							switch (aRun->PublicPreview.DragStage) {
+							case 0:
+								if (left->Update != right->Update) {
+									aRun->PublicPreview.DragGate.append(QStringLiteral(" (expected the whole-PR pair on one node)"));
+									break;
+								}
+								// The left handle, off the node it shares with the right one,
+								// to the oldest update's head.
+								drag(*left, { .Update = 0U, .Kind = comparison_anchor_kind::epoch_head });
+								break;
+							case 1:
+								if (left != aRun->PublicPreview.DragTarget) {
+									break;
+								}
+								aRun->PublicPreview.DragLeftMoved = true;
+								// The right handle, from the newest head to the update before it.
+								drag(*right, { .Update = right->Update - 1U, .Kind = comparison_anchor_kind::epoch_head });
+								break;
+							case 2: {
+								if (right != aRun->PublicPreview.DragTarget) {
+									break;
+								}
+								aRun->PublicPreview.DragRightMoved = true;
+								// The keyboard alternative: Shift+Right steps the right handle
+								// back to the newest head, to the line that has focus.
+								aRun->PublicPreview.DragTarget = epoch_line_stop{ .Update = right->Update + 1U, .Kind = comparison_anchor_kind::epoch_head };
+								aRun->PublicPreview.DragSteps.append(QStringLiteral("Shift+Right %1->%2").arg(named(right), named(aRun->PublicPreview.DragTarget)));
+								auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Right, Qt::ShiftModifier };
+								// The press that started the drag gave the line focus; the
+								// window hands the key to its focus widget.
+								if (auto* const handle = line->window()->windowHandle(); handle != nullptr && line->window()->focusWidget() == line) {
+									QCoreApplication::sendEvent(handle, &key);
+								}
+								++aRun->PublicPreview.DragStage;
+								break;
+							}
+							default:
+								if (right == aRun->PublicPreview.DragTarget) {
+									aRun->PublicPreview.DragKeyMoved = true;
+								}
+								break;
+							}
+							if (!aRun->PublicPreview.DragKeyMoved) {
 								break;
 							}
 						}
@@ -8552,6 +8698,12 @@ auto main(int argc, char** argv) -> int
 #else
 			false;
 #endif
+		const auto publicPreviewDragCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--public-preview-handle-drag-course");
+#else
+			false;
+#endif
 		const auto publicPreviewGhesCourse =
 #if defined(BPR_BUILD_TESTING)
 			has_argument(argc, argv, "--public-preview-ghes-course");
@@ -9204,6 +9356,7 @@ auto main(int argc, char** argv) -> int
 									.MissingHistoricalBase = fixtureOptions.TimelineCourse == "missing-base",
 									.RewrittenBase         = fixtureOptions.TimelineCourse == "rewritten-base" && fixtureOptions.EpochPhase == bpr::app::detail::github_epoch_fixture_phase::reuse,
 #endif
+									.DragCourse      = verifyPublicPreview && publicPreviewDragCourse,
 									.Enterprise      = verifyPublicPreview && previewEnterprise,
 									.SelectionForced = publicPreviewSelectionForced,
 									.LiveCandidate   = publicPreviewLiveCandidate,

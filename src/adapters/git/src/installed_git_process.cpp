@@ -5013,8 +5013,13 @@ namespace bpr::adapters::git {
 					}
 					return std::unexpected{ inspected.error() };
 				}
+				// [[BPR-1340]]. `log --no-walk` reads the one commit and nothing
+				// it names. `show --no-patch` still diffs the commit against its
+				// parent, and a sparse acquisition stores each wanted head without
+				// its ancestors, so on most pull requests the read failed and every
+				// locally observed update said "Date unavailable".
 				auto arguments = common_git_arguments(aRequest.Repository, HooksRoot);
-				append_arguments(arguments, "show", "--no-patch", "--format=%ct", "--no-notes", "--no-show-signature", object_text(aRequest.Commit), "--");
+				append_arguments(arguments, "log", "--no-walk", "--format=%ct", "--no-notes", "--no-show-signature", object_text(aRequest.Commit), "--");
 				const auto result = submit(
 					process_request{ .Arguments = std::move(arguments), .StandardOutputLimit = 32U }, aStop);
 				if (!result) {

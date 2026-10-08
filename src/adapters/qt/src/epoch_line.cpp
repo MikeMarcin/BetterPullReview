@@ -189,10 +189,14 @@ namespace bpr::qt {
 	{
 		Updates.clear();
 		for (const auto& occurrence : aHistory.Occurrences) {
-			const auto date        = QDateTime::fromMSecsSinceEpoch(occurrence.DateUtcMilliseconds, QTimeZone::UTC).toLocalTime();
-			auto       label       = QStringLiteral("Date unavailable");
-			auto       dateDetails = label;
-			auto       bareDate    = QString{ };
+			const auto date      = QDateTime::fromMSecsSinceEpoch(occurrence.DateUtcMilliseconds, QTimeZone::UTC).toLocalTime();
+			const auto firstSeen = QDateTime::fromMSecsSinceEpoch(occurrence.FirstSeen.value(), QTimeZone::UTC).toLocalTime();
+			// [[BPR-1340]]. With neither an event time nor a readable commit
+			// date, the update still has the time this application first saw
+			// it, and says so, rather than "Date unavailable".
+			auto bareDate    = QLocale{ }.toString(firstSeen.date(), QStringLiteral("MMM d"));
+			auto label       = QStringLiteral("First seen %1").arg(bareDate);
+			auto dateDetails = QStringLiteral("Push and commit dates unavailable");
 			if (occurrence.DateSource != core::epoch_occurrence_date_source::unavailable) {
 				const auto source = occurrence.DateSource == core::epoch_occurrence_date_source::github_event
 					? QStringLiteral("Event time")
@@ -521,18 +525,27 @@ namespace bpr::qt {
 		if (aPoint.y() > handle_top + handle_height + 2) {
 			return std::nullopt;
 		}
-		const auto near = [&aPoint](const std::optional<epoch_line_stop>& aStop,
-									const QPoint&                         aAt) {
-			return aStop && std::abs(aAt.x() - aPoint.x()) <= hit_radius;
+		const auto reach = [this, &aPoint](const std::optional<epoch_line_stop>& aStop) -> std::optional<int> {
+			if (!aStop) {
+				return std::nullopt;
+			}
+			const auto distance = std::abs(stop_position(*aStop).x() - aPoint.x());
+			return distance <= hit_radius ? std::optional{ distance } : std::nullopt;
 		};
-		const auto left  = left_stop();
-		const auto right = right_stop();
-		// The right handle is checked first when both sit on one node, so a
-		// whole-PR pair with one update can still be pulled apart.
-		if (right && near(right, stop_position(*right))) {
+		const auto left  = reach(left_stop());
+		const auto right = reach(right_stop());
+		// [[BPR-1340]]. The handle nearer the press is the one taken. The whole
+		// PR puts the left handle on the newest update's base, one base offset
+		// left of the right handle on its head, so both are in reach of a press
+		// on either; taking the right one whenever it was in reach left the
+		// left handle a sliver to grab, and a drag that started on it moved
+		// the right one. Only a press exactly between them, or on one stop
+		// both share, takes the right handle, so a pair on one node can still
+		// be pulled apart.
+		if (right && (!left || *right <= *left)) {
 			return core::comparison_side::right;
 		}
-		if (left && near(left, stop_position(*left))) {
+		if (left) {
 			return core::comparison_side::left;
 		}
 		return std::nullopt;

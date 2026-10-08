@@ -2895,6 +2895,43 @@ namespace {
 			   "cache refresh fills committer time without changing first-seen; mixed date order differs from live ordinal order");
 	}
 
+	/// \brief [[BPR-1340]]. An update recorded without its date, by an earlier
+	/// session or a read that failed, is dated when the review is opened
+	/// again at the same head, in a new process whose cache is not yet open.
+	/// Before, only a new head opened the cache, so the newest update said
+	/// "Date unavailable" for as long as the author did not push.
+	void a_reopened_review_dates_an_undated_update_at_an_unchanged_head()
+	{
+		fixture value;
+		value.State.CommitTimeSeconds.reset();
+		accept_history(value, 1U, 20U, { });
+		accept_history(value, 2U, 21U, { });
+		const auto undated = std::ranges::find_if(value.State.Occurrences.Occurrences,
+												  [](const auto& aOccurrence) { return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::observed_head; });
+		expect(undated != value.State.Occurrences.Occurrences.end()
+				   && undated->DateSource == core::epoch_occurrence_date_source::unavailable,
+			   "the ordinary update is recorded undated while its committer time cannot be read");
+		const auto occurrence = undated->Id;
+		const auto ordinals   = value.State.Snapshot.NextOrdinal;
+		// A new host, as a new process has: its actor's open cache goes with
+		// it, the catalogue stays. The fixture's handoffs name session 91.
+		value.Host->shutdown();
+		drain(value);
+		value.Host = std::make_unique<application::epoch_application_host>(
+			core::epoch_state{ .ApplicationSession = core::application_session_id{ 91U } },
+			value.Caches, value.Catalogs, value.Entropy, value.Clock, value.Effects, value.Decisions, value.Projections);
+		value.State.CommitTimeSeconds = 1'789'000'321;
+		const auto requests           = value.State.CommitTimeRequests.size();
+		accept_history(value, 3U, 21U, { });
+		const auto dated = std::ranges::find(value.State.Occurrences.Occurrences, occurrence, &core::epoch_occurrence::Id);
+		expect(value.State.Snapshot.NextOrdinal == ordinals && value.State.CommitTimeRequests.size() > requests,
+			   "reopening at the unchanged head appends no epoch and asks the cache for the committer time");
+		expect(dated != value.State.Occurrences.Occurrences.end()
+				   && dated->DateSource == core::epoch_occurrence_date_source::commit_date
+				   && dated->DateUtcMilliseconds == 1'789'000'321'000LL,
+			   "the reopened review dates the update from its commit");
+	}
+
 	void establish_ready_comparison(
 		fixture&                                                aValue,
 		std::optional<application::accepted_pull_request_shape> aShape = std::nullopt)
@@ -8030,6 +8067,7 @@ int main()
 	newly_discovered_old_events_cannot_name_a_later_ordinary_transition();
 	uncertain_event_chronology_keeps_the_live_transition_unresolved();
 	unavailable_commit_dates_remain_undated_and_retry_on_refresh();
+	a_reopened_review_dates_an_undated_update_at_an_unchanged_head();
 	delayed_event_keeps_observed_head_separate_without_causal_equivalence();
 	existing_durable_event_binding_is_preserved_without_new_supersession();
 	old_unbound_event_cannot_identify_a_new_return_to_its_head();

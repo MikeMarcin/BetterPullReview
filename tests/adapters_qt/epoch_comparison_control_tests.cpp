@@ -6,12 +6,14 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -21,6 +23,7 @@
 #include <QPushButton>
 #include <QStyle>
 #include <QStyleOptionToolButton>
+#include <QTimeZone>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -949,8 +952,13 @@ namespace {
 		history.Occurrences.back().DateSource = core::epoch_occurrence_date_source::unavailable;
 		update.Catalog->OccurrenceHistory     = history;
 		control.publish(update);
-		expect(line->update_count() == 2 && line->label_text(1) == QStringLiteral("Date unavailable"),
-			   "exact local association removes only the provisional duplicate and missing dates remain undated");
+		// [[BPR-1340]]. An update with neither an event time nor a commit date
+		// is labelled by when it was first seen here, never "Date unavailable".
+		const auto firstSeen = QLocale{ }.toString(QDateTime::fromMSecsSinceEpoch(1'800'000'000'000, QTimeZone::UTC).toLocalTime().date(), QStringLiteral("MMM d"));
+		expect(line->update_count() == 2 && line->label_text(1) == QStringLiteral("First seen %1").arg(firstSeen)
+				   && !line->node_tooltip(1).contains(QStringLiteral("Commit date"))
+				   && line->node_tooltip(1).contains(QStringLiteral("Push and commit dates unavailable")),
+			   "exact local association removes only the provisional duplicate and an undated update says when it was first seen");
 		expect(line->node_tooltip(0).contains(QStringLiteral("Historical base unknown"))
 				   && line->node_tooltip(0).contains(QStringLiteral("Locally observed base 1111")),
 			   "a live association exposes the observed base without claiming historical provenance");
@@ -1110,6 +1118,94 @@ namespace {
 		expect(released->text().startsWith(QStringLiteral("Comparing")) && released->menu() != nullptr
 				   && released->menu()->actions().contains(control.whole_pr_action()),
 			   "the control keeps the released button's text and menu current");
+	}
+
+	/// \brief [[BPR-1340]]. The owner could drag neither handle of the whole-PR
+	/// pair. It puts the left handle on the newest update's base and the right
+	/// on its head, seven pixels apart, and a press on the left handle took
+	/// the right one. Each handle is now the nearer one to a press, and after
+	/// a step the line keeps the keyboard while the comparison resolves.
+	auto test_epoch_line_handles_on_one_node_drag_apart_and_keep_the_keyboard() -> void
+	{
+		std::vector<application::epoch_intent> intents;
+		qt::epoch_comparison_control           control{
+			[&intents](application::epoch_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+		};
+		control.resize(700, 80);
+		control.show();
+		QApplication::processEvents();
+		auto* const line   = control.line();
+		const auto  third  = epoch_row(3, '1', '4');
+		const auto  second = epoch_row(2, '1', '3');
+		const auto  first  = epoch_row(1, '1', '2');
+		control.publish(loaded_catalog_update({ third, second, first }));
+		control.publish(comparison_update(
+			core::named_selection(core::named_comparison::whole_pr),
+			{
+				.Left  = anchor(third, core::comparison_anchor_kind::epoch_base),
+				.Right = anchor(third, core::comparison_anchor_kind::epoch_head),
+			}));
+		QApplication::processEvents();
+		expect(line->selection_offered() && line->left_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_base }
+				   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head },
+			   "the whole-PR pair puts both handles on the newest update");
+		const auto drag = [line](const QPoint& aFrom, const QPoint& aTo) {
+			auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aFrom }, QPointF{ line->mapToGlobal(aFrom) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(line, &press);
+			auto move = QMouseEvent{ QEvent::MouseMove, QPointF{ aTo }, QPointF{ line->mapToGlobal(aTo) }, Qt::NoButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(line, &move);
+			auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ aTo }, QPointF{ line->mapToGlobal(aTo) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(line, &release);
+		};
+		const auto chosen = [&intents]() -> const core::select_comparison_anchor_intent* {
+			return intents.size() == 1U ? std::get_if<core::select_comparison_anchor_intent>(&intents.back()) : nullptr;
+		};
+		intents.clear();
+		drag(line->stop_position(*line->left_stop()), line->node_centre(0));
+		expect(chosen() != nullptr && chosen()->Side == core::comparison_side::left
+				   && chosen()->Anchor == anchor(first, core::comparison_anchor_kind::epoch_head).Identity,
+			   "a drag that starts on the left handle moves the left handle, not the right one beside it");
+		intents.clear();
+		drag(line->stop_position(*line->right_stop()), line->node_centre(1));
+		expect(chosen() != nullptr && chosen()->Side == core::comparison_side::right
+				   && chosen()->Anchor == anchor(second, core::comparison_anchor_kind::epoch_head).Identity,
+			   "a drag that starts on the right handle moves the right handle");
+		const auto between = (line->stop_position(*line->left_stop()) + line->stop_position(*line->right_stop())) / 2;
+		const auto nearer  = line->stop_position(*line->left_stop()).x() + 2;
+		intents.clear();
+		drag(QPoint{ nearer, between.y() }, line->node_centre(0));
+		expect(chosen() != nullptr && chosen()->Side == core::comparison_side::left,
+			   "a press nearer the left handle takes the left handle");
+
+		// The keyboard alternative: a step starts a comparison, the readiness
+		// line stands in for the line while it resolves, and the line has the
+		// keyboard again when it returns, so the next step is its too.
+		auto* const before = new QPushButton{ QStringLiteral("Before"), &control };
+		before->setFocusPolicy(Qt::StrongFocus);
+		before->show();
+		line->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+		expect(control.window()->focusWidget() == line, "the line has the keyboard before the step");
+		control.set_readiness(QStringLiteral("Pull request loaded. Preparing file comparisons…"), true);
+		QApplication::processEvents();
+		expect(line->isHidden() && control.window()->focusWidget() != line,
+			   "while the comparison resolves the line is hidden and Qt moves the keyboard on");
+		control.set_readiness(QString{ }, true);
+		QApplication::processEvents();
+		expect(!line->isHidden() && control.window()->focusWidget() == line,
+			   "the line has the keyboard back when it returns");
+		control.set_readiness(QStringLiteral("Pull request loaded. Preparing file comparisons…"), true);
+		auto* const elsewhere = new QLineEdit{ &control };
+		elsewhere->show();
+		elsewhere->setFocus(Qt::OtherFocusReason);
+		control.set_readiness(QString{ }, true);
+		QApplication::processEvents();
+		expect(control.window()->focusWidget() == elsewhere,
+			   "focus the reviewer moved elsewhere meanwhile stays where they put it");
+		delete elsewhere;
+		delete before;
 	}
 
 	auto test_epoch_line_selects_updates_by_click_drag_and_keys() -> void
@@ -2035,6 +2131,7 @@ auto main(int argc, char** argv) -> int
 	test_real_loaded_window_composition_renders();
 	test_occurrence_evidence_and_unavailable_gestures();
 	test_epoch_line_selects_updates_by_click_drag_and_keys();
+	test_epoch_line_handles_on_one_node_drag_apart_and_keep_the_keyboard();
 	test_epoch_line_waits_for_the_newest_page_on_a_cached_head();
 	test_epoch_line_menu_goes_with_its_window();
 	test_the_comparing_button_moves_to_the_review_bar();

@@ -438,6 +438,18 @@ selections through the actual Qt control and verify their complete OIDs. The
 root is removed after the contract; recordings and evidence contain only
 synthetic identities and fixed counters.
 
+[[BPR-1340]]'s `application_epoch_update_line_public_path` drives the Updates
+line on the same fixtures. Its drag half opens the recorded pull request with
+three force-push updates, opens the line from the review bar's disclosure and,
+from the whole-PR pair whose two handles share the newest node, drags the left
+handle to the oldest update and the right handle back one update, then steps
+the right handle with Shift+Right. Each gesture is delivered to the window as
+a pointer or key is, and the course waits for the comparison the core
+publishes back to put the handle there. Its date half observes one ordinary
+update, clears the recorded date as an earlier session that could not read the
+commit left it, and opens the review again at the same head in a new process:
+the update must read "Commit date" again.
+
 The `--epoch-fixture-root` and `--epoch-fixture-phase` arguments, phase
 markers, fixture factory, recordings, and deterministic Git recipe are
 test-build-only. The tests-disabled Release contract rejects all of their
