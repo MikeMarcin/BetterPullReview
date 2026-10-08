@@ -89,7 +89,8 @@ change Code size.
     editable text field that receives AltGr+0 as a typed character (`}` on
     German and Nordic layouts) keeps the character.
 - **⌘-scroll and pinch** over the code panes zoom by one step for each wheel
-  notch, for each 60 px of trackpad scroll, or for each 0.15 of pinch.
+  notch (120 eighths of a degree; a trackpad's small deltas add up to the
+  same) or for each 0.15 of pinch. A reversal starts the count again.
 - **Steps** are 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250 and 300
   percent. Core owns the steps, the clamp and the zoomed size. The zoomed size
   is the Code size times the percentage, held to the 6 to 72 pt bounds. Zoom In
@@ -100,9 +101,11 @@ change Code size.
   stops, and the Detail pane / Line details strip. The drawer's snippets keep
   Code size.
 - **Indicator:** a small pill at the top centre of the comparison shows the
-  percentage and the size on screen ("125%  16.3 pt") for 1.2 s, in the theme's
-  own surface and text colours, with no fade under reduced motion. The same
-  words are a polite accessibility announcement.
+  percentage and the size on screen ("125%  16.25 pt") for 1.2 s, in the
+  theme's own surface and text colours, with no animation. The same words are
+  a polite accessibility announcement.
+- **Settings:** a **Diff zoom** row under Code size, one item per step, each
+  saying the size it shows ("125% (16.25 pt)").
 - **Scroll anchor:** a visible current line stays where it was in the viewport.
   Otherwise the line on the rail stays, as for any remeasurement.
 
@@ -129,3 +132,141 @@ change Code size.
   input target.
 - **C6 (owner).** The owner looks at a frozen build and answers Accept or Reject
   for "diff zoom".
+
+## Implementation and verification — 2026-10-08
+
+The `frontend-design` skill was loaded before the design work, as the owner
+asked on 2026-10-06. Product commit `7092c1dca`, on `origin/main` `e65fe84cd`
+(after BPR-1328 v002 and BPR-1335).
+
+- **Core.** `code_font_settings::ZoomPercent`, `typography_field::code_zoom`
+  (50 to 300), `code_zoom_steps`, `zoomed_point_size`, `stepped_code_zoom`
+  and `code_zoom_steps_from`.
+- **Host and store.** `step_code_zoom_intent`, stepped by the appearance host
+  from the record it holds. The appearance store is at schema 9
+  (`code_zoom_percent`, CHECK 50 to 300). A version-8 or version-7 file
+  migrates to 100%, and an out-of-range value is refused whole.
+- **Qt.** `appearance_profile::apply_comparison_code_font_to` applies the
+  zoomed font and tab stop to the comparison only. The window has the three
+  View commands with core-decided state and reasons. The resident desktop bar
+  mirrors them, disabled. The comparison scroll controller lets a
+  Control-modified wheel through, and the comparison turns ⌘-scroll and pinch
+  into steps. The comparison notes the reader's line on its own
+  `FontChange`, before its panes take the font. Each pane keeps that line by
+  whole lines in the same turn, and the remeasured axis places it exactly
+  (`ReadingPositionsHeld`). The zoom pill and the polite announcement show
+  each step. Settings has the Diff zoom row.
+- **Drawer snippets keep Code size.** The drawer is a narrow column beside the
+  code, and zooming the comparison to read a long line should not reflow it.
+  The owner can ask for them to follow.
+
+**C1, unattended, pass.** `qt_workbench_window_scale_{100,125,200}`
+(`test_code_zoom_commands_keys_and_collisions`): the three commands, their
+order in View, their states and reasons at 100%, 300% and 50%, and dispatch
+by key with the keyboard in a code pane. `qt_diff_workbench_scale_{100,125,200}`
+(`test_comparison_zoom_scales_and_holds_the_reading_line`): both panes and
+the detail pane at 150%, the tab stop scaled, the gutter wider and still
+holding its four digits, and `code_font()` unchanged.
+`application_diff_zoom_public_path` (new, real composition, inline-drawer
+1557-line file): two Zoom Ins show both panes at 125%, persisted and shown in
+Settings with Code size unchanged; ⌘-scroll steps back down; Actual Size
+returns.
+
+**C2, unattended, pass.** Every `QAction` key in the assembled window and on
+the desktop bar is bound once, and no widget `QShortcut` takes a zoom key or
+⌘0. ⌘0 still triggers Home and no zoom. ⌘⌥0 is Actual Size and not Home.
+`qt_feedback_label_controls`: inside the open label menu, ⌘⌥0 is not claimed
+and leaves the label, and ⌘0 is still Plain. `editor_keeps_typed_text`
+claims AltGr+0 with `}` in an editable line or multi-line editor, and not
+with no text, in a read-only field or in a code pane. The filter is
+installed on Windows only, and Windows is not run here. ⌘-scroll steps, a
+trackpad's small deltas add up, and the connector zooms. ⌘-scroll neither
+scrolls nor zooms a pane by itself, and a plain scroll still scrolls. Pinch
+steps at 0.15.
+
+**C3, unattended, pass.** `sqlite_appearance_settings_storage`: every step
+round-trips, a version-8 or version-7 file migrates to 100% and keeps every
+other value, and 49 and 301 are refused. `application_appearance_host`: two
+gestures are two steps (125%), Code size is untouched, the zoom persists and
+is published as typography, stepping stops at 300% with no store, the zoom
+survives a new host, and the code-font reset returns 100%.
+`qt_appearance_settings_panel`: the Diff zoom row sits under Code size with
+"125% (16.25 pt)" items, choosing 200% offers exactly that, and a Code size
+gesture carries the zoom. `application_profile_startup_public_path`: Work
+zooms to 125%, Default stays at its size, and Work reopens at 125%.
+
+**C4, unattended, pass.** The reader's line at y 127 stays within one row
+(132) in the same turn and after remeasurement at 150%, and returns at
+Actual Size. The pill reads "Code zoom 150%, 13.50 pt", the announcement
+reads "Code zoom 150%, 13.50 points", and the pill leaves by itself after
+about 1.2 s. Offscreen renders in four themes at 67%, 100% and 150%, and the
+Type card, are in the frozen root's `renders/`. Design pass on those renders:
+the pill's size text first used the placeholder grey, which failed contrast
+on High Contrast Light, so both texts now use the window text colour. The
+pill was also enlarged.
+
+**C5, unattended, pass.** `application_large_review_responsiveness` gains
+`diff_zoom_in`, `diff_zoom_out` and `diff_actual_size_from_125` on the
+20,000-line comparison. Each command's dispatch and every turn of the
+remeasurement after it are held to the 100 ms target, and completion to
+1,000 ms. On the optimized tree (the frozen Release build of `7092c1dca`,
+macOS 26.6.2 arm64, Qt 6.11.2), two runs pass every enforced budget:
+
+| Zoom phase | Dispatch | Largest input gap | Completion |
+|---|---|---|---|
+| Zoom In | 5.1 and 4.9 ms | 15.0 and 15.1 ms | 342 and 346 ms |
+| Zoom Out | 3.3 and 3.9 ms | 12.5 and 13.2 ms | 339 and 341 ms |
+| Actual Size from 125% | 6.3 and 5.9 ms | 15.7 and 15.1 ms | 345 ms both runs |
+
+The machine's load average was 40 to 50 during both runs (other worktrees
+were building).
+
+**Failing-before controls.** Against the base, the new tests do not compile:
+the zoom API is absent. Each mutation below was applied in this worktree
+alone, its row was run, and the source was restored. Each row failed where
+expected:
+
+- Notes no reading position → "in the same turn, the reader's line is still
+  where it was".
+- Skips the post-remeasure placement → "and stays there once the geometry is
+  remeasured: 127 to 51".
+- The controller consumes ⌘-scroll → "a ⌘-scroll notch away zooms in one
+  step".
+- Actual Size on Ctrl+0 → "no keyboard command is claimed twice in the
+  assembled workbench".
+- The store drops the zoom on read → "and loads back exactly: 50%".
+- The core steps without the clamp check → "Zoom In is spent once the size
+  is at the point-size maximum".
+- The host ignores the step → "two gestures are two steps".
+- The label menu matches ⌘ with any modifier → "inside the open menu ⌘⌥0 is
+  not the menu's key".
+- A 150 ms stall in the zoom turn on files over 10,000 lines →
+  `diff_zoom_*_dispatch` 155 ms and `_input_gap` 166 ms over the 100 ms
+  target, "Mac fixture responsiveness budget exceeded".
+
+**Also passed.** These pass at `7092c1dca` (dev): `architecture_boundaries`,
+`test_network_isolation_manifest`, `core_appearance_policy`,
+`application_appearance_{host,profile_consumers,gesture_contract,store_fallback_contract,theme_customization_contract}`,
+`qt_appearance_{profile,settings_panel}`, `qt_settings_window`,
+`qt_composed_github_scale_100`, `qt_profile_management_window`,
+`application_profile_{startup,management}_public_path`,
+`application_diff_workbench_public_path`,
+`application_change_arrows_across_files` and
+`application_large_review_{benchmark,responsiveness}`.
+`coding-format-check` passes. `tidy.py` on the changed translation units
+reports only two warnings, both already present in
+`appearance_settings_database.cpp`. `verify_documentation.py`:
+`DOCUMENTATION_OK`.
+
+**Owner look (C6) pending.** This is a fresh short session,
+`abb2042c4944232d64e03d2709e5770c`, with state in
+`/Users/jaeger/.mask/bpr-1336-diff-zoom-20261008-v001/attended-review` and
+the cursor at 4. Its one ready, protected Accept/Reject candidate is
+`BPR-1336-diff-zoom-v001` ("diff zoom", fingerprint `c4076d94…`). The
+detached host is at `http://127.0.0.1:51454/` (the token is in the
+handoff, not here). The frozen root `artifacts/bpr-1336/diff-zoom-frozen-v001/`
+holds the exported source (archive `5f502579…`), its Release build (binary
+`780a2667…`) and `launch.py` (`46bc52c0…`). Its public course passes 1/1,
+and its attended entry reaches ready offscreen in 1.8 s. Start it with:
+
+`python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1336/diff-zoom-frozen-v001/launch.py`
