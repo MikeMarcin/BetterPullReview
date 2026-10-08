@@ -1150,6 +1150,18 @@ endfunction()
 # transport, GitHub write, mutation or publication path changes; mutation pin
 # unchanged; no new src/app source. Self-review on BPR-1342, not independent
 # review.
+# BPR-1091 reseal (2026-10-08): 6752a7136..this candidate, over the BPR-1342
+# reseal above (its pins match at 6752a7136); no other intervening pinned-scope
+# commit. The comment workshop sends the Review feedback hook.
+# github_application.cpp's dispatch_agent_invocation fills the observation's
+# FeedbackGuidance from application::workshop_feedback_supplement for a
+# workshop_comment gesture with an operation, reading the profile's accepted
+# writing hooks and label helper; with the helper off it sets nothing and the
+# press's wire is unchanged. The guidance is text inside the existing agent
+# supplement on the existing launch: no grant, target, provider, credential,
+# argument, child environment, tool, GitHub write, mutation or publication
+# path; mutation pin unchanged; no new src/app source. Self-review on
+# BPR-1091, not independent review.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1168,7 +1180,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"eb7e4fd0858ca6484f5328e18961e6f5019ab1941fd252ee5f087bbe5b27e778"
+		"6d60d1b838c68728257826a6a0b97b23f0d4c5a346fb0a9b8d119f35c9934fb9"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1370,7 +1382,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f0503a0ed085836b37d7de411a5c952caa3027607a22f1bd4040ebb06e9682e6"
+        "5d7b0ff1c7655c7ccea1f7265ca27a07029834da6b358ed8be353551d14bc3eb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
