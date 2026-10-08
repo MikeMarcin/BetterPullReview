@@ -14981,6 +14981,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || EpochHost == nullptr || WorkbenchHost == nullptr || DiffHost == nullptr) {
 				return;
 			}
+#if defined(BPR_BUILD_TESTING)
+			if (PreparationDisabled) {
+				return;
+			}
+#endif
 			auto window = WorkbenchHost->preparation_window();
 			// The selected file is already being opened by the reviewer's own
 			// request; preparing it too would only compete with that.

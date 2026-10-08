@@ -796,7 +796,7 @@ namespace {
 										   && aRequest.Diff == *value.SelectedDiffs.Context
 										   && aRequest.Context.Request.value() != 0U
 										   && aRequest.Context.Session == core::application_session_id{ 7U }
-										   && aRequest.Context.Generation.value() != 0U;
+									   && aRequest.Context.Generation.value() != 0U;
 								   }),
 			   "every request names the comparison the port serves now, under a complete request identity");
 		value.Host.apply(core::select_workbench_file_intent{ .File = file(20U) });
