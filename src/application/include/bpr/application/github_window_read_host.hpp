@@ -65,6 +65,11 @@ namespace bpr::application {
 		github_presentation_update Presentation;
 	};
 
+	/// \brief [[BPR-1338]]. The canonical address of an admitted pull request page:
+	/// HTTPS on the admitted hostname, then owner, repository, "pull" and number,
+	/// exactly what the provider contract requires a pull request's `html_url` to be.
+	[[nodiscard]] auto pull_request_page_address(const core::pull_request_page& aPage) -> std::string;
+
 	/// Owns one PR request, accepted snapshot and its revocable epoch authorities.
 	/// All commands and publications run on the decision lane. Provider terminals
 	/// post to that lane; ports and lane remain alive until quiescent.
@@ -103,6 +108,10 @@ namespace bpr::application {
 		void share_snapshot(std::span<const std::shared_ptr<github_window_read_host>> aWindows, std::uint64_t aSequence);
 		/// \brief Revalidates a displayed body gesture on the decision lane before the browser handoff.
 		[[nodiscard]] auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
+		/// \brief [[BPR-1338]]. Opens the accepted pull request's own page for a gesture against
+		/// this window's current publication. The address is built from the accepted profile
+		/// authority's hostname and the accepted snapshot, never from remote or typed text.
+		[[nodiscard]] auto open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		void               read_cached_source(std::string aPath);
 		void               cancel();
 		void               shutdown();

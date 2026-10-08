@@ -1495,6 +1495,31 @@ namespace bpr::application {
 				return core::markdown_link_result::failed;
 			}
 		}
+		/// [[BPR-1338]]. The open pull request's own page, for a gesture made
+		/// against this window's current publication only.
+		auto open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+		{
+			const auto current = markdown_identity();
+			if (!current || aContext != *current || aContext.Revision == 0 || !AcceptedProfileAuthority) {
+				return core::markdown_link_result::stale;
+			}
+			const auto& pull = *AcceptedSnapshot;
+			const auto  page = core::admit_pull_request_page({
+				.BrowserAvailable = aBrowser != nullptr,
+				.Hostname         = AcceptedProfileAuthority->Hostname.value(),
+				.Owner            = pull.Repository.Owner,
+				.Repository       = pull.Repository.Name,
+				.Number           = pull.PullRequest.Number,
+			});
+			if (!page) {
+				return page.error();
+			}
+			try {
+				return aBrowser->open(pull_request_page_address(*page)) ? core::markdown_link_result::opened : core::markdown_link_result::failed;
+			} catch (...) {
+				return core::markdown_link_result::failed;
+			}
+		}
 		std::uint64_t                                       MarkdownRevision  = 0;
 		bool                                                MarkdownExhausted = false;
 		std::unordered_set<std::string>                     MarkdownBodies;
@@ -1661,6 +1686,14 @@ namespace bpr::application {
 	auto github_window_read_host::open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 	{
 		return Implementation->open_markdown_link(aIntent, aBrowser);
+	}
+	auto pull_request_page_address(const core::pull_request_page& aPage) -> std::string
+	{
+		return "https://" + aPage.Hostname + "/" + aPage.Owner + "/" + aPage.Repository + "/pull/" + std::to_string(aPage.Number.value());
+	}
+	auto github_window_read_host::open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+	{
+		return Implementation->open_pull_request_page(aContext, aBrowser);
 	}
 	auto github_window_read_host::accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>& { return Implementation->AcceptedSnapshot; }
 	auto github_window_read_host::mutation_transport() const noexcept -> review_mutation_transport { return Implementation->ReviewMutationTransport; }

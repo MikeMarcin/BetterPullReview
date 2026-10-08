@@ -11,6 +11,7 @@
 #include <QPalette>
 #include <QScrollBar>
 #include <QSignalBlocker>
+#include <QStyle>
 #include <QStyleOptionViewItem>
 #include <QVBoxLayout>
 
@@ -280,14 +281,20 @@ namespace bpr::qt {
 
 	// ---- home_row_action ----------------------------------------------------
 
-	home_row_action::home_row_action(QAbstractItemView& aView, const QString& aText)
+	home_row_action::home_row_action(QAbstractItemView& aView, const QString& aText, const int aRole)
 		: QToolButton{ aView.viewport() }
 		, View{ aView }
+		, Role{ aRole }
 	{
 		setText(aText);
-		setToolButtonStyle(Qt::ToolButtonTextOnly);
+		setToolButtonStyle(aRole == home_row_role::icon_action ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextOnly);
 		setFocusPolicy(Qt::NoFocus);
 		setAutoRaise(false);
+		if (aRole == home_row_role::icon_action) {
+			// The size the delegate keeps for it: the style's small icon.
+			const auto side = style()->pixelMetric(QStyle::PM_SmallIconSize, nullptr, &aView);
+			setIconSize(QSize{ side, side });
+		}
 		hide();
 		aView.viewport()->setMouseTracking(true);
 		aView.viewport()->installEventFilter(this);
@@ -319,8 +326,15 @@ namespace bpr::qt {
 	{
 		auto* const model  = View.model();
 		const auto  offers = [this, model](const int aRow) {
-			return aRow >= 0 && model != nullptr && aRow < model->rowCount(View.rootIndex())
-				&& !model->index(aRow, 0, View.rootIndex()).data(home_row_role::row_action).toString().isEmpty();
+			if (aRow < 0 || model == nullptr || aRow >= model->rowCount(View.rootIndex())) {
+				return false;
+			}
+			const auto index = model->index(aRow, 0, View.rootIndex());
+			// [[BPR-1338]]. The icon action takes the place only where no
+			// labelled action holds it.
+			return Role == home_row_role::row_action
+				? !index.data(home_row_role::row_action).toString().isEmpty()
+				: index.data(home_row_role::row_action).toString().isEmpty() && !index.data(Role).toString().isEmpty();
 		};
 		auto row = offers(HoverRow) ? HoverRow : -1;
 		if (row < 0 && View.hasFocus() && View.currentIndex().isValid() && offers(View.currentIndex().row())) {
@@ -337,7 +351,7 @@ namespace bpr::qt {
 		option.rect   = View.visualRect(index);
 		option.font   = View.font();
 		option.widget = &View;
-		setText(index.data(home_row_role::row_action).toString());
+		setText(index.data(Role).toString());
 		setAccessibleName(QStringLiteral("%1 %2").arg(text(), index.data(home_row_role::identity).toString()));
 		setGeometry(home_row_delegate::action_rect(option, index));
 		show();
@@ -514,6 +528,54 @@ namespace bpr::qt {
 		connect(aView.selectionModel(), &QItemSelectionModel::currentChanged, this,
 				[this, view = &aView](const QModelIndex& aCurrent) { adopt_current(view, aCurrent); });
 		connect_model_signals(aModel, *this, [this] { schedule_refresh(); });
+		// [[BPR-1338]]. Open on GitHub: an icon on the hovered row and on the
+		// current row while its list has focus, and the row's menu.
+		auto* const page = new home_row_action{ aView, QStringLiteral("Open on GitHub"), home_row_role::icon_action };
+		page->setObjectName(QStringLiteral("homeRowOpenOnGithubButton"));
+		page->setIcon(PageIcon);
+		page->setToolTip(PageToolTip);
+		page->set_trigger([this, view = &aView](const int aRow) {
+			if (!PageDispatch || view->model() == nullptr) {
+				return;
+			}
+			if (const auto item = item_of(*view, view->model()->index(aRow, 0, view->rootIndex())); item.has_value()) {
+				PageDispatch(*item);
+			}
+		});
+		aView.setContextMenuPolicy(Qt::CustomContextMenu);
+		connect(&aView, &QWidget::customContextMenuRequested, this, [this, view = &aView](const QPoint& aPosition) {
+			const auto index = view->indexAt(aPosition);
+			if (!index.isValid() || !RowMenuDispatch) {
+				return;
+			}
+			view->setCurrentIndex(index);
+			RowMenuDispatch(view->viewport()->mapToGlobal(aPosition));
+		});
+	}
+
+	void home_list::set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch)
+	{
+		PageDispatch = std::move(aDispatch);
+	}
+
+	void home_list::set_page_action(const QIcon& aIcon, const QString& aToolTip)
+	{
+		PageIcon    = aIcon;
+		PageToolTip = aToolTip;
+		for (auto* const button : Column->findChildren<QToolButton*>(QStringLiteral("homeRowOpenOnGithubButton"))) {
+			button->setIcon(PageIcon);
+			button->setToolTip(PageToolTip);
+		}
+	}
+
+	void home_list::set_row_menu_dispatch(std::function<void(const QPoint& aGlobal)> aDispatch)
+	{
+		RowMenuDispatch = std::move(aDispatch);
+	}
+
+	void home_list::set_current_observer(std::function<void()> aObserver)
+	{
+		CurrentObserver = std::move(aObserver);
 	}
 
 	void home_list::adopt_recent(home_recent_view& aRecent)
@@ -1049,6 +1111,9 @@ namespace bpr::qt {
 			return;
 		}
 		CurrentRows = aView;
+		if (CurrentObserver) {
+			CurrentObserver();
+		}
 		// One current row on the page: making a row current in one list clears
 		// the others, whichever arrangement they belong to.
 		for (auto* const view : row_views()) {

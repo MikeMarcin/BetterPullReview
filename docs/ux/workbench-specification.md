@@ -31,7 +31,7 @@ authored and directly requested pull requests of the saved repositories
 ## Primary layout
 
 ```text
-┌ Title row: Home | Repositories | Files | name ········ Overview Review Discuss Conversations | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
+┌ Title row: Home | Repositories | Files | name ↗ ······ Overview Review Discuss Conversations | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
 ├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ ········ Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
@@ -50,6 +50,23 @@ request's name at its left; the modality at its right beside refresh, the
 comments toggle (which carries the count of threads with new comments), the
 hide-drawers icon, account and settings; on Windows the application menu and
 the caption buttons.
+
+**Open on GitHub** ([[BPR-1338]], the owner, 2026-10-08: "I think an open in
+browser button next to the pr title would be nice", and "Open in GitHub from
+the home page on a pr would also be useful"). A small borderless icon button
+sits right after the pull request's name, tooltip "Open on GitHub (⇧⌘O)"
+(Ctrl+Shift+O off macOS). It is the window's Open on GitHub action, also first
+on the Pull Request menu. It is shown only while an accepted GitHub pull
+request's name is, never for a local cycle, so nothing in the row reads as
+disabled. On Home the same action and key act on the row the keyboard is in;
+each queue row shows the icon on hover and while it is current in a focused
+list, in a column the row keeps for it, and its right-click menu holds the
+action, as does a Recently viewed row's. A gesture names a pull request,
+never an address: the application host admits it against the window's current
+publication, or the accepted session's host and account, and builds the
+canonical page from the accepted hostname, owner, repository and number. The
+system browser opener still refuses anything but an absolute HTTP(S) address
+with a host and no userinfo.
 
 **Modalities** ([[BPR-1295]], owner direction 2026-10-06). The modalities are
 Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3), set per
@@ -675,7 +692,9 @@ tooltip, accessible name and description, strong-focus stop, and keyboard
 shortcut. No text toolbar appears at a narrower width: as the window narrows
 the review bar drops the comparison's dates and then the positions' words
 ("3/40" for "file 3 of 40"), and the title row drops the name's title, its
-owner and then the modality's shortcuts, keeping the name's number. No control
+owner and then the modality's shortcuts, keeping the name's number. Open on
+GitHub goes with the name and is counted in its room, so the title elides
+around it; it stays beside the number down to the floor ([[BPR-1338]]). No control
 folds into an overflow menu at any width down to the platform's floor. The
 floor follows the bar ([[BPR-1255]], the owner's choice of 2026-10-06). When a
 larger font makes the fully yielded review bar wider than the platform's 900

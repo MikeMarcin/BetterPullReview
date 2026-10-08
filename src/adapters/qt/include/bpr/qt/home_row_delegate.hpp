@@ -43,6 +43,10 @@ namespace bpr::qt {
 			account_chip,
 			/// The row action's label ("Resume"), or empty for none.
 			row_action,
+			/// [[BPR-1338]]. The name of the row's icon action ("Open on
+			/// GitHub"), or empty for none. Drawn as an icon-only button
+			/// where a row has no labelled action.
+			icon_action,
 		};
 	} // namespace home_row_role
 
@@ -148,6 +152,8 @@ namespace bpr::qt {
 			-> QSize override;
 
 		/// \brief Where a row's action sits, in the option's coordinates; empty for none.
+		/// \details The labelled action's place, or the icon action's where the
+		/// row has no labelled one.
 		[[nodiscard]] static auto action_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex)
 			-> QRect;
 		/// \brief Where the reason word is painted, in the option's coordinates.

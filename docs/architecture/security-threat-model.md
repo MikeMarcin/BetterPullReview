@@ -275,6 +275,19 @@ and does not substitute for the open Windows run in BPR-0036.
 
 All API, Git, diff, syntax, Markdown, agent, and settings inputs are untrusted. Apply explicit size, nesting, time, allocation, and line-length limits. Render a safe Markdown subset with raw HTML disabled. Links require a user gesture and show the destination.
 
+Open on GitHub ([[BPR-1338]]) is not a link and takes no destination text.
+The title row's button, the Pull Request menu, its key and Home's row
+gestures name a pull request: the window's current publication, a queue row
+by its queue identity, or a Recently viewed row by its place. The application
+host admits the named pull request against what it accepted (the same
+publication, or the accepted session's exact host and account) and builds the
+canonical page itself from the accepted profile hostname, owner, repository
+and number, under the same safe-authority and safe-name rules as a body
+link's repository-relative destination. Remote titles, bodies and row text
+never become the address. The system browser opener still refuses anything
+but an absolute HTTP(S) address with a host and no userinfo, and opening
+starts no network request of the application's own.
+
 ## Process handling
 
 - Resolve executables explicitly. A Claude process wrapper ([[BPR-1301]]) is

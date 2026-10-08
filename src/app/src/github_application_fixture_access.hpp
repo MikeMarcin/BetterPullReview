@@ -1119,6 +1119,10 @@ namespace bpr::app::detail {
 			-> diff_work_fixture_evidence;
 		[[nodiscard]] static auto device_binding_store_idle(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto device_binding_durable(const github_application& aApplication) noexcept -> bool;
+		/// \brief [[BPR-1338]]. The last address the recording browser was handed; empty before any.
+		[[nodiscard]] static auto browser_last_address(const github_application& aApplication) -> std::string;
+		/// \brief [[BPR-1338]]. How many addresses the recording browser was handed.
+		[[nodiscard]] static auto browser_opens(const github_application& aApplication) noexcept -> std::size_t;
 		/// \brief Attempts one native HTTPS read through the shipped adapter.
 		///
 		/// \details The endpoint returns an ordinary HTTP response outside the

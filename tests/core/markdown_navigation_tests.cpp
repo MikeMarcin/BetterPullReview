@@ -2,9 +2,15 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <string>
 
 namespace {
 	using namespace bpr::core;
+	/// [[BPR-1338]]. An admitted page's parts in their address order, without a scheme.
+	auto page_parts(const pull_request_page& aPage) -> std::string
+	{
+		return aPage.Hostname + "/" + aPage.Owner + "/" + aPage.Repository + "/pull/" + std::to_string(aPage.Number.value());
+	}
 	void expect(const bool aCondition, const char* aMessage)
 	{
 		if (!aCondition) {
@@ -46,5 +52,73 @@ int main()
 	missing.BrowserAvailable = false;
 	expect(admit_markdown_link({ context, { }, "https://example.invalid" }, missing).error() == markdown_link_result::unavailable, "absent capability is explicit");
 	expect(!admit_markdown_link({ context, { }, std::string(4097, 'a') }, observation), "destination input is bounded");
+	// [[BPR-1338]]. The pull request's own page is built from accepted parts
+	// only, with the same authority and name rules as a relative link.
+	const pull_request_page_observation page{ true, "ghe.example.invalid", "owner", "repository.name", pull_request_number{ 42 } };
+	const auto                          opened = admit_pull_request_page(page);
+	expect(opened && page_parts(*opened) == "ghe.example.invalid/owner/repository.name/pull/42", "the page is the canonical pull request's parts");
+	auto ported     = page;
+	ported.Hostname = "ghe.example.invalid:8443";
+	expect(admit_pull_request_page(ported).transform(page_parts).value_or("") == "ghe.example.invalid:8443/owner/repository.name/pull/42", "a compiled port is kept");
+	for (const auto* hostname : { "", "user@ghe.example.invalid", "ghe.example.invalid/evil", "ghe..invalid", ".ghe.invalid", "ghe_example.invalid", "ghe.example.invalid:0", "ghe.example.invalid:x", "evil.invalid#ghe" }) {
+		auto unsafe     = page;
+		unsafe.Hostname = hostname;
+		expect(admit_pull_request_page(unsafe).error() == markdown_link_result::refused, hostname);
+	}
+	for (const auto* name : { "", ".", "..", "a/b", "a b", "a%2fb", "a?b", "a#b", "a@b", "javascript:x" }) {
+		auto owner  = page;
+		owner.Owner = name;
+		expect(admit_pull_request_page(owner).error() == markdown_link_result::refused, "an unsafe owner refuses");
+		auto repository       = page;
+		repository.Repository = name;
+		expect(admit_pull_request_page(repository).error() == markdown_link_result::refused, "an unsafe repository refuses");
+	}
+	auto numberless   = page;
+	numberless.Number = pull_request_number{ };
+	expect(admit_pull_request_page(numberless).error() == markdown_link_result::refused, "a page needs a number");
+	numberless.Number = pull_request_number{ maximum_pull_request_number + 1U };
+	expect(admit_pull_request_page(numberless).error() == markdown_link_result::refused, "a page's number is bounded");
+	auto browserless             = page;
+	browserless.BrowserAvailable = false;
+	expect(admit_pull_request_page(browserless).error() == markdown_link_result::unavailable, "an absent browser is explicit for the page too");
+	// [[BPR-1338]]. A Home queue row opens on the accepted session's host,
+	// for the accepted account only, with the accepted hostname in the address.
+	const pull_request_ref row{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app", .Number = 101 };
+	expect(admit_queue_pull_request_page(row, "github.com", "octo-reviewer", true).transform(page_parts).value_or("") == "github.com/octo-org/app/pull/101", "a queue row opens its canonical page");
+	expect(admit_queue_pull_request_page(row, "github.com", "octo-reviewer", false).error() == markdown_link_result::unavailable, "a queue row needs a browser");
+	expect(admit_queue_pull_request_page(row, "ghe.example.invalid", "octo-reviewer", true).error() == markdown_link_result::refused, "another host's row is refused");
+	expect(admit_queue_pull_request_page(row, "github.com", "someone-else", true).error() == markdown_link_result::refused, "another account's row is refused");
+	expect(admit_queue_pull_request_page(row, "", "", true).error() == markdown_link_result::refused, "no accepted session, no page");
+	for (const auto* repository : { "octo-org", "octo-org/app/extra", "/app", "octo-org/", "evil.invalid@octo-org/app", "octo-org/a?b", "../app" }) {
+		auto odd       = row;
+		odd.Repository = repository;
+		expect(admit_queue_pull_request_page(odd, "github.com", "octo-reviewer", true).error() == markdown_link_result::refused, repository);
+	}
+	for (const auto number : { std::int64_t{ 0 }, std::int64_t{ -1 }, std::int64_t{ 4'294'967'297 } }) {
+		auto odd   = row;
+		odd.Number = number;
+		expect(admit_queue_pull_request_page(odd, "github.com", "octo-reviewer", true).error() == markdown_link_result::refused, "a queue row needs a pull request number in range");
+	}
+	// [[BPR-1338]]. A Recently viewed row: public readings on the session's
+	// host, an account's reading under that account's exact authority.
+	window_review_destination publicRead;
+	publicRead.Mode       = github_access_mode::public_preview;
+	publicRead.Hostname   = "github.com";
+	publicRead.Repository = { "octo-org", "tools" };
+	publicRead.Number     = pull_request_number{ 7 };
+	const window_review_authority signedIn{ github_access_mode::authenticated, "github.com" };
+	expect(admit_recent_pull_request_page(publicRead, signedIn, github_account_id{ 1 }, true).transform(page_parts).value_or("") == "github.com/octo-org/tools/pull/7", "a public reading opens its page");
+	auto mineRead    = publicRead;
+	mineRead.Mode    = github_access_mode::authenticated;
+	mineRead.Account = github_account_id{ 1 };
+	expect(admit_recent_pull_request_page(mineRead, signedIn, github_account_id{ 1 }, true).transform(page_parts).value_or("") == "github.com/octo-org/tools/pull/7", "my reading opens under my session");
+	expect(admit_recent_pull_request_page(mineRead, signedIn, github_account_id{ 2 }, true).error() == markdown_link_result::refused, "another account's reading is refused");
+	auto elsewhere     = publicRead;
+	elsewhere.Hostname = "ghe.example.invalid";
+	expect(admit_recent_pull_request_page(elsewhere, signedIn, github_account_id{ 1 }, true).error() == markdown_link_result::refused, "a reading on another host is refused");
+	expect(admit_recent_pull_request_page(publicRead, signedIn, github_account_id{ 1 }, false).error() == markdown_link_result::unavailable, "a reading needs a browser");
+	auto unsafe            = publicRead;
+	unsafe.Repository.Name = "tools/../../evil";
+	expect(admit_recent_pull_request_page(unsafe, signedIn, github_account_id{ 1 }, true).error() == markdown_link_result::refused, "a stored name that is not a name is refused");
 	std::cout << "Markdown navigation policy passed\n";
 }

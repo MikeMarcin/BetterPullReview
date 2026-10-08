@@ -31,6 +31,7 @@
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
@@ -818,7 +819,8 @@ namespace {
 			return aIndex >= 0 && aIndex < aActions.size() && aActions[aIndex]->objectName() == QLatin1String{ aName };
 		};
 		// [[BPR-1129]]. The title row, left to right: the platform inset, Home,
-		// Repositories, Files, the name and a spacer; then the modality, Home's
+		// Repositories, Files, the name, Open on GitHub right after it
+		// ([[BPR-1338]]) and a spacer; then the modality, Home's
 		// own three controls (hidden outside Home), refresh, Home's discovery
 		// refresh (hidden outside Home), comments, Hide Drawers ([[BPR-1295]],
 		// immediately right of comments), a rule, account, settings.
@@ -833,24 +835,25 @@ namespace {
 		const auto lead  = qsizetype{ 0 };
 		const auto trail = qsizetype{ 0 };
 #endif
-		const auto titleRow = actions.size() == 17 + lead + trail
+		const auto titleRow = actions.size() == 18 + lead + trail
 			&& named(actions, 0, "workbenchStripInsetAction")
 			&& actions[1 + lead] == window.home_action()
 			&& actions[2 + lead] == window.repositories_drawer_toggle_action()
 			&& actions[3 + lead] == files
 			&& named(actions, 4 + lead, "workbenchStripIdentityAction")
-			&& named(actions, 5 + lead, "workbenchNavigationSpacerAction")
-			&& named(actions, 6 + lead, "workbenchModalityAction")
-			&& named(actions, 7 + lead, "homeGroupAction")
-			&& named(actions, 8 + lead, "homeStateHeadersAction")
-			&& named(actions, 9 + lead, "homeFilterAction")
-			&& actions[10 + lead] == window.github_refresh_action()
-			&& actions[11 + lead] == window.queue_refresh_action()
-			&& actions[12 + lead] == conversations
-			&& actions[13 + lead] == window.toggle_drawers_action()
-			&& named(actions, 14 + lead, "workbenchStripRightDividerAction")
-			&& actions[15 + lead] == window.account_action()
-			&& actions[16 + lead] == window.settings_action();
+			&& named(actions, 5 + lead, "workbenchOpenOnGithubAction")
+			&& named(actions, 6 + lead, "workbenchNavigationSpacerAction")
+			&& named(actions, 7 + lead, "workbenchModalityAction")
+			&& named(actions, 8 + lead, "homeGroupAction")
+			&& named(actions, 9 + lead, "homeStateHeadersAction")
+			&& named(actions, 10 + lead, "homeFilterAction")
+			&& actions[11 + lead] == window.github_refresh_action()
+			&& actions[12 + lead] == window.queue_refresh_action()
+			&& actions[13 + lead] == conversations
+			&& actions[14 + lead] == window.toggle_drawers_action()
+			&& named(actions, 15 + lead, "workbenchStripRightDividerAction")
+			&& actions[16 + lead] == window.account_action()
+			&& actions[17 + lead] == window.settings_action();
 		if (!titleRow) {
 			for (auto index = qsizetype{ 0 }; index < actions.size(); ++index) {
 				std::cerr << "title row " << index << ": " << actions[index]->objectName().toStdString() << '\n';
@@ -1718,6 +1721,14 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-1338]]. The window publication a gesture names; only its identity matters here.
+	[[nodiscard]] auto page_context(const std::uint64_t aRevision) -> core::markdown_context
+	{
+		auto context     = core::markdown_context{ };
+		context.Revision = aRevision;
+		return context;
+	}
+
 	/// [[BPR-0722]], [[BPR-1129]]. With a long name published, nothing enters
 	/// either row's overflow at any width, and each row yields text in order.
 	/// The title row's name has the room the navigation took: it drops its
@@ -1745,12 +1756,16 @@ namespace {
 		window.resize(1'920, 1'080);
 		window.show();
 		QApplication::processEvents();
+		// [[BPR-1338]]. An accepted publication, so Open on GitHub sits right
+		// after the name and joins its yields.
+		window.set_pull_request_page_dispatch([](const application::pull_request_page_intent&) { return core::markdown_link_result::opened; });
 		window.publish(application::github_presentation_update{
 			.PullRequest = application::github_pull_request_projection{
-				.Owner          = "microsoft",
-				.RepositoryName = "terminal",
-				.Number         = core::pull_request_number{ 20607U },
-				.Title          = "Fix the ScreenBufferTests suite so that every scrolling case restores the viewport it started with",
+				.Owner           = "microsoft",
+				.RepositoryName  = "terminal",
+				.Number          = core::pull_request_number{ 20607U },
+				.Title           = "Fix the ScreenBufferTests suite so that every scrolling case restores the viewport it started with",
+				.MarkdownContext = page_context(1U),
 			},
 		});
 		auto positioned      = every_primary_command_offered();
@@ -1804,6 +1819,12 @@ namespace {
 			const auto owner = text.contains(QStringLiteral("microsoft/"));
 			expect(window.identity_label()->isVisible() && text.contains(QStringLiteral("#20607")),
 				   "the name keeps its number at every width down to the floor");
+			{
+				const auto name   = window.identity_label()->geometry();
+				const auto button = window.open_on_github_button()->geometry();
+				expect(window.open_on_github_button()->isVisible() && button.left() >= name.right() && button.left() - name.right() <= 8,
+					   "Open on GitHub stays right after the name at every width down to the floor");
+			}
 			expect(!(titleGone && title), "the title yields once and does not return at a narrower width");
 			expect(!(ownerGone && owner), "the owner yields once and does not return at a narrower width");
 			expect(owner || !title, "the title yields before the owner");
@@ -11043,7 +11064,8 @@ namespace {
 				   && seen.at(QStringLiteral("Ctrl+Alt+Up")) == QStringLiteral("previousWorkbenchFileAction")
 				   && !seen.contains(QStringLiteral("Ctrl+Down")) && !seen.contains(QStringLiteral("Ctrl+Up"))
 				   && seen.at(QStringLiteral("Alt+PgDown")) == QStringLiteral("nextWorkbenchChangeAction")
-				   && seen.at(QStringLiteral("Alt+PgUp")) == QStringLiteral("previousWorkbenchChangeAction"),
+				   && seen.at(QStringLiteral("Alt+PgUp")) == QStringLiteral("previousWorkbenchChangeAction")
+				   && seen.at(QStringLiteral("Ctrl+Shift+O")) == QStringLiteral("openOnGithubAction"),
 			   "Ctrl+B hides the drawers, Ctrl+1 to 4 choose Overview, Review, Discuss and Conversations, and Ctrl+J goes to Conversations");
 		window.hide();
 	}
@@ -12091,6 +12113,178 @@ namespace {
 		return projection;
 	}
 
+	/// [[BPR-1338]]. Saves one widget's render when BPR_OPEN_ON_GITHUB_RENDER_DIR names a directory.
+	void save_open_on_github_render(QWidget& aWidget, const QString& aName)
+	{
+		const auto root = qEnvironmentVariable("BPR_OPEN_ON_GITHUB_RENDER_DIR");
+		if (root.isEmpty()) {
+			return;
+		}
+		process_events();
+		expect(aWidget.grab().save(root + QLatin1Char{ '/' } + aName + QStringLiteral(".png")), "the Open on GitHub render is written");
+	}
+
+	/// [[BPR-1338]]. Open on GitHub beside the title: an icon button right after
+	/// the name, shown only for an accepted GitHub pull request, with the window
+	/// action's tooltip and key, on the Pull Request menu too. Every gesture
+	/// names the publication on screen, never an address.
+	void test_open_on_github_beside_the_title()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto pages  = std::vector<application::pull_request_page_intent>{ };
+		auto answer = core::markdown_link_result::opened;
+		window.set_pull_request_page_dispatch([&](const application::pull_request_page_intent& aIntent) {
+			pages.push_back(aIntent);
+			return answer;
+		});
+		auto* const action = window.open_on_github_action();
+		auto* const button = window.open_on_github_button();
+		expect(action != nullptr && button != nullptr && !button->isVisible() && !action->isEnabled(),
+			   "with no pull request open there is nothing to open on GitHub and no button");
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner          = "microsoft",
+				.RepositoryName = "terminal",
+				.Number         = core::pull_request_number{ 20607U },
+				.Title          = "https://evil.invalid/ looks like an address",
+			},
+		});
+		process_events();
+		expect(window.identity_label()->isVisible() && !button->isVisible() && !action->isEnabled(),
+			   "a pull request without an accepted publication offers no Open on GitHub, so nothing reads as disabled");
+		const auto context = page_context(7U);
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner           = "microsoft",
+				.RepositoryName  = "terminal",
+				.Number          = core::pull_request_number{ 20607U },
+				.Title           = "https://evil.invalid/ looks like an address",
+				.MarkdownContext = context,
+			},
+		});
+		process_events();
+		const auto name = window.identity_label()->geometry();
+		expect(button->isVisible() && action->isEnabled() && button->geometry().left() >= name.right()
+				   && button->geometry().left() - name.right() <= 8 && std::abs(button->geometry().center().y() - name.center().y()) <= 2,
+			   "the button sits right after the name, on its line");
+		const auto native = QKeySequence{ QStringLiteral("Ctrl+Shift+O") }.toString(QKeySequence::NativeText);
+		expect(action->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+O") } && action->shortcutContext() == Qt::WindowShortcut
+				   && button->toolTip() == QStringLiteral("Open on GitHub (%1)").arg(native)
+				   && button->accessibleName() == QStringLiteral("Open on GitHub") && !button->accessibleDescription().isEmpty()
+				   && button->toolButtonStyle() == Qt::ToolButtonIconOnly && !button->icon().isNull(),
+			   "the button is an icon named Open on GitHub, its tooltip naming the key");
+#if defined(Q_OS_MACOS)
+		expect(button->toolTip() == QStringLiteral("Open on GitHub (\u21E7\u2318O)"), "on macOS the tooltip reads Open on GitHub (⇧⌘O)");
+#endif
+		expect(window.pull_request_menu()->actions().contains(action) && window.pull_request_menu()->actions().indexOf(action) == 0,
+			   "the Pull Request menu offers Open on GitHub first");
+		button->click();
+		process_events();
+		expect(pages.size() == 1U && std::holds_alternative<core::markdown_context>(pages.back())
+				   && std::get<core::markdown_context>(pages.back()) == context,
+			   "the button names the publication on screen, never an address");
+		expect(window.statusBar()->currentMessage() == QStringLiteral("Opened the pull request on GitHub in your browser."),
+			   "the window says the page was opened");
+		save_open_on_github_render(*window.primary_toolbar(), QStringLiteral("title-row"));
+		save_open_on_github_render(window, QStringLiteral("window"));
+		deliver_key(window, Qt::Key_O, Qt::ControlModifier | Qt::ShiftModifier);
+		expect(pages.size() == 2U && std::get<core::markdown_context>(pages.back()) == context, "the key opens the same page");
+		answer = core::markdown_link_result::refused;
+		action->trigger();
+		expect(pages.size() == 3U && window.statusBar()->currentMessage() == QStringLiteral("This pull request's page cannot be opened safely from here."),
+			   "a refusal is said plainly");
+		window.show_local_cycle(QStringLiteral("A local cycle"));
+		process_events();
+		expect(!button->isVisible() && !action->isEnabled(), "a local cycle has no GitHub page");
+		window.leave_local_cycle();
+		process_events();
+		expect(button->isVisible() && action->isEnabled(), "back on the pull request, its page is offered again");
+		window.home_action()->trigger();
+		process_events();
+		expect(window.showing_home() && !button->isVisible() && !action->isEnabled(), "Home with no row chosen names no pull request");
+		window.hide();
+	}
+
+	/// [[BPR-1338]]. Open on GitHub from Home: a queue row's icon on hover, its
+	/// right-click menu, and the window's key on the row made current; a
+	/// Recently viewed row's menu. Each names the row, never an address.
+	void test_open_on_github_from_home_rows()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		auto pages = std::vector<application::pull_request_page_intent>{ };
+		window.set_pull_request_page_dispatch([&](const application::pull_request_page_intent& aIntent) {
+			pages.push_back(aIntent);
+			return core::markdown_link_result::opened;
+		});
+		window.show();
+		process_events();
+		sign_in(window);
+		window.publish(discovery_projection({ .Host = "github.com", .Account = "octo-reviewer", .State = application::queue_discovery_state::current, .LastSuccess = 1'700'000'000, .Repositories = 1U }));
+		process_events();
+		auto* const view = window.home_list()->state_view(qt::home_group::needs_you);
+		expect(window.showing_home() && view != nullptr && view->isVisible() && view->model()->rowCount() >= 1, "Home lists the queue row");
+		const auto mine  = core::pull_request_ref{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app", .Number = 101 };
+		const auto index = view->model()->index(0, 0);
+		const auto row   = view->visualRect(index);
+		auto*      icon  = static_cast<QToolButton*>(nullptr);
+		for (auto* const candidate : view->viewport()->findChildren<QToolButton*>(QStringLiteral("homeRowOpenOnGithubButton"))) {
+			icon = candidate;
+		}
+		expect(icon != nullptr && !icon->isVisible(), "the row's Open on GitHub icon waits for the row to be hovered or current");
+		auto move = QMouseEvent{ QEvent::MouseMove, QPointF{ row.center() }, view->viewport()->mapToGlobal(QPointF{ row.center() }), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(view->viewport(), &move);
+		process_events();
+		expect(icon->isVisible() && row.contains(icon->geometry()) && icon->geometry().right() > row.center().x()
+				   && icon->toolButtonStyle() == Qt::ToolButtonIconOnly && !icon->icon().isNull()
+				   && icon->toolTip() == window.open_on_github_action()->toolTip(),
+			   "hovering a queue row shows its Open on GitHub icon at the row's right, inside the row");
+		save_open_on_github_render(window, QStringLiteral("home-hover"));
+		icon->click();
+		process_events();
+		expect(pages.size() == 1U && std::holds_alternative<core::pull_request_ref>(pages.back()) && std::get<core::pull_request_ref>(pages.back()) == mine,
+			   "the icon names its row's pull request");
+		auto menuAt = QContextMenuEvent{ QContextMenuEvent::Mouse, row.center(), view->viewport()->mapToGlobal(row.center()) };
+		QApplication::sendEvent(view->viewport(), &menuAt);
+		process_events();
+		auto* const menu = window.home_row_menu();
+		expect(menu != nullptr && menu->isVisible() && menu->actions().contains(window.open_on_github_action())
+				   && window.open_on_github_action()->isEnabled() && view->currentIndex() == index,
+			   "a right click makes the row current and opens its menu with Open on GitHub");
+		window.open_on_github_action()->trigger();
+		menu->hide();
+		process_events();
+		expect(pages.size() == 2U && std::get<core::pull_request_ref>(pages.back()) == mine, "the menu's Open on GitHub names the row it was opened on");
+		window.activateWindow();
+		view->setFocus(Qt::OtherFocusReason);
+		process_events();
+		deliver_key(window, Qt::Key_O, Qt::ControlModifier | Qt::ShiftModifier);
+		expect(pages.size() == 3U && std::get<core::pull_request_ref>(pages.back()) == mine, "the key opens the current row on GitHub");
+
+		auto recent = application::recent_reviews_projection{ };
+		recent.Entries.push_back({ .Destination = { .Hostname = "github.com", .Repository = { "octo-org", "tools" }, .Number = core::pull_request_number{ 7U } }, .Title = "Recently read" });
+		window.publish(recent);
+		process_events();
+		auto* const recentList = window.home_recent_list();
+		expect(recentList->actions().contains(window.open_on_github_action()), "a Recently viewed row's menu offers Open on GitHub");
+		recentList->setFocus(Qt::OtherFocusReason);
+		recentList->setCurrentRow(0);
+		process_events();
+		window.open_on_github_action()->trigger();
+		expect(pages.size() == 4U && std::holds_alternative<application::recent_review_row>(pages.back())
+				   && std::get<application::recent_review_row>(pages.back()).Index == 0U,
+			   "on a Recently viewed row it names that row");
+		view->setFocus(Qt::OtherFocusReason);
+		view->setCurrentIndex(index);
+		process_events();
+		window.open_on_github_action()->trigger();
+		expect(pages.size() == 5U && std::holds_alternative<core::pull_request_ref>(pages.back()), "the list the keyboard is in names the row");
+		window.hide();
+	}
+
 	// [[BPR-0990]], [[BPR-0801]]. On Home the refresh glyph is the profile's
 	// discovery: it sends one typed intent, arriving at Home asks discovery to
 	// catch up, one sentence says what discovery last did, and the Pull
@@ -13058,8 +13252,16 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-0653]]. The strip as the title row -- its order, its width sweep
 	// down to the platform's floor and its bare-surface gestures -- reached
 	// directly past the epoch-row assertion [[BPR-0940]] owns.
+	// [[BPR-1338]]. Open on GitHub beside the title and from Home's rows.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--open-on-github"))) {
+		test_open_on_github_beside_the_title();
+		test_open_on_github_from_home_rows();
+		std::cout << "workbench-open-on-github:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
 		test_compact_icon_row_preserves_exact_order_and_edges();
+		test_open_on_github_beside_the_title();
 		test_strip_identity_stays_at_every_width();
 		test_the_review_bar_yields_dates_then_words();
 		test_the_floor_follows_the_review_bar();

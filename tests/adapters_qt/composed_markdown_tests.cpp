@@ -242,6 +242,16 @@ int main(int argc, char** argv)
 	hostPtr = &host;
 	std::optional<core::markdown_link_intent> lastGesture;
 	window.set_markdown_link_dispatch([&](const auto& aIntent) { lastGesture = aIntent; return host.open_markdown_link(aIntent, &opener); });
+	// [[BPR-1338]]. Open on GitHub through the same real read host.
+	std::optional<core::markdown_context> lastPage;
+	window.set_pull_request_page_dispatch([&](const application::pull_request_page_intent& aIntent) {
+		const auto* const context = std::get_if<core::markdown_context>(&aIntent);
+		if (context == nullptr) {
+			return core::markdown_link_result::refused;
+		}
+		lastPage = *context;
+		return host.open_pull_request_page(*context, &opener);
+	});
 	expect(host.adopt(session()), "synthetic account accepted by real read host");
 	window.set_setup_destination_dispatch([&](const auto& aIntent) {
 		if (std::holds_alternative<application::submit_setup_destination>(aIntent)) {
@@ -282,6 +292,15 @@ int main(int argc, char** argv)
 	expect(opener.Addresses.size() == count, "direct and image local links plus userinfo cause no handoff");
 	activate(*reader, QStringLiteral("https://images.example.invalid/diagram.png"));
 	expect(opener.Addresses.size() == count + 1, "image placeholder uses the same explicit host admission");
+	// [[BPR-1338]]. The title row's Open on GitHub opens the accepted pull
+	// request's canonical page on the accepted host, and nothing else.
+	auto* const pageButton = window.open_on_github_button();
+	expect(pageButton != nullptr && pageButton->isVisible() && pageButton->isEnabled(), "the composed title row offers Open on GitHub beside the name");
+	pageButton->click();
+	settle();
+	expect(opener.Addresses.size() == count + 2 && opener.Addresses.back() == "https://ghe.example.invalid/owner/repo/pull/42",
+		   "the composed button opens the accepted host's canonical pull request page");
+	const auto pageGesture = *lastPage;
 	reader->copy_source();
 	expect(QApplication::clipboard()->mimeData()->data("text/plain").toStdString() == corpus, "composed Copy source retains exact bytes");
 	reader->show_source(true);
@@ -404,6 +423,7 @@ int main(int argc, char** argv)
 	expect(text->document() == document && text->textCursor().anchor() == 10 && text->textCursor().position() == 20,
 		   "unchanged accepted refresh preserves the selection in the post being read");
 	expect(host.open_markdown_link(stale, &opener) == core::markdown_link_result::stale, "old composed gesture is invalid after new publication");
+	expect(host.open_pull_request_page(pageGesture, &opener) == core::markdown_link_result::stale, "an old Open on GitHub gesture is invalid after a new publication");
 	window.choose_modality(qt::review_modality::overview);
 	settle();
 	QElapsedTimer elapsed;

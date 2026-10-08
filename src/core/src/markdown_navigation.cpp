@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <string>
 #include <vector>
 
 namespace bpr::core {
@@ -200,5 +201,60 @@ namespace bpr::core {
 			return *relative;
 		}
 		return std::unexpected(markdown_link_result::refused);
+	}
+
+	auto admit_pull_request_page(const pull_request_page_observation& aObservation)
+		-> std::expected<pull_request_page, markdown_link_result>
+	{
+		if (!aObservation.BrowserAvailable) {
+			return std::unexpected(markdown_link_result::unavailable);
+		}
+		if (!safe_authority(aObservation.Hostname) || !safe_name(aObservation.Owner) || !safe_name(aObservation.Repository)
+			|| !aObservation.Number.valid()) {
+			return std::unexpected(markdown_link_result::refused);
+		}
+		auto page       = pull_request_page{ };
+		page.Hostname   = aObservation.Hostname;
+		page.Owner      = aObservation.Owner;
+		page.Repository = aObservation.Repository;
+		page.Number     = aObservation.Number;
+		return page;
+	}
+
+	auto admit_queue_pull_request_page(const pull_request_ref& aRef, const std::string_view aHostname, const std::string_view aLogin, const bool aBrowserAvailable)
+		-> std::expected<pull_request_page, markdown_link_result>
+	{
+		if (!aBrowserAvailable) {
+			return std::unexpected(markdown_link_result::unavailable);
+		}
+		const auto repository = std::string_view{ aRef.Repository };
+		const auto slash      = repository.find('/');
+		if (aHostname.empty() || aLogin.empty() || aRef.Host != aHostname || aRef.Account != aLogin || slash == std::string_view::npos
+			|| repository.find('/', slash + 1) != std::string_view::npos || aRef.Number <= 0
+			|| aRef.Number > static_cast<std::int64_t>(maximum_pull_request_number)) {
+			return std::unexpected(markdown_link_result::refused);
+		}
+		return admit_pull_request_page({ .BrowserAvailable = true,
+										 .Hostname         = aHostname,
+										 .Owner            = repository.substr(0, slash),
+										 .Repository       = repository.substr(slash + 1),
+										 .Number           = pull_request_number{ static_cast<std::uint32_t>(aRef.Number) } });
+	}
+
+	auto admit_recent_pull_request_page(const window_review_destination& aDestination, const window_review_authority& aAuthority, const github_account_id aAccount, const bool aBrowserAvailable)
+		-> std::expected<pull_request_page, markdown_link_result>
+	{
+		if (!aBrowserAvailable) {
+			return std::unexpected(markdown_link_result::unavailable);
+		}
+		if (aAuthority.Hostname.empty() || aDestination.Hostname != aAuthority.Hostname
+			|| (aDestination.Mode != github_access_mode::public_preview && !matches_review_authority(aDestination, aAuthority, aAccount))) {
+			return std::unexpected(markdown_link_result::refused);
+		}
+		return admit_pull_request_page({ .BrowserAvailable = true,
+										 .Hostname         = aAuthority.Hostname,
+										 .Owner            = aDestination.Repository.Owner,
+										 .Repository       = aDestination.Repository.Name,
+										 .Number           = aDestination.Number });
 	}
 }

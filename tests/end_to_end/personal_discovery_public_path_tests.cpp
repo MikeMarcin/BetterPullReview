@@ -32,6 +32,7 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QPushButton>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QToolButton>
@@ -461,6 +462,61 @@ try {
 	follow->trigger();
 	wait_for([&] { return queue_numbers(*windowA).contains(17) && follow->isChecked(); }, "Follow keeps the opened pull request in the queue");
 	expect(queue_item(*windowA, 17)->Membership.Followed && !queue_item(*windowA, 17)->Membership.discovered(), "it is there because it is followed");
+
+	// [[BPR-1338]]. Open on GitHub through the real composition and the
+	// recording browser: the title row's button on the open pull request, a
+	// Home queue row and a Recently viewed row. Each address is the accepted
+	// host's canonical pull request page.
+	{
+		const auto pageOpens = [&] { return app::detail::github_application_fixture_access::browser_opens(*owner); };
+		const auto lastPage  = [&] { return app::detail::github_application_fixture_access::browser_last_address(*owner); };
+		const auto wasHome   = windowA->showing_home();
+		const auto wasSize   = windowA->size();
+		windowA->resize(1'300, 820);
+		QApplication::processEvents();
+		// The way back from Home a reviewer takes: a modality.
+		windowA->choose_modality(qt::review_modality::overview);
+		QApplication::processEvents();
+		const auto pageBefore = pageOpens();
+		wait_for([&] { return !windowA->showing_home() && windowA->open_on_github_button()->isVisible(); }, "the open pull request offers Open on GitHub beside its name",
+				 [&] { std::cerr << "width=" << windowA->width() << " identity=" << windowA->identity_label()->isVisible() << " enabled=" << windowA->open_on_github_action()->isEnabled() << '\n'; });
+		windowA->open_on_github_button()->click();
+		expect(pageOpens() == pageBefore + 1U && lastPage() == "https://github.com/octo-org/review-repository/pull/17",
+			   "the title row's button opens the open pull request's page on the accepted host");
+		windowA->choose_home(true);
+		QApplication::processEvents();
+		auto* const needsView = windowA->home_list()->state_view(qt::home_group::needs_you);
+		auto        pageRow   = QModelIndex{ };
+		for (auto index = 0; needsView != nullptr && index < needsView->model()->rowCount(); ++index) {
+			if (needsView->model()->index(index, 0).data(qt::home_row_role::identity).toString() == QStringLiteral("octo-org/review-repository#4003")) {
+				pageRow = needsView->model()->index(index, 0);
+			}
+		}
+		expect(windowA->showing_home() && pageRow.isValid(), "Home lists the requested row");
+		// The keyboard is in a list only in the active window, as after a click.
+		windowA->activateWindow();
+		QApplication::processEvents();
+		needsView->setFocus(Qt::OtherFocusReason);
+		needsView->setCurrentIndex(pageRow);
+		QApplication::processEvents();
+		windowA->open_on_github_action()->trigger();
+		expect(pageOpens() == pageBefore + 2U && lastPage() == "https://github.com/octo-org/review-repository/pull/4003",
+			   "Open on GitHub on a Home queue row opens that row's page");
+		auto* const recentRows = windowA->home_recent_list();
+		expect(recentRows->count() >= 1, "the opened pull request is under Recently viewed");
+		recentRows->setFocus(Qt::OtherFocusReason);
+		recentRows->setCurrentRow(0);
+		QApplication::processEvents();
+		windowA->open_on_github_action()->trigger();
+		if (lastPage() != "https://github.com/octo-org/review-repository/pull/17") {
+			std::cerr << "recent opens=" << pageOpens() - pageBefore << " last=" << lastPage() << " status=" << windowA->statusBar()->currentMessage().toStdString() << " count=" << recentRows->count() << " row0=" << recentRows->item(0)->text().toStdString() << '\n';
+		}
+		expect(pageOpens() == pageBefore + 3U && lastPage() == "https://github.com/octo-org/review-repository/pull/17",
+			   "Open on GitHub on a Recently viewed row opens that row's page");
+		windowA->choose_home(wasHome);
+		windowA->resize(wasSize);
+		QApplication::processEvents();
+	}
 
 	// A second window of the profile sees the same list and asks for nothing.
 	// [[BPR-1017]]. It presents the profile's session from its first frame:

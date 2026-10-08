@@ -8,6 +8,7 @@
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/markdown_navigation.hpp"
+#include "bpr/core/review_queue.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -341,6 +342,22 @@ namespace bpr::application {
 		// no provider requests, credentials, transports, or provider read models.
 		virtual void publish(const github_presentation_update& aUpdate) = 0;
 	};
+
+	/// \brief [[BPR-1338]]. A Recently viewed row, by its place in the window's published list.
+	struct recent_review_row
+	{
+		std::size_t Index = 0;
+
+		auto operator<=>(const recent_review_row&) const = default;
+	};
+
+	/// \brief [[BPR-1338]]. Which pull request's own GitHub page a gesture asks to open.
+	///
+	/// \details Names a pull request, never an address: the window's open pull
+	/// request by its current publication, a Home queue row by its queue
+	/// identity, or a Recently viewed row by its place. The host admits it
+	/// against what it accepted and builds the address itself.
+	using pull_request_page_intent = std::variant<core::markdown_context, core::pull_request_ref, recent_review_row>;
 }
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROJECTION_HPP

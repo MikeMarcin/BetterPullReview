@@ -74,6 +74,9 @@ namespace bpr::qt {
 		progress_accepted,
 		/// [[BPR-1331]]. Excluded: a ring struck through, left out of review.
 		progress_excluded,
+		/// [[BPR-1338]]. Open on GitHub: a page whose corner an arrow leaves,
+		/// the common mark for "opens outside this application".
+		open_on_github,
 	};
 
 	/// \brief [[BPR-1331]]. The glyph the private progress button shows for

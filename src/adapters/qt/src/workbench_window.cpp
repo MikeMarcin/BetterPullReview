@@ -1505,6 +1505,40 @@ namespace bpr::qt {
 		IdentityLabel->setContentsMargins(4, 0, 4, 0);
 		IdentityAction = rowWidget(
 			PrimaryToolbar, IdentityLabel, QStringLiteral("workbenchStripIdentityAction"));
+		// [[BPR-1338]]. Open on GitHub, the owner's "open in browser button next
+		// to the pr title". The window's action names a pull request and the
+		// host admits it and builds the address; Qt never holds one. Its button
+		// sits right after the name and goes with it: counted in the name's
+		// room, so the title elides around it, and shown exactly while the name
+		// of a GitHub pull request is. It is borderless, as the modality's
+		// segments are, so it reads as part of the name rather than as another
+		// control in the row.
+		OpenOnGithubAction = new QAction{ tr("Open on &GitHub"), this };
+		OpenOnGithubAction->setObjectName(QStringLiteral("openOnGithubAction"));
+		OpenOnGithubAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+O") });
+		OpenOnGithubAction->setShortcutContext(Qt::WindowShortcut);
+		OpenOnGithubAction->setIconText(QStringLiteral("Open on GitHub"));
+		OpenOnGithubAction->setToolTip(QStringLiteral("Open on GitHub (%1)").arg(OpenOnGithubAction->shortcut().toString(QKeySequence::NativeText)));
+		OpenOnGithubAction->setStatusTip(QStringLiteral("Open the pull request's page on GitHub in your browser"));
+		OpenOnGithubAction->setEnabled(false);
+		addAction(OpenOnGithubAction);
+		connect(OpenOnGithubAction, &QAction::triggered, this, [this] {
+			if (const auto target = pull_request_page_target(); target.has_value()) {
+				open_pull_request_page(*target);
+			}
+		});
+		PullRequestMenu->insertAction(FollowPullRequest, OpenOnGithubAction);
+		PullRequestMenu->insertSeparator(FollowPullRequest);
+		OpenOnGithubButton = new QToolButton{ PrimaryToolbar };
+		OpenOnGithubButton->setObjectName(QStringLiteral("workbenchOpenOnGithubButton"));
+		OpenOnGithubButton->setDefaultAction(OpenOnGithubAction);
+		OpenOnGithubButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		OpenOnGithubButton->setAccessibleName(QStringLiteral("Open on GitHub"));
+		OpenOnGithubButton->setAccessibleDescription(QStringLiteral("Opens the open pull request's page on GitHub in your browser"));
+		OpenOnGithubButton->setProperty(strip_style::filled_property, true);
+		Strip->adopt_button(OpenOnGithubButton);
+		OpenOnGithubButtonAction = rowWidget(
+			PrimaryToolbar, OpenOnGithubButton, QStringLiteral("workbenchOpenOnGithubAction"));
 		// [[BPR-0656]]. Next new comment keeps its key and its window
 		// ownership; [[BPR-1129]] its count rides on the comments toggle and its
 		// presenter leaves the title row.
@@ -2826,6 +2860,8 @@ namespace bpr::qt {
 			// button, so the gesture is where the row is.
 			HomeRecentList->setContextMenuPolicy(Qt::ActionsContextMenu);
 			HomeRecentList->addAction(HomeRecentResumeAction);
+			// [[BPR-1338]]. And Open on GitHub, for the row made current.
+			HomeRecentList->addAction(OpenOnGithubAction);
 			HomeRecentList->installEventFilter(this);
 			connect(HomeRecentList, &QListWidget::itemActivated, this,
 					[this](QListWidgetItem* const aItem) {
@@ -2833,7 +2869,10 @@ namespace bpr::qt {
 							aItem == nullptr ? -1 : HomeRecentList->row(aItem), false);
 					});
 			connect(HomeRecentList, &QListWidget::currentRowChanged, this,
-					[this](int) { update_recent_resume_action(); });
+					[this](int) {
+						update_recent_resume_action();
+						update_open_on_github_action();
+					});
 			connect(HomeRecentResumeAction, &QAction::triggered, this, [this] {
 				dispatch_recent_review(HomeRecentList->currentRow(), true);
 			});
@@ -3472,6 +3511,35 @@ namespace bpr::qt {
 		// profile it resolved.
 		HomeList->set_state_colours(home_state_colours_for(appearance_profile{ }));
 		HomeList->set_open_dispatch([this](const core::queue_item& aItem) { open_pull_request_item(aItem); });
+		// [[BPR-1338]]. Open on GitHub from a queue row: its icon names the row
+		// directly; its menu holds the window's action, which names the row the
+		// right click made current, as the action's key does.
+		HomeList->set_page_dispatch([this](const core::queue_item& aItem) { open_pull_request_page(aItem.Ref); });
+		HomeList->set_current_observer([this] { update_open_on_github_action(); });
+		// Which of Home's lists the reviewer is in: the one that last took the
+		// keyboard. A menu taking it for a moment changes nothing.
+		connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget* const aNow) {
+			if (aNow == nullptr || HomeList == nullptr) {
+				return;
+			}
+			if (aNow == HomeRecentList) {
+				HomeRecentRowLast = true;
+			} else if (qobject_cast<QListView*>(aNow) != nullptr && HomeList->isAncestorOf(aNow)) {
+				HomeRecentRowLast = false;
+			} else {
+				return;
+			}
+			update_open_on_github_action();
+		});
+		HomeRowMenu = new QMenu{ this };
+		HomeRowMenu->setObjectName(QStringLiteral("homeRowMenu"));
+		HomeRowMenu->setAccessibleName(QStringLiteral("Pull request row"));
+		HomeRowMenu->addAction(OpenOnGithubAction);
+		HomeList->set_row_menu_dispatch([this](const QPoint& aGlobal) {
+			HomeRecentRowLast = false;
+			update_open_on_github_action();
+			HomeRowMenu->popup(aGlobal);
+		});
 		// The empty lane's link names the saved repositories, so it opens their
 		// page; observer rules stay reachable from Filter's Open Reviews & queue.
 		HomeList->set_settings_dispatch([this] { open_settings(settings_page::repositories); });
@@ -8958,6 +9026,7 @@ namespace bpr::qt {
 		if (arrivedHome && HomeAccount && QueueDiscoveryDispatch) {
 			QueueDiscoveryDispatch(application::queue_discovery_intent::activate);
 		}
+		update_open_on_github_action();
 	}
 
 	auto workbench_window::showing_ai_tools() const -> bool
@@ -9420,6 +9489,7 @@ namespace bpr::qt {
 		if (IdentityLabel == nullptr) {
 			return;
 		}
+		update_open_on_github_action();
 		// [[BPR-0722]]. The identity is the only in-window statement of which
 		// pull request is open (the macOS title bar is hidden), so it yields
 		// last. By width it sheds the title, then the owner; the number stays
@@ -9952,6 +10022,7 @@ namespace bpr::qt {
 			clear_github_pull_request();
 		}
 		MarkdownAuthority   = authority;
+		PageContext         = aPullRequest.MarkdownContext;
 		const auto dispatch = [this, context = aPullRequest.MarkdownContext](const std::string& aBody, const std::string& aDestination) {
 			const auto result = context && MarkdownDispatch ? MarkdownDispatch({ *context, aBody, aDestination }) : core::markdown_link_result::unavailable;
 			QString    message;
@@ -10006,6 +10077,11 @@ namespace bpr::qt {
 				static_cast<std::int64_t>(aPullRequest.Number.value()));
 		}
 		update_strip_identity();
+		// [[BPR-1338]]. An accepted publication brings Open on GitHub beside the
+		// name; the row is measured again with it.
+		if (OpenOnGithubButtonAction != nullptr && OpenOnGithubButtonAction->isVisible() != (IdentityAction->isVisible() && PageContext.has_value())) {
+			apply_strip_width();
+		}
 		// The gap BPR-0191 recorded closes here. In the two-window arrangement
 		// the anchor could only follow a conversation projection, because nothing
 		// observed a comparison context change. The shell composes both surfaces,
@@ -10104,9 +10180,73 @@ namespace bpr::qt {
 		MarkdownDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch)
+	{
+		PageDispatch = std::move(aDispatch);
+		update_open_on_github_action();
+	}
+
+	auto workbench_window::open_on_github_action() const noexcept -> QAction*
+	{
+		return OpenOnGithubAction;
+	}
+
+	auto workbench_window::open_on_github_button() const noexcept -> QToolButton*
+	{
+		return OpenOnGithubButton;
+	}
+
+	auto workbench_window::home_row_menu() const noexcept -> QMenu*
+	{
+		return HomeRowMenu;
+	}
+
+	auto workbench_window::pull_request_page_target() const -> std::optional<application::pull_request_page_intent>
+	{
+		// [[BPR-1338]]. On Home the row the reviewer last made current, in
+		// whichever list; over a review the open pull request, by the
+		// publication on screen.
+		if (showing_home()) {
+			if (HomeRecentRowLast && HomeRecentList != nullptr && HomeRecentList->currentRow() >= 0
+				&& static_cast<std::size_t>(HomeRecentList->currentRow()) < RecentReviews.Entries.size()) {
+				return application::recent_review_row{ static_cast<std::size_t>(HomeRecentList->currentRow()) };
+			}
+			if (const auto item = HomeList != nullptr ? HomeList->current_queue_item() : std::nullopt; item.has_value()) {
+				return item->Ref;
+			}
+			return std::nullopt;
+		}
+		if (PageContext.has_value() && HasGithubPullRequest && !LocalCycleShown) {
+			return *PageContext;
+		}
+		return std::nullopt;
+	}
+
+	void workbench_window::update_open_on_github_action()
+	{
+		if (OpenOnGithubAction != nullptr) {
+			OpenOnGithubAction->setEnabled(PageDispatch && pull_request_page_target().has_value());
+		}
+	}
+
+	void workbench_window::open_pull_request_page(const application::pull_request_page_intent& aIntent)
+	{
+		const auto result = PageDispatch ? PageDispatch(aIntent) : core::markdown_link_result::unavailable;
+		QString    message;
+		switch (result) {
+		case core::markdown_link_result::opened:      message = QStringLiteral("Opened the pull request on GitHub in your browser."); break;
+		case core::markdown_link_result::stale:       message = QStringLiteral("This pull request is no longer the one shown. Choose it again to open it on GitHub."); break;
+		case core::markdown_link_result::unavailable: message = QStringLiteral("Opening on GitHub is unavailable until this window has a session for the pull request's server."); break;
+		case core::markdown_link_result::refused:     message = QStringLiteral("This pull request's page cannot be opened safely from here."); break;
+		case core::markdown_link_result::failed:      message = QStringLiteral("The browser could not open the pull request's page."); break;
+		}
+		statusBar()->showMessage(message, 8000);
+	}
+
 	void workbench_window::clear_github_pull_request()
 	{
 		MarkdownAuthority.clear();
+		PageContext.reset();
 		OverviewPage->body_view()->set_link_dispatch({ });
 		ConversationPanel->set_link_dispatch({ });
 		RefreshConversationAnchor.reset();
@@ -10129,6 +10269,9 @@ namespace bpr::qt {
 			RepositoriesTree->forget_open_pull_request();
 		}
 		update_strip_identity();
+		if (OpenOnGithubButtonAction != nullptr && OpenOnGithubButtonAction->isVisible()) {
+			apply_strip_width();
+		}
 		update_rail_summaries();
 		PullRequestPanel->clear();
 		clear_overview();
@@ -12144,6 +12287,16 @@ namespace bpr::qt {
 		// items leave (see update_strip_identity). With nothing open there is
 		// nothing to identify, and the label takes no width.
 		IdentityAction->setVisible((!StripHome && !IdentityText.isEmpty()) || (LocalCycleShown && !showing_home()));
+		// [[BPR-1338]]. Open on GitHub goes with an accepted GitHub pull
+		// request's name, never a local cycle's, and is measured with it below.
+		// It is shown only where it acts: nothing in the title row reads as
+		// disabled.
+		const auto showPage = [this] {
+			if (OpenOnGithubButtonAction != nullptr) {
+				OpenOnGithubButtonAction->setVisible(IdentityAction->isVisible() && !(LocalCycleShown && !showing_home()) && PageContext.has_value());
+			}
+		};
+		showPage();
 		const auto identityShort = [this] {
 			return IdentityAction->isVisible() && strip_identity_budget() < strip_identity_minimum();
 		};
@@ -12176,6 +12329,7 @@ namespace bpr::qt {
 		}
 		if (identityShort()) {
 			IdentityAction->setVisible(false);
+			showPage();
 		}
 		update_strip_identity();
 		// [[BPR-0653]]. The last yield, the owner's: when the row still asks
@@ -12416,7 +12570,7 @@ namespace bpr::qt {
 		PullRequestMenu->setObjectName(QStringLiteral("workbenchPullRequestMenu"));
 		PullRequestMenu->setAccessibleName(QStringLiteral("Pull Request"));
 		PullRequestMenu->setAccessibleDescription(
-			QStringLiteral("Keep the open pull request or its repository in my queue; nothing changes on GitHub"));
+			QStringLiteral("Open the pull request on GitHub, or keep it or its repository in my queue; nothing changes on GitHub"));
 		FollowPullRequest = PullRequestMenu->addAction(QStringLiteral("&Follow"));
 		FollowPullRequest->setObjectName(QStringLiteral("followPullRequestAction"));
 		FollowPullRequest->setCheckable(true);
@@ -13450,6 +13604,13 @@ namespace bpr::qt {
 		if (ComposeReviewAction != nullptr && CommentAction != nullptr) {
 			ComposeReviewAction->setIcon(strip_icon(strip_glyph::compose_review, ink));
 			CommentAction->setIcon(strip_icon(strip_glyph::comment, ink));
+		}
+		// [[BPR-1338]]. One glyph for Open on GitHub wherever it is offered.
+		if (OpenOnGithubAction != nullptr) {
+			OpenOnGithubAction->setIcon(strip_icon(strip_glyph::open_on_github, ink));
+			if (HomeList != nullptr) {
+				HomeList->set_page_action(OpenOnGithubAction->icon(), OpenOnGithubAction->toolTip());
+			}
 		}
 		Drawers[1].Toggle->setIcon(strip_icon(strip_glyph::comments_drawer, ink));
 		if (ToggleDrawersAction != nullptr) {

@@ -370,6 +370,9 @@ namespace bpr::qt {
 			return Accounts.size() > 1U
 				? home_account_chip_text(text(item->Ref.Account), text(item->Ref.Host))
 				: QString{ };
+		case home_row_role::icon_action:
+			// [[BPR-1338]]. Every queue row's pull request has a page on GitHub.
+			return QStringLiteral("Open on GitHub");
 		case home_row_role::time:
 		case home_row_role::progress:
 		case home_row_role::row_action:

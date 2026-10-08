@@ -1219,6 +1219,23 @@ foreach(bpr_home_discovery_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-1338]]. Open on GitHub: the title row's button beside the name, the
+# window action, its key and menu, and Home's rows (hover icon, row menu, key),
+# at each scale, reached directly.
+foreach(bpr_open_on_github_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_open_on_github_whole "${bpr_open_on_github_scale} / 100")
+    math(EXPR bpr_open_on_github_fraction "${bpr_open_on_github_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_workbench_open_on_github_scale_${bpr_open_on_github_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --open-on-github
+    )
+    set_tests_properties(qt_workbench_open_on_github_scale_${bpr_open_on_github_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_open_on_github_whole}.${bpr_open_on_github_fraction};BPR_EXPECTED_QT_SCALE=${bpr_open_on_github_whole}.${bpr_open_on_github_fraction}"
+        PASS_REGULAR_EXPRESSION "workbench-open-on-github:pass"
+        TIMEOUT 60
+    )
+endforeach()
+
 # [[BPR-0985]]. Which conversation moves code, reached directly: the full
 # window run stops earlier at the epoch-row assertion [[BPR-0940]] owns.
 bpr_add_network_isolated_test(

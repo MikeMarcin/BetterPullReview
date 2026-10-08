@@ -5948,6 +5948,50 @@ namespace bpr::app {
 			RecentPublished = projection;
 			Window->publish(projection);
 		}
+		/// [[BPR-1338]]. The page of a pull request the window names, built from
+		/// the accepted session's profile hostname and never from row text. A
+		/// Home queue row must be the accepted account's on that host; a
+		/// Recently viewed row must be one this window published, on that host,
+		/// and an account's row that account's.
+		auto open_pull_request_page(const application::pull_request_page_intent& aIntent) -> core::markdown_link_result
+		{
+			if (const auto* const context = std::get_if<core::markdown_context>(&aIntent)) {
+				return WindowRead->open_pull_request_page(*context, Profile->ComposedBrowser);
+			}
+			const auto& session = Host->accepted_session();
+			const auto* profile = session && Host->state().Account == session->Viewer.Account ? find_profile(session->Profile) : nullptr;
+			if (profile == nullptr) {
+				return core::markdown_link_result::unavailable;
+			}
+			const auto hostname = std::string{ profile->hostname() };
+			const auto browser  = Profile->ComposedBrowser;
+			auto       address  = std::expected<core::pull_request_page, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::refused) };
+			if (const auto* const ref = std::get_if<core::pull_request_ref>(&aIntent)) {
+				if (session->Mode != core::github_access_mode::authenticated) {
+					return core::markdown_link_result::unavailable;
+				}
+				address = core::admit_queue_pull_request_page(*ref, hostname, session->Viewer.Login, browser != nullptr);
+			} else {
+				const auto row = std::get<application::recent_review_row>(aIntent).Index;
+				if (!Profile->ReviewRestoration || !RecentPublished || row >= RecentIndexMap.size() || row >= RecentPublished->Entries.size()) {
+					return core::markdown_link_result::stale;
+				}
+				const auto  index  = RecentIndexMap[row];
+				const auto& recent = Profile->ReviewRestoration->recent();
+				if (index >= recent.size() || recent[index].Destination != RecentPublished->Entries[row].Destination) {
+					return core::markdown_link_result::stale;
+				}
+				address = core::admit_recent_pull_request_page(recent[index].Destination, core::window_review_authority{ session->Mode, hostname }, session->Viewer.Account, browser != nullptr);
+			}
+			if (!address) {
+				return address.error();
+			}
+			try {
+				return browser->open(application::pull_request_page_address(*address)) ? core::markdown_link_result::opened : core::markdown_link_result::failed;
+			} catch (...) {
+				return core::markdown_link_result::failed;
+			}
+		}
 		void open_recent(application::recent_review_intent aIntent)
 		{
 			if (Closing || !Profile->ReviewRestoration || aIntent.Index >= RecentIndexMap.size()) {
@@ -6573,6 +6617,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->set_markdown_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 					? WindowRead->open_markdown_link(aIntent, Profile->ComposedBrowser)
+					: core::markdown_link_result::stale;
+			});
+			Window->set_pull_request_page_dispatch([this, weak](const application::pull_request_page_intent& aIntent) {
+				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
+					? open_pull_request_page(aIntent)
 					: core::markdown_link_result::stale;
 			});
 			Profile->Observers.insert_or_assign(DraftWindow, github_profile_runtime::window_observer{ .Lifetime = weak, .Github = [this, weak](const application::github_presentation_update& aUpdate) {
@@ -10166,7 +10215,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void publish_review_conversations(application::github_presentation_update aUpdate)
 		{
 			if (aUpdate.PullRequest && WindowRead && WindowRead->accepted_snapshot()) {
-				aUpdate.PullRequest = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
+				// [[BPR-1338]]. The placement re-projects the conversations; the
+				// window publication the read host stamped on its projection
+				// stays, or body links and Open on GitHub would name none.
+				PublishedMarkdownContext             = aUpdate.PullRequest->MarkdownContext;
+				aUpdate.PullRequest                  = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
+				aUpdate.PullRequest->MarkdownContext = PublishedMarkdownContext;
 			}
 			Window->publish(aUpdate);
 			select_published_conversation();
@@ -10178,8 +10232,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void refresh_review_conversations()
 		{
 			if (!Closing && Window && WindowRead && WindowRead->accepted_snapshot()) {
+				auto projection            = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
+				projection.MarkdownContext = PublishedMarkdownContext;
 				Window->publish(application::github_presentation_update{
-					.PullRequest              = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source()),
+					.PullRequest              = std::move(projection),
 					.PreserveWindowNavigation = true });
 				select_published_conversation();
 			} else {
@@ -15793,7 +15849,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		std::optional<published_conversation_selection> PendingPublishedConversation;
 
-		application::review_comment_placement                       ReviewCommentPlacement{ adapters::github::detail::parse_review_permalink_body };
+		application::review_comment_placement ReviewCommentPlacement{ adapters::github::detail::parse_review_permalink_body };
+		/// [[BPR-1338]]. The read host's last window publication, kept across the placement's re-projection.
+		std::optional<core::markdown_context>                       PublishedMarkdownContext;
 		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
 		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
 
@@ -18095,6 +18153,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto detail::github_application_fixture_access::device_binding_durable(const github_application& aApplication) noexcept -> bool
 	{
 		return aApplication.Implementation->Host->accepted_device_binding_durable();
+	}
+
+	auto detail::github_application_fixture_access::browser_last_address(const github_application& aApplication) -> std::string
+	{
+		return aApplication.Implementation->RecordingBrowser.last_address();
+	}
+
+	auto detail::github_application_fixture_access::browser_opens(const github_application& aApplication) noexcept -> std::size_t
+	{
+		return aApplication.Implementation->RecordingBrowser.opens();
 	}
 
 	auto detail::github_application_fixture_access::large_review_snapshot(

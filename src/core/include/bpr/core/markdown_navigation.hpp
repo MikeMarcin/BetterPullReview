@@ -3,6 +3,8 @@
 
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/profile_window.hpp"
+#include "bpr/core/review_queue.hpp"
+#include "bpr/core/window_review_restoration.hpp"
 
 #include <cstdint>
 #include <expected>
@@ -74,5 +76,57 @@ namespace bpr::core {
 	[[nodiscard]] auto admit_markdown_link(const markdown_link_intent&      aIntent,
 										   const markdown_link_observation& aObservation)
 		-> std::expected<markdown_destination, markdown_link_result>;
+
+	/// \brief [[BPR-1338]]. One pull request's own page, from parts the host accepted.
+	///
+	/// \details The hostname is the accepted profile authority's; the owner,
+	/// repository and number are the accepted read model's. No part is remote
+	/// or typed text taken as an address.
+	struct pull_request_page_observation
+	{
+		bool                BrowserAvailable = false;
+		std::string_view    Hostname;
+		std::string_view    Owner;
+		std::string_view    Repository;
+		pull_request_number Number;
+	};
+
+	/// \brief [[BPR-1338]]. The admitted parts of one pull request's page.
+	///
+	/// \details The host turns them into the canonical page address, the one
+	/// the provider contract already requires a pull request's `html_url` to
+	/// equal: the hostname, the owner, the repository, "pull" and the number.
+	struct pull_request_page
+	{
+		std::string         Hostname;
+		std::string         Owner;
+		std::string         Repository;
+		pull_request_number Number;
+
+		auto operator==(const pull_request_page&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1338]]. Admits one pull request's page from accepted parts.
+	///
+	/// \details The same safe-authority and safe-name rules as a body link's
+	/// repository-relative destination; a part that fails them refuses, and
+	/// nothing is repaired or guessed.
+	[[nodiscard]] auto admit_pull_request_page(const pull_request_page_observation& aObservation)
+		-> std::expected<pull_request_page, markdown_link_result>;
+
+	/// \brief [[BPR-1338]]. A Home queue row's page, on the accepted session's host.
+	///
+	/// \details The row must be the accepted account's on that host (the
+	/// queue names both), and its repository exactly "owner/name". The host
+	/// in the address is `aHostname`, the accepted profile's, never the row's.
+	[[nodiscard]] auto admit_queue_pull_request_page(const pull_request_ref& aRef, std::string_view aHostname, std::string_view aLogin, bool aBrowserAvailable)
+		-> std::expected<pull_request_page, markdown_link_result>;
+
+	/// \brief [[BPR-1338]]. A Recently viewed row's page, on the accepted session's host.
+	///
+	/// \details A public reading opens on that host; an account's reading
+	/// only under that account's exact session authority.
+	[[nodiscard]] auto admit_recent_pull_request_page(const window_review_destination& aDestination, const window_review_authority& aAuthority, github_account_id aAccount, bool aBrowserAvailable)
+		-> std::expected<pull_request_page, markdown_link_result>;
 }
 #endif

@@ -81,6 +81,26 @@ namespace bpr::qt {
 				&& aIndex.row() + 1 < aIndex.model()->rowCount(aIndex.parent());
 		}
 
+		/// [[BPR-1338]]. What QToolButton asks of its style for an icon-only
+		/// button at the small icon size.
+		[[nodiscard]] auto icon_action_size(const QStyleOptionViewItem& aOption) -> QSize
+		{
+			auto* const style      = style_of(aOption);
+			const auto  side       = style->pixelMetric(QStyle::PM_SmallIconSize, nullptr, aOption.widget);
+			auto        button     = QStyleOptionToolButton{ };
+			button.font            = aOption.font;
+			button.palette         = aOption.palette;
+			button.direction       = aOption.direction;
+			button.iconSize        = QSize{ side, side };
+			button.toolButtonStyle = Qt::ToolButtonIconOnly;
+			button.subControls     = QStyle::SC_ToolButton;
+			button.rect            = QRect{ 0, 0, side, side };
+			return style->sizeFromContents(QStyle::CT_ToolButton, &button, QSize{ side, side }, aOption.widget);
+		}
+
+		/// The labelled action's extent, or the icon action's where there is none.
+		[[nodiscard]] auto row_action_size(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) -> QSize;
+
 		[[nodiscard]] auto action_size(const QStyleOptionViewItem& aOption, const QString& aText) -> QSize
 		{
 			if (aText.isEmpty()) {
@@ -99,6 +119,17 @@ namespace bpr::qt {
 			button.subControls     = QStyle::SC_ToolButton;
 			button.rect            = QRect{ QPoint{ }, textSize };
 			return style_of(aOption)->sizeFromContents(QStyle::CT_ToolButton, &button, textSize, aOption.widget);
+		}
+
+		auto row_action_size(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) -> QSize
+		{
+			if (const auto action = aIndex.data(home_row_role::row_action).toString(); !action.isEmpty()) {
+				return action_size(aOption, action);
+			}
+			if (!aIndex.data(home_row_role::icon_action).toString().isEmpty()) {
+				return icon_action_size(aOption);
+			}
+			return { };
 		}
 
 		[[nodiscard]] auto lay_out(
@@ -142,7 +173,6 @@ namespace bpr::qt {
 				Time                = aIndex.data(home_row_role::time).toString();
 				Progress            = aIndex.data(home_row_role::progress).toString();
 				Chip                = aIndex.data(home_row_role::account_chip).toString();
-				const auto action   = aIndex.data(home_row_role::row_action).toString();
 
 				First  = title.isEmpty() ? identity : identity + identity_separator + title;
 				Second = why;
@@ -158,7 +188,7 @@ namespace bpr::qt {
 				SideFont                = secondary_font(aOption.font);
 				const auto sideMetrics  = QFontMetrics{ SideFont };
 				SideLineHeight          = sideMetrics.height();
-				const auto actionExtent = action_size(aOption, action);
+				const auto actionExtent = row_action_size(aOption, aIndex);
 				SideWidth               = std::max({ sideMetrics.horizontalAdvance(Time),
 													 sideMetrics.horizontalAdvance(Progress),
 													 actionExtent.width() });
@@ -546,11 +576,10 @@ namespace bpr::qt {
 
 	auto home_row_delegate::action_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) -> QRect
 	{
-		const auto action = aIndex.data(home_row_role::row_action).toString();
-		if (action.isEmpty()) {
+		const auto size = row_action_size(aOption, aIndex);
+		if (size.isEmpty()) {
 			return { };
 		}
-		const auto       size = action_size(aOption, action);
 		const row_layout layout{ aOption, aIndex, false, QColor{ } };
 		return QRect{ aOption.rect.left() + layout.Width - inset - size.width(),
 					  aOption.rect.top() + ((layout.RowHeight - size.height()) / 2),

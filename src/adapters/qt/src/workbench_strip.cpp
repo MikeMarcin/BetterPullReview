@@ -289,6 +289,27 @@ namespace bpr::qt {
 				aPainter.drawPath(balloon);
 				break;
 			}
+			case strip_glyph::open_on_github: {
+				// A page open at its upper right, and an arrow leaving through
+				// that corner.
+				auto page = QPainterPath{ };
+				page.moveTo(11.0, 5.0);
+				page.lineTo(7.0, 5.0);
+				page.quadTo(5.0, 5.0, 5.0, 7.0);
+				page.lineTo(5.0, 17.0);
+				page.quadTo(5.0, 19.0, 7.0, 19.0);
+				page.lineTo(17.0, 19.0);
+				page.quadTo(19.0, 19.0, 19.0, 17.0);
+				page.lineTo(19.0, 13.0);
+				aPainter.drawPath(page);
+				aPainter.drawLine(QPointF{ 11.5, 12.5 }, QPointF{ 19.0, 5.0 });
+				auto head = QPainterPath{ };
+				head.moveTo(14.0, 5.0);
+				head.lineTo(19.0, 5.0);
+				head.lineTo(19.0, 10.0);
+				aPainter.drawPath(head);
+				break;
+			}
 			}
 		}
 

@@ -732,6 +732,66 @@ namespace {
 		lane.drain();
 	}
 
+	/// [[BPR-1338]]. Open on GitHub names the window's current publication; the
+	/// host builds the page from the accepted authority and snapshot.
+	void test_pull_request_page_admission()
+	{
+		struct browser final : application::device_authorization_browser_port
+		{
+			std::vector<std::string> Opened;
+			bool                     Succeeds = true;
+			auto                     open(const std::string_view aAddress) -> bool override
+			{
+				Opened.emplace_back(aAddress);
+				return Succeeds;
+			}
+		} opener;
+		reads                                                      provider;
+		application::manual_executor                               lane;
+		std::optional<application::github_pull_request_projection> projected;
+		application::github_window_read_host                       host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&](const auto& aUpdate) { if (aUpdate.Presentation.PullRequest) { projected = aUpdate.Presentation.PullRequest; } }
+		};
+		const auto unpublished = core::markdown_context{ { core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } }, core::application_session_id{ 2 }, core::github_identity_generation{ 1 }, core::provider_snapshot_id{ 1 }, 1 };
+		expect(host.open_pull_request_page(unpublished, &opener) == core::markdown_link_result::stale && opener.Opened.empty(), "no accepted pull request, no page");
+		expect(host.adopt(session()), "page fixture adopts accepted session");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 42 } });
+		auto call = provider.Calls.back();
+		auto data = snapshot(call.Request);
+		// Remote text that looks like an address is never where the page comes from.
+		data.PullRequest.Title = "https://evil.invalid/owner/repo/pull/42";
+		data.PullRequest.Body  = "[x](https://evil.invalid/)";
+		call.Complete(application::github_pull_request_success{ call.Request, data });
+		lane.drain();
+		expect(projected && projected->MarkdownContext && opener.Opened.empty(), "acceptance opens nothing");
+		const auto current = *projected->MarkdownContext;
+		expect(host.open_pull_request_page(current, &opener) == core::markdown_link_result::opened && opener.Opened.size() == 1
+				   && opener.Opened.back() == "https://github.com/owner/repo/pull/42",
+			   "the page is the canonical address from the accepted hostname, repository and number");
+		expect(host.open_pull_request_page(current, nullptr) == core::markdown_link_result::unavailable && opener.Opened.size() == 1, "no browser capability, no page");
+		auto foreign          = current;
+		foreign.Window.Window = core::bpr_window_id{ 99 };
+		expect(host.open_pull_request_page(foreign, &opener) == core::markdown_link_result::stale && opener.Opened.size() == 1, "another window cannot borrow this page");
+		opener.Succeeds = false;
+		expect(host.open_pull_request_page(current, &opener) == core::markdown_link_result::failed, "a browser failure is explicit");
+		opener.Succeeds = true;
+		host.dispatch(core::refresh_pull_request_intent{ });
+		call = provider.Calls.back();
+		call.Complete(application::github_pull_request_success{ call.Request, snapshot(call.Request) });
+		lane.drain();
+		expect(host.open_pull_request_page(current, &opener) == core::markdown_link_result::stale && opener.Opened.size() == 2, "a new publication retires the old gesture");
+		expect(host.open_pull_request_page(*projected->MarkdownContext, &opener) == core::markdown_link_result::opened && opener.Opened.back() == "https://github.com/owner/repo/pull/42", "the new publication opens the same page");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "other" }, core::pull_request_number{ 43 } });
+		expect(host.open_pull_request_page(*projected->MarkdownContext, &opener) == core::markdown_link_result::stale && opener.Opened.size() == 3, "replacing the pull request revokes its page before the replacement arrives");
+		host.shutdown();
+		provider.Calls.back().Complete(application::github_pull_request_cancelled{ provider.Calls.back().Request });
+		lane.drain();
+	}
+
 	void test_markdown_link_admission()
 	{
 		struct browser final : application::device_authorization_browser_port
@@ -947,6 +1007,7 @@ int main()
 {
 	test_durable_overview_lifecycle();
 	test_markdown_link_admission();
+	test_pull_request_page_admission();
 	test_provisional_overview_is_bounded_and_never_authority();
 	test_loading_budget_shape();
 	test_shared_backoff_lifecycle();

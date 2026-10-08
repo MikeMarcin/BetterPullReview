@@ -168,10 +168,13 @@ namespace bpr::qt {
 	/// assistive technology; it takes no focus, because the keyboard already has
 	/// the row (Shift and Return) and the row's menu. It is shown only for a row
 	/// whose `home_row_role::row_action` names an action.
+	///
+	/// [[BPR-1338]]. Given `home_row_role::icon_action`, it is an icon-only
+	/// button for the rows that name one, in the place the delegate keeps for it.
 	class home_row_action final : public QToolButton
 	{
 	public:
-		home_row_action(QAbstractItemView& aView, const QString& aText);
+		home_row_action(QAbstractItemView& aView, const QString& aText, int aRole = home_row_role::row_action);
 
 		void               set_trigger(std::function<void(int aRow)> aTrigger);
 		[[nodiscard]] auto row() const noexcept -> int;
@@ -182,6 +185,7 @@ namespace bpr::qt {
 
 	private:
 		QAbstractItemView&            View;
+		int                           Role     = home_row_role::row_action;
 		int                           Row      = -1;
 		int                           HoverRow = -1;
 		std::function<void(int aRow)> Trigger;
@@ -217,6 +221,16 @@ namespace bpr::qt {
 		void set_open_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		void set_settings_dispatch(std::function<void()> aDispatch);
 		void set_recent_action_dispatch(std::function<void(int aRow)> aDispatch);
+		/// \brief [[BPR-1338]]. A queue row's Open on GitHub, from its icon button.
+		void set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch);
+		/// \brief [[BPR-1338]]. The icon and tooltip every queue row's Open on
+		/// GitHub button shows, the window action's.
+		void set_page_action(const QIcon& aIcon, const QString& aToolTip);
+		/// \brief [[BPR-1338]]. A right click on a queue row: the row is current,
+		/// and the window shows its menu at this global point.
+		void set_row_menu_dispatch(std::function<void(const QPoint& aGlobal)> aDispatch);
+		/// \brief [[BPR-1338]]. Told when a queue row becomes current.
+		void set_current_observer(std::function<void()> aObserver);
 		/// \brief Whether the queue is ready and the window has an account to list it for.
 		void set_queue_status(bool aReady, bool aAccount);
 		/// \brief RFC-BPR-0062. With no saved repository for the account, an
@@ -368,6 +382,11 @@ namespace bpr::qt {
 		std::function<void()>                        SettingsDispatch;
 		std::function<void(int aRow)>                RecentActionDispatch;
 		std::function<void()>                        ViewObserver;
+		std::function<void(const core::queue_item&)> PageDispatch;
+		std::function<void(const QPoint&)>           RowMenuDispatch;
+		std::function<void()>                        CurrentObserver;
+		QIcon                                        PageIcon;
+		QString                                      PageToolTip;
 		/// The collapse of a group panel and of the bands inside it, keyed by the
 		/// owner, repository or account it names. It lives as long as the window
 		/// and is never dispatched, so nothing writes those names to a store.

@@ -823,6 +823,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto account_action() const noexcept -> QAction*;
 		/// \brief The repository and pull request identity at the strip's left.
 		[[nodiscard]] auto identity_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1338]]. Open on GitHub: the open pull request's page, or on
+		/// Home the current row's. Command-Shift-O (Ctrl+Shift+O), the Pull Request
+		/// menu, the title row's button and Home's row menus.
+		[[nodiscard]] auto open_on_github_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1338]]. The icon button right after the pull request's name.
+		[[nodiscard]] auto open_on_github_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1338]]. The menu a Home row opens on a right click.
+		[[nodiscard]] auto home_row_menu() const noexcept -> QMenu*;
 		/// \brief "change 3 of 11", derived from the comparison the surface holds.
 		[[nodiscard]] auto change_position_label() const noexcept -> QLabel*;
 		/// \brief "file 3 of 40", from the core's navigation cursor.
@@ -1185,6 +1193,9 @@ namespace bpr::qt {
 
 		/// \brief Binds explicit reader gestures to current-context application policy.
 		void set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch);
+		/// \brief [[BPR-1338]]. Binds Open on GitHub to the host, which admits the
+		/// named pull request and builds its address.
+		void set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch);
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
@@ -1547,7 +1558,12 @@ namespace bpr::qt {
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
 		void open_pull_request_item(const core::queue_item& aItem);
-		void open_from_home_bar();
+		/// \brief [[BPR-1338]]. What Open on GitHub names now: on Home the row
+		/// last made current, elsewhere the open pull request.
+		[[nodiscard]] auto pull_request_page_target() const -> std::optional<application::pull_request_page_intent>;
+		void               open_pull_request_page(const application::pull_request_page_intent& aIntent);
+		void               update_open_on_github_action();
+		void               open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.
 		void build_repositories_page();
 		/// \brief Lists the displayed account's saved repositories, keeping
@@ -2079,6 +2095,15 @@ namespace bpr::qt {
 
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
 		std::string                                                                  MarkdownAuthority;
+		/// [[BPR-1338]]. Open on GitHub and what it names.
+		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;
+		std::optional<core::markdown_context>                                                   PageContext;
+		QAction*                                                                                OpenOnGithubAction       = nullptr;
+		QToolButton*                                                                            OpenOnGithubButton       = nullptr;
+		QAction*                                                                                OpenOnGithubButtonAction = nullptr;
+		QMenu*                                                                                  HomeRowMenu              = nullptr;
+		/// Which of Home's lists last made a row current: the queue's or Recently viewed.
+		bool HomeRecentRowLast = false;
 
 		/// [[BPR-0668]]. Whether the comparison gave the drawer any files.
 		bool                          FileRowsPresent          = false;
