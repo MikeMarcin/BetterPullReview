@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1328"
 title: "Change arrows continue to the next file instead of greying out"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"found_by":"owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1328--BPR-1328--8bce629ab070.json","related_cards":["BPR-1202","BPR-1287"],"acceptance":["BPR-1328:C1","BPR-1328:C2","BPR-1328:C3","BPR-1328:C4","BPR-1328:C5"]}
+parked_on: "human-review"
 ---
 
 # BPR-1328: Change arrows continue to the next file instead of greying out
@@ -121,7 +122,7 @@ pane does not claim them, so the change wins there.
 
 ## Execution record
 
-Product commit `c863dd850` (rebased onto `6bfde1e6d`).
+The frozen candidate is `c863dd850`, this change on `6bfde1e6d`. Main moved before the push; on main the same change is the BPR-1328 product commit rebased onto `fe63ed5e3`, with the round-trip pins resealed again over BPR-1212 slice 2's reseal (`a90419791`). Only other cards' files differ between the two.
 
 **C1, unattended, pass.** `core_workbench_interaction`: the new
 `test_change_commands_continue_into_the_neighbouring_file` covers the
@@ -155,13 +156,13 @@ Focused set at the rebased source: `architecture_boundaries`,
 `test_network_isolation_manifest`, `core_workbench_interaction`,
 `core_diff_transition`, `qt_workbench_window_scale_{100,125,200}`,
 `application_review_round_trip_composition_contract` (resealed over
-`e20113341`, BPR-1090's reseal; mutation pin unchanged) and
+BPR-1212 slice 2's reseal; mutation pin unchanged) and
 `application_change_arrows_across_files` pass. Before the follow-ups, also
 `qt_composed_github_scale_{100,125,200}`, `qt_diff_workbench_scale_{100,125,200}`,
 `application_uiforetw_selected_diff_contract`,
 `application_workbench_composition_contract`,
 `application_github_public_path_nested_folders_v1` and
-`application_overview_summary_1` passed. Format check passes; clang-tidy on
+`application_overview_summary_1` passed. `application_composition_contract` passes 8/8 run directly (559 s); through ctest it twice hit its 600 s bound while three worktrees ran it at once. Format check passes; clang-tidy on
 the changed translation units reports only pre-existing naming findings in
 `github_application.cpp`, none on changed lines.
 
