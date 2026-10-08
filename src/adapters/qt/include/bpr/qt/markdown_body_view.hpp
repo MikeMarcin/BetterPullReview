@@ -94,6 +94,7 @@ namespace bpr::qt {
 		void refresh_formats();
 		void height_changed();
 		void refresh_controls();
+		void refresh_control_row();
 		void show_context_menu(bool aSource, const QPoint& aPosition);
 
 		std::string                             Body;

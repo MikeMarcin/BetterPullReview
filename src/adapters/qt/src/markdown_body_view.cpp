@@ -574,6 +574,7 @@ namespace bpr::qt {
 		MarkTheme = aTheme;
 		BodyMark  = feedback_body_mark_of(Body);
 		refresh_mark();
+		height_changed();
 	}
 
 	void markdown_body_view::refresh_mark()
@@ -585,6 +586,15 @@ namespace bpr::qt {
 			Mark->setToolTip(BodyMark.Name);
 		}
 		Mark->setVisible(BodyMark.Label.has_value());
+		refresh_control_row();
+	}
+
+	void markdown_body_view::refresh_control_row()
+	{
+		// [[BPR-1332]]. In place the row holds only the mark. An empty row
+		// left visible still takes the layout's spacing, which the height
+		// for a width does not count, so a post lost its last pixels.
+		Controls->setVisible(!ContextControls && (!InPlace || BodyMark.Label.has_value()));
 	}
 
 	auto markdown_body_view::feedback_mark_label() const noexcept -> QLabel*
@@ -627,7 +637,7 @@ namespace bpr::qt {
 
 	void markdown_body_view::refresh_controls()
 	{
-		Controls->setVisible(!ContextControls);
+		refresh_control_row();
 		Toggle->setVisible(!InPlace && !ContextControls);
 		Copy->setVisible(!InPlace && !ContextControls);
 		Destination->setVisible(!InPlace && !ContextControls);
@@ -720,6 +730,9 @@ namespace bpr::qt {
 			return CachedHeight;
 		}
 		auto height = 0;
+		if (!Controls->isHidden()) {
+			height += Controls->sizeHint().height() + layout()->spacing();
+		}
 		if (!Notice->isHidden()) {
 			height += Notice->heightForWidth(width) + layout()->spacing();
 		}

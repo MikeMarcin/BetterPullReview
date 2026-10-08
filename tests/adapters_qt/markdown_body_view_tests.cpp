@@ -539,6 +539,36 @@ Final content: Ω 日本語 😀
 			expect(aView.rendered_view()->document()->toPlainText().contains(first), "the label is shown as the author wrote it");
 		}
 	}
+
+	/// [[BPR-1332]]. A post's holder places an in-place reader at its height
+	/// for its width. The rendered body gets all of that height: the control
+	/// row is hidden in place, and when a mark shows it, the height counts it.
+	void check_in_place_height()
+	{
+		auto holder = QWidget{ };
+		holder.resize(800, 600);
+		auto* const reader = new qt::markdown_body_view{ &holder };
+		reader->set_in_place(true);
+		holder.show();
+		const auto place = [&](const int aWidth) {
+			reader->setGeometry(0, 0, aWidth, reader->heightForWidth(aWidth));
+			settle();
+			auto* const body = reader->rendered_view();
+			return body->height() >= body->document()->size().height() - 1;
+		};
+		const auto body = std::string{ "thought: Then the placing half of the drawer reads its rows again.\n\nA second paragraph, so the body wraps over several lines." };
+		reader->set_body(body, "in-place:1");
+		for (const auto width : { 215, 400, 700 }) {
+			expect(place(width), "an in-place body shows all of its lines at the height for its width");
+		}
+		expect(reader->findChild<QPushButton*>(QStringLiteral("markdownSourceToggle"))->parentWidget()->isHidden(),
+			   "in place, with no mark, the control row takes no room");
+		reader->set_feedback_marks(qt::default_feedback_mark_theme(reader->palette()));
+		expect(!reader->feedback_mark_label()->isHidden(), "a labelled body in place shows its mark");
+		for (const auto width : { 215, 400, 700 }) {
+			expect(place(width), "with the mark's row shown, the body still shows all of its lines");
+		}
+	}
 } // namespace
 
 int main(int aArgc, char** aArgv)
@@ -557,6 +587,7 @@ try {
 	check_bounds(view);
 	check_appearance_and_overflow(view);
 	check_labelled_bodies(view);
+	check_in_place_height();
 	std::cout << "markdown-body-view-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

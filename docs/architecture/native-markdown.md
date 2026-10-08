@@ -126,6 +126,10 @@ height for a width, so the open thread grows with its posts and a vertical
 wheel scrolls the code the drawer follows. Its source controls and destination
 line are the holder's: the post's name row has View source and Copy source,
 and a link's destination is its tooltip, shown at once when Tab reaches it.
+The reader's own control row is hidden in place unless a label mark shows,
+and the height for a width counts that row when it shows: a visible empty row
+still takes the layout's spacing, which cut the last pixels off every post
+([[BPR-1332]]).
 Headings keep to the body's scale, lists indent by half Qt's step, links on a
 dark panel keep their hue at a readable lightness, and a recognized
 Conventional Comments header is set in semibold as the notes set it.
