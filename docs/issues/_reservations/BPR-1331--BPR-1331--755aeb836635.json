@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1331"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Review-state toolbar icon shows the current file's progress",
+  "created": "2026-10-08T18:52:02.884225+00:00",
+  "base": "d27f59526a0aaa4c9a3263766ad3f04ea38bf18e"
+}
