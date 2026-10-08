@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFont>
+#include <QFontMetrics>
 #include <QFontMetricsF>
 #include <QImage>
 #include <QKeyEvent>
@@ -282,13 +283,13 @@ namespace {
 		}
 	}
 
-	void settle_geometry(qt::diff_workbench& aWorkbench)
+	void settle_geometry(qt::diff_workbench& aWorkbench, const qint64 aDeadlineMs = 5'000)
 	{
 		auto timer = QElapsedTimer{ };
 		timer.start();
 		do {
 			QApplication::processEvents();
-		} while (aWorkbench.geometry_pending() && timer.elapsed() < 5'000);
+		} while (aWorkbench.geometry_pending() && timer.elapsed() < aDeadlineMs);
 		expect(!aWorkbench.geometry_pending(), "native measurement completes within the local test deadline");
 		process_events();
 	}
@@ -649,44 +650,163 @@ namespace {
 		}
 	}
 
-	void test_the_gutter_follows_the_documents_digit_count()
+	/// \brief [[BPR-1335]]. The pad either side of the widest number.
+	constexpr auto ExpectedGutterPadding = 4;
+	/// \brief [[BPR-1290]]. The thread-marker and "+" column, right of the
+	/// numbers. BPR-1335 must not narrow it.
+	constexpr auto ExpectedMarkerColumn = 22;
+
+	[[nodiscard]] auto decimal_digits(std::uint32_t aNumber) -> int
 	{
-		const auto widthFor = [](const std::uint32_t aLines) {
+		auto digits = 1;
+		for (; aNumber >= 10U; aNumber /= 10U) {
+			++digits;
+		}
+		return digits;
+	}
+
+	[[nodiscard]] auto widest_digit(const QFontMetrics& aMetrics) -> int
+	{
+		auto widest = 0;
+		for (const auto digit : QStringLiteral("0123456789")) {
+			widest = std::max(widest, aMetrics.horizontalAdvance(digit));
+		}
+		return widest;
+	}
+
+	/// \brief [[BPR-1335]]. The width a split pane's gutter should have.
+	[[nodiscard]] auto expected_gutter(const QPlainTextEdit& aPane, const std::uint32_t aLongest) -> int
+	{
+		return decimal_digits(aLongest) * widest_digit(aPane.fontMetrics()) + 2 * ExpectedGutterPadding;
+	}
+
+	/// \brief [[BPR-1335]]. Where the first ink is in a row band of a grab,
+	/// in logical pixels, or -1 when the band is only background.
+	[[nodiscard]] auto first_ink_column(const QImage& aImage, const int aTop, const int aBottom) -> double
+	{
+		const auto ratio      = aImage.devicePixelRatio();
+		const auto background = aImage.pixel(aImage.width() - 1, 0);
+		const auto top        = std::max(0, static_cast<int>(std::floor(aTop * ratio)));
+		const auto bottom     = std::min(aImage.height(), static_cast<int>(std::ceil(aBottom * ratio)));
+		for (auto x = 0; x < aImage.width(); ++x) {
+			for (auto y = top; y < bottom; ++y) {
+				if (aImage.pixel(x, y) != background) {
+					return x / ratio;
+				}
+			}
+		}
+		return -1.0;
+	}
+
+	/// \brief [[BPR-1335]]. The gutter is as wide as its longest number.
+	///
+	/// \details The owner, 2026-10-08: "Our line numbers pane looks to be
+	/// winder then necessary. It should size to the longest line number".
+	/// These files end without a newline, so their last line is the longest
+	/// number. One ending in a newline also numbers the empty line after it,
+	/// as VS Code does, and the last case checks the gutter makes room for it.
+	void test_the_gutter_sizes_to_its_longest_number()
+	{
+		for (const auto lines : { 9U, 99U, 1'557U, 100'000U }) {
 			auto left  = std::string{ };
 			auto right = std::string{ };
-			for (auto line = std::uint32_t{ 0U }; line < aLines; ++line) {
-				left += "same-" + std::to_string(line) + '\n';
-				right += "same-" + std::to_string(line) + '\n';
+			for (auto line = 1U; line <= lines; ++line) {
+				const auto end = std::string{ line == lines ? "" : "\n" };
+				left += "line " + std::to_string(line) + end;
+				right += (line == (lines + 1U) / 2U ? "changed " : "line ") + std::to_string(line) + end;
 			}
-			right += "only-on-the-right\n";
-			auto       options   = core::diff_options{ };
-			const auto diff      = computed(left, right, options, 7U);
+			const auto diff      = std::make_shared<const core::computed_file_diff>(computed(left, right, { }, 61U));
 			auto       workbench = qt::diff_workbench{ };
 			workbench.resize(1'260, 820);
 			workbench.show();
 			process_events();
-			const auto selected = context(diff, 1U, 1U);
+			const auto selected = context(*diff, 1U, 1U);
 			workbench.set_loading(selected);
-			workbench.publish(bpr::qt::test::prepare_publication({
-				.Context = selected,
-				.Result  = std::make_shared<const core::computed_file_diff>(diff),
-			}));
-			process_events();
-			expect(workbench.right_pane()->blockCount() > 1,
-				   "the sized fixture really reached the pane");
-			return gutter_of(workbench.right_pane())->width();
-		};
+			workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = diff }));
+			// A 100000-line file is filled and measured over many turns, which
+			// a loaded station can stretch past the shared five seconds.
+			settle_geometry(workbench, 60'000);
+			const auto label = std::to_string(lines) + "-line file";
 
-		const auto twoDigits   = widthFor(8U);
-		const auto threeDigits = widthFor(120U);
-		const auto fourDigits  = widthFor(1'200U);
-		expect(twoDigits < threeDigits && threeDigits < fourDigits,
-			   "a longer document reserves a wider gutter, so the numbers are "
-			   "sized to the file rather than to a fixed guess");
-		// Sized from the block count, not from what is on screen: a gutter that
-		// grew while scrolling would shift the code sideways under the reader.
-		expect(threeDigits - twoDigits == fourDigits - threeDigits,
-			   "each additional digit costs exactly one digit of width");
+			auto widths = std::vector<int>{ };
+			for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+				expect(source->blockCount() == static_cast<int>(lines), label + ": the pane holds every line of the file");
+				const auto expected = expected_gutter(*source, lines);
+				const auto actual   = gutter_of(source)->width();
+				std::cout << "bpr-1335 " << label << " scale=" << workbench.devicePixelRatioF() << " digit=" << widest_digit(source->fontMetrics())
+						  << " gutter=" << actual << " expected=" << expected << '\n';
+				expect(actual == expected, label + ": the gutter is the longest number's digits times the widest digit, plus its padding");
+				expect(source->viewport()->x() - source->contentsRect().left() == expected, label + ": the code starts exactly where the gutter ends");
+				widths.push_back(actual);
+			}
+
+			// The marker and "+" column keeps its own width beside the numbers.
+			workbench.set_thread_markers(true);
+			process_events();
+			for (auto index = std::size_t{ 0U }; auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+				expect(gutter_of(source)->width() == widths[index] + ExpectedMarkerColumn, label + ": the marker column is added whole, not squeezed");
+				++index;
+			}
+			workbench.set_thread_markers(false);
+			// The narrower viewport is re-measured over several turns, and the
+			// rebuild reveals the selected change again when it lands.
+			settle_geometry(workbench, 60'000);
+
+			// Scrolling to the end shows the longest number and changes nothing.
+			auto* const pane   = workbench.right_pane();
+			auto* const gutter = gutter_of(pane);
+			const auto  origin = pane->viewport()->x();
+			workbench.scroll_controller()->end();
+			settle_geometry(workbench, 60'000);
+			expect(gutter->width() == widths[1] && pane->viewport()->x() == origin, label + ": scrolling never moves the code sideways");
+			const auto last = pane->document()->findBlockByNumber(static_cast<int>(lines) - 1);
+			const auto row  = pane->cursorRect(QTextCursor{ last });
+			expect(row.bottom() > 0 && row.top() < pane->viewport()->height(), label + ": the last line is on screen");
+			const auto image = gutter->grab().toImage();
+			const auto ink   = first_ink_column(image, row.top(), row.bottom() + 1);
+			expect(ink >= ExpectedGutterPadding - 0.5 && ink < ExpectedGutterPadding + widest_digit(pane->fontMetrics()),
+				   label + ": the longest number is painted whole, starting in its first digit's cell");
+
+			// A different font is a different digit, and the gutter follows it.
+			auto font = pane->font();
+			font.setPointSizeF(font.pointSizeF() * 2.0);
+			pane->setFont(font);
+			process_events();
+			expect(gutter->width() == expected_gutter(*pane, lines) && gutter->width() > widths[1],
+				   label + ": a larger font widens the gutter to the new digit");
+			expect(pane->viewport()->x() - pane->contentsRect().left() == gutter->width(), label + ": and the code moves with it");
+
+			// One pane numbers both sides, each column sized to the larger
+			// number and to its "base"/"head" heading.
+			workbench.set_one_pane_enabled(true);
+			process_events();
+			auto* const unified = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+			const auto  metrics = unified->fontMetrics();
+			const auto  column  = std::max({ decimal_digits(lines) * widest_digit(metrics),
+											 metrics.horizontalAdvance(QStringLiteral("base")),
+											 metrics.horizontalAdvance(QStringLiteral("head")) })
+				+ 2 * ExpectedGutterPadding;
+			std::cout << "bpr-1335 " << label << " one-pane gutter=" << gutter_of(unified)->width() << " expected=" << 2 * column << '\n';
+			expect(gutter_of(unified)->width() == 2 * column, label + ": one pane's two columns are sized to its longest number");
+			workbench.hide();
+		}
+
+		// A 99-line file ending in a newline numbers its empty last line 100.
+		auto text = std::string{ };
+		for (auto line = 1U; line <= 99U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		const auto diff      = std::make_shared<const core::computed_file_diff>(computed(text, text + "added\n", { }, 62U));
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(1'260, 820);
+		workbench.show();
+		process_events();
+		const auto selected = context(*diff, 1U, 1U);
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = diff }));
+		settle_geometry(workbench, 60'000);
+		expect(workbench.left_pane()->blockCount() == 100 && gutter_of(workbench.left_pane())->width() == expected_gutter(*workbench.left_pane(), 100U),
+			   "the empty line after a final newline is numbered, and the gutter makes room for its number");
 	}
 
 	void test_selected_composition()
@@ -3656,7 +3776,7 @@ auto main(int argc, char** argv) -> int
 	test_the_panes_number_their_own_lines();
 	test_white_space_design_captures();
 	test_the_viewport_fill_survives_a_style_clearing_it();
-	test_the_gutter_follows_the_documents_digit_count();
+	test_the_gutter_sizes_to_its_longest_number();
 	test_hiding_the_numbers_returns_the_gutter_width_to_the_code();
 	test_selected_composition();
 	test_nontext_publication_status();

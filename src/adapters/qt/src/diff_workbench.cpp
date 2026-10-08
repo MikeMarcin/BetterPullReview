@@ -15,6 +15,7 @@
 #include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMargins>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -55,10 +56,9 @@ namespace bpr::qt {
 	namespace {
 		/// Width of the change-group boundary rule, in device-independent pixels.
 		constexpr auto BoundaryRuleWidth = 2.0;
-		/// Breathing room either side of the widest number the gutter shows.
-		constexpr auto GutterPadding = 6;
-		/// A one-glyph column reads as a margin, not as a column of numbers.
-		constexpr auto GutterMinimumDigits = 2;
+		/// [[BPR-1335]]. Breathing room either side of the widest number the
+		/// gutter shows. The owner found the gutter wider than its numbers.
+		constexpr auto GutterPadding = 4;
 		/// [[BPR-1290]]. The gutter's column for thread markers, right of the
 		/// numbers, and the marker's box in it.
 		constexpr auto MarkerColumnWidth = 22;
@@ -367,13 +367,23 @@ namespace bpr::qt {
 				}
 			}
 
-			/// \brief Widths the gutter to the widest number it will ever show.
+			/// \brief The gutter's width, as `refresh_gutter_width` last measured it.
+			[[nodiscard]] auto gutter_width() const noexcept -> int
+			{
+				return GutterWidth;
+			}
+			/// \brief [[BPR-1335]]. Sizes the gutter to the longest number it shows.
 			///
-			/// \details Sized from the block count rather than from the visible
-			/// rows, so scrolling never moves the code sideways. Two digits is the
-			/// floor: a nine-line file whose gutter is one glyph wide reads as a
-			/// margin rather than as a column.
-			[[nodiscard]] auto gutter_width() const -> int;
+			/// \details The longest number is the pane's last block, so the
+			/// gutter is sized from the document and not from the visible rows,
+			/// and scrolling never moves the code sideways. A file that ends in a
+			/// newline has an empty last block, numbered as VS Code numbers it.
+			/// The width is the digits times the font's widest digit, a pad
+			/// either side, and the marker column when it is on. Runs when the
+			/// document, the font, the scale, the unified rows, the marker
+			/// column or the numbers' visibility change, and touches the layout
+			/// only when the width or the heading row actually changed.
+			void               refresh_gutter_width();
 			void               set_line_numbers_visible(bool aVisible);
 			void               set_gutter_colors(const QColor& aBackground, const QColor& aText);
 			void               paint_line_numbers(QPaintEvent* aEvent);
@@ -750,9 +760,10 @@ namespace bpr::qt {
 		private:
 			void                                   update_gutter();
 			void                                   place_gutter();
-			void                                   refresh_gutter_width();
+			[[nodiscard]] auto                     measured_gutter_width() const -> int;
 			void                                   restore_viewport_fill();
 			bool                                   LineNumbersVisible = true;
+			int                                    GutterWidth        = 0;
 			const std::vector<unified_source_row>* UnifiedRows        = nullptr;
 			QColor                                 RemovedColor;
 			QColor                                 AddedColor;
@@ -914,26 +925,63 @@ namespace bpr::qt {
 			restore_viewport_fill();
 		}
 
-		auto source_pane::gutter_width() const -> int
+		auto source_pane::measured_gutter_width() const -> int
 		{
 			// Hidden is zero width rather than a hidden widget of the old
 			// width. Everything that positions the gutter or reserves room for
-			// it reads this one function, so returning zero here is what gives
-			// the space back to the code instead of leaving an empty margin.
+			// it reads this width, so zero here is what gives the space back
+			// to the code instead of leaving an empty margin.
 			if (!LineNumbersVisible) {
 				return 0;
 			}
-			auto digits = 1;
-			for (auto count = std::max(1, blockCount()); count >= 10; count /= 10) {
-				++digits;
+			const auto metrics = fontMetrics();
+			auto       digit   = 0;
+			for (const auto glyph : QStringLiteral("0123456789")) {
+				digit = std::max(digit, metrics.horizontalAdvance(glyph));
 			}
-			return (UnifiedRows != nullptr ? 2 : 1) * (2 * GutterPadding + fontMetrics().horizontalAdvance(QLatin1Char('9')) * std::max(digits, UnifiedRows != nullptr ? 4 : GutterMinimumDigits))
-				+ marker_column_width();
+			const auto digits = [](std::uint32_t aNumber) {
+				auto count = 1;
+				for (; aNumber >= 10U; aNumber /= 10U) {
+					++count;
+				}
+				return count;
+			};
+			if (UnifiedRows == nullptr) {
+				return digits(static_cast<std::uint32_t>(std::max(1, blockCount()))) * digit + 2 * GutterPadding + marker_column_width();
+			}
+			// Each side's lines rise down the rows, so its largest number is
+			// on the last row that has one.
+			auto longest = std::uint32_t{ 1U };
+			auto base    = false;
+			auto head    = false;
+			for (auto row = UnifiedRows->rbegin(); row != UnifiedRows->rend() && !(base && head); ++row) {
+				if (!base && row->Base) {
+					longest = std::max(longest, *row->Base + 1U);
+					base    = true;
+				}
+				if (!head && row->Head) {
+					longest = std::max(longest, *row->Head + 1U);
+					head    = true;
+				}
+			}
+			const auto column = std::max({ digits(longest) * digit,
+										   metrics.horizontalAdvance(QStringLiteral("base")),
+										   metrics.horizontalAdvance(QStringLiteral("head")) })
+				+ 2 * GutterPadding;
+			return 2 * column + marker_column_width();
 		}
 
 		void source_pane::refresh_gutter_width()
 		{
-			setViewportMargins(gutter_width(), UnifiedRows != nullptr && LineNumbersVisible ? fontMetrics().height() + 4 : 0, 0, 0);
+			const auto width   = measured_gutter_width();
+			const auto margins = QMargins{ width, UnifiedRows != nullptr && LineNumbersVisible ? fontMetrics().height() + 4 : 0, 0, 0 };
+			if (viewportMargins() != margins) {
+				setViewportMargins(margins);
+			}
+			if (width != GutterWidth) {
+				GutterWidth = width;
+				place_gutter();
+			}
 		}
 
 		void source_pane::set_line_numbers_visible(const bool aVisible)
@@ -975,7 +1023,7 @@ namespace bpr::qt {
 			QPlainTextEdit::changeEvent(aEvent);
 			// A different font is a different digit width, and the code beside it
 			// has to move by exactly the same amount.
-			if (aEvent != nullptr && aEvent->type() == QEvent::FontChange) {
+			if (aEvent != nullptr && (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::DevicePixelRatioChange)) {
 				refresh_gutter_width();
 			}
 			// A style change re-polishes the widget, which is the one path
@@ -1272,7 +1320,7 @@ namespace bpr::qt {
 		/// \details QPlainTextEdit keeps its font, tab stop and margin on the
 		/// document, so a new one is given the replaced one's, and the plain
 		/// text layout the pane requires.
-		void adopt_document(QPlainTextEdit& aPane, QTextDocument& aDocument)
+		void adopt_document(source_pane& aPane, QTextDocument& aDocument)
 		{
 			auto* const previous = aPane.document();
 			aDocument.setDefaultFont(previous->defaultFont());
@@ -1287,6 +1335,10 @@ namespace bpr::qt {
 			if (adopted) {
 				delete previous;
 			}
+			// Replacing the document signals no block count change, and a
+			// staged file would otherwise keep the empty pane's gutter
+			// ([[BPR-1335]]).
+			aPane.refresh_gutter_width();
 		}
 
 		[[nodiscard]] auto line_text_at(
@@ -1759,8 +1811,8 @@ namespace bpr::qt {
 		LeftHeights.clear();
 		RightHeights.clear();
 		if (aLeft != nullptr && aRight != nullptr) {
-			adopt_document(*Left, *aLeft);
-			adopt_document(*Right, *aRight);
+			adopt_document(*pane(Left), *aLeft);
+			adopt_document(*pane(Right), *aRight);
 		} else {
 			Left->setPlainText(text_document(CurrentResult->LeftDocument));
 			Right->setPlainText(text_document(CurrentResult->RightDocument));
