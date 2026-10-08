@@ -9635,11 +9635,14 @@ namespace bpr::qt {
 			const auto bare   = IdentityRepository + number;
 			// [[BPR-1251]]. The title also needs the room it would have beside
 			// the whole modality (apply_strip_width), or it could yield and
-			// then return when the shortcuts go.
-			const auto titleRoom = IdentityTitleBudget - margins.left() - margins.right();
-			if (room >= titled && titleRoom >= titled) {
+			// then return when the shortcuts go. [[BPR-1324]]. So does the
+			// owner: with four modalities it yielded on Windows above the width
+			// where the shortcuts go, and came back below it.
+			const auto wholeRoom  = IdentityTitleBudget - margins.left() - margins.right();
+			const auto ownedWidth = metrics.horizontalAdvance(owned);
+			if (room >= titled && wholeRoom >= titled) {
 				text = metrics.elidedText(IdentityText, Qt::ElideRight, room);
-			} else if (room >= metrics.horizontalAdvance(owned)) {
+			} else if (room >= ownedWidth && wholeRoom >= ownedWidth) {
 				text = owned;
 			} else if (room >= metrics.horizontalAdvance(bare)) {
 				text = bare;
@@ -12528,14 +12531,24 @@ namespace bpr::qt {
 			// [[BPR-1129]]. The title row holds no navigation now, so the
 			// shortcuts stay down to the width the old strip needed for them.
 			Modality->set_abbreviated(false);
-			// [[BPR-1251]]. The title yields before the shortcuts, so whether it
-			// shows is decided from the room it has beside the whole modality.
-			// That room only shrinks as the window narrows, so the room a
-			// compact modality frees can never bring the title back.
+			// [[BPR-1251]], [[BPR-1324]]. The title and then the owner yield
+			// before the shortcuts, so whether each shows is decided from the
+			// room it has beside the whole modality. That room only shrinks as
+			// the window narrows, so the room a compact modality frees can
+			// never bring either back.
 			Modality->set_compact(false);
 			remeasure();
 			IdentityTitleBudget = strip_identity_budget();
-			Modality->set_compact(available < 1'100);
+#if defined(_WIN32)
+			// [[BPR-1324]]. Windows' title row also holds the menu control and
+			// the caption buttons, so with four modalities the shortcuts go
+			// below 1300 there, which keeps the whole name at 1280 as on every
+			// platform. Each segment's tooltip names its key.
+			constexpr auto compact_below = 1'300;
+#else
+			constexpr auto compact_below = 1'100;
+#endif
+			Modality->set_compact(available < compact_below);
 			remeasure();
 			if (identityShort()) {
 				Modality->set_compact(true);

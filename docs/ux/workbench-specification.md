@@ -113,7 +113,13 @@ names both keys ("Find a thread in the pull request (⌘4, ⌘J)"); the
 drawer toggle is named the Comments drawer, so only the modality is called
 Threads. The finder's own words follow: its search reads "Find a thread", its
 filters "Only threads with new replies" and "Hide resolved threads", and its
-View menu item, on the window and on the empty desktop's menu bar, is Threads.
+View menu item, on the window and on the empty desktop's menu bar, is Threads. Every other segment's tooltip names
+its key too ("Read the pull request overview, with every drawer closed (⌘1).",
+[[BPR-1324]]), so a segment that has dropped the key beside its name still
+offers it. The segments drop those keys below 1100 points wide, and on Windows
+below 1300, where the title row also holds the menu control and the caption
+buttons: the whole pull request name, title included, fits at 1280 on every
+platform.
 
 As built ([[BPR-1293]]): the page is `conversation_finder`, which reads the
 forest the Comments drawer reads, the ledger's read state and [[BPR-1087]]'s

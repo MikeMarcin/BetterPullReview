@@ -814,6 +814,12 @@ namespace bpr::qt {
 	}
 
 	namespace {
+		/// [[BPR-1324]]. A modality's key as its tooltip names it.
+		[[nodiscard]] auto modality_key(const review_modality aModality) -> QString
+		{
+			return review_modality_shortcut(aModality).toString(QKeySequence::NativeText);
+		}
+
 		[[nodiscard]] auto modality_purpose(const review_modality aModality)
 			-> QString
 		{
@@ -821,19 +827,24 @@ namespace bpr::qt {
 			case review_modality::overview:
 				// [[BPR-1295]]. It said Overview opened the files drawer, but
 				// Overview has closed every drawer since [[BPR-0674]].
+				// [[BPR-1324]]. Each segment's tooltip names its key, as
+				// Threads' does, so a compact segment keeps the hint.
 				return QStringLiteral(
-					"Read the pull request overview, with every drawer closed.");
+						   "Read the pull request overview, with every drawer closed (%1).")
+					.arg(modality_key(review_modality::overview));
 			case review_modality::review:
 				return QStringLiteral(
-					"Review the code in the drawers you last arranged. Choose "
-					"Review again to open Files and Comments.");
+						   "Review the code in the drawers you last arranged (%1). Choose "
+						   "Review again to open Files and Comments.")
+					.arg(modality_key(review_modality::review));
 			case review_modality::discuss:
 				return QStringLiteral(
-					"Collapse the files drawer and give the conversation the room.");
+						   "Collapse the files drawer and give the conversation the room (%1).")
+					.arg(modality_key(review_modality::discuss));
 			case review_modality::threads:
 				// [[BPR-1293]]. The card's words, with both keys named.
 				return QStringLiteral("Find a thread in the pull request (%1, %2)")
-					.arg(review_modality_shortcut(review_modality::threads).toString(QKeySequence::NativeText),
+					.arg(modality_key(review_modality::threads),
 						 QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText));
 			}
 			return QString{ };

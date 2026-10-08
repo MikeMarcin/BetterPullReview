@@ -65,3 +65,85 @@ Bisected in a separate worktree: both pass at `5d5de1c02`, the parent of
 - The title-row and composed rows that read the title row still pass on Windows.
 - macOS and Linux are unchanged: the threshold change is Windows-only, and the
   owner rule cannot show text there that the old rule hid.
+
+## Implementation (bpr-main-win, 2026-10-08)
+
+**What changed** (`src/adapters/qt`):
+
+- **The owner rule.** `update_strip_identity` shows `owner/repository #N` only
+  when it fits the current room *and* the room beside the whole modality
+  (`IdentityTitleBudget`, which [[BPR-1251]] already used for the title). That
+  room only shrinks as the window narrows, so the owner yields once and never
+  returns. The yield order is title, owner, then the modality's shortcuts.
+- **The Windows threshold.** `apply_strip_width` drops the modality's shortcut
+  hints below 1300 px on Windows (`_WIN32`) and below 1100 px elsewhere, as
+  before. The whole name fits at 1280 on Windows again. This is the
+  coordinator's Accept of 2026-10-08.
+- **Every segment's tooltip names its key.** Overview "(Ctrl+1)", Review
+  "(Ctrl+2)" after its first sentence, and Discuss "(Ctrl+3)", matching
+  Conversations' "(Ctrl+4, Ctrl+J)", on all platforms. A compact segment
+  therefore still offers its key. The accessible description is the same text.
+  This was the coordinator's addition after the Accept.
+- `docs/ux/workbench-specification.md` records the tooltips and both
+  thresholds.
+
+The same commit pins five Windows rows that other cards registered uncontained
+without a pin. Each was measured contained for the purpose:
+
+- `application_overview_summary_1`, `_1_25` and `_2`, and
+  `application_change_arrows_across_files` ([[BPR-1328]]), stop at "FAILED:
+  private composed course root";
+- `application_published_file_switch_contract` ([[BPR-1326]]) refuses startup
+  at the registry.
+
+All five are pinned `dos-volume-name`, so `test_network_isolation_manifest`
+passes on Windows.
+
+**Evidence** (bpr-main-win, Windows 11, MSVC 19.51, Qt 6.11.2, offscreen, at
+`e3163bbbe` plus this change). Both trees rebuilt with no `warning C` line.
+
+- `build/windows-dev-tour-cli` (Debug, `ctest -j4`): 25 of 26 pass. These are:
+  - `qt_workbench_window_scale_100`, `_125` and `_200` (177, 184 and 199 s);
+  - `qt_workbench_title_row` ×3, `qt_workbench_focus_order` ×3,
+    `qt_workbench_strip_menu`;
+  - `qt_composed_github` ×3, `qt_composed_inline_drawer` ×3,
+    `qt_conversation_finder` ×3;
+  - the three `application_overview_summary` rows (uncontained);
+  - `application_review_round_trip_composition_contract`,
+    `architecture_boundaries` and `test_network_isolation_structure_contract`.
+
+  The one failure was the manifest, on the two rows pinned above. With those
+  pins it passes, together with both rows (4 of 4).
+- `build/bpr0967-release` (MSVC `/O2`, tests on, `ctest -j1`):
+  `qt_workbench_window` ×3 and `qt_workbench_title_row` ×3 pass, 6 of 6.
+
+**Failing-before controls.** Each was built and run in the bisect worktree,
+on the full change minus one part, `qt_workbench_window_scale_100`:
+
+| Control | Result |
+|---|---|
+| None (the full change) | passes, 26.9 s |
+| No Windows threshold | fails at "at 1280 the title row names the pull request whole …" |
+| No key in Overview's tooltip | fails at "each modality segment's tooltip names its key" |
+| No owner rule | **passes** |
+
+With the 1300 px threshold, the modality goes compact before the owner would
+yield, so nothing on Windows exercises the owner rule today. Its
+failing-before evidence is at 1100 px:
+
+- `7778886c9` without the rule fails at "the owner yields once and does not
+  return at a narrower width";
+- the same tree with the rule passes that check and fails only later, at
+  1280.
+
+The rule is kept as the invariant's guard at 1100 px off Windows and against
+future width changes.
+
+**Limits.**
+
+- macOS and Linux were not run here. The threshold is `_WIN32`-only. The owner
+  rule can only hide the owner where the old rule showed it and the whole
+  modality would not fit it: the order the design names.
+- The tooltip text changes on every platform.
+- `application_windows_title_row`, which shows a real window, waits for the
+  owner's desktop clearance. It is not run.

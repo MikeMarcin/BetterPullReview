@@ -131,6 +131,22 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # share; both are registered uncontained and pass there.
     "application_overview_feedback_public_path": "dos-volume-name",
     "application_overview_labels_public_path": "dos-volume-name",
+    # Measured on bpr-main-win 2026-10-08 at 7fc367064, each registered
+    # contained for the measurement: overview_summary_public_path.exe stops at
+    # "FAILED: private composed course root" (exit 3) in under 0.1 s at every
+    # scale, the same refusal of the private storage root as the rows above.
+    "application_overview_summary_1": "dos-volume-name",
+    "application_overview_summary_1_25": "dos-volume-name",
+    "application_overview_summary_2": "dos-volume-name",
+    # [[BPR-1326]]. Measured on bpr-main-win 2026-10-08 at e3163bbbe, registered
+    # contained for the measurement: the application refuses startup at the
+    # registry ("STARTUP_FAILED_CAUSE: startup_failure=registry"), the same
+    # refusal the BPR-0834 rows measured.
+    "application_published_file_switch_contract": "dos-volume-name",
+    # [[BPR-1328]]. Measured the same day: change_arrows_public_path.exe stops at
+    # "FAILED: private composed course root" (exit 3), as the overview summary
+    # rows above do.
+    "application_change_arrows_across_files": "dos-volume-name",
     # BPR-0622: measured on JaegAW 2026-09-17. Contained, the canary course exits
     # 3 with no output at std::filesystem::canonical of its root argument, the
     # same lowbox refusal as the BPR-0806 rows; it passes uncontained.

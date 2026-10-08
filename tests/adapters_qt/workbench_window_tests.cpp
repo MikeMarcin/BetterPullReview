@@ -1629,9 +1629,20 @@ namespace {
 				   && modality->button(qt::review_modality::threads)->accessibleName() == QStringLiteral("Threads modality")
 				   && modality->action(qt::review_modality::threads)->objectName() == QStringLiteral("reviewModalityThreadsAction")
 				   && modality->button(qt::review_modality::threads)->objectName() == QStringLiteral("reviewModalityThreadsButton")
-				   && modality->button(qt::review_modality::discuss)->toolTip() == QStringLiteral("Collapse the files drawer and give the conversation the room.")
+				   && modality->button(qt::review_modality::discuss)->toolTip()
+					   == QStringLiteral("Collapse the files drawer and give the conversation the room (%1).")
+							  .arg(QKeySequence{ QStringLiteral("Ctrl+3") }.toString(QKeySequence::NativeText))
 				   && modality->button(qt::review_modality::discuss)->objectName() == QStringLiteral("reviewModalityDiscussButton"),
-			   "Threads' segment names both its keys; Discuss's tooltip and names are unchanged");
+			   "Threads' segment names both its keys; Discuss's tooltip names its key and its names are unchanged");
+		// [[BPR-1324]]. Every segment's tooltip names its key, so the hint
+		// survives the compact form, which drops the key beside the name.
+		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
+			const auto which = static_cast<qt::review_modality>(index);
+			const auto key   = QKeySequence{ QStringLiteral("Ctrl+%1").arg(index + 1U) }.toString(QKeySequence::NativeText);
+			expect(modality->button(which)->toolTip().contains(QStringLiteral("(%1").arg(key))
+					   && modality->button(which)->accessibleDescription() == modality->button(which)->toolTip(),
+				   "each modality segment's tooltip names its key");
+		}
 		// The strip is in its keys' order: Discuss third, Threads fourth.
 		const auto place = [modality](const qt::review_modality aWhich) { return modality->layout()->indexOf(modality->button(aWhich)); };
 		expect(place(qt::review_modality::overview) == 0 && place(qt::review_modality::review) == 1 && place(qt::review_modality::discuss) == 2
