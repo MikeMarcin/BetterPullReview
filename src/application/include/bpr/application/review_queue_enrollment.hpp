@@ -2,8 +2,10 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_QUEUE_ENROLLMENT_HPP
 
 #include "bpr/application/port.hpp"
+#include "bpr/application/repository_addition_input.hpp"
 #include "bpr/application/review_queue_refresh.hpp"
 #include "bpr/core/profile_window.hpp"
+#include "bpr/core/repository_addition.hpp"
 #include "bpr/core/review_queue.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
@@ -17,6 +19,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace bpr::application {
@@ -400,6 +403,35 @@ namespace bpr::application {
 		auto operator<=>(const saved_repository_intent&) const = default;
 	};
 
+	/// \brief One deliberate Add gesture bound to its displayed accepted destination.
+	/// \details Composition supplies Source; Gesture is the originating draft's nonzero
+	/// correlation token. Setup/sign-in completion alone never produces this intent.
+	struct repository_addition_intent
+	{
+		core::bpr_window_context Source;
+		std::uint64_t            Gesture = 0U;
+		queue_session_id         Destination;
+		std::string              Text;
+	};
+
+	/// \brief Exact progress/result for one originating Add gesture, never a network claim.
+	struct repository_addition_result
+	{
+		core::bpr_window_context                         Source;
+		std::uint64_t                                    Gesture = 0U;
+		queue_session_id                                 Destination;
+		core::repository_addition_status                 Status = core::repository_addition_status::unavailable;
+		std::optional<repository_addition_target>        Target;
+		std::optional<repository_addition_input_problem> InputProblem;
+		std::optional<queue_store_failure>               StoreFailure;
+		auto                                             operator==(const repository_addition_result&) const -> bool = default;
+		auto                                             operator<=>(const repository_addition_result& aOther) const
+		{
+			return std::tie(Source.Profile, Source.Window, Source.Generation, Gesture, Destination, Status, Target, InputProblem, StoreFailure)
+				<=> std::tie(aOther.Source.Profile, aOther.Source.Window, aOther.Source.Generation, aOther.Gesture, aOther.Destination, aOther.Status, aOther.Target, aOther.InputProblem, aOther.StoreFailure);
+		}
+	};
+
 	/// \brief One enterprise server the reviewer keeps ([[BPR-0660]]).
 	///
 	/// \details The hostname as the reviewer typed it and the account name
@@ -544,6 +576,9 @@ namespace bpr::application {
 		/// [[BPR-0989]]. Personal discovery for the profile's account session.
 		queue_discovery_status Discovery;
 
+		/// Last correlated addition result; consumers act only on their exact Source/Gesture.
+		std::optional<repository_addition_result> Addition;
+
 		/// One existing item changed. Items is empty; attachment replay supplies a
 		/// complete projection when a consumer has not received the preceding state.
 		std::optional<core::queue_item> UpdatedItem;
@@ -657,6 +692,8 @@ namespace bpr::application {
 		void apply(queue_preferences_intent aIntent);
 		/// \brief Saves or forgets a repository; the store answers first.
 		void apply(saved_repository_intent aIntent);
+		/// \brief Normalizes and admits one exact-window/session addition through the same durable store.
+		void apply(repository_addition_intent aIntent);
 		/// \brief [[BPR-0660]]. Remembers or forgets one enterprise server, durably before it is shown.
 		void apply(saved_server_intent aIntent);
 		/// \brief [[BPR-0989]]. Applies one personal discovery answer.

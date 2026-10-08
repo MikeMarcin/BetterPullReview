@@ -3,6 +3,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/application/manual_executor.hpp"
 #include "scratch_root.hpp"
 
 #include <sqlite3.h>
@@ -565,6 +566,52 @@ namespace {
 			   "the port forgets it");
 	}
 
+	struct addition_refresh final : application::queue_refresh_effect_port
+	{
+		auto refresh(const application::queue_refresh_request& aRequest, std::stop_token) -> application::queue_refresh_completion override
+		{
+			++Requests;
+			return { .Session = aRequest.Session, .Ref = aRequest.Ref, .Status = application::queue_refresh_status::offline };
+		}
+		std::size_t Requests = 0U;
+	};
+	struct addition_projection final : application::queue_landing_projection_port
+	{
+		void                                  publish(const application::queue_landing_projection& aProjection) override { Latest = aProjection; }
+		application::queue_landing_projection Latest;
+	};
+
+	void test_repository_addition_host_survives_sqlite_reopen()
+	{
+		const scratch_directory directory;
+		expect(directory.make_private(), "addition SQLite course owns a private disposable root");
+		const auto source  = core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ 1U }, core::bpr_window_generation{ 1U } };
+		const auto session = application::queue_session_id{ "github.com", "reviewer", 4U };
+		const auto saved   = application::saved_repository{ "github.com", "reviewer", "octo/app" };
+		auto       refresh = addition_refresh{ };
+		for (const auto reopen : { false, true }) {
+			auto store      = bpr::adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = directory.path() });
+			auto effects    = application::manual_executor{ };
+			auto decisions  = application::manual_executor{ };
+			auto projection = addition_projection{ };
+			auto host       = application::review_queue_application_host{ *store, refresh, effects, decisions, projection, session };
+			host.restore();
+			effects.run_next();
+			decisions.run_next();
+			expect(host.saved_repositories().size() == (reopen ? 1U : 0U) && !projection.Latest.Addition, "reopen loads only saved records, never transient addition confirmation");
+			host.apply(application::repository_addition_intent{ .Source = source, .Gesture = 1U, .Destination = session, .Text = "https://github.com/octo/app/" });
+			if (!reopen) {
+				expect(projection.Latest.Addition->Status == core::repository_addition_status::saving && host.saved_repositories().empty(), "SQLite save is visible only after actual durable terminal");
+				effects.run_next();
+				decisions.run_next();
+			}
+			expect(projection.Latest.SavedRepositories == std::vector{ saved } && projection.Latest.Addition->Status == (reopen ? core::repository_addition_status::already_added : core::repository_addition_status::saved) && host.statistics().PersistenceRequests == (reopen ? 0U : 1U), "same host API stores once, reopens exact identity and reports duplicate without another write");
+			host.shutdown();
+			expect(host.is_quiescent() && effects.pending() == 0U && decisions.pending() == 0U, "SQLite addition owner drains before store destruction");
+		}
+		expect(refresh.Requests == 0U, "SQLite addition requires no PR/network existence check");
+	}
+
 	// [[BPR-0659]]. Saved repositories: one row per host, account and name,
 	// a second save is no second row, a forget removes exactly one, and the
 	// application port carries both.
@@ -1060,6 +1107,7 @@ namespace {
 
 auto main() -> int
 try {
+	test_repository_addition_host_survives_sqlite_reopen();
 	test_collection_limits_on_load_and_write();
 #if !defined(_WIN32)
 	test_enrollment_survives_a_separate_process();
