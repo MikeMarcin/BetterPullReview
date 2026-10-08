@@ -18,12 +18,12 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QPixmap>
-#include <QPushButton>
 #include <QScreen>
 #include <QSplitter>
 #include <QSplitterHandle>
 #include <QTextEdit>
 #include <QThread>
+#include <QToolButton>
 #include <QTreeView>
 
 #include <array>
@@ -122,13 +122,22 @@ namespace {
 		}
 		wait_for([&] { return page->summary_fraction().has_value(); }, "explicit summary choice is retained");
 		const auto choice = *page->summary_fraction();
-		auto*      read   = page->findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
-		auto*      back   = page->findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
-		read->click();
-		wait_for([&] { return back->isVisible(); }, "composed full description opens");
+		// [[BPR-1333]]. Since 1f81ec5b4 one top-right control in the reader's
+		// corner enters and leaves the full reader; the two named push buttons
+		// are gone, and since dbbccdf6e it is not checkable, so its name says
+		// which way it goes. Look it up and check it before use, so a renamed
+		// control fails here by name instead of faulting in
+		// QAbstractButton::click.
+		auto* fullView = page->findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+		expect(fullView != nullptr && fullView->isVisible() && fullView->accessibleName() == QStringLiteral("Enter full view"),
+			   "composed Overview offers its full-view control");
+		fullView->click();
+		wait_for([&] { return fullView->accessibleName() == QStringLiteral("Exit full view") && !page->files_view()->isVisible(); },
+				 "composed full description opens");
 		auto* document = page->body_view()->rendered_view()->document();
-		back->click();
-		wait_for([&] { return page->files_view()->isVisible(); }, "full reader returns to composed Files");
+		fullView->click();
+		wait_for([&] { return fullView->accessibleName() == QStringLiteral("Enter full view") && page->files_view()->isVisible(); },
+				 "full reader returns to composed Files");
 		expect(page->summary_fraction() == choice && page->body_view()->rendered_view()->document() == document, "full reader keeps the split preference and reader document");
 		aWindow.modality()->action(qt::review_modality::review)->trigger();
 		return choice;
