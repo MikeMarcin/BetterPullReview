@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1314"
 title: "Verify composed resizable Overview and prepare owner review"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0063"]
 depends_on: ["BPR-1313"]
 priority: "P1"
