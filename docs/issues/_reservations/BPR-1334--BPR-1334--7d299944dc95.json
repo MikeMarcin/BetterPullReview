@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1334"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Line details strip under the side-by-side comparison (owner request 2026-10-08)",
+  "created": "2026-10-08T20:24:03.295472+00:00",
+  "base": "4cfc15256ef233692527a01c2498e26efb0852b3"
+}
