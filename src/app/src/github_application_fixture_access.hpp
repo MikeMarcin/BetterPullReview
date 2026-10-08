@@ -664,17 +664,18 @@ namespace bpr::app::detail {
 		/// [[BPR-1212]]. Return on a left-side line with the left pane focused
 		/// opened nothing and the status line said why (Flagged 4).
 		bool LeftLineRefused = false;
-		/// Return on one free line opened the composer on its draft, with no
-		/// first line and no range shown.
+		/// Return on one free line opened its draft in the drawer, named for
+		/// that one line, with no first line.
 		bool SingleLineOpenedPlain = false;
 		/// Shift+Down twice from a selected right line, with the right pane
 		/// focused, selected three lines inside one hunk.
 		bool KeyboardRangeSelected = false;
-		/// Shift+Return opened the composer on a draft anchored to the last of
-		/// them with the first as its start, its body the right side's exact
-		/// lines in a suggestion block, and the caret at the block's last line.
+		/// Shift+Return opened the drawer draft anchored to the last of them
+		/// with the first as its start, named "Lines a–b" with the gutter's
+		/// bracket over all three, its body the right side's exact lines in a
+		/// suggestion block, and the caret at the end of the block's last line.
 		bool SuggestionPrefilled = false;
-		/// Publish sent GitHub's multi-line fields: the fixture server received
+		/// The drawer draft's Publish sent GitHub's multi-line fields: the fixture server received
 		/// the block, `line` the last line, `start_line` the first, and both
 		/// sides RIGHT.
 		bool RangePublishedExact = false;

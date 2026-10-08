@@ -15,6 +15,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/release_maintenance.hpp"
+#include "bpr/core/review_comment_range.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/claude_wrapper_panel.hpp"
@@ -130,20 +131,6 @@ namespace bpr::qt {
 	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
 	/// [[BPR-0657]]. A card's Reply: the thread identity the next draft answers.
 	using workbench_review_reply_dispatch = std::function<void(const std::string&)>;
-	/// [[BPR-1212]]. Return (or Shift+Return, `Suggest`) in a code pane: the
-	/// selection's two ends, which the window has already found acceptable
-	/// to the core and whose last line it has selected, so the composition
-	/// can anchor the line's draft to them. The answer says whether it took
-	/// the request: an editable draft is coming.
-	struct workbench_line_draft_request
-	{
-		core::source_line_ref First;
-		core::source_line_ref Last;
-		bool                  Suggest = false;
-
-		auto operator<=>(const workbench_line_draft_request&) const = default;
-	};
-	using workbench_line_draft_dispatch = std::function<bool(const workbench_line_draft_request&)>;
 	/// [[BPR-0657]]. A card's Resolve or Unresolve, with what the window knows
 	/// of the thread and the server so the composition can decide it.
 	struct thread_resolution_gesture
@@ -500,12 +487,6 @@ namespace bpr::qt {
 		void set_review_submission_dispatch(review_submission_editor_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
-		/// \brief [[BPR-1212]]. Where Return and Shift+Return in the code go.
-		void set_line_draft_dispatch(workbench_line_draft_dispatch aDispatch);
-		/// \brief [[BPR-1212]]. Return (false) or Shift+Return (true) with the
-		/// code focused: a draft on the selected lines in the existing
-		/// composer, or the reason there is none in the status line.
-		void begin_line_draft(bool aSuggest);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
 		void set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Whether the composed provider resolves threads; with
@@ -920,6 +901,18 @@ namespace bpr::qt {
 		/// a suggested change on it) as a draft in the drawer.
 		/// \returns Whether the draft opened, in the drawer or in Discuss.
 		auto begin_new_comment(bool aSuggestion = false) -> bool;
+		/// \brief [[BPR-1212]]. Add comment (or Suggest change) on the selected
+		/// lines: Return and Shift+Return in a focused code pane, the code's
+		/// right-click items and the gutter's "+".
+		/// \details The core decides the selection (`decide_comment_range`);
+		/// a refusal opens nothing and the status line gives its reason.
+		/// Otherwise the range's last line is selected, the draft there takes
+		/// the range's first line in one edit, and `begin_new_comment` opens
+		/// it in the drawer. Return always takes the selection, so one line
+		/// narrows a range draft ending on it (coordinator, 2026-10-07).
+		/// \returns Whether a draft opened or is opening once its line's draft
+		/// arrives.
+		auto comment_on_selected_lines(bool aSuggestion = false) -> bool;
 		/// \brief [[BPR-1212]]. The code's Add comment and Suggest change, as
 		/// the right-click menu offers them.
 		[[nodiscard]] auto add_comment_action() const noexcept -> QAction*;
@@ -1384,6 +1377,12 @@ namespace bpr::qt {
 		void present_inline_draft();
 		/// \brief [[BPR-1212]]. Opens the drawer draft once the drawer shows.
 		void resume_pending_draft();
+		/// \brief [[BPR-1212]]. What the selection allows as a new comment's
+		/// lines, or the reason it allows none.
+		[[nodiscard]] auto decide_selected_lines(QString& aReason) const -> std::optional<core::comment_range_decision>;
+		/// \brief [[BPR-1212]]. Sets the range on the shown draft and opens it,
+		/// once the shown draft is the waiting comment's; true when it did.
+		auto resume_line_comment() -> bool;
 		/// \brief [[BPR-1212]]. Leaves the drawer draft: a written draft is
 		/// kept at its line, an empty one dropped, and focus goes to the code.
 		void leave_drawer_draft(bool aDiscard);
@@ -1776,7 +1775,17 @@ namespace bpr::qt {
 		int                            CompositionCaret           = -1;
 		/// [[BPR-1212]]. A new comment waiting for the drawer to open, and
 		/// whether it is a suggested change.
-		std::optional<bool>                  PendingDraft;
+		std::optional<bool> PendingDraft;
+		/// [[BPR-1212]]. A comment on the selected lines waiting for the
+		/// draft on its last line: the range's first line, and whether it is
+		/// a suggested change.
+		struct pending_line_comment
+		{
+			core::source_line_ref        Anchor;
+			std::optional<std::uint32_t> StartLine;
+			bool                         Suggestion = false;
+		};
+		std::optional<pending_line_comment>  PendingLineComment;
 		std::optional<core::source_line_ref> WritingAnchor;
 		QAction*                             AddCommentAction    = nullptr;
 		QAction*                             SuggestChangeAction = nullptr;
@@ -1924,7 +1933,6 @@ namespace bpr::qt {
 		bool                                                         RepositoryDraftOpen      = false;
 		workbench_saved_server_dispatch                              SavedServerDispatch;
 		workbench_review_reply_dispatch                              ReviewReplyDispatch;
-		workbench_line_draft_dispatch                                LineDraftDispatch;
 		/// [[BPR-1046]]. A Reply pressed while its thread's comparison was
 		/// loading; the next comparison to arrive completes or refuses it.
 		std::optional<std::string>           DeferredReply;

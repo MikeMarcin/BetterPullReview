@@ -7986,33 +7986,101 @@ namespace {
 		window.hide();
 	}
 
-	// [[BPR-1212]]. Return and Shift+Return in the code: the window asks the
-	// core about the selection, says in the status line why there is no
-	// comment, and otherwise selects the range's last line, hands the range
-	// to the composition and opens the existing composer. Only a code pane
-	// takes the keys.
+	// [[BPR-1212]] slice 1, integrated with slice 2. Return and Shift+Return
+	// in the code: the window asks the core about the selection and says in
+	// the status line why there is no comment; otherwise the range's last
+	// line is selected, its draft takes the range's first line in one edit
+	// through the draft editor's edit path, and slice 2's begin_new_comment
+	// opens it in the drawer, named for its lines and bracketed across them.
+	// Only a focused code pane takes the keys.
 	void test_return_in_the_code_starts_a_draft_on_the_selection()
 	{
+		qt::workbench_window window;
+		window.resize(1'400, 900);
+		window.show();
+		process_events();
+		auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
 		auto text = std::string{ };
 		for (auto line = 0U; line < 30U; ++line) {
 			text += "line " + std::to_string(line) + '\n';
 		}
 		auto laterText = text;
-		laterText.replace(laterText.find("line 5\n"), std::string{ "line 5" }.size(), "changed line 5");
-		const auto           diff = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
-		qt::workbench_window window;
-		window.resize(1'400, 900);
-		window.show();
-		process_events();
+		laterText.replace(laterText.find("line 5\n"), std::string{ "line 5" }.size(), "changed `line` 5");
+		const auto  diff   = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		auto* const editor = window.review_editor();
+		// The draft owner's part, as the composition plays it: each selected
+		// right line has its revisioned draft, and each edit is applied by
+		// the core and acknowledged.
+		auto commands = std::vector<core::revisioned_review_draft_command>{ };
+		editor->set_revisioned_dispatch([&commands](core::revisioned_review_draft_command aCommand) { commands.push_back(std::move(aCommand)); });
+		// Each line's draft is kept, as the store keeps it; `accepted` is the
+		// shown line's.
+		auto       kept     = std::map<std::uint32_t, core::revisioned_review_draft>{ };
+		auto       accepted = std::optional<core::revisioned_review_draft>{ };
+		auto       nextId   = std::uint64_t{ 1U };
+		auto       admitted = true;
+		const auto admit    = [&](const std::optional<core::semantic_selection>& aSelection) {
+			if (!admitted || !aSelection || aSelection->PreferredLine.Side != core::diff_side::right) {
+				return;
+			}
+			auto [found, fresh] = kept.try_emplace(aSelection->PreferredLine.Line);
+			if (fresh) {
+				found->second.Draft.Id     = core::review_draft_id{ nextId++ };
+				found->second.Draft.Anchor = aSelection->PreferredLine;
+				found->second.Revision     = 1U;
+				found->second.Scope        = core::review_draft_scope_id{ 1U };
+			}
+			accepted = found->second;
+			editor->present(found->second);
+		};
+		// The drawer shows the file's notes, as it does once conversations load.
+		window.conversation_panel()->adopt(
+			{ application::github_conversation_projection{
+				  .Id                 = "review-thread:t22",
+				  .Kind               = application::github_conversation_kind::review_thread,
+				  .AuthorLogin        = "tbutler",
+				  .Path               = "src/file.cpp",
+				  .Line               = 22U,
+				  .DiffSide           = application::github_conversation_diff_side::right,
+				  .AnchorAvailability = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:t22-1",
+				  .ParentId    = "review-thread:t22",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "tbutler",
+				  .Body        = "Where does 0.01 come from?",
+				  .Path        = "src/file.cpp" } },
+			QStringLiteral("one conversation"));
 		window.set_conversation_endpoint_placement(false, true);
 		auto* const surface = publish_fixture(window, diff);
-		window.set_conversation_endpoint_placement(false, true);
-		auto requests = std::vector<qt::workbench_line_draft_request>{ };
-		auto accept   = true;
-		window.set_line_draft_dispatch([&requests, &accept](const qt::workbench_line_draft_request& aRequest) {
-			requests.push_back(aRequest);
-			return accept;
-		});
+		window.set_conversation_endpoint_placement(true, true);
+		process_events();
+		surface->set_selection_sink(admit);
+		// Applies every edit sent so far, in order, as the durable store does.
+		auto       applied = std::size_t{ 0U };
+		const auto settle  = [&] {
+			for (auto round = 0; round < 8 && applied < commands.size(); ++round) {
+				while (applied < commands.size()) {
+					const auto command = commands[applied++];
+					if (!accepted || command.Command.Id != accepted->Draft.Id) {
+						continue;
+					}
+					const auto outcome = core::apply(*accepted, command);
+					expect(outcome.Refusal == core::revisioned_draft_refusal::none, "the core accepts every edit the window sends");
+					accepted                                 = outcome.Accepted;
+					kept[outcome.Accepted.Draft.Anchor.Line] = outcome.Accepted;
+					editor->acknowledge(command, outcome.Accepted);
+					process_events();
+				}
+			}
+		};
+		const auto ranges = [&commands] {
+			return std::ranges::count_if(commands, [](const core::revisioned_review_draft_command& aCommand) { return aCommand.ChangeRange; });
+		};
 		const auto key = [](QWidget& aWidget, const Qt::Key aKey, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
 			auto shortcut = QKeyEvent{ QEvent::ShortcutOverride, aKey, aModifiers };
 			QCoreApplication::sendEvent(&aWidget, &shortcut);
@@ -8022,17 +8090,24 @@ namespace {
 			QCoreApplication::sendEvent(&aWidget, &release);
 			process_events();
 		};
+		auto* const cards   = window.conversation_panel()->cards();
 		auto* const page    = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 		auto* const right   = surface->right_pane();
 		auto* const left    = surface->left_pane();
 		const auto  message = [&window] { return window.statusBar()->currentMessage(); };
-		expect(page != nullptr && !page->isVisibleTo(&window), "the composer starts closed");
+		const auto  bracket = [&window](const std::uint32_t aFirst, const std::uint32_t aLast) {
+			const auto& marks = window.comparison_surface()->line_marks(core::diff_side::right);
+			return std::ranges::any_of(marks, [aFirst, aLast](const qt::diff_line_mark& aMark) {
+				return aMark.Writing && aMark.Line == aLast && aMark.FirstLine.value_or(aMark.Line) == aFirst;
+			});
+		};
+		expect(!drawer_writing(window) && !composing(window, page), "no draft is being written at first");
 
 		// Flagged 4: a left line takes no new comment, and says so.
 		expect(surface->select_conversation_line(core::diff_side::left, 4U), "a left line is selected");
 		left->setFocus(Qt::OtherFocusReason);
 		key(*left, Qt::Key_Return);
-		expect(requests.empty() && !page->isVisibleTo(&window) && message().contains(QStringLiteral("right, current-head side")),
+		expect(commands.empty() && !drawer_writing(window) && message().contains(QStringLiteral("right, current-head side")),
 			   "Return on a left line opens nothing and the status line gives the reason");
 
 		// Lines outside one hunk are refused before any draft takes them.
@@ -8040,58 +8115,82 @@ namespace {
 		right->setFocus(Qt::OtherFocusReason);
 		key(*right, Qt::Key_Down, Qt::ShiftModifier);
 		key(*right, Qt::Key_Return, Qt::ShiftModifier);
-		expect(requests.empty() && !page->isVisibleTo(&window) && message().contains(QStringLiteral("within one hunk")),
+		expect(ranges() == 0 && !drawer_writing(window) && message().contains(QStringLiteral("within one hunk")),
 			   "Shift+Return on lines outside a hunk opens nothing and says why");
 
-		// Three lines in the hunk, extended from the keyboard: the request
-		// carries both ends, the last line is selected, and the composer opens.
+		// Three lines in the hunk, extended from the keyboard: the draft on
+		// the last takes the first, the block holds all three exactly, and
+		// the drawer names them with the bracket across them.
 		expect(surface->select_conversation_line(core::diff_side::right, 3U), "a right line in the hunk");
 		key(*right, Qt::Key_Down, Qt::ShiftModifier);
 		key(*right, Qt::Key_Down, Qt::ShiftModifier);
 		key(*right, Qt::Key_Return, Qt::ShiftModifier);
-		expect(requests.size() == 1U && requests.back().First.Line == 3U && requests.back().Last.Line == 5U && requests.back().Suggest
-				   && requests.back().First.Side == core::diff_side::right && requests.back().Last.Side == core::diff_side::right,
-			   "Shift+Return hands lines 4 to 6 to the composition as a suggestion");
-		expect(surface->selection() && surface->selection()->PreferredLine.Line == 5U && page->isVisibleTo(&window) && message().isEmpty(),
-			   "the range's last line is selected and the existing composer opens");
-		window.close_review_composition();
-		process_events();
+		settle();
+		const auto block = std::string{ "```suggestion\nline 3\nline 4\nchanged `line` 5\n```" };
+		expect(ranges() == 1 && accepted && accepted->Draft.Anchor.Line == 5U && accepted->Draft.StartLine == std::optional<std::uint32_t>{ 3U }
+				   && accepted->Draft.Body == block,
+			   "Shift+Return gives the draft on line 6 the first line 4 in one edit, and the block holds lines 4 to 6 exactly");
+		expect(surface->selection() && surface->selection()->PreferredLine.Line == 5U && drawer_writing(window) && !composing(window, page) && message().isEmpty()
+				   && cards->draft_editor()->toPlainText().toStdString() == block
+				   && cards->draft_editor()->textCursor().position() == cards->draft_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' })
+				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines 4–6") && bracket(3U, 5U),
+			   "the drawer draft opens on lines 4 to 6 with the caret at the end of the block's last line and the bracket across them");
+		save_render(window, QStringLiteral("line-draft-range-suggestion"));
 
-		// One line with Return; keypad Enter is Return.
+		// Esc keeps the written draft. Alt+C (Comment) reopens it unchanged.
+		key(*cards->draft_editor(), Qt::Key_Escape);
+		expect(!drawer_writing(window) && right->hasFocus(), "Esc keeps the written draft and returns to the code");
+		const auto sent = commands.size();
+		window.comment_action()->trigger();
+		process_events();
+		settle();
+		expect(drawer_writing(window) && commands.size() == sent && accepted->Draft.StartLine == std::optional<std::uint32_t>{ 3U },
+			   "Comment reopens the range draft unchanged");
+		key(*cards->draft_editor(), Qt::Key_Escape);
+
+		// Return on one line takes the selection: on the range's last line it
+		// narrows the draft to that line (coordinator, 2026-10-07).
 		right->setFocus(Qt::OtherFocusReason);
+		key(*right, Qt::Key_Down);
+		key(*right, Qt::Key_Up);
+		const auto one = surface->line_draft_range();
+		expect(one && one->first.Line == 5U && one->second.Line == 5U, "Down and Up without Shift leave one line selected");
+		key(*right, Qt::Key_Return);
+		settle();
+		expect(ranges() == 2 && !accepted->Draft.StartLine && accepted->Draft.Body == block && drawer_writing(window)
+				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on line 6") && bracket(5U, 5U),
+			   "Return on the range's last line narrows the draft to it and keeps its text");
+		key(*cards->draft_editor(), Qt::Key_Escape);
+
+		// One new line with keypad Enter: no range edit at all.
 		expect(surface->select_conversation_line(core::diff_side::right, 6U), "one right line");
+		right->setFocus(Qt::OtherFocusReason);
 		key(*right, Qt::Key_Enter, Qt::KeypadModifier);
-		expect(requests.size() == 2U && requests.back().First.Line == 6U && requests.back().Last.Line == 6U && !requests.back().Suggest && page->isVisibleTo(&window),
-			   "keypad Enter on one line asks for a comment on it");
-		window.close_review_composition();
-		process_events();
+		settle();
+		expect(ranges() == 2 && drawer_writing(window) && accepted->Draft.Anchor.Line == 6U && !accepted->Draft.StartLine
+				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on line 7"),
+			   "keypad Enter on one line opens its draft in the drawer and sends no range");
+		key(*cards->draft_editor(), Qt::Key_Escape);
 
-		// Keys in a text field or the drawer are theirs.
-		auto* const body = window.review_editor()->body_editor();
-		body->setReadOnly(false);
-		body->setFocus(Qt::OtherFocusReason);
-		key(*body, Qt::Key_Return);
-		key(*body, Qt::Key_Return, Qt::ShiftModifier);
-		auto* const cards = window.conversation_panel() != nullptr ? window.conversation_panel()->cards() : nullptr;
-		if (cards != nullptr) {
-			key(*cards, Qt::Key_Return);
-		}
-		expect(requests.size() == 2U, "Return in the composer or the drawer starts no draft from the code");
+		// Keys in the drawer are its own.
+		cards->setFocus(Qt::OtherFocusReason);
+		key(*cards, Qt::Key_Return, Qt::ShiftModifier);
+		expect(!drawer_writing(window) && ranges() == 2, "Shift+Return in the notes starts no draft from the code");
 
-		// A composition that cannot take it says why in the status line.
-		accept = false;
+		// No draft comes for the line: the status line says why.
+		admitted = false;
+		expect(surface->select_conversation_line(core::diff_side::right, 8U), "a line whose draft never comes");
 		right->setFocus(Qt::OtherFocusReason);
 		key(*right, Qt::Key_Return);
-		expect(requests.size() == 3U && !page->isVisibleTo(&window) && !message().isEmpty(), "a refused request opens nothing and says why");
-		accept = true;
+		expect(!drawer_writing(window) && !message().isEmpty(), "with no draft on the line Return opens nothing and says why");
+		admitted = true;
 
 		// With no line selected, the status line says how to select one.
 		surface->clear();
 		process_events();
 		right->setFocus(Qt::OtherFocusReason);
 		key(*right, Qt::Key_Return);
-		expect(requests.size() == 3U && !page->isVisibleTo(&window) && message().contains(QStringLiteral("Select a line first"))
-				   && message().contains(QStringLiteral("Up and Down")),
+		expect(!drawer_writing(window) && message().contains(QStringLiteral("Select a line first")) && message().contains(QStringLiteral("Up and Down")),
 			   "with no line selected Return opens nothing and the status line says how to select one");
 		window.hide();
 	}

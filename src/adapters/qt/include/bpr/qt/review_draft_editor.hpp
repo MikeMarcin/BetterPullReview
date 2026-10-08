@@ -19,6 +19,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 
 class QAction;
 class QLabel;
@@ -160,11 +161,14 @@ namespace bpr::qt {
 		/// change made meanwhile waits for its answer (`Deferred`) and then
 		/// goes on the accepted revision, so a label shortcode replaced the
 		/// moment its closing colon is typed is not refused as stale.
-		bool     InFlight = false;
-		bool     Deferred = false;
-		QTimer*  Flush    = nullptr;
-		QAction* Reload   = nullptr;
-		QAction* Reapply  = nullptr;
+		bool InFlight = false;
+		bool Deferred = false;
+		/// [[BPR-1212]]. The draft and the first line its next edit sets
+		/// (none makes it one line), until that edit is dispatched.
+		std::optional<std::pair<core::review_draft_id, std::optional<std::uint32_t>>> PendingRange;
+		QTimer*                                                                       Flush   = nullptr;
+		QAction*                                                                      Reload  = nullptr;
+		QAction*                                                                      Reapply = nullptr;
 	};
 	struct review_draft_editor_members
 	{
@@ -191,12 +195,10 @@ namespace bpr::qt {
 		/// Qt composition notification after accepted presentation changes.
 		std::function<void()> PresentationObserver;
 
-		QPlainTextEdit* Body        = nullptr;
-		QLabel*         TargetLabel = nullptr;
-		QLabel*         ReplyTarget = nullptr;
-		/// [[BPR-1212]]. The shown draft's lines when it covers several.
-		QLabel* RangeTarget    = nullptr;
-		QLabel* MutationStatus = nullptr;
+		QPlainTextEdit* Body           = nullptr;
+		QLabel*         TargetLabel    = nullptr;
+		QLabel*         ReplyTarget    = nullptr;
+		QLabel*         MutationStatus = nullptr;
 		/// [[BPR-1329]]. What the last Publish of the shown draft came to, in
 		/// words: publishing, published, or why not. Kept apart from the
 		/// status line's other messages so a surface that shows only the
@@ -353,12 +355,13 @@ namespace bpr::qt {
 		/// \brief [[BPR-0657]]. Names the thread the shown draft answers; shown only while it does.
 		[[nodiscard]] auto reply_target_label() const noexcept -> QLabel*;
 		void               describe_reply_target(const QString& aDescription);
-		/// \brief [[BPR-1212]]. "Lines 9 to 13" while the shown draft covers
-		/// several lines; hidden for one line.
-		[[nodiscard]] auto range_target_label() const noexcept -> QLabel*;
-		/// \brief [[BPR-1212]]. Puts the body's caret at a position, as a
-		/// suggestion started from the code does at the end of its last line.
-		void place_body_caret(int aPosition);
+		/// \brief [[BPR-1212]]. Sets the shown draft's first line, or makes it
+		/// one line with none, in one ordinary edit through this editor's edit
+		/// path, with whatever the body holds then.
+		/// \details The editor shows the range at once; an edit already with
+		/// the draft owner is answered first. False, and nothing is sent, when
+		/// the shown draft is not editable here.
+		auto change_range(std::optional<std::uint32_t> aStartLine) -> bool;
 		/// \brief [[BPR-1084]]. What the thread the shown reply answers is
 		/// attached to, from the accepted conversation projection, or none.
 		/// \details Only the mark beside Publish reads it. A reply with none

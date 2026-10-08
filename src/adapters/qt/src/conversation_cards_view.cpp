@@ -944,8 +944,14 @@ namespace bpr::qt {
 					mark.Emphasis = card.Posts.front().Emphasis;
 				}
 				const auto posts = card.Posts.size();
-				mark.Description = card.Writing ? QStringLiteral("Line %1: your draft, being written").arg(*card.Line)
-					: card.Draft                ? QStringLiteral("Line %1: your draft").arg(*card.Line)
+				// [[BPR-1212]] slice 1. A draft on several lines names them.
+				const auto lines = card.FirstLine.has_value() ? QStringLiteral("Lines %1–%2").arg(*card.FirstLine).arg(*card.Line)
+															  : QStringLiteral("Line %1").arg(*card.Line);
+				if (card.Draft && card.FirstLine.has_value() && *card.FirstLine > 0U) {
+					mark.FirstLine = *card.FirstLine - 1U;
+				}
+				mark.Description = card.Writing ? QStringLiteral("%1: your draft, being written").arg(lines)
+					: card.Draft                ? QStringLiteral("%1: your draft").arg(lines)
 												: QStringLiteral("Line %1: %2 %3").arg(*card.Line).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
 				if (card.UnreadCount > 0U) {
 					mark.Description += QStringLiteral(", %1 new").arg(card.UnreadCount);
@@ -1392,7 +1398,10 @@ namespace bpr::qt {
 			card.Writing       = writing;
 			card.Side          = draft->Anchor.Side;
 			card.Line          = draft->Anchor.Line + 1U;
-			const auto mark    = feedback_body_mark_of(draft->Body);
+			if (draft->StartLine.has_value()) {
+				card.FirstLine = *draft->StartLine + 1U;
+			}
+			const auto mark = feedback_body_mark_of(draft->Body);
 			if (!writing) {
 				card.Posts.push_back(card_post{
 					.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,

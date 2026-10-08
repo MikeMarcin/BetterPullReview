@@ -156,6 +156,9 @@ namespace bpr::qt {
 		std::optional<core::diff_side> Side;
 		/// The one-based line the thread sits on, when it has one.
 		std::optional<std::uint32_t> Line;
+		/// [[BPR-1212]] slice 1. My draft on several lines: its one-based
+		/// first line; `Line` is its last, where it is anchored.
+		std::optional<std::uint32_t> FirstLine;
 		bool                         Resolved          = false;
 		bool                         Outdated          = false;
 		bool                         AnchorUnavailable = false;
@@ -209,6 +212,9 @@ namespace bpr::qt {
 		/// [[BPR-1212]]. My draft, being written in the drawer: a blue
 		/// bracket in place of the amber wash.
 		bool Writing = false;
+		/// [[BPR-1212]] slice 1. My draft on several lines: its zero-based
+		/// first line, where the bracket starts.
+		std::optional<std::uint32_t> FirstLine;
 		/// The note under the pointer: its line is washed lightly.
 		bool Hovered = false;
 		/// "Line 656: 4 posts, 2 new, resolved".

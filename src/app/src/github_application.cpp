@@ -137,6 +137,7 @@
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
+#include "bpr/core/suggestion_draft.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/event_loop_device_timer.hpp"
@@ -6805,8 +6806,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](core::revisioned_review_draft_command aCommand) { dispatch_review_draft(std::move(aCommand)); });
 			Window->set_review_reply_dispatch(
 				[this](const std::string& aIdentity) { begin_review_reply(aIdentity); });
-			Window->set_line_draft_dispatch(
-				[this](const qt::workbench_line_draft_request& aRequest) { return begin_line_draft(aRequest); });
 			Window->set_thread_resolution_dispatch(
 				[this](const qt::thread_resolution_gesture& aGesture) { resolve_review_thread(aGesture); });
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -9999,7 +9998,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			refresh_agent_private_context_choices();
 			publish_preflight_selection();
-			complete_line_draft();
 		}
 
 		/// [[BPR-1085]]. My unsent comment, as the review preflight's selected
@@ -10735,100 +10733,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			settle(!outcome.Failure && outcome.Accepted.has_value());
 		}
 		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
-		/// [[BPR-1212]]. Return or Shift+Return in the code, waiting for the
-		/// draft on the range's last line: its first line, and the suggestion
-		/// block Shift+Return starts it with.
-		struct pending_line_draft
-		{
-			core::source_line_ref        Anchor;
-			std::optional<std::uint32_t> StartLine;
-			std::optional<std::string>   Prefill;
-		};
-		std::optional<pending_line_draft> PendingLineDraft;
-
-		/// [[BPR-1212]]. The window selected the range's last line, which
-		/// composes that line's draft. The core decides the range again from
-		/// the accepted diff, and Shift+Return's block is the right side's
-		/// exact lines. Nothing is published.
-		[[nodiscard]] auto begin_line_draft(const qt::workbench_line_draft_request& aRequest) -> bool
-		{
-			if (Closing || Window == nullptr || Window->review_editor() == nullptr || ReviewMutationHost == nullptr || !SharedDrafts
-				|| !SelectedDiffPublication.has_value() || !SelectedSemanticSelection.has_value() || PendingReviewMutation.has_value()) {
-				return false;
-			}
-			const auto& result = Window->comparison_surface()->current_result();
-			if (!result || result->Alignment.Digest != core::comparison_digest(SelectedDiffPublication->Key)) {
-				return false;
-			}
-			const auto decision = core::decide_comment_range(result->Alignment, aRequest.First, aRequest.Last);
-			if (decision.Refusal != core::comment_range_refusal::none || SelectedSemanticSelection->PreferredLine != decision.Anchor) {
-				return false;
-			}
-			auto pending      = pending_line_draft{ };
-			pending.Anchor    = decision.Anchor;
-			pending.StartLine = decision.StartLine;
-			if (aRequest.Suggest) {
-				if (!result->RightDocument) {
-					return false;
-				}
-				pending.Prefill = core::suggestion_prefill(*result->RightDocument, decision.StartLine.value_or(decision.Anchor.Line), decision.Anchor.Line);
-				if (!pending.Prefill) {
-					return false;
-				}
-			}
-			PendingLineDraft = std::move(pending);
-			complete_line_draft();
-			return true;
-		}
-
-		/// [[BPR-1212]]. Once the line's draft is here: one edit sets its first
-		/// line and, for a suggestion, adds the block (alone in an empty draft,
-		/// after the text otherwise, once). The caret goes to the end of the
-		/// block's last line.
-		void complete_line_draft()
-		{
-			if (!PendingLineDraft || !ReviewDraft || PendingLineDraft->Anchor != ReviewDraft->Anchor || ReviewDraft->ReplyToThread
-				|| ReviewDraft->State != core::review_draft_state::drafting || Window == nullptr || Window->review_editor() == nullptr) {
-				return;
-			}
-			const auto pending = std::move(*PendingLineDraft);
-			PendingLineDraft.reset();
-			auto body = ReviewDraft->Body;
-			if (pending.Prefill && body.find(*pending.Prefill) == std::string::npos) {
-				if (body.find_first_not_of(" \t\r\n") == std::string::npos) {
-					body = *pending.Prefill;
-				} else {
-					body += body.ends_with('\n') ? "\n" : "\n\n";
-					body += *pending.Prefill;
-				}
-			}
-			const auto suggest = pending.Prefill.has_value();
-			const auto caret   = [this, suggest] {
-				if (!suggest || Window == nullptr || Window->review_editor() == nullptr) {
-					return;
-				}
-				auto* const editor = Window->review_editor();
-				editor->place_body_caret(static_cast<int>(editor->body_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' })));
-			};
-			if (body == ReviewDraft->Body && pending.StartLine == ReviewDraft->StartLine) {
-				caret();
-				return;
-			}
-			auto command             = core::revisioned_review_draft_command{ };
-			command.Command.Id       = ReviewDraft->Id;
-			command.Command.Kind     = core::review_draft_command_kind::edit;
-			command.Command.Body     = std::move(body);
-			command.ExpectedRevision = ReviewDraftRevision;
-			command.Scope            = DraftScope;
-			command.ChangeRange      = true;
-			command.StartLine        = pending.StartLine;
-			dispatch_review_draft(std::move(command), [caret](const bool aAccepted) {
-				if (aAccepted) {
-					caret();
-				}
-			});
-		}
-		void finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
+		void                                                         finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
 		{
 			const auto& aCommand = aRevisionedCommand.Command;
 
@@ -10916,7 +10821,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			SelectedSemanticSelection = aSelection;
 			PendingPrivateReply.reset();
-			PendingLineDraft.reset();
 			ReviewDraft.reset();
 			ReviewDraftRevision = 0U;
 			publish_preflight_selection();
@@ -16226,6 +16130,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::optional<std::uint32_t> RangeStart;
 			std::string                  Prefill;
 			bool                         LineDraftOnly = false;
+			/// Whether this phase's key went to the pane; the drawer draft
+			/// may open a turn later, once the drawer shows.
+			bool KeySent = false;
 			/// [[BPR-1086]]. The tracked defect as the gesture left it, the
 			/// fixture's review submissions and posts before it, and the bodies
 			/// the fixture's website gives the issue root and the tour stop.
@@ -25815,14 +25722,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		}
 		// [[BPR-1212]]. The keyboard line cursor and Return in the code, by
-		// keys delivered to the focused pane as a keyboard delivers them.
+		// keys delivered to the focused pane as a keyboard delivers them. The
+		// draft opens in the drawer (slice 2's begin_new_comment), the one
+		// path every new comment takes.
 		case state_type::phase::awaiting_left_refused: {
 			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 			if (inlinePage != nullptr && inlinePage->isVisibleTo(window)) {
-				if (auto* const back = inlinePage->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack")); back != nullptr) {
-					back->click();
-					QCoreApplication::processEvents();
-				}
+				window->close_review_composition();
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			if (cards->writing_draft() && cards->draft_editor() != nullptr) {
+				paneKey(*cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
 				return result::pending;
 			}
 			if (window->current_modality() != qt::review_modality::review) {
@@ -25841,8 +25752,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			paneKey(*left, Qt::Key_Return, Qt::NoModifier);
 			const auto message = window->statusBar()->currentMessage();
 			note("message=" + message.toStdString());
-			probe.Evidence.LeftLineRefused = message.contains(QStringLiteral("right, current-head side")) && inlinePage != nullptr && !inlinePage->isVisibleTo(window)
-				&& implementation->Fixture->review_mutation_evidence().NativePosts == natives;
+			probe.Evidence.LeftLineRefused = message.contains(QStringLiteral("right, current-head side")) && !cards->writing_draft()
+				&& (inlinePage == nullptr || !inlinePage->isVisibleTo(window)) && implementation->Fixture->review_mutation_evidence().NativePosts == natives;
 			if (!probe.Evidence.LeftLineRefused) {
 				return fail("left-line-not-refused");
 			}
@@ -25852,38 +25763,46 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_single_line: {
 			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 			auto* const surface    = window->comparison_surface();
-			if (!probe.Line) {
-				for (auto candidate = std::uint32_t{ 0U }; candidate < 64U && !probe.Line; ++candidate) {
-					if (surface->select_conversation_line(core::diff_side::right, candidate) && window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
-						probe.Line = candidate;
+			if (!probe.KeySent) {
+				if (!probe.Line) {
+					for (auto candidate = std::uint32_t{ 0U }; candidate < 64U && !probe.Line; ++candidate) {
+						if (surface->select_conversation_line(core::diff_side::right, candidate) && window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
+							probe.Line = candidate;
+						}
+					}
+					if (!probe.Line) {
+						return fail("no-free-line");
 					}
 				}
-				if (!probe.Line) {
-					return fail("no-free-line");
+				if (const auto selected = surface->selection(); !selected || selected->PreferredLine.Side != core::diff_side::right || selected->PreferredLine.Line != *probe.Line) {
+					static_cast<void>(surface->select_conversation_line(core::diff_side::right, *probe.Line));
 				}
+				const auto& draft = implementation->ReviewDraft;
+				note("line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) : std::string{ "-" }));
+				if (!draft || draft->Anchor.Line != *probe.Line || draft->Anchor.Side != core::diff_side::right || draft->State != core::review_draft_state::drafting) {
+					return result::pending;
+				}
+				auto* const right = surface->right_pane();
+				right->setFocus(Qt::OtherFocusReason);
+				paneKey(*right, Qt::Key_Return, Qt::NoModifier);
+				probe.KeySent = true;
 			}
-			if (const auto selected = surface->selection(); !selected || selected->PreferredLine.Side != core::diff_side::right || selected->PreferredLine.Line != *probe.Line) {
-				static_cast<void>(surface->select_conversation_line(core::diff_side::right, *probe.Line));
-			}
-			const auto& draft = implementation->ReviewDraft;
-			note("line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) : std::string{ "-" }));
-			if (!draft || draft->Anchor.Line != *probe.Line || draft->Anchor.Side != core::diff_side::right || draft->State != core::review_draft_state::drafting) {
+			const auto expected = QStringLiteral("Your draft on line %1").arg(*probe.Line + 1U);
+			note("writing=" + std::to_string(cards->writing_draft() ? 1 : 0) + " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" }));
+			if (!cards->writing_draft() || cards->open_card() == nullptr) {
 				return result::pending;
 			}
-			auto* const right = surface->right_pane();
-			right->setFocus(Qt::OtherFocusReason);
-			paneKey(*right, Qt::Key_Return, Qt::NoModifier);
-			probe.Evidence.SingleLineOpenedPlain = inlinePage != nullptr && inlinePage->isVisibleTo(window) && !body->isReadOnly() && implementation->ReviewDraft
-				&& !implementation->ReviewDraft->StartLine && implementation->ReviewDraft->Anchor.Line == *probe.Line && !editor->range_target_label()->isVisibleTo(editor);
-			render("editor-one-line");
+			probe.Evidence.SingleLineOpenedPlain = cards->draft_editor() != nullptr && !cards->draft_editor()->isReadOnly() && !body->isReadOnly()
+				&& (inlinePage == nullptr || !inlinePage->isVisibleTo(window)) && implementation->ReviewDraft && !implementation->ReviewDraft->StartLine
+				&& implementation->ReviewDraft->Anchor.Line == *probe.Line && cards->open_card()->accessibleName() == expected;
+			render("drawer-one-line");
 			if (!probe.Evidence.SingleLineOpenedPlain) {
 				return fail("return-did-not-open-one-line");
 			}
 			probe.Line.reset();
-			if (auto* const back = inlinePage->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack")); back != nullptr) {
-				back->click();
-				QCoreApplication::processEvents();
-			}
+			probe.KeySent = false;
+			// Esc with nothing written drops the draft and returns to the code.
+			paneKey(*cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
 			probe.Phase = state_type::phase::awaiting_keyboard_range;
 			return result::pending;
 		}
@@ -25892,6 +25811,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto& compared = surface->current_result();
 			if (!compared || !compared->RightDocument) {
 				return fail("no-comparison");
+			}
+			if (cards->writing_draft()) {
+				return result::pending;
 			}
 			// Three right lines in one hunk with no thread on any of them,
 			// from the last hunk up, away from the lines used above.
@@ -25931,11 +25853,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.KeyboardRangeSelected) {
 				return fail("keyboard-range-not-selected");
 			}
-			const auto prefill = core::suggestion_prefill(*compared->RightDocument, start, start + 2U);
-			if (!prefill) {
+			const auto lines = core::suggestion_source_lines(*compared->RightDocument, start, start + 2U);
+			if (!lines) {
 				return fail("no-prefill");
 			}
-			probe.Prefill      = *prefill;
+			probe.Prefill      = core::suggestion_fence_body(*lines);
 			probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
 			probe.Anchor       = core::source_line_ref{ compared->Alignment.Digest, core::diff_side::right, start + 2U };
 			paneKey(*right, Qt::Key_Return, Qt::ShiftModifier);
@@ -25943,23 +25865,35 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		}
 		case state_type::phase::awaiting_range_prefilled: {
-			const auto& draft      = implementation->ReviewDraft;
-			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
-			const auto  start      = probe.RangeStart.value_or(0U);
+			const auto& draft  = implementation->ReviewDraft;
+			const auto  start  = probe.RangeStart.value_or(0U);
+			auto* const writer = cards->writing_draft() ? cards->draft_editor() : nullptr;
 			note("draft=" + (draft ? std::to_string(draft->Anchor.Line) + ":" + (draft->StartLine ? std::to_string(*draft->StartLine) : std::string{ "-" }) : std::string{ "-" })
-				 + " page=" + std::to_string(inlinePage != nullptr && inlinePage->isVisibleTo(window) ? 1 : 0) + " status=" + window->statusBar()->currentMessage().toStdString());
-			if (!draft || !probe.Anchor || draft->Anchor != *probe.Anchor || draft->Body != probe.Prefill || text().toStdString() != probe.Prefill || !editor->publish_action()->isEnabled()) {
+				 + " writing=" + std::to_string(writer != nullptr ? 1 : 0) + " status=" + window->statusBar()->currentMessage().toStdString());
+			if (!draft || !probe.Anchor || draft->Anchor != *probe.Anchor || draft->Body != probe.Prefill || writer == nullptr || writer->toPlainText().toStdString() != probe.Prefill
+				|| text().toStdString() != probe.Prefill || !editor->publish_action()->isEnabled()) {
 				return result::pending;
 			}
-			const auto* const label            = editor->range_target_label();
-			probe.Evidence.SuggestionPrefilled = draft->StartLine == start && !draft->ReplyToThread && inlinePage != nullptr && inlinePage->isVisibleTo(window)
-				&& label->isVisibleTo(editor) && label->text() == QStringLiteral("Lines %1 to %2").arg(start + 1U).arg(start + 3U)
-				&& body->textCursor().position() == text().lastIndexOf(QLatin1Char{ '\n' }) && markState() == "native";
-			render("editor-range-suggestion");
+			// The drawer names the lines, the gutter's blue bracket spans them,
+			// and the caret is at the end of the block's last line.
+			const auto& marks                  = window->comparison_surface()->line_marks(core::diff_side::right);
+			const auto  bracket                = std::ranges::any_of(marks, [start](const qt::diff_line_mark& aMark) {
+				return aMark.Writing && aMark.Line == start + 2U && aMark.FirstLine == std::optional<std::uint32_t>{ start };
+			});
+			probe.Evidence.SuggestionPrefilled = draft->StartLine == start && !draft->ReplyToThread && cards->open_card() != nullptr
+				&& cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines %1–%2").arg(start + 1U).arg(start + 3U) && bracket
+				&& writer->textCursor().position() == writer->toPlainText().lastIndexOf(QLatin1Char{ '\n' }) && markState() == "native";
+			render("drawer-range-suggestion");
 			if (!probe.Evidence.SuggestionPrefilled) {
-				return fail("suggestion-not-prefilled caret=" + std::to_string(body->textCursor().position()) + " mark=" + markState());
+				return fail("suggestion-not-prefilled caret=" + std::to_string(writer->textCursor().position()) + " mark=" + markState()
+							+ " bracket=" + std::to_string(bracket ? 1 : 0) + " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" }));
 			}
-			editor->publish_action()->trigger();
+			// The drawer draft's own Publish.
+			auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+			if (publish == nullptr || !publish->isEnabled()) {
+				return fail("no-drawer-publish");
+			}
+			publish->click();
 			probe.Phase = state_type::phase::awaiting_range_published;
 			return result::pending;
 		}
@@ -25985,10 +25919,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_no_line: {
 			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 			if (inlinePage != nullptr && inlinePage->isVisibleTo(window)) {
-				if (auto* const back = inlinePage->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack")); back != nullptr) {
-					back->click();
-					QCoreApplication::processEvents();
-				}
+				window->close_review_composition();
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			if (cards->writing_draft() && cards->draft_editor() != nullptr) {
+				paneKey(*cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
 				return result::pending;
 			}
 			// The comparison emptied, as when no file is chosen: the pane
@@ -26001,7 +25937,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			paneKey(*surface->right_pane(), Qt::Key_Return, Qt::NoModifier);
 			const auto message = window->statusBar()->currentMessage();
 			note("message=" + message.toStdString());
-			probe.Evidence.NoLineExplained = message.contains(QStringLiteral("Select a line first")) && message.contains(QStringLiteral("Up and Down")) && !inlinePage->isVisibleTo(window);
+			probe.Evidence.NoLineExplained = message.contains(QStringLiteral("Select a line first")) && message.contains(QStringLiteral("Up and Down")) && !cards->writing_draft()
+				&& (inlinePage == nullptr || !inlinePage->isVisibleTo(window));
 			if (!probe.Evidence.NoLineExplained) {
 				return fail("no-line-not-explained");
 			}

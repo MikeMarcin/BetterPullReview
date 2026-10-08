@@ -24,14 +24,18 @@
 /// (`decide_suggestion_applicability` does that).
 namespace bpr::core {
 	/// \brief Lines `aFirst` to `aLast` (zero-based, inclusive) of a decoded
-	/// document, without their line endings; none when the range is not in it.
+	/// document, without their line endings; none when the range is not in it
+	/// or a line is not UTF-8, so a suggestion never carries bytes other than
+	/// the file's.
+	/// \details One line, or the range a multi-line draft covers
+	/// (`review_comment_draft::StartLine` to its anchor).
 	[[nodiscard]] auto suggestion_source_lines(const decoded_text_document& aDocument, std::uint32_t aFirst, std::uint32_t aLast)
 		-> std::optional<std::vector<std::string>>;
 
 	/// \brief A draft body that is only a suggestion block over these lines.
 	/// \details The fence is three backticks, or one more than the longest run
-	/// of backticks at the start of any of the lines, so the block cannot be
-	/// closed early by the code it quotes. The body ends with the closing
+	/// of backticks anywhere in the lines, so the block cannot be closed early
+	/// by the code it quotes. The body ends with the closing
 	/// fence and no newline: the caret belongs at the end of the last line
 	/// inside the block, which is just before the body's last line break.
 	[[nodiscard]] auto suggestion_fence_body(std::span<const std::string> aLines) -> std::string;

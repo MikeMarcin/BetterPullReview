@@ -363,12 +363,15 @@ Consumers: the inline composition page and reply drafts
   - BPR has no apply action and no per-comment browser handoff; applying a
     native suggestion is GitHub's, on the pull request's page (derived;
     RFC-BPR-0048 allows a precise GitHub handoff and forbids a fake apply).
-  - Shift+Return in a pull request's code starts a suggested change on the
-    selected lines (BPR-1212, owner Q1): the draft on the range's last line
-    gets a ```` ```suggestion ```` block holding those lines of the right side
-    exactly, each without its line ending, in a fence longer than any backtick
-    run they contain (`core::suggestion_prefill`). In an empty draft the block
-    is the body; after existing text it follows a blank line, once. The caret
+  - Shift+Return in a pull request's code, or Suggest change on its
+    right-click menu, starts a suggested change on the selected lines
+    (BPR-1212, owner Q1). The draft on the range's last line takes the range's
+    first line and opens in the drawer with a ```` ```suggestion ```` block
+    holding those lines of the right side exactly, each without its line
+    ending, in a fence longer than any backtick run they contain
+    (`core::suggestion_source_lines` and `core::suggestion_fence_body`, the
+    one fence builder). In an empty draft the block is the body; a draft with
+    words keeps them and gains the block after a blank line, once. The caret
     is at the end of the block's last line. A label goes in front of it as
     for any body, and the block's bytes are kept as above.
 

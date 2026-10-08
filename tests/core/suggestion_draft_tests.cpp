@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -42,6 +43,65 @@ namespace {
 		}
 		result.HasFinalNewline = !aLines.empty() && !aLines.back().second.empty();
 		return result;
+	}
+
+	/// [[BPR-1212]] slice 1. A document split from text as the decoder splits it.
+	auto document(const std::string_view aText) -> decoded_text_document
+	{
+		auto result = decoded_text_document{ };
+		result.Bytes.assign(aText.begin(), aText.end());
+		auto begin = std::uint64_t{ 0U };
+		for (std::uint64_t index = 0U; index < aText.size(); ++index) {
+			if (aText[index] != '\n') {
+				continue;
+			}
+			const auto crlf = index > begin && aText[index - 1U] == '\r';
+			auto       line = decoded_text_line{ };
+			line.Content    = { .Begin = begin, .End = crlf ? index - 1U : index };
+			line.Terminator = { .Begin = crlf ? index - 1U : index, .End = index + 1U };
+			line.Ending     = crlf ? text_line_ending::crlf : text_line_ending::lf;
+			result.Lines.push_back(line);
+			begin = index + 1U;
+		}
+		if (begin < aText.size()) {
+			auto line    = decoded_text_line{ };
+			line.Content = { .Begin = begin, .End = aText.size() };
+			result.Lines.push_back(line);
+		} else {
+			result.HasFinalNewline = true;
+		}
+		return result;
+	}
+
+	/// The block Suggest change starts on lines `aFirst` to `aLast`, as the
+	/// window makes it from a draft's range.
+	auto block(const decoded_text_document& aDocument, const std::uint32_t aFirst, const std::uint32_t aLast) -> std::optional<std::string>
+	{
+		const auto lines = suggestion_source_lines(aDocument, aFirst, aLast);
+		return lines.has_value() ? std::optional{ suggestion_fence_body(*lines) } : std::nullopt;
+	}
+
+	/// [[BPR-1212]] slice 1, moved here with the one fence builder: a range's
+	/// block holds the selected lines exactly.
+	void range_block()
+	{
+		const auto text = document("zero\n\tone  \r\ntwo \xC3\xA9\n\nfour ``` and ````\nlast");
+		expect(block(text, 1U, 2U) == std::optional<std::string>{ "```suggestion\n\tone  \ntwo \xC3\xA9\n```" },
+			   "the lines' bytes without their endings, tabs and trailing spaces kept, inside a fence");
+		expect(block(text, 0U, 0U) == std::optional<std::string>{ "```suggestion\nzero\n```" }, "one line is a one-line block");
+		expect(block(text, 3U, 3U) == std::optional<std::string>{ "```suggestion\n\n```" }, "an empty line is kept as an empty line");
+		expect(block(text, 4U, 5U) == std::optional<std::string>{ "`````suggestion\nfour ``` and ````\nlast\n`````" },
+			   "a line holding backtick runs gets a longer fence, and a last line with no newline is whole");
+		expect(!block(text, 5U, 6U) && !block(text, 2U, 1U), "a line out of range or a reversed range starts nothing");
+		expect(!block(document("bad \xC3\x28\n"), 0U, 0U), "text that is not UTF-8 starts nothing");
+		const auto three = block(text, 0U, 2U);
+		expect(three && classify_review_body(*three) == review_body_compatibility::requires_line_subject,
+			   "the block is a suggestion the publication policy recognises");
+		// The caret goes to the end of the block's last line: just before the
+		// body's last line break.
+		expect(three && three->rfind('\n') == three->size() - 4U && three->substr(three->rfind('\n') - 6U, 6U) == "two \xC3\xA9",
+			   "the caret's place is the end of the range's last line inside the block");
+		expect(suggested_change_of(*three, *suggestion_source_lines(text, 0U, 2U)).unchanged(), "an unedited range suggestion changes nothing");
 	}
 
 	void source_lines()
@@ -97,6 +157,7 @@ namespace {
 auto main() -> int
 {
 	source_lines();
+	range_block();
 	fence_body();
 	change();
 	std::cout << "suggestion draft: ok\n";

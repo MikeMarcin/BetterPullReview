@@ -13,7 +13,6 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <utility>
@@ -82,12 +81,6 @@ namespace bpr::qt {
 		Members.ReplyTarget->setWordWrap(true);
 		Members.ReplyTarget->hide();
 		layout->addWidget(Members.ReplyTarget);
-		Members.RangeTarget = new QLabel{ this };
-		Members.RangeTarget->setObjectName(QStringLiteral("reviewRangeTarget"));
-		Members.RangeTarget->setAccessibleName(QStringLiteral("Commenting on"));
-		Members.RangeTarget->setWordWrap(true);
-		Members.RangeTarget->hide();
-		layout->addWidget(Members.RangeTarget);
 		Members.MutationStatus = new QLabel{ this };
 		Members.MutationStatus->setObjectName(
 			QStringLiteral("reviewMutationStatus"));
@@ -525,6 +518,14 @@ namespace bpr::qt {
 				// answers it with progress, a result or a reason.
 				set_publication_status({ });
 			}
+			// [[BPR-1212]]. A range set on this draft goes with this edit.
+			if (aKind == core::review_draft_command_kind::edit && revisioned.PendingRange.has_value()) {
+				if (revisioned.PendingRange->first == command.Command.Id) {
+					command.ChangeRange = true;
+					command.StartLine   = revisioned.PendingRange->second;
+				}
+				revisioned.PendingRange.reset();
+			}
 			if (aKind == core::review_draft_command_kind::edit) {
 				revisioned.Candidate = command;
 				revisioned.InFlight  = true;
@@ -655,16 +656,21 @@ namespace bpr::qt {
 			&& Members.ShownDraft->ReplyToThread.has_value());
 	}
 
-	auto review_draft_editor::range_target_label() const noexcept -> QLabel*
+	auto review_draft_editor::change_range(const std::optional<std::uint32_t> aStartLine) -> bool
 	{
-		return Members.RangeTarget;
-	}
-
-	void review_draft_editor::place_body_caret(const int aPosition)
-	{
-		auto cursor = Members.Body->textCursor();
-		cursor.setPosition(std::clamp(aPosition, 0, static_cast<int>(Members.Body->document()->characterCount()) - 1));
-		Members.Body->setTextCursor(cursor);
+		auto& state = Members.Revisioned;
+		if (!state.Dispatch || !state.Selected || !state.Accepted || state.Conflict || !Members.ShownDraft
+			|| Members.ShownDraft->Id != state.Accepted->Draft.Id || Members.ShownDraft->ReplyToThread.has_value() || Members.Body->isReadOnly()) {
+			return false;
+		}
+		if (Members.ShownDraft->StartLine == aStartLine && !state.PendingRange.has_value()) {
+			return true;
+		}
+		// Shown at once, as typed text is; the edit settles it.
+		Members.ShownDraft->StartLine = aStartLine;
+		state.PendingRange            = std::pair{ Members.ShownDraft->Id, aStartLine };
+		emit_draft(core::review_draft_command_kind::edit);
+		return true;
 	}
 
 	void review_draft_editor::describe_reply_placement(std::optional<core::suggestion_placement_observation> aPlacement)
@@ -785,6 +791,7 @@ namespace bpr::qt {
 		const auto& candidate = *state.Candidate;
 		if (candidate.Command != aCommand.Command || candidate.Scope != aCommand.Scope || candidate.ExpectedRevision != aCommand.ExpectedRevision
 			|| candidate.ChangeReplyTarget != aCommand.ChangeReplyTarget || candidate.ReplyToThread != aCommand.ReplyToThread
+			|| candidate.ChangeRange != aCommand.ChangeRange || candidate.StartLine != aCommand.StartLine
 			|| aCommand.Command.Kind != core::review_draft_command_kind::edit || aCommand.ChangeReplyTarget
 			|| aAccepted.Scope != aCommand.Scope || aAccepted.Draft.Id != aCommand.Command.Id || aAccepted.Draft.Body != aCommand.Command.Body
 			|| aAccepted.Revision < aCommand.ExpectedRevision || aAccepted.Revision - aCommand.ExpectedRevision > 1
@@ -799,8 +806,12 @@ namespace bpr::qt {
 		settle_in_flight();
 		// The text typed while this edit was answered goes next, on the
 		// revision just accepted; showing the accepted body would undo it.
-		if (deferred && body_text() != aAccepted.Draft.Body) {
+		// [[BPR-1212]]. So does a range set meanwhile.
+		if (deferred && (body_text() != aAccepted.Draft.Body || state.PendingRange.has_value())) {
 			Members.ShownDraft = aAccepted.Draft;
+			if (state.PendingRange.has_value() && state.PendingRange->first == aAccepted.Draft.Id) {
+				Members.ShownDraft->StartLine = state.PendingRange->second;
+			}
 			emit_draft(core::review_draft_command_kind::edit);
 			refresh_enablement();
 			return;
@@ -858,9 +869,6 @@ namespace bpr::qt {
 		// [[BPR-0657]]. The thread named is shown only while the draft answers one.
 		Members.ReplyTarget->setVisible(
 			aDraft.ReplyToThread.has_value() && !Members.ReplyTarget->text().isEmpty());
-		// [[BPR-1212]]. A draft on several lines says which, one-based.
-		Members.RangeTarget->setText(aDraft.StartLine ? tr("Lines %1 to %2").arg(static_cast<qulonglong>(*aDraft.StartLine) + 1U).arg(static_cast<qulonglong>(aDraft.Anchor.Line) + 1U) : QString{ });
-		Members.RangeTarget->setVisible(aDraft.StartLine.has_value());
 		if (body_text() != aDraft.Body) {
 			Members.ApplyingPresentation = true;
 			Members.Body->setPlainText(QString::fromStdString(aDraft.Body));
@@ -1013,8 +1021,7 @@ namespace bpr::qt {
 		Members.ShownDraft.reset();
 		Members.ShownReceipt.reset();
 		Members.PublicationStatus.clear();
-		Members.RangeTarget->clear();
-		Members.RangeTarget->hide();
+		Members.Revisioned.PendingRange.reset();
 		Members.ApplyingPresentation = true;
 		if (!Members.Revisioned.Candidate) {
 			Members.Body->clear();

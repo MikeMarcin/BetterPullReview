@@ -1642,11 +1642,11 @@ namespace bpr::qt {
 		AddCommentAction = new QAction{ tr("Add comment"), this };
 		AddCommentAction->setObjectName(QStringLiteral("addCommentAction"));
 		AddCommentAction->setIcon(conversation_icon(conversation_glyph::comment, palette()));
-		connect(AddCommentAction, &QAction::triggered, this, [this] { static_cast<void>(begin_new_comment(false)); });
+		connect(AddCommentAction, &QAction::triggered, this, [this] { static_cast<void>(comment_on_selected_lines(false)); });
 		SuggestChangeAction = new QAction{ tr("Suggest change"), this };
 		SuggestChangeAction->setObjectName(QStringLiteral("suggestChangeAction"));
 		SuggestChangeAction->setIcon(conversation_icon(conversation_glyph::suggest, palette()));
-		connect(SuggestChangeAction, &QAction::triggered, this, [this] { static_cast<void>(begin_new_comment(true)); });
+		connect(SuggestChangeAction, &QAction::triggered, this, [this] { static_cast<void>(comment_on_selected_lines(true)); });
 		update_compose_mark();
 		update_strip_positions();
 		update_strip_identity();
@@ -1718,9 +1718,6 @@ namespace bpr::qt {
 				menu->setAttribute(Qt::WA_DeleteOnClose);
 				menu->popup(pane->viewport()->mapToGlobal(aPosition));
 			});
-			// [[BPR-1212]]. Return comments and Shift+Return suggests a change
-			// on the selected line while the code has focus.
-			pane->installEventFilter(this);
 		}
 		auto* const centre = new QVBoxLayout{ CentreSurface };
 		centre->setContentsMargins(0, 0, 0, 0);
@@ -1920,11 +1917,13 @@ namespace bpr::qt {
 		// and starts a comment there.
 		ComparisonSurface->set_line_add_dispatch([this](const std::uint32_t aLine) {
 			if (ComparisonSurface->select_conversation_line(core::diff_side::right, aLine)) {
-				static_cast<void>(begin_new_comment(false));
+				static_cast<void>(comment_on_selected_lines(false));
 			}
 		});
-		// [[BPR-1212]]. Return and Shift+Return in the code (owner, Q1).
-		ComparisonSurface->set_line_draft_dispatch([this](const bool aSuggest) { begin_line_draft(aSuggest); });
+		// [[BPR-1212]]. Return and Shift+Return in the code (owner, Q1): the
+		// pane takes them only while it has focus, and they start the same
+		// comment the right-click items do.
+		ComparisonSurface->set_line_draft_dispatch([this](const bool aSuggest) { static_cast<void>(comment_on_selected_lines(aSuggest)); });
 		ComparisonSurface->set_thread_tick_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { go_to_thread_at(aSide, aLine); });
 		ConversationPanel->cards()->set_marks_observer([this] {
 			apply_thread_marks();
@@ -2161,6 +2160,9 @@ namespace bpr::qt {
 			update_comment_target();
 			present_inline_reply();
 			present_inline_draft();
+			// [[BPR-1212]]. A comment on the selected lines waiting for its
+			// line's draft opens once it is here.
+			static_cast<void>(resume_line_comment());
 		});
 		connect(ReviewEditor->body_editor(), &QPlainTextEdit::textChanged, this, [this] {
 			present_inline_reply();
@@ -6747,6 +6749,7 @@ namespace bpr::qt {
 					.Open        = mark.Open,
 					.Hovered     = mark.Hovered,
 					.Writing     = mark.Writing,
+					.FirstLine   = mark.FirstLine,
 					.Description = mark.Description,
 				});
 			}
@@ -7661,6 +7664,118 @@ namespace bpr::qt {
 		return true;
 	}
 
+	auto workbench_window::decide_selected_lines(QString& aReason) const -> std::optional<core::comment_range_decision>
+	{
+		// [[BPR-1212]] slice 1. The selection's two ends, as the mouse and the
+		// keyboard line cursor share them, decided by the core.
+		const auto range = ComparisonSurface != nullptr ? ComparisonSurface->line_draft_range() : std::nullopt;
+		if (!range) {
+			aReason = tr("Select a line first: click it, or move to it with Up and Down while the code has focus.");
+			return std::nullopt;
+		}
+		if (comparing_off_current_head()) {
+			aReason = tr("Select the pull request's current head; this tab compares an earlier update.");
+			return std::nullopt;
+		}
+		const auto& result = ComparisonSurface->current_result();
+		if (!result) {
+			aReason = tr("Wait for the comparison to load, then select a line.");
+			return std::nullopt;
+		}
+		const auto decision = core::decide_comment_range(result->Alignment, range->first, range->second);
+		switch (decision.Refusal) {
+		case core::comment_range_refusal::none:
+			return decision;
+		case core::comment_range_refusal::base_side:
+			// Flagged 4: a new comment cannot go on a left-side line.
+			aReason = tr("New comments need a line on the right, current-head side. Select a right-side line, or reply to an existing thread.");
+			break;
+		case core::comment_range_refusal::mixed_side:
+			aReason = tr("Select lines on one side to comment on them together.");
+			break;
+		case core::comment_range_refusal::outside_hunk:
+		case core::comment_range_refusal::crosses_hunk:
+			aReason = tr("GitHub takes a comment on several lines only inside one changed region. Select lines within one hunk, or a single line.");
+			break;
+		case core::comment_range_refusal::mixed_comparison:
+		case core::comment_range_refusal::outside_document:
+			aReason = tr("Select a line of this comparison.");
+			break;
+		}
+		return std::nullopt;
+	}
+
+	auto workbench_window::comment_on_selected_lines(const bool aSuggestion) -> bool
+	{
+		// [[BPR-1212]]. One path for Return, Shift+Return, the right-click
+		// items and the gutter's "+": the core's decision, then the drawer
+		// draft `begin_new_comment` opens.
+		PendingLineComment.reset();
+		auto       reason   = QString{ };
+		const auto decision = decide_selected_lines(reason);
+		if (!decision) {
+			statusBar()->showMessage(reason, 10000);
+			return false;
+		}
+		// The draft composes on the range's last line, which GitHub anchors
+		// it to.
+		const auto selected = ComparisonSurface->selection().has_value() && ComparisonSurface->selection()->PreferredLine == decision->Anchor;
+		if (!selected && !ComparisonSurface->select_conversation_line(decision->Anchor.Side, decision->Anchor.Line)) {
+			statusBar()->showMessage(tr("Select a line of this comparison."), 10000);
+			return false;
+		}
+		statusBar()->clearMessage();
+		PendingLineComment = pending_line_comment{ .Anchor = decision->Anchor, .StartLine = decision->StartLine, .Suggestion = aSuggestion };
+		if (resume_line_comment()) {
+			return true;
+		}
+		if (!PendingLineComment.has_value()) {
+			return false;
+		}
+		// No draft is on the line yet. One is on its way when the line was
+		// only now selected; otherwise say why there is none, and still open
+		// it should it arrive while the line stays selected.
+		if (selected) {
+			update_comment_target();
+			statusBar()->showMessage(CommentAction != nullptr && !CommentAction->isEnabled()
+										 ? CommentAction->toolTip()
+										 : tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment."),
+									 10000);
+			return false;
+		}
+		return true;
+	}
+
+	auto workbench_window::resume_line_comment() -> bool
+	{
+		if (!PendingLineComment.has_value()) {
+			return false;
+		}
+		// Another line selected since: the waiting comment is not wanted.
+		const auto& selection = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
+		if (!selection || selection->PreferredLine != PendingLineComment->Anchor) {
+			PendingLineComment.reset();
+			return false;
+		}
+		const auto& draft = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt;
+		if (!draft || draft->Anchor != PendingLineComment->Anchor) {
+			return false;
+		}
+		const auto pending = *std::exchange(PendingLineComment, std::nullopt);
+		// The range goes on the draft in one edit through the editor's edit
+		// path, before any suggestion block is written from it. A reply is
+		// left to begin_new_comment, which says to finish it first.
+		if (!draft->ReplyToThread.has_value() && draft->StartLine != pending.StartLine && !ReviewEditor->change_range(pending.StartLine) && pending.StartLine.has_value()) {
+			statusBar()->showMessage(tr("This draft cannot take several lines now. Select one line, or settle the draft's retained text first."), 10000);
+			return false;
+		}
+		const auto opened = begin_new_comment(pending.Suggestion);
+		if (opened) {
+			statusBar()->clearMessage();
+		}
+		return opened;
+	}
+
 	auto workbench_window::add_comment_action() const noexcept -> QAction*
 	{
 		return AddCommentAction;
@@ -7679,8 +7794,13 @@ namespace bpr::qt {
 			const auto  side      = aPane == ComparisonSurface->left_pane() ? core::diff_side::left : core::diff_side::right;
 			const auto  block     = aPane->cursorForPosition(aPosition).blockNumber();
 			const auto& selection = ComparisonSurface->selection();
-			const auto  inside    = selection.has_value() && selection->PreferredLine.Side == side
-				&& selection->PreferredLine.Line == static_cast<std::uint32_t>(std::max(block, 0));
+			// [[BPR-1212]] slice 1. Inside the selected lines keeps them all.
+			const auto range  = ComparisonSurface->line_draft_range();
+			const auto line   = static_cast<std::uint32_t>(std::max(block, 0));
+			const auto inside = selection.has_value() && selection->PreferredLine.Side == side
+				&& (selection->PreferredLine.Line == line
+					|| (range.has_value() && range->first.Side == side && range->second.Side == side
+						&& line >= std::min(range->first.Line, range->second.Line) && line <= std::max(range->first.Line, range->second.Line)));
 			if (block >= 0 && !inside) {
 				static_cast<void>(ComparisonSurface->select_conversation_line(side, static_cast<std::uint32_t>(block)));
 			}
@@ -7691,7 +7811,11 @@ namespace bpr::qt {
 		menu->setToolTipsVisible(true);
 		const auto& selection = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
 		if (selection.has_value()) {
-			auto* const caption = menu->addAction(tr("Line %1").arg(selection->PreferredLine.Line + 1U));
+			// [[BPR-1212]] slice 1. "Lines a–b" when the selection covers several.
+			const auto  range   = ComparisonSurface->line_draft_range();
+			const auto  first   = range.has_value() ? std::min(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
+			const auto  last    = range.has_value() ? std::max(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
+			auto* const caption = menu->addAction(first == last ? tr("Line %1").arg(first + 1U) : tr("Lines %1–%2").arg(first + 1U).arg(last + 1U));
 			caption->setObjectName(QStringLiteral("codeContextMenuCaption"));
 			caption->setEnabled(false);
 		}
@@ -7703,6 +7827,10 @@ namespace bpr::qt {
 		}
 		if (reason.isEmpty() && selection.has_value() && !core::supported_comment_target(selection->PreferredLine.Side, false)) {
 			reason = tr("New comments need a line on the right, current-head side.");
+		}
+		// [[BPR-1212]] slice 1. Lines the core refuses together say why.
+		if (auto why = QString{ }; reason.isEmpty() && !decide_selected_lines(why).has_value()) {
+			reason = why;
 		}
 		for (auto* const action : { AddCommentAction, SuggestChangeAction }) {
 			action->setEnabled(reason.isEmpty());
@@ -7782,7 +7910,9 @@ namespace bpr::qt {
 		if (!document.has_value()) {
 			return std::nullopt;
 		}
-		return core::suggestion_source_lines(*document, anchor.Line, anchor.Line);
+		// [[BPR-1212]] slice 1. A draft on several lines suggests a change to
+		// all of them, from its first line to its anchor.
+		return core::suggestion_source_lines(*document, ReviewEditor->shown_draft()->StartLine.value_or(anchor.Line), anchor.Line);
 	}
 
 	void workbench_window::write_inline_draft(const QString& aText)
@@ -7820,7 +7950,10 @@ namespace bpr::qt {
 				}
 			}
 		}
-		const auto words = draft.has_value() ? tr("Line %1").arg(draft->Anchor.Line + 1U) : QString{ };
+		// [[BPR-1212]] slice 1. A draft on several lines names them.
+		const auto words = !draft.has_value() ? QString{ }
+			: draft->StartLine.has_value()    ? tr("Lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
+											  : tr("Line %1").arg(draft->Anchor.Line + 1U);
 		// The full composer's excerpt follows the same draft.
 		if (DraftExcerpt != nullptr) {
 			auto* const excerpt = static_cast<draft_excerpt_view*>(DraftExcerpt);
@@ -7832,7 +7965,8 @@ namespace bpr::qt {
 				const auto& document = draft->Anchor.Side == core::diff_side::right ? result.RightDocument : result.LeftDocument;
 				if (document.has_value() && !document->Lines.empty()) {
 					const auto last  = static_cast<std::uint32_t>(document->Lines.size() - 1U);
-					const auto first = draft->Anchor.Line > 3U ? draft->Anchor.Line - 3U : 0U;
+					const auto start = draft->StartLine.value_or(draft->Anchor.Line);
+					const auto first = start > 3U ? start - 3U : 0U;
 					const auto end   = std::min(last, draft->Anchor.Line + 3U);
 					if (const auto lines = core::suggestion_source_lines(*document, first, end); lines.has_value()) {
 						auto texts = std::vector<QString>{ };
@@ -7849,7 +7983,7 @@ namespace bpr::qt {
 								path = candidate;
 							}
 						}
-						excerpt->present(path, first + 1U, std::move(texts), draft->Anchor.Line + 1U, draft->Anchor.Line + 1U,
+						excerpt->present(path, first + 1U, std::move(texts), start + 1U, draft->Anchor.Line + 1U,
 										 cards->code_font());
 						shown = true;
 					}
@@ -8029,73 +8163,6 @@ namespace bpr::qt {
 	void workbench_window::set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch)
 	{
 		ReviewReplyDispatch = std::move(aDispatch);
-	}
-
-	void workbench_window::set_line_draft_dispatch(workbench_line_draft_dispatch aDispatch)
-	{
-		LineDraftDispatch = std::move(aDispatch);
-	}
-
-	void workbench_window::begin_line_draft(const bool aSuggest)
-	{
-		// [[BPR-1212]]. The pane took the key only because it has focus; what
-		// follows is the comment the selection allows, or why there is none.
-		const auto refuse = [this](const QString& aReason) {
-			statusBar()->showMessage(aReason, 10000);
-		};
-		const auto range = ComparisonSurface != nullptr ? ComparisonSurface->line_draft_range() : std::nullopt;
-		if (!range) {
-			refuse(tr("Select a line first: click it, or move to it with Up and Down while the code has focus."));
-			return;
-		}
-		if (comparing_off_current_head()) {
-			refuse(tr("Select the pull request's current head; this tab compares an earlier update."));
-			return;
-		}
-		const auto& result = ComparisonSurface->current_result();
-		if (!result) {
-			refuse(tr("Wait for the comparison to load, then select a line."));
-			return;
-		}
-		const auto decision = core::decide_comment_range(result->Alignment, range->first, range->second);
-		switch (decision.Refusal) {
-		case core::comment_range_refusal::none:
-			break;
-		case core::comment_range_refusal::base_side:
-			// Flagged 4: a new comment cannot go on a left-side line.
-			refuse(tr("New comments need a line on the right, current-head side. Select a right-side line, or reply to an existing thread."));
-			return;
-		case core::comment_range_refusal::mixed_side:
-			refuse(tr("Select lines on one side to comment on them together."));
-			return;
-		case core::comment_range_refusal::outside_hunk:
-		case core::comment_range_refusal::crosses_hunk:
-			refuse(tr("GitHub takes a comment on several lines only inside one changed region. Select lines within one hunk, or a single line."));
-			return;
-		case core::comment_range_refusal::mixed_comparison:
-		case core::comment_range_refusal::outside_document:
-			refuse(tr("Select a line of this comparison."));
-			return;
-		}
-		// The draft composes on its last line, which GitHub anchors it to.
-		const auto selection = ComparisonSurface->selection();
-		if ((!selection || selection->PreferredLine != decision.Anchor)
-			&& !ComparisonSurface->select_conversation_line(decision.Anchor.Side, decision.Anchor.Line)) {
-			refuse(tr("Select a line of this comparison."));
-			return;
-		}
-		update_comment_target();
-		auto request    = workbench_line_draft_request{ };
-		request.First   = range->first.Line <= range->second.Line ? range->first : range->second;
-		request.Last    = decision.Anchor;
-		request.Suggest = aSuggest;
-		if (!LineDraftDispatch || !LineDraftDispatch(request)) {
-			refuse(CommentAction != nullptr && !CommentAction->isEnabled() ? CommentAction->toolTip()
-																		   : tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment."));
-			return;
-		}
-		statusBar()->clearMessage();
-		open_review_composition(true);
 	}
 
 	void workbench_window::set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch)
@@ -11046,23 +11113,6 @@ namespace bpr::qt {
 			return true;
 		}
 #endif
-		// [[BPR-1212]]. In the code, Return is Add comment and Shift+Return is
-		// Suggest change on the selected line; keypad Enter counts as Return.
-		// No other modifier is taken, and a line must be selected.
-		if (aEvent != nullptr && aEvent->type() == QEvent::KeyPress && ComparisonSurface != nullptr
-			&& (aWatched == ComparisonSurface->left_pane() || aWatched == ComparisonSurface->right_pane())) {
-			const auto* const key       = static_cast<QKeyEvent*>(aEvent);
-			const auto        modifiers = key->modifiers() & ~Qt::KeypadModifier;
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
-				&& (modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier)) {
-				if (!ComparisonSurface->selection().has_value()) {
-					ConversationPanel->present_notice(tr("Select a line first: click it, or move to it with the arrow keys."));
-					return true;
-				}
-				static_cast<void>(begin_new_comment(modifiers == Qt::ShiftModifier));
-				return true;
-			}
-		}
 		if (aWatched == DifCornerSlot && aEvent != nullptr
 			&& (aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {

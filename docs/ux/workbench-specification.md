@@ -939,17 +939,21 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   12 of the later version selected", "Lines 9 to 13 selected"). In one pane
   the same keys move by rows, and each end keeps its row's side.
 - Return comments on the selected lines and Shift+Return suggests a change to
-  them, in the existing composer ([[BPR-1212]]). The core decides the
-  selection first (`core::decide_comment_range`): a new comment needs the
-  right side; several lines must be on one side and inside one hunk of the
-  pull request's diff (the change groups with three lines of context, as
-  GitHub's diff draws them). A refusal opens nothing and says why in the
-  status line: a left line (the reason Comment gives), lines on two sides,
-  lines outside one hunk, or, with no line selected, "Select a line first:
-  click it, or move to it with Up and Down while the code has focus."
-  Otherwise the range's last line is selected, its draft takes the range, and
-  the composer opens. Return always starts on the selection; Alt+C keeps
-  reopening the line's draft as it is.
+  them, as a draft in the drawer ([[BPR-1212]]; see "Writing a new comment").
+  Return, Shift+Return, the code's right-click Add comment and Suggest change,
+  and the gutter's "+" take one path. The core decides the selection first
+  (`core::decide_comment_range`): a new comment needs the right side; several
+  lines must be on one side and inside one hunk of the pull request's diff
+  (the change groups with three lines of context, as GitHub's diff draws
+  them). A refusal opens nothing and says why in the status line: a left line
+  (the reason Comment gives), lines on two sides, lines outside one hunk, or,
+  with no line selected, "Select a line first: click it, or move to it with Up
+  and Down while the code has focus." The right-click items are unavailable
+  with the same reason. Otherwise the range's last line is selected, its
+  draft takes the range's first line in one edit through the draft editor,
+  and the draft opens in the drawer. Return always starts on the selection, so
+  Return on one line narrows a range draft ending there; Alt+C keeps reopening
+  the line's draft as it is.
 - Comments are shown beside code in the right drawer, not inserted into the source layout.
 
 Conversation synchronization is exact rather than proximity-based. Selecting a
@@ -1219,16 +1223,19 @@ and its codes as the reply has them; the foot says "Only you see it until you
 publish" and holds Discard and **Publish** (Command+Return), whose tooltip says
 it posts this one comment now. Return in the field is a new line. Esc keeps a
 written draft as its dashed note and drops an empty one, and focus returns to
-the code on the same line; opening the note writes it again. A right-click
-outside the selection selects its line first, and the menu, headed by the
-line, offers Add comment (↩) and Suggest change (⇧↩) above Copy and Add tour
-stop. Suggest change starts the draft as a ```` ```suggestion ```` block
-holding the line exactly, the caret at the end of its last line, set
-monospaced and unwrapped, and shows what the block changes as it is edited.
-Neither key nor item acts on the base side, and the menu says why. Maximize
+the code on the same line; opening the note writes it again. A draft on
+several lines (selected with Shift and the arrows, a drag or a Shift-click)
+says "Lines a–b" in its header and the bracket spans all of them. A
+right-click outside the selection selects its line first, and the menu,
+headed "Line N" or "Lines a–b", offers Add comment (↩) and Suggest change
+(⇧↩) above Copy and Add tour stop. Suggest change starts the draft as a
+```` ```suggestion ```` block holding the selected lines exactly, the caret
+at the end of its last line, set monospaced and unwrapped, and shows what the
+block changes as it is edited. Neither key nor item acts on the base side or
+on lines the core refuses together, and the menu says why. Maximize
 (Command+Shift+Return) opens the same draft in Discuss, where the full
 composer lives: the conversations narrow to a list at the left, and at the
-right Back to the code, the draft's line with three either side under the
+right Back to the code, the draft's lines with three either side under the
 same bracket, and the full editor. The same key, Esc or Back to the code
 returns it to the drawer with its text and caret. The full-page comment
 window is no longer a destination of its own (AC5, amended). Local projects

@@ -429,6 +429,18 @@ namespace bpr::qt {
 							  std::max(1, qRound(geometry.height())) };
 			}
 
+			/// \brief [[BPR-1212]] slice 1. The rows a mark spans: its line, or
+			/// all the lines of a draft written on several.
+			[[nodiscard]] auto mark_span_rect(const diff_line_mark& aMark) const -> QRect
+			{
+				const auto last = line_row_rect(aMark.Line);
+				if (!aMark.FirstLine.has_value() || *aMark.FirstLine >= aMark.Line) {
+					return last;
+				}
+				const auto first = line_row_rect(*aMark.FirstLine);
+				return first.isEmpty() || last.isEmpty() ? last : first.united(last);
+			}
+
 			[[nodiscard]] auto conversation_anchor_rect() const -> QRect
 			{
 				if (!ConversationAnchor.has_value()) {
@@ -685,7 +697,7 @@ namespace bpr::qt {
 				// the open thread's line is washed amber (the note under the
 				// pointer, lightly).
 				for (const auto& mark : Marks) {
-					const auto row = line_row_rect(mark.Line);
+					const auto row = mark.Writing ? mark_span_rect(mark) : line_row_rect(mark.Line);
 					if (row.isEmpty() || row.top() > viewport()->height() || row.bottom() < 0) {
 						continue;
 					}
@@ -1152,23 +1164,27 @@ namespace bpr::qt {
 			const auto faint  = palette().color(QPalette::Active, QPalette::PlaceholderText);
 			const auto gutter = GutterBackground.isValid() ? GutterBackground : palette().color(QPalette::Window);
 			for (const auto& mark : Marks) {
+				if (mark.Writing) {
+					// [[BPR-1212]]. The bracket: the draft's lines, joined to
+					// its card at the gutter's edge. A draft on several lines
+					// spans them all, drawn while any of them shows.
+					const auto row    = mark_span_rect(mark);
+					const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+					if (!row.isEmpty() && row.bottom() + header >= 0 && row.top() + header <= Gutter->height()) {
+						const auto write = palette().color(QPalette::Active, QPalette::Highlight);
+						auto       wash  = write;
+						wash.setAlphaF(0.16F);
+						aPainter.fillRect(QRect{ 0, row.top() + header, Gutter->width(), row.height() }, wash);
+						auto bracket = QPainterPath{ };
+						bracket.addRoundedRect(QRectF{ static_cast<qreal>(Gutter->width() - 3), static_cast<qreal>(row.top() + header + 2), 3.0, static_cast<qreal>(std::max(1, row.height() - 4)) }, 1.5, 1.5);
+						aPainter.fillPath(bracket, write);
+					}
+				}
 				const auto box = marker_rect(mark);
 				if (box.isEmpty() || box.bottom() < 0 || box.top() > Gutter->height()) {
 					continue;
 				}
-				if (mark.Writing) {
-					// [[BPR-1212]]. The bracket: the draft's lines, joined to
-					// its card at the gutter's edge.
-					const auto row    = line_row_rect(mark.Line);
-					const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
-					const auto write  = palette().color(QPalette::Active, QPalette::Highlight);
-					auto       wash   = write;
-					wash.setAlphaF(0.16F);
-					aPainter.fillRect(QRect{ 0, row.top() + header, Gutter->width(), row.height() }, wash);
-					auto bracket = QPainterPath{ };
-					bracket.addRoundedRect(QRectF{ static_cast<qreal>(Gutter->width() - 3), static_cast<qreal>(row.top() + header + 2), 3.0, static_cast<qreal>(std::max(1, row.height() - 4)) }, 1.5, 1.5);
-					aPainter.fillPath(bracket, write);
-				} else if (mark.Open) {
+				if (mark.Open && !mark.Writing) {
 					const auto row    = line_row_rect(mark.Line);
 					const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
 					auto       wash   = ThreadMarkColor;
@@ -3620,6 +3636,8 @@ namespace bpr::qt {
 				if (const auto row = unified_row_for(side, mark.Line)) {
 					auto unified = mark;
 					unified.Line = *row;
+					// [[BPR-1212]] slice 1. A range draft's first line, as its row.
+					unified.FirstLine = mark.FirstLine.has_value() ? unified_row_for(side, *mark.FirstLine) : std::nullopt;
 					marks.push_back(std::move(unified));
 				}
 			}

@@ -1013,7 +1013,9 @@ namespace bpr::qt {
 		, Writing{ aCard.Writing }
 	{
 		setObjectName(QStringLiteral("openThreadCard"));
-		setAccessibleName(Writing          ? (aCard.Line ? QStringLiteral("Your draft on line %1").arg(*aCard.Line) : QStringLiteral("Your draft"))
+		setAccessibleName(Writing          ? (aCard.Line && aCard.FirstLine ? QStringLiteral("Your draft on lines %1–%2").arg(*aCard.FirstLine).arg(*aCard.Line)
+												  : aCard.Line              ? QStringLiteral("Your draft on line %1").arg(*aCard.Line)
+																			: QStringLiteral("Your draft"))
 							  : aCard.Line ? QStringLiteral("Thread on line %1").arg(*aCard.Line)
 										   : QStringLiteral("Thread"));
 		setAttribute(Qt::WA_StyledBackground, false);
@@ -1065,7 +1067,8 @@ namespace bpr::qt {
 				where->setPalette(ink);
 				where->setIcon(conversation_icon(conversation_glyph::target, Style.Colours.Signal));
 				where->setProperty("conversationGlyph", QVariant{ });
-				where->setText(QStringLiteral("Line %1").arg(*aCard.Line));
+				// [[BPR-1212]] slice 1. "Lines a–b" for a draft on several.
+				where->setText(aCard.FirstLine ? QStringLiteral("Lines %1–%2").arg(*aCard.FirstLine).arg(*aCard.Line) : QStringLiteral("Line %1").arg(*aCard.Line));
 			}
 		}
 		if (!aCard.Draft && aCard.UnreadCount > 0U) {

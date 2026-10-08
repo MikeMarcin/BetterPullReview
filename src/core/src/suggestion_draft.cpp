@@ -1,5 +1,7 @@
 #include "bpr/core/suggestion_draft.hpp"
 
+#include "bpr/core/review_preparation.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
@@ -95,15 +97,23 @@ namespace bpr::core {
 			auto&      line  = lines.emplace_back();
 			line.reserve(static_cast<std::size_t>(span.End - span.Begin));
 			std::ranges::transform(begin, end, std::back_inserter(line), [](const std::uint8_t aByte) { return static_cast<char>(aByte); });
+			if (!valid_writing_utf8(line)) {
+				return std::nullopt;
+			}
 		}
 		return lines;
 	}
 
 	auto suggestion_fence_body(const std::span<const std::string> aLines) -> std::string
 	{
+		// Any run, not only one that opens a line: the fence outruns them all.
 		auto longest = std::size_t{ 2U };
 		for (const auto& line : aLines) {
-			longest = std::max(longest, fence_run(line, '`'));
+			auto run = std::size_t{ 0U };
+			for (const auto character : line) {
+				run     = character == '`' ? run + 1U : 0U;
+				longest = std::max(longest, run);
+			}
 		}
 		const auto fence = std::string(longest + 1U, '`');
 		auto       body  = fence + "suggestion\n";

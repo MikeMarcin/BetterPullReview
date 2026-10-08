@@ -7,20 +7,20 @@
 #include <compare>
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <vector>
 
 /// \file
 /// \brief Where a new pull-request comment may go when the reviewer selected
-/// one line or several, and the suggestion a selection starts ([[BPR-1212]]).
+/// one line or several ([[BPR-1212]]).
 /// \details A comment on several lines is GitHub's multi-line review comment:
 /// `start_line` and `line` on one side. GitHub refuses a range that is not on
 /// one side or whose two ends are not in one hunk of the pull request's diff,
 /// so those are refused here, from the accepted diff, before any draft carries
 /// the range and before anything is published. A single line keeps today's
 /// rules: a new comment goes on the right side, and a line outside every hunk
-/// is decided at Publish by `plan_review_publication`.
+/// is decided at Publish by `plan_review_publication`. The suggestion block a
+/// selection starts is `suggestion_draft.hpp`'s.
 namespace bpr::core {
 	/// \brief Why a selection cannot carry a new comment.
 	enum class comment_range_refusal : std::uint8_t {
@@ -75,17 +75,6 @@ namespace bpr::core {
 		source_line_ref       aFirst,
 		source_line_ref       aLast) -> comment_range_decision;
 
-	/// \brief The ```` ```suggestion ```` block that starts a suggested change
-	/// on lines `aFirst` to `aLast` (zero-based, inclusive) of a side's text.
-	/// \details Each line's exact bytes without its line ending, joined by a
-	/// newline, inside a fence longer than any backtick run they hold (three
-	/// at least). No final newline after the closing fence. None when a line
-	/// is out of range or the text is not UTF-8, so a suggestion never carries
-	/// bytes other than the file's.
-	[[nodiscard]] auto suggestion_prefill(
-		const decoded_text_document& aDocument,
-		std::uint32_t                aFirst,
-		std::uint32_t                aLast) -> std::optional<std::string>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_COMMENT_RANGE_HPP

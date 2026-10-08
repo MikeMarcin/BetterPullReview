@@ -166,6 +166,9 @@ namespace bpr::qt {
 		/// washed blue and bracketed at the gutter's edge, where the card
 		/// joins it. Amber is where you read, blue is where you write.
 		bool Writing = false;
+		/// [[BPR-1212]] slice 1. A draft on several lines: the first line the
+		/// bracket spans (a unified pane's is its row); `Line` is its last.
+		std::optional<std::uint32_t> FirstLine;
 		/// What the marker's tooltip and accessible name say.
 		QString Description;
 		/// The side and zero-based source line the mark answers for; a unified

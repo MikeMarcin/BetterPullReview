@@ -1,9 +1,9 @@
 // [[BPR-1212]]. A new pull-request comment on one line or several: the range
 // GitHub takes, the refusals before any draft carries it, the draft and
-// proposal that carry it, and the suggestion a selection starts.
+// proposal that carry it. The suggestion a selection starts is
+// core_suggestion_draft's.
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/review_comment_range.hpp"
-#include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
 
@@ -204,49 +204,6 @@ namespace {
 		}
 	}
 
-	[[nodiscard]] auto document(const std::string_view aText) -> decoded_text_document
-	{
-		auto result  = decoded_text_document{ };
-		result.Bytes = bytes_of(aText);
-		auto begin   = std::uint64_t{ 0U };
-		for (std::uint64_t index = 0U; index < aText.size(); ++index) {
-			if (aText[index] != '\n') {
-				continue;
-			}
-			const auto crlf = index > begin && aText[index - 1U] == '\r';
-			auto       line = decoded_text_line{ };
-			line.Content    = { .Begin = begin, .End = crlf ? index - 1U : index };
-			line.Terminator = { .Begin = crlf ? index - 1U : index, .End = index + 1U };
-			line.Ending     = crlf ? text_line_ending::crlf : text_line_ending::lf;
-			result.Lines.push_back(line);
-			begin = index + 1U;
-		}
-		if (begin < aText.size()) {
-			auto line    = decoded_text_line{ };
-			line.Content = { .Begin = begin, .End = aText.size() };
-			result.Lines.push_back(line);
-		} else {
-			result.HasFinalNewline = true;
-		}
-		return result;
-	}
-
-	void test_a_suggestion_starts_with_the_selected_lines_exactly()
-	{
-		const auto text = document("zero\n\tone  \r\ntwo é\n\nfour ``` and ````\nlast");
-		expect(suggestion_prefill(text, 1U, 2U) == std::optional<std::string>{ "```suggestion\n\tone  \ntwo é\n```" },
-			   "the lines' bytes without their endings, tabs and trailing spaces kept, inside a fence");
-		expect(suggestion_prefill(text, 0U, 0U) == std::optional<std::string>{ "```suggestion\nzero\n```" }, "one line is a one-line block");
-		expect(suggestion_prefill(text, 3U, 3U) == std::optional<std::string>{ "```suggestion\n\n```" }, "an empty line is kept as an empty line");
-		expect(suggestion_prefill(text, 4U, 5U) == std::optional<std::string>{ "`````suggestion\nfour ``` and ````\nlast\n`````" },
-			   "a line holding backtick runs gets a longer fence, and a last line with no newline is whole");
-		expect(!suggestion_prefill(text, 5U, 6U) && !suggestion_prefill(text, 2U, 1U), "a line out of range or a reversed range starts nothing");
-		expect(!suggestion_prefill(document("bad \xC3\x28\n"), 0U, 0U), "text that is not UTF-8 starts nothing");
-		const auto block = suggestion_prefill(text, 0U, 2U);
-		expect(block && classify_review_body(*block) == review_body_compatibility::requires_line_subject,
-			   "the block is a suggestion the publication policy recognises");
-	}
-
 	[[nodiscard]] auto range_draft() -> revisioned_review_draft
 	{
 		auto draft         = revisioned_review_draft{ };
@@ -343,7 +300,6 @@ int main()
 {
 	test_hunks_follow_githubs_three_lines_of_context();
 	test_a_selection_becomes_an_anchor_or_a_typed_refusal();
-	test_a_suggestion_starts_with_the_selected_lines_exactly();
 	test_a_draft_carries_its_range_to_the_proposal();
 	std::cout << "core_review_comment_range: ok\n";
 	return EXIT_SUCCESS;

@@ -1047,6 +1047,28 @@ endfunction()
 # review-mutation decision gate. No grant, target, provider, credential,
 # transport, GitHub write, mutation or publication path changes; mutation pin
 # unchanged. Reviewed on BPR-1329.
+# BPR-1212 slice 1 reseal (2026-10-07, integrated 2026-10-08): over the
+# BPR-1212 slice 2, BPR-1328 and BPR-1329 reseals above, rebased onto
+# 5efe30739, whose own pins match; no other intervening pinned-scope change. Slice 1 is integrated onto slice 2's
+# drawer flow, so this seal covers the integrated result. github_application.cpp:
+# Return and Shift+Return no longer reach the composition. The window decides
+# the selection with core::decide_comment_range and has the draft editor send
+# the range's first line as one ordinary revisioned edit (ChangeRange) through
+# the same dispatch_review_draft and durable store every edit takes, then
+# slice 2's begin_new_comment opens the draft in the drawer and writes any
+# suggestion block from core::suggestion_fence_body, the one fence builder.
+# The composition's begin_line_draft, complete_line_draft and their waiting
+# request are removed, and core::suggestion_prefill with them.
+# desktop_update_drafts names a range's lines. Tests-on only: the
+# label-authoring course gains the BPR-1212 phases in the drawer (Esc to leave
+# a draft, the drawer draft's Publish), and `--line-draft-course` runs them
+# alone; main.cpp parses the flag and reports LINE_DRAFT_EVIDENCE. Publication
+# is unchanged in this file: the proposal carries StartLine from the draft, and
+# the host, the GitHub adapter and the idempotency key (outside these pins)
+# refuse or encode it; a single line's bytes and key are unchanged. No grant,
+# target, provider, credential or mutation path changes here; mutation pin
+# unchanged; no new src/app source. Self-review on BPR-1212, not independent
+# review.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1065,7 +1087,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"141d706c27f23a584129c2e8e98f77f6d748d06a968575d12dd24911bb655959"
+		"cf8290ad4de303f7a97a5e0f9ac38b051e4b7fd39678586f3c46b3333a4fe5d2"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1267,7 +1289,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "93757ed586d290afc02324a4b773c14f21614b3c2d6466c3a8c425e21812ede0"
+        "2cdb82c67c5573d03b484bad24f315540efc823ee62a864f5299e14e9c20a08c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

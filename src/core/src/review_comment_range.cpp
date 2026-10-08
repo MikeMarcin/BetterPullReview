@@ -1,7 +1,5 @@
 #include "bpr/core/review_comment_range.hpp"
 
-#include "bpr/core/review_preparation.hpp"
-
 #include <algorithm>
 #include <cstddef>
 #include <utility>
@@ -103,38 +101,5 @@ namespace bpr::core {
 		}
 		result.StartLine = aFirst.Line;
 		return result;
-	}
-
-	auto suggestion_prefill(
-		const decoded_text_document& aDocument,
-		const std::uint32_t          aFirst,
-		const std::uint32_t          aLast) -> std::optional<std::string>
-	{
-		if (aFirst > aLast || aLast >= aDocument.Lines.size()) {
-			return std::nullopt;
-		}
-		auto lines   = std::string{ };
-		auto longest = std::size_t{ 0U };
-		for (auto index = aFirst; index <= aLast; ++index) {
-			const auto& content = aDocument.Lines[index].Content;
-			if (content.Begin > content.End || content.End > aDocument.Bytes.size()) {
-				return std::nullopt;
-			}
-			if (index != aFirst) {
-				lines.push_back('\n');
-			}
-			auto run = std::size_t{ 0U };
-			for (auto at = content.Begin; at < content.End; ++at) {
-				const auto byte = static_cast<char>(aDocument.Bytes[static_cast<std::size_t>(at)]);
-				lines.push_back(byte);
-				run     = byte == '`' ? run + 1U : 0U;
-				longest = std::max(longest, run);
-			}
-		}
-		if (!valid_writing_utf8(lines)) {
-			return std::nullopt;
-		}
-		const auto fence = std::string(std::max<std::size_t>(3U, longest + 1U), '`');
-		return fence + "suggestion\n" + lines + "\n" + fence;
 	}
 } // namespace bpr::core
