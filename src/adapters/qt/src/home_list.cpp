@@ -578,6 +578,16 @@ namespace bpr::qt {
 		CurrentObserver = std::move(aObserver);
 	}
 
+	void home_list::set_new_window_dispatch(std::function<void(const core::queue_item&)> aDispatch)
+	{
+		NewWindowDispatch = std::move(aDispatch);
+	}
+
+	void home_list::set_recent_new_window_dispatch(std::function<void(int aRow)> aDispatch)
+	{
+		RecentNewWindowDispatch = std::move(aDispatch);
+	}
+
 	void home_list::adopt_recent(home_recent_view& aRecent)
 	{
 		RecentView = &aRecent;
@@ -1144,6 +1154,68 @@ namespace bpr::qt {
 		}
 	}
 
+	void home_list::open_row_in_new_window(const QAbstractItemView& aView, const QModelIndex& aIndex)
+	{
+		if (&aView == RecentView) {
+			if (RecentNewWindowDispatch && aIndex.isValid()) {
+				RecentNewWindowDispatch(aIndex.row());
+			}
+			return;
+		}
+		if (!NewWindowDispatch) {
+			return;
+		}
+		if (const auto item = item_of(aView, aIndex); item.has_value()) {
+			NewWindowDispatch(*item);
+		}
+	}
+
+	auto home_list::read_new_window_click(QObject* const aWatched, QEvent* const aEvent) -> bool
+	{
+		const auto type = aEvent->type();
+		if (type != QEvent::MouseButtonPress && type != QEvent::MouseButtonRelease && type != QEvent::MouseButtonDblClick) {
+			return false;
+		}
+		auto* view = static_cast<QAbstractItemView*>(nullptr);
+		if (RecentView != nullptr && aWatched == RecentView->viewport()) {
+			view = RecentView;
+		} else {
+			for (auto* const candidate : row_views()) {
+				if (aWatched == candidate->viewport()) {
+					view = candidate;
+					break;
+				}
+			}
+		}
+		if (view == nullptr) {
+			return false;
+		}
+		// [[BPR-1342]]. A browser's gestures for "open this elsewhere": the
+		// middle button, or the primary one with ⌘ (Ctrl off macOS). Taken
+		// whole, so the click does not also open the row here and ⌘ does not
+		// toggle the row's selection away.
+		const auto* const mouse     = static_cast<QMouseEvent*>(aEvent);
+		const auto        elsewhere = mouse->button() == Qt::MiddleButton
+			|| (mouse->button() == Qt::LeftButton && mouse->modifiers().testFlag(Qt::ControlModifier));
+		if (!elsewhere) {
+			return false;
+		}
+		const auto index = view->indexAt(mouse->position().toPoint());
+		if (type == QEvent::MouseButtonPress) {
+			NewWindowPress = index;
+			if (index.isValid()) {
+				view->setFocus(Qt::MouseFocusReason);
+				view->setCurrentIndex(index);
+			}
+		} else if (type == QEvent::MouseButtonRelease) {
+			const auto pressed = std::exchange(NewWindowPress, QPersistentModelIndex{ });
+			if (index.isValid() && pressed == index) {
+				open_row_in_new_window(*view, index);
+			}
+		}
+		return true;
+	}
+
 	auto home_list::item_of(const QAbstractItemView& aView, const QModelIndex& aIndex) const
 		-> std::optional<core::queue_item>
 	{
@@ -1579,6 +1651,9 @@ namespace bpr::qt {
 				update_sticky_headers();
 			}
 		}
+		if (read_new_window_click(aWatched, aEvent)) {
+			return true;
+		}
 		if (aEvent->type() != QEvent::KeyPress) {
 			return QScrollArea::eventFilter(aWatched, aEvent);
 		}
@@ -1591,9 +1666,14 @@ namespace bpr::qt {
 			if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
 				// [[BPR-0736]]. macOS treats these as editing keys instead of
 				// emitting activated. Consume them here on every platform so a
-				// key opens once; the pointer keeps its own path.
+				// key opens once; the pointer keeps its own path. [[BPR-1342]]:
+				// with ⌘ (Ctrl off macOS) the row opens in a new window.
 				if (view->currentIndex().isValid()) {
-					open_row(*view, view->currentIndex());
+					if (key->modifiers().testFlag(Qt::ControlModifier)) {
+						open_row_in_new_window(*view, view->currentIndex());
+					} else {
+						open_row(*view, view->currentIndex());
+					}
 				}
 				return true;
 			}

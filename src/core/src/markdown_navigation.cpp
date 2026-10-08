@@ -257,4 +257,41 @@ namespace bpr::core {
 										 .Repository       = aDestination.Repository.Name,
 										 .Number           = aDestination.Number });
 	}
+
+	auto admit_queue_review_window(const pull_request_ref& aRef, const std::string_view aHostname, const std::string_view aLogin, const github_account_id aAccount)
+		-> std::expected<window_review_destination, markdown_link_result>
+	{
+		if (aAccount.value() == 0U) {
+			return std::unexpected(markdown_link_result::refused);
+		}
+		const auto page = admit_queue_pull_request_page(aRef, aHostname, aLogin, true);
+		if (!page) {
+			return std::unexpected(page.error());
+		}
+		auto destination             = window_review_destination{ };
+		destination.Mode             = github_access_mode::authenticated;
+		destination.Hostname         = page->Hostname;
+		destination.Repository.Owner = page->Owner;
+		destination.Repository.Name  = page->Repository;
+		destination.Number           = page->Number;
+		destination.Account          = aAccount;
+		return destination;
+	}
+
+	auto admit_recent_review_window(const window_review_destination& aDestination, const std::optional<window_review_authority>& aAuthority, const github_account_id aAccount)
+		-> std::expected<window_review_destination, markdown_link_result>
+	{
+		if (aDestination.Mode != github_access_mode::public_preview && (!aAuthority || !matches_review_authority(aDestination, *aAuthority, aAccount))) {
+			return std::unexpected(markdown_link_result::refused);
+		}
+		const auto page = admit_pull_request_page({ .BrowserAvailable = true,
+													.Hostname         = aDestination.Hostname,
+													.Owner            = aDestination.Repository.Owner,
+													.Repository       = aDestination.Repository.Name,
+													.Number           = aDestination.Number });
+		if (!page) {
+			return std::unexpected(page.error());
+		}
+		return aDestination;
+	}
 }

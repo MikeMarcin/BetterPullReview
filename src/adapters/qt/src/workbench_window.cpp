@@ -2857,11 +2857,24 @@ namespace bpr::qt {
 			HomeRecentList->setAccessibleDescription(QStringLiteral(
 				"Return opens a pull request on its overview; Shift and Return resume its saved reading"));
 			// The action is the row's menu as well as its hover and focus
-			// button, so the gesture is where the row is.
-			HomeRecentList->setContextMenuPolicy(Qt::ActionsContextMenu);
-			HomeRecentList->addAction(HomeRecentResumeAction);
-			// [[BPR-1338]]. And Open on GitHub, for the row made current.
-			HomeRecentList->addAction(OpenOnGithubAction);
+			// button, so the gesture is where the row is. [[BPR-1342]]: the
+			// row's menu is Home's one row menu, opened on the row the right
+			// click made current, with Open Review and Open Review in New
+			// Window before Resume and Open on GitHub ([[BPR-1338]]). Its
+			// key, ⇧Return, is shown there; it is read by the list, below.
+			HomeRecentResumeAction->setShortcut(QKeySequence{ Qt::SHIFT | Qt::Key_Return });
+			HomeRecentResumeAction->setShortcutContext(Qt::WidgetShortcut);
+			HomeRecentResumeAction->setShortcutVisibleInContextMenu(true);
+			HomeRecentList->setContextMenuPolicy(Qt::CustomContextMenu);
+			connect(HomeRecentList, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPosition) {
+				auto* const item = HomeRecentList->itemAt(aPosition);
+				if (item == nullptr) {
+					return;
+				}
+				HomeRecentList->setCurrentItem(item);
+				HomeRecentRowLast = true;
+				popup_home_row_menu(HomeRecentList->viewport()->mapToGlobal(aPosition));
+			});
 			HomeRecentList->installEventFilter(this);
 			connect(HomeRecentList, &QListWidget::itemActivated, this,
 					[this](QListWidgetItem* const aItem) {
@@ -2872,6 +2885,7 @@ namespace bpr::qt {
 					[this](int) {
 						update_recent_resume_action();
 						update_open_on_github_action();
+						update_home_review_actions();
 					});
 			connect(HomeRecentResumeAction, &QAction::triggered, this, [this] {
 				dispatch_recent_review(HomeRecentList->currentRow(), true);
@@ -2935,6 +2949,12 @@ namespace bpr::qt {
 			if (HomeList != nullptr) {
 				HomeList->adopt_recent(*recentList);
 				HomeList->set_recent_action_dispatch([this](const int aRow) { dispatch_recent_review(aRow, true); });
+				// [[BPR-1342]]. ⌘-click or middle-click on a Recently viewed row.
+				HomeList->set_recent_new_window_dispatch([this](const int aRow) {
+					if (aRow >= 0 && static_cast<std::size_t>(aRow) < RecentReviews.Entries.size()) {
+						request_review_window(application::recent_review_row{ static_cast<std::size_t>(aRow) });
+					}
+				});
 			}
 			// Nothing was published yet, so there is no panel to show.
 			apply_recent_reviews();
@@ -3515,7 +3535,12 @@ namespace bpr::qt {
 		// directly; its menu holds the window's action, which names the row the
 		// right click made current, as the action's key does.
 		HomeList->set_page_dispatch([this](const core::queue_item& aItem) { open_pull_request_page(aItem.Ref); });
-		HomeList->set_current_observer([this] { update_open_on_github_action(); });
+		HomeList->set_current_observer([this] {
+			update_open_on_github_action();
+			update_home_review_actions();
+		});
+		// [[BPR-1342]]. ⌘Return, ⌘-click or middle-click on a queue row.
+		HomeList->set_new_window_dispatch([this](const core::queue_item& aItem) { request_review_window(aItem.Ref); });
 		// Which of Home's lists the reviewer is in: the one that last took the
 		// keyboard. A menu taking it for a moment changes nothing.
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget* const aNow) {
@@ -3530,15 +3555,46 @@ namespace bpr::qt {
 				return;
 			}
 			update_open_on_github_action();
+			update_home_review_actions();
 		});
+		// [[BPR-1342]]. Home's one row menu, for a queue row and a Recently
+		// viewed row alike: Open Review (the default, in this window), Open
+		// Review in New Window, Resume for a Recently viewed row, then Open on
+		// GitHub. Each shows its key. The keys are read by the lists
+		// themselves, so these shortcuts are context-bound to the menu and
+		// never act from the window.
+		const auto menuKey = [](QAction& aAction, const QKeySequence& aKey) {
+			aAction.setShortcut(aKey);
+			aAction.setShortcutContext(Qt::WidgetShortcut);
+			aAction.setShortcutVisibleInContextMenu(true);
+		};
+		HomeOpenReviewAction = new QAction{ tr("Open Review"), this };
+		HomeOpenReviewAction->setObjectName(QStringLiteral("homeOpenReviewAction"));
+		HomeOpenReviewAction->setStatusTip(QStringLiteral("Open this pull request in this window"));
+		menuKey(*HomeOpenReviewAction, QKeySequence{ Qt::Key_Return });
+		HomeOpenReviewAction->setEnabled(false);
+		connect(HomeOpenReviewAction, &QAction::triggered, this, [this] { open_home_review(false); });
+		HomeOpenReviewWindowAction = new QAction{ tr("Open Review in New Window"), this };
+		HomeOpenReviewWindowAction->setObjectName(QStringLiteral("homeOpenReviewInNewWindowAction"));
+		HomeOpenReviewWindowAction->setStatusTip(QStringLiteral("Open this pull request in a new window of this profile"));
+		menuKey(*HomeOpenReviewWindowAction, QKeySequence{ Qt::CTRL | Qt::Key_Return });
+		HomeOpenReviewWindowAction->setEnabled(false);
+		connect(HomeOpenReviewWindowAction, &QAction::triggered, this, [this] { open_home_review(true); });
+		OpenOnGithubAction->setShortcutVisibleInContextMenu(true);
 		HomeRowMenu = new QMenu{ this };
 		HomeRowMenu->setObjectName(QStringLiteral("homeRowMenu"));
 		HomeRowMenu->setAccessibleName(QStringLiteral("Pull request row"));
+		HomeRowMenu->addAction(HomeOpenReviewAction);
+		HomeRowMenu->addAction(HomeOpenReviewWindowAction);
+		if (HomeRecentResumeAction != nullptr) {
+			HomeRowMenu->addAction(HomeRecentResumeAction);
+		}
+		HomeRowMenu->addSeparator();
 		HomeRowMenu->addAction(OpenOnGithubAction);
+		HomeRowMenu->setDefaultAction(HomeOpenReviewAction);
 		HomeList->set_row_menu_dispatch([this](const QPoint& aGlobal) {
 			HomeRecentRowLast = false;
-			update_open_on_github_action();
-			HomeRowMenu->popup(aGlobal);
+			popup_home_row_menu(aGlobal);
 		});
 		// The empty lane's link names the saved repositories, so it opens their
 		// page; observer rules stay reachable from Filter's Open Reviews & queue.
@@ -10285,6 +10341,94 @@ namespace bpr::qt {
 		}
 	}
 
+	auto workbench_window::home_open_review_action() const noexcept -> QAction*
+	{
+		return HomeOpenReviewAction;
+	}
+
+	auto workbench_window::home_open_review_window_action() const noexcept -> QAction*
+	{
+		return HomeOpenReviewWindowAction;
+	}
+
+	void workbench_window::set_review_window_dispatch(std::function<bool(const application::review_window_intent&)> aDispatch)
+	{
+		ReviewWindowDispatch = std::move(aDispatch);
+		update_home_review_actions();
+	}
+
+	auto workbench_window::home_review_target() const -> std::optional<std::variant<core::queue_item, application::recent_review_row>>
+	{
+		if (!showing_home()) {
+			return std::nullopt;
+		}
+		if (HomeRecentRowLast && HomeRecentList != nullptr && HomeRecentList->currentRow() >= 0
+			&& static_cast<std::size_t>(HomeRecentList->currentRow()) < RecentReviews.Entries.size()) {
+			return application::recent_review_row{ static_cast<std::size_t>(HomeRecentList->currentRow()) };
+		}
+		if (auto item = HomeList != nullptr ? HomeList->current_queue_item() : std::nullopt; item.has_value()) {
+			return std::move(*item);
+		}
+		return std::nullopt;
+	}
+
+	void workbench_window::update_home_review_actions()
+	{
+		if (HomeOpenReviewAction == nullptr || HomeOpenReviewWindowAction == nullptr) {
+			return;
+		}
+		const auto target = home_review_target();
+		const auto recent = target.has_value() && std::holds_alternative<application::recent_review_row>(*target);
+		HomeOpenReviewAction->setEnabled(target.has_value() && (recent ? static_cast<bool>(RecentReviewDispatch) : static_cast<bool>(GithubDispatch)));
+		// A new window is the profile's New Window, so it is offered exactly
+		// when that is.
+		HomeOpenReviewWindowAction->setEnabled(target.has_value() && ReviewWindowDispatch && NewBprWindowAction != nullptr
+											   && NewBprWindowAction->isEnabled());
+		if (HomeRecentResumeAction != nullptr) {
+			HomeRecentResumeAction->setVisible(recent);
+		}
+	}
+
+	void workbench_window::popup_home_row_menu(const QPoint& aGlobal)
+	{
+		update_open_on_github_action();
+		update_home_review_actions();
+		HomeRowMenu->popup(aGlobal);
+	}
+
+	void workbench_window::open_home_review(const bool aNewWindow)
+	{
+		const auto target = home_review_target();
+		if (!target.has_value()) {
+			return;
+		}
+		if (const auto* const recent = std::get_if<application::recent_review_row>(&*target)) {
+			if (aNewWindow) {
+				request_review_window(*recent);
+			} else {
+				dispatch_recent_review(static_cast<int>(recent->Index), false);
+			}
+			return;
+		}
+		const auto& item = std::get<core::queue_item>(*target);
+		if (aNewWindow) {
+			request_review_window(item.Ref);
+		} else {
+			open_pull_request_item(item);
+		}
+	}
+
+	void workbench_window::request_review_window(const application::review_window_intent& aIntent)
+	{
+		if (!ReviewWindowDispatch || NewBprWindowAction == nullptr || !NewBprWindowAction->isEnabled()) {
+			statusBar()->showMessage(QStringLiteral("A new window is unavailable until this profile is open."), 8000);
+			return;
+		}
+		if (!ReviewWindowDispatch(aIntent)) {
+			statusBar()->showMessage(QStringLiteral("This pull request cannot open in a new window from here. Choose it again."), 8000);
+		}
+	}
+
 	void workbench_window::open_pull_request_page(const application::pull_request_page_intent& aIntent)
 	{
 		const auto result = PageDispatch ? PageDispatch(aIntent) : core::markdown_link_result::unavailable;
@@ -11460,6 +11604,15 @@ namespace bpr::qt {
 				// the key means one behaviour on every platform, and the
 				// pointer's own activation still arrives through
 				// `itemActivated`.
+				// [[BPR-1342]]. With ⌘ (Ctrl off macOS) the row opens in a
+				// new window, on Overview.
+				if (key->modifiers().testFlag(Qt::ControlModifier)) {
+					const auto row = HomeRecentList->currentRow();
+					if (row >= 0 && static_cast<std::size_t>(row) < RecentReviews.Entries.size()) {
+						request_review_window(application::recent_review_row{ static_cast<std::size_t>(row) });
+					}
+					return true;
+				}
 				dispatch_recent_review(
 					HomeRecentList->currentRow(),
 					key->modifiers().testFlag(Qt::ShiftModifier));
@@ -12892,6 +13045,7 @@ namespace bpr::qt {
 									   && std::ranges::any_of(aProjection.Profiles, [aCurrentProfile](const auto& aProfile) {
 											  return aProfile.Profile == aCurrentProfile && aProfile.Runtime == application::profile_management_runtime::open;
 										  }));
+		update_home_review_actions();
 		for (auto iterator = ProfileActions.begin(); iterator != ProfileActions.end();) {
 			if (std::ranges::none_of(aProjection.Profiles, [iterator](const auto& aProfile) { return aProfile.Profile == iterator->first; })) {
 				delete iterator->second;

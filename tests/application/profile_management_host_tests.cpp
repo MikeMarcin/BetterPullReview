@@ -237,6 +237,41 @@ namespace {
 		expect(test.Store.Saves == 4U, "each allocation and explicit close persists window metadata once");
 	}
 
+	/// [[BPR-1342]]. Open Review in New Window is New Window carrying one
+	/// destination: it rides to that fresh window's start command and nowhere
+	/// else, and an ordinary New Window or Open carries none.
+	void test_new_window_carries_its_review_to_the_fresh_window_only()
+	{
+		fixture test;
+		test.load();
+		const auto profile = core::default_bpr_profile_id;
+		test.Host.apply(open_bpr_profile_intent{ profile });
+		test.drain();
+		const auto first = test.Output.Commands.back();
+		expect(first.Kind == profile_runtime_command_kind::start && !first.Review && test.Host.complete_open(first.Context), "an ordinary open carries no review");
+		auto review       = core::window_review_destination{ };
+		review.Hostname   = "github.com";
+		review.Repository = { "octo-org", "review-repository" };
+		review.Number     = core::pull_request_number{ 17U };
+		review.Account    = core::github_account_id{ 7U };
+		const auto before = test.Output.Commands.size();
+		test.Host.apply(new_bpr_window_intent{ profile, review });
+		test.drain();
+		expect(test.Output.Commands.size() == before + 1U, "one window is asked for");
+		const auto carried = test.Output.Commands.back();
+		expect(carried.Kind == profile_runtime_command_kind::start && !carried.Restore && carried.Context.Profile == profile && carried.Context.Window != first.Context.Window
+				   && carried.Review == review,
+			   "the fresh window's start carries the review, in the same profile");
+		expect(test.Host.complete_open(carried.Context), "the reviewing window opens like any new window");
+		test.Host.apply(new_bpr_window_intent{ profile });
+		test.drain();
+		expect(test.Output.Commands.back().Kind == profile_runtime_command_kind::start && !test.Output.Commands.back().Review, "a plain New Window carries none");
+		expect(test.Host.complete_open(test.Output.Commands.back().Context), "and opens");
+		test.Host.apply(open_bpr_profile_intent{ profile });
+		test.drain();
+		expect(test.Output.Commands.back().Kind == profile_runtime_command_kind::activate && !test.Output.Commands.back().Review, "activating the profile carries none");
+	}
+
 	void test_live_window_cap_and_independent_pending_startups()
 	{
 		fixture test;
@@ -563,6 +598,7 @@ int main()
 	test_failed_and_foreign_completions();
 	test_shutdown_and_reentrant_projection();
 	test_multiple_live_windows_and_exact_retirement();
+	test_new_window_carries_its_review_to_the_fresh_window_only();
 	test_live_window_cap_and_independent_pending_startups();
 	std::cout << "profile-management-host-tests:pass\n";
 	return EXIT_SUCCESS;

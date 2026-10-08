@@ -288,6 +288,16 @@ never become the address. The system browser opener still refuses anything
 but an absolute HTTP(S) address with a host and no userinfo, and opening
 starts no network request of the application's own.
 
+Open Review in New Window ([[BPR-1342]]) takes no text either. A Home row is
+named by its queue identity or its Recently viewed place; the sending window's
+host admits it as a typed destination under the same rules as the row's Open
+and its GitHub page (a queue row only as the accepted account's on the accepted
+host, an account's reading only under that account's exact authority, safe
+host and names). The destination rides the profile's existing New Window
+intent to that one fresh window and nowhere else. The new window admits its
+parts again, requires its own session to match an account's destination, and
+opens it through its Home bar's existing path, as a pasted link would.
+
 ## Process handling
 
 - Resolve executables explicitly. A Claude process wrapper ([[BPR-1301]]) is

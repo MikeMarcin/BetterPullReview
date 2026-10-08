@@ -3974,7 +3974,9 @@ namespace bpr::app {
 		};
 		epoch_contexts                                EpochContexts{ *this };
 		std::function<bool(core::bpr_window_context)> WindowAdmission;
-		[[nodiscard]] auto                            current_window(core::bpr_window_context aContext) const noexcept -> bool
+		/// [[BPR-1342]]. The profile desktop's New Window, carrying one destination.
+		std::function<bool(const core::window_review_destination&)> ReviewWindowRequest;
+		[[nodiscard]] auto                                          current_window(core::bpr_window_context aContext) const noexcept -> bool
 		{
 			if (Closing || aContext.Profile != Admission.Authority.profile() || !Observers.contains(aContext)) {
 				return false;
@@ -6007,6 +6009,74 @@ namespace bpr::app {
 				return core::markdown_link_result::failed;
 			}
 		}
+		/// [[BPR-1342]]. Open Review in New Window. The row is admitted here, by
+		/// the rules its Open and its GitHub page already follow, before the
+		/// profile is asked for a window: a Home queue row only as the accepted
+		/// account's on the accepted host, a Recently viewed row only as one
+		/// this window published, and an account's reading only under that
+		/// account's exact authority. The new window is the profile's ordinary
+		/// New Window; it always opens, even where this or another window shows
+		/// the same pull request (RFC-BPR-0024).
+		auto request_review_window(const application::review_window_intent& aIntent) -> bool
+		{
+			if (Closing || !Profile->ReviewWindowRequest || !Profile->current_window(DraftWindow)) {
+				return false;
+			}
+			const auto& session     = Host->accepted_session();
+			const auto* profile     = session && Host->state().Account == session->Viewer.Account ? find_profile(session->Profile) : nullptr;
+			auto        destination = std::expected<core::window_review_destination, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::refused) };
+			if (const auto* const ref = std::get_if<core::pull_request_ref>(&aIntent)) {
+				if (profile == nullptr || session->Mode != core::github_access_mode::authenticated) {
+					return false;
+				}
+				destination = core::admit_queue_review_window(*ref, profile->hostname(), session->Viewer.Login, session->Viewer.Account);
+			} else {
+				const auto row = std::get<application::recent_review_row>(aIntent).Index;
+				if (!Profile->ReviewRestoration || !RecentPublished || row >= RecentIndexMap.size() || row >= RecentPublished->Entries.size()) {
+					return false;
+				}
+				const auto  index  = RecentIndexMap[row];
+				const auto& recent = Profile->ReviewRestoration->recent();
+				if (index >= recent.size() || recent[index].Destination != RecentPublished->Entries[row].Destination) {
+					return false;
+				}
+				auto authority = std::optional<core::window_review_authority>{ };
+				if (profile != nullptr) {
+					authority = core::window_review_authority{ session->Mode, std::string{ profile->hostname() } };
+				}
+				destination = core::admit_recent_review_window(recent[index].Destination, authority, profile != nullptr ? session->Viewer.Account : core::github_account_id{ });
+			}
+			return destination.has_value() && Profile->ReviewWindowRequest(*destination);
+		}
+		/// [[BPR-1342]]. The fresh window opens what its New Window carried, by
+		/// the bar's path, as Recently viewed's Open does: a signed-in account's
+		/// pull request only under that account's exact session, a public
+		/// reading on its own host. Its parts are admitted again here.
+		void open_review_destination(const core::window_review_destination& aDestination)
+		{
+			if (Closing || !SetupDestination || !Profile->current_window(DraftWindow)) {
+				return;
+			}
+			const auto page = core::admit_pull_request_page({ .BrowserAvailable = true,
+															  .Hostname         = aDestination.Hostname,
+															  .Owner            = aDestination.Repository.Owner,
+															  .Repository       = aDestination.Repository.Name,
+															  .Number           = aDestination.Number });
+			if (!page) {
+				return;
+			}
+			if (aDestination.Mode != core::github_access_mode::public_preview) {
+				const auto& session = Host->accepted_session();
+				const auto* profile = session && Host->state().Account == session->Viewer.Account ? find_profile(session->Profile) : nullptr;
+				if (profile == nullptr
+					|| !core::matches_review_authority(aDestination, core::window_review_authority{ session->Mode, std::string{ profile->hostname() } }, session->Viewer.Account)) {
+					return;
+				}
+			}
+			retire_setup_effects();
+			cancel_restoration(true);
+			SetupDestination->submit(application::pull_request_page_address(*page));
+		}
 		void open_recent(application::recent_review_intent aIntent)
 		{
 			if (Closing || !Profile->ReviewRestoration || aIntent.Index >= RecentIndexMap.size()) {
@@ -6794,6 +6864,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			});
 			Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
+			Window->set_review_window_dispatch([this](const application::review_window_intent& aIntent) { return request_review_window(aIntent); });
 			// Suggest change is coloured by the panes' classifier over the same
 			// definitions, on the lane every classifier over them runs on.
 			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
@@ -17481,6 +17552,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 	}
 	void github_application::set_window_admission(std::function<bool(core::bpr_window_context)> aAdmission) { Profile->WindowAdmission = std::move(aAdmission); }
+	void github_application::set_review_window_request(std::function<bool(const core::window_review_destination&)> aRequest) { Profile->ReviewWindowRequest = std::move(aRequest); }
+	void github_application::open_window_review(core::bpr_window_context aContext, const core::window_review_destination& aDestination)
+	{
+		const auto found = Sessions.find(aContext);
+		if (found == Sessions.end() || found->second->Closing) {
+			return;
+		}
+		found->second->open_review_destination(aDestination);
+	}
 	void github_application::request_quit(int aExitCode)
 	{
 		if (Profile->DesktopQuit) {

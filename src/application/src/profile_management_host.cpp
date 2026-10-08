@@ -347,7 +347,7 @@ namespace bpr::application {
 			return true;
 		}
 
-		void open(const core::bpr_profile_id aProfile, const core::profile_launch_intent aIntent)
+		void open(const core::bpr_profile_id aProfile, const core::profile_launch_intent aIntent, const std::optional<core::window_review_destination>& aReview = std::nullopt)
 		{
 			const auto operation = aIntent == core::profile_launch_intent::new_window ? profile_management_operation::new_window : profile_management_operation::open;
 			if (!lifecycle_ready(operation, aProfile)) {
@@ -383,6 +383,9 @@ namespace bpr::application {
 			auto pending = lifecycle_save{ std::move(candidate), { }, operation, aProfile };
 			for (const auto& created : launched->Created) {
 				pending.Commands.push_back({ profile_runtime_command_kind::start, created.Context, label, created.Restore });
+				if (aIntent == core::profile_launch_intent::new_window && !created.Restore) {
+					pending.Commands.back().Review = aReview;
+				}
 			}
 			static_cast<void>(save(std::move(pending)));
 		}
@@ -491,8 +494,10 @@ namespace bpr::application {
 				Implementation->edit(profile_management_operation::create, { }, aValue.Label);
 			} else if constexpr (std::is_same_v<intent, rename_bpr_profile_intent>) {
 				Implementation->edit(profile_management_operation::rename, aValue.Profile, aValue.Label);
+			} else if constexpr (std::is_same_v<intent, new_bpr_window_intent>) {
+				Implementation->open(aValue.Profile, core::profile_launch_intent::new_window, aValue.Review);
 			} else {
-				Implementation->open(aValue.Profile, std::is_same_v<intent, new_bpr_window_intent> ? core::profile_launch_intent::new_window : core::profile_launch_intent::activate);
+				Implementation->open(aValue.Profile, core::profile_launch_intent::activate);
 			}
 		},
 				   aIntent);

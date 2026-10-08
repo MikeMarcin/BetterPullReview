@@ -65,6 +65,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 class QAction;
@@ -831,6 +832,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto open_on_github_button() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1338]]. The menu a Home row opens on a right click.
 		[[nodiscard]] auto home_row_menu() const noexcept -> QMenu*;
+		/// \brief [[BPR-1342]]. Open Review: the Home row the menu was opened on,
+		/// in this window (Return). The menu's default.
+		[[nodiscard]] auto home_open_review_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1342]]. Open Review in New Window: that row in a new
+		/// window of this profile (⌘Return, Ctrl+Return off macOS).
+		[[nodiscard]] auto home_open_review_window_action() const noexcept -> QAction*;
 		/// \brief "change 3 of 11", derived from the comparison the surface holds.
 		[[nodiscard]] auto change_position_label() const noexcept -> QLabel*;
 		/// \brief "file 3 of 40", from the core's navigation cursor.
@@ -1198,6 +1205,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1338]]. Binds Open on GitHub to the host, which admits the
 		/// named pull request and builds its address.
 		void set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch);
+		/// \brief [[BPR-1342]]. Binds Open Review in New Window to the host, which
+		/// admits the named row and asks the profile for a new window that opens
+		/// it. True when the new window was asked for.
+		void set_review_window_dispatch(std::function<bool(const application::review_window_intent&)> aDispatch);
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
@@ -1570,7 +1581,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto pull_request_page_target() const -> std::optional<application::pull_request_page_intent>;
 		void               open_pull_request_page(const application::pull_request_page_intent& aIntent);
 		void               update_open_on_github_action();
-		void               open_from_home_bar();
+		/// \brief [[BPR-1342]]. The Home row Open Review and Open Review in New
+		/// Window name: the row last made current, in whichever list.
+		[[nodiscard]] auto home_review_target() const -> std::optional<std::variant<core::queue_item, application::recent_review_row>>;
+		void               update_home_review_actions();
+		void               open_home_review(bool aNewWindow);
+		void               request_review_window(const application::review_window_intent& aIntent);
+		/// \brief [[BPR-1342]]. Shows the one row menu for a queue or a Recently
+		/// viewed row the right click made current.
+		void popup_home_row_menu(const QPoint& aGlobal);
+		void open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.
 		void build_repositories_page();
 		/// \brief Lists the displayed account's saved repositories, keeping
@@ -2111,6 +2131,10 @@ namespace bpr::qt {
 		QToolButton*                                                                            OpenOnGithubButton       = nullptr;
 		QAction*                                                                                OpenOnGithubButtonAction = nullptr;
 		QMenu*                                                                                  HomeRowMenu              = nullptr;
+		/// [[BPR-1342]]. Open Review and Open Review in New Window, in Home's row menu.
+		QAction*                                                      HomeOpenReviewAction       = nullptr;
+		QAction*                                                      HomeOpenReviewWindowAction = nullptr;
+		std::function<bool(const application::review_window_intent&)> ReviewWindowDispatch;
 		/// Which of Home's lists last made a row current: the queue's or Recently viewed.
 		bool HomeRecentRowLast = false;
 

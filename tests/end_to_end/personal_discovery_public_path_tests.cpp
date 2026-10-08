@@ -21,12 +21,14 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListView>
 #include <QListWidget>
 #include <QMenu>
 #include <QPixmap>
@@ -516,6 +518,75 @@ try {
 		windowA->choose_home(wasHome);
 		windowA->resize(wasSize);
 		QApplication::processEvents();
+	}
+
+	// [[BPR-1342]]. Open Review in New Window through the real profile
+	// desktop: the profile's own New Window, under its one runtime owner,
+	// opens Home and then the row's pull request, on Overview. The first
+	// window already shows that pull request, so the new one is a second view
+	// of it (RFC-BPR-0024), and the first keeps its view. Once from a queue
+	// row's menu and once by ⌘Return on a Recently viewed row.
+	{
+		windowA->choose_home(true);
+		QApplication::processEvents();
+		expect(owner->windows().size() == 1U, "one window before");
+		const auto shown  = windowA->identity_label()->text();
+		const auto status = windowA->session_panel()->status();
+		const auto opened = [&](const char* aStep) {
+			wait_for([&] { return owner->windows().size() == 2U; }, aStep);
+			const auto contexts = owner->windows();
+			const auto other    = contexts.front() == first ? contexts.back() : contexts.front();
+			auto*      sibling  = owner->window(other);
+			expect(sibling != nullptr && other.Profile == first.Profile && other.Window != first.Window, "the new window is the same profile's, under the same owner");
+			wait_for([&] { return !sibling->showing_home() && sibling->session_panel()->status() == core::github_status::pull_request_ready
+							   && sibling->identity_label()->text().startsWith(QStringLiteral("octo-org/review-repository  #17 ")); },
+					 "the new window opens the row's pull request on its own",
+					 [&] { std::cerr << "sibling home=" << sibling->showing_home() << " status=" << static_cast<int>(sibling->session_panel()->status())
+									 << " identity=" << sibling->identity_label()->text().toStdString() << " first=" << shown.toStdString()
+									 << " notice=" << sibling->home_open_notice()->text().toStdString() << '\n'; });
+			expect(sibling->current_modality() == qt::review_modality::overview, "it arrives on Overview, as a row opened here does");
+			expect(windowA->showing_home() && windowA->identity_label()->text() == shown && windowA->session_panel()->status() == status,
+				   "the first window keeps its own view of the same pull request");
+			sibling->close();
+			wait_for([&] { return owner->windows().size() == 1U && owner->windows().front() == first; }, "the second view closes and the first window stays");
+		};
+		expect(shown.startsWith(QStringLiteral("octo-org/review-repository  #17 ")) && status == core::github_status::pull_request_ready, "the first window has the pull request open behind Home");
+		auto* rows = static_cast<QListView*>(nullptr);
+		auto  row  = QModelIndex{ };
+		for (const auto group : { qt::home_group::needs_you, qt::home_group::waiting_on_others, qt::home_group::following }) {
+			auto* const view = windowA->home_list()->state_view(group);
+			for (auto index = 0; view != nullptr && index < view->model()->rowCount(); ++index) {
+				if (view->model()->index(index, 0).data(qt::home_row_role::identity).toString() == QStringLiteral("octo-org/review-repository#17")) {
+					rows = view;
+					row  = view->model()->index(index, 0);
+				}
+			}
+		}
+		expect(rows != nullptr && row.isValid(), "Home lists the followed pull request");
+		windowA->activateWindow();
+		rows->setFocus(Qt::OtherFocusReason);
+		rows->setCurrentIndex(row);
+		QApplication::processEvents();
+		const auto at     = rows->visualRect(row).center();
+		auto       menuAt = QContextMenuEvent{ QContextMenuEvent::Mouse, at, rows->viewport()->mapToGlobal(at) };
+		QApplication::sendEvent(rows->viewport(), &menuAt);
+		QApplication::processEvents();
+		auto* const fresh = windowA->home_open_review_window_action();
+		expect(windowA->home_row_menu()->isVisible() && fresh->isEnabled(), "the row's menu offers Open Review in New Window");
+		const auto readsBefore = evidence().AccountReadOperations.size();
+		fresh->trigger();
+		windowA->home_row_menu()->hide();
+		opened("Open Review in New Window from a queue row's menu admits one more window");
+		expect(evidence().AccountReadOperations.size() > readsBefore, "the new window read the pull request for itself");
+		auto* const recentRows = windowA->home_recent_list();
+		expect(recentRows->count() >= 1, "the pull request is under Recently viewed");
+		recentRows->setFocus(Qt::OtherFocusReason);
+		recentRows->setCurrentRow(0);
+		QApplication::processEvents();
+		auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+		QApplication::sendEvent(recentRows, &key);
+		opened("⌘Return on a Recently viewed row admits one more window");
+		expect(app::detail::github_application_fixture_access::review_mutation_evidence(*owner).Submissions == 0U, "opening in a new window asks GitHub to change nothing");
 	}
 
 	// A second window of the profile sees the same list and asks for nothing.

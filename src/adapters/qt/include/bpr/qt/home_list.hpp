@@ -9,6 +9,7 @@
 #include <QFrame>
 #include <QListView>
 #include <QListWidget>
+#include <QPersistentModelIndex>
 #include <QScrollArea>
 #include <QSize>
 #include <QSizePolicy>
@@ -231,6 +232,12 @@ namespace bpr::qt {
 		void set_row_menu_dispatch(std::function<void(const QPoint& aGlobal)> aDispatch);
 		/// \brief [[BPR-1338]]. Told when a queue row becomes current.
 		void set_current_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-1342]]. A queue row asked to open in a new window: ⌘Return
+		/// (Ctrl+Return off macOS) on the current row, ⌘-click or middle-click.
+		void set_new_window_dispatch(std::function<void(const core::queue_item&)> aDispatch);
+		/// \brief [[BPR-1342]]. A Recently viewed row asked to open in a new
+		/// window by ⌘-click or middle-click; its keys are the window's.
+		void set_recent_new_window_dispatch(std::function<void(int aRow)> aDispatch);
 		/// \brief Whether the queue is ready and the window has an account to list it for.
 		void set_queue_status(bool aReady, bool aAccount);
 		/// \brief RFC-BPR-0062. With no saved repository for the account, an
@@ -344,10 +351,15 @@ namespace bpr::qt {
 			-> QString;
 		void observe_named_collapse(
 			home_panel& aPanel, const home_group_key& aKey, std::optional<home_group> aState);
-		void               observe_nameless_collapse(home_panel& aPanel, std::uint8_t aBit);
-		void               apply_collapsed_panels();
-		void               adopt_current(QAbstractItemView* aView, const QModelIndex& aCurrent);
-		void               open_row(const QAbstractItemView& aView, const QModelIndex& aIndex);
+		void observe_nameless_collapse(home_panel& aPanel, std::uint8_t aBit);
+		void apply_collapsed_panels();
+		void adopt_current(QAbstractItemView* aView, const QModelIndex& aCurrent);
+		void open_row(const QAbstractItemView& aView, const QModelIndex& aIndex);
+		void open_row_in_new_window(const QAbstractItemView& aView, const QModelIndex& aIndex);
+		/// \brief [[BPR-1342]]. A ⌘-click or middle-click on a row's viewport:
+		/// pressed, it makes the row current; released on the same row, it
+		/// opens it in a new window. Any other pointer event is not taken.
+		auto               read_new_window_click(QObject* aWatched, QEvent* aEvent) -> bool;
 		[[nodiscard]] auto item_of(const QAbstractItemView& aView, const QModelIndex& aIndex) const
 			-> std::optional<core::queue_item>;
 		void ensure_row_visible(QAbstractItemView& aView, const QModelIndex& aIndex, const home_panel& aPanel);
@@ -385,8 +397,13 @@ namespace bpr::qt {
 		std::function<void(const core::queue_item&)> PageDispatch;
 		std::function<void(const QPoint&)>           RowMenuDispatch;
 		std::function<void()>                        CurrentObserver;
-		QIcon                                        PageIcon;
-		QString                                      PageToolTip;
+		std::function<void(const core::queue_item&)> NewWindowDispatch;
+		std::function<void(int aRow)>                RecentNewWindowDispatch;
+		/// [[BPR-1342]]. The row a ⌘-click or middle-click pressed, so only a
+		/// release on that same row opens it.
+		QPersistentModelIndex NewWindowPress;
+		QIcon                 PageIcon;
+		QString               PageToolTip;
 		/// The collapse of a group panel and of the bands inside it, keyed by the
 		/// owner, repository or account it names. It lives as long as the window
 		/// and is never dispatched, so nothing writes those names to a store.

@@ -477,6 +477,28 @@ column, and RFC-BPR-0032 gives it one job per row.
   its rows' action: on hover, on focus and in the row's menu. It is governed
   by the entries the composition gave the window rather than by the account,
   so a signed-out window still lists its public reading.
+- **Opening a row** ([[BPR-1342]], the owner, 2026-10-08: "I should be able
+  to open a review and open a review in a new window from the home, including
+  from right click on a pr"). A click or Return opens the row's pull request
+  in this window, on Overview. ⌘Return (Ctrl+Return off macOS), ⌘-click
+  (Ctrl-click) and middle-click open it in a new window of the same profile.
+  On a Recently viewed row ⇧Return still resumes. A right click on a queue row
+  or a Recently viewed row makes it current and opens Home's one row menu:
+  **Open Review** (the default, drawn bold), **Open Review in New Window**,
+  Resume for a Recently viewed row, then a separator and Open on GitHub. Each
+  item shows its key: ↩, ⌘↩, ⇧↩ and ⇧⌘O on macOS. The lists read the keys
+  themselves; the menu's shortcuts never act from the window. Open Review in
+  New Window is offered exactly when Profiles › New Window is. It is that New
+  Window, in the same profile under its one runtime owner, carrying the one
+  pull request the window's host admitted: the new window opens Home, as
+  every new window does, and then that pull request by its own bar's path, on
+  Overview. A refusal is said in the status bar.
+  **The same pull request already open.** Open Review in New Window always
+  opens another window, even when this or another window shows that pull
+  request: an explicit New Window always creates one, and two windows of one
+  profile may show the same pull request at different positions
+  (RFC-BPR-0024). Open Review in this window keeps [[BPR-0987]]: a window
+  already showing it returns to it without reading again.
 - **The status bar** on Home carries the session line ("Signed in as
   MikeMarcin on github.com.") and never "No pull request is open in the
   workbench.", because Home is what the window shows when none is. The
@@ -1130,7 +1152,8 @@ costs the window no height; on Windows and Linux it takes a row, which is the
 price of the same answer being true on every platform. The existing toolbar
 popup keeps the private progress actions it already had. **File** holds Quit,
 and **Profiles** lists the profiles by name with the current one checked, then
-New Window and Manage Profiles…. On Windows the strip's application menu
+New Window and Manage Profiles…. Home's Open Review in New Window
+([[BPR-1342]]) is the same New Window, carrying one pull request. On Windows the strip's application menu
 lists the same menus, Pull Request among them. There the bar is hidden, so
 its Alt mnemonics are gone; instead `Alt` pressed and released alone, or
 `F10`, opens the application menu with File highlighted, as a menu bar

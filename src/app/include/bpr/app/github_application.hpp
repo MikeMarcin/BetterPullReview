@@ -11,6 +11,7 @@
 #include "bpr/application/tour_owner_channel.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/core/profile_window.hpp"
+#include "bpr/core/window_review_restoration.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <cstdint>
@@ -740,7 +741,14 @@ namespace bpr::app {
 		/// five sources can raise it, so the one that did is named here.
 		[[nodiscard]] auto profile_shutdown_cleanup_detail() const -> std::string;
 		void               set_window_admission(std::function<bool(core::bpr_window_context)> aAdmission);
-		void               set_profile_label(std::string aLabel);
+		/// \brief [[BPR-1342]]. Where a window's Open Review in New Window asks
+		/// for a new window of this profile, carrying the one destination it
+		/// admitted. True when the new window was asked for.
+		void set_review_window_request(std::function<bool(const core::window_review_destination&)> aRequest);
+		/// \brief [[BPR-1342]]. A fresh window opens the pull request its New
+		/// Window carried, by its Home bar's own path, on Overview.
+		void open_window_review(core::bpr_window_context aContext, const core::window_review_destination& aDestination);
+		void set_profile_label(std::string aLabel);
 
 		/// [[BPR-1168]]. Runs one forwarded cycle command on the profile's cycle-owner lane.
 		void desktop_cycle_owner_route(application::tour_channel_bytes aRequest, application::cycle_owner_request aCycle, std::function<void(application::tour_channel_bytes)> aRespond);

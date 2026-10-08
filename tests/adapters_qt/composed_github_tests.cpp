@@ -4499,7 +4499,7 @@ namespace {
 				   && panel->title() == QStringLiteral("Recently viewed") && panel->isAncestorOf(list)
 				   && list->objectName() == QStringLiteral("homeRecentList")
 				   && resume->objectName() == QStringLiteral("homeRecentResumeAction")
-				   && list->actions().contains(resume) && list->contextMenuPolicy() == Qt::ActionsContextMenu
+				   && window.home_row_menu()->actions().contains(resume) && list->contextMenuPolicy() == Qt::CustomContextMenu
 				   && list->accessibleName()
 					   == QStringLiteral("Recently viewed pull requests"),
 			   "Home carries a named Recently viewed panel and list, with Resume in the row's menu and no heading button");

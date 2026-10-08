@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 
 namespace {
@@ -120,5 +121,28 @@ int main()
 	auto unsafe            = publicRead;
 	unsafe.Repository.Name = "tools/../../evil";
 	expect(admit_recent_pull_request_page(unsafe, signedIn, github_account_id{ 1 }, true).error() == markdown_link_result::refused, "a stored name that is not a name is refused");
+	// [[BPR-1342]]. Open Review in New Window: a queue row becomes the
+	// destination a new window of this profile opens, on the accepted host and
+	// for the accepted account only.
+	const auto queued = admit_queue_review_window(row, "github.com", "octo-reviewer", github_account_id{ 1 });
+	expect(queued && queued->Mode == github_access_mode::authenticated && queued->Hostname == "github.com" && queued->Repository.Owner == "octo-org"
+			   && queued->Repository.Name == "app" && queued->Number.value() == 101U && queued->Account == github_account_id{ 1 },
+		   "a queue row is a new window's destination on the accepted host and account");
+	expect(admit_queue_review_window(row, "ghe.example.invalid", "octo-reviewer", github_account_id{ 1 }).error() == markdown_link_result::refused, "a queue row on another host does not open a new window");
+	expect(admit_queue_review_window(row, "github.com", "someone-else", github_account_id{ 1 }).error() == markdown_link_result::refused, "another account's queue row does not open a new window");
+	expect(admit_queue_review_window(row, "github.com", "octo-reviewer", github_account_id{ }).error() == markdown_link_result::refused, "a queue row needs an accepted account");
+	auto unsafeRow       = row;
+	unsafeRow.Repository = "octo-org/a?b";
+	expect(admit_queue_review_window(unsafeRow, "github.com", "octo-reviewer", github_account_id{ 1 }).error() == markdown_link_result::refused, "a queue row whose name is not a name does not open a new window");
+	// A Recently viewed row: the rule its Open follows in this window.
+	expect(admit_recent_review_window(publicRead, std::nullopt, github_account_id{ }).value_or(window_review_destination{ }) == publicRead, "a public reading opens a new window signed out");
+	expect(admit_recent_review_window(publicRead, signedIn, github_account_id{ 1 }).value_or(window_review_destination{ }) == publicRead, "a public reading opens a new window signed in");
+	expect(admit_recent_review_window(mineRead, signedIn, github_account_id{ 1 }).value_or(window_review_destination{ }) == mineRead, "my reading opens a new window under my session");
+	expect(admit_recent_review_window(mineRead, signedIn, github_account_id{ 2 }).error() == markdown_link_result::refused, "another account's reading does not open a new window");
+	expect(admit_recent_review_window(mineRead, std::nullopt, github_account_id{ }).error() == markdown_link_result::refused, "an account's reading needs that account's session");
+	auto mineElsewhere     = mineRead;
+	mineElsewhere.Hostname = "ghe.example.invalid";
+	expect(admit_recent_review_window(mineElsewhere, signedIn, github_account_id{ 1 }).error() == markdown_link_result::refused, "an account's reading on another host does not open a new window");
+	expect(admit_recent_review_window(unsafe, signedIn, github_account_id{ 1 }).error() == markdown_link_result::refused, "a stored name that is not a name does not open a new window");
 	std::cout << "Markdown navigation policy passed\n";
 }

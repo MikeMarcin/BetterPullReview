@@ -128,5 +128,25 @@ namespace bpr::core {
 	/// only under that account's exact session authority.
 	[[nodiscard]] auto admit_recent_pull_request_page(const window_review_destination& aDestination, const window_review_authority& aAuthority, github_account_id aAccount, bool aBrowserAvailable)
 		-> std::expected<pull_request_page, markdown_link_result>;
+
+	/// \brief [[BPR-1342]]. A Home queue row as the pull request a new window
+	/// of this profile opens.
+	///
+	/// \details The row must be the accepted account's on the accepted
+	/// session's host, by the same rule as its GitHub page; the destination's
+	/// host is `aHostname`, the accepted profile's, and its account the
+	/// accepted viewer's.
+	[[nodiscard]] auto admit_queue_review_window(const pull_request_ref& aRef, std::string_view aHostname, std::string_view aLogin, github_account_id aAccount)
+		-> std::expected<window_review_destination, markdown_link_result>;
+
+	/// \brief [[BPR-1342]]. A Recently viewed entry as the pull request a new
+	/// window of this profile opens.
+	///
+	/// \details The rule its Open already follows in this window: a public
+	/// reading opens on its own host, signed in or not; an account's reading
+	/// only under that account's exact session authority. Its parts pass the
+	/// page's safe-authority and safe-name rules.
+	[[nodiscard]] auto admit_recent_review_window(const window_review_destination& aDestination, const std::optional<window_review_authority>& aAuthority, github_account_id aAccount)
+		-> std::expected<window_review_destination, markdown_link_result>;
 }
 #endif

@@ -12292,7 +12292,8 @@ namespace {
 		window.publish(recent);
 		process_events();
 		auto* const recentList = window.home_recent_list();
-		expect(recentList->actions().contains(window.open_on_github_action()), "a Recently viewed row's menu offers Open on GitHub");
+		expect(window.home_row_menu()->actions().contains(window.open_on_github_action()) && recentList->contextMenuPolicy() == Qt::CustomContextMenu,
+			   "a Recently viewed row's menu, Home's one row menu, offers Open on GitHub");
 		recentList->setFocus(Qt::OtherFocusReason);
 		recentList->setCurrentRow(0);
 		process_events();
@@ -12305,6 +12306,197 @@ namespace {
 		process_events();
 		window.open_on_github_action()->trigger();
 		expect(pages.size() == 5U && std::holds_alternative<core::pull_request_ref>(pages.back()), "the list the keyboard is in names the row");
+		window.hide();
+	}
+
+	/// [[BPR-1342]]. Saves one widget's render when BPR_OPEN_REVIEW_RENDER_DIR names a directory.
+	void save_open_review_render(QWidget& aWidget, const QString& aName)
+	{
+		const auto root = qEnvironmentVariable("BPR_OPEN_REVIEW_RENDER_DIR");
+		if (root.isEmpty()) {
+			return;
+		}
+		process_events();
+		expect(aWidget.grab().save(root + QLatin1Char{ '/' } + aName + QStringLiteral(".png")), "the Open Review render is written");
+	}
+
+	/// [[BPR-1342]]. One pointer click on a list's row: press and release, with
+	/// the button and modifiers given.
+	void click_row(QAbstractItemView& aView, const QModelIndex& aIndex, const Qt::MouseButton aButton, const Qt::KeyboardModifiers aModifiers)
+	{
+		const auto at     = QPointF{ aView.visualRect(aIndex).center() };
+		const auto global = aView.viewport()->mapToGlobal(at);
+		auto       press  = QMouseEvent{ QEvent::MouseButtonPress, at, global, aButton, aButton, aModifiers };
+		QApplication::sendEvent(aView.viewport(), &press);
+		auto release = QMouseEvent{ QEvent::MouseButtonRelease, at, global, aButton, Qt::NoButton, aModifiers };
+		QApplication::sendEvent(aView.viewport(), &release);
+		process_events();
+	}
+
+	/// [[BPR-1342]]. The owner, 2026-10-08: "I should be able to open a review
+	/// and open a review in a new window from the home, including from right
+	/// click on a pr". Home's one row menu, for a queue row and a Recently
+	/// viewed row: Open Review (the default, Return), Open Review in New Window
+	/// (⌘Return), Resume for a Recently viewed row (⇧Return), then Open on
+	/// GitHub, each showing its key. ⌘Return, ⌘-click and middle-click open the
+	/// row in a new window; Return and a plain click open it here. Each names
+	/// the row, never an address, and a new window is offered exactly when the
+	/// profile's New Window is.
+	void test_open_review_from_home_rows()
+	{
+		intent_log           log;
+		auto                 opens = std::vector<core::open_pull_request_intent>{ };
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) { log.Workbench.push_back(aIntent); },
+			[&log](core::navigate_diff_change_intent aIntent) { log.Change.push_back(aIntent); },
+			{ },
+			{ },
+			[&opens](application::github_intent aIntent) {
+				if (const auto* const open = std::get_if<core::open_pull_request_intent>(&aIntent)) {
+					opens.push_back(*open);
+				}
+			}
+		};
+		window.resize(1'280, 820);
+		auto windows = std::vector<application::review_window_intent>{ };
+		auto admit   = true;
+		window.set_review_window_dispatch([&](const application::review_window_intent& aIntent) {
+			windows.push_back(aIntent);
+			return admit;
+		});
+		auto recents = std::vector<application::recent_review_intent>{ };
+		window.set_recent_review_dispatch([&recents](application::recent_review_intent aIntent) { recents.push_back(aIntent); });
+		window.set_pull_request_page_dispatch([](const application::pull_request_page_intent&) { return core::markdown_link_result::opened; });
+		auto management = std::vector<application::profile_management_intent>{ };
+		window.set_profile_management_dispatch([&management](application::profile_management_intent aIntent) { management.push_back(std::move(aIntent)); }, [] { });
+		const auto live = application::profile_management_projection{
+			.Profiles = { { core::default_bpr_profile_id, "Default", application::profile_management_runtime::open } },
+			.Ready    = true,
+		};
+		window.adopt_profile_management(live, core::default_bpr_profile_id);
+		window.show();
+		process_events();
+		sign_in(window);
+		window.publish(discovery_projection({ .Host = "github.com", .Account = "octo-reviewer", .State = application::queue_discovery_state::current, .LastSuccess = 1'700'000'000, .Repositories = 1U }));
+		process_events();
+		auto* const view = window.home_list()->state_view(qt::home_group::needs_you);
+		expect(window.showing_home() && view != nullptr && view->isVisible() && view->model()->rowCount() >= 1, "Home lists the queue row");
+		const auto mine  = core::pull_request_ref{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app", .Number = 101 };
+		const auto index = view->model()->index(0, 0);
+		const auto row   = view->visualRect(index);
+		auto*      open  = window.home_open_review_action();
+		auto*      fresh = window.home_open_review_window_action();
+		auto*      menu  = window.home_row_menu();
+		auto*      page  = window.open_on_github_action();
+		auto*      again = window.home_recent_resume_action();
+
+		// The menu, on a queue row.
+		auto menuAt = QContextMenuEvent{ QContextMenuEvent::Mouse, row.center(), view->viewport()->mapToGlobal(row.center()) };
+		QApplication::sendEvent(view->viewport(), &menuAt);
+		process_events();
+		const auto items = menu->actions();
+		expect(menu->isVisible() && view->currentIndex() == index, "a right click makes the queue row current and opens its menu");
+		expect(items.size() == 5 && items[0] == open && items[1] == fresh && items[2] == again && items[3]->isSeparator() && items[4] == page && menu->defaultAction() == open,
+			   "the menu is Open Review (the default), Open Review in New Window, Resume, then Open on GitHub");
+		expect(open->text() == QStringLiteral("Open Review") && fresh->text() == QStringLiteral("Open Review in New Window") && open->isEnabled() && fresh->isEnabled()
+				   && !again->isVisible() && page->isEnabled(),
+			   "on a queue row both are offered and Resume is not");
+		expect(open->shortcut() == QKeySequence{ Qt::Key_Return } && fresh->shortcut() == QKeySequence{ Qt::CTRL | Qt::Key_Return }
+				   && open->isShortcutVisibleInContextMenu() && fresh->isShortcutVisibleInContextMenu() && page->isShortcutVisibleInContextMenu()
+				   && open->shortcutContext() == Qt::WidgetShortcut && fresh->shortcutContext() == Qt::WidgetShortcut,
+			   "each item shows its key, and the keys are the lists' own, never a window shortcut");
+		save_open_review_render(*menu, QStringLiteral("queue-row-menu"));
+		save_open_review_render(window, QStringLiteral("queue-row-menu-window"));
+		fresh->trigger();
+		menu->hide();
+		process_events();
+		expect(windows.size() == 1U && std::holds_alternative<core::pull_request_ref>(windows.back()) && std::get<core::pull_request_ref>(windows.back()) == mine && opens.empty(),
+			   "Open Review in New Window names the row it was opened on, and opens nothing here");
+		open->trigger();
+		process_events();
+		expect(opens.size() == 1U && opens.back().Repository == core::repository_locator{ "octo-org", "app" } && opens.back().Number.value() == 101U && windows.size() == 1U,
+			   "Open Review opens the row here");
+
+		// The keys on the current queue row.
+		window.activateWindow();
+		view->setFocus(Qt::OtherFocusReason);
+		view->setCurrentIndex(index);
+		process_events();
+		deliver_key(window, Qt::Key_Return, Qt::ControlModifier);
+		expect(windows.size() == 2U && std::get<core::pull_request_ref>(windows.back()) == mine && opens.size() == 1U, "⌘Return opens the current row in a new window");
+		deliver_key(window, Qt::Key_Return, Qt::NoModifier);
+		expect(opens.size() == 2U && windows.size() == 2U, "Return opens it here");
+
+		// The pointer: ⌘-click and middle-click open in a new window and keep
+		// the row selected; a plain click opens here.
+		click_row(*view, index, Qt::LeftButton, Qt::ControlModifier);
+		expect(windows.size() == 3U && std::get<core::pull_request_ref>(windows.back()) == mine && opens.size() == 2U, "⌘-click opens the row in a new window, not here");
+		expect(view->currentIndex() == index && view->selectionModel()->isSelected(index), "⌘-click leaves the row current and selected");
+		click_row(*view, index, Qt::MiddleButton, Qt::NoModifier);
+		expect(windows.size() == 4U && std::get<core::pull_request_ref>(windows.back()) == mine && opens.size() == 2U, "middle-click opens the row in a new window");
+		click_row(*view, index, Qt::LeftButton, Qt::NoModifier);
+		expect(opens.size() == 3U && windows.size() == 4U, "a plain click still opens the row here");
+
+		// A Recently viewed row: the same menu with Resume, the same keys and clicks.
+		auto recent = application::recent_reviews_projection{ };
+		recent.Entries.push_back({ .Destination = { .Hostname = "github.com", .Repository = { "octo-org", "tools" }, .Number = core::pull_request_number{ 7U } }, .Title = "Recently read", .Resumable = true });
+		window.publish(recent);
+		process_events();
+		auto* const recentList = window.home_recent_list();
+		expect(recentList->contextMenuPolicy() == Qt::CustomContextMenu && recentList->actions().isEmpty(), "a Recently viewed row opens Home's one row menu");
+		const auto recentRow = recentList->visualItemRect(recentList->item(0));
+		auto       recentAt  = QContextMenuEvent{ QContextMenuEvent::Mouse, recentRow.center(), recentList->viewport()->mapToGlobal(recentRow.center()) };
+		QApplication::sendEvent(recentList->viewport(), &recentAt);
+		process_events();
+		expect(menu->isVisible() && recentList->currentRow() == 0 && open->isEnabled() && fresh->isEnabled() && again->isVisible() && again->isEnabled()
+				   && again->shortcut() == QKeySequence{ Qt::SHIFT | Qt::Key_Return } && again->isShortcutVisibleInContextMenu(),
+			   "on a Recently viewed row the menu adds Resume with ⇧Return");
+		save_open_review_render(*menu, QStringLiteral("recent-row-menu"));
+		fresh->trigger();
+		menu->hide();
+		process_events();
+		expect(windows.size() == 5U && std::holds_alternative<application::recent_review_row>(windows.back()) && std::get<application::recent_review_row>(windows.back()).Index == 0U,
+			   "Open Review in New Window names the Recently viewed row by its place");
+		open->trigger();
+		process_events();
+		expect(recents.size() == 1U && recents.back().Index == 0U && !recents.back().Resume, "Open Review opens the Recently viewed row here, on Overview");
+		recentList->setFocus(Qt::OtherFocusReason);
+		recentList->setCurrentRow(0);
+		process_events();
+		deliver_key(window, Qt::Key_Return, Qt::ControlModifier);
+		expect(windows.size() == 6U && std::holds_alternative<application::recent_review_row>(windows.back()) && recents.size() == 1U, "⌘Return opens a Recently viewed row in a new window");
+		deliver_key(window, Qt::Key_Return, Qt::NoModifier);
+		expect(recents.size() == 2U && !recents.back().Resume, "Return opens it here");
+		deliver_key(window, Qt::Key_Return, Qt::ShiftModifier);
+		expect(recents.size() == 3U && recents.back().Resume && windows.size() == 6U, "⇧Return still resumes");
+		click_row(*recentList, recentList->model()->index(0, 0), Qt::LeftButton, Qt::ControlModifier);
+		expect(windows.size() == 7U && std::holds_alternative<application::recent_review_row>(windows.back()) && recents.size() == 3U, "⌘-click opens a Recently viewed row in a new window");
+		click_row(*recentList, recentList->model()->index(0, 0), Qt::MiddleButton, Qt::NoModifier);
+		expect(windows.size() == 8U && std::holds_alternative<application::recent_review_row>(windows.back()), "middle-click opens it in a new window");
+
+		// What the host refuses is said; without the profile's New Window
+		// nothing is asked for.
+		admit = false;
+		view->setFocus(Qt::OtherFocusReason);
+		view->setCurrentIndex(index);
+		process_events();
+		deliver_key(window, Qt::Key_Return, Qt::ControlModifier);
+		expect(windows.size() == 9U && window.statusBar()->currentMessage() == QStringLiteral("This pull request cannot open in a new window from here. Choose it again."),
+			   "a refused new window is said plainly");
+		auto closing  = live;
+		closing.Ready = false;
+		window.adopt_profile_management(closing, core::default_bpr_profile_id);
+		process_events();
+		QApplication::sendEvent(view->viewport(), &menuAt);
+		process_events();
+		expect(menu->isVisible() && open->isEnabled() && !fresh->isEnabled(), "without the profile's New Window the menu does not offer a new window");
+		menu->hide();
+		view->setFocus(Qt::OtherFocusReason);
+		process_events();
+		deliver_key(window, Qt::Key_Return, Qt::ControlModifier);
+		expect(windows.size() == 9U && window.statusBar()->currentMessage() == QStringLiteral("A new window is unavailable until this profile is open."),
+			   "and ⌘Return asks for none, and says why");
+		expect(management.empty(), "the window itself asks the profile for nothing: the host does, after admitting the row");
 		window.hide();
 	}
 
@@ -13280,6 +13472,12 @@ auto main(int argc, char** argv) -> int
 		test_open_on_github_beside_the_title();
 		test_open_on_github_from_home_rows();
 		std::cout << "workbench-open-on-github:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1342]]. Open Review and Open Review in New Window from Home's rows.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--open-review-from-home"))) {
+		test_open_review_from_home_rows();
+		std::cout << "workbench-open-review-from-home:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {

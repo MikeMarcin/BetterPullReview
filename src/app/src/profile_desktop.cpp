@@ -27,6 +27,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -43,6 +44,8 @@ namespace bpr::app {
 			bool                           Closing = false;
 			bool                           Restore = false;
 			QPointer<qt::workbench_window> Presented;
+			/// [[BPR-1342]]. The pull request this fresh window opens after Home.
+			std::optional<core::window_review_destination> Review{ };
 		};
 		struct runtime_entry
 		{
@@ -434,7 +437,7 @@ namespace bpr::app {
 				static_cast<void>(Host->complete_open(aCommand.Context, std::unexpected(application::profile_management_failure::busy)));
 				return;
 			}
-			entry.Windows.emplace(aCommand.Context.Window, window_entry{ aCommand.Context, false, false, aCommand.Restore, { } });
+			entry.Windows.emplace(aCommand.Context.Window, window_entry{ aCommand.Context, false, false, aCommand.Restore, { }, aCommand.Review });
 			entry.Order.push_back(aCommand.Context);
 			if (entry.Runtime) {
 				open_window(aCommand.Context);
@@ -1051,6 +1054,13 @@ namespace bpr::app {
 				entry.WindowPublished = true;
 				LastUsedProfile       = aContext.Profile;
 				entry.Runtime->focus_window(aContext);
+				// [[BPR-1342]]. A window asked for by Open Review in New Window
+				// opens Home, as every new window does, and then that pull
+				// request.
+				if (const auto fresh = entry.Windows.find(aContext.Window); fresh != entry.Windows.end() && fresh->second.Review) {
+					const auto review = *std::exchange(fresh->second.Review, std::nullopt);
+					entry.Runtime->open_window_review(aContext, review);
+				}
 				if (entry.Recovery && !entry.RecoveryPresented) {
 					entry.RecoveryPresented = true;
 					entry.Recovery->show();
@@ -1182,6 +1192,17 @@ namespace bpr::app {
 			}
 			const auto weak = weak_from_this();
 			entry.Runtime->set_window_admission([weak](core::bpr_window_context aContext) {const auto self=weak.lock();return self && self->current(aContext); });
+			// [[BPR-1342]]. Open Review in New Window is the profile's New Window
+			// carrying one admitted destination: the same intent, the same
+			// management host and this one runtime owner.
+			entry.Runtime->set_review_window_request([weak, aProfile](const core::window_review_destination& aDestination) {
+				const auto self = weak.lock();
+				if (!self || self->Quitting || !self->Host) {
+					return false;
+				}
+				self->dispatch(application::new_bpr_window_intent{ aProfile, aDestination });
+				return true;
+			});
 			entry.Runtime->set_desktop_quit_handler([weak](int aExitCode) {if (const auto self=weak.lock()){ self->quit(aExitCode);
 } });
 			entry.Runtime->set_maintenance_retirement([weak, aProfile](auto aCompletion) {

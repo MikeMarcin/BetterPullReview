@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PROFILE_MANAGEMENT_PROJECTION_HPP
 
 #include "bpr/core/profile_window.hpp"
+#include "bpr/core/window_review_restoration.hpp"
 
 #include <functional>
 #include <optional>
@@ -79,9 +80,15 @@ namespace bpr::application {
 		core::bpr_profile_id Profile;
 	};
 	/// \brief Requests another live window in the named profile runtime.
+	///
+	/// \details [[BPR-1342]]. `Review`, when present, is the pull request a
+	/// Home gesture asked the new window to open: one destination the sending
+	/// window already admitted. It rides to the fresh window's start command
+	/// only, never to a restored one.
 	struct new_bpr_window_intent
 	{
-		core::bpr_profile_id Profile;
+		core::bpr_profile_id                           Profile;
+		std::optional<core::window_review_destination> Review{ };
 	};
 
 	using profile_management_intent   = std::variant<reload_bpr_profiles_intent, create_bpr_profile_intent, rename_bpr_profile_intent, open_bpr_profile_intent, new_bpr_window_intent>;
@@ -98,6 +105,8 @@ namespace bpr::application {
 		core::bpr_window_context     Context;
 		std::string                  Label;
 		bool                         Restore = false;
+		/// [[BPR-1342]]. The pull request the fresh window opens after Home.
+		std::optional<core::window_review_destination> Review{ };
 	};
 }
 #endif

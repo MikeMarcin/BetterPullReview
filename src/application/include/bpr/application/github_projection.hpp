@@ -358,6 +358,14 @@ namespace bpr::application {
 	/// identity, or a Recently viewed row by its place. The host admits it
 	/// against what it accepted and builds the address itself.
 	using pull_request_page_intent = std::variant<core::markdown_context, core::pull_request_ref, recent_review_row>;
+
+	/// \brief [[BPR-1342]]. Which pull request a Home gesture asks a new window
+	/// of this profile to open.
+	///
+	/// \details Names a row, never an address or a destination: a queue row by
+	/// its queue identity, or a Recently viewed row by its place. The host
+	/// admits it against what it accepted before any window is asked for.
+	using review_window_intent = std::variant<core::pull_request_ref, recent_review_row>;
 }
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROJECTION_HPP
