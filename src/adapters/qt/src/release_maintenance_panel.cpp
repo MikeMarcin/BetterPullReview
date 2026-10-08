@@ -427,6 +427,34 @@ namespace bpr::qt {
 
 	void release_maintenance_panel::choose_export(core::release_maintenance_intent aIntent)
 	{
+		if (ChoosingExport) {
+			return;
+		}
+		ChoosingExport = aIntent;
+		if (Dispatch.ChooseExportDirectory) {
+			Dispatch.ChooseExportDirectory(aIntent);
+		} else {
+			present_export_directory(aIntent, std::unexpected(reason::unavailable));
+		}
+	}
+
+	void release_maintenance_panel::present_export_directory(core::release_maintenance_intent aIntent, application::diagnostic_export_directory aDirectory)
+	{
+		if (!ChoosingExport || ChoosingExport->Authority != aIntent.Authority || ChoosingExport->Target != aIntent.Target) {
+			return;
+		}
+		ChoosingExport.reset();
+		if (Projection.State.Authority != aIntent.Authority || Projection.State.Prepared != aIntent.Target || !ExportDialog->isVisible() || Dialog || !action(command::export_diagnostics)->isEnabled()) {
+			return;
+		}
+		if (!aDirectory || aDirectory->empty()) {
+			const auto text = QStringLiteral("Downloads, Documents and your home folder are unavailable for export. Make a user folder available, then try Save again. Your preview is unchanged.");
+			Status->setText(text);
+			QAccessibleAnnouncementEvent announcement{ Status, text };
+			QAccessible::updateAccessibility(&announcement);
+			return;
+		}
+		Status->setText(status_text(Projection));
 		auto* chooser = new QFileDialog{ this, QStringLiteral("Save diagnostics") };
 		chooser->setObjectName(QStringLiteral("releaseMaintenanceSaveDialog"));
 		chooser->setAttribute(Qt::WA_DeleteOnClose);
@@ -436,6 +464,7 @@ namespace bpr::qt {
 		chooser->setOption(QFileDialog::DontConfirmOverwrite);
 		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.txt)"));
 		chooser->setDefaultSuffix(QStringLiteral("txt"));
+		chooser->setDirectory(QString::fromStdString(*aDirectory));
 		chooser->selectFile(QStringLiteral("BetterPullReview-diagnostics.txt"));
 		Dialog = chooser;
 		connect(chooser, &QDialog::finished, this, [this, chooser, aIntent](int aResult) {
@@ -449,6 +478,7 @@ namespace bpr::qt {
 
 	void release_maintenance_panel::dismiss_dialog()
 	{
+		ChoosingExport.reset();
 		if (Dialog) {
 			disconnect(Dialog, nullptr, this, nullptr);
 			Dialog->reject();

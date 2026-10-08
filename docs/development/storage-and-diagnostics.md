@@ -181,6 +181,12 @@ per-thread Quill queues can drop earlier. These are bounds, not delivery promise
    facts remain; these can still reveal context.
 3. Choose **Save…** and a new local filename, or **Cancel**. Existing files are
    refused. Later appends are excluded; original files remain intact.
+   Each Save starts in the OS-reported Downloads folder, then Documents or home
+   if the earlier folder cannot satisfy the local output policy. You can navigate
+   elsewhere and rename the file. Cancelling the chooser keeps the exact preview.
+   If all three folders are unavailable, the preview stays open with a retry
+   explanation beside Save. Make a user folder available and try Save again.
+   Choosing a default creates nothing and stores no directory history.
 4. **Export options** offers current-session selection and optional recent
    sanitized context (excluded by default). Changing an option cancels the old
    snapshot; **Update preview** freezes the revised selection before Save enables.

@@ -39,6 +39,10 @@ namespace bpr::adapters::sqlite {
 		std::unique_ptr<implementation> Implementation;
 	};
 
+	/// \brief Observes a writable local output directory without creating or changing anything.
+	/// \details Reuses the output parent admission. This is a current observation, not a write grant.
+	[[nodiscard]] auto admit_release_diagnostic_directory(const std::filesystem::path& aPath) -> application::release_maintenance_result;
+
 	/// \brief Admits a new local file beneath a retained native owner-controlled parent.
 	/// \details Refuses existing destinations and links. Commit is an exclusive atomic link of
 	/// a fully written private temporary file (exclusive handle rename on Windows);

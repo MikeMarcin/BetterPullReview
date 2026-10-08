@@ -2,6 +2,7 @@
 
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
+#include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
@@ -158,18 +159,37 @@ namespace bpr::app {
 				self->Decisions.post([self, admitted = std::move(storage), retire] { self->start(admitted, std::make_shared<desktop_lifecycle>(retire)); });
 			});
 		}
+		void observe_export_directory(core::release_maintenance_intent aIntent)
+		{
+			const auto panel = Panel;
+			Effects.post([self = shared_from_this(), panel, aIntent] {
+				application::diagnostic_export_directory directory = std::unexpected(reason::unavailable);
+				try {
+					directory = resolve_diagnostic_export_directory(diagnostic_export_locations());
+				} catch (...) { }
+				self->Decisions.post([self, panel, aIntent, initialDirectory = std::move(directory)] {
+					if (panel && !self->Closing && !self->Transferring) {
+						panel->present_export_directory(aIntent, initialDirectory);
+					}
+				});
+			});
+		}
 		void attach(qt::settings_window& aSettings, const std::string& aLabel)
 		{
 			if (!Panel) {
 				Panel = new qt::release_maintenance_panel;
-				Panel->set_dispatch({ .Intent = [weak = weak_from_this()](core::release_maintenance_intent aIntent) {
+				Panel->set_dispatch({ .Intent                = [weak = weak_from_this()](core::release_maintenance_intent aIntent) {
 						if (const auto self = weak.lock(); self && self->Host && !self->Closing && !self->Transferring) {
 							self->Host->dispatch(aIntent);
 						} },
-									  .Export = [weak = weak_from_this()](core::release_maintenance_intent aIntent, std::string aPath) {
+									  .Export                = [weak = weak_from_this()](core::release_maintenance_intent aIntent, std::string aPath) {
 						if (const auto self = weak.lock(); self && self->Host && !self->Closing && !self->Transferring) {
 							self->Host->dispatch(aIntent, std::make_shared<local_output>(native_filesystem_path(QString::fromStdString(aPath))));
-						} } });
+						} },
+									  .ChooseExportDirectory = [weak = weak_from_this()](core::release_maintenance_intent aIntent) {
+							if (const auto self = weak.lock(); self && self->Host && !self->Closing && !self->Transferring) {
+								self->observe_export_directory(aIntent);
+							} } });
 			}
 			// The profile Settings shell borrows the invoking window's pages. Keep the
 			// profile-owned surface with that shell when those pages are exchanged.

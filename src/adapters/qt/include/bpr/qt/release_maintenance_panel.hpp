@@ -28,34 +28,37 @@ namespace bpr::qt {
 
 		/// \brief Opens the local export preview and requests its frozen selection.
 		void open_export(core::diagnostic_export_policy aPolicy);
+		/// \brief Presents the native chooser only for the still-current requested preview.
+		void present_export_directory(core::release_maintenance_intent aIntent, application::diagnostic_export_directory aDirectory);
 
 	protected:
 		void hideEvent(QHideEvent* aEvent) override;
 
 	private:
-		void                                        activate(core::release_maintenance_command aCommand);
-		void                                        confirm(core::release_maintenance_intent aIntent, bool aPreparation);
-		void                                        preview_diagnostics(core::diagnostic_export_policy aPolicy);
-		void                                        choose_export(core::release_maintenance_intent aIntent);
-		void                                        dismiss_dialog();
-		void                                        dispatch(core::release_maintenance_intent aIntent);
-		application::release_maintenance_dispatch   Dispatch;
-		application::release_maintenance_projection Projection;
-		std::array<QAction*, 7>                     Actions{ };
-		QCheckBox*                                  IncludeRecent      = nullptr;
-		QComboBox*                                  ExportScope        = nullptr;
-		QPushButton*                                IdentifyingPreview = nullptr;
-		QLabel*                                     Scope              = nullptr;
-		QLabel*                                     Status             = nullptr;
-		QLabel*                                     Summary            = nullptr;
-		QPlainTextEdit*                             Preview            = nullptr;
-		QPointer<QDialog>                           Dialog;
-		QDialog*                                    ExportDialog      = nullptr;
-		QLabel*                                     Disclosure        = nullptr;
-		QLabel*                                     MaintenanceStatus = nullptr;
-		core::diagnostic_export_policy              ExportPolicy      = core::diagnostic_export_policy::anonymized;
-		bool                                        StartExport       = false;
-		QString                                     ProfileLabel;
+		void                                            activate(core::release_maintenance_command aCommand);
+		void                                            confirm(core::release_maintenance_intent aIntent, bool aPreparation);
+		void                                            preview_diagnostics(core::diagnostic_export_policy aPolicy);
+		void                                            choose_export(core::release_maintenance_intent aIntent);
+		void                                            dismiss_dialog();
+		void                                            dispatch(core::release_maintenance_intent aIntent);
+		application::release_maintenance_dispatch       Dispatch;
+		application::release_maintenance_projection     Projection;
+		std::array<QAction*, 7>                         Actions{ };
+		QCheckBox*                                      IncludeRecent      = nullptr;
+		QComboBox*                                      ExportScope        = nullptr;
+		QPushButton*                                    IdentifyingPreview = nullptr;
+		QLabel*                                         Scope              = nullptr;
+		QLabel*                                         Status             = nullptr;
+		QLabel*                                         Summary            = nullptr;
+		QPlainTextEdit*                                 Preview            = nullptr;
+		QPointer<QDialog>                               Dialog;
+		std::optional<core::release_maintenance_intent> ChoosingExport;
+		QDialog*                                        ExportDialog      = nullptr;
+		QLabel*                                         Disclosure        = nullptr;
+		QLabel*                                         MaintenanceStatus = nullptr;
+		core::diagnostic_export_policy                  ExportPolicy      = core::diagnostic_export_policy::anonymized;
+		bool                                            StartExport       = false;
+		QString                                         ProfileLabel;
 	};
 }
 #endif
