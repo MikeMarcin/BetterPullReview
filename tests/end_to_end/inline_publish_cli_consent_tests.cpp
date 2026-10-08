@@ -279,9 +279,9 @@ try {
 	QApplication qt{ aArgc, aArgv };
 	// One course by name, or all three.
 	const auto only = aArgc > 1 ? std::string_view{ aArgv[1] } : std::string_view{ };
-	for (const auto [course, name] : { std::pair{ course::published, std::string_view{ "published" } },
-									   std::pair{ course::lost_then_retried, std::string_view{ "lost-then-retried" } },
-									   std::pair{ course::cancelled, std::string_view{ "cancelled" } } }) {
+	for (const auto& [course, name] : { std::pair{ course::published, std::string_view{ "published" } },
+										std::pair{ course::lost_then_retried, std::string_view{ "lost-then-retried" } },
+										std::pair{ course::cancelled, std::string_view{ "cancelled" } } }) {
 		if (only.empty() || only == name) {
 			run(course);
 		}

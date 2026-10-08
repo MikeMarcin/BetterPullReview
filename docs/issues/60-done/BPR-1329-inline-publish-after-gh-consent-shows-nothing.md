@@ -125,3 +125,13 @@ because a draft note now opens as the composer.
 Pending for the owner's own case: whether the 0.1.5 publication posted. A
 Settings > Diagnostics export from the machine that ran it would show the
 `create_review_comment` event and its outcome.
+
+## GCC 15 optimized build fix (bpr-main-linux, 2026-10-08)
+
+At `-O3 -Werror` (`app-release`, `BUILD_TESTING=ON`), GCC 15.2.0 refused
+`tests/end_to_end/inline_publish_cli_consent_tests.cpp:282`. The range-for
+copied its structured binding by value, the pattern `tests/AGENTS.md` warns
+about. It now binds `const auto&`. On top of `76b4b4f99`, the whole optimized
+tests-on tree builds without `-k 0`, and so does `build/dev`.
+`application_inline_publish_cli_consent` is registered only on macOS, so on
+Linux the evidence is the compile. Test-only; no product file changed.
