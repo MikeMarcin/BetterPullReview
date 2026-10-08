@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1091"
 title: "Wire optional convention-aware hooks through the existing workshop"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0051"]
 depends_on: []
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-17","milestone":"hooks-cli","acceptance":["R19","R34","R35","R36","R37"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"sequence_after":["BPR-1090"],"coordinator_amendment":{"date":"2026-10-08","decision":"BPR-1090's landed Review feedback hook and workshop_feedback_guidance() satisfy the dependency; its parked owner Settings look does not block this wiring"}}
