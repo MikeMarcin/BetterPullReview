@@ -1,5 +1,7 @@
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/repository_addition_input.hpp"
 #include "bpr/application/setup_destination.hpp"
+#include "bpr/core/repository_addition.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -44,8 +46,59 @@ namespace {
 		}
 	};
 }
+namespace {
+	void test_repository_addition_input_and_admission()
+	{
+		using problem   = application::repository_addition_input_problem;
+		const auto bare = application::parse_repository_addition(" \tOcto/repo.name\r\n", "GHE.EXAMPLE");
+		expect(bare && bare->Hostname == "ghe.example" && bare->Repository.Owner == "Octo" && bare->Repository.Name == "repo.name", "bare repository uses displayed host and preserves locator spelling");
+		const auto url = application::parse_repository_addition("https://GITHUB.COM/Octo/repo/", "ghe.example");
+		expect(url && url->Hostname == "github.com" && url->Repository.Owner == "Octo" && url->Repository.Name == "repo", "URL explicitly names its own host without routing to displayed host");
+		for (const auto* input : { "http://github.com/o/r", "https://github.com/o/r/pull/1", "https://github.com/o/r/tree/main", "https://github.com/o/r?x=1", "https://github.com/o/r#readme", "https://github.com/o/r//", "o/r/", "o/r/extra", "o/r#1", "o/r?x", "repo" }) {
+			expect(!application::parse_repository_addition(input, "github.com"), "non-root shapes and PR grammar never name an addition target");
+		}
+		for (const auto* input : { "https://user@github.com/o/r", "https://github.com:443/o/r", "https://-bad.example/o/r", "https://bad-.example/o/r", "https://bad..example/o/r", "https://github.com./o/r" }) {
+			const auto parsed = application::parse_repository_addition(input, "github.com");
+			expect(!parsed && parsed.error() == problem::invalid_host, "unsafe/noncanonical host requires correction, never configuration");
+		}
+		expect(!application::parse_repository_addition("o/%72", "github.com") && !application::parse_repository_addition("o/..", "github.com") && !application::parse_repository_addition(std::string{ "o/r\0x", 5U }, "github.com"), "escaped, traversal and NUL repository input is refused");
+		expect(!application::parse_repository_addition(std::string(4097U, 'a'), "github.com"), "addition input is bounded before normalization");
+		expect(!application::parse_repository_addition("o/r", "") && !application::parse_repository_addition("o/r", "github.com:443"), "bare input needs a canonical displayed host");
+		expect(core::accept_repository_addition_completion(false, true, true) && !core::accept_repository_addition_completion(true, true, true) && !core::accept_repository_addition_completion(false, false, true) && !core::accept_repository_addition_completion(false, true, false), "only exact live destination/source accepts terminal");
+		using status    = core::repository_addition_status;
+		const auto good = core::repository_addition_observation{ true, true, true, true, true, false, false, true };
+		expect(core::admit_repository_addition(good) == status::saving, "exact admitted addition may start a save");
+		auto facts     = good;
+		facts.SignedIn = false;
+		expect(core::admit_repository_addition(facts) == status::sign_in_required, "public preview or no accepted account cannot save");
+		facts                    = good;
+		facts.DestinationCurrent = false;
+		expect(core::admit_repository_addition(facts) == status::destination_changed, "stale destination cannot save");
+		facts               = good;
+		facts.WindowCurrent = false;
+		expect(core::admit_repository_addition(facts) == status::destination_changed, "closed/replaced originating window cannot save");
+		facts            = good;
+		facts.StoreReady = false;
+		expect(core::admit_repository_addition(facts) == status::unavailable, "unknown/refused durable state cannot save");
+		facts            = good;
+		facts.InputValid = false;
+		expect(core::admit_repository_addition(facts) == status::invalid_input, "invalid input cannot save");
+		facts         = good;
+		facts.Pending = true;
+		expect(core::admit_repository_addition(facts) == status::busy, "only one mutation proceeds");
+		facts              = good;
+		facts.AlreadyAdded = true;
+		facts.HasCapacity  = false;
+		expect(core::admit_repository_addition(facts) == status::already_added, "duplicate is no-write success even at collection capacity");
+		facts             = good;
+		facts.HasCapacity = false;
+		expect(core::admit_repository_addition(facts) == status::collection_limit, "new records obey existing bound");
+	}
+}
+
 int main()
 {
+	test_repository_addition_input_and_admission();
 	using namespace bpr;
 	for (const auto input : { "owner/repo#42", "owner/repo/pull/42", "https://GHE.example/owner/repo/pull/42", "https://ghe.example/owner/repo/pull/42/files?ignored=1#diff-deadbeef", "https://ghe.example/owner/repo/pull/42/commits/abcdef" }) {
 		const auto parsed = application::parse_setup_destination(input);
