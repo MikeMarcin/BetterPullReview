@@ -543,9 +543,9 @@ namespace {
 					page.body_view()->show_source(true);
 					settle();
 					auto* edit = page.body_view()->source_view();
-					auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
-					auto* back = page.findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
-					expect(read->isVisible() && !back->isVisible(), "overflow exposes the named reading action");
+					auto* read = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+					auto* back = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+					expect(read->isVisible() && !read->isChecked(), "overflow exposes the named reading action");
 					expect(edit->viewport()->height() > 4 * edit->fontMetrics().lineSpacing(), "normal summary has a larger shared allocation with separate reader controls");
 					expect(edit->verticalScrollBarPolicy() == Qt::ScrollBarAsNeeded && edit->verticalScrollBar()->maximum() > 0, "normal summary scrolls the complete body");
 					QWheelEvent previewWheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, { }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
@@ -562,11 +562,14 @@ namespace {
 					QApplication::sendEvent(read, &press);
 					QApplication::sendEvent(read, &release);
 					settle();
-					expect(back->isVisible() && !page.files_view()->isVisible() && edit->hasFocus(), "keyboard activation opens local reader and focuses text");
+					expect(back->isVisible() && back->isChecked() && !page.files_view()->isVisible() && edit->hasFocus(), "keyboard activation opens local reader and focuses text");
 					expect(edit->maximumHeight() == QWIDGETSIZE_MAX && page.body_view()->height() > 650 && edit->viewport()->height() > page.height() * 2 / 3, "expanded reader fills available space without a height cap, including its source controls and fallback explanation");
 					QKeyEvent pageDown{ QEvent::KeyPress, Qt::Key_PageDown, Qt::NoModifier };
 					QApplication::sendEvent(edit, &pageDown);
 					expect(edit->verticalScrollBar()->value() > 0, "PageDown navigates the sole reader viewport");
+					// The reclaimed height can let one PageDown reach the end.
+					// Exercise wheel movement from a place that still has room.
+					edit->verticalScrollBar()->setValue(0);
 					const auto  beforeWheel = edit->verticalScrollBar()->value();
 					QWheelEvent readerWheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, { }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 					QApplication::sendEvent(edit->viewport(), &readerWheel);
@@ -681,7 +684,7 @@ namespace {
 		projected.Body.clear();
 		page.present(projected);
 		settle();
-		auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
+		auto* read = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
 		expect(page.findChild<QLabel*>(QStringLiteral("overviewNoDescription"))->isVisible() && !read->isVisible() && !page.body_view()->isVisible(), "empty description has a compact explicit state");
 		projected.Body = "Short 日本語 🦊 description.";
 		page.present(projected);
@@ -720,6 +723,16 @@ namespace {
 		settle();
 		auto* split = page.findChild<QSplitter*>(QStringLiteral("overviewSummarySplitter"));
 		expect(split && split->sizes().size() == 2, "normal summary and Files share the native splitter");
+		auto* fullView = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+		auto* reader   = page.body_view();
+		expect(fullView && fullView->accessibleName() == QStringLiteral("Enter full view") && fullView->isVisible()
+				   && fullView->mapTo(&page, QPoint{ 0, 0 }).y() == reader->mapTo(&page, QPoint{ 0, 0 }).y()
+				   && fullView->mapTo(&page, QPoint{ 0, 0 }).x() >= reader->mapTo(&page, reader->rect().topRight()).x(),
+			   "full-view control occupies the top-right edge without a separate action row");
+		expect(!reader->findChild<QPushButton*>(QStringLiteral("markdownSourceToggle"))->isVisible()
+				   && !reader->findChild<QPushButton*>(QStringLiteral("markdownCopySource"))->isVisible()
+				   && reader->rendered_view()->height() == reader->height(),
+			   "Overview gives source-action and destination-row space back to the reader");
 		auto* grip = split->handle(1);
 		expect(grip->isVisible() && grip->focusPolicy() == Qt::StrongFocus && grip->cursor().shape() == Qt::SplitVCursor, "grip is visible, focusable and has vertical resize cursor");
 		expect(std::abs(split->sizes()[0] - split->sizes()[1]) <= 2, "long summary starts at half the shared room");
@@ -774,8 +787,8 @@ namespace {
 		page.present(projected);
 		page.show();
 		settle();
-		auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
-		auto* back = page.findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
+		auto* read = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+		auto* back = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
 		page.body_view()->show_source(true);
 		settle();
 		auto* edit = page.body_view()->source_view();

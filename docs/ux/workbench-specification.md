@@ -256,8 +256,13 @@ lines and three file rows when the available height permits; smaller windows
 share their existing room without adding a window minimum.
 
 Description and Files scroll independently. Native Markdown and source fallback
-remain selectable and copyable. **Read full description**, **Return to Files**
-and local Escape keep the same reader documents and Files selection. Refresh
+remain selectable and copyable. The reader's top-right icon control offers
+**Enter full view** / **Exit full view**, without an action row below the body.
+Right-click inside the reader for **View source** or **Rendered**. Ordinary
+selection Copy yields Markdown text rather than HTML; source mode preserves
+exact selected bytes, while rendered partial selections may normalize source
+formatting. The same reader documents and Files selection survive full-view
+changes and local Escape. Refresh
 and reflow retain the reading place; a changed body or authority clears old
 reading state before the replacement appears.
 

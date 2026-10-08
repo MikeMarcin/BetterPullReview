@@ -19,7 +19,20 @@ Raw HTML is displayed as literal text, never submitted to an HTML importer.
 **View source** and **Rendered** retain separate reading positions and selections;
 the first switch uses approximate scroll fraction. **Copy source** copies the
 original UTF-8 bytes, including original line endings, via the text MIME payload.
-Qt's selectable rendered text is a presentation, never the publication source.
+Ordinary selection Copy in either reading mode writes only a text MIME
+payload. Source-mode selection retains the original UTF-8 range and line
+endings. A complete rendered selection copies the original body; a partial
+rendered selection serializes the selected native document fragment as
+Markdown, retaining source syntax such as link destinations. This partial
+serialization can normalize formatting and is not an original-byte mapping.
+Qt's rendered document remains a presentation, never the publication source.
+
+Overview uses a compact reader: **View source** / **Rendered** is in the
+native right-click menu, with no separate Copy source control or action rows
+below the body. A native icon control at the reader's top-right enters or exits
+full view. The same documents, source selection and reading positions remain
+retained; local Escape returns to Files. Open conversation posts retain their
+independent name-row controls.
 An empty body has an explicit empty state. A refused rendering budget or an
 unverified whitespace mapping shows the complete original source and an
 explanation. No prefix is silently presented as the complete body.

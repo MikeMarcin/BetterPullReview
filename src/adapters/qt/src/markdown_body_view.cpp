@@ -6,6 +6,7 @@
 #include "bpr/core/feedback_conversation.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QFontDatabase>
@@ -13,6 +14,7 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
@@ -21,6 +23,7 @@
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTextBlock>
+#include <QTextDocumentFragment>
 #include <QTextEdit>
 #include <QTextFragment>
 #include <QTextTable>
@@ -284,7 +287,8 @@ namespace bpr::qt {
 		/// A link reached by Tab, so its destination can be said where it is.
 		std::function<void(const QString&)> LinkFocused;
 		/// In place a vertical wheel belongs to what holds the post.
-		bool InPlace = false;
+		bool                        InPlace = false;
+		std::function<QMimeData*()> CopySelection;
 
 		void reset_links()
 		{
@@ -307,6 +311,10 @@ namespace bpr::qt {
 		}
 
 	protected:
+		QMimeData* createMimeDataFromSelection() const override
+		{
+			return CopySelection ? CopySelection() : QTextEdit::createMimeDataFromSelection();
+		}
 		void wheelEvent(QWheelEvent* aEvent) override
 		{
 			if (InPlace) {
@@ -410,6 +418,19 @@ namespace bpr::qt {
 		QString           Pressed;
 	};
 
+	class markdown_source_view final : public QPlainTextEdit
+	{
+	public:
+		using QPlainTextEdit::QPlainTextEdit;
+		std::function<QMimeData*()> CopySelection;
+
+	protected:
+		QMimeData* createMimeDataFromSelection() const override
+		{
+			return CopySelection ? CopySelection() : QPlainTextEdit::createMimeDataFromSelection();
+		}
+	};
+
 	markdown_body_view::markdown_body_view(QWidget* aParent)
 		: QWidget{ aParent }
 		, CodeFont{ QFontDatabase::systemFont(QFontDatabase::FixedFont) }
@@ -417,8 +438,10 @@ namespace bpr::qt {
 		TabStopDistance = 4 * QFontMetricsF{ CodeFont }.horizontalAdvance(QLatin1Char{ ' ' });
 		auto* layout    = new QVBoxLayout{ this };
 		layout->setContentsMargins(0, 0, 0, 0);
-		auto* controls = new QHBoxLayout;
-		Toggle         = new QPushButton{ QStringLiteral("View source"), this };
+		Controls       = new QWidget{ this };
+		auto* controls = new QHBoxLayout{ Controls };
+		controls->setContentsMargins(0, 0, 0, 0);
+		Toggle = new QPushButton{ QStringLiteral("View source"), this };
 		Toggle->setObjectName(QStringLiteral("markdownSourceToggle"));
 		Toggle->setAccessibleName(QStringLiteral("View original Markdown source"));
 		auto* copy = new QPushButton{ QStringLiteral("Copy source"), this };
@@ -433,7 +456,7 @@ namespace bpr::qt {
 		controls->addWidget(Toggle);
 		controls->addWidget(copy);
 		controls->addStretch();
-		layout->addLayout(controls);
+		layout->addWidget(Controls);
 		Notice = new QLabel{ this };
 		Notice->setTextFormat(Qt::PlainText);
 		Notice->setWordWrap(true);
@@ -442,7 +465,8 @@ namespace bpr::qt {
 		Rendered = new markdown_text_view{ Pages };
 		Rendered->setAccessibleName(QStringLiteral("Rendered Markdown body"));
 		Rendered->setAccessibleDescription(QStringLiteral("Read-only body. Tab visits links; Enter requests opening the displayed destination. Wide code and tables scroll horizontally."));
-		Source = new QPlainTextEdit{ Pages };
+		auto* source = new markdown_source_view{ Pages };
+		Source       = source;
 		Source->setReadOnly(true);
 		Source->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		Source->setLineWrapMode(QPlainTextEdit::NoWrap);
@@ -450,6 +474,31 @@ namespace bpr::qt {
 		Source->setAccessibleName(QStringLiteral("Original Markdown source"));
 		Pages->addWidget(Rendered);
 		Pages->addWidget(Source);
+		Rendered->CopySelection = [this] {
+			auto*      mime   = new QMimeData;
+			const auto cursor = Rendered->textCursor();
+			if (cursor.hasSelection()) {
+				// Full selection preserves authored bytes; a partial rendered span
+				// has no source offsets, so Qt serializes its formatting as Markdown.
+				const auto bytes = cursor.selectionStart() == 0 && cursor.selectionEnd() == Rendered->document()->characterCount() - 1
+					? QByteArray{ Body.data(), static_cast<qsizetype>(Body.size()) }
+					: QTextDocumentFragment{ cursor }.toMarkdown(markdown_features).toUtf8();
+				mime->setData(QStringLiteral("text/plain"), bytes);
+			}
+			return mime;
+		};
+		source->CopySelection = [this] {
+			auto*      mime   = new QMimeData;
+			const auto cursor = Source->textCursor();
+			if (cursor.hasSelection() && cursor.selectionStart() == 0 && cursor.selectionEnd() == Source->document()->characterCount() - 1) {
+				mime->setData(QStringLiteral("text/plain"), QByteArray{ Body.data(), static_cast<qsizetype>(Body.size()) });
+			} else if (const auto span = selected_source_bytes()) {
+				mime->setData(QStringLiteral("text/plain"), QByteArray{ Body.data() + span->first, static_cast<qsizetype>(span->second - span->first) });
+			}
+			return mime;
+		};
+		connect(Rendered, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPosition) { show_context_menu(false, aPosition); });
+		connect(Source, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPosition) { show_context_menu(true, aPosition); });
 		layout->addWidget(Pages, 1);
 		Destination = new QLabel{ this };
 		Destination->setTextFormat(Qt::PlainText);
@@ -550,10 +599,7 @@ namespace bpr::qt {
 		}
 		InPlace           = aInPlace;
 		Rendered->InPlace = aInPlace;
-		Toggle->setVisible(!aInPlace);
-		Copy->setVisible(!aInPlace);
-		Destination->setVisible(!aInPlace);
-		layout()->setSpacing(aInPlace ? 4 : -1);
+		refresh_controls();
 		const auto margin = aInPlace ? 0.0 : 4.0;
 		for (auto* const area : { static_cast<QAbstractScrollArea*>(Rendered), static_cast<QAbstractScrollArea*>(Source) }) {
 			area->setFrameShape(aInPlace ? QFrame::NoFrame : QFrame::StyledPanel);
@@ -567,7 +613,27 @@ namespace bpr::qt {
 		auto policy = sizePolicy();
 		policy.setHeightForWidth(aInPlace);
 		setSizePolicy(policy);
-		if (aInPlace) {
+		prepare_rendered();
+		height_changed();
+	}
+
+	void markdown_body_view::set_context_controls(const bool aContextControls)
+	{
+		ContextControls = aContextControls;
+		refresh_controls();
+		Rendered->setContextMenuPolicy(aContextControls ? Qt::CustomContextMenu : Qt::DefaultContextMenu);
+		Source->setContextMenuPolicy(aContextControls ? Qt::CustomContextMenu : Qt::DefaultContextMenu);
+	}
+
+	void markdown_body_view::refresh_controls()
+	{
+		Controls->setVisible(!ContextControls);
+		Toggle->setVisible(!InPlace && !ContextControls);
+		Copy->setVisible(!InPlace && !ContextControls);
+		Destination->setVisible(!InPlace && !ContextControls);
+		layout()->setSpacing(ContextControls ? 0 : InPlace ? 4
+														   : -1);
+		if (InPlace || ContextControls) {
 			// The destination the hidden line would say is the link's tooltip:
 			// under the pointer, or under the link Tab reached.
 			Rendered->LeaveLinks = nullptr;
@@ -587,8 +653,29 @@ namespace bpr::qt {
 			};
 			Rendered->LinkFocused = nullptr;
 		}
-		prepare_rendered();
-		height_changed();
+	}
+
+	void markdown_body_view::show_context_menu(const bool aSource, const QPoint& aPosition)
+	{
+		if (!ContextControls) {
+			return;
+		}
+		auto* menu = aSource ? Source->createStandardContextMenu() : Rendered->createStandardContextMenu();
+		menu->setObjectName(QStringLiteral("markdownReaderContextMenu"));
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		menu->setParent(aSource ? static_cast<QWidget*>(Source) : static_cast<QWidget*>(Rendered), menu->windowFlags());
+		menu->addSeparator();
+		auto* toggle = menu->addAction(aSource ? QStringLiteral("Rendered") : QStringLiteral("View source"));
+		toggle->setObjectName(QStringLiteral("markdownContextSourceToggle"));
+		toggle->setEnabled(RenderedAvailable);
+		connect(toggle, &QAction::triggered, this, [this, aSource, body = Body, identity = Identity] {
+			if (ContextControls && Body == body && Identity == identity) {
+				show_source(!aSource);
+				setFocus(Qt::OtherFocusReason);
+			}
+		});
+		auto* viewport = aSource ? Source->viewport() : Rendered->viewport();
+		menu->popup(viewport->mapToGlobal(aPosition));
 	}
 
 	auto markdown_body_view::in_place() const noexcept -> bool

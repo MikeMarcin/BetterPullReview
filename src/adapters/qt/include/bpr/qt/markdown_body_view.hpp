@@ -42,6 +42,9 @@ namespace bpr::qt {
 		void set_code_font(const QFont& aFont, qreal aTabStopDistance);
 		/// \brief Switches modes, retaining independent positions and selections.
 		void show_source(bool aSource);
+		/// \brief Moves source switching into the native reader context menu and hides action rows.
+		/// \details Keeps scrolling and both documents; selection copy supplies Markdown text only.
+		void set_context_controls(bool aContextControls);
 		/// \brief Copies original bytes, without reconstructing rendered text.
 		void copy_source() const;
 		/// \brief [[BPR-1083]]. Shows a recognized Conventional Comments prefix's
@@ -90,6 +93,8 @@ namespace bpr::qt {
 		void refresh_mark();
 		void refresh_formats();
 		void height_changed();
+		void refresh_controls();
+		void show_context_menu(bool aSource, const QPoint& aPosition);
 
 		std::string                             Body;
 		std::string                             Identity;
@@ -97,6 +102,7 @@ namespace bpr::qt {
 		markdown_text_view*                     Rendered    = nullptr;
 		QPlainTextEdit*                         Source      = nullptr;
 		QStackedWidget*                         Pages       = nullptr;
+		QWidget*                                Controls    = nullptr;
 		QPushButton*                            Toggle      = nullptr;
 		QPushButton*                            Copy        = nullptr;
 		QLabel*                                 Notice      = nullptr;
@@ -110,7 +116,8 @@ namespace bpr::qt {
 		bool                                    VisitedSource     = false;
 		bool                                    VisitedRendered   = false;
 		QString                                 Fallback;
-		bool                                    InPlace = false;
+		bool                                    InPlace         = false;
+		bool                                    ContextControls = false;
 		std::function<void()>                   HeightObserver;
 		qsizetype                               HeaderChars   = 0;
 		qsizetype                               HeaderStart   = 0;
