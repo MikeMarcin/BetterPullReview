@@ -988,6 +988,20 @@ endfunction()
 # production manifest. None of the three adds a grant, target, provider,
 # credential, GitHub write, mutation or publication path; mutation pin
 # unchanged. Reviewed on BPR-1308, BPR-1313 and BPR-1316.
+# BPR-1090 reseal (2026-10-08): over the BPR-1308/1313/1316 reseal at
+# 1e277adcc; no other intervening pinned-scope commit. Owner, 2026-10-08:
+# "Accept (Recommended)" for a fifth profile writing hook, Review feedback.
+# github_application.cpp: the profile preferences subscription also hands the
+# writing-hooks panel the published label helper, and test_writing_hook
+# refuses the feedback hook (it writes no tour field) before any launch.
+# tour_assist/tour_cli/tour_owner_service/tour_runtime: `hooks show` lists the
+# fifth hook with its version and whether the label helper sends it, read from
+# the profile's own settings; `assist context --hook feedback` and
+# tour_assist_issue refuse it; an owner without the hook is refused rather
+# than shown as empty. No grant, target, provider, credential, child
+# environment, GitHub write, mutation or publication path changes; owner
+# protocol unchanged; mutation pin unchanged; no new src/app source. Reviewed
+# on BPR-1090.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1006,7 +1020,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fed57eae3cdd91a22c9f3091ba0aebdc170a89a57d2becf5c8f4c291b0b48b3a"
+		"98f02f460e968e2b858c3a65499f0650dd1d10e7c474e0152fce23e8cc6c09eb"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1208,7 +1222,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "ce32600c6fc7b889a35320565fce402604554996f8da71aa8f3dd40dda9054ca"
+        "a536c013d7c98055b81ff33e016d78c15b8bc94bd0dab3e87ab2a64cb0115957"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
