@@ -1358,7 +1358,7 @@ it does beside the code.
 
 **Discuss's top is one band** ([[BPR-1337]], owner note 2026-10-08: "The top
 section of discuss could use some beautification"). It is drawn in the language
-of Conversations' bar ([[BPR-1293]]): 30-pixel chips with a 7-pixel corner, a
+of Threads' bar ([[BPR-1293]]): 30-pixel chips with a 7-pixel corner, a
 hairline edge and the signal's soft fill when on, on the panel's base with a
 hairline under the band. From the left: the scope as two segments, **Pull
 request** and **File**, with the file chosen in a menu right after File while

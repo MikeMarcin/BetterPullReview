@@ -208,7 +208,7 @@ namespace bpr::qt {
 		column->setSpacing(0);
 
 		// [[BPR-1337]]. Discuss's top: one band, drawn in the language of
-		// Conversations' bar, that wraps when the list is narrowed beside the
+		// Threads' bar, that wraps when the list is narrowed beside the
 		// composer. Beside the code the drawer shows this file only, and its
 		// filters sit on the tab row.
 		DiscussControls = new discuss_band{ loaded };
@@ -270,7 +270,7 @@ namespace bpr::qt {
 			}
 		});
 
-		// Only new and Hide resolved: Conversations' two chips.
+		// Only new and Hide resolved: Threads' two chips.
 		DiscussFilterBox  = new QWidget{ DiscussControls };
 		DiscussFiltersRow = new QHBoxLayout{ DiscussFilterBox };
 		DiscussFiltersRow->setContentsMargins(0, 0, 0, 0);
@@ -499,7 +499,7 @@ namespace bpr::qt {
 
 	void github_conversation_panel::arrange_filters()
 	{
-		// Beside the code: two icons with tooltips. In Discuss: Conversations'
+		// Beside the code: two icons with tooltips. In Discuss: Threads'
 		// two chips, in its band ([[BPR-1337]]).
 		const auto icons = !Discuss;
 		for (auto* const button : { FilterUnread, FilterUnresolved }) {
@@ -797,7 +797,7 @@ namespace bpr::qt {
 		parts[1].Number = QString::number(unresolved);
 		parts[1].Words  = QStringLiteral("unresolved");
 		static_cast<discuss_counts*>(DiscussSummary)->set_parts(std::move(parts));
-		// Only new carries the count of what is new, as on Conversations' bar.
+		// Only new carries the count of what is new, as on Threads' bar.
 		auto* const unread = static_cast<discuss_tool*>(FilterUnread);
 		unread->set_new_ink(Cards->accent());
 		unread->set_count(Discuss && fresh > 0U ? QString::number(fresh) : QString{ }, true);

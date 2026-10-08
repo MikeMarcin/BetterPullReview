@@ -18,7 +18,7 @@
 namespace bpr::qt {
 	/// \brief [[BPR-1337]]. How a Discuss header button is drawn. Beside the
 	/// code the filter buttons are the drawer's own icons (`native`); in
-	/// Discuss they are chips in the language of Conversations' bar.
+	/// Discuss they are chips in the language of Threads' bar.
 	enum class discuss_tool_shape : std::uint8_t {
 		native,
 		/// A rounded chip: a glyph, its words or both, and a count.
@@ -105,7 +105,7 @@ namespace bpr::qt {
 	};
 
 	/// \brief [[BPR-1337]]. The header's band: the notes' panel colour with a
-	/// hairline under it, as Conversations' bar sits over its list.
+	/// hairline under it, as Threads' bar sits over its list.
 	class discuss_band final : public QWidget
 	{
 	public:

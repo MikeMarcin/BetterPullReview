@@ -16,7 +16,7 @@
 
 namespace bpr::qt {
 	namespace {
-		/// The height and corner of Conversations' chips ([[BPR-1293]]).
+		/// The height and corner of Threads' chips ([[BPR-1293]]).
 		constexpr int   tool_height     = 30;
 		constexpr qreal tool_radius     = 7.0;
 		constexpr int   glyph_side      = 16;

@@ -668,7 +668,7 @@ namespace {
 	}
 
 	/// \brief [[BPR-1337]]. Discuss's top is one band: the scope as two
-	/// segments with the file inside it, Conversations' two filter chips, and
+	/// segments with the file inside it, Threads' two filter chips, and
 	/// the counts with Clear filters at the right end, every control named;
 	/// the ordinary availability line leaves the counts to say it.
 	void test_discuss_top_is_one_named_band()
