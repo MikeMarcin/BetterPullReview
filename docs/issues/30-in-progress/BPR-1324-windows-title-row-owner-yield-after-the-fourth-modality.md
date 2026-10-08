@@ -147,3 +147,19 @@ future width changes.
 - The tooltip text changes on every platform.
 - `application_windows_title_row`, which shows a real window, waits for the
   owner's desktop clearance. It is not run.
+
+**On the merged tree** (`5964dd6f1`, after rebasing over 13 upstream commits that
+changed `src/adapters/qt`, `workbench_window.cpp` among them). Both trees
+rebuilt with no `warning C` line.
+
+- `qt_workbench_window` ×3 (185 to 206 s in Debug), `qt_workbench_title_row`
+  ×3, focus order ×3, strip menu, composed GitHub ×3, inline drawer ×3,
+  finder ×3, the overview summary rows, the round-trip pins,
+  `architecture_boundaries` and the structure contract all pass.
+- The optimized tree passes 6 of 6.
+- The manifest named two newer unpinned rows:
+  `application_discuss_top_public_path` ([[BPR-1337]]) and
+  `application_accepted_file_in_overview` ([[BPR-1339]]). Measured contained,
+  they stop at "FAILED: private discuss-top course root" and "FAILED: private
+  composed course root". Both are now pinned `dos-volume-name`, and the
+  manifest and both rows pass 4 of 4.

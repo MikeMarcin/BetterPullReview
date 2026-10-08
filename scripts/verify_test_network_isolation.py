@@ -147,6 +147,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # "FAILED: private composed course root" (exit 3), as the overview summary
     # rows above do.
     "application_change_arrows_across_files": "dos-volume-name",
+    # [[BPR-1337]], [[BPR-1339]]. Measured on bpr-main-win 2026-10-08 at
+    # 5964dd6f1, registered contained for the measurement: the courses stop at
+    # "FAILED: private discuss-top course root" and "FAILED: private composed
+    # course root", the private storage root refused as above.
+    "application_discuss_top_public_path": "dos-volume-name",
+    "application_accepted_file_in_overview": "dos-volume-name",
     # BPR-0622: measured on JaegAW 2026-09-17. Contained, the canary course exits
     # 3 with no output at std::filesystem::canonical of its root argument, the
     # same lowbox refusal as the BPR-0806 rows; it passes uncontained.
