@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1090"
 title: "Author canonical default convention guidance and hook ownership map"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0051"]
 depends_on: ["BPR-1076", "BPR-1086"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-16","milestone":"hooks-cli","acceptance":["R34","R35","R36","R37"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
