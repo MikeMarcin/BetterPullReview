@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1307"
 title: "Publish exact durable repository addition results"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0062"]
 depends_on: ["BPR-1306"]
 priority: "P1"
