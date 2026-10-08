@@ -12,6 +12,8 @@
 
 #include "bpr/qt/menu_tool_button.hpp"
 
+#include "bpr/core/file_progress_mark.hpp"
+
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -104,6 +106,18 @@
 
 namespace bpr::qt {
 	namespace {
+		/// \brief [[BPR-1331]]. The mark the private progress button shows: the
+		/// core's decision for the selected file's receipt, or none while no
+		/// file's progress is known.
+		[[nodiscard]] auto shown_progress_mark(const std::optional<application::file_receipt_action_projection>& aReceipt,
+											   const bool                                                        aLedgerUnavailable) -> std::optional<core::file_progress_mark>
+		{
+			if (aLedgerUnavailable || !aReceipt.has_value()) {
+				return std::nullopt;
+			}
+			return core::progress_mark(aReceipt->Receipt);
+		}
+
 #if defined(_WIN32)
 		// [[BPR-0653]]. On Windows the strip also carries the menu control and
 		// the three 46-pixel caption buttons. With the modality segments at their
@@ -12377,7 +12391,8 @@ namespace bpr::qt {
 		Navigation[2].Action->setIcon(strip_icon(strip_glyph::previous_change, ink));
 		Navigation[3].Action->setIcon(strip_icon(strip_glyph::next_change, ink));
 		ReviewDetailsAction->setIcon(strip_icon(strip_glyph::review_details, ink));
-		ReviewControlsButton->setIcon(strip_icon(strip_glyph::private_progress, ink));
+		// [[BPR-1331]]. The selected file's mark, in the new ink.
+		ReviewControlsButton->setIcon(strip_icon(progress_glyph(shown_progress_mark(Receipt, LedgerUnavailable)), ink));
 		if (ComposeReviewAction != nullptr && CommentAction != nullptr) {
 			ComposeReviewAction->setIcon(strip_icon(strip_glyph::compose_review, ink));
 			CommentAction->setIcon(strip_icon(strip_glyph::comment, ink));
@@ -12541,31 +12556,60 @@ namespace bpr::qt {
 				QStringLiteral("Update private progress for the selected exact file material."),
 				disabled);
 		}
-		// [[BPR-1129]]. The review bar's progress icon says this file's state in
-		// its tooltip, with the key and the four actions it offers.
+		// [[BPR-1129]] [[BPR-1331]]. The review bar's progress button shows the
+		// selected file's mark, the one the core decided, as its icon, and says
+		// it in its name and tooltip with the key and what a click offers. The
+		// owner, 2026-10-08: "I think the toolbar for seen read accept needs to
+		// update its icon to the current state".
 		if (ReviewControlsButton != nullptr) {
-			auto state = QString{ };
+			const auto mark  = shown_progress_mark(Receipt, LedgerUnavailable);
+			auto       state = QString{ };
+			auto       word  = QString{ };
 			if (LedgerUnavailable) {
 				state = QStringLiteral("Private review progress is unavailable.");
-			} else if (!Receipt.has_value()) {
+				word  = QStringLiteral("unavailable");
+			} else if (!mark.has_value()) {
 				state = QStringLiteral("No file comparison is selected.");
+				word  = QStringLiteral("no file selected");
 			} else {
 				const auto& receipt = Receipt->Receipt;
-				auto        words   = QStringList{ receipt.Read == core::file_read_state::read         ? QStringLiteral("Read")
-													   : receipt.Read == core::file_read_state::unread ? QStringLiteral("unread")
-																									   : QStringLiteral("Seen") };
+				word                = QString::fromUtf8(core::name(*mark));
+				auto facts          = QStringList{ QString::fromUtf8(core::name(receipt.Read)) };
 				if (receipt.Accepted) {
-					words.push_back(QStringLiteral("accepted"));
+					facts.push_back(QStringLiteral("accepted"));
 				}
 				if (receipt.Excluded) {
-					words.push_back(QStringLiteral("excluded"));
+					facts.push_back(QStringLiteral("excluded"));
 				}
-				state = QStringLiteral("This file is %1.").arg(words.join(QStringLiteral(", ")));
+				state = facts.size() == 1 ? QStringLiteral("This file is %1.").arg(facts.front())
+										  : QStringLiteral("This file is %1 and %2.").arg(facts.mid(0, facts.size() - 1).join(QStringLiteral(", ")), facts.back());
 			}
-			const auto key = ReviewControlsButton->shortcut().toString(QKeySequence::NativeText);
-			ReviewControlsButton->setToolTip(QStringLiteral("Private progress (%1)\n%2 Seen, Read, Accept or Exclude").arg(key, state));
+			// What a click offers: the actions the core enabled, by their current
+			// names; with none enabled, the four the menu holds.
+			auto offered = QStringList{ };
+			auto every   = QStringList{ };
+			for (auto* const action : ReceiptActions) {
+				if (action == nullptr) {
+					continue;
+				}
+				const auto label = QString{ action->text() }.remove(QLatin1Char{ '&' });
+				every.push_back(label);
+				if (action->isEnabled()) {
+					offered.push_back(label);
+				}
+			}
+			const auto listed = [](const QStringList& aLabels) {
+				return aLabels.size() <= 1 ? aLabels.join(QString{ })
+										   : QStringLiteral("%1 or %2").arg(aLabels.mid(0, aLabels.size() - 1).join(QStringLiteral(", ")), aLabels.back());
+			};
+			const auto click = offered.isEmpty() ? QStringLiteral("Click to open %1, none available now.").arg(listed(every))
+												 : QStringLiteral("Click to choose %1.").arg(listed(offered));
+			const auto key   = ReviewControlsButton->shortcut().toString(QKeySequence::NativeText);
+			ReviewControlsButton->setIcon(strip_icon(progress_glyph(mark), palette()));
+			ReviewControlsButton->setAccessibleName(QStringLiteral("Private progress: %1").arg(word));
+			ReviewControlsButton->setToolTip(QStringLiteral("Private progress: %1 (%2)\n%3\n%4").arg(word, key, state, click));
 			ReviewControlsButton->setStatusTip(state);
-			ReviewControlsButton->setAccessibleDescription(QStringLiteral("%1 Opens Seen, Read, Accept and Exclude.").arg(state));
+			ReviewControlsButton->setAccessibleDescription(QStringLiteral("%1 %2").arg(state, click));
 		}
 	}
 

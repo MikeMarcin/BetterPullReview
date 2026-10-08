@@ -1127,6 +1127,19 @@ set_tests_properties(qt_shared_snapshot_navigation PROPERTIES
     TIMEOUT 30
 )
 
+# [[BPR-1331]]. The review bar's progress button shows the selected file's
+# decided mark: glyph, name and tooltip, through a change, a file switch and a
+# palette refresh.
+bpr_add_network_isolated_test(
+    NAME qt_review_state_icon
+    COMMAND test_better_pull_review_qt_workbench_window_tests --review-state-icon
+)
+set_tests_properties(qt_review_state_icon PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+    PASS_REGULAR_EXPRESSION "review-state-icon:pass"
+    TIMEOUT 60
+)
+
 # [[BPR-1132]]. Rendered document header, tab keys, file gestures and older-pair notice.
 foreach(bpr_tab_scale IN ITEMS 100 125 200)
     math(EXPR bpr_tab_whole "${bpr_tab_scale} / 100")

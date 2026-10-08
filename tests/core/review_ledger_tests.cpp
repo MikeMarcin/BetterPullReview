@@ -1,3 +1,4 @@
+#include "bpr/core/file_progress_mark.hpp"
 #include "bpr/core/review_ledger.hpp"
 
 #include <array>
@@ -599,6 +600,36 @@ namespace {
 				&& core::name(core::file_receipt_rejection::none) == "none",
 			"every rejection names itself");
 	}
+	/// [[BPR-1331]]. The review bar's progress button shows one mark per file,
+	/// and the core decides it from the receipt the transitions produced.
+	void test_one_progress_mark_sums_up_a_receipt()
+	{
+		using mark         = core::file_progress_mark;
+		auto       receipt = receipt_for(1U, 1U);
+		const auto step    = [&receipt](const kind aKind) {
+			const auto outcome = core::apply(receipt, command_for(receipt, aKind));
+			expect(outcome.Rejection == core::file_receipt_rejection::none, "each step of the mark walk is legal");
+			receipt = outcome.Receipt;
+			return core::progress_mark(receipt);
+		};
+		expect(core::progress_mark(receipt) == mark::unread, "a fresh receipt is unread");
+		expect(step(kind::mark_seen) == mark::seen, "a seen file shows seen");
+		expect(step(kind::mark_read) == mark::read, "a read file shows read");
+		expect(step(kind::accept) == mark::accepted, "acceptance outranks the read progression");
+		expect(step(kind::mark_unread) == mark::accepted, "an accepted file stays accepted however far it was read");
+		expect(step(kind::revoke_acceptance) == mark::unread, "revoking acceptance shows the read progression again");
+		expect(step(kind::exclude) == mark::excluded, "an excluded file shows excluded");
+		expect(step(kind::mark_read) == mark::excluded, "reading an excluded file leaves it excluded");
+		expect(step(kind::include) == mark::read, "including it again shows how far it was read");
+
+		auto handmade     = receipt_for(2U, 2U);
+		handmade.Accepted = true;
+		handmade.Excluded = true;
+		expect(core::progress_mark(handmade) == mark::excluded, "exclusion wins over acceptance in a receipt the core never builds");
+		expect(core::name(mark::unread) == "unread" && core::name(mark::seen) == "seen" && core::name(mark::read) == "read"
+				   && core::name(mark::accepted) == "accepted" && core::name(mark::excluded) == "excluded",
+			   "every progress mark names itself");
+	}
 } // namespace
 
 auto main() -> int
@@ -618,6 +649,7 @@ auto main() -> int
 	test_exclusion_leaves_the_queue_rather_than_ranking_in_it();
 	test_a_filter_changes_membership_and_not_the_ranking_rule();
 	test_every_enumerator_names_itself();
+	test_one_progress_mark_sums_up_a_receipt();
 
 	std::cout << "review-ledger-core-tests:pass\n";
 	return EXIT_SUCCESS;

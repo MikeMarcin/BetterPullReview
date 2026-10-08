@@ -17,6 +17,7 @@
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAbstractButton>
@@ -7008,6 +7009,160 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-1331]]. The image a strip icon paints at the review bar's size.
+	[[nodiscard]] auto progress_icon_image(const QIcon& aIcon, const qreal aScale) -> QImage
+	{
+		return aIcon.pixmap(QSize{ 16, 16 }, aScale).toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+	}
+
+	/// [[BPR-1331]]. The owner, 2026-10-08: "I think the toolbar for seen read
+	/// accept needs to update its icon to the current state". The review bar's
+	/// progress button shows the selected file's mark, the one the core
+	/// decided, and names it; it follows a change, a file switch and a
+	/// palette refresh.
+	void test_review_state_icon_shows_the_decided_mark()
+	{
+		qt::workbench_window window;
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const button = window.review_controls_button();
+		const auto  shows  = [&window, button](const qt::strip_glyph aGlyph) {
+			const auto expected = qt::strip_icon(aGlyph, window.palette());
+			return std::ranges::all_of(std::array{ 1.0, 2.0 }, [&](const qreal aScale) {
+				return progress_icon_image(button->icon(), aScale) == progress_icon_image(expected, aScale);
+			});
+		};
+
+		using glyph       = qt::strip_glyph;
+		const auto glyphs = std::array{ glyph::private_progress, glyph::progress_unread, glyph::progress_seen,
+										glyph::progress_read, glyph::progress_accepted, glyph::progress_excluded };
+		for (std::size_t first = 0U; first < glyphs.size(); ++first) {
+			for (std::size_t second = first + 1U; second < glyphs.size(); ++second) {
+				for (const auto scale : { 1.0, 2.0 }) {
+					expect(progress_icon_image(qt::strip_icon(glyphs[first], window.palette()), scale)
+							   != progress_icon_image(qt::strip_icon(glyphs[second], window.palette()), scale),
+						   "every progress mark paints a different picture at 1x and 2x");
+				}
+			}
+		}
+		expect(qt::progress_glyph(std::nullopt) == glyph::private_progress
+				   && qt::progress_glyph(core::file_progress_mark::unread) == glyph::progress_unread
+				   && qt::progress_glyph(core::file_progress_mark::seen) == glyph::progress_seen
+				   && qt::progress_glyph(core::file_progress_mark::read) == glyph::progress_read
+				   && qt::progress_glyph(core::file_progress_mark::accepted) == glyph::progress_accepted
+				   && qt::progress_glyph(core::file_progress_mark::excluded) == glyph::progress_excluded,
+			   "each decided mark has its own glyph, and no receipt keeps the plain tick");
+		expect(shows(glyph::private_progress) && button->accessibleName() == QStringLiteral("Private progress: no file selected"),
+			   "before any file's progress is known the button shows the plain tick and says so");
+
+		const auto key     = button->shortcut().toString(QKeySequence::NativeText);
+		auto       receipt = core::file_receipt{
+			.File     = core::file_identity_of("review.cpp"),
+			.Material = file_material(73U),
+		};
+		struct state final
+		{
+			core::file_read_state Read;
+			bool                  Accepted;
+			bool                  Excluded;
+			glyph                 Glyph;
+			QString               Word;
+			QString               Sentence;
+		};
+		const auto states = std::array{
+			state{ core::file_read_state::unread, false, false, glyph::progress_unread, QStringLiteral("unread"), QStringLiteral("This file is unread.") },
+			state{ core::file_read_state::seen, false, false, glyph::progress_seen, QStringLiteral("seen"), QStringLiteral("This file is seen.") },
+			state{ core::file_read_state::read, false, false, glyph::progress_read, QStringLiteral("read"), QStringLiteral("This file is read.") },
+			state{ core::file_read_state::read, true, false, glyph::progress_accepted, QStringLiteral("accepted"), QStringLiteral("This file is read and accepted.") },
+			state{ core::file_read_state::seen, false, true, glyph::progress_excluded, QStringLiteral("excluded"), QStringLiteral("This file is seen and excluded.") },
+		};
+		auto grabs = std::vector<QImage>{ };
+		for (const auto& entry : states) {
+			receipt.Read     = entry.Read;
+			receipt.Accepted = entry.Accepted;
+			receipt.Excluded = entry.Excluded;
+			window.publish(application::project_file_receipt_actions(receipt));
+			process_events();
+			const auto tip = button->toolTip();
+			if (!shows(entry.Glyph) || button->accessibleName() != QStringLiteral("Private progress: %1").arg(entry.Word)
+				|| !tip.startsWith(QStringLiteral("Private progress: %1 (%2)\n").arg(entry.Word, key)) || !tip.contains(entry.Sentence)
+				|| !button->accessibleDescription().startsWith(entry.Sentence)) {
+				std::cerr << "state " << entry.Word.toStdString() << " tooltip: " << tip.toStdString() << '\n';
+			}
+			grabs.push_back(button->parentWidget()->grab().toImage());
+			expect(shows(entry.Glyph), "the button's icon is the decided mark's glyph");
+			expect(button->accessibleName() == QStringLiteral("Private progress: %1").arg(entry.Word),
+				   "the button's accessible name carries the decided mark");
+			expect(tip.startsWith(QStringLiteral("Private progress: %1 (%2)\n").arg(entry.Word, key)) && tip.contains(entry.Sentence)
+					   && button->accessibleDescription().startsWith(entry.Sentence),
+				   "the tooltip and description state the file's progress and the key");
+		}
+		// The review bar in each state, stacked, for a person to look at.
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty() && !grabs.empty()) {
+			auto sheet = QImage{ grabs.front().width(), grabs.front().height() * static_cast<int>(grabs.size()), QImage::Format_ARGB32_Premultiplied };
+			sheet.setDevicePixelRatio(grabs.front().devicePixelRatio());
+			sheet.fill(Qt::transparent);
+			auto painter = QPainter{ &sheet };
+			auto top     = 0.0;
+			for (const auto& image : grabs) {
+				painter.drawImage(QPointF{ 0.0, top }, image);
+				top += image.height() / image.devicePixelRatio();
+			}
+			painter.end();
+			expect(sheet.save(path), "the review-state sheet is written");
+		}
+		receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		expect(button->toolTip().endsWith(QStringLiteral("\nClick to choose Seen, Read, Accept or Exclude.")),
+			   "the tooltip says what a click offers, from the actions the core enabled");
+
+		// A change through the menu: the gesture dispatches, the host applies
+		// it, and the published receipt moves the icon at once.
+		auto dispatched = std::vector<core::file_receipt_command>{ };
+		window.set_receipt_dispatch([&dispatched](core::file_receipt_command aCommand) { dispatched.push_back(std::move(aCommand)); });
+		window.read_action()->trigger();
+		expect(dispatched.size() == 1U && dispatched.front().Kind == core::file_receipt_command_kind::mark_read,
+			   "Read from the menu dispatches the read command");
+		window.publish(application::project_file_receipt_actions(core::apply(receipt, dispatched.front()).Receipt));
+		process_events();
+		expect(shows(glyph::progress_read) && button->accessibleName() == QStringLiteral("Private progress: read"),
+			   "the published change shows read immediately");
+
+		// A file switch: the selection clears the old receipt, then the new
+		// file's arrives.
+		window.clear_review_ledger();
+		process_events();
+		expect(shows(glyph::private_progress) && button->accessibleName() == QStringLiteral("Private progress: no file selected"),
+			   "while the next file loads the read file's mark is gone");
+		window.publish(application::project_file_receipt_actions(core::file_receipt{
+			.File     = core::file_identity_of("other.cpp"),
+			.Material = file_material(74U),
+		}));
+		process_events();
+		expect(shows(glyph::progress_unread) && button->accessibleName() == QStringLiteral("Private progress: unread"),
+			   "switching to an unread file shows unread");
+
+		// A refresh of the palette repaints the current mark, not the tick.
+		auto accepted     = receipt;
+		accepted.Read     = core::file_read_state::read;
+		accepted.Accepted = true;
+		window.publish(application::project_file_receipt_actions(accepted));
+		process_events();
+		auto changed = window.palette();
+		changed.setColor(QPalette::Active, QPalette::ButtonText, QColor{ 0xC0, 0x30, 0x30 });
+		window.setPalette(changed);
+		process_events();
+		expect(shows(glyph::progress_accepted), "a palette refresh keeps the accepted mark, in the new ink");
+
+		window.clear_review_ledger(true);
+		process_events();
+		expect(shows(glyph::private_progress) && button->accessibleName() == QStringLiteral("Private progress: unavailable"),
+			   "an unavailable ledger shows no file's mark and says why");
+		window.hide();
+	}
+
 	void test_selection_synchronisation_and_restart_persistence()
 	{
 		const auto [leftText, rightText] = comparison_fixture_text();
@@ -11778,6 +11933,11 @@ auto main(int argc, char** argv) -> int
 		std::cout << "dif-workshop-placement:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--review-state-icon"))) {
+		test_review_state_icon_shows_the_decided_mark();
+		std::cout << "review-state-icon:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--document-tabs"))) {
 		test_document_tabs_present_exact_views_and_translate_gestures();
 		std::cout << "document-tabs:pass\n";
@@ -11913,6 +12073,7 @@ auto main(int argc, char** argv) -> int
 	test_unavailable_saved_layout_survives_workbench_projections();
 	test_focus_order_is_declared_named_and_walkable();
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
+	test_review_state_icon_shows_the_decided_mark();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
 	test_the_right_tray_holds_comments_and_notes_tabs();
