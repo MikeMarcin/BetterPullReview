@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1330"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Overview summary resize handle cursor flickers back to the arrow",
+  "created": "2026-10-08T18:43:41.282623+00:00",
+  "base": "3abccb4ccb0f6fce2727348cdd9dc579869e1592"
+}
