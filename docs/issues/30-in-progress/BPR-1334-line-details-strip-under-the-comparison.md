@@ -178,9 +178,13 @@ any comparison exists. A/B runs alternated with an `origin/main` control build
 (control 22–86, candidate 15–153). No regression was found; the clean gate is
 the low-load run above.
 
-**Pins.** Round-trip pins resealed over 68978f145..HEAD. That range includes
-BPR-1336's and BPR-1338's unsealed pinned-scope commits, reviewed in the
-contract's note. Mutation pin unchanged.
+**Pins.** Main moved again before the push. BPR-1341 (`d9cc2aebf`) resealed
+over BPR-1336's and BPR-1338's pinned-scope commits and renamed the
+Conversations modality to Threads. The landed commits are this card's,
+rebased onto `d9cc2aebf`, with one BPR-1334 reseal over BPR-1341's (pins match
+there; mutation pin unchanged). They were not rebuilt again. Apart from
+BPR-1341's renames, which share no identifier with this card's code, the
+product equals the frozen candidate `f6f247e8b`.
 
 ## Owner look (C5, pending)
 
