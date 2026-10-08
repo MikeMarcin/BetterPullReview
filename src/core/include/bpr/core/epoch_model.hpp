@@ -911,6 +911,8 @@ namespace bpr::core {
 		unsupported_object,
 		git_tool_unsupported,
 		git_tool_probe_failed,
+		gh_tool_unsupported,
+		gh_tool_probe_failed,
 	};
 
 	/// \brief Describes the epoch catalog load failed event record.
@@ -1390,6 +1392,8 @@ namespace bpr::core {
 		unsupported_object,
 		git_tool_unsupported,
 		git_tool_probe_failed,
+		gh_tool_unsupported,
+		gh_tool_probe_failed,
 	};
 
 	/// \brief Computes the reason for result.

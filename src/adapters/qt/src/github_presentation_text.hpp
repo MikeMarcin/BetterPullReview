@@ -100,7 +100,7 @@ namespace bpr::qt::detail {
 			"Concurrent account switching can change the account used by a request; there is no exact account guarantee. "
 			"On macOS, CLI file writes are denied; an older gh configuration that needs migration will be refused. "
 			"Full diffs may run Git and gh's own shell credential helper as child processes; their executable, configuration and account-switch races remain. "
-			"Full comparison currently requires gh 2.100.0 or 2.101.0 and Apple Git 2.50.1, with a 32 MiB per-file Git limit and supervised temporary-store cutoff. "
+			"Full comparison requires gh 2.96 or later and Git 2.49 or later, each checked locally for the commands it runs, with a 32 MiB per-file Git limit and supervised temporary-store cutoff. "
 			"Publishing a review or inline comment requires a separate exact-target confirmation for each write. "
 			"Read opt-in does not authorize publishing.");
 	}

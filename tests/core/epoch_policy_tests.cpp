@@ -32,6 +32,10 @@ namespace {
 			   "unsupported Git operations retain their actionable reason");
 		expect(reason_for(epoch_failure::git_tool_probe_failed) == epoch_reason_code::git_tool_probe_failed,
 			   "a failed Git check is distinct from unsupported operations");
+		expect(reason_for(epoch_failure::gh_tool_unsupported) == epoch_reason_code::gh_tool_unsupported,
+			   "unsupported GitHub CLI operations retain their actionable reason");
+		expect(reason_for(epoch_failure::gh_tool_probe_failed) == epoch_reason_code::gh_tool_probe_failed,
+			   "a failed GitHub CLI check is distinct from unsupported operations and from Git");
 	}
 
 	auto test_sha256_known_vectors() -> void

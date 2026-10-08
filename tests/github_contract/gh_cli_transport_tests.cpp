@@ -616,6 +616,18 @@ namespace {
 		expect(gh_arguments(compile_gh_cli_version_request(*configuration))
 				   == std::vector<std::string>{ "--version" },
 			   "version preflight has the same write containment as reads");
+		for (const auto& [topic, expected] : std::array<std::pair<gh_cli_help_topic, std::vector<std::string>>, 3U>{ {
+				 { gh_cli_help_topic::api, { "api", "--help" } },
+				 { gh_cli_help_topic::repo_clone, { "repo", "clone", "--help" } },
+				 { gh_cli_help_topic::auth_git_credential, { "auth", "git-credential", "--help" } },
+			 } }) {
+			const auto help = compile_gh_cli_help_request(*configuration, topic);
+			expect(gh_arguments(help) == expected && help.StandardInput.empty() && help.StandardInputLimit == 1U
+					   && help.StandardOutputLimit == 32U * 1024U && help.StandardErrorLimit == 2048U
+					   && help.Timeout == std::chrono::seconds{ 10 } && !help.PreserveCompletedOutput
+					   && help.Environment == compile_gh_cli_version_request(*configuration).Environment,
+				   "each gh capability probe is closed local help with the version probe's write denial, environment and bounds");
+		}
 
 		// [[BPR-0988]]. The two discovery reads join the recorded catalog here:
 		// a configured CLI session discovers through the same closed shape.
@@ -1751,6 +1763,36 @@ namespace {
 		}
 	}
 
+	void test_gh_help_admission_requires_each_invoked_operation()
+	{
+		constexpr std::string_view api        = "Makes an authenticated HTTP request. Override the method with `--method`.\n\nFLAGS\n"
+												"  -H, --header key:value   Add a HTTP request header\n      --hostname string   The GitHub hostname\n"
+												"  -i, --include            Include HTTP response status line and headers\n"
+												"      --input file         The file to use as body\n  -X, --method string   The HTTP method\n";
+		constexpr std::string_view clone      = "USAGE\n  gh repo clone <repository> [<directory>] [-- <gitflags>...]\n\nFLAGS\n"
+												"      --no-upstream                   Do not add an upstream remote\n";
+		constexpr std::string_view credential = "Implements git credential helper protocol\n\nUSAGE\n  gh auth git-credential [flags]\n";
+		expect(gh_cli_help_admits(gh_cli_help_topic::api, api) && gh_cli_help_admits(gh_cli_help_topic::repo_clone, clone)
+				   && gh_cli_help_admits(gh_cli_help_topic::auth_git_credential, credential),
+			   "current gh help admits the api, repo clone and credential-helper operations");
+		for (const std::string_view flag : { "--header", "--hostname", "--include", "--input", "--method" }) {
+			auto       missing  = std::string{ api };
+			const auto position = missing.find(std::string{ flag } + " ");
+			missing.replace(position, flag.size(), "--unavailable");
+			expect(!gh_cli_help_admits(gh_cli_help_topic::api, missing), "each api flag the app passes is required as an option row");
+		}
+		expect(!gh_cli_help_admits(gh_cli_help_topic::api, "Override the method with --method, --hostname, --include, --header and --input.\n"),
+			   "flags mentioned only in prose do not count");
+		expect(!gh_cli_help_admits(gh_cli_help_topic::repo_clone, "USAGE\n  gh repo clone <repository> [<directory>]\n      --no-upstream  x\n")
+				   && !gh_cli_help_admits(gh_cli_help_topic::repo_clone, "USAGE\n  gh repo clone <repository> [<directory>] [-- <gitflags>...]\n")
+				   && !gh_cli_help_admits(gh_cli_help_topic::repo_clone, "  To skip this behavior, use --no-upstream.\n  gh repo clone <repository> [-- <gitflags>...]\n"),
+			   "repo clone requires both Git flag passthrough and the no-upstream option row");
+		expect(!gh_cli_help_admits(gh_cli_help_topic::auth_git_credential, "unknown command \"git-credential\" for \"gh auth\"\n")
+				   && !gh_cli_help_admits(gh_cli_help_topic::auth_git_credential, "  gh auth git-credentialx\n")
+				   && !gh_cli_help_admits(gh_cli_help_topic::api, ""),
+			   "absent subcommands and empty output are unsupported");
+	}
+
 	void test_auth_status_inventory_is_token_free_bounded_and_fail_closed()
 	{
 		temporary_layout layout;
@@ -1762,8 +1804,12 @@ namespace {
 				&& supported_gh_cli_auth_status_version("gh version 2.96.0 (2026-07-02)\n")
 				&& supported_gh_cli_auth_status_version("gh version 2.100.0 (2026-09-09)\n")
 				&& !supported_gh_cli_auth_status_version("gh version 2.96.bad\n")
-				&& !supported_gh_cli_auth_status_version("gh version 3.0.0\n"),
-			"the exact version line requires gh 2.96 or newer within major version 2");
+				&& supported_gh_cli_auth_status_version("gh version 2.120.0 (2027-03-01)\n")
+				&& supported_gh_cli_auth_status_version("gh version 3.0.0\n")
+				&& !supported_gh_cli_auth_status_version("gh version 2.96\n")
+				&& !supported_gh_cli_auth_status_version("gh version 99999999999999999999.0.0\n")
+				&& !supported_gh_cli_auth_status_version("gh 2.101.0\n"),
+			"the version line requires gh 2.96 or newer, including later majors, and refuses malformed numbers");
 
 		const auto request = compile_gh_cli_auth_status_request(*configuration);
 		expect(
@@ -1824,6 +1870,7 @@ try {
 	test_correlation_server_and_wire_drift_are_rejected();
 	test_transport_parses_actual_response_and_fixed_failures();
 	test_capability_probe_uses_closed_query_and_response();
+	test_gh_help_admission_requires_each_invoked_operation();
 	test_auth_status_inventory_is_token_free_bounded_and_fail_closed();
 	test_detected_configuration_change_refuses_launch();
 	test_configuration_file_metadata_changes();

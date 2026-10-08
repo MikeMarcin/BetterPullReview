@@ -436,20 +436,27 @@ namespace bpr::adapters::github::detail {
 				if (!process) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				gh_cli_transport identity{ Profile, Configuration, *process };
-				aStep             = git_smart_transport_step::identity_before;
-				const auto before = viewer(identity, aStop);
-				if (!before) {
-					return std::unexpected{ before.error() };
-				}
 				aStep                = git_smart_transport_step::cli_version;
 				const auto ghVersion = process->run(compile_gh_cli_version_request(Configuration), aStop);
 				if (!ghVersion) {
 					return std::unexpected{ git_smart_transport_error{ process_error(ghVersion.error()) } };
 				}
 				aStep = git_smart_transport_step::cli_qualification;
-				if (!ghVersion->StandardOutput.starts_with("gh version 2.100.0 ") && !ghVersion->StandardOutput.starts_with("gh version 2.101.0 ")) {
+				if (!supported_gh_cli_version(ghVersion->StandardOutput)) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				// Local help proves each gh operation this path invokes before any
+				// credentialed gh use; only a completed zero exit returns its text.
+				for (const auto topic : gh_cli_required_help_topics) {
+					aStep            = git_smart_transport_step::cli_capability_probe;
+					const auto probe = process->run(compile_gh_cli_help_request(Configuration, topic), aStop);
+					if (!probe) {
+						return std::unexpected{ git_smart_transport_error{ process_error(probe.error()) } };
+					}
+					aStep = git_smart_transport_step::cli_qualification;
+					if (!gh_cli_help_admits(topic, probe->StandardOutput)) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
 				}
 				aStep                              = git_smart_transport_step::git_version;
 				auto versionRequest                = local_request(root, { "--version" });
@@ -485,6 +492,12 @@ namespace bpr::adapters::github::detail {
 					|| (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees
 						&& (!clone_option_available(capability->StandardOutput, "filter") || !clone_option_available(capability->StandardOutput, "depth")))) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				gh_cli_transport identity{ Profile, Configuration, *process };
+				aStep             = git_smart_transport_step::identity_before;
+				const auto before = viewer(identity, aStop);
+				if (!before) {
+					return std::unexpected{ before.error() };
 				}
 				for (std::size_t index = 0U; index < aWants.size(); ++index) {
 					aStep = git_smart_transport_step::admission;

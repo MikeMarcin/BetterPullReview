@@ -916,31 +916,105 @@ namespace bpr::adapters::github::detail {
 		});
 	}
 
-	auto supported_gh_cli_auth_status_version(const std::string_view aOutput)
-		-> bool
+	auto supported_gh_cli_version(const std::string_view aOutput) -> bool
 	{
-		constexpr auto prefix = std::string_view{ "gh version 2." };
+		constexpr auto prefix = std::string_view{ "gh version " };
 		if (!aOutput.starts_with(prefix)) {
 			return false;
 		}
-		auto       version     = aOutput.substr(prefix.size());
-		int        minor       = 0;
-		const auto parsedMinor = std::from_chars(
-			version.data(), version.data() + version.size(), minor);
-		if (parsedMinor.ec != std::errc{ } || parsedMinor.ptr == version.data()
-			|| parsedMinor.ptr == version.data() + version.size() || *parsedMinor.ptr != '.'
-			|| minor < 96) {
-			return false;
+		auto                     remaining = aOutput.substr(prefix.size());
+		std::array<unsigned, 3U> version{ };
+		for (std::size_t index = 0U; index < version.size(); ++index) {
+			const auto parsed = std::from_chars(remaining.data(), remaining.data() + remaining.size(), version[index]);
+			if (parsed.ec != std::errc{ } || parsed.ptr == remaining.data()) {
+				return false;
+			}
+			remaining.remove_prefix(static_cast<std::size_t>(parsed.ptr - remaining.data()));
+			if (index + 1U < version.size()) {
+				if (remaining.empty() || remaining.front() != '.') {
+					return false;
+				}
+				remaining.remove_prefix(1U);
+			}
 		}
-		int        patch       = 0;
-		const auto parsedPatch = std::from_chars(
-			parsedMinor.ptr + 1, version.data() + version.size(), patch);
-		if (parsedPatch.ec != std::errc{ } || parsedPatch.ptr == parsedMinor.ptr + 1
-			|| (parsedPatch.ptr != version.data() + version.size()
-				&& *parsedPatch.ptr != ' ' && *parsedPatch.ptr != '\n')) {
-			return false;
+		return (remaining.empty() || remaining.front() == ' ' || remaining.front() == '\n' || remaining.front() == '-')
+			&& version >= minimum_gh_cli_version;
+	}
+
+	auto supported_gh_cli_auth_status_version(const std::string_view aOutput)
+		-> bool
+	{
+		return supported_gh_cli_version(aOutput);
+	}
+
+	auto compile_gh_cli_help_request(
+		const validated_gh_cli_configuration& aConfiguration,
+		const gh_cli_help_topic               aTopic)
+		-> github_cli_process_request
+	{
+		std::vector<std::string> arguments;
+		switch (aTopic) {
+		case gh_cli_help_topic::api:                 arguments = { "api", "--help" }; break;
+		case gh_cli_help_topic::repo_clone:          arguments = { "repo", "clone", "--help" }; break;
+		case gh_cli_help_topic::auth_git_credential: arguments = { "auth", "git-credential", "--help" }; break;
 		}
-		return true;
+		return constrain_gh_writes(github_cli_process_request{
+			.Executable          = path_bytes(aConfiguration.Executable),
+			.Arguments           = std::move(arguments),
+			.Environment         = aConfiguration.Environment,
+			.WorkingDirectory    = path_bytes(aConfiguration.NeutralWorkingDirectory),
+			.StandardInput       = { },
+			.StandardInputLimit  = 1U,
+			.StandardOutputLimit = 32U * 1024U,
+			.StandardErrorLimit  = 2048U,
+			.Timeout             = std::chrono::seconds{ 10 },
+			.ReapTimeout         = process_reap_timeout,
+		});
+	}
+
+	auto gh_cli_help_admits(const gh_cli_help_topic aTopic, const std::string_view aHelp) -> bool
+	{
+		const auto lines = [aHelp](auto aPredicate) {
+			auto remaining = aHelp;
+			while (!remaining.empty()) {
+				const auto end  = remaining.find('\n');
+				auto       line = remaining.substr(0U, end);
+				remaining.remove_prefix(end == std::string_view::npos ? remaining.size() : end + 1U);
+				line.remove_prefix(std::min(line.find_first_not_of(" \t"), line.size()));
+				if (aPredicate(line)) {
+					return true;
+				}
+			}
+			return false;
+		};
+		// An option row is `--name ...` or `-x, --name ...`; prose mentions do not count.
+		const auto option = [&lines](std::string_view aName) {
+			return lines([aName](std::string_view aLine) {
+				if (aLine.size() >= 4U && aLine[0] == '-' && aLine[1] != '-' && aLine[2] == ',' && aLine[3] == ' ') {
+					aLine.remove_prefix(4U);
+				}
+				if (!aLine.starts_with("--") || !aLine.substr(2U).starts_with(aName)) {
+					return false;
+				}
+				const auto rest = aLine.substr(2U + aName.size());
+				return rest.empty() || rest.front() == ' ' || rest.front() == '=';
+			});
+		};
+		const auto usage = [&lines](std::string_view aCommand, std::string_view aRequired) {
+			return lines([aCommand, aRequired](std::string_view aLine) {
+				return aLine.starts_with(aCommand) && (aLine.size() == aCommand.size() || aLine[aCommand.size()] == ' ')
+					&& aLine.find(aRequired) != std::string_view::npos;
+			});
+		};
+		switch (aTopic) {
+		case gh_cli_help_topic::api:
+			return option("hostname") && option("include") && option("method") && option("header") && option("input");
+		case gh_cli_help_topic::repo_clone:
+			return usage("gh repo clone", "[-- <gitflags>...]") && option("no-upstream");
+		case gh_cli_help_topic::auth_git_credential:
+			return usage("gh auth git-credential", "gh auth git-credential");
+		}
+		return false;
 	}
 
 	auto compile_gh_cli_auth_status_request(

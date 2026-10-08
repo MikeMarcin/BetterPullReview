@@ -159,10 +159,11 @@ with a narrowly owned temporary object-store exception only for the bounded
 clone; an unavailable boundary refuses the CLI profile. This covers `gh`'s
 possible first-use global configuration migration, which a post-request check
 cannot prevent. BetterPullReview must not read the helper's token exchange or
-change global authentication. Full Git comparison currently requires
-`gh` 2.100.0 or 2.101.0 and Git 2.49+ with the required bounded clone capabilities,
-rather than one exact vendor/banner. The minimum supplies `clone --revision`;
-capability admission retains actual clone and exact-object validation. Native
+change global authentication. Full Git comparison requires `gh` 2.96 or later
+and Git 2.49 or later, not one exact vendor or banner. Bounded, write-denied
+local help probes must show the `gh` and `git clone` options the app uses before
+any credentialed call; a failed check and an unsupported tool are reported
+separately. Capability admission retains actual clone and exact-object validation. Native
 qualification evidence remains installation-specific. The 32 MiB per-file
 ceiling and supervised 96 MiB/128-entry temporary-store abort threshold remain; the
 aggregate threshold is not a hard disk quota. Local refs reflect the accepted

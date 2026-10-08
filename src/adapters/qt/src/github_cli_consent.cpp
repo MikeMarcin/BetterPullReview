@@ -10,7 +10,7 @@ namespace bpr::qt {
 	namespace {
 		// The supporting detail behind Show Details. Every residual risk the
 		// earlier one-paragraph warning named is still here; only its place
-		// changed. The gh versions mirror the Git-object allowlist in
+		// changed. The gh and Git minimums mirror the capability admission in
 		// gh_cli_git_smart_transport.cpp and change with it.
 		[[nodiscard]] auto github_cli_read_consent_details() -> QString
 		{
@@ -25,8 +25,8 @@ namespace bpr::qt {
 				"File writes: gh may write only to a temporary object store BetterPullReview owns, so an "
 				"older gh configuration that needs migration is refused.\n\n"
 				"Full comparisons: Git and gh's own shell credential helper may run as child processes. "
-				"They need gh 2.100.0 or 2.101.0 with Apple Git 2.50.1, allow 32 MiB per file and stop at "
-				"a supervised temporary-store limit.\n\n"
+				"They need gh 2.96 or later and Git 2.49 or later, each checked locally for the commands "
+				"it runs, allow 32 MiB per file and stop at a supervised temporary-store limit.\n\n"
 				"Token: BetterPullReview never reads, stores or passes your gh token and does not change "
 				"gh's sign-in.\n\n"
 				"Publishing: each review or inline comment asks for its own confirmation naming the host, "

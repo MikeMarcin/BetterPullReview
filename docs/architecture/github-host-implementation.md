@@ -560,7 +560,8 @@ has explicit
 CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
 observed `/user` identity, pre/post-request account checks and a read-only lease.
 It invokes the configured `gh` directly with bounded arguments, input, output
-and time; account discovery and API use require `gh` 2.x with minor >= 96
+and time; account discovery and API use require `gh` 2.96 or later
+(including later majors)
 because the account inventory uses `gh auth status --active --json hosts`.
 Older versions are refused before account status runs and the UI requires an
 upgrade. BetterPullReview never passes `--show-token`.
@@ -572,13 +573,17 @@ with a narrowly owned temporary object-store exception only for the bounded
 clone; an unavailable boundary refuses the CLI profile. This covers `gh`'s
 possible first-use global configuration migration, which a post-request check
 cannot prevent. BetterPullReview must not read the helper's token exchange or
-change global authentication. Full Git comparison currently requires
-`gh` 2.100.0 or 2.101.0 and Git 2.49+ with the required bounded clone capabilities,
-rather than one exact vendor/banner. The minimum supplies `clone --revision`;
-capability admission retains actual clone and exact-object validation. Native
+change global authentication. Full Git comparison requires `gh` 2.96 or later
+(RFC-BPR-0015's account and API floor) and Git 2.49 or later
+(`clone --revision`), not one exact vendor or banner. Before any credentialed
+`gh` use, bounded write-denied local `gh api --help`, `gh repo clone --help`
+and `gh auth git-credential --help` probes must show the flags and usage the
+app invokes, and `git clone -h` must show the required clone options. A failed
+check and an unsupported tool reach the comparison as distinct typed reasons.
+Capability admission retains actual clone and exact-object validation. Native
 qualification evidence remains installation-specific. The 32 MiB per-file
-ceiling and supervised 96 MiB/128-entry temporary-store abort threshold remain; the
-aggregate threshold is not a hard disk quota. Local refs reflect the accepted
+ceiling and supervised 96 MiB/128-entry temporary-store abort threshold
+remain; the aggregate threshold is not a hard disk quota. Local refs reflect the accepted
 API snapshot, not fresh remote advertisement. A tests-disabled macOS fixture
 now renders a full PR diff through the CLI profile; an isolated build with
 the process adapter removed from composition visibly refuses the same healthy

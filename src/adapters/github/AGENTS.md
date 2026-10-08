@@ -40,7 +40,8 @@ the functional core or Qt presentation adapter.
   spinner, prompt, or arbitrary parent variables.
 - Compile only closed `gh api` argument shapes from revalidated canonical
   requests; a bounded local `gh --version` probe may precede opt-in use and
-  carries no credential or request body. Native HTTPS remains the default production authentication
+  carries no credential or request body, as do the closed local
+  `gh <topic> --help` capability probes of the Git-object path. Native HTTPS remains the default production authentication
   transport. RFC-BPR-0015 authorizes an explicitly opted-in configured-CLI
   account profile with visible residual risks for reads and review/comment
   publishing. Its former blanket `cli_unavailable` rule is historical; a
@@ -65,11 +66,19 @@ the functional core or Qt presentation adapter.
   may serve the bounded cloned object store through closed protocol v2
   arguments, without network, helper, hooks or repository-controlled executable
   configuration; it runs only in the GitHub CLI process runner.
-  The macOS Git-object implementation retains the directly checked
-  `gh` 2.100.0 or 2.101.0. The RFC0065 owner amendment replaces exact Git
-  vendor/banner equality with bounded required-operation checks and a minimum
-  Git 2.49 for `clone --revision`. Direct installed-tool evidence remains
-  installation-specific; capability admission is not universal native qualification.
+  The RFC0065 owner amendments replace the former exact `gh` 2.100.0/2.101.0
+  allowlist and exact Git vendor/banner equality with bounded required-operation
+  checks: `gh` 2.96 or later (the RFC-BPR-0015 account/API floor; later majors
+  admitted) and Git 2.49 or later for `clone --revision`. Before any
+  credentialed `gh` use, write-denied local `gh api --help`,
+  `gh repo clone --help` and `gh auth git-credential --help` probes (32 KiB,
+  10 s, completed zero exit only, no standard error) must show every flag and
+  usage the path invokes; `gh_cli_help_topic` is the closed probe set. A failed
+  check reports `cli_version` or `cli_capability_probe`, an unsupported tool
+  `cli_qualification`; the host maps them to `gh_tool_probe_failed` and
+  `gh_tool_unsupported`. Direct installed-tool evidence remains
+  installation-specific; capability admission is not universal native
+  qualification.
   It enforces a
   32 MiB per-file ceiling, and
   supervises a 96 MiB/128-entry temporary-store abort threshold. The latter
