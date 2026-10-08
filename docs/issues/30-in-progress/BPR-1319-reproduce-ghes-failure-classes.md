@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1319"
 title: "Establish separate GHES tool and actor-provenance reproducers"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0065"]
 depends_on: []
 priority: "P1"
