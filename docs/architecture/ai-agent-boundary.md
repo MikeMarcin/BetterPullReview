@@ -827,6 +827,39 @@ accepts it on the surface. Five refusals cover every path that produces no
 proposal — `different_draft`, `not_an_edit`, `empty_revision`, `unchanged` —
 because "nothing appeared" is the one answer a workshop must never give.
 
+**A press carries the review-feedback guidance while the label helper is on
+(BPR-1091).** `application::workshop_feedback_supplement` turns the profile's
+effective Review feedback hook (BPR-1090) into a `core::supplement_feedback_guidance`: the text, the shipped version it
+was taken from (`review-feedback-v1`), and whether it is the shipped default or
+the profile's override, which is sent as written and never merged with the
+default. The composition fills it in `dispatch_agent_invocation` for a
+`workshop_comment` gesture with an operation, and for nothing else; the core
+admits it only beside an admitted workshop operation and refuses it whole
+anywhere else, oversize, empty, or not UTF-8. `encode_agent_supplement` writes
+`feedback_guidance.source`, `.version` and `.text` directly after
+`workshop_operation`, and only when it is present: with the helper off, a press
+is byte for byte the request it was before the hook existed
+(`application_agent_launch` pins that wire's digest). The guidance is text on
+the existing launch; it adds no argument, environment variable, tool, MCP
+server, model call or publication path, and saving the hook or turning the
+helper on launches nothing.
+
+**The proposal says what it changes besides wording (BPR-1091).**
+`core::compare_workshop_candidate` reads the original and the candidate with the
+shared recognizer (`recognize_feedback_prefix`), compares every suggestion
+block's exact bytes (`core::suggestion_blocks`), and reads whether the prose
+still asks a question (code, fenced blocks and query strings excluded). The
+host attaches the result to every `agent_comment_workshop_proposal`, and
+`qt::review_draft_editor` shows it under the two texts, recomputed from the two
+texts it shows: "Label kept: question (non-blocking) · Still asks a question ·
+Suggested change kept byte for byte" for a prose-only revision, or each change
+named ("Label changed: question → issue (blocking)", "No longer asks a
+question", "Changes the suggested change"). A header the recognizer cannot read
+is said to be unknown or unreadable, never passed off as plain. Nothing is
+refused or rewritten on these grounds, and Accept is still one local
+`review_draft_command` `edit` carrying the candidate's bytes, whatever the
+candidate's text asks for.
+
 On screen, `qt::finding_queue_view` offers exactly six actions —
 `open_evidence`, `ask_follow_up`, `convert_to_draft_comment`,
 `convert_to_draft_defect`, `add_to_private_notes`, `dismiss` — each emitting one
