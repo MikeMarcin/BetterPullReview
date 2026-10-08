@@ -26,6 +26,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 // RFC-BPR-0033 B1 and B2, the native half. The offscreen management course proves
@@ -200,6 +201,7 @@ namespace {
 		std::vector<std::string> Titles;
 		std::vector<std::string> ApplicationItems;
 		std::vector<std::string> ViewItems;
+		std::vector<std::string> PullRequestItems;
 		std::string              Description;
 	};
 	/// \brief The description with each "unavailable — reason" title reduced
@@ -220,8 +222,12 @@ namespace {
 	}
 	auto snapshot_menu_bar() -> menu_bar_snapshot
 	{
-		return { native::main_menu_visible_titles(), native::main_menu_items("Apple"),
-				 native::main_menu_items("View"), commands_only(native::describe_main_menu()) };
+		auto pullRequest = native::main_menu_items("Pull Request");
+		for (auto& item : pullRequest) {
+			item = commands_only(item);
+		}
+		return { native::main_menu_visible_titles(), native::main_menu_items("Apple"), native::main_menu_items("View"),
+				 std::move(pullRequest), commands_only(native::describe_main_menu()) };
 	}
 	void check_update_menu()
 	{
@@ -481,6 +487,14 @@ try {
 			   && !native::main_menu_item_is_enabled("Pull Request", "Compose review")
 			   && !native::main_menu_item_is_enabled("Pull Request", "Comment"),
 		   "offered and not actionable, because no window's presentation is theirs to change");
+	// [[BPR-1338]]. Pull Request, read from the window's bar before the close
+	// rather than restated: Open on GitHub joined the window's menu and not
+	// this bar, and only the description comparison below saw it missing.
+	expect(!windowed.PullRequestItems.empty() && resident.PullRequestItems == windowed.PullRequestItems,
+		   "every Pull Request command the window offered is offered in order with no window open");
+	expect(std::ranges::none_of(resident.PullRequestItems,
+								[](const std::string& aItem) { return native::main_menu_item_is_enabled("Pull Request", aItem); }),
+		   "and none of them acts, because no window has a pull request open");
 	expect(resident.Description == expectedResident.Description,
 		   "the windowless bar retains the full workbench command set");
 	expect(closing.LongestGapMs == 0 && !closing.GapOpen,

@@ -1104,6 +1104,13 @@ endfunction()
 # names. No grant, target, provider, credential, transport, GitHub write,
 # mutation or publication path changes; mutation pin unchanged. Reviewed on
 # BPR-1334.
+# BPR-1338 follow-up reseal (2026-10-08), over the BPR-1334 reseal above; no
+# other intervening pinned-scope commit. github_application.cpp's UIforETW
+# course now expects Open on GitHub (`workbenchOpenOnGithubAction`) right after
+# the name, so the title row's exact order counts 18 actions and the Windows
+# caption buttons move to index 18. Test evidence only: no grant, target,
+# provider, credential, GitHub write, mutation or publication path changes;
+# mutation pin unchanged; no new src/app source. Self-review on BPR-1338.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1122,7 +1129,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"95311083a5cd73c83f92361a10e361d7910ac4a9e1a0eb780a1b5bfbaf51b790"
+		"567618d493a6b5d9d9b08222b110f9b7b78db980f085e105b2e6184ebbfe7a7c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1324,7 +1331,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "87c73486011aab437054789452d9a3329f7c23c546b2adc483c94f3b90e64687"
+        "4030cfee70505f1fdcddbfd32297ca11c145a91517601811ee07011f2249e5b4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

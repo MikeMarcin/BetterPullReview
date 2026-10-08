@@ -22978,7 +22978,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					  && aActions[aIndex]->objectName() == QLatin1String{ aName };
 			  };
 		// [[BPR-1129]]. RFC-BPR-0052's title row, left to right: the platform
-		// inset, Home, repositories, files, the name, a spacer, the modality
+		// inset, Home, repositories, files, the name, Open on GitHub right
+		// after it ([[BPR-1338]]), a spacer, the modality
 		// control, Home's Group, State headers and Filter (hidden outside
 		// Home), refresh, Home's discovery refresh (hidden outside Home),
 		// comments, Hide Drawers ([[BPR-1295]]), a rule, account, settings.
@@ -23004,7 +23005,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							   const qsizetype aIndex, const char* const aName) {
 			return widgetActionNamed(toolbarActions, aIndex + lead, aName);
 		};
-		const auto exactRowOrder = toolbarActions.size() == 17 + lead + trailing
+		const auto exactRowOrder = toolbarActions.size() == 18 + lead + trailing
 			&& widgetActionNamed(toolbarActions, 0, "workbenchStripInsetAction")
 	#if defined(_WIN32)
 			&& widgetActionNamed(toolbarActions, 1, "workbenchStripMenuAction")
@@ -23013,20 +23014,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& toolbarActions[at(2)] == repositoriesAction
 			&& toolbarActions[at(3)] == filesAction
 			&& named(4, "workbenchStripIdentityAction")
-			&& named(5, "workbenchNavigationSpacerAction")
-			&& named(6, "workbenchModalityAction")
-			&& named(7, "homeGroupAction")
-			&& named(8, "homeStateHeadersAction")
-			&& named(9, "homeFilterAction")
-			&& toolbarActions[at(10)] == window->github_refresh_action()
-			&& toolbarActions[at(11)] == window->queue_refresh_action()
-			&& toolbarActions[at(12)] == conversationsAction
-			&& toolbarActions[at(13)] == window->toggle_drawers_action()
-			&& named(14, "workbenchStripRightDividerAction")
-			&& toolbarActions[at(15)] == window->account_action()
-			&& toolbarActions[at(16)] == window->settings_action()
+			&& named(5, "workbenchOpenOnGithubAction")
+			&& named(6, "workbenchNavigationSpacerAction")
+			&& named(7, "workbenchModalityAction")
+			&& named(8, "homeGroupAction")
+			&& named(9, "homeStateHeadersAction")
+			&& named(10, "homeFilterAction")
+			&& toolbarActions[at(11)] == window->github_refresh_action()
+			&& toolbarActions[at(12)] == window->queue_refresh_action()
+			&& toolbarActions[at(13)] == conversationsAction
+			&& toolbarActions[at(14)] == window->toggle_drawers_action()
+			&& named(15, "workbenchStripRightDividerAction")
+			&& toolbarActions[at(16)] == window->account_action()
+			&& toolbarActions[at(17)] == window->settings_action()
 	#if defined(_WIN32)
-			&& named(17, "workbenchCaptionButtonsAction")
+			&& named(18, "workbenchCaptionButtonsAction")
 	#endif
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
@@ -23079,7 +23081,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// at its right.
 	#if defined(_WIN32)
 		const auto windowControlsInRow = exactRowOrder
-			? toolbar->actionGeometry(toolbarActions[at(17)])
+			? toolbar->actionGeometry(toolbarActions[at(18)])
 			: QRect{ };
 	#else
 		const auto windowControlsInRow = QRect{ };

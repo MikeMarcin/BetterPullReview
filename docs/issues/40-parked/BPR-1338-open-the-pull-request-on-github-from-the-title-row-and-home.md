@@ -211,3 +211,42 @@ predate this card.
   `BPR-1338-open-in-browser-v001` and `BPR-1338-home-open-v001`.
 - Next: on hand-back, read `status --after 6`. Accept on both closes
   `BPR-1338:owner-look`; a Reject's note is the next round's change.
+
+## Follow-up — 2026-10-08: two rows e8e1567c4 broke on main
+
+BPR-1341's verification found two rows red on main after e8e1567c4.
+
+- `application_uiforetw_selected_diff_contract` (`title_row_exact_order`).
+  The composition's UIforETW course still expected 17 title-row actions. It
+  now expects `workbenchOpenOnGithubAction` right after the name, 18 in all,
+  as `qt_workbench_title_row_scale_*` does. The Windows caption buttons move
+  to index 18. Because `github_application.cpp` changed, the round-trip pin
+  in `application_review_round_trip_composition_contract.cmake` is resealed
+  over BPR-1334's reseal (full digest `567618d4…`, manifest `4030cfee…`).
+  The change is test evidence only and the mutation pin is unchanged.
+- `application_profile_empty_desktop_native_menu_bar`. The window's Pull
+  Request menu gained Open on GitHub, but the bar a Mac keeps with no window
+  open did not, so closing the last window removed it. `desktop_menu_bar` now
+  offers it first, on ⇧⌘O, followed by a separator, and disabled as BPR-1304
+  did for View's items. The menu's accessible description gives the reason:
+  "Open the pull request on GitHub, or keep it or its repository in my queue,
+  unavailable while no window is open". The item's status tip gives the same
+  reason.
+- The tests now read the window's own menu instead of restating it.
+  `qt_profile_management_window` compares the desktop bar's Pull Request with
+  a real window's, command by command, including separators, checkability
+  and keys. A window's Comment names its own unavailability in its title,
+  and that state is dropped before comparing. The native course compares the
+  resident bar's Pull Request items with the windowed bar's, read before the
+  close, and requires every one of them to be disabled. Before this change,
+  only its whole-bar description comparison caught the missing item.
+
+Evidence (macOS, `build/dev` Debug, offscreen, targets only):
+`qt_profile_management_window`, `application_uiforetw_selected_diff_contract`
+and `application_review_round_trip_composition_contract` pass. As a
+failing-before control, `qt_profile_management_window` was run against main's
+`desktop_menu_bar.cpp` and failed at "Pull Request carries the window menu's
+own commands". `test_profile_empty_desktop_native_menu_bar` compiles. Its run
+needs the owner's Aqua session (cocoa), so it was not run here and is owed on
+the owner's native run. `clang-format` and `git diff --check` pass on the
+changed files.

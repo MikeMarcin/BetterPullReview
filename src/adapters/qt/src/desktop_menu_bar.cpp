@@ -67,8 +67,17 @@ namespace bpr::qt {
 		PullRequestMenu = addMenu(QStringLiteral("P&ull Request"));
 		PullRequestMenu->setObjectName(QStringLiteral("desktopPullRequestMenu"));
 		PullRequestMenu->setAccessibleName(QStringLiteral("Pull Request"));
-		PullRequestMenu->setAccessibleDescription(
-			QStringLiteral("Keep the open pull request or its repository in my queue, unavailable while no window is open"));
+		PullRequestMenu->setAccessibleDescription(QStringLiteral(
+			"Open the pull request on GitHub, or keep it or its repository in my queue, unavailable while no window is open"));
+		// [[BPR-1338]]. Open on GitHub, first as in the window's menu, on the
+		// window's key. It opens the window's pull request, and with no window
+		// there is none to open.
+		auto* const openOnGithub = PullRequestMenu->addAction(tr("Open on &GitHub"));
+		openOnGithub->setObjectName(QStringLiteral("desktopOpenOnGithubAction"));
+		openOnGithub->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+O") });
+		openOnGithub->setStatusTip(QStringLiteral("Open the pull request's page on GitHub, unavailable while no window is open"));
+		openOnGithub->setEnabled(false);
+		PullRequestMenu->addSeparator();
 		auto* const follow = PullRequestMenu->addAction(QStringLiteral("&Follow"));
 		follow->setObjectName(QStringLiteral("desktopFollowPullRequestAction"));
 		follow->setCheckable(true);

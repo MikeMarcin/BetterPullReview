@@ -426,17 +426,48 @@ namespace {
 				   && !helpActions[0]->isEnabled() && !helpActions[2]->isEnabled() && !helpActions[3]->isEnabled(),
 			   "with the window's diagnostic commands, none actionable with no window open");
 		const auto pullRequestActions = pullRequest->actions();
-		expect(pullRequestActions.size() == 7 && pullRequestActions[0]->text() == QStringLiteral("&Follow")
-				   && pullRequestActions[1]->text() == QStringLiteral("&Save Repository")
-				   && pullRequestActions[2]->isSeparator()
-				   && pullRequestActions[3]->text() == QStringLiteral("Compose &review")
-				   && pullRequestActions[4]->text() == QStringLiteral("Co&mment")
-				   && pullRequestActions[5]->text() == QStringLiteral("Prepare review &tour")
-				   && pullRequestActions[6]->text() == QStringLiteral("Add tour stop")
-				   && !pullRequestActions[0]->isEnabled() && !pullRequestActions[1]->isEnabled()
-				   && !pullRequestActions[3]->isEnabled() && !pullRequestActions[4]->isEnabled()
-				   && !pullRequestActions[5]->isEnabled() && !pullRequestActions[6]->isEnabled(),
-			   "with Follow, Save Repository, composition and the review tour, none actionable with no pull request open");
+		// [[BPR-1338]]. Read from a window's own Pull Request menu, with each
+		// command's key, rather than restated: BPR-1338 put Open on GitHub on
+		// the window's menu and not on this bar, and the list kept here could
+		// not see it missing. A window's Comment names why it is unavailable in
+		// its own title ([[BPR-1250]]); that reason is the window's state, so the
+		// command is compared without it.
+		const auto withKeys = [&described](const QList<QAction*>& aActions) {
+			auto lines = described(aActions);
+			for (auto index = qsizetype{ 0 }; index < aActions.size(); ++index) {
+				if (const auto reason = lines[index].indexOf(QStringLiteral(" unavailable — ")); reason >= 0) {
+					lines[index].truncate(reason);
+				}
+				lines[index] += QLatin1Char{ ' ' } + aActions[index]->shortcut().toString(QKeySequence::PortableText);
+			}
+			return lines;
+		};
+		{
+			qt::workbench_window window;
+			const auto           desktopLines = withKeys(pullRequestActions);
+			const auto           windowLines  = window.pull_request_menu() != nullptr ? withKeys(window.pull_request_menu()->actions()) : QStringList{ };
+			if (desktopLines != windowLines) {
+				std::cerr << "desktop Pull Request: " << desktopLines.join(QStringLiteral(" | ")).toStdString() << '\n'
+						  << "window Pull Request:  " << windowLines.join(QStringLiteral(" | ")).toStdString() << '\n';
+			}
+			expect(!windowLines.isEmpty() && desktopLines == windowLines,
+				   "Pull Request carries the window menu's own commands, on their keys, in the window menu's own order");
+		}
+		expect(pullRequest->accessibleDescription().endsWith(QStringLiteral("unavailable while no window is open")),
+			   "and the menu says why none of them acts");
+		expect(pullRequestActions.size() == 9 && pullRequestActions[0]->text() == QStringLiteral("Open on &GitHub")
+				   && pullRequestActions[0]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+O") }
+				   && pullRequestActions[1]->isSeparator()
+				   && pullRequestActions[2]->text() == QStringLiteral("&Follow")
+				   && pullRequestActions[3]->text() == QStringLiteral("&Save Repository")
+				   && pullRequestActions[4]->isSeparator()
+				   && pullRequestActions[5]->text() == QStringLiteral("Compose &review")
+				   && pullRequestActions[6]->text() == QStringLiteral("Co&mment")
+				   && pullRequestActions[7]->text() == QStringLiteral("Prepare review &tour")
+				   && pullRequestActions[8]->text() == QStringLiteral("Add tour stop"),
+			   "with Open on GitHub, Follow, Save Repository, composition and the review tour");
+		expect(std::ranges::none_of(pullRequestActions, [](const QAction* const aAction) { return !aAction->isSeparator() && aAction->isEnabled(); }),
+			   "none actionable with no pull request open");
 
 		// [[BPR-1195]]. File survives Quit's merge into the macOS application
 		// menu, and the scaffolding's commands keep their discoverable shortcuts.
@@ -451,8 +482,8 @@ namespace {
 				   && fileActions[2]->text() == QStringLiteral("Close Tab") && !fileActions[2]->isEnabled(),
 			   "File retains Open Project… and Close Tab after Quit, disabled with no window");
 		expect(fileActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
-				   && pullRequestActions[3]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
-				   && pullRequestActions[4]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
+				   && pullRequestActions[5]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
+				   && pullRequestActions[6]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
 				   && viewActions[4]->shortcut().isEmpty(),
 			   "Close Tab and composition retain their keys, and Updates Line claims none");
 #if defined(Q_OS_MACOS)
@@ -464,7 +495,7 @@ namespace {
 				   && viewActions[11]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[1], fileActions[2], viewActions[2], viewActions[3], viewActions[4], viewActions[6], viewActions[7], viewActions[8], viewActions[10], viewActions[11], pullRequestActions[3], pullRequestActions[4], pullRequestActions[5], pullRequestActions[6], helpActions[0], helpActions[2], helpActions[3] }) {
+		for (auto* const action : { fileActions[1], fileActions[2], viewActions[2], viewActions[3], viewActions[4], viewActions[6], viewActions[7], viewActions[8], viewActions[10], viewActions[11], pullRequestActions[0], pullRequestActions[5], pullRequestActions[6], pullRequestActions[7], pullRequestActions[8], helpActions[0], helpActions[2], helpActions[3] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,
