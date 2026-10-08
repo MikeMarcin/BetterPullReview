@@ -163,3 +163,25 @@ rebuilt with no `warning C` line.
   they stop at "FAILED: private discuss-top course root" and "FAILED: private
   composed course root". Both are now pinned `dos-volume-name`, and the
   manifest and both rows pass 4 of 4.
+
+**After a second rebase** (onto BPR-1338's title-row order and the modality
+renamed from Conversations to Threads). The conflicts in `workbench_strip.cpp`,
+the window test and the spec were resolved by keeping upstream's names with
+this change's tooltip keys.
+
+The first rebuild failed on a second C4458, BPR-1336's local `data` in
+`appearance_settings_panel::code_zoom()`, so that run's rows came from stale
+binaries and were discarded. `47f6d5882` renames that local.
+
+On the rebuilt tree (`47f6d5882`), with no `warning C` line in either tree:
+
+- every row above passes again in the dev tree, `qt_workbench_window` ×3
+  among them (184 to 210 s);
+- the optimized tree passes 6 of 6;
+- the manifest passes once four more rows other cards left unpinned are pinned
+  (measured contained, `dos-volume-name`).
+
+The threshold control repeated on this tree, the change at `47f6d5882` with
+the Windows threshold back at 1100 px: it still fails at "at 1280 the title
+row names the pull request whole…". The shorter "Threads" label does not make
+the 1300 px threshold unnecessary. The full change passes there (42.1 s).
