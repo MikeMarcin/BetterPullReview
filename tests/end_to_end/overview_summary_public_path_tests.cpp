@@ -9,6 +9,7 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractScrollArea>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -21,6 +22,7 @@
 #include <QMimeData>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRect>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QSplitterHandle>
@@ -144,10 +146,18 @@ int main(int aArgc, char** aArgv)
 	auto*      document = text->document();
 	const auto revision = document->revision();
 	auto*      fullView = page->findChild<QToolButton*>(QStringLiteral("overviewFullView"));
-	expect(fullView && fullView->accessibleName() == QStringLiteral("Enter full view")
-			   && fullView->mapTo(page, QPoint{ }).y() == reader->mapTo(page, QPoint{ }).y()
+	const auto corner   = [&] {
+		auto*      area     = reader->source_visible() ? static_cast<QAbstractScrollArea*>(reader->source_view()) : reader->rendered_view();
+		const auto at       = area->viewport()->mapTo(page, QPoint{ area->viewport()->width(), 0 });
+		const auto control  = QRect{ fullView->mapTo(page, QPoint{ }), fullView->size() };
+		const auto readerAt = QRect{ reader->mapTo(page, QPoint{ }), reader->size() };
+		return fullView->isVisible() && control.right() + 1 == at.x() && control.top() == at.y() && readerAt.contains(control);
+	};
+	expect(fullView && fullView->accessibleName() == QStringLiteral("Enter full view") && corner()
 			   && reader->rendered_view()->height() == reader->height(),
-		   "composed top-right full-view control and reader reclaim action rows");
+		   "composed full-view control rides the reader's top-right corner and the reader reclaims action rows");
+	expect(reader->mapTo(page, reader->rect().topRight()).x() == page->files_view()->mapTo(page, page->files_view()->rect().topRight()).x(),
+		   "composed reader spans the full content width to the Files right edge, with no toggle column");
 	text->selectAll();
 	text->copy();
 	expect(QApplication::clipboard()->mimeData()->data(QStringLiteral("text/plain")).toStdString() == body
@@ -208,7 +218,7 @@ int main(int aArgc, char** aArgv)
 	full->click();
 	settle();
 	render(*application, QStringLiteral("full-reader"));
-	expect(back->isVisible() && back->isChecked() && back->accessibleName() == QStringLiteral("Exit full view") && !page->files_view()->isVisible(), "composed full reader has Return to Files");
+	expect(back->isVisible() && back->isChecked() && back->accessibleName() == QStringLiteral("Exit full view") && !page->files_view()->isVisible() && corner(), "composed full reader has Exit full view in the same reader corner");
 	back->click();
 	settle();
 	expect(page->summary_fraction() == fraction && source->textCursor().hasSelection() && page->files_view()->currentIndex() == retainedFile && page->files_view()->verticalScrollBar()->value() == retainedFileScroll, "full-reader return keeps normal fraction, source selection and Files place");

@@ -6,6 +6,7 @@
 
 #include "bpr/application/pull_request_overview.hpp"
 
+#include <QAbstractScrollArea>
 #include <QAccessible>
 #include <QApplication>
 #include <QClipboard>
@@ -20,12 +21,14 @@
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRect>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QSplitterHandle>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
+#include <QTextBlock>
 #include <QTextDocument>
 #include <QToolButton>
 #include <QTreeView>
@@ -712,6 +715,18 @@ namespace {
 		expect(QApplication::clipboard()->text().toStdString() == projected.Body, "complete admitted byte-boundary text remains copyable");
 	}
 
+	// The control sits inside the reader frame, flush with the visible
+	// viewport's top-right corner, so it is left of any vertical scroll bar.
+	[[nodiscard]] auto in_reader_corner(const qt::pull_request_overview_page& aPage, const QToolButton& aControl) -> bool
+	{
+		auto*      reader   = aPage.body_view();
+		auto*      area     = reader->source_visible() ? static_cast<QAbstractScrollArea*>(reader->source_view()) : reader->rendered_view();
+		const auto corner   = area->viewport()->mapTo(&aPage, QPoint{ area->viewport()->width(), 0 });
+		const auto control  = QRect{ aControl.mapTo(&aPage, QPoint{ 0, 0 }), aControl.size() };
+		const auto readerAt = QRect{ reader->mapTo(&aPage, QPoint{ 0, 0 }), reader->size() };
+		return control.right() + 1 == corner.x() && control.top() == corner.y() && readerAt.contains(control);
+	}
+
 	void test_resizable_summary()
 	{
 		qt::pull_request_overview_page page;
@@ -725,10 +740,25 @@ namespace {
 		expect(split && split->sizes().size() == 2, "normal summary and Files share the native splitter");
 		auto* fullView = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
 		auto* reader   = page.body_view();
-		expect(fullView && fullView->accessibleName() == QStringLiteral("Enter full view") && fullView->isVisible()
-				   && fullView->mapTo(&page, QPoint{ 0, 0 }).y() == reader->mapTo(&page, QPoint{ 0, 0 }).y()
-				   && fullView->mapTo(&page, QPoint{ 0, 0 }).x() >= reader->mapTo(&page, reader->rect().topRight()).x(),
-			   "full-view control occupies the top-right edge without a separate action row");
+		expect(fullView && fullView->accessibleName() == QStringLiteral("Enter full view") && fullView->isVisible() && in_reader_corner(page, *fullView),
+			   "full-view control rides the reader's top-right corner without a separate action row");
+		expect(reader->mapTo(&page, reader->rect().topRight()).x() == page.files_view()->mapTo(&page, page.files_view()->rect().topRight()).x(),
+			   "reader keeps the full content width: its right edge meets the Files right edge, with no toggle column");
+		{
+			auto* const document = reader->rendered_view()->document();
+			const auto  first    = document->begin().blockFormat().rightMargin();
+			const auto  last     = document->lastBlock().blockFormat().rightMargin();
+			expect(first >= fullView->width() && last < fullView->width(),
+				   "only the lines beside the corner wrap short of it; later lines keep the full width");
+		}
+		fullView->click();
+		settle();
+		expect(fullView->isVisible() && fullView->accessibleName() == QStringLiteral("Exit full view") && in_reader_corner(page, *fullView),
+			   "Exit full view stays at the reader's top-right corner in full view");
+		fullView->click();
+		settle();
+		expect(fullView->accessibleName() == QStringLiteral("Enter full view") && in_reader_corner(page, *fullView) && page.files_view()->isVisible(),
+			   "returning from full view puts the control back in the same corner");
 		expect(!reader->findChild<QPushButton*>(QStringLiteral("markdownSourceToggle"))->isVisible()
 				   && !reader->findChild<QPushButton*>(QStringLiteral("markdownCopySource"))->isVisible()
 				   && reader->rendered_view()->height() == reader->height(),
