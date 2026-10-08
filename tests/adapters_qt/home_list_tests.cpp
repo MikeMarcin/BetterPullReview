@@ -601,7 +601,7 @@ namespace {
 		expect(nested.back()->header_offset() == 0, "the band below keeps its header at its own top");
 	}
 
-	// Empty states are absent; an empty ready queue is one sentence linking to Reviews & queue.
+	// Empty states are absent; an empty ready queue is one sentence linking to Repositories.
 	void test_empty_states_and_the_all_empty_sentence()
 	{
 		home_fixture home;
@@ -647,7 +647,22 @@ namespace {
 		sentence->setFocus(Qt::TabFocusReason);
 		QApplication::processEvents();
 		send_key(*sentence, Qt::Key_Return);
-		expect(opened == 1, "Return on the link opens Reviews & queue");
+		expect(opened == 1, "Return on the link opens Repositories");
+		// RFC-BPR-0062, owner verdict 2026-10-08: with nothing saved, the empty
+		// lane could hold nothing but this sentence, so it is not shown.
+		home.List.set_onboarding(true);
+		home.List.refresh();
+		settle(50);
+		expect(home.List.onboarding() && noState() && !sentence->isVisible(), "with nothing saved an empty queue shows no Needs me lane");
+		home.Source.apply(std::array{ item(1, bucket::quiet) });
+		home.List.refresh();
+		settle(100);
+		expect(following->isVisible() && !needs->isVisible(), "a row enrolled without a saved repository still shows");
+		home.Source.apply(std::span<const core::queue_item>{ });
+		home.List.set_onboarding(false);
+		home.List.refresh();
+		settle(100);
+		expect(needs->isVisible() && sentence->isVisible(), "a saved repository brings back the empty lane's sentence");
 
 		for (auto* const panel : { needs, waiting, following }) {
 			if (!panel->isVisible() || panel->collapsed()) {

@@ -3010,41 +3010,22 @@ namespace bpr::qt {
 		HomeAddRepositoryButton->setAccessibleName(tr("Add repository"));
 		HomeAddRepositoryButton->setAccessibleDescription(tr("Add a repository to find my pull requests and review requests"));
 		repositoryRow->addWidget(HomeAddRepositoryButton, 0, Qt::AlignLeft);
-		// RFC-BPR-0062, owner direction 2026-10-07: "a clearer call to action for
-		// first time experience". With no saved repository for the displayed
-		// account and host, the row gives way to a short heading, one sentence
-		// and the default-styled Add repository button, in the row's place under
-		// the bar. It is not a card: no border, no fill, the interface font and
-		// palette, so the button is the one emphasized thing on Home.
+		// RFC-BPR-0062, owner verdicts of 2026-10-07 and 2026-10-08: with no
+		// saved repository for the displayed account and host, the row gives way
+		// to one default-styled button in its place under the bar, "Just the
+		// button that opens settings". It opens Settings › Repositories with the
+		// repository field ready, as every Add repository does.
 		HomeOnboarding = new QWidget{ HomePage };
 		HomeOnboarding->setObjectName(QStringLiteral("homeRepositoryOnboarding"));
-		HomeOnboarding->setAccessibleName(tr("Start with a repository"));
+		HomeOnboarding->setAccessibleName(tr("Add a repository"));
 		auto* const onboarding = new QVBoxLayout{ HomeOnboarding };
-		onboarding->setContentsMargins(24, 20, 24, 12);
-		onboarding->setSpacing(6);
-		auto* const onboardingHeading = new QLabel{ tr("Start with a repository"), HomeOnboarding };
-		onboardingHeading->setObjectName(QStringLiteral("homeRepositoryOnboardingHeading"));
-		onboardingHeading->setTextFormat(Qt::PlainText);
-		onboardingHeading->setWordWrap(true);
-		onboardingHeading->setAccessibleName(onboardingHeading->text());
-		auto headingFont = onboardingHeading->font();
-		headingFont.setPointSizeF(headingFont.pointSizeF() * 1.25);
-		headingFont.setWeight(QFont::DemiBold);
-		onboardingHeading->setFont(headingFont);
-		onboarding->addWidget(onboardingHeading);
-		auto* const onboardingSentence = new QLabel{ tr("Add a repository to find my pull requests and review requests."), HomeOnboarding };
-		onboardingSentence->setObjectName(QStringLiteral("homeRepositoryOnboardingSentence"));
-		onboardingSentence->setTextFormat(Qt::PlainText);
-		onboardingSentence->setWordWrap(true);
-		onboardingSentence->setAccessibleName(onboardingSentence->text());
-		onboarding->addWidget(onboardingSentence);
-		onboarding->addSpacing(6);
-		HomeOnboardingButton = new QPushButton{ tr("Add repository"), HomeOnboarding };
+		onboarding->setContentsMargins(24, 16, 24, 8);
+		onboarding->setSpacing(0);
+		HomeOnboardingButton = new QPushButton{ tr("Add a repository"), HomeOnboarding };
 		HomeOnboardingButton->setObjectName(QStringLiteral("homeRepositoryOnboardingButton"));
-		// Distinct from the ordinary row's Add repository, which the focus
-		// order also declares; the visible label is the same verb.
-		HomeOnboardingButton->setAccessibleName(tr("Add first repository"));
-		HomeOnboardingButton->setAccessibleDescription(tr("Add a repository to find my pull requests and review requests; nothing changes on GitHub"));
+		HomeOnboardingButton->setAccessibleName(tr("Add a repository"));
+		HomeOnboardingButton->setAccessibleDescription(tr("Opens Settings, Repositories, to add a repository where my pull requests and review requests are found; nothing changes on GitHub"));
+		HomeOnboardingButton->setToolTip(tr("Find my pull requests and review requests in a repository"));
 		HomeOnboardingButton->setFocusPolicy(Qt::StrongFocus);
 		HomeOnboardingButton->setAutoDefault(false);
 		// The default look only: the main window has no default-button key.
@@ -3073,7 +3054,9 @@ namespace bpr::qt {
 		// profile it resolved.
 		HomeList->set_state_colours(home_state_colours_for(appearance_profile{ }));
 		HomeList->set_open_dispatch([this](const core::queue_item& aItem) { open_pull_request_item(aItem); });
-		HomeList->set_settings_dispatch([this] { open_settings(settings_page::reviews_and_queue); });
+		// The empty lane's link names the saved repositories, so it opens their
+		// page; observer rules stay reachable from Filter's Open Reviews & queue.
+		HomeList->set_settings_dispatch([this] { open_settings(settings_page::repositories); });
 		// [[BPR-0783]]. Collapsing one of the panels that carry no name is part of
 		// this window's view, so the whole view leaves for the host.
 		HomeList->set_view_observer([this] {
@@ -4198,14 +4181,37 @@ namespace bpr::qt {
 		apply_focus_order();
 	}
 
+	namespace {
+		// [[BPR-0774]]. The card in its edit state is drawn the way a server
+		// card is: the base colour, one Mid hairline and the card radius.
+		class card_surface final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+				painter.setBrush(palette().color(QPalette::Active, QPalette::Base));
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0);
+			}
+		};
+	} // namespace
+
 	void workbench_window::build_repositories_page()
 	{
-		// RFC-BPR-0062, owner direction 2026-10-07: the saved repositories were
-		// "way hidden down the bottom of a settings page that is full of mostly
-		// irrelevant details". This page holds only them: whose they are, the
-		// list, Add repository and Remove. It keeps no record of its own; the
-		// rows are the queue host's accepted records and Remove sends its typed
-		// intent for the exact record a row stands for.
+		// RFC-BPR-0062, owner verdicts of 2026-10-07 and 2026-10-08: the saved
+		// repositories have a page of their own, laid out the way Accounts &
+		// hosts is. The account's repositories are one card; a new repository is
+		// a card in its edit state above the bordered Add repository button that
+		// opens it; there is no dialog. The page keeps no record of its own: the
+		// rows are the queue host's accepted records, Remove sends the typed
+		// intent for the exact record a row stands for, and Add sends the same
+		// repository-addition gesture the dialog did.
 		SavedRepositoriesEditor = new QWidget;
 		SavedRepositoriesEditor->setObjectName(QStringLiteral("savedRepositoriesEditor"));
 		SavedRepositoriesEditor->setAccessibleName(QStringLiteral("Repositories"));
@@ -4213,7 +4219,7 @@ namespace bpr::qt {
 			"The repositories saved for the displayed account, where my pull requests and review requests are found"));
 		auto* const column = new QVBoxLayout{ SavedRepositoriesEditor };
 		column->setContentsMargins(0, 0, 0, 0);
-		column->setSpacing(10);
+		column->setSpacing(16);
 		auto* const lede = new QLabel{
 			tr("My pull requests and review requests are found in these repositories. Nothing here changes GitHub."),
 			SavedRepositoriesEditor
@@ -4223,7 +4229,15 @@ namespace bpr::qt {
 		lede->setTextFormat(Qt::PlainText);
 		lede->setForegroundRole(QPalette::PlaceholderText);
 		column->addWidget(lede);
-		SavedRepositoriesDestination = new QLabel{ SavedRepositoriesEditor };
+
+		// The account's card: whose repositories they are, then the list.
+		auto* const card = new card_surface{ SavedRepositoriesEditor };
+		card->setObjectName(QStringLiteral("savedRepositoriesCard"));
+		card->setAccessibleName(QStringLiteral("Saved repositories"));
+		auto* const cardColumn = new QVBoxLayout{ card };
+		cardColumn->setContentsMargins(16, 12, 16, 12);
+		cardColumn->setSpacing(8);
+		SavedRepositoriesDestination = new QLabel{ card };
 		SavedRepositoriesDestination->setObjectName(QStringLiteral("repositoriesDestination"));
 		SavedRepositoriesDestination->setAccessibleName(tr("Account and host"));
 		SavedRepositoriesDestination->setTextFormat(Qt::PlainText);
@@ -4232,66 +4246,140 @@ namespace bpr::qt {
 		auto destinationFont = SavedRepositoriesDestination->font();
 		destinationFont.setWeight(QFont::DemiBold);
 		SavedRepositoriesDestination->setFont(destinationFont);
-		column->addWidget(SavedRepositoriesDestination);
-
-		SavedRepositoryList = new QListWidget{ SavedRepositoriesEditor };
+		cardColumn->addWidget(SavedRepositoriesDestination);
+		SavedRepositoryList = new QListWidget{ card };
 		SavedRepositoryList->setObjectName(QStringLiteral("savedRepositoryList"));
 		SavedRepositoryList->setAccessibleName(QStringLiteral("Saved repositories"));
 		SavedRepositoryList->setAccessibleDescription(QStringLiteral(
 			"Select a repository; Delete or Remove stops finding my pull requests in it"));
 		SavedRepositoryList->setSelectionMode(QAbstractItemView::SingleSelection);
+		SavedRepositoryList->setFrameShape(QFrame::NoFrame);
 		SavedRepositoryList->setWordWrap(true);
 		SavedRepositoryList->setTextElideMode(Qt::ElideNone);
 		SavedRepositoryList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		SavedRepositoryList->setUniformItemSizes(false);
-		SavedRepositoryList->setMinimumHeight(SavedRepositoryList->fontMetrics().lineSpacing() * 6);
+		SavedRepositoryList->setSpacing(2);
+		// The card is as tall as its rows, up to ten, and scrolls beyond: a
+		// card never draws an empty box under a short list.
+		SavedRepositoryList->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 		SavedRepositoryList->installEventFilter(this);
-		column->addWidget(SavedRepositoryList, 1);
-
-		// Empty is a sentence and the action, never an empty box.
-		SavedRepositoriesEmpty = new QWidget{ SavedRepositoriesEditor };
+		cardColumn->addWidget(SavedRepositoryList);
+		// Empty is a sentence in the card, never an empty box.
+		SavedRepositoriesEmpty = new QLabel{ tr("No repositories yet."), card };
 		SavedRepositoriesEmpty->setObjectName(QStringLiteral("savedRepositoriesEmpty"));
-		auto* const emptyColumn = new QVBoxLayout{ SavedRepositoriesEmpty };
-		emptyColumn->setContentsMargins(0, 4, 0, 0);
-		emptyColumn->setSpacing(4);
-		auto* const emptyHeading = new QLabel{ tr("No repositories yet"), SavedRepositoriesEmpty };
-		emptyHeading->setObjectName(QStringLiteral("savedRepositoriesEmptyHeading"));
-		emptyHeading->setTextFormat(Qt::PlainText);
-		auto emptyFont = emptyHeading->font();
-		emptyFont.setWeight(QFont::DemiBold);
-		emptyHeading->setFont(emptyFont);
-		emptyColumn->addWidget(emptyHeading);
-		auto* const emptySentence = new QLabel{ tr("Add one to find my pull requests and review requests."), SavedRepositoriesEmpty };
-		emptySentence->setObjectName(QStringLiteral("savedRepositoriesEmptySentence"));
-		emptySentence->setTextFormat(Qt::PlainText);
-		emptySentence->setWordWrap(true);
-		emptyColumn->addWidget(emptySentence);
+		static_cast<QLabel*>(SavedRepositoriesEmpty)->setTextFormat(Qt::PlainText);
+		SavedRepositoriesEmpty->setForegroundRole(QPalette::PlaceholderText);
 		SavedRepositoriesEmpty->hide();
-		column->addWidget(SavedRepositoriesEmpty);
-
-		auto* const buttons = new QHBoxLayout{ };
-		buttons->setContentsMargins(0, 2, 0, 0);
-		AddSavedRepositoryButton = new QPushButton{ tr("Add repository"), SavedRepositoriesEditor };
-		AddSavedRepositoryButton->setObjectName(QStringLiteral("addSavedRepositoryButton"));
-		AddSavedRepositoryButton->setAccessibleName(QStringLiteral("Add repository"));
-		AddSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
-			"Opens the Add repository dialog for the displayed account; nothing changes on GitHub"));
-		AddSavedRepositoryButton->setAutoDefault(false);
-		AddSavedRepositoryButton->setDefault(true);
-		connect(AddSavedRepositoryButton, &QPushButton::clicked, AddSavedRepository, &QAction::trigger);
-		buttons->addWidget(AddSavedRepositoryButton);
+		cardColumn->addWidget(SavedRepositoriesEmpty);
 		RemoveSavedRepository = new QAction{ tr("Remove"), this };
 		RemoveSavedRepository->setObjectName(QStringLiteral("removeSavedRepository"));
-		RemoveSavedRepositoryButton = new QPushButton{ tr("Remove"), SavedRepositoriesEditor };
+		RemoveSavedRepositoryButton = new QPushButton{ tr("Remove"), card };
 		RemoveSavedRepositoryButton->setObjectName(QStringLiteral("removeSavedRepositoryButton"));
 		RemoveSavedRepositoryButton->setAccessibleName(QStringLiteral("Remove saved repository"));
 		RemoveSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
 			"Stop finding my pull requests in the selected repository; nothing changes on GitHub"));
 		RemoveSavedRepositoryButton->setAutoDefault(false);
 		connect(RemoveSavedRepositoryButton, &QPushButton::clicked, RemoveSavedRepository, &QAction::trigger);
-		buttons->addWidget(RemoveSavedRepositoryButton);
-		buttons->addStretch(1);
-		column->addLayout(buttons);
+		auto* const cardActions = new QHBoxLayout{ };
+		cardActions->setContentsMargins(0, 0, 0, 0);
+		cardActions->addStretch(1);
+		cardActions->addWidget(RemoveSavedRepositoryButton);
+		cardColumn->addLayout(cardActions);
+		column->addWidget(card);
+
+		// The new repository, as Accounts & hosts draws a new server: a card in
+		// its edit state with a labelled field, what was refused beside it, and
+		// Add and Cancel at its trailing edge.
+		auto* const draft = new card_surface{ SavedRepositoriesEditor };
+		RepositoryDraft   = draft;
+		draft->setObjectName(QStringLiteral("repositoryAdditionDraft"));
+		draft->setAccessibleName(tr("New repository"));
+		draft->setAccessibleDescription(tr("Find my pull requests and review requests in a repository saved for the displayed account"));
+		auto* const grid = new QGridLayout{ draft };
+		grid->setContentsMargins(16, 12, 16, 12);
+		grid->setHorizontalSpacing(16);
+		grid->setVerticalSpacing(8);
+		grid->setColumnStretch(1, 1);
+		auto* const draftTitle = new QLabel{ tr("New repository"), draft };
+		draftTitle->setObjectName(QStringLiteral("repositoryAdditionTitle"));
+		auto draftTitleFont = draftTitle->font();
+		draftTitleFont.setWeight(QFont::DemiBold);
+		draftTitle->setFont(draftTitleFont);
+		RepositoryDestination = new QLabel{ draft };
+		RepositoryDestination->setObjectName(QStringLiteral("repositoryAdditionDestination"));
+		RepositoryDestination->setTextFormat(Qt::PlainText);
+		RepositoryDestination->setWordWrap(true);
+		RepositoryDestination->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		RepositoryDestination->setForegroundRole(QPalette::PlaceholderText);
+		RepositoryDestination->setAccessibleName(tr("Destination account and host"));
+		auto* const nameLabel = new QLabel{ tr("&Repository"), draft };
+		SavedRepositoryName   = new QLineEdit{ draft };
+		SavedRepositoryName->setObjectName(QStringLiteral("savedRepositoryName"));
+		SavedRepositoryName->setAccessibleName(tr("Repository link or owner/name"));
+		SavedRepositoryName->setAccessibleDescription(tr("Enter owner/name for the displayed host, or a complete HTTPS repository link"));
+		SavedRepositoryName->setPlaceholderText(tr("owner/name or repository link"));
+		SavedRepositoryName->setMaxLength(4096);
+		SavedRepositoryName->installEventFilter(this);
+		nameLabel->setBuddy(SavedRepositoryName);
+		RepositoryAdditionStatus = new QLabel{ draft };
+		RepositoryAdditionStatus->setObjectName(QStringLiteral("repositoryAdditionStatus"));
+		RepositoryAdditionStatus->setAccessibleName(tr("Repository addition status"));
+		RepositoryAdditionStatus->setTextFormat(Qt::PlainText);
+		RepositoryAdditionStatus->setWordWrap(true);
+		RepositoryAdditionStatus->hide();
+		RepositoryPrepareButton = new QPushButton{ tr("Choose account or set up server…"), draft };
+		RepositoryPrepareButton->setObjectName(QStringLiteral("repositoryAdditionPrepare"));
+		RepositoryPrepareButton->setAccessibleDescription(tr("Keep this draft while signing in or explicitly adding its server; return here before saving"));
+		RepositoryPrepareButton->setAutoDefault(false);
+		RepositoryPrepareButton->hide();
+		RepositoryAddButton = new QPushButton{ tr("Add"), draft };
+		RepositoryAddButton->setObjectName(QStringLiteral("repositoryAdditionAdd"));
+		RepositoryAddButton->setAccessibleName(tr("Add repository"));
+		RepositoryAddButton->setAccessibleDescription(tr("Save this repository locally for the displayed account; nothing changes on GitHub"));
+		RepositoryAddButton->setAutoDefault(false);
+		RepositoryAddButton->setDefault(true);
+		RepositoryCancelButton = new QPushButton{ tr("Cancel"), draft };
+		RepositoryCancelButton->setObjectName(QStringLiteral("repositoryAdditionCancel"));
+		RepositoryCancelButton->setAccessibleName(tr("Cancel new repository"));
+		RepositoryCancelButton->setAccessibleDescription(tr("Discard this repository draft without saving"));
+		RepositoryCancelButton->setAutoDefault(false);
+		RepositoryCancelButton->setFlat(true);
+		auto* const draftActions = new QHBoxLayout{ };
+		draftActions->setContentsMargins(0, 0, 0, 0);
+		draftActions->addWidget(RepositoryPrepareButton);
+		draftActions->addStretch(1);
+		draftActions->addWidget(RepositoryAddButton);
+		draftActions->addWidget(RepositoryCancelButton);
+		grid->addWidget(draftTitle, 0, 0, 1, 2);
+		grid->addWidget(RepositoryDestination, 1, 0, 1, 2);
+		grid->addWidget(nameLabel, 2, 0);
+		grid->addWidget(SavedRepositoryName, 2, 1);
+		grid->addWidget(RepositoryAdditionStatus, 3, 0, 1, 2);
+		grid->addLayout(draftActions, 4, 0, 1, 2);
+		draft->hide();
+		column->addWidget(draft);
+
+		AddSavedRepositoryButton = new QPushButton{ tr("Add repository"), SavedRepositoriesEditor };
+		AddSavedRepositoryButton->setObjectName(QStringLiteral("addSavedRepositoryButton"));
+		AddSavedRepositoryButton->setAccessibleName(QStringLiteral("Add repository"));
+		AddSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
+			"Adds a repository for the displayed account as a new card on this page; nothing changes on GitHub"));
+		AddSavedRepositoryButton->setAutoDefault(false);
+		connect(AddSavedRepositoryButton, &QPushButton::clicked, AddSavedRepository, &QAction::trigger);
+		auto* const addRow = new QHBoxLayout{ };
+		addRow->setContentsMargins(0, 0, 0, 0);
+		addRow->addWidget(AddSavedRepositoryButton);
+		addRow->addStretch(1);
+		column->addLayout(addRow);
+		// A save is confirmed on the page as well as in the window's status bar.
+		RepositoriesConfirmation = new QLabel{ SavedRepositoriesEditor };
+		RepositoriesConfirmation->setObjectName(QStringLiteral("repositoriesConfirmation"));
+		RepositoriesConfirmation->setAccessibleName(tr("Repository addition result"));
+		RepositoriesConfirmation->setTextFormat(Qt::PlainText);
+		RepositoriesConfirmation->setWordWrap(true);
+		RepositoriesConfirmation->setForegroundRole(QPalette::PlaceholderText);
+		RepositoriesConfirmation->hide();
+		column->addWidget(RepositoriesConfirmation);
 		column->addStretch(1);
 
 		connect(RemoveSavedRepository, &QAction::triggered, this, [this] {
@@ -4299,6 +4387,24 @@ namespace bpr::qt {
 		});
 		connect(SavedRepositoryList, &QListWidget::currentRowChanged, this,
 				[this](int) { update_saved_repository_actions(); });
+		connect(RepositoryAddButton, &QPushButton::clicked, this, [this] { submit_repository_addition(); });
+		connect(SavedRepositoryName, &QLineEdit::returnPressed, this, [this] { submit_repository_addition(); });
+		connect(RepositoryCancelButton, &QPushButton::clicked, this, [this] { close_repository_draft(); });
+		connect(RepositoryPrepareButton, &QPushButton::clicked, this, [this] {
+			if (!SetupDestinationDispatch || RepositorySaving) {
+				return;
+			}
+			RepositoryPreparing      = true;
+			RepositoryPendingGesture = 0U;
+			update_repository_destination();
+			SetupDestinationDispatch(application::submit_repository_setup{ .Text = SavedRepositoryName->text().toStdString() });
+		});
+		connect(SavedRepositoryName, &QLineEdit::textChanged, this, [this] {
+			if (!RepositorySaving) {
+				repository_addition_notice({ });
+				RepositoryPrepareButton->hide();
+			}
+		});
 		SettingsWindow->adopt_panel(settings_page::repositories, SavedRepositoriesEditor);
 		update_saved_repository_list();
 		update_saved_repository_actions();
@@ -4360,32 +4466,19 @@ namespace bpr::qt {
 			}
 		}
 		SavedRepositoryList->setVisible(!rows.isEmpty());
+		if (!rows.isEmpty()) {
+			const auto shown  = std::min(SavedRepositoryList->count(), 10);
+			auto       height = 2 * SavedRepositoryList->frameWidth();
+			for (auto row = 0; row < shown; ++row) {
+				height += SavedRepositoryList->sizeHintForRow(row) + 2 * SavedRepositoryList->spacing();
+			}
+			SavedRepositoryList->setFixedHeight(height);
+		}
 		SavedRepositoriesEmpty->setVisible(rows.isEmpty());
 		if (RemoveSavedRepositoryButton != nullptr) {
 			RemoveSavedRepositoryButton->setVisible(!rows.isEmpty());
 		}
 	}
-
-	namespace {
-		// [[BPR-0774]]. The card in its edit state is drawn the way a server
-		// card is: the base colour, one Mid hairline and the card radius.
-		class card_surface final : public QWidget
-		{
-		public:
-			using QWidget::QWidget;
-
-		protected:
-			void paintEvent(QPaintEvent* const aEvent) override
-			{
-				static_cast<void>(aEvent);
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
-				painter.setBrush(palette().color(QPalette::Active, QPalette::Base));
-				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0);
-			}
-		};
-	} // namespace
 
 	void workbench_window::build_enterprise_server_draft(QWidget* const aParent, QVBoxLayout& aLayout)
 	{
@@ -4771,7 +4864,7 @@ namespace bpr::qt {
 		update_saved_repository_actions();
 	}
 
-	auto workbench_window::repository_addition_dialog() const noexcept -> QDialog* { return RepositoryAdditionDialog; }
+	auto workbench_window::repository_addition_draft() const noexcept -> QWidget* { return RepositoryDraft; }
 
 	void workbench_window::repository_addition_notice(const QString& aText)
 	{
@@ -4789,115 +4882,64 @@ namespace bpr::qt {
 
 	void workbench_window::open_repository_addition()
 	{
-		if (!RepositoryAdditionDispatch) {
+		if (!RepositoryAdditionDispatch || RepositoryDraft == nullptr) {
 			return;
 		}
-		if (!RepositoryAdditionDialog) {
-			RepositoryAdditionDialog = new QDialog{ this };
-			RepositoryAdditionDialog->setObjectName(QStringLiteral("repositoryAdditionDialog"));
-			RepositoryAdditionDialog->setAttribute(Qt::WA_WindowPropagation, true);
-			RepositoryAdditionDialog->setWindowTitle(tr("Add repository"));
-			RepositoryAdditionDialog->setWindowModality(Qt::WindowModal);
-			RepositoryAdditionDialog->setAccessibleDescription(tr("Find my pull requests and review requests in a repository saved for the displayed account"));
-			auto* layout          = new QVBoxLayout{ RepositoryAdditionDialog };
-			RepositoryDestination = new QLabel{ RepositoryAdditionDialog };
-			RepositoryDestination->setObjectName(QStringLiteral("repositoryAdditionDestination"));
-			RepositoryDestination->setTextFormat(Qt::PlainText);
-			RepositoryDestination->setWordWrap(true);
-			RepositoryDestination->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-			RepositoryDestination->setAccessibleName(tr("Destination account and host"));
-			layout->addWidget(RepositoryDestination);
-			auto* purpose = new QLabel{ tr("Find my pull requests and review requests here"), RepositoryAdditionDialog };
-			purpose->setWordWrap(true);
-			layout->addWidget(purpose);
-			auto* label = new QLabel{ tr("&Repository"), RepositoryAdditionDialog };
-			layout->addWidget(label);
-			SavedRepositoryName = new QLineEdit{ RepositoryAdditionDialog };
-			SavedRepositoryName->setObjectName(QStringLiteral("savedRepositoryName"));
-			SavedRepositoryName->setAccessibleName(tr("Repository link or owner/name"));
-			SavedRepositoryName->setAccessibleDescription(tr("Enter owner/name for the displayed host, or a complete HTTPS repository link"));
-			SavedRepositoryName->setPlaceholderText(tr("owner/name or repository link"));
-			SavedRepositoryName->setMaxLength(4096);
-			label->setBuddy(SavedRepositoryName);
-			layout->addWidget(SavedRepositoryName);
-			RepositoryAdditionStatus = new QLabel{ RepositoryAdditionDialog };
-			RepositoryAdditionStatus->setObjectName(QStringLiteral("repositoryAdditionStatus"));
-			RepositoryAdditionStatus->setAccessibleName(tr("Repository addition status"));
-			RepositoryAdditionStatus->setTextFormat(Qt::PlainText);
-			RepositoryAdditionStatus->setWordWrap(true);
-			RepositoryAdditionStatus->hide();
-			layout->addWidget(RepositoryAdditionStatus);
-			RepositoryPrepareButton = new QPushButton{ tr("Choose account or set up server…"), RepositoryAdditionDialog };
-			RepositoryPrepareButton->setObjectName(QStringLiteral("repositoryAdditionPrepare"));
-			RepositoryPrepareButton->setAccessibleDescription(tr("Keep this draft while signing in or explicitly adding its server; return here before saving"));
-			RepositoryPrepareButton->setAutoDefault(false);
-			RepositoryPrepareButton->hide();
-			layout->addWidget(RepositoryPrepareButton, 0, Qt::AlignLeft);
-			auto* buttons       = new QDialogButtonBox{ QDialogButtonBox::Cancel, RepositoryAdditionDialog };
-			RepositoryAddButton = buttons->addButton(tr("Add repository"), QDialogButtonBox::AcceptRole);
-			RepositoryAddButton->setObjectName(QStringLiteral("repositoryAdditionAdd"));
-			RepositoryAddButton->setAccessibleDescription(tr("Save this repository locally for the displayed account; nothing changes on GitHub"));
-			RepositoryAddButton->setDefault(true);
-			buttons->button(QDialogButtonBox::Cancel)->setAccessibleDescription(tr("Discard this repository draft and return to the invoking action"));
-			layout->addWidget(buttons);
-			connect(buttons, &QDialogButtonBox::rejected, RepositoryAdditionDialog, &QDialog::reject);
-			connect(RepositoryAddButton, &QPushButton::clicked, this, [this] {
-				if (RepositorySaving || RepositoryPreparing || !RepositoryAdditionDispatch || RepositoryGesture == std::numeric_limits<std::uint64_t>::max()) {
-					return;
-				}
-				RepositoryPendingGesture = ++RepositoryGesture;
-				RepositoryAdditionDispatch({ .Gesture = RepositoryPendingGesture, .Destination = RepositoryDisplayedDestination, .Text = SavedRepositoryName->text().toStdString() });
-			});
-			connect(RepositoryPrepareButton, &QPushButton::clicked, this, [this] {
-				if (!SetupDestinationDispatch || RepositorySaving) {
-					return;
-				}
-				RepositoryPreparing      = true;
-				RepositoryPendingGesture = 0U;
-				RepositoryAdditionDialog->hide();
-				SetupDestinationDispatch(application::submit_repository_setup{ .Text = SavedRepositoryName->text().toStdString() });
-			});
-			connect(SavedRepositoryName, &QLineEdit::textChanged, this, [this] {
-				if (!RepositorySaving) {
-					repository_addition_notice({ });
-					RepositoryPrepareButton->hide();
-				}
-			});
-			connect(RepositoryAdditionDialog, &QDialog::finished, this, [this](int) {
-				const auto preparing     = RepositoryPreparing;
-				RepositoryPreparing      = false;
-				RepositorySaving         = false;
-				RepositoryPendingGesture = 0U;
-				SavedRepositoryName->clear();
-				if (preparing && SetupDestinationDispatch) {
-					SetupDestinationDispatch(application::cancel_setup_destination{ });
-				}
-				if (RepositoryInvoker) {
-					RepositoryInvoker->window()->activateWindow();
-					RepositoryInvoker->setFocus(Qt::OtherFocusReason);
-				}
-			});
-			RepositoryAdditionDialog->resize(480, 250);
-		}
-		if (!RepositoryPreparing && !RepositoryAdditionDialog->isVisible()) {
-			RepositoryInvoker = QApplication::focusWidget();
-			if (!RepositoryInvoker) {
-				RepositoryInvoker = HomeOnboarding != nullptr && HomeOnboarding->isVisibleTo(this) ? static_cast<QWidget*>(HomeOnboardingButton) : HomeAddRepositoryButton;
-			}
+		// Every Add repository is this page with the field ready. A draft kept
+		// through explicit setup returns as it was; a new one starts clean.
+		if (!RepositoryPreparing && !RepositoryDraftOpen) {
 			repository_addition_notice({ });
+			RepositoryPrepareButton->hide();
 		}
 		RepositoryPreparing = false;
+		RepositoryDraftOpen = true;
+		if (RepositoriesConfirmation != nullptr) {
+			RepositoriesConfirmation->hide();
+		}
 		update_repository_destination();
-		RepositoryAdditionDialog->show();
+		open_settings(settings_page::repositories);
+		if (auto* const shell = settings(); shell != nullptr) {
+			shell->activateWindow();
+		}
 		SavedRepositoryName->setFocus(Qt::OtherFocusReason);
-		// The native button box may transfer its default while the retained
-		// dialog is hidden for setup. Every return restores the final Add gesture.
-		RepositoryAddButton->setDefault(true);
+	}
+
+	void workbench_window::close_repository_draft()
+	{
+		if (RepositoryDraft == nullptr) {
+			return;
+		}
+		const auto hadFocus      = RepositoryDraft->isAncestorOf(QApplication::focusWidget());
+		const auto preparing     = RepositoryPreparing;
+		RepositoryDraftOpen      = false;
+		RepositoryPreparing      = false;
+		RepositorySaving         = false;
+		RepositoryPendingGesture = 0U;
+		SavedRepositoryName->clear();
+		repository_addition_notice({ });
+		RepositoryPrepareButton->hide();
+		if (preparing && SetupDestinationDispatch) {
+			SetupDestinationDispatch(application::cancel_setup_destination{ });
+		}
+		update_repository_destination();
+		if (hadFocus && AddSavedRepositoryButton->isVisibleTo(SavedRepositoriesEditor)) {
+			AddSavedRepositoryButton->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::submit_repository_addition()
+	{
+		if (!RepositoryDraftOpen || RepositorySaving || RepositoryPreparing || !RepositoryAdditionDispatch
+			|| RepositoryGesture == std::numeric_limits<std::uint64_t>::max()) {
+			return;
+		}
+		RepositoryPendingGesture = ++RepositoryGesture;
+		RepositoryAdditionDispatch({ .Gesture = RepositoryPendingGesture, .Destination = RepositoryDisplayedDestination, .Text = SavedRepositoryName->text().toStdString() });
 	}
 
 	void workbench_window::update_repository_destination()
 	{
-		if (!RepositoryAdditionDialog) {
+		if (RepositoryDraft == nullptr) {
 			return;
 		}
 		if (RepositoryDisplayedDestination != QueueProjection.Session) {
@@ -4905,7 +4947,7 @@ namespace bpr::qt {
 			RepositoryPendingGesture       = 0U;
 			RepositorySaving               = false;
 			if (!SavedRepositoryName->text().isEmpty()) {
-				repository_addition_notice(tr("The destination changed. Check the account and host, then choose Add repository."));
+				repository_addition_notice(tr("The destination changed. Check the account and host, then choose Add."));
 			}
 		}
 		const auto& destination = RepositoryDisplayedDestination;
@@ -4915,6 +4957,8 @@ namespace bpr::qt {
 		RepositoryAddButton->setEnabled(static_cast<bool>(RepositoryAdditionDispatch) && !RepositorySaving && !RepositoryPreparing);
 		SavedRepositoryName->setEnabled(!RepositorySaving);
 		RepositoryPrepareButton->setEnabled(!RepositorySaving && static_cast<bool>(SetupDestinationDispatch));
+		RepositoryDraft->setVisible(RepositoryDraftOpen);
+		AddSavedRepositoryButton->setVisible(!RepositoryDraftOpen);
 	}
 
 	void workbench_window::present_repository_addition(const application::repository_addition_result& aResult)
@@ -4924,34 +4968,43 @@ namespace bpr::qt {
 		}
 		using state      = core::repository_addition_status;
 		RepositorySaving = aResult.Status == state::saving;
-		if (RepositoryAdditionDialog) {
-			update_repository_destination();
-		}
+		update_repository_destination();
 		QString notice;
 		switch (aResult.Status) {
 		case state::saving: notice = tr("Adding repository…"); break;
-		case state::saved:
+		case state::saved:  {
 			notice = aResult.Target ? tr("Added %1/%2.").arg(QString::fromStdString(aResult.Target->Repository.Owner), QString::fromStdString(aResult.Target->Repository.Name)) : tr("Repository added.");
 			statusBar()->showMessage(notice, 6000);
-			if (RepositoryAdditionDialog && RepositoryAdditionDialog->isVisible()) {
-				repository_addition_notice(notice);
-				RepositoryAdditionDialog->accept();
-				if (settings()) {
-					settings()->hide();
-				}
-				choose_home(true);
-			}
+			// The draft card closes into the list, as a kept server becomes its
+			// card; the page says what was added and the keyboard returns to
+			// Add repository.
+			const auto onPage        = RepositoryDraft->isAncestorOf(QApplication::focusWidget());
 			RepositoryPendingGesture = 0U;
+			RepositorySaving         = false;
+			RepositoryDraftOpen      = false;
+			SavedRepositoryName->clear();
+			repository_addition_notice({ });
+			RepositoryPrepareButton->hide();
+			update_repository_destination();
+			RepositoriesConfirmation->setText(notice);
+			RepositoriesConfirmation->show();
+			QAccessibleAnnouncementEvent event{ RepositoriesConfirmation, notice };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+			if (onPage) {
+				AddSavedRepositoryButton->setFocus(Qt::OtherFocusReason);
+			}
 			return;
+		}
 		case state::already_added:       notice = tr("This repository is already added."); break;
 		case state::invalid_input:       notice = tr("Enter owner/name or a complete HTTPS repository link without a pull-request path, query or fragment."); break;
-		case state::sign_in_required:    notice = tr("Sign in to the repository's host, then return here and choose Add repository."); break;
-		case state::destination_changed: notice = tr("This repository needs a different destination. Choose its account or explicitly set up its server, then return here and choose Add repository."); break;
-		case state::unavailable:         notice = tr("The repository could not be saved locally. Your input is kept; choose Add repository to retry."); break;
-		case state::busy:                notice = tr("Another repository change is being saved. Try Add repository again when it finishes."); break;
-		case state::collection_limit:    notice = tr("The saved repository limit has been reached. Remove a repository in Settings › Repositories before adding another."); break;
+		case state::sign_in_required:    notice = tr("Sign in to the repository's host, then return here and choose Add."); break;
+		case state::destination_changed: notice = tr("This repository needs a different destination. Choose its account or explicitly set up its server, then return here and choose Add."); break;
+		case state::unavailable:         notice = tr("The repository could not be saved locally. Your input is kept; choose Add to retry."); break;
+		case state::busy:                notice = tr("Another repository change is being saved. Try Add again when it finishes."); break;
+		case state::collection_limit:    notice = tr("The saved repository limit has been reached. Remove a repository before adding another."); break;
 		}
-		if (RepositoryAdditionDialog && RepositoryAdditionDialog->isVisible()) {
+		if (RepositoryDraftOpen) {
 			repository_addition_notice(notice);
 			RepositoryPrepareButton->setVisible(aResult.Target.has_value() && (aResult.Status == state::sign_in_required || aResult.Status == state::destination_changed));
 		} else if (!RepositorySaving) {
@@ -9749,6 +9802,13 @@ namespace bpr::qt {
 		const auto handFocus  = !onboarding && HomeOnboardingButton->hasFocus();
 		HomeOnboarding->setVisible(onboarding);
 		HomeRepositoryRow->setVisible(HomeAccount && !onboarding);
+		// With nothing saved, an empty queue's Needs me lane could only ever say
+		// that nothing needs me; rows enrolled by an observer rule or a follow
+		// still show, as does Recently viewed and Review Cycles.
+		if (HomeList != nullptr && HomeList->onboarding() != onboarding) {
+			HomeList->set_onboarding(onboarding);
+			HomeList->refresh();
+		}
 		HomeOnboardingButton->setEnabled(AddSavedRepository != nullptr && AddSavedRepository->isEnabled());
 		// The first save retires the call to action under the keyboard; its
 		// ordinary Add repository takes the focus rather than nothing.
@@ -10128,6 +10188,13 @@ namespace bpr::qt {
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
 			place_dif_corner();
 		}
+		// The new repository's field: Escape discards the draft, as Cancel does,
+		// before Settings would take it to close the window.
+		if (aWatched == SavedRepositoryName && aEvent != nullptr && aEvent->type() == QEvent::KeyPress
+			&& static_cast<QKeyEvent*>(aEvent)->key() == Qt::Key_Escape) {
+			close_repository_draft();
+			return true;
+		}
 		// Settings › Repositories: Delete (or Backspace, as macOS lists take it)
 		// removes the selected repository, exactly as Remove does.
 		if (aWatched == SavedRepositoryList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
@@ -10192,7 +10259,7 @@ namespace bpr::qt {
 			} else if (!aProjection.Pending) {
 				open_repository_addition();
 				repository_addition_notice(aProjection.RepositoryPrepared
-											   ? tr("Check the destination, then choose Add repository to save.")
+											   ? tr("Check the destination, then choose Add to save.")
 											   : tr("Setup cancelled or unavailable. This draft has not been saved."));
 			}
 			return;

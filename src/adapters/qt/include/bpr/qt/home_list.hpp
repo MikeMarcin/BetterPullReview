@@ -219,8 +219,12 @@ namespace bpr::qt {
 		void set_recent_action_dispatch(std::function<void(int aRow)> aDispatch);
 		/// \brief Whether the queue is ready and the window has an account to list it for.
 		void set_queue_status(bool aReady, bool aAccount);
-		void set_recent(int aCount, const QString& aSummary);
-		void set_state_colours(const home_state_colours& aColours);
+		/// \brief RFC-BPR-0062. With no saved repository for the account, an
+		/// empty queue shows no Needs me lane: its sentence is all it could hold.
+		void               set_onboarding(bool aOnboarding);
+		[[nodiscard]] auto onboarding() const noexcept -> bool;
+		void               set_recent(int aCount, const QString& aSummary);
+		void               set_state_colours(const home_state_colours& aColours);
 
 		/// \brief [[BPR-0783]]. What Home groups its rows by; None is the default.
 		void set_grouping(application::home_grouping aGrouping);
@@ -374,6 +378,7 @@ namespace bpr::qt {
 		bool                       StateHeaders       = true;
 		bool                       QueueReady         = false;
 		bool                       QueueAccount       = false;
+		bool                       Onboarding         = false;
 		bool                       RefreshPending     = false;
 		bool                       RestoringSelection = false;
 		/// Set while the list itself is moving a collapse, so adopting a view

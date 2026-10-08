@@ -330,32 +330,33 @@ column, and RFC-BPR-0032 gives it one job per row.
   same row, above the lists, whenever Home has an account and at least one
   saved repository: populated, empty, filtered, refreshing or unavailable. The
   row stacks at narrow widths.
-- **First repository** (RFC-BPR-0062; owner direction of 2026-10-07 asked for
-  a clearer first-time call to action). Once the queue is ready and the exact
-  displayed account/host has no saved repository, the row gives way, in the
-  same place under the bar, to a short heading "Start with a repository", the
-  sentence "Add a repository to find my pull requests and review requests."
-  and a default-styled **Add repository** button. It is not a card: no border
-  or fill, interface font and palette, so the button is Home's one emphasized
-  control. It opens the same dialog and disappears with the first durable save,
-  handing the keyboard to the ordinary row's Add repository. A filtered or
-  empty queue with saved repositories, or a queue still restoring, keeps the
-  ordinary row. Signed-out Home keeps its sign-in and public-reading entry
-  without either.
-- **Add repository** ([[BPR-1308]], [[BPR-1309]], RFC-BPR-0062) opens the same
-  native dialog from Home and Settings › Repositories. It names the exact
-  destination account and host, explains personal discovery, and accepts a
-  repository link or
-  owner/name for that host. Add reports progress, duplicate and persistence
-  refusal; a refusal keeps input for a fresh retry. A durable success returns
-  to Home with confirmation, then discovery reports its own empty, current,
-  offline, limited or unavailable result without undoing the save. A different
-  host requires explicit setup/sign-in while retaining the draft. Returning
-  requires a new Add gesture after checking the destination. Return chooses
-  the native default Add button; Escape cancels and restores the invoking
-  focus. The dialog inherits interface type and palette, wraps long destination
-  identities and politely announces progress/refusal. The open-PR shortcut
-  saves its known repository directly through the same host and durable store.
+- **First repository** (RFC-BPR-0062; owner verdicts of 2026-10-07 and
+  2026-10-08). Once the queue is ready and the exact displayed account/host
+  has no saved repository, the row gives way, in the same place under the bar,
+  to one default-styled **Add a repository** button and nothing else. It opens
+  Settings › Repositories with the new-repository field focused, and disappears
+  with the first durable save, handing the keyboard to the ordinary row's Add
+  repository. While nothing is saved and the queue is empty, Needs me is not
+  shown: without a saved repository only an observer rule or a follow can
+  enroll a row, and when either does its lane shows as usual. Recently viewed
+  and Review Cycles (local projects, with Open Project…) are unaffected. A
+  filtered or empty queue with saved repositories, or a queue still restoring,
+  keeps the ordinary row. Signed-out Home keeps its sign-in and public-reading
+  entry without either.
+- **Add repository** ([[BPR-1308]], [[BPR-1309]], RFC-BPR-0062) everywhere
+  opens Settings › Repositories with a New repository card in its edit state
+  and its field focused, the way Accounts & hosts adds an enterprise server;
+  there is no dialog. The card names the exact destination account and host
+  and accepts a repository link or owner/name for that host. Add (or Return)
+  reports progress, duplicate and persistence refusal beside the field; a
+  refusal keeps input for a fresh retry. A durable success closes the card into
+  the page's list with a confirmation, then discovery reports its own empty,
+  current, offline, limited or unavailable result on Home without undoing the
+  save. A different host requires explicit setup/sign-in while retaining the
+  draft; returning requires a new Add after checking the destination. Cancel
+  or Escape discards the draft. Long identities wrap; progress and refusal are
+  announced politely. The open-PR shortcut saves its known repository directly
+  through the same host and durable store.
 - **The bar**, alone in the first row: one bordered field labelled Open,
   with the placeholder "Paste a link, or write owner/name#123", its shortcut
   printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
@@ -420,8 +421,9 @@ column, and RFC-BPR-0032 gives it one job per row.
   announces its expanded or collapsed state. An empty state is not shown, and
   when a signed-in window's ready queue is empty Needs me holds one sentence
   — "Nothing needs me. Pull requests from saved repositories and observer
-  rules appear here." — whose link opens Settings › Reviews & queue (which
-  points on to Settings › Repositories for the saved list). No empty
+  rules appear here." — whose link, on "saved repositories", opens Settings ›
+  Repositories; observer rules are reached from Filter's Open Reviews & queue.
+  No empty
   box is drawn in any arrangement.
 - **Group** is a strip menu of None (the default), Organization, Repository
   and Account. A group is a neutral panel headed by an initial tile — round

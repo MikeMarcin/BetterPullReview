@@ -117,35 +117,42 @@ repositories goes there.
 ## Repositories
 
 This page follows Accounts & hosts in the sidebar and holds only the saved
-repositories (RFC-BPR-0062; owner direction of 2026-10-07 moved them off
-Reviews & queue). It names the exact account and host they are saved for, then
-lists that account's repositories by exact owner/name; a row's tooltip and
-accessible description repeat its host and account. Signed out there is no
-displayed account, so every kept record is listed with its account and host and
-Remove is unavailable until sign-in. With nothing saved the page says "No
-repositories yet" with Add repository instead of an empty list.
+repositories (RFC-BPR-0062; owner verdicts of 2026-10-07 and 2026-10-08). It is
+laid out the way Accounts & hosts is. One card names the exact account and host
+("Saved for @account on host") and lists that account's repositories by exact
+owner/name, as tall as its rows up to ten and scrolling beyond; a row's tooltip
+and accessible description repeat its host and account. With nothing saved the
+card says "No repositories yet." Signed out there is no displayed account, so
+every kept record is listed with its account and host and Remove is unavailable
+until sign-in.
 
-**Add repository** opens the same native dialog as signed-in Home. Enter an
-HTTPS repository root or owner/name for the displayed host, check the exact
-account and host, then choose Add repository. The record belongs to that BPR
-profile and account. It starts the bounded authored/requested discovery owned
-by RFC-BPR-0026; it changes no GitHub subscription or review and opens no pull
-request. Saving succeeds only after local persistence accepts the record. A
-duplicate has its own confirmation; a refused save keeps the draft and accepted
-list for an explicit retry.
+**Add repository**, a bordered button under the card, opens a **New
+repository** card in its edit state, as Add enterprise server does on Accounts
+& hosts; there is no dialog. Every Add repository (this button, Home's first
+**Add a repository** button and Home's ordinary row) opens this page with the
+card open and its **Repository** field focused. The card shows the exact
+destination ("Save for @account on host"). Enter an HTTPS repository root or
+owner/name for that host and choose **Add** or press Return. The record belongs
+to that BPR profile and account. It starts the bounded authored/requested
+discovery owned by RFC-BPR-0026; it changes no GitHub subscription or review and
+opens no pull request. Progress and refusals are said beside the field and
+announced; a refusal keeps the draft for an explicit retry, and a duplicate has
+its own sentence. A durable save closes the card into the list, says "Added
+owner/name." under Add repository and in the window's status bar, and returns
+the keyboard to Add repository.
 
-A different repository host requires explicit account/server preparation.
-Preparation retains the draft; cancellation saves nothing, and returning from
-sign-in requires checking the destination and choosing Add repository again.
-Cancel or Escape discards the draft and restores the invoking focus.
+A different repository host requires explicit account/server preparation with
+**Choose account or set up server…**. Preparation keeps the draft on the page;
+cancelling it saves nothing, and returning from sign-in requires checking the
+destination and choosing Add again. **Cancel** or Escape in the field discards
+the draft and returns the keyboard to Add repository without closing Settings.
 
 **Remove** (or Delete/Backspace on the list) removes the selected exact record
 through the existing saved-repository intent and store. It affects the local
 saved record only; a failed change preserves the accepted list. Removing the
-last row leaves the empty state with the keyboard on Add repository, and Home
-shows its first-repository call to action again. The open-PR Save Repository
-shortcut continues to save its known repository directly through the same
-persistence and result path.
+last repository brings back Home's first **Add a repository** button. The
+open-PR Save Repository shortcut continues to save its known repository
+directly through the same persistence and result path.
 
 ## Appearance
 
