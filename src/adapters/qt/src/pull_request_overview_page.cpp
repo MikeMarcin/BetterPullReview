@@ -12,6 +12,7 @@
 #include <type_traits>
 
 #include <QAbstractItemView>
+#include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QApplication>
 #include <QDateTime>
@@ -19,7 +20,6 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QFrame>
-#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
@@ -44,6 +44,9 @@
 #include <QStyle>
 #include <QStyleOptionViewItem>
 #include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
+#include <QTextFormat>
 #include <QTextLayout>
 #include <QTextOption>
 #include <QTimeZone>
@@ -97,9 +100,18 @@ namespace bpr::qt {
 			watch(Reader->rendered_view());
 			watch(Reader->source_view());
 		}
-		markdown_body_view*   Reader = nullptr;
+		markdown_body_view* Reader = nullptr;
+		// The full-view toggle rides the reader's top-right corner, inside the
+		// frame and left of the vertical scroll bar, so it takes no column or
+		// row from the reader (owner, overview-v002 rejection).
 		std::function<void()> LayoutChanged;
-		[[nodiscard]] auto    line_height() const -> int
+		void                  set_corner(QWidget* aCorner)
+		{
+			Corner = aCorner;
+			Corner->installEventFilter(this);
+			place_corner();
+		}
+		[[nodiscard]] auto line_height() const -> int
 		{
 			return Reader->source_visible() ? Reader->source_view()->fontMetrics().lineSpacing() : Reader->rendered_view()->fontMetrics().lineSpacing();
 		}
@@ -160,7 +172,11 @@ namespace bpr::qt {
 				|| aEvent->type() == QEvent::ApplicationFontChange || aEvent->type() == QEvent::StyleChange) {
 				queue_layout();
 			}
-			return QWidget::event(aEvent);
+			const auto handled = QWidget::event(aEvent);
+			if (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::LayoutRequest) {
+				place_corner();
+			}
+			return handled;
 		}
 		bool eventFilter(QObject* aObject, QEvent* aEvent) override
 		{
@@ -170,6 +186,10 @@ namespace bpr::qt {
 
 			if ((!Expanded && aEvent->type() == QEvent::Show) || aEvent->type() == QEvent::DevicePixelRatioChange) {
 				queue_layout();
+			}
+			// A scroll bar appearing narrows the viewport; the corner follows it.
+			if (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide) {
+				QTimer::singleShot(0, this, [this] { place_corner(); });
 			}
 			return QWidget::eventFilter(aObject, aEvent);
 		}
@@ -257,11 +277,56 @@ namespace bpr::qt {
 				}
 				Adjusting = false;
 				Queued    = false;
+				place_corner();
 				if (LayoutChanged) {
 					LayoutChanged();
 				}
 			});
 		}
+		// The block property that keeps a reserved block's own right margin.
+		static constexpr auto OwnRightMargin = QTextFormat::UserProperty + 1314;
+		void                  place_corner()
+		{
+			if (Corner == nullptr || Reader == nullptr) {
+				return;
+			}
+			QAbstractScrollArea* area = Reader->source_visible() ? static_cast<QAbstractScrollArea*>(Reader->source_view()) : Reader->rendered_view();
+			const auto           size = Corner->sizeHint();
+			const auto           top  = area->viewport()->mapTo(this, QPoint{ area->viewport()->width(), 0 });
+			Corner->setGeometry(QRect{ QPoint{ top.x() - size.width(), top.y() }, size });
+			Corner->raise();
+			reserve_corner(Corner->isHidden() ? QSize{ } : size);
+		}
+		// Rendered lines beside the corner wrap short of it, so no word sits
+		// under the toggle at rest; every later line keeps the full width. Each
+		// block's top depends only on the blocks before it, so one ordered pass
+		// settles. Source stays unwrapped and scrolls horizontally instead.
+		void reserve_corner(const QSize aSize)
+		{
+			auto* const document  = Reader->rendered_view()->document();
+			auto* const layout    = document->documentLayout();
+			const auto  adjusting = std::exchange(Adjusting, true);
+			for (auto block = document->begin(); block.isValid(); block = block.next()) {
+				auto       format = block.blockFormat();
+				const auto own    = format.hasProperty(OwnRightMargin) ? format.doubleProperty(OwnRightMargin) : format.rightMargin();
+				const auto beside = !aSize.isEmpty() && layout->blockBoundingRect(block).top() < aSize.height();
+				const auto wanted = beside ? own + aSize.width() : own;
+				if (!beside && !format.hasProperty(OwnRightMargin)) {
+					break;
+				}
+				if (format.rightMargin() != wanted || format.hasProperty(OwnRightMargin) != beside) {
+					format.setRightMargin(wanted);
+					if (beside) {
+						format.setProperty(OwnRightMargin, own);
+					} else {
+						format.clearProperty(OwnRightMargin);
+					}
+					QTextCursor{ block }.setBlockFormat(format);
+				}
+			}
+			Adjusting = adjusting;
+		}
+		QWidget*      Corner = nullptr;
 		reading_place RenderedPlace, SourcePlace;
 		bool          Expanded = false, Adjusting = false, Queued = false, ReadingInput = false;
 	};
@@ -1945,20 +2010,18 @@ namespace bpr::qt {
 		mainColumn->addWidget(SummarySplit, 1);
 		SummaryPane = new QWidget{ SummarySplit };
 		SummaryPane->setObjectName(QStringLiteral("overviewSummaryPane"));
-		auto* summaryColumn = new QGridLayout{ SummaryPane };
+		auto* summaryColumn = new QVBoxLayout{ SummaryPane };
 		summaryColumn->setContentsMargins(0, 0, 0, 0);
-		summaryColumn->setSpacing(2);
-		summaryColumn->setColumnStretch(0, 1);
-		summaryColumn->setRowStretch(0, 1);
+		summaryColumn->setSpacing(0);
 		Body = new overview_description_view{ SummaryPane };
 		Body->setObjectName(QStringLiteral("overviewBody"));
 		Body->setAccessibleName(QStringLiteral("Pull request description"));
 		Body->Reader->setAccessibleName(QStringLiteral("Pull request description"));
-		summaryColumn->addWidget(Body, 0, 0);
+		summaryColumn->addWidget(Body, 1);
 		EmptyBody = new QLabel{ QStringLiteral("No description"), main };
 		EmptyBody->setObjectName(QStringLiteral("overviewNoDescription"));
 		mainColumn->insertWidget(mainColumn->indexOf(SummarySplit), EmptyBody);
-		FullView = new QToolButton{ SummaryPane };
+		FullView = new QToolButton{ Body };
 		FullView->setObjectName(QStringLiteral("overviewFullView"));
 		FullView->setCheckable(true);
 		FullView->setAutoRaise(true);
@@ -1967,7 +2030,11 @@ namespace bpr::qt {
 		FullView->setAccessibleName(FullView->text());
 		FullView->setToolTip(FullView->text());
 		FullView->setIcon(full_view_icon(palette(), false));
-		summaryColumn->addWidget(FullView, 0, 1, Qt::AlignTop | Qt::AlignRight);
+		// The reader's own paper behind the glyph, so text scrolling under the
+		// corner never shows through it.
+		FullView->setBackgroundRole(QPalette::Base);
+		FullView->setAutoFillBackground(true);
+		Body->set_corner(FullView);
 		connect(FullView, &QToolButton::clicked, this, [this](const bool aChecked) { set_description_expanded(aChecked); });
 		Body->LayoutChanged = [this] { SummarySplit->queue_layout(); };
 		FilesPane           = new QWidget{ SummarySplit };
@@ -1978,8 +2045,8 @@ namespace bpr::qt {
 		SummarySplit->addWidget(SummaryPane);
 		SummarySplit->addWidget(FilesPane);
 		SummarySplit->LineHeight     = [this] { return Body->line_height(); };
-		SummarySplit->NaturalHeight  = [this] { return std::max(Body->natural_height(), FullView->sizeHint().height()); };
-		SummarySplit->SummaryMinimum = [this] { return std::max(3 * Body->line_height() + Body->chrome_height(), FullView->sizeHint().height()); };
+		SummarySplit->NaturalHeight  = [this] { return std::max(Body->natural_height(), FullView->sizeHint().height() + Body->chrome_height()); };
+		SummarySplit->SummaryMinimum = [this] { return std::max(3 * Body->line_height(), FullView->sizeHint().height()) + Body->chrome_height(); };
 		SummarySplit->FilesMinimum   = [this] { return FilesHeading->sizeHint().height() + 4 + Files->header()->sizeHint().height() + 3 * std::max(Files->fontMetrics().height() + 8, Files->sizeHintForRow(0)); };
 		auto* escape                 = new QShortcut{ QKeySequence{ Qt::Key_Escape }, this };
 		escape->setContext(Qt::WidgetWithChildrenShortcut);
