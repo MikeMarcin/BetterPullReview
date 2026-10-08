@@ -1,0 +1,160 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-four-drafts-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0062",
+      "RFC-BPR-0063",
+      "RFC-BPR-0064",
+      "RFC-BPR-0065"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "saved-repository-host",
+      "outcome": "A repository can be normalized and saved durably under the exact displayed accepted sign-in authority without opening a PR.",
+      "work": [
+        {
+          "issue": "BPR-1306"
+        },
+        {
+          "issue": "BPR-1307"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "All four drafts and targeted amendments are registered with immutable baseline, complete bounded plan and no diagnostic logs/private payload in commits.",
+        "Direct input admission, saving/duplicate/refusal/retry and exact-authority replacement pass through the existing host/store; SQLite reopen and profile-window delivery preserve the same record."
+      ],
+      "boundary": "Domain/host foundation only; Home/Settings dialog, setup/sign-in UI, composed rendering and owner acceptance remain next milestone obligations."
+    },
+    {
+      "id": "saved-repository-home",
+      "outcome": "Home and Settings share focused addition with honest discovery and owner-judged native surfaces.",
+      "work": [
+        {
+          "issue": "BPR-1308"
+        },
+        {
+          "issue": "BPR-1309"
+        },
+        {
+          "issue": "BPR-1310"
+        },
+        {
+          "issue": "BPR-1311"
+        }
+      ],
+      "depends_on": [
+        "saved-repository-host"
+      ],
+      "exit_criteria": [
+        "Every RFC0062 criterion passes on exact public/runtime evidence or remains pending with candidate identity; no human verdict is inferred.",
+        "Operator and Home documentation match; formal closeout is dependency-truthful."
+      ],
+      "boundary": "Finish all independent unattended work before parking exact visual candidate; coordinator owns wait."
+    },
+    {
+      "id": "overview-summary",
+      "outcome": "Normal Overview has a larger resizable summary, independent scrolling and per-window persistence.",
+      "work": [
+        {
+          "issue": "BPR-1312"
+        },
+        {
+          "issue": "BPR-1313"
+        },
+        {
+          "issue": "BPR-1314"
+        },
+        {
+          "issue": "BPR-1315"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Every RFC0063 criterion passes, including retained reading/file identity and required owner judgment.",
+        "New normal-view contract supersedes compact-preview selection without rewriting historical plans or accepted cards."
+      ],
+      "boundary": "One Overview boundary with exact frozen rendered candidate."
+    },
+    {
+      "id": "diagnostic-export",
+      "outcome": "Diagnostic Save starts in an eligible OS user folder and preserves existing export authority.",
+      "work": [
+        {
+          "issue": "BPR-1316"
+        },
+        {
+          "issue": "BPR-1317"
+        },
+        {
+          "issue": "BPR-1318"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Every RFC0064 criterion passes with actual native chooser location on each claimed platform.",
+        "Help/Settings, both privacy modes and controlled fallback/refusal retain exact frozen bytes and no discovery writes."
+      ],
+      "boundary": "No persistent directory preference or automatic save."
+    },
+    {
+      "id": "ghes-reproduction",
+      "outcome": "Both real GHES failure classes have attributable bounded facts and composed synthetic reproducers.",
+      "work": [
+        {
+          "issue": "BPR-1319"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Actual selected tool/build facts are distinguished from reported/local-shell facts; missing paths or native qualification stay pending.",
+        "Qualification failure and actor-login conflict have separate public reproducers and no committed private payload."
+      ],
+      "boundary": "Evidence foundation; implementation chooses repair only from established facts."
+    },
+    {
+      "id": "ghes-repair",
+      "outcome": "Precise installed-tool qualification and actor-provenance repair restore exact source with honest recovery.",
+      "work": [
+        {
+          "issue": "BPR-1320"
+        },
+        {
+          "issue": "BPR-1321"
+        }
+      ],
+      "depends_on": [
+        "ghes-reproduction"
+      ],
+      "exit_criteria": [
+        "RFC0065 AC01\u2013AC04 and AC06 pass with installed-tool acquisition and composed source evidence.",
+        "All existing confinement, bounds, identity, cancellation and relationship checks remain; adopted qualification clauses are reconciled to actual evidence."
+      ],
+      "boundary": "Finish both repairs and independent verification before read-only owner acceptance."
+    },
+    {
+      "id": "ghes-acceptance",
+      "outcome": "The affected real enterprise PR renders on the exact repaired candidate and pack acceptance is truthful.",
+      "work": [
+        {
+          "issue": "BPR-1322"
+        },
+        {
+          "issue": "BPR-1323"
+        }
+      ],
+      "depends_on": [
+        "ghes-repair"
+      ],
+      "exit_criteria": [
+        "RFC0065 AC05 has actual owner observation of its exact frozen candidate; private target/logs stay outside commits.",
+        "All four RFC closeouts, documentation gate, obligations, writer/command state and cleanup are reconciled before declaring pack complete."
+      ],
+      "boundary": "Final whole-pack boundary; no live write or release publication."
+    }
+  ],
+  "unplanned_work": []
+}

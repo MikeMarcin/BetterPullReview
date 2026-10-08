@@ -382,3 +382,7 @@ pull-request presentation", "Public preview" and "Signing in with a device code"
 sections are rewritten to the card, and the settings authority inventory gains
 the row-to-authority mapping for the card. Historical cards and packets are not
 edited.
+
+## Adopted Home addition amendment — 2026-10-07
+
+[RFC-BPR-0062](RFC-BPR-0062-saved-repository-onboarding.md), registered under four-drafts-r1, supersedes the Settings-only addition route: signed-in Home offers Add repository in its discovery row, including a no-saved-repository prompt. Settings remains management for saved repositories and rules and invokes the same addition dialog. Signed-out Home, Open-bar grammar/focus, queue/group/filter ownership and unrelated acceptance remain unchanged. The owner selected direct URL/owner-name entry. Historical Done cards and plan exits are preserved; they do not accept the new surfaces. New evidence and judgments belong to BPR-1306–1311.

@@ -263,3 +263,7 @@ integration pass shows only failures that main already had (BPR-0940,
 BPR-0983 and BPR-0962); `milestone-overview-folder-collapse-evidence.md`
 records the details. This landing changes no dependency status and asserts no
 human or other-platform result.
+
+## Adopted resizable summary amendment — 2026-10-07
+
+The owner's resize request is registered as [RFC-BPR-0063](RFC-BPR-0063-resizable-overview-summary.md). It supersedes AC-01's normal compact/non-scrolling preview selection with a taller content-aware description/Files split and window-owned preferred fraction; the optional expanded reader and all reading, copy, authority clearing and file-navigation guarantees remain. The historical layout study, BPR-0928 and plan scope/exits stay unchanged as evidence for their exact design. BPR-1312–1315 owns new implementation and rendered/owner acceptance. This note neither closes this RFC nor supplies runtime evidence.

@@ -1,0 +1,116 @@
+[
+  {
+    "path": "docs/rfcs/RFC-BPR-0028-review-workbench-direction.md",
+    "authored": "9969cb78ee8ffc80bfff852e235acecf73419b8fc4a39866481b911963cfb010",
+    "observed": "9969cb78ee8ffc80bfff852e235acecf73419b8fc4a39866481b911963cfb010",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/RFC-BPR-0032-calm-home-and-accounts-surfaces.md",
+    "authored": "23a464a95de80c21ceb08eed05f735f376b9aec1f3e75c8df6f6fa86f02be3b2",
+    "observed": "23a464a95de80c21ceb08eed05f735f376b9aec1f3e75c8df6f6fa86f02be3b2",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json",
+    "authored": "fa4c70cd9ed375e3f63299b2a2c8911853832b26073cf1cc9c895f41db04f1d3",
+    "observed": "fa4c70cd9ed375e3f63299b2a2c8911853832b26073cf1cc9c895f41db04f1d3",
+    "matches": true
+  },
+  {
+    "path": "docs/issues/60-done/BPR-0775-lead-home-with-the-bar-and-the-first-launch-card.md",
+    "authored": "2b884a5340a55abe075947c7a16d670785cce4c76f6201784e1e7d51159f29bf",
+    "observed": "2b884a5340a55abe075947c7a16d670785cce4c76f6201784e1e7d51159f29bf",
+    "matches": true
+  },
+  {
+    "path": "docs/issues/60-done/BPR-0776-render-the-list-as-state-panels-with-one-row-anatomy.md",
+    "authored": "5d0860b559e730203614d2d71633ee7fe1a9fe2c7a4263584b305d11405a003f",
+    "observed": "5d0860b559e730203614d2d71633ee7fe1a9fe2c7a4263584b305d11405a003f",
+    "matches": true
+  },
+  {
+    "path": "docs/issues/60-done/BPR-0783-add-group-state-headers-account-chips-and-filter-to-home.md",
+    "authored": "b28c31bdbd12ef8deb43e4eb2842bad0fc3a68bea7b5e84c1e780a001916703f",
+    "observed": "b28c31bdbd12ef8deb43e4eb2842bad0fc3a68bea7b5e84c1e780a001916703f",
+    "matches": true
+  },
+  {
+    "path": "docs/issues/60-done/BPR-0779-run-the-rendered-and-attended-course-for-the-three-surfaces.md",
+    "authored": "0ab8e83ad1443e3d42866be34cbc69c24caa0d64a66ce76817d4e12b679ee7fd",
+    "observed": "0ab8e83ad1443e3d42866be34cbc69c24caa0d64a66ce76817d4e12b679ee7fd",
+    "matches": true
+  },
+  {
+    "path": "docs/issues/60-done/BPR-0781-close-rfc-0032.md",
+    "authored": "1b1ea4f24058aae9d6f2ad976eb9e299ecb7a5cd9a437d0577edd58f50b1a6ae",
+    "observed": "1b1ea4f24058aae9d6f2ad976eb9e299ecb7a5cd9a437d0577edd58f50b1a6ae",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/RFC-BPR-0037-first-pr-review-workflow.md",
+    "authored": "b28f7a8559c10c03eb4a78db810c380a8f4215d73080015dbe26d68243a0b58f",
+    "observed": "b28f7a8559c10c03eb4a78db810c380a8f4215d73080015dbe26d68243a0b58f",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/overview-description-layout-study.md",
+    "authored": "b6264cad289e04c243fdb478ac3d5ef56f230620f8adbab0e05324475c168660",
+    "observed": "b6264cad289e04c243fdb478ac3d5ef56f230620f8adbab0e05324475c168660",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/plans/rfc-bpr-0037-first-pr-workflow/milestone-plan.json",
+    "authored": "c3a2909df913b687828a55b010dccdc37f43f236991f7c24da15ad7dfecf2c84",
+    "observed": "c3a2909df913b687828a55b010dccdc37f43f236991f7c24da15ad7dfecf2c84",
+    "matches": true
+  },
+  {
+    "path": "docs/issues/60-done/BPR-0928-expanded-overview-description-reader.md",
+    "authored": "5a666275fffb5b0e3212cd7ea7dc2e5036db3723bcf0b4231cde6d41f1addf88",
+    "observed": "5a666275fffb5b0e3212cd7ea7dc2e5036db3723bcf0b4231cde6d41f1addf88",
+    "matches": true
+  },
+  {
+    "path": "src/adapters/qt/src/pull_request_overview_page.cpp",
+    "authored": "e8d03b36f2feae5439ddcf435db725c70d0639a77a156c78d94a0e64b76547da",
+    "observed": "e8d03b36f2feae5439ddcf435db725c70d0639a77a156c78d94a0e64b76547da",
+    "matches": true
+  },
+  {
+    "path": "tests/adapters_qt/pull_request_overview_page_tests.cpp",
+    "authored": "a1b45755440e65273d801f793a917e21b7d2ed0d1a122d4dd39b781bbd38bea0",
+    "observed": "a1b45755440e65273d801f793a917e21b7d2ed0d1a122d4dd39b781bbd38bea0",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md",
+    "authored": "0ea8025859b4e2a53b257f21cdcd0cfd84b0e6f154738ecc05748592fefff58a",
+    "observed": "0ea8025859b4e2a53b257f21cdcd0cfd84b0e6f154738ecc05748592fefff58a",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/plans/rfc-bpr-0015-cli-profile/milestone-plan.json",
+    "authored": "eeb2c94607c72f91e10617dab0b01f8d03e5660854283b614a39c151593af831",
+    "observed": "eeb2c94607c72f91e10617dab0b01f8d03e5660854283b614a39c151593af831",
+    "matches": true
+  },
+  {
+    "path": "docs/issues/60-done/BPR-0788-close-rfc-0015.md",
+    "authored": "78410c4abb1d3d43e4be7a0c32f1b15e4da3fe42f339a78a73a48f53a9d23463",
+    "observed": "78410c4abb1d3d43e4be7a0c32f1b15e4da3fe42f339a78a73a48f53a9d23463",
+    "matches": true
+  },
+  {
+    "path": "docs/architecture/product-contract.md",
+    "authored": "a7c81fe21263af5d3e32a0dfb451f0fca4beaeca837f1b9339ed25476babd9ca",
+    "observed": "a7c81fe21263af5d3e32a0dfb451f0fca4beaeca837f1b9339ed25476babd9ca",
+    "matches": true
+  },
+  {
+    "path": "docs/architecture/system-architecture.md",
+    "authored": "860a431b23cf34e84ea89c8b9b239073ecbac745130771dcd2b0c358c2d46ea1",
+    "observed": "860a431b23cf34e84ea89c8b9b239073ecbac745130771dcd2b0c358c2d46ea1",
+    "matches": true
+  }
+]
