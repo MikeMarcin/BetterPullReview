@@ -128,13 +128,13 @@ second read of each blob, another ~3.4 s per file before, is now local.
 
 **Large review, real composition and local Git** (515 files,
 `application_large_review_prepared_open`): time until the opened file's
-comparison is on screen. Four runs at load average 20–110.
+comparison is on screen.
 
-| | visible |
-|---|---|
-| unprepared opens (preparation off, same window) | 77–114 ms |
-| first open, with its window being prepared | 110–155 ms |
-| later opens in the prepared window | 17.5–22.8 ms |
+| | quiet machine (load 2) | loaded (load 20–110, 4 runs) |
+|---|---|---|
+| unprepared opens (preparation off, same window) | 58–62 ms | 77–114 ms |
+| first open, with its window being prepared | 82 ms | 110–155 ms |
+| later opens in the prepared window | 15.1–17.4 ms | 17.5–22.8 ms |
 
 Every prepared open was answered by its prepared comparison, and the course
 requires every prepared open to be faster than every unprepared one. In
@@ -144,13 +144,14 @@ included) is unchanged at about 190 ms there: classification is not prepared.
 
 ## Verification
 
-At code `HEAD` of `claude/bpr-1327-prefetch` (see the commit), macOS arm64
+At the head of branch `claude/bpr-1327-prefetch`, rebased on `2d410dfbf`, macOS arm64
 optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`):
 
 - The 18 large-review rows plus the new
-  `application_large_review_prepared_open`: 19/19 pass in 255.6 s, every
-  report `BudgetsEnforced` true with no `InputBudgetFailures`, no
-  `UnenforcedLimitMisses`, and a largest input gap of 56.1 ms. Baseline at the
+  `application_large_review_prepared_open`: 19/19 pass, every report
+  `BudgetsEnforced` true with no `InputBudgetFailures` and no
+  `UnenforcedLimitMisses`: 182.6 s with a largest input gap of 45.3 ms after
+  the final rebase (load 2), and 255.6 s with 56.1 ms before it (load 20–60). Baseline at the
   base commit: 18/18. The two courses that count cache entries now count the
   reviewer's own entries and bound the prepared share separately; no limit
   changed.
