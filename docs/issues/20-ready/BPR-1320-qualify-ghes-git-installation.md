@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1320"
 title: "Qualify the affected Git installation and exact-file recovery"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0065"]
 depends_on: ["BPR-1319"]
 priority: "P1"
