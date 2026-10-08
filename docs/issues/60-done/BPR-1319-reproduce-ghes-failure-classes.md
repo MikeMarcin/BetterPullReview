@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1319"
 title: "Establish separate GHES tool and actor-provenance reproducers"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0065"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r4"}
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"e61614205ca061677846431701febd136aeed385","evidence":{"kind":"observation","detail":"Bound observed/synthetic/local tools, version and failed-probe facts; local native exact acquisition safety/object proof passes. Owner reports2.54 Apple157/gh2.101; selected affected paths/build and actual qualification are explicitly unavailable, not inferred. Original logs remain ignored."}},{"criterion":"C2","outcome":"pass","revision":"e61614205ca061677846431701febd136aeed385","evidence":{"kind":"command","detail":"Separate public synthetic GHES protocol acquisition and provider read reproducers across recreated transports/reads: Git2.54 banner qualification vs failed probe, retry/recreated authority; actor viewer/review provenance, case-only and other true conflicts still reject, corrected synthetic payload retries. Five focused tests pass; both export privacy modes preserve only closed origins/classification. No real actor representation normalization inferred."}}]
 ---
 
 # Establish separate GHES tool and actor-provenance reproducers
