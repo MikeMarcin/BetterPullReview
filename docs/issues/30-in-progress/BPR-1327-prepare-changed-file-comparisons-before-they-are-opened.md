@@ -178,50 +178,47 @@ optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`):
   `application_private_review_native` failed once at the base and once with
   this change, and passed on the rerun.
 
-### After the rebase onto `e84d30975` (2026-10-08)
+### After the rebase onto `76b4b4f99` (2026-10-08)
 
-The branch was rebased onto `4cfc15256`, then onto `e84d30975`, with no
-conflict. Upstream brought the BPR-1324, BPR-1325 and BPR-1334 cards, a
-one-line local rename in `src/adapters/qt/src/writing_hooks_panel.cpp`
-(BPR-1090) and a note in `src/adapters/qt/AGENTS.md`. Both sides' cards are
-kept. Outside `docs/issues` the candidate tree `6e7b6135f` is the tested tree
-`93e95a14e`. Same macOS arm64 optimized tests-on tree.
+The branch was rebased three times while this card waited: onto `4cfc15256`,
+then `e84d30975`, then `76b4b4f99`. The last brought 36 upstream commits. They
+include BPR-1212 slice 1, BPR-1328, BPR-1329, BPR-1335, BPR-1337 and BPR-1339,
+with product changes to `github_application.cpp`, the fixture-access header
+and the large-review benchmark. Git merged the code without conflict. The
+only conflict was the round-trip pin; both sides' cards are kept. Same macOS
+arm64 optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`),
+rebuilt at the merged head.
 
-- **Round-trip pin.** Recomputed on the merged tree:
-  `application_review_round_trip_composition_contract` passes with BPR-1327's
-  digests unchanged (full application `7a3dcf93…`, production app manifest
-  `05ea96e1…`). The upstream rename is outside the pinned set, so no reseal
-  and no new note in the contract was needed.
+- **Round-trip pin.** Recomputed on the merged tree in `947c711ea`, with a
+  BPR-1327 note over the BPR-1329 and BPR-1212 slice 1 reseals: full
+  application `aaf6c757…`, production app manifest `6bdd4947…`, mutation pin
+  unchanged. `application_review_round_trip_composition_contract` and
+  `architecture_boundaries` pass.
 - **Focused rows.** `core_comparison_preparation`, `application_diff_host`,
   `application_epoch_host`, `application_workbench_host`,
   `gh_cli_git_smart_transport`, `github_provider`,
-  `application_composition_contract`,
-  `application_profile_window_review_restoration_public_path` and
-  `architecture_boundaries`: 9/9 pass.
-- **Large-review rows, `-j1`, budgets enforced.** 18 of 19 pass in 288.4 s.
-  Every report has `BudgetsEnforced` true and empty `UnenforcedLimitMisses`.
-  Load was 4.6 at the start and 41 at the end: another agent's build began
-  during the run. `application_large_review_launch` failed with "Mac fixture
-  responsiveness budget exceeded". Every phase in it ran at about ten times
-  its usual cost (drawer opens 440–490 ms, `large_file_selection` 688 ms).
-  `application_large_review_prepared_open` passed in the same run: unprepared
-  opens 161–173 ms, the first open while its window was prepared 248 ms,
-  later prepared opens 22.2–41.6 ms, 5 of 5 answered by preparation.
-- **Launch row A/B under the same load.** A temporary benchmark binary turned
-  preparation off at startup. Its source change was reverted and the real
-  binary restored byte for byte. The launch row ran interleaved off/on three
-  times at load 92–117. All six runs failed the same budget, with
-  preparation off as well as on, so the failure does not depend on
-  preparation. One trend: `conversations_pick_open` took 249–727 ms with
-  preparation on against 164–185 ms off, and `large_file_selection` took
-  1,327–4,017 against 956–1,601. With all 14 cores saturated the preparation
-  worker competes with the reviewer's open for CPU. At load 2 the same row
-  passed (above), so this trend is recorded and not treated as a budget miss.
-- The machine stayed at load 40–220 for the next 90 minutes and no quiet
-  window came. AC4 therefore rests on the quiet pre-rebase run above, 19/19
-  at load 2. Outside cards, that tree differs from this one only by the
-  upstream rename. The launch row's quiet confirmation on this exact tree is
-  owed to a quiet station: see the commands below.
+  `application_composition_contract` and
+  `application_profile_window_review_restoration_public_path`: 8/8 pass.
+- **Large-review rows, `-j1`, budgets enforced.** 19/19 pass in 281.5 s.
+  Every report has `BudgetsEnforced` true and empty `InputBudgetFailures`,
+  `KnownInputMisses` and `UnenforcedLimitMisses`. The largest pulse interval
+  was 66.9 ms (loaded close), against the 100 ms limit. Load was 18 at the
+  start and 9 at the end: other agents' builds kept the machine at 40–220 for
+  two hours and never let it go quiet. `application_large_review_prepared_open`:
+  unprepared opens 120–140 ms, the first open while its window was prepared
+  205 ms, later prepared opens 21.3–31.9 ms, 5 of 5 answered by preparation.
+- **Earlier run under load, at `e84d30975`.** 18 of 19 passed, with load
+  rising from 4.6 to 41. `application_large_review_launch` failed "Mac fixture
+  responsiveness budget exceeded", with every phase at about ten times its
+  usual cost. A temporary benchmark binary turned preparation off at startup;
+  its source change was reverted and the real binary restored byte for byte.
+  The launch row then ran interleaved off/on three times at load 92–117. All
+  six runs failed the same budget, preparation off as well as on, so the
+  failure did not depend on preparation. One trend is recorded:
+  `conversations_pick_open` took 249–727 ms with preparation on against
+  164–185 ms off, and `large_file_selection` 1,327–4,017 ms against
+  956–1,601. With all 14 cores saturated the preparation worker competes with
+  the reviewer's open for CPU. The row passes at load 2 and at load 18 (above).
 - `verify_documentation.py`: DOCUMENTATION_OK.
 
 ### Owed: Windows and Linux
