@@ -2688,6 +2688,7 @@ namespace bpr::qt {
 		// the cards adds another as a card in its edit state. No token is kept.
 		build_enterprise_server_draft(accounts, *accountsColumn);
 		SettingsWindow->adopt_panel(settings_page::accounts_and_hosts, accounts);
+		build_repositories_page();
 		// [[BPR-0652]]. Reviews & queue: the observer rules, and a plain
 		// statement of what the page will hold once its authorities exist.
 		auto* const reviews = new QWidget;
@@ -2714,13 +2715,29 @@ namespace bpr::qt {
 			RulesEditor->setParent(reviews);
 			reviewsColumn->addWidget(RulesEditor);
 		}
-		// [[BPR-0659]]. Saved repositories: the ones the drawer keeps, per
-		// the account the queue session names.
+		// [[BPR-0659]]. Saved repositories moved to a page of their own
+		// (RFC-BPR-0062, owner direction 2026-10-07). Observer rules stay: they
+		// are queue behaviour over any repository, not the saved list. Home's
+		// empty sentence still links here, so the page says where they went.
 		auto* const savedHeading = new QLabel{ QStringLiteral("Saved repositories"), reviews };
 		savedHeading->setObjectName(QStringLiteral("reviewsSavedHeading"));
 		savedHeading->setFont(headingFont);
 		reviewsColumn->addWidget(savedHeading);
-		build_saved_repositories_editor(reviews, *reviewsColumn);
+		auto* const savedPointer = new QWidget{ reviews };
+		savedPointer->setObjectName(QStringLiteral("reviewsRepositoriesPointer"));
+		auto* const savedPointerRow = new QHBoxLayout{ savedPointer };
+		savedPointerRow->setContentsMargins(0, 0, 0, 0);
+		auto* const savedPointerText = new QLabel{ tr("Saved repositories are managed on their own page."), savedPointer };
+		savedPointerText->setWordWrap(true);
+		savedPointerText->setTextFormat(Qt::PlainText);
+		savedPointerRow->addWidget(savedPointerText, 1);
+		auto* const openRepositories = new QPushButton{ tr("Open Repositories"), savedPointer };
+		openRepositories->setObjectName(QStringLiteral("reviewsOpenRepositories"));
+		openRepositories->setAccessibleDescription(tr("Shows Settings › Repositories, where saved repositories are added and removed"));
+		openRepositories->setAutoDefault(false);
+		savedPointerRow->addWidget(openRepositories, 0, Qt::AlignRight);
+		connect(openRepositories, &QPushButton::clicked, this, [this] { open_settings(settings_page::repositories); });
+		reviewsColumn->addWidget(savedPointer);
 		SettingsWindow->adopt_panel(settings_page::reviews_and_queue, reviews);
 		build_capability_settings();
 
@@ -2990,11 +3007,58 @@ namespace bpr::qt {
 		HomeAddRepositoryButton->setObjectName(QStringLiteral("homeAddRepositoryButton"));
 		HomeAddRepositoryButton->setDefaultAction(AddSavedRepository);
 		HomeAddRepositoryButton->setFocusPolicy(Qt::StrongFocus);
+		HomeAddRepositoryButton->setAccessibleName(tr("Add repository"));
 		HomeAddRepositoryButton->setAccessibleDescription(tr("Add a repository to find my pull requests and review requests"));
 		repositoryRow->addWidget(HomeAddRepositoryButton, 0, Qt::AlignLeft);
+		// RFC-BPR-0062, owner direction 2026-10-07: "a clearer call to action for
+		// first time experience". With no saved repository for the displayed
+		// account and host, the row gives way to a short heading, one sentence
+		// and the default-styled Add repository button, in the row's place under
+		// the bar. It is not a card: no border, no fill, the interface font and
+		// palette, so the button is the one emphasized thing on Home.
+		HomeOnboarding = new QWidget{ HomePage };
+		HomeOnboarding->setObjectName(QStringLiteral("homeRepositoryOnboarding"));
+		HomeOnboarding->setAccessibleName(tr("Start with a repository"));
+		auto* const onboarding = new QVBoxLayout{ HomeOnboarding };
+		onboarding->setContentsMargins(24, 20, 24, 12);
+		onboarding->setSpacing(6);
+		auto* const onboardingHeading = new QLabel{ tr("Start with a repository"), HomeOnboarding };
+		onboardingHeading->setObjectName(QStringLiteral("homeRepositoryOnboardingHeading"));
+		onboardingHeading->setTextFormat(Qt::PlainText);
+		onboardingHeading->setWordWrap(true);
+		onboardingHeading->setAccessibleName(onboardingHeading->text());
+		auto headingFont = onboardingHeading->font();
+		headingFont.setPointSizeF(headingFont.pointSizeF() * 1.25);
+		headingFont.setWeight(QFont::DemiBold);
+		onboardingHeading->setFont(headingFont);
+		onboarding->addWidget(onboardingHeading);
+		auto* const onboardingSentence = new QLabel{ tr("Add a repository to find my pull requests and review requests."), HomeOnboarding };
+		onboardingSentence->setObjectName(QStringLiteral("homeRepositoryOnboardingSentence"));
+		onboardingSentence->setTextFormat(Qt::PlainText);
+		onboardingSentence->setWordWrap(true);
+		onboardingSentence->setAccessibleName(onboardingSentence->text());
+		onboarding->addWidget(onboardingSentence);
+		onboarding->addSpacing(6);
+		HomeOnboardingButton = new QPushButton{ tr("Add repository"), HomeOnboarding };
+		HomeOnboardingButton->setObjectName(QStringLiteral("homeRepositoryOnboardingButton"));
+		// Distinct from the ordinary row's Add repository, which the focus
+		// order also declares; the visible label is the same verb.
+		HomeOnboardingButton->setAccessibleName(tr("Add first repository"));
+		HomeOnboardingButton->setAccessibleDescription(tr("Add a repository to find my pull requests and review requests; nothing changes on GitHub"));
+		HomeOnboardingButton->setFocusPolicy(Qt::StrongFocus);
+		HomeOnboardingButton->setAutoDefault(false);
+		// The default look only: the main window has no default-button key.
+		HomeOnboardingButton->setDefault(true);
+		connect(HomeOnboardingButton, &QPushButton::clicked, AddSavedRepository, &QAction::trigger);
+		connect(AddSavedRepository, &QAction::changed, HomeOnboardingButton, [this] {
+			HomeOnboardingButton->setEnabled(AddSavedRepository->isEnabled());
+		});
+		onboarding->addWidget(HomeOnboardingButton, 0, Qt::AlignLeft);
 		if (auto* homeColumn = qobject_cast<QVBoxLayout*>(HomePage->layout())) {
+			homeColumn->insertWidget(homeColumn->indexOf(HomeCycles), HomeOnboarding);
 			homeColumn->insertWidget(homeColumn->indexOf(HomeCycles), HomeRepositoryRow);
 		}
+		HomeOnboarding->hide();
 		HomeRepositoryRow->hide();
 
 		QueueLanding     = new review_landing_model{ surface };
@@ -3714,7 +3778,7 @@ namespace bpr::qt {
 		// a mnemonic (`menu_literal`); the wording here is the one the reviewer
 		// reads.
 		auto* const footer = HomeFilterMenu->addAction(menu_literal(QStringLiteral(
-			"Nothing here changes GitHub. Saved repositories and observer rules are in Settings › Reviews & queue.")));
+			"Nothing here changes GitHub. Observer rules are in Settings › Reviews & queue.")));
 		footer->setObjectName(QStringLiteral("homeFilterFooter"));
 		footer->setEnabled(false);
 		// The footer says where they are; this is the way there, by keyboard as
@@ -3722,7 +3786,7 @@ namespace bpr::qt {
 		HomeFilterSettings = HomeFilterMenu->addAction(menu_literal(QStringLiteral("Open Reviews & queue")));
 		HomeFilterSettings->setObjectName(QStringLiteral("homeFilterSettingsAction"));
 		HomeFilterSettings->setToolTip(QStringLiteral(
-			"Opens Settings, Reviews & queue, where saved repositories and observer rules are kept."));
+			"Opens Settings, Reviews & queue, where observer rules and queue defaults are kept."));
 		HomeFilterSettings->setStatusTip(HomeFilterSettings->toolTip());
 		connect(HomeFilterSettings, &QAction::triggered, this, [this] {
 			open_settings(settings_page::reviews_and_queue);
@@ -4049,9 +4113,8 @@ namespace bpr::qt {
 			&& static_cast<std::size_t>(selectedIndex) < QueueRules.size()) {
 			selectedRule = QueueRules[static_cast<std::size_t>(selectedIndex)];
 		}
-		const auto rulesChanged        = QueueRules != aProjection.Rules;
-		const auto serversChanged      = QueueProjection.SavedServers != aProjection.SavedServers;
-		const auto repositoriesChanged = QueueProjection.SavedRepositories != aProjection.SavedRepositories;
+		const auto rulesChanged   = QueueRules != aProjection.Rules;
+		const auto serversChanged = QueueProjection.SavedServers != aProjection.SavedServers;
 
 		QueueReady                = aProjection.Status == application::queue_landing_status::ready;
 		const auto filtersEnabled = QueueReady
@@ -4088,16 +4151,7 @@ namespace bpr::qt {
 		if (serversChanged) {
 			update_server_cards();
 		}
-		if (SavedRepositorySelector != nullptr && repositoriesChanged) {
-			const auto selected = SavedRepositorySelector->currentText();
-			SavedRepositorySelector->clear();
-			for (const auto& saved : aProjection.SavedRepositories) {
-				SavedRepositorySelector->addItem(QString::fromStdString(saved.Repository));
-			}
-			if (const auto restored = SavedRepositorySelector->findText(selected); restored >= 0) {
-				SavedRepositorySelector->setCurrentIndex(restored);
-			}
-		}
+		update_saved_repository_list();
 		if (!aProjection.UpdatedItem) {
 			rebuild_queue_repositories(aProjection.Items, aProjection.Preferences.Repository);
 		}
@@ -4144,43 +4198,172 @@ namespace bpr::qt {
 		apply_focus_order();
 	}
 
-	void workbench_window::build_saved_repositories_editor(QWidget* const aParent, QVBoxLayout& aLayout)
+	void workbench_window::build_repositories_page()
 	{
-		SavedRepositoriesEditor = new QWidget{ aParent };
+		// RFC-BPR-0062, owner direction 2026-10-07: the saved repositories were
+		// "way hidden down the bottom of a settings page that is full of mostly
+		// irrelevant details". This page holds only them: whose they are, the
+		// list, Add repository and Remove. It keeps no record of its own; the
+		// rows are the queue host's accepted records and Remove sends its typed
+		// intent for the exact record a row stands for.
+		SavedRepositoriesEditor = new QWidget;
 		SavedRepositoriesEditor->setObjectName(QStringLiteral("savedRepositoriesEditor"));
-		SavedRepositoriesEditor->setAccessibleName(QStringLiteral("Saved repositories"));
+		SavedRepositoriesEditor->setAccessibleName(QStringLiteral("Repositories"));
 		SavedRepositoriesEditor->setAccessibleDescription(QStringLiteral(
-			"Inspect or remove saved repositories, or open the shared Add repository dialog"));
-		auto* const controls = new QHBoxLayout{ SavedRepositoriesEditor };
-		controls->setContentsMargins(0, 0, 0, 0);
-		SavedRepositorySelector = new QComboBox{ SavedRepositoriesEditor };
-		SavedRepositorySelector->setObjectName(QStringLiteral("savedRepositorySelector"));
-		SavedRepositorySelector->setAccessibleName(QStringLiteral("Saved repositories list"));
-		SavedRepositorySelector->setAccessibleDescription(QStringLiteral("Select a saved repository to remove"));
-		controls->addWidget(SavedRepositorySelector, 1);
-		RemoveSavedRepository = new QAction{ tr("Remove saved repository"), this };
-		RemoveSavedRepository->setObjectName(QStringLiteral("removeSavedRepository"));
-		AddSavedRepositoryButton = new QToolButton{ SavedRepositoriesEditor };
-		AddSavedRepositoryButton->setDefaultAction(AddSavedRepository);
+			"The repositories saved for the displayed account, where my pull requests and review requests are found"));
+		auto* const column = new QVBoxLayout{ SavedRepositoriesEditor };
+		column->setContentsMargins(0, 0, 0, 0);
+		column->setSpacing(10);
+		auto* const lede = new QLabel{
+			tr("My pull requests and review requests are found in these repositories. Nothing here changes GitHub."),
+			SavedRepositoriesEditor
+		};
+		lede->setObjectName(QStringLiteral("repositoriesLede"));
+		lede->setWordWrap(true);
+		lede->setTextFormat(Qt::PlainText);
+		lede->setForegroundRole(QPalette::PlaceholderText);
+		column->addWidget(lede);
+		SavedRepositoriesDestination = new QLabel{ SavedRepositoriesEditor };
+		SavedRepositoriesDestination->setObjectName(QStringLiteral("repositoriesDestination"));
+		SavedRepositoriesDestination->setAccessibleName(tr("Account and host"));
+		SavedRepositoriesDestination->setTextFormat(Qt::PlainText);
+		SavedRepositoriesDestination->setWordWrap(true);
+		SavedRepositoriesDestination->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		auto destinationFont = SavedRepositoriesDestination->font();
+		destinationFont.setWeight(QFont::DemiBold);
+		SavedRepositoriesDestination->setFont(destinationFont);
+		column->addWidget(SavedRepositoriesDestination);
+
+		SavedRepositoryList = new QListWidget{ SavedRepositoriesEditor };
+		SavedRepositoryList->setObjectName(QStringLiteral("savedRepositoryList"));
+		SavedRepositoryList->setAccessibleName(QStringLiteral("Saved repositories"));
+		SavedRepositoryList->setAccessibleDescription(QStringLiteral(
+			"Select a repository; Delete or Remove stops finding my pull requests in it"));
+		SavedRepositoryList->setSelectionMode(QAbstractItemView::SingleSelection);
+		SavedRepositoryList->setWordWrap(true);
+		SavedRepositoryList->setTextElideMode(Qt::ElideNone);
+		SavedRepositoryList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		SavedRepositoryList->setUniformItemSizes(false);
+		SavedRepositoryList->setMinimumHeight(SavedRepositoryList->fontMetrics().lineSpacing() * 6);
+		SavedRepositoryList->installEventFilter(this);
+		column->addWidget(SavedRepositoryList, 1);
+
+		// Empty is a sentence and the action, never an empty box.
+		SavedRepositoriesEmpty = new QWidget{ SavedRepositoriesEditor };
+		SavedRepositoriesEmpty->setObjectName(QStringLiteral("savedRepositoriesEmpty"));
+		auto* const emptyColumn = new QVBoxLayout{ SavedRepositoriesEmpty };
+		emptyColumn->setContentsMargins(0, 4, 0, 0);
+		emptyColumn->setSpacing(4);
+		auto* const emptyHeading = new QLabel{ tr("No repositories yet"), SavedRepositoriesEmpty };
+		emptyHeading->setObjectName(QStringLiteral("savedRepositoriesEmptyHeading"));
+		emptyHeading->setTextFormat(Qt::PlainText);
+		auto emptyFont = emptyHeading->font();
+		emptyFont.setWeight(QFont::DemiBold);
+		emptyHeading->setFont(emptyFont);
+		emptyColumn->addWidget(emptyHeading);
+		auto* const emptySentence = new QLabel{ tr("Add one to find my pull requests and review requests."), SavedRepositoriesEmpty };
+		emptySentence->setObjectName(QStringLiteral("savedRepositoriesEmptySentence"));
+		emptySentence->setTextFormat(Qt::PlainText);
+		emptySentence->setWordWrap(true);
+		emptyColumn->addWidget(emptySentence);
+		SavedRepositoriesEmpty->hide();
+		column->addWidget(SavedRepositoriesEmpty);
+
+		auto* const buttons = new QHBoxLayout{ };
+		buttons->setContentsMargins(0, 2, 0, 0);
+		AddSavedRepositoryButton = new QPushButton{ tr("Add repository"), SavedRepositoriesEditor };
 		AddSavedRepositoryButton->setObjectName(QStringLiteral("addSavedRepositoryButton"));
 		AddSavedRepositoryButton->setAccessibleName(QStringLiteral("Add repository"));
 		AddSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
-			"Keep the named repository in the drawer for this account; nothing changes on GitHub"));
-		controls->addWidget(AddSavedRepositoryButton);
-		RemoveSavedRepositoryButton = new QToolButton{ SavedRepositoriesEditor };
-		RemoveSavedRepositoryButton->setDefaultAction(RemoveSavedRepository);
+			"Opens the Add repository dialog for the displayed account; nothing changes on GitHub"));
+		AddSavedRepositoryButton->setAutoDefault(false);
+		AddSavedRepositoryButton->setDefault(true);
+		connect(AddSavedRepositoryButton, &QPushButton::clicked, AddSavedRepository, &QAction::trigger);
+		buttons->addWidget(AddSavedRepositoryButton);
+		RemoveSavedRepository = new QAction{ tr("Remove"), this };
+		RemoveSavedRepository->setObjectName(QStringLiteral("removeSavedRepository"));
+		RemoveSavedRepositoryButton = new QPushButton{ tr("Remove"), SavedRepositoriesEditor };
 		RemoveSavedRepositoryButton->setObjectName(QStringLiteral("removeSavedRepositoryButton"));
 		RemoveSavedRepositoryButton->setAccessibleName(QStringLiteral("Remove saved repository"));
 		RemoveSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
-			"Stop keeping the selected repository in the drawer"));
-		controls->addWidget(RemoveSavedRepositoryButton);
+			"Stop finding my pull requests in the selected repository; nothing changes on GitHub"));
+		RemoveSavedRepositoryButton->setAutoDefault(false);
+		connect(RemoveSavedRepositoryButton, &QPushButton::clicked, RemoveSavedRepository, &QAction::trigger);
+		buttons->addWidget(RemoveSavedRepositoryButton);
+		buttons->addStretch(1);
+		column->addLayout(buttons);
+		column->addStretch(1);
+
 		connect(RemoveSavedRepository, &QAction::triggered, this, [this] {
 			dispatch_saved_repository(application::saved_repository_action::remove);
 		});
-		connect(SavedRepositorySelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
-				[this] { update_saved_repository_actions(); });
-		aLayout.addWidget(SavedRepositoriesEditor);
+		connect(SavedRepositoryList, &QListWidget::currentRowChanged, this,
+				[this](int) { update_saved_repository_actions(); });
+		SettingsWindow->adopt_panel(settings_page::repositories, SavedRepositoriesEditor);
+		update_saved_repository_list();
 		update_saved_repository_actions();
+	}
+
+	void workbench_window::update_saved_repository_list()
+	{
+		if (SavedRepositoryList == nullptr) {
+			return;
+		}
+		// Signed in, the displayed account's records. Signed out there is no
+		// displayed account, so every kept record is listed with the exact
+		// account and host it is saved for, rather than an empty page.
+		const auto& session  = QueueProjection.Session;
+		const auto  signedIn = !session.Host.empty() && !session.Account.empty();
+		auto        rows     = QStringList{ };
+		auto        records  = std::vector<const application::saved_repository*>{ };
+		for (const auto& saved : QueueProjection.SavedRepositories) {
+			if (!signedIn) {
+				rows.push_back(tr("%1 (@%2 on %3)").arg(QString::fromStdString(saved.Repository), QString::fromStdString(saved.Account), QString::fromStdString(saved.Host)));
+				records.push_back(&saved);
+			} else if (saved.Host == session.Host && saved.Account == session.Account) {
+				rows.push_back(QString::fromStdString(saved.Repository));
+				records.push_back(&saved);
+			}
+		}
+		auto current = QStringList{ };
+		for (auto row = 0; row < SavedRepositoryList->count(); ++row) {
+			current.push_back(SavedRepositoryList->item(row)->text());
+		}
+		SavedRepositoriesDestination->setText(signedIn ? tr("Saved for @%1 on %2").arg(QString::fromStdString(session.Account), QString::fromStdString(session.Host))
+													   : tr("Signed out. Sign in to add or remove repositories for an account."));
+		if (rows != current) {
+			// The removed row's neighbour keeps the keyboard's place; a new list
+			// starts on its first row so the keyboard lands on a repository.
+			const auto selected = SavedRepositoryList->currentItem() != nullptr ? SavedRepositoryList->currentItem()->text() : QString{ };
+			const auto previous = SavedRepositoryList->currentRow();
+			const auto focused  = SavedRepositoryList->hasFocus();
+			SavedRepositoryList->clear();
+			for (std::size_t index = 0U; index < records.size(); ++index) {
+				const auto& saved = *records[index];
+				auto* const item  = new QListWidgetItem{ rows[static_cast<qsizetype>(index)], SavedRepositoryList };
+				const auto  name  = QString::fromStdString(saved.Repository);
+				const auto  host  = QString::fromStdString(saved.Host);
+				const auto  login = QString::fromStdString(saved.Account);
+				item->setData(Qt::UserRole, name);
+				item->setData(Qt::UserRole + 1, host);
+				item->setData(Qt::UserRole + 2, login);
+				item->setToolTip(tr("%1 on %2, saved for @%3").arg(name, host, login));
+				item->setData(Qt::AccessibleDescriptionRole, tr("On %1, saved for @%2").arg(host, login));
+			}
+			if (const auto restored = rows.indexOf(selected); restored >= 0) {
+				SavedRepositoryList->setCurrentRow(static_cast<int>(restored));
+			} else if (!rows.isEmpty()) {
+				SavedRepositoryList->setCurrentRow(std::clamp(previous, 0, static_cast<int>(rows.size()) - 1));
+			}
+			if (focused && rows.isEmpty() && AddSavedRepositoryButton != nullptr) {
+				AddSavedRepositoryButton->setFocus(Qt::OtherFocusReason);
+			}
+		}
+		SavedRepositoryList->setVisible(!rows.isEmpty());
+		SavedRepositoriesEmpty->setVisible(rows.isEmpty());
+		if (RemoveSavedRepositoryButton != nullptr) {
+			RemoveSavedRepositoryButton->setVisible(!rows.isEmpty());
+		}
 	}
 
 	namespace {
@@ -4699,7 +4882,7 @@ namespace bpr::qt {
 		if (!RepositoryPreparing && !RepositoryAdditionDialog->isVisible()) {
 			RepositoryInvoker = QApplication::focusWidget();
 			if (!RepositoryInvoker) {
-				RepositoryInvoker = HomeAddRepositoryButton;
+				RepositoryInvoker = HomeOnboarding != nullptr && HomeOnboarding->isVisibleTo(this) ? static_cast<QWidget*>(HomeOnboardingButton) : HomeAddRepositoryButton;
 			}
 			repository_addition_notice({ });
 		}
@@ -4766,7 +4949,7 @@ namespace bpr::qt {
 		case state::destination_changed: notice = tr("This repository needs a different destination. Choose its account or explicitly set up its server, then return here and choose Add repository."); break;
 		case state::unavailable:         notice = tr("The repository could not be saved locally. Your input is kept; choose Add repository to retry."); break;
 		case state::busy:                notice = tr("Another repository change is being saved. Try Add repository again when it finishes."); break;
-		case state::collection_limit:    notice = tr("The saved repository limit has been reached. Remove a repository in Settings before adding another."); break;
+		case state::collection_limit:    notice = tr("The saved repository limit has been reached. Remove a repository in Settings › Repositories before adding another."); break;
 		}
 		if (RepositoryAdditionDialog && RepositoryAdditionDialog->isVisible()) {
 			repository_addition_notice(notice);
@@ -4779,6 +4962,26 @@ namespace bpr::qt {
 	auto workbench_window::saved_repositories_editor() const noexcept -> QWidget*
 	{
 		return SavedRepositoriesEditor;
+	}
+
+	auto workbench_window::saved_repository_list() const noexcept -> QListWidget*
+	{
+		return SavedRepositoryList;
+	}
+
+	auto workbench_window::saved_repositories_empty() const noexcept -> QWidget*
+	{
+		return SavedRepositoriesEmpty;
+	}
+
+	auto workbench_window::home_repository_onboarding() const noexcept -> QWidget*
+	{
+		return HomeOnboarding;
+	}
+
+	auto workbench_window::home_repository_onboarding_button() const noexcept -> QPushButton*
+	{
+		return HomeOnboardingButton;
 	}
 
 	auto workbench_window::saved_repository_name() const noexcept -> QLineEdit*
@@ -4808,12 +5011,19 @@ namespace bpr::qt {
 		if (aAction == application::saved_repository_action::add) {
 			repository.Repository = SavedRepositoryName->text().trimmed().toStdString();
 		} else {
-			const auto index = SavedRepositorySelector->currentIndex();
-			if (index < 0
-				|| static_cast<std::size_t>(index) >= QueueProjection.SavedRepositories.size()) {
+			// The row names the exact accepted record of the displayed account.
+			const auto* const item = SavedRepositoryList != nullptr ? SavedRepositoryList->currentItem() : nullptr;
+			if (item == nullptr) {
 				return;
 			}
-			repository = QueueProjection.SavedRepositories[static_cast<std::size_t>(index)];
+			repository = application::saved_repository{
+				.Host       = item->data(Qt::UserRole + 1).toString().toStdString(),
+				.Account    = item->data(Qt::UserRole + 2).toString().toStdString(),
+				.Repository = item->data(Qt::UserRole).toString().toStdString(),
+			};
+			if (std::ranges::find(QueueProjection.SavedRepositories, repository) == QueueProjection.SavedRepositories.end()) {
+				return;
+			}
 		}
 		if (!application::valid(repository)) {
 			return;
@@ -4833,10 +5043,19 @@ namespace bpr::qt {
 			&& !QueueProjection.Session.Host.empty() && !QueueProjection.Session.Account.empty();
 		AddSavedRepository->setEnabled(static_cast<bool>(RepositoryAdditionDispatch));
 		RemoveSavedRepository->setEnabled(
-			account && SavedRepositorySelector != nullptr && SavedRepositorySelector->currentIndex() >= 0);
+			account && SavedRepositoryList != nullptr && SavedRepositoryList->currentItem() != nullptr);
 		AddSavedRepository->setToolTip(tr("Find my pull requests and review requests in a saved repository; nothing changes on GitHub."));
 		update_repository_destination();
-		RemoveSavedRepository->setToolTip(QStringLiteral("Stop keeping the selected repository in the drawer."));
+		RemoveSavedRepository->setToolTip(account ? QStringLiteral("Stop finding my pull requests in the selected repository; nothing changes on GitHub.")
+												  : QStringLiteral("Sign in to remove a saved repository."));
+		if (AddSavedRepositoryButton != nullptr) {
+			AddSavedRepositoryButton->setEnabled(AddSavedRepository->isEnabled());
+			AddSavedRepositoryButton->setToolTip(AddSavedRepository->toolTip());
+		}
+		if (RemoveSavedRepositoryButton != nullptr) {
+			RemoveSavedRepositoryButton->setEnabled(RemoveSavedRepository->isEnabled());
+			RemoveSavedRepositoryButton->setToolTip(RemoveSavedRepository->toolTip());
+		}
 	}
 
 	void workbench_window::publish(
@@ -9495,8 +9714,8 @@ namespace bpr::qt {
 				glyph->setAccessibleDescription(tip);
 			}
 		}
+		update_home_repository_onboarding();
 		if (HomeRepositoryRow != nullptr) {
-			HomeRepositoryRow->setVisible(HomeAccount);
 			if (auto* row = qobject_cast<QBoxLayout*>(HomeRepositoryRow->layout())) {
 				row->setDirection(width() < 640 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
 			}
@@ -9512,6 +9731,29 @@ namespace bpr::qt {
 				HomeDiscoveryStatus->setText(sentence);
 			}
 			HomeDiscoveryStatus->setVisible(!sentence.isEmpty());
+		}
+	}
+
+	void workbench_window::update_home_repository_onboarding()
+	{
+		if (HomeOnboarding == nullptr || HomeRepositoryRow == nullptr) {
+			return;
+		}
+		// Only a ready queue knows that nothing is saved: while it restores, the
+		// ordinary row stands, so a returning reviewer never sees onboarding flash.
+		const auto session    = QueueReady && !QueueProjection.Session.Host.empty() && !QueueProjection.Session.Account.empty();
+		const auto hasSaved   = std::ranges::any_of(QueueProjection.SavedRepositories, [this](const auto& aSaved) {
+			return aSaved.Host == QueueProjection.Session.Host && aSaved.Account == QueueProjection.Session.Account;
+		});
+		const auto onboarding = HomeAccount && session && !hasSaved;
+		const auto handFocus  = !onboarding && HomeOnboardingButton->hasFocus();
+		HomeOnboarding->setVisible(onboarding);
+		HomeRepositoryRow->setVisible(HomeAccount && !onboarding);
+		HomeOnboardingButton->setEnabled(AddSavedRepository != nullptr && AddSavedRepository->isEnabled());
+		// The first save retires the call to action under the keyboard; its
+		// ordinary Add repository takes the focus rather than nothing.
+		if (handFocus && HomeAddRepositoryButton->isVisibleTo(this)) {
+			HomeAddRepositoryButton->setFocus(Qt::OtherFocusReason);
 		}
 	}
 
@@ -9885,6 +10127,15 @@ namespace bpr::qt {
 			&& (aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
 			place_dif_corner();
+		}
+		// Settings › Repositories: Delete (or Backspace, as macOS lists take it)
+		// removes the selected repository, exactly as Remove does.
+		if (aWatched == SavedRepositoryList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
+			const auto key = static_cast<QKeyEvent*>(aEvent)->key();
+			if ((key == Qt::Key_Delete || key == Qt::Key_Backspace) && RemoveSavedRepository->isEnabled()) {
+				RemoveSavedRepository->trigger();
+				return true;
+			}
 		}
 		if (aWatched == ReviewBar && aEvent != nullptr
 			&& (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange)) {
@@ -10502,6 +10753,7 @@ namespace bpr::qt {
 		// the two selectors on one grid row above their two exact OIDs, the row
 		// order the composed control already walks.
 		if (HomeLanding != nullptr) {
+			append(HomeOnboardingButton);
 			append(HomeAddRepositoryButton);
 			append(HomeLanding->primary_button());
 			append(HomeLanding->secondary_button());

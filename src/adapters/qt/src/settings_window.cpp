@@ -50,6 +50,7 @@ namespace bpr::qt {
 		constexpr auto page_order = std::array{
 			settings_page::general,
 			settings_page::accounts_and_hosts,
+			settings_page::repositories,
 			settings_page::reviews_and_queue,
 			settings_page::appearance,
 			settings_page::notifications,
@@ -76,6 +77,8 @@ namespace bpr::qt {
 				return QStringLiteral(
 					"Sign in, sign out and enterprise servers are in the review window's "
 					"header for now. Remembered servers will move here.");
+			case settings_page::repositories:
+				return QStringLiteral("Saved repositories for the signed-in account will be listed here.");
 			case settings_page::reviews_and_queue:
 				return QStringLiteral(
 					"Observer rules and queue ordering are in the review window's queue "
@@ -465,6 +468,8 @@ namespace bpr::qt {
 			return QStringLiteral("General");
 		case settings_page::accounts_and_hosts:
 			return QStringLiteral("Accounts & hosts");
+		case settings_page::repositories:
+			return QStringLiteral("Repositories");
 		case settings_page::reviews_and_queue:
 			return QStringLiteral("Reviews & queue");
 		case settings_page::appearance:

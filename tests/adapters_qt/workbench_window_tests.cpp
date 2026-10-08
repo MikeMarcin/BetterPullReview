@@ -156,7 +156,7 @@ namespace {
 		const auto widgets = window.findChildren<QWidget*>().size();
 		window.publish(projection);
 		auto* rules        = window.findChild<QComboBox*>(QStringLiteral("observerRuleSelector"));
-		auto* repositories = window.findChild<QComboBox*>(QStringLiteral("savedRepositorySelector"));
+		auto* repositories = window.saved_repository_list();
 		// [[BPR-0774]]. A kept server has no list of its own: it is its host's
 		// card, and a kept server with no configured host profile adds nothing.
 		expect(rules->count() == static_cast<int>(application::maximum_queue_rules)
@@ -9224,16 +9224,64 @@ namespace {
 			   "cancelled preparation returns to the unchanged draft and makes no Add gesture");
 		dialog->reject();
 		expect(input->text().isEmpty() && additions.size() == 3U, "dialog cancel discards the draft without saving");
-		auto* selector = window.findChild<QComboBox*>(QStringLiteral("savedRepositorySelector"));
-		selector->setCurrentIndex(0);
-		window.remove_saved_repository_action()->trigger();
+		// Settings › Repositories: its own page, listing only the displayed
+		// account's records, removing through the existing typed intent.
+		projection.Session = { .Host = "github.com", .Account = "reviewer", .Generation = 4U };
+		projection.Addition.reset();
+		window.publish(projection);
+		auto* const page = window.settings()->page_widget(qt::settings_page::repositories);
+		auto*       list = window.saved_repository_list();
+		expect(page != nullptr && page->isAncestorOf(list) && page->isAncestorOf(window.findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton")))
+				   && !window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(list)
+				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->findChild<QPushButton*>(QStringLiteral("reviewsOpenRepositories")) != nullptr,
+			   "saved repositories live on their own Settings page; Reviews & queue only points there");
+		expect(qt::settings_page_title(qt::settings_page::repositories) == QStringLiteral("Repositories")
+				   && window.settings()->sidebar()->item(static_cast<int>(qt::settings_page::repositories))->text() == QStringLiteral("Repositories")
+				   && static_cast<int>(qt::settings_page::repositories) == static_cast<int>(qt::settings_page::accounts_and_hosts) + 1,
+			   "the Repositories page follows Accounts & hosts in the sidebar");
+		window.settings()->findChild<QPushButton*>(QStringLiteral("reviewsOpenRepositories"))->click();
+		process_events();
+		expect(window.settings()->current_page() == qt::settings_page::repositories, "Reviews & queue's pointer opens Repositories");
+		expect(list->count() == 1 && list->item(0)->text() == QStringLiteral("octo/app") && list->isVisibleTo(page) && !window.saved_repositories_empty()->isVisibleTo(page)
+				   && window.findChild<QLabel*>(QStringLiteral("repositoriesDestination"))->text() == QStringLiteral("Saved for @reviewer on github.com")
+				   && list->item(0)->toolTip().contains(QStringLiteral("github.com")),
+			   "the list names each exact repository under the exact account and host");
+		auto* const removeButton = window.findChild<QPushButton*>(QStringLiteral("removeSavedRepositoryButton"));
+		list->setCurrentRow(-1);
+		process_events();
+		expect(!removeButton->isEnabled(), "Remove waits for a selected repository");
+		list->setCurrentRow(0);
+		expect(removeButton->isEnabled() && !removeButton->accessibleName().isEmpty() && !removeButton->accessibleDescription().isEmpty(), "a selection enables the named Remove");
+		removeButton->click();
 		expect(removals.size() == 1U && removals.back().Action == application::saved_repository_action::remove && removals.back().Repository == kept,
-			   "Settings still removes the selected exact durable record");
+			   "Remove sends the selected exact durable record through the existing saved-repository intent");
+		list->setFocus(Qt::OtherFocusReason);
+		auto deleteKey = QKeyEvent{ QEvent::KeyPress, Qt::Key_Delete, Qt::NoModifier };
+		QApplication::sendEvent(list, &deleteKey);
+		expect(removals.size() == 2U && removals.back().Repository == kept, "Delete on the list removes the selected record by keyboard");
+		// Another account's record is not this account's to show or remove.
+		auto mixed              = projection;
+		mixed.SavedRepositories = { kept, { .Host = "github.com", .Account = "someone-else", .Repository = "other/repo" } };
+		window.publish(mixed);
+		expect(list->count() == 1 && list->item(0)->text() == QStringLiteral("octo/app"), "only the displayed account's records are listed");
+		auto emptied              = projection;
+		emptied.SavedRepositories = { };
+		window.publish(emptied);
+		process_events();
+		expect(!list->isVisibleTo(page) && window.saved_repositories_empty()->isVisibleTo(page) && !removeButton->isVisibleTo(page)
+				   && window.findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton"))->isVisibleTo(page)
+				   && window.findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton"))->hasFocus(),
+			   "the last removal leaves the empty state with Add repository, and the keyboard there");
+		window.publish(projection);
+		process_events();
+		expect(list->count() == 1 && list->isVisibleTo(page), "a durable record returns the list");
 		projection.Session = { .Host = "engineering.enterprise.example", .Account = "reviewer-with-a-long-account-identity", .Generation = 3U };
 		window.publish(projection);
-		window.settings()->present(qt::settings_page::reviews_and_queue);
+		window.settings()->present(qt::settings_page::repositories);
 		process_events();
-		auto* invoker = window.findChild<QToolButton*>(QStringLiteral("addSavedRepositoryButton"));
+		expect(list->count() == 0 && window.findChild<QLabel*>(QStringLiteral("repositoriesDestination"))->text().contains(QStringLiteral("reviewer-with-a-long-account-identity")),
+			   "a different session lists its own records and names its own long account");
+		auto* invoker = window.findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton"));
 		invoker->setFocus(Qt::OtherFocusReason);
 		window.open_repository_addition();
 		dialog->resize(360, 290);
@@ -10785,9 +10833,40 @@ namespace {
 		says({ .Host = "github.com", .Account = "octo-reviewer", .State = state::stale, .Problem = problem::offline, .Repositories = 1U },
 			 QStringLiteral("Not refreshed: GitHub could not be reached."),
 			 "an offline first refresh says so");
-		says({ .Host = "github.com", .Account = "octo-reviewer", .State = state::unavailable, .Problem = problem::no_saved_repository },
-			 QStringLiteral("Add a repository to find my pull requests and review requests."),
-			 "with nothing saved Home says what to do");
+		// With nothing saved, the row gives way to the first-repository call to
+		// action, which says what to do and offers the default-styled Add.
+		window.publish(discovery_projection({ .Host = "github.com", .Account = "octo-reviewer", .State = state::unavailable, .Problem = problem::no_saved_repository }));
+		process_events();
+		auto* const onboarding = window.home_repository_onboarding();
+		auto* const firstAdd   = window.home_repository_onboarding_button();
+		expect(onboarding->isVisible() && !label->isVisible() && !window.findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->isVisible()
+				   && onboarding->findChild<QLabel*>(QStringLiteral("homeRepositoryOnboardingSentence"))->text() == QStringLiteral("Add a repository to find my pull requests and review requests.")
+				   && firstAdd->isVisible() && firstAdd->isEnabled() && firstAdd->isDefault() && window.focus_order().contains(firstAdd)
+				   && !firstAdd->accessibleName().isEmpty() && !firstAdd->accessibleDescription().isEmpty(),
+			   "with nothing saved Home shows the first-repository call to action instead of the row");
+		firstAdd->setFocus(Qt::OtherFocusReason);
+		firstAdd->click();
+		process_events();
+		expect(window.repository_addition_dialog()->isVisible() && window.saved_repository_name()->hasFocus(), "the call to action opens the shared dialog, focused on its input");
+		window.repository_addition_dialog()->reject();
+		process_events();
+		expect(firstAdd->hasFocus(), "cancel returns the keyboard to the call to action");
+		window.publish(discovery_projection(status));
+		process_events();
+		expect(!onboarding->isVisible() && label->isVisible() && window.findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->isVisible()
+				   && window.findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->hasFocus(),
+			   "a saved repository retires the call to action, and the ordinary Add repository takes its focus");
+		auto filtered             = discovery_projection(status);
+		filtered.Preferences.Role = core::github_role::requested_reviewer;
+		window.publish(filtered);
+		process_events();
+		expect(!onboarding->isVisible() && window.findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->isVisible(),
+			   "a filtered queue is not evidence that nothing is saved");
+		auto restoring   = discovery_projection({ .Host = "github.com", .Account = "octo-reviewer", .State = state::unavailable, .Problem = problem::no_saved_repository });
+		restoring.Status = application::queue_landing_status::restoring;
+		window.publish(restoring);
+		process_events();
+		expect(!onboarding->isVisible(), "a queue still restoring does not claim that nothing is saved");
 		says({ .State = state::unavailable, .Problem = problem::no_account }, QStringLiteral("Personal discovery is unavailable. Saved repositories are kept."), "discovery unavailability retains the saved collection and Add action");
 		expect(!window.queue_refresh_action()->isEnabled(), "and nothing to refresh");
 
@@ -10877,7 +10956,7 @@ namespace {
 								   QStringLiteral("Repository"), QStringLiteral("Pull request number"),
 								   // [[BPR-0783]]. The text Qt is given: the doubled
 								   // ampersand is the mnemonic escape, not what is shown.
-								   QStringLiteral("Nothing here changes GitHub. Saved repositories and observer rules are in Settings › Reviews && queue."),
+								   QStringLiteral("Nothing here changes GitHub. Observer rules are in Settings › Reviews && queue."),
 								   QStringLiteral("Open Reviews && queue") },
 			   "Filter holds exactly My role, Added by, Quiet items and Sort within a group, with its footer");
 		expect(window.home_filter_settings_action()->isEnabled(),
@@ -10901,7 +10980,7 @@ namespace {
 				   && window.home_filter_settings_action()->text().contains(QStringLiteral("Reviews && queue")),
 			   "each literal ampersand is escaped, so the menu draws it instead of eating it as a mnemonic");
 		expect(displayed(footerAction)
-				   == QStringLiteral("Nothing here changes GitHub. Saved repositories and observer rules are in Settings › Reviews & queue."),
+				   == QStringLiteral("Nothing here changes GitHub. Observer rules are in Settings › Reviews & queue."),
 			   message_for("the footer a reviewer reads carries one plain ampersand", displayed(footerAction).toStdString()));
 		expect(displayed(window.home_filter_settings_action()) == QStringLiteral("Open Reviews & queue"),
 			   message_for("and so does the way to Reviews & queue",

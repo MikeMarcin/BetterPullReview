@@ -558,10 +558,22 @@ namespace bpr::qt {
 		[[nodiscard]] auto forget_server_confirmation() const noexcept -> QMessageBox*;
 		/// \brief The records the review queue last published as kept, exactly.
 		[[nodiscard]] auto kept_servers() const noexcept -> const std::vector<application::saved_server>&;
+		/// \brief Settings › Repositories: the saved repositories of the displayed
+		/// account and host, Add repository and Remove (RFC-BPR-0062, owner
+		/// direction 2026-10-07).
 		[[nodiscard]] auto saved_repositories_editor() const noexcept -> QWidget*;
+		/// \brief The page's list: one row per saved repository of the displayed
+		/// account and host, in the order the queue host keeps them.
+		[[nodiscard]] auto saved_repository_list() const noexcept -> QListWidget*;
+		/// \brief The page's empty state, shown instead of the list.
+		[[nodiscard]] auto saved_repositories_empty() const noexcept -> QWidget*;
 		[[nodiscard]] auto saved_repository_name() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto add_saved_repository_action() const noexcept -> QAction*;
 		[[nodiscard]] auto remove_saved_repository_action() const noexcept -> QAction*;
+		/// \brief Home's first-repository call to action: shown signed in, with the
+		/// queue ready and no saved repository for the displayed account and host.
+		[[nodiscard]] auto home_repository_onboarding() const noexcept -> QWidget*;
+		[[nodiscard]] auto home_repository_onboarding_button() const noexcept -> QPushButton*;
 		/// \brief Where a card's Mark read goes: the composition, then the ledger host.
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
 		/// \brief [[BPR-0661]]. Adopts the sink the Reviews & queue preference rows dispatch to.
@@ -1451,7 +1463,13 @@ namespace bpr::qt {
 		void update_queue_rule_actions();
 		void open_pull_request_item(const core::queue_item& aItem);
 		void open_from_home_bar();
-		void build_saved_repositories_editor(QWidget* aParent, QVBoxLayout& aLayout);
+		/// \brief Builds Settings › Repositories and adopts it on its page.
+		void build_repositories_page();
+		/// \brief Lists the displayed account's saved repositories, keeping
+		/// unchanged rows and the selection where the record still exists.
+		void update_saved_repository_list();
+		/// \brief Shows Home's first-repository call to action or its ordinary row.
+		void update_home_repository_onboarding();
 		void build_enterprise_server_draft(QWidget* aParent, QVBoxLayout& aLayout);
 		void begin_github_cli_from_home();
 		void open_enterprise_server_draft();
@@ -1776,6 +1794,8 @@ namespace bpr::qt {
 		QLabel*                                            HomeDiscoveryStatus       = nullptr;
 		QWidget*                                           HomeRepositoryRow         = nullptr;
 		QToolButton*                                       HomeAddRepositoryButton   = nullptr;
+		QWidget*                                           HomeOnboarding            = nullptr;
+		QPushButton*                                       HomeOnboardingButton      = nullptr;
 		QAction*                                           QueueRefreshAction        = nullptr;
 		QMenu*                                             PullRequestMenu           = nullptr;
 		QAction*                                           FollowPullRequest         = nullptr;
@@ -1859,22 +1879,24 @@ namespace bpr::qt {
 		bool                                      FirstFilterApplied    = false;
 		bool                                      ReturnComparisonAsked = false;
 		std::optional<core::file_receipt_command> MarkedReadWhenSeen;
-		QWidget*                                  SavedRepositoriesEditor     = nullptr;
-		QComboBox*                                SavedRepositorySelector     = nullptr;
-		QLineEdit*                                SavedRepositoryName         = nullptr;
-		QAction*                                  AddSavedRepository          = nullptr;
-		QAction*                                  RemoveSavedRepository       = nullptr;
-		QToolButton*                              AddSavedRepositoryButton    = nullptr;
-		QToolButton*                              RemoveSavedRepositoryButton = nullptr;
-		QWidget*                                  EnterpriseServerDraft       = nullptr;
-		QLineEdit*                                EnterpriseServerHostname    = nullptr;
-		QLineEdit*                                EnterpriseServerAccount     = nullptr;
-		QLabel*                                   EnterpriseServerRefusal     = nullptr;
-		QPushButton*                              EnterpriseServerAdd         = nullptr;
-		QPushButton*                              EnterpriseServerCancel      = nullptr;
-		QPushButton*                              AddEnterpriseServerButton   = nullptr;
-		QPushButton*                              UseGithubCliButton          = nullptr;
-		QLabel*                                   GithubCliDiscoveryStatus    = nullptr;
+		QWidget*                                  SavedRepositoriesEditor      = nullptr;
+		QLabel*                                   SavedRepositoriesDestination = nullptr;
+		QListWidget*                              SavedRepositoryList          = nullptr;
+		QWidget*                                  SavedRepositoriesEmpty       = nullptr;
+		QLineEdit*                                SavedRepositoryName          = nullptr;
+		QAction*                                  AddSavedRepository           = nullptr;
+		QAction*                                  RemoveSavedRepository        = nullptr;
+		QPushButton*                              AddSavedRepositoryButton     = nullptr;
+		QPushButton*                              RemoveSavedRepositoryButton  = nullptr;
+		QWidget*                                  EnterpriseServerDraft        = nullptr;
+		QLineEdit*                                EnterpriseServerHostname     = nullptr;
+		QLineEdit*                                EnterpriseServerAccount      = nullptr;
+		QLabel*                                   EnterpriseServerRefusal      = nullptr;
+		QPushButton*                              EnterpriseServerAdd          = nullptr;
+		QPushButton*                              EnterpriseServerCancel       = nullptr;
+		QPushButton*                              AddEnterpriseServerButton    = nullptr;
+		QPushButton*                              UseGithubCliButton           = nullptr;
+		QLabel*                                   GithubCliDiscoveryStatus     = nullptr;
 		github_cli_discovery_dispatch             GithubCliDiscoveryDispatch;
 		github_cli_discovery_state                GithubCliDiscoveryState = github_cli_discovery_state::idle;
 		QPointer<QMessageBox>                     ForgetServerConfirmation;
