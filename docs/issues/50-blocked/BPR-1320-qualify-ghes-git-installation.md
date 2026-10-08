@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1320"
 title: "Qualify the affected Git installation and exact-file recovery"
-status: "Parked"
+status: "Blocked"
 rfcs: ["RFC-BPR-0065"]
 depends_on: ["BPR-1319"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r4"}
-parked_on: "human-review"
 acceptance: [{"criterion":"C1","outcome":"pending","revision":"980c088733bbed1938ad322f851f5e4e9fc4e7cb","evidence":{"kind":"observation","detail":"Direct native read-only acquisition identifies local /usr/bin/git2.50.1 Apple155 and canonical Homebrew gh2.101 on macOS26.6.2; exact commit/tree/blob/pack, denied outside writes, bounded owner-private temporary store, unchanged identity/executable/config metadata and cleanup pass. New required-operation capability probe exit129/3113B passes. Owner reports Git2.54.0 Apple157 but configured paths/source-build correspondence remain unavailable; local proof and fixture acceptance do not qualify that installation or private GHES authorization."}},{"criterion":"C2","outcome":"pass","revision":"980c088733bbed1938ad322f851f5e4e9fc4e7cb","evidence":{"kind":"command","detail":"Fresh adapter+privacy export2/2 pass18.33s. Composed multi-file GHES source/retry/reopen/persisted failed-state course passes17.22s through real installed Git/cache with recorded smart transport; two exact file endpoints, stale account/host/head/source/cancel controls pass in actual adapter fixtures. Actionable typed unsupported/probe-failed flow host0.72s, Qt3scales pass, core-only0.41s; anonymous/identifying closed exports accept only fixed new failure/step names and reject unknown canaries. Changed-line integrator7TUs tidy and worker changedTUs clean; inherited paged/fixture warnings recorded. Independent critical risk review no blocking findings; actual affected owner rendered PR remains separate pending."}}]
+blocked_by: "prerelease-affected-feedback"
 ---
 
 # Qualify the affected Git installation and exact-file recovery
@@ -63,3 +63,33 @@ separate questions: the reviewed tool facts from the affected Mac
 (`BPR-1320-files-render-v001`). This is a diagnosis run, not BPR-1322
 acceptance. Local smoke on the build Mac (Git 2.50.1 Apple Git-155) is not
 the affected installation. C1 stays pending.
+
+## Owner strategy change: affected evidence deferred to pre-release (2026-10-07)
+
+The owner cannot answer the native diagnosis review. Session
+`b366df1f04624eb90e90d47c9262e52d` is **withdrawn as unanswerable**: an
+objective observation records the withdrawal on each of its three candidates
+(cursor 12). No verdict exists; nothing was accepted or rejected. Its server
+was stopped and candidate v001 stays protected.
+
+The strategy is now to diagnose from the two existing anonymized diagnostics
+logs (private, ignored and never committed), make the most defensible fix and
+take affected-installation confirmation from the next pre-release.
+
+**Re-scope of C1.** Direct evidence about the affected installation (selected
+Git and gh paths, versions and provenance on the owner's Mac) is deferred to
+pre-release feedback. C1 stays pending and is an explicit open gap. Local
+installed-tool evidence and capability-policy changes do not satisfy it.
+
+**What the logs support.** In the 0.1.4 code (tag `v0.1.4`,
+`gh_cli_git_smart_transport.cpp`), the step is reported as `git_qualification`
+only when both version processes returned and gh matched the 2.100.0/2.101.0
+allowlist, but the Git `--version` output differed from the exact
+`git version 2.50.1 (Apple Git-155)` banner. Both affected loads report
+exactly that step, so gh passed its gate and the selected Git produced a
+different banner, or a result whose output did not match. That is consistent
+with the owner's reported Git 2.54.0 (Apple Git-157), but the logs carry no
+banner, path or exit code. The build identifier does not name a source
+revision, so matching it to the tag is an inference. Under `980c08873` a Git
+2.54 that offers the required clone options would pass the version and
+capability checks; this is reasoning from source, not an observation.
