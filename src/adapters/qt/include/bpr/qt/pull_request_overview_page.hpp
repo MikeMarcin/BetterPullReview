@@ -41,6 +41,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class appearance_profile;
 	class overview_description_view;
+	class overview_summary_splitter;
 	class markdown_body_view;
 
 	/// \brief The colours the overview's marks are drawn in.
@@ -393,6 +394,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto summary_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
+		/// \brief Window-owned preferred summary fraction, in ten-thousandths; none uses content-aware sizing.
+		void               set_summary_fraction(std::optional<std::uint32_t> aFraction);
+		[[nodiscard]] auto summary_fraction() const -> std::optional<std::uint32_t>;
+		/// \brief Reports explicit pointer, keyboard or reset gestures, never a geometry clamp.
+		void               set_summary_resize_dispatch(std::function<void(std::optional<std::uint32_t>)> aDispatch);
 		[[nodiscard]] auto files_heading() const noexcept -> QLabel*;
 		[[nodiscard]] auto files_view() const noexcept -> QTreeView*;
 		/// \brief [[BPR-1269]]. Collapses every folder row; files keep their order
@@ -457,6 +463,9 @@ namespace bpr::qt {
 		QHBoxLayout*                                                 TechnicalRow         = nullptr;
 		QLabel*                                                      Title                = nullptr;
 		QLabel*                                                      Summary              = nullptr;
+		overview_summary_splitter*                                   SummarySplit         = nullptr;
+		QWidget*                                                     SummaryPane          = nullptr;
+		QWidget*                                                     FilesPane            = nullptr;
 		overview_description_view*                                   Body                 = nullptr;
 		QWidget*                                                     Header               = nullptr;
 		QWidget*                                                     Side                 = nullptr;

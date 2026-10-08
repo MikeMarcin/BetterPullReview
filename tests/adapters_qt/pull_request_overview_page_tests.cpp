@@ -22,6 +22,8 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSplitter>
+#include <QSplitterHandle>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
 #include <QTextDocument>
@@ -544,11 +546,11 @@ namespace {
 					auto* read = page.findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
 					auto* back = page.findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
 					expect(read->isVisible() && !back->isVisible(), "overflow exposes the named reading action");
-					expect(edit->viewport()->height() <= 4 * edit->fontMetrics().lineSpacing() + 2 * edit->document()->documentMargin(), "preview has a font-relative compact content budget with separate reader controls");
-					expect(edit->verticalScrollBarPolicy() == Qt::ScrollBarAlwaysOff && edit->verticalScrollBar()->value() == 0, "preview has no scrolling well");
+					expect(edit->viewport()->height() > 4 * edit->fontMetrics().lineSpacing(), "normal summary has a larger shared allocation with separate reader controls");
+					expect(edit->verticalScrollBarPolicy() == Qt::ScrollBarAsNeeded && edit->verticalScrollBar()->maximum() > 0, "normal summary scrolls the complete body");
 					QWheelEvent previewWheel{ QPointF{ 10, 10 }, QPointF{ 10, 10 }, { }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 					QApplication::sendEvent(edit->viewport(), &previewWheel);
-					expect(edit->verticalScrollBar()->value() == 0, "wheel cannot scroll the compact preview");
+					expect(edit->verticalScrollBar()->value() > 0 && page.files_view()->verticalScrollBar()->value() == 0, "wheel scrolls only the summary");
 					int dispatched = 0;
 					page.set_file_dispatch([&](const QString&) { ++dispatched; });
 					page.set_entry_dispatch([&](auto, const QString&) { ++dispatched; });
@@ -684,7 +686,7 @@ namespace {
 		projected.Body = "Short 日本語 🦊 description.";
 		page.present(projected);
 		settle();
-		expect(!read->isVisible() && page.body_view()->rendered_view()->height() < 3 * page.body_view()->fontMetrics().lineSpacing(), "short body uses its natural height without an expansion action");
+		expect(read->isVisible() && page.body_view()->rendered_view()->height() < 3 * page.body_view()->fontMetrics().lineSpacing(), "short body uses its natural height with a reachable full-reader action");
 		page.body_view()->rendered_view()->selectAll();
 		page.body_view()->copy_source();
 		expect(QApplication::clipboard()->text().toStdString() == projected.Body, "short body remains selectable and copyable");
@@ -695,7 +697,7 @@ namespace {
 		expect(read->isVisible(), "a long unbroken token wraps and overflows a narrow preview");
 		page.resize(1400, 800);
 		settle();
-		expect(!read->isVisible(), "widening recomputes preview overflow");
+		expect(read->isVisible(), "full-reader action remains available after widening");
 		const auto sentinel = std::string{ "\n日本語 🦊 END" };
 		projected.Body      = std::string(262144 - sentinel.size(), 'x') + sentinel;
 		page.present(projected);
@@ -705,6 +707,61 @@ namespace {
 		page.body_view()->rendered_view()->selectAll();
 		page.body_view()->copy_source();
 		expect(QApplication::clipboard()->text().toStdString() == projected.Body, "complete admitted byte-boundary text remains copyable");
+	}
+
+	void test_resizable_summary()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1000, 800);
+		auto projected = projection();
+		projected.Body = description(60).toStdString();
+		page.present(projected);
+		page.show();
+		settle();
+		auto* split = page.findChild<QSplitter*>(QStringLiteral("overviewSummarySplitter"));
+		expect(split && split->sizes().size() == 2, "normal summary and Files share the native splitter");
+		auto* grip = split->handle(1);
+		expect(grip->isVisible() && grip->focusPolicy() == Qt::StrongFocus && grip->cursor().shape() == Qt::SplitVCursor, "grip is visible, focusable and has vertical resize cursor");
+		expect(std::abs(split->sizes()[0] - split->sizes()[1]) <= 2, "long summary starts at half the shared room");
+		int gestures = 0;
+		page.set_summary_resize_dispatch([&](auto) { ++gestures; });
+		grip->setFocus();
+		const auto before = split->sizes()[0];
+		QKeyEvent  down{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
+		QApplication::sendEvent(grip, &down);
+		settle();
+		expect(split->sizes()[0] == before + page.body_view()->rendered_view()->fontMetrics().lineSpacing() && grip->hasFocus() && gestures == 1, "Down grows summary by one line without moving focus");
+		auto* accessible = QAccessible::queryAccessibleInterface(grip);
+		expect(accessible && accessible->text(QAccessible::Name) == QStringLiteral("Resize summary") && accessible->valueInterface() && accessible->valueInterface()->currentValue().toInt() == split->sizes()[0], "accessible resize grip reports current allocation");
+		const auto chosen = page.summary_fraction();
+		page.resize(1000, 300);
+		settle();
+		expect(page.height() == 300 && split->sizes()[0] > 0 && split->sizes()[1] > 0 && page.summary_fraction() == chosen, "short-height clamp keeps both panes and preferred fraction");
+		page.resize(1000, 800);
+		settle();
+		expect(std::abs(split->sizes()[0] - before - page.body_view()->rendered_view()->fontMetrics().lineSpacing()) <= 2 && gestures == 1, "enlargement restores intent without another persistence gesture");
+		const auto  local = QPointF{ grip->rect().center() };
+		QMouseEvent press{ QEvent::MouseButtonPress, local, QPointF{ grip->mapToGlobal(local.toPoint()) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(grip, &press);
+		QMouseEvent move{ QEvent::MouseMove, local + QPointF{ 0, 40 }, QPointF{ grip->mapToGlobal(local.toPoint()) + QPoint{ 0, 40 } }, Qt::NoButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(grip, &move);
+		QMouseEvent release{ QEvent::MouseButtonRelease, local, QPointF{ grip->mapToGlobal(local.toPoint()) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(grip, &release);
+		settle();
+		expect(gestures > 1 && page.summary_fraction() != chosen, "pointer drag records a changed preferred fraction");
+		projected.Body.clear();
+		const auto retained = page.summary_fraction();
+		page.present(projected);
+		settle();
+		expect(!grip->isVisible() && page.summary_fraction() == retained, "empty body hides grip without erasing preference");
+		projected.Body = "Short description.";
+		page.present(projected);
+		settle();
+		expect(grip->isVisible() && split->sizes()[0] > 150, "explicit preference gives a short body the chosen room");
+		QMouseEvent doubleClick{ QEvent::MouseButtonDblClick, local, QPointF{ grip->mapToGlobal(local.toPoint()) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(grip, &doubleClick);
+		settle();
+		expect(!page.summary_fraction() && split->sizes()[0] < 150, "double-click resets to content-aware short sizing");
 	}
 
 	void test_body_edits_clamp_retained_selection()
@@ -1568,6 +1625,7 @@ auto main(int argc, char** argv) -> int
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();
 	test_compact_descriptions();
+	test_resizable_summary();
 	test_retained_description_reader();
 	test_body_edits_clamp_retained_selection();
 	test_many_participants_scroll_without_compressing_or_overpainting();
