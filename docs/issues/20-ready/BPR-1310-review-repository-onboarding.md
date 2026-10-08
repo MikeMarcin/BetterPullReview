@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1310"
 title: "Verify rendered repository onboarding and prepare owner review"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0062"]
 depends_on: ["BPR-1309"]
 priority: "P1"
