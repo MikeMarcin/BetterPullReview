@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1339"
 title: "An accepted file shows as accepted on Overview, and counts as done"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
