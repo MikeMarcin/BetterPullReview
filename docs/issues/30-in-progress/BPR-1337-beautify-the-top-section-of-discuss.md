@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1337"
 title: "Beautify the top section of Discuss"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
