@@ -178,35 +178,39 @@ optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`):
   `application_private_review_native` failed once at the base and once with
   this change, and passed on the rerun.
 
-### After the rebase onto `76b4b4f99` (2026-10-08)
+### After the rebase onto `9a8208fba` (2026-10-08)
 
-The branch was rebased three times while this card waited: onto `4cfc15256`,
-then `e84d30975`, then `76b4b4f99`. The last brought 36 upstream commits. They
-include BPR-1212 slice 1, BPR-1328, BPR-1329, BPR-1335, BPR-1337 and BPR-1339,
-with product changes to `github_application.cpp`, the fixture-access header
-and the large-review benchmark. Git merged the code without conflict. The
-only conflict was the round-trip pin; both sides' cards are kept. Same macOS
-arm64 optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`),
-rebuilt at the merged head.
+The branch was rebased four times while this card waited: onto `4cfc15256`,
+`e84d30975`, `76b4b4f99` and `9a8208fba`. The last two brought 62 upstream
+commits. They include BPR-1212 slice 1, BPR-1328, BPR-1329, BPR-1334, BPR-1336,
+BPR-1338, BPR-1339 and BPR-1341, with product changes to
+`github_application.cpp`, the fixture-access header, the workbench host and
+the large-review benchmark. Git merged the code without conflict. The only
+conflict was the round-trip pin; both sides' cards are kept. The tree is the
+same macOS arm64 optimized tests-on tree (`dev` preset,
+`CMAKE_BUILD_TYPE=Release`), rebuilt at each merged head. The numbers below
+are at the final one.
 
-- **Round-trip pin.** Recomputed on the merged tree in `947c711ea`, with a
-  BPR-1327 note over the BPR-1329 and BPR-1212 slice 1 reseals: full
-  application `aaf6c757…`, production app manifest `6bdd4947…`, mutation pin
-  unchanged. `application_review_round_trip_composition_contract` and
+- **Round-trip pin.** Recomputed on the merged tree in `86817d6bc`, with a
+  BPR-1327 note over the BPR-1338 follow-up reseal: full application
+  `a24ce58c…`, production app manifest `3a7d3cf5…`, mutation pin unchanged.
+  `application_review_round_trip_composition_contract` and
   `architecture_boundaries` pass.
 - **Focused rows.** `core_comparison_preparation`, `application_diff_host`,
   `application_epoch_host`, `application_workbench_host`,
   `gh_cli_git_smart_transport`, `github_provider`,
   `application_composition_contract` and
   `application_profile_window_review_restoration_public_path`: 8/8 pass.
-- **Large-review rows, `-j1`, budgets enforced.** 19/19 pass in 281.5 s.
-  Every report has `BudgetsEnforced` true and empty `InputBudgetFailures`,
-  `KnownInputMisses` and `UnenforcedLimitMisses`. The largest pulse interval
-  was 66.9 ms (loaded close), against the 100 ms limit. Load was 18 at the
-  start and 9 at the end: other agents' builds kept the machine at 40–220 for
-  two hours and never let it go quiet. `application_large_review_prepared_open`:
-  unprepared opens 120–140 ms, the first open while its window was prepared
-  205 ms, later prepared opens 21.3–31.9 ms, 5 of 5 answered by preparation.
+- **Large-review rows, `-j1`, budgets enforced.** 19/19 pass in 250.7 s,
+  with load 8.8 at the start and 8.4 at the end. Every report has
+  `BudgetsEnforced` true and empty `InputBudgetFailures`, `KnownInputMisses`
+  and `UnenforcedLimitMisses`. The largest pulse interval was 55.5 ms
+  (unavailable diff), against the 100 ms limit.
+  `application_large_review_prepared_open`: unprepared opens 73–81 ms, the
+  first open while its window was prepared 113 ms, and later prepared opens
+  18.2–18.8 ms. All 5 of 5 were answered by preparation. At `76b4b4f99`, under
+  load 18 to 9, the rows also passed 19/19 (281.5 s, largest pulse interval
+  66.9 ms).
 - **Earlier run under load, at `e84d30975`.** 18 of 19 passed, with load
   rising from 4.6 to 41. `application_large_review_launch` failed "Mac fixture
   responsiveness budget exceeded", with every phase at about ten times its
@@ -218,7 +222,7 @@ rebuilt at the merged head.
   `conversations_pick_open` took 249–727 ms with preparation on against
   164–185 ms off, and `large_file_selection` 1,327–4,017 ms against
   956–1,601. With all 14 cores saturated the preparation worker competes with
-  the reviewer's open for CPU. The row passes at load 2 and at load 18 (above).
+  the reviewer's open for CPU. The row passes at load 8 and at load 18.
 - `verify_documentation.py`: DOCUMENTATION_OK.
 
 ### Owed: Windows and Linux
