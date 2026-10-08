@@ -315,8 +315,28 @@ namespace bpr::application {
 			constexpr std::string_view repeated = " exceeds a service repetition limit";
 			return aMessage.ends_with(repeated) && public_symbol(aMessage.substr(0U, aMessage.size() - repeated.size()));
 		}
+		auto safe_actor_conflict_detail(std::string_view aDetail) -> bool
+		{
+			constexpr std::array<std::string_view, 8U> origins{ "viewer", "pull_request", "commit", "review", "thread_comment", "review_comment_root", "review_comment_reply", "issue_comment" };
+			constexpr std::string_view                 prefix = "actor_conflict=";
+			if (!aDetail.starts_with(prefix)) {
+				return false;
+			}
+			aDetail.remove_prefix(prefix.size());
+			const auto first = aDetail.find(',');
+			if (first == std::string_view::npos || !member(aDetail.substr(0U, first), origins)) {
+				return false;
+			}
+			aDetail.remove_prefix(first + 1U);
+			const auto conflicting = aDetail.find(',');
+			return conflicting != std::string_view::npos && member(aDetail.substr(0U, conflicting), origins)
+				&& (aDetail.substr(conflicting + 1U) == "ascii_case_only" || aDetail.substr(conflicting + 1U) == "different");
+		}
 		auto safe_detail(std::string_view aDetail) -> bool
 		{
+			if (aDetail.starts_with("actor_conflict=")) {
+				return safe_actor_conflict_detail(aDetail);
+			}
 			constexpr std::array<std::string_view, 19> codes{ "FORBIDDEN", "UNAUTHORIZED", "NOT_FOUND", "MAX_NODE_LIMIT_EXCEEDED", "INTERNAL", "SERVICE_UNAVAILABLE", "GRAPHQL_PARSE_FAILED", "GRAPHQL_VALIDATION_FAILED", "undefinedField", "argumentNotAccepted", "undefinedType", "selectionMismatch", "variableMismatch", "variableNotUsed", "variableRequiresValidType", "variableNotDefined", "RATE_LIMITED", "[omitted:unclassified-code]", "[omitted:unclassified-content]" };
 			if (aDetail.size() > 4096U) {
 				return false;

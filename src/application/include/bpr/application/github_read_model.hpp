@@ -5,6 +5,7 @@
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_model.hpp"
 
+#include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -708,12 +709,34 @@ namespace bpr::application {
 		relationship_search_availability,
 	};
 
+	/// \brief Collection provenance for a conflicting actor observation, without actor data.
+	enum class github_actor_observation_origin : std::uint8_t {
+		viewer,
+		pull_request,
+		commit,
+		review,
+		thread_comment,
+		review_comment_root,
+		review_comment_reply,
+		issue_comment,
+	};
+
+	/// \brief Bounded disagreement facts; neither login nor stable identity leaves validation.
+	struct github_actor_login_conflict
+	{
+		github_actor_observation_origin First;
+		github_actor_observation_origin Conflicting;
+		bool                            AsciiCaseOnly                                         = false;
+		auto                            operator<=>(const github_actor_login_conflict&) const = default;
+	};
+
 	/// \brief Describes the github read validation record.
 	struct github_read_validation
 	{
 		github_read_validation_error Error = github_read_validation_error::none;
 		/// Fixed diagnostic refinement; never contains provider text or identities.
-		github_read_validation_error Detail = github_read_validation_error::none;
+		github_read_validation_error               Detail = github_read_validation_error::none;
+		std::optional<github_actor_login_conflict> ActorConflict;
 
 		[[nodiscard]] constexpr auto valid() const noexcept -> bool
 		{
@@ -1570,70 +1593,85 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] inline auto validate_unique_identities(
-			const github_pull_request_snapshot& aSnapshot)
+			const github_pull_request_snapshot&         aSnapshot,
+			std::optional<github_actor_login_conflict>& aConflict)
 			-> github_read_validation_error
 		{
-			std::unordered_map<std::string_view, std::string_view> actors;
+			struct actor_observation
+			{
+				std::string_view                Login;
+				github_actor_observation_origin Origin;
+			};
+			std::unordered_map<std::string_view, actor_observation> actors;
 			actors.reserve(
 				aSnapshot.Commits.size() + aSnapshot.Reviews.size()
 				+ aSnapshot.ReviewThreads.size() + aSnapshot.IssueComments.size()
 				+ 2U);
 			actors.emplace(
 				aSnapshot.Viewer.Actor.value(),
-				aSnapshot.Viewer.Login);
+				actor_observation{ aSnapshot.Viewer.Login, github_actor_observation_origin::viewer });
 			const auto observeActor =
-				[&actors](
-					const std::optional<github_actor_record>& aAuthor)
+				[&actors, &aConflict](
+					const std::optional<github_actor_record>& aAuthor,
+					const github_actor_observation_origin     aOrigin)
 				-> github_read_validation_error {
 				if (!aAuthor.has_value()) {
 					return github_read_validation_error::none;
 				}
 				const auto [iterator, inserted] = actors.try_emplace(
 					aAuthor->Actor.value(),
-					aAuthor->Login);
-				if (!inserted && iterator->second != aAuthor->Login) {
+					actor_observation{ aAuthor->Login, aOrigin });
+				if (!inserted && iterator->second.Login != aAuthor->Login) {
+					const auto foldAscii = [](const unsigned char aByte) {
+						return aByte >= 'A' && aByte <= 'Z' ? static_cast<unsigned char>(aByte + ('a' - 'A')) : aByte;
+					};
+					const auto caseOnly = std::ranges::equal(iterator->second.Login, aAuthor->Login,
+															 [&](const unsigned char aLeft, const unsigned char aRight) {
+																 return aLeft < 128U && aRight < 128U && foldAscii(aLeft) == foldAscii(aRight);
+															 });
+					aConflict           = github_actor_login_conflict{ iterator->second.Origin, aOrigin, caseOnly };
 					return github_read_validation_error::relationship_actor_login;
 				}
 				return github_read_validation_error::none;
 			};
-			if (const auto error = observeActor(aSnapshot.PullRequest.Author);
+			if (const auto error = observeActor(aSnapshot.PullRequest.Author, github_actor_observation_origin::pull_request);
 				error != github_read_validation_error::none) {
 				return error;
 			}
 			for (const auto& commit : aSnapshot.Commits) {
-				if (const auto error = observeActor(commit.Author);
+				if (const auto error = observeActor(commit.Author, github_actor_observation_origin::commit);
 					error != github_read_validation_error::none) {
 					return error;
 				}
 			}
 			for (const auto& review : aSnapshot.Reviews) {
-				if (const auto error = observeActor(review.Author);
+				if (const auto error = observeActor(review.Author, github_actor_observation_origin::review);
 					error != github_read_validation_error::none) {
 					return error;
 				}
 			}
 			for (const auto& thread : aSnapshot.ReviewThreads) {
 				for (const auto& comment : thread.Comments) {
-					if (const auto error = observeActor(comment.Author);
+					if (const auto error = observeActor(comment.Author, github_actor_observation_origin::thread_comment);
 						error != github_read_validation_error::none) {
 						return error;
 					}
 				}
 			}
 			for (const auto& group : aSnapshot.ReviewCommentGroups) {
-				if (const auto error = observeActor(group.Root.Author);
+				if (const auto error = observeActor(group.Root.Author, github_actor_observation_origin::review_comment_root);
 					error != github_read_validation_error::none) {
 					return error;
 				}
 				for (const auto& reply : group.Replies) {
-					if (const auto error = observeActor(reply.Author);
+					if (const auto error = observeActor(reply.Author, github_actor_observation_origin::review_comment_reply);
 						error != github_read_validation_error::none) {
 						return error;
 					}
 				}
 			}
 			for (const auto& comment : aSnapshot.IssueComments) {
-				if (const auto error = observeActor(comment.Author);
+				if (const auto error = observeActor(comment.Author, github_actor_observation_origin::issue_comment);
 					error != github_read_validation_error::none) {
 					return error;
 				}
@@ -2103,9 +2141,12 @@ namespace bpr::application {
 			}
 		}
 		try {
-			if (const auto error = detail::validate_unique_identities(aSnapshot);
+			std::optional<github_actor_login_conflict> actorConflict;
+			if (const auto error = detail::validate_unique_identities(aSnapshot, actorConflict);
 				error != github_read_validation_error::none) {
-				return detail::validation(error);
+				auto result          = detail::validation(error);
+				result.ActorConflict = actorConflict;
+				return result;
 			}
 		} catch (const std::bad_alloc&) {
 			return detail::validation(

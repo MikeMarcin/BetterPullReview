@@ -183,6 +183,28 @@ namespace {
 			+ std::string{ session } + R"(-1","window_label":"window-)" + std::string{ session }
 		+ R"(-2","capture_privacy":")" + (aIdentifying ? "include_locally" : "anonymized") + R"(","capture_detail":"standard","event_detail":"standard"})" + "\n";
 	}
+	void test_actor_conflict_export()
+	{
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const std::string_view detail : { "actor_conflict=viewer,review,ascii_case_only", "actor_conflict=pull_request,issue_comment,different",
+												   "actor_conflict=PRIVATE_LOGIN,review,different", "actor_conflict=viewer,U_PRIVATE_NODE,different", "actor_conflict=viewer,review,different,PRIVATE_LOGIN",
+												   "actor_conflict=viewer,review,unknown", "actor_conflict=viewer,review", "actor_conflict=viewer,,different", "actor_conflict=viewer,review,ascii_case_only " }) {
+				auto       line  = structured_line(1U, true);
+				const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+				const auto end   = line.find("\",\"epoch_stage\"", start);
+				expect(end != std::string::npos, "structured diagnostic detail is bounded");
+				line.replace(start, end - start, detail);
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				const bool                                   allowed  = detail == "actor_conflict=viewer,review,ascii_case_only" || detail == "actor_conflict=pull_request,issue_comment,different";
+				expect(document && document->Descriptor.Records == 1U && (document->Bytes.find(detail) != std::string::npos) == allowed,
+					   "both export policies retain only the closed actor-origin and difference grammar");
+				expect(document->Bytes.find("PRIVATE_LOGIN") == std::string::npos && document->Bytes.find("U_PRIVATE_NODE") == std::string::npos,
+					   "actor provenance export never admits login or node canaries");
+			}
+		}
+	}
+
 	void test_rich_export()
 	{
 		using policy = core::diagnostic_export_policy;
@@ -361,6 +383,7 @@ namespace {
 auto main() -> int
 {
 	test_parser();
+	test_actor_conflict_export();
 	test_rich_export();
 	test_preview_export();
 	test_cancel_invalidate_and_shutdown();

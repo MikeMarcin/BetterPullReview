@@ -340,6 +340,17 @@ namespace {
 		check([](auto& aSnapshot) { aSnapshot.ReviewCommentsAvailability = application::github_collection_availability::available; auto group = application::github_review_comment_group_record{ .Root = aSnapshot.ReviewThreads.front().Comments.front() }; group.Root.ReplyTo = application::github_comment_id{ "absent" }; aSnapshot.ReviewCommentGroups.push_back(std::move(group)); }, error::relationship_review_group_root);
 		check([](auto& aSnapshot) { aSnapshot.ReviewCommentsAvailability = application::github_collection_availability::available; auto group = application::github_review_comment_group_record{ .Root = aSnapshot.ReviewThreads.front().Comments.front() }; group.Replies.push_back(group.Root); aSnapshot.ReviewCommentGroups.push_back(std::move(group)); }, error::relationship_review_group_reply);
 		check([](auto& aSnapshot) { aSnapshot.SearchAvailability = application::github_search_availability::result_limit; }, error::relationship_search_availability);
+		using origin = application::github_actor_observation_origin;
+		for (const auto login : { "AUTHOR", "other-login", "authør" }) {
+			auto snapshot                                = valid_snapshot();
+			snapshot.IssueComments.front().Author->Login = login;
+			const auto result                            = application::validate(snapshot, pull_request_context());
+			expect(result.Detail == error::relationship_actor_login && result.ActorConflict
+					   && result.ActorConflict->First == origin::pull_request && result.ActorConflict->Conflicting == origin::issue_comment
+					   && result.ActorConflict->AsciiCaseOnly == (std::string_view{ login } == "AUTHOR"),
+				   "actor provenance distinguishes ASCII-only case from true disagreement without changing refusal");
+		}
+		expect(!application::validate(valid_snapshot(), pull_request_context()).ActorConflict, "valid snapshot carries no invented actor conflict");
 		expect(application::validate(valid_snapshot(), pull_request_context()).Detail == error::none, "valid snapshot has no diagnostic failure");
 	}
 

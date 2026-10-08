@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <optional>
 #include <span>
 #include <thread>
@@ -280,6 +281,33 @@ namespace {
 		}
 		return 2;
 	}
+	int fake_git(const QStringList& aArguments)
+	{
+		const auto root = std::filesystem::path{ aArguments[0].toStdString() }.parent_path();
+		if (aArguments.size() == 2 && aArguments[1] == "--version") {
+			if (std::filesystem::exists(root / "fail-git-version")) {
+				return 1;
+			}
+			std::ifstream version{ root / "git-version" };
+			std::cout << version.rdbuf();
+			return 0;
+		}
+		QProcess process;
+		process.setProcessEnvironment(QProcessEnvironment::systemEnvironment());
+		process.start("/usr/bin/git", aArguments.mid(1));
+		if (!process.waitForStarted(5000)) {
+			return 2;
+		}
+		const std::string input{ std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ } };
+		process.write(QByteArray::fromStdString(input));
+		process.closeWriteChannel();
+		if (!process.waitForFinished(10000)) {
+			return 3;
+		}
+		const auto output = process.readAllStandardOutput();
+		std::cout.write(output.constData(), output.size());
+		return process.exitStatus() == QProcess::NormalExit ? process.exitCode() : 4;
+	}
 	class discard final : public application::git_smart_wire_consumer
 	{
 	public:
@@ -313,6 +341,10 @@ namespace {
 		context.Revision.Head = *core::parse_git_commit_oid(head.toStdString());
 		const auto profile    = validate_github_host_profile(cloud_candidate());
 		expect(profile.has_value(), "profile");
+		const auto syntheticGit = root / "git";
+		std::filesystem::copy_file(QCoreApplication::applicationFilePath().toStdString(), syntheticGit);
+		std::filesystem::permissions(syntheticGit, std::filesystem::perms::owner_all);
+		write(root / "git-version", "git version 2.54.0 (Apple Git-157)\n");
 		const auto configuration = validate_gh_cli_configuration({ .Executable = executable, .NeutralWorkingDirectory = root / "neutral", .Platform = gh_cli_macos_environment_facts{ .HomeDirectory = root / "home" }, .Https = { } });
 		expect(configuration.has_value(), "configuration");
 		const core::github_session_request_context session{ .Request = core::request_id{ 101 }, .ApplicationSession = context.ApplicationSession, .Profile = profile->profile(), .IdentityGeneration = core::github_identity_generation{ 207 } };
@@ -331,6 +363,42 @@ namespace {
 		expect(std::holds_alternative<github_wire_success>(viewer), "fixture sandbox viewer launch");
 		const auto normalized = normalize_observed_github_viewer(std::get<github_wire_success>(viewer).Response, server_contract::github_com);
 		expect(normalized.has_value(), "fixture viewer normalized");
+
+		constexpr application::git_protocol_v2_fetch_limits limits{ .MaximumWireBytes = 1048576, .MaximumPackBytes = 1048576, .MaximumProgressBytes = 1024, .MaximumPackets = 1024 };
+
+		auto enterpriseCandidate        = cloud_candidate();
+		enterpriseCandidate.Server      = application::github_server_contract::ghes_3_18_2022_11_28;
+		enterpriseCandidate.Provenance  = github_profile_provenance::explicit_user;
+		enterpriseCandidate.Hostname    = "ghe.example.invalid";
+		enterpriseCandidate.RestRoot    = "https://ghe.example.invalid/api/v3";
+		enterpriseCandidate.GraphqlRoot = "https://ghe.example.invalid/api/graphql";
+		const auto enterpriseProfile    = validate_github_host_profile(enterpriseCandidate);
+		expect(enterpriseProfile.has_value(), "synthetic GHES CLI profile validates");
+		for (const bool restarted : { false, true }) {
+			static_cast<void>(restarted);
+			auto                refusedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
+			const auto          result = application::acquire_git_protocol_v2_pack(**refusedTransport, context, { }, refused, limits, { });
+			const auto*         error  = result ? nullptr : std::get_if<application::git_smart_transport_error>(&result.error());
+			expect(error && error->Step == application::git_smart_transport_step::git_qualification && refused.Received.empty(),
+				   "synthetic successful newer Git banner reproduces qualification refusal after recreating acquisition authority");
+		}
+		write(root / "fail-git-version", "1");
+		auto                failedProbeTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+		recording_pack_sink failedProbeSink{ core::git_hash_algorithm::sha1 };
+		const auto          failedProbe      = application::acquire_git_protocol_v2_pack(**failedProbeTransport, context, { }, failedProbeSink, limits, { });
+		const auto*         failedProbeError = failedProbe ? nullptr : std::get_if<application::git_smart_transport_error>(&failedProbe.error());
+		expect(failedProbeError && failedProbeError->Step == application::git_smart_transport_step::git_version && failedProbeSink.Received.empty(),
+			   "failed executable probe is separate from successful unsupported banner");
+		std::filesystem::remove(root / "fail-git-version");
+		write(root / "git-version", "git version 2.50.1 (Apple Git-155)\n");
+		recording_pack_sink retriedSink{ core::git_hash_algorithm::sha1 };
+		expect(application::acquire_git_protocol_v2_pack(**failedProbeTransport, context, { }, retriedSink, limits, { }).has_value() && retriedSink.Finished,
+			   "probe recovery retries the same exact authority without resetting profile state");
+		auto                reopenedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+		recording_pack_sink reopenedSink{ core::git_hash_algorithm::sha1 };
+		expect(application::acquire_git_protocol_v2_pack(**reopenedTransport, context, { }, reopenedSink, limits, { }).has_value() && reopenedSink.Finished,
+			   "recreated authority recovers once synthetic qualification facts match");
 
 		auto transport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, context, [] { return true; });
 		expect(transport.has_value(), "acquire");
@@ -388,9 +456,8 @@ namespace {
 			expect(!cancelledBlob && cancelledBlob.error().Failure == application::git_smart_transport_failure::cancelled, "blob child cancelled and reaped");
 		}
 		std::filesystem::remove(root / "wait-blob");
-		constexpr application::git_protocol_v2_fetch_limits limits{ .MaximumWireBytes = 1048576, .MaximumPackBytes = 1048576, .MaximumProgressBytes = 1024, .MaximumPackets = 1024 };
-		recording_pack_sink                                 sink{ core::git_hash_algorithm::sha1 };
-		auto                                                result = application::acquire_git_protocol_v2_pack(**transport, context, { }, sink, limits, { });
+		recording_pack_sink sink{ core::git_hash_algorithm::sha1 };
+		auto                result = application::acquire_git_protocol_v2_pack(**transport, context, { }, sink, limits, { });
 		if (!result) {
 			if (const auto* error = std::get_if<application::git_smart_transport_error>(&result.error())) {
 				std::cerr << "transport failure " << static_cast<int>(error->Failure) << '\n';
@@ -493,6 +560,9 @@ try {
 	QCoreApplication app{ argc, argv };
 	if (std::filesystem::path{ argv[0] }.filename() == "gh") {
 		return fake_gh(app.arguments());
+	}
+	if (std::filesystem::path{ argv[0] }.filename() == "git") {
+		return fake_git(app.arguments());
 	}
 	contract();
 	return 0;

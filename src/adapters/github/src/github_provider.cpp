@@ -61,6 +61,28 @@ namespace bpr::adapters::github::detail {
 			return application::diagnostic_paged_operation::none;
 		}
 
+		[[nodiscard]] auto actor_conflict_summary(const application::github_actor_login_conflict& aConflict)
+			-> application::diagnostic_summary
+		{
+			constexpr std::array<std::string_view, 8U> origins{ "viewer", "pull_request", "commit", "review", "thread_comment", "review_comment_root", "review_comment_reply", "issue_comment" };
+			const auto                                 first       = static_cast<std::size_t>(aConflict.First);
+			const auto                                 conflicting = static_cast<std::size_t>(aConflict.Conflicting);
+			application::diagnostic_summary            result;
+			if (first >= origins.size() || conflicting >= origins.size()) {
+				return result;
+			}
+			auto       output = result.Text.begin();
+			const auto append = [&](const std::string_view aText) { output = std::ranges::copy(aText, output).out; };
+			append("actor_conflict=");
+			append(origins[first]);
+			append(",");
+			append(origins[conflicting]);
+			append(aConflict.AsciiCaseOnly ? ",ascii_case_only" : ",different");
+			result.Size  = static_cast<std::uint16_t>(output - result.Text.begin());
+			result.State = application::diagnostic_summary_state::sanitized;
+			return result;
+		}
+
 		class pull_request_response_observer final : public github_paged_response_observer
 		{
 		public:
@@ -99,6 +121,30 @@ namespace bpr::adapters::github::detail {
 			{
 				ValidationError    = aValidation.Error;
 				RelationshipDetail = aValidation.Detail;
+				if (Log != nullptr && aValidation.ActorConflict) {
+					constexpr std::array<application::diagnostic_paged_operation, 8U> operations{
+						application::diagnostic_paged_operation::get_viewer_identity,
+						application::diagnostic_paged_operation::get_pull_request,
+						application::diagnostic_paged_operation::list_pull_request_commits,
+						application::diagnostic_paged_operation::list_reviews,
+						application::diagnostic_paged_operation::list_review_threads,
+						application::diagnostic_paged_operation::list_review_comments,
+						application::diagnostic_paged_operation::list_review_comments,
+						application::diagnostic_paged_operation::list_issue_comments,
+					};
+					const auto origin = static_cast<std::size_t>(aValidation.ActorConflict->Conflicting);
+					static_cast<void>(Log->record({
+						.Operation          = application::diagnostic_operation::pull_request,
+						.Outcome            = application::diagnostic_outcome::failed,
+						.Request            = Context.Request.value(),
+						.WindowSession      = Context.ApplicationSession.value(),
+						.PagedOperation     = origin < operations.size() ? operations[origin] : application::diagnostic_paged_operation::none,
+						.Summary            = actor_conflict_summary(*aValidation.ActorConflict),
+						.GithubFailure      = aValidation.Error,
+						.RelationshipDetail = aValidation.Detail,
+						.ContextGeneration  = DiagnosticGeneration,
+					}));
+				}
 			}
 			void observe(const read_operation aOperation, const int aHttpStatus) noexcept override
 			{

@@ -318,3 +318,13 @@ and `profile_runtime_lease.cpp` under `src/adapters/sqlite/src/`,
 `src/adapters/qt/src/release_maintenance_panel.cpp`. The
 [maintenance contract](../architecture/release-maintenance.md) records typed
 authority, failure ordering, direct tests and remaining native evidence.
+
+### Actor-conflict provenance
+
+A rejected pull-request snapshot can report `actor_conflict=` with two closed
+collection names and `ascii_case_only` or `different`. This identifies where
+the observations disagreed without including logins, actor IDs or provider
+content. Anonymized and identifying exports use the same closed grammar;
+unclassified or malformed detail is omitted. The classification does not make
+conflicting observations admissible. Original incident exports without this
+field do not establish their actor provenance.
