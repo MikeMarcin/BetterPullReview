@@ -44,8 +44,10 @@ their purposes. Sending the guidance with workshop requests is BPR-1091's.
 
 ## Implementation (2026-10-08, macOS)
 
-Product commit `6ae4dbb77`, pins resealed in `54b4b89eb`, rebased onto
-`1e277adcc`. The run ledger's "Hooks: BPR-1090" section has the hook ownership
+Product commit `941b4a03d`, pins resealed in `e20113341`, landed over
+`2f91aecbb`. Before that rebase (allocation commits only) they were
+`6ae4dbb77` and `54b4b89eb`, with identical `src/`, `tests/` and `cmake/`;
+the acceptance records and the frozen build name `54b4b89eb`. The run ledger's "Hooks: BPR-1090" section has the hook ownership
 map and the decisions.
 
 - **Core**: `writing_hook::feedback`, `writing_hook_count` 5,
