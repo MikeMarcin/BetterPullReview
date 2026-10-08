@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1324",
+    "BPR-1325"
+  ],
+  "reserve_for": "windows-regressions",
+  "purpose": "Windows title-row owner yield after the fourth modality; Windows paged_review_and_git_load input gap",
+  "created": "2026-10-08T17:56:43.088571+00:00",
+  "base": "9052e06f60feab2870f3635c2ab35f2ad66e2b56"
+}
