@@ -9,7 +9,7 @@ priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner chat request, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1336--BPR-1336--e0eddadebca1.json","related_cards":["BPR-1334","BPR-1335","BPR-1328","BPR-1295","BPR-1107","BPR-1291","BPR-0118"],"requested_skill":"frontend-design","acceptance":["BPR-1336:C1","BPR-1336:C2","BPR-1336:C3","BPR-1336:C4","BPR-1336:C5","BPR-1336:C6"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1336:C1","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200}, qt_diff_workbench_scale_{100,125,200} and application_diff_zoom_public_path: View > Zoom In/Zoom Out/Actual Size and their keys step both panes, the gutter, the tab stop and the detail pane through the core ladder and clamps with reasons; Code size and the drawer's code font are unchanged."}},{"criterion":"BPR-1336:C2","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"Every key in the assembled window and desktop bar bound once; Cmd-0 still Home and Plain in the label menu, Cmd-Opt-0 is Actual Size and not Plain; editor_keeps_typed_text keeps AltGr+0 '}' in editable fields only (Windows filter not run here); Cmd-scroll and pinch step, plain scroll still scrolls."}},{"criterion":"BPR-1336:C3","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"sqlite_appearance_settings_storage (schema 9, v8/v7 migrate to 100%, 49/301 refused), application_appearance_host (two gestures two steps, persists, restart, reset), qt_appearance_settings_panel (Diff zoom row), application_profile_startup_public_path (Work reopens at 125%, Default unchanged)."}},{"criterion":"BPR-1336:C4","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"qt_diff_workbench: reader's line at y 127 stays within one row in the same turn and after remeasurement at 150% and Actual Size; pill and polite announcement say 'Code zoom 150%, 13.50 pt/points' and the pill leaves after ~1.2 s."}},{"criterion":"BPR-1336:C5","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"Frozen Release build of 7092c1dca, application_large_review_responsiveness twice: zoom dispatch 3.3-6.3 ms, largest input gap 12.5-15.7 ms, completion 339-346 ms on the 20,000-line comparison; a 150 ms stall control fails the gates."}},{"criterion":"BPR-1336:C6","outcome":"pending","revision":"7092c1dca","evidence":{"kind":"freeform","detail":"Owner look pending in fresh session abb2042c4944232d64e03d2709e5770c, candidate BPR-1336-diff-zoom-v001 (fingerprint c4076d94...), frozen root artifacts/bpr-1336/diff-zoom-frozen-v001 (binary 780a2667)."}}]
+acceptance: [{"criterion":"BPR-1336:C1","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200}, qt_diff_workbench_scale_{100,125,200} and application_diff_zoom_public_path: View > Zoom In/Zoom Out/Actual Size and their keys step both panes, the gutter, the tab stop and the detail pane through the core ladder and clamps with reasons; Code size and the drawer's code font are unchanged."}},{"criterion":"BPR-1336:C2","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"Every key in the assembled window and desktop bar bound once; Cmd-0 still Home and Plain in the label menu, Cmd-Opt-0 is Actual Size and not Plain; editor_keeps_typed_text keeps AltGr+0 '}' in editable fields only (Windows filter not run here); Cmd-scroll and pinch step, plain scroll still scrolls."}},{"criterion":"BPR-1336:C3","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"sqlite_appearance_settings_storage (schema 9, v8/v7 migrate to 100%, 49/301 refused), application_appearance_host (two gestures two steps, persists, restart, reset), qt_appearance_settings_panel (Diff zoom row), application_profile_startup_public_path (Work reopens at 125%, Default unchanged)."}},{"criterion":"BPR-1336:C4","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"qt_diff_workbench: reader's line at y 127 stays within one row in the same turn and after remeasurement at 150% and Actual Size; pill and polite announcement say 'Code zoom 150%, 13.50 pt/points' and the pill leaves after ~1.2 s."}},{"criterion":"BPR-1336:C5","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"Frozen Release build of 7a35a4bed, application_large_review_responsiveness twice: zoom dispatch 3.7-6.1 ms, largest input gap 12.7-17.0 ms, completion 334-387 ms on the 20,000-line comparison; a 150 ms stall control fails the gates."}},{"criterion":"BPR-1336:C6","outcome":"pending","revision":"7a35a4bed","evidence":{"kind":"freeform","detail":"Owner look pending in fresh session 2a0daa3bc755d694f88a49274b1484cf, candidate BPR-1336-diff-zoom-v002 (fingerprint 8a4dd304...), frozen root artifacts/bpr-1336/diff-zoom-frozen-v002 (binary 86c6e7a2)."}}]
 ---
 
 # BPR-1336: Zoom the code in the comparison
@@ -138,8 +138,10 @@ change Code size.
 ## Implementation and verification — 2026-10-08
 
 The `frontend-design` skill was loaded before the design work, as the owner
-asked on 2026-10-06. Product commit `7092c1dca`, on `origin/main` `e65fe84cd`
-(after BPR-1328 v002 and BPR-1335).
+asked on 2026-10-06. Product commit `7a35a4bed` on `main`, after BPR-1328
+v002, BPR-1335 and BPR-1212 slice 1. The comparison's `eventFilter` takes the
+zoom gesture before the line cursor's keys; neither claims the other's
+events.
 
 - **Core.** `code_font_settings::ZoomPercent`, `typography_field::code_zoom`
   (50 to 300), `code_zoom_steps`, `zoomed_point_size`, `stepped_code_zoom`
@@ -211,17 +213,21 @@ pill was also enlarged.
 `diff_zoom_in`, `diff_zoom_out` and `diff_actual_size_from_125` on the
 20,000-line comparison. Each command's dispatch and every turn of the
 remeasurement after it are held to the 100 ms target, and completion to
-1,000 ms. On the optimized tree (the frozen Release build of `7092c1dca`,
+1,000 ms. On the optimized tree (the frozen Release build of `7a35a4bed`,
 macOS 26.6.2 arm64, Qt 6.11.2), two runs pass every enforced budget:
 
 | Zoom phase | Dispatch | Largest input gap | Completion |
 |---|---|---|---|
-| Zoom In | 5.1 and 4.9 ms | 15.0 and 15.1 ms | 342 and 346 ms |
-| Zoom Out | 3.3 and 3.9 ms | 12.5 and 13.2 ms | 339 and 341 ms |
-| Actual Size from 125% | 6.3 and 5.9 ms | 15.7 and 15.1 ms | 345 ms both runs |
+| Zoom In | 6.0 and 5.1 ms | 17.0 and 15.5 ms | 348 and 339 ms |
+| Zoom Out | 3.8 and 3.7 ms | 13.5 and 12.7 ms | 347 and 334 ms |
+| Actual Size from 125% | 6.1 and 5.8 ms | 15.7 and 14.9 ms | 387 and 342 ms |
 
-The machine's load average was 40 to 50 during both runs (other worktrees
-were building).
+The pre-rebase build `7092c1dca` measured the same, to within 1 ms of
+dispatch and 2 ms of gap. The machine's load average was 40 to 50 during
+these runs, because other worktrees were building. A Debug run at a load
+average of about 93 failed nearly every phase, the zoom phases with them, and
+composition startup took 2.5 s against its 1 s limit. That run is load and is
+not recorded as a result.
 
 **Failing-before controls.** Against the base, the new tests do not compile:
 the zoom API is absent. Each mutation below was applied in this worktree
@@ -246,7 +252,7 @@ expected:
   `diff_zoom_*_dispatch` 155 ms and `_input_gap` 166 ms over the 100 ms
   target, "Mac fixture responsiveness budget exceeded".
 
-**Also passed.** These pass at `7092c1dca` (dev): `architecture_boundaries`,
+**Also passed.** These pass at `7a35a4bed` (dev): `architecture_boundaries`,
 `test_network_isolation_manifest`, `core_appearance_policy`,
 `application_appearance_{host,profile_consumers,gesture_contract,store_fallback_contract,theme_customization_contract}`,
 `qt_appearance_{profile,settings_panel}`, `qt_settings_window`,
@@ -261,14 +267,19 @@ reports only two warnings, both already present in
 `DOCUMENTATION_OK`.
 
 **Owner look (C6) pending.** This is a fresh short session,
-`abb2042c4944232d64e03d2709e5770c`, with state in
-`/Users/jaeger/.mask/bpr-1336-diff-zoom-20261008-v001/attended-review` and
+`2a0daa3bc755d694f88a49274b1484cf`, with state in
+`/Users/jaeger/.mask/bpr-1336-diff-zoom-20261008-v002/attended-review` and
 the cursor at 4. Its one ready, protected Accept/Reject candidate is
-`BPR-1336-diff-zoom-v001` ("diff zoom", fingerprint `c4076d94…`). The
-detached host is at `http://127.0.0.1:51454/` (the token is in the
-handoff, not here). The frozen root `artifacts/bpr-1336/diff-zoom-frozen-v001/`
-holds the exported source (archive `5f502579…`), its Release build (binary
-`780a2667…`) and `launch.py` (`46bc52c0…`). Its public course passes 1/1,
-and its attended entry reaches ready offscreen in 1.8 s. Start it with:
+`BPR-1336-diff-zoom-v002` ("diff zoom", fingerprint `8a4dd304…`). The
+detached host is at `http://127.0.0.1:52768/` (the token is in the
+handoff, not here). The frozen root `artifacts/bpr-1336/diff-zoom-frozen-v002/`
+holds the exported source of `7a35a4bed` (archive `351f0dbd…`), its Release
+build (binary `86c6e7a2…`) and `launch.py` (`c091cb3d…`). Its public course
+passes 1/1, and its attended entry reaches ready offscreen in 2.7 s. Start it
+with:
 
-`python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1336/diff-zoom-frozen-v001/launch.py`
+`python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1336/diff-zoom-frozen-v002/launch.py`
+
+An earlier session, `abb2042c` (v001), was built from the pre-rebase
+`7092c1dca`. It was withdrawn before anyone opened it: its host is stopped,
+its protections are released and its frozen root is deleted.
