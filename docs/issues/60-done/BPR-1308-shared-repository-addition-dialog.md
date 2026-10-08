@@ -20,3 +20,30 @@ Four-draft mandate r1, registered at `f3e866e9b90505d4604c55b6ad7e1ef598e5bbc2`.
 
 - C1: Home and Settings open the same addition dialog with exact account/host, draft input, progress, typed refusal, keyboard completion and cancel focus restoration.
 - C2: Explicit setup/sign-in preserves the draft, cancellation saves nothing, and authority change requires a fresh final gesture; no automatic save or modal.
+
+## Composition reseal review (2026-10-08)
+
+fd96a3876 changed `src/app/src/github_application.cpp` without resealing the
+round-trip composition pins, so `application_review_round_trip_composition_contract`
+and `application_composition_contract` were red on `origin/main`
+(`docs/releases/v0.1.5.md` records this as a prerelease exception). Review of
+that file's diff:
+
+- `submit_repository_setup` retires CLI discovery and calls the setup host's
+  `submit_repository`. It does not cancel restoration, because preparing a
+  repository opens no pull request.
+- In `open()`, a repository-kind destination returns `repository_prepared`
+  only when the session is authenticated for the exact profile, host and
+  hostname, and `unavailable` otherwise, including under public preview. It
+  returns before any pending link location, navigation or read, and it saves
+  nothing. Adding the repository still needs a new Add gesture.
+- `set_repository_addition_dispatch` sends to the queue host's existing
+  `apply(repository_addition_intent)`. The composition overwrites `Source`
+  with this window's `DraftWindow`, so Qt cannot name another attachment, and
+  the queue publishes the gesture result only to that attachment.
+
+The change adds no grant, target, provider, credential, GitHub write, mutation
+or publication path. The mutation-branch digest is unchanged
+(`e067befe…` at fd96a3876 and at `origin/main`). The full-application and
+app-manifest pins were resealed with BPR-1313's and BPR-1316's changes in the
+commit that adds this note.

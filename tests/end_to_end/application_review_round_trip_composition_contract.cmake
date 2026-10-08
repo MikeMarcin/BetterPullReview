@@ -964,6 +964,30 @@ endfunction()
 # target, provider, credential, child environment, mutation or publication path
 # changes; host policy unchanged; mutation pin unchanged; no new src/app source.
 # Reviewed on BPR-1301.
+# Prerelease-exception reseal (2026-10-08): 3627b98af..24b470494. The pins
+# last matched at 3627b98af; three later commits touch the pinned scope, and
+# none was resealed (docs/releases/v0.1.5.md records the red rows).
+# fd96a3876 (BPR-1308), github_application.cpp: a submit_repository_setup
+# intent retires CLI discovery and runs the setup host's explicit repository
+# preparation; open() answers a repository destination with
+# repository_prepared only under the exact authenticated session, profile,
+# host and hostname, otherwise unavailable, and reads, navigates and saves
+# nothing. Public preview cannot prepare one. Home's repository-addition
+# dispatch reaches the existing queue host's repository_addition_intent with
+# Source stamped by the composition as this window's DraftWindow, and the
+# queue publishes a gesture result only to that attachment.
+# 441d55e45 (BPR-1313), github_application.cpp: the Overview page's summary
+# resize dispatch reaches WorkbenchHost::resize_summary, which stores a bounded
+# per-window fraction in the existing workbench settings record.
+# d8f74f890 (BPR-1316), production manifest: release_maintenance_controls.cpp
+# asks a new diagnostic_export_directory.{hpp,cpp} on its effect lane for the
+# first of Downloads, Documents and home that the existing read-only output
+# admission accepts, and only gives that to the chooser as its initial folder.
+# The export is still written only to the path the reviewer chooses, through
+# the unchanged local_output. Both new files join the inventory and the
+# production manifest. None of the three adds a grant, target, provider,
+# credential, GitHub write, mutation or publication path; mutation pin
+# unchanged. Reviewed on BPR-1308, BPR-1313 and BPR-1316.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -982,7 +1006,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"ef0bef84e4f8f8dad08c21762e9ecfb81861c935d5268aab627a0cfb9d0f6592"
+		"fed57eae3cdd91a22c9f3091ba0aebdc170a89a57d2becf5c8f4c291b0b48b3a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -998,6 +1022,7 @@ endfunction()
 function(bpr_compute_production_app_manifest_digest app_source_root out_variable)
     set(bpr_production_app_sources
         "include/bpr/app/diagnostic_controls.hpp"
+        "include/bpr/app/diagnostic_export_directory.hpp"
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
@@ -1012,6 +1037,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
 		"src/designated_live_macos_supervisor_launch.cpp"
 		"src/designated_live_macos_supervisor_launch.hpp"
         "src/diagnostic_controls.cpp"
+        "src/diagnostic_export_directory.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/installed_resources.cpp"
@@ -1066,6 +1092,7 @@ function(bpr_verify_app_source_tree app_source_root)
     endif()
     set(bpr_expected_app_sources
         "include/bpr/app/diagnostic_controls.hpp"
+        "include/bpr/app/diagnostic_export_directory.hpp"
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
@@ -1092,6 +1119,7 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/designated_live_macos_supervisor_launch.cpp"
 		"src/designated_live_macos_supervisor_launch.hpp"
         "src/diagnostic_controls.cpp"
+        "src/diagnostic_export_directory.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/github_application_fixture_access.hpp"
@@ -1180,7 +1208,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b01cca508daa6e591938837b8fac9d553f9d64a729c27bcf6cd3a3636596e9d5"
+        "ce32600c6fc7b889a35320565fce402604554996f8da71aa8f3dd40dda9054ca"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

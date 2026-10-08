@@ -20,3 +20,24 @@ Four-draft mandate r1, registered at `f3e866e9b90505d4604c55b6ad7e1ef598e5bbc2`.
 
 - C1: Composition resolves Downloads, Documents then home using standard-folder discovery and existing output policy; total unavailability keeps preview with typed retry.
 - C2: Both privacy modes and Help/Settings open the chooser with the selected folder and suggested filename; alternate selection/cancel/overwrite/stale refusal preserve exact preview semantics and create no folder/file during discovery.
+
+## Composition reseal review (2026-10-08)
+
+d8f74f890 changed the production app manifest (`release_maintenance_controls.cpp`)
+and added `include/bpr/app/diagnostic_export_directory.hpp` and
+`src/diagnostic_export_directory.cpp`, none of which the round-trip contract's
+inventory or pins listed. The panel's new `ChooseExportDirectory` dispatch,
+which needs a live host and fails if the host is closing or transferring,
+posts to the effect lane. There it reads the `QStandardPaths` Downloads,
+Documents and home locations and takes the first that is non-empty, is not a
+filesystem root, and passes `admit_release_diagnostic_directory`. That check is
+the existing read-only output-parent admission, and it opens nothing it then
+writes. The decision lane gives the result to the panel only as the chooser's
+initial folder. The export is still written only at the path the reviewer
+chooses, through the unchanged `local_output` and
+`admit_release_diagnostic_output`. Nothing is created, listed or remembered,
+and no permission changes. It adds no grant, target, provider, credential,
+GitHub write, mutation or publication path. Both new files joined the
+inventory and the production manifest, and the pins were resealed with
+BPR-1308's and BPR-1313's changes in the commit that adds this note. The
+mutation-branch pin is unchanged.
