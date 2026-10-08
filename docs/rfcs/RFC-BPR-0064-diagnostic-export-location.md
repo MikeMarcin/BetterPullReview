@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0064"
 title: "User-Owned Default Folder for Diagnostic Exports"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Owner four-draft mandate"
 depends_on: ["RFC-BPR-0027"]
@@ -13,9 +13,15 @@ metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/pla
 
 ## Adoption and current obligations
 
-Registered on main under mandate four-drafts-r1 at baseline `f3e866e9b90505d4604c55b6ad7e1ef598e5bbc2`. The [adopted plan](plans/bpr-four-drafts-v1/milestone-plan.json) preserves every acceptance criterion; the [import record](assets/bpr-four-drafts-v1.LIVE_IMPORT.md) retains provenance and exclusions. The implementation mandate adopts the bounded proposed behavior; required rendered/native/owner acceptance remains pending.
+Registered on main under mandate four-drafts-r1 at baseline `f3e866e9b90505d4604c55b6ad7e1ef598e5bbc2`. The [adopted plan](plans/bpr-four-drafts-v1/milestone-plan.json) preserves every acceptance criterion; the [import record](assets/bpr-four-drafts-v1.LIVE_IMPORT.md) retains provenance and exclusions. The implementation mandate adopts the bounded proposed behavior; required native/owner acceptance was pending at registration and is recorded below.
 
 The source Handoff below is retained as authoring history, not current execution state. Current acceptance is tracked by the new issue cards and [ledger](../verification/RFC-BPR-0062-0065.md). Existing Done cards and plan exits remain historical evidence for their exact candidates. Formal dependencies use accepted capabilities: RFC-BPR-0027 for diagnostic export.
+
+**Closed 2026-10-08 by [BPR-1318](../issues/60-done/BPR-1318-close-rfc-0064.md).**
+AC01–AC04 pass on macOS, the only claimed platform: product change
+`ca51d5df7`, export courses replayed at `3836d3486`, and the owner accepted the
+actual native Save chooser location in session `5c434605…`. Windows and Linux
+native chooser behavior is not claimed.
 
 ## Problem and grounded current behavior
 
