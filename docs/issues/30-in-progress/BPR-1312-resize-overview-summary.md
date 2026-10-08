@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1312"
 title: "Resize and scroll the Overview summary while keeping Files visible"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0063"]
 depends_on: []
 priority: "P1"
