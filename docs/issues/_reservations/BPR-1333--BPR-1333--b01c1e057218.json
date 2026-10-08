@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1333"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Overview crash in overviewReadDescription during application_profile_window_layout_public_path seed",
+  "created": "2026-10-08T19:39:44.437229+00:00",
+  "base": "33677d37d3c62fd6b3f0ccf017cee3fb732bc4da"
+}
