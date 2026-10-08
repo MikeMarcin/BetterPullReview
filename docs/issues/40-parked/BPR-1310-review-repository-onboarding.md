@@ -106,3 +106,29 @@ The launcher refuses at once when its files are missing. Fresh session
 `940f5d334de0b75c0cbd0acf966c5438` (cursor 6) asks two separate questions:
 `BPR-1310-home-v002` on the first-time call to action and
 `BPR-1310-repositories-v002` on the Repositories page. C2 stays pending.
+
+## v002 rejections (dispatch r5, 2026-10-08)
+
+Session `940f5d334de0b75c0cbd0acf966c5438` was handed back at
+2026-10-08T15:31:16Z (cursor 10) with two Rejects:
+
+- `BPR-1310-home-v002` (fingerprint `e5ec7cbd…e274`), decision
+  `c7d78e69-4e26-4a57-abae-1494eab726ef`: "Just the button that opens
+  settings is okay, And if there is no repositories there is no reason to
+  show the review cycles needs me I dont think, it would never have anything."
+- `BPR-1310-repositories-v002` (fingerprint `59c3b03d…f57a`), decision
+  `902a27c6-107b-4c96-8f32-097fc165a90a`: "This link should go to the
+  repositories settings page.
+
+  This popup sucks, make the experience more like the accounts page."
+  Its two screenshots are kept in the ignored
+  `artifacts/four-drafts-r1/home-v002-verdicts/`. They show the empty
+  Needs me lane's "saved repositories and observer rules" link, which opened
+  Reviews & queue, and the modal Add repository dialog.
+
+The RFC records the resulting amendment to AC01, AC05 and AC06. The same
+Home owner is correcting the slice as v003. Its scope: a single Home
+first-run button that opens Settings › Repositories; Review Cycles lanes that
+nothing can populate are hidden while no repository is saved; the empty-lane
+link opens Repositories; and the modal is replaced by an Accounts-style
+in-page flow. C2 stays pending.
