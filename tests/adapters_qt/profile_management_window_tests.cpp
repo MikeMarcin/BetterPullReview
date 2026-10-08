@@ -350,7 +350,7 @@ namespace {
 		expect(view != nullptr && view->title() == QStringLiteral("&View"), "the desktop bar offers View");
 		const auto viewActions = view->actions();
 		// [[BPR-1304]]. Read from a window's own View menu rather than restated:
-		// [[BPR-1295]] added Hide Drawers and [[BPR-1293]] Conversations to the
+		// [[BPR-1295]] added Hide Drawers and [[BPR-1293]] Threads to the
 		// window's menu, and a list kept here could not see the second missing
 		// from the desktop's bar.
 		const auto described = [](const QList<QAction*>& aActions) {
@@ -371,14 +371,14 @@ namespace {
 				   && viewActions[1]->text() == QStringLiteral("&One pane")
 				   && viewActions[2]->text() == QStringLiteral("Hide &Drawers")
 				   && viewActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+B") }
-				   && viewActions[3]->text() == QStringLiteral("&Conversations")
+				   && viewActions[3]->text() == QStringLiteral("&Threads")
 				   && viewActions[3]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+J") }
 				   && viewActions[4]->text() == QStringLiteral("&Updates Line") && viewActions[4]->isCheckable()
 				   && viewActions[5]->isSeparator() && viewActions[9]->isSeparator()
 				   && viewActions[10]->text() == QStringLiteral("Next Tab")
 				   && viewActions[11]->text() == QStringLiteral("Previous Tab") && viewActions[12]->isSeparator()
 				   && viewActions[13]->text() == QStringLiteral("&Settings…"),
-			   "Hide Drawers on its key and Conversations on its key among them");
+			   "Hide Drawers on its key and Threads on its key among them");
 		// [[BPR-1336]]. The zoom commands, on the window's keys, offered and off.
 		expect(viewActions[6]->text() == QStringLiteral("Zoom In")
 				   && viewActions[6]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }

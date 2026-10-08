@@ -318,7 +318,7 @@ namespace {
 			   "with no inline collection, an empty file's zero is qualified");
 	}
 
-	/// \brief [[BPR-1293]]. Conversations' label filter lists, per label, the
+	/// \brief [[BPR-1293]]. Threads' label filter lists, per label, the
 	/// conversations the Overview's chips count: a conversation is its root's
 	/// label, in every state, across the whole pull request.
 	void test_each_label_lists_the_conversations_it_counts()
@@ -341,7 +341,7 @@ namespace {
 		expect(listing(feedback_label::praise) == std::vector<std::string>{ "review-thread:t7" }, "a resolved conversation is listed");
 		expect(listing(feedback_label::note) == std::vector<std::string>{ "issue-comment:c1" }
 				   && listing(feedback_label::thought) == std::vector<std::string>{ "review:r1" },
-			   "pull request comments and review summaries are listed too; Conversations keeps only what it shows");
+			   "pull request comments and review summaries are listed too; Threads keeps only what it shows");
 		expect(std::ranges::none_of(labels->Labels, [](const auto& aListing) { return aListing.Conversations.empty(); })
 				   && std::ranges::find(labels->Labels, feedback_label::typo, &application::conversation_label_listing::Label) == labels->Labels.end(),
 			   "only the labels the pull request uses are listed");

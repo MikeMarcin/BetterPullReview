@@ -179,7 +179,9 @@ changing their states, and ⌘B is disabled there. Discuss is kept as it is,
 even after [[BPR-1294]]. Amended 2026-10-06 by the owner ("can we swap
 discuss to 3 and conversations to 4"): Discuss is ⌘3 and Conversations ⌘4.
 [[BPR-1295]] builds Overview ⌘1, Review ⌘2 and Discuss ⌘3 and leaves ⌘4 for
-[[BPR-1293]].
+[[BPR-1293]]. Amended 2026-10-08 by the owner ([[BPR-1341]]): Conversations
+is renamed Threads; the Comments drawer keeps its name and Discuss is
+unchanged.
 
 **Overview.** A pull request opens on an overview: title, author and branches,
 description, a files table grouped by folder with operation, added and removed
@@ -322,6 +324,8 @@ design rounds.
   their states, and ⌘B is disabled there.
   Amended 2026-10-06 by the owner ("can we swap discuss to 3 and
   conversations to 4"): Discuss is ⌘3 and Conversations ⌘4.
+  Amended 2026-10-08 by the owner ([[BPR-1341]]): Conversations is renamed
+  Threads, so the fourth modality, ⌘4, is Threads and ⌘J goes to Threads.
 - AC-04 The overview shows every file with the listed columns from projections
   the host already publishes, plus participants and the since-my-last-review
   summary, and Continue review lands on the first unseen change.
@@ -883,6 +887,20 @@ Overview's chips. The drawer toggle is named the Comments drawer. The kept
 and is removed. A long conversation (AC-08) is found in Conversations with its
 branches as rows and read whole in Review's drawer, the picked post washed
 amber. The workbench specification's Modalities paragraph says the rest.
+
+## Owner decision, 2026-10-08: Conversations is renamed Threads
+
+The owner said in chat on 2026-10-08, verbatim: "I'm considering rebranding
+conversations as threads", and then "Go ahead" to the proposal that followed.
+[[BPR-1341]] carries it out. The fourth modality, ⌘4, is **Threads**; ⌘J's
+tooltip reads "Find a thread in the pull request"; the finder's labels,
+accessible names, View menu items (the window's and the empty desktop's menu
+bar), status text and the core's modality follow. The Comments drawer and its
+"Comments (n)" toggle keep their names, and Discuss is unchanged. Where this
+document names Conversations as a modality, in the sections above and in
+AC-03, read Threads; the dated amendments keep the name they were written
+with. The rename changes words and identifiers only, not behaviour, keys or
+this RFC's closeout dependencies.
 
 ## Owner decision, 2026-09-24: the scaffolding moves to RFC-BPR-0052
 

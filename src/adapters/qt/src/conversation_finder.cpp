@@ -585,8 +585,8 @@ namespace bpr::qt {
 			: QListView{ aParent }
 			, Owner{ aOwner }
 		{
-			setObjectName(QStringLiteral("conversationFinderList"));
-			setAccessibleName(QStringLiteral("Conversations in the pull request, by file"));
+			setObjectName(QStringLiteral("threadFinderList"));
+			setAccessibleName(QStringLiteral("Threads in the pull request, by file"));
 			setFrameShape(QFrame::NoFrame);
 			setSelectionMode(QAbstractItemView::SingleSelection);
 			setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -896,15 +896,15 @@ namespace bpr::qt {
 		explicit finder_search_box(QWidget* aParent)
 			: QWidget{ aParent }
 		{
-			setObjectName(QStringLiteral("conversationFinderSearchBox"));
+			setObjectName(QStringLiteral("threadFinderSearchBox"));
 			Field = new QLineEdit{ this };
-			Field->setObjectName(QStringLiteral("conversationFinderSearch"));
+			Field->setObjectName(QStringLiteral("threadFinderSearch"));
 			Field->setFrame(false);
-			Field->setPlaceholderText(QStringLiteral("Find a conversation"));
-			Field->setAccessibleName(QStringLiteral("Find a conversation: words, a person, a file or a line"));
+			Field->setPlaceholderText(QStringLiteral("Find a thread"));
+			Field->setAccessibleName(QStringLiteral("Find a thread: words, a person, a file or a line"));
 			Field->setAttribute(Qt::WA_MacShowFocusRect, false);
 			Clear = new QToolButton{ this };
-			Clear->setObjectName(QStringLiteral("conversationFinderClear"));
+			Clear->setObjectName(QStringLiteral("threadFinderClear"));
 			Clear->setAutoRaise(true);
 			Clear->setIconSize(QSize{ 14, 14 });
 			Clear->setFocusPolicy(Qt::NoFocus);
@@ -917,8 +917,8 @@ namespace bpr::qt {
 			row->addWidget(Field, 1);
 			row->addWidget(Clear);
 			Key = new QLabel{ this };
-			Key->setObjectName(QStringLiteral("conversationFinderKey"));
-			Key->setToolTip(QStringLiteral("Goes to Conversations, and back"));
+			Key->setObjectName(QStringLiteral("threadFinderKey"));
+			Key->setToolTip(QStringLiteral("Goes to Threads, and back"));
 			row->addWidget(Key);
 			setFixedHeight(32);
 			setMaximumWidth(search_maximum);
@@ -986,7 +986,7 @@ namespace bpr::qt {
 		explicit finder_preview(QWidget* aParent)
 			: QWidget{ aParent, Qt::ToolTip | Qt::FramelessWindowHint }
 		{
-			setObjectName(QStringLiteral("conversationFinderPreview"));
+			setObjectName(QStringLiteral("threadFinderPreview"));
 			setAttribute(Qt::WA_ShowWithoutActivating, true);
 			setAttribute(Qt::WA_TransparentForMouseEvents, true);
 			setAttribute(Qt::WA_TranslucentBackground, true);
@@ -1083,9 +1083,9 @@ namespace bpr::qt {
 	conversation_finder::conversation_finder(QWidget* const aParent)
 		: QWidget{ aParent }
 	{
-		setObjectName(QStringLiteral("conversationFinder"));
-		setAccessibleName(QStringLiteral("Conversations"));
-		setAccessibleDescription(QStringLiteral("Every conversation in the pull request that is on a file, grouped by file. Pick one to read it in Review."));
+		setObjectName(QStringLiteral("threadFinder"));
+		setAccessibleName(QStringLiteral("Threads"));
+		setAccessibleDescription(QStringLiteral("Every thread in the pull request that is on a file, grouped by file. Pick one to read it in Review."));
 		setAutoFillBackground(true);
 		setBackgroundRole(QPalette::Base);
 		MarkTheme = default_feedback_mark_theme(palette());
@@ -1094,7 +1094,7 @@ namespace bpr::qt {
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(0);
 		Bar = new QWidget{ this };
-		Bar->setObjectName(QStringLiteral("conversationFinderBar"));
+		Bar->setObjectName(QStringLiteral("threadFinderBar"));
 		auto* const bar = new QHBoxLayout{ Bar };
 		bar->setContentsMargins(14, 10, 16, 10);
 		bar->setSpacing(6);
@@ -1102,13 +1102,13 @@ namespace bpr::qt {
 		Search                = searchBox->Field;
 		bar->addWidget(searchBox, 1);
 		OnlyNew = new finder_chip{ conversation_glyph::only_new, false, Bar };
-		OnlyNew->setObjectName(QStringLiteral("conversationFinderOnlyNew"));
+		OnlyNew->setObjectName(QStringLiteral("threadFinderOnlyNew"));
 		HideResolved = new finder_chip{ conversation_glyph::hide_resolved, false, Bar };
-		HideResolved->setObjectName(QStringLiteral("conversationFinderHideResolved"));
-		HideResolved->setToolTip(QStringLiteral("Hide resolved conversations"));
+		HideResolved->setObjectName(QStringLiteral("threadFinderHideResolved"));
+		HideResolved->setToolTip(QStringLiteral("Hide resolved threads"));
 		HideResolved->setAccessibleName(HideResolved->toolTip());
 		LabelChip = new finder_chip{ conversation_glyph::tag, true, Bar };
-		LabelChip->setObjectName(QStringLiteral("conversationFinderLabel"));
+		LabelChip->setObjectName(QStringLiteral("threadFinderLabel"));
 		bar->addWidget(OnlyNew);
 		bar->addWidget(HideResolved);
 		bar->addWidget(LabelChip);
@@ -1116,7 +1116,7 @@ namespace bpr::qt {
 		column->addWidget(Bar);
 
 		Pages = new QStackedWidget{ this };
-		Pages->setObjectName(QStringLiteral("conversationFinderPages"));
+		Pages->setObjectName(QStringLiteral("threadFinderPages"));
 		List  = new finder_list{ *this, Pages };
 		Model = new finder_model{ *this };
 		List->setModel(Model);
@@ -1148,9 +1148,9 @@ namespace bpr::qt {
 			Pages->addWidget(page);
 			return page;
 		};
-		Empty      = makeEmpty(QStringLiteral("conversationFinderEmpty"), QStringLiteral("No conversation matches."), QStringLiteral("Show all conversations"));
-		NoneOnFile = makeEmpty(QStringLiteral("conversationFinderNoneOnFile"),
-							   QStringLiteral("No conversation in this pull request is on a file. Discuss reads its comments and review summaries."), { });
+		Empty      = makeEmpty(QStringLiteral("threadFinderEmpty"), QStringLiteral("No thread matches."), QStringLiteral("Show all threads"));
+		NoneOnFile = makeEmpty(QStringLiteral("threadFinderNoneOnFile"),
+							   QStringLiteral("No thread in this pull request is on a file. Discuss reads its comments and review summaries."), { });
 		column->addWidget(Pages, 1);
 		Preview = new finder_preview{ this };
 		Preview->hide();
@@ -1726,13 +1726,13 @@ namespace bpr::qt {
 	{
 		const auto fresh = static_cast<std::size_t>(std::ranges::count_if(Conversations, [](const finder_conversation& aConversation) { return aConversation.Unread > 0U; }));
 		OnlyNew->set_count(QString::number(fresh));
-		const auto onlyNew = QStringLiteral("Only conversations with new replies (%1)").arg(fresh);
+		const auto onlyNew = QStringLiteral("Only threads with new replies (%1)").arg(fresh);
 		OnlyNew->setToolTip(onlyNew);
 		OnlyNew->setAccessibleName(onlyNew);
 		LabelChip->set_mark(Filters.Label);
 		LabelChip->set_on(Filters.Label.has_value());
-		const auto label = Filters.Label.has_value() ? QStringLiteral("Only conversations with a %1").arg(feedback_label_text(*Filters.Label))
-													 : QStringLiteral("Only conversations with a label");
+		const auto label = Filters.Label.has_value() ? QStringLiteral("Only threads with a %1").arg(feedback_label_text(*Filters.Label))
+													 : QStringLiteral("Only threads with a label");
 		LabelChip->setToolTip(label);
 		LabelChip->setAccessibleName(label);
 	}
@@ -1756,14 +1756,14 @@ namespace bpr::qt {
 	void conversation_finder::open_label_menu()
 	{
 		auto* const menu = new QMenu{ this };
-		menu->setObjectName(QStringLiteral("conversationFinderLabelMenu"));
+		menu->setObjectName(QStringLiteral("threadFinderLabelMenu"));
 		menu->setAttribute(Qt::WA_DeleteOnClose, true);
 		auto* const group = new QActionGroup{ menu };
 		group->setExclusive(true);
 		const auto  dpr = devicePixelRatioF();
 		auto* const any = menu->addAction(conversation_icon(conversation_glyph::tag, palette()),
 										  QStringLiteral("Any label\t%1").arg(Conversations.size()));
-		any->setObjectName(QStringLiteral("conversationFinderAnyLabel"));
+		any->setObjectName(QStringLiteral("threadFinderAnyLabel"));
 		any->setCheckable(true);
 		any->setChecked(!Filters.Label.has_value());
 		group->addAction(any);
@@ -1782,7 +1782,7 @@ namespace bpr::qt {
 			auto* const action = menu->addAction(
 				QIcon{ feedback_mark_pixmap(label, { }, feedback_mark_colours_for(MarkTheme, label, palette()), dpr) },
 				QStringLiteral("%1\t%2").arg(feedback_label_text(label)).arg(count));
-			action->setObjectName(QStringLiteral("conversationFinderLabel_%1").arg(QString::fromLatin1(core::definition_of(label).Id.data(), static_cast<qsizetype>(core::definition_of(label).Id.size()))));
+			action->setObjectName(QStringLiteral("threadFinderLabel_%1").arg(QString::fromLatin1(core::definition_of(label).Id.data(), static_cast<qsizetype>(core::definition_of(label).Id.size()))));
 			action->setCheckable(true);
 			action->setChecked(Filters.Label == label);
 			group->addAction(action);
@@ -2118,7 +2118,7 @@ namespace bpr::qt {
 					fresh += conversation.Unread > 0U ? 1 : 0;
 				}
 			}
-			auto text = QStringLiteral("%1, %2, %3").arg(base_name(entry.Path), folder_of(entry.Path), count == 1 ? QStringLiteral("one conversation") : QStringLiteral("%1 conversations").arg(count));
+			auto text = QStringLiteral("%1, %2, %3").arg(base_name(entry.Path), folder_of(entry.Path), count == 1 ? QStringLiteral("one thread") : QStringLiteral("%1 threads").arg(count));
 			if (fresh > 0) {
 				text += fresh == 1 ? QStringLiteral(", one with new replies") : QStringLiteral(", %1 with new replies").arg(fresh);
 			}

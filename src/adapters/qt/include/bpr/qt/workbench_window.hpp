@@ -460,7 +460,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-0987]]. Reveals one conversation of the open pull request
 		/// in Discuss, as a press on its row would; false when the window does
 		/// not list it. [[BPR-1293]]: a conversation on a file opens in Review
-		/// instead, in place at the named post, as a pick in Conversations does.
+		/// instead, in place at the named post, as a pick in Threads does.
 		[[nodiscard]] auto reveal_conversation(const std::string& aIdentity) -> bool;
 		/// \brief [[BPR-1293]]. Opens a conversation on a file in Review: the
 		/// file through the files drawer's intent, Review in the arrangement
@@ -471,13 +471,13 @@ namespace bpr::qt {
 		/// \brief [[BPR-1293]]. Opens a conversation on a file in Review, named
 		/// by its root or any of its posts; false for one that is not on a file.
 		auto reveal_conversation_in_review(const std::string& aIdentity) -> bool;
-		/// \brief [[BPR-1293]]. Conversations, the pull request's finder page.
+		/// \brief [[BPR-1293]]. Threads, the pull request's finder page.
 		[[nodiscard]] auto finder() const noexcept -> conversation_finder*;
-		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Conversations, and
+		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Threads, and
 		/// from it back to the modality it was entered from.
-		[[nodiscard]] auto show_conversations_action() const noexcept -> QAction*;
+		[[nodiscard]] auto show_threads_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1293]]. The finder button at the top of the Comments drawer.
-		[[nodiscard]] auto conversations_finder_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto threads_finder_button() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1293]]. [[BPR-1087]]'s conversations per label, for
 		/// the finder's label filter.
 		void set_conversation_labels(std::optional<application::conversation_labels_projection> aLabels);
@@ -1447,10 +1447,10 @@ namespace bpr::qt {
 		/// [[BPR-1046]]. Completes or refuses a reply that waited for its
 		/// thread's comparison, once a comparison has arrived.
 		void resume_deferred_reply();
-		/// \brief [[BPR-1293]]. ⌘J: Conversations, or back from it.
-		void toggle_conversations();
-		/// \brief [[BPR-1293]]. Back to the modality Conversations was entered from.
-		void leave_conversations();
+		/// \brief [[BPR-1293]]. ⌘J: Threads, or back from it.
+		void toggle_threads();
+		/// \brief [[BPR-1293]]. Back to the modality Threads was entered from.
+		void leave_threads();
 		/// \brief [[BPR-1293]]. Opens a waiting pick once its file's
 		/// comparison shows its thread; drops it once another file shows.
 		void resume_conversation_pick();
@@ -1787,14 +1787,14 @@ namespace bpr::qt {
 		QStackedWidget*                              CentreStack            = nullptr;
 		QWidget*                                     ComparisonPage         = nullptr;
 		QWidget*                                     DiscussPage            = nullptr;
-		/// [[BPR-1293]]. Conversations' page and its finder.
-		QWidget*             ConversationsPage         = nullptr;
-		conversation_finder* Finder                    = nullptr;
-		QAction*             ShowConversationsAction   = nullptr;
-		QToolButton*         ConversationsFinderButton = nullptr;
-		/// The modality Conversations was entered from, and where focus was.
-		std::optional<review_modality> ConversationsReturn;
-		QPointer<QWidget>              ConversationsReturnFocus;
+		/// [[BPR-1293]]. Threads' page and its finder.
+		QWidget*             ThreadsPage         = nullptr;
+		conversation_finder* Finder              = nullptr;
+		QAction*             ShowThreadsAction   = nullptr;
+		QToolButton*         ThreadsFinderButton = nullptr;
+		/// The modality Threads was entered from, and where focus was.
+		std::optional<review_modality> ThreadsReturn;
+		QPointer<QWidget>              ThreadsReturnFocus;
 		/// A pick waiting for its file's comparison to show the thread.
 		struct conversation_pick
 		{

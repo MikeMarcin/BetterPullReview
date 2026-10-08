@@ -27,7 +27,7 @@
 #include <vector>
 
 /// \file
-/// \brief [[BPR-1293]]. Conversations, the pull request's finder, as prototype
+/// \brief [[BPR-1293]]. Threads, the pull request's finder, as prototype
 /// v2 draws it: a row per conversation grouped by file, branch rows only where
 /// a post has two or more replies that have replies, oldest read posts folded
 /// past nine, search over words, people, files and lines, the three filters,
@@ -159,7 +159,7 @@ namespace {
 
 	/// \brief The pull request the tests read: five files, a long flat thread,
 	/// a resolved one, the branching one, a pull request comment and a
-	/// review summary that Conversations must not list.
+	/// review summary that Threads must not list.
 	[[nodiscard]] auto forest() -> std::vector<conversation>
 	{
 		auto made = std::vector<conversation>{ };
@@ -411,7 +411,7 @@ namespace {
 		finder.only_new_button()->click();
 		expect(finder.filters().OnlyNew && shown_rows(finder).size() == 6U && has_row_of(finder, "t656") && has_row_of(finder, "g282") && !has_row_of(finder, "r6"),
 			   "Only new keeps conversations with new posts");
-		expect(finder.only_new_button()->accessibleName() == QStringLiteral("Only conversations with new replies (3)"), "its count names the new conversations");
+		expect(finder.only_new_button()->accessibleName() == QStringLiteral("Only threads with new replies (3)"), "its count names the new threads");
 		finder.only_new_button()->click();
 		finder.hide_resolved_button()->click();
 		expect(!has_row_of(finder, "t38") && shown_rows(finder).size() == 8U, "Hide resolved");
@@ -430,7 +430,7 @@ namespace {
 		finder.set_filters(label);
 		expect(shown_rows(finder) == std::vector<std::string>{ "row:review-thread:r6/review-comment:r6-1", "row:review-thread:t656/review-comment:t656-1" },
 			   "one label keeps the conversations it counts");
-		expect(finder.label_button()->accessibleName() == QStringLiteral("Only conversations with a issue"), "the chip names the label");
+		expect(finder.label_button()->accessibleName() == QStringLiteral("Only threads with a issue"), "the chip names the label");
 		finder.set_filters({ });
 		expect(shown_rows(finder).size() == 9U, "Show all clears everything");
 	}
@@ -616,8 +616,8 @@ namespace {
 		finder.show();
 		QApplication::processEvents();
 		expect(finder.conversations().empty() && finder.shown_keys().empty(), "a pull request comment is not listed");
-		auto* const pages = finder.findChild<QStackedWidget*>(QStringLiteral("conversationFinderPages"));
-		expect(pages != nullptr && pages->currentWidget()->objectName() == QStringLiteral("conversationFinderNoneOnFile"), "the page says none is on a file");
+		auto* const pages = finder.findChild<QStackedWidget*>(QStringLiteral("threadFinderPages"));
+		expect(pages != nullptr && pages->currentWidget()->objectName() == QStringLiteral("threadFinderNoneOnFile"), "the page says none is on a file");
 		// Rebuilt only when shown: a hidden finder adopting a forest reads nothing.
 		finder.hide();
 		const auto before = finder.rebuilds();

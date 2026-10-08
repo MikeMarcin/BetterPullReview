@@ -1069,6 +1069,15 @@ endfunction()
 # target, provider, credential or mutation path changes here; mutation pin
 # unchanged; no new src/app source. Self-review on BPR-1212, not independent
 # review.
+# BPR-1341 reseal (2026-10-08): over the BPR-1212 slice 1 reseal above, rebased;
+# no other intervening pinned-scope commit. The owner renamed the Conversations modality
+# Threads. github_application.cpp: core::workbench_modality::conversations and
+# qt::review_modality::conversations are renamed threads in the course's
+# modality mapping, its name reads "Threads" and its centre "threads", and two
+# comments say Threads. The fixture-access header's comment likewise. Words and
+# identifiers only: no grant, target, provider, credential, GitHub write,
+# mutation or publication path changes; mutation pin unchanged. Reviewed on
+# BPR-1341.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1087,7 +1096,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"cf8290ad4de303f7a97a5e0f9ac38b051e4b7fd39678586f3c46b3333a4fe5d2"
+		"767249a0c7c9fec1ac98ac3234a2ce222b43115766ec5d0800cae34b92801da1"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1289,7 +1298,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2cdb82c67c5573d03b484bad24f315540efc823ee62a864f5299e14e9c20a08c"
+        "099f8e44ace468f833f998cc539411839a318349662f90e9a431ebc30d06fbb3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

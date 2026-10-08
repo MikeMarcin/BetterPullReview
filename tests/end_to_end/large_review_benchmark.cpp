@@ -1257,7 +1257,7 @@ namespace bpr::e2e::large_review {
 		for (const auto* name : { "review_modality", "files_drawer_open", "files_drawer_close", "conversations_drawer_open", "conversations_drawer_close", "drawers_hide", "drawers_show", "appearance_settings_open", "theme_light", "theme_dark" }) {
 			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
 		}
-		// [[BPR-1293]]. Conversations: in, a search, its clearing, out and a
+		// [[BPR-1293]]. Threads: in, a search, its clearing, out and a
 		// pick, each one input; the pick's file opening as a file selection.
 		for (const auto* name : { "conversations_enter", "conversations_search", "conversations_search_clear", "conversations_leave", "conversations_pick" }) {
 			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
@@ -1383,25 +1383,25 @@ namespace bpr::e2e::large_review {
 					&& aApplication.status().ClassificationSubmissions == classification,
 				"drawer/theme interaction changed comparison identity or reclassified source");
 		verify_large(surface, aManifest);
-		// [[BPR-1293]]. Conversations over 1,000 threads in 512 files: Command-J
+		// [[BPR-1293]]. Threads over 1,000 threads in 512 files: Command-J
 		// in and out, a search and its clearing, each one input against the
 		// 100 ms target; then a pick, whose input is measured alone and whose
 		// file load and thread opening are measured as a file selection is.
 		{
 			auto* const finder  = window.finder();
-			auto* const enter   = window.show_conversations_action();
+			auto* const enter   = window.show_threads_action();
 			const auto  rows    = [finder] { return std::ranges::count_if(finder->shown_keys(), [](const std::string& aKey) { return aKey.starts_with("row:"); }); };
 			const auto  widthsC = std::pair{ window.files_drawer()->width(), window.conversations_drawer()->width() };
-			require(finder != nullptr && enter != nullptr && enter->isEnabled(), "Conversations is offered");
-			// The page, not the code, is what Conversations renders.
+			require(finder != nullptr && enter != nullptr && enter->isEnabled(), "Threads is offered");
+			// The page, not the code, is what Threads renders.
 			const auto page = [&] {
 				frame = window.grab();
-				require(finder->isVisible() && !frame.isNull(), "Conversations frame failed");
+				require(finder->isVisible() && !frame.isNull(), "Threads frame failed");
 				++aReport.InteractionFrames;
 				return true;
 			};
-			require(measure_wait(aApplication, aBudget, aReport, "conversations_enter", [&] { enter->trigger(); }, [&] { return window.current_modality() == qt::review_modality::conversations && finder->isVisible()
-																															 && rows() == 1000 && !window.files_drawer()->isVisible() && page(); }), "Conversations did not render every conversation");
+			require(measure_wait(aApplication, aBudget, aReport, "conversations_enter", [&] { enter->trigger(); }, [&] { return window.current_modality() == qt::review_modality::threads && finder->isVisible()
+																															 && rows() == 1000 && !window.files_drawer()->isVisible() && page(); }), "Threads did not render every thread");
 			save_frame("conversations_enter");
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_search", [&] { finder->search_field()->setText(QStringLiteral("observation 0042")); }, [&] { return rows() == 1 && page(); }), "the search did not find its one conversation");
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_search_clear", [&] { finder->search_field()->clear(); }, [&] { return rows() == 1000 && page(); }), "clearing the search did not show every conversation");

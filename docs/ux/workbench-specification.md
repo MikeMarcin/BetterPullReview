@@ -31,7 +31,7 @@ authored and directly requested pull requests of the saved repositories
 ## Primary layout
 
 ```text
-┌ Title row: Home | Repositories | Files | name ↗ ······ Overview Review Discuss Conversations | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
+┌ Title row: Home | Repositories | Files | name ↗ ······ Overview Review Discuss Threads | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
 ├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ ········ Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
@@ -70,10 +70,10 @@ with a host and no userinfo.
 
 **Modalities** ([[BPR-1295]], owner direction 2026-10-06). The modalities are
 Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3), set per
-modality rather than by position, and Conversations on `Ctrl+4` (⌘4) since
+modality rather than by position, and Threads on `Ctrl+4` (⌘4) since
 [[BPR-1293]]. The owner, 2026-10-06, verbatim: "can we swap discuss to 3 and
 conversations to 4". The strip reads in its keys' order: Overview, Review,
-Discuss, Conversations. Read is merged into Review: every path that entered
+Discuss, Threads. Read is merged into Review: every path that entered
 Read (an Overview file row, Continue review, Open in code, Resume, a link to a
 file, a tour) enters Review. Review remembers the drawer arrangement it last
 had in the window, hidden drawers included, and applies its preset (Files and
@@ -84,15 +84,18 @@ same gesture). Entering Review any other way, while it shows, changes nothing.
 enter Review, and "A pull request opens in" offers Overview, Review and Last
 used, a stored Read opening in Review.
 
-**Conversations beside Discuss** ([[BPR-1293]], owner decision 2026-10-06,
+**Threads beside Discuss** ([[BPR-1293]], owner decision 2026-10-06,
 amended by the owner's answers the same day: "Hide drawers" and "just keep
-discuss for now even after 1294"). Conversations is added and Discuss is
-kept: the modalities are Overview, Review, Discuss and Conversations, on
+discuss for now even after 1294"). The modality was built as Conversations;
+the owner renamed it Threads on 2026-10-08 ([[BPR-1341]]: "I'm considering
+rebranding conversations as threads", then "Go ahead"), and the Comments
+drawer and its "Comments (n)" toggle keep their names. Threads is added and
+Discuss is kept: the modalities are Overview, Review, Discuss and Threads, on
 `Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4); Discuss keeps ⌘3 and its behaviour and
-Conversations takes ⌘4 (the owner's swap, above). `Ctrl+J` (⌘J) goes straight to Conversations from Overview, Review
+Threads takes ⌘4 (the owner's swap, above). `Ctrl+J` (⌘J) goes straight to Threads from Overview, Review
 or Discuss, as does the finder button at the top of the Comments drawer. It puts the finder of
 [prototype v2](../design/BPR-1290-inline-drawer-v2/index.html) in the main
-pane, for navigation only: one row per conversation on a file, grouped by
+pane, for navigation only: one row per thread on a file, grouped by
 file, with its line, its first post's label mark, its first words, an avatar
 per post in posting order and its new count, resolved tick or draft lock; a
 row branches only where a post has two or more replies that have replies of
@@ -103,12 +106,14 @@ thread in place at its line with the picked post washed amber and scrolled
 into view. ⌘J again, or Esc on an empty search, returns to where it was
 entered from. Pull request comments and review summaries that are not on a
 file are not listed; Discuss still reads them ([[BPR-1294]]). The drawers are
-hidden while Conversations shows, as Discuss hides them, and nothing changes
+hidden while Threads shows, as Discuss hides them, and nothing changes
 their states: Review comes back with the arrangement it last had, hidden
 drawers included, and Discuss's preset is not applied. Its segment's tooltip
-names both keys ("Find a conversation in the pull request (⌘4, ⌘J)"); the
+names both keys ("Find a thread in the pull request (⌘4, ⌘J)"); the
 drawer toggle is named the Comments drawer, so only the modality is called
-Conversations.
+Threads. The finder's own words follow: its search reads "Find a thread", its
+filters "Only threads with new replies" and "Hide resolved threads", and its
+View menu item, on the window and on the empty desktop's menu bar, is Threads.
 
 As built ([[BPR-1293]]): the page is `conversation_finder`, which reads the
 forest the Comments drawer reads, the ledger's read state and [[BPR-1087]]'s
@@ -222,8 +227,8 @@ Comparison**, and **Make New Tabs Use This Comparison**. Ctrl+Tab and
 Ctrl+Shift+Tab step between tabs on every platform; Cmd-W (Ctrl+W elsewhere)
 closes the active tab, choosing the next neighbour or the previous one at the
 end. Closing the last tab leaves the pull request and its file chooser open.
-Overview, Conversations and Discuss show the window's comparison
-(Conversations keeps it underneath the finder); Review shows the active tab's. When no tab is open, changing the comparison sets the window's
+Overview, Threads and Discuss show the window's comparison
+(Threads keeps it underneath the finder); Review shows the active tab's. When no tab is open, changing the comparison sets the window's
 pair; the first file opened takes that pair. Resume restores the retained tab order, active tab, exact pairs
 and reading positions. Unavailable material stays unavailable on its own tab.
 
@@ -258,8 +263,8 @@ again it reopens exactly that set at the saved widths, or Review's preset when
 nothing is remembered. Opening a drawer by hand while they are hidden, or ⌘2 in
 Review, drops the remembered set; leaving Review and coming back keeps it. The
 core decides it, as it decides every drawer gesture. Overview refuses it with
-its existing reason, and Discuss and Conversations disable it, because there
-the conversation or the finder is the page ([[BPR-1293]] for Conversations). The icon is a window outline with a column on each side, filled while
+its existing reason, and Discuss and Threads disable it, because there
+the conversation or the finder is the page ([[BPR-1293]] for Threads). The icon is a window outline with a column on each side, filled while
 the drawers show and outlined and checked while they are hidden; its tooltip
 names what it hides or brings back with the key ("Show Files and Comments
 (⌘B)").
@@ -792,8 +797,8 @@ never invents enabled state.
 | Back from Discuss's composer; leave a drawer draft (kept when written, dropped when empty) | `Esc` |
 | Hide or show every drawer ([[BPR-1295]]) | `Ctrl+B` (⌘B) |
 | Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
-| Conversations ([[BPR-1293]]) | `Ctrl+4` (⌘4) |
-| Find a conversation: go to Conversations, or back ([[BPR-1293]]) | `Ctrl+J` (⌘J) |
+| Threads ([[BPR-1293]], [[BPR-1341]]) | `Ctrl+4` (⌘4) |
+| Find a thread: go to Threads, or back ([[BPR-1293]], [[BPR-1341]]) | `Ctrl+J` (⌘J) |
 | Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |
 | Actual Size: the comparison's code at Code size ([[BPR-1336]]) | `Ctrl+Alt+0` (⌘⌥0) |
@@ -1386,8 +1391,8 @@ single conversation, I mean to find the right conversation"), moves to a view
 of its own, [[BPR-1293]].
 
 The Treeverse-style map the owner chose on 2026-08-21 ([[BPR-0418]]) was kept
-as a widget, `github_thread_map`, for BPR-1293 to reuse. Conversations draws a
-conversation's branches as rows instead, as prototype v2 does, so the map was
+as a widget, `github_thread_map`, for BPR-1293 to reuse. Threads draws a
+thread's branches as rows instead, as prototype v2 does, so the map was
 not reused and is removed with its tests ([[BPR-1293]]). What it held is kept
 where it applies: the finder lays rows out in pre-order with an explicit stack,
 traces the path from the first comment to the picked post in amber, and an

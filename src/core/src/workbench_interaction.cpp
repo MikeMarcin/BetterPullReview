@@ -264,7 +264,7 @@ namespace bpr::core {
 		///
 		/// \details Unlike a single drawer's toggle it is disabled where it
 		/// cannot act: Overview keeps every drawer collapsed, in Discuss
-		/// the conversation is the page, and in Conversations ([[BPR-1293]])
+		/// the conversation is the page, and in Threads ([[BPR-1293]])
 		/// the finder is. Like a drawer's, it does not wait for
 		/// a comparison: the room is the reviewer's either way.
 		[[nodiscard]] constexpr auto drawers_rejection(
@@ -276,8 +276,8 @@ namespace bpr::core {
 				return workbench_reason_code::overview_keeps_drawers_collapsed;
 			case workbench_modality::discuss:
 				return workbench_reason_code::discuss_shows_the_conversation;
-			case workbench_modality::conversations:
-				return workbench_reason_code::conversations_finds_a_conversation;
+			case workbench_modality::threads:
+				return workbench_reason_code::threads_finds_a_thread;
 			case workbench_modality::review:
 				break;
 			}

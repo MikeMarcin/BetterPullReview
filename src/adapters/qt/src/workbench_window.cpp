@@ -551,9 +551,9 @@ namespace bpr::qt {
 				return QStringLiteral(
 					"In Discuss the conversation is the page. Choose Review to "
 					"hide or show the drawers.");
-			case core::workbench_reason_code::conversations_finds_a_conversation:
+			case core::workbench_reason_code::threads_finds_a_thread:
 				return QStringLiteral(
-					"In Conversations the finder is the page. Choose Review to "
+					"In Threads the finder is the page. Choose Review to "
 					"hide or show the drawers.");
 			}
 			// Deliberately outside the switch and with no default label, so a
@@ -1220,7 +1220,7 @@ namespace bpr::qt {
 			QKeySequence{ QStringLiteral("Alt+Shift+1") });
 		Drawers[1] = makeDrawer(
 			// [[BPR-1293]]. The drawer is Comments, as its tab and title-row
-			// toggle say; only the modality is called Conversations.
+			// toggle say; only the modality is called Threads ([[BPR-1341]]).
 			QStringLiteral("&Comments drawer"),
 			QStringLiteral("Comments drawer"),
 			QStringLiteral("Comments drawer toggle"),
@@ -2169,10 +2169,10 @@ namespace bpr::qt {
 				// controls may continue to move the retained comparison underneath
 				// it, but that code navigation must not replace or clear the
 				// conversation identity the reviewer is reading.
-				// [[BPR-1293]]. So is Conversations: the arrows move the
+				// [[BPR-1293]]. So is Threads: the arrows move the
 				// comparison underneath, not the finder's cursor.
 				if (Modality != nullptr
-					&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::conversations)) {
+					&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads)) {
 					update_strip_positions();
 					update_home_landing();
 					return;
@@ -2381,23 +2381,23 @@ namespace bpr::qt {
 		DiscussComposer->hide();
 		discussLayout->addWidget(DiscussComposer, 1);
 		CentreStack->addWidget(DiscussPage);
-		// [[BPR-1293]]. Conversations: the finder fills the centre, as
+		// [[BPR-1293]]. Threads: the finder fills the centre, as
 		// Discuss's page does, and the drawers are hidden while it shows.
-		ConversationsPage = new QWidget{ CentreStack };
-		ConversationsPage->setObjectName(QStringLiteral("workbenchConversationsPage"));
-		auto* const conversationsLayout = new QVBoxLayout{ ConversationsPage };
+		ThreadsPage = new QWidget{ CentreStack };
+		ThreadsPage->setObjectName(QStringLiteral("workbenchThreadsPage"));
+		auto* const conversationsLayout = new QVBoxLayout{ ThreadsPage };
 		conversationsLayout->setContentsMargins(0, 0, 0, 0);
-		Finder = new conversation_finder{ ConversationsPage };
+		Finder = new conversation_finder{ ThreadsPage };
 		conversationsLayout->addWidget(Finder);
 		// The drawers are hidden while it shows, so the page always has the
 		// window's whole width; as a page of the stack it must not widen the
 		// centre's floor while Review shows its drawers.
-		ConversationsPage->setMinimumSize(1, 1);
-		CentreStack->addWidget(ConversationsPage);
+		ThreadsPage->setMinimumSize(1, 1);
+		CentreStack->addWidget(ThreadsPage);
 		Finder->set_pick_dispatch([this](const finder_location& aLocation) {
 			static_cast<void>(open_conversation_in_review(aLocation.Thread, aLocation.Post));
 		});
-		Finder->set_leave_dispatch([this] { leave_conversations(); });
+		Finder->set_leave_dispatch([this] { leave_threads(); });
 		const auto makeCompositionPage = [this](QWidget* aEditor, const QString& aName, const QString& aBack, QWidget* aExcerpt) {
 			// [[BPR-1212]]. A composition page is a column of Discuss, beside
 			// the conversations, not a page of its own.
@@ -2627,19 +2627,19 @@ namespace bpr::qt {
 		commentsToolsRow->setContentsMargins(0, 0, 0, 0);
 		commentsToolsRow->setSpacing(1);
 		// [[BPR-1293]]. The finder button, as the prototype draws it at the
-		// top of the drawer: it goes to Conversations.
-		ConversationsFinderButton = new QToolButton{ CommentsTools };
-		ConversationsFinderButton->setObjectName(QStringLiteral("workbenchConversationsFinderButton"));
-		ConversationsFinderButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
-		ConversationsFinderButton->setAutoRaise(true);
-		ConversationsFinderButton->setIconSize(QSize{ 16, 16 });
-		ConversationsFinderButton->setFocusPolicy(Qt::StrongFocus);
-		ConversationsFinderButton->setIcon(conversation_icon(conversation_glyph::finder, palette()));
-		ConversationsFinderButton->setAccessibleName(QStringLiteral("Find a conversation in the pull request"));
-		ConversationsFinderButton->setToolTip(QStringLiteral("Find a conversation in the pull request (%1)").arg(QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText)));
-		ConversationsFinderButton->setAccessibleDescription(ConversationsFinderButton->toolTip());
-		connect(ConversationsFinderButton, &QToolButton::clicked, this, [this] { toggle_conversations(); });
-		commentsToolsRow->addWidget(ConversationsFinderButton);
+		// top of the drawer: it goes to Threads.
+		ThreadsFinderButton = new QToolButton{ CommentsTools };
+		ThreadsFinderButton->setObjectName(QStringLiteral("workbenchThreadsFinderButton"));
+		ThreadsFinderButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		ThreadsFinderButton->setAutoRaise(true);
+		ThreadsFinderButton->setIconSize(QSize{ 16, 16 });
+		ThreadsFinderButton->setFocusPolicy(Qt::StrongFocus);
+		ThreadsFinderButton->setIcon(conversation_icon(conversation_glyph::finder, palette()));
+		ThreadsFinderButton->setAccessibleName(QStringLiteral("Find a thread in the pull request"));
+		ThreadsFinderButton->setToolTip(QStringLiteral("Find a thread in the pull request (%1)").arg(QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText)));
+		ThreadsFinderButton->setAccessibleDescription(ThreadsFinderButton->toolTip());
+		connect(ThreadsFinderButton, &QToolButton::clicked, this, [this] { toggle_threads(); });
+		commentsToolsRow->addWidget(ThreadsFinderButton);
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
 		commentsToolsRow->addWidget(NextNewCommentButton);
@@ -6112,7 +6112,7 @@ namespace bpr::qt {
 		// A PR-wide selection reads discussion. Only Open in code may move
 		// the retained comparison; an off-file row must not reveal a same-number line.
 		if (ComparisonSurface == nullptr
-			|| (Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::conversations))) {
+			|| (Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads))) {
 			return;
 		}
 		auto root = aIndex;
@@ -6380,10 +6380,10 @@ namespace bpr::qt {
 	void workbench_window::choose_modality(const review_modality aModality, const core::workbench_modality_entry aEntry)
 	{
 		CompositionPage = nullptr;
-		// [[BPR-1293]]. Conversations goes back where it was entered from.
-		if (Modality != nullptr && aModality == review_modality::conversations && Modality->current() != review_modality::conversations) {
-			ConversationsReturn      = Modality->current();
-			ConversationsReturnFocus = Finder != nullptr && Finder->isAncestorOf(QApplication::focusWidget()) ? nullptr : QApplication::focusWidget();
+		// [[BPR-1293]]. Threads goes back where it was entered from.
+		if (Modality != nullptr && aModality == review_modality::threads && Modality->current() != review_modality::threads) {
+			ThreadsReturn      = Modality->current();
+			ThreadsReturnFocus = Finder != nullptr && Finder->isAncestorOf(QApplication::focusWidget()) ? nullptr : QApplication::focusWidget();
 		}
 		if (Modality != nullptr) {
 			Modality->adopt(aModality);
@@ -6421,8 +6421,8 @@ namespace bpr::qt {
 					return core::workbench_modality::review;
 				case review_modality::discuss:
 					return core::workbench_modality::discuss;
-				case review_modality::conversations:
-					return core::workbench_modality::conversations;
+				case review_modality::threads:
+					return core::workbench_modality::threads;
 				}
 				return core::workbench_modality::review;
 			}(),
@@ -6800,7 +6800,7 @@ namespace bpr::qt {
 				: std::nullopt);
 		cards->refresh_geometry();
 		apply_thread_marks();
-		// [[BPR-1293]]. My draft is a row of Conversations, with its lock.
+		// [[BPR-1293]]. My draft is a row of Threads, with its lock.
 		if (Finder != nullptr) {
 			auto draft = std::optional<finder_draft>{ };
 			if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
@@ -7369,9 +7369,9 @@ namespace bpr::qt {
 		// selected: outside Discuss the panel lists only that line's threads
 		// while a line is selected, so its current row is one of them. A row
 		// that is current only by default otherwise answers nothing.
-		// [[BPR-1293]]. In Conversations, as in Discuss, Comment answers the
+		// [[BPR-1293]]. In Threads, as in Discuss, Comment answers the
 		// thread the reviewer picked and never a selected line.
-		const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::conversations);
+		const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
 		if (ConversationPanel->current_is_default() && (discuss || !ConversationPanel->anchor_line().has_value())) {
 			return std::nullopt;
 		}
@@ -7384,7 +7384,7 @@ namespace bpr::qt {
 			const auto author = ConversationPanel->model()->index_for_id(*thread).data(github_conversation_model::author_login_role).toString();
 			return author.isEmpty() ? tr("&Reply to the selected thread…") : tr("&Reply to %1's thread…").arg(author);
 		}
-		const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::conversations);
+		const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
 		if (!discuss && ComparisonSurface != nullptr) {
 			if (const auto selection = ComparisonSurface->selection(); selection.has_value()) {
 				return tr("Co&mment on line %1…").arg(static_cast<qulonglong>(selection->PreferredLine.Line) + 1U);
@@ -7521,7 +7521,7 @@ namespace bpr::qt {
 		// [[BPR-1212]]. A composer is Discuss's: it shows there, beside the
 		// conversations, whatever surface opened it.
 		const auto discuss         = (Modality != nullptr && Modality->current() == review_modality::discuss) || CompositionPage != nullptr;
-		const auto conversations   = Modality != nullptr && Modality->current() == review_modality::conversations;
+		const auto threads         = Modality != nullptr && Modality->current() == review_modality::threads;
 		const auto enteringDiscuss = discuss && ConversationPanel != nullptr && ConversationPanel->parentWidget() != DiscussPage;
 		if (ConversationPanel != nullptr) {
 			if (discuss && ConversationPanel->parentWidget() != DiscussPage) {
@@ -7543,8 +7543,8 @@ namespace bpr::qt {
 		if (discuss) {
 			page = DiscussPage;
 		}
-		if (conversations && ConversationsPage != nullptr) {
-			page = ConversationsPage;
+		if (threads && ThreadsPage != nullptr) {
+			page = ThreadsPage;
 		}
 		if (CompositionPage != nullptr) {
 			page = DiscussPage;
@@ -7566,8 +7566,8 @@ namespace bpr::qt {
 				}
 			}
 		}
-		const auto enteringOverview      = page == OverviewPage && CentreStack->currentWidget() != OverviewPage;
-		const auto enteringConversations = page == ConversationsPage && CentreStack->currentWidget() != ConversationsPage;
+		const auto enteringOverview = page == OverviewPage && CentreStack->currentWidget() != OverviewPage;
+		const auto enteringThreads  = page == ThreadsPage && CentreStack->currentWidget() != ThreadsPage;
 		CentreStack->setCurrentWidget(page);
 		apply_drawer_layout();
 		update_review_readiness();
@@ -7580,14 +7580,14 @@ namespace bpr::qt {
 		if (enteringDiscuss && CompositionPage == nullptr && DiscussReturnFocus) {
 			DiscussReturnFocus->setFocus(Qt::OtherFocusReason);
 		}
-		// [[BPR-1293]]. Entering Conversations: the search has focus and the
+		// [[BPR-1293]]. Entering Threads: the search has focus and the
 		// cursor starts on the conversation open in Review.
-		if (enteringConversations && Finder != nullptr) {
+		if (enteringThreads && Finder != nullptr) {
 			present_finder_reading();
 			Finder->enter();
 		}
-		if (ShowConversationsAction != nullptr) {
-			ShowConversationsAction->setEnabled(HasGithubPullRequest);
+		if (ShowThreadsAction != nullptr) {
+			ShowThreadsAction->setEnabled(HasGithubPullRequest);
 		}
 	}
 
@@ -8231,7 +8231,7 @@ namespace bpr::qt {
 			// [[BPR-1290]]. Beside the code the reply is written in place, at
 			// the foot of the open thread; it is the same draft, and nothing
 			// publishes but its Publish.
-			const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::conversations);
+			const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
 			const auto inPlace = aInPlace && !discuss && Drawers[1].Panel->state() == core::workbench_drawer_state::expanded
 				&& TrayTabs != nullptr && TrayTabs->currentIndex() == tray_comments_tab
 				&& std::ranges::any_of(ConversationPanel->cards()->cards(), [&aIdentity](const thread_card& aCard) { return aCard.Id == aIdentity; });
@@ -11580,27 +11580,27 @@ namespace bpr::qt {
 		}
 	}
 
-	void workbench_window::toggle_conversations()
+	void workbench_window::toggle_threads()
 	{
 		if (Modality == nullptr || !HasGithubPullRequest) {
 			return;
 		}
-		if (Modality->current() == review_modality::conversations && CompositionPage == nullptr && !showing_home()) {
-			leave_conversations();
+		if (Modality->current() == review_modality::threads && CompositionPage == nullptr && !showing_home()) {
+			leave_threads();
 			return;
 		}
 		choose_home(false);
-		choose_modality(review_modality::conversations);
+		choose_modality(review_modality::threads);
 	}
 
-	void workbench_window::leave_conversations()
+	void workbench_window::leave_threads()
 	{
-		if (Modality == nullptr || Modality->current() != review_modality::conversations) {
+		if (Modality == nullptr || Modality->current() != review_modality::threads) {
 			return;
 		}
-		const auto back  = ConversationsReturn.value_or(review_modality::review);
-		const auto focus = ConversationsReturnFocus;
-		choose_modality(back == review_modality::conversations ? review_modality::review : back);
+		const auto back  = ThreadsReturn.value_or(review_modality::review);
+		const auto focus = ThreadsReturnFocus;
+		choose_modality(back == review_modality::threads ? review_modality::review : back);
 		if (focus && focus->isVisible()) {
 			focus->setFocus(Qt::OtherFocusReason);
 		}
@@ -11626,14 +11626,14 @@ namespace bpr::qt {
 		return Finder;
 	}
 
-	auto workbench_window::show_conversations_action() const noexcept -> QAction*
+	auto workbench_window::show_threads_action() const noexcept -> QAction*
 	{
-		return ShowConversationsAction;
+		return ShowThreadsAction;
 	}
 
-	auto workbench_window::conversations_finder_button() const noexcept -> QToolButton*
+	auto workbench_window::threads_finder_button() const noexcept -> QToolButton*
 	{
-		return ConversationsFinderButton;
+		return ThreadsFinderButton;
 	}
 
 	void workbench_window::set_conversation_labels(std::optional<application::conversation_labels_projection> aLabels)
@@ -12237,8 +12237,8 @@ namespace bpr::qt {
 		// every restored shape is Review's, including Read's old one (Files
 		// and Repositories collapsed, Comments open), which keeps the room it
 		// had. Discuss is never inferred either; a window already in it stays.
-		// [[BPR-1293]]. Nor is Conversations, which is never stored.
-		if (Modality->current() != review_modality::discuss && Modality->current() != review_modality::conversations) {
+		// [[BPR-1293]]. Nor is Threads, which is never stored.
+		if (Modality->current() != review_modality::discuss && Modality->current() != review_modality::threads) {
 			Modality->adopt(review_modality::review);
 		}
 		apply_modality_surface();
@@ -12647,24 +12647,24 @@ namespace bpr::qt {
 			dispatch_drawers_toggle();
 		});
 		// [[BPR-1293]]. Command-J (Ctrl+J), unbound before: straight to
-		// Conversations from Overview, Review or Discuss, and back from it.
-		ShowConversationsAction = new QAction{ QStringLiteral("&Conversations"), this };
-		ShowConversationsAction->setObjectName(QStringLiteral("showWorkbenchConversationsAction"));
-		ShowConversationsAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+J") });
-		ShowConversationsAction->setShortcutContext(Qt::WindowShortcut);
-		ShowConversationsAction->setEnabled(false);
+		// Threads from Overview, Review or Discuss, and back from it.
+		ShowThreadsAction = new QAction{ QStringLiteral("&Threads"), this };
+		ShowThreadsAction->setObjectName(QStringLiteral("showWorkbenchThreadsAction"));
+		ShowThreadsAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+J") });
+		ShowThreadsAction->setShortcutContext(Qt::WindowShortcut);
+		ShowThreadsAction->setEnabled(false);
 		{
-			const auto tip = QStringLiteral("Find a conversation in the pull request (%1)").arg(ShowConversationsAction->shortcut().toString(QKeySequence::NativeText));
-			ShowConversationsAction->setToolTip(tip);
-			ShowConversationsAction->setStatusTip(tip);
-			if (ConversationsFinderButton != nullptr) {
-				ConversationsFinderButton->setToolTip(tip);
-				ConversationsFinderButton->setAccessibleDescription(tip);
+			const auto tip = QStringLiteral("Find a thread in the pull request (%1)").arg(ShowThreadsAction->shortcut().toString(QKeySequence::NativeText));
+			ShowThreadsAction->setToolTip(tip);
+			ShowThreadsAction->setStatusTip(tip);
+			if (ThreadsFinderButton != nullptr) {
+				ThreadsFinderButton->setToolTip(tip);
+				ThreadsFinderButton->setAccessibleDescription(tip);
 			}
 		}
-		addAction(ShowConversationsAction);
-		ViewMenu->addAction(ShowConversationsAction);
-		connect(ShowConversationsAction, &QAction::triggered, this, [this] { toggle_conversations(); });
+		addAction(ShowThreadsAction);
+		ViewMenu->addAction(ShowThreadsAction);
+		connect(ShowThreadsAction, &QAction::triggered, this, [this] { toggle_threads(); });
 		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, editor_native_keys() };
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			if (aNow != nullptr && editable_multi_line(aNow) && isAncestorOf(aNow)) {
@@ -13177,8 +13177,8 @@ namespace bpr::qt {
 			reason = QStringLiteral("Overview keeps every drawer closed");
 		} else if (projection && projection->DisabledReason == core::workbench_reason_code::discuss_shows_the_conversation) {
 			reason = QStringLiteral("In Discuss the conversation is the page");
-		} else if (projection && projection->DisabledReason == core::workbench_reason_code::conversations_finds_a_conversation) {
-			reason = QStringLiteral("In Conversations the finder is the page");
+		} else if (projection && projection->DisabledReason == core::workbench_reason_code::threads_finds_a_thread) {
+			reason = QStringLiteral("In Threads the finder is the page");
 		}
 		describe_action(ToggleDrawersAction, enabled, QStringLiteral("%1 (%2)").arg(name, key), reason);
 		if (auto* const button = PrimaryToolbar != nullptr ? qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(ToggleDrawersAction)) : nullptr;
@@ -13365,7 +13365,7 @@ namespace bpr::qt {
 		// retained drawer choices. Returning restores the same code arrangement.
 		const auto fullPage = CompositionPage != nullptr
 			|| (Modality != nullptr
-				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::conversations));
+				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads));
 		for (auto& entry : Drawers) {
 			entry.Panel->setVisible(
 				!fullPage
@@ -13484,7 +13484,7 @@ namespace bpr::qt {
 	{
 		if (CompositionPage != nullptr
 			|| (Modality != nullptr
-				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::conversations))) {
+				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads))) {
 			return { 0, 0, CentralSplitter->width(), 0 };
 		}
 		const auto granted = [](const std::uint32_t aWidth, const std::uint32_t aDefault) {

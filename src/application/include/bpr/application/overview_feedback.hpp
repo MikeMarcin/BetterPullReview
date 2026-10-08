@@ -133,7 +133,7 @@ namespace bpr::application {
 	};
 
 	/// \brief [[BPR-1293]]. Which conversations each label counts, for the
-	/// label filter of Conversations.
+	/// label filter of Threads.
 	/// \details The same units and labels the Overview's chips count
 	/// ([[BPR-1087]]): a conversation is its root's label, every state is
 	/// included, and the whole pull request is the scope. Conversations lists

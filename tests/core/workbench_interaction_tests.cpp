@@ -1202,7 +1202,7 @@ namespace {
 				   && set.OnePane->State == workbench_one_pane::enabled
 				   && state.OnePane == workbench_one_pane::enabled,
 			   "an exact set carries a persisted setting back into the core");
-		for (const auto modality : { workbench_modality::review, workbench_modality::overview, workbench_modality::discuss, workbench_modality::conversations }) {
+		for (const auto modality : { workbench_modality::review, workbench_modality::overview, workbench_modality::discuss, workbench_modality::threads }) {
 			(void)transition(state, set_workbench_modality_intent{ .Modality = modality });
 			expect(state.OnePane == workbench_one_pane::enabled, "modality never reclaims the pane preference");
 		}
@@ -1245,7 +1245,7 @@ namespace {
 		// of this window touches it.
 		auto live = active(resident(2U, 3U));
 		static_cast<void>(transition(live, toggle_workbench_updates_line_intent{ }));
-		for (const auto modality : { workbench_modality::overview, workbench_modality::review, workbench_modality::discuss, workbench_modality::conversations }) {
+		for (const auto modality : { workbench_modality::overview, workbench_modality::review, workbench_modality::discuss, workbench_modality::threads }) {
 			static_cast<void>(transition(live, set_workbench_modality_intent{ .Modality = modality }));
 			expect(live.UpdatesLine == workbench_updates_line::open, "no modality folds the line");
 		}
@@ -1398,7 +1398,7 @@ namespace {
 
 		for (const auto modality : { workbench_modality::review,
 									 workbench_modality::discuss,
-									 workbench_modality::conversations }) {
+									 workbench_modality::threads }) {
 			const auto chosen = transition(
 				state, set_workbench_modality_intent{ .Modality = modality });
 			expect(chosen.Reason == workbench_reason_code::none && state.Modality == modality,
@@ -1488,7 +1488,7 @@ namespace {
 
 		// Every way out and back keeps it: Overview, Discuss (whose preset the
 		// window sends as exact intents), and an entry while already in Review.
-		for (const auto away : { workbench_modality::overview, workbench_modality::discuss, workbench_modality::conversations }) {
+		for (const auto away : { workbench_modality::overview, workbench_modality::discuss, workbench_modality::threads }) {
 			static_cast<void>(enter(state, away));
 			if (away == workbench_modality::discuss) {
 				static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::files, .State = closed }));
@@ -1592,7 +1592,7 @@ namespace {
 		// Leaving Review and coming back keeps it, hidden drawers included.
 		static_cast<void>(transition(state, set_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories, .State = open }));
 		static_cast<void>(transition(state, toggle_workbench_drawers_intent{ }));
-		for (const auto away : { workbench_modality::overview, workbench_modality::discuss, workbench_modality::conversations }) {
+		for (const auto away : { workbench_modality::overview, workbench_modality::discuss, workbench_modality::threads }) {
 			static_cast<void>(enter(state, away));
 			expect(!state.HiddenDrawers.has_value(), "no other modality holds the hidden set");
 			static_cast<void>(enter(state, workbench_modality::review));
@@ -1620,14 +1620,14 @@ namespace {
 		expect(!toggle_drawers_command(state).Enabled
 				   && toggle_drawers_command(state).DisabledReason == workbench_reason_code::discuss_shows_the_conversation,
 			   "and projects it disabled");
-		// [[BPR-1293]]. Conversations disables it too: its drawers are hidden.
-		static_cast<void>(enter(state, workbench_modality::conversations));
-		const auto inConversations = state;
-		expect(rejected(transition(state, toggle_workbench_drawers_intent{ }), workbench_reason_code::conversations_finds_a_conversation)
-				   && state == inConversations,
-			   "Conversations refuses it, the finder being the page");
+		// [[BPR-1293]]. Threads disables it too: its drawers are hidden.
+		static_cast<void>(enter(state, workbench_modality::threads));
+		const auto inThreads = state;
+		expect(rejected(transition(state, toggle_workbench_drawers_intent{ }), workbench_reason_code::threads_finds_a_thread)
+				   && state == inThreads,
+			   "Threads refuses it, the finder being the page");
 		expect(!toggle_drawers_command(state).Enabled
-				   && toggle_drawers_command(state).DisabledReason == workbench_reason_code::conversations_finds_a_conversation,
+				   && toggle_drawers_command(state).DisabledReason == workbench_reason_code::threads_finds_a_thread,
 			   "and projects it disabled with its own reason");
 		static_cast<void>(enter(state, workbench_modality::review));
 		expect(toggle_drawers_command(state).Enabled && toggle_drawers_command(state).DisabledReason == workbench_reason_code::none,
@@ -1639,7 +1639,7 @@ namespace {
 		expect(noSurface.Reason == workbench_reason_code::none && drawers_of(inactive) == arrangement(closed, closed, closed),
 			   "with no workbench active the drawers still hide");
 	}
-	/// \brief [[BPR-1293]]. Conversations is entered and left without touching
+	/// \brief [[BPR-1293]]. Threads is entered and left without touching
 	/// a drawer, from every modality, and Review comes back as it was left.
 	auto test_conversations_changes_no_drawer() -> void
 	{
@@ -1654,9 +1654,9 @@ namespace {
 				   "the fixture leaves Review with its drawers hidden");
 			static_cast<void>(enter(state, from));
 			const auto before  = drawers_of(state);
-			const auto entered = enter(state, workbench_modality::conversations);
-			expect(entered.Reason == workbench_reason_code::none && state.Modality == workbench_modality::conversations,
-				   "Conversations is entered from every modality");
+			const auto entered = enter(state, workbench_modality::threads);
+			expect(entered.Reason == workbench_reason_code::none && state.Modality == workbench_modality::threads,
+				   "Threads is entered from every modality");
 			expect(!entered.Drawers.has_value() && drawers_of(state) == before,
 				   "entering it publishes no drawer and changes none");
 			// A drawer gesture there is the reviewer's, as in Discuss; the
@@ -1669,7 +1669,7 @@ namespace {
 				   "Review comes back with the arrangement it last had, hidden drawers included");
 			static_cast<void>(transition(state, toggle_workbench_drawers_intent{ }));
 			expect(hidden.has_value() && drawers_of(state) == *hidden && hidden->Files == closed && hidden->Conversations == open,
-				   "and the command restores the set it hid before Conversations");
+				   "and the command restores the set it hid before Threads");
 		}
 		// Negative control: Discuss's preset is the window's two exact
 		// intents, never the core's, so a core that applied one on entry would
@@ -1677,7 +1677,7 @@ namespace {
 		auto preset = active(resident(1U, 3U));
 		static_cast<void>(enter(preset, workbench_modality::review));
 		static_cast<void>(transition(preset, set_workbench_drawer_intent{ .Drawer = workbench_drawer::conversations, .State = closed }));
-		static_cast<void>(enter(preset, workbench_modality::conversations));
+		static_cast<void>(enter(preset, workbench_modality::threads));
 		expect(preset.ConversationsDrawer == closed, "Conversations does not open the Comments drawer");
 	}
 } // namespace

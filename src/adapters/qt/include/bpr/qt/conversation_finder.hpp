@@ -29,7 +29,7 @@ class QListView;
 class QStackedWidget;
 
 /// \file
-/// \brief [[BPR-1293]]. Conversations: every conversation in the pull request
+/// \brief [[BPR-1293]] [[BPR-1341]]. Threads: every thread in the pull request
 /// that is on a file, grouped by file, for finding one and going to it.
 /// \details Presentation only, drawn as the owner's accepted prototype v2
 /// (`docs/design/BPR-1290-inline-drawer-v2`) draws its finder. It reads the
@@ -170,7 +170,7 @@ namespace bpr::qt {
 	class finder_chip;
 	class finder_preview;
 
-	/// \brief The Conversations page.
+	/// \brief The Threads page.
 	class conversation_finder final : public QWidget
 	{
 	public:

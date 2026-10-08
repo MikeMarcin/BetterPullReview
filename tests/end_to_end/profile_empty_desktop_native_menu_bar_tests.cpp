@@ -473,7 +473,7 @@ try {
 	expect(!native::main_menu_item_is_enabled("View", "Line numbers")
 			   && !native::main_menu_item_is_enabled("View", "One pane")
 			   && !native::main_menu_item_is_enabled("View", "Hide Drawers")
-			   && !native::main_menu_item_is_enabled("View", "Conversations")
+			   && !native::main_menu_item_is_enabled("View", "Threads")
 			   && !native::main_menu_item_is_enabled("View", "Updates Line")
 			   && !native::main_menu_item_is_enabled("View", "Next Tab")
 			   && !native::main_menu_item_is_enabled("View", "Previous Tab")

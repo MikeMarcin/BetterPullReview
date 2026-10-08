@@ -76,7 +76,7 @@ namespace bpr::qt {
 		QString             Viewer;
 		bool                ResolutionOffered = false;
 		bool                Feed              = false;
-		/// [[BPR-1293]]. The post a pick in Conversations named: washed amber.
+		/// [[BPR-1293]]. The post a pick in Threads named: washed amber.
 		std::string Picked;
 	};
 

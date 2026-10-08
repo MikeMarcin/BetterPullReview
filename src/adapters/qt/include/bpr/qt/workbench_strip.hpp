@@ -249,14 +249,15 @@ namespace bpr::qt {
 	/// keys' order.
 	///
 	/// \details [[BPR-1295]]. Read merged into Review on 2026-10-06.
-	/// [[BPR-1293]]. Conversations, the pull request's finder, is fourth on
+	/// [[BPR-1293]]. Threads, the pull request's finder, is fourth on
 	/// Ctrl+4, after Discuss on Ctrl+3 (the owner, 2026-10-06: "can we swap
-	/// discuss to 3 and conversations to 4").
+	/// discuss to 3 and conversations to 4"). [[BPR-1341]]: named Conversations
+	/// until 2026-10-08, when the owner renamed it Threads.
 	enum class review_modality : std::uint8_t {
 		overview,
 		review,
 		discuss,
-		conversations,
+		threads,
 	};
 
 	inline constexpr std::size_t review_modality_count = 4U;
@@ -266,9 +267,9 @@ namespace bpr::qt {
 	/// \brief [[BPR-1295]]. The key that chooses a modality.
 	///
 	/// \details Set per modality rather than by strip position: Overview
-	/// Ctrl+1, Review Ctrl+2, Discuss Ctrl+3 and Conversations Ctrl+4
+	/// Ctrl+1, Review Ctrl+2, Discuss Ctrl+3 and Threads Ctrl+4
 	/// (Command on macOS); the owner, 2026-10-06: "can we swap discuss to 3
-	/// and conversations to 4". Ctrl+J also goes to Conversations, from the
+	/// and conversations to 4". Ctrl+J also goes to Threads, from the
 	/// window's own action ([[BPR-1293]]).
 	[[nodiscard]] auto review_modality_shortcut(review_modality aModality) -> QKeySequence;
 

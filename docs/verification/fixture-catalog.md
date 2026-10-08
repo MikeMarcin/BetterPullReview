@@ -108,7 +108,7 @@ fallback, which a GraphQL fixture does not take. Constructed, not recorded;
 
 ### `conversations-v1`, prototype v2's pull request
 
-Added for [[BPR-1293]], so Conversations can be judged against its prototype
+Added for [[BPR-1293]], so Threads (named Conversations until [[BPR-1341]]) can be judged against its prototype
 (`docs/design/BPR-1290-inline-drawer-v2`). `scripts/build_conversations_fixture.py`
 writes the prototype's ten files, verbatim from its `code.js`, into
 `tests/fixtures/github/pull-requests/conversations-v1/construction.json`, with
@@ -1393,7 +1393,7 @@ normative description.
 | Read | the comparison | collapsed | expanded | collapsed |
 | Review | the comparison | expanded | expanded | unchanged |
 | Discuss | the conversation, full width | collapsed, hidden | expanded, its panel moved to the centre | unchanged, hidden |
-| Conversations ([[BPR-1293]]) | the finder, full width | unchanged, hidden | unchanged, hidden | unchanged, hidden |
+| Threads ([[BPR-1293]], [[BPR-1341]]) | the finder, full width | unchanged, hidden | unchanged, hidden | unchanged, hidden |
 
 - Overview collapses all three drawers, and the core refuses a drawer opened by
   hand until another modality is chosen ([[BPR-0727]]). Read and Discuss

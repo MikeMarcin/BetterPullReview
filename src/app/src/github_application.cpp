@@ -11958,7 +11958,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!observed.Admitted) {
 				return;
 			}
-			// [[BPR-1293]]. Conversations' label filter counts as the Overview's
+			// [[BPR-1293]]. Threads' label filter counts as the Overview's
 			// chips do, from the same kept population.
 			Window->set_conversation_labels(application::project_conversation_labels(FeedbackCounters));
 			publish_overview_feedback();
@@ -15415,7 +15415,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					AppearanceProfile->color(core::appearance_role::code_background),
 					AppearanceProfile->color(core::appearance_role::syntax_normal));
 			}
-			// [[BPR-1293]]. Conversations' blue, amber and line numbers.
+			// [[BPR-1293]]. Threads' blue, amber and line numbers.
 			if (auto* const finder = Window->finder(); finder != nullptr) {
 				finder->set_colours(AppearanceProfile->color(core::appearance_role::state_unread), QColor{ 0xD2, 0x99, 0x22 });
 				finder->set_code_font(AppearanceProfile->code_font());
@@ -18316,8 +18316,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return core::workbench_modality::review;
 			case qt::review_modality::discuss:
 				return core::workbench_modality::discuss;
-			case qt::review_modality::conversations:
-				return core::workbench_modality::conversations;
+			case qt::review_modality::threads:
+				return core::workbench_modality::threads;
 			}
 			return core::workbench_modality::review;
 		}
@@ -18332,8 +18332,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return QStringLiteral("Review");
 			case core::workbench_modality::discuss:
 				return QStringLiteral("Discuss");
-			case core::workbench_modality::conversations:
-				return QStringLiteral("Conversations");
+			case core::workbench_modality::threads:
+				return QStringLiteral("Threads");
 			}
 			return QStringLiteral("unknown");
 		}
@@ -18430,8 +18430,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			: offered.Comparison                  ? QStringLiteral("comparison")
 			: window.current_modality() == qt::review_modality::discuss
 			? QStringLiteral("discussion")
-			: window.current_modality() == qt::review_modality::conversations
-			? QStringLiteral("conversations")
+			: window.current_modality() == qt::review_modality::threads
+			? QStringLiteral("threads")
 			: QStringLiteral("other");
 		auto       sizes  = QStringList{ };
 		if (window.central_splitter() != nullptr) {

@@ -44,7 +44,7 @@ namespace bpr::qt {
 		rendered,
 		/// Copy a post's source: two sheets, one behind the other.
 		copy,
-		/// [[BPR-1293]]. Find a conversation: a small thread of posts with a
+		/// [[BPR-1293]]. Find a thread: a small thread of posts with a
 		/// lens beside its last (prototype v2's finder button).
 		finder,
 		/// The finder's search field: a lens.

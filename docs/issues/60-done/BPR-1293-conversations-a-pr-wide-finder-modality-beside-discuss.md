@@ -13,6 +13,10 @@ acceptance: [{"criterion":"BPR-1293:owner-decision","outcome":"pass","revision":
 
 # BPR-1293: Conversations: a PR-wide finder modality beside Discuss
 
+Renamed 2026-10-08: the modality this card built is now **Threads**
+([[BPR-1341]]; see the last section). The sections below keep the name they
+were written with.
+
 ## Origin
 
 While redesigning the Conversations drawer ([[BPR-1290]]), the owner said in
@@ -847,3 +851,16 @@ only, `qt_workbench_window_scale_100`:
 Nothing after `7778886c9` up to `3754fee9b` touches `src` or `tests/adapters_qt`.
 So the fourth modality alone causes the Windows owner-yield regression. No
 fix is made while main is frozen.
+
+## Renamed Threads (2026-10-08, BPR-1341)
+
+The owner said in chat on 2026-10-08, verbatim: "I'm considering rebranding
+conversations as threads", and then "Go ahead" to the coordinator's proposal.
+[[BPR-1341]] renames the modality this card built: the ⌘4 segment, the View
+menu items (the window's and the empty desktop's menu bar), ⌘J's tooltip
+("Find a thread in the pull request"), the finder's labels, accessible names
+and empty pages, the status text that disables Hide Drawers ("In Threads the
+finder is the page"), and the core's `workbench_modality::threads` and
+`threads_finds_a_thread`. The Comments drawer and its "Comments (n)" toggle
+keep their names, and Discuss is unchanged. Wherever this card names
+Conversations as the modality, read Threads.

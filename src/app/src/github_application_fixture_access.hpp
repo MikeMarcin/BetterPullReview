@@ -70,7 +70,7 @@ namespace bpr::app::detail {
 		/// summaries, for judging the Overview's label chips.
 		overview_labels_v1,
 		/// [[BPR-1293]]. Prototype v2's pull request: twenty-one conversations
-		/// in ten files, one of them branching, for judging Conversations
+		/// in ten files, one of them branching, for judging Threads
 		/// against its prototype.
 		conversations_v1,
 	};
