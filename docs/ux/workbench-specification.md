@@ -243,6 +243,30 @@ the drawers show and outlined and checked while they are hidden; its tooltip
 names what it hides or brings back with the key ("Show Files and Comments
 (⌘B)").
 
+## Overview summary
+
+RFC-BPR-0063 replaces the four-line preview with a resizable description above
+Files ([[BPR-1312]], [[BPR-1313]]). A long body starts with half their shared
+height; a short body fits its content; an empty body says **No description**
+and gives Files the room. Every nonempty body has a visible, focusable
+**Resize summary** grip. Drag it, or press Up/Down on it to move one current
+text line. Double-click or choose **Reset summary size** from its context menu
+to return to content-aware sizing. Font-relative limits retain three summary
+lines and three file rows when the available height permits; smaller windows
+share their existing room without adding a window minimum.
+
+Description and Files scroll independently. Native Markdown and source fallback
+remain selectable and copyable. **Read full description**, **Return to Files**
+and local Escape keep the same reader documents and Files selection. Refresh
+and reflow retain the reading place; a changed body or authority clears old
+reading state before the replacement appears.
+
+An explicit resize belongs to this window, survives navigation, other PRs and
+orderly restart, and is stored only as a fraction of shared height. A temporary
+small-window clamp or empty body does not erase it; Reset does. New windows
+use content-aware sizing. No description text is stored as a layout preference.
+Owner acceptance of the changed native surface remains in RFC0063's ledger.
+
 ## Overview files
 
 Overview groups files under flat folder rows ([[BPR-1213]]). A folder that

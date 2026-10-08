@@ -6911,6 +6911,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						WorkbenchHost->apply_home_view(aView);
 					}
 				});
+			Window->overview_page()->set_summary_resize_dispatch([this](std::optional<std::uint32_t> aFraction) {
+				if (!Closing && WorkbenchHost != nullptr) {
+					WorkbenchHost->resize_summary(aFraction);
+				}
+			});
 			Window->set_geometry_dispatch(
 				[this](const application::workbench_window_geometry& aGeometry) {
 					if (!Closing && WorkbenchHost != nullptr) {

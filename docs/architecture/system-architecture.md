@@ -163,7 +163,7 @@ identities with fresh generations in focus order; explicit Close removes only
 that window, while Quit retains survivors. Restored windows start on Home while
 optional restoration loads. Each desktop window restores its own
 workbench drawer states and widths and line-number visibility from the
-profile-private window-keyed layout store. Fresh windows use profile defaults.
+profile-private window-keyed layout store. RFC0063 adds an optional summary fraction to that row (schema 15), validated and coalesced by the same host, with startup choices merged after load and drained on orderly Quit. Older rows default to content-aware sizing; profile defaults and new windows carry no summary preference. No PR text or reading state is persisted as layout. Fresh windows use profile defaults.
 The same row holds bounded logical native position, normal size and maximized
 state, never profile defaults. Qt applies it once after load, fits obsolete
 display coordinates to an available screen, and reports later move/resize

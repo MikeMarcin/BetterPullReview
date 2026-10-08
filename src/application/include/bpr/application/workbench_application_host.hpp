@@ -110,6 +110,8 @@ namespace bpr::application {
 		// Bounded presentation observation; persisted only after this window's
 		// layout has loaded, so startup geometry cannot replace an unread record.
 		void observe_geometry(workbench_window_geometry aGeometry);
+		/// \brief Validates and persists only this window's explicit summary resize or Reset.
+		void resize_summary(std::optional<std::uint32_t> aFraction);
 		void cancel();
 		void shutdown();
 		// Closes ingress while draining the latest accepted window layout. Ports and

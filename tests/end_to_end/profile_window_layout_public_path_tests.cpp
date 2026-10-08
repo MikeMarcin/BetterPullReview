@@ -4,6 +4,8 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_panel.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 
@@ -11,13 +13,18 @@
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QPixmap>
 #include <QPushButton>
 #include <QScreen>
+#include <QSplitter>
+#include <QSplitterHandle>
+#include <QTextEdit>
 #include <QThread>
+#include <QTreeView>
 
 #include <array>
 #include <cstdlib>
@@ -99,6 +106,34 @@ namespace {
 		wait_for([&] { return aWindow.central_splitter()->isVisible() && aWindow.line_numbers_action()->isEnabled(); }, "review drawer actions available");
 		QApplication::processEvents();
 	}
+	auto resize_summary(qt::workbench_window& aWindow, const int aDirection) -> std::uint32_t
+	{
+		aWindow.modality()->action(qt::review_modality::overview)->trigger();
+		wait_for([&] { return aWindow.showing_overview(); }, "composed Overview appears");
+		auto* page  = aWindow.overview_page();
+		auto* split = page->findChild<QSplitter*>(QStringLiteral("overviewSummarySplitter"));
+		wait_for([&] { return split && split->handle(1)->isVisible(); }, "summary seam visible on the accepted description");
+		auto* grip = split->handle(1);
+		grip->setFocus();
+		for (int line = 0; line < 8; ++line) {
+			QKeyEvent key{ QEvent::KeyPress, aDirection > 0 ? Qt::Key_Down : Qt::Key_Up, Qt::NoModifier };
+			QApplication::sendEvent(grip, &key);
+			QApplication::processEvents();
+		}
+		wait_for([&] { return page->summary_fraction().has_value(); }, "explicit summary choice is retained");
+		const auto choice = *page->summary_fraction();
+		auto*      read   = page->findChild<QPushButton*>(QStringLiteral("overviewReadDescription"));
+		auto*      back   = page->findChild<QPushButton*>(QStringLiteral("overviewReturnToFiles"));
+		read->click();
+		wait_for([&] { return back->isVisible(); }, "composed full description opens");
+		auto* document = page->body_view()->rendered_view()->document();
+		back->click();
+		wait_for([&] { return page->files_view()->isVisible(); }, "full reader returns to composed Files");
+		expect(page->summary_fraction() == choice && page->body_view()->rendered_view()->document() == document, "full reader keeps the split preference and reader document");
+		aWindow.modality()->action(qt::review_modality::review)->trigger();
+		return choice;
+	}
+
 	auto drag_files(qt::workbench_window& aWindow, int aWidth) -> int
 	{
 		auto*      splitter = aWindow.central_splitter();
@@ -126,7 +161,7 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	const auto                   layoutUnavailable = QStringLiteral("The saved workbench layout is unavailable.");
-	std::array<std::uint64_t, 4> saved{ }; // A/B identities and chosen files widths.
+	std::array<std::uint64_t, 6> saved{ }; // A/B identities and chosen files widths.
 	std::array<QRect, 2>         geometry;
 	if (phase != "seed") {
 		std::ifstream input{ root / "layout-expectations.txt" };
@@ -202,6 +237,9 @@ auto main(int aArgc, char** aArgv) -> int
 		auto* b = select_window(*desktop, saved[1]);
 		expect(b != nullptr, "second window visible");
 		open_review(*owner, *b, 18, false);
+		saved[4] = resize_summary(*a, 1);
+		saved[5] = resize_summary(*b, -1);
+		expect(saved[4] != saved[5], "windows choose distinct summary fractions");
 		saved[2] = static_cast<std::uint64_t>(drag_files(*a, 370));
 		saved[3] = static_cast<std::uint64_t>(drag_files(*b, 430));
 		expect(saved[2] != saved[3], "windows have distinct chosen drawer widths");
@@ -284,6 +322,7 @@ auto main(int aArgc, char** aArgv) -> int
 			wait_for([&] { return a->normalGeometry() == geometry[0]; }, "A restores its distinct native position and size");
 		}
 		open_review(*owner, *b, 18, true);
+		wait_for([&] { return b->overview_page()->summary_fraction() == saved[5]; }, "B restores only its own summary fraction");
 		expect(!b->status_text().contains(layoutUnavailable), "a readable layout store reports no unavailable layout");
 		wait_for([&] { return !b->repositories_drawer_toggle_action()->isChecked(); }, "B restores its own drawer state");
 		expect(b->conversations_drawer_toggle_action()->isChecked() && b->line_numbers_action()->isChecked(), "B preserves independent source and conversation state");
@@ -300,6 +339,7 @@ auto main(int aArgc, char** aArgv) -> int
 			auto* a = select_window(*desktop, saved[0]);
 			expect(a != nullptr, "A stable window restored");
 			open_review(*owner, *a, 17, false);
+			wait_for([&] { return a->overview_page()->summary_fraction() == saved[4]; }, "A restores its distinct summary fraction");
 			wait_for([&] { return !a->line_numbers_action()->isChecked() && !a->conversations_drawer_toggle_action()->isChecked() && a->one_pane_action()->isChecked(); }, "immediate-Quit final layout restored");
 			wait_for([&] { return a->home_view().Grouping == application::home_grouping::organization; },
 					 "A restores the grouping it chose",
@@ -330,6 +370,7 @@ auto main(int aArgc, char** aArgv) -> int
 					wait_for([&] { return fresh->showing_home(); }, "fresh window starts Home");
 					open_review(*owner, *fresh, 17, false);
 					expect(fresh->repositories_drawer_toggle_action()->isChecked() && fresh->conversations_drawer_toggle_action()->isChecked() && fresh->line_numbers_action()->isChecked() && !fresh->one_pane_action()->isChecked(), "fresh window seeds profile defaults, not either sibling");
+					expect(!fresh->overview_page()->summary_fraction(), "new windows do not inherit a sibling summary preference");
 					expect(fresh->files_drawer()->width() == 320, "fresh files width comes from profile defaults");
 					// [[BPR-0783]]. No window's Home arrangement is a profile default,
 					// so a fresh window starts at Home's own.

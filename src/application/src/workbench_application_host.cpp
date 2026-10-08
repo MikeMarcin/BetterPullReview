@@ -106,6 +106,10 @@ namespace bpr::application {
 		{
 			home_view_state View;
 		};
+		struct deferred_workbench_summary_resize
+		{
+			std::optional<std::uint32_t> Fraction;
+		};
 		struct deferred_workbench_geometry
 		{
 			workbench_window_geometry Geometry;
@@ -135,7 +139,7 @@ namespace bpr::application {
 														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
-														deferred_workbench_behaviour, deferred_workbench_home_view, deferred_workbench_geometry,
+														deferred_workbench_behaviour, deferred_workbench_home_view, deferred_workbench_geometry, deferred_workbench_summary_resize,
 														deferred_workbench_preferences,
 														deferred_workbench_cancel,
 														deferred_workbench_shutdown, deferred_workbench_orderly_shutdown,
@@ -388,6 +392,8 @@ namespace bpr::application {
 						apply_behaviour_now(aTyped.Settings);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_home_view>) {
 						apply_home_view_now(aTyped.View);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_summary_resize>) {
+						resize_summary_now(aTyped.Fraction);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_geometry>) {
 						observe_geometry_now(aTyped.Geometry);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_preferences>) {
@@ -553,7 +559,7 @@ namespace bpr::application {
 			// the view can be merged into, and `shutdown_orderly_now` leaves the
 			// load alone for exactly as long as one is held.
 			const auto drained = aDomain == workbench_request_domain::settings_store
-				|| (aDomain == workbench_request_domain::settings_load && (HeldHome.has_value() || UpdatesLineHeld));
+				|| (aDomain == workbench_request_domain::settings_load && (HeldHome.has_value() || UpdatesLineHeld || HeldSummary.has_value()));
 			return Closing && !(OrderlyClosing && drained)
 				? workbench_terminal_rejection::cancelled
 				: workbench_terminal_rejection::none;
@@ -851,10 +857,11 @@ namespace bpr::application {
 				// profile's defaults record has no window, so the view is dropped
 				// here rather than stored as a default every later window would
 				// inherit without having chosen it.
-				auto defaults             = window_layout(Layout);
-				defaults.Home             = { };
-				defaults.Geometry         = { };
-				defaults.UpdatesLine      = core::workbench_updates_line::folded;
+				auto defaults        = window_layout(Layout);
+				defaults.Home        = { };
+				defaults.Geometry    = { };
+				defaults.UpdatesLine = core::workbench_updates_line::folded;
+				defaults.SummaryFraction.reset();
 				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults, Layout.WritingHooks, Layout.ClaudeWrapper };
 				PendingPreferenceDefaults = true;
 				if (!Preferences->apply_defaults(PendingPreferences->NewWindowDefaults)) {
@@ -1253,6 +1260,33 @@ namespace bpr::application {
 			return HeldHome ? *HeldHome : Layout.Home;
 		}
 
+		void resize_summary_now(std::optional<std::uint32_t> aFraction)
+		{
+			if (Closing || profile_defaults_scoped()) {
+				return;
+			}
+			if (aFraction && (*aFraction == 0 || *aFraction >= 10000)) {
+				PublishedLayout.reset();
+				publish_changes(local_context());
+				return;
+			}
+			const auto current = HeldSummary ? *HeldSummary : Layout.SummaryFraction;
+			if ((LayoutLoaded || HeldSummary.has_value()) && current == aFraction) {
+				return;
+			}
+			if (!LayoutLoaded && !LayoutLoadFailed) {
+				HeldSummary.emplace(aFraction);
+				return;
+			}
+			Layout.SummaryFraction = aFraction;
+			if (LayoutLoaded) {
+				submit_settings_store();
+			} else {
+				publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+			}
+			publish_changes(local_context());
+		}
+
 		void observe_geometry_now(const workbench_window_geometry& aGeometry)
 		{
 			if (Closing || !LayoutLoaded || profile_defaults_scoped() || !valid(aGeometry)
@@ -1410,7 +1444,7 @@ namespace bpr::application {
 			// drains with that record rather than being dropped: the load it must
 			// merge into is left to finish, so the last Home the reviewer chose is
 			// stored beside the loaded layout instead of over it.
-			if (!HeldHome && !UpdatesLineHeld) {
+			if (!HeldHome && !UpdatesLineHeld && !HeldSummary) {
 				retire(workbench_request_domain::settings_load, workbench_terminal_rejection::cancelled);
 			}
 			retire(workbench_request_domain::selected_diff, workbench_terminal_rejection::cancelled);
@@ -1634,9 +1668,14 @@ namespace bpr::application {
 				// go. It still belongs to the window, and the failure is
 				// reported on the same terms as a failed write, so an orderly
 				// close cannot swallow the last arrangement the reviewer chose.
-				const auto held = HeldHome.has_value();
+				const auto held = HeldHome.has_value() || HeldSummary.has_value();
 				if (held) {
-					Layout.Home = *std::exchange(HeldHome, std::nullopt);
+					if (HeldHome) {
+						Layout.Home = *std::exchange(HeldHome, std::nullopt);
+					}
+					if (HeldSummary) {
+						Layout.SummaryFraction = *std::exchange(HeldSummary, std::nullopt);
+					}
 					publish_changes(aContext);
 				}
 				publish_failure(aContext, workbench_host_failure::settings_unavailable, held);
@@ -1649,6 +1688,7 @@ namespace bpr::application {
 				defaults.Home        = { };
 				defaults.Geometry    = { };
 				defaults.UpdatesLine = core::workbench_updates_line::folded;
+				defaults.SummaryFraction.reset();
 				Preferences->adopt_loaded({ aResult->Behaviour, defaults, aResult->WritingHooks, aResult->ClaudeWrapper });
 			}
 			Layout = *aResult;
@@ -1656,6 +1696,7 @@ namespace bpr::application {
 				Layout.Home        = { };
 				Layout.Geometry    = { };
 				Layout.UpdatesLine = core::workbench_updates_line::folded;
+				Layout.SummaryFraction.reset();
 			}
 			if (PreferenceSubscription != 0 && Preferences->accepted()) {
 				Layout.Behaviour = Preferences->accepted()->Behaviour;
@@ -1670,6 +1711,10 @@ namespace bpr::application {
 			// whatever state the window happened to be in before it arrived.
 			LayoutLoaded = true;
 			merge_held_home();
+			if (HeldSummary) {
+				Layout.SummaryFraction = *std::exchange(HeldSummary, std::nullopt);
+				submit_settings_store();
+			}
 			restore_updates_line();
 			publish_changes(aContext);
 		}
@@ -1796,6 +1841,7 @@ namespace bpr::application {
 				.FilesWidth         = Layout.FilesWidth,
 				.ConversationsWidth = Layout.ConversationsWidth,
 				.RepositoriesWidth  = Layout.RepositoriesWidth,
+				.SummaryFraction    = (LayoutLoaded || LayoutLoadFailed) ? std::optional{ Layout.SummaryFraction } : std::nullopt,
 			};
 			if (PublishedLayout != layout) {
 				projection.Layout = layout;
@@ -1927,7 +1973,8 @@ namespace bpr::application {
 		std::optional<workbench_layout_settings>                            PendingLayout;
 		/// [[BPR-0783]]. A Home view applied before this window's own record
 		/// loaded, waiting to be merged into it.
-		std::optional<home_view_state> HeldHome;
+		std::optional<home_view_state>              HeldHome;
+		std::optional<std::optional<std::uint32_t>> HeldSummary;
 		/// [[BPR-1130]]. A fold chosen before this window's record loaded,
 		/// merged into it when it arrives.
 		bool UpdatesLineHeld   = false;
@@ -2076,6 +2123,11 @@ namespace bpr::application {
 	void workbench_application_host::observe_geometry(workbench_window_geometry aGeometry)
 	{
 		Implementation->enqueue(deferred_workbench_geometry{ .Geometry = aGeometry });
+	}
+
+	void workbench_application_host::resize_summary(std::optional<std::uint32_t> aFraction)
+	{
+		Implementation->enqueue(deferred_workbench_summary_resize{ .Fraction = aFraction });
 	}
 
 	void workbench_application_host::cancel()
