@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1336"
 title: "Zoom the code in the comparison: View > Zoom In, Zoom Out and Actual Size"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner chat request, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1336--BPR-1336--e0eddadebca1.json","related_cards":["BPR-1334","BPR-1335","BPR-1328","BPR-1295","BPR-1107","BPR-1291","BPR-0118"],"requested_skill":"frontend-design","acceptance":["BPR-1336:C1","BPR-1336:C2","BPR-1336:C3","BPR-1336:C4","BPR-1336:C5","BPR-1336:C6"]}
+parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1336:C1","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200}, qt_diff_workbench_scale_{100,125,200} and application_diff_zoom_public_path: View > Zoom In/Zoom Out/Actual Size and their keys step both panes, the gutter, the tab stop and the detail pane through the core ladder and clamps with reasons; Code size and the drawer's code font are unchanged."}},{"criterion":"BPR-1336:C2","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"Every key in the assembled window and desktop bar bound once; Cmd-0 still Home and Plain in the label menu, Cmd-Opt-0 is Actual Size and not Plain; editor_keeps_typed_text keeps AltGr+0 '}' in editable fields only (Windows filter not run here); Cmd-scroll and pinch step, plain scroll still scrolls."}},{"criterion":"BPR-1336:C3","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"sqlite_appearance_settings_storage (schema 9, v8/v7 migrate to 100%, 49/301 refused), application_appearance_host (two gestures two steps, persists, restart, reset), qt_appearance_settings_panel (Diff zoom row), application_profile_startup_public_path (Work reopens at 125%, Default unchanged)."}},{"criterion":"BPR-1336:C4","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"qt_diff_workbench: reader's line at y 127 stays within one row in the same turn and after remeasurement at 150% and Actual Size; pill and polite announcement say 'Code zoom 150%, 13.50 pt/points' and the pill leaves after ~1.2 s."}},{"criterion":"BPR-1336:C5","outcome":"pass","revision":"7092c1dca","evidence":{"kind":"command","detail":"Frozen Release build of 7092c1dca, application_large_review_responsiveness twice: zoom dispatch 3.3-6.3 ms, largest input gap 12.5-15.7 ms, completion 339-346 ms on the 20,000-line comparison; a 150 ms stall control fails the gates."}},{"criterion":"BPR-1336:C6","outcome":"pending","revision":"7092c1dca","evidence":{"kind":"freeform","detail":"Owner look pending in fresh session abb2042c4944232d64e03d2709e5770c, candidate BPR-1336-diff-zoom-v001 (fingerprint c4076d94...), frozen root artifacts/bpr-1336/diff-zoom-frozen-v001 (binary 780a2667)."}}]
 ---
 
 # BPR-1336: Zoom the code in the comparison
