@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1337"
 title: "Beautify the top section of Discuss"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1337--BPR-1337--2dee31ef43be.json","requested_skill":"frontend-design","related_cards":["BPR-1212","BPR-1089","BPR-1083","BPR-1290","BPR-1293","BPR-1294"]}
+parked_on: "human-review"
 ---
 
 # BPR-1337: Beautify the top section of Discuss
@@ -186,3 +187,39 @@ Both are real Qt renders of the same build, switched for the comparison only.
 - `coding-format-check` passed (clang-format 23.1.1); `tidy.py` on the three
   changed translation units passed.
 - Linux and Windows runs of these rows are owed by the stations.
+
+## Owner look, session v001 (pending)
+
+One new short session, not the long default one. Two questions, each asking
+about a single criterion; neither is self-certified.
+
+- Session `6e2b595ff9c4160456b63e491b0f69c0`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1337-discuss-top-v001`
+  (repository root `/Users/jaeger/Documents/GitHub/BetterPullReview`). Both
+  candidates were ready at event cursor 7. The review host runs detached.
+  Offline page: `review.html` in the state directory.
+- `BPR-1337-discuss-top-choice-v001` (revision `design-55dec39a4-v001`): an
+  option list, "A: one band" or "B: heading over tools", with the before, A
+  and B renders (`docs/design/BPR-1337-discuss-top/`).
+- `BPR-1337-discuss-top-built-v001` (revision `frozen-55dec39a4-v001`): Accept
+  or Reject on the built band (A) in the frozen build, light and dark (the
+  `BPR-1337:owner-look` criterion).
+- Frozen root `/Users/jaeger/bpr1337-discuss-top-look-v001.bQqqmd`: the
+  `git archive` of `55dec39a4` built there (tests on, app target only, no
+  debug info); executable SHA-256 `4bc752801a45…f761`. Offscreen on it,
+  `--github-fixture overview-labels-v1 --attended-launch
+  --attended-open-pull-request` printed `ATTENDED_PULL_REQUEST_OPENED`.
+- Launch: `python3 /Users/jaeger/bpr1337-discuss-top-look-v001.bQqqmd/launch.py`
+  opens bpr-fixtures/nested-folders#21 on its Overview; Command-3 shows
+  Discuss. It checks the build, its fingerprint and the fixture tree first,
+  and reports an early exit.
+
+## Next
+
+Read the session's decisions:
+- If the owner picks A and accepts the built band, finish the card.
+- If the owner picks B, build B from the recorded candidate description. The
+  chips take words, and the counts become a heading with Clear beside it.
+  Ask it as `built-v002`.
+- A Reject on the built band comes back as a v002 candidate with the note's
+  change.
