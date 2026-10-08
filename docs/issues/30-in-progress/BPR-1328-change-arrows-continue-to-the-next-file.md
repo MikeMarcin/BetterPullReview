@@ -223,14 +223,71 @@ BPR-1212 slice 2's reseal; mutation pin unchanged) and
 the changed translation units reports only pre-existing naming findings in
 `github_application.cpp`, none on changed lines.
 
-**Owner look (C3, C4, C5) pending.** Fresh short session
-`6b391cb7c7f4cc221feb4da5b5672b3c` (state
-`/Users/jaeger/.mask/bpr-1328-change-arrows-20261008-v001/attended-review`),
-cursor 9, three ready, protected Accept/Reject candidates on one frozen build:
-`BPR-1328-arrows-v001` (`8fffc588…`), `BPR-1328-cmd-keys-v001` (`478fc65e…`),
-`BPR-1328-key-tooltips-v001` (`0a01de21…`). Frozen root
-`artifacts/bpr-1328/change-arrows-frozen-v001/` holds the exported source
-(archive `68ab6c97…`), its Release build (binary `08094f21…`) and
-`launch.py` (`ceab81d1…`); its public course passes 1/1 and its attended entry
-reaches ready on `docs/api/reference.md`.
+**v001 owner look, released unanswered.** Session
+`6b391cb7c7f4cc221feb4da5b5672b3c` (candidates `BPR-1328-arrows-v001`,
+`BPR-1328-cmd-keys-v001`, `BPR-1328-key-tooltips-v001` on frozen `c863dd850`)
+was stopped before any verdict when the owner changed the keys; its
+candidates were released (`resume-development --all`, cursor 10) and its
+frozen root `artifacts/bpr-1328/change-arrows-frozen-v001/` deleted.
 
+### v002: the owner's final keys
+
+Product commit `3a5707d28` (rebased on main; the rebases moved no `src/` or
+`tests/` file of this change).
+
+**C4/C5 unattended evidence, v002.** `qt_workbench_window_scale_{100,125,200}`
+pass with the rewritten `test_change_keys_are_named_and_yield_in_editors`:
+the six keys and their order; native tooltip text (⌥↓, ⌥↑, ⌥⌘↓, ⌥⌘↑ on
+macOS, written out elsewhere) including a disabled arrow; every Qt standard
+key on the platform (only macOS's paragraph moves hold ⌥↑/⌥↓); ⌥↓, ⌥↑ and
+⌥PgDn from the code are Next, Previous and Next change, ⌥⌘↓ and ⌥⌘↑ Next and
+Previous file; ⌘↓/⌘↑ (Ctrl+End/Ctrl+Home off macOS) from the left pane, the
+right pane and the one-pane comparison scroll to the exact bottom and top of a
+400-line comparison, take no gesture and keep the keyboard, with and without
+the keypad mark; in a note being written ⌥↓, ⌥↑, ⌘↓, ⌘↑ and keypad-marked
+⌥↓/⌘↑ take no gesture and move the caret exactly as an editor on its own
+does, with a read-only negative control; in the Updates line ⌥⌘↓/⌥⌘↑ are
+the file keys and ⌥⌘PgDn/⌥⌘PgUp load earlier epochs and return to the newest.
+The Hide Drawers duplicate-key table and the window's one-key-one-command rule
+pass. `application_change_arrows_across_files` passes with the new keys (one
+run under load average 60 timed out opening the first file; the rerun passed
+in 4 s).
+
+Failing-before control: the new tests built against the pre-change source
+(with only the scroll-edge helper the test names) fail
+`qt_workbench_window_scale_100` on "an enabled file action names itself and
+its key" and `application_change_arrows_across_files` on "each arrow's
+tooltip names its key". Mutation controls, each failing exactly its
+assertion: no scroll in the two-pane controller ("two panes, left,
+Command-Down and Command-Up: scroll to the bottom and the top"); no scroll in
+the one-pane comparison ("one pane, …"); the v001 exact-key yield ("Option-Down
+(keypad) in an editor takes no gesture …"); the epoch keys back on
+Ctrl+Alt+Down ("no keyboard command is claimed twice in the assembled
+workbench").
+
+Focused set at the product source: `architecture_boundaries`,
+`qt_epoch_comparison_scale_{100,125,200}`,
+`qt_comparison_scroll_controller_scale_{100,125,200}`,
+`qt_diff_workbench_scale_{100,125,200}`,
+`qt_workbench_window_scale_{100,125,200}`, `qt_feedback_label_settings`,
+`qt_hide_drawers_native_menu_key` and `application_change_arrows_across_files`
+pass; after the rebase the window, Hide Drawers and change-arrows tests pass
+again. The documentation gate passes. clang-format passes on the changed
+files. clang-tidy was not run this round: the machine's disk was full (under
+1 GB free, other worktrees building), so the dev build tree that holds the
+compile database was deleted before freezing. `src/app` is unchanged, so the
+round-trip composition pins are untouched.
+
+**Owner look (C3, C4, C5) pending.** Fresh short session
+`57eb8f9479ce4db96d41ea195bccbff5` (state
+`/Users/jaeger/.mask/bpr-1328-change-keys-20261008-v002/attended-review`),
+cursor 12, three ready, protected Accept/Reject candidates on one frozen
+build: `BPR-1328-arrows-v002` (C3, `e5e0a129…`), `BPR-1328-keys-v002` (C4,
+`237f2a67…`), `BPR-1328-key-tooltips-v002` (C5, `c5713401…`). Frozen root
+`artifacts/bpr-1328/change-keys-frozen-v002/` holds the exported source of
+`3a5707d28` (archive `ecf2ab32…`, deleted after extraction for disk), its
+Release build (binary `99519275…`) and `launch.py` (`5fa75ff5…`, modes
+`arrows` and `keys`); its public course passes (17 files, 16 crossings, 12
+one-change files between two others) and both attended entries reach ready
+offscreen, `arrows` on `docs/api/reference.md` and `keys` on the
+inline-drawer pull request's 1557-line `src/ui/conversation_cards_view.cpp`.
