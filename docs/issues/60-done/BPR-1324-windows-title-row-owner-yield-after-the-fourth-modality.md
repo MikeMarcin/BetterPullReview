@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1324"
 title: "Windows: the title row's owner returns at a narrower width, and the whole name no longer fits at 1280, after the fourth modality"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"found_by":"bpr-main-win, BPR-1293's Windows station run, 2026-10-07","reservation":"docs/issues/_reservations/BPR-1324--BPR-1325--7765882b27a6.json","related_cards":["BPR-1293","BPR-1251","BPR-1129","BPR-0653"],"caused_by":"7778886c9"}
+acceptance: [{"criterion":"BPR-1324:qt_workbench_window-windows","outcome":"pass","revision":"1cd9f15e4","evidence":{"kind":"command","path":"tests/adapters_qt/workbench_window_tests.cpp","detail":"qt_workbench_window_scale_100/125/200 pass on Windows in build/windows-dev-tour-cli (Debug) and build/bpr0967-release (MSVC /O2), offscreen, on the tree merged over 13 upstream Qt commits; the owner yields once and the whole name shows at 1280. Controls: without the Windows 1300 px threshold it fails at the 1280 whole-name check; without Overview's key it fails at the tooltip check; the owner rule's own failing-before is at 1100 px (7778886c9 fails the owner check, the rule passes it)."}},{"criterion":"BPR-1324:title-row-and-composed-rows","outcome":"pass","revision":"1cd9f15e4","evidence":{"kind":"command","path":"src/adapters/qt/src/workbench_window.cpp","detail":"qt_workbench_title_row x3 (dev and optimized), qt_workbench_focus_order x3, qt_workbench_strip_menu, qt_composed_github x3, qt_composed_inline_drawer x3, qt_conversation_finder x3, application_review_round_trip_composition_contract, architecture_boundaries and test_network_isolation_manifest (after pinning the rows other cards left unpinned) pass on Windows."}},{"criterion":"BPR-1324:macos-linux-unchanged","outcome":"pass","revision":"1cd9f15e4","evidence":{"kind":"command","path":"src/adapters/qt/src/workbench_window.cpp","detail":"The 1300 px threshold is _WIN32-only; off Windows the shortcuts still go below 1100 px. The owner rule only hides the owner where the whole modality would not fit it, the yield order the design names. The tooltip wording changes on every platform (coordinator's request). macOS and Linux rows were not run here; owed to those stations."}}]
 ---
 
 # BPR-1324: Windows: the title row's owner returns at a narrower width, and the whole name no longer fits at 1280, after the fourth modality
