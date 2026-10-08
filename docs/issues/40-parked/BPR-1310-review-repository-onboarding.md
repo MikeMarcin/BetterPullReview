@@ -47,3 +47,25 @@ the coordinator owns starting the exact same session's loopback server.
 Automatic wait/wake has not been qualified on this runtime. Decisions are
 saved independently; if no qualified coordinator wait is sustained, hand back
 and send “Resume the attended review” in the coordinator chat.
+
+## Owner verdicts on v001 (dispatch r5, 2026-10-08)
+
+Session `5317162ad2f023440b559ad4145ed579` was handed back at cursor 10 with
+both candidates rejected; consumed by dispatch `parallel-integrator-r5-001`.
+
+- `BPR-1310-addition-v001` (fingerprint `c27d5c2d…ed5a`), decision
+  `c0939eaa-0bf6-4fc8-80e0-748ed6583ba6` (it supersedes an earlier identical
+  note without the last sentence, `ca34dca7…`): "This information is still
+  way hidden down the bottom of a settings page that is full of mostly
+  irrelvant details. We probably need to move this out into a new settings
+  page just focused on managing repositories. And with a better UX"
+- `BPR-1310-home-v001` (fingerprint `4e1ef338…cd9d`), decision
+  `5b1c12d0-70a8-49b4-8999-54b43f52926b`: "I want a clearer call to action for
+  first time experience."
+
+These amend RFC0062's "Settings → Reviews & queue remains the management
+location" and the "same row with stronger emphasis" first-run wording; the
+latest owner direction wins and the original criteria stay. The next round
+gives saved repositories their own Settings page with the shared dialog, and
+gives signed-in Home a clearer first-time call to action. C2 stays pending on
+a new frozen candidate and a fresh session; BPR-1311 keeps its dependency.

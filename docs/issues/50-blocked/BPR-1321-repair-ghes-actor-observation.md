@@ -51,3 +51,35 @@ only `actor_conflict=<origin>,<origin>,ascii_case_only|different`
 facts this card is blocked on. An Accept would mean the rejection did not
 recur on that PR, which needs its own analysis before any repair. The blocker
 stays until one of those results is returned.
+
+## Owner strategy change: affected evidence deferred to pre-release (2026-10-07)
+
+The owner cannot answer the native diagnosis review. Session
+`b366df1f04624eb90e90d47c9262e52d` is **withdrawn as unanswerable**: an
+objective observation records the withdrawal on each of its three candidates
+(cursor 12). No verdict exists; nothing was accepted or rejected. Its server
+was stopped and candidate v001 stays protected.
+
+The strategy is now to diagnose from the two existing anonymized diagnostics
+logs (private, ignored and never committed), make the most defensible fix and
+take affected-installation confirmation from the next pre-release.
+
+**What the logs support.** Every failing load fetched all snapshot pages
+(HTTP 200) and failed at the single final validation pass with
+`relationship_actor_login`, before the separate timeline read. The search
+page is only the last page before validation and contributes no actor. Two
+loads in the same window succeeded and later loads failed persistently,
+including after restart, which points to new data on the pull request rather
+than a transient race. The 0.1.4 build records no actor values, origins or
+case-only fact, so the conflicting collections are unknown.
+
+**Defensible repair being made.** Snapshot actors come from REST collections
+(viewer, PR, commits, reviews, issue comments) and from GraphQL review-thread
+comments, keyed by node ID with a byte-exact login comparison. GitHub
+documents different login spellings for App/bot actors across those APIs
+(REST `name[bot]`, GraphQL `Bot.login` `name`). The repair canonicalizes only
+that typed bot case at the decoding adapter and keeps every other mismatch
+rejecting. It is hardening consistent with the facts. It is **not**
+attributed to the incident, and confirming it is deferred to pre-release
+feedback. C1 and C2 stay open until that feedback or equivalent evidence
+exists.
