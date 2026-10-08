@@ -3584,6 +3584,22 @@ bpr_add_network_isolated_test(NAME application_profile_window_layout_public_path
 set_tests_properties(application_profile_window_layout_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 500)
 
+# [[BPR-1314]]. The real composition with an admitted synthetic long body.
+bpr_add_executable(test_overview_summary_public_path overview_summary_public_path_tests.cpp)
+target_link_libraries(test_overview_summary_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_overview_summary_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_overview_summary_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_overview_summary_public_path)
+bpr_enable_warnings(test_overview_summary_public_path)
+foreach(summary_scale IN ITEMS 1 1.25 2)
+    string(REPLACE "." "_" summary_scale_name "${summary_scale}")
+    bpr_add_network_isolated_test(NAME application_overview_summary_${summary_scale_name} WINDOWS_UNCONTAINED
+        COMMAND test_overview_summary_public_path)
+    set_tests_properties(application_overview_summary_${summary_scale_name} PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${summary_scale};BPR_OVERVIEW_RENDER_ROOT=${PROJECT_BINARY_DIR}/overview-renders/${summary_scale_name}"
+        TIMEOUT 90 PASS_REGULAR_EXPRESSION "OVERVIEW_SUMMARY_PUBLIC_PATH_OK")
+endforeach()
+
 bpr_add_executable(test_profile_window_review_restoration_public_path profile_window_review_restoration_public_path_tests.cpp)
 target_link_libraries(test_profile_window_review_restoration_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_profile_window_review_restoration_public_path PRIVATE BPR_BUILD_TESTING=1)

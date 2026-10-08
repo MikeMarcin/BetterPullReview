@@ -1944,7 +1944,7 @@ namespace bpr::qt {
 		summaryColumn->addWidget(Body, 1);
 		EmptyBody = new QLabel{ QStringLiteral("No description"), main };
 		EmptyBody->setObjectName(QStringLiteral("overviewNoDescription"));
-		mainColumn->addWidget(EmptyBody);
+		mainColumn->insertWidget(mainColumn->indexOf(SummarySplit), EmptyBody);
 		ReadDescription = new QPushButton{ QStringLiteral("Read full description"), main };
 		ReadDescription->setObjectName(QStringLiteral("overviewReadDescription"));
 		ReadDescription->setAccessibleName(ReadDescription->text());
