@@ -239,6 +239,10 @@ namespace bpr::core {
 			return epoch_reason_code::process_failure;
 		case epoch_failure::unsupported_object:
 			return epoch_reason_code::unsupported_object;
+		case epoch_failure::git_tool_unsupported:
+			return epoch_reason_code::git_tool_unsupported;
+		case epoch_failure::git_tool_probe_failed:
+			return epoch_reason_code::git_tool_probe_failed;
 		}
 		return epoch_reason_code::invalid_observation;
 	}

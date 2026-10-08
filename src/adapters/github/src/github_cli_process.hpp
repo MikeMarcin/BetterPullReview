@@ -46,7 +46,8 @@ namespace bpr::adapters::github::detail {
 		std::chrono::milliseconds                         Timeout{ };
 		std::chrono::milliseconds                         ReapTimeout{ };
 
-		// Only gh API response parsing opts in to completed nonzero output.
+		// Only gh API response parsing and the bounded local Git clone-help probe
+		// opt in to completed nonzero output. Failed/partial output remains unavailable.
 		bool PreserveCompletedOutput = false;
 
 		auto operator==(const github_cli_process_request&) const -> bool = default;

@@ -694,6 +694,17 @@ namespace {
 				   && control.comparison_text().contains(QStringLiteral("pruned"))
 				   && control.comparison_text().contains(QStringLiteral("unavailable")),
 			   "an unavailable alias retains its exact selected candidate and reason");
+		for (const auto reason : { core::epoch_reason_code::git_tool_unsupported,
+								   core::epoch_reason_code::git_tool_probe_failed }) {
+			control.publish(comparison_update(core::named_selection(
+												  core::named_comparison::previous_upload_to_latest),
+											  unavailable, false, reason));
+			const auto expected = reason == core::epoch_reason_code::git_tool_unsupported
+				? QStringLiteral("Configure Git 2.49 or later with exact revision cloning, then retry.")
+				: QStringLiteral("The configured Git could not be checked. Check its executable and retry.");
+			expect(control.comparison_text().contains(expected),
+				   "Git refusal presents a fixed actionable reason without raw subprocess text");
+		}
 		// [[BPR-0676]]. A pair that cannot be read says so on the line, not
 		// only inside the details a reviewer has to open.
 		expect(control.line_summary()->text() == QStringLiteral("pair not readable"),

@@ -3255,6 +3255,47 @@ namespace {
 		}
 	}
 
+	void git_tool_refusals_preserve_actionable_reasons_and_retry()
+	{
+		using step    = application::git_smart_transport_step;
+		using failure = application::git_smart_transport_failure;
+		for (const auto probeStep : { step::git_version, step::git_capability_probe, step::git_qualification }) {
+			for (const auto probeFailure : { failure::unavailable, failure::timeout, failure::response_limit }) {
+				fixture value;
+				value.State.DiscoveryFailure = probeFailure;
+				value.State.DiscoveryStep    = probeStep;
+				value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+				drain(value);
+				const auto expected = probeStep == step::git_qualification
+					? core::epoch_reason_code::git_tool_unsupported
+					: core::epoch_reason_code::git_tool_probe_failed;
+				expect(diagnostic_count(value.State, expected) == 1U
+						   && diagnostic_count(value.State, core::epoch_reason_code::unavailable) == 0U,
+					   "Git check refusals reach presentation with the exact typed reason");
+				expect(!value.Host->state().AcceptedComparison
+						   && std::ranges::count(value.State.Calls, "catalog.commit-authorized") == 0,
+					   "tool refusal admits no comparison or durable catalog commit");
+				value.State.DiscoveryFailure.reset();
+				value.State.DiscoveryStep = step::none;
+				value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+				drain(value);
+				expect(value.Host->state().AcceptedComparison.has_value(),
+					   "a corrected executable can retry through the same authority");
+				value.Host->shutdown();
+				drain(value);
+				expect(value.Host->is_quiescent(), "tool refusal and retry drain on shutdown");
+			}
+		}
+		fixture cancelled;
+		cancelled.State.DiscoveryFailure = failure::cancelled;
+		cancelled.State.DiscoveryStep    = step::git_capability_probe;
+		cancelled.Host->accept(make_handoff(cancelled.State, 1U, 20U, true));
+		drain(cancelled);
+		expect(diagnostic_count(cancelled.State, core::epoch_reason_code::git_tool_probe_failed) == 0U
+				   && diagnostic_count(cancelled.State, core::epoch_reason_code::git_tool_unsupported) == 0U,
+			   "cancelling a probe never becomes a tool refusal");
+	}
+
 	void successful_append_preserves_exact_order()
 	{
 		fixture value;
@@ -7953,6 +7994,7 @@ int main()
 	profile_actor_replacement_waits_for_session_destruction();
 	profile_windows_share_one_cache_without_sharing_selection_or_lifetime();
 	epoch_preparation_diagnostics_preserve_results();
+	git_tool_refusals_preserve_actionable_reasons_and_retry();
 	invalid_handoff_has_no_effects();
 	source_collision_retries_before_core_acceptance();
 	successful_append_preserves_exact_order();

@@ -26,6 +26,14 @@ namespace {
 		}
 	}
 
+	auto test_git_tool_failure_reasons() -> void
+	{
+		expect(reason_for(epoch_failure::git_tool_unsupported) == epoch_reason_code::git_tool_unsupported,
+			   "unsupported Git operations retain their actionable reason");
+		expect(reason_for(epoch_failure::git_tool_probe_failed) == epoch_reason_code::git_tool_probe_failed,
+			   "a failed Git check is distinct from unsupported operations");
+	}
+
 	auto test_sha256_known_vectors() -> void
 	{
 		static constexpr std::array<std::uint8_t, 32> emptyDigest{
@@ -4129,6 +4137,7 @@ namespace {
 
 auto main() -> int
 {
+	test_git_tool_failure_reasons();
 	test_sha256_known_vectors();
 	test_portable_occurrence_identity();
 	test_binary_oid_types_and_compact_state();

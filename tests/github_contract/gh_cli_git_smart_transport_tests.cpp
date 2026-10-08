@@ -179,7 +179,7 @@ namespace {
 		std::size_t                                         AbortCalls        = 0U;
 	};
 
-	QByteArray git(const std::filesystem::path& root, QStringList arguments, const QByteArray& input = { })
+	QByteArray git(const std::filesystem::path& aRoot, QStringList aArguments, const QByteArray& aInput = { })
 	{
 		QProcess            process;
 		QProcessEnvironment env;
@@ -187,25 +187,25 @@ namespace {
 			env.insert(pair.first, pair.second);
 		}
 		process.setProcessEnvironment(env);
-		process.setWorkingDirectory(QString::fromStdString(root.string()));
-		process.start("/usr/bin/git", arguments);
+		process.setWorkingDirectory(QString::fromStdString(aRoot.string()));
+		process.start("/usr/bin/git", aArguments);
 		expect(process.waitForStarted(5000), "fixture local Git starts");
-		process.write(input);
+		process.write(aInput);
 		process.closeWriteChannel();
 		expect(process.waitForFinished(10000) && process.exitCode() == 0, "fixture local Git succeeds");
 		return process.readAllStandardOutput().trimmed();
 	}
-	void write(const std::filesystem::path& path, std::string_view value)
+	void write(const std::filesystem::path& aPath, std::string_view aValue)
 	{
-		std::ofstream file(path);
-		file << value;
+		std::ofstream file(aPath);
+		file << aValue;
 		expect(file.good(), "fixture file");
 	}
-	int fake_gh(const QStringList& args)
+	int fake_gh(const QStringList& aArguments)
 	{
-		const auto executable = std::filesystem::path{ args[0].toStdString() };
+		const auto executable = std::filesystem::path{ aArguments[0].toStdString() };
 		const auto root       = executable.parent_path();
-		if (args.size() == 2 && args[1] == "--version") {
+		if (aArguments.size() == 2 && aArguments[1] == "--version") {
 			std::ifstream version{ root / "version" };
 			if (version) {
 				std::cout << version.rdbuf();
@@ -214,7 +214,7 @@ namespace {
 			}
 			return 0;
 		}
-		if (args.size() > 2 && args[1] == "api" && args[2].contains("/git/blobs/")) {
+		if (aArguments.size() > 2 && aArguments[1] == "api" && aArguments[2].contains("/git/blobs/")) {
 			if (std::filesystem::exists(root / "wait-blob")) {
 				std::this_thread::sleep_for(std::chrono::seconds{ 10 });
 			}
@@ -225,7 +225,7 @@ namespace {
 			std::cout << response.rdbuf();
 			return 0;
 		}
-		if (args.size() > 2 && args[1] == "api") {
+		if (aArguments.size() > 2 && aArguments[1] == "api") {
 			if (std::filesystem::exists(root / "fail-viewer")) {
 				return 1;
 			}
@@ -233,14 +233,14 @@ namespace {
 			std::cout << "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\nX-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\nX-RateLimit-Used: 1\r\nX-RateLimit-Reset: 2000000000\r\nX-RateLimit-Resource: core\r\n\r\n{\"id\":" << (switched ? 999 : 203) << ",\"node_id\":\"U_fixture\",\"login\":\"fixture\",\"name\":\"Fixture\"}";
 			return 0;
 		}
-		if ((args.size() == 19 || args.size() == 21) && args[1] == "repo" && args[2] == "clone") {
+		if ((aArguments.size() == 19 || aArguments.size() == 21) && aArguments[1] == "repo" && aArguments[2] == "clone") {
 			if (std::filesystem::exists(root / "fail-clone")) {
 				return 1;
 			}
-			if (args.size() == 21 && (args[19] != "--depth=1" || args[20] != "--filter=blob:none")) {
+			if (aArguments.size() == 21 && (aArguments[19] != "--depth=1" || aArguments[20] != "--filter=blob:none")) {
 				return 6;
 			}
-			const std::filesystem::path target{ args[4].toStdString() };
+			const std::filesystem::path target{ aArguments[4].toStdString() };
 			if (!target.parent_path().filename().string().starts_with("bpr-cli-git-") || target.parent_path().parent_path() != "/private/tmp") {
 				return 3;
 			}
@@ -260,17 +260,17 @@ namespace {
 			if (error) {
 				return 5;
 			}
-			if (args.size() == 21) {
+			if (aArguments.size() == 21) {
 				std::ifstream omitted{ root / "sparse-omitted" };
 				std::string   oid;
 				while (omitted >> oid) {
 					std::filesystem::remove(target / "objects" / oid.substr(0, 2) / oid.substr(2));
 				}
 			}
-			if (args.size() == 21 && std::filesystem::exists(root / "missing-sparse")) {
+			if (aArguments.size() == 21 && std::filesystem::exists(root / "missing-sparse")) {
 				std::filesystem::remove_all(target / "objects");
 			}
-			if (args.size() == 21 && std::filesystem::exists(root / "missing-sparse-tree")) {
+			if (aArguments.size() == 21 && std::filesystem::exists(root / "missing-sparse-tree")) {
 				std::ifstream input{ root / "missing-sparse-tree" };
 				std::string   tree;
 				input >> tree;
@@ -291,6 +291,23 @@ namespace {
 			std::ifstream version{ root / "git-version" };
 			std::cout << version.rdbuf();
 			return 0;
+		}
+		if (aArguments.size() == 3 && aArguments[1] == "clone" && aArguments[2] == "-h") {
+			if (std::filesystem::exists(root / "wait-git-help")) {
+				std::this_thread::sleep_for(std::chrono::seconds{ 20 });
+			}
+			if (std::filesystem::exists(root / "overflow-git-help")) {
+				std::cout << std::string(32U * 1024U, 'x');
+				return 129;
+			}
+			std::ifstream help{ root / "git-help" };
+			if (help) {
+				std::cout << help.rdbuf();
+				int           exit = 129;
+				std::ifstream status{ root / "git-help-exit" };
+				status >> exit;
+				return exit;
+			}
 		}
 		QProcess process;
 		process.setProcessEnvironment(QProcessEnvironment::systemEnvironment());
@@ -330,16 +347,20 @@ namespace {
 		std::filesystem::create_directory(root / "home");
 		const auto source = root / "source.git";
 		git(root, { "init", "--bare", QString::fromStdString(source.string()) });
-		const auto scope      = "--git-dir=" + QString::fromStdString(source.string());
-		const auto blob       = git(root, { scope, "hash-object", "-w", "--stdin" }, "complete local contents\n");
-		const auto tree       = git(root, { scope, "mktree" }, "100644 blob " + blob + "\tfile.txt\n");
-		const auto ancestor   = git(root, { scope, "commit-tree", tree }, "ancestor\n");
-		const auto base       = git(root, { scope, "commit-tree", tree, "-p", ancestor }, "base\n");
-		const auto head       = git(root, { scope, "commit-tree", tree, "-p", base }, "head\n");
-		auto       context    = smart_context();
-		context.Revision.Base = *core::parse_git_commit_oid(base.toStdString());
-		context.Revision.Head = *core::parse_git_commit_oid(head.toStdString());
-		const auto profile    = validate_github_host_profile(cloud_candidate());
+		const auto scope                = "--git-dir=" + QString::fromStdString(source.string());
+		const auto blob                 = git(root, { scope, "hash-object", "-w", "--stdin" }, "complete local contents\n");
+		const auto changedBlob          = git(root, { scope, "hash-object", "-w", "--stdin" }, "changed local contents\n");
+		const auto secondaryBlob        = git(root, { scope, "hash-object", "-w", "--stdin" }, "secondary base contents\n");
+		const auto changedSecondaryBlob = git(root, { scope, "hash-object", "-w", "--stdin" }, "secondary head contents\n");
+		const auto baseTree             = git(root, { scope, "mktree" }, "100644 blob " + blob + "\tfile.txt\n100644 blob " + secondaryBlob + "\tsecondary.txt\n");
+		const auto tree                 = git(root, { scope, "mktree" }, "100644 blob " + changedBlob + "\tfile.txt\n100644 blob " + changedSecondaryBlob + "\tsecondary.txt\n");
+		const auto ancestor             = git(root, { scope, "commit-tree", baseTree }, "ancestor\n");
+		const auto base                 = git(root, { scope, "commit-tree", baseTree, "-p", ancestor }, "base\n");
+		const auto head                 = git(root, { scope, "commit-tree", tree, "-p", base }, "head\n");
+		auto       context              = smart_context();
+		context.Revision.Base           = *core::parse_git_commit_oid(base.toStdString());
+		context.Revision.Head           = *core::parse_git_commit_oid(head.toStdString());
+		const auto profile              = validate_github_host_profile(cloud_candidate());
 		expect(profile.has_value(), "profile");
 		const auto syntheticGit = root / "git";
 		std::filesystem::copy_file(QCoreApplication::applicationFilePath().toStdString(), syntheticGit);
@@ -376,13 +397,86 @@ namespace {
 		expect(enterpriseProfile.has_value(), "synthetic GHES CLI profile validates");
 		for (const bool restarted : { false, true }) {
 			static_cast<void>(restarted);
+			auto qualifiedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+			expect(qualifiedTransport.has_value(), "synthetic selected Git is admitted under exact authority");
+			recording_pack_sink qualified{ core::git_hash_algorithm::sha1 };
+			expect(application::acquire_git_protocol_v2_pack(**qualifiedTransport, context, { }, qualified, limits, { }).has_value() && qualified.Finished,
+				   "newer Apple Git qualifies by required capabilities and operations across recreated authority");
+		}
+		for (const std::string_view banner : { "git version 2.49.0\n", "git version 2.54.0.windows.1\n", "git version 3.0.0 (future vendor)\n" }) {
+			write(root / "git-version", banner);
+			auto                qualifiedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+			recording_pack_sink qualified{ core::git_hash_algorithm::sha1 };
+			expect(application::acquire_git_protocol_v2_pack(**qualifiedTransport, context, { }, qualified, limits, { }).has_value() && qualified.Finished,
+				   "minimum, upstream and other vendor versions require the same direct capability and object operation proof");
+		}
+		for (const std::string_view banner : { "git version 2.48.9\n", "git version 2.54\n", "git version 2.54.0junk\n", "git version 999999999999999999999.0.0\n", "unclassified fixture output\n" }) {
+			write(root / "git-version", banner);
 			auto                refusedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
 			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
 			const auto          result = application::acquire_git_protocol_v2_pack(**refusedTransport, context, { }, refused, limits, { });
 			const auto*         error  = result ? nullptr : std::get_if<application::git_smart_transport_error>(&result.error());
 			expect(error && error->Step == application::git_smart_transport_step::git_qualification && refused.Received.empty(),
-				   "synthetic successful newer Git banner reproduces qualification refusal after recreating acquisition authority");
+				   "older and malformed numeric Git versions cannot acquire objects");
 		}
+		write(root / "git-version", "git version 2.54.0 (Apple Git-157)\n");
+		auto                       probeTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+		constexpr std::string_view completeHelp   = " --revision <rev>\n --bare\n --template <dir>\n --config <key>\n --filter <args>\n --depth <n>\n";
+		for (const std::string_view missing : { "revision", "bare", "template", "config" }) {
+			auto       incompleteHelp = std::string{ completeHelp };
+			const auto position       = incompleteHelp.find(missing);
+			incompleteHelp.replace(position, missing.size(), "unavailable");
+			write(root / "git-help", incompleteHelp);
+			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
+			const auto          result = application::acquire_git_protocol_v2_pack(**probeTransport, context, { }, refused, limits, { });
+			const auto*         error  = result ? nullptr : std::get_if<application::git_smart_transport_error>(&result.error());
+			expect(error && error->Step == application::git_smart_transport_step::git_qualification && refused.Received.empty(), "every required clone capability is checked before acquisition");
+		}
+		auto sparseProbeContext            = context;
+		sparseProbeContext.AcquisitionMode = application::git_smart_acquisition_mode::sparse_commit_trees;
+		auto sparseProbeTransport          = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, sparseProbeContext, [] { return true; });
+		for (const std::string_view missing : { "depth", "filter" }) {
+			auto       incompleteHelp = std::string{ completeHelp };
+			const auto position       = incompleteHelp.find(missing);
+			incompleteHelp.replace(position, missing.size(), "unavailable");
+			write(root / "git-help", incompleteHelp);
+			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
+			const auto          result = application::acquire_git_protocol_v2_pack(**sparseProbeTransport, sparseProbeContext, { }, refused, limits, { });
+			const auto*         error  = result ? nullptr : std::get_if<application::git_smart_transport_error>(&result.error());
+			expect(error && error->Step == application::git_smart_transport_step::git_qualification && refused.Received.empty(), "sparse acquisition additionally requires depth and filter capabilities");
+		}
+		write(root / "git-help", completeHelp);
+		write(root / "git-help-exit", "2");
+		recording_pack_sink badHelpExit{ core::git_hash_algorithm::sha1 };
+		expect(!application::acquire_git_protocol_v2_pack(**probeTransport, context, { }, badHelpExit, limits, { }) && badHelpExit.Received.empty(), "arbitrary nonzero help exit cannot qualify even with required tokens");
+		for (const std::string_view exit : { "0", "129" }) {
+			write(root / "git-help-exit", exit);
+			recording_pack_sink qualified{ core::git_hash_algorithm::sha1 };
+			expect(application::acquire_git_protocol_v2_pack(**probeTransport, context, { }, qualified, limits, { }).has_value() && qualified.Finished, "only completed success and documented help exit qualify");
+		}
+		std::filesystem::remove(root / "git-help");
+		std::filesystem::remove(root / "git-help-exit");
+		write(root / "overflow-git-help", "1");
+		recording_pack_sink boundedHelp{ core::git_hash_algorithm::sha1 };
+		const auto          overflowingHelp      = application::acquire_git_protocol_v2_pack(**probeTransport, context, { }, boundedHelp, limits, { });
+		const auto*         overflowingHelpError = overflowingHelp ? nullptr : std::get_if<application::git_smart_transport_error>(&overflowingHelp.error());
+		expect(overflowingHelpError && overflowingHelpError->Failure == application::git_smart_transport_failure::response_limit && overflowingHelpError->Step == application::git_smart_transport_step::git_capability_probe && boundedHelp.Received.empty(), "capability output has a strict 16 KiB bound and never publishes partial pack bytes");
+		std::filesystem::remove(root / "overflow-git-help");
+		write(root / "wait-git-help", "1");
+		{
+			std::stop_source    stop;
+			std::jthread        cancel{ [&] { std::this_thread::sleep_for(std::chrono::milliseconds{400}); stop.request_stop(); } };
+			recording_pack_sink cancelledSink{ core::git_hash_algorithm::sha1 };
+			const auto          started = std::chrono::steady_clock::now();
+			const auto          result  = application::acquire_git_protocol_v2_pack(**probeTransport, context, { }, cancelledSink, limits, stop.get_token());
+			const auto*         error   = result ? nullptr : std::get_if<application::git_smart_transport_error>(&result.error());
+			expect(error && error->Failure == application::git_smart_transport_failure::cancelled && cancelledSink.Received.empty() && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 3 }, "running capability cancellation is bounded, reaped and publishes nothing");
+		}
+		recording_pack_sink timedOutSink{ core::git_hash_algorithm::sha1 };
+		const auto          timedOutHelp  = application::acquire_git_protocol_v2_pack(**probeTransport, context, { }, timedOutSink, limits, { });
+		const auto*         timedOutError = timedOutHelp ? nullptr : std::get_if<application::git_smart_transport_error>(&timedOutHelp.error());
+		expect(timedOutError && timedOutError->Failure == application::git_smart_transport_failure::timeout && timedOutError->Step == application::git_smart_transport_step::git_capability_probe && timedOutSink.Received.empty(), "capability probe deadline preserves a typed timeout without publishing content");
+		std::filesystem::remove(root / "wait-git-help");
 		write(root / "fail-git-version", "1");
 		auto                failedProbeTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
 		recording_pack_sink failedProbeSink{ core::git_hash_algorithm::sha1 };
@@ -398,7 +492,7 @@ namespace {
 		auto                reopenedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
 		recording_pack_sink reopenedSink{ core::git_hash_algorithm::sha1 };
 		expect(application::acquire_git_protocol_v2_pack(**reopenedTransport, context, { }, reopenedSink, limits, { }).has_value() && reopenedSink.Finished,
-			   "recreated authority recovers once synthetic qualification facts match");
+			   "recreated authority recovers with capabilities instead of exact version equality");
 
 		auto transport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, context, [] { return true; });
 		expect(transport.has_value(), "acquire");
@@ -469,8 +563,17 @@ namespace {
 		git(root, { "init", "--bare", QString::fromStdString(verify.string()) });
 		const auto verifyScope = "--git-dir=" + QString::fromStdString(verify.string());
 		git(root, { verifyScope, "index-pack", "--strict", "--stdin" }, pack);
-		expect(git(root, { verifyScope, "cat-file", "-p", QString::fromStdString(core::canonical_hex(context.Revision.Head).view().data()) + ":file.txt" }) == "complete local contents", "pack contains verified full file contents");
-		write(root / "sparse-omitted", blob.toStdString() + "\n" + ancestor.toStdString() + "\n");
+		for (const auto& [revision, expectedPrimary, expectedSecondary] : std::array<std::array<QByteArray, 3U>, 2U>{ { { base, "complete local contents", "secondary base contents" }, { head, "changed local contents", "secondary head contents" } } }) {
+			expect(git(root, { verifyScope, "cat-file", "-p", QString::fromUtf8(revision) + ":file.txt" }) == expectedPrimary
+					   && git(root, { verifyScope, "cat-file", "-p", QString::fromUtf8(revision) + ":secondary.txt" }) == expectedSecondary,
+				   "strictly imported pack contains exact independently created contents for both files at both accepted endpoints");
+		}
+		expect(git(root, { verifyScope, "rev-parse", QString::fromUtf8(base) + ":file.txt" }) == blob
+				   && git(root, { verifyScope, "rev-parse", QString::fromUtf8(head) + ":file.txt" }) == changedBlob
+				   && git(root, { verifyScope, "rev-parse", QString::fromUtf8(base) + ":secondary.txt" }) == secondaryBlob
+				   && git(root, { verifyScope, "rev-parse", QString::fromUtf8(head) + ":secondary.txt" }) == changedSecondaryBlob,
+			   "each imported file preserves its independently generated exact blob identity");
+		write(root / "sparse-omitted", blob.toStdString() + "\n" + changedBlob.toStdString() + "\n" + secondaryBlob.toStdString() + "\n" + changedSecondaryBlob.toStdString() + "\n" + ancestor.toStdString() + "\n");
 		write(root / "version", "gh version 2.101.0 (fixture)\n");
 		auto sparseContext                  = context;
 		sparseContext.AcquisitionMode       = application::git_smart_acquisition_mode::sparse_commit_trees;
@@ -511,6 +614,19 @@ namespace {
 		const application::detail::git_protocol_v2_capabilities capabilities{ .ObjectFormat = core::git_hash_algorithm::sha1, .LsRefs = true, .Fetch = true };
 		auto                                                    request = application::detail::make_git_protocol_v2_fetch_request(context, capabilities, { });
 		expect(request.has_value(), "fetch request");
+		for (const auto field : { 0U, 1U, 2U, 3U }) {
+			auto staleContext = context;
+			switch (field) {
+			case 0U: staleContext.Authority.Account = core::github_account_id{ 999U }; break;
+			case 1U: staleContext.Authority.Host = core::git_host_id{ 999U }; break;
+			case 2U: staleContext.Revision.Head = oid<core::git_commit_oid>(99U); break;
+			case 3U: staleContext.Revision.Source.Snapshot = core::provider_snapshot_id{ 999U }; break;
+			default: expect(false, "known stale authority field"); break;
+			}
+			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
+			const auto          staleResult = application::acquire_git_protocol_v2_pack(**transport, staleContext, { }, refused, limits, { });
+			expect(!staleResult && refused.Received.empty() && !refused.Finished, "qualification cannot widen account, host, accepted head or source-observation authority");
+		}
 		discard     consumer;
 		auto        wrong    = *request;
 		const auto  baseText = base.toStdString();
@@ -559,10 +675,10 @@ int main(int argc, char** argv)
 try {
 	QCoreApplication app{ argc, argv };
 	if (std::filesystem::path{ argv[0] }.filename() == "gh") {
-		return fake_gh(app.arguments());
+		return fake_gh(QCoreApplication::arguments());
 	}
 	if (std::filesystem::path{ argv[0] }.filename() == "git") {
-		return fake_git(app.arguments());
+		return fake_git(QCoreApplication::arguments());
 	}
 	contract();
 	return 0;

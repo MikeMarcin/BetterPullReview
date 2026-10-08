@@ -909,6 +909,8 @@ namespace bpr::core {
 		/// the code says the range cannot be accepted, and the adapter that ran
 		/// Git retains the message class it named.
 		unsupported_object,
+		git_tool_unsupported,
+		git_tool_probe_failed,
 	};
 
 	/// \brief Describes the epoch catalog load failed event record.
@@ -1386,6 +1388,8 @@ namespace bpr::core {
 		cancelled,
 		cancellation_after_point_of_no_return,
 		unsupported_object,
+		git_tool_unsupported,
+		git_tool_probe_failed,
 	};
 
 	/// \brief Computes the reason for result.
