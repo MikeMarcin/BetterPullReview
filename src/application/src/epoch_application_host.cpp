@@ -384,6 +384,20 @@ namespace bpr::application {
 			return core::epoch_failure::unavailable;
 		}
 
+		[[nodiscard]] auto smart_transport_failure(const git_smart_transport_error& aFailure) noexcept
+			-> core::epoch_failure
+		{
+			switch (aFailure.Step) {
+			case git_smart_transport_step::git_version:
+			case git_smart_transport_step::git_capability_probe:
+				return core::epoch_failure::git_tool_probe_failed;
+			case git_smart_transport_step::git_qualification:
+				return core::epoch_failure::git_tool_unsupported;
+			default:
+				return core::epoch_failure::unavailable;
+			}
+		}
+
 		[[nodiscard]] auto catalog_key(
 			const accepted_pull_request_handoff& aHandoff)
 			-> epoch_catalog_authority_key
@@ -5880,7 +5894,7 @@ namespace bpr::application {
 								|| transport.error().Failure
 									== git_smart_transport_failure::cancelled
 							? cancelPrepared()
-							: failPrepared(core::epoch_failure::unavailable);
+							: failPrepared(smart_transport_failure(transport.error()));
 					}
 					if (!*transport) {
 						(*sink)->abort();
@@ -5945,9 +5959,12 @@ namespace bpr::application {
 									   acquisition.error())
 										.Failure
 									== git_smart_transport_failure::cancelled);
+						const auto* transportFailure = std::get_if<git_smart_transport_error>(&acquisition.error());
 						return wasCancelled
 							? cancelPrepared()
-							: failPrepared(core::epoch_failure::unavailable);
+							: failPrepared(transportFailure != nullptr
+											   ? smart_transport_failure(*transportFailure)
+											   : core::epoch_failure::unavailable);
 					}
 					const auto inventory = diagnostics.perform(
 						diagnostic_epoch_stage::cache_inventory,

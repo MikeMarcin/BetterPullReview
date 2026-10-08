@@ -205,6 +205,40 @@ namespace {
 		}
 	}
 
+	void test_git_capability_step_export()
+	{
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const std::string_view step : { "git_capability_probe", "git_capability_probe_PRIVATE_CANARY" }) {
+				auto       line     = structured_line(1U, true);
+				const auto position = line.find("\"git_step\":\"none\"");
+				expect(position != std::string::npos, "closed Git step fixture field exists");
+				line.replace(position, std::string_view{ "\"git_step\":\"none\"" }.size(), "\"git_step\":\"" + std::string{ step } + "\"");
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				expect(document && document->Descriptor.Records == (step == "git_capability_probe" ? 1U : 0U)
+						   && document->Bytes.find("PRIVATE_CANARY") == std::string::npos,
+					   "both export policies admit only the closed capability-probe stage name");
+			}
+		}
+	}
+
+	void test_git_tool_failure_export()
+	{
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const std::string_view failure : { "git_tool_unsupported", "git_tool_probe_failed", "git_tool_PRIVATE_CANARY" }) {
+				auto       line     = structured_line(1U, true);
+				const auto position = line.find("\"failure\":\"none\"");
+				expect(position != std::string::npos, "closed Git failure fixture field exists");
+				line.replace(position, std::string_view{ "\"failure\":\"none\"" }.size(), "\"failure\":\"" + std::string{ failure } + "\"");
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				expect(document && document->Descriptor.Records == (failure == "git_tool_PRIVATE_CANARY" ? 0U : 1U)
+						   && document->Bytes.find("PRIVATE_CANARY") == std::string::npos,
+					   "both export policies admit only the two closed actionable Git failure names");
+			}
+		}
+	}
+
 	void test_rich_export()
 	{
 		using policy = core::diagnostic_export_policy;
@@ -384,6 +418,8 @@ auto main() -> int
 {
 	test_parser();
 	test_actor_conflict_export();
+	test_git_capability_step_export();
+	test_git_tool_failure_export();
 	test_rich_export();
 	test_preview_export();
 	test_cancel_invalidate_and_shutdown();

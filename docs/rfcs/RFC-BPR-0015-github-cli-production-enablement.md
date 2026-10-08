@@ -336,8 +336,10 @@ The later [RFC0065 owner amendment](RFC-BPR-0065-ghes-exact-file-comparison.md#o
 supersedes the exact Git-banner admission policy and the earlier
 installation-only extension above. Implement the required Git operations with
 bounded capability checks and a documented minimum only where necessary.
-The currently shipped gate remains historical/current behavior until the
-repair is integrated; this amendment itself is not native qualification.
+RFC0065 integrates a Git 2.49 minimum for `clone --revision` and bounded
+required-capability admission, followed by the existing exact clone/object/pack
+checks. The old exact banner remains historical qualification evidence; this
+policy alone is not qualification of every newer installation.
 Existing CLI opt-in, process confinement, bounded stores, exact objects,
 credentials, account identity, cancellation and stale-result requirements
 remain. New installed-tool and real affected-PR evidence belongs to BPR-1320

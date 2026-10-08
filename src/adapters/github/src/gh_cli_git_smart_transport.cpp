@@ -29,6 +29,49 @@ namespace bpr::adapters::github::detail {
 			.Fetch        = true,
 		};
 
+		// Git 2.49 introduced clone --revision, which keeps acquisition on exact accepted IDs.
+		[[nodiscard]] auto supports_exact_revision_version(std::string_view aBanner) -> bool
+		{
+			constexpr std::string_view prefix = "git version ";
+			if (!aBanner.starts_with(prefix)) {
+				return false;
+			}
+			aBanner.remove_prefix(prefix.size());
+			std::array<unsigned, 3U> version{ };
+			for (std::size_t index = 0U; index < version.size(); ++index) {
+				const auto parsed = std::from_chars(aBanner.data(), aBanner.data() + aBanner.size(), version[index]);
+				if (parsed.ec != std::errc{ } || parsed.ptr == aBanner.data()) {
+					return false;
+				}
+				aBanner.remove_prefix(static_cast<std::size_t>(parsed.ptr - aBanner.data()));
+				if (index + 1U < version.size()) {
+					if (aBanner.empty() || aBanner.front() != '.') {
+						return false;
+					}
+					aBanner.remove_prefix(1U);
+				}
+			}
+			return (aBanner.empty() || aBanner.front() == ' ' || aBanner.front() == '\n' || aBanner.front() == '.' || aBanner.front() == '-')
+				&& (version[0U] > 2U || (version[0U] == 2U && version[1U] >= 49U));
+		}
+
+		[[nodiscard]] auto clone_option_available(std::string_view aHelp, std::string_view aOption) -> bool
+		{
+			for (const std::string_view prefix : { "--", "--[no-]" }) {
+				const auto token    = std::string{ prefix } + std::string{ aOption };
+				const auto position = aHelp.find(token);
+				if (position == std::string_view::npos) {
+					continue;
+				}
+				const auto end = position + token.size();
+				if ((position == 0U || aHelp[position - 1U] == ' ' || aHelp[position - 1U] == '\n')
+					&& (end == aHelp.size() || aHelp[end] == ' ' || aHelp[end] == '=' || aHelp[end] == '\n')) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		[[nodiscard]] auto bytes(std::string_view aText) -> std::vector<std::byte>
 		{
 			const auto span = std::as_bytes(std::span{ aText.data(), aText.size() });
@@ -66,8 +109,9 @@ namespace bpr::adapters::github::detail {
 			bool                              done  = false;
 			while (remaining.size() >= 4U) {
 				unsigned   length = 0U;
-				const auto parsed = std::from_chars(remaining.data(), remaining.data() + 4U, length, 16);
-				if (parsed.ec != std::errc{ } || parsed.ptr != remaining.data() + 4U) {
+				const auto header = remaining.substr(0U, 4U);
+				const auto parsed = std::from_chars(header.data(), header.data() + header.size(), length, 16);
+				if (parsed.ec != std::errc{ } || parsed.ptr != header.data() + header.size()) {
 					return std::nullopt;
 				}
 				if (length == 0U) {
@@ -398,18 +442,49 @@ namespace bpr::adapters::github::detail {
 				if (!before) {
 					return std::unexpected{ before.error() };
 				}
-				aStep                  = git_smart_transport_step::cli_version;
-				const auto ghVersion   = process->run(compile_gh_cli_version_request(Configuration), aStop);
-				aStep                  = git_smart_transport_step::git_version;
-				const auto gitVersion  = process->run(local_request(root, { "--version" }), aStop);
-				const auto supportedGh = ghVersion && (ghVersion->StandardOutput.starts_with("gh version 2.100.0 ") || ghVersion->StandardOutput.starts_with("gh version 2.101.0 "));
-				if (!supportedGh || !gitVersion
-					|| gitVersion->StandardOutput != "git version 2.50.1 (Apple Git-155)\n") {
-					aStep = !ghVersion ? git_smart_transport_step::cli_version
-						: !gitVersion  ? git_smart_transport_step::git_version
-						: !supportedGh ? git_smart_transport_step::cli_qualification
-									   : git_smart_transport_step::git_qualification;
-					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::unavailable } };
+				aStep                = git_smart_transport_step::cli_version;
+				const auto ghVersion = process->run(compile_gh_cli_version_request(Configuration), aStop);
+				if (!ghVersion) {
+					return std::unexpected{ git_smart_transport_error{ process_error(ghVersion.error()) } };
+				}
+				aStep = git_smart_transport_step::cli_qualification;
+				if (!ghVersion->StandardOutput.starts_with("gh version 2.100.0 ") && !ghVersion->StandardOutput.starts_with("gh version 2.101.0 ")) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				aStep                              = git_smart_transport_step::git_version;
+				auto versionRequest                = local_request(root, { "--version" });
+				versionRequest.StandardOutputLimit = 4096U;
+				versionRequest.Timeout             = std::chrono::seconds{ 10 };
+				const auto gitVersion              = process->run(versionRequest, aStop);
+				if (!gitVersion) {
+					return std::unexpected{ git_smart_transport_error{ process_error(gitVersion.error()) } };
+				}
+				aStep = git_smart_transport_step::git_qualification;
+				if (!supports_exact_revision_version(gitVersion->StandardOutput)) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				aStep                                 = git_smart_transport_step::git_capability_probe;
+				auto capabilityRequest                = local_request(root, { "clone", "-h" });
+				capabilityRequest.StandardOutputLimit = 16U * 1024U;
+				capabilityRequest.Timeout             = std::chrono::seconds{ 10 };
+				// clone -h conventionally returns 129. Only this completed local help probe
+				// opts in; failure/timeout/cancellation/limit paths never expose partial output.
+				capabilityRequest.PreserveCompletedOutput = true;
+				const auto capability                     = process->run(capabilityRequest, aStop);
+				if (!capability) {
+					return std::unexpected{ git_smart_transport_error{ process_error(capability.error()) } };
+				}
+				if (capability->ExitCode != 0 && capability->ExitCode != 129) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				aStep = git_smart_transport_step::git_qualification;
+				if (!clone_option_available(capability->StandardOutput, "revision")
+					|| !clone_option_available(capability->StandardOutput, "bare")
+					|| !clone_option_available(capability->StandardOutput, "template")
+					|| !clone_option_available(capability->StandardOutput, "config")
+					|| (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees
+						&& (!clone_option_available(capability->StandardOutput, "filter") || !clone_option_available(capability->StandardOutput, "depth")))) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
 				for (std::size_t index = 0U; index < aWants.size(); ++index) {
 					aStep = git_smart_transport_step::admission;

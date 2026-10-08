@@ -83,6 +83,10 @@ namespace bpr::qt {
 			case core::epoch_reason_code::catalog_revision_exhausted:
 			case core::epoch_reason_code::comparison_revision_exhausted:
 				return QStringLiteral("A review-history identity limit was reached.");
+			case core::epoch_reason_code::git_tool_unsupported:
+				return QStringLiteral("Configure Git 2.49 or later with exact revision cloning, then retry.");
+			case core::epoch_reason_code::git_tool_probe_failed:
+				return QStringLiteral("The configured Git could not be checked. Check its executable and retry.");
 			case core::epoch_reason_code::unavailable:
 				return QStringLiteral("The exact comparison is unavailable.");
 			case core::epoch_reason_code::catalog_conflict:

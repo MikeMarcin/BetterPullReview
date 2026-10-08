@@ -26,7 +26,10 @@ the functional core or Qt presentation adapter.
   `github_wire_transport.hpp` standard-C++-only. The process result may expose
   bounded stdout only on clean success. The explicitly opted-in completed
   `gh api --include` HTTP response path may carry a bounded nonzero
-  exit code so the adapter can normalize an HTTP error. Crashes, cancellation,
+  exit code so the adapter can normalize an HTTP error. The closed local
+  `git clone -h` capability probe may preserve its bounded completed stdout
+  and documented help exit 129; it carries no credentials or repository input.
+  No other local Git request opts into nonzero output. Crashes, cancellation,
   timeouts, limits and unrelated process requests expose fixed categories, not
   stderr, `QProcess::errorString()`, arguments, environment, paths, exit
   diagnostics, or partial output. No raw response is logged.
@@ -62,8 +65,12 @@ the functional core or Qt presentation adapter.
   may serve the bounded cloned object store through closed protocol v2
   arguments, without network, helper, hooks or repository-controlled executable
   configuration; it runs only in the GitHub CLI process runner.
-  The macOS Git-object implementation accepts only the directly checked
-  `gh` 2.100.0 or 2.101.0 with Apple Git 2.50.1 (Apple Git-155), enforces a
+  The macOS Git-object implementation retains the directly checked
+  `gh` 2.100.0 or 2.101.0. The RFC0065 owner amendment replaces exact Git
+  vendor/banner equality with bounded required-operation checks and a minimum
+  Git 2.49 for `clone --revision`. Direct installed-tool evidence remains
+  installation-specific; capability admission is not universal native qualification.
+  It enforces a
   32 MiB per-file ceiling, and
   supervises a 96 MiB/128-entry temporary-store abort threshold. The latter
   is not a hard aggregate disk quota. Snapshot-derived local refs do not

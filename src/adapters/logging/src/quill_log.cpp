@@ -136,6 +136,8 @@ namespace bpr::adapters::logging {
 			case core::epoch_failure::repair_required:       return "repair_required";
 			case core::epoch_failure::process_failure:       return "process_failure";
 			case core::epoch_failure::unsupported_object:    return "unsupported_object";
+			case core::epoch_failure::git_tool_unsupported:  return "git_tool_unsupported";
+			case core::epoch_failure::git_tool_probe_failed: return "git_tool_probe_failed";
 			}
 			return "unknown";
 		}
@@ -512,7 +514,7 @@ namespace bpr::adapters::logging {
 			const auto                                        stage = static_cast<std::size_t>(aEvent.EpochStage);
 			static constexpr std::array<std::string_view, 10> stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare" };
 			static constexpr std::array<std::string_view, 6>  domains{ "none", "catalog", "cache", "transport", "protocol", "epoch" };
-			static constexpr std::array<std::string_view, 15> gitSteps{ "none", "admission", "temporary_store", "process_runner", "identity_before", "cli_version", "git_version", "cli_qualification", "git_qualification", "clone", "object_check", "identity_after", "local_store", "local_pack", "pack_read" };
+			static constexpr std::array<std::string_view, 16> gitSteps{ "none", "admission", "temporary_store", "process_runner", "identity_before", "cli_version", "git_version", "cli_qualification", "git_qualification", "clone", "object_check", "identity_after", "local_store", "local_pack", "pack_read", "git_capability_probe" };
 			const auto                                        gitStep = static_cast<std::size_t>(aEvent.GitStep);
 			const auto                                        summary = static_cast<std::size_t>(aEvent.Summary.State);
 			if ((aEvent.Detail != application::diagnostic_detail::standard && aEvent.Detail != application::diagnostic_detail::verbose) || gitStep >= gitSteps.size() || transportSource >= transportSources.size() || (aEvent.HttpStatus != 0U && (aEvent.HttpStatus < 100U || aEvent.HttpStatus > 599U)) || stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || aEvent.GithubFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || paged >= paged_operations.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size() || (aEvent.Summary.Size != 0U && aEvent.Summary.State != application::diagnostic_summary_state::sanitized)
