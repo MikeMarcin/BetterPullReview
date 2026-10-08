@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1329"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "P1 bug: inline comment publish after gh consent shows no visible result",
+  "created": "2026-10-08T18:26:53.207937+00:00",
+  "base": "1e277adcc9135561d5c119fc64f0ee0bd052db6f"
+}
