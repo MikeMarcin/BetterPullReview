@@ -178,16 +178,16 @@ optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`):
   `application_private_review_native` failed once at the base and once with
   this change, and passed on the rerun.
 
-## Owner question (pending)
+## Owner decision (chat, 2026-10-08)
 
-Preparation reads, over the network, the contents of up to 16 files around
-the cursor that the reviewer may never open: at most 512 KiB a file, in
-batches of 16, one GraphQL point and four account reads a batch. Accept or
-Reject: keep network preparation always on, with no setting (reject, with a
-note, to add a setting such as "Prepare files ahead on metered
-connections").
+The question: preparation reads, over the network, the contents of up to 16
+files around the cursor that the reviewer may never open: at most 512 KiB a
+file, in batches of 16, one GraphQL point and four account reads a batch.
 
-## Continuation
+> Question: "Should preparation always fetch file contents … Accept to keep it
+> always on; Reject … to add a setting"
+>
+> Owner's answer: "Always on (Recommended)"
 
-Code is complete for AC1–AC5 pending the owner's answer above; closing the
-card needs that answer, then `finish`.
+Network preparation stays always on, with no setting. Nothing in the code
+changes for the answer.
