@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0063"]
 depends_on: ["BPR-1313"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r4"}
-acceptance: [{"criterion":"C1","outcome":"pass","revision":"980c088733bbed1938ad322f851f5e4e9fc4e7cb","evidence":{"kind":"command","detail":"All10focused Overview/reader/composed rows pass; exact keyboard/contextSelectAll copy with collapsed cursor/sentinel in rendered/source/262144Bfallback preserves CRLF/fences/links/Unicode/trailingblanks, sourcepartial originalbytes, renderedpartial equivalentMarkdown perowner amendment, noHTMLMIME. Retainedresize/persistence/authority/fileidentity/model/providerwrite controls pass. Selfcontained exactfrozenpublic3/3 pass16.34s, unchanged architecture/coreboundaries3/3 cleanexport pass12.10s. Format/changedline tidy pass;12offscreenpreviews inspected, nativeappearance unclaimed."}},{"criterion":"C2","outcome":"pending","revision":"980c088733bbed1938ad322f851f5e4e9fc4e7cb:8555f3b60861b83f7b318d582a4cfbab2f1ba32c2ab24203d8d4b75ae6233623:0536774777e1f3f25f5f5d96e67743c1c963bb183680456430b10b94ab370aec","evidence":{"kind":"artifact","detail":"Fresh ready/protected session0b30e747d6abc3cfdb73b8e7753a1b79 cursor3 candidateBPR-1314-overview-v002 fingerprint3a57f91c6334ee7b3ea4a3df56f7bcf451d84813dcc73fcb47e57823a229da18. Server98005/PID15097 URL in overview-review-runtime-v002.json; source/build/cache own frozenroot. OneAccept/Reject owner/nativeinput/VoiceOver/appearance judgment pending; priorv001 Reject remainsboundtov001 only. Coordinator/root owns server/intake; no verdict consumed or inferred."}}]
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"9fa43a9b3c05b903e015a42b4f25750cf0c7b8d3","evidence":{"kind":"command","detail":"v003 correction: all10 focused Overview/reader/composed rows pass (24s) incl. new toggle-in-reader-corner and reader-right-edge==Files-right-edge assertions in normal/full/return; exact Select All copy, source partial exact, rendered partial equivalent, no HTML MIME retained. Self-contained exact frozen public 3/3 pass 14.16s; clean-export core/architecture boundaries 3/3 pass 11.37s. Format and changed-line tidy pass; 12 offscreen previews inspected (reader and Files share right edge ~962px vs v002 reader ~930px). Native appearance unclaimed."}},{"criterion":"C2","outcome":"pending","revision":"9fa43a9b3c05b903e015a42b4f25750cf0c7b8d3:5e12d562bbcc040bdcdf031093e5daee1759dfa0b6de5f67f6bcf51032a0de0b:0536774777e1f3f25f5f5d96e67743c1c963bb183680456430b10b94ab370aec","evidence":{"kind":"artifact","detail":"v002 Reject consumed (decision 46ae88c6, session 0b30e747 cursor 5, note: horizontal space wasted). Fresh session 3a8115e690eed93b0fa8d23de6e3bbfa cursor 3, candidate BPR-1314-overview-v003 fingerprint 32a89710658fe5904c982defee8d2e0e1571b85ccc4ecdf521401e0f32167d3f, one Accept/Reject question; owner native judgment pending."}}]
 parked_on: "human-review"
 ---
 
@@ -66,3 +66,28 @@ Required owner/native judgment remains pending. The coordinator owns server
 98005/PID15097, durable intake and manual resume; no new verdict is consumed.
 The earlier v001 paragraph is historical, and its rejection remains bound to
 that exact candidate. See the current [ledger](../../verification/RFC-BPR-0062-0065.md).
+
+## v002 rejection and v003 candidate (dispatch r5, 2026-10-08)
+
+The owner rejected `BPR-1314-overview-v002` (fingerprint `3a57f91c…a229da18`)
+in session `0b30e747d6abc3cfdb73b8e7753a1b79`: decision
+`46ae88c6-606b-49f1-9e26-35108e49f5d2`, note "God awful ux waste of space
+horizontally now for no reason." (an earlier blank Reject `e1222e0e…` was
+superseded by it). Consumed through cursor 5; the session was not handed back.
+The cause was the full-view toggle occupying its own grid column beside the
+reader, so the reader ended about 30 px short of Files.
+
+`9fa43a9b3` overlays the toggle inside the reader's top-right corner, left of
+the scroll bar, filled with the reader's base colour. Only the leading
+rendered blocks beside it wrap short of it; Exit full view sits in the same
+corner. Reader and Files share one right edge. Everything the owner did not
+object to is unchanged. Tests now assert the corner placement and equal right
+edges in normal view, full view and after returning.
+
+Fresh session `3a8115e690eed93b0fa8d23de6e3bbfa` (cursor 3) holds one
+ready/protected candidate, `BPR-1314-overview-v003`, fingerprint
+`32a89710…2167d3f`, bound to source `9fa43a9b3`, frozen binary SHA-256
+`5e12d562…de0b` and launcher `05367747…aec` in the self-contained
+`artifacts/four-drafts-r1/overview-frozen-v003/`. Known limit: source view
+does not wrap, so a line ending in the last ~22 px is under the toggle until
+scrolled sideways. C2 remains pending on the owner's native judgment.
