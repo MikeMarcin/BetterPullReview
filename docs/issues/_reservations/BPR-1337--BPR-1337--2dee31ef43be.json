@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1337"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Beautify the top section of Discuss",
+  "created": "2026-10-08T20:46:55.562414+00:00",
+  "base": "e60768dc00fbb040c9f7b19677dbcb563896e612"
+}
