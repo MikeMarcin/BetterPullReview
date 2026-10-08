@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1334"
 title: "Line details: the current line, base over head, full width under the comparison"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner chat request, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1334--BPR-1334--7d299944dc95.json","related_cards":["BPR-0646","BPR-1264","BPR-1212","BPR-1330","BPR-1313"],"requested_skill":"frontend-design","acceptance":["BPR-1334:C1","BPR-1334:C2","BPR-1334:C3","BPR-1334:C4","BPR-1334:C5"]}
+parked_on: "human-review"
 ---
 
 # BPR-1334: Line details under the comparison
