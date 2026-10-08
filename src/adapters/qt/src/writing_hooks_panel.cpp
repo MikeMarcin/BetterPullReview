@@ -81,8 +81,8 @@ namespace bpr::qt {
 	void writing_hooks_panel::show_notice(std::string_view aText) { Status->setText(QString::fromUtf8(aText.data(), static_cast<qsizetype>(aText.size()))); }
 	auto writing_hooks_panel::selected_hook() const -> core::writing_hook
 	{
-		const auto data = Hook->currentData();
-		return data.isValid() ? static_cast<core::writing_hook>(data.toInt()) : core::writing_hook::problem;
+		const auto current = Hook->currentData();
+		return current.isValid() ? static_cast<core::writing_hook>(current.toInt()) : core::writing_hook::problem;
 	}
 	void writing_hooks_panel::show_hook()
 	{

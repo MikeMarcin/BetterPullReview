@@ -62,3 +62,9 @@ themes, rendering mechanics, and event translation.
 - Keep Dif resources, clip/frame state, and animation mechanics in Qt. Do not
   move them into core or the application host. Preserve the owner's requirement
   that the plus/minus prop remain separate from Dif's core base representation.
+- Do not name a local, parameter or lambda capture after a `QWidget` or
+  `QObject` member (`data`, `size`, `pos`, `rect`, `font`, `width`, `height`,
+  `geometry`, `palette`, `style`, `layout`, `parent`, `children` and the like)
+  inside a member function of a widget class. It hides the member, which MSVC
+  reports as C4458, and the project builds with warnings as errors, so Windows
+  stops compiling ([[BPR-1090]]'s `data` in `writing_hooks_panel.cpp`).
