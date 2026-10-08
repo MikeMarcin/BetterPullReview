@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1314"
 title: "Verify composed resizable Overview and prepare owner review"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0063"]
 depends_on: ["BPR-1313"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r4"}
-acceptance: [{"criterion":"C1","outcome":"pass","revision":"3e7376512","evidence":{"kind":"command","detail":"v004 (non-checkable toggle, Exit keeps Enter style): 10 focused Overview/reader/composed rows run; 9 pass first run, application_overview_summary_1_25 failed once at 'file activation reaches a real composed source comparison' (TEST_RUNNER_CHILD_EXIT -6, 23.75s), then passed 3/3 reruns (~4s) - intermittent, in the file-comparison step, not the toggle. Frozen self-contained public 3/3 pass 14.87s; clean-export boundaries 3/3 pass 11.93s. Format and changed-line tidy pass. Offscreen dark full-reader render shows Exit glyph with no fill."}},{"criterion":"C2","outcome":"pending","revision":"3e7376512:1e7a5c1bd9f4c1169fc45b7bc53db4ef69ba826acbf8d0f2bea85ff7b2d50e6a:0536774777e1f3f25f5f5d96e67743c1c963bb183680456430b10b94ab370aec","evidence":{"kind":"artifact","detail":"v003 Reject consumed (decision a4f6a81d, session 3a8115e6, handed back cursor 5). Fresh session 98de418935ba1aae897bf1379f9771cc cursor 3, candidate BPR-1314-overview-v004 fingerprint bf8d70c2bbee4a617c6728c8b0a3b9db236e78a1a8499730f5cbbf0eee3a73c5; owner judgment pending."}}]
-parked_on: "human-review"
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"5136398e39f94b85969785a5ec707a2ab6866316","evidence":{"kind":"command","detail":"v004 source 3e7376512: 10 focused Overview/reader/composed rows plus frozen public 3/3 and boundaries 3/3; rerun at clean export of HEAD 5136398e3 after later Home/read-model commits: qt_pull_request_overview_page, qt_markdown_body x3, qt_composed_markdown x3, application_overview_summary x3, core/architecture boundaries 13/13 pass (35s)."}},{"criterion":"C2","outcome":"pass","revision":"3e7376512:1e7a5c1bd9f4c1169fc45b7bc53db4ef69ba826acbf8d0f2bea85ff7b2d50e6a:0536774777e1f3f25f5f5d96e67743c1c963bb183680456430b10b94ab370aec","evidence":{"kind":"observation","detail":"Owner Accept on native macOS frozen build: session 98de418935ba1aae897bf1379f9771cc, candidate BPR-1314-overview-v004 fingerprint bf8d70c2..., decision e4b2ef3c-5806-44b9-8c9e-50174cfec4ce, no note, handed back cursor 5. VoiceOver and Windows/Linux native not claimed."}}]
 ---
 
 # Verify composed resizable Overview and prepare owner review
@@ -116,3 +115,20 @@ Fresh session `98de418935ba1aae897bf1379f9771cc` (cursor 3) holds
 `BPR-1314-overview-v004`, fingerprint `bf8d70c2…a73c5`, bound to `3e7376512`,
 frozen binary `1e7a5c1b…0e6a` and launcher `05367747…aec` in
 `artifacts/four-drafts-r1/overview-frozen-v004/`. C2 remains pending.
+
+## v004 owner acceptance (dispatch r5, 2026-10-08)
+
+The owner accepted `BPR-1314-overview-v004` (fingerprint
+`bf8d70c2bbee4a617c6728c8b0a3b9db236e78a1a8499730f5cbbf0eee3a73c5`) in
+session `98de418935ba1aae897bf1379f9771cc`: decision
+`e4b2ef3c-5806-44b9-8c9e-50174cfec4ce`, outcome Accept, no note, handed back
+at cursor 5. The accepted candidate is source `3e7376512` with frozen binary
+`1e7a5c1b…0e6a` on native macOS. Because code hosting the Overview changed
+afterwards (Home and GitHub read-model commits), the ten focused rows were
+rerun in a clean export of `5136398e39f94b85969785a5ec707a2ab6866316`:
+`qt_pull_request_overview_page`, `qt_markdown_body_{1_0,1_25,2_0}`,
+`qt_composed_markdown_{1_0,1_25,2_0}` and
+`application_overview_summary_{1,1_25,2}` all pass, together with the core
+and architecture boundaries (13/13, 35 s). The intermittent v004
+file-comparison failure did not recur. VoiceOver and Windows/Linux native
+behaviour are not claimed.
