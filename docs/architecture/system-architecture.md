@@ -817,7 +817,8 @@ three steps, each inside an existing bound:
   only room the reviewer's comparisons leave free, and give way first when the
   reviewer needs room. A request for the comparison being prepared waits for
   it; a request for any other stops it. Opening a prepared file is a cache hit:
-  one decision turn, no Git, no network and no computation.
+  one decision turn, no Git, no network and no computation. It is presented
+  as the reviewer's first look at the file, not as a cached revisit.
 
 A new window cancels the previous preparation; invalidation of the pull
 request or account cancels it and discards its queue and cache entries; window

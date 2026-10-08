@@ -592,7 +592,7 @@ namespace bpr::application {
 							.Reason   = core::diff_reason_code::none,
 							.Result   = cached->Result,
 							.Index    = cached->Index,
-							.CacheHit = true,
+							.CacheHit = !cached->Prepared,
 						});
 					} else {
 						execute(request);
@@ -728,13 +728,16 @@ namespace bpr::application {
 			}
 			if (const auto cached = lookup(aRequest); cached.has_value()) {
 				PreparedHits += cached->Prepared ? 1U : 0U;
+				// [[BPR-1327]]. A prepared comparison is the reviewer's first
+				// look at the file, not a return to one: it is not presented
+				// as cached.
 				post_local(staged_diff_completion{
 					.Context  = aRequest.Context,
 					.Options  = aRequest.Options,
 					.Reason   = core::diff_reason_code::none,
 					.Result   = cached->Result,
 					.Index    = cached->Index,
-					.CacheHit = true,
+					.CacheHit = !cached->Prepared,
 				});
 				return;
 			}

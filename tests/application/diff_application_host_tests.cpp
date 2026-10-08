@@ -369,11 +369,17 @@ namespace {
 		expect(test.Effects.pending() == 0U && test.Decisions.pending() == 1U,
 			   "opening a prepared file needs no effect, only one decision turn");
 		test.Decisions.run_next();
-		expect(test.Projections.Results.size() == 1U && test.Projections.Results.back().CacheHit
-				   && test.Blobs.Requests.size() == reads,
-			   "opening a prepared file publishes from the cache without reading a blob");
+		expect(test.Projections.Results.size() == 1U && !test.Projections.Results.back().CacheHit
+				   && test.Blobs.Requests.size() == reads && test.Host->prepared_hits() == 1U,
+			   "opening a prepared file publishes from the cache without reading a blob, as a first look rather than a cached one");
 		expect(test.Host->prepared_entries() == 1U && test.Host->cache_entries() == 2U,
 			   "the opened comparison becomes the reviewer's and leaves the prepared share");
+		test.request(comparison_key({ }, 32U));
+		test.Decisions.run_next();
+		test.request(comparison_key({ }, 31U));
+		test.Decisions.run_next();
+		expect(test.Projections.Results.back().CacheHit && test.Host->prepared_hits() == 2U,
+			   "returning to a file the reviewer has opened is presented as cached");
 	}
 
 	auto test_preparation_yields_to_the_reviewer() -> void
@@ -407,8 +413,8 @@ namespace {
 		expect(test.Effects.pending() == 1U && test.Host->outstanding_jobs() == 1U,
 			   "the reviewer's request adopts the preparation instead of computing it again");
 		settle(test);
-		expect(test.Projections.Results.size() == 1U && test.Projections.Results.back().CacheHit
-				   && test.Blobs.Requests.size() == 2U,
+		expect(test.Projections.Results.size() == 1U && !test.Projections.Results.back().CacheHit
+				   && test.Blobs.Requests.size() == 2U && test.Host->prepared_hits() == 1U,
 			   "the adopted comparison is published once, from one computation");
 		expect(test.Host->state().Current && test.Host->prepared_entries() == 0U && test.Host->cache_entries() == 1U,
 			   "it is the reviewer's comparison now");

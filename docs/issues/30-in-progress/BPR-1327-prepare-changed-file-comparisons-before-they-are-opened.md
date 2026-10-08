@@ -40,15 +40,19 @@ FIFO:
    materialization port. The network bytes are never retained, so it repeats
    step 2's network reads.
 
-Measured live against `MikeMarcin/BPR-Test` pull request 40 (3 files), with
-the shipped command shape, 8 blob reads: 1,196–1,538 ms per blob (viewer
-372–557 ms, blob 421–689 ms, viewer 379–557 ms). A modified file therefore
-waits about 2.6 s for its two blobs before the diff can appear, and the
-classifier's repeated reads add another 2.6 s on the same FIFO. A revisit
-after the diff cache evicts the file pays it all again.
+Measured live against `MikeMarcin/BPR-Test` pull request 40 (3 files, 4
+blobs) with `gh` 2.101.0. The transport's own shape (viewer, blob, viewer)
+costs 1,196–1,538 ms per blob; through the CLI account-observation wrapper,
+which adds a viewer read on each side, the shipped read is five `gh` calls and
+costs 1,616–1,861 ms per blob. A modified file therefore waits about 3.4 s for
+its two blobs before the diff can appear, and the classifier's repeated reads
+add as much again on the same FIFO. A revisit after the diff cache evicts the
+file pays it all again.
 
-One GraphQL query reading the same four blobs by OID took 488–628 ms
-(cost 1 point), and every returned text hashed to its blob OID.
+One GraphQL query reading the same four blobs by OID took 488–628 ms (cost 1
+point), 1,881 ms with the same four account observations around it, and every
+returned text hashed to its blob OID. The exact variables-only query the
+transport compiles was checked live the same way.
 
 ## Acceptance
 
@@ -70,6 +74,119 @@ One GraphQL query reading the same four blobs by OID took 488–628 ms
 - AC5 (tests): prepared-file open latency, cancellation, budget caps and the
   large-review window each have a test that fails before the change.
 
+## Design (2026-10-08)
+
+The [system architecture](../../architecture/system-architecture.md#concurrency-and-stale-work)
+records the design. In short:
+
+- **Order** (`core::prepared_comparison_order`): current file, the files after
+  it, then the ones before it, in a window of 16. Up to 16 files the whole
+  review; beyond, the window around the cursor, moving with it.
+- **Resolution** (`epoch_application_host::prepare`, on a new `PrepareEffects`
+  worker): each file is resolved on the repository actor as an open would be
+  and kept as a prepared grant (at most 64), dropped with the selected grant.
+  Opening a prepared file reuses it without Git.
+- **Blobs**, sparse reviews only: the grants' missing blobs are read in
+  batches of at most 16 (each at most 512 KiB) through
+  `git_smart_transport_port::read_exact_blobs`, which the GitHub CLI transport
+  implements as one GraphQL read between one pair of account observations.
+  The network round trip runs off the actor. The host re-checks each blob's
+  SHA-1 and retains verified bytes per actor (256 blobs, 16 MiB), so the
+  classifier's second read and revisits stay local. A transport without
+  batches reads nothing ahead.
+- **Diffs** (`diff_application_host::prepare`): one at a time, only while no
+  requested comparison is outstanding, stored unpublished inside the existing
+  cache with a share of at most a quarter of its entries and an eighth of its
+  bytes (16 entries, 8 MiB), never evicting a comparison the reviewer opened
+  and evicted first. A request for the comparison being prepared waits for
+  it; any other request stops it. A prepared side is never larger than a
+  quarter of the byte share.
+- **Lifecycle**: a new window cancels the old one; pull-request or account
+  invalidation cancels it and discards queue and entries; window close stops
+  it and shutdown waits for it.
+
+## Measurements (macOS arm64 M4 Pro, Qt 6.11.2, Apple clang Release, tests-on)
+
+The machine was shared with other agents' builds throughout (load average
+45–200 on 14 cores), so timings carry that noise; before and after were run
+interleaved under the same conditions.
+
+**Small live review, live-shaped host fixture.** `application_epoch_host`'s
+`live_shaped_open_latency` runs the real epoch host over a sparse three-file
+review whose transport sleeps the measured live round trips
+(`--live-single-blob-ms=1700 --live-batch-ms=1881`). Time to have both sides'
+bytes for a modified file:
+
+| | first file | later file |
+|---|---|---|
+| before (exact single reads) | 3,407 ms | 3,425 ms |
+| after, once prepared | 0.15 ms | 0.10 ms |
+
+Preparing all three files took 1,884 ms in the background (one batch). The
+registered row runs the same course with 20/25 ms stand-ins. The classifier's
+second read of each blob, another ~3.4 s per file before, is now local.
+
+**Large review, real composition and local Git** (515 files,
+`application_large_review_prepared_open`): time until the opened file's
+comparison is on screen. Four runs at load average 20–110.
+
+| | visible |
+|---|---|
+| unprepared opens (preparation off, same window) | 77–114 ms |
+| first open, with its window being prepared | 110–155 ms |
+| later opens in the prepared window | 17.5–22.8 ms |
+
+Every prepared open was answered by its prepared comparison, and the course
+requires every prepared open to be faster than every unprepared one. In
+`application_large_review_cache_entries`, which opens 65 files in order, the
+median later open is now on screen in 16.2 ms. Time to quiet (classification
+included) is unchanged at about 190 ms there: classification is not prepared.
+
+## Verification
+
+At code `HEAD` of `claude/bpr-1327-prefetch` (see the commit), macOS arm64
+optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`):
+
+- The 18 large-review rows plus the new
+  `application_large_review_prepared_open`: 19/19 pass in 255.6 s, every
+  report `BudgetsEnforced` true with no `InputBudgetFailures`, no
+  `UnenforcedLimitMisses`, and a largest input gap of 56.1 ms. Baseline at the
+  base commit: 18/18. The two courses that count cache entries now count the
+  reviewer's own entries and bound the prepared share separately; no limit
+  changed.
+- Focused: `core_comparison_preparation`, `application_diff_host`,
+  `application_epoch_host`, `application_workbench_host`,
+  `gh_cli_git_smart_transport`, `github_provider`, `architecture_boundaries`,
+  `application_review_round_trip_composition_contract` (resealed here),
+  `application_composition_contract`,
+  `application_profile_window_review_restoration_public_path`: all pass.
+- Failing-before controls: the diff host's prepared-open test runs an
+  unprepared control; the epoch host's live-shaped test asserts the control
+  pays two network reads per open; the prepared-open course runs preparation
+  off first and requires every prepared open to beat it. The course failed on
+  the first composed build (prepared requests carried no request identity, so
+  every prepared resolution failed) and on the second (prepared opens were
+  labelled "(cached)", which the binary-fallback check caught); both are
+  fixed.
+- `coding-format-check` passes; clang-tidy reports nothing new in the changed
+  code. `verify_documentation.py`: DOCUMENTATION_OK.
+- Broad composed set (`^application_|qt_composed|epoch|diff`, 253 rows,
+  `-j4`): 249 pass. The four failures also fail at the base commit:
+  `qt_composed_inline_drawer_*` (BPR-1332) and
+  `application_profile_window_layout_public_path` (its seed process crashes).
+  `application_private_review_native` failed once at the base and once with
+  this change, and passed on the rerun.
+
+## Owner question (pending)
+
+Preparation reads, over the network, the contents of up to 16 files around
+the cursor that the reviewer may never open: at most 512 KiB a file, in
+batches of 16, one GraphQL point and four account reads a batch. Accept or
+Reject: keep network preparation always on, with no setting (reject, with a
+note, to add a setting such as "Prepare files ahead on metered
+connections").
+
 ## Continuation
 
-See the sections below for the measured frontier and next step.
+Code is complete for AC1–AC5 pending the owner's answer above; closing the
+card needs that answer, then `finish`.
