@@ -25,6 +25,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QComboBox>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
@@ -39,6 +40,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -58,6 +60,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstdlib>
 #include <fstream>
@@ -69,6 +72,7 @@
 #include <set>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #if defined(Q_OS_MACOS)
 	#include <sys/stat.h>
@@ -781,6 +785,127 @@ namespace {
 		}
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "overview-labels course quiescence");
+	}
+
+	// [[BPR-1337]]. Discuss's top section on overview-labels-v1 at 1440x900:
+	// the whole pull request, one file, a filter, and an Overview count's
+	// drill-down, in light and dark. With BPR_SETUP_ARTIFACT_ROOT set, each
+	// state is captured.
+	void run_discuss_top_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated discuss-top course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private discuss-top course root");
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::overview_labels_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "discuss-top course startup");
+		expect(owner != nullptr, "discuss-top course application");
+		auto& window = owner->window();
+		window.resize(1440, 900);
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "discuss-top course connection");
+		submit(window, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const page  = window.overview_page();
+		auto* const model = page->file_model();
+		wait_for([&] { return page->isVisible() && page->presented() && model->file_count() == 17U && model->feedback().has_value(); },
+				 "the pull request opens on Overview with its conversations counted");
+		auto* const panel = window.conversation_panel();
+		window.choose_modality(qt::review_modality::discuss);
+		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && panel->discuss() && panel->cards()->thread_count() == 39U; },
+				 "Discuss lists every conversation of the pull request",
+				 [&] { std::cerr << "threads=" << panel->cards()->thread_count() << '\n'; });
+		auto* const band  = panel->discuss_controls();
+		auto* const clear = panel->findChild<QToolButton*>(QStringLiteral("conversationClearFilters"));
+		const auto  box   = [&](const QWidget* aControl) { return QRect{ aControl->mapTo(band, QPoint{ 0, 0 }), aControl->size() }; };
+		// [[BPR-1337]]. The band is the page's top: one row, the counts and
+		// Clear at its right end, and the ordinary availability count said by
+		// the counts rather than on a line of its own.
+		wait_for([&] { return band->isVisible() && band->height() <= 50 && box(panel->scope_whole_pull_request_button()).left() == 12
+						   && band->width() - box(clear).right() - 1 == 16 && box(panel->discuss_summary()).right() < box(clear).left(); },
+				 "Discuss's top is one band with the counts and Clear at its right end",
+				 [&] { std::cerr << "band=" << band->width() << 'x' << band->height() << " whole=" << box(panel->scope_whole_pull_request_button()).left()
+								 << " clear=" << box(clear).left() << '-' << box(clear).right() << " summary=" << box(panel->discuss_summary()).right() << '\n'; });
+		expect(!panel->availability_label()->isVisible() && panel->discuss_summary()->toolTip().contains(QStringLiteral("34 review threads available.")),
+			   "the availability count is the counts' tooltip");
+		expect(panel->discuss_summary()->text() == QStringLiteral("39 conversations, 27 unresolved, 0 new")
+				   || panel->discuss_summary()->text().startsWith(QStringLiteral("39 conversations, 27 unresolved, ")),
+			   "the counts say the whole pull request");
+		const auto themes = std::array{ std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } };
+		const auto look   = [&](const char* aState) {
+			for (const auto& [mode, theme] : themes) {
+				expect(github_application_fixture_access::apply_appearance_gesture(*owner, mode, 4U), "Settings applies each theme");
+				QApplication::processEvents();
+				// The band follows the theme: drawn in the page's base, dark in
+				// the dark theme.
+				const auto image = band->grab().toImage();
+				const auto fill  = image.pixelColor(QPoint{ image.width() / 2, 2 });
+				const auto base  = band->palette().color(QPalette::Base);
+				expect(std::abs(fill.lightness() - base.lightness()) <= 2 && (fill.lightness() < 128) == (mode == core::appearance_mode::dark),
+					   "the band is drawn in the theme's base");
+				capture(window, QStringLiteral("discuss-top-%1-%2.png").arg(QString::fromLatin1(aState), QString::fromLatin1(theme)));
+			}
+			expect(github_application_fixture_access::apply_appearance_gesture(*owner, core::appearance_mode::light, 4U), "back to light");
+			QApplication::processEvents();
+		};
+		look("all");
+		panel->scope_this_file_button()->click();
+		auto* const fileChoice = panel->findChild<QComboBox*>(QStringLiteral("conversationFileScope"));
+		expect(fileChoice != nullptr && fileChoice->findText(QStringLiteral("src/engine/renderer.cpp")) >= 0, "renderer.cpp can be chosen");
+		fileChoice->setCurrentIndex(fileChoice->findText(QStringLiteral("src/engine/renderer.cpp")));
+		wait_for([&] { return panel->cards()->scope() == qt::cards_scope::this_file && panel->cards()->thread_count() == 7U; }, "one file's seven conversations",
+				 [&] { std::cerr << "threads=" << panel->cards()->thread_count() << '\n'; });
+		look("file");
+		panel->filter_unresolved_button()->click();
+		QApplication::processEvents();
+		look("file-unresolved");
+		panel->filter_unresolved_button()->click();
+		panel->scope_whole_pull_request_button()->click();
+		window.choose_modality(qt::review_modality::overview);
+		const auto issue  = model->index_for_path(QStringLiteral("src/engine/renderer.cpp")).siblingAtColumn(qt::overview_file_model::comments_column);
+		auto*      editor = window.label_columns_editor();
+		editor->item_of(core::feedback_label::issue)->setCheckState(Qt::Checked);
+		wait_for([&] { return model->feedback().has_value() && model->feedback()->Request.Columns.Count == 1U; }, "the issue chip reaches the Overview");
+		QApplication::processEvents();
+		const auto  chips = qt::overview_comment_chips(*model->feedback_at(issue), page->files_view()->visualRect(issue), page->files_view()->font());
+		const auto  point = chips.front().Box.center();
+		QMouseEvent press{ QEvent::MouseButtonPress, point, page->files_view()->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, point, page->files_view()->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(page->files_view()->viewport(), &press);
+		QApplication::sendEvent(page->files_view()->viewport(), &release);
+		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && panel->listing().has_value() && panel->listing()->size() == 2U; },
+				 "renderer.cpp's two open issues are listed in Discuss");
+		const auto* const pill = panel->findChild<QWidget*>(QStringLiteral("conversationListingRow"));
+		expect(pill != nullptr && pill->isVisible() && box(pill).left() > box(panel->filter_unresolved_button()).right() && box(pill).right() < box(panel->discuss_summary()).left()
+				   && std::abs(box(pill).center().y() - box(clear).center().y()) <= 1,
+			   "the drill-down is a pill in the band's row, after the filters");
+		look("listed");
+		panel->clear_listing_button()->click();
+		QApplication::processEvents();
+		// [[BPR-1212]]. Compose review (⌥R) opens in Discuss beside the
+		// conversations, which narrow to a list at the left.
+		expect(window.compose_review_action() != nullptr && window.compose_review_action()->isEnabled(), "Compose review is offered");
+		window.compose_review_action()->trigger();
+		wait_for([&] { return window.findChild<QWidget*>(QStringLiteral("discussComposer")) != nullptr && window.findChild<QWidget*>(QStringLiteral("discussComposer"))->isVisible(); },
+				 "Compose review opens in Discuss beside the list");
+		// Beside the composer the list is narrow: the band wraps, and every
+		// control stays whole inside the list's width.
+		expect(panel->width() < 400 && box(panel->discuss_summary()).top() > box(panel->scope_whole_pull_request_button()).bottom(), "beside the composer the band wraps");
+		for (auto* const control : std::vector<QWidget*>{ panel->scope_whole_pull_request_button(), panel->scope_this_file_button(), panel->filter_unread_button(),
+														  panel->filter_unresolved_button(), clear, panel->discuss_summary() }) {
+			expect(band->rect().contains(box(control)) && box(control).right() < panel->width(), "every band control is whole inside the narrow list");
+		}
+		look("composer");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "discuss-top course quiescence");
 	}
 
 	void run_modified_missing_endpoint_course()
@@ -2017,6 +2142,11 @@ try {
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--overview-labels")) {
 		run_overview_labels_course();
 		std::cout << "overview-labels-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--discuss-top")) {
+		run_discuss_top_course();
+		std::cout << "discuss-top-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--link-locations")) {

@@ -9762,6 +9762,9 @@ namespace bpr::qt {
 		// observed a comparison context change. The shell composes both surfaces,
 		// so it sets the anchor from the file the reviewer is actually reading.
 		ConversationPanel->set_anchor_file(conversation_anchor_file());
+		// [[BPR-1337]]. Discuss's counts say an ordinary thread count; a line
+		// that says threads are unavailable, or public preview's, stays shown.
+		ConversationPanel->set_availability_ordinary(!aPullRequest.PublicPreview && aPullRequest.ReviewThreadsAvailable);
 		ApplyingConversationAnchor = true;
 		ConversationPanel->adopt(
 			aPullRequest.Conversations,

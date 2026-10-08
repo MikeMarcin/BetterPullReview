@@ -4,11 +4,11 @@
 #include "bpr/qt/github_conversation_model.hpp"
 
 #include "conversation_glyphs.hpp"
+#include "discuss_header.hpp"
 #include "github_presentation_text.hpp"
 
 #include <QApplication>
 #include <QComboBox>
-#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
@@ -20,6 +20,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <set>
 #include <span>
 #include <string>
@@ -206,54 +207,87 @@ namespace bpr::qt {
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(0);
 
-		// Discuss's row: scope, the file, and its two filters. Beside the code
-		// the drawer shows this file only, and its filters sit on the tab row.
-		DiscussControls = new QWidget{ loaded };
+		// [[BPR-1337]]. Discuss's top: one band, drawn in the language of
+		// Conversations' bar, that wraps when the list is narrowed beside the
+		// composer. Beside the code the drawer shows this file only, and its
+		// filters sit on the tab row.
+		DiscussControls = new discuss_band{ loaded };
 		DiscussControls->setObjectName(QStringLiteral("conversationDiscussControls"));
-		DiscussGrid = new QGridLayout{ DiscussControls };
-		DiscussGrid->setContentsMargins(8, 4, 8, 4);
-		DiscussGrid->setSpacing(4);
-		ScopeThisFile = new QToolButton{ DiscussControls };
+		DiscussControls->setAccessibleName(QStringLiteral("Discuss filters"));
+		DiscussFlow = new discuss_flow_layout{ DiscussControls };
+		DiscussFlow->setContentsMargins(12, 9, 16, 9);
+		DiscussFlow->setSpacing(6);
+
+		// The scope: the whole pull request or one file, as one two-way choice,
+		// with the file chosen inside it while File is on.
+		auto* const scopeBox    = new QWidget{ DiscussControls };
+		auto* const scopeLayout = new QHBoxLayout{ scopeBox };
+		scopeLayout->setContentsMargins(0, 0, 0, 0);
+		scopeLayout->setSpacing(0);
+		auto* const wholePr = new discuss_tool{ scopeBox };
+		wholePr->set_shape(discuss_tool_shape::segment_first);
+		wholePr->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		ScopeWholePr = wholePr;
+		ScopeWholePr->setObjectName(QStringLiteral("conversationScopeWholePullRequest"));
+		ScopeWholePr->setText(QStringLiteral("Pull request"));
+		ScopeWholePr->setAccessibleName(QStringLiteral("Whole pull request"));
+		ScopeWholePr->setAccessibleDescription(QStringLiteral(
+			"Lists every thread of the pull request in file order"));
+		ScopeWholePr->setToolTip(QStringLiteral("Every conversation in the pull request, in file order"));
+		ScopeWholePr->setCheckable(true);
+		ScopeWholePr->setAutoExclusive(true);
+		ScopeWholePr->setFocusPolicy(Qt::StrongFocus);
+		auto* const thisFile = new discuss_tool{ scopeBox };
+		thisFile->set_shape(discuss_tool_shape::segment_last);
+		thisFile->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		ScopeThisFile = thisFile;
 		ScopeThisFile->setObjectName(QStringLiteral("conversationScopeThisFile"));
-		ScopeThisFile->setText(QStringLiteral("File scope"));
+		ScopeThisFile->setText(QStringLiteral("File"));
 		ScopeThisFile->setAccessibleName(QStringLiteral("File scope"));
 		ScopeThisFile->setAccessibleDescription(QStringLiteral(
 			"Use the selected conversation file"));
+		ScopeThisFile->setToolTip(QStringLiteral("One file's conversations. Pull request comments and review summaries are not on a file, so they are left out."));
 		ScopeThisFile->setCheckable(true);
 		ScopeThisFile->setChecked(true);
 		ScopeThisFile->setAutoExclusive(true);
 		ScopeThisFile->setFocusPolicy(Qt::StrongFocus);
-		ScopeWholePr = new QToolButton{ DiscussControls };
-		ScopeWholePr->setObjectName(QStringLiteral("conversationScopeWholePullRequest"));
-		ScopeWholePr->setText(QStringLiteral("All PR conversations"));
-		ScopeWholePr->setAccessibleName(QStringLiteral("Whole pull request"));
-		ScopeWholePr->setAccessibleDescription(QStringLiteral(
-			"Lists every thread of the pull request in file order"));
-		ScopeWholePr->setCheckable(true);
-		ScopeWholePr->setAutoExclusive(true);
-		ScopeWholePr->setFocusPolicy(Qt::StrongFocus);
-		DiscussGrid->addWidget(ScopeThisFile, 0, 0);
-		DiscussGrid->addWidget(ScopeWholePr, 0, 1, 1, 2);
-		DiscussFileChoice = new QComboBox{ DiscussControls };
+		DiscussFileChoice = new QComboBox{ scopeBox };
 		DiscussFileChoice->setObjectName(QStringLiteral("conversationFileScope"));
 		DiscussFileChoice->setAccessibleName(QStringLiteral("Conversation file scope"));
 		DiscussFileChoice->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-		DiscussFileChoice->setMinimumContentsLength(12);
-		DiscussGrid->addWidget(DiscussFileChoice, 1, 0, 1, 3);
+		DiscussFileChoice->setMinimumContentsLength(22);
+		DiscussFileChoice->setMaximumWidth(360);
+		DiscussFileChoice->setToolTip(QStringLiteral("The file whose conversations are listed"));
+		scopeLayout->addWidget(ScopeWholePr);
+		scopeLayout->addWidget(ScopeThisFile);
+		scopeLayout->addSpacing(6);
+		scopeLayout->addWidget(DiscussFileChoice);
+		DiscussFlow->addWidget(scopeBox);
 		connect(DiscussFileChoice, &QComboBox::currentTextChanged, this, [this](const QString& aPath) {
 			DiscussFile = aPath.isEmpty() ? std::nullopt : std::optional{ core::file_identity_of(aPath.toStdString()) };
 			if (Discuss) {
 				refresh_projection();
 			}
 		});
-		auto* const clearFilters = new QToolButton{ DiscussControls };
-		clearFilters->setObjectName(QStringLiteral("conversationClearFilters"));
-		clearFilters->setText(QStringLiteral("Clear"));
-		clearFilters->setAccessibleName(QStringLiteral("Clear filters"));
-		clearFilters->setToolTip(QStringLiteral("Clear filters"));
-		clearFilters->setFocusPolicy(Qt::StrongFocus);
-		DiscussGrid->addWidget(clearFilters, 2, 2);
-		column->addWidget(DiscussControls);
+
+		// Only new and Hide resolved: Conversations' two chips.
+		DiscussFilterBox  = new QWidget{ DiscussControls };
+		DiscussFiltersRow = new QHBoxLayout{ DiscussFilterBox };
+		DiscussFiltersRow->setContentsMargins(0, 0, 0, 0);
+		DiscussFiltersRow->setSpacing(6);
+		DiscussFlow->addWidget(DiscussFilterBox);
+
+		auto* const clearFilters = new discuss_tool{ DiscussControls };
+		clearFilters->set_shape(discuss_tool_shape::chip);
+		clearFilters->set_glyph(conversation_glyph::clear_filters);
+		clearFilters->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		ClearFilters = clearFilters;
+		ClearFilters->setObjectName(QStringLiteral("conversationClearFilters"));
+		ClearFilters->setText(QStringLiteral("Clear"));
+		ClearFilters->setAccessibleName(QStringLiteral("Clear filters"));
+		ClearFilters->setAccessibleDescription(QStringLiteral("Show every conversation of the pull request, with no filter"));
+		ClearFilters->setToolTip(QStringLiteral("Clear filters"));
+		ClearFilters->setFocusPolicy(Qt::StrongFocus);
 		DiscussControls->hide();
 
 		// [[BPR-1290]]. Only new and Hide resolved, as two icons on the tab row.
@@ -262,30 +296,33 @@ namespace bpr::qt {
 		ReadToolsRow = new QHBoxLayout{ ReadTools };
 		ReadToolsRow->setContentsMargins(0, 0, 0, 0);
 		ReadToolsRow->setSpacing(1);
-		FilterUnread = new QToolButton{ ReadTools };
+		auto* const unread = new discuss_tool{ ReadTools };
+		unread->set_glyph(conversation_glyph::only_new);
+		FilterUnread = unread;
 		FilterUnread->setObjectName(QStringLiteral("conversationFilterUnread"));
 		FilterUnread->setCheckable(true);
 		FilterUnread->setFocusPolicy(Qt::StrongFocus);
-		FilterUnresolved = new QToolButton{ ReadTools };
+		auto* const unresolved = new discuss_tool{ ReadTools };
+		unresolved->set_glyph(conversation_glyph::hide_resolved);
+		FilterUnresolved = unresolved;
 		FilterUnresolved->setObjectName(QStringLiteral("conversationFilterUnresolved"));
 		FilterUnresolved->setCheckable(true);
 		FilterUnresolved->setFocusPolicy(Qt::StrongFocus);
 		ReadToolsRow->addWidget(FilterUnread);
 		ReadToolsRow->addWidget(FilterUnresolved);
-		connect(clearFilters, &QToolButton::clicked, this, [this] {
+		connect(ClearFilters, &QToolButton::clicked, this, [this] {
 			ScopeWholePr->setChecked(true);
 			FilterUnread->setChecked(false);
 			FilterUnresolved->setChecked(false);
 			clear_listing();
 		});
-		// [[BPR-1089]]. An Overview count's drill-down: its caption, and a
-		// glyph that shows every conversation again.
-		ListingRow = new QWidget{ DiscussControls };
+		// [[BPR-1089]]. An Overview count's drill-down: a pill with the count's
+		// own mark, its caption and a × that shows every conversation again.
+		ListingRow = new discuss_pill{ DiscussControls };
 		ListingRow->setObjectName(QStringLiteral("conversationListingRow"));
 		auto* const listingLayout = new QHBoxLayout{ ListingRow };
-		listingLayout->setContentsMargins(0, 0, 0, 0);
-		listingLayout->setSpacing(4);
-		// The count's own mark leads, as on its chip; × follows the words.
+		listingLayout->setContentsMargins(8, 0, 4, 0);
+		listingLayout->setSpacing(6);
 		ListingMark = new QLabel{ ListingRow };
 		ListingMark->setObjectName(QStringLiteral("conversationListingMark"));
 		ListingCaption = new QLabel{ ListingRow };
@@ -294,20 +331,34 @@ namespace bpr::qt {
 		// in a narrow panel rather than widen it.
 		ListingCaption->setMinimumWidth(1);
 		detail::set_plain_text_label(ListingCaption);
-		ClearListing = new QToolButton{ ListingRow };
+		auto* const clearListing = new discuss_tool{ ListingRow };
+		clearListing->set_shape(discuss_tool_shape::bare);
+		clearListing->set_glyph(conversation_glyph::dismiss);
+		ClearListing = clearListing;
 		ClearListing->setObjectName(QStringLiteral("conversationClearListing"));
 		ClearListing->setText(QStringLiteral("×"));
-		ClearListing->setAutoRaise(true);
 		ClearListing->setToolTip(QStringLiteral("Show every conversation"));
 		ClearListing->setAccessibleName(QStringLiteral("Show every conversation"));
 		ClearListing->setFocusPolicy(Qt::StrongFocus);
 		listingLayout->addWidget(ListingMark);
 		listingLayout->addWidget(ListingCaption);
 		listingLayout->addWidget(ClearListing);
-		listingLayout->addStretch(1);
-		DiscussGrid->addWidget(ListingRow, 3, 0, 1, 3);
+		DiscussFlow->addWidget(ListingRow);
 		ListingRow->hide();
 		connect(ClearListing, &QToolButton::clicked, this, [this] { clear_listing(); });
+
+		// The counts, with Clear filters, at the right end of the band.
+		DiscussSummary = new discuss_counts{ DiscussControls };
+		DiscussSummary->setObjectName(QStringLiteral("conversationDiscussSummary"));
+		DiscussSummary->setAccessibleName(QStringLiteral("Threads summary"));
+		auto* const trailing       = new QWidget{ DiscussControls };
+		auto* const trailingLayout = new QHBoxLayout{ trailing };
+		trailingLayout->setContentsMargins(0, 0, 0, 0);
+		trailingLayout->setSpacing(10);
+		trailingLayout->addWidget(DiscussSummary);
+		trailingLayout->addWidget(ClearFilters);
+		DiscussFlow->add_trailing(trailing);
+		column->addWidget(DiscussControls);
 
 		Cards = new conversation_cards_view{ loaded };
 		Cards->setMinimumHeight(fontMetrics().lineSpacing() * 6);
@@ -318,15 +369,7 @@ namespace bpr::qt {
 		Notice->setWordWrap(true);
 		Notice->setContentsMargins(8, 4, 8, 4);
 		Notice->hide();
-		DiscussSummary = new QLabel{ loaded };
-		DiscussSummary->setObjectName(QStringLiteral("conversationDiscussSummary"));
-		DiscussSummary->setAccessibleName(QStringLiteral("Threads summary"));
-		DiscussSummary->setWordWrap(true);
-		DiscussSummary->setContentsMargins(8, 4, 8, 4);
-		detail::set_plain_text_label(DiscussSummary);
-		DiscussSummary->hide();
 		column->addWidget(Notice);
-		column->addWidget(DiscussSummary);
 		Stack->addWidget(loaded);
 		layout->addWidget(Stack, 1);
 
@@ -334,6 +377,8 @@ namespace bpr::qt {
 		connect(FilterUnresolved, &QToolButton::toggled, this, [this](bool) { apply_filters(); });
 		Cards->set_layout_observer([this] { refresh_summary(); });
 		connect(ScopeThisFile, &QToolButton::toggled, this, [this](const bool aChecked) {
+			// The file is chosen inside the scope, while File is on.
+			DiscussFileChoice->setVisible(aChecked);
 			if (aChecked) {
 				Cards->set_scope(cards_scope::this_file);
 			}
@@ -380,11 +425,13 @@ namespace bpr::qt {
 				synchronize_current();
 			});
 		arrange_filters();
-		setTabOrder(ScopeThisFile, ScopeWholePr);
-		setTabOrder(ScopeWholePr, DiscussFileChoice);
-		setTabOrder(DiscussFileChoice, clearFilters);
-		setTabOrder(clearFilters, ClearListing);
-		setTabOrder(ClearListing, Cards);
+		// The band's order is its reading order: scope, file, filters, the
+		// drill-down's ×, Clear, then the conversations. Moving the filters
+		// between the band and the tab row keeps it.
+		const auto order = std::array<QWidget*, 8>{ ScopeWholePr, ScopeThisFile, DiscussFileChoice, FilterUnread, FilterUnresolved, ClearListing, ClearFilters, Cards };
+		for (auto index = std::size_t{ 1U }; index < order.size(); ++index) {
+			setTabOrder(order[index - 1U], order[index]);
+		}
 	}
 
 	void github_conversation_panel::apply_filters()
@@ -452,18 +499,20 @@ namespace bpr::qt {
 
 	void github_conversation_panel::arrange_filters()
 	{
-		// Beside the code: two icons with tooltips. In Discuss: words, in its row.
+		// Beside the code: two icons with tooltips. In Discuss: Conversations'
+		// two chips, in its band ([[BPR-1337]]).
 		const auto icons = !Discuss;
-		FilterUnread->setToolButtonStyle(icons ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextOnly);
-		FilterUnresolved->setToolButtonStyle(icons ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextOnly);
-		FilterUnread->setAutoRaise(icons);
-		FilterUnresolved->setAutoRaise(icons);
-		FilterUnread->setIcon(conversation_icon(conversation_glyph::only_new, palette()));
-		FilterUnresolved->setIcon(conversation_icon(conversation_glyph::hide_resolved, palette()));
-		FilterUnread->setIconSize(QSize{ 16, 16 });
-		FilterUnresolved->setIconSize(QSize{ 16, 16 });
-		FilterUnread->setText(icons ? QStringLiteral("Only new") : QStringLiteral("Unread"));
-		FilterUnresolved->setText(icons ? QStringLiteral("Hide resolved") : QStringLiteral("Unresolved"));
+		for (auto* const button : { FilterUnread, FilterUnresolved }) {
+			auto* const tool = static_cast<discuss_tool*>(button);
+			tool->set_shape(icons ? discuss_tool_shape::native : discuss_tool_shape::chip);
+			tool->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			tool->setAutoRaise(icons);
+			tool->setIconSize(QSize{ 16, 16 });
+		}
+		FilterUnread->setIcon(icons ? conversation_icon(conversation_glyph::only_new, palette()) : QIcon{ });
+		FilterUnresolved->setIcon(icons ? conversation_icon(conversation_glyph::hide_resolved, palette()) : QIcon{ });
+		FilterUnread->setText(QStringLiteral("Only new"));
+		FilterUnresolved->setText(QStringLiteral("Hide resolved"));
 		FilterUnread->setToolTip(QStringLiteral("Only threads with new replies"));
 		FilterUnresolved->setToolTip(QStringLiteral("Hide resolved threads"));
 		FilterUnread->setAccessibleName(icons ? QStringLiteral("Only new") : QStringLiteral("Unread only"));
@@ -471,8 +520,8 @@ namespace bpr::qt {
 		FilterUnread->setAccessibleDescription(QStringLiteral("Show only threads with a post newer than what you have read"));
 		FilterUnresolved->setAccessibleDescription(QStringLiteral("Show only threads that are not resolved"));
 		if (Discuss) {
-			DiscussGrid->addWidget(FilterUnread, 2, 0);
-			DiscussGrid->addWidget(FilterUnresolved, 2, 1);
+			DiscussFiltersRow->addWidget(FilterUnread);
+			DiscussFiltersRow->addWidget(FilterUnresolved);
 		} else {
 			ReadToolsRow->addWidget(FilterUnread);
 			ReadToolsRow->addWidget(FilterUnresolved);
@@ -716,18 +765,42 @@ namespace bpr::qt {
 			return;
 		}
 		// The availability line says what the drawer cannot show; beside a
-		// file's threads the notes say it themselves.
-		AvailabilityLabel->setVisible(Discuss || Retained.empty() || Cards->cards().empty());
-		DiscussSummary->setText(QStringLiteral("%1 conversations, %2 unresolved, %3 new")
-									.arg(Cards->thread_count())
-									.arg(Cards->unresolved_count())
-									.arg(Cards->unread_thread_count()));
+		// file's threads the notes say it themselves. In Discuss an ordinary
+		// count is the summary's to say ([[BPR-1337]]); anything else stays.
+		AvailabilityLabel->setVisible(Discuss ? !AvailabilityOrdinary || Retained.empty()
+											  : Retained.empty() || Cards->cards().empty());
+		const auto conversations = Cards->thread_count();
+		const auto unresolved    = Cards->unresolved_count();
+		const auto fresh         = Cards->unread_thread_count();
+		auto       sentence      = QStringLiteral("%1 %2, %3 unresolved, %4 new")
+									   .arg(conversations)
+									   .arg(conversations == 1U ? QStringLiteral("conversation") : QStringLiteral("conversations"))
+									   .arg(unresolved)
+									   .arg(fresh);
 		if (Cards->cards().empty() && !Retained.empty()) {
-			DiscussSummary->setText(QStringLiteral("No conversations match these filters. Clear filters to show all PR conversations."));
+			sentence = QStringLiteral("No conversations match these filters. Clear filters to show all PR conversations.");
 		}
+		auto notes = QStringList{ };
 		if (Cards->scope() == cards_scope::this_file && DiscussFile) {
-			DiscussSummary->setText(DiscussSummary->text() + QStringLiteral(" · File scope excludes pathless PR comments and review summaries."));
+			sentence += QStringLiteral(" File scope excludes pathless PR comments and review summaries.");
+			notes.push_back(QStringLiteral("Pull request comments and review summaries are not on a file, so File leaves them out."));
 		}
+		if (AvailabilityOrdinary && !AvailabilityLabel->text().isEmpty()) {
+			notes.push_back(AvailabilityLabel->text());
+		}
+		DiscussSummary->setText(sentence);
+		DiscussSummary->setAccessibleDescription(sentence);
+		DiscussSummary->setToolTip(notes.join(QLatin1Char{ '\n' }));
+		auto parts      = std::vector<discuss_count_part>(2U);
+		parts[0].Number = QString::number(conversations);
+		parts[0].Words  = conversations == 1U ? QStringLiteral("conversation") : QStringLiteral("conversations");
+		parts[1].Number = QString::number(unresolved);
+		parts[1].Words  = QStringLiteral("unresolved");
+		static_cast<discuss_counts*>(DiscussSummary)->set_parts(std::move(parts));
+		// Only new carries the count of what is new, as on Conversations' bar.
+		auto* const unread = static_cast<discuss_tool*>(FilterUnread);
+		unread->set_new_ink(Cards->accent());
+		unread->set_count(Discuss && fresh > 0U ? QString::number(fresh) : QString{ }, true);
 	}
 
 	void github_conversation_panel::set_discuss(const bool aDiscuss)
@@ -746,7 +819,6 @@ namespace bpr::qt {
 		PlacedStale = true;
 		arrange_filters();
 		DiscussControls->setVisible(Discuss);
-		DiscussSummary->setVisible(Discuss);
 		if (Discuss) {
 			if (!DiscussInitialized) {
 				ScopeWholePr->setChecked(true);
@@ -773,6 +845,12 @@ namespace bpr::qt {
 			}
 		}
 		show_loaded_page();
+	}
+
+	void github_conversation_panel::set_availability_ordinary(const bool aOrdinary)
+	{
+		AvailabilityOrdinary = aOrdinary;
+		refresh_summary();
 	}
 
 	auto github_conversation_panel::discuss() const noexcept -> bool

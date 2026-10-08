@@ -59,6 +59,10 @@ namespace bpr::qt {
 		suggest,
 		/// [[BPR-1212]]. Add comment: a speech balloon.
 		comment,
+		/// [[BPR-1337]]. Clear filters: a funnel with a cross beside its stem.
+		clear_filters,
+		/// [[BPR-1337]]. Dismiss what a pill names: a cross.
+		dismiss,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

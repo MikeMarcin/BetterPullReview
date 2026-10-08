@@ -20,7 +20,6 @@
 
 class QAction;
 class QComboBox;
-class QGridLayout;
 class QHBoxLayout;
 class QLabel;
 class QModelIndex;
@@ -29,6 +28,7 @@ class QToolButton;
 class QTreeView;
 
 namespace bpr::qt {
+	class discuss_flow_layout;
 	class github_conversation_model;
 	class appearance_profile;
 
@@ -138,7 +138,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto scope_this_file_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto scope_whole_pull_request_button() const noexcept -> QToolButton*;
 		/// \brief Discuss: every thread in file order, with its scope and filters.
-		void               set_discuss(bool aDiscuss);
+		void set_discuss(bool aDiscuss);
+		/// \brief [[BPR-1337]]. Whether the availability line says only how many
+		/// review threads there are. Discuss's counts then say it, and the line
+		/// is shown only when it says something else. Off until told.
+		void               set_availability_ordinary(bool aOrdinary);
 		[[nodiscard]] auto discuss() const noexcept -> bool;
 		/// \brief [[BPR-0661]]. Sets the drawer's first filter as the preference names it.
 		void apply_first_filter(application::review_comments_filter aFilter);
@@ -185,15 +189,21 @@ namespace bpr::qt {
 		github_conversation_model* Model             = nullptr;
 		conversation_cards_view*   Cards             = nullptr;
 		QWidget*                   DiscussControls   = nullptr;
-		QGridLayout*               DiscussGrid       = nullptr;
-		QWidget*                   ReadTools         = nullptr;
-		QHBoxLayout*               ReadToolsRow      = nullptr;
-		QToolButton*               ScopeThisFile     = nullptr;
-		QToolButton*               ScopeWholePr      = nullptr;
-		QComboBox*                 DiscussFileChoice = nullptr;
-		QToolButton*               FilterUnread      = nullptr;
-		QToolButton*               FilterUnresolved  = nullptr;
-		QLabel*                    DiscussSummary    = nullptr;
+		/// [[BPR-1337]]. The band's wrapping row, the filters' place in it and
+		/// Clear filters.
+		discuss_flow_layout* DiscussFlow          = nullptr;
+		QWidget*             DiscussFilterBox     = nullptr;
+		QHBoxLayout*         DiscussFiltersRow    = nullptr;
+		QToolButton*         ClearFilters         = nullptr;
+		bool                 AvailabilityOrdinary = false;
+		QWidget*             ReadTools            = nullptr;
+		QHBoxLayout*         ReadToolsRow         = nullptr;
+		QToolButton*         ScopeThisFile        = nullptr;
+		QToolButton*         ScopeWholePr         = nullptr;
+		QComboBox*           DiscussFileChoice    = nullptr;
+		QToolButton*         FilterUnread         = nullptr;
+		QToolButton*         FilterUnresolved     = nullptr;
+		QLabel*              DiscussSummary       = nullptr;
 		/// [[BPR-1089]]. The drill-down's caption and its clear button.
 		QWidget*                             ListingRow     = nullptr;
 		QLabel*                              ListingMark    = nullptr;

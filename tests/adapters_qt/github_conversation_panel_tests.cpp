@@ -5,10 +5,13 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QComboBox>
+#include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QPalette>
+#include <QPixmap>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
 #include <QToolButton>
@@ -16,12 +19,14 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <set>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -132,12 +137,12 @@ namespace {
 		process_events();
 		expect(panel.discuss() && panel.cards()->feed() && panel.discuss_controls()->isVisibleTo(&panel)
 				   && panel.discuss_controls()->isAncestorOf(panel.filter_unread_button())
-				   && panel.filter_unread_button()->toolButtonStyle() == Qt::ToolButtonTextOnly
+				   && panel.filter_unread_button()->toolButtonStyle() == Qt::ToolButtonIconOnly
 				   && panel.cards()->isVisibleTo(&panel) && !panel.view()->isVisibleTo(&panel),
-			   "Discuss shows its scope, file and filter row above the same notes");
-		expect(panel.discuss_summary()->isVisibleTo(&panel)
-				   && panel.discuss_summary()->text() == QStringLiteral("1 conversations, 1 unresolved, 0 new"),
-			   "the summary restates the counts");
+			   "Discuss shows its scope, file and filter band above the same notes");
+		expect(panel.discuss_summary()->isVisibleTo(&panel) && panel.discuss_controls()->isAncestorOf(panel.discuss_summary())
+				   && panel.discuss_summary()->text() == QStringLiteral("1 conversation, 1 unresolved, 0 new"),
+			   "the band restates the counts, one conversation in the singular");
 		panel.filter_unread_button()->setChecked(true);
 		process_events();
 		expect(panel.cards()->filters().UnreadOnly && panel.cards()->cards().empty(),
@@ -643,6 +648,227 @@ namespace {
 		panel.close();
 	}
 
+	/// \brief A palette in the dark scheme's roles, for the theme checks.
+	[[nodiscard]] auto dark_palette() -> QPalette
+	{
+		auto palette = QPalette{ QColor{ 0x16, 0x1B, 0x22 } };
+		palette.setColor(QPalette::Base, QColor{ 0x0D, 0x11, 0x17 });
+		palette.setColor(QPalette::Text, QColor{ 0xE6, 0xED, 0xF3 });
+		palette.setColor(QPalette::WindowText, QColor{ 0xE6, 0xED, 0xF3 });
+		palette.setColor(QPalette::ButtonText, QColor{ 0xE6, 0xED, 0xF3 });
+		palette.setColor(QPalette::PlaceholderText, QColor{ 0x7D, 0x85, 0x90 });
+		palette.setColor(QPalette::Highlight, QColor{ 0x38, 0x8B, 0xFD });
+		return palette;
+	}
+
+	/// \brief Where a band control sits, in the band's coordinates.
+	[[nodiscard]] auto in_band(const QWidget& aBand, const QWidget& aControl) -> QRect
+	{
+		return QRect{ aControl.mapTo(&aBand, QPoint{ 0, 0 }), aControl.size() };
+	}
+
+	/// \brief [[BPR-1337]]. Discuss's top is one band: the scope as two
+	/// segments with the file inside it, Conversations' two filter chips, and
+	/// the counts with Clear filters at the right end, every control named;
+	/// the ordinary availability line leaves the counts to say it.
+	void test_discuss_top_is_one_named_band()
+	{
+		auto panel = qt::github_conversation_panel{ };
+		panel.resize(1400, 900);
+		auto data = two_files();
+		data.push_back(conversation{ .Id = "issue", .Kind = application::github_conversation_kind::issue_comment, .Body = "PR-wide comment" });
+		data.push_back(conversation{ .Id = "review", .Kind = application::github_conversation_kind::review, .Body = "Review summary" });
+		panel.set_availability_ordinary(true);
+		panel.adopt(data, QStringLiteral("2 review threads available."));
+		panel.set_discuss(true);
+		panel.show();
+		process_events();
+		auto* const band       = panel.discuss_controls();
+		auto* const whole      = panel.scope_whole_pull_request_button();
+		auto* const file       = panel.scope_this_file_button();
+		auto* const choice     = panel.findChild<QComboBox*>(QStringLiteral("conversationFileScope"));
+		auto* const unread     = panel.filter_unread_button();
+		auto* const unresolved = panel.filter_unresolved_button();
+		auto* const clear      = panel.findChild<QToolButton*>(QStringLiteral("conversationClearFilters"));
+		auto* const summary    = panel.discuss_summary();
+		expect(choice != nullptr && clear != nullptr, "the band holds the file choice and Clear filters");
+
+		// Every control keeps its name, and says what it does when hovered.
+		const auto named = std::vector<std::pair<QWidget*, QString>>{
+			{ whole, QStringLiteral("Whole pull request") },
+			{ file, QStringLiteral("File scope") },
+			{ choice, QStringLiteral("Conversation file scope") },
+			{ unread, QStringLiteral("Unread only") },
+			{ unresolved, QStringLiteral("Unresolved only") },
+			{ clear, QStringLiteral("Clear filters") },
+			{ panel.clear_listing_button(), QStringLiteral("Show every conversation") },
+			{ summary, QStringLiteral("Threads summary") },
+		};
+		for (const auto& [control, name] : named) {
+			expect(control->accessibleName() == name && (control == summary || !control->toolTip().isEmpty()),
+				   "each band control keeps its accessible name and has a tooltip");
+		}
+		expect(unread->toolButtonStyle() == Qt::ToolButtonIconOnly && unresolved->toolButtonStyle() == Qt::ToolButtonIconOnly
+				   && clear->toolButtonStyle() == Qt::ToolButtonIconOnly && whole->toolButtonStyle() == Qt::ToolButtonTextOnly,
+			   "the filters and Clear are icons; the scope's two choices are words");
+
+		// One row at this width: scope, filters, then the counts and Clear at
+		// the right end, every control centred on the same line.
+		expect(whole->isChecked() && !choice->isVisibleTo(&panel), "the whole pull request is in scope and the file choice is hidden");
+		const auto row = in_band(*band, *whole).center().y();
+		for (auto* const control : std::vector<QWidget*>{ file, unread, unresolved, summary, clear }) {
+			expect(std::abs(in_band(*band, *control).center().y() - row) <= 1, "the band is one row");
+		}
+		expect(in_band(*band, *whole).right() < in_band(*band, *file).left() + 1 && in_band(*band, *file).right() < in_band(*band, *unread).left()
+				   && in_band(*band, *unread).right() < in_band(*band, *unresolved).left()
+				   && in_band(*band, *unresolved).right() < in_band(*band, *summary).left() && in_band(*band, *summary).right() < in_band(*band, *clear).left(),
+			   "scope, filters, counts and Clear read left to right");
+		expect(in_band(*band, *whole).left() == 12 && band->width() - in_band(*band, *clear).right() - 1 == 16,
+			   "the band starts at the list's edge and ends at its right margin");
+		expect(band->height() <= 50 && whole->height() == 30 && unread->height() == 30, "one 30-pixel row of chips in a band under 50 pixels");
+		expect(summary->text() == QStringLiteral("4 conversations, 2 unresolved, 0 new"), "the counts say the whole sentence");
+
+		// The ordinary availability line is said by the counts.
+		expect(!panel.availability_label()->isVisibleTo(&panel) && summary->toolTip().contains(QStringLiteral("2 review threads available.")),
+			   "in Discuss an ordinary availability line moves into the counts' tooltip");
+		panel.set_availability_ordinary(false);
+		process_events();
+		expect(panel.availability_label()->isVisibleTo(&panel), "any other availability line stays shown in Discuss");
+		panel.set_availability_ordinary(true);
+
+		// File: the file is chosen inside the scope.
+		file->click();
+		process_events();
+		expect(file->isChecked() && choice->isVisibleTo(&panel) && in_band(*band, *choice).left() - in_band(*band, *file).right() <= 8,
+			   "choosing File shows the file choice right after it");
+		expect(summary->text().contains(QStringLiteral("pathless")) && summary->toolTip().contains(QStringLiteral("File leaves them out")),
+			   "File says it leaves out what is not on a file");
+		whole->click();
+		process_events();
+		expect(!choice->isVisibleTo(&panel), "back to the whole pull request, the file choice hides again");
+
+		// The keyboard walks the band in reading order, then the notes. The
+		// scope is one stop, as two radio buttons are: Tab reaches the chosen
+		// one and the arrows choose the other.
+		panel.activateWindow();
+		whole->setFocus(Qt::TabFocusReason);
+		process_events();
+		const auto press = [](const Qt::Key aKey) {
+			QKeyEvent key{ QEvent::KeyPress, aKey, Qt::NoModifier };
+			QApplication::sendEvent(QApplication::focusWidget(), &key);
+			process_events();
+		};
+		const auto walk = [&](const std::vector<QWidget*>& aOrder) {
+			for (auto* const next : aOrder) {
+				press(Qt::Key_Tab);
+				expect(QApplication::focusWidget() == next, "Tab walks scope, file, filters and Clear in reading order, then the notes");
+			}
+		};
+		walk({ unread, unresolved, clear, panel.cards() });
+		whole->setFocus(Qt::TabFocusReason);
+		press(Qt::Key_Right);
+		expect(QApplication::focusWidget() == file && file->isChecked() && choice->isVisibleTo(&panel), "Right chooses File and shows the file choice");
+		walk({ choice, unread, unresolved, clear, panel.cards() });
+		file->setFocus(Qt::TabFocusReason);
+		press(Qt::Key_Left);
+		expect(QApplication::focusWidget() == whole && whole->isChecked() && !choice->isVisibleTo(&panel), "Left chooses the whole pull request again");
+		// A drill-down's pill sits between the filters and the counts, and so
+		// does its × in the keyboard's order.
+		panel.list_conversations({ "issue", "left-root" }, QStringLiteral("issue · open · src/left.cpp — 2 conversations"), QStringLiteral("Listed from the Overview"));
+		process_events();
+		auto* const pill = panel.findChild<QWidget*>(QStringLiteral("conversationListingRow"));
+		expect(pill->isVisibleTo(&panel) && in_band(*band, *pill).left() > in_band(*band, *unresolved).right() && in_band(*band, *pill).right() < in_band(*band, *summary).left()
+				   && pill->isAncestorOf(panel.listing_caption()) && pill->isAncestorOf(panel.clear_listing_button()),
+			   "the drill-down is a pill after the filters, holding its caption and its ×");
+		unresolved->setFocus(Qt::TabFocusReason);
+		walk({ panel.clear_listing_button(), clear, panel.cards() });
+		// Leaving Discuss and coming back keeps that order.
+		panel.set_discuss(false);
+		panel.set_discuss(true);
+		process_events();
+		whole->setFocus(Qt::TabFocusReason);
+		walk({ unread, unresolved, panel.clear_listing_button(), clear, panel.cards() });
+		panel.clear_listing_button()->click();
+		process_events();
+
+		// Beside the code nothing of the band shows, and the filters are the
+		// drawer's two icons again.
+		panel.set_discuss(false);
+		process_events();
+		expect(!band->isVisibleTo(&panel) && panel.read_tools()->isAncestorOf(unread) && unread->autoRaise() && !unread->icon().isNull(),
+			   "beside the code the filters are the drawer's icons");
+		panel.close();
+	}
+
+	/// \brief [[BPR-1337]]. Beside the composer the list is narrow: the band
+	/// wraps rather than clipping, and every control stays whole inside it.
+	void test_discuss_top_wraps_when_narrow()
+	{
+		auto panel = qt::github_conversation_panel{ };
+		panel.set_availability_ordinary(true);
+		panel.adopt(two_files(), QStringLiteral("2 review threads available."));
+		panel.set_discuss(true);
+		panel.resize(300, 700);
+		panel.show();
+		process_events();
+		auto* const band = panel.discuss_controls();
+		panel.scope_this_file_button()->click();
+		process_events();
+		const auto controls = std::vector<QWidget*>{ panel.scope_whole_pull_request_button(), panel.scope_this_file_button(),
+													 panel.findChild<QComboBox*>(QStringLiteral("conversationFileScope")), panel.filter_unread_button(),
+													 panel.filter_unresolved_button(), panel.findChild<QToolButton*>(QStringLiteral("conversationClearFilters")),
+													 panel.discuss_summary() };
+		auto       rows     = std::set<int>{ };
+		for (auto* const control : controls) {
+			const auto box = in_band(*band, *control);
+			expect(control->isVisibleTo(&panel) && band->rect().contains(box), "every control is whole inside the narrow band");
+			rows.insert(box.center().y());
+			for (auto* const other : controls) {
+				expect(other == control || !in_band(*band, *other).intersects(box), "no two controls overlap");
+			}
+		}
+		expect(rows.size() >= 2U && panel.cards()->geometry().top() >= band->geometry().bottom(), "the band wraps onto more rows, and the notes start below it");
+		panel.close();
+	}
+
+	/// \brief [[BPR-1337]]. The band and its chips follow the theme on screen,
+	/// and the Only new glyph's dot is drawn in the glyph's ink: before, it
+	/// was always black and vanished in a dark theme.
+	void test_discuss_top_follows_the_theme()
+	{
+		for (const auto dark : { false, true }) {
+			auto panel = qt::github_conversation_panel{ };
+			if (dark) {
+				panel.setPalette(dark_palette());
+			}
+			panel.adopt(two_files(), QStringLiteral("2 review threads available."));
+			panel.set_discuss(true);
+			panel.resize(1000, 600);
+			panel.show();
+			process_events();
+			auto* const band  = panel.discuss_controls();
+			const auto  image = band->grab().toImage();
+			const auto  base  = panel.palette().color(QPalette::Base);
+			const auto  fill  = image.pixelColor(QPoint{ image.width() / 2, 2 });
+			expect(std::abs(fill.lightness() - base.lightness()) <= 2, "the band is drawn in the palette's base");
+			expect((fill.lightness() < 128) == dark, "the band is dark in the dark theme and light in the light one");
+			const auto chosen = panel.scope_whole_pull_request_button()->grab().toImage();
+			expect(chosen.pixelColor(QPoint{ 6, chosen.height() / 2 }) != fill, "the chosen scope is filled, not bare");
+			panel.close();
+
+			// The drawer's Only new icon: a ring with a dot, both in its ink.
+			auto beside = qt::github_conversation_panel{ };
+			if (dark) {
+				beside.setPalette(dark_palette());
+			}
+			beside.relayout();
+			const auto icon   = beside.filter_unread_button()->icon().pixmap(QSize{ 48, 48 }, 1.0).toImage();
+			const auto centre = icon.pixelColor(QPoint{ 24, 24 });
+			const auto ink    = beside.palette().color(QPalette::ButtonText);
+			expect(centre.alpha() > 200 && std::abs(centre.lightness() - ink.lightness()) < 40, "the Only new dot is drawn in the glyph's ink");
+		}
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -667,6 +893,9 @@ auto main(int argc, char** argv) -> int
 	test_pr_wide_index_and_selected_detail();
 	test_an_overview_count_lists_exactly_its_conversations();
 	test_contextual_scope_survives_clear_and_refresh();
+	test_discuss_top_is_one_named_band();
+	test_discuss_top_wraps_when_narrow();
+	test_discuss_top_follows_the_theme();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

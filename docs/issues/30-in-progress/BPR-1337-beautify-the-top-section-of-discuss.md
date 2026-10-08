@@ -50,3 +50,139 @@ chip language Conversations' bar already uses ([[BPR-1293]]).
 - `BPR-1337:owner-look`: the owner, in one short attended session on a frozen
   build, picks between the two candidates' renders and accepts or rejects the
   built one. Pending until answered.
+
+## Inventory (before, `BPR-1337:inventory`)
+
+Drawn with `frontend-design` (loaded first). Rendered offscreen at 1440x900 in
+light and dark by `application_discuss_top_public_path` on `overview-labels-v1`
+(34 labelled threads, 3 pull request comments and 2 review summaries): the
+whole pull request, one file, one file with Unresolved on, an Overview
+drill-down, and the narrowed list beside Compose review (⌥R). The record is
+[before.png](../../design/BPR-1337-discuss-top/before.png): six top-section
+crops (light, then dark) and the narrow list.
+
+What looked unpolished:
+
+- **Two counts that disagree, far apart.** "34 review threads available." sat
+  at the top left. "39 conversations, 27 unresolved, 0 new" sat at the foot of
+  the list beside the status bar, where nobody looks, and read "1
+  conversations". In File scope a long sentence about pathless comments was
+  appended to it.
+- **A grid that floats.** No control could grow, so the grid centred itself
+  (x 310 to 1128 in a 1440 window), out of line with the list's 12-pixel edge.
+  Its three columns threw Unread, Unresolved and Clear to three distant points.
+- **Plain controls.** The controls were default text buttons ("File scope",
+  "All PR conversations", "Unread", "Unresolved", "Clear"). The checked scope
+  was a faint grey fill, barely visible in dark. The filters were words,
+  although the drawer and Conversations show them as icons.
+- **The file menu always showed**, full width, naming a file (README.md) even
+  while the whole pull request was in scope.
+- **The drill-down caption** was a fourth row, indented to the grid's start,
+  with a bare 10-pixel ×.
+- **No rhythm.** Rows were 4 pixels apart, with no edge between the controls and
+  the list's first heading. Everything was the same weight.
+
+## Candidates (`BPR-1337:candidates`)
+
+Both are real Qt renders of the same build, switched for the comparison only.
+
+- **A, one band**
+  ([candidate-a.png](../../design/BPR-1337-discuss-top/candidate-a.png)).
+  Conversations' bar transplanted: scope as two segments with the file menu
+  inside it, icon chips for Only new (with the new count) and Hide resolved,
+  the drill-down as a pill, and the counts with a Clear icon at the right end.
+  One 48-pixel row at 1440; it wraps to two rows beside the composer.
+- **B, heading over tools**
+  ([candidate-b.png](../../design/BPR-1337-discuss-top/candidate-b.png)). A
+  heading line ("39 conversations" larger, then "27 unresolved", "5 new" and
+  Clear with its word), and under it the scope and labelled chips (Only new,
+  Hide resolved). Two rows (about 88 pixels) at 1440; four beside the
+  composer.
+
+**Chosen: A.**
+- **Height.** Discuss is a reading page, and A gives the list 40 more pixels.
+- **One language.** A speaks exactly the language of Conversations' bar and the
+  drawer's filter icons, so the same filter looks the same on all three
+  surfaces. B's labelled chips would be a third variant.
+- **Narrow width.** A stays compact beside the composer, where B grows to four
+  rows.
+- **Counts.** A's counts read as status at the right. B's heading competes with
+  the title row's pull-request name.
+- **Minimal words.** A uses only the words the owner asked for, with icons and
+  tooltips doing the rest.
+
+## Built (`BPR-1337:built`)
+
+- `discuss_header.{hpp,cpp}` (new, Qt only):
+  - `discuss_tool`, a tool button drawn from the palette as a chip, a segment
+    or a bare glyph. The drawer's own icon look stays its `native` shape. The
+    focus ring shows on keyboard focus only, because a click's ring on
+    "Pull request" read as a choice.
+  - `discuss_counts`: semibold numbers with quieter words. Its text and
+    accessible text are the whole sentence.
+  - `discuss_pill`, `discuss_band`, and `discuss_flow_layout`, a wrapping row
+    whose trailing item sits at the right end.
+- `github_conversation_panel`:
+  - The band replaces the grid and the foot summary.
+  - The file menu shows only in File scope.
+  - The counts read "1 conversation" in the singular.
+  - The tab order is reading order: scope, file, filters, ×, Clear, notes.
+  - `set_availability_ordinary` lets the workbench say that the availability
+    line holds only a thread count. In Discuss that count moves into the
+    counts' tooltip. Any other line (threads unavailable, public preview)
+    stays shown.
+- `conversation_glyphs`:
+  - Adds `clear_filters` (a funnel with a cross) and `dismiss` (×).
+  - Fixes `dot()`. It read the pen's colour after putting the pen down, so
+    every dot (Only new's, Next new's, the target's) was black, and invisible
+    in dark themes. This also fixes the drawer's and Conversations' Only new
+    icon in dark.
+- Kept: every control and its accessible name, the scope's radio keys (one tab
+  stop, the arrows choose), Clear's reset of scope, filters and listing, the
+  drill-down caption's words, and the drawer's two icons beside the code.
+- Spec: "Discuss's top is one band" under the conversation drawer in
+  `docs/ux/workbench-specification.md`.
+
+## Verification (macOS arm64, Debug without debug info, offscreen)
+
+- New `application_discuss_top_public_path` (composed, `overview-labels-v1`,
+  1440x900):
+  - The band is one row under 50 pixels, starting at x 12, with Clear 16
+    pixels from the right.
+  - The availability count is the counts' tooltip, and the counts say "39
+    conversations, 27 unresolved, …".
+  - In light and dark the band is drawn in the theme's base, dark in dark.
+  - The drill-down is a pill after the filters, in the band's row.
+  - Beside the composer the band wraps, and every control stays whole inside
+    the narrow list.
+  - With `BPR_SETUP_ARTIFACT_ROOT` set, it captures every state in both themes.
+- `qt_github_conversation_panel`, three new tests:
+  - Named band: every accessible name and tooltip; one row in reading order;
+    the file menu only in File, right after it; the availability line moves
+    and stays; Tab order with and without a drill-down, and after leaving and
+    re-entering Discuss; Right and Left choose the scope.
+  - Narrow at 300 pixels: the band wraps, no control is clipped or overlapped,
+    and the notes start below the band.
+  - Theme: the band follows Base in light and dark, the chosen segment is
+    filled, and the drawer's Only new dot is drawn in the glyph's ink.
+- Failing-before controls (each applied, built, run and restored):
+
+  | Control | Fails with |
+  |---|---|
+  | Availability always visible in Discuss | "in Discuss an ordinary availability line moves into the counts' tooltip" |
+  | `dot()` reading the pen after `NoPen` | "the Only new dot is drawn in the glyph's ink" |
+  | No file-menu visibility on the scope toggle | "the whole pull request is in scope and the file choice is hidden" |
+  | Counts added as an ordinary item rather than trailing | "the band starts at the list's edge and ends at its right margin" |
+  | No explicit tab chain | "Tab walks scope, file, filters and Clear in reading order, then the notes" |
+
+- Passing on the candidate, 19 focused rows: `architecture_boundaries`;
+  `qt_composed_github_scale_{100,125,200}`; `qt_github_conversation_panel`;
+  `qt_conversation_cards_view`; `qt_conversation_finder_scale_{100,125,200}`;
+  `qt_workbench_focus_order_scale_{100,125,200}`;
+  `qt_workbench_conversation_reveal`; `qt_workbench_window_scale_{100,125,200}`;
+  `application_setup_destination_public_path`;
+  `application_overview_labels_public_path` (the drill-down caption's mark and
+  ×); and the new row.
+- `coding-format-check` passed (clang-format 23.1.1); `tidy.py` on the three
+  changed translation units passed.
+- Linux and Windows runs of these rows are owed by the stations.

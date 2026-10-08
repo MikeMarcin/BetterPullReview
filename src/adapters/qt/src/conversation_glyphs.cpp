@@ -19,9 +19,12 @@ namespace bpr::qt {
 
 		void dot(QPainter& aPainter, const QPointF aCentre, const qreal aRadius)
 		{
+			// [[BPR-1337]]. The ink is the pen's, read before the pen is put
+			// down; read after, it was black, and a dot vanished in dark themes.
+			const auto ink = aPainter.pen().color();
 			aPainter.save();
 			aPainter.setPen(Qt::NoPen);
-			aPainter.setBrush(aPainter.pen().color());
+			aPainter.setBrush(ink);
 			aPainter.drawEllipse(aCentre, aRadius, aRadius);
 			aPainter.restore();
 		}
@@ -198,6 +201,15 @@ namespace bpr::qt {
 				break;
 			case conversation_glyph::comment:
 				polyline(aPainter, { { 4.5, 6.0 }, { 19.5, 6.0 }, { 19.5, 16.0 }, { 11.0, 16.0 }, { 7.0, 19.5 }, { 7.0, 16.0 }, { 4.5, 16.0 }, { 4.5, 6.0 } });
+				break;
+			case conversation_glyph::clear_filters:
+				polyline(aPainter, { { 3.5, 5.0 }, { 17.5, 5.0 }, { 12.0, 11.5 }, { 12.0, 17.0 }, { 9.0, 19.0 }, { 9.0, 11.5 }, { 3.5, 5.0 } });
+				aPainter.drawLine(QPointF{ 15.5, 14.5 }, QPointF{ 20.5, 19.5 });
+				aPainter.drawLine(QPointF{ 20.5, 14.5 }, QPointF{ 15.5, 19.5 });
+				break;
+			case conversation_glyph::dismiss:
+				aPainter.drawLine(QPointF{ 7.0, 7.0 }, QPointF{ 17.0, 17.0 });
+				aPainter.drawLine(QPointF{ 17.0, 7.0 }, QPointF{ 7.0, 17.0 });
 				break;
 			}
 		}

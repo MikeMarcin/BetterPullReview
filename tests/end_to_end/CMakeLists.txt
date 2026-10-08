@@ -3017,6 +3017,16 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_overview_labels_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
     PASS_REGULAR_EXPRESSION "overview-labels-public-path:pass")
+# [[BPR-1337]]. Discuss's top section on overview-labels-v1 at 1440x900: the
+# whole pull request, one file, a filter and a drill-down, in light and dark.
+bpr_add_network_isolated_test(
+    NAME application_discuss_top_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --discuss-top
+)
+set_tests_properties(application_discuss_top_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "discuss-top-public-path:pass")
 
 bpr_add_executable(test_attended_recent_replay attended_recent_replay_tests.cpp)
 target_link_libraries(test_attended_recent_replay PRIVATE BetterPullReview::Composition BetterPullReview::AdapterGitHub)

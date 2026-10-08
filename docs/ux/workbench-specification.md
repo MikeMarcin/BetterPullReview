@@ -1276,6 +1276,30 @@ request (or of one chosen file) in file order under its path, with Discuss's
 scope, file and Unread and Unresolved filters, each note opening in place as
 it does beside the code.
 
+**Discuss's top is one band** ([[BPR-1337]], owner note 2026-10-08: "The top
+section of discuss could use some beautification"). It is drawn in the language
+of Conversations' bar ([[BPR-1293]]): 30-pixel chips with a 7-pixel corner, a
+hairline edge and the signal's soft fill when on, on the panel's base with a
+hairline under the band. From the left: the scope as two segments, **Pull
+request** and **File**, with the file chosen in a menu right after File while
+File is on (hidden otherwise); Only new as a chip with the ring-and-dot glyph
+and the count of threads with new posts in blue; Hide resolved as a chip with
+the struck ring; an Overview count's drill-down ([[BPR-1089]]) as a pill with
+the count's mark, its caption and a ×. At the right end are the counts, in
+semibold numbers with quieter words ("39 conversations  27 unresolved"), and
+Clear filters as a funnel icon. The band wraps onto more rows when the list is
+narrow, as it is beside the composer ([[BPR-1212]]). Every control keeps its
+accessible name ("Whole pull request", "File scope", "Conversation file
+scope", "Unread only", "Unresolved only", "Clear filters", "Show every
+conversation", "Threads summary") and has a tooltip. The counts' accessible
+text is the whole sentence, with the pathless-content note in File scope. Tab
+walks scope, file, filters, the drill-down's ×, Clear, then the notes. The two
+scope segments are one stop, as radio buttons are: the arrows choose. A focus
+ring shows on keyboard focus only. The availability line's ordinary count
+("34 review threads available.") moves into the counts' tooltip. Any other
+availability line (threads unavailable, public preview) stays shown above the
+band. Beside the code nothing changes: the filters are the tab row's two icons.
+
 ### The thread map
 
 The drawer no longer draws a thread map (owner verdict on [[BPR-1290]]'s
