@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1339"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Accepted file still shows as unread in Overview",
+  "created": "2026-10-08T20:56:30.167883+00:00",
+  "base": "d37dca87335419f315a730db0bf0c1375837e514"
+}
