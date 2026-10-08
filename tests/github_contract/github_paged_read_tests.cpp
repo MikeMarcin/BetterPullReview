@@ -3147,11 +3147,13 @@ namespace {
 		std::optional<read_operation>                            LastOperation;
 		std::optional<application::github_read_validation_error> ValidationError;
 		std::optional<application::github_read_validation_error> RelationshipDetail;
+		std::optional<application::github_actor_login_conflict>  ActorConflict;
 		void                                                     request_started(const read_operation aOperation) noexcept override { LastOperation = aOperation; }
 		void                                                     validation_failed(const application::github_read_validation aValidation) noexcept override
 		{
 			ValidationError    = aValidation.Error;
 			RelationshipDetail = aValidation.Detail;
+			ActorConflict      = aValidation.ActorConflict;
 		}
 		std::array<std::pair<read_operation, int>, 32U>                      Responses{ };
 		std::size_t                                                          Count = 0U;
@@ -3169,6 +3171,35 @@ namespace {
 			Responses[Count++] = { aOperation, aStatus };
 		}
 	};
+
+	auto test_ghes_actor_conflict_recreated_read() -> void
+	{
+		using origin = application::github_actor_observation_origin;
+		for (const auto login : { "OCTO-REVIEWER", "unrelated-login" }) {
+			for (unsigned restart = 0U; restart < 2U; ++restart) {
+				auto transport            = paged_fixture_transport{ fixture_scenario::success, "ghe.example.invalid" };
+				transport.RewriteResponse = [login](const github_wire_request& aRequest, wire_response& aResponse) {
+					if (aRequest.Wire.Operation == read_operation::list_reviews) {
+						for (const auto& [from, to] : std::array<std::pair<std::string_view, std::string_view>, 2U>{ { { "U_reviewer", "U_viewer" }, { "octo-reviewer-2", login } } }) {
+							const auto position = aResponse.Body.find(from);
+							expect(position != std::string::npos, "attributable review actor fixture field exists");
+							aResponse.Body.replace(position, from.size(), to);
+						}
+					}
+				};
+				recording_response_observer observer;
+				const auto                  result = perform_paged_github_read(transport, enterprise_profile(), provider_request(application::github_server_contract::ghes_3_18_2022_11_28),
+																			   core::provider_snapshot_id{ 55U + restart }, { }, { }, github_provider_read_authority::authenticated, &observer);
+				expect(!result && observer.LastOperation == read_operation::search_pull_requests && observer.ActorConflict
+						   && observer.ActorConflict->First == origin::viewer && observer.ActorConflict->Conflicting == origin::review
+						   && observer.ActorConflict->AsciiCaseOnly == (std::string_view{ login } == "OCTO-REVIEWER"),
+					   "GHES case-only and different conflicts stay refusing with actual review provenance across recreated reads");
+				transport.RewriteResponse = { };
+				expect(perform_paged_github_read(transport, enterprise_profile(), provider_request(application::github_server_contract::ghes_3_18_2022_11_28), core::provider_snapshot_id{ 60U + restart }, { }).has_value(),
+					   "corrected synthetic payload recovers on retry without retaining the refusal");
+			}
+		}
+	}
 
 	auto test_paged_response_observation() -> void
 	{
@@ -3701,6 +3732,7 @@ namespace {
 auto main() -> int
 {
 	test_raw_tour_import();
+	test_ghes_actor_conflict_recreated_read();
 	test_paged_response_observation();
 	test_timeline_read();
 	test_timeline_atomic_failures();

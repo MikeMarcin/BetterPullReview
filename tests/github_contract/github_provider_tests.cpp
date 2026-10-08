@@ -1714,6 +1714,55 @@ namespace {
 			   "attempt retains bounded Verbose operation metadata without an HTTP response");
 	}
 
+	void test_actor_conflict_diagnostic_propagation()
+	{
+		for (const std::string_view login : { "OCTO-REVIEWER", "other-login" }) {
+			const auto       log = std::make_shared<recording_log>();
+			provider_fixture fixture{ application::github_authentication_transport::native_https, log };
+			const auto       request       = pull_request_for(fixture, account_lease(fixture));
+			fixture.Transport->ReadHandler = [login](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				const auto filename = [&]() -> std::string_view {
+					switch (aWire.Wire.Operation) {
+					case read_operation::get_repository:            return "repository";
+					case read_operation::get_pull_request:          return "pull_request";
+					case read_operation::list_pull_request_files:   return "files";
+					case read_operation::list_pull_request_commits: return "commits";
+					case read_operation::list_reviews:              return "reviews";
+					case read_operation::list_issue_comments:       return "issue_comments";
+					case read_operation::list_checks:               return "checks";
+					case read_operation::search_pull_requests:      return "search";
+					default:                                        fail("bounded provider fixture operation");
+					}
+				}();
+				auto response = viewer_response();
+				response.Body = read_file(capability_fixture_root().parent_path().parent_path() / "contracts/v1/github-com/responses" / (std::string{ filename } + ".json"));
+				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
+					response.Headers.back().Value = "search";
+				}
+				if (aWire.Wire.Operation == read_operation::list_reviews) {
+					for (const auto& [from, to] : std::array<std::pair<std::string_view, std::string_view>, 2U>{ { { "U_fixture_viewer", "U_viewer" }, { "octo-reviewer", login } } }) {
+						const auto position = response.Body.find(from);
+						expect(position != std::string::npos, "recorded review has synthetic actor fields");
+						response.Body.replace(position, from.size(), to);
+					}
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			auto completions = std::vector<application::github_pull_request_completion>{ };
+			fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			const auto& error = require_one<application::github_pull_request_error>(completions, "actor conflict fails atomically once");
+			expect(error.RelationshipDetail == application::github_read_validation_error::relationship_actor_login,
+				   "provider preserves actor refusal");
+			const auto detail = std::string{ "actor_conflict=viewer,review," } + (login == "OCTO-REVIEWER" ? "ascii_case_only" : "different");
+			expect(std::ranges::count_if(log->Events, [&](const auto& aEvent) {
+					   return aEvent.Summary.text() == detail && aEvent.PagedOperation == application::diagnostic_paged_operation::list_reviews
+						   && aEvent.Outcome == application::diagnostic_outcome::failed;
+				   }) == 1,
+				   "provider records one fixed-origin conflict diagnostic without login values");
+		}
+	}
+
 	void test_capability_refusal_detail_propagation()
 	{
 		provider_fixture fixture{ application::github_authentication_transport::native_https };
@@ -2400,6 +2449,7 @@ int main(int aArgc, char** aArgv)
 	test_window_read_authentication_provenance();
 	test_personal_discovery_entry();
 	static_cast<void>(test_sanitized_provider_logging());
+	test_actor_conflict_diagnostic_propagation();
 	test_pull_request_attempt_diagnostic_propagation();
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();
