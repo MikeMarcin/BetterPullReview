@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1320"
 title: "Qualify the affected Git installation and exact-file recovery"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0065"]
 depends_on: ["BPR-1319"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r4"}
+parked_on: "human-review"
+acceptance: [{"criterion":"C1","outcome":"pending","revision":"980c088733bbed1938ad322f851f5e4e9fc4e7cb","evidence":{"kind":"observation","detail":"Direct native read-only acquisition identifies local /usr/bin/git2.50.1 Apple155 and canonical Homebrew gh2.101 on macOS26.6.2; exact commit/tree/blob/pack, denied outside writes, bounded owner-private temporary store, unchanged identity/executable/config metadata and cleanup pass. New required-operation capability probe exit129/3113B passes. Owner reports Git2.54.0 Apple157 but configured paths/source-build correspondence remain unavailable; local proof and fixture acceptance do not qualify that installation or private GHES authorization."}},{"criterion":"C2","outcome":"pass","revision":"980c088733bbed1938ad322f851f5e4e9fc4e7cb","evidence":{"kind":"command","detail":"Fresh adapter+privacy export2/2 pass18.33s. Composed multi-file GHES source/retry/reopen/persisted failed-state course passes17.22s through real installed Git/cache with recorded smart transport; two exact file endpoints, stale account/host/head/source/cancel controls pass in actual adapter fixtures. Actionable typed unsupported/probe-failed flow host0.72s, Qt3scales pass, core-only0.41s; anonymous/identifying closed exports accept only fixed new failure/step names and reject unknown canaries. Changed-line integrator7TUs tidy and worker changedTUs clean; inherited paged/fixture warnings recorded. Independent critical risk review no blocking findings; actual affected owner rendered PR remains separate pending."}}]
 ---
 
 # Qualify the affected Git installation and exact-file recovery
