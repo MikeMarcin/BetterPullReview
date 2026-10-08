@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1338"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Open the pull request on GitHub from a button beside the title",
+  "created": "2026-10-08T20:48:44.295534+00:00",
+  "base": "c500b6083c72ae56b2591f45d6266aba49647063"
+}
