@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1334"
 title: "Line details: the current line, base over head, full width under the comparison"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
