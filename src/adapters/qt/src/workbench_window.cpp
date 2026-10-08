@@ -3592,6 +3592,11 @@ namespace bpr::qt {
 		HomeRowMenu->addSeparator();
 		HomeRowMenu->addAction(OpenOnGithubAction);
 		HomeRowMenu->setDefaultAction(HomeOpenReviewAction);
+		connect(HomeRowMenu, &QMenu::aboutToHide, this, [this] {
+			if (HomeRecentResumeAction != nullptr) {
+				HomeRecentResumeAction->setVisible(true);
+			}
+		});
 		HomeList->set_row_menu_dispatch([this](const QPoint& aGlobal) {
 			HomeRecentRowLast = false;
 			popup_home_row_menu(aGlobal);
@@ -10384,15 +10389,19 @@ namespace bpr::qt {
 		// when that is.
 		HomeOpenReviewWindowAction->setEnabled(target.has_value() && ReviewWindowDispatch && NewBprWindowAction != nullptr
 											   && NewBprWindowAction->isEnabled());
-		if (HomeRecentResumeAction != nullptr) {
-			HomeRecentResumeAction->setVisible(recent);
-		}
 	}
 
 	void workbench_window::popup_home_row_menu(const QPoint& aGlobal)
 	{
 		update_open_on_github_action();
 		update_home_review_actions();
+		// Resume is a Recently viewed row's only. It is hidden just while the
+		// menu is open on a queue row, because a hidden action is a disabled
+		// one, and the row's hover button follows this action.
+		const auto target = home_review_target();
+		if (HomeRecentResumeAction != nullptr) {
+			HomeRecentResumeAction->setVisible(target.has_value() && std::holds_alternative<application::recent_review_row>(*target));
+		}
 		HomeRowMenu->popup(aGlobal);
 	}
 

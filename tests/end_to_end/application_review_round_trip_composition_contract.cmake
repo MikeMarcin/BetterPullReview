@@ -1131,6 +1131,25 @@ endfunction()
 # accepted trees, and is a read. No grant, target, provider, credential,
 # child environment, GitHub write, mutation or publication path; mutation pin
 # unchanged; no new src/app source. Reviewed on BPR-1327.
+# BPR-1342 reseal (2026-10-08): be0c3315f..this candidate, over the BPR-1327
+# reseal above (its pins match at be0c3315f); no other intervening pinned-scope
+# commit. Open Review in New Window from Home's rows.
+# github_application.cpp admits the row a window names (a queue row only as the
+# accepted account's on the accepted host, a Recently viewed row only as one the
+# window published and an account's reading only under that account's exact
+# authority, via core::admit_queue_review_window and
+# core::admit_recent_review_window) and hands the typed destination to the
+# profile desktop through github_profile_runtime::ReviewWindowRequest; the
+# fresh window re-admits its parts, requires its own session to match an
+# account's destination, and opens it through its Home bar's existing
+# setup-destination path. profile_desktop.cpp sends the profile's ordinary
+# new_bpr_window_intent carrying the destination, keeps it on that one fresh
+# window's entry and opens it after Home; github_application.hpp declares
+# set_review_window_request and open_window_review. Reads only, through the
+# path a pasted link already takes: no grant, target, provider, credential,
+# transport, GitHub write, mutation or publication path changes; mutation pin
+# unchanged; no new src/app source. Self-review on BPR-1342, not independent
+# review.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1149,7 +1168,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"a24ce58ce3463b572cd89f7a36700dc36598ce965fb1c06add4332f67ca7f352"
+		"eb7e4fd0858ca6484f5328e18961e6f5019ab1941fd252ee5f087bbe5b27e778"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1351,7 +1370,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "beda7ead151e8f323c35c6ef44d89216d0464a7fff0180daeee09fea62db86f9"
+        "f0503a0ed085836b37d7de411a5c952caa3027607a22f1bd4040ebb06e9682e6"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -1566,14 +1585,22 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
         0
         "whole-app inferred direct submit"
     )
-    # Three sites: the ledger host's command submit and the two
-    # SetupDestination submits (the Home paste field and, since BPR-0733,
-    # a Recently viewed entry opened by the same path).
+    # Four sites: the ledger host's command submit and the three
+    # SetupDestination submits (the Home paste field, since BPR-0733 a
+    # Recently viewed entry opened by the same path, and since BPR-1342 the
+    # pull request a fresh window's New Window carried, from its admitted
+    # parts).
     bpr_require_literal_count(
         bpr_async_mutation_source
         "->submit("
-        3
+        4
         "whole-app pointer submit allowlist"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "SetupDestination->submit(application::pull_request_page_address(*page))"
+        1
+        "a new window's carried pull request is local navigation, not review publication"
     )
     bpr_require_literal_count(
         bpr_async_mutation_source

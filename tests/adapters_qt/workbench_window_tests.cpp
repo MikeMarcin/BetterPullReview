@@ -12412,6 +12412,7 @@ namespace {
 		process_events();
 		expect(windows.size() == 1U && std::holds_alternative<core::pull_request_ref>(windows.back()) && std::get<core::pull_request_ref>(windows.back()) == mine && opens.empty(),
 			   "Open Review in New Window names the row it was opened on, and opens nothing here");
+		expect(again->isVisible(), "Resume, hidden only while the menu was open on a queue row, is back for Recently viewed's own button");
 		open->trigger();
 		process_events();
 		expect(opens.size() == 1U && opens.back().Repository == core::repository_locator{ "octo-org", "app" } && opens.back().Number.value() == 101U && windows.size() == 1U,
