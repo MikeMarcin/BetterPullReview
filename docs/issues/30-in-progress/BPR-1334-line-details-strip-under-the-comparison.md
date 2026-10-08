@@ -73,10 +73,11 @@ The existing Detail pane becomes **Line details**. No second pane is added.
   at 16 lines, followed by a line that says how many more were selected.
 - Unchanged lines show both versions without highlights. A removed line shows
   its base row; the head row says the line is not in head. An added line is
-  the mirror image. A changed line with no paired counterpart shows its own
-  row, and the other row names the lines it replaces.
+  the mirror image. A changed line with no paired counterpart that replaces
+  one line shows that line as its other row, without emphasis; one that
+  replaces several names them.
 - A line longer than 4,096 bytes is cut at a character boundary, followed by
-  a marker that gives how many more characters there are. Core decides the cut
+  a marker that gives how many more bytes there are. Core decides the cut
   and clips the highlight spans to it. Qt draws what core gives it.
 - It is on by default. **View > Line Details** turns it off or on, and the
   choice is a per-profile preference, also on Settings > Reviews and queue

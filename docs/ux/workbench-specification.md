@@ -1000,8 +1000,10 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   selection across lines that holds the current line shows each selected
   line's pair, up to sixteen, then how many more were selected. An unchanged
   line shows both versions plainly. A removed or added line shows its own row
-  and says the other side has none ("Not in head"); an unpaired line in a
-  replacement names the lines it replaces. A line longer than 4,096 bytes is
+  and says the other side has none ("Not in head"). An unpaired line that
+  replaces exactly one line shows that line as its other row, without
+  emphasis, because no character pairing was made; one that replaces several
+  names them. A line longer than 4,096 bytes is
   cut at a character boundary and says how many bytes follow. The core decides
   the rows, the cut and the highlight spans from the comparison's existing
   mapping and intraline edits; Qt draws them. It is on by default. **View >

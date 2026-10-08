@@ -288,6 +288,13 @@ CONSTRUCTIONS = (
         "Folders": 5,
         "Threads": "scripts/build_conversations_fixture.py",
     },
+    # [[BPR-1334]]. Four files whose changed lines are long, for Line details.
+    {
+        "Directory": "line-details-v1",
+        "Generator": "scripts/build_line_details_fixture.py",
+        "Files": 4,
+        "Folders": 4,
+    },
 )
 
 

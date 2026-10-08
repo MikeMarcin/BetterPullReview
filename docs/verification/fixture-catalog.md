@@ -123,6 +123,23 @@ seen in each; `--attended-open-file … --attended-read-state` records that
 through the review ledger before a person looks. Constructed, not recorded; its
 fixture test regenerates the construction and the served tree byte for byte.
 
+### `line-details-v1`, long changed lines
+
+Added for [[BPR-1334]], so Line details can be judged on the lines it is for.
+No other fixture had a changed line longer than 148 characters.
+`scripts/build_line_details_fixture.py` writes four files into
+`tests/fixtures/github/pull-requests/line-details-v1/construction.json`: a
+minified one-line JSON document with two values changed, unwrapped Markdown
+paragraphs (one clause rewritten, one paragraph replaced), a C++ file whose
+long SQL literal and long call gained columns and arguments, and a minified
+line of about twelve thousand characters that Line details cuts at 4,096 bytes.
+The same pack and contract builders serve it as `bpr-fixtures/line-details#34`
+on github.com, signed in as `fixture-author`, with no review, thread or
+comment. `application_line_details_public_path` reads the strip on it, and its
+`--attended` mode stops on the SQL line for the owner's look. Constructed, not
+recorded; its fixture test regenerates the construction and the served tree
+byte for byte.
+
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,
 transport metadata, remote URLs, patches, source content, email addresses,

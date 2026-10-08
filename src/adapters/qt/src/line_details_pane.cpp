@@ -290,8 +290,18 @@ namespace bpr::qt {
 					   || (row.Kind == line_details_row_kind::changed && row.Side == core::diff_side::right)) {
 				band = Colors.Added;
 			}
-			const auto line = static_cast<std::uint32_t>(index);
-			append_line_band(selections, *this, core::line_span{ line, line + 1U }, band);
+			if (!band.isValid()) {
+				continue;
+			}
+			// The band covers the whole block, so every wrapped line of a long
+			// row wears it, not only the first.
+			const auto block = document()->findBlockByNumber(static_cast<int>(index));
+			auto       wash  = QTextEdit::ExtraSelection{ };
+			wash.cursor      = QTextCursor{ block };
+			wash.cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+			wash.format.setBackground(band);
+			wash.format.setProperty(QTextFormat::FullWidthSelection, true);
+			selections.push_back(wash);
 		}
 		for (const auto& span : Emphasis) {
 			const auto  side = Shown.Rows[static_cast<std::size_t>(span.Block)].Side;

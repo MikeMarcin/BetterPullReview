@@ -829,6 +829,14 @@ namespace {
 				   && replaced.Rows[1].Kind == line_details_row_kind::added,
 			   "an unpaired replacement line names the base lines it replaces");
 
+		// An unpaired one-line replacement still reads base over head.
+		const auto single   = run("keep\nabc\n", "keep\nxyz\n", unpairedOptions);
+		const auto oneToOne = line_details(indexed(single), diff_side::right, line_span{ 1U, 2U });
+		expect(oneToOne.Rows.size() == 2U && oneToOne.Rows[0].Kind == line_details_row_kind::removed && text(single, oneToOne.Rows[0]) == "abc"
+				   && oneToOne.Rows[1].Kind == line_details_row_kind::added && text(single, oneToOne.Rows[1]) == "xyz"
+				   && oneToOne.Rows[0].Emphasis.empty() && oneToOne.Rows[1].Emphasis.empty(),
+			   "an unpaired line replacing one line shows that line above it, without emphasis");
+
 		// A long line is cut at a character boundary, and emphasis stops at the cut.
 		const auto cutDiff = run("abcdefé tail one\n", "abcdefé tail two\n");
 		const auto cut     = line_details(indexed(cutDiff), diff_side::left, line_span{ 0U, 1U },

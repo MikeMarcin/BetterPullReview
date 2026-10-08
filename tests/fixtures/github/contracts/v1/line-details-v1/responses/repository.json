@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/line-details",
+	"id": 2,
+	"name": "line-details",
+	"node_id": "R_line-details",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

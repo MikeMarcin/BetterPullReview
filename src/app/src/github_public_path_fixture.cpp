@@ -531,6 +531,28 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "nested-folders-v1/objects.pack" },
 				};
+			// [[BPR-1334]]. Constructed by `scripts/build_line_details_fixture.py`:
+			// four files whose changed lines are long, one head.
+			case github_public_path_fixture::line_details_v1:
+				return {
+					.ContractDirectory   = "line-details-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 34U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "line-details",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "37b3ffda05bf3693487e4f92a5a1118d8647bede",
+					.HeadOneOid          = "a7603d7f2fe157ae72a0d4e13dada90fab83b31a",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "line-details-v1/objects.pack" },
+				};
 			}
 			return { };
 		}

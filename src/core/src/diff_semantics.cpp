@@ -955,6 +955,15 @@ namespace bpr::core {
 				continue;
 			}
 			auto other = absent_row(other_side(aSide), detail);
+			// A one-line replacement the comparison could not pair is still
+			// read as base over head: its other side is that one line, without
+			// emphasis, because no character pairing was made.
+			if (other.Replaces.has_value() && other.Replaces->extent() == 1U) {
+				const auto counterpart = source_line_ref{ .Comparison = diff.Alignment.Digest, .Side = other.Side, .Line = other.Replaces->Begin };
+				if (auto replaced = line_details_side_row(diff, counterpart, aSide == diff_side::left ? line_details_row_kind::added : line_details_row_kind::removed, aLimits)) {
+					other = std::move(*replaced);
+				}
+			}
 			if (aSide == diff_side::left) {
 				result.Rows.push_back(std::move(*selected));
 				result.Rows.push_back(std::move(other));

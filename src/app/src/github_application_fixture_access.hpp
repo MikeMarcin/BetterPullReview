@@ -73,6 +73,10 @@ namespace bpr::app::detail {
 		/// in ten files, one of them branching, for judging Threads
 		/// against its prototype.
 		conversations_v1,
+		/// [[BPR-1334]]. Four files whose changed lines are long: minified
+		/// JSON, unwrapped Markdown, a long SQL literal and call, and a
+		/// twelve-thousand-character minified line, for judging Line details.
+		line_details_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

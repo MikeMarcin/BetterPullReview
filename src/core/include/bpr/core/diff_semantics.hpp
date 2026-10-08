@@ -396,7 +396,9 @@ namespace bpr::core {
 	///
 	/// \details Two rows per shown line, base first. `OmittedLines` counts the
 	/// selected lines past `MaximumLines`. A line the comparison cannot map
-	/// adds no rows.
+	/// adds no rows. An unpaired line that replaces exactly one line shows
+	/// that line as its other row, removed over added, with no emphasis; one
+	/// that replaces several lines shows an absent row naming them.
 	struct line_details_projection
 	{
 		std::vector<line_details_row> Rows;

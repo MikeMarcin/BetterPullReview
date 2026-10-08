@@ -156,6 +156,13 @@ FIXTURES = {
         "identity": Identity("bpr-fixtures", "nested-folders", 21),
         "mirrors": None,
     },
+    # [[BPR-1334]]. Long changed lines, written by
+    # scripts/build_line_details_fixture.py.
+    "line-details-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "line-details", 34),
+        "mirrors": None,
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {

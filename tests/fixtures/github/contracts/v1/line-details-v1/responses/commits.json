@@ -1,0 +1,13 @@
+[
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"message": "Explain export failures in one sentence and widen the weekly totals"
+		},
+		"node_id": "C_22222222",
+		"sha": "2222222222222222222222222222222222222222"
+	}
+]

@@ -3717,6 +3717,20 @@ set_tests_properties(application_diff_zoom_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}"
     TIMEOUT 120 PASS_REGULAR_EXPRESSION "DIFF_ZOOM_PUBLIC_PATH_OK")
 
+# [[BPR-1334]]. Line details through the real composition on long changed
+# lines; `--attended` stops on the long SQL line for the owner's look.
+bpr_add_executable(test_line_details_public_path line_details_public_path_tests.cpp)
+target_link_libraries(test_line_details_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_line_details_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_line_details_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_line_details_public_path)
+bpr_enable_warnings(test_line_details_public_path)
+bpr_add_network_isolated_test(NAME application_line_details_public_path WINDOWS_UNCONTAINED
+    COMMAND test_line_details_public_path)
+set_tests_properties(application_line_details_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_LINE_DETAILS_RENDER_ROOT=${PROJECT_BINARY_DIR}/line-details-renders"
+    TIMEOUT 120 PASS_REGULAR_EXPRESSION "LINE_DETAILS_PUBLIC_PATH_OK")
+
 bpr_add_executable(test_profile_window_review_restoration_public_path profile_window_review_restoration_public_path_tests.cpp)
 target_link_libraries(test_profile_window_review_restoration_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_profile_window_review_restoration_public_path PRIVATE BPR_BUILD_TESTING=1)

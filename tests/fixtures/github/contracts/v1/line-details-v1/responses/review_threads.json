@@ -1,0 +1,44 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_line-details",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "config/flags.json",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/export.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/report/query.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "web/static/app.min.js",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/line-details:34:files",
+						"hasNextPage": false
+					},
+					"totalCount": 4
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_34",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

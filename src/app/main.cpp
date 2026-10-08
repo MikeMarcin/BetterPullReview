@@ -8288,6 +8288,21 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 0,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "line-details-v1") {
+				// [[BPR-1334]]. Constructed long changed lines for judging Line
+				// details; see `scripts/build_line_details_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::line_details_v1;
+				fixtureName            = "line-details-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "line-details",
+					.Number                   = 34,
+					.ExpectedTitle            = "Explain export failures in one sentence and widen the weekly totals",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "conventional-comments-v1") {
 				// [[BPR-1083]]. The nested-folders pull request with labelled
 				// review threads; see `scripts/build_conventional_comments_fixture.py`.

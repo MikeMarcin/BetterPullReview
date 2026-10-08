@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/line-details",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Constructed fixture: changed lines long enough to need Line details.\n",
+	"changed_files": 4,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "line-details",
+		"repo": {
+			"full_name": "bpr-fixtures/line-details",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_34",
+	"number": 34,
+	"state": "open",
+	"title": "Explain export failures in one sentence and widen the weekly totals",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}
