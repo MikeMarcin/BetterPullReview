@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1309"
 title: "Compose visible Home onboarding and discovery after save"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0062"]
 depends_on: ["BPR-1308"]
 priority: "P1"
