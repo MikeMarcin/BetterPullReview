@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1338"
 title: "Open the pull request on GitHub from a button beside its title, and from Home's rows"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1338--BPR-1338--5020946253b6.json","related_cards":["BPR-1129","BPR-1251","BPR-1255","BPR-1324","BPR-0776","BPR-0280"]}
+parked_on: "human-review"
 ---
 
 # BPR-1338: Open the pull request on GitHub from a button beside its title, and from Home's rows
@@ -195,3 +196,18 @@ predate this card.
   button takes about 26 px more of the name's room. BPR-1324 is changing the
   Windows title row (shortcuts drop below 1300 px), so "the whole name fits at
   1280" and the Windows floor need a run after both land.
+
+## Owner look — prepared 2026-10-08
+
+- Frozen build of `aebf45eb4` (source export and Debug tests-on build inside
+  `/Users/jaeger/.mask/attended-review/bpr1338-open-on-github-v001`;
+  `better_pull_review` sha256 prefix `98f52cc292a9b0cb`). It is started with
+  `python3 /Users/jaeger/.mask/attended-review/bpr1338-open-on-github-v001/launch.py`.
+  The launcher checks the build and fixture tree and reports an exit within
+  seconds. An offscreen smoke run reached `ATTENDED_PULL_REQUEST_OPENED`.
+- New short session `7f79445692d6c7d5ab35bbdeb22df34f`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1338-open-v001/state`,
+  host detached. Two Accept/Reject candidates, each ready at event cursor 6:
+  `BPR-1338-open-in-browser-v001` and `BPR-1338-home-open-v001`.
+- Next: on hand-back, read `status --after 6`. Accept on both closes
+  `BPR-1338:owner-look`; a Reject's note is the next round's change.
