@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1335"
 title: "The line-number gutter sizes to the longest number it shows"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
