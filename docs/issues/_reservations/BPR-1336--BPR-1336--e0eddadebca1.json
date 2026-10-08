@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1336"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Zoom the diff panes' code text from the View menu and keyboard (owner 2026-10-08)",
+  "created": "2026-10-08T20:41:40.180992+00:00",
+  "base": "94e3a3522c5a7eaa08fbc72116bc3f967259a4ae"
+}
