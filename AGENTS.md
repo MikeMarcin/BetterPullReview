@@ -68,6 +68,10 @@ network, or process effects.
   surfaces the owner will look at) loads the `frontend-design:frontend-design`
   skill first and says so in its report. The owner asked on 2026-10-06 after
   several design rounds ran without it.
+- Never use `git stash` in a worktree: the stash list is shared by every
+  worktree of the checkout, so `stash pop` can take another agent's work
+  (BPR-1332's bisect swapped BPR-1327's uncommitted files). Use WIP commits on
+  your own branch.
 - Commit each completed issue slice intentionally.
 - For release work, use the existing `publish-release` skill and package paths.
   Bind the separate versioned corresponding-source asset as well as the binary,
