@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1340"
 title: "The Updates line dates its newest update, and both handles drag"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
