@@ -8,7 +8,7 @@ depends_on: ["BPR-1309"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r1"}
 parked_on: "human-review"
-acceptance: [{"criterion":"C1","outcome":"pass","revision":"2f6fe7f1a","evidence":{"kind":"command","detail":"v002: worker 16/16 focused rows (settings x4 scales, workbench x3, home list x3, composed github x3, settings effect boundary, composed personal-discovery course, core boundary); integrator combined isolated HEAD+slice rerun passes these Home rows and clean-export boundaries; 180 offscreen renders inspected (Settings renders light offscreen in all modes, existing limitation). Frozen public course 15.93s + boundaries 3/3. Format/changed-line tidy pass."}},{"criterion":"C2","outcome":"pending","revision":"2f6fe7f1a:55e9ed376d79cdbabb5d1229314866b1f26a5f90bdf778a687adbe3736710d34:f884c2c31d80a9db5ed0dc14c2214d4ea4043dfd27b4d597af1733a13de5e198","evidence":{"kind":"artifact","detail":"v001 Rejects consumed (c0939eaa addition, 5b1c12d0 home; session 5317162a cursor 10). Fresh session 940f5d334de0b75c0cbd0acf966c5438 cursor 6: BPR-1310-home-v002 (e5ec7cbd...) and BPR-1310-repositories-v002 (59c3b03d...), one Accept/Reject each; owner verdicts pending."}}]
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"873bd4b0b1705e98f3f80a94b679017e8e77bcc9","evidence":{"kind":"command","detail":"v003: frozen clean export of 873bd4b0b passes 18/18: application_personal_discovery_public_path, core/architecture boundaries, qt_settings_window x4 scales, qt_workbench_window x3, qt_home_list x3, qt_composed_github x3, qt_settings_effect_boundary. Worker 16/16 in tree; format and changed-line tidy pass; 126 offscreen renders (light/dark/high-contrast dark, wide/narrow, 100/125/200) inspected. Settings renders light offscreen in dark modes (existing limitation)."}},{"criterion":"C2","outcome":"pending","revision":"873bd4b0b1705e98f3f80a94b679017e8e77bcc9:86678047362af9a04c838b75f209feb2c55e42c8ba1b6a3d0015a820cf902569:f884c2c31d80a9db5ed0dc14c2214d4ea4043dfd27b4d597af1733a13de5e198","evidence":{"kind":"artifact","detail":"v002 Rejects consumed (c7d78e69 home, 902a27c6 repositories; session 940f5d33 handed back cursor 10). Fresh session 6226f23752342fb0ad75662926641f35 cursor 6: BPR-1310-home-v003 (d1cd3c23...) and BPR-1310-repositories-v003 (7d256fb2...), one Accept/Reject each; owner verdicts pending."}}]
 ---
 
 # Verify rendered repository onboarding and prepare owner review
@@ -132,3 +132,43 @@ first-run button that opens Settings › Repositories; Review Cycles lanes that
 nothing can populate are hidden while no repository is saved; the empty-lane
 link opens Repositories; and the modal is replaced by an Accounts-style
 in-page flow. C2 stays pending.
+
+## v003 candidates (dispatch r5, 2026-10-08)
+
+`873bd4b0b` responds to both v002 rejections; the worker loaded the
+frontend-design skill first. The modal Add repository dialog is gone.
+Settings › Repositories mirrors Accounts & hosts: a "Saved for @account on
+host" section with the exact list and Remove, and a "New repository" section
+that opens in place with the destination line, a labelled Repository field,
+progress and refusal announced beside it, "Choose account or set up
+server…", Add and Cancel. Every Add repository entry point opens that page
+with the field focused. A save keeps the page open and confirms what was
+added.
+
+Signed-in Home with no saved repository shows only an "Add a repository"
+button under the Open bar. While nothing is saved and the queue is empty, the
+Needs me lane is hidden, because only observer-rule or followed rows could
+fill it and none exist then. Review Cycles and Open Project… stay, because
+local cycles do not depend on repositories. The empty-lane link covers
+"saved repositories" and opens Settings › Repositories. Observer rules stay
+reachable through Filter › Open Reviews & queue and the Settings sidebar. The
+open-PR shortcut's direct save, `src/application` and `src/app` are
+unchanged.
+
+Evidence. The worker ran 16 focused rows and all pass. The composed course
+covers the exact destination, invalid input, cancelled server setup
+returning to the draft, stale destination, duplicate, real SQLite refusal and
+retry, offline and secondary-limit saves, sibling window, restart, removal
+and zero provider mutations. Format and changed-line tidy pass, and the
+worker inspected 126 offscreen renders. The self-contained frozen root
+`artifacts/four-drafts-r1/home-frozen-v003/` (archive `0c90420d…0d07`,
+binary `86678047…2569`, launcher `f884c2c3…e198`) passes 18/18 in its clean
+export: the public course, three boundaries, Settings at four scales, and
+the workbench, Home list and composed GitHub rows at three scales each. Known
+offscreen limit: the Settings window renders light in explicit dark modes,
+which predates this work.
+
+Fresh session `6226f23752342fb0ad75662926641f35` (cursor 6) asks two
+questions: `BPR-1310-home-v003` on the first-time Home and
+`BPR-1310-repositories-v003` on the in-place Repositories page. The decided
+v002 session's server is stopped. C2 stays pending.
