@@ -1687,6 +1687,17 @@ namespace bpr::adapters::github::detail {
 			return hasNext;
 		}
 
+		/// \brief [[BPR-1321]] Maps a provider-stated account type; nothing is inferred from logins or IDs.
+		[[nodiscard]] auto actor_kind(const std::string_view aType) noexcept
+			-> application::github_actor_kind
+		{
+			if (aType == "Bot") {
+				return application::github_actor_kind::bot;
+			}
+			return aType == "User" ? application::github_actor_kind::user
+								   : application::github_actor_kind::other;
+		}
+
 		[[nodiscard]] auto parse_rest_actor(const page_json_value& aValue)
 			-> std::optional<application::github_actor_record>
 		{
@@ -1700,9 +1711,14 @@ namespace bpr::adapters::github::detail {
 				return std::nullopt;
 			}
 			const auto object = json_object(aValue);
+			// REST already holds a bot in the canonical `<name>[bot]` form, so
+			// only the stated type is recorded. An absent or non-string `type`
+			// is no type evidence.
+			const auto type = json_member(object, "type");
 			return application::github_actor_record{
 				.Actor = application::github_actor_id{ text(json_member(object, "node_id")) },
 				.Login = text(json_member(object, "login")),
+				.Kind  = json_is_string(type) ? actor_kind(text(type)) : application::github_actor_kind::unobserved,
 			};
 		}
 
@@ -1730,17 +1746,32 @@ namespace bpr::adapters::github::detail {
 			if (json_is_null(aValue)) {
 				return { .Valid = true, .Actor = std::nullopt };
 			}
-			if (!json_is_object(aValue) || !has_exact_keys(json_object(aValue), { "id", "login" })
+			if (!json_is_object(aValue)
+				|| (!has_exact_keys(json_object(aValue), { "id", "login" })
+					&& !(has_exact_keys(json_object(aValue), { "__typename", "id", "login" })
+						 && nonempty_string(json_member(json_object(aValue), "__typename"))))
 				|| !nonempty_string(json_member(json_object(aValue), "id"))
 				|| !nonempty_string(json_member(json_object(aValue), "login"))) {
 				return { };
 			}
-			const auto object = json_object(aValue);
+			const auto object   = json_object(aValue);
+			const auto typeName = json_member(object, "__typename");
+			const auto kind     = json_is_string(typeName) ? actor_kind(text(typeName)) : application::github_actor_kind::unobserved;
+			auto       login    = text(json_member(object, "login"));
+			// [[BPR-1321]] GitHub's GraphQL `Bot.login` omits the `[bot]` suffix
+			// that REST carries for the same node. Only a typed `Bot` takes the
+			// REST form; snapshot validation still compares the result exactly
+			// and refuses it against any observation not typed as a bot.
+			constexpr std::string_view botSuffix = "[bot]";
+			if (kind == application::github_actor_kind::bot && !login.ends_with(botSuffix)) {
+				login += botSuffix;
+			}
 			return {
 				.Valid = true,
 				.Actor = application::github_actor_record{
 					.Actor = application::github_actor_id{ text(json_member(object, "id")) },
-					.Login = text(json_member(object, "login")),
+					.Login = std::move(login),
+					.Kind  = kind,
 				},
 			};
 		}

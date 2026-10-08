@@ -3201,6 +3201,99 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1321]] One synthetic GitHub App actor observed by REST and GraphQL.
+	struct bot_actor_observation
+	{
+		std::string_view RestType;
+		std::string_view RestLogin;
+		std::string_view GraphqlActor;
+	};
+
+	/// \brief Runs the composed GHES read with the review in REST and the first
+	/// thread comment in GraphQL authored by the same `BOT_review_app` node.
+	auto read_bot_actor(const bot_actor_observation& aObservation, const std::uint64_t aSnapshot,
+						recording_response_observer* aObserver = nullptr) -> github_paged_read_result
+	{
+		auto transport            = paged_fixture_transport{ fixture_scenario::success, "ghe.example.invalid" };
+		transport.RewriteResponse = [aObservation](const github_wire_request& aRequest, wire_response& aResponse) {
+			if (aRequest.Wire.Operation == read_operation::list_reviews) {
+				const auto rest = std::string{ R"("login":")" } + std::string{ aObservation.RestLogin } + R"(","node_id":"BOT_review_app")"
+					+ (aObservation.RestType.empty() ? std::string{ } : R"(,"type":")" + std::string{ aObservation.RestType } + "\"");
+				expect(replace_raw(aResponse.Body, R"("login":"octo-reviewer-2","node_id":"U_reviewer","type":"User")", rest) == 1U,
+					   "review REST actor fixture field selected");
+			}
+			if (aRequest.Wire.Operation == read_operation::list_review_threads) {
+				const auto position = aResponse.Body.find(R"("author":null)");
+				if (position != std::string::npos) {
+					aResponse.Body.replace(position, std::string_view{ R"("author":null)" }.size(),
+										   std::string{ R"("author":)" } + std::string{ aObservation.GraphqlActor });
+				}
+			}
+		};
+		return perform_paged_github_read(transport, enterprise_profile(), provider_request(application::github_server_contract::ghes_3_18_2022_11_28),
+										 core::provider_snapshot_id{ aSnapshot }, { }, { }, github_provider_read_authority::authenticated, aObserver);
+	}
+
+	auto test_ghes_bot_actor_representation() -> void
+	{
+		using origin = application::github_actor_observation_origin;
+		// GitHub states a GitHub App actor as REST `"type":"Bot"` with login
+		// `<name>[bot]` and as GraphQL `Bot` with login `<name>`, on one node.
+		for (const auto graphql : { std::string_view{ R"({"__typename":"Bot","id":"BOT_review_app","login":"review-app"})" },
+									std::string_view{ R"({"__typename":"Bot","id":"BOT_review_app","login":"review-app[bot]"})" } }) {
+			for (unsigned restart = 0U; restart < 2U; ++restart) {
+				const auto result       = read_bot_actor({ "Bot", "review-app[bot]", graphql }, 70U + restart);
+				const auto threadAuthor = [&]() -> std::optional<application::github_actor_record> {
+					for (const auto& thread : result->ReviewThreads) {
+						for (const auto& comment : thread.Comments) {
+							if (comment.Author) {
+								return comment.Author;
+							}
+						}
+					}
+					return std::nullopt;
+				};
+				expect(result.has_value() && result->Reviews.size() == 1U && result->Reviews.front().Author
+						   && result->Reviews.front().Author->Login == "review-app[bot]"
+						   && result->Reviews.front().Author->Kind == application::github_actor_kind::bot
+						   && threadAuthor() && threadAuthor()->Login == "review-app[bot]"
+						   && threadAuthor()->Kind == application::github_actor_kind::bot
+						   && threadAuthor()->Actor == result->Reviews.front().Author->Actor,
+					   "a typed bot on both sides loads through the composed GHES read in the REST login form, on every recreated read");
+			}
+		}
+
+		struct refused_case
+		{
+			bot_actor_observation Observation;
+			bool                  AsciiCaseOnly;
+			std::string_view      Message;
+		};
+		for (const auto& refused : std::array{
+				 refused_case{ { "Bot", "review-app[bot]", R"({"__typename":"Bot","id":"BOT_review_app","login":"other-app"})" }, false, "a different bot login for the same node still refuses" },
+				 refused_case{ { "Bot", "review-app[bot]", R"({"__typename":"Bot","id":"BOT_review_app","login":"Review-App"})" }, true, "a case-only bot login difference still refuses" },
+				 refused_case{ { "User", "review-app[bot]", R"({"__typename":"Bot","id":"BOT_review_app","login":"review-app"})" }, false, "a REST User carrying a bot-form login is not matched by a GraphQL Bot" },
+				 refused_case{ { "Bot", "review-app[bot]", R"({"__typename":"User","id":"BOT_review_app","login":"review-app"})" }, false, "a REST Bot is not matched by a GraphQL User of the bare name" },
+				 refused_case{ { "Bot", "review-app[bot]", R"({"id":"BOT_review_app","login":"review-app"})" }, false, "without GraphQL type evidence nothing is canonicalized" },
+				 refused_case{ { "", "review-app[bot]", R"({"__typename":"Bot","id":"BOT_review_app","login":"review-app"})" }, false, "without REST type evidence a GraphQL Bot does not match" },
+				 refused_case{ { "User", "review-app", R"({"__typename":"User","id":"BOT_review_app","login":"review-app-2"})" }, false, "ordinary user conflicts are unchanged" },
+			 }) {
+			recording_response_observer observer;
+			const auto                  result = read_bot_actor(refused.Observation, 80U, &observer);
+			expect(!result && provider_failure_of(result) == application::github_provider_failure::malformed_response
+					   && observer.LastOperation == read_operation::search_pull_requests
+					   && observer.RelationshipDetail == application::github_read_validation_error::relationship_actor_login
+					   && observer.ActorConflict && observer.ActorConflict->First == origin::review
+					   && observer.ActorConflict->Conflicting == origin::thread_comment
+					   && observer.ActorConflict->AsciiCaseOnly == refused.AsciiCaseOnly,
+				   refused.Message);
+		}
+		recording_response_observer malformed;
+		expect(!read_bot_actor({ "Bot", "review-app[bot]", R"({"__typename":7,"id":"BOT_review_app","login":"review-app"})" }, 90U, &malformed)
+				   && !malformed.ActorConflict,
+			   "a non-string GraphQL type is a malformed actor, not type evidence");
+	}
+
 	auto test_paged_response_observation() -> void
 	{
 		for (const int status : { 200, 503, 0, -1 }) {
@@ -3733,6 +3826,7 @@ auto main() -> int
 {
 	test_raw_tour_import();
 	test_ghes_actor_conflict_recreated_read();
+	test_ghes_bot_actor_representation();
 	test_paged_response_observation();
 	test_timeline_read();
 	test_timeline_atomic_failures();

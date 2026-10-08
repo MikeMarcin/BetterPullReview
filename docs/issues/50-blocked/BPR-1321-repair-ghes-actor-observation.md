@@ -83,3 +83,35 @@ rejecting. It is hardening consistent with the facts. It is **not**
 attributed to the incident, and confirming it is deferred to pre-release
 feedback. C1 and C2 stay open until that feedback or equivalent evidence
 exists.
+
+## Typed bot-login repair (dispatch r5, 2026-10-08)
+
+`github_actor_record` now carries the provider-stated `Kind` (`unobserved`,
+`user`, `bot`, `other`), taken only from REST `type` or GraphQL `__typename`.
+The review-thread GraphQL actor selection now requests `__typename`. Only a
+GraphQL actor typed `Bot` whose login lacks `[bot]` takes the REST form
+`<name>[bot]`. Snapshot validation still compares logins byte for byte. It
+also refuses equal logins when exactly one observation is typed bot, so the
+representation rule cannot match a differently typed or untyped observation.
+Every other mismatch still rejects with the existing typed diagnostic. The
+untyped recorded fixtures canonicalize nothing.
+
+The new paged-read test fails before the change and passes after it: a typed
+bot on both sides, in either GraphQL form, loads on two recreated reads with
+login `review-app[bot]`. These all still refuse: a different bot login, a
+case-only difference, a REST User `x[bot]` against a GraphQL Bot `x`, a REST
+Bot against a GraphQL User, a missing type on either side, and a user-to-user
+conflict. A malformed `__typename` is refused as a malformed response. The
+BPR-1319 reproducers still pass. In the isolated integration tree,
+`github_paged_read`, `github_provider`, `github_read_contract`,
+`application_github_contract`, the recorded-fixture and fixture-security rows
+and `application_setup_destination_public_path` pass. No public-path bot
+fixture was added, because the shared recorded responses carry no types.
+
+This is hardening consistent with documented GitHub behavior and with the
+incident's shape. It is not attributed to the incident: it is unproven that
+the conflicting actor was a bot, or that GHES GraphQL `Bot.login` omits the
+suffix (both forms are accepted). The fixture validator and normalizer still
+accept only `{id, login}`, so a live re-recording with `__typename` would need
+them extended. C1 and C2 stay pending and the card stays blocked until
+pre-release feedback or equivalent provenance exists.

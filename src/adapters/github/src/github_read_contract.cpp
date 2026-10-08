@@ -32,7 +32,7 @@ namespace bpr::adapters::github::detail {
 															 "id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
 															 "subjectType path diffSide line originalLine "
 															 "comments(first:100){nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated "
-															 "author{login ... on Node{id}} replyTo{id}} "
+															 "author{__typename login ... on Node{id}} replyTo{id}} "
 															 "pageInfo{hasNextPage endCursor}}} "
 															 "pageInfo{hasNextPage "
 															 "endCursor}}}}}";
@@ -637,7 +637,7 @@ namespace bpr::adapters::github::detail {
 			std::string result{ "comments(" };
 			result += aArguments;
 			result += "){totalCount nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine "
-					  "outdated author{login ... on Node{id}} replyTo{id}} ";
+					  "outdated author{__typename login ... on Node{id}} replyTo{id}} ";
 			result += page_info_selection();
 			result += '}';
 			return result;

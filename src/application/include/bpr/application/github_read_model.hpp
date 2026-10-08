@@ -59,11 +59,25 @@ namespace bpr::application {
 
 	inline constexpr std::uint32_t maximum_github_line = 2'147'483'647U;
 
+	/// \brief The account type a provider observation stated for an actor (BPR-1321).
+	/// \details Taken only from the response's own type field: REST `type`,
+	/// GraphQL `__typename`. `unobserved` means the observation carried no
+	/// type, so no representation rule applies to it.
+	enum class github_actor_kind : std::uint8_t {
+		unobserved,
+		user,
+		bot,
+		other,
+	};
+
 	/// \brief Describes the github actor record record.
+	/// \details A `bot` login is held in the REST form `<name>[bot]`; the
+	/// GraphQL decoder appends the suffix to a typed `Bot` login that lacks it.
 	struct github_actor_record
 	{
-		github_actor_id Actor;
-		std::string     Login;
+		github_actor_id   Actor;
+		std::string       Login;
+		github_actor_kind Kind = github_actor_kind::unobserved;
 
 		auto operator<=>(const github_actor_record&) const = default;
 	};
@@ -909,6 +923,19 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] constexpr auto valid_enum(
+			const github_actor_kind aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_actor_kind::unobserved:
+			case github_actor_kind::user:
+			case github_actor_kind::bot:
+			case github_actor_kind::other:
+				return true;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
 			const github_pull_request_state aValue) noexcept -> bool
 		{
 			switch (aValue) {
@@ -1088,6 +1115,9 @@ namespace bpr::application {
 			if (aAuthor->Actor.value().empty()) {
 				return github_read_validation_error::missing_identity;
 			}
+			if (!valid_enum(aAuthor->Kind)) {
+				return github_read_validation_error::invalid_enum;
+			}
 			if (const auto error = consume_id(aBudget, aAuthor->Actor.value(), aLimits);
 				error != github_read_validation_error::none) {
 				return error;
@@ -1107,6 +1137,9 @@ namespace bpr::application {
 		{
 			if (aActor.Actor.value().empty()) {
 				return github_read_validation_error::missing_identity;
+			}
+			if (!valid_enum(aActor.Kind)) {
+				return github_read_validation_error::invalid_enum;
 			}
 			if (const auto error = consume_id(aBudget, aActor.Actor.value(), aLimits);
 				error != github_read_validation_error::none) {
@@ -1601,6 +1634,7 @@ namespace bpr::application {
 			{
 				std::string_view                Login;
 				github_actor_observation_origin Origin;
+				github_actor_kind               Kind;
 			};
 			std::unordered_map<std::string_view, actor_observation> actors;
 			actors.reserve(
@@ -1609,7 +1643,7 @@ namespace bpr::application {
 				+ 2U);
 			actors.emplace(
 				aSnapshot.Viewer.Actor.value(),
-				actor_observation{ aSnapshot.Viewer.Login, github_actor_observation_origin::viewer });
+				actor_observation{ aSnapshot.Viewer.Login, github_actor_observation_origin::viewer, aSnapshot.Viewer.Kind });
 			const auto observeActor =
 				[&actors, &aConflict](
 					const std::optional<github_actor_record>& aAuthor,
@@ -1620,8 +1654,20 @@ namespace bpr::application {
 				}
 				const auto [iterator, inserted] = actors.try_emplace(
 					aAuthor->Actor.value(),
-					actor_observation{ aAuthor->Login, aOrigin });
-				if (!inserted && iterator->second.Login != aAuthor->Login) {
+					actor_observation{ aAuthor->Login, aOrigin, aAuthor->Kind });
+				if (inserted) {
+					return github_read_validation_error::none;
+				}
+				// A bot login is only comparable with another observation typed
+				// as a bot: the decoders' `[bot]` representation rule must not
+				// let a differently typed or untyped observation match it.
+				const auto& first = iterator->second;
+				if (first.Login == aAuthor->Login && first.Kind != aAuthor->Kind
+					&& (first.Kind == github_actor_kind::bot || aAuthor->Kind == github_actor_kind::bot)) {
+					aConflict = github_actor_login_conflict{ first.Origin, aOrigin, false };
+					return github_read_validation_error::relationship_actor_login;
+				}
+				if (first.Login != aAuthor->Login) {
 					const auto foldAscii = [](const unsigned char aByte) {
 						return aByte >= 'A' && aByte <= 'Z' ? static_cast<unsigned char>(aByte + ('a' - 'A')) : aByte;
 					};

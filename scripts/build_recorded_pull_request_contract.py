@@ -51,7 +51,7 @@ GRAPHQL_QUERY = (
     "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount "
     "nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
     "subjectType path diffSide line originalLine comments(first:100){totalCount "
-    "nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated author{login ... on "
+    "nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated author{__typename login ... on "
     "Node{id}} replyTo{id}} "
     "pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}"
 )
