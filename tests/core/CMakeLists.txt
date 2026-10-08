@@ -608,6 +608,13 @@ bpr_enable_hardening(test_suggestion_applicability)
 bpr_enable_warnings(test_suggestion_applicability)
 bpr_add_network_isolated_test(NAME core_suggestion_applicability COMMAND test_suggestion_applicability "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1212]]. Suggest change: the first text of a suggestion draft and what its block changes.
+bpr_add_executable(test_suggestion_draft suggestion_draft_tests.cpp)
+target_link_libraries(test_suggestion_draft PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_suggestion_draft)
+bpr_enable_warnings(test_suggestion_draft)
+bpr_add_network_isolated_test(NAME core_suggestion_draft COMMAND test_suggestion_draft)
+
 # [[BPR-1077]]. Root-post classification and the scoped derived annotation set, against the pack's counter units.
 bpr_add_executable(test_feedback_conversation feedback_conversation_tests.cpp)
 target_link_libraries(test_feedback_conversation PRIVATE BetterPullReview::Core)

@@ -157,9 +157,13 @@ auto main(int argc, char** argv) -> int
 				wait([&] { return window.comment_action()->isEnabled(); }, "current-head Comment is admitted after the refused left target");
 				const auto beforeComment = access::review_mutation_evidence(*application);
 				window.comment_action()->trigger();
-				wait([&] { return window.review_editor()->body_editor()->isVisible() && !window.review_editor()->body_editor()->isReadOnly(); }, "Comment opens a usable editor");
+				// [[BPR-1212]]. Comment opens the draft in the drawer, beside the code.
+				auto* const cards = window.conversation_panel()->cards();
+				wait([&] { return cards->writing_draft() && cards->draft_editor() != nullptr && cards->draft_editor()->isVisible() && !cards->draft_editor()->isReadOnly(); },
+					 "Comment opens a usable draft in the drawer");
+				expect(window.comparison_surface()->isVisible(), "the code stays in view while the comment is written");
 				auto* inlineDraft = window.review_editor();
-				inlineDraft->body_editor()->setPlainText(QStringLiteral("Fixture comment kept without publishing."));
+				cards->draft_editor()->setPlainText(QStringLiteral("Fixture comment kept without publishing."));
 				wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "Fixture comment kept without publishing." && !inlineDraft->rejected_candidate(); }, "typed comment is accepted locally");
 				expect(inlineDraft->workshop_original_editor()->isHidden() && inlineDraft->workshop_proposal_editor()->isHidden()
 						   && !inlineDraft->reload_draft_action()->isVisible() && !inlineDraft->reapply_draft_action()->isVisible()
@@ -245,7 +249,10 @@ auto main(int argc, char** argv) -> int
 				const auto beforePromotion = access::review_mutation_evidence(*application);
 				wait([&] { return notes->promote_action()->isEnabled(); }, "saved private note shares Comment's target");
 				notes->promote_action()->trigger();
-				wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "A private note, copied literally." && inlineDraft->body_editor()->isVisible(); }, "promotion opens its exact local draft");
+				wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "A private note, copied literally."
+							   && cards->writing_draft() && cards->draft_editor() != nullptr && cards->draft_editor()->isVisible()
+							   && cards->draft_editor()->toPlainText() == QStringLiteral("A private note, copied literally."); },
+					 "promotion opens its exact local draft in the drawer");
 				const auto afterPromotion   = access::review_mutation_evidence(*application);
 				const auto privatePromotion = [&](const auto& aEvidence) {
 					return notes->notes_list()->count() == 1 && notes->notes_list()->item(0)->data(Qt::UserRole) == noteId
@@ -524,7 +531,8 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return course.comment_action()->isEnabled(); }, "Comment is offered on the current-head line");
 			course.comment_action()->trigger();
 			auto* const inlineDraft = course.review_editor();
-			wait([&] { return inlineDraft->body_editor()->isVisible() && !inlineDraft->body_editor()->isReadOnly(); }, "the inline draft opens");
+			// [[BPR-1212]]. In the drawer, beside the code.
+			wait([&] { return course.conversation_panel()->cards()->writing_draft() && !inlineDraft->body_editor()->isReadOnly(); }, "the inline draft opens in the drawer");
 			inlineDraft->body_editor()->setPlainText(QStringLiteral("issue (blocking): Pending inline draft."));
 			wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "issue (blocking): Pending inline draft."; }, "the inline draft is kept locally");
 			course.close_review_composition();

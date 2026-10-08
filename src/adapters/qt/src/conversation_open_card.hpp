@@ -19,6 +19,7 @@
 #include <vector>
 
 class QLabel;
+class QVBoxLayout;
 class QPalette;
 class QPlainTextEdit;
 class QToolButton;
@@ -178,7 +179,15 @@ namespace bpr::qt {
 		void               set_replying(bool aReplying);
 		[[nodiscard]] auto replying() const noexcept -> bool;
 		/// \brief The draft editor's reply for this thread.
-		void               present_reply(const std::optional<thread_reply_presentation>& aReply);
+		void present_reply(const std::optional<thread_reply_presentation>& aReply);
+		/// \brief [[BPR-1212]]. What the draft editor holds for my draft, on
+		/// the composer of a draft being written in the drawer.
+		void present_draft(const std::optional<draft_composer_presentation>& aDraft);
+		/// \brief [[BPR-1212]]. Whether this card is my draft's composer.
+		[[nodiscard]] auto writing() const noexcept -> bool;
+		/// \brief [[BPR-1212]]. What the draft's suggestion block changes, as
+		/// drawn under its field; hidden without a block.
+		[[nodiscard]] auto change_view() const noexcept -> QWidget*;
 		[[nodiscard]] auto reply_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto reply_field() const noexcept -> QAbstractButton*;
 		/// \brief The reply's label chip, menu and shortcodes: the composer's
@@ -202,8 +211,10 @@ namespace bpr::qt {
 		std::function<void(card_action)>                        Action;
 		std::function<void(const std::string&, const QString&)> Link;
 		std::function<void(const QString&)>                     ReplyText;
-		std::function<void()>                                   HeightChanged;
-		std::function<void()>                                   CloseRequested;
+		/// [[BPR-1212]]. Each edit of my draft written in the composer.
+		std::function<void(const QString&)> DraftText;
+		std::function<void()>               HeightChanged;
+		std::function<void()>               CloseRequested;
 		/// \brief The thread's actions, as a menu at a global point.
 		std::function<void(QPoint)> MoreRequested;
 
@@ -214,11 +225,13 @@ namespace bpr::qt {
 
 	private:
 		void build(const thread_card& aCard);
+		void build_composer(const thread_card& aCard, QVBoxLayout& aFoot);
 		void refresh_reply_controls();
 
 		std::string              Id;
 		open_card_style          Style;
 		bool                     Draft       = false;
+		bool                     Writing     = false;
 		bool                     Replying    = false;
 		bool                     Applying    = false;
 		bool                     Publishable = false;
@@ -232,6 +245,11 @@ namespace bpr::qt {
 		QLabel*                  ReplyStatus = nullptr;
 		note_button*             Publish     = nullptr;
 		suggestion_mark*         Suggestion  = nullptr;
+		/// [[BPR-1212]]. The composer's line button, state and change view.
+		QToolButton* Where      = nullptr;
+		QWidget*     DraftState = nullptr;
+		QWidget*     Change     = nullptr;
+		QString      LastNotice;
 		/// What a reply here is attached to on GitHub ([[BPR-1084]]).
 		core::suggestion_placement_observation Placement;
 		std::vector<thread_post_view*>         Posts;

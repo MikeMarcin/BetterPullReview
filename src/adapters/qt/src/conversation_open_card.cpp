@@ -145,6 +145,17 @@ namespace bpr::qt {
 				return { Glyph ? 16 : 8, sizeHint().height() };
 			}
 
+			void set_text(const QString& aText)
+			{
+				if (Text == aText) {
+					return;
+				}
+				Text = aText;
+				setAccessibleName(aText);
+				updateGeometry();
+				update();
+			}
+
 		protected:
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
@@ -380,6 +391,136 @@ namespace bpr::qt {
 		/// \brief Draws the composer's label chip as the drawer's quiet pill:
 		/// a hairline in the rule colour on a tint of the panel, its mark and
 		/// name in the secondary ink, and the signal colour when it has focus.
+		/// \brief [[BPR-1212]]. What a suggestion draft changes: the lines its
+		/// block removes and the lines it adds, under the draft's field.
+		class suggestion_change_view final : public QWidget
+		{
+		public:
+			suggestion_change_view(const open_card_style& aStyle, QWidget* aParent)
+				: QWidget{ aParent }
+				, Style{ aStyle }
+			{
+				setObjectName(QStringLiteral("threadDraftChange"));
+				setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+				setFocusPolicy(Qt::NoFocus);
+			}
+
+			void present(const std::optional<core::suggested_change>& aChange, const QString& aLines)
+			{
+				if (Change == aChange && Lines == aLines) {
+					return;
+				}
+				Change     = aChange;
+				Lines      = aLines;
+				auto words = QString{ };
+				if (Change.has_value()) {
+					if (Change->unchanged()) {
+						words = QStringLiteral("Suggests a change to %1. Edit the lines in the block; the change shows here.").arg(Lines.toLower());
+					} else {
+						words = QStringLiteral("What it changes in %1: removes %2, adds %3.").arg(Lines.toLower()).arg(Change->Removed.size()).arg(Change->Added.size());
+					}
+				}
+				setAccessibleName(QStringLiteral("What it changes"));
+				setAccessibleDescription(words);
+				setToolTip(words);
+				setVisible(Change.has_value());
+				updateGeometry();
+				update();
+			}
+
+			[[nodiscard]] auto hasHeightForWidth() const -> bool override
+			{
+				return true;
+			}
+
+			[[nodiscard]] auto heightForWidth(int /*aWidth*/) const -> int override
+			{
+				if (!Change.has_value()) {
+					return 0;
+				}
+				const auto code = QFontMetrics{ Style.CodeFont }.lineSpacing() + 2;
+				const auto rows = Change->unchanged() ? 1 : static_cast<int>(Change->Removed.size() + Change->Added.size());
+				return caption_height() + 6 + std::max(1, rows) * code + 2;
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				return { 200, heightForWidth(200) };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				if (!Change.has_value()) {
+					return;
+				}
+				auto        painter = QPainter{ this };
+				const auto& colours = Style.Colours;
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				auto caption = scaled(font(), 0.92);
+				painter.setFont(caption);
+				painter.setPen(colours.Faint);
+				paint_conversation_glyph(painter, QRectF{ 0.0, (caption_height() - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::suggest, colours.Faint);
+				const auto title = Change->unchanged() ? QStringLiteral("Suggests a change to %1").arg(Lines.toLower())
+													   : QStringLiteral("What it changes in %1").arg(Lines.toLower());
+				painter.drawText(QRect{ 16, 0, width() - 16, caption_height() }, Qt::AlignLeft | Qt::AlignVCenter,
+								 QFontMetrics{ caption }.elidedText(title, Qt::ElideRight, std::max(0, width() - 16)));
+				const auto top  = caption_height() + 6;
+				const auto box  = QRectF{ 0.5, top + 0.5, width() - 1.0, height() - top - 1.0 };
+				auto       clip = QPainterPath{ };
+				clip.addRoundedRect(box, 6.0, 6.0);
+				painter.setPen(QPen{ colours.Rule, 1.0 });
+				painter.setBrush(colours.CodeBackground.isValid() ? colours.CodeBackground : colours.Panel);
+				painter.drawPath(clip);
+				painter.save();
+				painter.setClipPath(clip);
+				painter.setFont(Style.CodeFont);
+				const auto metrics = QFontMetrics{ Style.CodeFont };
+				const auto row     = metrics.lineSpacing() + 2;
+				auto       y       = top + 1;
+				if (Change->unchanged()) {
+					painter.setFont(caption);
+					painter.setPen(colours.Faint);
+					painter.drawText(QRect{ 8, y, width() - 16, row }, Qt::AlignLeft | Qt::AlignVCenter,
+									 QFontMetrics{ caption }.elidedText(QStringLiteral("Edit the lines in the block above; the change shows here."), Qt::ElideRight, std::max(0, width() - 16)));
+					painter.restore();
+					return;
+				}
+				// Red and green held to the panel, as a diff's own rows are.
+				const auto removedInk = colours.Dark ? QColor{ 0xFF, 0x9C, 0x94 } : QColor{ 0xB4, 0x23, 0x18 };
+				const auto addedInk   = colours.Dark ? QColor{ 0x6F, 0xD5, 0x8A } : QColor{ 0x1A, 0x7F, 0x37 };
+				const auto line       = [&](const std::string& aText, const QColor& aInk, const QChar aSign) {
+					auto fill = aInk;
+					fill.setAlphaF(colours.Dark ? 0.16F : 0.10F);
+					painter.fillRect(QRect{ 1, y, width() - 2, row }, fill);
+					painter.setPen(aInk);
+					painter.drawText(QRect{ 8, y, 12, row }, Qt::AlignLeft | Qt::AlignVCenter, QString{ aSign });
+					auto text = QString::fromStdString(aText);
+					text.replace(QLatin1Char{ '\t' }, QStringLiteral("    "));
+					painter.drawText(QRect{ 22, y, width() - 30, row }, Qt::AlignLeft | Qt::AlignVCenter,
+									 metrics.elidedText(text, Qt::ElideRight, std::max(0, width() - 30)));
+					y += row;
+				};
+				for (const auto& removed : Change->Removed) {
+					line(removed, removedInk, QChar{ 0x2212 });
+				}
+				for (const auto& added : Change->Added) {
+					line(added, addedInk, QLatin1Char{ '+' });
+				}
+				painter.restore();
+			}
+
+		private:
+			[[nodiscard]] auto caption_height() const -> int
+			{
+				return std::max(16, QFontMetrics{ scaled(font(), 0.92) }.height());
+			}
+
+			open_card_style                       Style;
+			std::optional<core::suggested_change> Change;
+			QString                               Lines;
+		};
+
 		void style_reply_chip(QToolButton& aChip, const open_card_style& aStyle)
 		{
 			const auto& colours = aStyle.Colours;
@@ -869,9 +1010,12 @@ namespace bpr::qt {
 		, Id{ aCard.Id }
 		, Style{ aStyle }
 		, Draft{ aCard.Draft }
+		, Writing{ aCard.Writing }
 	{
 		setObjectName(QStringLiteral("openThreadCard"));
-		setAccessibleName(aCard.Line ? QStringLiteral("Thread on line %1").arg(*aCard.Line) : QStringLiteral("Thread"));
+		setAccessibleName(Writing          ? (aCard.Line ? QStringLiteral("Your draft on line %1").arg(*aCard.Line) : QStringLiteral("Your draft"))
+							  : aCard.Line ? QStringLiteral("Thread on line %1").arg(*aCard.Line)
+										   : QStringLiteral("Thread"));
 		setAttribute(Qt::WA_StyledBackground, false);
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 		build(aCard);
@@ -913,13 +1057,27 @@ namespace bpr::qt {
 			where->setCursor(Qt::ArrowCursor);
 			connect(where, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::show_line); } });
 			row->addWidget(where);
+			if (aCard.Writing) {
+				// [[BPR-1212]]. The lines being written on, in the writing blue.
+				Where    = where;
+				auto ink = where->palette();
+				ink.setColor(QPalette::ButtonText, Style.Colours.Signal);
+				where->setPalette(ink);
+				where->setIcon(conversation_icon(conversation_glyph::target, Style.Colours.Signal));
+				where->setProperty("conversationGlyph", QVariant{ });
+				where->setText(QStringLiteral("Line %1").arg(*aCard.Line));
+			}
 		}
 		if (!aCard.Draft && aCard.UnreadCount > 0U) {
 			row->addSpacing(4);
 			row->addWidget(new new_pill{ aCard.UnreadCount, Style.Colours.New, Style.Colours.OnNew, header }, 0, Qt::AlignVCenter);
 			row->addSpacing(4);
 		}
-		if (aCard.Draft) {
+		if (aCard.Writing) {
+			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::lock, Style.Colours.Signal, header };
+			DraftState        = state;
+			row->addWidget(state);
+		} else if (aCard.Draft) {
 			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
 		} else if (aCard.Resolved) {
 			row->addWidget(new state_label{ aCard.Outdated ? QStringLiteral("Resolved, outdated") : QStringLiteral("Resolved"), conversation_glyph::resolved, Style.Colours.Ok, header });
@@ -954,7 +1112,15 @@ namespace bpr::qt {
 			});
 			row->addWidget(more);
 		}
-		auto* const close = tool(header, QStringLiteral("threadClose"), QStringLiteral("Close  Esc"), conversation_glyph::collapse, palette);
+		if (aCard.Writing) {
+			// [[BPR-1212]]. Maximize: the same draft in Discuss, with room.
+			const auto  key      = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText);
+			auto* const maximize = tool(header, QStringLiteral("threadMaximizeDraft"), QStringLiteral("Open in Discuss, with room to write  %1").arg(key), conversation_glyph::maximize, palette);
+			maximize->setAccessibleName(QStringLiteral("Open in Discuss"));
+			connect(maximize, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::maximize_draft); } });
+			row->addWidget(maximize);
+		}
+		auto* const close = tool(header, QStringLiteral("threadClose"), aCard.Writing ? QStringLiteral("Close; the draft is kept  Esc") : QStringLiteral("Close  Esc"), conversation_glyph::collapse, palette);
 		connect(close, &QToolButton::clicked, this, [this] { if (CloseRequested) { CloseRequested(); } });
 		row->addWidget(close);
 		column->addWidget(header);
@@ -1028,7 +1194,9 @@ namespace bpr::qt {
 
 		Foot                = new QWidget{ this };
 		auto* const footRow = new QVBoxLayout{ Foot };
-		if (aCard.Draft) {
+		if (aCard.Writing) {
+			build_composer(aCard, *footRow);
+		} else if (aCard.Draft) {
 			footRow->setContentsMargins(text_left, 4, text_right, 10);
 			auto* const actions = new QHBoxLayout{ };
 			actions->setSpacing(4);
@@ -1137,6 +1305,159 @@ namespace bpr::qt {
 		refresh_reply_controls();
 	}
 
+	void open_thread_card::build_composer(const thread_card& aCard, QVBoxLayout& aFoot)
+	{
+		// [[BPR-1212]]. The new comment, written in place at its line: the
+		// field, the label chip and its codes, what a suggestion changes, and
+		// a foot that says who sees it, with Discard and Publish.
+		const auto& palette = this->palette();
+		aFoot.setContentsMargins(10, 8, text_right, 10);
+		aFoot.setSpacing(7);
+		Editor = new reply_frame{ Style.Colours.Signal, Style.Colours.CodeBackground.isValid() ? Style.Colours.CodeBackground : Style.Colours.Panel, Foot };
+		Editor->setObjectName(QStringLiteral("threadDraftEditor"));
+		auto* const editor = new QVBoxLayout{ Editor };
+		editor->setContentsMargins(12, 11, 12, 11);
+		editor->setSpacing(7);
+		ReplyBox = new reply_text{ Editor };
+		ReplyBox->setObjectName(QStringLiteral("threadDraftText"));
+		const auto line = aCard.Line.value_or(0U);
+		ReplyBox->setAccessibleName(QStringLiteral("Comment on line %1").arg(line));
+		ReplyBox->setPlaceholderText(QStringLiteral("Comment on line %1. Type : at the start for a label.").arg(line));
+		editor->addWidget(ReplyBox);
+		auto* const controls = new QHBoxLayout{ };
+		controls->setSpacing(6);
+		Labels = new feedback_label_controls{ ReplyBox, Editor };
+		Labels->setObjectName(QStringLiteral("threadDraftLabels"));
+		Labels->set_decoration_toggles(false);
+		Labels->set_theme(Style.Marks);
+		style_reply_chip(*Labels->chip(), Style);
+		controls->addWidget(Labels);
+		Placement  = aCard.Suggestion;
+		Suggestion = new suggestion_mark{ Editor };
+		Suggestion->setObjectName(QStringLiteral("threadDraftSuggestionMark"));
+		controls->addWidget(Suggestion);
+		controls->addStretch(1);
+		editor->addLayout(controls);
+		ReplyStatus = new QLabel{ Editor };
+		ReplyStatus->setObjectName(QStringLiteral("threadDraftStatus"));
+		ReplyStatus->setWordWrap(true);
+		ReplyStatus->setTextFormat(Qt::PlainText);
+		ReplyStatus->setFont(scaled(font(), 0.92));
+		ReplyStatus->hide();
+		editor->addWidget(ReplyStatus);
+		Labels->set_status_sink([this](const QString& aText) {
+			ReplyStatus->setText(aText);
+			ReplyStatus->setAccessibleName(aText);
+			ReplyStatus->setVisible(!aText.isEmpty());
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		});
+		aFoot.addWidget(Editor);
+		Change = new suggestion_change_view{ Style, Foot };
+		Change->hide();
+		aFoot.addWidget(Change);
+		auto* const actions = new QHBoxLayout{ };
+		actions->setSpacing(4);
+		auto* const privacy = new state_label{ QStringLiteral("Only you see it until you publish"), conversation_glyph::lock, Style.Colours.Faint, Foot };
+		privacy->setObjectName(QStringLiteral("threadDraftPrivacy"));
+		privacy->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+		actions->addWidget(privacy, 1);
+		auto* const discard = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Discard this draft"), conversation_glyph::trash, palette);
+		connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
+		actions->addWidget(discard);
+		// The owner, 2026-10-08: "I don't know how to publish my draft
+		// comment". Publish says what it does: this one comment, now.
+		const auto key = QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText);
+		Publish        = new note_button{ note_button::kind::primary, QStringLiteral("Publish"), Foot };
+		Publish->setObjectName(QStringLiteral("threadPublishDraft"));
+		Publish->setIcon(conversation_icon(conversation_glyph::send, palette));
+		Publish->setToolTip(QStringLiteral("Post this one comment to the pull request now  %1").arg(key));
+		Publish->setAccessibleName(QStringLiteral("Publish"));
+		Publish->setAccessibleDescription(QStringLiteral("Posts this one comment to the pull request now, on its own. No review is submitted."));
+		Publish->set_style(Style);
+		connect(Publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_draft); } });
+		actions->addWidget(Publish);
+		aFoot.addLayout(actions);
+		connect(ReplyBox, &QPlainTextEdit::textChanged, this, [this] {
+			if (!ReplyStatus->isHidden() && LastNotice.isEmpty()) {
+				ReplyStatus->hide();
+			}
+			refresh_reply_controls();
+			if (!Applying && DraftText) {
+				DraftText(ReplyBox->toPlainText());
+			}
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		});
+	}
+
+	void open_thread_card::present_draft(const std::optional<draft_composer_presentation>& aDraft)
+	{
+		if (!Writing || ReplyBox == nullptr) {
+			return;
+		}
+		Publishable = aDraft.has_value() && aDraft->Publishable && aDraft->Editable;
+		Labels->set_helper(aDraft.has_value() && aDraft->LabelHelper);
+		ReplyBox->setReadOnly(!aDraft.has_value() || !aDraft->Editable);
+		if (aDraft.has_value() && ReplyBox->toPlainText() != aDraft->Body) {
+			// The draft editor's text arrives. A suggestion's caret goes to
+			// the end of the last line inside its block; any other to the end.
+			Applying = true;
+			ReplyBox->setPlainText(aDraft->Body);
+			auto cursor = ReplyBox->textCursor();
+			cursor.movePosition(QTextCursor::End);
+			if (aDraft->Change.has_value() && !aDraft->Body.isEmpty()) {
+				if (const auto last = aDraft->Body.lastIndexOf(QLatin1Char{ '\n' }); last > 0) {
+					cursor.setPosition(static_cast<int>(last));
+				}
+			}
+			ReplyBox->setTextCursor(cursor);
+			Applying = false;
+		}
+		// A suggestion is code: monospaced and unwrapped, as it will apply.
+		const auto fenced = aDraft.has_value() && aDraft->Change.has_value();
+		ReplyBox->setFont(fenced ? Style.CodeFont : font());
+		ReplyBox->setTabStopDistance(QFontMetricsF{ ReplyBox->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
+		ReplyBox->setLineWrapMode(fenced ? QPlainTextEdit::NoWrap : QPlainTextEdit::WidgetWidth);
+		ReplyBox->setHorizontalScrollBarPolicy(fenced ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+		const auto lines = aDraft.has_value() && !aDraft->Lines.isEmpty() ? aDraft->Lines : ReplyBox->accessibleName().section(QLatin1Char{ ' ' }, 2, -1);
+		if (aDraft.has_value() && !aDraft->Lines.isEmpty()) {
+			ReplyBox->setAccessibleName(QStringLiteral("%1 on %2").arg(fenced ? QStringLiteral("Suggested change") : QStringLiteral("Comment"), aDraft->Lines.toLower()));
+			ReplyBox->setPlaceholderText(fenced ? QStringLiteral("Edit the lines in the block. Say why above it.")
+												: QStringLiteral("Comment on %1. Type : at the start for a label.").arg(aDraft->Lines.toLower()));
+			if (Where != nullptr) {
+				Where->setText(aDraft->Lines);
+				Where->setAccessibleName(QStringLiteral("Show %1").arg(aDraft->Lines.toLower()));
+			}
+		}
+		if (DraftState != nullptr) {
+			static_cast<state_label*>(DraftState)->set_text(fenced ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
+		}
+		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines);
+		LastNotice = aDraft.has_value() ? aDraft->Notice : QString{ };
+		if (!LastNotice.isEmpty()) {
+			ReplyStatus->setText(LastNotice);
+			ReplyStatus->setAccessibleName(LastNotice);
+			ReplyStatus->show();
+		}
+		refresh_reply_controls();
+		if (HeightChanged) {
+			HeightChanged();
+		}
+	}
+
+	auto open_thread_card::writing() const noexcept -> bool
+	{
+		return Writing;
+	}
+
+	auto open_thread_card::change_view() const noexcept -> QWidget*
+	{
+		return Change;
+	}
+
 	auto open_thread_card::id() const noexcept -> const std::string&
 	{
 		return Id;
@@ -1149,7 +1470,12 @@ namespace bpr::qt {
 
 	auto open_thread_card::heightForWidth(const int aWidth) const -> int
 	{
-		return layout() != nullptr ? layout()->totalHeightForWidth(aWidth) : 0;
+		if (layout() == nullptr) {
+			return 0;
+		}
+		// [[BPR-1212]]. A draft's composer holds no post, and a layout with no
+		// height-for-width child answers -1; its size hint is its height.
+		return layout()->hasHeightForWidth() ? layout()->totalHeightForWidth(aWidth) : layout()->totalSizeHint().height();
 	}
 
 	void open_thread_card::set_replying(const bool aReplying)
@@ -1206,7 +1532,7 @@ namespace bpr::qt {
 
 	auto open_thread_card::reply_editor() const noexcept -> QPlainTextEdit*
 	{
-		return Replying ? ReplyBox : nullptr;
+		return Replying || Writing ? ReplyBox : nullptr;
 	}
 
 	auto open_thread_card::label_controls() const noexcept -> feedback_label_controls*
@@ -1258,13 +1584,18 @@ namespace bpr::qt {
 		painter.setRenderHint(QPainter::Antialiasing, true);
 		const auto box = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
 		painter.setBrush(colours.Panel);
-		painter.setPen(Draft ? QPen{ colours.Rule2, 1.5 } : QPen{ colours.RouteLine, 1.0 });
+		// [[BPR-1212]]. A draft being written is ringed and edged in the
+		// writing blue: amber is where you read, blue is where you write.
+		auto ring = colours.Signal;
+		ring.setAlphaF(0.55F);
+		painter.setPen(Writing ? QPen{ ring, 1.5 } : Draft ? QPen{ colours.Rule2, 1.5 }
+														   : QPen{ colours.RouteLine, 1.0 });
 		painter.drawRoundedRect(box, 8.0, 8.0);
 		// The amber edge down the left: the thread being read.
 		auto edge = QPainterPath{ };
 		edge.addRoundedRect(QRectF{ -1.0, 6.0, 4.0, static_cast<qreal>(std::max(0, height() - 12)) }, 1.5, 1.5);
 		painter.setPen(Qt::NoPen);
-		painter.setBrush(colours.Route);
+		painter.setBrush(Writing ? colours.Signal : colours.Route);
 		painter.drawPath(edge);
 	}
 

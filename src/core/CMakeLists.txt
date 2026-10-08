@@ -84,6 +84,7 @@ add_library(
         src/feedback_partition.cpp
         src/feedback_label_columns.cpp
         src/suggestion_applicability.cpp
+        src/suggestion_draft.cpp
         src/review_tour_reconciliation.cpp
     src/review_tour_revision.cpp
         src/review_tour_update.cpp

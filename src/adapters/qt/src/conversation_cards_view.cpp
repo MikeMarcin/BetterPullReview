@@ -639,7 +639,14 @@ namespace bpr::qt {
 		const auto noted = [](const std::optional<core::review_comment_draft>& aValue) {
 			return aValue.has_value() && !aValue->ReplyToThread.has_value() && !aValue->shared();
 		};
-		const auto affects = noted(Draft) || noted(aDraft) || CurrentComparison != aCurrentComparison;
+		auto affects = noted(Draft) || noted(aDraft) || CurrentComparison != aCurrentComparison;
+		// [[BPR-1212]]. While the draft is written in the drawer its composer
+		// shows the text, so typing it changes no note either.
+		if (Writing && Draft.has_value() && aDraft.has_value() && CurrentComparison == aCurrentComparison
+			&& Draft->Id == aDraft->Id && Draft->Anchor == aDraft->Anchor && Draft->ReplyToThread == aDraft->ReplyToThread
+			&& Draft->State == aDraft->State) {
+			affects = false;
+		}
 		if (!noted(aDraft)) {
 			forget_measurements_if([](const std::string& aId) { return aId == draft_card_id; });
 		}
@@ -937,8 +944,9 @@ namespace bpr::qt {
 					mark.Emphasis = card.Posts.front().Emphasis;
 				}
 				const auto posts = card.Posts.size();
-				mark.Description = card.Draft ? QStringLiteral("Line %1: your draft").arg(*card.Line)
-											  : QStringLiteral("Line %1: %2 %3").arg(*card.Line).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
+				mark.Description = card.Writing ? QStringLiteral("Line %1: your draft, being written").arg(*card.Line)
+					: card.Draft                ? QStringLiteral("Line %1: your draft").arg(*card.Line)
+												: QStringLiteral("Line %1: %2 %3").arg(*card.Line).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
 				if (card.UnreadCount > 0U) {
 					mark.Description += QStringLiteral(", %1 new").arg(card.UnreadCount);
 				}
@@ -951,6 +959,7 @@ namespace bpr::qt {
 			}
 			mark.Unread  = mark.Unread || card.UnreadCount > 0U;
 			mark.Open    = mark.Open || (!Open.empty() && card.Id == Open);
+			mark.Writing = mark.Writing || card.Writing;
 			mark.Hovered = mark.Hovered || (!Hovered.empty() && card.Id == Hovered);
 		}
 		auto result = std::vector<thread_line_mark>{ };
@@ -1357,37 +1366,44 @@ namespace bpr::qt {
 		// My unpublished notes, each at its line while it is on this
 		// comparison: the editor's draft as the editor holds it, and every
 		// other draft as it was saved ([[BPR-1326]]). A reply is written
-		// inside its thread instead.
-		const auto noted = [this](const core::review_comment_draft& aDraft) {
+		// inside its thread instead. [[BPR-1212]]: the editor's draft shows
+		// while it is written in the drawer, empty or not.
+		const auto noted = [this](const core::review_comment_draft& aDraft, const bool aWriting) {
 			return Scope == cards_scope::this_file && CurrentComparison.has_value() && aDraft.Anchor.Comparison == *CurrentComparison
-				&& !aDraft.shared() && !aDraft.ReplyToThread.has_value() && !aDraft.Body.empty();
+				&& !aDraft.shared() && !aDraft.ReplyToThread.has_value() && (!aDraft.Body.empty() || aWriting);
 		};
 		auto drafts = std::vector<std::pair<std::string, const core::review_comment_draft*>>{ };
-		if (Draft.has_value() && noted(*Draft)) {
+		if (Draft.has_value() && noted(*Draft, Writing)) {
 			drafts.emplace_back(std::string{ draft_card_id }, &*Draft);
 		}
 		for (const auto& saved : SavedDrafts) {
-			if (noted(saved) && (!Draft.has_value() || (saved.Id != Draft->Id && saved.Anchor != Draft->Anchor))) {
+			if (noted(saved, false) && (!Draft.has_value() || (saved.Id != Draft->Id && saved.Anchor != Draft->Anchor))) {
 				drafts.emplace_back(std::string{ draft_card_id } + ":" + std::to_string(saved.Id.value()), &saved);
 			}
 		}
 		for (const auto& [id, draft] : drafts) {
-			auto card       = thread_card{ };
-			card.Id         = id;
-			card.Kind       = QStringLiteral("Draft");
-			card.Draft      = true;
-			card.Side       = draft->Anchor.Side;
-			card.Line       = draft->Anchor.Line + 1U;
-			const auto mark = feedback_body_mark_of(draft->Body);
-			card.Posts.push_back(card_post{
-				.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
-				.Body         = text(draft->Body),
-				.Mine         = true,
-				.Label        = mark.Label,
-				.Emphasis     = mark.Emphasis,
-				.Name         = feedback_post_name(QStringLiteral("Your note, not published"), mark),
-				.HeaderLength = mark.Label.has_value() ? header_length_of(draft->Body) : 0,
-			});
+			auto card  = thread_card{ };
+			card.Id    = id;
+			card.Kind  = QStringLiteral("Draft");
+			card.Draft = true;
+			// [[BPR-1212]]. Written in the drawer, the draft is its composer
+			// and carries no post.
+			const auto writing = Writing && id == draft_card_id;
+			card.Writing       = writing;
+			card.Side          = draft->Anchor.Side;
+			card.Line          = draft->Anchor.Line + 1U;
+			const auto mark    = feedback_body_mark_of(draft->Body);
+			if (!writing) {
+				card.Posts.push_back(card_post{
+					.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
+					.Body         = text(draft->Body),
+					.Mine         = true,
+					.Label        = mark.Label,
+					.Emphasis     = mark.Emphasis,
+					.Name         = feedback_post_name(QStringLiteral("Your note, not published"), mark),
+					.HeaderLength = mark.Label.has_value() ? header_length_of(draft->Body) : 0,
+				});
+			}
 			Cards.push_back(std::move(card));
 		}
 		auto order = std::size_t{ 0U };
@@ -1395,6 +1411,7 @@ namespace bpr::qt {
 			card.ProjectionOrder = order++;
 		}
 		if (!Open.empty() && !card_index(Open).has_value()) {
+			Writing = Writing && Open != draft_card_id;
 			Open.clear();
 			Picked.clear();
 			Replying.clear();
@@ -1458,7 +1475,7 @@ namespace bpr::qt {
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
 			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated))
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed)) + QString::number(card.UnreadCount)
-			+ card.Excerpt + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked);
+			+ card.Excerpt + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing));
 		for (const auto& post : card.Posts) {
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QString::number(static_cast<int>(post.Unread));
 		}
@@ -1539,13 +1556,29 @@ namespace bpr::qt {
 				ReplyTextDispatch(id, aText);
 			}
 		};
+		OpenCard->DraftText = [this](const QString& aText) {
+			if (DraftTextDispatch) {
+				DraftTextDispatch(aText);
+			}
+		};
 		OpenCard->HeightChanged  = [this] { place_cards(true); };
-		OpenCard->CloseRequested = [this] {
+		OpenCard->CloseRequested = [this, writing = card.Writing] {
+			// [[BPR-1212]]. Closing the draft being written keeps it unless it
+			// is empty, which the window decides.
+			if (writing) {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::close_draft, std::string{ draft_card_id });
+				}
+				return;
+			}
 			close_thread();
 			setFocus(Qt::OtherFocusReason);
 		};
 		OpenCard->MoreRequested = [this, id](const QPoint aGlobal) { show_thread_menu(id, aGlobal); };
 		OpenCard->present_reply(Reply);
+		if (card.Writing) {
+			OpenCard->present_draft(Composer);
+		}
 		if (Replying == id || (Reply.has_value() && Reply->Thread == id && !Reply->Body.trimmed().isEmpty())) {
 			Replying = id;
 			OpenCard->set_replying(true);
@@ -2095,7 +2128,8 @@ namespace bpr::qt {
 					notch.lineTo(rect.left() + 0.5, y - 6.0);
 					notch.lineTo(rect.left() + 0.5, y + 6.0);
 					notch.closeSubpath();
-					painter.setBrush(colours.Route);
+					// [[BPR-1212]]. Amber is where you read, blue where you write.
+					painter.setBrush(card.Writing ? colours.Signal : colours.Route);
 					painter.drawPath(notch);
 				}
 				painter.restore();
@@ -2192,9 +2226,14 @@ namespace bpr::qt {
 			return;
 		}
 		if (Cards[aCard].Draft) {
-			if (aOpen) {
-				Open = Cards[aCard].Id;
-				relayout();
+			// [[BPR-1212]]. Opening my draft makes it editable again, in place.
+			// Another line's saved draft ([[BPR-1326]]) is the window's to
+			// bring into the editor first, by choosing its line.
+			if (aOpen && Cards[aCard].Id == draft_card_id) {
+				begin_draft();
+			} else if (aOpen && ActionDispatch) {
+				const auto id = Cards[aCard].Id;
+				ActionDispatch(card_action::edit_draft, id);
 			}
 			return;
 		}
@@ -2270,6 +2309,7 @@ namespace bpr::qt {
 		if (Open.empty()) {
 			return;
 		}
+		Writing = Writing && Open != draft_card_id;
 		Open.clear();
 		Picked.clear();
 		RevealPicked = false;
@@ -2309,6 +2349,71 @@ namespace bpr::qt {
 		if (OpenCard != nullptr) {
 			OpenCard->present_reply(Reply);
 		}
+	}
+
+	void conversation_cards_view::begin_draft()
+	{
+		if (!Writing || Open != draft_card_id) {
+			Writing = true;
+			Open    = std::string{ draft_card_id };
+			Picked.clear();
+			Replying.clear();
+			relayout();
+		}
+		if (OpenCard == nullptr || Open != draft_card_id) {
+			return;
+		}
+		OpenCard->present_draft(Composer);
+		if (auto* const editor = OpenCard->reply_editor(); editor != nullptr) {
+			editor->setFocus(Qt::OtherFocusReason);
+			place_cards(true);
+			ensure_visible(QRect{ editor->mapTo(viewport(), QPoint{ 0, 0 }), editor->size() });
+		}
+	}
+
+	void conversation_cards_view::end_draft()
+	{
+		if (!Writing) {
+			return;
+		}
+		Writing = false;
+		if (Open == draft_card_id) {
+			Open.clear();
+		}
+		forget_measurements_if([](const std::string& aId) { return aId == draft_card_id; });
+		relayout();
+	}
+
+	auto conversation_cards_view::writing_draft() const noexcept -> bool
+	{
+		return Writing && Open == draft_card_id;
+	}
+
+	void conversation_cards_view::present_draft(std::optional<draft_composer_presentation> aDraft)
+	{
+		if (Composer == aDraft) {
+			return;
+		}
+		Composer = std::move(aDraft);
+		if (OpenCard != nullptr && Open == draft_card_id) {
+			OpenCard->present_draft(Composer);
+		}
+	}
+
+	void conversation_cards_view::set_draft_text_dispatch(std::function<void(const QString&)> aDispatch)
+	{
+		DraftTextDispatch = std::move(aDispatch);
+	}
+
+	auto conversation_cards_view::draft_editor() const -> QPlainTextEdit*
+	{
+		return OpenCard != nullptr && Open == draft_card_id && Writing ? OpenCard->reply_editor() : nullptr;
+	}
+
+	auto conversation_cards_view::draft_identity() -> const std::string&
+	{
+		static const auto identity = std::string{ draft_card_id };
+		return identity;
 	}
 
 	void conversation_cards_view::ensure_visible(const QRect& aViewportRect)
@@ -2488,6 +2593,12 @@ namespace bpr::qt {
 		}
 		switch (aEvent.key()) {
 		case Qt::Key_Escape:
+			if (writing_draft()) {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::close_draft, std::string{ draft_card_id });
+				}
+				return true;
+			}
 			if (!Open.empty()) {
 				const auto open = Open;
 				close_thread();
@@ -2569,9 +2680,14 @@ namespace bpr::qt {
 			auto*      editor = OpenCard->reply_editor();
 			const auto typing = editor != nullptr && aWatched == editor;
 			if (typing) {
+				const auto drafting = OpenCard->id() == draft_card_id;
 				if ((key.key() == Qt::Key_Return || key.key() == Qt::Key_Enter) && key.modifiers().testFlag(Qt::ControlModifier)) {
-					if (OpenCard->Action) {
-						OpenCard->Action(card_action::publish_reply);
+					// [[BPR-1212]]. ⌘⇧↩ takes the draft to Discuss; in a reply it
+					// does nothing rather than publish. ⌘↩ publishes.
+					const auto maximize = key.modifiers().testFlag(Qt::ShiftModifier);
+					if (OpenCard->Action && (!maximize || drafting)) {
+						OpenCard->Action(maximize ? card_action::maximize_draft : drafting ? card_action::publish_draft
+																						   : card_action::publish_reply);
 					}
 					return true;
 				}
@@ -2580,6 +2696,12 @@ namespace bpr::qt {
 					// first ([[BPR-1083]]); the reply keeps its text and focus.
 					if (const auto* const labels = OpenCard->label_controls(); labels != nullptr && labels->completion()->isVisible()) {
 						return false;
+					}
+					if (drafting) {
+						if (OpenCard->Action) {
+							OpenCard->Action(card_action::close_draft);
+						}
+						return true;
 					}
 					if (editor->toPlainText().trimmed().isEmpty() && OpenCard->Action) {
 						OpenCard->Action(card_action::cancel_reply);

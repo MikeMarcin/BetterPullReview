@@ -161,6 +161,10 @@ namespace bpr::qt {
 		bool Open = false;
 		/// The note under the pointer: its line is washed lightly.
 		bool Hovered = false;
+		/// [[BPR-1212]]. My draft, being written in the drawer: its line is
+		/// washed blue and bracketed at the gutter's edge, where the card
+		/// joins it. Amber is where you read, blue is where you write.
+		bool Writing = false;
 		/// What the marker's tooltip and accessible name say.
 		QString Description;
 		/// The side and zero-based source line the mark answers for; a unified
@@ -296,6 +300,13 @@ namespace bpr::qt {
 		/// \brief Told when a thread's gutter marker is pressed, with its side
 		/// and zero-based source line.
 		void set_line_mark_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch);
+		/// \brief [[BPR-1212]]. Told when the gutter's "+" on a head line
+		/// without a thread is pressed, with the zero-based line: Add comment.
+		void set_line_add_dispatch(std::function<void(std::uint32_t)> aDispatch);
+		/// \brief [[BPR-1212]]. Where the head pane's "+" for a zero-based
+		/// line is drawn while the pointer is over it, in the pane's
+		/// coordinates; empty while it is not shown.
+		[[nodiscard]] auto line_add_rect() const -> QRect;
 		/// \brief [[BPR-1290]]. Told when a thread's scroll-bar tick is
 		/// Shift-clicked, with its side and zero-based source line. A plain
 		/// press on the bar stays the bar's own.

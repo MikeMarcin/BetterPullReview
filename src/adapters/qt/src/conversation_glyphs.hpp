@@ -51,6 +51,14 @@ namespace bpr::qt {
 		search,
 		/// The finder's label filter: a tag.
 		tag,
+		/// [[BPR-1212]]. Open a draft in Discuss: two arrows out to the corners.
+		maximize,
+		/// [[BPR-1212]]. Back to the code: two arrows in from the corners.
+		minimize,
+		/// [[BPR-1212]]. Suggest change: a pencil over a line.
+		suggest,
+		/// [[BPR-1212]]. Add comment: a speech balloon.
+		comment,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

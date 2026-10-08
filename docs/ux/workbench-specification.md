@@ -125,7 +125,9 @@ state; at its right **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
 review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the
-Pull Request menu, and Esc returns from either composition page. Each navigation
+Pull Request menu. Compose review opens the whole-review summary in Discuss,
+beside the conversations (owner's Q3 answer on [[BPR-1212]]: "A: move to
+Discuss"), and Esc or Back returns to where it was opened. Each navigation
 label and its pair share a horizontal accent rail. File and Changes stay named
 at every width and when their position is unavailable; narrow layouts shorten
 only the position wording.
@@ -137,11 +139,13 @@ names that target wherever it is offered: its tooltip ("Comment on line 431
 (⌥C)", "Reply to tbutler's thread (⌥C)"), the Pull Request menu, and the menu
 its arrow opens on the review bar, which offers that plain comment alone. Labels
 are chosen in the comment editor's chip, never in this menu (owner, BPR-1083
-`comment-menu-v001`, 2026-10-05). Either way it opens the inline composition page on the
-line's draft or on the reply draft; nothing is published without the page's
+`comment-menu-v001`, 2026-10-05). [[BPR-1212]]: a new comment opens as a draft
+thread in the drawer at its line, and a reply in place at the foot of its
+thread, so the code stays in view; nothing is published without the draft's
 explicit Publish. [[BPR-1207]] requires an admitted editable draft, or an explicit recovery for its
 retained text, at the named current-head target before Comment opens. Otherwise the tooltip and
-menu state why it is unavailable. The inline page hides empty workshop panels
+menu state why it is unavailable. A draft whose retained text is in conflict, and a comment-workshop proposal,
+open in Discuss's full composer instead, which hides empty workshop panels
 and inactive revision-recovery controls; refused draft text stays available
 for explicit recovery. Every thread card offers **Reply**, beside the code as in
 Discuss, through the one Reply path: the card's thread becomes current, its
@@ -730,7 +734,11 @@ never invents enabled state.
 | Toggle source line numbers | `Alt+Shift+5` |
 | Compose review | `Alt+R` (Option-R) |
 | Comment, or Reply to the selected thread | `Alt+C` (Option-C) |
-| Back from a composition page | `Esc` |
+| Add comment on the selected line, in the code ([[BPR-1212]]) | `Return` (keypad `Enter` too) |
+| Suggest change on the selected line, in the code ([[BPR-1212]]) | `Shift+Return` |
+| Publish the draft written in the drawer | `Ctrl+Return` (⌘↩) |
+| Open the drawer's draft in Discuss, and back to the code | `Ctrl+Shift+Return` (⌘⇧↩) |
+| Back from Discuss's composer; leave a drawer draft (kept when written, dropped when empty) | `Esc` |
 | Hide or show every drawer ([[BPR-1295]]) | `Ctrl+B` (⌘B) |
 | Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
 | Conversations ([[BPR-1293]]) | `Ctrl+4` (⌘4) |
@@ -1133,6 +1141,34 @@ body as written (one when resolved), the reply count with the people who
 replied, the count of new posts and ✓ when resolved; a resolved note is faded.
 My unpublished draft is a dashed note at its line.
 
+**Writing a new comment** ([[BPR-1212]], owner, 2026-10-06: "I want add
+comment to show up in the drawer instead of the full screen add comment
+window"). Return on a selected line of the code, Add comment on the code's
+right-click menu, Comment (Option-C) on a line no thread is on, and the "+"
+the gutter shows on a head line under the pointer each open the line's draft
+as a draft thread in the drawer, pinned at its line, writing. Its edge and
+notch are blue and a blue bracket marks its line in the gutter: amber is where
+you read, blue is where you write. The header holds the line, Draft (or
+Suggested change), Maximize and Close; under it the field with the label chip
+and its codes as the reply has them; the foot says "Only you see it until you
+publish" and holds Discard and **Publish** (Command+Return), whose tooltip says
+it posts this one comment now. Return in the field is a new line. Esc keeps a
+written draft as its dashed note and drops an empty one, and focus returns to
+the code on the same line; opening the note writes it again. A right-click
+outside the selection selects its line first, and the menu, headed by the
+line, offers Add comment (↩) and Suggest change (⇧↩) above Copy and Add tour
+stop. Suggest change starts the draft as a ```` ```suggestion ```` block
+holding the line exactly, the caret at the end of its last line, set
+monospaced and unwrapped, and shows what the block changes as it is edited.
+Neither key nor item acts on the base side, and the menu says why. Maximize
+(Command+Shift+Return) opens the same draft in Discuss, where the full
+composer lives: the conversations narrow to a list at the left, and at the
+right Back to the code, the draft's line with three either side under the
+same bracket, and the full editor. The same key, Esc or Back to the code
+returns it to the drawer with its text and caret. The full-page comment
+window is no longer a destination of its own (AC5, amended). Local projects
+keep their own flow ([[BPR-1212]] Q2: B).
+
 A thread opens in place: one at a time, pinned exactly at its line, with the
 line washed amber in the code, its gutter marker ringed and the open card's
 amber edge and notch pointing at it. The other notes make room above and
@@ -1157,7 +1193,7 @@ through it ([[BPR-1290]], the owner's v002 note: a rule under the header "kind
 of looks like it belongs to the thread above it"). When the first post is
 already new, the header's count and the posts' unread dots say so and no rule
 is drawn. Its header row has Show line, Resolve or Unresolve, Mark read, More
-(the thread menu) and Close; my draft has Publish, Edit and Delete instead. Reply (the field, or R) opens an editor in place at
+(the thread menu) and Close; my draft, opened, is its composer (above). Reply (the field, or R) opens an editor in place at
 the foot of the thread; the reply is the same draft the composition entry
 writes, and nothing is published until Publish (Command+Return). The reply
 has the composer's own label controls ([[BPR-1083]]): the label chip and its
@@ -1166,7 +1202,7 @@ completion and a typed `:xx:` code becoming its label, as `:qu:` becomes
 `question: `. The decoration toggles stay in the chip's menu, since the drawer
 is too narrow for them beside the chip ([[BPR-1290]], the owner's v003 note:
 "chortcodes arent working in the reply comments"). Comment
-(Option-C) still opens the composition page, whose inside is [[BPR-1212]]'s. A file-level compatibility
+(Option-C) on a thread's line writes its reply in place the same way. A file-level compatibility
 comment states in the open thread why it is placed at its line (RFC-BPR-0022).
 
 Threads above or below what the drawer shows are chips on its top and bottom

@@ -180,6 +180,25 @@ namespace bpr::qt {
 				polyline(aPainter, { { 3.5, 12.0 }, { 3.5, 4.5 }, { 11.0, 4.5 }, { 20.5, 14.0 }, { 13.0, 21.5 }, { 3.5, 12.0 } });
 				dot(aPainter, { 7.6, 8.6 }, 1.3);
 				break;
+			case conversation_glyph::maximize:
+				polyline(aPainter, { { 14.0, 4.5 }, { 19.5, 4.5 }, { 19.5, 10.0 } });
+				polyline(aPainter, { { 19.5, 4.5 }, { 13.0, 11.0 } });
+				polyline(aPainter, { { 10.0, 19.5 }, { 4.5, 19.5 }, { 4.5, 14.0 } });
+				polyline(aPainter, { { 4.5, 19.5 }, { 11.0, 13.0 } });
+				break;
+			case conversation_glyph::minimize:
+				polyline(aPainter, { { 19.5, 4.5 }, { 14.0, 10.0 } });
+				polyline(aPainter, { { 14.0, 5.5 }, { 14.0, 10.0 }, { 18.5, 10.0 } });
+				polyline(aPainter, { { 4.5, 19.5 }, { 10.0, 14.0 } });
+				polyline(aPainter, { { 10.0, 18.5 }, { 10.0, 14.0 }, { 5.5, 14.0 } });
+				break;
+			case conversation_glyph::suggest:
+				polyline(aPainter, { { 4.0, 20.0 }, { 8.0, 20.0 }, { 19.0, 9.0 }, { 15.0, 5.0 }, { 4.0, 16.0 }, { 4.0, 20.0 } });
+				polyline(aPainter, { { 13.5, 6.5 }, { 17.5, 10.5 } });
+				break;
+			case conversation_glyph::comment:
+				polyline(aPainter, { { 4.5, 6.0 }, { 19.5, 6.0 }, { 19.5, 16.0 }, { 11.0, 16.0 }, { 7.0, 19.5 }, { 7.0, 16.0 }, { 4.5, 16.0 }, { 4.5, 6.0 } });
+				break;
 			}
 		}
 

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPR-1212 start a review, design frames v1</title>
+<!--
+  Design frames for [[BPR-1212]], asked as start-a-review-v001. The owner, 2026-10-08:
+  "Perhaps what were missing is the equivalent of the GitHub start a review flow or if we have
+  it I can't find it". BPR does not have it: a pull request draft publishes on its own, and the
+  whole-review summary (Compose review) carries no line comments, so GitHub refuses its Comment
+  without text (probed on MikeMarcin/BPR-Test#41). These frames show the proposed flow on the
+  product palette; they are design evidence, not the product. Content is made up.
+-->
+<style>
+:root {
+  --bg:#F6F7F9; --panel:#FFFFFF; --panel-2:#F3F5F8; --rule:#E1E5EB; --rule-2:#C9D0D8;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#7A838D; --write:#2F6FD6; --write-soft:#E6EEFB; --write-line:#9DBDF0;
+  --route:#C98F12; --code:#FFFFFF; --gutter:#FAFBFC; --lnum:#8C959F; --ok:#1A7F37;
+  --shadow:0 10px 30px rgba(31,35,40,.13), 0 1px 3px rgba(31,35,40,.08);
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --mono:"SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.45 var(--ui); -webkit-font-smoothing:antialiased; }
+main { max-width:1240px; margin:0 auto; padding:32px 28px 56px; }
+h1 { font-size:21px; font-weight:650; margin:0 0 6px; letter-spacing:-.01em; }
+.lede { max-width:72ch; color:var(--ink-2); margin:0 0 28px; }
+.flow { display:flex; flex-direction:column; gap:30px; }
+figure { margin:0; display:grid; grid-template-columns:minmax(0, 780px) minmax(220px, 1fr); column-gap:26px; align-items:start; }
+figure .step { grid-column:1 / -1; }
+@media (max-width:980px) { figure { grid-template-columns:1fr; } }
+figcaption { margin-top:4px; color:var(--ink-2); max-width:44ch; }
+figcaption b { color:var(--ink); font-weight:600; }
+.step { display:flex; gap:8px; align-items:baseline; margin:0 0 10px; font-weight:600; }
+.step span { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--ink); color:#fff; font-size:11.5px; flex:none; }
+.frame { background:var(--panel); border:1px solid var(--rule); border-radius:10px; overflow:hidden; box-shadow:0 1px 2px rgba(31,35,40,.05); }
+
+/* review bar */
+.bar { display:flex; align-items:center; gap:8px; height:38px; padding:0 10px; border-bottom:1px solid var(--rule); background:var(--panel); white-space:nowrap; }
+.bar .crumb { color:var(--ink-2); }
+.bar .sp { flex:1; }
+.chip { display:inline-flex; align-items:center; gap:0; height:26px; border-radius:7px; border:1.5px solid var(--write); overflow:hidden; font-weight:600; }
+.chip .what { display:flex; align-items:center; gap:6px; padding:0 9px; color:var(--write); background:var(--write-soft); height:100%; }
+.chip .dot { width:7px; height:7px; border-radius:50%; background:var(--write); }
+.chip .go { padding:0 10px; background:var(--write); color:#fff; height:100%; display:flex; align-items:center; }
+.btn { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 10px; border-radius:6px; border:1px solid var(--rule-2); background:var(--panel); font-weight:600; font-size:12.5px; white-space:nowrap; }
+.btn.pri { background:var(--write); border-color:var(--write); color:#fff; }
+.btn.quiet { border-color:transparent; background:transparent; color:var(--ink-2); }
+.kbd { font:11.5px var(--ui); color:inherit; opacity:.75; margin-left:2px; }
+
+/* code and drawer */
+.split { display:grid; grid-template-columns:1fr 380px; min-height:260px; }
+.code { font:12px/20px var(--mono); background:var(--code); border-right:1px solid var(--rule); padding:8px 0; }
+.ln { display:flex; white-space:pre; }
+.ln .g { width:38px; text-align:right; padding-right:8px; color:var(--lnum); background:var(--gutter); flex:none; }
+.ln .t { padding-left:10px; overflow:hidden; text-overflow:ellipsis; }
+.ln.cmp .g { color:var(--write); font-weight:700; background:var(--write-soft); box-shadow:inset -3px 0 0 var(--write); }
+.ln.cmp .t { background:var(--write-soft); }
+.ln.pend .g { box-shadow:inset -3px 0 0 var(--write-line); }
+.drawer { background:#F7F8FA; padding:12px 10px; }
+.card { background:var(--panel); border-radius:8px; border:1.5px solid var(--write-line); box-shadow:var(--shadow); position:relative; }
+.card::before { content:""; position:absolute; left:-1px; top:6px; bottom:6px; width:3px; border-radius:2px; background:var(--write); }
+.ch { display:flex; align-items:center; gap:8px; height:32px; padding:0 10px; border-bottom:1px solid var(--rule); font-size:12px; }
+.ch .rng { font:600 11.5px var(--mono); color:var(--write); }
+.ch .state { color:var(--write); font-weight:600; }
+.field { margin:10px; border:1.5px solid var(--write); border-radius:7px; padding:9px 10px; min-height:64px; box-shadow:0 0 0 3px rgba(47,111,214,.15); }
+.field .lab { font-weight:650; }
+.foot { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:0 10px 10px; }
+.foot .priv { flex:1 1 100%; color:var(--ink-3); font-size:11.5px; margin-bottom:2px; }
+.closed { margin-top:10px; background:var(--panel); border:1.5px dashed var(--rule-2); border-radius:8px; padding:8px 10px; color:var(--ink-2); }
+.closed b { color:var(--ink); }
+.closed .tag { color:var(--write); font-weight:600; font-size:11.5px; }
+
+/* finish review in Discuss */
+.disc { display:grid; grid-template-columns:260px 1fr; min-height:260px; }
+.list { background:#F0F2F5; border-right:1px solid var(--rule); padding:10px 8px; }
+.list h3 { margin:2px 4px 8px; font-size:12px; color:var(--ink-2); font-weight:600; }
+.row { display:flex; gap:8px; align-items:baseline; padding:5px 6px; border-radius:6px; }
+.row .n { font:11.5px var(--mono); color:var(--write); width:30px; text-align:right; flex:none; }
+.row .w { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.compose { padding:14px 16px; }
+.compose h2 { margin:0 0 10px; font-size:14px; }
+.seg { display:inline-flex; border:1px solid var(--rule-2); border-radius:7px; overflow:hidden; margin-bottom:10px; }
+.seg span { padding:4px 11px; font-weight:600; border-left:1px solid var(--rule-2); color:var(--ink-2); }
+.seg span:first-child { border-left:0; }
+.seg span.on { background:var(--write); color:#fff; }
+.summary { border:1px solid var(--rule-2); border-radius:7px; min-height:70px; padding:8px 10px; color:var(--ink-3); }
+.carries { margin:10px 0 12px; color:var(--ink-2); }
+.carries b { color:var(--ink); }
+.go2 { display:flex; gap:8px; align-items:center; }
+.note { margin-top:30px; max-width:76ch; color:var(--ink-2); }
+.note h2 { font-size:14px; color:var(--ink); margin:0 0 6px; }
+.note ul { margin:6px 0 0; padding-left:18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Start a review, as GitHub has it</h1>
+  <p class="lede">Today a draft in the drawer has one way out: Publish, which posts that comment on its own at once. Compose review sends only a summary, so its Comment needs text. These frames add GitHub's second way: keep comments pending in a review, then finish the review once.</p>
+
+  <div class="flow">
+    <figure>
+      <p class="step"><span>1</span>Write a comment</p>
+      <div class="frame">
+        <div class="bar"><span class="crumb">renderer.cpp</span><span class="sp"></span><span class="btn quiet">Compose review</span></div>
+        <div class="split">
+          <div class="code">
+            <div class="ln"><span class="g">429</span><span class="t">  auto width = view.width();</span></div>
+            <div class="ln"><span class="g">430</span><span class="t">  if (width &lt;= 0)</span></div>
+            <div class="ln cmp"><span class="g">431</span><span class="t">    return 0.01;</span></div>
+            <div class="ln"><span class="g">432</span><span class="t">  return scale(width);</span></div>
+            <div class="ln"><span class="g">433</span><span class="t">}</span></div>
+          </div>
+          <div class="drawer">
+            <div class="card">
+              <div class="ch"><span class="rng">Line 431</span><span class="state">Draft</span></div>
+              <div class="field"><span class="lab">question:</span> Where does 0.01 come from?</div>
+              <div class="foot">
+                <span class="priv">Only you see it until you publish</span>
+                <span class="btn">Add single comment <span class="kbd">⌘↩</span></span>
+                <span class="btn pri">Start a review</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>Add single comment</b> posts this one comment now, as Publish does today. <b>Start a review</b> keeps it pending, unpublished, in a review you finish later.</figcaption>
+    </figure>
+
+    <figure>
+      <p class="step"><span>2</span>Keep adding to the review</p>
+      <div class="frame">
+        <div class="bar"><span class="crumb">renderer.cpp</span><span class="sp"></span>
+          <span class="chip"><span class="what"><span class="dot"></span>Review · 2 pending</span><span class="go">Finish review</span></span>
+        </div>
+        <div class="split">
+          <div class="code">
+            <div class="ln pend"><span class="g">431</span><span class="t">    return 0.01;</span></div>
+            <div class="ln"><span class="g">432</span><span class="t">  return scale(width);</span></div>
+            <div class="ln"><span class="g">433</span><span class="t">}</span></div>
+            <div class="ln"><span class="g">434</span><span class="t"></span></div>
+            <div class="ln cmp"><span class="g">435</span><span class="t">int scale(int w)</span></div>
+          </div>
+          <div class="drawer">
+            <div class="closed"><span class="tag">Pending in your review</span><br><b>question:</b> Where does 0.01 come from?</div>
+            <div class="card" style="margin-top:10px">
+              <div class="ch"><span class="rng">Line 435</span><span class="state">Draft</span></div>
+              <div class="field">nit: <span style="font-family:var(--mono)">scale</span> could be constexpr.</div>
+              <div class="foot">
+                <span class="priv">Pending until you finish the review</span>
+                <span class="btn">Add single comment</span>
+                <span class="btn pri">Add review comment <span class="kbd">⌘↩</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption>While a review is in progress the review bar says so, with how many comments it holds. <b>Add review comment</b> becomes the draft's main action, and pending comments stay at their lines.</figcaption>
+    </figure>
+
+    <figure>
+      <p class="step"><span>3</span>Finish the review in Discuss</p>
+      <div class="frame">
+        <div class="bar"><span class="btn">Back to the code</span><span class="sp"></span><span class="crumb">Review summary</span></div>
+        <div class="disc">
+          <div class="list">
+            <h3>Pending in this review</h3>
+            <div class="row"><span class="n">431</span><span class="w">question: Where does 0.01 come from?</span></div>
+            <div class="row"><span class="n">435</span><span class="w">nit: scale could be constexpr.</span></div>
+          </div>
+          <div class="compose">
+            <h2>Finish your review</h2>
+            <div class="seg"><span class="on">Comment</span><span>Approve</span><span>Request changes</span></div>
+            <div class="summary">Leave a summary (optional)</div>
+            <p class="carries">Submits <b>2 line comments</b> as one review.</p>
+            <div class="go2"><span class="btn pri">Submit review</span><span class="btn quiet">Discard review</span></div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>Finish review</b> opens the summary in Discuss (your Q3 answer). The review carries its pending comments, so <b>Comment needs no summary</b>: GitHub accepts an empty one when the review holds line comments.</figcaption>
+    </figure>
+  </div>
+
+  <section class="note">
+    <h2>What building it takes</h2>
+    <ul>
+      <li>A pending mark on a draft, kept with the draft on this computer, and every pending draft of the pull request shown at its line, not only the selected line's.</li>
+      <li>The review submission carries the pending comments as GitHub's review comments, and marks each one published only when the review is accepted.</li>
+      <li>Add single comment keeps today's Publish exactly.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

@@ -5,6 +5,7 @@
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/suggestion_applicability.hpp"
+#include "bpr/core/suggestion_draft.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QAbstractScrollArea>
@@ -74,6 +75,12 @@ namespace bpr::qt {
 		publish_reply,
 		/// [[BPR-1290]]. Give up the reply written in place.
 		cancel_reply,
+		/// [[BPR-1212]]. Open the draft written in the drawer in Discuss,
+		/// where the full composer is (⌘⇧↩).
+		maximize_draft,
+		/// [[BPR-1212]]. Leave the draft written in the drawer (Esc, Close):
+		/// the window keeps a written draft and drops an empty one.
+		close_draft,
 	};
 
 	/// \brief The notes' filters ([[BPR-0649]], [[BPR-1290]]).
@@ -153,6 +160,10 @@ namespace bpr::qt {
 		bool                         Outdated          = false;
 		bool                         AnchorUnavailable = false;
 		bool                         Draft             = false;
+		/// [[BPR-1212]]. My draft, open and being written in the drawer: the
+		/// composer, not the note. It carries no posts; the composer shows
+		/// what the draft editor holds.
+		bool Writing = false;
 		/// [[BPR-1290]]. GitHub stores the thread as a file comment that its
 		/// code link places at a line (RFC-BPR-0022).
 		bool FileLevel = false;
@@ -195,6 +206,9 @@ namespace bpr::qt {
 		bool                                Draft    = false;
 		/// The open thread: its line is washed and its marker ringed.
 		bool Open = false;
+		/// [[BPR-1212]]. My draft, being written in the drawer: a blue
+		/// bracket in place of the amber wash.
+		bool Writing = false;
 		/// The note under the pointer: its line is washed lightly.
 		bool Hovered = false;
 		/// "Line 656: 4 posts, 2 new, resolved".
@@ -226,6 +240,28 @@ namespace bpr::qt {
 		bool LabelHelper = false;
 
 		auto operator==(const thread_reply_presentation&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1212]]. The new comment written in the drawer, as the
+	/// draft editor holds it.
+	struct draft_composer_presentation
+	{
+		QString Body;
+		/// The draft editor's Publish is enabled.
+		bool Publishable = false;
+		/// The label helper is on: `:xx:` codes complete and replace.
+		bool LabelHelper = false;
+		/// The draft can be written here. A draft whose retained text is in
+		/// conflict, or that cannot be edited, is read but not written.
+		bool Editable = true;
+		/// The lines the draft is on, in words: "Line 12", "Lines 10–12".
+		QString Lines;
+		/// What the draft's suggestion block changes, when it has one.
+		std::optional<core::suggested_change> Change;
+		/// Why Publish is unavailable, or empty.
+		QString Notice;
+
+		auto operator==(const draft_composer_presentation&) const -> bool = default;
 	};
 
 	class open_thread_card;
@@ -380,6 +416,23 @@ namespace bpr::qt {
 		void set_reply_text_dispatch(std::function<void(const std::string&, const QString&)> aDispatch);
 		/// \brief The editor of the reply in place, while one is shown.
 		[[nodiscard]] auto reply_editor() const -> QPlainTextEdit*;
+		/// \brief [[BPR-1212]]. Opens my draft in the drawer as a draft thread
+		/// at its line, writing, and gives its field focus. The draft is
+		/// shown even while it is empty.
+		void begin_draft();
+		/// \brief [[BPR-1212]]. Stops writing: the draft closes to its note,
+		/// or to nothing while it is empty.
+		void end_draft();
+		/// \brief [[BPR-1212]]. Whether my draft is open and being written.
+		[[nodiscard]] auto writing_draft() const noexcept -> bool;
+		/// \brief [[BPR-1212]]. What the draft editor holds for the draft.
+		void present_draft(std::optional<draft_composer_presentation> aDraft);
+		/// \brief [[BPR-1212]]. Each edit of the draft written in the drawer.
+		void set_draft_text_dispatch(std::function<void(const QString&)> aDispatch);
+		/// \brief [[BPR-1212]]. The draft's field, while it is being written.
+		[[nodiscard]] auto draft_editor() const -> QPlainTextEdit*;
+		/// \brief [[BPR-1212]]. The identity the draft's note and composer carry.
+		[[nodiscard]] static auto draft_identity() -> const std::string&;
 		/// \brief The reply's label chip, menu and shortcodes ([[BPR-1083]]'s
 		/// controls, as the composer has them), while a reply is shown.
 		[[nodiscard]] auto reply_label_controls() const -> feedback_label_controls*;
@@ -521,9 +574,13 @@ namespace bpr::qt {
 		std::function<void(const std::string&, const std::string&)> LinkDispatch;
 		std::function<void(const std::string&, const QString&)>     ReplyTextDispatch;
 		std::optional<thread_reply_presentation>                    Reply;
-		QString                                                     Viewer;
-		std::string                                                 Current;
-		std::string                                                 Open;
+		/// [[BPR-1212]]. My draft is open and being written in the drawer.
+		bool                                       Writing = false;
+		std::optional<draft_composer_presentation> Composer;
+		std::function<void(const QString&)>        DraftTextDispatch;
+		QString                                    Viewer;
+		std::string                                Current;
+		std::string                                Open;
 		/// [[BPR-1293]]. The open thread's picked post, and the one a pick
 		/// is about to open with.
 		std::string Picked;

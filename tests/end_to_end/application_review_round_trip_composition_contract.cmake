@@ -1015,6 +1015,17 @@ endfunction()
 # drawn as my draft and still no thread holds it. No grant, target, provider,
 # credential, storage write, mutation or publication path; mutation pin
 # unchanged; no new src/app source. Reviewed on BPR-1326.
+# BPR-1212 slice 2 reseal (2026-10-08), compose in the drawer: over the
+# BPR-1326 reseal; no other intervening pinned-scope commit.
+# github_application.cpp changes in three places. A comment-workshop proposal
+# opens its draft in Discuss's full composer (open_draft_in_discuss), whose
+# before/after needs the room; the threaded-reply and label-authoring courses
+# (tests-on) start the new comment in the drawer, then Discard it there or
+# Maximize to the full composer. Publish is still the draft editor's own
+# action and nothing else publishes. No grant, target, provider, credential,
+# storage write, GitHub write, mutation or publication path changes; mutation
+# pin unchanged; no new src/app source. Self-review on BPR-1212, not
+# independent review.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1033,7 +1044,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"cbc61fa0a1a149f068b970dfa4eaac278c23326cbb50c511e0b2f326688d81b9"
+		"954dfbca2fe52030f7dbcafa79085fa04dc6277ca72cfb7837c086e449933cb9"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1235,7 +1246,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "89931e8c016a2d2aad60fc17b150ab7f82cdd07357c1ce971b2990c8fcbfca51"
+        "c2ebcee0da784588230e69660391d9e3472d8d8c6f07c1eb73dc0b0d75780492"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

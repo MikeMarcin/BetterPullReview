@@ -518,6 +518,18 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1212]]. A popup menu's own render, beside the window's.
+	void save_menu_render(QMenu& aMenu, const QString& aSuffix)
+	{
+		const auto rendered = aMenu.grab();
+		expect(!rendered.isNull(), "the menu renders");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
+				   "the menu render is saved for inspection");
+		}
+	}
+
 	[[nodiscard]] auto every_primary_command_offered(
 		const core::change_navigation_policy aPolicy
 		= core::change_navigation_policy::stop)
@@ -1351,6 +1363,23 @@ namespace {
 	}
 
 	void process_events();
+	void window_key(qt::workbench_window& aWindow, int aKey, Qt::KeyboardModifiers aModifiers);
+
+	/// \brief [[BPR-1212]]. A composition page shows: it is Discuss's composer
+	/// column, beside the conversations, on the centre's Discuss page.
+	auto composing(const qt::workbench_window& aWindow, const QWidget* aPage) -> bool
+	{
+		const auto* const stack = aWindow.findChild<QStackedWidget*>(QStringLiteral("workbenchCentreStack"));
+		return stack != nullptr && aPage != nullptr && stack->currentWidget() != nullptr
+			&& stack->currentWidget()->objectName() == QStringLiteral("workbenchDiscussPage") && aPage->isVisible();
+	}
+
+	/// \brief [[BPR-1212]]. My draft is open and being written in the drawer.
+	auto drawer_writing(const qt::workbench_window& aWindow) -> bool
+	{
+		auto* const cards = aWindow.conversation_panel()->cards();
+		return cards->writing_draft() && cards->draft_editor() != nullptr && cards->draft_editor()->isVisible();
+	}
 
 	/// \brief Drags the handle between the files drawer and the centre.
 	///
@@ -5982,7 +6011,7 @@ namespace {
 		expect(!usable(), "a selected line without an admitted draft does not offer Comment");
 		comment->setEnabled(true); // Negative control: activation still rechecks admission.
 		comment->trigger();
-		expect(stack->currentWidget() != page && !usable(), "an incorrectly enabled action cannot open an unusable page");
+		expect(!composing(window, page) && !drawer_writing(window) && !usable(), "an incorrectly enabled action cannot open an unusable draft");
 		const auto admit = [&window](const std::optional<core::semantic_selection>& aSelection) {
 			if (aSelection) {
 				window.review_editor()->present(core::review_comment_draft{
@@ -6019,9 +6048,13 @@ namespace {
 			   "the menu, the tooltip and the Pull Request menu name the line Comment would start on");
 		comment->trigger();
 		process_events();
-		expect(stack->currentWidget() == page && replies.empty(), "Comment opens the inline page on the line's draft, answering no thread");
+		// [[BPR-1212]]. Failing before: Comment opened the full page and hid the code.
+		expect(drawer_writing(window) && !composing(window, page) && window.comparison_surface()->isVisible() && replies.empty()
+				   && window.conversation_panel()->cards()->draft_editor()->hasFocus(),
+			   "Comment opens the line's draft in the drawer beside the code, with focus, answering no thread");
 		back();
-		expect(stack->currentWidget() != page, "Esc returns from the page");
+		expect(!drawer_writing(window) && !composing(window, page) && window.comparison_surface()->right_pane()->hasFocus(),
+			   "Esc on an empty draft drops it and returns focus to the code");
 		// A conflict still offers an explicit recovery, so Back must not strand
 		// the kept text without a route back to that usable recovery page.
 		auto*      inlineEditor = window.review_editor();
@@ -6036,7 +6069,7 @@ namespace {
 			   "a recoverable conflict keeps its Comment entry without offering Publish");
 		comment->trigger();
 		process_events();
-		expect(stack->currentWidget() == page, "Comment can reopen the retained text's actionable recovery");
+		expect(composing(window, page) && !drawer_writing(window), "Comment reopens a conflicted draft in Discuss's full composer, where its recovery is");
 		inlineEditor->reload_draft_action()->trigger();
 		inlineEditor->set_revisioned_dispatch({ });
 		back();
@@ -6050,8 +6083,9 @@ namespace {
 			   "on a thread's line the menu and the tooltip name the thread Comment answers");
 		comment->trigger();
 		process_events();
-		expect(replies == std::vector<std::string>{ "review-thread:t22" } && stack->currentWidget() == page,
-			   "Comment (Option-C) names the selected thread and opens the inline page on the reply draft");
+		expect(replies == std::vector<std::string>{ "review-thread:t22" } && !composing(window, page)
+				   && window.conversation_panel()->cards()->reply_editor() != nullptr,
+			   "Comment (Option-C) names the selected thread and opens its reply in place in the drawer");
 		back();
 
 		// A card beside the code: Reply, never a second thread. The other
@@ -6091,7 +6125,7 @@ namespace {
 		delete menuOfThread;
 		replyField->click();
 		process_events();
-		expect(replies == std::vector<std::string>{ "review-thread:t22", "review-thread:t22" } && stack->currentWidget() != page
+		expect(replies == std::vector<std::string>{ "review-thread:t22", "review-thread:t22" } && !composing(window, page)
 				   && notes->reply_editor() != nullptr && notes->reply_editor()->isVisible()
 				   && window.comparison_surface()->selection().has_value()
 				   && window.comparison_surface()->selection()->PreferredLine.Line == 21U,
@@ -6115,11 +6149,247 @@ namespace {
 		expect(comment->isEnabled() && comment->text().contains(QStringLiteral("left-reviewer's thread")), "the left line's existing thread remains an admitted Reply target");
 		comment->trigger();
 		process_events();
-		expect(replies.back() == "review-thread:left" && stack->currentWidget() == page
+		expect(replies.back() == "review-thread:left" && (composing(window, page) || window.conversation_panel()->cards()->reply_editor() != nullptr)
 				   && window.review_editor()->publish_action()->isEnabled(),
 			   "left Reply opens the converted reply draft with explicit Publish available");
 		back();
 		expect(publishes() == 0, "nothing was published: Comment and Reply only open the page, and Publish stays the page's");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1212]] slice 2. A new comment opens as a draft thread in the
+	/// drawer at its line, with the code in view: from Return, the code's
+	/// right-click menu and the gutter's "+". Suggest change starts as a
+	/// suggestion block over the line and shows what it changes. Maximize
+	/// takes the same draft to Discuss and the same key brings it back. Esc
+	/// keeps a written draft and drops an empty one. Nothing publishes but
+	/// Publish. Failing before: Return did nothing and Comment opened the
+	/// full-page composer in place of the code (owner, 2026-10-08).
+	void test_compose_in_the_drawer()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 852);
+		window.show();
+		process_events();
+		window.activateWindow();
+		auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 12"), std::string{ "line 12" }.size(), "\tchanged `line` 12");
+		const auto diff   = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		auto       drafts = std::vector<core::review_draft_command>{ };
+		window.set_review_draft_dispatch([&drafts](core::review_draft_command aCommand) { drafts.push_back(std::move(aCommand)); });
+		window.conversation_panel()->adopt(
+			{ application::github_conversation_projection{
+				  .Id                 = "review-thread:t22",
+				  .Kind               = application::github_conversation_kind::review_thread,
+				  .AuthorLogin        = "tbutler",
+				  .Path               = "src/file.cpp",
+				  .Line               = 22U,
+				  .DiffSide           = application::github_conversation_diff_side::right,
+				  .AnchorAvailability = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:t22-1",
+				  .ParentId    = "review-thread:t22",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "tbutler",
+				  .Body        = "Where does 0.01 come from?",
+				  .Path        = "src/file.cpp" } },
+			QStringLiteral("one conversation"));
+		static_cast<void>(publish_fixture(window, diff));
+		window.set_conversation_endpoint_placement(true, true);
+		process_events();
+		// The host's part, as the composition plays it: a selected line has
+		// its draft, and an accepted edit comes back as the draft's body.
+		auto       nextId = std::uint64_t{ 1U };
+		const auto admit  = [&window, &nextId](const std::optional<core::semantic_selection>& aSelection) {
+			if (aSelection) {
+				window.review_editor()->present(core::review_comment_draft{
+					.Id = core::review_draft_id{ nextId++ }, .Anchor = aSelection->PreferredLine, .Body = { } });
+			}
+		};
+		window.comparison_surface()->set_selection_sink(admit);
+		const auto settle = [&window, &drafts] {
+			const auto edit = std::ranges::find_if(drafts.rbegin(), drafts.rend(), [](const core::review_draft_command& aCommand) {
+				return aCommand.Kind == core::review_draft_command_kind::edit;
+			});
+			if (edit != drafts.rend() && window.review_editor()->shown_draft().has_value()) {
+				auto accepted = *window.review_editor()->shown_draft();
+				accepted.Body = edit->Body;
+				window.review_editor()->present(accepted);
+			}
+			process_events();
+		};
+		const auto publishes = [&drafts] {
+			return std::ranges::count_if(drafts, [](const core::review_draft_command& aCommand) {
+				return aCommand.Kind == core::review_draft_command_kind::begin_publish;
+			});
+		};
+		const auto send = [](QWidget* aTarget, const int aKey, const Qt::KeyboardModifiers aModifiers) {
+			QKeyEvent press{ QEvent::KeyPress, aKey, aModifiers };
+			QApplication::sendEvent(aTarget, &press);
+			process_events();
+		};
+		auto* const cards = window.conversation_panel()->cards();
+		auto* const code  = window.comparison_surface()->right_pane();
+		auto* const page  = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+
+		// Negative controls: Return on a base-side line, and Return in the
+		// drawer's own notes, start nothing.
+		auto* const leftCode = window.comparison_surface()->left_pane();
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 3U), "a base-side line is selected");
+		leftCode->setFocus(Qt::OtherFocusReason);
+		send(leftCode, Qt::Key_Return, Qt::NoModifier);
+		expect(!drawer_writing(window) && !composing(window, page), "negative control: Return on the base side opens no draft");
+		cards->setFocus(Qt::OtherFocusReason);
+		send(cards, Qt::Key_Return, Qt::NoModifier);
+		expect(!drawer_writing(window), "negative control: Return in the notes opens a thread, never a new draft");
+		cards->close_thread();
+		// Return on a selected line: the draft opens in the drawer at line 10,
+		// bracketed in blue, the code still on screen, inside 100 ms.
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 9U), "line 10 is selected as a click would");
+		admit(window.comparison_surface()->selection());
+		code->setFocus(Qt::OtherFocusReason);
+		process_events();
+		QElapsedTimer opening;
+		opening.start();
+		send(code, Qt::Key_Return, Qt::NoModifier);
+		const auto openMs = opening.elapsed();
+		std::cout << "compose-drawer:open-ms=" << openMs << '\n';
+		const auto writingMark = [&window](const std::uint32_t aLine) {
+			const auto& marks = window.comparison_surface()->line_marks(core::diff_side::right);
+			return std::ranges::any_of(marks, [aLine](const qt::diff_line_mark& aMark) { return aMark.Line == aLine && aMark.Writing; });
+		};
+		expect(drawer_writing(window) && !composing(window, page) && code->isVisible() && cards->draft_editor()->hasFocus() && writingMark(9U)
+				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on line 10"),
+			   "Return opens a draft thread in the drawer at line 10 with focus and a blue bracket, and the code stays in view");
+		expect(openMs < 100, "the drawer draft opens within the 100 ms interaction target");
+		expect(cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft")) != nullptr
+				   && cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadDeleteDraft")) != nullptr
+				   && cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMaximizeDraft")) != nullptr
+				   && cards->open_card()->findChild<QWidget*>(QStringLiteral("threadDraftLabels")) != nullptr,
+			   "the draft has the label chip, Discard, Maximize and Publish");
+		save_render(window, QStringLiteral("compose-drawer-draft"));
+		// Return in the draft is a new line, never a second comment.
+		send(cards->draft_editor(), Qt::Key_Return, Qt::NoModifier);
+		expect(drawer_writing(window) && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("\n"),
+			   "Return inside the draft writes a new line");
+		// Esc with nothing written drops it; focus goes back to the code.
+		cards->draft_editor()->setPlainText(QString{ });
+		settle();
+		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+		expect(!drawer_writing(window) && std::ranges::none_of(cards->cards(), &qt::thread_card::Draft) && code->hasFocus(),
+			   "Esc drops an empty draft and returns focus to the code");
+		// Written, Esc keeps it as its note at its line.
+		send(code, Qt::Key_Enter, Qt::KeypadModifier);
+		expect(drawer_writing(window), "keypad Enter counts as Return");
+		cards->draft_editor()->setPlainText(QStringLiteral("question: Why not 2?"));
+		settle();
+		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+		const auto kept = std::ranges::find_if(cards->cards(), &qt::thread_card::Draft);
+		expect(!drawer_writing(window) && kept != cards->cards().end() && kept->Line == std::optional<std::uint32_t>{ 10U } && code->hasFocus()
+				   && std::ranges::none_of(drafts, [](const core::review_draft_command& aCommand) { return aCommand.Kind == core::review_draft_command_kind::discard; }),
+			   "Esc keeps a written draft as its note at line 10, discarding nothing");
+		// Opening the note makes it editable again, in place.
+		cards->open_thread(qt::conversation_cards_view::draft_identity());
+		process_events();
+		expect(drawer_writing(window) && cards->draft_editor()->toPlainText() == QStringLiteral("question: Why not 2?"), "opening the kept note writes it again with its text");
+
+		// Maximize: the same draft in Discuss's full composer, and back.
+		auto cursor = cards->draft_editor()->textCursor();
+		cursor.setPosition(9);
+		cards->draft_editor()->setTextCursor(cursor);
+		send(cards->draft_editor(), Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier);
+		auto* const excerpt = window.findChild<QWidget*>(QStringLiteral("discussDraftExcerpt"));
+		expect(composing(window, page) && window.current_modality() == qt::review_modality::discuss && !drawer_writing(window)
+				   && window.review_editor()->body_editor()->hasFocus() && window.review_editor()->body_editor()->textCursor().position() == 9
+				   && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("question: Why not 2?")
+				   && excerpt != nullptr && excerpt->isVisible() && excerpt->accessibleDescription().contains(QStringLiteral("Line 10")),
+			   "Ctrl+Shift+Return opens the draft in Discuss with its text, caret and the lines it is on");
+		save_render(window, QStringLiteral("compose-discuss-draft"));
+		window.review_editor()->body_editor()->moveCursor(QTextCursor::End);
+		window.review_editor()->body_editor()->insertPlainText(QStringLiteral(" Or 3?"));
+		settle();
+		window_key(window, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier);
+		expect(window.current_modality() == qt::review_modality::review && !composing(window, page) && drawer_writing(window)
+				   && cards->draft_editor()->toPlainText() == QStringLiteral("question: Why not 2? Or 3?")
+				   && cards->draft_editor()->textCursor().position() == cards->draft_editor()->toPlainText().size(),
+			   "the same key brings the draft back to the drawer with the text written in Discuss and its caret");
+		expect(window.conversation_panel()->maximumWidth() == QWIDGETSIZE_MAX, "back beside the code the drawer's panel is no longer held to Discuss's list width");
+		expect(publishes() == 0, "opening, writing, keeping and moving the draft publish nothing");
+		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+
+		// The code's right-click: a line outside the selection is selected
+		// first; Add comment and Suggest change show their keys.
+		const auto  changed = window.comparison_surface()->line_rect(core::diff_side::right, 12U);
+		const auto  point   = code->viewport()->mapFrom(window.comparison_surface(), changed.center());
+		auto* const menu    = window.code_context_menu(code, point);
+		expect(window.comparison_surface()->selection().has_value() && window.comparison_surface()->selection()->PreferredLine.Line == 12U,
+			   "a right-click outside the selection selects its line first");
+		admit(window.comparison_surface()->selection());
+		const auto actions = menu->actions();
+		const auto named   = [&actions](const QString& aName) {
+			return std::ranges::find_if(actions, [&aName](const QAction* aAction) { return aAction->objectName() == aName; }) != actions.end();
+		};
+		expect(actions.size() > 4 && actions[0]->text() == QStringLiteral("Line 13") && actions[1]->objectName() == QStringLiteral("addCommentAction")
+				   && actions[2]->objectName() == QStringLiteral("suggestChangeAction") && actions[1]->shortcut() == QKeySequence{ Qt::Key_Return }
+				   && actions[2]->shortcut() == QKeySequence{ Qt::SHIFT | Qt::Key_Return } && actions[1]->isEnabled()
+				   && window.add_comment_action()->shortcut().isEmpty()
+				   && std::ranges::any_of(actions, [](const QAction* aAction) { return aAction->text().contains(QStringLiteral("Copy")); })
+				   && named(QStringLiteral("addTourStopAction")),
+			   "the menu is headed by its line and offers Add comment, Suggest change, Copy and Add tour stop");
+		menu->popup(code->viewport()->mapToGlobal(point));
+		process_events();
+		save_menu_render(*menu, QStringLiteral("compose-code-menu"));
+		menu->hide();
+		delete menu;
+		window.suggest_change_action()->trigger();
+		process_events();
+		settle();
+		auto* const change = cards->open_card() != nullptr ? cards->open_card()->findChild<QWidget*>(QStringLiteral("threadDraftChange")) : nullptr;
+		expect(drawer_writing(window) && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("```suggestion\n\tchanged `line` 12\n```")
+				   && change != nullptr && change->isVisible() && change->accessibleDescription().startsWith(QStringLiteral("Suggests a change to line 13"))
+				   && cards->draft_editor()->textCursor().position() == cards->draft_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' }),
+			   "Suggest change prefills a suggestion block with the line exactly, its tab included, the caret at the end of its last line");
+		cards->draft_editor()->setPlainText(QStringLiteral("```suggestion\n\tchanged `line` 13\n```"));
+		settle();
+		expect(change->accessibleDescription() == QStringLiteral("What it changes in line 13: removes 1, adds 1."), "editing the block shows what it changes");
+		save_render(window, QStringLiteral("compose-drawer-suggestion"));
+		// Publish posts this one draft, once, and nothing else did.
+		auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+		expect(publish != nullptr && publish->isEnabled(), "a written draft can be published");
+		send(cards->draft_editor(), Qt::Key_Return, Qt::ControlModifier);
+		expect(publishes() == 1, "Ctrl+Return publishes the draft once");
+
+		// The gutter's "+" on a head line no thread is on: it shows under the
+		// pointer and starts a comment there.
+		auto* const gutter = code->findChild<QWidget*>(QStringLiteral("diffSourceLineNumbers"));
+		expect(gutter != nullptr && window.comparison_surface()->thread_markers(), "the head pane's gutter has its marker column");
+		const auto  fifth = window.comparison_surface()->line_rect(core::diff_side::right, 4U);
+		const auto  aim   = QPointF{ static_cast<qreal>(gutter->width() - 8), static_cast<qreal>(gutter->mapFrom(window.comparison_surface(), fifth.center()).y()) };
+		QMouseEvent hover{ QEvent::MouseMove, aim, gutter->mapToGlobal(aim), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(gutter, &hover);
+		expect(!window.comparison_surface()->line_add_rect().isEmpty(), "the pointer over line 5's gutter shows its \"+\"");
+		QMouseEvent press{ QEvent::MouseButtonPress, aim, gutter->mapToGlobal(aim), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(gutter, &press);
+		process_events();
+		expect(drawer_writing(window) && window.review_editor()->shown_draft()->Anchor.Line == 4U && writingMark(4U),
+			   "pressing the gutter's \"+\" starts a comment on line 5 in the drawer");
+		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+		// The base side takes no new comment; the menu says why.
+		auto* const base     = window.comparison_surface()->left_pane();
+		const auto  baseRect = window.comparison_surface()->line_rect(core::diff_side::left, 3U);
+		auto* const baseMenu = window.code_context_menu(base, base->viewport()->mapFrom(window.comparison_surface(), baseRect.center()));
+		expect(!window.add_comment_action()->isEnabled() && window.add_comment_action()->toolTip().contains(QStringLiteral("right, current-head")),
+			   "on the base side Add comment is unavailable with its reason");
+		delete baseMenu;
 		window.hide();
 	}
 
@@ -6193,16 +6463,15 @@ namespace {
 		auto* const page    = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 		comment->trigger();
 		process_events();
-		expect(stack->currentWidget() == page && window.review_editor()->body_editor()->isEnabled(),
-			   "Comment opens the editable inline page");
-		window.review_editor()->body_editor()->setPlainText(QStringLiteral("local text"));
-		window.review_editor()->discard_action()->trigger();
+		expect(drawer_writing(window) && !composing(window, page) && window.review_editor()->body_editor()->isEnabled(),
+			   "Comment opens the editable draft in the drawer");
+		cards->draft_editor()->setPlainText(QStringLiteral("local text"));
+		expect(window.review_editor()->body_editor()->toPlainText() == QStringLiteral("local text"), "the drawer's text is the draft editor's");
+		auto* const discard = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadDeleteDraft")) : nullptr;
+		expect(discard != nullptr, "the draft has Discard");
+		discard->click();
 		process_events();
-		auto* const back = page->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
-		expect(back != nullptr, "the page has Back");
-		back->click();
-		process_events();
-		expect(stack->currentWidget() != page, "Back returns to the comparison");
+		expect(!drawer_writing(window) && stack->currentWidget()->objectName() != QStringLiteral("workbenchDiscussPage"), "Discard closes the draft and the code stays");
 		expect(shows(), "after Discard and Back the drawer shows the file's thread card without another selection");
 		save_render(window, QStringLiteral("discard-back-drawer"));
 		const auto discards  = std::ranges::count_if(drafts, [](const core::review_draft_command& aCommand) {
@@ -7325,9 +7594,10 @@ namespace {
 		expect(QGuiApplication::focusWindow() == window.windowHandle() && start != nullptr,
 			   "the keys start in the active window, on the comparison");
 		window_key(window, Qt::Key_R, Qt::AltModifier);
-		expect(stack->currentWidget()->objectName() == QStringLiteral("composeReviewPage")
+		expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage")))
+				   && window.current_modality() == qt::review_modality::discuss
 				   && window.findChild<QPushButton*>(QStringLiteral("composeReviewPageBack"))->hasFocus(),
-			   "Option-R (Alt+R) opens the no-draft explanation with Back focused");
+			   "Option-R (Alt+R) opens the summary in Discuss (owner's Q3), its no-draft explanation with Back focused");
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
 		expect(stack->currentWidget() == start && window.modality()->button(qt::review_modality::review)->hasFocus(),
 			   "Esc returns from the review page to the invoking surface and focus");
@@ -7381,7 +7651,7 @@ namespace {
 		expect(fired == std::vector{ qt::tour_editor_action::retarget_stop } && stack->currentWidget() == start,
 			   "Option-Shift-U on the outline retargets the selected stop once and opens nothing else");
 		window_key(window, Qt::Key_R, Qt::AltModifier);
-		expect(fired.size() == 1U && stack->currentWidget()->objectName() == QStringLiteral("composeReviewPage"),
+		expect(fired.size() == 1U && composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))),
 			   "Option-R on the outline composes the review and does not retarget");
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
 		window.modality()->button(qt::review_modality::review)->setFocus(Qt::OtherFocusReason);
@@ -7483,11 +7753,11 @@ namespace {
 			invoking->setFocus();
 			compose->trigger();
 			process_events();
-			expect(stack->currentWidget() == page && whole->body_editor()->hasFocus(), "explicit entry opens and focuses retained whole-review editor");
+			expect(composing(window, page) && whole->body_editor()->hasFocus(), "explicit entry opens and focuses retained whole-review editor in Discuss");
 			whole->present(projection);
 			window.publish(both_files_enabled());
 			process_events();
-			expect(stack->currentWidget() == page && whole == window.review_submission_editor_view()
+			expect(composing(window, page) && whole == window.review_submission_editor_view()
 					   && whole->shown_draft() == draft && whole->body_editor()->textCursor().position() == cursor,
 				   "same-authority projection retains page, editor identity, draft and cursor");
 			back->click();
@@ -7495,7 +7765,7 @@ namespace {
 			expect(window.current_modality() == mode && invoking->hasFocus(), "Back restores invoking mode and focus");
 			window.open_review_composition(true);
 			process_events();
-			expect(stack->currentWidget()->objectName() == QStringLiteral("composeInlineDraftPage")
+			expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage")))
 					   && inlineEditor == window.review_editor() && inlineEditor->body_editor()->height() >= 90,
 				   "inline drafting opens the same editor with an independently usable body");
 			inlineEditor->present(acceptedInline);
@@ -11988,6 +12258,7 @@ auto main(int argc, char** argv) -> int
 	// past that same assertion: which thread moves code, and when.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--conversation-reveal"))) {
 		test_discard_and_back_keep_the_comments_drawer();
+		test_compose_in_the_drawer();
 		test_the_conversations_drawer_hosts_the_threaded_conversation();
 		test_same_automatically_selected_line_click_filters_conversations();
 		test_selected_file_filter_survives_diff_loading();

@@ -365,3 +365,131 @@ yet. It covers three parts:
 
 Local-project flows stay unchanged (Q2: B, the whole-file editor). The owner
 look is left to the coordinator.
+
+## Build slice 2: compose in the drawer (bpr-main-mac, 2026-10-08)
+
+Drawn with `frontend-design` (loaded first, as the repository asks). Built
+on `origin/main` because slice 1 (`bpr-1212-slice1`, `bpr-main-linux`) was not
+on `origin` when this slice started or when it was pushed; see "Coordination
+with slice 1" below.
+
+### Owner notes this slice answers (chat, 2026-10-08, verbatim)
+
+> On the latest pre release build adding a comment on a line without one opens
+> only the full screen composer instead of the new drawer comment ux
+
+> I don't know how to publish my draft comment, compose review only lets me
+> approve with an extra comment but I don't want to do that
+
+> Perhaps what were missing is the equivalent of the GitHub start a review flow
+> or if we have it I can't find it
+
+### What was built
+
+- **A new comment is a draft thread in the drawer** at its line: Return on the
+  selected line (keypad Enter too), Add comment on the code's right-click
+  menu, Comment (Option-C) on a line no thread is on, and a "+" the head
+  gutter shows under the pointer. The card's edge and notch are blue and a
+  blue bracket marks the line in the gutter. Header: the line, Draft (or
+  Suggested change), Maximize, Close. Field with the label chip and its
+  `:xx:` codes (the reply's controls). Foot: "Only you see it until you
+  publish", Discard and **Publish** (⌘↩), whose tooltip and accessible
+  description say it posts this one comment now. Return in the field is a new
+  line. Esc keeps a written draft as its dashed note and drops an empty one,
+  and focus goes back to the code; opening the note writes it again (Edit is
+  gone). The code stays in view throughout.
+- **Right-click** selects the clicked line first when it is outside the
+  selection. The menu is headed "Line N" and offers Add comment ↩ and Suggest
+  change ⇧↩, then Copy and the standard items, then Add tour stop. On the base
+  side both are disabled and say why. The keys shown are the menu items' own:
+  no window action claims Return (the Review Cycles row checks this).
+- **Suggest change** fills an empty draft with a ```` ```suggestion ```` block
+  holding the line exactly as the head document holds it (tabs and backticks
+  kept, the fence longer than any backtick run in it), with the caret at the
+  end of the block's last line; a draft with words keeps them and gains the
+  block below. The field turns monospaced and unwrapped, and "What it
+  changes" shows the removed and added lines as they are edited. The text
+  decisions are core: `bpr/core/suggestion_draft.hpp`.
+- **Maximize** (⌘⇧↩, the header button) opens the same draft in Discuss,
+  which is now the home of the full composer: the conversations narrow to a
+  list at the left; at the right Back to the code, the draft's line with three
+  either side under the same bracket, and the full editor. ⌘⇧↩, Esc or Back
+  to the code return it to the drawer with its text and caret. A conflicted
+  draft (Reload/Reapply) and a comment-workshop proposal open there directly.
+  The full-page comment window is no longer a destination of its own.
+- **Compose review (⌥R) opens in Discuss** (Q3: A), with Esc and Back
+  returning to where it was opened.
+- **Local-project flows are unchanged** (Q2: B).
+- Boundaries: Qt presentation plus one pure core header. The draft is still
+  the draft editor's; the drawer and Discuss edit it through its one edit
+  path, and nothing publishes but its Publish. No application, provider,
+  storage or publication change.
+
+### Publishing, Compose review and "start a review": findings
+
+- Compose review's Comment needs a summary today because the review carries
+  no line comments: `review_submission` posts only `body`, `commit_id` and
+  `event` (`github_mutation_contract.cpp`), and line drafts publish one at a
+  time from their own Publish. GitHub refuses that shape without text. Probed
+  live on the owner's test repository, `MikeMarcin/BPR-Test#41` (opened,
+  probed, closed, branch deleted): `COMMENT` with an empty body and no
+  comments is 422; with one line comment and an empty body it is
+  `COMMENTED`. The core rule (`validate_body`, nonblank for Comment and
+  Request changes) is right for what BPR sends.
+- How pending drafts relate to a review today: BPR-1085's preflight counts my
+  selected unsent draft ("Yours, not sent: 1 blocking") and refuses Submit
+  when that selection changed after the reviewer chose it, but the submission
+  does not carry it.
+- This slice makes publishing a single draft obvious (Publish on the drawer
+  draft, tooltip "Post this one comment to the pull request now ⌘↩") and makes
+  Compose review say why Comment needs a summary and that line comments are
+  published from their drafts.
+- **Start a review is not built.** It needs a pending mark kept with each
+  draft on this computer, every pending draft shown at its line (today only
+  the selected line's draft is drawn), and the review submission carrying the
+  pending drafts as GitHub review comments, marking each published only when
+  the review is accepted. That crosses core, the draft store, the GitHub
+  adapter and publication identity, so it is a separate milestone, not part of
+  this presentation slice. Its direction is drawn for the owner as
+  [`BPR-1212-start-a-review-v1`](../../design/BPR-1212-start-a-review-v1/index.html)
+  (frontend-design: GitHub's Add single comment / Start a review, a review-bar
+  "Review · N pending" chip with Finish review, and Finish review in Discuss
+  where Comment needs no summary) and asked as `start-a-review-v001`.
+
+### Verification (macOS, Debug, offscreen)
+
+- New: `core_suggestion_draft`; the conversation-reveal course's
+  `test_compose_in_the_drawer` (Return, keypad Enter, Esc keep/drop, reopen,
+  Maximize and back with text and caret, right-click selection and items,
+  Suggest change prefill and "What it changes", ⌘↩ publishes once, the gutter
+  "+", base-side refusal; negative controls: Return on the base side and in
+  the notes open no draft). The drawer draft opens in 3 to 18 ms here
+  (100 ms target).
+- Failing before: the BPR-1133 Comment course asserted Comment opened the
+  full page (`stack->currentWidget() == page`); it now asserts the drawer
+  draft with the code visible and no Discuss page, and the opposite fails.
+- Migrated: `qt_conversation_cards_view` (the open draft is its composer),
+  `qt_workbench_window_scale_{100,125,200}`, the review-submission public
+  paths (Comment and promotion open the drawer draft), and the app courses for
+  threaded reply and label authoring.
+- Passing on the candidate: the 34 focused rows (cards view, workbench window
+  and conversation reveal, composed GitHub at three scales, review-submission
+  public paths at three scales, review cycle desktop, agent-finding and
+  round-trip composition contracts, review editors, focus order, overview).
+- Round-trip pin resealed with a note (full application and production
+  manifest digests; mutation pin unchanged).
+- Pre-existing failures on `origin/main`, not touched here:
+  `qt_composed_inline_drawer_scale_*` ("each post's body fits its width",
+  then exit -11; same at `2fe84cd26` without this slice) and
+  `qt_workbench_home_discovery_scale_*` (both named in the 0.1.5 test-gate
+  exception), and `application_profile_window_layout_public_path` (its seed
+  crashes clicking `overviewReadDescription` in Overview).
+- Linux and Windows runs of these rows are owed by the stations.
+
+### Coordination with slice 1
+
+Slice 1 adds the multi-line anchor, the keyboard line cursor and its own
+Return/Shift+Return. When it lands, rebase this slice onto it: route its
+Return/Shift+Return to `begin_new_comment`, take the range from the draft's
+anchor for the bracket, the "Lines a–b" words and the suggestion's lines
+(`draft_source_lines`), and keep one fence builder (`core::suggestion_fence_body`).

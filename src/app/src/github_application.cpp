@@ -14152,7 +14152,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					&& Window != nullptr && Window->review_editor() != nullptr
 					&& LatestAgentSession.has_value()
 					&& LatestAgentSession->Id == aOutcome.Session) {
-					Window->open_review_composition(true);
+					Window->open_draft_in_discuss();
 					Window->present_dif_workshop(
 						*LatestAgentSession,
 						aOutcome.ActionGeneration,
@@ -24676,12 +24676,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (model->rowCount() != 0 || !drawerShowsThread()) {
 				return fail("threadless-line-hid-drawer rows=" + std::to_string(model->rowCount()));
 			}
+			// [[BPR-1212]]. Comment opens the draft in the drawer at its line.
 			window->comment_action()->trigger();
 			QCoreApplication::processEvents();
-			if (!inlinePage->isVisibleTo(window) || editor->body_editor()->isReadOnly()) {
-				return fail("comment-page-not-editable");
+			if (!cards->writing_draft() || cards->draft_editor() == nullptr || cards->draft_editor()->isReadOnly() || inlinePage->isVisibleTo(window)) {
+				return fail("comment-drawer-draft-not-editable");
 			}
-			editor->body_editor()->setPlainText(QString::fromUtf8(discardedBody.data(), static_cast<qsizetype>(discardedBody.size())));
+			cards->draft_editor()->setPlainText(QString::fromUtf8(discardedBody.data(), static_cast<qsizetype>(discardedBody.size())));
 			probe.Phase = state_type::phase::awaiting_line_body;
 			return result::pending;
 		}
@@ -24690,7 +24691,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!implementation->ReviewDraft || implementation->ReviewDraft->Body != discardedBody) {
 				return result::pending;
 			}
-			editor->discard_action()->trigger();
+			// The draft's own Discard, in the drawer.
+			auto* const discard = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadDeleteDraft")) : nullptr;
+			if (discard == nullptr) {
+				return fail("no-drawer-discard");
+			}
+			discard->click();
 			probe.Phase = state_type::phase::awaiting_line_discarded;
 			return result::pending;
 		}
@@ -24700,14 +24706,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (draft && draft->State != core::review_draft_state::discarded && draft->Body == discardedBody) {
 				return result::pending;
 			}
-			auto* const back = inlinePage->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
-			if (back == nullptr) {
-				return fail("no-back");
-			}
-			back->click();
 			QCoreApplication::processEvents();
 			const auto mutations = implementation->Fixture->review_mutation_evidence();
-			if (inlinePage->isVisibleTo(window) || !drawerShowsThread() || mutations.Submissions != 0U || mutations.Replies != 0U) {
+			if (inlinePage->isVisibleTo(window) || cards->writing_draft() || !drawerShowsThread() || mutations.Submissions != 0U || mutations.Replies != 0U) {
 				return fail("comments-drawer-blank-after-discard-and-back page=" + std::to_string(inlinePage->isVisibleTo(window) ? 1 : 0)
 							+ " submissions=" + std::to_string(mutations.Submissions) + " replies=" + std::to_string(mutations.Replies));
 			}
@@ -25242,7 +25243,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!line || !draft || draft->ReplyToThread || !window->comment_action()->isEnabled()) {
 				return result::pending;
 			}
+			// [[BPR-1212]]. Comment opens the draft in the drawer; the label
+			// authoring here is the full composer's, which Maximize opens in
+			// Discuss with the same draft.
 			window->comment_action()->trigger();
+			QCoreApplication::processEvents();
+			if (cards == nullptr || !cards->writing_draft() || cards->draft_editor() == nullptr) {
+				return fail("comment-drawer-draft-not-open");
+			}
+			window->open_draft_in_discuss();
 			QCoreApplication::processEvents();
 			auto* const inlinePage = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 			if (inlinePage == nullptr || !inlinePage->isVisibleTo(window) || body->isReadOnly() || !controls->isVisibleTo(window)) {

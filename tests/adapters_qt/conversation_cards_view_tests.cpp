@@ -683,8 +683,8 @@ namespace {
 		view.set_current_thread("c-late");
 		expect(view.current_thread() == "t-late", "a reply's identity names its thread");
 
-		// My draft on this comparison is a dashed note at its line that opens
-		// to Publish, Edit and Delete.
+		// My draft on this comparison is a dashed note at its line. [[BPR-1212]]:
+		// opening it makes it editable again, in place, as its composer.
 		const auto comparison = core::file_comparison_digest{ };
 		view.set_draft(core::review_comment_draft{
 						   .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 39U },
@@ -696,12 +696,66 @@ namespace {
 		expect(draft != view.cards().end() && draft->Placed && draft->Line == std::optional<std::uint32_t>{ 40U } && !overlapping(view.cards()),
 			   "the draft is a note at its one-based line");
 		const auto draftId = draft->Id;
+		auto       actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
+		auto typed = std::vector<QString>{ };
+		view.set_draft_text_dispatch([&typed](const QString& aText) { typed.push_back(aText); });
 		view.open_thread(draftId);
 		QApplication::processEvents();
-		expect(button(view, "threadPublishDraft") != nullptr && button(view, "threadEditDraft") != nullptr
-				   && button(view, "threadDeleteDraft") != nullptr && button(view, "threadReplyField") == nullptr,
-			   "the open draft offers Publish, Edit and Delete and no Reply");
+		expect(view.writing_draft() && view.draft_editor() != nullptr && button(view, "threadPublishDraft") != nullptr
+				   && button(view, "threadDeleteDraft") != nullptr && button(view, "threadMaximizeDraft") != nullptr
+				   && button(view, "threadEditDraft") == nullptr && button(view, "threadReplyField") == nullptr,
+			   "the open draft is its composer: a field, Publish, Discard and Maximize, and no Edit or Reply");
+		expect(button(view, "threadPublishDraft")->toolTip().startsWith(QStringLiteral("Post this one comment to the pull request now")),
+			   "Publish says it posts this one comment now (owner, 2026-10-08)");
 		expect(view.post_count() == 5U, "the draft is not counted as a post");
+		view.present_draft(qt::draft_composer_presentation{
+			.Body        = QStringLiteral("Same question; check the default before publishing."),
+			.Publishable = true,
+			.Lines       = QStringLiteral("Line 40"),
+		});
+		QApplication::processEvents();
+		expect(view.draft_editor()->toPlainText() == QStringLiteral("Same question; check the default before publishing.") && typed.empty()
+				   && button(view, "threadPublishDraft")->isEnabled(),
+			   "the composer shows the draft editor's text without echoing it back, and Publish is enabled");
+		const auto writingMarks = view.line_marks(core::diff_side::right);
+		expect(std::ranges::any_of(writingMarks, [](const qt::thread_line_mark& aMark) { return aMark.Line == 39U && aMark.Writing; }),
+			   "the line being written on carries the writing mark for its blue bracket");
+		view.draft_editor()->insertPlainText(QStringLiteral(" Now."));
+		expect(!typed.empty() && typed.back().endsWith(QStringLiteral(" Now.")), "each edit goes to the draft editor");
+		const auto layouts = view.layouts();
+		view.set_draft(core::review_comment_draft{
+						   .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 39U },
+						   .Body   = "Same question; check the default before publishing. Now.",
+					   },
+					   comparison);
+		expect(view.layouts() == layouts && view.draft_editor() != nullptr && view.draft_editor()->hasFocus(),
+			   "typing the draft lays nothing out again and keeps the composer and its focus");
+		QKeyEvent maximize{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier };
+		QApplication::sendEvent(view.draft_editor(), &maximize);
+		QKeyEvent publish{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+		QApplication::sendEvent(view.draft_editor(), &publish);
+		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(view.draft_editor(), &escape);
+		expect(actions.size() == 3U && actions[0].first == qt::card_action::maximize_draft && actions[1].first == qt::card_action::publish_draft
+				   && actions[2].first == qt::card_action::close_draft,
+			   "in the draft, Ctrl+Shift+Return maximizes, Ctrl+Return publishes and Esc asks to close; the window decides");
+		view.present_draft(qt::draft_composer_presentation{
+			.Body        = QStringLiteral("```suggestion\nint b = 2;\n```"),
+			.Publishable = true,
+			.Lines       = QStringLiteral("Line 40"),
+			.Change      = core::suggested_change{ .Fenced = true, .Removed = { "int b = 1;" }, .Added = { "int b = 2;" } },
+		});
+		QApplication::processEvents();
+		auto* const change = view.findChild<QWidget*>(QStringLiteral("threadDraftChange"));
+		expect(change != nullptr && change->isVisible() && change->accessibleDescription().contains(QStringLiteral("removes 1, adds 1"))
+				   && view.draft_editor()->lineWrapMode() == QPlainTextEdit::NoWrap
+				   && view.draft_editor()->textCursor().position() == view.draft_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' }),
+			   "a suggestion shows what it changes, unwrapped, with the caret at the end of the block's last line");
+		view.end_draft();
+		QApplication::processEvents();
+		expect(!view.writing_draft() && view.open_thread_id().empty() && std::ranges::any_of(view.cards(), &qt::thread_card::Draft),
+			   "leaving the written draft keeps it as its note at its line");
 		// A reply draft is written inside its thread and draws no note.
 		view.set_draft(core::review_comment_draft{
 						   .Anchor        = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 9U },

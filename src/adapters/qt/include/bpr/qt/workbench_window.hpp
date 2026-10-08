@@ -882,10 +882,31 @@ namespace bpr::qt {
 		void set_attention_colour(const QColor& aColour);
 		/// \brief The tints and mark style this window draws marks with.
 		[[nodiscard]] auto label_marks() const -> feedback_mark_theme;
-		/// \brief Opens a retained editor page without changing or publishing its draft.
+		/// \brief Opens a retained draft for writing without changing or
+		/// publishing it.
+		/// \details [[BPR-1212]]. The draft on the selected line opens in the
+		/// drawer at its line while the code shows; otherwise, and for the
+		/// whole-review summary, the full composer opens in Discuss.
 		void open_review_composition(bool aInline = false);
+		/// \brief [[BPR-1212]]. Opens the draft on the selected line in
+		/// Discuss's full composer (Maximize, ⌘⇧↩): a workshop proposal's
+		/// before and after needs its room.
+		void open_draft_in_discuss();
 		/// \brief Returns to the invoking surface and focus without submitting.
-		void               close_review_composition();
+		/// \details [[BPR-1212]]. A draft maximized from the drawer goes back
+		/// to the drawer, writing, with its text and caret.
+		void close_review_composition();
+		/// \brief [[BPR-1212]]. Starts a new comment on the selected line (or
+		/// a suggested change on it) as a draft in the drawer.
+		/// \returns Whether the draft opened, in the drawer or in Discuss.
+		auto begin_new_comment(bool aSuggestion = false) -> bool;
+		/// \brief [[BPR-1212]]. The code's Add comment and Suggest change, as
+		/// the right-click menu offers them.
+		[[nodiscard]] auto add_comment_action() const noexcept -> QAction*;
+		[[nodiscard]] auto suggest_change_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1212]]. The menu a right-click on the code opens at a
+		/// point of a pane, built as the gesture builds it; the caller owns it.
+		[[nodiscard]] auto code_context_menu(QPlainTextEdit* aPane, QPoint aPosition) -> QMenu*;
 		[[nodiscard]] auto defect_card() const noexcept -> defect_card_view*;
 		[[nodiscard]] auto classify_defect_action() const noexcept -> QAction*;
 		[[nodiscard]] auto previous_defect_action() const noexcept -> QAction*;
@@ -1335,6 +1356,21 @@ namespace bpr::qt {
 		/// \brief [[BPR-1290]]. Tells the notes what the draft editor holds
 		/// for the reply in place.
 		void present_inline_reply();
+		/// \brief [[BPR-1212]]. The draft written in the drawer is the draft
+		/// editor's text, as the reply in place is.
+		void write_inline_draft(const QString& aText);
+		/// \brief [[BPR-1212]]. Tells the drawer's composer what the draft
+		/// editor holds for the new comment.
+		void present_inline_draft();
+		/// \brief [[BPR-1212]]. Opens the drawer draft once the drawer shows.
+		void resume_pending_draft();
+		/// \brief [[BPR-1212]]. Leaves the drawer draft: a written draft is
+		/// kept at its line, an empty one dropped, and focus goes to the code.
+		void leave_drawer_draft(bool aDiscard);
+		/// \brief [[BPR-1212]]. Maximize: the drawer draft goes to Discuss.
+		void maximize_drawer_draft();
+		/// \brief [[BPR-1212]]. The exact head lines the shown draft is on.
+		[[nodiscard]] auto draft_source_lines() const -> std::optional<std::vector<std::string>>;
 		/// [[BPR-1084]]. Tells the draft editor where the reply it shows is attached.
 		void present_reply_placement();
 		void update_new_comment_group();
@@ -1708,7 +1744,23 @@ namespace bpr::qt {
 		QScrollArea*                     ComposeInlinePage  = nullptr;
 		QWidget*                         CompositionPage    = nullptr;
 		QPointer<QWidget>                CompositionReturnFocus;
-		QPointer<QWidget>                DiscussReturnFocus;
+		/// [[BPR-1212]]. Discuss's composer column, which shows one of the
+		/// two composition pages beside the conversations.
+		QWidget* DiscussComposer = nullptr;
+		/// [[BPR-1212]]. The draft excerpt above Discuss's inline composer.
+		QWidget* DraftExcerpt = nullptr;
+		/// [[BPR-1212]]. Where the full composer returns to, and whether the
+		/// draft goes back to the drawer, writing, at its caret.
+		std::optional<review_modality> CompositionReturnModality;
+		bool                           CompositionReturnsToDrawer = false;
+		int                            CompositionCaret           = -1;
+		/// [[BPR-1212]]. A new comment waiting for the drawer to open, and
+		/// whether it is a suggested change.
+		std::optional<bool>                  PendingDraft;
+		std::optional<core::source_line_ref> WritingAnchor;
+		QAction*                             AddCommentAction    = nullptr;
+		QAction*                             SuggestChangeAction = nullptr;
+		QPointer<QWidget>                    DiscussReturnFocus;
 		/// [[BPR-1089]]. Where focus was on the Overview when a count opened
 		/// Discuss, so going back to the Overview finds the same cell.
 		QPointer<QWidget> OverviewReturnFocus;

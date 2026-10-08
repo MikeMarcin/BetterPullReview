@@ -227,7 +227,9 @@ namespace bpr::qt {
 		layout->setContentsMargins(0, 0, 0, 0);
 		auto* title = new QLabel{ tr("Compose review"), this };
 		layout->addWidget(title);
-		auto* purpose = new QLabel{ tr("Write a summary for this pull request and choose Comment, Approve, or Request changes. Nothing is published until you choose Submit review."), this };
+		auto* purpose = new QLabel{ tr("Write a summary for this pull request and choose Comment, Approve, or Request changes. Nothing is published until you choose Submit review. "
+									   "Your line comments are not part of this review: each is published on its own with Publish on its draft beside the code."),
+									this };
 		purpose->setObjectName(QStringLiteral("wholeReviewPurpose"));
 		purpose->setWordWrap(true);
 		purpose->setMinimumWidth(0);
@@ -385,7 +387,10 @@ namespace bpr::qt {
 		NewReview->setEnabled(connected && aProjection.Controls.NewReview);
 		const auto unavailable = !Draft || !aProjection.Controls.Edit
 			? aProjection.Status
-			: tr("Write a nonblank summary for Comment or Request changes; Approve may have an empty summary.");
+			// [[BPR-1212]]. GitHub refuses a Comment or Request changes review
+			// with no text unless it carries line comments, and this review
+			// carries none (probed on MikeMarcin/BPR-Test#41, 2026-10-08).
+			: tr("Comment and Request changes need a summary: this review carries no line comments, and GitHub refuses one with no text. Approve may have an empty summary.");
 		Body->setToolTip(Body->isReadOnly() ? aProjection.Status : tr("Your summary is kept as a draft until you submit it."));
 		present_preflight(aProjection);
 		Submit->setToolTip(Submit->isEnabled() ? tr("Publish this review with the displayed account and revision.") : unavailable);
@@ -442,7 +447,7 @@ namespace bpr::qt {
 			approve->setToolTip(tr("Approve this pull request."));
 		}
 		approve->setAccessibleDescription(approve->toolTip());
-		Decisions[decision_index(core::review_disposition::comment)]->setToolTip(tr("Comment without approving."));
+		Decisions[decision_index(core::review_disposition::comment)]->setToolTip(tr("Comment without approving. Needs a summary; line comments are published from their drafts."));
 		Decisions[decision_index(core::review_disposition::request_changes)]->setToolTip(tr("Request changes."));
 
 		PreflightMenu->clear();

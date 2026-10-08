@@ -6,6 +6,9 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include "conversation_glyphs.hpp"
+
+#include "bpr/core/review_publication_policy.hpp"
+#include "bpr/core/suggestion_draft.hpp"
 #include "github_presentation_text.hpp"
 
 #include "bpr/qt/github_conversation_model.hpp"
@@ -67,6 +70,7 @@
 #include <QMoveEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPalette>
 #include <QPen>
 #include <QPlainTextEdit>
@@ -117,6 +121,125 @@ namespace bpr::qt {
 			}
 			return core::progress_mark(aReceipt->Receipt);
 		}
+
+		/// \brief [[BPR-1212]]. The code a maximized draft is on, above
+		/// Discuss's composer: the draft's lines under a blue bracket and three
+		/// lines either side, exactly as the head holds them.
+		class draft_excerpt_view final : public QWidget
+		{
+		public:
+			explicit draft_excerpt_view(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+				setObjectName(QStringLiteral("discussDraftExcerpt"));
+				setAccessibleName(QStringLiteral("The code the draft is on"));
+				setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+				hide();
+			}
+
+			void present(const QString& aPath, const std::uint32_t aFirstNumber, std::vector<QString> aLines,
+						 const std::uint32_t aBracketFirst, const std::uint32_t aBracketLast, const QFont& aCode)
+			{
+				Path         = aPath;
+				FirstNumber  = aFirstNumber;
+				Lines        = std::move(aLines);
+				BracketFirst = aBracketFirst;
+				BracketLast  = aBracketLast;
+				Code         = aCode;
+				setAccessibleDescription(QStringLiteral("%1, %2").arg(Path, words()));
+				setVisible(!Lines.empty());
+				updateGeometry();
+				update();
+			}
+
+			void clear()
+			{
+				Lines.clear();
+				hide();
+			}
+
+			[[nodiscard]] auto words() const -> QString
+			{
+				return BracketFirst == BracketLast ? QStringLiteral("Line %1").arg(BracketFirst) : QStringLiteral("Lines %1–%2").arg(BracketFirst).arg(BracketLast);
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				return { 320, header() + static_cast<int>(Lines.size()) * row() + 2 };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return { 120, sizeHint().height() };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto       painter = QPainter{ this };
+				const auto base    = palette().color(QPalette::Active, QPalette::Base);
+				const auto ink     = palette().color(QPalette::Active, QPalette::Text);
+				const auto faint   = palette().color(QPalette::Active, QPalette::PlaceholderText);
+				const auto signal  = palette().color(QPalette::Active, QPalette::Highlight);
+				auto       rule    = ink;
+				rule.setAlphaF(0.16F);
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				auto clip = QPainterPath{ };
+				clip.addRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0);
+				painter.setPen(QPen{ rule, 1.0 });
+				painter.setBrush(base);
+				painter.drawPath(clip);
+				painter.setClipPath(clip);
+				auto bold = font();
+				bold.setWeight(QFont::DemiBold);
+				painter.setFont(bold);
+				painter.setPen(ink);
+				const auto title = QStringLiteral("%1   %2").arg(Path.section(QLatin1Char{ '/' }, -1), words());
+				painter.drawText(QRect{ 10, 0, width() - 20, header() }, Qt::AlignLeft | Qt::AlignVCenter,
+								 QFontMetrics{ bold }.elidedText(title, Qt::ElideMiddle, std::max(0, width() - 20)));
+				painter.setPen(QPen{ rule, 1.0 });
+				painter.drawLine(QPointF{ 0.0, header() - 0.5 }, QPointF{ static_cast<qreal>(width()), header() - 0.5 });
+				painter.setFont(Code);
+				const auto metrics = QFontMetrics{ Code };
+				const auto gutter  = metrics.horizontalAdvance(QStringLiteral("00000")) + 12;
+				auto       wash    = signal;
+				wash.setAlphaF(0.14F);
+				for (auto index = std::size_t{ 0U }; index < Lines.size(); ++index) {
+					const auto number = FirstNumber + static_cast<std::uint32_t>(index);
+					const auto top    = header() + static_cast<int>(index) * row();
+					const auto inside = number >= BracketFirst && number <= BracketLast;
+					if (inside) {
+						painter.fillRect(QRect{ 0, top, width(), row() }, wash);
+						painter.fillRect(QRect{ gutter - 3, top, 3, row() }, signal);
+					}
+					painter.setPen(inside ? signal : faint);
+					painter.drawText(QRect{ 0, top, gutter - 8, row() }, Qt::AlignRight | Qt::AlignVCenter, QString::number(number));
+					auto text = Lines[index];
+					text.replace(QLatin1Char{ '\t' }, QStringLiteral("    "));
+					painter.setPen(ink);
+					painter.drawText(QRect{ gutter + 8, top, width() - gutter - 16, row() }, Qt::AlignLeft | Qt::AlignVCenter,
+									 metrics.elidedText(text, Qt::ElideRight, std::max(0, width() - gutter - 16)));
+				}
+			}
+
+		private:
+			[[nodiscard]] auto header() const -> int
+			{
+				return fontMetrics().height() + 12;
+			}
+
+			[[nodiscard]] auto row() const -> int
+			{
+				return QFontMetrics{ Code }.lineSpacing() + 4;
+			}
+
+			QString              Path;
+			std::uint32_t        FirstNumber = 1U;
+			std::vector<QString> Lines;
+			std::uint32_t        BracketFirst = 1U;
+			std::uint32_t        BracketLast  = 1U;
+			QFont                Code;
+		};
 
 #if defined(_WIN32)
 		// [[BPR-0653]]. On Windows the strip also carries the menu control and
@@ -179,7 +302,9 @@ namespace bpr::qt {
 
 		/// \brief [[BPR-1134]]. The right tray's tabs, in order.
 		constexpr int tray_comments_tab = 0;
-		constexpr int tray_findings_tab = 1;
+		/// [[BPR-1212]]. The conversations narrow to a list beside Discuss's composer.
+		constexpr int discuss_composer_list_width = 340;
+		constexpr int tray_findings_tab           = 1;
 
 		/// \brief [[BPR-1134]]. The Comments tab's count of threads with new
 		/// comments: a pill in the accent, painted from the palette.
@@ -1366,6 +1491,18 @@ namespace bpr::qt {
 		PullRequestMenu->addAction(AddTourStopAction);
 		connect(PrepareTourAction, &QAction::changed, this, [this] { AddTourStopAction->setEnabled(PrepareTourAction->isEnabled()); });
 		connect(AddTourStopAction, &QAction::triggered, this, [this] { TourEditor->trigger(tour_editor_action::add_stop); });
+		// [[BPR-1212]]. Add comment and Suggest change, on the code's own
+		// menu. Their keys are the code's, Return and Shift+Return, read by
+		// the pane while it has focus (owner's Q1 answer). No window action
+		// claims those keys; the menu's items only show them.
+		AddCommentAction = new QAction{ tr("Add comment"), this };
+		AddCommentAction->setObjectName(QStringLiteral("addCommentAction"));
+		AddCommentAction->setIcon(conversation_icon(conversation_glyph::comment, palette()));
+		connect(AddCommentAction, &QAction::triggered, this, [this] { static_cast<void>(begin_new_comment(false)); });
+		SuggestChangeAction = new QAction{ tr("Suggest change"), this };
+		SuggestChangeAction->setObjectName(QStringLiteral("suggestChangeAction"));
+		SuggestChangeAction->setIcon(conversation_icon(conversation_glyph::suggest, palette()));
+		connect(SuggestChangeAction, &QAction::triggered, this, [this] { static_cast<void>(begin_new_comment(true)); });
 		update_compose_mark();
 		update_strip_positions();
 		update_strip_identity();
@@ -1433,12 +1570,13 @@ namespace bpr::qt {
 		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane() }) {
 			pane->setContextMenuPolicy(Qt::CustomContextMenu);
 			connect(pane, &QWidget::customContextMenuRequested, this, [this, pane](const QPoint& aPosition) {
-				auto* menu = pane->createStandardContextMenu();
+				auto* const menu = code_context_menu(pane, aPosition);
 				menu->setAttribute(Qt::WA_DeleteOnClose);
-				menu->addSeparator();
-				menu->addAction(AddTourStopAction);
 				menu->popup(pane->viewport()->mapToGlobal(aPosition));
 			});
+			// [[BPR-1212]]. Return comments and Shift+Return suggests a change
+			// on the selected line while the code has focus.
+			pane->installEventFilter(this);
 		}
 		auto* const centre = new QVBoxLayout{ CentreSurface };
 		centre->setContentsMargins(0, 0, 0, 0);
@@ -1634,6 +1772,13 @@ namespace bpr::qt {
 		// the notes scrolls the code.
 		ComparisonSurface->set_thread_markers(true);
 		ComparisonSurface->set_line_mark_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { toggle_thread_at(aSide, aLine); });
+		// [[BPR-1212]]. The gutter's "+" selects its line, as a click would,
+		// and starts a comment there.
+		ComparisonSurface->set_line_add_dispatch([this](const std::uint32_t aLine) {
+			if (ComparisonSurface->select_conversation_line(core::diff_side::right, aLine)) {
+				static_cast<void>(begin_new_comment(false));
+			}
+		});
 		ComparisonSurface->set_thread_tick_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { go_to_thread_at(aSide, aLine); });
 		ConversationPanel->cards()->set_marks_observer([this] {
 			apply_thread_marks();
@@ -1645,6 +1790,7 @@ namespace bpr::qt {
 		ConversationPanel->cards()->set_reply_text_dispatch([this](const std::string& aThread, const QString& aText) {
 			write_inline_reply(aThread, aText);
 		});
+		ConversationPanel->cards()->set_draft_text_dispatch([this](const QString& aText) { write_inline_draft(aText); });
 		// [[BPR-0661]]. A file marks itself read once fully seen only when the
 		// preference says so; the shared scrollbar is what says "fully".
 		if (auto* const scrollbar = ComparisonSurface->shared_scrollbar(); scrollbar != nullptr) {
@@ -1668,6 +1814,11 @@ namespace bpr::qt {
 						const auto side = *card->Side;
 						const auto line = *card->Line - 1U;
 						static_cast<void>(ComparisonSurface->select_conversation_line(side, line));
+						// [[BPR-1212]]. Opening it writes it in the drawer.
+						if (aAction == card_action::edit_draft && ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()
+							&& ReviewEditor->shown_draft()->Anchor.Side == side && ReviewEditor->shown_draft()->Anchor.Line == line) {
+							open_review_composition(true);
+						}
 					}
 					return;
 				}
@@ -1676,19 +1827,27 @@ namespace bpr::qt {
 					ConversationPanel->cards()->show_thread_menu(aIdentity);
 					break;
 				case card_action::publish_draft:
-					if (ReviewEditor != nullptr) {
+					// [[BPR-1212]]. Publish posts this one comment now; the
+					// drawer closes the composer once the draft is published.
+					if (ReviewEditor != nullptr && ReviewEditor->publish_action()->isEnabled()) {
 						ReviewEditor->publish_action()->trigger();
 					}
 					break;
 				case card_action::edit_draft:
+					// [[BPR-1212]]. Opening a kept draft makes it editable again,
+					// in the drawer.
 					if (ReviewEditor != nullptr) {
 						open_review_composition(true);
 					}
 					break;
 				case card_action::delete_draft:
-					if (ReviewEditor != nullptr) {
-						ReviewEditor->discard_action()->trigger();
-					}
+					leave_drawer_draft(true);
+					break;
+				case card_action::maximize_draft:
+					maximize_drawer_draft();
+					break;
+				case card_action::close_draft:
+					leave_drawer_draft(false);
 					break;
 				case card_action::mark_read:
 					// [[BPR-0656]]. The ledger host advances the cursor and
@@ -1855,9 +2014,16 @@ namespace bpr::qt {
 		ReviewEditor->set_presentation_observer([this] {
 			update_comment_target();
 			present_inline_reply();
+			present_inline_draft();
 		});
-		connect(ReviewEditor->body_editor(), &QPlainTextEdit::textChanged, this, [this] { present_inline_reply(); });
-		connect(ReviewEditor->publish_action(), &QAction::changed, this, [this] { present_inline_reply(); });
+		connect(ReviewEditor->body_editor(), &QPlainTextEdit::textChanged, this, [this] {
+			present_inline_reply();
+			present_inline_draft();
+		});
+		connect(ReviewEditor->publish_action(), &QAction::changed, this, [this] {
+			present_inline_reply();
+			present_inline_draft();
+		});
 		// [[BPR-1083]]. Marks are drawn from the start, in the built-in tints
 		// until the composition supplies the theme's.
 		apply_label_marks();
@@ -1983,8 +2149,21 @@ namespace bpr::qt {
 		findingsLayout->setContentsMargins(0, 0, 0, 0);
 		DiscussPage = new QWidget{ CentreStack };
 		DiscussPage->setObjectName(QStringLiteral("workbenchDiscussPage"));
-		auto* discussLayout = new QVBoxLayout{ DiscussPage };
+		auto* discussLayout = new QHBoxLayout{ DiscussPage };
 		discussLayout->setContentsMargins(0, 0, 0, 0);
+		discussLayout->setSpacing(0);
+		// [[BPR-1212]]. Discuss is the home of the full composer: the
+		// conversations at the left, the draft or the review summary with
+		// room at the right (owner, 2026-10-06: "Fold add comment window
+		// into discuss").
+		DiscussComposer = new QWidget{ DiscussPage };
+		DiscussComposer->setObjectName(QStringLiteral("discussComposer"));
+		DiscussComposer->setAccessibleName(tr("Composer"));
+		auto* const composerColumn = new QVBoxLayout{ DiscussComposer };
+		composerColumn->setContentsMargins(0, 0, 0, 0);
+		composerColumn->setSpacing(0);
+		DiscussComposer->hide();
+		discussLayout->addWidget(DiscussComposer, 1);
 		CentreStack->addWidget(DiscussPage);
 		// [[BPR-1293]]. Conversations: the finder fills the centre, as
 		// Discuss's page does, and the drawers are hidden while it shows.
@@ -2003,31 +2182,58 @@ namespace bpr::qt {
 			static_cast<void>(open_conversation_in_review(aLocation.Thread, aLocation.Post));
 		});
 		Finder->set_leave_dispatch([this] { leave_conversations(); });
-		const auto makeCompositionPage = [this](QWidget* aEditor, const QString& aName) {
-			auto* scroll = new QScrollArea{ CentreStack };
+		const auto makeCompositionPage = [this](QWidget* aEditor, const QString& aName, const QString& aBack, QWidget* aExcerpt) {
+			// [[BPR-1212]]. A composition page is a column of Discuss, beside
+			// the conversations, not a page of its own.
+			auto* scroll = new QScrollArea{ DiscussComposer };
 			scroll->setObjectName(aName);
 			scroll->setWidgetResizable(true);
 			scroll->setFrameShape(QFrame::NoFrame);
 			scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			auto* page   = new QWidget{ scroll };
 			auto* column = new QVBoxLayout{ page };
-			auto* back   = new QPushButton{ tr("Back"), page };
+			column->setContentsMargins(24, 12, 24, 24);
+			column->setSpacing(10);
+			auto* const bar  = new QHBoxLayout{ };
+			auto*       back = new QPushButton{ aBack, page };
 			back->setObjectName(aName + QStringLiteral("Back"));
+			back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));
+			const auto key = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText);
+			back->setToolTip(tr("%1, without publishing  %2 or Esc").arg(aBack, key));
 			back->setAccessibleDescription(tr("Return to the previous surface without submitting"));
 			connect(back, &QPushButton::clicked, this, [this] { close_review_composition(); });
-			// [[BPR-1129]]. Esc is Back, from anywhere on the page.
+			// [[BPR-1129]]. Esc is Back, from anywhere on the page; so is
+			// ⌘⇧↩, the key that brought the draft here ([[BPR-1212]]).
 			auto* const escape = new QShortcut{ QKeySequence{ Qt::Key_Escape }, scroll };
 			escape->setObjectName(aName + QStringLiteral("Escape"));
 			escape->setContext(Qt::WidgetWithChildrenShortcut);
 			connect(escape, &QShortcut::activated, this, [this] { close_review_composition(); });
-			column->addWidget(back, 0, Qt::AlignLeft);
+			for (const auto& sequence : { QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return }, QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Enter } }) {
+				auto* const restore = new QShortcut{ sequence, scroll };
+				restore->setObjectName(aName + QStringLiteral("Restore"));
+				restore->setContext(Qt::WidgetWithChildrenShortcut);
+				connect(restore, &QShortcut::activated, this, [this] { close_review_composition(); });
+			}
+			auto* const title = new QLabel{ page };
+			title->setObjectName(aName + QStringLiteral("Title"));
+			title->setTextFormat(Qt::PlainText);
+			bar->addWidget(back);
+			bar->addStretch(1);
+			bar->addWidget(title);
+			column->addLayout(bar);
+			if (aExcerpt != nullptr) {
+				aExcerpt->setParent(page);
+				column->addWidget(aExcerpt);
+			}
 			column->addWidget(aEditor, 1);
 			scroll->setWidget(page);
-			CentreStack->addWidget(scroll);
+			scroll->hide();
+			DiscussComposer->layout()->addWidget(scroll);
 			return scroll;
 		};
-		ComposeReviewPage = makeCompositionPage(ReviewSubmissionEditor, QStringLiteral("composeReviewPage"));
-		ComposeInlinePage = makeCompositionPage(ReviewEditor, QStringLiteral("composeInlineDraftPage"));
+		DraftExcerpt      = new draft_excerpt_view{ DiscussComposer };
+		ComposeReviewPage = makeCompositionPage(ReviewSubmissionEditor, QStringLiteral("composeReviewPage"), tr("Back"), nullptr);
+		ComposeInlinePage = makeCompositionPage(ReviewEditor, QStringLiteral("composeInlineDraftPage"), tr("Back to the code"), DraftExcerpt);
 		// Keep the decision and its illustration visible while the before/after
 		// scrolls. Mascot preferences must never hide these semantic controls.
 		WorkshopHeader = new QWidget{ CentreSurface };
@@ -6394,6 +6600,7 @@ namespace bpr::qt {
 					.Draft       = mark.Draft,
 					.Open        = mark.Open,
 					.Hovered     = mark.Hovered,
+					.Writing     = mark.Writing,
 					.Description = mark.Description,
 				});
 			}
@@ -6980,7 +7187,7 @@ namespace bpr::qt {
 		}
 		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(CommentAction)); button != nullptr) {
 			button->setAccessibleName(QStringLiteral("Comment"));
-			button->setAccessibleDescription(reason.isEmpty() ? QStringLiteral("%1, on the comment page, without submitting").arg(words) : reason);
+			button->setAccessibleDescription(reason.isEmpty() ? QStringLiteral("%1, in the drawer beside the code, without publishing").arg(words) : reason);
 		}
 	}
 
@@ -6991,10 +7198,10 @@ namespace bpr::qt {
 			return;
 		}
 		if (const auto thread = comment_reply_thread(); thread.has_value()) {
-			reply_to_thread(*thread);
+			reply_to_thread(*thread, true);
 			return;
 		}
-		open_review_composition(true);
+		static_cast<void>(begin_new_comment(false));
 	}
 
 	void workbench_window::reply_to_thread(const std::string& aIdentity, const bool aInPlace)
@@ -7060,12 +7267,14 @@ namespace bpr::qt {
 		const auto overview = Modality != nullptr
 			&& Modality->current() == review_modality::overview
 			&& (OverviewPage->presented() || HasCachedOverview || (SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request));
-		const auto discuss         = Modality != nullptr && Modality->current() == review_modality::discuss;
+		// [[BPR-1212]]. A composer is Discuss's: it shows there, beside the
+		// conversations, whatever surface opened it.
+		const auto discuss         = (Modality != nullptr && Modality->current() == review_modality::discuss) || CompositionPage != nullptr;
 		const auto conversations   = Modality != nullptr && Modality->current() == review_modality::conversations;
 		const auto enteringDiscuss = discuss && ConversationPanel != nullptr && ConversationPanel->parentWidget() != DiscussPage;
 		if (ConversationPanel != nullptr) {
 			if (discuss && ConversationPanel->parentWidget() != DiscussPage) {
-				DiscussPage->layout()->addWidget(ConversationPanel);
+				static_cast<QBoxLayout*>(DiscussPage->layout())->insertWidget(0, ConversationPanel, 1);
 				ConversationPanel->show();
 			} else if (!discuss && ConversationPanel->parentWidget() == DiscussPage) {
 				if (ConversationPanel->isAncestorOf(QApplication::focusWidget())) {
@@ -7087,7 +7296,24 @@ namespace bpr::qt {
 			page = ConversationsPage;
 		}
 		if (CompositionPage != nullptr) {
-			page = CompositionPage;
+			page = DiscussPage;
+		}
+		// The composer column shows the one page being written, and the
+		// conversations narrow to a list beside it.
+		if (DiscussComposer != nullptr) {
+			for (auto* const composition : { static_cast<QWidget*>(ComposeInlinePage), static_cast<QWidget*>(ComposeReviewPage) }) {
+				if (composition != nullptr) {
+					composition->setVisible(composition == CompositionPage);
+				}
+			}
+			DiscussComposer->setVisible(CompositionPage != nullptr);
+			if (ConversationPanel != nullptr) {
+				const auto listed = CompositionPage != nullptr && ConversationPanel->parentWidget() == DiscussPage;
+				ConversationPanel->setMaximumWidth(listed ? discuss_composer_list_width : QWIDGETSIZE_MAX);
+				if (ConversationPanel->parentWidget() == DiscussPage) {
+					static_cast<QBoxLayout*>(DiscussPage->layout())->setStretchFactor(ConversationPanel, listed ? 0 : 1);
+				}
+			}
 		}
 		const auto enteringOverview      = page == OverviewPage && CentreStack->currentWidget() != OverviewPage;
 		const auto enteringConversations = page == ConversationsPage && CentreStack->currentWidget() != ConversationsPage;
@@ -7116,26 +7342,405 @@ namespace bpr::qt {
 
 	void workbench_window::open_review_composition(const bool aInline)
 	{
+		// [[BPR-1212]]. The draft on the selected line is written in the
+		// drawer at its line while the code shows; the full composer, and
+		// the whole-review summary (owner's Q3: "A: move to Discuss"), are
+		// Discuss's.
+		if (aInline && CompositionPage == nullptr && Modality != nullptr && Modality->current() == review_modality::review && !showing_home()
+			&& ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && !ReviewEditor->shown_draft()->ReplyToThread.has_value()
+			&& !ReviewEditor->body_editor()->isReadOnly()) {
+			if (begin_new_comment(false)) {
+				return;
+			}
+		}
 		if (CompositionPage == nullptr) {
-			CompositionReturnFocus = QApplication::focusWidget();
+			CompositionReturnFocus     = QApplication::focusWidget();
+			CompositionReturnModality  = Modality != nullptr ? std::optional{ Modality->current() } : std::nullopt;
+			CompositionReturnsToDrawer = false;
+		}
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr && ConversationPanel->cards()->writing_draft()) {
+			ConversationPanel->cards()->end_draft();
+		}
+		if (Modality != nullptr && Modality->current() != review_modality::discuss) {
+			const auto returnFocus     = CompositionReturnFocus;
+			const auto returnModality  = CompositionReturnModality;
+			const auto returnsToDrawer = CompositionReturnsToDrawer;
+			choose_modality(review_modality::discuss);
+			CompositionReturnFocus     = returnFocus;
+			CompositionReturnModality  = returnModality;
+			CompositionReturnsToDrawer = returnsToDrawer;
 		}
 		CompositionPage = aInline ? ComposeInlinePage : ComposeReviewPage;
 		apply_modality_surface();
+		present_inline_draft();
 		auto* body = aInline ? ReviewEditor->body_editor() : ReviewSubmissionEditor->body_editor();
 		if (body->isVisible() && body->isEnabled()) {
 			body->setFocus(Qt::OtherFocusReason);
+			if (aInline && CompositionCaret >= 0) {
+				auto cursor = ReviewEditor->body_editor()->textCursor();
+				cursor.setPosition(std::min(CompositionCaret, static_cast<int>(ReviewEditor->body_editor()->document()->characterCount() - 1)));
+				ReviewEditor->body_editor()->setTextCursor(cursor);
+			}
 		} else if (auto* back = CompositionPage->findChild<QPushButton*>(aInline ? QStringLiteral("composeInlineDraftPageBack") : QStringLiteral("composeReviewPageBack"))) {
 			back->setFocus(Qt::OtherFocusReason);
 		}
+		CompositionCaret = -1;
+	}
+
+	void workbench_window::open_draft_in_discuss()
+	{
+		if (CompositionPage == nullptr) {
+			CompositionReturnFocus     = QApplication::focusWidget();
+			CompositionReturnModality  = Modality != nullptr ? std::optional{ Modality->current() } : std::nullopt;
+			CompositionReturnsToDrawer = false;
+		}
+		CompositionPage = ComposeInlinePage;
+		open_review_composition(true);
+	}
+
+	void workbench_window::maximize_drawer_draft()
+	{
+		// [[BPR-1212]]. Maximize: the same draft, with room, in Discuss; the
+		// same key brings it back to the drawer with its text and caret.
+		auto* const cards = ConversationPanel != nullptr ? ConversationPanel->cards() : nullptr;
+		if (cards != nullptr && cards->draft_editor() != nullptr) {
+			CompositionCaret = cards->draft_editor()->textCursor().position();
+		}
+		CompositionReturnFocus     = ComparisonSurface != nullptr ? ComparisonSurface->right_pane() : nullptr;
+		CompositionReturnModality  = Modality != nullptr ? std::optional{ Modality->current() } : std::nullopt;
+		CompositionReturnsToDrawer = true;
+		CompositionPage            = ComposeInlinePage;
+		open_review_composition(true);
 	}
 
 	void workbench_window::close_review_composition()
 	{
+		const auto inlineDraft     = CompositionPage == ComposeInlinePage;
+		const auto returnsToDrawer = inlineDraft && CompositionReturnsToDrawer;
+		const auto returnModality  = std::exchange(CompositionReturnModality, std::nullopt);
+		CompositionReturnsToDrawer = false;
+		if (returnsToDrawer && ReviewEditor != nullptr) {
+			CompositionCaret = ReviewEditor->body_editor()->textCursor().position();
+		}
 		CompositionPage = nullptr;
-		apply_modality_surface();
+		if (returnModality.has_value() && Modality != nullptr && Modality->current() != *returnModality) {
+			const auto focus = CompositionReturnFocus;
+			choose_modality(*returnModality);
+			CompositionReturnFocus = focus;
+		} else {
+			apply_modality_surface();
+		}
+		if (returnsToDrawer && Modality != nullptr && Modality->current() == review_modality::review && begin_new_comment(false)) {
+			auto* const editor = ConversationPanel->cards()->draft_editor();
+			if (editor != nullptr && CompositionCaret >= 0) {
+				auto cursor = editor->textCursor();
+				cursor.setPosition(std::min(CompositionCaret, static_cast<int>(editor->document()->characterCount() - 1)));
+				editor->setTextCursor(cursor);
+			}
+			CompositionCaret = -1;
+			return;
+		}
+		CompositionCaret = -1;
 		if (CompositionReturnFocus && CompositionReturnFocus->isVisible()) {
 			CompositionReturnFocus->setFocus(Qt::OtherFocusReason);
 		}
+	}
+
+	auto workbench_window::begin_new_comment(const bool aSuggestion) -> bool
+	{
+		update_comment_target();
+		if (CommentAction == nullptr || ReviewEditor == nullptr || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return false;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!CommentAction->isEnabled() || !draft.has_value()) {
+			ConversationPanel->present_notice(CommentAction->toolTip());
+			return false;
+		}
+		// A new comment is never a reply: R answers a thread (BPR-1212's
+		// flagged point 3). A draft that answers one is finished first.
+		if (draft->ReplyToThread.has_value()) {
+			ConversationPanel->present_notice(tr("Finish or cancel the reply on this line first; a new comment starts once it is gone."));
+			return false;
+		}
+		// Suggest change starts as a block holding the selected lines
+		// exactly; a draft with words keeps them and gains the block.
+		if (aSuggestion && !ReviewEditor->body_editor()->isReadOnly()
+			&& core::classify_review_body(ReviewEditor->body_editor()->toPlainText().toStdString()) != core::review_body_compatibility::requires_line_subject) {
+			if (const auto lines = draft_source_lines(); lines.has_value()) {
+				const auto fence = QString::fromStdString(core::suggestion_fence_body(*lines));
+				const auto words = ReviewEditor->body_editor()->toPlainText();
+				ReviewEditor->body_editor()->setPlainText(words.trimmed().isEmpty() ? fence : words.trimmed() + QStringLiteral("\n\n") + fence);
+				CompositionCaret = static_cast<int>(ReviewEditor->body_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' }));
+			}
+		}
+		const auto inReview = Modality != nullptr && Modality->current() == review_modality::review && !showing_home() && CompositionPage == nullptr;
+		if (!inReview || ReviewEditor->body_editor()->isReadOnly()) {
+			// Discuss, or a draft whose kept text is in conflict: the full
+			// composer, where Reload and Reapply are.
+			CompositionPage = nullptr;
+			open_draft_in_discuss();
+			return true;
+		}
+		if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded || (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab)) {
+			if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+				TrayTabs->setCurrentIndex(tray_comments_tab);
+			}
+			if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+				if (!Dispatch) {
+					open_draft_in_discuss();
+					return true;
+				}
+				PendingDraft = aSuggestion;
+				Dispatch(core::set_workbench_drawer_intent{
+					.Drawer = core::workbench_drawer::conversations,
+					.State  = core::workbench_drawer_state::expanded,
+				});
+				if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+					return true;
+				}
+				PendingDraft.reset();
+			}
+		}
+		WritingAnchor = draft->Anchor;
+		present_inline_draft();
+		ConversationPanel->cards()->begin_draft();
+		if (auto* const editor = ConversationPanel->cards()->draft_editor(); editor != nullptr && CompositionCaret >= 0) {
+			auto cursor = editor->textCursor();
+			cursor.setPosition(std::min(CompositionCaret, static_cast<int>(editor->document()->characterCount() - 1)));
+			editor->setTextCursor(cursor);
+		}
+		CompositionCaret = -1;
+		apply_thread_marks();
+		return true;
+	}
+
+	auto workbench_window::add_comment_action() const noexcept -> QAction*
+	{
+		return AddCommentAction;
+	}
+
+	auto workbench_window::suggest_change_action() const noexcept -> QAction*
+	{
+		return SuggestChangeAction;
+	}
+
+	auto workbench_window::code_context_menu(QPlainTextEdit* const aPane, const QPoint aPosition) -> QMenu*
+	{
+		// [[BPR-1212]]. A right-click outside the selection selects its line
+		// first, as a click would; the menu then names it.
+		if (ComparisonSurface != nullptr && aPane != nullptr) {
+			const auto  side      = aPane == ComparisonSurface->left_pane() ? core::diff_side::left : core::diff_side::right;
+			const auto  block     = aPane->cursorForPosition(aPosition).blockNumber();
+			const auto& selection = ComparisonSurface->selection();
+			const auto  inside    = selection.has_value() && selection->PreferredLine.Side == side
+				&& selection->PreferredLine.Line == static_cast<std::uint32_t>(std::max(block, 0));
+			if (block >= 0 && !inside) {
+				static_cast<void>(ComparisonSurface->select_conversation_line(side, static_cast<std::uint32_t>(block)));
+			}
+		}
+		update_comment_target();
+		auto* const menu = new QMenu{ aPane != nullptr ? static_cast<QWidget*>(aPane) : this };
+		menu->setObjectName(QStringLiteral("codeContextMenu"));
+		menu->setToolTipsVisible(true);
+		const auto& selection = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
+		if (selection.has_value()) {
+			auto* const caption = menu->addAction(tr("Line %1").arg(selection->PreferredLine.Line + 1U));
+			caption->setObjectName(QStringLiteral("codeContextMenuCaption"));
+			caption->setEnabled(false);
+		}
+		// Add comment and Suggest change start a new comment, never a reply.
+		const auto reply  = ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && ReviewEditor->shown_draft()->ReplyToThread.has_value();
+		auto       reason = CommentAction != nullptr && !CommentAction->isEnabled() ? CommentAction->toolTip().section(QStringLiteral(": "), 1) : QString{ };
+		if (reason.isEmpty() && reply) {
+			reason = tr("Finish or cancel the reply on this line first.");
+		}
+		if (reason.isEmpty() && selection.has_value() && !core::supported_comment_target(selection->PreferredLine.Side, false)) {
+			reason = tr("New comments need a line on the right, current-head side.");
+		}
+		for (auto* const action : { AddCommentAction, SuggestChangeAction }) {
+			action->setEnabled(reason.isEmpty());
+			action->setToolTip(reason.isEmpty() ? (action == AddCommentAction ? tr("Write a comment on this line, in the drawer beside the code")
+																			  : tr("Suggest new text for this line: a suggestion block GitHub can apply"))
+												: reason);
+			action->setStatusTip(action->toolTip());
+			// The menu's item shows the code's key; it is the menu's own, so
+			// no window shortcut ever claims Return.
+			auto* const item = new QAction{ action->icon(), action->text(), menu };
+			item->setObjectName(action->objectName());
+			item->setShortcut(action == AddCommentAction ? QKeySequence{ Qt::Key_Return } : QKeySequence{ Qt::SHIFT | Qt::Key_Return });
+			item->setShortcutContext(Qt::WidgetShortcut);
+			item->setEnabled(action->isEnabled());
+			item->setToolTip(action->toolTip());
+			item->setStatusTip(action->statusTip());
+			connect(item, &QAction::triggered, action, &QAction::trigger);
+			menu->addAction(item);
+		}
+		if (aPane != nullptr) {
+			auto* const standard = aPane->createStandardContextMenu();
+			standard->setParent(menu, standard->windowFlags());
+			standard->hide();
+			menu->addSeparator();
+			for (auto* const action : standard->actions()) {
+				menu->addAction(action);
+			}
+		}
+		menu->addSeparator();
+		menu->addAction(AddTourStopAction);
+		return menu;
+	}
+
+	void workbench_window::resume_pending_draft()
+	{
+		if (!PendingDraft.has_value() || Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			return;
+		}
+		const auto suggestion = *std::exchange(PendingDraft, std::nullopt);
+		// The block was already written when the drawer was asked for.
+		static_cast<void>(suggestion);
+		static_cast<void>(begin_new_comment(false));
+	}
+
+	void workbench_window::leave_drawer_draft(const bool aDiscard)
+	{
+		// [[BPR-1212]]. Esc keeps a written draft at its line and drops an
+		// empty one; Discard drops it through the editor's own Discard.
+		if (ReviewEditor != nullptr && ReviewEditor->discard_action()->isEnabled()
+			&& (aDiscard || ReviewEditor->body_editor()->toPlainText().trimmed().isEmpty())
+			&& !ReviewEditor->body_editor()->toPlainText().isEmpty()) {
+			ReviewEditor->discard_action()->trigger();
+		}
+		WritingAnchor.reset();
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->end_draft();
+		}
+		refresh_cards();
+		// Focus goes back to the code, on the same line.
+		if (ComparisonSurface != nullptr && ComparisonSurface->right_pane() != nullptr) {
+			ComparisonSurface->right_pane()->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	auto workbench_window::draft_source_lines() const -> std::optional<std::vector<std::string>>
+	{
+		if (ReviewEditor == nullptr || !ReviewEditor->shown_draft().has_value() || ComparisonSurface == nullptr
+			|| ComparisonSurface->current_result() == nullptr) {
+			return std::nullopt;
+		}
+		const auto& anchor = ReviewEditor->shown_draft()->Anchor;
+		const auto& result = *ComparisonSurface->current_result();
+		if (anchor.Comparison != result.Alignment.Digest) {
+			return std::nullopt;
+		}
+		const auto& document = anchor.Side == core::diff_side::right ? result.RightDocument : result.LeftDocument;
+		if (!document.has_value()) {
+			return std::nullopt;
+		}
+		return core::suggestion_source_lines(*document, anchor.Line, anchor.Line);
+	}
+
+	void workbench_window::write_inline_draft(const QString& aText)
+	{
+		if (ReviewEditor == nullptr) {
+			return;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || draft->ReplyToThread.has_value() || draft->shared() || ReviewEditor->body_editor()->isReadOnly()
+			|| (WritingAnchor.has_value() && draft->Anchor != *WritingAnchor)) {
+			return;
+		}
+		if (ReviewEditor->body_editor()->toPlainText() != aText) {
+			ReviewEditor->body_editor()->setPlainText(aText);
+		}
+	}
+
+	void workbench_window::present_inline_draft()
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || ReviewEditor == nullptr) {
+			return;
+		}
+		auto* const cards = ConversationPanel->cards();
+		const auto& draft = ReviewEditor->shown_draft();
+		const auto  body  = ReviewEditor->body_editor()->toPlainText();
+		// The notes hold the accepted draft, so a draft left in the drawer
+		// is its note at once; while it is written this lays nothing out.
+		cards->set_draft(draft, ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr ? std::optional{ ComparisonSurface->current_result()->Alignment.Digest } : std::nullopt);
+		// What a suggestion block changes, against the exact head lines.
+		auto change = std::optional<core::suggested_change>{ };
+		if (draft.has_value() && core::classify_review_body(body.toStdString()) == core::review_body_compatibility::requires_line_subject) {
+			if (const auto lines = draft_source_lines(); lines.has_value()) {
+				if (auto decided = core::suggested_change_of(body.toStdString(), *lines); decided.Fenced) {
+					change = std::move(decided);
+				}
+			}
+		}
+		const auto words = draft.has_value() ? tr("Line %1").arg(draft->Anchor.Line + 1U) : QString{ };
+		// The full composer's excerpt follows the same draft.
+		if (DraftExcerpt != nullptr) {
+			auto* const excerpt = static_cast<draft_excerpt_view*>(DraftExcerpt);
+			auto        shown   = false;
+			if (draft.has_value() && ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
+				&& ComparisonSurface->current_context().has_value()
+				&& draft->Anchor.Comparison == ComparisonSurface->current_result()->Alignment.Digest) {
+				const auto& result   = *ComparisonSurface->current_result();
+				const auto& document = draft->Anchor.Side == core::diff_side::right ? result.RightDocument : result.LeftDocument;
+				if (document.has_value() && !document->Lines.empty()) {
+					const auto last  = static_cast<std::uint32_t>(document->Lines.size() - 1U);
+					const auto first = draft->Anchor.Line > 3U ? draft->Anchor.Line - 3U : 0U;
+					const auto end   = std::min(last, draft->Anchor.Line + 3U);
+					if (const auto lines = core::suggestion_source_lines(*document, first, end); lines.has_value()) {
+						auto texts = std::vector<QString>{ };
+						texts.reserve(lines->size());
+						for (const auto& line : *lines) {
+							texts.push_back(QString::fromStdString(line));
+						}
+						// The compared file's path, from the files drawer's rows.
+						auto        path  = QString{ };
+						const auto* model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+						for (int row = 0; model != nullptr && row < model->rowCount() && path.isEmpty(); ++row) {
+							const auto candidate = model->data(model->index(row, 0), Qt::DisplayRole).toString();
+							if (core::file_identity_of(candidate.toStdString()) == ComparisonSurface->current_context()->Key.File) {
+								path = candidate;
+							}
+						}
+						excerpt->present(path, first + 1U, std::move(texts), draft->Anchor.Line + 1U, draft->Anchor.Line + 1U,
+										 cards->code_font());
+						shown = true;
+					}
+				}
+			}
+			if (!shown) {
+				excerpt->clear();
+			}
+			if (auto* const title = ComposeInlinePage != nullptr ? ComposeInlinePage->findChild<QLabel*>(QStringLiteral("composeInlineDraftPageTitle")) : nullptr; title != nullptr) {
+				title->setText(shown ? excerpt->words() : QString{ });
+			}
+		}
+		// The drawer's composer: the draft stops being written there once it
+		// is published, answers a thread, or another line's draft shows.
+		if (cards->writing_draft()
+			&& (!draft.has_value() || draft->shared() || draft->ReplyToThread.has_value() || (WritingAnchor.has_value() && draft->Anchor != *WritingAnchor))) {
+			WritingAnchor.reset();
+			cards->end_draft();
+			apply_thread_marks();
+		}
+		if (!draft.has_value() || draft->shared() || draft->ReplyToThread.has_value()) {
+			cards->present_draft(std::nullopt);
+			return;
+		}
+		auto notice = QString{ };
+		if (!ReviewEditor->publish_action()->isEnabled() && !body.trimmed().isEmpty()) {
+			notice = ReviewEditor->publish_action()->toolTip();
+		}
+		cards->present_draft(draft_composer_presentation{
+			.Body        = body,
+			.Publishable = ReviewEditor->publish_action()->isEnabled(),
+			.LabelHelper = ReviewEditor->label_controls()->helper(),
+			.Editable    = !ReviewEditor->body_editor()->isReadOnly(),
+			.Lines       = words,
+			.Change      = std::move(change),
+			.Notice      = notice,
+		});
 	}
 
 	void workbench_window::enter_overview_at(
@@ -10222,6 +10827,23 @@ namespace bpr::qt {
 			return true;
 		}
 #endif
+		// [[BPR-1212]]. In the code, Return is Add comment and Shift+Return is
+		// Suggest change on the selected line; keypad Enter counts as Return.
+		// No other modifier is taken, and a line must be selected.
+		if (aEvent != nullptr && aEvent->type() == QEvent::KeyPress && ComparisonSurface != nullptr
+			&& (aWatched == ComparisonSurface->left_pane() || aWatched == ComparisonSurface->right_pane())) {
+			const auto* const key       = static_cast<QKeyEvent*>(aEvent);
+			const auto        modifiers = key->modifiers() & ~Qt::KeypadModifier;
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
+				&& (modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier)) {
+				if (!ComparisonSurface->selection().has_value()) {
+					ConversationPanel->present_notice(tr("Select a line first: click it, or move to it with the arrow keys."));
+					return true;
+				}
+				static_cast<void>(begin_new_comment(modifiers == Qt::ShiftModifier));
+				return true;
+			}
+		}
 		if (aWatched == DifCornerSlot && aEvent != nullptr
 			&& (aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
@@ -12172,6 +12794,10 @@ namespace bpr::qt {
 		ApplyingLayout = false;
 		apply_drawer_widths();
 		update_dif_presentation();
+		// [[BPR-1212]]. A new comment that asked for the drawer opens in it.
+		if (PendingDraft.has_value()) {
+			QTimer::singleShot(0, this, [this] { resume_pending_draft(); });
+		}
 	}
 
 	void workbench_window::apply_drawer_widths()
