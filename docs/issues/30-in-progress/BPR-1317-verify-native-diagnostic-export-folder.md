@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1317"
 title: "Verify the native diagnostic export chooser location"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0064"]
 depends_on: ["BPR-1316"]
 priority: "P1"
