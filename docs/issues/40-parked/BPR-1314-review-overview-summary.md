@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0063"]
 depends_on: ["BPR-1313"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r4"}
-acceptance: [{"criterion":"C1","outcome":"pass","revision":"9fa43a9b3c05b903e015a42b4f25750cf0c7b8d3","evidence":{"kind":"command","detail":"v003 correction: all10 focused Overview/reader/composed rows pass (24s) incl. new toggle-in-reader-corner and reader-right-edge==Files-right-edge assertions in normal/full/return; exact Select All copy, source partial exact, rendered partial equivalent, no HTML MIME retained. Self-contained exact frozen public 3/3 pass 14.16s; clean-export core/architecture boundaries 3/3 pass 11.37s. Format and changed-line tidy pass; 12 offscreen previews inspected (reader and Files share right edge ~962px vs v002 reader ~930px). Native appearance unclaimed."}},{"criterion":"C2","outcome":"pending","revision":"9fa43a9b3c05b903e015a42b4f25750cf0c7b8d3:5e12d562bbcc040bdcdf031093e5daee1759dfa0b6de5f67f6bcf51032a0de0b:0536774777e1f3f25f5f5d96e67743c1c963bb183680456430b10b94ab370aec","evidence":{"kind":"artifact","detail":"v002 Reject consumed (decision 46ae88c6, session 0b30e747 cursor 5, note: horizontal space wasted). Fresh session 3a8115e690eed93b0fa8d23de6e3bbfa cursor 3, candidate BPR-1314-overview-v003 fingerprint 32a89710658fe5904c982defee8d2e0e1571b85ccc4ecdf521401e0f32167d3f, one Accept/Reject question; owner native judgment pending."}}]
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"3e7376512","evidence":{"kind":"command","detail":"v004 (non-checkable toggle, Exit keeps Enter style): 10 focused Overview/reader/composed rows run; 9 pass first run, application_overview_summary_1_25 failed once at 'file activation reaches a real composed source comparison' (TEST_RUNNER_CHILD_EXIT -6, 23.75s), then passed 3/3 reruns (~4s) - intermittent, in the file-comparison step, not the toggle. Frozen self-contained public 3/3 pass 14.87s; clean-export boundaries 3/3 pass 11.93s. Format and changed-line tidy pass. Offscreen dark full-reader render shows Exit glyph with no fill."}},{"criterion":"C2","outcome":"pending","revision":"3e7376512:1e7a5c1bd9f4c1169fc45b7bc53db4ef69ba826acbf8d0f2bea85ff7b2d50e6a:0536774777e1f3f25f5f5d96e67743c1c963bb183680456430b10b94ab370aec","evidence":{"kind":"artifact","detail":"v003 Reject consumed (decision a4f6a81d, session 3a8115e6, handed back cursor 5). Fresh session 98de418935ba1aae897bf1379f9771cc cursor 3, candidate BPR-1314-overview-v004 fingerprint bf8d70c2bbee4a617c6728c8b0a3b9db236e78a1a8499730f5cbbf0eee3a73c5; owner judgment pending."}}]
 parked_on: "human-review"
 ---
 
@@ -91,3 +91,28 @@ ready/protected candidate, `BPR-1314-overview-v003`, fingerprint
 `artifacts/four-drafts-r1/overview-frozen-v003/`. Known limit: source view
 does not wrap, so a line ending in the last ~22 px is under the toggle until
 scrolled sideways. C2 remains pending on the owner's native judgment.
+
+## v003 rejection and v004 candidate (dispatch r5, 2026-10-08)
+
+The owner rejected `BPR-1314-overview-v003` (fingerprint `32a89710…2167d3f`)
+in session `3a8115e690eed93b0fa8d23de6e3bbfa`, handed back at cursor 5:
+decision `a4f6a81d-51ca-428a-bd59-67d6f28e9b94`, note "I don't like this fill
+color for exit, keep the sytle of the expand just change the icon", with two
+screenshots (kept in ignored `artifacts/four-drafts-r1/overview-v003-intake/`).
+The full-width corner placement itself drew no objection. The fill came from
+the checked state of the checkable tool button.
+
+`3e7376512` makes the toggle non-checkable. Exit keeps Enter's auto-raised
+style; only the glyph, accessible name and tooltip change, and the state comes
+from the reader's own expanded flag. The frontend-design skill was loaded
+first. Tests assert the toggle is not checkable in either state.
+
+One focused run had an intermittent failure: `application_overview_summary_1_25`
+stopped once at "file activation reaches a real composed source comparison"
+(23.75 s), then passed three reruns in about 4 s each. The failing step is the
+real file comparison, not the toggle. The frozen copy passes 3/3.
+
+Fresh session `98de418935ba1aae897bf1379f9771cc` (cursor 3) holds
+`BPR-1314-overview-v004`, fingerprint `bf8d70c2…a73c5`, bound to `3e7376512`,
+frozen binary `1e7a5c1b…0e6a` and launcher `05367747…aec` in
+`artifacts/four-drafts-r1/overview-frozen-v004/`. C2 remains pending.
