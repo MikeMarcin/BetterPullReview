@@ -24,7 +24,7 @@ repositories because adding them is hidden deep in Settings. A new reviewer
 should be able to make Home useful without knowing the Settings structure or
 having a pull-request link ready.
 
-Today, [the saved-repository editor](../../src/adapters/qt/src/workbench_window.cpp)
+Before this adoption, [the saved-repository editor](../../src/adapters/qt/src/workbench_window.cpp)
 (`build_saved_repositories_editor`) combines a saved-list selector, an
 `owner/name` field, Save repository and Remove in Settings → Reviews & queue.
 Home's empty sentence and Filter footer send the reviewer to that page, as
@@ -32,7 +32,7 @@ specified by [the calm Home RFC](RFC-BPR-0032-calm-home-and-accounts-surfaces.md
 The Pull Request menu also offers Save Repository, but only for an already
 opened authenticated PR.
 
-The editor's unavailable tooltip (`update_saved_repository_actions`) says
+The former editor's unavailable tooltip (`update_saved_repository_actions`) says
 “Open a pull request signed in first, so there is an account to save for.”
 That wording is at odds with the existing
 [discovery host](../../src/application/src/personal_discovery_host.cpp):
