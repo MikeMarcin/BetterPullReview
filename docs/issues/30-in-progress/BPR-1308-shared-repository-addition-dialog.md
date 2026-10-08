@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1308"
 title: "Present one native repository addition dialog"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0062"]
 depends_on: ["BPR-1307"]
 priority: "P1"
