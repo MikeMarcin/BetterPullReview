@@ -1518,8 +1518,8 @@ namespace bpr::qt {
 	/// the record's zoom is between steps and so has no item.
 	auto appearance_settings_panel::code_zoom() const -> std::uint32_t
 	{
-		const auto data = CodeZoom->currentData();
-		return data.isValid() ? data.toUInt() : AdoptedSettings.Typography.Code.ZoomPercent;
+		const auto current = CodeZoom->currentData();
+		return current.isValid() ? current.toUInt() : AdoptedSettings.Typography.Code.ZoomPercent;
 	}
 
 	/// \brief [[BPR-1336]]. Selects the record's zoom and says what each step shows.
