@@ -443,6 +443,7 @@ namespace bpr::application {
 				Observations.clear();
 				Observer.reset();
 			}
+			[[nodiscard]] auto admitted(const core::bpr_window_context& aContext) const noexcept -> bool { return !Closing && current(aContext); }
 			[[nodiscard]] auto size() const noexcept -> std::size_t { return Consumers.size(); }
 			[[nodiscard]] auto failed() const noexcept -> bool { return Failed; }
 
@@ -714,6 +715,7 @@ namespace bpr::application {
 				.SavedServers      = SavedServers,
 				.Failure           = Failure,
 				.Discovery         = Discovery,
+				.Addition          = Addition,
 				.UpdatedItem       = std::move(aItem),
 			});
 			Statistics.ItemPublications += itemUpdate ? 1U : 0U;
@@ -767,10 +769,11 @@ namespace bpr::application {
 				report_unavailable(queue_store_failure::collection_limit);
 				return;
 			}
-			Rules             = std::move(aResult->Rules);
-			Preferences       = std::move(aResult->Preferences);
-			SavedRepositories = std::move(aResult->SavedRepositories);
-			SavedServers      = std::move(aResult->SavedServers);
+			DurableStateLoaded = true;
+			Rules              = std::move(aResult->Rules);
+			Preferences        = std::move(aResult->Preferences);
+			SavedRepositories  = std::move(aResult->SavedRepositories);
+			SavedServers       = std::move(aResult->SavedServers);
 			for (const auto& record : aResult->Enrollments) {
 				Enrollments.enroll(record.Ref, record.Membership);
 				if (!record.present()) {
@@ -783,10 +786,58 @@ namespace bpr::application {
 			reconcile_last();
 		}
 
+		[[nodiscard]] auto addition_current(const repository_addition_result& aResult) const noexcept -> bool
+		{
+			return core::accept_repository_addition_completion(Closing, aResult.Destination == Scheduler.session(), Projection.admitted(aResult.Source));
+		}
+
+		void apply(repository_addition_intent aIntent)
+		{
+			if (Closing) {
+				return;
+			}
+			if (SavedMutationPending && Addition && Addition->Source == aIntent.Source && Addition->Gesture == aIntent.Gesture
+				&& Addition->Status == core::repository_addition_status::saving) {
+				return;
+			}
+			auto result           = repository_addition_result{ };
+			result.Source         = aIntent.Source;
+			result.Gesture        = aIntent.Gesture;
+			result.Destination    = aIntent.Destination;
+			const auto parsed     = parse_repository_addition(aIntent.Text, aIntent.Destination.Host);
+			auto       repository = saved_repository{ };
+			if (parsed) {
+				result.Target         = *parsed;
+				repository.Host       = parsed->Hostname;
+				repository.Account    = aIntent.Destination.Account;
+				repository.Repository = parsed->Repository.Owner + "/" + parsed->Repository.Name;
+			} else {
+				result.InputProblem = parsed.error();
+			}
+			const auto& session = Scheduler.session();
+			result.Status       = core::admit_repository_addition(core::repository_addition_observation{
+				.SignedIn           = !session.Host.empty() && !session.Account.empty() && session.Generation != 0U,
+				.DestinationCurrent = aIntent.Destination == session && (!parsed || parsed->Hostname == session.Host),
+				.WindowCurrent      = aIntent.Gesture != 0U && Projection.admitted(aIntent.Source),
+				.StoreReady         = DurableStateLoaded,
+				.InputValid         = parsed.has_value(),
+				.Pending            = SavedMutationPending,
+				.AlreadyAdded       = std::ranges::find(SavedRepositories, repository) != SavedRepositories.end(),
+				.HasCapacity        = SavedRepositories.size() < maximum_saved_repositories,
+			});
+			Addition            = result;
+			if (result.Status != core::repository_addition_status::saving) {
+				++Statistics.SavedRepositoryIntents;
+				publish();
+				return;
+			}
+			apply(saved_repository_intent{ .Repository = std::move(repository) }, std::move(result));
+		}
+
 		// [[BPR-0659]]. A save or forget is durable before it is shown: the
 		// store answers on the effect lane and the decision lane adopts the
 		// list it was asked for, so a refused write leaves the list as it was.
-		void apply(saved_repository_intent aIntent)
+		void apply(saved_repository_intent aIntent, std::optional<repository_addition_result> aAddition = std::nullopt)
 		{
 			++Statistics.SavedRepositoryIntents;
 			if (Closing || !Restored || !valid(aIntent.Repository)) {
@@ -818,19 +869,39 @@ namespace bpr::application {
 			const auto stop      = request.Stop.get_token();
 			const auto gate      = std::weak_ptr<completion_gate>{ Gate };
 			SavedMutationPending = true;
+			if (aAddition) {
+				publish();
+				// A progress observer may synchronously retire the source/session.
+				if (!addition_current(*aAddition)) {
+					SavedMutationPending = false;
+					(void)retire(id, request_kind::saved_repository);
+					Addition.reset();
+					return;
+				}
+			}
 			try {
-				Effects.post([this, gate, id, stop, intent = std::move(aIntent), pending = std::move(next)]() mutable {
-					auto result = Store.apply_saved_repository_change(intent, stop);
+				Effects.post([this, gate, id, stop, intent = std::move(aIntent), pending = std::move(next), addition = aAddition]() mutable {
+					auto result = std::expected<void, queue_store_failure>{ std::unexpected{ queue_store_failure::unavailable } };
+					try {
+						result = stop.stop_requested() ? std::unexpected{ queue_store_failure::cancelled } : Store.apply_saved_repository_change(intent, stop);
+					} catch (...) {
+						// An adapter exception still owes this request its typed terminal.
+					}
 					DecisionLane.post(
-						[gate, id, published = std::move(pending), applyResult = std::move(result)]() mutable {
+						[gate, id, published = std::move(pending), applyResult = std::move(result), addition]() mutable {
 							if (auto* const host = locked_host(gate); host != nullptr) {
-								host->finish_saved_repository(id, std::move(published), std::move(applyResult));
+								host->finish_saved_repository(id, std::move(published), std::move(applyResult), addition);
 							}
 						});
 				});
 			} catch (...) {
 				SavedMutationPending = false;
 				(void)retire(id, request_kind::saved_repository);
+				if (aAddition && addition_current(*aAddition)) {
+					Addition               = *aAddition;
+					Addition->Status       = core::repository_addition_status::unavailable;
+					Addition->StoreFailure = queue_store_failure::unavailable;
+				}
 				report_unavailable();
 			}
 		}
@@ -906,14 +977,24 @@ namespace bpr::application {
 			publish();
 		}
 		void finish_saved_repository(
-			const std::uint64_t                             aId,
-			std::vector<saved_repository>                   aSaved,
-			const std::expected<void, queue_store_failure>& aResult)
+			const std::uint64_t                              aId,
+			std::vector<saved_repository>                    aSaved,
+			const std::expected<void, queue_store_failure>&  aResult,
+			const std::optional<repository_addition_result>& aAddition)
 		{
 			if (!retire(aId, request_kind::saved_repository) || Closing) {
 				return;
 			}
 			SavedMutationPending = false;
+			if (aAddition && addition_current(*aAddition)) {
+				Addition         = *aAddition;
+				Addition->Status = aResult ? core::repository_addition_status::saved : core::repository_addition_status::unavailable;
+				if (!aResult) {
+					Addition->StoreFailure = aResult.error();
+				}
+			} else if (aAddition) {
+				Addition.reset();
+			}
 			if (!aResult) {
 				report_unavailable(aResult.error());
 				return;
@@ -1201,6 +1282,12 @@ namespace bpr::application {
 				return;
 			}
 			cancel_refreshes();
+			Addition.reset();
+			for (auto& request : Outstanding) {
+				if (request.Kind == request_kind::saved_repository) {
+					request.Stop.request_stop();
+				}
+			}
 			Scheduler.adopt(std::move(aSession));
 			publish();
 		}
@@ -1608,6 +1695,8 @@ namespace bpr::application {
 		review_queue_host_statistics                  Statistics;
 		std::optional<queue_store_failure>            Failure;
 		queue_discovery_status                        Discovery;
+		std::optional<repository_addition_result>     Addition;
+		bool                                          DurableStateLoaded = false;
 		std::shared_ptr<completion_gate>              Gate;
 		std::uint64_t                                 NextRequest                = 1U;
 		bool                                          Restored                   = false;
@@ -1679,6 +1768,11 @@ namespace bpr::application {
 	}
 
 	void review_queue_application_host::apply(saved_repository_intent aIntent)
+	{
+		Implementation->apply(std::move(aIntent));
+	}
+
+	void review_queue_application_host::apply(repository_addition_intent aIntent)
 	{
 		Implementation->apply(std::move(aIntent));
 	}

@@ -90,6 +90,9 @@ namespace {
 			application::queue_store_failure> override
 		{
 			++Loads;
+			if (FailLoad) {
+				return std::unexpected(application::queue_store_failure::unavailable);
+			}
 			return State;
 		}
 
@@ -176,6 +179,9 @@ namespace {
 			std::stop_token) -> std::expected<void, application::queue_store_failure> override
 		{
 			++SavedChanges;
+			if (ThrowSavedStore) {
+				throw std::runtime_error{ "synthetic store failure" };
+			}
 			if (FailEnrollmentStore) {
 				return std::unexpected(
 					application::queue_store_failure::unavailable);
@@ -197,6 +203,8 @@ namespace {
 		application::durable_queue_state State;
 		std::size_t                      Loads               = 0U;
 		bool                             FailEnrollmentStore = false;
+		bool                             ThrowSavedStore     = false;
+		bool                             FailLoad            = false;
 	};
 
 	class observed_refresh final : public application::queue_refresh_effect_port
@@ -1960,10 +1968,170 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	void test_repository_addition_refuses_unknown_durable_state()
+	{
+		auto store     = memory_queue_store{ };
+		store.FailLoad = true;
+		store.State.SavedRepositories.push_back({ "github.com", "reviewer", "octo/retained" });
+		auto       refresh    = observed_refresh{ };
+		auto       effects    = application::manual_executor{ };
+		auto       decisions  = application::manual_executor{ };
+		auto       projection = landing_log{ };
+		const auto session    = application::queue_session_id{ "github.com", "reviewer", 4U };
+		auto       host       = application::review_queue_application_host{ store, refresh, effects, decisions, projection, session };
+		host.restore();
+		run_one(effects, decisions);
+		host.apply(application::repository_addition_intent{
+			.Source      = { core::default_bpr_profile_id, core::bpr_window_id{ 1U }, core::bpr_window_generation{ 1U } },
+			.Gesture     = 1U,
+			.Destination = session,
+			.Text        = "octo/app" });
+		expect(effects.pending() == 0U && store.SavedChanges == 0U && projection.Published.back().Addition->Status == core::repository_addition_status::unavailable
+				   && store.State.SavedRepositories.size() == 1U,
+			   "failed initial durable load cannot overwrite unseen saved state");
+		host.shutdown();
+		expect(host.is_quiescent(), "refused initial load leaves no outstanding addition");
+	}
+
+	void test_repository_addition_results_without_a_pull_request()
+	{
+		using status           = core::repository_addition_status;
+		auto       store       = memory_queue_store{ };
+		auto       refresh     = observed_refresh{ };
+		auto       effects     = application::manual_executor{ };
+		auto       decisions   = application::manual_executor{ };
+		auto       projections = landing_log{ };
+		const auto source      = core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ 1U }, core::bpr_window_generation{ 1U } };
+		const auto session     = application::queue_session_id{ "github.com", "reviewer", 4U };
+		auto       host        = application::review_queue_application_host{ store, refresh, effects, decisions, projections, session };
+		auto       intent      = application::repository_addition_intent{ .Source = source, .Gesture = 1U, .Destination = session, .Text = "octo/app" };
+		host.apply(intent);
+		expect(projections.Published.back().Addition->Status == status::unavailable && effects.pending() == 0U, "addition refuses before durable state is known");
+		host.restore();
+		run_one(effects, decisions);
+		host.apply(intent);
+		expect(projections.Published.back().Addition->Status == status::saving && store.SavedChanges == 0U && host.saved_repositories().empty(), "saving projection precedes effect/store without a loaded PR");
+		host.apply(intent);
+		expect(effects.pending() == 1U && projections.Published.back().Addition->Status == status::saving, "repeat of exact active gesture leaves one save/progress");
+		intent.Gesture = 2U;
+		host.apply(intent);
+		expect(effects.pending() == 1U && projections.Published.back().Addition->Status == status::busy && projections.Published.back().Addition->Gesture == 2U, "another gesture cannot overtake active save");
+		run_one(effects, decisions);
+		expect(store.SavedChanges == 1U && host.saved_repositories().size() == 1U && projections.Published.back().Addition->Status == status::saved && projections.Published.back().Addition->Gesture == 1U, "durable terminal belongs to originating gesture even after busy refusal");
+		intent.Gesture = 3U;
+		host.apply(intent);
+		expect(effects.pending() == 0U && store.SavedChanges == 1U && projections.Published.back().Addition->Status == status::already_added, "exact duplicate reports already added with no second write");
+		intent.Text = "https://enterprise.example/octo/app";
+		host.apply(intent);
+		expect(effects.pending() == 0U && projections.Published.back().Addition->Status == status::destination_changed && projections.Published.back().Addition->Target->Hostname == "enterprise.example", "another URL host is explicit and has no save/configuration authority");
+		intent.Text = "octo/app/pull/1";
+		host.apply(intent);
+		expect(effects.pending() == 0U && projections.Published.back().Addition->Status == status::invalid_input && projections.Published.back().Addition->InputProblem.has_value(), "non-repository input reports its typed correction");
+		intent.Text                   = "octo/tools";
+		intent.Destination.Generation = 3U;
+		host.apply(intent);
+		expect(effects.pending() == 0U && projections.Published.back().Addition->Status == status::destination_changed, "old same-account authentication generation cannot save");
+		intent.Destination       = session;
+		intent.Source.Generation = core::bpr_window_generation{ 2U };
+		host.apply(intent);
+		expect(effects.pending() == 0U && projections.Published.back().Addition->Status == status::destination_changed, "wrong window generation cannot save");
+		intent.Source             = source;
+		store.FailEnrollmentStore = true;
+		host.apply(intent);
+		run_one(effects, decisions);
+		expect(host.saved_repositories().size() == 1U && projections.Published.back().Addition->Status == status::unavailable && projections.Published.back().Addition->StoreFailure == application::queue_store_failure::unavailable && projections.Published.back().Addition->Target->Repository.Name == "tools", "refused storage retains target and reports no save");
+		store.FailEnrollmentStore = false;
+		++intent.Gesture;
+		host.apply(intent);
+		run_one(effects, decisions);
+		expect(host.saved_repositories().size() == 2U && projections.Published.back().Addition->Status == status::saved, "fresh retry after local refusal succeeds without restoring/resetting profile");
+		store.ThrowSavedStore = true;
+		intent.Text           = "octo/throw";
+		++intent.Gesture;
+		host.apply(intent);
+		run_one(effects, decisions);
+		expect(host.is_quiescent() && host.saved_repositories().size() == 2U && projections.Published.back().Addition->Status == status::unavailable, "adapter exception drains as typed refusal");
+		expect(refresh.Requests.empty() && store.State.Enrollments.empty() && store.State.Rules.empty(), "local addition opens no PR, performs no network read/mutation and enrolls no observer rule");
+		host.adopt({ });
+		expect(!projections.Published.back().Addition, "sign-out clears prior account result");
+		host.apply(intent);
+		expect(effects.pending() == 0U && projections.Published.back().Addition->Status == status::sign_in_required, "no account/public preview cannot create saved repository");
+		host.shutdown();
+	}
+
+	void test_repository_addition_fanout_and_stale_terminals()
+	{
+		using status       = core::repository_addition_status;
+		auto store         = memory_queue_store{ };
+		auto refresh       = observed_refresh{ };
+		auto effects       = application::manual_executor{ };
+		auto decisions     = application::manual_executor{ };
+		auto windows       = admitted_queue_windows{ };
+		windows.Live       = { queue_window(1U), queue_window(2U) };
+		const auto session = application::queue_session_id{ "github.com", "reviewer", 4U };
+		auto       host    = application::review_queue_application_host{ store, refresh, effects, decisions, core::bpr_profile_id{ 2U }, windows, session };
+		auto       first   = std::make_shared<window_queue_log>();
+		auto       second  = std::make_shared<window_queue_log>();
+		expect(host.attach(queue_window(1U), first).has_value() && host.attach(queue_window(2U), second).has_value(), "addition consumers attach under exact live profile contexts");
+		host.restore();
+		run_one(effects, decisions);
+		auto intent = application::repository_addition_intent{ .Source = queue_window(1U), .Gesture = 1U, .Destination = session, .Text = "octo/app" };
+		host.apply(intent);
+		effects.run_next();
+		expect(store.State.SavedRepositories.size() == 1U && first->Published.back().Addition->Status == status::saving, "durable effect is not yet a decision-lane confirmation");
+		auto replacement = session;
+		++replacement.Generation;
+		host.adopt(replacement);
+		decisions.run_next();
+		expect(first->Published.back().SavedRepositories.size() == 1U && second->Published.back().SavedRepositories == first->Published.back().SavedRepositories && !first->Published.back().Addition && !second->Published.back().Addition, "committed old-session save stays under original authority without confirming into replacement; siblings share record");
+		intent.Destination = replacement;
+		++intent.Gesture;
+		host.apply(intent);
+		expect(effects.pending() == 0U && first->Published.back().Addition->Status == status::already_added, "new displayed destination needs fresh deliberate gesture; duplicate is local");
+		intent.Text = "octo/cancelled";
+		++intent.Gesture;
+		host.apply(intent);
+		++replacement.Generation;
+		host.adopt(replacement);
+		run_one(effects, decisions);
+		expect(store.SavedChanges == 1U && host.saved_repositories().size() == 1U && !first->Published.back().Addition, "authority replacement before effect cancels save without a store call");
+		intent.Destination = replacement;
+		intent.Text        = "octo/reentrant";
+		++intent.Gesture;
+		first->Callback = [&] {
+			if (first->Published.back().Addition && first->Published.back().Addition->Status == status::saving) {
+				first->Callback = { };
+				++replacement.Generation;
+				host.adopt(replacement);
+			}
+		};
+		host.apply(intent);
+		expect(effects.pending() == 0U && host.is_quiescent() && store.SavedChanges == 1U, "reentrant progress retirement cannot enqueue a stale write");
+		intent.Destination = std::move(replacement);
+		intent.Text        = "octo/window";
+		++intent.Gesture;
+		host.apply(intent);
+		effects.run_next();
+		windows.Live[0] = queue_window(1U, 2U);
+		decisions.run_next();
+		expect(second->Published.back().SavedRepositories.size() == 2U && !second->Published.back().Addition && host.is_quiescent(), "closed/replaced originating window cannot receive a saved terminal; live sibling gets durable record");
+		intent.Source = queue_window(2U);
+		intent.Text   = "octo/shutdown";
+		++intent.Gesture;
+		host.apply(intent);
+		const auto count = second->Published.size();
+		host.shutdown();
+		run_one(effects, decisions);
+		expect(host.is_quiescent() && store.SavedChanges == 2U && second->Published.size() == count, "shutdown drains typed cancellation without another write/publication");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_repository_addition_refuses_unknown_durable_state();
+	test_repository_addition_results_without_a_pull_request();
+	test_repository_addition_fanout_and_stale_terminals();
 	test_known_refresh_delta_and_complete_attachment_replay();
 	test_legacy_combined_sink_keeps_every_reentrant_observation();
 	test_restore_publication_shutdown_never_posts_a_later_load();
