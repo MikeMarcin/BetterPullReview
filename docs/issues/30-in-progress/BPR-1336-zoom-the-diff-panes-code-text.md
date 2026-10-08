@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1336"
 title: "Zoom the code in the comparison: View > Zoom In, Zoom Out and Actual Size"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
