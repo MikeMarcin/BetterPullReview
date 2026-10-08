@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1324"
 title: "Windows: the title row's owner returns at a narrower width, and the whole name no longer fits at 1280, after the fourth modality"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
