@@ -1111,6 +1111,26 @@ endfunction()
 # caption buttons move to index 18. Test evidence only: no grant, target,
 # provider, credential, GitHub write, mutation or publication path changes;
 # mutation pin unchanged; no new src/app source. Self-review on BPR-1338.
+# BPR-1327 reseal (2026-10-08), recomputed on the merged tree over the
+# BPR-1338 follow-up reseal above and BPR-1340's manifest digest at ed337d92a
+# (that commit changed only the manifest value, without a note), whose pins
+# match; no other intervening pinned-scope commit. github_application.cpp: a
+# window prepares the files around the reviewer's cursor. After an available
+# comparison, a file-list change or a cursor move it asks
+# WorkbenchHost::preparation_window for at most 16 open requests (the selected
+# file left out), runs EpochHost::prepare on a new profile-owned PrepareEffects
+# worker under a per-window stop source, and hands the available results' keys
+# to DiffHost::prepare on the decision lane. The worker is drained before the
+# epoch lane at profile shutdown; window close stops it and shutdown waits for
+# PreparationsInFlight. Invalidation cancels it. Tests-on only:
+# diff_work_evidence reports the prepared share and counts, and
+# set_preparation_enabled turns preparation off for one course's control.
+# The epoch host's batched blob read goes through the existing observed
+# GitHub CLI Git lease (read_exact_blobs: one GraphQL read of verified blobs
+# between account observations), reads only blobs the host resolved from the
+# accepted trees, and is a read. No grant, target, provider, credential,
+# child environment, GitHub write, mutation or publication path; mutation pin
+# unchanged; no new src/app source. Reviewed on BPR-1327.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1129,7 +1149,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"567618d493a6b5d9d9b08222b110f9b7b78db980f085e105b2e6184ebbfe7a7c"
+		"a24ce58ce3463b572cd89f7a36700dc36598ce965fb1c06add4332f67ca7f352"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1331,7 +1351,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "937846f2d682f516e60ad5226789f1428451071caccff782803314003adce34f"
+        "beda7ead151e8f323c35c6ef44d89216d0464a7fff0180daeee09fea62db86f9"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
