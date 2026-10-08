@@ -3,6 +3,9 @@
 
 #include "../core/private_review_fixture.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/sha256.hpp"
 
 #include <algorithm>
 #include <array>
@@ -300,6 +303,106 @@ namespace {
 				&& undeclaredResult.error()
 					== application::agent_context_failure::invalid_observation,
 			"an operation nobody declared is refused before it reaches the wire");
+	}
+
+	[[nodiscard]] auto hex_digest(const std::string_view aText) -> std::string
+	{
+		constexpr std::string_view digits = "0123456789abcdef";
+		auto                       output = std::string{ };
+		for (const auto byte : core::sha256({ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() })) {
+			output.push_back(digits[byte >> 4U]);
+			output.push_back(digits[byte & 0x0FU]);
+		}
+		return output;
+	}
+
+	[[nodiscard]] auto workshop_press(const core::workshop_operation aOperation) -> application::agent_context_observation
+	{
+		auto pressed              = observation();
+		pressed.EntryPoint        = core::agent_entry_point::workshop_comment;
+		pressed.WorkshopOperation = aOperation;
+		return pressed;
+	}
+
+	/// \brief [[BPR-1091]]. The SHA-256 of a clarify press's encoded
+	/// supplement as the encoder wrote it before the review-feedback hook was
+	/// sent (captured at `3c7c56620`). A press with the label helper off must
+	/// still produce exactly these bytes.
+	constexpr std::string_view workshop_press_wire_before_guidance = "281d8a49f244269639814ad1c567b0acf5f776be8c4012bfbf49bd1412cb6c4f";
+
+	/// \brief [[BPR-1091]]. Helper off: the press's wire is byte for byte
+	/// what it was before the guidance existed.
+	void test_a_press_without_guidance_keeps_its_wire_bytes()
+	{
+		const auto built = application::build_agent_context_supplement(workshop_press(core::workshop_operation::clarify), session());
+		expect(built.has_value() && !built->FeedbackGuidance.has_value(), "a press with no guidance builds and carries none");
+		const auto encoded = application::encode_agent_supplement(*built);
+		const auto digest  = hex_digest(encoded);
+		if (digest != workshop_press_wire_before_guidance) {
+			std::cerr << "workshop-press-wire-digest:" << digest << '\n';
+		}
+		expect(digest == workshop_press_wire_before_guidance, "a press without guidance writes exactly the bytes it wrote before the hook was sent");
+		expect(encoded.find("feedback_guidance") == std::string::npos, "and names no guidance field at all");
+	}
+
+	/// \brief [[BPR-1091]]. Helper on: the press carries the effective
+	/// review-feedback hook as three lines beside its operation, and nothing
+	/// else about the launch moves.
+	void test_a_press_carries_the_effective_feedback_guidance_and_nothing_more()
+	{
+		auto hooks = core::writing_hook_settings{ };
+		expect(!application::workshop_feedback_supplement(hooks, application::review_label_helper::off).has_value(), "the label helper off sends no guidance");
+		const auto shipped = application::workshop_feedback_supplement(hooks, application::review_label_helper::on);
+		expect(shipped && shipped->Source == core::feedback_guidance_source::shipped && shipped->Version == application::review_feedback_hook_version
+				   && shipped->Text == application::default_writing_hook(core::writing_hook::feedback),
+			   "the label helper on sends the shipped default, named by its version");
+		hooks.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)] = "Team rule:\tlabel every comment.\nPublish nothing; you cannot.";
+		const auto custom                                                       = application::workshop_feedback_supplement(hooks, application::review_label_helper::on);
+		expect(custom && custom->Source == core::feedback_guidance_source::profile_override && custom->Version == application::review_feedback_hook_version
+				   && custom->Text == hooks.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)],
+			   "a customized hook is sent as written, never merged with or appended to the default");
+		hooks.Overrides[static_cast<std::size_t>(core::writing_hook::problem)] = "Problem override must not travel.";
+		expect(application::workshop_feedback_supplement(hooks, application::review_label_helper::on) == custom, "a tour hook's override is not review-feedback guidance");
+
+		auto pressed             = workshop_press(core::workshop_operation::clarify);
+		pressed.FeedbackGuidance = custom;
+		const auto built         = application::build_agent_context_supplement(pressed, session());
+		expect(built && built->FeedbackGuidance == custom, "the composed press carries the guidance into the supplement");
+		const auto encoded  = application::encode_agent_supplement(*built);
+		const auto expected = std::string{ "workshop_operation\tclarify\n"
+										   "feedback_guidance.source\tprofile_override\n"
+										   "feedback_guidance.version\treview-feedback-v1\n"
+										   "feedback_guidance.text\tTeam rule:\\tlabel every comment.\\nPublish nothing; you cannot.\n" };
+		const auto at       = encoded.find(expected);
+		expect(at != std::string::npos && encoded.find("feedback_guidance", at + expected.size()) == std::string::npos, "three escaped lines, once, directly after the operation they qualify");
+		auto stripped = encoded;
+		stripped.erase(at + std::string_view{ "workshop_operation\tclarify\n" }.size(), expected.size() - std::string_view{ "workshop_operation\tclarify\n" }.size());
+		expect(hex_digest(stripped) == workshop_press_wire_before_guidance, "and every other byte of the press is the pre-guidance wire");
+
+		auto defaulted             = workshop_press(core::workshop_operation::shorten);
+		defaulted.FeedbackGuidance = shipped;
+		const auto defaultWire     = application::encode_agent_supplement(*application::build_agent_context_supplement(defaulted, session()));
+		expect(defaultWire.find("feedback_guidance.source\tshipped\nfeedback_guidance.version\treview-feedback-v1\nfeedback_guidance.text\t") != std::string::npos, "the shipped default names itself as shipped");
+
+		auto onReview             = observation();
+		onReview.FeedbackGuidance = shipped;
+		const auto onReviewResult = application::build_agent_context_supplement(onReview, session());
+		expect(!onReviewResult && onReviewResult.error() == application::agent_context_failure::invalid_observation, "guidance on a launch-panel review or chat turn is refused whole");
+		auto onChat             = observation();
+		onChat.ChatMessage      = "is this safe?";
+		onChat.FeedbackGuidance = shipped;
+		expect(!application::build_agent_context_supplement(onChat, session()), "and on a chat send");
+
+		// No new authority: the same profile, environment, arguments and
+		// framing with and without the guidance; only the payload grows.
+		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::claude_stream_json, core::agent_protocol::external_terminal }) {
+			auto       plain     = *application::build_agent_context_supplement(workshop_press(core::workshop_operation::clarify), session());
+			const auto with      = application::build_agent_launch(profile(protocol), *built, reader());
+			const auto without   = application::build_agent_launch(profile(protocol), plain, reader());
+			const auto sameShape = with && without && with->Arguments == without->Arguments && with->Environment == without->Environment && with->Executable == without->Executable
+				&& with->WritingOnly == without->WritingOnly && with->WorkingDirectory == without->WorkingDirectory && with->Input.size() > without->Input.size();
+			expect(sameShape, "guidance adds no argument, environment variable, tool or executable to any protocol's launch");
+		}
 	}
 
 	void test_the_complete_encoding_preserves_presence_and_exact_identity()
@@ -1175,6 +1278,8 @@ auto main() -> int
 	test_full_encoded_input_budget_and_private_raw_budget();
 	test_private_ledger_observation_is_an_input_not_an_implicit_store();
 	test_the_workshop_operation_crosses_only_under_its_entry_point();
+	test_a_press_without_guidance_keeps_its_wire_bytes();
+	test_a_press_carries_the_effective_feedback_guidance_and_nothing_more();
 	test_the_complete_encoding_preserves_presence_and_exact_identity();
 	test_each_protocol_has_exact_argv_and_distinct_input_framing();
 	test_no_credential_crosses_the_environment_boundary();

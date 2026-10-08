@@ -1669,6 +1669,13 @@ namespace bpr::application {
 			&& !admittedOperation.has_value()) {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
+		// [[BPR-1091]]. The same gate for the review-feedback guidance: it
+		// rides only on a press, and a guidance named under any other gesture
+		// is refused whole rather than dropped or sent.
+		if (aObservation.FeedbackGuidance.has_value()
+			&& !admittedOperation.has_value()) {
+			return std::unexpected(agent_context_failure::invalid_observation);
+		}
 		auto request = core::agent_supplement_request{
 			.ApplicationSession = aObservation.ApplicationSession,
 			.Session            = aSession,
@@ -1677,6 +1684,7 @@ namespace bpr::application {
 			.LastReviewedHead   = aObservation.Private.LastReviewedHead,
 			.Selection          = aObservation.Selection,
 			.Operation          = admittedOperation,
+			.FeedbackGuidance   = aObservation.FeedbackGuidance,
 		};
 		if (!aObservation.ChatMessage.empty()) {
 			// Bound here, to the session this build is for, because that is
@@ -1884,6 +1892,18 @@ namespace bpr::application {
 				aSupplement.Operation
 					? std::string{ core::stable_name(*aSupplement.Operation) }
 					: std::string{ });
+			// [[BPR-1091]]: the review-feedback guidance of a workshop press,
+			// beside the operation it qualifies. Written only when present,
+			// unlike the two fields above, and deliberately so: a press with the
+			// label helper off, and every other launch, must keep the exact
+			// bytes it had before the hook existed, so absence adds no line.
+			// The core admits guidance only beside an operation, so a reader
+			// that sees these lines has already seen a non-empty operation.
+			if (aSupplement.FeedbackGuidance) {
+				append_field(result, "feedback_guidance.source", core::stable_name(aSupplement.FeedbackGuidance->Source));
+				append_field(result, "feedback_guidance.version", aSupplement.FeedbackGuidance->Version);
+				append_field(result, "feedback_guidance.text", aSupplement.FeedbackGuidance->Text);
+			}
 			append_field(
 				result,
 				"base",

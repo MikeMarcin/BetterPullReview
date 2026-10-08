@@ -16,9 +16,11 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
+#include "bpr/application/writing_hooks.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -31,10 +33,12 @@
 #include <QDir>
 #include <QEvent>
 #include <QItemSelectionModel>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QObject>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
@@ -97,6 +101,44 @@ namespace {
 		}
 		return "BPR_PRIVATE_SOURCES_1245 count=1 kind=0 drafts=0 notes=0 body="
 			+ escaped + " end";
+	}
+
+	/// [[BPR-1091]]. The profile's own review-feedback guidance in the
+	/// customized course, entered and saved on the shipped Settings row.
+	constexpr std::string_view custom_guidance
+		= "BPR_CUSTOM_GUIDANCE_1091 Team rule:\tlabel every comment.\nPublish nothing and submit no review; you cannot.";
+	/// What the canary proposes when handed the shipped guidance, and when
+	/// handed a profile's own.
+	constexpr std::string_view guided_shipped
+		= "question: BPR_FINDING_SUGGESTED_1091 is the exhausted retry budget reported to the caller?";
+	constexpr std::string_view guided_override
+		= "issue (blocking): BPR_FINDING_SUGGESTED_1091 report the exhausted retry budget to the caller.";
+
+	/// \brief What the canary reports about the guidance a turn carried: its
+	/// source, version, wire length and first 48 wire bytes, as
+	/// `encode_agent_supplement` escapes them.
+	[[nodiscard]] auto guidance_report(const std::string_view aSource, const std::string_view aText) -> std::string
+	{
+		if (aSource == "absent") {
+			return "BPR_FEEDBACK_GUIDANCE_1091 source=absent version=absent bytes=0 head= end";
+		}
+		auto escaped = std::string{ };
+		for (const auto character : aText) {
+			if (character == '\t') {
+				escaped += "\\t";
+			} else if (character == '\n') {
+				escaped += "\\n";
+			} else if (character == '\r') {
+				escaped += "\\r";
+			} else if (character == '\\') {
+				escaped += "\\\\";
+			} else {
+				escaped.push_back(character);
+			}
+		}
+		return "BPR_FEEDBACK_GUIDANCE_1091 source=" + std::string{ aSource } + " version="
+			+ std::string{ application::review_feedback_hook_version } + " bytes=" + std::to_string(escaped.size())
+			+ " head=" + escaped.substr(0U, 48U) + " end";
 	}
 
 	/// \brief Private history as the reviewer reads it: threads, and the
@@ -369,7 +411,10 @@ auto main(int argc, char** argv) -> int
 		&& course != "mcp-construction-cut"
 		&& course != "chat-panel-construction-cut"
 		&& course != "queue-construction-cut"
-		&& course != "workshop-press" && course != "dif-context") {
+		&& course != "workshop-press" && course != "dif-context"
+		&& course != "workshop-guidance-default"
+		&& course != "workshop-guidance-custom"
+		&& course != "workshop-guidance-no-agent") {
 		report_failure("unknown-course");
 		return EXIT_FAILURE;
 	}
@@ -387,6 +432,13 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto& dataRoot = *privateRoot;
+	// [[BPR-1091]]. The guidance courses: the label helper on, as the Settings
+	// row writes it, and in the no-agent course an agent executable that is
+	// not there.
+	const auto guidanceCourse = course.starts_with("workshop-guidance-");
+	const auto noAgent        = course == "workshop-guidance-no-agent";
+	const auto agentExecutable
+		= noAgent ? dataRoot / "no-agent-installed" / "codex" : std::filesystem::path{ argv[2] };
 
 	std::unique_ptr<app::github_application> application;
 	auto                                     startupTerminal = false;
@@ -404,7 +456,8 @@ auto main(int argc, char** argv) -> int
 			= course == "chat-panel-construction-cut",
 			.DisableFindingQueueComposition
 			= course == "queue-construction-cut",
-			.CodexAgentExecutable = std::filesystem::path{ argv[2] },
+			.CodexAgentExecutable = agentExecutable,
+			.LabelHelper          = guidanceCourse,
 		},
 		[&](auto aResult) {
 			startupTerminal = true;
@@ -597,9 +650,63 @@ auto main(int argc, char** argv) -> int
 	// running, so a second press would leave no trace there and "never queued
 	// silently" would be unfalsifiable. On the control it is the control's own
 	// state, which is also where the reviewer would read it.
+	// [[BPR-1091]]. Settings first, on the shipped row: the guidance courses
+	// choose Review feedback, wait for it to say the label helper turned it
+	// On, and the customized course saves its own text and waits for the
+	// profile to accept it (the no-agent course too). None of this starts an
+	// agent.
+	auto settingsLaunchedNothing = true;
+	auto settingsScope           = std::string{ };
+	if (guidanceCourse) {
+		auto* const hooks        = window.writing_hooks();
+		auto* const choice       = hooks != nullptr ? hooks->findChild<QComboBox*>(QStringLiteral("writingHookChoice")) : nullptr;
+		auto* const instructions = hooks != nullptr ? hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions")) : nullptr;
+		auto* const save         = hooks != nullptr ? hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave")) : nullptr;
+		auto* const source       = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookSource")) : nullptr;
+		auto* const scope        = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookScope")) : nullptr;
+		const auto  feedbackRow  = choice != nullptr ? choice->findData(QVariant::fromValue(static_cast<int>(core::writing_hook::feedback))) : -1;
+		if (instructions == nullptr || save == nullptr || source == nullptr || scope == nullptr || feedbackRow < 0) {
+			return fail(*application, "guidance-settings-row");
+		}
+		choice->setCurrentIndex(feedbackRow);
+		QApplication::processEvents();
+		auto helperOn = wait_terms{ };
+		if (!wait_until_reporting(helperOn, [scope, &settingsScope](wait_terms& aTerms) {
+				settingsScope = scope->text().toStdString();
+				aTerms.note_identifier("scope", settingsScope);
+				return aTerms.require("label-helper-turns-guidance-on", settingsScope.starts_with("On."));
+			})) {
+			return fail(*application, "guidance-helper-on", helperOn.render());
+		}
+		// The no-agent course saves the same override, so its settings change
+		// lands with a draft on screen, as the customized course's does.
+		if (course == "workshop-guidance-custom" || noAgent) {
+			instructions->setPlainText(QString::fromUtf8(custom_guidance.data(), static_cast<qsizetype>(custom_guidance.size())));
+			save->click();
+			auto saved = wait_terms{ };
+			if (!wait_until_reporting(saved, [source, instructions](wait_terms& aTerms) {
+					aTerms.note_identifier("source", source->text().toStdString());
+					return aTerms.require("profile-override-accepted", source->text().startsWith(QStringLiteral("Profile override")))
+						&& aTerms.require("override-shown-as-written", instructions->toPlainText().toStdString() == custom_guidance);
+				})) {
+				return fail(*application, "guidance-override", saved.render());
+			}
+		}
+		// Half a second of the event loop after the profile accepted the
+		// change, then two readings: no process started, and no press is
+		// pending (a press is recorded the moment it is asked, before its
+		// private revision or its process).
+		for (auto settle = 0; settle < 50; ++settle) {
+			QApplication::processEvents();
+			QThread::msleep(10U);
+		}
+		settingsLaunchedNothing = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts == 0U
+			&& app::detail::github_application_fixture_access::agent_finding_evidence(*application).WorkshopPendingOperation.empty();
+	}
+
 	auto pressedRefusal         = std::string{ };
 	auto reofferedAfterProposal = false;
-	if (course == "workshop-press") {
+	if (course == "workshop-press" || guidanceCourse) {
 		auto* const clarify = editor->clarify_action();
 		if (clarify == nullptr || !clarify->isEnabled()) {
 			return fail(*application, "workshop-control");
@@ -611,6 +718,60 @@ auto main(int argc, char** argv) -> int
 		}
 	} else {
 		panel->start_button()->click();
+	}
+
+	// [[BPR-1091]]. No agent installed: the press is the only gesture, it
+	// asks once and is told no, the comment is untouched, nothing is
+	// published, and labels still work without any agent.
+	if (noAgent) {
+		auto ended = wait_terms{ };
+		if (!wait_until_reporting(
+				ended,
+				[&application, editor](wait_terms& aTerms) {
+					const auto invocation = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+					const auto finding    = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
+					aTerms.note_identifier("operation", finding.WorkshopOperationText);
+					return aTerms.require("run-quiescent", invocation.Quiescent)
+						&& aTerms.require("press-reopened", editor->clarify_action()->isEnabled())
+						&& aTerms.require("says-no-revision", finding.WorkshopOperationText.starts_with("No revision:"));
+				},
+				extended_agent_budget)) {
+			return fail(*application, "no-agent-press", ended.render());
+		}
+		const auto pressed   = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
+		const auto launches  = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts;
+		const auto untouched = pressed.LocalDraftBody == reviewer_original;
+		// Labels without an agent: the reviewer types one and the shared
+		// recognizer reads it, and the draft keeps it.
+		constexpr std::string_view labelled = "question (blocking): BPR_NO_AGENT_1091 is the retry budget reported?";
+		editor->body_editor()->setPlainText(QString::fromUtf8(labelled.data(), static_cast<qsizetype>(labelled.size())));
+		QApplication::processEvents();
+		auto typed = wait_terms{ };
+		static_cast<void>(wait_until_reporting(typed, [&application, labelled](wait_terms& aTerms) {
+			return aTerms.require("labelled-draft", app::detail::github_application_fixture_access::agent_finding_evidence(*application).LocalDraftBody == labelled);
+		}));
+		const auto  after    = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
+		const auto& chip     = editor->label_controls()->state();
+		const auto  noMut    = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
+		auto        contract = contract_terms{ };
+		contract.require("settings-launched-nothing", settingsLaunchedNothing);
+		contract.require("helper-on-says-sent-with-workshop", settingsScope.starts_with("On."));
+		contract.require("one-press-one-attempt", launches == 1U);
+		contract.require("no-proposal", after.WorkshopProposals == 0U && after.WorkshopStatistics.Proposals == 0U);
+		contract.require("draft-untouched-by-press", untouched);
+		contract.require("label-read-without-agent", chip.Label == core::feedback_label::question && chip.Blocking);
+		contract.require("labelled-draft-kept", after.LocalDraftBody == labelled);
+		contract.require("no-github-mutation", noMut.Submissions == 0U && noMut.TargetObservations == 0U && noMut.StoredComments == 0U);
+		const auto passed = report_contract("workshop-guidance-no-agent-evidence", contract);
+		if (!passed) {
+			std::cerr << "agent-finding-workshop-guidance-no-agent:launches=" << launches << " operation=" << pressed.WorkshopOperationText
+					  << " draft=" << after.LocalDraftBody << " panel=" << after.AgentPanelStatusText << '\n';
+		}
+		if (!shutdown(*application) || !passed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-finding-workshop-guidance-no-agent:pass\n";
+		return EXIT_SUCCESS;
 	}
 
 	auto delivered = wait_terms{ };
@@ -764,6 +925,8 @@ auto main(int argc, char** argv) -> int
 		&& dif != nullptr && dif->parentWidget() == window.dif_workshop_slot()
 		&& !dif->visibleRegion().isEmpty();
 	const auto draftIntentsBeforeAcceptance = editor->statistics().DraftIntents;
+	// [[BPR-1091]]. What the proposal says it changes besides wording.
+	const auto candidateAfterConversion = editor->workshop_candidate_text().toStdString();
 	if (course == "dif-context" && !capture_workshop(window, QStringLiteral("proposal"))) {
 		return fail(*application, "proposal-capture");
 	}
@@ -1073,6 +1236,69 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 
+	if (guidanceCourse) {
+		// [[BPR-1091]]. The press carried the profile's effective guidance,
+		// named by source and version; the fixture agent followed it; the
+		// proposal says what it changes besides wording; accepting it is one
+		// local edit; and a launch-panel turn with the same helper on carries
+		// no guidance at all.
+		const auto custom    = course == "workshop-guidance-custom";
+		const auto expected  = custom ? guidance_report("profile_override", custom_guidance)
+									  : guidance_report("shipped", application::default_writing_hook(core::writing_hook::feedback));
+		const auto suggested = custom ? guided_override : guided_shipped;
+		const auto draftBody = [&application] {
+			return app::detail::github_application_fixture_access::agent_finding_evidence(*application).LocalDraftBody;
+		};
+		auto accepted = wait_terms{ };
+		static_cast<void>(wait_until_reporting(accepted, [&draftBody, suggested](wait_terms& aTerms) {
+			return aTerms.require("accepted-text", draftBody() == suggested);
+		}));
+		const auto acceptedBody = draftBody();
+		panel->start_button()->click();
+		QApplication::processEvents();
+		auto launchPanelClaim = std::string{ };
+		if (awaitTurn(2U) && queue != nullptr && queue->finding_count() != 0U) {
+			queue->select(0U);
+			QApplication::processEvents();
+			launchPanelClaim = app::detail::github_application_fixture_access::agent_finding_evidence(*application).QueuedClaim;
+		}
+		const auto finalMutation = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
+		const auto launches      = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts;
+		const auto candidate     = custom ? std::string{ "Label added: issue (blocking) · No longer asks a question" }
+										  : std::string{ "Label added: question · Still asks a question" };
+		auto       contract      = contract_terms{ };
+		contract.require("settings-launched-nothing", settingsLaunchedNothing);
+		contract.require("helper-on-says-sent-with-workshop", settingsScope.starts_with("On."));
+		contract.require("press-carried-effective-guidance", afterDelivery.QueuedClaim.find(expected) != std::string::npos);
+		contract.require("press-asked-with-its-recorded-revision-only", afterDelivery.QueuedClaim.find(workshop_sources(reviewer_original)) != std::string::npos);
+		contract.require("proposal-is-guided-candidate", afterConversion.WorkshopProposalText == suggested && afterConversion.WorkshopOriginalText == reviewer_original);
+		contract.require("proposal-names-clarify", afterConversion.WorkshopOperationText == "Proposed by: Clarify");
+		contract.require("candidate-change-shown", candidateAfterConversion == candidate);
+		contract.require("acceptance-emits-one-draft", acceptanceEmitsOneDraft);
+		contract.require("accepted-draft-is-candidate", acceptedBody == suggested);
+		contract.require("launch-panel-turn-carries-no-guidance", launchPanelClaim.find(guidance_report("absent", { })) != std::string::npos);
+		contract.require("two-gestures-two-launches", launches == 2U);
+		contract.require("no-github-mutation", noGithubMutation && finalMutation.Submissions == 0U && finalMutation.TargetObservations == 0U && finalMutation.StoredComments == 0U);
+		const auto passed = report_contract("workshop-guidance-evidence", contract);
+		if (!passed) {
+			std::cerr << "agent-finding-workshop-guidance:" << course
+					  << "\nexpected-guidance:" << expected
+					  << "\npress-claim:" << afterDelivery.QueuedClaim
+					  << "\nlaunch-panel-claim:" << launchPanelClaim
+					  << "\nproposal:" << afterConversion.WorkshopProposalText
+					  << "\ncandidate:" << candidateAfterConversion
+					  << "\naccepted:" << acceptedBody
+					  << "\nlaunches:" << launches
+					  << "\nscope:" << settingsScope
+					  << "\npanel-status:" << evidence.AgentPanelStatusText << '\n';
+		}
+		if (!shutdown(*application) || !passed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-finding-" << course << ":pass\n";
+		return EXIT_SUCCESS;
+	}
+
 	if (course == "workshop-press") {
 		// BPR-0533. Press → invocation → proposal, in the composed graph and
 		// with no launch-panel gesture anywhere in it. The wait above already
@@ -1168,6 +1394,12 @@ auto main(int argc, char** argv) -> int
 		contract.require(
 			"launch-panel-turn-asked-with-no-private-source",
 			unrelatedClaim.find("BPR_PRIVATE_SOURCES_1245 count=0 ") != std::string::npos);
+		// [[BPR-1091]]. The label helper is off on this course, as it is by
+		// default: the press carried no review-feedback guidance, so its
+		// request is the one it was before the hook existed.
+		contract.require(
+			"helper-off-press-carries-no-guidance",
+			afterDelivery.QueuedClaim.find(guidance_report("absent", { })) != std::string::npos);
 		const auto pressed = report_contract("workshop-press-evidence", contract);
 		if (!pressed) {
 			std::cerr << "agent-finding-workshop-press-evidence:"

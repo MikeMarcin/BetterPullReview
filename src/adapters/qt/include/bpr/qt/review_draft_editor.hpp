@@ -213,6 +213,10 @@ namespace bpr::qt {
 		/// Which operation was asked for, and which one produced what is
 		/// shown. Separate from both texts because it is neither of them.
 		QLabel* WorkshopOperation = nullptr;
+		/// [[BPR-1091]]. What the proposal changes besides wording: label,
+		/// question, suggested change. Separate from the operation line
+		/// because it describes the after, not the question asked.
+		QLabel* WorkshopCandidate = nullptr;
 
 		QAction* Publish          = nullptr;
 		bool     RetryPublication = false;
@@ -417,6 +421,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto check_the_premise_action() const noexcept -> QAction*;
 		/// \brief The label naming the operation asked for or shown.
 		[[nodiscard]] auto workshop_operation_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1091]] The line saying what the proposal changes
+		/// besides wording, and its text.
+		[[nodiscard]] auto workshop_candidate_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto workshop_candidate_text() const -> QString;
 		[[nodiscard]] auto workshop_operation_text() const -> QString;
 
 		/// \brief Names where an asked-for operation is answered.

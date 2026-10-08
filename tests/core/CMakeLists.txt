@@ -654,6 +654,14 @@ bpr_enable_hardening(test_feedback_label_columns)
 bpr_enable_warnings(test_feedback_label_columns)
 bpr_add_network_isolated_test(NAME core_feedback_label_columns COMMAND test_feedback_label_columns)
 
+# [[BPR-1091]]. What a comment-workshop candidate changes besides wording: label (shared recognizer), question, suggestion bytes.
+bpr_add_executable(test_feedback_workshop_candidate feedback_workshop_candidate_tests.cpp)
+target_link_libraries(test_feedback_workshop_candidate PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_feedback_workshop_candidate)
+bpr_enable_warnings(test_feedback_workshop_candidate)
+bpr_add_network_isolated_test(NAME core_feedback_workshop_candidate COMMAND test_feedback_workshop_candidate)
+set_tests_properties(core_feedback_workshop_candidate PROPERTIES PASS_REGULAR_EXPRESSION "feedback-workshop-candidate-tests:pass")
+
 # [[BPR-1086]]. Private promotion into the shared draft keeps lineage and leaks no private severity, category or provenance.
 bpr_add_executable(test_feedback_private_promotion feedback_private_promotion_tests.cpp)
 target_link_libraries(test_feedback_private_promotion PRIVATE BetterPullReview::Core)

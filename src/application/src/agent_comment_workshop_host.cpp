@@ -59,6 +59,10 @@ namespace bpr::application {
 			.Operation = aOperation && core::declared(*aOperation)
 				? aOperation
 				: std::nullopt,
+			// [[BPR-1091]]. Read, not enforced: a candidate that changes the
+			// label, drops the question or rewrites the patch is still offered,
+			// and the change is said beside it so it is never accepted unseen.
+			.Change = core::compare_workshop_candidate(aDraft.Body, aCommand.Body),
 		});
 		return agent_comment_workshop_refusal::none;
 	}

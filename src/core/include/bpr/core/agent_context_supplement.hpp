@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bpr::core {
@@ -127,6 +128,42 @@ namespace bpr::core {
 		auto operator<=>(const agent_chat_message&) const = default;
 	};
 
+	/// \brief [[BPR-1091]]. The longest review-feedback guidance one
+	/// workshop request may carry: the profile hook's own ceiling
+	/// (`maximum_writing_instruction_bytes`).
+	inline constexpr std::size_t maximum_feedback_guidance_bytes = 8U * 1024U;
+	/// \brief The longest name of the shipped guidance version.
+	inline constexpr std::size_t maximum_feedback_guidance_version_bytes = 64U;
+
+	/// \brief Where the guidance a workshop request carries came from.
+	enum class feedback_guidance_source : std::uint8_t {
+		/// The shipped default of the version named beside it.
+		shipped,
+		/// The profile's own override, sent as written.
+		profile_override,
+	};
+	[[nodiscard]] auto stable_name(feedback_guidance_source aSource) noexcept -> std::string_view;
+
+	/// \brief [[BPR-1091]]. The review-feedback hook's effective text, sent
+	/// with one comment-workshop request (RFC-BPR-0051 R34, R35).
+	///
+	/// \details The application fills it only for a workshop press and only
+	/// while the profile's label helper is on; every other launch, and every
+	/// press with the helper off, carries none, so its wire bytes are what they
+	/// were before the hook existed. `Version` names the shipped default
+	/// available to this invocation and `Source` says whether `Text` is that
+	/// default or the profile's override, so the run records which guidance it
+	/// was given. The text is instruction data for the agent's prose work; it
+	/// grants no tool, publication or review authority.
+	struct supplement_feedback_guidance
+	{
+		feedback_guidance_source Source = feedback_guidance_source::shipped;
+		std::string              Version;
+		std::string              Text;
+
+		auto operator<=>(const supplement_feedback_guidance&) const = default;
+	};
+
 	/// \brief What the reviewer approved for one versioned supplement.
 	///
 	/// \details The request contains no store and no implicit note or draft
@@ -155,6 +192,9 @@ namespace bpr::core {
 		std::vector<supplement_note>               SelectedNotes;
 		std::vector<supplement_draft>              SelectedDrafts;
 		std::optional<workshop_operation>          Operation;
+		/// [[BPR-1091]]. Engaged only beside an engaged `Operation`; a request
+		/// that carries guidance without one is refused whole.
+		std::optional<supplement_feedback_guidance> FeedbackGuidance;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -193,6 +233,9 @@ namespace bpr::core {
 		std::vector<supplement_note>               Notes;
 		std::vector<supplement_draft>              Drafts;
 		std::optional<workshop_operation>          Operation;
+		/// [[BPR-1091]]. The review-feedback guidance of a workshop request,
+		/// carried through unchanged; absent for every other launch.
+		std::optional<supplement_feedback_guidance> FeedbackGuidance;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

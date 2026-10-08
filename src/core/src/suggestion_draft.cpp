@@ -161,4 +161,35 @@ namespace bpr::core {
 		}
 		return change;
 	}
+
+	auto suggestion_blocks(const std::string_view aBody) -> std::vector<std::string_view>
+	{
+		auto blocks  = std::vector<std::string_view>{ };
+		auto opening = std::optional<fence_opening>{ };
+		auto content = std::size_t{ 0U };
+		auto start   = std::size_t{ 0U };
+		while (start <= aBody.size()) {
+			const auto end  = aBody.find('\n', start);
+			const auto next = end == std::string_view::npos ? aBody.size() + 1U : end + 1U;
+			auto       line = aBody.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
+			if (line.ends_with('\r')) {
+				line.remove_suffix(1U);
+			}
+			if (!opening.has_value()) {
+				opening = suggestion_opening(line);
+				content = std::min(next, aBody.size());
+			} else if (closes(line, *opening)) {
+				blocks.push_back(aBody.substr(content, start - content));
+				opening.reset();
+			}
+			if (end == std::string_view::npos) {
+				break;
+			}
+			start = next;
+		}
+		if (opening.has_value()) {
+			blocks.push_back(aBody.substr(content));
+		}
+		return blocks;
+	}
 } // namespace bpr::core

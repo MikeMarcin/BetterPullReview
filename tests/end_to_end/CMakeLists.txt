@@ -1585,6 +1585,9 @@ foreach(
         full-agent
         finding-host-construction-cut
         workshop-press
+        workshop-guidance-default
+        workshop-guidance-custom
+        workshop-guidance-no-agent
         workshop-construction-cut
         mcp-construction-cut
         chat-panel-construction-cut

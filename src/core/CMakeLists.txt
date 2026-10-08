@@ -84,6 +84,7 @@ add_library(
         src/feedback_conversation.cpp
         src/feedback_partition.cpp
         src/feedback_label_columns.cpp
+        src/feedback_workshop_candidate.cpp
         src/suggestion_applicability.cpp
         src/suggestion_draft.cpp
         src/review_comment_range.cpp

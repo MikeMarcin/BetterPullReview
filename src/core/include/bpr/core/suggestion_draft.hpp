@@ -64,6 +64,13 @@ namespace bpr::core {
 	/// it does while it is being typed. `\r` before a line break is not part
 	/// of a line.
 	[[nodiscard]] auto suggested_change_of(std::string_view aBody, std::span<const std::string> aOriginal) -> suggested_change;
+
+	/// \brief [[BPR-1091]]. The exact bytes inside every suggestion block of
+	/// `aBody`, in order: from the line after the opening fence to the end of
+	/// the line before the closing one, line endings included. A block that is
+	/// never closed runs to the end of the body, as `suggested_change_of`
+	/// reads it.
+	[[nodiscard]] auto suggestion_blocks(std::string_view aBody) -> std::vector<std::string_view>;
 } // namespace bpr::core
 
 #endif

@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement        = core::agent_context_supplement;
-		const auto whole        = supplement{ };
+		using supplement       = core::agent_context_supplement;
+		const auto whole       = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -233,7 +233,8 @@ namespace {
 					 selection,
 					 notes,
 					 drafts,
-					 operation] = whole;
+					 operation,
+					 guidance] = whole;
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
 		static_assert(std::is_same_v<
 					  decltype(applicationSession),
@@ -250,12 +251,21 @@ namespace {
 		static_assert(std::is_same_v<
 					  decltype(operation),
 					  const std::optional<core::workshop_operation>>);
+		// [[BPR-1091]]. Hook text, its shipped version and where it came from:
+		// bounded prose, no argv, environment or token.
+		static_assert(std::is_same_v<
+					  decltype(guidance),
+					  const std::optional<core::supplement_feedback_guidance>>);
+		const auto& [guidanceSource, guidanceVersion, guidanceText] = core::supplement_feedback_guidance{ };
+		static_assert(std::is_same_v<decltype(guidanceSource), const core::feedback_guidance_source>);
+		static_assert(std::is_same_v<decltype(guidanceVersion), const std::string>);
+		static_assert(std::is_same_v<decltype(guidanceText), const std::string>);
 		expect(
 			version == core::agent_supplement_schema_version
 				&& applicationSession.value() == 0U && run.Id.value() == 0U
 				&& url.empty() && message.empty() && !previous && !lastReviewed
 				&& files.empty() && defects.empty() && !selection && notes.empty()
-				&& drafts.empty() && !operation,
+				&& drafts.empty() && !operation && !guidance,
 			"the complete type contains only domain identity, bounded source/prose, "
 			"and explicit absence - no argv, environment, token, Qt index, or coordinate");
 
@@ -610,6 +620,58 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// \brief [[BPR-1091]]. Review-feedback guidance travels only with a
+	/// workshop operation, whole and bounded, or the supplement is refused.
+	void test_feedback_guidance_travels_only_with_a_workshop_operation()
+	{
+		auto guidance    = core::supplement_feedback_guidance{ };
+		guidance.Source  = core::feedback_guidance_source::profile_override;
+		guidance.Version = "review-feedback-v1";
+		guidance.Text    = "Team rule: label every comment.\nKeep questions as questions.";
+
+		auto pressed             = private_request();
+		pressed.Operation        = core::workshop_operation::clarify;
+		pressed.FeedbackGuidance = guidance;
+		const auto built         = core::build_agent_supplement(pressed);
+		expect(built && built->FeedbackGuidance == guidance, "a workshop request carries its guidance exactly, source and version included");
+
+		auto withoutGuidance = pressed;
+		withoutGuidance.FeedbackGuidance.reset();
+		auto expected             = *core::build_agent_supplement(withoutGuidance);
+		expected.FeedbackGuidance = guidance;
+		expect(*built == expected, "and changes nothing else in the supplement");
+		expect(!core::build_agent_supplement(withoutGuidance)->FeedbackGuidance.has_value(), "a press without guidance names none");
+
+		auto unasked = pressed;
+		unasked.Operation.reset();
+		expect(!core::build_agent_supplement(unasked).has_value(), "guidance on a request that is not a workshop press is refused whole, not dropped");
+
+		auto empty                   = pressed;
+		empty.FeedbackGuidance->Text = std::string{ };
+		expect(!core::build_agent_supplement(empty).has_value(), "empty guidance is not guidance: the helper being off is said by absence");
+
+		auto oversize                   = pressed;
+		oversize.FeedbackGuidance->Text = std::string(core::maximum_feedback_guidance_bytes + 1U, 'x');
+		expect(!core::build_agent_supplement(oversize).has_value(), "guidance longer than a hook may be is refused whole rather than truncated");
+		oversize.FeedbackGuidance->Text.pop_back();
+		expect(core::build_agent_supplement(oversize).has_value(), "and the longest hook text a profile may hold still travels");
+
+		auto unnamed                      = pressed;
+		unnamed.FeedbackGuidance->Version = std::string{ };
+		expect(!core::build_agent_supplement(unnamed).has_value(), "guidance that names no shipped version is refused");
+
+		auto invalid                   = pressed;
+		invalid.FeedbackGuidance->Text = std::string{ "\xff\xfe" };
+		expect(!core::build_agent_supplement(invalid).has_value(), "guidance that is not UTF-8 is refused");
+
+		auto undeclared                     = pressed;
+		undeclared.FeedbackGuidance->Source = static_cast<core::feedback_guidance_source>(2U);
+		expect(!core::build_agent_supplement(undeclared).has_value(), "an undeclared source is refused");
+		expect(core::stable_name(core::feedback_guidance_source::shipped) == "shipped" && core::stable_name(core::feedback_guidance_source::profile_override) == "profile_override", "the sources have stable names");
+	}
+} // namespace
+
 auto main() -> int
 {
 	test_a_minimal_supplement_preserves_absence();
@@ -619,6 +681,7 @@ auto main() -> int
 	test_private_prose_travels_only_where_this_session_opted_in();
 	test_a_chat_message_is_admitted_only_for_its_own_session();
 	test_a_workshop_operation_travels_and_changes_nothing_else();
+	test_feedback_guidance_travels_only_with_a_workshop_operation();
 	test_invalid_or_oversize_context_is_refused_whole();
 	std::cout << "agent-context-supplement-tests:pass\n";
 	return EXIT_SUCCESS;

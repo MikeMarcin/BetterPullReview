@@ -538,6 +538,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_finding_chat_panel_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_composition_contract": "dos-volume-name",
     "application_agent_finding_workshop_press_contract": "dos-volume-name",
+    # [[BPR-1091]]. The review-feedback guidance courses, the same composed
+    # course and data-root obstacle as the workshop press beside them.
+    "application_agent_finding_workshop_guidance_default_contract": "dos-volume-name",
+    "application_agent_finding_workshop_guidance_custom_contract": "dos-volume-name",
+    "application_agent_finding_workshop_guidance_no_agent_contract": "dos-volume-name",
     "application_agent_finding_finding_host_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_full_agent_contract": "dos-volume-name",
     "application_agent_finding_mcp_construction_cut_contract": "dos-volume-name",

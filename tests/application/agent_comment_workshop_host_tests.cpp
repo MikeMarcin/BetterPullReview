@@ -180,6 +180,36 @@ namespace {
 			"but it is not named on the proposal either, because there is no "
 			"name for it to be read under");
 	}
+
+	/// \brief [[BPR-1091]]. Every proposal carries what it changes besides
+	/// wording, read by the shared recognizer, and is offered either way: a
+	/// prompt can make the agent relabel, but not make the change unseen.
+	void test_every_proposal_says_what_it_changes_besides_wording()
+	{
+		auto       projection = recording_projection{ };
+		auto       host       = application::agent_comment_workshop_host{ projection };
+		const auto question   = core::review_comment_draft{
+			.Id   = core::review_draft_id{ 7U },
+			.Body = "question (non-blocking): could this race?\n\n```suggestion\n\tlock();\r\n```",
+		};
+
+		expect(host.propose(question, an_edit("question (non-blocking): could this race when two readers refresh?\n\n```suggestion\n\tlock();\r\n```"), core::workshop_operation::clarify) == application::agent_comment_workshop_refusal::none, "a prose-only clarification is offered");
+		const auto& prose = projection.Proposals.back().Change;
+		expect(prose.prose_only() && prose.Label == core::workshop_label_change::kept && prose.Question == core::workshop_question_change::kept && prose.Patch == core::workshop_patch_change::kept,
+			   "and says it keeps the label, the question and the suggested change byte for byte");
+
+		expect(host.propose(question, an_edit("issue (blocking): this races.\n\n```suggestion\n\tlock_shared();\n```"), core::workshop_operation::make_more_direct) == application::agent_comment_workshop_refusal::none, "a candidate that strengthens the comment is still offered, not refused");
+		const auto& stronger = projection.Proposals.back().Change;
+		expect(!stronger.prose_only() && stronger.Label == core::workshop_label_change::changed && stronger.After.Label == core::feedback_label::issue && stronger.After.Expectation == core::feedback_expectation::blocking
+				   && stronger.Question == core::workshop_question_change::removed && stronger.Patch == core::workshop_patch_change::changed,
+			   "and names all three changes: question to issue (blocking), the question dropped, the patch rewritten");
+
+		expect(host.propose(question, an_edit("isue: could this race?"), core::workshop_operation::shorten) == application::agent_comment_workshop_refusal::none, "a candidate whose label the catalog does not know is offered");
+		const auto& unknown = projection.Proposals.back().Change;
+		expect(!unknown.candidate_readable() && unknown.After.Status == core::feedback_prefix_status::unknown_label && unknown.After.RawLabel == "isue" && unknown.Patch == core::workshop_patch_change::removed,
+			   "and says the recognizer cannot read its label, and that the suggested change is gone");
+		expect(projection.Refusals.empty() && host.statistics().Proposals == 3U, "three candidates, three proposals, no refusal and nothing applied");
+	}
 } // namespace
 
 auto main() -> int
@@ -188,6 +218,7 @@ auto main() -> int
 	test_a_promoted_finding_still_names_no_operation();
 	test_every_operation_is_refused_when_the_draft_is_absent();
 	test_an_undeclared_operation_is_not_named_on_a_proposal();
+	test_every_proposal_says_what_it_changes_besides_wording();
 	std::cout << "agent-comment-workshop-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

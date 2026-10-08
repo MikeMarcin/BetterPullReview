@@ -11288,7 +11288,7 @@ namespace bpr::qt {
 				action->setVisible(false);
 			}
 		}
-		for (const auto* name : { "reviewWorkshopOriginal", "reviewWorkshopProposal", "reviewWorkshopOperation",
+		for (const auto* name : { "reviewWorkshopOriginal", "reviewWorkshopProposal", "reviewWorkshopOperation", "reviewWorkshopCandidate",
 								  "tourProblemMagic", "tourSolutionMagic", "tourStopMagic", "tourSuggestOutline", "tourSuggestedOutline", "tourInsertOutline",
 								  "privateAgentProfile", "privateRequestedModel", "privateRequestedEffort", "privateAskAgent", "privateCompositionAsk" }) {
 			for (auto* const widget : findChildren<QWidget*>(QString::fromLatin1(name))) {

@@ -1,5 +1,6 @@
 #ifndef BPR_APPLICATION_WRITING_HOOKS_HPP
 #define BPR_APPLICATION_WRITING_HOOKS_HPP
+#include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include <span>
 #include <vector>
@@ -55,5 +56,11 @@ namespace bpr::application {
 	/// on, and nothing while it is off. Sending it is the workshop's
 	/// (BPR-1091); no other request carries it.
 	[[nodiscard]] auto workshop_feedback_guidance(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::string_view;
+	/// \brief [[BPR-1091]] The guidance one comment-workshop press sends, as
+	/// the supplement carries it: `workshop_feedback_guidance`'s text, the
+	/// shipped version it was taken from, and whether it is the profile's
+	/// override. None while the label helper is off, which leaves the press's
+	/// request byte for byte what it was before the hook existed.
+	[[nodiscard]] auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
 }
 #endif

@@ -1,5 +1,7 @@
 #include "bpr/core/agent_context_supplement.hpp"
 
+#include "bpr/core/review_preparation.hpp"
+
 #include <algorithm>
 #include <ranges>
 
@@ -164,7 +166,37 @@ namespace bpr::core {
 				|| (aMessage->Session == aSession.Id
 					&& aMessage->Text.size() <= maximum_chat_message_bytes);
 		}
+
+		/// \brief [[BPR-1091]]. Guidance rides only on a workshop request,
+		/// whole, bounded and UTF-8, naming the version it was taken from.
+		/// \details The operation is the gate because
+		/// `workshop_operation_for` has already decided from the entry point
+		/// that this build is a workshop press: guidance on a review, a chat
+		/// turn or a tour writing request would be a hook text nobody asked
+		/// the agent to apply there.
+		[[nodiscard]] auto valid_feedback_guidance(
+			const std::optional<workshop_operation>& aOperation,
+			const supplement_feedback_guidance&      aGuidance) noexcept -> bool
+		{
+			return aOperation.has_value() && !aGuidance.Text.empty()
+				&& aGuidance.Text.size() <= maximum_feedback_guidance_bytes
+				&& valid_writing_utf8(aGuidance.Text) && !aGuidance.Version.empty()
+				&& aGuidance.Version.size() <= maximum_feedback_guidance_version_bytes
+				&& valid_writing_utf8(aGuidance.Version)
+				&& enumerator_at_most(aGuidance.Source, feedback_guidance_source::profile_override);
+		}
 	} // namespace
+
+	auto stable_name(const feedback_guidance_source aSource) noexcept -> std::string_view
+	{
+		switch (aSource) {
+		case feedback_guidance_source::shipped:
+			return "shipped";
+		case feedback_guidance_source::profile_override:
+			return "profile_override";
+		}
+		return { };
+	}
 
 	auto build_agent_supplement(const agent_supplement_request& aRequest)
 		-> std::optional<agent_context_supplement>
@@ -181,6 +213,7 @@ namespace bpr::core {
 			|| (aRequest.LastReviewedHead && !aRequest.LastReviewedHead->valid())
 			|| !valid_chat_message(aRequest.Session, aRequest.Message)
 			|| (aRequest.Operation && !declared(*aRequest.Operation))
+			|| (aRequest.FeedbackGuidance && !valid_feedback_guidance(aRequest.Operation, *aRequest.FeedbackGuidance))
 			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))) {
 			return std::nullopt;
 		}
@@ -215,6 +248,7 @@ namespace bpr::core {
 			.Notes              = aRequest.SelectedNotes,
 			.Drafts             = aRequest.SelectedDrafts,
 			.Operation          = aRequest.Operation,
+			.FeedbackGuidance   = aRequest.FeedbackGuidance,
 		};
 	}
 

@@ -1,5 +1,6 @@
 #include "bpr/qt/review_draft_editor.hpp"
 
+#include "bpr/core/feedback_workshop_candidate.hpp"
 #include "bpr/core/line_endings.hpp"
 
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -9,6 +10,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QStringList>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -55,6 +57,86 @@ namespace bpr::qt {
 			surface->setAccessibleName(aAccessibleName);
 			surface->setReadOnly(true);
 			return surface;
+		}
+
+		/// \brief One body's header as written: the label token and its
+		/// decorations, and why the shared recognizer could not read it.
+		[[nodiscard]] auto describe_header(const core::workshop_label_facts& aFacts) -> QString
+		{
+			auto text = aFacts.RawLabel.empty() ? QObject::tr("a header") : QString::fromStdString(aFacts.RawLabel);
+			if (!aFacts.Decorations.empty()) {
+				auto decorations = QStringList{ };
+				for (const auto& decoration : aFacts.Decorations) {
+					decorations.push_back(QString::fromStdString(decoration));
+				}
+				text += QStringLiteral(" (") + decorations.join(QStringLiteral(", ")) + QStringLiteral(")");
+			}
+			switch (aFacts.Status) {
+			case core::feedback_prefix_status::recognized:
+			case core::feedback_prefix_status::plain:
+				return text;
+			case core::feedback_prefix_status::unknown_label:
+				return QObject::tr("%1, not a known label").arg(text);
+			case core::feedback_prefix_status::malformed:
+				return QObject::tr("%1, a header that cannot be read").arg(text);
+			case core::feedback_prefix_status::limited:
+				return QObject::tr("%1, a header too long to read").arg(text);
+			}
+			return text;
+		}
+
+		/// \brief [[BPR-1091]]. What a candidate changes besides wording, in
+		/// words: label, question, suggested change, each only when either
+		/// text has one, and "Wording only" when neither has any of them.
+		[[nodiscard]] auto describe_candidate(const core::workshop_candidate_change& aChange) -> QString
+		{
+			auto parts = QStringList{ };
+			switch (aChange.Label) {
+			case core::workshop_label_change::none:
+				break;
+			case core::workshop_label_change::kept:
+				parts.push_back(QObject::tr("Label kept: %1").arg(describe_header(aChange.After)));
+				break;
+			case core::workshop_label_change::added:
+				parts.push_back(QObject::tr("Label added: %1").arg(describe_header(aChange.After)));
+				break;
+			case core::workshop_label_change::removed:
+				parts.push_back(QObject::tr("Label removed: %1").arg(describe_header(aChange.Before)));
+				break;
+			case core::workshop_label_change::changed:
+				parts.push_back(QObject::tr("Label changed: %1 → %2").arg(describe_header(aChange.Before), describe_header(aChange.After)));
+				break;
+			}
+			switch (aChange.Question) {
+			case core::workshop_question_change::none:
+				break;
+			case core::workshop_question_change::kept:
+				parts.push_back(QObject::tr("Still asks a question"));
+				break;
+			case core::workshop_question_change::added:
+				parts.push_back(QObject::tr("Now asks a question"));
+				break;
+			case core::workshop_question_change::removed:
+				parts.push_back(QObject::tr("No longer asks a question"));
+				break;
+			}
+			switch (aChange.Patch) {
+			case core::workshop_patch_change::none:
+				break;
+			case core::workshop_patch_change::kept:
+				parts.push_back(QObject::tr("Suggested change kept byte for byte"));
+				break;
+			case core::workshop_patch_change::added:
+				parts.push_back(QObject::tr("Adds a suggested change"));
+				break;
+			case core::workshop_patch_change::removed:
+				parts.push_back(QObject::tr("Removes the suggested change"));
+				break;
+			case core::workshop_patch_change::changed:
+				parts.push_back(QObject::tr("Changes the suggested change"));
+				break;
+			}
+			return parts.isEmpty() ? QObject::tr("Wording only") : parts.join(QStringLiteral(" · "));
 		}
 	} // namespace
 
@@ -177,9 +259,20 @@ namespace bpr::qt {
 		Members.WorkshopOperation->setAccessibleName(
 			QStringLiteral("Comment workshop operation"));
 		Members.WorkshopOperation->setWordWrap(true);
+		// [[BPR-1091]]. Under the two texts, about the second: what accepting
+		// it would change besides the words.
+		Members.WorkshopCandidate = new QLabel{ this };
+		Members.WorkshopCandidate->setObjectName(
+			QStringLiteral("reviewWorkshopCandidate"));
+		Members.WorkshopCandidate->setAccessibleName(
+			tr("What the proposed revision changes"));
+		Members.WorkshopCandidate->setToolTip(
+			tr("The label and decorations are read the way Publish reads them."));
+		Members.WorkshopCandidate->setWordWrap(true);
 		layout->addWidget(Members.WorkshopOperation);
 		layout->addWidget(Members.WorkshopOriginal);
 		layout->addWidget(Members.WorkshopProposal);
+		layout->addWidget(Members.WorkshopCandidate);
 
 		Members.Publish
 			= make_action(this, tr("Publish"), QStringLiteral("reviewPublish"));
@@ -458,6 +551,16 @@ namespace bpr::qt {
 		return Members.WorkshopOperation->text();
 	}
 
+	auto review_draft_editor::workshop_candidate_label() const noexcept -> QLabel*
+	{
+		return Members.WorkshopCandidate;
+	}
+
+	auto review_draft_editor::workshop_candidate_text() const -> QString
+	{
+		return Members.WorkshopCandidate->text();
+	}
+
 	void review_draft_editor::set_workshop_dispatch(
 		comment_workshop_dispatch aDispatch)
 	{
@@ -641,6 +744,7 @@ namespace bpr::qt {
 		Members.WorkshopOriginal->clear();
 		Members.WorkshopProposal->clear();
 		Members.WorkshopOperation->clear();
+		Members.WorkshopCandidate->clear();
 	}
 
 	auto review_draft_editor::reply_target_label() const noexcept -> QLabel*
@@ -891,6 +995,10 @@ namespace bpr::qt {
 			QString::fromStdString(aProposal.Original));
 		Members.WorkshopProposal->setPlainText(
 			QString::fromStdString(aProposal.Proposed));
+		// [[BPR-1091]]. Read from the two texts on screen, by the shared
+		// recognizer, so the line describes exactly the bytes Accept writes.
+		Members.WorkshopCandidate->setText(describe_candidate(core::compare_workshop_candidate(aProposal.Original, aProposal.Proposed)));
+		Members.WorkshopCandidate->setAccessibleDescription(Members.WorkshopCandidate->text());
 		// The proposal says which operation produced it, or says nothing at
 		// all: a promoted finding is a revision nobody workshopped, and
 		// labelling it with one of the six would name an operation that never
@@ -1126,6 +1234,7 @@ namespace bpr::qt {
 		Members.WorkshopOriginal->setVisible(proposed);
 		Members.WorkshopProposal->setVisible(proposed);
 		Members.WorkshopOperation->setVisible(proposed || Members.WorkshopAsked);
+		Members.WorkshopCandidate->setVisible(proposed);
 		refresh_suggestion_mark();
 		if (Members.PresentationObserver) {
 			Members.PresentationObserver();

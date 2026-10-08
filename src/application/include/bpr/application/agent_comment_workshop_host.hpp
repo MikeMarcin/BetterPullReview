@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_COMMENT_WORKSHOP_HOST_HPP
 
 #include "bpr/core/agent_chat_scope.hpp"
+#include "bpr/core/feedback_workshop_candidate.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
 #include <compare>
@@ -36,6 +37,12 @@ namespace bpr::application {
 		std::string                             Original;
 		std::string                             Proposed;
 		std::optional<core::workshop_operation> Operation;
+		/// [[BPR-1091]]. What `Proposed` changes against `Original` besides
+		/// wording: the label and decorations the shared recognizer reads on
+		/// each, whether it still asks a question, and the suggested-change
+		/// bytes. Computed from the two texts when the proposal is made, so
+		/// it describes exactly the bytes an acceptance would write.
+		core::workshop_candidate_change Change;
 
 		auto operator<=>(const agent_comment_workshop_proposal&) const = default;
 	};

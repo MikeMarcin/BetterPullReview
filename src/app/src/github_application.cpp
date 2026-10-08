@@ -13701,6 +13701,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.EntryPoint        = aEntryPoint,
 				.WorkshopOperation = aWorkshopOperation,
 			};
+			// [[BPR-1091]]. A comment-workshop press, and nothing else, sends
+			// the profile's review-feedback guidance, read now from the
+			// preferences the profile has published, and only while its label
+			// helper is on. With the helper off the press is the request it
+			// was before the hook existed. The guidance is text for the
+			// agent's prose; the launch it rides on is the one every press
+			// already makes.
+			if (aEntryPoint == core::agent_entry_point::workshop_comment && aWorkshopOperation.has_value() && Profile && Profile->WorkbenchPreferences) {
+				if (const auto& preferences = Profile->WorkbenchPreferences->accepted(); preferences) {
+					observation.FeedbackGuidance = application::workshop_feedback_supplement(preferences->WritingHooks, preferences->Behaviour.LabelHelper);
+				}
+			}
 			observation.CurrentDraft = current_agent_draft_observation();
 			// Which file, and where in it. The two are told apart because
 			// only one of them names a comparison. The file is a path and a

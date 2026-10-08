@@ -140,6 +140,16 @@ auto main() -> int
 		+ " drafts=" + field(fields, "draft.count", "absent")
 		+ " notes=" + field(fields, "note.count", "absent")
 		+ " body=" + field(fields, "private.0.body", "absent").substr(0U, 256U) + " end";
+	// [[BPR-1091]]. The review-feedback guidance the turn was handed, if
+	// any: where it came from, its version, its length on the wire and its
+	// first 48 escaped bytes, reported the same way. A course with the label
+	// helper off reads `source=absent`.
+	const auto guidanceText = field(fields, "feedback_guidance.text", "");
+	const auto guidance     = std::string{ " | BPR_FEEDBACK_GUIDANCE_1091 source=" }
+		+ field(fields, "feedback_guidance.source", "absent")
+		+ " version=" + field(fields, "feedback_guidance.version", "absent")
+		+ " bytes=" + std::to_string(guidanceText.size())
+		+ " head=" + guidanceText.substr(0U, 48U) + " end";
 	// BPR-0538. One of the six is this fixture's silent operation: asked to
 	// shorten, it completes its turn and proposes nothing. A real agent does
 	// this whenever it has nothing to say about the comment, and it is the
@@ -165,8 +175,20 @@ auto main() -> int
 
 	// The one thing this fixture proposes, and the exact bytes the composed
 	// promotion must carry through to the workshop's proposed side.
-	constexpr std::string_view suggested
+	constexpr std::string_view unguided
 		= "BPR_FINDING_SUGGESTED_0504 name the exhausted retry in the message";
+	// [[BPR-1091]]. Handed the shipped guidance, this fixture does what it
+	// asks: it labels the comment and keeps the reviewer's question. Handed a
+	// profile's own guidance, it labels it a blocking issue and states it, so
+	// a course can see the workshop name a semantic change. Neither is model
+	// output; both are fixed bytes a course compares.
+	constexpr std::string_view guidedShipped
+		= "question: BPR_FINDING_SUGGESTED_1091 is the exhausted retry budget reported to the caller?";
+	constexpr std::string_view guidedOverride
+		= "issue (blocking): BPR_FINDING_SUGGESTED_1091 report the exhausted retry budget to the caller.";
+	const auto source    = field(fields, "feedback_guidance.source", "absent");
+	const auto suggested = source == "shipped" ? guidedShipped : source == "profile_override" ? guidedOverride
+																							  : unguided;
 
 	auto findings = std::string{ };
 	findings += "{\"session\":" + session + ",\"findings\":[{";
@@ -180,7 +202,7 @@ auto main() -> int
 	findings += ",\"claim\":\"BPR_FINDING_CLAIM_0504 the retry budget is not "
 				"reported to the caller"
 				" | BPR_CHAT_ECHO_0517 count="
-		+ echoed + " text=" + json_escaped(message) + json_escaped(sources) + "\"";
+		+ echoed + " text=" + json_escaped(message) + json_escaped(sources) + json_escaped(guidance) + "\"";
 	findings += ",\"evidence\":\"BPR_FINDING_EVIDENCE_0504\"";
 	findings += ",\"consequence\":\"BPR_FINDING_CONSEQUENCE_0504\"";
 	findings += ",\"suggestedComment\":\"" + std::string{ suggested } + "\"";

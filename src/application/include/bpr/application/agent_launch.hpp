@@ -99,6 +99,14 @@ namespace bpr::application {
 		/// a comment without saying how, and an operation quietly kept under a
 		/// review would be a workshop request nobody made.
 		std::optional<core::workshop_operation> WorkshopOperation;
+		/// [[BPR-1091]]. The review-feedback guidance a workshop press sends.
+		///
+		/// \details Filled by the composition from
+		/// `workshop_feedback_supplement` for a press only, and absent while
+		/// the label helper is off. Present without an admitted workshop
+		/// operation it is refused whole, as an operation riding on another
+		/// gesture is.
+		std::optional<core::supplement_feedback_guidance> FeedbackGuidance;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};
