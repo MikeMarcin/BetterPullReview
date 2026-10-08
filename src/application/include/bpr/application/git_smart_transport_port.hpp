@@ -3,6 +3,7 @@
 
 #include "bpr/core/epoch_model.hpp"
 
+#include <algorithm>
 #include <array>
 #include <compare>
 #include <cstddef>
@@ -175,6 +176,38 @@ namespace bpr::application {
 
 	inline constexpr std::size_t maximum_git_exact_blob_bytes = 16U * 1024U * 1024U;
 
+	/// \brief Requests several content-verified blobs in one round trip.
+	///
+	/// \details [[BPR-1327]]. Preparation reads the blobs of the files the
+	/// reviewer is about to open together, rather than one exact read (and its
+	/// account observations) per blob. Every blob is resolved by the host from
+	/// its retained exact tree, exactly as for a single read.
+	struct git_smart_exact_blobs_request
+	{
+		git_smart_request_context       Context;
+		std::vector<core::git_blob_oid> ExpectedBlobs;
+		/// Per blob. A larger blob is answered absent, not truncated.
+		std::size_t MaximumBytes = 0U;
+	};
+
+	/// Blobs per batch, and the largest blob a batch carries. A larger blob is
+	/// left to the exact single read when the reviewer opens its file.
+	inline constexpr std::size_t maximum_git_exact_blob_batch       = 16U;
+	inline constexpr std::size_t maximum_git_exact_blob_batch_bytes = 512U * 1024U;
+
+	/// \brief Checks a batch request's bounds; it does not check authority.
+	[[nodiscard]] inline auto valid(const git_smart_exact_blobs_request& aRequest) noexcept -> bool
+	{
+		return !aRequest.ExpectedBlobs.empty() && aRequest.ExpectedBlobs.size() <= maximum_git_exact_blob_batch
+			&& aRequest.MaximumBytes != 0U && aRequest.MaximumBytes <= maximum_git_exact_blob_batch_bytes
+			&& std::ranges::all_of(aRequest.ExpectedBlobs, [](const core::git_blob_oid& aBlob) { return aBlob.valid(); });
+	}
+
+	/// \brief One answer per requested blob, in request order. An absent
+	/// answer means the transport could not return verified bytes for that
+	/// blob in the batch; it may still be read on its own.
+	using git_smart_exact_blobs = std::vector<std::optional<std::vector<std::byte>>>;
+
 	/// \brief Provides the git smart wire consumer contract.
 	class git_smart_wire_consumer
 	{
@@ -207,6 +240,15 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto read_exact_blob(
 			const git_smart_exact_blob_request&, std::stop_token)
 			-> git_smart_transport_result<std::vector<std::byte>>
+		{
+			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
+		}
+
+		/// \brief Returns several verified blobs in one round trip; transports
+		/// without this capability refuse, and the caller reads none ahead.
+		[[nodiscard]] virtual auto read_exact_blobs(
+			const git_smart_exact_blobs_request&, std::stop_token)
+			-> git_smart_transport_result<git_smart_exact_blobs>
 		{
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
 		}

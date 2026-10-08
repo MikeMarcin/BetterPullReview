@@ -116,6 +116,24 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_comparison_preparation_core_tests
+    comparison_preparation_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_comparison_preparation_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_comparison_preparation_core_tests)
+bpr_enable_warnings(test_better_pull_review_comparison_preparation_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_comparison_preparation
+    COMMAND test_better_pull_review_comparison_preparation_core_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_diff_transition_core_tests
     diff_transition_tests.cpp
 )

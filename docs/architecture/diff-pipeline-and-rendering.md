@@ -173,6 +173,13 @@ Cache immutable `file_diff` values by exact `file_comparison_key`. Cache values 
 
 A path-only key is invalid. A cache hit must not cross account/repository/PR/blob/options identity.
 
+[[BPR-1327]] Comparisons prepared before the reviewer opens them live in this
+cache under the same exact keys, unpublished, within a prepared share of it
+(16 entries and 8 MiB by default). They use only room the reviewer's own
+comparisons leave free and are evicted first; opening one is an ordinary cache
+hit. The [system architecture](system-architecture.md#concurrency-and-stale-work)
+describes the preparation window and its cancellation.
+
 ### 3.2 Cancellation
 
 Cancellation may stop computation or merely suppress publication. Stale rejection remains mandatory even when cooperative cancellation is requested.

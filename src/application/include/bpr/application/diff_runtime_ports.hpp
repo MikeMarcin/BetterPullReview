@@ -23,6 +23,16 @@ namespace bpr::application {
 		std::size_t   OutstandingJobs = 4U;
 		std::size_t   CacheEntries    = 64U;
 		std::uint64_t CacheBytes      = 64U * 1024U * 1024U;
+		/// [[BPR-1327]]. Comparisons prepared before the reviewer opens them
+		/// live inside the cache above, never beside it. They may hold at most
+		/// this many of its entries and bytes, and never more than a quarter of
+		/// its entries or an eighth of its bytes, whichever is smaller. They use
+		/// only room the reviewer's own comparisons leave free: a comparison the
+		/// reviewer opened is never evicted to make room for a prepared one,
+		/// and a prepared one is evicted first when the reviewer needs room.
+		/// Zero disables preparation.
+		std::size_t   PreparedEntries = 16U;
+		std::uint64_t PreparedBytes   = 8U * 1024U * 1024U;
 
 		auto operator<=>(const diff_host_limits&) const = default;
 	};
@@ -36,8 +46,36 @@ namespace bpr::application {
 			&& aLimits.CacheEntries > 0U
 			&& aLimits.CacheEntries <= maximum_diff_cache_entries
 			&& aLimits.CacheBytes > 0U
-			&& aLimits.CacheBytes <= maximum_diff_cache_bytes;
+			&& aLimits.CacheBytes <= maximum_diff_cache_bytes
+			&& aLimits.PreparedEntries <= maximum_diff_cache_entries
+			&& aLimits.PreparedBytes <= maximum_diff_cache_bytes;
 	}
+
+	/// \brief The prepared share of the cache these limits allow.
+	[[nodiscard]] constexpr auto prepared_entry_capacity(const diff_host_limits& aLimits) noexcept
+		-> std::size_t
+	{
+		return aLimits.PreparedEntries < aLimits.CacheEntries / 4U ? aLimits.PreparedEntries : aLimits.CacheEntries / 4U;
+	}
+
+	/// \brief The prepared share of the cache's bytes these limits allow.
+	[[nodiscard]] constexpr auto prepared_byte_capacity(const diff_host_limits& aLimits) noexcept
+		-> std::uint64_t
+	{
+		return aLimits.PreparedBytes < aLimits.CacheBytes / 8U ? aLimits.PreparedBytes : aLimits.CacheBytes / 8U;
+	}
+
+	/// \brief One comparison to prepare before the reviewer opens it.
+	///
+	/// \details [[BPR-1327]]. The key is exactly the one the reviewer's own
+	/// request for the file would carry, so opening the file finds it.
+	struct prepared_diff_request
+	{
+		core::file_comparison_key Key;
+		core::diff_options        Options;
+
+		auto operator<=>(const prepared_diff_request&) const = default;
+	};
 
 	enum class diff_blob_status : std::uint8_t {
 		available,

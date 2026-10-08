@@ -4,12 +4,14 @@
 #include "bpr/application/port.hpp"
 #include "bpr/application/workbench_preferences_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/comparison_preparation.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief Counts retained file work on the serialized workbench lane.
@@ -136,6 +138,16 @@ namespace bpr::application {
 		[[nodiscard]] auto selected() const noexcept
 			-> const std::optional<core::workbench_file_id>&;
 		[[nodiscard]] auto generation() const noexcept -> core::request_generation;
+		/// \brief The requests that would open the files around the cursor.
+		///
+		/// \details [[BPR-1327]]. In preparation order (the current file, the
+		/// ones after it, then the ones before it; see
+		/// `core::prepared_comparison_order`), bounded by `aWindow`, for the
+		/// comparison the selected-diff port serves now. Binary files, which
+		/// have no comparison to prepare, are left out. Empty without an
+		/// accepted authority or an available comparison.
+		[[nodiscard]] auto preparation_window(std::size_t aWindow = core::prepared_comparison_window) const
+			-> std::vector<workbench_selected_diff_request>;
 		[[nodiscard]] auto outstanding_requests() const noexcept -> std::size_t;
 		[[nodiscard]] auto rejected_terminals() const noexcept -> std::size_t;
 		[[nodiscard]] auto last_rejection() const noexcept

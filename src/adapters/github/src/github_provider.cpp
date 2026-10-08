@@ -824,6 +824,13 @@ namespace bpr::adapters::github::detail {
 				{
 					return perform_guarded<std::vector<std::byte>>(aStop, [&] { return Inner->read_exact_blob(aRequest, aStop); });
 				}
+				// [[BPR-1327]]. One pair of account observations guards the
+				// whole batch, as it guards one blob.
+				auto read_exact_blobs(const application::git_smart_exact_blobs_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<application::git_smart_exact_blobs> override
+				{
+					return perform_guarded<application::git_smart_exact_blobs>(aStop, [&] { return Inner->read_exact_blobs(aRequest, aStop); });
+				}
 				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<application::git_smart_discovery_response> override
 				{

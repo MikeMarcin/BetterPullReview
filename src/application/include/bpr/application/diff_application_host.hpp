@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief Provides the diff application host contract.
@@ -34,6 +35,17 @@ namespace bpr::application {
 			-> diff_application_host& = delete;
 
 		void request(core::file_comparison_key aKey, core::diff_options aOptions);
+		/// \brief Replaces the comparisons to prepare in the background.
+		///
+		/// \details [[BPR-1327]]. In order, first most wanted. A prepared
+		/// comparison is computed only while no requested comparison is
+		/// outstanding, one at a time, and is stored without being published,
+		/// so a later request() for it is answered from the cache. A request
+		/// for the comparison being prepared waits for that preparation rather
+		/// than computing it twice; a request for another stops it. An empty
+		/// list stops preparation. Invalidation, cancellation of the
+		/// authority and shutdown discard it.
+		void prepare(std::vector<prepared_diff_request> aRequests);
 		void cancel();
 		void invalidate(const core::pull_request_authority& aAuthority);
 		void invalidate(const core::review_epoch_id& aEpoch);
@@ -45,6 +57,12 @@ namespace bpr::application {
 		[[nodiscard]] auto outstanding_jobs() const noexcept -> std::size_t;
 		[[nodiscard]] auto cache_entries() const noexcept -> std::size_t;
 		[[nodiscard]] auto cache_bytes() const noexcept -> std::uint64_t;
+		/// Entries and bytes of the cache held by prepared comparisons that
+		/// the reviewer has not opened.
+		[[nodiscard]] auto prepared_entries() const noexcept -> std::size_t;
+		[[nodiscard]] auto prepared_bytes() const noexcept -> std::uint64_t;
+		/// Prepared comparisons queued or being computed.
+		[[nodiscard]] auto preparing() const noexcept -> std::size_t;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
 
 	private:

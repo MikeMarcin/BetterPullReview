@@ -17,9 +17,20 @@
 
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief Provides the epoch application host contract.
+	/// \brief What one preparation of a window found. [[BPR-1327]]
+	struct epoch_prepared_comparisons
+	{
+		/// The available resolutions, in request order.
+		std::vector<workbench_selected_diff_observation> Observations;
+		/// Blobs read and retained, and the batched reads that carried them.
+		std::size_t RemoteBlobs   = 0U;
+		std::size_t RemoteBatches = 0U;
+	};
+
 	class epoch_application_host final
 		: public github_epoch_handoff_port,
 		  public cached_review_source_port,
@@ -103,6 +114,20 @@ namespace bpr::application {
 			const workbench_selected_diff_request& aRequest,
 			std::stop_token                        aStop)
 			-> workbench_selected_diff_observation override;
+		/// \brief Prepares the files the reviewer is about to open.
+		///
+		/// \details [[BPR-1327]]. A synchronous concurrent seam like
+		/// `resolve`, for one bounded window of requests sharing one held
+		/// comparison authority, in the order given. Each file is resolved on
+		/// the repository actor exactly as an open would resolve it, and kept
+		/// as a prepared grant, so opening it later runs no Git and its blobs
+		/// may be materialized for preparation. For a sparse review, the
+		/// grants' missing blobs are then read in batches through a transport
+		/// that supports them, off the actor, and their verified bytes kept for
+		/// the authority. Replacement, invalidation and shutdown drop both.
+		[[nodiscard]] auto prepare(
+			const std::vector<workbench_selected_diff_request>& aRequests,
+			std::stop_token                                     aStop) -> epoch_prepared_comparisons;
 		/// \brief Authorizes one re-alignment of an older pair of this review.
 		///
 		/// \details BPR-0532. `context` above answers for the comparison the

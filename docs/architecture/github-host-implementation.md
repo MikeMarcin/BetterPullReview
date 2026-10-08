@@ -2241,13 +2241,25 @@ its own account.
 
 The account lease and CLI account-observation wrapper forward the configured
 transport's sparse commit/tree capability. The epoch host combines that
-capability with the accepted review shape to select bounded on-demand objects
-for large reviews; small reviews still acquire complete objects asynchronously.
+capability with the accepted review shape to select bounded on-demand objects.
+Any review whose reported shape is consistent loads that way, small ones
+included: a pull request's counts do not bound its repository's trees, blobs
+or ancestors (`object_loading_for`, pinned by
+`sparse_capability_applies_independently_of_pull_request_size`). A review
+whose shape is missing or inconsistent acquires complete objects.
 Neither wrapper can invent support when its underlying transport lacks it.
 An observed account mismatch permanently removes the capability.
 
 Exact selected-blob reads traverse the same observed Git lease as discovery,
-refs and pack acquisition. The request retains its complete context, expected
+refs and pack acquisition. [[BPR-1327]] adds `read_exact_blobs` for the files
+the reviewer is about to open: one GraphQL read of at most 16 blobs by object
+ID (owner, name and IDs as variables, never in the query text), between one
+pair of account observations in the transport and one in the wrapper, where a
+single read costs that pair for every blob. Each answer is checked against its
+object ID; a binary, truncated, missing or mismatched one is answered absent
+and is read on its own if the reviewer opens its file. Measured against the
+designated test repository, a single guarded read costs 1.6–1.9 s and a guarded
+batch of four 1.9 s. The request retains its complete context, expected
 blob identity and byte limit. Pre/post account checks, cancellation and lease
 revocation apply before bytes can return; the underlying transport verifies
 the blob itself. A standalone sparse bridge check does not prove this account

@@ -57,11 +57,17 @@ namespace bpr::application {
 		{
 		};
 
+		struct deferred_diff_preparation
+		{
+			std::vector<prepared_diff_request> Requests;
+		};
+
 		using deferred_diff_ingress = std::variant<deferred_diff_request,
 												   deferred_diff_cancel,
 												   deferred_diff_invalidation,
 												   deferred_diff_epoch_invalidation,
-												   deferred_diff_shutdown>;
+												   deferred_diff_shutdown,
+												   deferred_diff_preparation>;
 
 		[[nodiscard]] auto validated_limits(const diff_host_limits aLimits)
 			-> diff_host_limits
@@ -213,6 +219,8 @@ namespace bpr::application {
 			std::shared_ptr<const core::computed_file_diff>  Result;
 			std::shared_ptr<const core::diff_semantic_index> Index;
 			std::uint64_t                                    Bytes = 0U;
+			/// [[BPR-1327]]. Computed ahead of the reviewer and not yet opened.
+			bool Prepared = false;
 		};
 
 		implementation(core::diff_state                aInitialState,
@@ -312,6 +320,9 @@ namespace bpr::application {
 					job->Stop.request_stop();
 				}
 			}
+			discard_preparation([&aAuthority](const core::file_comparison_key& aKey) {
+				return aKey.Authority == aAuthority;
+			});
 			auto current = Cache.begin();
 			while (current != Cache.end()) {
 				if (current->Key.Authority != aAuthority) {
@@ -344,6 +355,9 @@ namespace bpr::application {
 					job->Stop.request_stop();
 				}
 			}
+			discard_preparation([&aEpoch](const core::file_comparison_key& aKey) {
+				return core::uses_epoch(aKey, aEpoch);
+			});
 			std::erase_if(Cache, [this, &aEpoch](const cache_entry& aEntry) {
 				if (!core::uses_epoch(aEntry.Key, aEpoch)) {
 					return false;
@@ -376,8 +390,215 @@ namespace bpr::application {
 			for (const auto& job : Jobs) {
 				job->Stop.request_stop();
 			}
+			discard_preparation([](const core::file_comparison_key&) { return true; });
 			Cache.clear();
 			CachedBytes = 0U;
+		}
+
+		void prepare(std::vector<prepared_diff_request> aRequests)
+		{
+			enqueue(deferred_diff_preparation{ std::move(aRequests) });
+		}
+
+		/// \brief Replaces the preparation queue. [[BPR-1327]]
+		void prepare_now(std::vector<prepared_diff_request> aRequests)
+		{
+			if (Closing) {
+				return;
+			}
+			PreparedQueue.clear();
+			const auto capacity = prepared_entry_capacity(Limits);
+			for (auto& request : aRequests) {
+				if (PreparedQueue.size() >= capacity) {
+					break;
+				}
+				if (!preparable(request)
+					|| std::ranges::find(PreparedQueue, request.Key, &prepared_diff_request::Key)
+						!= PreparedQueue.end()) {
+					continue;
+				}
+				PreparedQueue.push_back(std::move(request));
+			}
+			if (PreparedJob) {
+				const auto& key    = PreparedJob->Request.Context.Key;
+				const auto  wanted = std::ranges::find(PreparedQueue, key, &prepared_diff_request::Key)
+					!= PreparedQueue.end();
+				if (!wanted && !(Adopted && Adopted->Context.Key == key)) {
+					PreparedJob->Stop.request_stop();
+				}
+				std::erase_if(PreparedQueue, [&key](const prepared_diff_request& aRequest) {
+					return aRequest.Key == key;
+				});
+			}
+			pump_preparation();
+		}
+
+		[[nodiscard]] auto preparable(const prepared_diff_request& aRequest) const -> bool
+		{
+			const auto digest = core::options_digest(aRequest.Options);
+			return core::valid(aRequest.Key) && digest.has_value() && *digest == aRequest.Key.Options
+				&& aRequest.Key.Algorithm == core::supported_diff_algorithm_revision
+				&& State.ApplicationSession.value() != 0U
+				&& std::ranges::find(Cache, aRequest.Key, &cache_entry::Key) == Cache.end()
+				&& std::ranges::none_of(Jobs, [&aRequest](const auto& aJob) {
+					   return aJob->Request.Context.Key == aRequest.Key;
+				   });
+		}
+
+		template <typename Predicate>
+		void discard_preparation(Predicate&& aPredicate)
+		{
+			std::erase_if(PreparedQueue, [&aPredicate](const prepared_diff_request& aRequest) {
+				return aPredicate(aRequest.Key);
+			});
+			if (PreparedJob && aPredicate(PreparedJob->Request.Context.Key)) {
+				PreparedJob->Stop.request_stop();
+			}
+		}
+
+		[[nodiscard]] auto prepared_count() const noexcept -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count_if(Cache, &cache_entry::Prepared));
+		}
+
+		[[nodiscard]] auto prepared_total_bytes() const noexcept -> std::uint64_t
+		{
+			auto total = std::uint64_t{ 0U };
+			for (const auto& entry : Cache) {
+				total += entry.Prepared ? entry.Bytes : 0U;
+			}
+			return total;
+		}
+
+		/// Whether a prepared comparison could be stored without evicting one
+		/// the reviewer opened. A guess before the size is known; storage
+		/// decides exactly.
+		[[nodiscard]] auto preparation_room() const noexcept -> bool
+		{
+			const auto prepared = prepared_count();
+			return prepared_entry_capacity(Limits) > 0U
+				&& Cache.size() - prepared < Limits.CacheEntries
+				&& CachedBytes - prepared_total_bytes() < Limits.CacheBytes;
+		}
+
+		/// Starts the next prepared comparison when no requested one is
+		/// outstanding. At most one is ever computing.
+		void pump_preparation()
+		{
+			while (!Closing && !PreparedJob && !Adopted && !PreparedQueue.empty() && Jobs.empty()
+				   && PendingDecisionCompletions == 0U) {
+				auto next = std::move(PreparedQueue.front());
+				PreparedQueue.pop_front();
+				if (!preparable(next) || !preparation_room()) {
+					continue;
+				}
+				start_preparation(std::move(next));
+			}
+		}
+
+		void start_preparation(prepared_diff_request aRequest)
+		{
+			if (PreparedSequence == std::numeric_limits<std::uint64_t>::max()) {
+				return;
+			}
+			auto job = std::shared_ptr<diff_job>{ };
+			try {
+				job          = std::make_shared<diff_job>();
+				job->Request = core::compute_file_diff_request{
+					.Context = core::diff_request_context{
+						.Request            = core::request_id{ ++PreparedSequence },
+						.ApplicationSession = State.ApplicationSession,
+						.Key                = std::move(aRequest.Key),
+						.Generation         = core::request_generation{ 1U },
+					},
+					.Options = aRequest.Options,
+				};
+			} catch (...) {
+				return;
+			}
+			PreparedJob               = job;
+			const auto  gate          = std::weak_ptr<completion_gate>{ Gate };
+			auto* const blobs         = &Blobs;
+			auto* const lane          = &DecisionLane;
+			const auto  computeLimits = ComputeLimits;
+			// A prepared comparison never reads a side larger than its share of
+			// the cache could hold, so preparing cannot raise the transient
+			// footprint past what the prepared share already allows.
+			const auto materializeLimit = std::min<std::uint64_t>(
+				computeLimits.MaximumBytesPerSide, prepared_byte_capacity(Limits) / 4U);
+			try {
+				Effects.post([job, gate, blobs, lane, computeLimits, materializeLimit] {
+					auto completion = perform(job, *blobs, computeLimits, materializeLimit);
+					lane->post([gate, stagedCompletion = std::move(completion)]() mutable {
+						const auto locked = gate.lock();
+						if (!locked) {
+							return;
+						}
+						auto* const host = locked->Host.load(std::memory_order_acquire);
+						if (host != nullptr) {
+							host->accept_preparation(std::move(stagedCompletion));
+						}
+					});
+				});
+			} catch (...) {
+				PreparedJob.reset();
+			}
+		}
+
+		void accept_preparation(staged_diff_completion aCompletion)
+		{
+			if (TurnActive) {
+				finish_preparation(std::move(aCompletion));
+				return;
+			}
+			run_turn(
+				[this, completion = std::move(aCompletion)]() mutable {
+					finish_preparation(std::move(completion));
+				});
+		}
+
+		void finish_preparation(staged_diff_completion aCompletion)
+		{
+			if (!PreparedJob || PreparedJob->Request.Context != aCompletion.Context) {
+				return;
+			}
+			const auto discarded = PreparedJob->Stop.stop_requested();
+			PreparedJob.reset();
+			if (!Closing && !discarded && aCompletion.Reason == core::diff_reason_code::none
+				&& aCompletion.Result && aCompletion.Index
+				&& validate_staged(
+					core::compute_file_diff_request{
+						.Context = aCompletion.Context,
+						.Options = aCompletion.Options,
+					},
+					*aCompletion.Result, *aCompletion.Index)) {
+				try {
+					store_prepared(aCompletion.Result, aCompletion.Index);
+				} catch (...) {
+				}
+			}
+			if (Adopted) {
+				auto request = std::move(*Adopted);
+				Adopted.reset();
+				if (!Closing) {
+					// The reviewer asked for this comparison while it was being
+					// prepared. Answer from the cache when preparation stored
+					// it; otherwise compute it as an ordinary request.
+					if (const auto cached = lookup(request); cached.has_value()) {
+						post_local(staged_diff_completion{
+							.Context  = request.Context,
+							.Options  = request.Options,
+							.Reason   = core::diff_reason_code::none,
+							.Result   = cached->Result,
+							.Index    = cached->Index,
+							.CacheHit = true,
+						});
+					} else {
+						execute(request);
+					}
+				}
+			}
+			pump_preparation();
 		}
 
 		void enqueue(deferred_diff_ingress aIngress)
@@ -415,6 +636,8 @@ namespace bpr::application {
 						invalidate_now(aTypedIngress.Authority);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_diff_epoch_invalidation>) {
 						invalidate_now(aTypedIngress.Epoch);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_diff_preparation>) {
+						prepare_now(std::move(aTypedIngress.Requests));
 					} else {
 						shutdown_now();
 					}
@@ -513,6 +736,17 @@ namespace bpr::application {
 				});
 				return;
 			}
+			// [[BPR-1327]]. The reviewer opened the file being prepared: wait
+			// for that work instead of computing the same comparison twice.
+			// Any other preparation yields the worker.
+			if (PreparedJob && !Adopted && !PreparedJob->Stop.stop_requested()
+				&& PreparedJob->Request.Context.Key == aRequest.Context.Key) {
+				Adopted = aRequest;
+				return;
+			}
+			if (PreparedJob) {
+				PreparedJob->Stop.request_stop();
+			}
 			auto job = std::shared_ptr<diff_job>{ };
 			try {
 				job          = std::make_shared<diff_job>();
@@ -532,7 +766,7 @@ namespace bpr::application {
 			const auto  computeLimits = ComputeLimits;
 			try {
 				Effects.post([job, gate, blobs, lane, computeLimits] {
-					auto completion = perform(job, *blobs, computeLimits);
+					auto completion = perform(job, *blobs, computeLimits, computeLimits.MaximumBytesPerSide);
 					lane->post([gate, stagedCompletion = std::move(completion)]() mutable {
 						const auto locked = gate.lock();
 						if (!locked) {
@@ -557,7 +791,8 @@ namespace bpr::application {
 		[[nodiscard]] static auto perform(
 			const std::shared_ptr<diff_job>& aJob,
 			diff_blob_port&                  aBlobs,
-			const core::diff_compute_limits& aLimits) -> staged_diff_completion
+			const core::diff_compute_limits& aLimits,
+			const std::uint64_t              aMaterializeLimit) -> staged_diff_completion
 		{
 			auto completion = staged_diff_completion{
 				.Context = aJob->Request.Context,
@@ -577,7 +812,7 @@ namespace bpr::application {
 						.Context      = aJob->Request.Context,
 						.Side         = core::diff_side::left,
 						.Blob         = *aJob->Request.Context.Key.LeftBlob,
-						.MaximumBytes = aLimits.MaximumBytesPerSide,
+						.MaximumBytes = aMaterializeLimit,
 					};
 					auto observation = aBlobs.materialize(request, stop);
 					if (!exact_blob_observation(request, observation)) {
@@ -603,7 +838,7 @@ namespace bpr::application {
 						.Context      = aJob->Request.Context,
 						.Side         = core::diff_side::right,
 						.Blob         = *aJob->Request.Context.Key.RightBlob,
-						.MaximumBytes = aLimits.MaximumBytesPerSide,
+						.MaximumBytes = aMaterializeLimit,
 					};
 					auto observation = aBlobs.materialize(request, stop);
 					if (!exact_blob_observation(request, observation)) {
@@ -689,6 +924,12 @@ namespace bpr::application {
 
 		void finish(staged_diff_completion aCompletion)
 		{
+			finish_requested(std::move(aCompletion));
+			pump_preparation();
+		}
+
+		void finish_requested(staged_diff_completion aCompletion)
+		{
 			erase_job(aCompletion.Context);
 			if (aCompletion.Reason == core::diff_reason_code::none) {
 				if (!aCompletion.Result || !aCompletion.Index
@@ -757,18 +998,31 @@ namespace bpr::application {
 				});
 		}
 
-		void stop(const core::diff_request_context& aContext) noexcept
+		void stop(const core::diff_request_context& aContext)
 		{
 			const auto found = find_job(aContext);
 			if (found != Jobs.end()) {
 				(*found)->Stop.request_stop();
+			}
+			if (Adopted && Adopted->Context == aContext) {
+				const auto adopted = std::move(*Adopted);
+				Adopted.reset();
+				try {
+					post_local(staged_diff_completion{
+						.Context = adopted.Context,
+						.Options = adopted.Options,
+						.Reason  = core::diff_reason_code::cancelled,
+					});
+				} catch (...) {
+					ProjectionDeliveryFailed = true;
+				}
 			}
 		}
 
 		[[nodiscard]] auto pending_work() const noexcept -> std::size_t
 		{
 			return Jobs.size() + PendingDecisionCompletions
-				+ DeferredIngress.size();
+				+ DeferredIngress.size() + (Adopted ? 1U : 0U);
 		}
 
 		void erase_job(const core::diff_request_context& aContext)
@@ -817,8 +1071,13 @@ namespace bpr::application {
 			while (!Cache.empty()
 				   && (Cache.size() >= Limits.CacheEntries
 					   || CachedBytes > Limits.CacheBytes - *bytes)) {
-				CachedBytes -= Cache.front().Bytes;
-				Cache.erase(Cache.begin());
+				// [[BPR-1327]]. A prepared comparison gives way first.
+				auto victim = std::ranges::find_if(Cache, &cache_entry::Prepared);
+				if (victim == Cache.end()) {
+					victim = Cache.begin();
+				}
+				CachedBytes -= victim->Bytes;
+				Cache.erase(victim);
 			}
 			Cache.push_back(cache_entry{
 				.Key    = aResult->Alignment.Key,
@@ -829,23 +1088,63 @@ namespace bpr::application {
 			CachedBytes += *bytes;
 		}
 
-		core::diff_state                       State;
-		diff_blob_port&                        Blobs;
-		effect_executor&                       Effects;
-		decision_executor&                     DecisionLane;
-		diff_projection_port&                  Projections;
-		diff_host_limits                       Limits;
-		core::diff_compute_limits              ComputeLimits;
-		std::shared_ptr<completion_gate>       Gate;
-		std::vector<std::shared_ptr<diff_job>> Jobs;
-		std::vector<cache_entry>               Cache;
-		std::uint64_t                          CachedBytes                = 0U;
-		std::size_t                            PendingDecisionCompletions = 0U;
-		std::deque<deferred_diff_ingress>      DeferredIngress;
-		bool                                   Closing                  = false;
-		bool                                   ProjectionDeliveryFailed = false;
-		bool                                   TurnActive               = false;
-		bool                                   DeferredIngressScheduled = false;
+		/// \brief Stores a prepared comparison in room the reviewer's own
+		/// comparisons leave free, within the prepared share. [[BPR-1327]]
+		void store_prepared(const std::shared_ptr<const core::computed_file_diff>&  aResult,
+							const std::shared_ptr<const core::diff_semantic_index>& aIndex)
+		{
+			auto       bytes      = retained_result_bytes(*aResult);
+			const auto indexBytes = aIndex->retained_bytes();
+			const auto byteShare  = prepared_byte_capacity(Limits);
+			const auto entryShare = prepared_entry_capacity(Limits);
+			if (!bytes || !indexBytes || !checked_add(*bytes, *indexBytes)
+				|| !checked_add(*bytes, sizeof(aIndex)) || *bytes > byteShare || entryShare == 0U
+				|| std::ranges::find(Cache, aResult->Alignment.Key, &cache_entry::Key) != Cache.end()) {
+				return;
+			}
+			const auto full = [this, &bytes, byteShare, entryShare] {
+				return prepared_count() >= entryShare || prepared_total_bytes() > byteShare - *bytes
+					|| Cache.size() >= Limits.CacheEntries || CachedBytes > Limits.CacheBytes - *bytes;
+			};
+			while (full()) {
+				const auto victim = std::ranges::find_if(Cache, &cache_entry::Prepared);
+				if (victim == Cache.end()) {
+					return;
+				}
+				CachedBytes -= victim->Bytes;
+				Cache.erase(victim);
+			}
+			Cache.push_back(cache_entry{
+				.Key      = aResult->Alignment.Key,
+				.Result   = aResult,
+				.Index    = aIndex,
+				.Bytes    = *bytes,
+				.Prepared = true,
+			});
+			CachedBytes += *bytes;
+		}
+
+		core::diff_state                               State;
+		diff_blob_port&                                Blobs;
+		effect_executor&                               Effects;
+		decision_executor&                             DecisionLane;
+		diff_projection_port&                          Projections;
+		diff_host_limits                               Limits;
+		core::diff_compute_limits                      ComputeLimits;
+		std::shared_ptr<completion_gate>               Gate;
+		std::vector<std::shared_ptr<diff_job>>         Jobs;
+		std::vector<cache_entry>                       Cache;
+		std::uint64_t                                  CachedBytes                = 0U;
+		std::size_t                                    PendingDecisionCompletions = 0U;
+		std::deque<deferred_diff_ingress>              DeferredIngress;
+		std::deque<prepared_diff_request>              PreparedQueue;
+		std::shared_ptr<diff_job>                      PreparedJob;
+		std::optional<core::compute_file_diff_request> Adopted;
+		std::uint64_t                                  PreparedSequence         = 0U;
+		bool                                           Closing                  = false;
+		bool                                           ProjectionDeliveryFailed = false;
+		bool                                           TurnActive               = false;
+		bool                                           DeferredIngressScheduled = false;
 	};
 
 	diff_application_host::diff_application_host(
@@ -876,6 +1175,11 @@ namespace bpr::application {
 										core::diff_options        aOptions)
 	{
 		Implementation->request(std::move(aKey), aOptions);
+	}
+
+	void diff_application_host::prepare(std::vector<prepared_diff_request> aRequests)
+	{
+		Implementation->prepare(std::move(aRequests));
 	}
 
 	void diff_application_host::cancel()
@@ -912,6 +1216,7 @@ namespace bpr::application {
 	auto diff_application_host::is_quiescent() const noexcept -> bool
 	{
 		return Implementation->Closing && Implementation->Jobs.empty()
+			&& !Implementation->PreparedJob && !Implementation->Adopted
 			&& Implementation->PendingDecisionCompletions == 0U
 			&& Implementation->DeferredIngress.empty()
 			&& !Implementation->DeferredIngressScheduled
@@ -931,6 +1236,21 @@ namespace bpr::application {
 	auto diff_application_host::cache_bytes() const noexcept -> std::uint64_t
 	{
 		return Implementation->CachedBytes;
+	}
+
+	auto diff_application_host::prepared_entries() const noexcept -> std::size_t
+	{
+		return Implementation->prepared_count();
+	}
+
+	auto diff_application_host::prepared_bytes() const noexcept -> std::uint64_t
+	{
+		return Implementation->prepared_total_bytes();
+	}
+
+	auto diff_application_host::preparing() const noexcept -> std::size_t
+	{
+		return Implementation->PreparedQueue.size() + (Implementation->PreparedJob ? 1U : 0U);
 	}
 
 	auto diff_application_host::projection_delivery_failed() const noexcept

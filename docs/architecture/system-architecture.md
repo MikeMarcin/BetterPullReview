@@ -780,6 +780,49 @@ no current source or anchor authority. Qt retains the opaque file identity in it
 and emits a semantic selection without parsing row text or running Git on the
 presentation lane.
 
+[[BPR-1327]] prepares the files a reviewer is about to open before they are
+opened. `core::prepared_comparison_order` decides which: the file under the
+cursor, the files after it in order, then the files before it, bounded by a
+window of 16 (`core::prepared_comparison_window`). A review with that many
+changed files or fewer is prepared whole; a larger one is prepared as the
+window around the cursor and moves with it. After an available comparison, a
+file-list change or a cursor move, composition coalesces one preparation per
+turn and starts it only when the window changed. The selected file is left out,
+because the reviewer's own request is already opening it. Preparation has
+three steps, each inside an existing bound:
+
+- **Resolution.** On a dedicated `PrepareEffects` worker, the epoch host
+  resolves each file on the repository actor exactly as an open would, under
+  the same held selected-comparison authority, and keeps each result as a
+  prepared grant (at most 64, dropped with the selected grant on any
+  authority, comparison or revocation change). Opening a prepared file reuses
+  its grant without running Git, and a prepared grant authorizes only the
+  blobs its own tree lookup found.
+- **Blobs.** For a sparse review (the connected GitHub CLI loads every review
+  whose shape is consistent with `--filter=blob:none`), the prepared files'
+  missing blobs are read in batches of at most 16, each blob at most 512 KiB,
+  through `git_smart_transport_port::read_exact_blobs`, after the actor proves
+  each endpoint durably sparse exactly as a single exact read must. The round
+  trip runs on the preparing thread, never on the actor. The host checks every
+  answer's SHA-1 against its object ID before it keeps it. Verified bytes,
+  including those of single exact reads, are retained per actor (at most 256
+  blobs and 16 MiB) and dropped on authority replacement or revocation, so the
+  classifier's second read of a blob and a revisit do not cross the network
+  again. A transport that cannot batch reads nothing ahead.
+- **Diffs.** `diff_application_host::prepare` computes the prepared comparisons
+  one at a time on the diff lane, only while no requested comparison is
+  outstanding, and stores them unpublished in the diff cache. They may hold at
+  most a quarter of its entries and an eighth of its bytes (16 entries and
+  8 MiB by default), read no side larger than a quarter of that byte share, use
+  only room the reviewer's comparisons leave free, and give way first when the
+  reviewer needs room. A request for the comparison being prepared waits for
+  it; a request for any other stops it. Opening a prepared file is a cache hit:
+  one decision turn, no Git, no network and no computation.
+
+A new window cancels the previous preparation; invalidation of the pull
+request or account cancels it and discards its queue and cache entries; window
+close stops it, and shutdown waits for it.
+
 Composition forwards every accepted epoch projection unchanged to Qt, then
 replays the retained workbench selection only after an available comparison is
 accepted. A new workbench authority/generation retires selected work, clears

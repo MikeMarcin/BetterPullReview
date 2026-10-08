@@ -1,6 +1,8 @@
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/testing.hpp"
+#include "bpr/core/comparison_preparation.hpp"
+#include "bpr/core/sha1.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1105,6 +1107,18 @@ namespace bpr::application {
 		// remains independently discardable.
 		struct authority_context;
 
+		/// [[BPR-1327]]. Verified bytes of a blob a sparse cache does not
+		/// hold, kept so a second read of it (the classifier's, a revisit) does
+		/// not cross the network again.
+		struct retained_sparse_blob final
+		{
+			core::git_blob_oid        Blob;
+			std::vector<std::uint8_t> Bytes;
+		};
+
+		static constexpr std::size_t   maximum_retained_sparse_blobs      = 256U;
+		static constexpr std::uint64_t maximum_retained_sparse_blob_bytes = 16U * 1024U * 1024U;
+
 		struct authority_effect_actor final
 		{
 			explicit authority_effect_actor(std::shared_ptr<profile_epoch_actor> aShared)
@@ -1128,7 +1142,56 @@ namespace bpr::application {
 			std::optional<workbench_selected_diff_observation> SelectedBlobGrant;
 			std::uint64_t                                      SelectedBlobGrantSequence = 0U;
 			std::uint64_t                                      BlobAuthorityGeneration   = 0U;
+			/// [[BPR-1327]]. Resolutions prepared for the files the reviewer is
+			/// about to open, under the same selected comparison authority as
+			/// SelectedBlobGrant and dropped with it. Each authorizes exactly
+			/// the blobs its own tree lookup found, as the selected grant does.
+			std::vector<workbench_selected_diff_observation> PreparedGrants;
+			std::uint64_t                                    PreparedGrantSequence = 0U;
+			std::deque<retained_sparse_blob>                 RetainedBlobs;
+			std::uint64_t                                    RetainedBlobBytes = 0U;
 		};
+
+		/// Drops every prepared grant. Called under BlobAuthorityMutex.
+		static void forget_prepared_grants(authority_effect_actor& aActor) noexcept
+		{
+			aActor.PreparedGrants.clear();
+			++aActor.PreparedGrantSequence;
+		}
+
+		/// Drops every retained blob. Called under BlobAuthorityMutex.
+		static void forget_retained_blobs(authority_effect_actor& aActor) noexcept
+		{
+			aActor.RetainedBlobs.clear();
+			aActor.RetainedBlobBytes = 0U;
+		}
+
+		/// Retains verified bytes within the actor's bound, oldest first out.
+		/// Called under BlobAuthorityMutex.
+		static void retain_blob(authority_effect_actor& aActor, const core::git_blob_oid& aBlob,
+								const std::vector<std::uint8_t>& aBytes)
+		{
+			if (aBytes.size() > maximum_retained_sparse_blob_bytes
+				|| std::ranges::find(aActor.RetainedBlobs, aBlob, &retained_sparse_blob::Blob)
+					!= aActor.RetainedBlobs.end()) {
+				return;
+			}
+			while (!aActor.RetainedBlobs.empty()
+				   && (aActor.RetainedBlobs.size() >= maximum_retained_sparse_blobs
+					   || aActor.RetainedBlobBytes > maximum_retained_sparse_blob_bytes - aBytes.size())) {
+				aActor.RetainedBlobBytes -= aActor.RetainedBlobs.front().Bytes.size();
+				aActor.RetainedBlobs.pop_front();
+			}
+			aActor.RetainedBlobs.push_back(retained_sparse_blob{ .Blob = aBlob, .Bytes = aBytes });
+			aActor.RetainedBlobBytes += aBytes.size();
+		}
+
+		[[nodiscard]] static auto retained_blob(const authority_effect_actor& aActor, const core::git_blob_oid& aBlob)
+			-> std::optional<std::vector<std::uint8_t>>
+		{
+			const auto found = std::ranges::find(aActor.RetainedBlobs, aBlob, &retained_sparse_blob::Blob);
+			return found == aActor.RetainedBlobs.end() ? std::nullopt : std::optional{ found->Bytes };
+		}
 
 		struct blob_waiter final
 		{
@@ -1410,6 +1473,8 @@ namespace bpr::application {
 			aActor->RealignmentAuthority.reset();
 			aActor->SelectedBlobGrant.reset();
 			++aActor->SelectedBlobGrantSequence;
+			forget_prepared_grants(*aActor);
+			forget_retained_blobs(*aActor);
 		}
 
 		static void authorize_selected_diff(
@@ -1424,6 +1489,7 @@ namespace bpr::application {
 			aActor->SelectedDiffAuthority = aAuthority;
 			aActor->SelectedBlobGrant.reset();
 			++aActor->SelectedBlobGrantSequence;
+			forget_prepared_grants(*aActor);
 		}
 
 		/// \brief Grants the one re-alignment authorization, without a bump.
@@ -1452,6 +1518,8 @@ namespace bpr::application {
 				aActor->BlobContext.reset();
 				aActor->SelectedBlobGrant.reset();
 				++aActor->SelectedBlobGrantSequence;
+				forget_prepared_grants(*aActor);
+				forget_retained_blobs(*aActor);
 				aActor->SelectedDiffAuthority.reset();
 				aActor->RealignmentAuthority.reset();
 				++aActor->BlobAuthorityGeneration;
@@ -3733,9 +3801,78 @@ namespace bpr::application {
 			return true;
 		}
 
+		/// \brief Proves a comparison endpoint is durably sparse: the only
+		/// state in which a missing blob may be read from the network.
+		///
+		/// \details Runs on the actor, which owns the cache session. Factored
+		/// out of `materialize` for [[BPR-1327]], whose batched read for
+		/// prepared files requires exactly the same proof.
+		[[nodiscard]] static auto durably_sparse_anchor(
+			authority_effect_actor&        aActor,
+			authority_context&             aContext,
+			const core::comparison_anchor& aAnchorToProve,
+			const std::stop_token          aStop) -> bool
+		{
+			const auto snapshot = aContext.Catalog->snapshot(aStop);
+			if (!snapshot || !snapshot->LatestLive
+				|| snapshot->LatestLive->Base != aContext.Revision.Base
+				|| snapshot->LatestLive->Head != aContext.Revision.Head) {
+				return false;
+			}
+			const auto exactSparseAnchor = [&](const core::comparison_anchor& aAnchor) {
+				if (!core::valid(aAnchor)
+					|| aAnchor.Availability != core::anchor_availability::available
+					|| (aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
+						&& aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_head)
+					|| aAnchor.Identity.Authority != aContext.Authority.Scope
+					|| aAnchor.Identity.Incarnation != snapshot->Binding.Catalog.Incarnation) {
+					return false;
+				}
+				const auto exact = aContext.Catalog->exact_anchors(
+					exact_anchor_lookup_request{
+						.Catalog = snapshot->Binding.Catalog,
+						.Anchors = { aAnchor.Identity },
+					},
+					aStop);
+				if (!exact || exact->Catalog != snapshot->Binding.Catalog
+					|| exact->Anchors.size() != 1U || exact->Anchors.front() != aAnchor) {
+					return false;
+				}
+				const auto recorded = aContext.Catalog->retained_residency(
+					aAnchor.Identity.Epoch, aStop);
+				if (!recorded || *recorded != git_revision_residency::sparse_commit_trees) {
+					return false;
+				}
+				const auto retained = aActor.Cache->inspect_sparse_retained(
+					aAnchor.Identity.Epoch, aStop);
+				if (!retained || !application::valid(*retained)
+					|| retained->Residency != git_revision_residency::sparse_commit_trees
+					|| retained->Scope != aContext.Authority.Scope
+					|| retained->Ordinal != aAnchor.Identity.Epoch
+					|| (aAnchor.Identity.Kind == core::comparison_anchor_kind::epoch_base
+							? retained->Base
+							: retained->Head)
+						!= aAnchor.Commit) {
+					return false;
+				}
+				const auto inspected = aActor.Cache->inspect_sparse_commit_object(
+					aAnchor.Commit, aStop);
+				return inspected && application::valid(*inspected)
+					&& inspected->Commit == aAnchor.Commit
+					&& inspected->Residency == git_revision_residency::sparse_commit_trees;
+			};
+			return exactSparseAnchor(aAnchorToProve);
+		}
+
+		/// \details [[BPR-1327]]. `aPrepared` resolves a file the reviewer has
+		/// not opened yet: the same lookups under the same held authority, kept
+		/// as a prepared grant instead of replacing the selected one. A later
+		/// selection of that exact file is answered from its prepared grant
+		/// without running Git again.
 		[[nodiscard]] auto resolve_selected_diff(
 			const workbench_selected_diff_request& aRequest,
-			const std::stop_token                  aStop)
+			const std::stop_token                  aStop,
+			const bool                             aPrepared = false)
 			-> workbench_selected_diff_observation
 		{
 			auto result = workbench_selected_diff_observation{
@@ -3780,15 +3917,22 @@ namespace bpr::application {
 				result.Status = workbench_selected_diff_status::stale;
 				return result;
 			}
-			std::uint64_t grantSequence  = 0U;
-			bool          selectedReview = false;
+			std::uint64_t grantSequence    = 0U;
+			std::uint64_t preparedSequence = 0U;
+			bool          selectedReview   = false;
 			{
 				std::scoped_lock lock{ actor->BlobAuthorityMutex };
-				selectedReview = actor->SelectedDiffAuthority == std::optional{ selected_diff_authority{
-									 .Workbench = aRequest.WorkbenchAuthority,
-									 .Diff      = aRequest.Diff,
-								 } };
-				if (selectedReview) {
+				selectedReview   = actor->SelectedDiffAuthority == std::optional{ selected_diff_authority{
+									   .Workbench = aRequest.WorkbenchAuthority,
+									   .Diff      = aRequest.Diff,
+								   } };
+				preparedSequence = actor->PreparedGrantSequence;
+				if (aPrepared) {
+					if (!selectedReview || actor->BlobAuthorityGeneration != *authorizationGeneration) {
+						result.Status = workbench_selected_diff_status::stale;
+						return result;
+					}
+				} else if (selectedReview) {
 					const auto sameSelection = actor->SelectedBlobGrant
 						&& actor->SelectedBlobGrant->Request.WorkbenchAuthority == aRequest.WorkbenchAuthority
 						&& actor->SelectedBlobGrant->Request.Diff == aRequest.Diff
@@ -3798,6 +3942,35 @@ namespace bpr::application {
 						++actor->SelectedBlobGrantSequence;
 					}
 					grantSequence = actor->SelectedBlobGrantSequence;
+					if (actor->BlobAuthorityGeneration == *authorizationGeneration) {
+						const auto prepared = std::ranges::find_if(
+							actor->PreparedGrants, [&aRequest](const workbench_selected_diff_observation& aGrant) {
+								return aGrant.Request.WorkbenchAuthority == aRequest.WorkbenchAuthority
+									&& aGrant.Request.Diff == aRequest.Diff && aGrant.Request.File == aRequest.File;
+							});
+						if (prepared != actor->PreparedGrants.end()) {
+							// [[BPR-1327]]. Prepared under this exact authority: the
+							// same blobs and paths, bound to this request.
+							auto reused = workbench_selected_diff_observation{
+								.Request   = aRequest,
+								.Status    = workbench_selected_diff_status::available,
+								.LeftBlob  = prepared->LeftBlob,
+								.RightBlob = prepared->RightBlob,
+								.LeftPath  = prepared->LeftPath,
+								.RightPath = prepared->RightPath,
+							};
+							if (reused.LeftBlob && reused.LeftPath) {
+								reused.LeftEndpoint = epoch_application_host::mint_selected_diff_endpoint(
+									aRequest, core::diff_side::left, *reused.LeftBlob, *reused.LeftPath);
+							}
+							if (reused.RightBlob && reused.RightPath) {
+								reused.RightEndpoint = epoch_application_host::mint_selected_diff_endpoint(
+									aRequest, core::diff_side::right, *reused.RightBlob, *reused.RightPath);
+							}
+							actor->SelectedBlobGrant = reused;
+							return reused;
+						}
+					}
 				}
 			}
 			auto waiter = std::shared_ptr<selected_diff_waiter>{ };
@@ -3828,7 +4001,9 @@ namespace bpr::application {
 					 actor,
 					 admittedGeneration = *authorizationGeneration,
 					 grantSequence,
+					 preparedSequence,
 					 selectedReview,
+					 aPrepared,
 					 expected,
 					 aRequest,
 					 aStop,
@@ -4046,7 +4221,10 @@ namespace bpr::application {
 												&& actor->RealignmentAuthority != held)
 											   || actor->BlobAuthorityGeneration
 												   != admittedGeneration
-											   || (selectedReview && actor->SelectedBlobGrantSequence != grantSequence)) {
+											   || (aPrepared
+												   && (actor->SelectedDiffAuthority != held
+													   || actor->PreparedGrantSequence != preparedSequence))
+											   || (!aPrepared && selectedReview && actor->SelectedBlobGrantSequence != grantSequence)) {
 										observation.Status = workbench_selected_diff_status::stale;
 									} else {
 										observation.Status = workbench_selected_diff_status::available;
@@ -4070,7 +4248,15 @@ namespace bpr::application {
 										observation.RightBlob = std::move(right->Blob);
 										observation.LeftPath  = std::move(left->Path);
 										observation.RightPath = std::move(right->Path);
-										if (selectedReview) {
+										if (aPrepared) {
+											std::erase_if(actor->PreparedGrants, [&aRequest](const workbench_selected_diff_observation& aGrant) {
+												return aGrant.Request.File == aRequest.File;
+											});
+											if (actor->PreparedGrants.size() >= core::maximum_prepared_comparison_window) {
+												actor->PreparedGrants.erase(actor->PreparedGrants.begin());
+											}
+											actor->PreparedGrants.push_back(observation);
+										} else if (selectedReview) {
 											actor->SelectedBlobGrant = observation;
 										}
 									}
@@ -4127,6 +4313,289 @@ namespace bpr::application {
 				? workbench_selected_diff_status::cancelled
 				: workbench_selected_diff_status::failure;
 			return result;
+		}
+
+		/// \brief Runs one bounded piece of work on a repository actor and waits.
+		///
+		/// \details The same admission, FIFO, job ledger and `BlobWait` bound as
+		/// the reviewer's own selected resolution; an absent result means the
+		/// work was refused, abandoned or ran out of time.
+		template <typename Result, typename Work>
+		[[nodiscard]] auto run_on_actor(
+			const std::shared_ptr<authority_effect_actor>& aActor,
+			const git_cache_open_request&                  aExpected,
+			Work                                           aWork,
+			const std::stop_token                          aStop) -> std::optional<Result>
+		{
+			struct waiter_type final
+			{
+				std::mutex              Mutex;
+				std::condition_variable Completed;
+				std::optional<Result>   Value;
+				bool                    Done      = false;
+				bool                    Abandoned = false;
+			};
+			auto waiter = std::shared_ptr<waiter_type>{ };
+			try {
+				waiter = std::make_shared<waiter_type>();
+			} catch (...) {
+				return std::nullopt;
+			}
+			auto admitted = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return std::nullopt;
+			}
+			auto control = std::move(*admitted);
+			try {
+				enqueue_actor_work(
+					aActor,
+					[this, aActor, aExpected, aStop, waiter, control, work = std::move(aWork)] {
+						auto value = std::optional<Result>{ };
+						try {
+							auto forwardCallerStop = std::stop_callback{
+								aStop, [control] { static_cast<void>(control->Stop.request_stop()); }
+							};
+							const auto workStop = control->Stop.get_token();
+							if (!workStop.stop_requested() && Consumer->active()
+								&& !BlobIngressClosing.load(std::memory_order_acquire)
+								&& open_actor_cache(*aActor, Caches, aExpected, workStop).has_value()) {
+								value = work(workStop);
+							}
+						} catch (...) {
+							value.reset();
+						}
+						auto waiterLock     = std::unique_lock{ waiter->Mutex };
+						waiter->Value       = std::move(value);
+						waiter->Done        = true;
+						const auto reserved = retire_actor_job(control);
+						struct actor_exit_reservation final
+						{
+							implementation& Host;
+							bool            Reserved;
+
+							~actor_exit_reservation()
+							{
+								Host.release_actor_job_reservation(Reserved);
+							}
+						} actorExit{ *this, reserved };
+						waiterLock.unlock();
+						waiter->Completed.notify_all();
+					});
+			} catch (...) {
+				finish_job(control);
+				return std::nullopt;
+			}
+			auto releaseOnStop = std::stop_callback{ aStop, [waiter] {
+														{
+															const auto guard  = std::lock_guard{ waiter->Mutex };
+															waiter->Abandoned = true;
+														}
+														waiter->Completed.notify_all();
+													} };
+			std::unique_lock lock{ waiter->Mutex };
+			static_cast<void>(waiter->Completed.wait_for(
+				lock, Limits.BlobWait, [&waiter] { return waiter->Done || waiter->Abandoned; }));
+			return waiter->Done ? std::move(waiter->Value) : std::nullopt;
+		}
+
+		/// \brief Prepares the files the reviewer is about to open. [[BPR-1327]]
+		[[nodiscard]] auto prepare_selected_diffs(
+			const std::vector<workbench_selected_diff_request>& aRequests,
+			const std::stop_token                               aStop) -> epoch_prepared_comparisons
+		{
+			auto result = epoch_prepared_comparisons{ };
+			if (aRequests.empty() || aRequests.size() > core::maximum_prepared_comparison_window) {
+				return result;
+			}
+			const auto& first = aRequests.front();
+			if (!std::ranges::all_of(aRequests, [&first](const workbench_selected_diff_request& aRequest) {
+					return aRequest.WorkbenchAuthority == first.WorkbenchAuthority && aRequest.Diff == first.Diff;
+				})) {
+				return result;
+			}
+			for (const auto& request : aRequests) {
+				if (aStop.stop_requested()) {
+					return result;
+				}
+				auto observation = resolve_selected_diff(request, aStop, true);
+				if (observation.Status == workbench_selected_diff_status::available) {
+					result.Observations.push_back(std::move(observation));
+				} else if (observation.Status == workbench_selected_diff_status::stale
+						   || observation.Status == workbench_selected_diff_status::cancelled) {
+					return result;
+				}
+			}
+			fetch_prepared_blobs(first, result, aStop);
+			return result;
+		}
+
+		/// \brief Reads the prepared files' missing sparse blobs in batches.
+		///
+		/// \details Only blobs a prepared grant names, only for an endpoint the
+		/// actor proves durably sparse (the proof a single exact read needs),
+		/// and only through a transport that reads batches. The network round
+		/// trip runs on the caller's thread, never on the actor, so the
+		/// reviewer's own work on the repository is not queued behind it.
+		/// Verified bytes are retained for the authority that read them.
+		void fetch_prepared_blobs(const workbench_selected_diff_request& aTemplate,
+								  epoch_prepared_comparisons&            aResult,
+								  const std::stop_token                  aStop)
+		{
+			if (aResult.Observations.empty() || aStop.stop_requested() || !begin_blob_call()) {
+				return;
+			}
+			struct blob_call_guard final
+			{
+				implementation& Host;
+
+				~blob_call_guard()
+				{
+					Host.finish_blob_call();
+				}
+			} call{ *this };
+			const auto key = actor_key(aTemplate);
+			if (!key.has_value()) {
+				return;
+			}
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(
+					CacheActors, *key, &decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			if (!actor) {
+				return;
+			}
+			const auto authorization = blob_authority{
+				.ApplicationSession = aTemplate.Diff.ApplicationSession,
+				.Authority          = aTemplate.Diff.Authority,
+			};
+			auto context    = std::shared_ptr<authority_context>{ };
+			auto generation = std::uint64_t{ 0U };
+			auto left       = std::vector<core::git_blob_oid>{ };
+			auto right      = std::vector<core::git_blob_oid>{ };
+			{
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				if (actor->BlobAuthority != std::optional{ authorization }) {
+					return;
+				}
+				generation      = actor->BlobAuthorityGeneration;
+				context         = actor->BlobContext.lock();
+				const auto want = [&actor, &left, &right](const std::optional<core::git_blob_oid>& aBlob,
+														  std::vector<core::git_blob_oid>&         aSide) {
+					if (aBlob && std::ranges::find(left, *aBlob) == left.end()
+						&& std::ranges::find(right, *aBlob) == right.end()
+						&& !retained_blob(*actor, *aBlob)) {
+						aSide.push_back(*aBlob);
+					}
+				};
+				for (const auto& observation : aResult.Observations) {
+					want(observation.LeftBlob, left);
+					want(observation.RightBlob, right);
+				}
+			}
+			if (!context || (left.empty() && right.empty())
+				|| object_loading_for(context->Handoff.Shape) != pull_request_object_loading::selected_objects
+				|| !context->Handoff.SmartGit || !context->Handoff.SmartGit->supports_sparse_commit_trees()) {
+				return;
+			}
+			const auto comparison = aTemplate.Diff.Comparison;
+			const auto durable    = run_on_actor<std::pair<bool, bool>>(
+				actor,
+				git_cache_open_request{
+					.ApplicationSession = aTemplate.Diff.ApplicationSession,
+					.Authority          = aTemplate.Diff.Authority,
+					.ObjectFormat       = comparison.Left.Commit.algorithm(),
+				},
+				[actor, context, comparison](const std::stop_token aWorkStop) {
+					return std::pair{
+						durably_sparse_anchor(*actor, *context, comparison.Left, aWorkStop),
+						durably_sparse_anchor(*actor, *context, comparison.Right, aWorkStop),
+					};
+				},
+				aStop);
+			if (!durable) {
+				return;
+			}
+			auto wanted = durable->first ? std::move(left) : std::vector<core::git_blob_oid>{ };
+			if (durable->second) {
+				wanted.insert(wanted.end(), right.begin(), right.end());
+			}
+			if (wanted.empty()) {
+				return;
+			}
+			const auto smartContext = git_smart_request_context{
+				.ApplicationSession = context->Handoff.ApplicationSession,
+				.Authority          = context->Authority,
+				.Revision           = context->Revision,
+				.Repository         = context->Handoff.Locator,
+				.BaseRef            = context->Handoff.BaseRef,
+			};
+			const auto transport = context->Handoff.SmartGit->acquire(smartContext);
+			if (!transport || !*transport) {
+				return;
+			}
+			for (std::size_t offset = 0U; offset < wanted.size() && !aStop.stop_requested();
+				 offset += maximum_git_exact_blob_batch) {
+				const auto count   = std::min(maximum_git_exact_blob_batch, wanted.size() - offset);
+				auto       request = git_smart_exact_blobs_request{
+					.Context       = smartContext,
+					.ExpectedBlobs = { wanted.begin() + static_cast<std::ptrdiff_t>(offset),
+									   wanted.begin() + static_cast<std::ptrdiff_t>(offset + count) },
+					.MaximumBytes  = maximum_git_exact_blob_batch_bytes,
+				};
+				const auto read = (*transport)->read_exact_blobs(request, aStop);
+				++aResult.RemoteBatches;
+				if (!read || read->size() != count) {
+					// A transport that cannot batch reads nothing ahead; the
+					// reviewer's open still reads its own file exactly.
+					return;
+				}
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				if (actor->BlobAuthority != std::optional{ authorization }
+					|| actor->BlobAuthorityGeneration != generation) {
+					return;
+				}
+				for (std::size_t index = 0U; index < count; ++index) {
+					const auto& answer = (*read)[index];
+					if (!answer || answer->size() > maximum_git_exact_blob_batch_bytes) {
+						continue;
+					}
+					auto bytes = std::vector<std::uint8_t>{ };
+					bytes.reserve(answer->size());
+					for (const auto byte : *answer) {
+						bytes.push_back(std::to_integer<std::uint8_t>(byte));
+					}
+					if (!blob_matches(request.ExpectedBlobs[index], bytes)) {
+						continue;
+					}
+					retain_blob(*actor, request.ExpectedBlobs[index], bytes);
+					++aResult.RemoteBlobs;
+				}
+			}
+		}
+
+		/// The host's own check that bytes are the blob they claim to be,
+		/// beside the transport's. SHA-1 object IDs only; a SHA-256 blob is
+		/// not retained from a batch.
+		[[nodiscard]] static auto blob_matches(const core::git_blob_oid&        aBlob,
+											   const std::vector<std::uint8_t>& aBytes) noexcept -> bool
+		{
+			if (aBlob.algorithm() != core::git_hash_algorithm::sha1) {
+				return false;
+			}
+			auto       hash   = core::sha1_stream{ };
+			const auto header = "blob " + std::to_string(aBytes.size());
+			const auto prefix = std::span{ reinterpret_cast<const std::uint8_t*>(header.data()), header.size() };
+			hash.update(prefix);
+			const auto terminator = std::array<std::uint8_t, 1U>{ 0U };
+			hash.update(terminator);
+			hash.update(aBytes);
+			const auto digest = hash.finish();
+			return std::ranges::equal(digest, std::span{ aBlob.bytes() }.first(20U));
 		}
 
 		[[nodiscard]] auto materialize(
@@ -4256,6 +4725,9 @@ namespace bpr::application {
 									workStop);
 								auto bytes                 = std::optional<std::vector<std::uint8_t>>{ };
 								auto selectedGrantSequence = std::optional<std::uint64_t>{ };
+								auto preparedGrantSequence = std::optional<std::uint64_t>{ };
+								auto fetchedRemotely       = false;
+								auto retainedOverLimit     = false;
 								if (cached) {
 									bytes = std::move(*cached);
 								} else if (cached.error() == git_cache_failure::object_mismatch
@@ -4273,63 +4745,35 @@ namespace bpr::application {
 											&& exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest)) {
 											selectedGrantSequence = actor->SelectedBlobGrantSequence;
 											selectedPair          = actor->SelectedBlobGrant->Request.Diff.Comparison;
+										} else if (const auto prepared = std::ranges::find_if(
+													   actor->PreparedGrants,
+													   [&aRequest](const workbench_selected_diff_observation& aGrant) {
+														   return exact_selected_blob_request(aGrant, aRequest);
+													   });
+												   prepared != actor->PreparedGrants.end()) {
+											// [[BPR-1327]]. A prepared file's own blob.
+											preparedGrantSequence = actor->PreparedGrantSequence;
+											selectedPair          = prepared->Request.Diff.Comparison;
+										}
+										if (selectedPair) {
+											// Bytes already read and verified for this
+											// authority need no second network read.
+											bytes = retained_blob(*actor, aRequest.Blob);
+											if (bytes && bytes->size() > aRequest.MaximumBytes) {
+												bytes.reset();
+												retainedOverLimit = true;
+											}
 										}
 									}
 									const auto durablySparse = [&] {
-										if (!selectedGrantSequence || !selectedPair) {
+										if (bytes || retainedOverLimit || (!selectedGrantSequence && !preparedGrantSequence) || !selectedPair) {
 											return false;
 										}
-										const auto snapshot = selectedContext->Catalog->snapshot(workStop);
-										if (!snapshot || !snapshot->LatestLive
-											|| snapshot->LatestLive->Base != selectedContext->Revision.Base
-											|| snapshot->LatestLive->Head != selectedContext->Revision.Head) {
-											return false;
-										}
-										const auto exactSparseAnchor = [&](const core::comparison_anchor& aAnchor) {
-											if (!core::valid(aAnchor)
-												|| aAnchor.Availability != core::anchor_availability::available
-												|| (aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
-													&& aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_head)
-												|| aAnchor.Identity.Authority != selectedContext->Authority.Scope
-												|| aAnchor.Identity.Incarnation != snapshot->Binding.Catalog.Incarnation) {
-												return false;
-											}
-											const auto exact = selectedContext->Catalog->exact_anchors(
-												exact_anchor_lookup_request{
-													.Catalog = snapshot->Binding.Catalog,
-													.Anchors = { aAnchor.Identity },
-												},
-												workStop);
-											if (!exact || exact->Catalog != snapshot->Binding.Catalog
-												|| exact->Anchors.size() != 1U || exact->Anchors.front() != aAnchor) {
-												return false;
-											}
-											const auto recorded = selectedContext->Catalog->retained_residency(
-												aAnchor.Identity.Epoch, workStop);
-											if (!recorded || *recorded != git_revision_residency::sparse_commit_trees) {
-												return false;
-											}
-											const auto retained = actor->Cache->inspect_sparse_retained(
-												aAnchor.Identity.Epoch, workStop);
-											if (!retained || !application::valid(*retained)
-												|| retained->Residency != git_revision_residency::sparse_commit_trees
-												|| retained->Scope != selectedContext->Authority.Scope
-												|| retained->Ordinal != aAnchor.Identity.Epoch
-												|| (aAnchor.Identity.Kind == core::comparison_anchor_kind::epoch_base
-														? retained->Base
-														: retained->Head)
-													!= aAnchor.Commit) {
-												return false;
-											}
-											const auto inspected = actor->Cache->inspect_sparse_commit_object(
-												aAnchor.Commit, workStop);
-											return inspected && application::valid(*inspected)
-												&& inspected->Commit == aAnchor.Commit
-												&& inspected->Residency == git_revision_residency::sparse_commit_trees;
-										};
-										return exactSparseAnchor(aRequest.Side == core::diff_side::left
-																	 ? selectedPair->Left
-																	 : selectedPair->Right);
+										return durably_sparse_anchor(*actor, *selectedContext,
+																	 aRequest.Side == core::diff_side::left
+																		 ? selectedPair->Left
+																		 : selectedPair->Right,
+																	 workStop);
 									}();
 									if (durablySparse) {
 										const auto smartContext = git_smart_request_context{
@@ -4353,6 +4797,7 @@ namespace bpr::application {
 												for (const auto byte : *fetched) {
 													bytes->push_back(std::to_integer<std::uint8_t>(byte));
 												}
+												fetchedRemotely = true;
 											} else if (fetched.error().Failure == git_smart_transport_failure::cancelled) {
 												observation.Status = diff_blob_status::cancelled;
 											} else if (fetched.error().Failure == git_smart_transport_failure::response_limit) {
@@ -4380,17 +4825,31 @@ namespace bpr::application {
 										|| (selectedGrantSequence
 											&& (actor->SelectedBlobGrantSequence != *selectedGrantSequence
 												|| !actor->SelectedBlobGrant
-												|| !exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest)))) {
+												|| !exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest)))
+										|| (preparedGrantSequence
+											&& (actor->PreparedGrantSequence != *preparedGrantSequence
+												|| std::ranges::none_of(
+													actor->PreparedGrants,
+													[&aRequest](const workbench_selected_diff_observation& aGrant) {
+														return exact_selected_blob_request(aGrant, aRequest);
+													})))) {
 										observation.Status = diff_blob_status::failure;
 									} else {
+										if (fetchedRemotely) {
+											try {
+												retain_blob(*actor, aRequest.Blob, *bytes);
+											} catch (...) {
+												// Retention is an optimization; the read stands.
+											}
+										}
 										observation.Status = diff_blob_status::available;
 										observation.Bytes  = std::move(*bytes);
 									}
 								} else if (
-									cached.error() == git_cache_failure::cancelled) {
+									!retainedOverLimit && cached.error() == git_cache_failure::cancelled) {
 									observation.Status = diff_blob_status::cancelled;
 								} else if (
-									cached.error() == git_cache_failure::quota_exceeded) {
+									retainedOverLimit || cached.error() == git_cache_failure::quota_exceeded) {
 									observation.Status = diff_blob_status::materialization_limit;
 								} else if (
 									cached.error() == git_cache_failure::object_mismatch
@@ -8006,6 +8465,13 @@ namespace bpr::application {
 		const std::stop_token    aStop) -> diff_blob_observation
 	{
 		return Implementation->materialize(aRequest, aStop);
+	}
+
+	auto epoch_application_host::prepare(
+		const std::vector<workbench_selected_diff_request>& aRequests,
+		const std::stop_token                               aStop) -> epoch_prepared_comparisons
+	{
+		return Implementation->prepare_selected_diffs(aRequests, aStop);
 	}
 
 	auto epoch_application_host::materialize_agent_workspace(

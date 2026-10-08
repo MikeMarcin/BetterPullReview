@@ -166,6 +166,10 @@ namespace bpr::adapters::github::detail {
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_exact_blob_request&)
 			-> std::optional<github_cli_process_request>;
+		friend auto compile_gh_cli_exact_blobs_request(
+			const validated_gh_cli_configuration&, const validated_github_host_profile&,
+			const application::git_smart_exact_blobs_request&)
+			-> std::optional<github_cli_process_request>;
 		friend auto compile_gh_cli_git_clone_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_request_context&, core::git_commit_oid,
@@ -194,6 +198,17 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto compile_gh_cli_exact_blob_request(
 		const validated_gh_cli_configuration&, const validated_github_host_profile&,
 		const application::git_smart_exact_blob_request&)
+		-> std::optional<github_cli_process_request>;
+
+	/// \brief Compiles one closed GraphQL read of several exact repository
+	/// blobs by object ID. [[BPR-1327]]
+	///
+	/// \details The owner, name and object IDs travel as variables in the
+	/// standard-input body, never in the query text. The query is fixed apart
+	/// from how many aliased objects it names.
+	[[nodiscard]] auto compile_gh_cli_exact_blobs_request(
+		const validated_gh_cli_configuration&, const validated_github_host_profile&,
+		const application::git_smart_exact_blobs_request&)
 		-> std::optional<github_cli_process_request>;
 
 	/// Local noncredential probe, using the same executable and child environment.

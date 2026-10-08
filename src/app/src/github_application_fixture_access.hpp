@@ -1069,6 +1069,18 @@ namespace bpr::app::detail {
 		bool          NavigationReady              = false;
 		bool          TabPresentationPending       = false;
 		bool          Quiescent                    = false;
+		/// [[BPR-1327]]. The part of the cache above held by comparisons
+		/// prepared ahead of the reviewer, the preparation still queued or
+		/// running in the diff host and in the window, and what preparation
+		/// has done so far.
+		std::size_t   PreparedEntries       = 0U;
+		std::uint64_t PreparedBytes         = 0U;
+		std::size_t   Preparing             = 0U;
+		std::size_t   PreparationsInFlight  = 0U;
+		std::size_t   PreparationRounds     = 0U;
+		std::size_t   PreparedResolutions   = 0U;
+		std::size_t   PreparedRemoteBlobs   = 0U;
+		std::size_t   PreparedRemoteBatches = 0U;
 	};
 
 	/// \brief Observes public-composition scaling without invoking any effect.

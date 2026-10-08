@@ -1,5 +1,6 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/workbench_application_host.hpp"
+#include "bpr/core/comparison_preparation.hpp"
 
 #include <algorithm>
 #include <array>
@@ -116,7 +117,9 @@ namespace {
 					.PresentationPath = path,
 					.CurrentPath      = std::filesystem::path{ path },
 					.Change           = application::workbench_file_change_kind::modified,
-					.ContentKind      = application::workbench_file_content_kind::text,
+					.ContentKind      = std::ranges::find(Binary, file) != Binary.end()
+						? application::workbench_file_content_kind::binary
+						: application::workbench_file_content_kind::text,
 				});
 			}
 			auto observation = application::workbench_file_observation{
@@ -145,7 +148,9 @@ namespace {
 			return observation;
 		}
 
-		std::vector<core::workbench_file_id>                    Files;
+		std::vector<core::workbench_file_id> Files;
+		/// [[BPR-1327]]. Files observed as binary.
+		std::vector<core::workbench_file_id>                    Binary;
 		application::workbench_observation_status               Status            = application::workbench_observation_status::available;
 		bool                                                    Throw             = false;
 		bool                                                    MismatchAuthority = false;
@@ -769,6 +774,46 @@ namespace {
 		expect(harnessed.Host.last_reason()
 				   == core::workbench_reason_code::at_last_file,
 			   "the host reports the core rejection without re-deciding it");
+	}
+
+	/// [[BPR-1327]]. The files around the cursor, in preparation order.
+	void test_preparation_window_follows_the_cursor()
+	{
+		auto value = selected_harness{ };
+		for (std::uint8_t seed = 1U; seed <= 40U; ++seed) {
+			value.Observations.Files.push_back(file(seed));
+		}
+		value.Observations.Binary = { file(3U) };
+		value.Host.observe(authority());
+		value.settle();
+		auto window = value.Host.preparation_window();
+		expect(window.size() == core::prepared_comparison_window - 1U && window.front().File.File == file(1U)
+				   && window[1].File.File == file(2U) && window[2].File.File == file(4U),
+			   "with no selection the window starts at the first file and leaves binary files out");
+		expect(std::ranges::all_of(window,
+								   [&value](const application::workbench_selected_diff_request& aRequest) {
+									   return aRequest.WorkbenchAuthority == authority()
+										   && aRequest.Diff == *value.SelectedDiffs.Context;
+								   }),
+			   "every request names the comparison the port serves now");
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(20U) });
+		value.settle();
+		window        = value.Host.preparation_window();
+		auto expected = std::vector<core::workbench_file_id>{ file(20U) };
+		for (std::uint8_t seed = 21U; seed <= 32U; ++seed) {
+			expected.push_back(file(seed));
+		}
+		expected.push_back(file(19U));
+		expected.push_back(file(18U));
+		expected.push_back(file(17U));
+		expect(window.size() == expected.size()
+				   && std::ranges::equal(window, expected, { }, [](const application::workbench_selected_diff_request& aRequest) {
+						  return aRequest.File.File;
+					  }),
+			   "a forty-file review is prepared as a sixteen-file window around the cursor, forward first");
+		expect(value.Host.preparation_window(4U).size() == 4U, "a caller may narrow the window");
+		value.SelectedDiffs.Context.reset();
+		expect(value.Host.preparation_window().empty(), "without an available comparison nothing is prepared");
 	}
 
 	void test_selected_diff_lifecycle_is_exactly_once_and_typed()
@@ -2282,6 +2327,7 @@ auto main() -> int
 	test_first_observation_publishes_bounded_cursor_facts();
 	test_change_navigation_observation_is_exact_and_bounded();
 	test_navigation_resolves_through_the_host_order();
+	test_preparation_window_follows_the_cursor();
 	test_selected_diff_lifecycle_is_exactly_once_and_typed();
 	test_selected_diff_replays_after_context_arrives_and_changes();
 	test_file_navigation_keeps_the_accepted_comparison();

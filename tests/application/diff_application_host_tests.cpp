@@ -316,6 +316,212 @@ namespace {
 		std::unique_ptr<application::diff_application_host> Host;
 	};
 
+	// [[BPR-1327]] ---------------------------------------------------------
+
+	[[nodiscard]] auto prepared(const std::uint8_t aFileSeed) -> application::prepared_diff_request
+	{
+		return { .Key = comparison_key({ }, aFileSeed), .Options = { } };
+	}
+
+	/// Runs the one pending effect and every decision it leads to.
+	void settle(fixture& aTest)
+	{
+		while (aTest.Effects.pending() != 0U || aTest.Decisions.pending() != 0U) {
+			if (aTest.Decisions.pending() != 0U) {
+				aTest.Decisions.run_next();
+			} else {
+				aTest.Effects.run_next();
+			}
+		}
+	}
+
+	auto test_a_prepared_comparison_opens_without_reading_or_computing() -> void
+	{
+		// Control: without preparation, opening a file schedules work on the
+		// effect lane and reads both blobs before anything can be shown.
+		{
+			fixture control;
+			control.request(comparison_key({ }, 31U));
+			expect(control.Effects.pending() == 1U && control.Projections.Results.empty(),
+				   "control: an unprepared open waits for the effect lane");
+			control.Effects.run_next();
+			expect(control.Blobs.Requests.size() == 2U, "control: an unprepared open reads both blobs");
+			control.Decisions.run_next();
+		}
+		fixture test;
+		test.Host->prepare({ prepared(31U), prepared(32U) });
+		expect(test.Host->preparing() == 2U && test.Effects.pending() == 1U && test.Decisions.pending() == 0U,
+			   "preparation computes one comparison at a time on the effect lane");
+		expect(test.Host->state().Pending == std::nullopt && !test.Host->state().Current,
+			   "preparation is not a request: the core's selection is untouched");
+		settle(test);
+		expect(test.Host->prepared_entries() == 2U && test.Host->cache_entries() == 2U
+				   && test.Host->prepared_bytes() == test.Host->cache_bytes() && test.Host->preparing() == 0U,
+			   "both prepared comparisons are stored in the cache");
+		expect(test.Projections.Results.empty() && test.Projections.Failures.empty(),
+			   "preparation publishes nothing");
+		expect(test.Blobs.Requests.size() == 4U
+				   && test.Blobs.Requests.front().MaximumBytes
+					   == application::prepared_byte_capacity(application::diff_host_limits{ }) / 4U,
+			   "preparation reads no side larger than a quarter of its byte share");
+		const auto reads = test.Blobs.Requests.size();
+		test.request(comparison_key({ }, 31U));
+		expect(test.Effects.pending() == 0U && test.Decisions.pending() == 1U,
+			   "opening a prepared file needs no effect, only one decision turn");
+		test.Decisions.run_next();
+		expect(test.Projections.Results.size() == 1U && test.Projections.Results.back().CacheHit
+				   && test.Blobs.Requests.size() == reads,
+			   "opening a prepared file publishes from the cache without reading a blob");
+		expect(test.Host->prepared_entries() == 1U && test.Host->cache_entries() == 2U,
+			   "the opened comparison becomes the reviewer's and leaves the prepared share");
+	}
+
+	auto test_preparation_yields_to_the_reviewer() -> void
+	{
+		fixture test;
+		test.Host->prepare({ prepared(31U), prepared(32U) });
+		expect(test.Effects.pending() == 1U, "the first preparation is posted");
+		test.request(comparison_key({ }, 40U));
+		expect(test.Effects.pending() == 2U, "the reviewer's request is posted at once");
+		test.Effects.run_next();
+		expect(test.Blobs.Requests.empty() && test.Decisions.pending() == 1U,
+			   "the overtaken preparation stops before reading a blob");
+		test.Decisions.run_next();
+		expect(test.Host->prepared_entries() == 0U && test.Effects.pending() == 1U,
+			   "nothing is stored from it, and no preparation starts while the reviewer's work is outstanding");
+		test.Effects.run_next();
+		test.Decisions.run_next();
+		expect(test.Projections.Results.size() == 1U && !test.Projections.Results.back().CacheHit,
+			   "the reviewer's comparison is published");
+		expect(test.Effects.pending() == 1U && test.Host->preparing() == 1U,
+			   "preparation resumes with what remains once the reviewer's work is done");
+		settle(test);
+		expect(test.Host->prepared_entries() == 1U, "the remaining comparison is prepared");
+	}
+
+	auto test_opening_the_file_being_prepared_waits_for_it() -> void
+	{
+		fixture test;
+		test.Host->prepare({ prepared(31U) });
+		test.request(comparison_key({ }, 31U));
+		expect(test.Effects.pending() == 1U && test.Host->outstanding_jobs() == 1U,
+			   "the reviewer's request adopts the preparation instead of computing it again");
+		settle(test);
+		expect(test.Projections.Results.size() == 1U && test.Projections.Results.back().CacheHit
+				   && test.Blobs.Requests.size() == 2U,
+			   "the adopted comparison is published once, from one computation");
+		expect(test.Host->state().Current && test.Host->prepared_entries() == 0U && test.Host->cache_entries() == 1U,
+			   "it is the reviewer's comparison now");
+		// Superseding the adopted request releases it with a cancellation.
+		fixture superseded;
+		superseded.Host->prepare({ prepared(31U) });
+		superseded.request(comparison_key({ }, 31U));
+		superseded.request(comparison_key({ }, 33U));
+		settle(superseded);
+		expect(superseded.Projections.Results.size() == 1U
+				   && superseded.Projections.Results.back().Context.Key == comparison_key({ }, 33U),
+			   "a superseded adoption publishes nothing; the newer request is published");
+	}
+
+	auto test_preparation_stays_inside_its_share_and_never_evicts_the_reviewer() -> void
+	{
+		{
+			auto threw = false;
+			try {
+				fixture invalid{ application::diff_host_limits{ .PreparedEntries = application::maximum_diff_cache_entries + 1U } };
+			} catch (const std::invalid_argument&) {
+				threw = true;
+			}
+			expect(threw, "an oversized prepared share is refused");
+		}
+		// Eight entries: a quarter, two, may be prepared.
+		const auto limits = application::diff_host_limits{ .OutstandingJobs = 4U, .CacheEntries = 8U, .CacheBytes = 64U * 1024U * 1024U };
+		expect(application::prepared_entry_capacity(limits) == 2U, "the prepared share of eight entries is two");
+		fixture test{ limits };
+		auto    window = std::vector<application::prepared_diff_request>{ };
+		for (std::uint8_t seed = 31U; seed < 36U; ++seed) {
+			window.push_back(prepared(seed));
+		}
+		test.Host->prepare(window);
+		expect(test.Host->preparing() == 2U, "the queue is bounded by the prepared share");
+		settle(test);
+		expect(test.Host->prepared_entries() == 2U, "two are prepared");
+		// The reviewer fills the cache: prepared entries go first.
+		for (std::uint8_t seed = 60U; seed < 68U; ++seed) {
+			test.request(comparison_key({ }, seed));
+			settle(test);
+		}
+		expect(test.Host->cache_entries() == 8U && test.Host->prepared_entries() == 0U,
+			   "the reviewer's comparisons displaced the prepared ones");
+		const auto first = comparison_key({ }, 60U);
+		test.Host->prepare({ prepared(36U) });
+		settle(test);
+		expect(test.Host->prepared_entries() == 0U && test.Blobs.Requests.size() == 2U * 2U + 8U * 2U,
+			   "with the cache full of the reviewer's comparisons, nothing is computed for preparation");
+		test.request(first);
+		expect(test.Effects.pending() == 0U, "the reviewer's oldest comparison is still cached");
+		settle(test);
+
+		// A prepared comparison larger than its byte share is not kept.
+		fixture tight{ application::diff_host_limits{ .PreparedBytes = 1U } };
+		tight.Host->prepare({ prepared(31U) });
+		settle(tight);
+		expect(tight.Host->prepared_entries() == 0U && tight.Host->cache_entries() == 0U,
+			   "a comparison over the byte share is discarded");
+		fixture disabled{ application::diff_host_limits{ .PreparedEntries = 0U } };
+		disabled.Host->prepare({ prepared(31U) });
+		expect(disabled.Host->preparing() == 0U && disabled.Effects.pending() == 0U, "a zero share disables preparation");
+	}
+
+	auto test_preparation_is_cancelled_with_its_authority() -> void
+	{
+		fixture test;
+		test.Host->prepare({ prepared(31U), prepared(32U) });
+		test.Host->invalidate(comparison_key({ }, 31U).Authority);
+		expect(test.Host->preparing() == 1U, "invalidation empties the queue; only the running one remains");
+		settle(test);
+		expect(test.Host->prepared_entries() == 0U && test.Host->cache_entries() == 0U,
+			   "the running preparation finishes unstored");
+
+		fixture replaced;
+		replaced.Host->prepare({ prepared(31U), prepared(32U) });
+		replaced.Host->prepare({ });
+		settle(replaced);
+		expect(replaced.Host->prepared_entries() == 0U, "an empty window stops preparation");
+
+		fixture epoch;
+		epoch.Host->prepare({ prepared(31U) });
+		settle(epoch);
+		expect(epoch.Host->prepared_entries() == 1U, "prepared before the epoch is invalidated");
+		const auto head = comparison_key({ }, 31U).RightAnchor;
+		epoch.Host->invalidate(core::review_epoch_id{ .Authority = head.Authority, .Incarnation = head.Incarnation, .Ordinal = head.Epoch });
+		expect(epoch.Host->prepared_entries() == 0U, "an invalidated epoch removes its prepared comparisons");
+
+		fixture closing;
+		closing.Host->prepare({ prepared(31U), prepared(32U) });
+		closing.Host->shutdown();
+		expect(closing.Host->preparing() == 1U && !closing.Host->is_quiescent(),
+			   "shutdown stops the queue and waits for the running preparation");
+		settle(closing);
+		expect(closing.Host->is_quiescent() && closing.Host->cache_entries() == 0U,
+			   "shutdown is quiescent once the running preparation returns, and nothing is kept");
+	}
+
+	auto test_a_large_window_is_bounded() -> void
+	{
+		fixture test;
+		auto    window = std::vector<application::prepared_diff_request>{ };
+		for (std::size_t index = 0U; index < 200U; ++index) {
+			window.push_back(prepared(static_cast<std::uint8_t>(index)));
+		}
+		test.Host->prepare(window);
+		const auto share = application::prepared_entry_capacity(application::diff_host_limits{ });
+		expect(share == 16U && test.Host->preparing() == share, "a 200-file window queues only the prepared share");
+		settle(test);
+		expect(test.Host->prepared_entries() == share && test.Blobs.Requests.size() == 2U * share,
+			   "exactly the share is computed, two reads each");
+	}
+
 	auto test_worker_and_cache_lanes() -> void
 	{
 		fixture    test;
@@ -1321,5 +1527,11 @@ int main()
 	realignment_freezes_the_bound_revisions_own_identities();
 	realignment_refuses_when_the_bound_revisions_objects_are_gone();
 	realignment_refuses_past_its_bound_rather_than_blocking();
+	test_a_prepared_comparison_opens_without_reading_or_computing();
+	test_preparation_yields_to_the_reviewer();
+	test_opening_the_file_being_prepared_waits_for_it();
+	test_preparation_stays_inside_its_share_and_never_evicts_the_reviewer();
+	test_preparation_is_cancelled_with_its_authority();
+	test_a_large_window_is_bounded();
 	return EXIT_SUCCESS;
 }

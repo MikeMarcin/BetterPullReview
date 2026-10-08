@@ -1130,6 +1130,61 @@ namespace bpr::adapters::github::detail {
 #endif
 	}
 
+	auto compile_gh_cli_exact_blobs_request(
+		const validated_gh_cli_configuration& aConfiguration, const validated_github_host_profile& aProfile,
+		const application::git_smart_exact_blobs_request& aRequest) -> std::optional<github_cli_process_request>
+	{
+#if !defined(__APPLE__)
+		static_cast<void>(aConfiguration);
+		static_cast<void>(aProfile);
+		static_cast<void>(aRequest);
+		return std::nullopt;
+#else
+		const auto& context = aRequest.Context;
+		if (!application::valid(context) || !application::valid(aRequest)
+			|| std::ranges::any_of(aRequest.ExpectedBlobs, [](const core::git_blob_oid& aBlob) {
+				   return aBlob.algorithm() != core::git_hash_algorithm::sha1;
+			   })
+			|| aProfile.authentication_transport() != application::github_authentication_transport::github_cli || context.Authority.Profile != aProfile.profile() || context.Authority.Host != aProfile.host() || context.Authority.ProfileRevision.value() != aProfile.revision().value()) {
+			return std::nullopt;
+		}
+		// Fixed text: only the number of aliased objects varies.
+		auto query     = std::string{ "query($owner:String!,$name:String!" };
+		auto selection = std::string{ };
+		auto variables = glz::generic::object_t{
+			{ "owner", context.Repository.Owner },
+			{ "name", context.Repository.Name },
+		};
+		for (std::size_t index = 0U; index < aRequest.ExpectedBlobs.size(); ++index) {
+			const auto name = "o" + std::to_string(index);
+			query += ",$" + name + ":GitObjectID!";
+			selection += " b" + std::to_string(index) + ":object(oid:$" + name
+				+ "){... on Blob{oid byteSize isBinary isTruncated text}}";
+			variables.emplace(name, std::string{ core::canonical_hex(aRequest.ExpectedBlobs[index]).view() });
+		}
+		query += "){repository(owner:$owner,name:$name){" + selection + "}}";
+		auto body = glz::write_json(glz::generic{ glz::generic::object_t{
+			{ "query", std::move(query) },
+			{ "variables", std::move(variables) },
+		} });
+		if (!body || body->size() > maximum_standard_input_bytes) {
+			return std::nullopt;
+		}
+		return constrain_gh_writes(github_cli_process_request{
+			.Executable          = path_bytes(aConfiguration.Executable),
+			.Arguments           = { "api", "graphql", "--hostname", std::string{ aProfile.hostname() }, "--method", "POST", "--input", "-" },
+			.Environment         = aConfiguration.Environment,
+			.WorkingDirectory    = path_bytes(aConfiguration.NeutralWorkingDirectory),
+			.StandardInput       = std::move(*body),
+			.StandardInputLimit  = maximum_standard_input_bytes,
+			.StandardOutputLimit = github_cli_process_max_standard_output_bytes,
+			.StandardErrorLimit  = maximum_standard_error_bytes,
+			.Timeout             = process_timeout,
+			.ReapTimeout         = process_reap_timeout,
+		});
+#endif
+	}
+
 	auto compile_gh_cli_git_clone_request(
 		const validated_gh_cli_configuration&         aConfiguration,
 		const validated_github_host_profile&          aProfile,

@@ -7,6 +7,7 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
+#include <QTextStream>
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -249,6 +250,30 @@ namespace {
 				std::this_thread::sleep_for(std::chrono::seconds{ 10 });
 			}
 			std::ifstream response{ root / "blob-response" };
+			if (!response) {
+				return 1;
+			}
+			std::cout << response.rdbuf();
+			return 0;
+		}
+		// [[BPR-1327]]. The batched blob read: GraphQL on standard input.
+		if (aArguments.size() > 2 && aArguments[1] == "api" && aArguments[2] == "graphql" && aArguments.contains("--input")
+			&& !aArguments.contains("--include")) {
+			// The child may not write; it checks its own request instead. Each
+			// line of graphql-expect must appear in the body, and the query
+			// text must carry no object ID.
+			const auto    request = QTextStream{ stdin }.readAll().toStdString();
+			std::ifstream expected{ root / "graphql-expect" };
+			for (std::string line; std::getline(expected, line);) {
+				if (!line.empty() && request.find(line) == std::string::npos) {
+					return 7;
+				}
+			}
+			const auto query = request.substr(0U, request.find("\"variables\""));
+			if (query.find("oid:\\\"") != std::string::npos || query.find(std::string(40U, 'b')) != std::string::npos) {
+				return 8;
+			}
+			std::ifstream response{ root / "graphql-response" };
 			if (!response) {
 				return 1;
 			}
@@ -580,6 +605,42 @@ namespace {
 			expect(!cancelledBlob && cancelledBlob.error().Failure == application::git_smart_transport_failure::cancelled, "blob child cancelled and reaped");
 		}
 		std::filesystem::remove(root / "wait-blob");
+		{
+			// [[BPR-1327]]. A batch is one GraphQL read; each answer is checked
+			// against its own object ID and a bad one does not spoil the rest.
+			const auto                                       other = *core::parse_git_blob_oid(std::string(40U, 'b'));
+			const application::git_smart_exact_blobs_request batch{ context, { *core::parse_git_blob_oid(blob.toStdString()), other }, 1024U };
+			write(root / "graphql-response",
+				  "{\"data\":{\"repository\":{\"b0\":{\"oid\":\"" + blob.toStdString()
+					  + "\",\"byteSize\":24,\"isBinary\":false,\"isTruncated\":false,\"text\":\"complete local contents\\n\"},"
+					  + "\"b1\":{\"oid\":\"" + std::string(40U, 'b') + "\",\"byteSize\":5,\"isBinary\":false,\"isTruncated\":false,\"text\":\"forge\"}}}}");
+			write(root / "graphql-expect",
+				  "\"o0\":\"" + blob.toStdString() + "\"\n\"o1\":\"" + std::string(40U, 'b')
+					  + "\"\noid:$o0\noid:$o1\n\"owner\":\n\"name\":\n");
+			const auto read = (*transport)->read_exact_blobs(batch, { });
+			expect(read && read->size() == 2U && (*read)[0] && (*read)[0]->size() == 24U && !(*read)[1],
+				   "a batch returns the verified blob and leaves the one whose bytes do not hash to its ID absent; "
+				   "its object IDs travel as variables, never in the query text");
+			write(root / "graphql-expect", "\"o2\":\n");
+			expect(!(*transport)->read_exact_blobs(batch, { }), "control: the child refuses a body without what it expects");
+			std::filesystem::remove(root / "graphql-expect");
+			for (const auto& bad : std::vector<std::string>{ "not json", "{}", "{\"data\":{\"repository\":null}}" }) {
+				write(root / "graphql-response", bad);
+				expect(!(*transport)->read_exact_blobs(batch, { }), "a malformed batch response is refused whole");
+			}
+			write(root / "graphql-response",
+				  "{\"data\":{\"repository\":{\"b0\":{\"oid\":\"" + blob.toStdString()
+					  + "\",\"byteSize\":24,\"isBinary\":false,\"isTruncated\":true,\"text\":\"complete local contents\\n\"},\"b1\":null}}}");
+			const auto truncated = (*transport)->read_exact_blobs(batch, { });
+			expect(truncated && !(*truncated)[0] && !(*truncated)[1], "truncated and missing objects are absent");
+			auto oversized = batch;
+			oversized.ExpectedBlobs.assign(application::maximum_git_exact_blob_batch + 1U, other);
+			expect(!(*transport)->read_exact_blobs(oversized, { }), "a batch over the bound is refused");
+			auto wrongContext                       = batch;
+			wrongContext.Context.ApplicationSession = core::application_session_id{ 999 };
+			expect(!(*transport)->read_exact_blobs(wrongContext, { }), "a batch for another context is refused");
+			std::filesystem::remove(root / "graphql-response");
+		}
 		recording_pack_sink sink{ core::git_hash_algorithm::sha1 };
 		auto                result = application::acquire_git_protocol_v2_pack(**transport, context, { }, sink, limits, { });
 		if (!result) {

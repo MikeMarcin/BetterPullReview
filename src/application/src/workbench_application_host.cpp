@@ -696,6 +696,38 @@ namespace bpr::application {
 			return position ? &Files[*position] : nullptr;
 		}
 
+		[[nodiscard]] auto preparation_window(const std::size_t aWindow) const
+			-> std::vector<workbench_selected_diff_request>
+		{
+			if (Closing || SelectedDiffs == nullptr || !Authority.has_value() || Files.empty()) {
+				return { };
+			}
+			auto context = std::optional<workbench_selected_diff_context>{ };
+			try {
+				context = SelectedDiffs->context(*Authority);
+			} catch (...) {
+				return { };
+			}
+			if (!context.has_value()) {
+				return { };
+			}
+			const auto cursor = Selected.has_value() ? file_position(*Selected) : std::nullopt;
+			auto       result = std::vector<workbench_selected_diff_request>{ };
+			for (const auto position : core::prepared_comparison_order(Files.size(), cursor, aWindow)) {
+				const auto& file = Files[position];
+				if (file.ContentKind == workbench_file_content_kind::binary) {
+					continue;
+				}
+				result.push_back(workbench_selected_diff_request{
+					.Context            = local_context(),
+					.WorkbenchAuthority = *Authority,
+					.Diff               = *context,
+					.File               = file,
+				});
+			}
+			return result;
+		}
+
 		void submit_selected_diff()
 		{
 			clear_change_navigation();
@@ -1643,21 +1675,17 @@ namespace bpr::application {
 				});
 				return;
 			}
-			const auto& diff        = aObservation.Request.Diff;
-			auto        publication = workbench_selected_diff_publication{
-				.Request = aObservation.Request,
-				.Key     = core::file_comparison_key{
-					.Authority   = diff.Authority,
-					.Repository  = diff.Authority.Repository,
-					.PullRequest = diff.Authority.PullRequest,
-					.LeftAnchor  = diff.Comparison.Left.Identity,
-					.RightAnchor = diff.Comparison.Right.Identity,
-					.LeftBlob    = aObservation.LeftBlob,
-					.RightBlob   = aObservation.RightBlob,
-					.File        = aObservation.Request.File.File,
-					.Options     = diff.OptionsDigest,
-					.Algorithm   = diff.Algorithm,
-				},
+			const auto key = selected_diff_key(aObservation);
+			if (!key.has_value()) {
+				aObservation.Status = workbench_selected_diff_status::failure;
+				deliver_projection([this, &aObservation] {
+					SelectedDiffProjections->fail(aObservation);
+				});
+				return;
+			}
+			auto publication = workbench_selected_diff_publication{
+				.Request       = aObservation.Request,
+				.Key           = *key,
 				.LeftPath      = std::move(aObservation.LeftPath),
 				.RightPath     = std::move(aObservation.RightPath),
 				.LeftEndpoint  = std::move(aObservation.LeftEndpoint),
@@ -2234,6 +2262,35 @@ namespace bpr::application {
 		-> const std::optional<core::workbench_file_id>&
 	{
 		return Implementation->Selected;
+	}
+
+	auto workbench_application_host::preparation_window(const std::size_t aWindow) const
+		-> std::vector<workbench_selected_diff_request>
+	{
+		return Implementation->preparation_window(aWindow);
+	}
+
+	auto selected_diff_key(const workbench_selected_diff_observation& aObservation)
+		-> std::optional<core::file_comparison_key>
+	{
+		if (aObservation.Status != workbench_selected_diff_status::available
+			|| (!aObservation.LeftBlob && !aObservation.RightBlob)) {
+			return std::nullopt;
+		}
+		const auto& diff = aObservation.Request.Diff;
+		auto        key  = core::file_comparison_key{
+			.Authority   = diff.Authority,
+			.Repository  = diff.Authority.Repository,
+			.PullRequest = diff.Authority.PullRequest,
+			.LeftAnchor  = diff.Comparison.Left.Identity,
+			.RightAnchor = diff.Comparison.Right.Identity,
+			.LeftBlob    = aObservation.LeftBlob,
+			.RightBlob   = aObservation.RightBlob,
+			.File        = aObservation.Request.File.File,
+			.Options     = diff.OptionsDigest,
+			.Algorithm   = diff.Algorithm,
+		};
+		return core::valid(key) ? std::optional{ std::move(key) } : std::nullopt;
 	}
 
 	auto workbench_application_host::generation() const noexcept

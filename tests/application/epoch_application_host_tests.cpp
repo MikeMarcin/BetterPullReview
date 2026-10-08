@@ -1,9 +1,12 @@
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/testing.hpp"
+#include "bpr/core/comparison_preparation.hpp"
+#include "bpr/core/sha1.hpp"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -331,6 +334,13 @@ namespace {
 		bool                                                    SupportsSparse             = false;
 		std::vector<application::git_smart_exact_blob_request>  ExactBlobRequests;
 		std::optional<application::git_smart_transport_failure> ExactBlobFailure;
+		/// [[BPR-1327]]. Batched reads, what a batch answers, and the
+		/// simulated round trips of the single and batched reads.
+		std::vector<application::git_smart_exact_blobs_request> ExactBlobBatches;
+		std::vector<std::pair<core::git_blob_oid, std::string>> BatchContents;
+		bool                                                    BatchUnsupported = false;
+		std::chrono::milliseconds                               ExactBlobLatency{ 0 };
+		std::chrono::milliseconds                               BatchLatency{ 0 };
 		std::vector<application::git_cache_tree_entry_request>  TreeEntryRequests;
 		std::deque<std::optional<core::git_blob_oid>>           TreeEntryResults;
 		std::vector<application::git_cache_rename_pair_request> RenamePairRequests;
@@ -1961,6 +1971,7 @@ namespace {
 		{
 			State.Calls.emplace_back("transport.read-exact-blob");
 			State.ExactBlobRequests.push_back(aRequest);
+			std::this_thread::sleep_for(State.ExactBlobLatency);
 			if (aStop.stop_requested() || aRequest.Context != Context) {
 				return std::unexpected{ application::git_smart_transport_error{
 					.Failure = application::git_smart_transport_failure::cancelled,
@@ -1972,6 +1983,32 @@ namespace {
 				} };
 			}
 			return bytes("exact selected blob");
+		}
+
+		[[nodiscard]] auto read_exact_blobs(
+			const application::git_smart_exact_blobs_request& aRequest,
+			const std::stop_token                             aStop)
+			-> application::git_smart_transport_result<application::git_smart_exact_blobs> override
+		{
+			State.Calls.emplace_back("transport.read-exact-blobs");
+			State.ExactBlobBatches.push_back(aRequest);
+			std::this_thread::sleep_for(State.BatchLatency);
+			if (aStop.stop_requested() || aRequest.Context != Context) {
+				return std::unexpected{ application::git_smart_transport_error{
+					.Failure = application::git_smart_transport_failure::cancelled,
+				} };
+			}
+			if (State.BatchUnsupported) {
+				return std::unexpected{ application::git_smart_transport_error{
+					.Failure = application::git_smart_transport_failure::unavailable,
+				} };
+			}
+			auto result = application::git_smart_exact_blobs{ };
+			for (const auto& blob : aRequest.ExpectedBlobs) {
+				const auto found = std::ranges::find(State.BatchContents, blob, &std::pair<core::git_blob_oid, std::string>::first);
+				result.push_back(found == State.BatchContents.end() ? std::nullopt : std::optional{ bytes(found->second) });
+			}
+			return result;
 		}
 
 		[[nodiscard]] auto discover(
@@ -5417,16 +5454,22 @@ namespace {
 				   && large.State.ExactBlobRequests.size() == 1U,
 			   "a substituted same-file object cannot borrow the selected grant");
 		auto sameSelection = selected_diff_request_for(large, core::request_id{ 802U });
+		// [[BPR-1327]]. The verified bytes are retained for the authority, so
+		// the second read of the same blob (the classifier's, a revisit) does
+		// not cross the network again.
 		expect(resolve_selected_diff(large, sameSelection, { }).Status
 					   == application::workbench_selected_diff_status::available
 				   && read(large, request).Status == application::diff_blob_status::available
-				   && large.State.ExactBlobRequests.size() == 2U,
-			   "same-file re-resolution preserves the exact grant across request IDs");
+				   && large.State.ExactBlobRequests.size() == 1U,
+			   "same-file re-resolution preserves the exact grant across request IDs, and a read blob is not read twice");
 
+		auto rightRequest            = request;
+		rightRequest.Side            = core::diff_side::right;
+		rightRequest.Blob            = *selected.RightBlob;
 		large.State.ExactBlobFailure = application::git_smart_transport_failure::unavailable;
-		const auto unavailable       = read(large, request);
+		const auto unavailable       = read(large, rightRequest);
 		expect(unavailable.Status == application::diff_blob_status::failure
-				   && unavailable.Bytes.empty() && large.State.ExactBlobRequests.size() == 3U,
+				   && unavailable.Bytes.empty() && large.State.ExactBlobRequests.size() == 2U,
 			   "unproven remote object remains explicitly unavailable");
 		auto changedSelection                  = selected_diff_request_for(large, core::request_id{ 803U });
 		changedSelection.File.File             = core::file_identity_of("other.cpp");
@@ -5435,11 +5478,11 @@ namespace {
 		expect(resolve_selected_diff(large, changedSelection, { }).Status
 					   == application::workbench_selected_diff_status::available
 				   && read(large, request).Status == application::diff_blob_status::failure
-				   && large.State.ExactBlobRequests.size() == 3U,
-			   "a different selected file revokes the former remote-object grant");
+				   && large.State.ExactBlobRequests.size() == 2U,
+			   "a different selected file revokes the former remote-object grant, retained bytes included");
 		large.Host->invalidate(matching_invalidation());
 		expect(large.Host->materialize(request, { }).Status == application::diff_blob_status::failure
-				   && large.State.ExactBlobRequests.size() == 3U,
+				   && large.State.ExactBlobRequests.size() == 2U,
 			   "revoked selection cannot issue another exact object read");
 
 		fixture small;
@@ -5449,6 +5492,263 @@ namespace {
 		expect(missing.Status == application::diff_blob_status::missing
 				   && small.State.ExactBlobRequests.empty(),
 			   "small complete reviews never turn a missing blob into a lazy remote read");
+	}
+
+	// [[BPR-1327]] ---------------------------------------------------------
+
+	[[nodiscard]] auto sha1_blob(const std::string_view aText) -> core::git_blob_oid
+	{
+		auto       hash   = core::sha1_stream{ };
+		const auto header = "blob " + std::to_string(aText.size());
+		hash.update(std::span{ reinterpret_cast<const std::uint8_t*>(header.data()), header.size() });
+		const auto terminator = std::array<std::uint8_t, 1U>{ 0U };
+		hash.update(terminator);
+		hash.update(std::span{ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() });
+		const auto digest = hash.finish();
+		auto       bytes  = std::array<std::uint8_t, 32U>{ };
+		std::ranges::copy(digest, bytes.begin());
+		return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto file_request(fixture& aValue, const std::string& aPath, const core::request_id aRequest = core::request_id{ 901U })
+		-> application::workbench_selected_diff_request
+	{
+		auto request                  = selected_diff_request_for(aValue, aRequest);
+		request.File.File             = core::file_identity_of(aPath);
+		request.File.CurrentPath      = aPath;
+		request.File.PresentationPath = aPath;
+		return request;
+	}
+
+	[[nodiscard]] auto prepare_window(fixture& aValue, const std::vector<application::workbench_selected_diff_request>& aRequests,
+									  const std::stop_token aStop = { }) -> application::epoch_prepared_comparisons
+	{
+		auto done   = std::atomic_bool{ false };
+		auto result = application::epoch_prepared_comparisons{ };
+		{
+			auto worker = std::jthread{ [&] {
+				result = aValue.Host->prepare(aRequests, aStop);
+				done.store(true);
+			} };
+			while (!done.load()) {
+				if (aValue.Effects.pending() != 0U) {
+					aValue.Effects.run_next();
+				} else {
+					std::this_thread::yield();
+				}
+			}
+		}
+		return result;
+	}
+
+	/// Resolves an open whether or not it needs the actor: a prepared file
+	/// is answered without one.
+	[[nodiscard]] auto open_file(fixture& aValue, const application::workbench_selected_diff_request& aRequest)
+		-> application::workbench_selected_diff_observation
+	{
+		auto done   = std::atomic_bool{ false };
+		auto result = application::workbench_selected_diff_observation{ };
+		{
+			auto worker = std::jthread{ [&] {
+				result = aValue.Host->resolve(aRequest, { });
+				done.store(true);
+			} };
+			while (!done.load()) {
+				if (aValue.Effects.pending() != 0U) {
+					aValue.Effects.run_next();
+				} else {
+					std::this_thread::yield();
+				}
+			}
+		}
+		return result;
+	}
+
+	[[nodiscard]] auto read_blob(fixture& aValue, const application::diff_blob_request& aRequest)
+		-> application::diff_blob_observation
+	{
+		auto result = std::optional<application::diff_blob_observation>{ };
+		auto worker = std::jthread{ [&] { result = aValue.Host->materialize(aRequest, { }); } };
+		aValue.Effects.wait_for_pending();
+		aValue.Effects.run_next();
+		worker.join();
+		expect(result.has_value(), "blob read returns one terminal");
+		return *result;
+	}
+
+	[[nodiscard]] auto prepared_blob_request(const core::epoch_state&                                aState,
+											 const application::workbench_selected_diff_observation& aObservation,
+											 const core::diff_side                                   aSide) -> application::diff_blob_request
+	{
+		const auto key = application::selected_diff_key(aObservation);
+		expect(key.has_value(), "an available resolution has a diff key");
+		return {
+			.Context = {
+				.Request            = core::request_id{ 1U },
+				.ApplicationSession = aState.ApplicationSession,
+				.Key                = *key,
+				.Generation         = core::request_generation{ 1U },
+			},
+			.Side         = aSide,
+			.Blob         = aSide == core::diff_side::left ? *aObservation.LeftBlob : *aObservation.RightBlob,
+			.MaximumBytes = 1'024U,
+		};
+	}
+
+	/// A sparse review of three modified files whose blobs are real SHA-1
+	/// object IDs of known text, so a batch's answers can be verified.
+	void establish_sparse_three_files(fixture& aValue)
+	{
+		aValue.State.SupportsSparse = true;
+		aValue.State.SparseObjects  = true;
+		establish_ready_comparison(aValue, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		aValue.State.CachedBlobMissing = true;
+		for (const auto* name : { "a", "b", "c" }) {
+			for (const auto* side : { "left ", "right " }) {
+				const auto text = std::string{ side } + name + "\n";
+				aValue.State.TreeEntryResults.push_back(sha1_blob(text));
+				aValue.State.BatchContents.emplace_back(sha1_blob(text), text);
+			}
+		}
+	}
+
+	void prepared_files_read_their_missing_blobs_in_one_batch()
+	{
+		fixture value;
+		establish_sparse_three_files(value);
+		const auto window   = std::vector{ file_request(value, "a.cpp"), file_request(value, "b.cpp"), file_request(value, "c.cpp") };
+		const auto prepared = prepare_window(value, window);
+		expect(prepared.Observations.size() == 3U && prepared.RemoteBatches == 1U && prepared.RemoteBlobs == 6U,
+			   "three prepared files resolve and their six missing blobs arrive in one batch");
+		expect(value.State.ExactBlobBatches.size() == 1U && value.State.ExactBlobBatches.front().ExpectedBlobs.size() == 6U
+				   && value.State.ExactBlobBatches.front().MaximumBytes == application::maximum_git_exact_blob_batch_bytes
+				   && value.State.ExactBlobRequests.empty(),
+			   "one batched read and no single read");
+		const auto lookups = value.State.TreeEntryRequests.size();
+		expect(lookups == 6U, "each prepared file looked up its two endpoints once");
+
+		// Opening a prepared file: resolution from its prepared grant, blobs
+		// from the retained verified bytes; no Git, no network.
+		const auto opened = open_file(value, file_request(value, "b.cpp", core::request_id{ 902U }));
+		expect(opened.Status == application::workbench_selected_diff_status::available
+				   && opened.LeftBlob == prepared.Observations[1].LeftBlob && opened.RightBlob == prepared.Observations[1].RightBlob
+				   && value.State.TreeEntryRequests.size() == lookups,
+			   "opening a prepared file reuses its resolution without a tree lookup");
+		const auto left = read_blob(value, prepared_blob_request(value.Host->state(), opened, core::diff_side::left));
+		expect(left.Status == application::diff_blob_status::available && left.Bytes == std::vector<std::uint8_t>{ 'l', 'e', 'f', 't', ' ', 'b', '\n' }
+				   && value.State.ExactBlobRequests.empty(),
+			   "the opened file's blob comes from the retained batch, not the network");
+		const auto other = read_blob(value, prepared_blob_request(value.Host->state(), prepared.Observations[2], core::diff_side::right));
+		expect(other.Status == application::diff_blob_status::available && value.State.ExactBlobRequests.empty(),
+			   "a prepared file not yet opened may be materialized for preparation");
+
+		auto bounded         = prepared_blob_request(value.Host->state(), prepared.Observations[2], core::diff_side::left);
+		bounded.MaximumBytes = 2U;
+		expect(read_blob(value, bounded).Status == application::diff_blob_status::materialization_limit
+				   && value.State.ExactBlobRequests.empty(),
+			   "retained bytes over the request's limit are refused, not read again");
+
+		// A blob no grant names is still refused, prepared or not.
+		auto foreign             = prepared_blob_request(value.Host->state(), prepared.Observations[0], core::diff_side::left);
+		foreign.Context.Key.File = core::file_identity_of("unprepared.cpp");
+		expect(read_blob(value, foreign).Status == application::diff_blob_status::failure && value.State.ExactBlobRequests.empty(),
+			   "an unprepared file cannot borrow a prepared grant");
+
+		// Invalidation drops the grants and the retained bytes.
+		value.Host->invalidate(matching_invalidation());
+		const auto revoked = value.Host->materialize(prepared_blob_request(value.Host->state(), prepared.Observations[2], core::diff_side::left), { });
+		expect(revoked.Status == application::diff_blob_status::failure && value.State.ExactBlobRequests.empty(),
+			   "after invalidation nothing prepared can be read");
+	}
+
+	void a_batch_answer_that_is_not_its_blob_is_not_retained()
+	{
+		fixture value;
+		establish_sparse_three_files(value);
+		value.State.BatchContents[0].second = "forged\n";
+		const auto window                   = std::vector{ file_request(value, "a.cpp") };
+		const auto prepared                 = prepare_window(value, window);
+		expect(prepared.Observations.size() == 1U && prepared.RemoteBlobs == 1U,
+			   "only the answer that hashes to its object ID is retained");
+		const auto left = read_blob(value, prepared_blob_request(value.Host->state(), prepared.Observations[0], core::diff_side::left));
+		expect(left.Status == application::diff_blob_status::available && value.State.ExactBlobRequests.size() == 1U,
+			   "the unverified blob is read on its own, exactly, when it is needed");
+	}
+
+	void preparation_without_a_batching_transport_reads_nothing_ahead()
+	{
+		fixture value;
+		establish_sparse_three_files(value);
+		value.State.BatchUnsupported = true;
+		const auto prepared          = prepare_window(value, { file_request(value, "a.cpp"), file_request(value, "b.cpp") });
+		expect(prepared.Observations.size() == 2U && prepared.RemoteBlobs == 0U && value.State.ExactBlobRequests.empty(),
+			   "a refused batch falls back to nothing: no per-blob reads are spent ahead of the reviewer");
+	}
+
+	void preparation_is_bounded_cancellable_and_complete_reviews_stay_local()
+	{
+		fixture value;
+		establish_sparse_three_files(value);
+		auto stopped = std::stop_source{ };
+		stopped.request_stop();
+		const auto cancelled = prepare_window(value, { file_request(value, "a.cpp") }, stopped.get_token());
+		expect(cancelled.Observations.empty() && value.State.ExactBlobBatches.empty(), "a stopped preparation reads nothing");
+		auto oversized = std::vector<application::workbench_selected_diff_request>{ };
+		for (std::size_t index = 0U; index <= core::maximum_prepared_comparison_window; ++index) {
+			oversized.push_back(file_request(value, "f" + std::to_string(index) + ".cpp"));
+		}
+		const auto refused = prepare_window(value, oversized);
+		expect(refused.Observations.empty() && value.State.TreeEntryRequests.empty(), "a window over the bound is refused before any lookup");
+
+		fixture complete;
+		establish_ready_comparison(complete);
+		const auto local = prepare_window(complete, { file_request(complete, "a.cpp"), file_request(complete, "b.cpp") });
+		expect(local.Observations.size() == 2U && local.RemoteBatches == 0U && complete.State.ExactBlobBatches.empty(),
+			   "a complete review prepares its resolutions and reads nothing remotely");
+	}
+
+	/// The live-shaped timing: the shipped per-blob read costs the measured
+	/// round trip of five gh calls; a batch costs one round trip plus the
+	/// account observations. The registered row uses short stand-ins; a
+	/// measurement passes the measured live figures as arguments. [[BPR-1327]]
+	void live_shaped_open_latency(const std::chrono::milliseconds aSingle, const std::chrono::milliseconds aBatch)
+	{
+		const auto single = aSingle;
+		const auto batch  = aBatch;
+		const auto open   = [](fixture& aValue, const std::string& aPath, const core::request_id aRequest) {
+			const auto started  = std::chrono::steady_clock::now();
+			const auto resolved = open_file(aValue, file_request(aValue, aPath, aRequest));
+			expect(resolved.Status == application::workbench_selected_diff_status::available, "file opens");
+			expect(read_blob(aValue, prepared_blob_request(aValue.Host->state(), resolved, core::diff_side::left)).Status
+						   == application::diff_blob_status::available
+					   && read_blob(aValue, prepared_blob_request(aValue.Host->state(), resolved, core::diff_side::right)).Status
+						   == application::diff_blob_status::available,
+				   "both sides read");
+			return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+		};
+		fixture before;
+		establish_sparse_three_files(before);
+		before.State.ExactBlobLatency = single;
+		const auto beforeFirst        = open(before, "a.cpp", core::request_id{ 910U });
+		const auto beforeLater        = open(before, "b.cpp", core::request_id{ 911U });
+		expect(before.State.ExactBlobRequests.size() == 4U && beforeFirst >= 2.0 * static_cast<double>(single.count()),
+			   "control: without preparation every open pays two network reads");
+
+		fixture after;
+		establish_sparse_three_files(after);
+		after.State.ExactBlobLatency = single;
+		after.State.BatchLatency     = batch;
+		const auto preparedAt        = std::chrono::steady_clock::now();
+		const auto prepared          = prepare_window(after, { file_request(after, "a.cpp"), file_request(after, "b.cpp"), file_request(after, "c.cpp") });
+		const auto preparation       = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - preparedAt).count();
+		const auto afterFirst        = open(after, "a.cpp", core::request_id{ 912U });
+		const auto afterLater        = open(after, "b.cpp", core::request_id{ 913U });
+		expect(prepared.RemoteBlobs == 6U && after.State.ExactBlobRequests.empty()
+				   && afterFirst < static_cast<double>(single.count()) && afterLater < static_cast<double>(single.count()),
+			   "prepared opens perform no network read");
+		std::cout << "BPR-1327 live-shaped open ms: single_blob=" << single.count() << " batch=" << batch.count()
+				  << " before_first=" << beforeFirst << " before_later=" << beforeLater << " preparation=" << preparation
+				  << " after_first=" << afterFirst << " after_later=" << afterLater << '\n';
 	}
 
 	void sparse_capability_applies_independently_of_pull_request_size()
@@ -8047,8 +8347,34 @@ namespace {
 	}
 } // namespace
 
-int main()
+namespace {
+	// [[BPR-1327]]. `--live-single-blob-ms=N --live-batch-ms=N` replace the
+	// stand-in round trips with measured ones.
+	std::chrono::milliseconds LiveSingleBlob{ 20 };
+	std::chrono::milliseconds LiveBatch{ 25 };
+
+	void parse_live_latencies(const int aCount, char** aArguments)
+	{
+		for (int index = 1; index < aCount; ++index) {
+			const auto argument = std::string_view{ aArguments[index] };
+			const auto value    = [&argument](const std::string_view aPrefix) -> std::optional<std::chrono::milliseconds> {
+				if (!argument.starts_with(aPrefix)) {
+					return std::nullopt;
+				}
+				return std::chrono::milliseconds{ std::stoi(std::string{ argument.substr(aPrefix.size()) }) };
+			};
+			if (const auto single = value("--live-single-blob-ms=")) {
+				LiveSingleBlob = *single;
+			} else if (const auto batch = value("--live-batch-ms=")) {
+				LiveBatch = *batch;
+			}
+		}
+	}
+} // namespace
+
+int main(int argc, char** argv)
 {
+	parse_live_latencies(argc, argv);
 	historical_source_does_not_accept_live_authority();
 	local_clock_skew_cannot_associate_old_provider_event_with_new_transition();
 	intervening_provider_update_excludes_old_event_despite_observation_interval();
@@ -8122,6 +8448,11 @@ int main()
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
 	selected_blob_reads_only_the_exact_missing_object();
+	prepared_files_read_their_missing_blobs_in_one_batch();
+	a_batch_answer_that_is_not_its_blob_is_not_retained();
+	preparation_without_a_batching_transport_reads_nothing_ahead();
+	preparation_is_bounded_cancellable_and_complete_reviews_stay_local();
+	live_shaped_open_latency(LiveSingleBlob, LiveBatch);
 	sparse_capability_applies_independently_of_pull_request_size();
 	selected_large_occurrence_imports_only_its_sparse_head();
 	selected_large_occurrence_switch_drops_late_import();

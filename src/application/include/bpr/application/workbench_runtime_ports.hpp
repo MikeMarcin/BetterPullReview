@@ -370,6 +370,15 @@ namespace bpr::application {
 		auto operator<=>(const workbench_selected_diff_observation&) const = default;
 	};
 
+	/// \brief The diff key an available resolution opens.
+	///
+	/// \details [[BPR-1327]]. The one place the key is built, so a comparison
+	/// prepared ahead of the reviewer carries exactly the key the reviewer's
+	/// own open of the file will ask the diff cache for. Absent when the
+	/// resolution is not available or the key would be invalid.
+	[[nodiscard]] auto selected_diff_key(const workbench_selected_diff_observation& aObservation)
+		-> std::optional<core::file_comparison_key>;
+
 	/// \brief Asks which of a review's files differ between two exact commits.
 	///
 	/// \details [[BPR-0654]]. The overview's "changed since my last review"

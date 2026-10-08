@@ -330,6 +330,101 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
+			/// [[BPR-1327]]. One GraphQL read for a batch of blobs, between one
+			/// pair of account observations. Every answer is verified against its
+			/// object ID; anything else in the batch is answered absent rather
+			/// than failing the rest.
+			auto read_exact_blobs(const git_smart_exact_blobs_request& aRequest, std::stop_token aStop)
+				-> git_smart_transport_result<git_smart_exact_blobs> override
+			{
+				std::lock_guard lock{ Mutex };
+				if (const auto error = admission(aRequest.Context, aStop)) {
+					return std::unexpected{ git_smart_transport_error{ *error } };
+				}
+				const auto invocation = compile_gh_cli_exact_blobs_request(Configuration, Profile, aRequest);
+				if (!invocation) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
+				std::stop_source   stop;
+				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
+				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
+				try {
+					auto process = make_github_cli_process_runner();
+					if (!process) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					gh_cli_transport identity{ Profile, Configuration, *process };
+					const auto       before = viewer(identity, stop.get_token());
+					if (!before) {
+						return std::unexpected{ before.error() };
+					}
+					const auto response = process->run(*invocation, stop.get_token());
+					if (!response) {
+						return std::unexpected{ git_smart_transport_error{ process_error(response.error()) } };
+					}
+					if (response->ExitCode != 0) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					const auto after = viewer(identity, stop.get_token());
+					if (!after) {
+						return std::unexpected{ after.error() };
+					}
+					if (before->Account != after->Account || before->Login != after->Login) {
+						revoke();
+						return std::unexpected{ git_smart_transport_error{ failure::authentication } };
+					}
+					if (const auto error = admission(aRequest.Context, stop.get_token())) {
+						return std::unexpected{ git_smart_transport_error{ *error } };
+					}
+					if (!identity.configuration_unchanged()) {
+						revoke();
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					return verified_blobs(aRequest, response->StandardOutput);
+				} catch (...) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+			}
+
+			[[nodiscard]] static auto verified_blobs(const git_smart_exact_blobs_request& aRequest, const std::string& aOutput)
+				-> git_smart_transport_result<git_smart_exact_blobs>
+			{
+				QJsonParseError error;
+				const auto      document = QJsonDocument::fromJson(QByteArray::fromStdString(aOutput), &error);
+				if (error.error != QJsonParseError::NoError || !document.isObject()) {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				const auto repository = document.object().value("data").toObject().value("repository");
+				if (!repository.isObject()) {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				auto result = git_smart_exact_blobs(aRequest.ExpectedBlobs.size());
+				for (std::size_t index = 0U; index < aRequest.ExpectedBlobs.size(); ++index) {
+					const auto object   = repository.toObject().value(QString::fromStdString("b" + std::to_string(index))).toObject();
+					const auto expected = std::string{ core::canonical_hex(aRequest.ExpectedBlobs[index]).view() };
+					const auto size     = object.value("byteSize");
+					if (object.value("oid").toString().toStdString() != expected || object.value("isBinary").toBool(true)
+						|| object.value("isTruncated").toBool(true) || !object.value("text").isString() || !size.isDouble()
+						|| size.toDouble() < 0 || size.toDouble() > static_cast<double>(aRequest.MaximumBytes)) {
+						continue;
+					}
+					const auto text = object.value("text").toString().toUtf8();
+					if (static_cast<double>(text.size()) != size.toDouble()) {
+						continue;
+					}
+					QCryptographicHash hash{ QCryptographicHash::Sha1 };
+					auto               header = QByteArray{ "blob " } + QByteArray::number(static_cast<qulonglong>(text.size()));
+					header.append('\0');
+					hash.addData(header);
+					hash.addData(text);
+					if (hash.result().toHex().toStdString() != expected) {
+						continue;
+					}
+					result[index] = bytes(std::string_view{ text.constData(), static_cast<std::size_t>(text.size()) });
+				}
+				return result;
+			}
+
 			auto fetch(const git_smart_fetch_request& aRequest, git_smart_wire_consumer& aConsumer, std::stop_token aStop)
 				-> git_smart_transport_result<void> override
 			{

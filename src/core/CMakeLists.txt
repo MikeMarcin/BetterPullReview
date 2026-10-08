@@ -13,6 +13,7 @@ add_library(
 		src/diff_interaction.cpp
         src/diff_model.cpp
         src/diff_semantics.cpp
+        src/comparison_preparation.cpp
         src/diff_transition.cpp
         src/document_tabs.cpp
         src/epoch_model.cpp

@@ -171,6 +171,10 @@ namespace bpr::e2e::large_review {
 		double      ElapsedMs = 0, ActionMs = 0, FinalIntervalMs = 0, MaxPulseIntervalMs = 0, P95PulseIntervalMs = 0;
 		std::size_t Pulses = 0, PulsesWithDiffWork = 0, PulsesWithWorkbenchWork = 0;
 		std::size_t PeakDiffJobs = 0, PeakWorkbenchRequests = 0, PeakEpochJobs = 0;
+		/// [[BPR-1327]]. When the phase's comparison was first on screen,
+		/// before classification and the rest of readiness; -1 when the phase
+		/// names none.
+		double VisibleMs = -1;
 	};
 	struct resource_sample
 	{
@@ -502,7 +506,8 @@ namespace bpr::e2e::large_review {
 	/// Uses a real event loop, with no polling sleep added to the measured gaps.
 	template <typename Action, typename Predicate>
 	[[nodiscard]] auto measure_wait(app::github_application& aApplication, QElapsedTimer& aBudget,
-									benchmark_report& aReport, const char* aName, Action aAction, Predicate aReady) -> bool
+									benchmark_report& aReport, const char* aName, Action aAction, Predicate aReady,
+									const std::function<bool()>& aVisible = { }) -> bool
 	{
 		phase_measurement phase;
 		phase.Name = aName;
@@ -532,8 +537,14 @@ namespace bpr::e2e::large_review {
 			phase.PeakEpochJobs         = std::max(phase.PeakEpochJobs, work.EpochOutstandingJobs);
 			phase.PeakWorkbenchRequests = std::max(phase.PeakWorkbenchRequests, work.WorkbenchOutstandingRequests);
 		});
-		bool ready = false;
+		bool       ready   = false;
+		const auto visible = [&] {
+			if (aVisible && phase.VisibleMs < 0 && aVisible()) {
+				phase.VisibleMs = static_cast<double>(elapsed.nsecsElapsed()) / 1'000'000.0;
+			}
+		};
 		QObject::connect(&readiness, &QTimer::timeout, &loop, [&] {
+			visible();
 			ready                       = aReady();
 			const auto epochStatus      = aReport.CacheByteCourse ? aApplication.status().EpochStatus : core::epoch_status::inactive;
 			const auto byteCourseFailed = aReport.CacheByteCourse
@@ -545,7 +556,8 @@ namespace bpr::e2e::large_review {
 		pulse.start();
 		aAction();
 		phase.ActionMs = static_cast<double>(elapsed.nsecsElapsed()) / 1'000'000.0;
-		ready          = aReady();
+		visible();
+		ready = aReady();
 		if (!ready && aBudget.elapsed() < courseClockMs) {
 			readiness.start();
 			loop.exec();
@@ -563,7 +575,11 @@ namespace bpr::e2e::large_review {
 			phase.P95PulseIntervalMs = intervals[(intervals.size() - 1U) * 95U / 100U];
 		}
 		aReport.Phases.push_back(std::move(phase));
-		std::cerr << "large-review phase: " << aName << " ms=" << aReport.Phases.back().ElapsedMs << std::endl;
+		std::cerr << "large-review phase: " << aName << " ms=" << aReport.Phases.back().ElapsedMs;
+		if (aReport.Phases.back().VisibleMs >= 0) {
+			std::cerr << " visible_ms=" << aReport.Phases.back().VisibleMs;
+		}
+		std::cerr << std::endl;
 		if (!ready) {
 			const auto evidence = access::evidence(aApplication);
 			const auto work     = access::diff_work_evidence(aApplication);
@@ -909,10 +925,16 @@ namespace bpr::e2e::large_review {
 		for (std::size_t index = 0U; index <= limits.CacheEntries; ++index) {
 			const auto file  = 100 + static_cast<int>(index);
 			const auto phase = "cache_entry_selection_" + std::to_string(index + 1U);
-			require(measure_wait(aApplication, aBudget, aReport, phase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return ready(file); }), "entry-pressure selection timed out");
+			require(measure_wait(
+						aApplication, aBudget, aReport, phase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return ready(file); },
+						[&] { return selected(surface, source_path(file)); }),
+					"entry-pressure selection timed out");
 			verify(file);
+			// [[BPR-1327]]. The reviewer's own entries; prepared ones give way.
 			const auto work = access::diff_work_evidence(aApplication);
-			require(work.CacheEntries == std::min(index + 1U, limits.CacheEntries) && work.CacheBytes < limits.CacheBytes,
+			require(work.PreparedEntries <= application::prepared_entry_capacity(limits) && work.CacheEntries <= limits.CacheEntries,
+					"prepared comparisons exceeded their share of the cache");
+			require(work.CacheEntries - work.PreparedEntries == std::min(index + 1U, limits.CacheEntries) && work.CacheBytes < limits.CacheBytes,
 					"entry pressure exceeded its capacity or encountered byte pressure instead");
 			aReport.EntryPeakCacheEntries = std::max(aReport.EntryPeakCacheEntries, work.CacheEntries);
 			aReport.EntryPeakCacheBytes   = std::max(aReport.EntryPeakCacheBytes, work.CacheBytes);
@@ -1085,7 +1107,16 @@ namespace bpr::e2e::large_review {
 			if (ordinal == 1) {
 				report_tab_comparison(aApplication, "cache-after-file");
 			}
-			const auto work = access::diff_work_evidence(aApplication);
+			// [[BPR-1327]]. The byte accounting is the reviewer's own: comparisons
+			// prepared ahead of the reviewer share the cache's budgets but give
+			// way to every comparison the reviewer opens, so they are counted
+			// apart and bounded separately below.
+			auto work = access::diff_work_evidence(aApplication);
+			require(work.PreparedEntries <= application::prepared_entry_capacity(limits)
+						&& work.PreparedBytes <= application::prepared_byte_capacity(limits),
+					"prepared comparisons exceeded their share of the cache");
+			work.CacheEntries -= work.PreparedEntries;
+			work.CacheBytes -= work.PreparedBytes;
 			if (ordinal == 1) {
 				require(work.CacheEntries == 1U && work.CacheBytes > 0U, "first large key was not cached");
 				aReport.ByteEntryBytes = work.CacheBytes;

@@ -3788,6 +3788,10 @@ namespace bpr::app {
 		worker_executor                  DeviceTransportEffects;
 		worker_executor                  EpochEffects;
 		worker_executor                  DiffEffects;
+		/// [[BPR-1327]]. Prepares the files a reviewer is about to open: tree
+		/// lookups queued on the repository actor and batched blob reads, off
+		/// the actor and off the diff lane.
+		worker_executor PrepareEffects;
 #if defined(BPR_AGENT_INTEGRATIONS)
 		worker_executor AgentEffects;
 		worker_executor McpEffects;
@@ -4212,7 +4216,7 @@ namespace bpr::app {
 				return;
 			}
 			if (!ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
-				|| !EpochEffects.idle() || !DiffEffects.idle()
+				|| !EpochEffects.idle() || !DiffEffects.idle() || !PrepareEffects.idle()
 				|| !WorkbenchEffects.idle() || !AppearanceEffects.idle() || !QueueEffects.idle()
 				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle()) {
 				return;
@@ -4273,6 +4277,7 @@ namespace bpr::app {
 			AnonymousProvider->shutdown();
 			ProfileCatalog->shutdown();
 			DiffEffects.close_and_drain();
+			PrepareEffects.close_and_drain();
 			EpochEffects.close_and_drain();
 #if defined(BPR_AGENT_INTEGRATIONS)
 			AgentEffects.close_and_drain();
@@ -6467,6 +6472,9 @@ namespace bpr::app {
 		void publish(const application::workbench_projection& aProjection) override
 		{
 			Window->publish(aProjection);
+			if (aProjection.Files || aProjection.FilesDelta || aProjection.Selection) {
+				schedule_preparation();
+			}
 			schedule_reading_restoration();
 			schedule_tab_presentation();
 			schedule_link_location();
@@ -12325,6 +12333,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Window != nullptr) {
 				Window->clear_dif_context();
 			}
+			cancel_preparation();
 			const auto retiresLedger = matches_review_ledger(aInvalidation);
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
 				authority.has_value() && WorkbenchHost != nullptr) {
@@ -14711,6 +14720,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& comparison->Pair.has_value()
 				&& comparison->AvailableForDiff) {
 				WorkbenchHost->refresh_selected_diff();
+				schedule_preparation();
 			}
 			retain_reading_position();
 			schedule_reading_restoration();
@@ -14934,6 +14944,108 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (context != nullptr && aPredicate(context->Key.Authority)) {
 				DiffHost->invalidate(context->Key.Authority);
 			}
+		}
+
+		/// \brief Prepares the files around the cursor once this turn is over.
+		///
+		/// \details [[BPR-1327]]. Coalesced: every trigger in one turn (the file
+		/// list, the cursor, an available comparison) leads to one look at the
+		/// window, and an unchanged window starts nothing.
+		void schedule_preparation()
+		{
+			if (Closing || PreparationScheduled || Window == nullptr) {
+				return;
+			}
+			PreparationScheduled = true;
+			QTimer::singleShot(0, Window.get(), [this] {
+				PreparationScheduled = false;
+				start_preparation();
+			});
+		}
+
+		void cancel_preparation()
+		{
+			PreparationStop.request_stop();
+			PreparationStop = std::stop_source{ };
+			++PreparationGeneration;
+			PreparedWindow.clear();
+		}
+
+		void start_preparation()
+		{
+			if (Closing || EpochHost == nullptr || WorkbenchHost == nullptr || DiffHost == nullptr) {
+				return;
+			}
+			auto window = WorkbenchHost->preparation_window();
+			// The selected file is already being opened by the reviewer's own
+			// request; preparing it too would only compete with that.
+			if (const auto& selected = WorkbenchHost->selected(); selected.has_value()) {
+				std::erase_if(window, [&selected](const application::workbench_selected_diff_request& aRequest) {
+					return aRequest.File.File == *selected;
+				});
+			}
+			const auto same = [](const application::workbench_selected_diff_request& aLeft,
+								 const application::workbench_selected_diff_request& aRight) {
+				return aLeft.WorkbenchAuthority == aRight.WorkbenchAuthority && aLeft.Diff == aRight.Diff
+					&& aLeft.File == aRight.File;
+			};
+			if (std::ranges::equal(window, PreparedWindow, same)) {
+				return;
+			}
+			cancel_preparation();
+			PreparedWindow = window;
+			if (window.empty()) {
+				DiffHost->prepare({ });
+				return;
+			}
+			const auto  generation = PreparationGeneration;
+			auto* const epoch      = EpochHost.get();
+			PreparationsInFlight.fetch_add(1U, std::memory_order_acq_rel);
+			try {
+				PrepareEffects.post([this, epoch, generation, requests = std::move(window), stop = PreparationStop.get_token()] {
+					auto found = application::epoch_prepared_comparisons{ };
+					try {
+						found = epoch->prepare(requests, stop);
+					} catch (...) {
+						found = { };
+					}
+					try {
+						DecisionLane.post([this, generation, prepared = std::move(found)]() mutable {
+							finish_preparation(generation, std::move(prepared));
+							// Last: once this reaches zero the closing window may be destroyed.
+							PreparationsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+						});
+					} catch (...) {
+						PreparationsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+					}
+				});
+			} catch (...) {
+				PreparationsInFlight.fetch_sub(1U, std::memory_order_acq_rel);
+			}
+		}
+
+		void finish_preparation(const std::uint64_t aGeneration, application::epoch_prepared_comparisons aPrepared)
+		{
+			if (Closing || aGeneration != PreparationGeneration || DiffHost == nullptr) {
+				return;
+			}
+			auto requests = std::vector<application::prepared_diff_request>{ };
+			requests.reserve(aPrepared.Observations.size());
+			for (const auto& observation : aPrepared.Observations) {
+				if (const auto key = application::selected_diff_key(observation); key.has_value()) {
+					requests.push_back(application::prepared_diff_request{
+						.Key     = *key,
+						.Options = observation.Request.Diff.Options,
+					});
+				}
+			}
+			DiffHost->prepare(std::move(requests));
+#if defined(BPR_BUILD_TESTING)
+			++PreparationRounds;
+			PreparedResolutions += aPrepared.Observations.size();
+			PreparedRemoteBlobs += aPrepared.RemoteBlobs;
+			PreparedRemoteBatches += aPrepared.RemoteBatches;
+#endif
 		}
 
 		/// \brief Requests one comparison and the classification of its blobs.
@@ -15549,6 +15661,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			OtherShutdownBegun = true;
 			TourSourceStop.request_stop();
+			PreparationStop.request_stop();
 			if (PrivateReview) {
 				PrivateReview->shutdown();
 			}
@@ -15643,6 +15756,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent() || ReadingAdvanceQueued
 				|| TourSourceReadsInFlight.load(std::memory_order_acquire) != 0U
+				|| PreparationsInFlight.load(std::memory_order_acquire) != 0U
 				|| (WindowRead && !WindowRead->is_quiescent())
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
@@ -16445,6 +16559,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::EpochClock)&                     EpochClock                     = Profile->EpochClock;
 		decltype(github_profile_runtime::EpochEffects)&                   EpochEffects                   = Profile->EpochEffects;
 		decltype(github_profile_runtime::DiffEffects)&                    DiffEffects                    = Profile->DiffEffects;
+		decltype(github_profile_runtime::PrepareEffects)&                 PrepareEffects                 = Profile->PrepareEffects;
 #if defined(BPR_AGENT_INTEGRATIONS)
 		decltype(github_profile_runtime::AgentEffects)& AgentEffects = Profile->AgentEffects;
 		decltype(github_profile_runtime::McpEffects)&   McpEffects   = Profile->McpEffects;
@@ -16518,16 +16633,29 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// turn started to answer it, spent by that turn's outcome and by no
 		/// other. Absent is the ordinary state, and it is what makes a
 		/// promoted finding a proposal nobody workshopped.
-		std::optional<pending_comment_workshop>                         PendingWorkshopOperation;
-		std::optional<core::agent_session>                              LatestAgentSession;
-		std::size_t                                                     FindingRefusalsPresented = 0U;
-		std::size_t                                                     SideChatIntents          = 0U;
-		std::size_t                                                     SideChatPresentations    = 0U;
-		std::size_t                                                     SideChatTurns            = 0U;
-		std::size_t                                                     SideChatRefusals         = 0U;
-		std::size_t                                                     FrozenSnapshotWrites     = 0U;
-		std::unique_ptr<composition_diff_projection>                    DiffProjections;
-		std::unique_ptr<application::diff_application_host>             DiffHost;
+		std::optional<pending_comment_workshop>             PendingWorkshopOperation;
+		std::optional<core::agent_session>                  LatestAgentSession;
+		std::size_t                                         FindingRefusalsPresented = 0U;
+		std::size_t                                         SideChatIntents          = 0U;
+		std::size_t                                         SideChatPresentations    = 0U;
+		std::size_t                                         SideChatTurns            = 0U;
+		std::size_t                                         SideChatRefusals         = 0U;
+		std::size_t                                         FrozenSnapshotWrites     = 0U;
+		std::unique_ptr<composition_diff_projection>        DiffProjections;
+		std::unique_ptr<application::diff_application_host> DiffHost;
+		/// [[BPR-1327]]. The window being prepared, its cancellation and the
+		/// preparations whose completion has not yet returned to the lane.
+		std::vector<application::workbench_selected_diff_request> PreparedWindow;
+		std::stop_source                                          PreparationStop;
+		std::uint64_t                                             PreparationGeneration = 0U;
+		bool                                                      PreparationScheduled  = false;
+		std::atomic_size_t                                        PreparationsInFlight{ 0U };
+#if defined(BPR_BUILD_TESTING)
+		std::size_t PreparationRounds     = 0U;
+		std::size_t PreparedResolutions   = 0U;
+		std::size_t PreparedRemoteBlobs   = 0U;
+		std::size_t PreparedRemoteBatches = 0U;
+#endif
 		std::unique_ptr<application::workbench_settings_port>           SessionWorkbenchSettings;
 		profile_window_layout_port*                                     DurableWindowLayout       = nullptr;
 		window_retirement                                               Retirement                = window_retirement::forced;
@@ -18285,6 +18413,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.NavigationReady              = implementation.WorkbenchHost->state().Navigation.has_value(),
 			.TabPresentationPending       = implementation.TabAdvanceQueued || implementation.TabLoad.has_value() || implementation.RefreshKeptTabView,
 			.Quiescent                    = host.is_quiescent(),
+			.PreparedEntries              = host.prepared_entries(),
+			.PreparedBytes                = host.prepared_bytes(),
+			.Preparing                    = host.preparing(),
+			.PreparationsInFlight         = implementation.PreparationsInFlight.load(std::memory_order_acquire),
+			.PreparationRounds            = implementation.PreparationRounds,
+			.PreparedResolutions          = implementation.PreparedResolutions,
+			.PreparedRemoteBlobs          = implementation.PreparedRemoteBlobs,
+			.PreparedRemoteBatches        = implementation.PreparedRemoteBatches,
 		};
 	}
 	auto detail::github_application_fixture_access::diff_work_evidence(
@@ -18308,6 +18444,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.NavigationReady              = implementation.WorkbenchHost->state().Navigation.has_value(),
 			.TabPresentationPending       = implementation.TabAdvanceQueued || implementation.TabLoad.has_value() || implementation.RefreshKeptTabView,
 			.Quiescent                    = host.is_quiescent(),
+			.PreparedEntries              = host.prepared_entries(),
+			.PreparedBytes                = host.prepared_bytes(),
+			.Preparing                    = host.preparing(),
+			.PreparationsInFlight         = implementation.PreparationsInFlight.load(std::memory_order_acquire),
+			.PreparationRounds            = implementation.PreparationRounds,
+			.PreparedResolutions          = implementation.PreparedResolutions,
+			.PreparedRemoteBlobs          = implementation.PreparedRemoteBlobs,
+			.PreparedRemoteBatches        = implementation.PreparedRemoteBatches,
 		};
 	}
 
