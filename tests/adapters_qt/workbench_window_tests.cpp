@@ -6427,6 +6427,26 @@ namespace {
 		expect(!window.add_comment_action()->isEnabled() && window.add_comment_action()->toolTip().contains(QStringLiteral("right, current-head")),
 			   "on the base side Add comment is unavailable with its reason");
 		delete baseMenu;
+		// [[BPR-1335]]. Line 22's thread opens from the code's context menu,
+		// with no marker pressed; line 4's menu offers no thread to open.
+		cards->close_thread();
+		process_events();
+		const auto menu_at = [&window, code](const std::uint32_t aLine) {
+			static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::right, aLine));
+			process_events();
+			const auto row = window.comparison_surface()->line_rect(core::diff_side::right, aLine);
+			return window.code_context_menu(code, code->viewport()->mapFrom(window.comparison_surface(), row.center()));
+		};
+		auto* const plainMenu = menu_at(3U);
+		expect(plainMenu->findChild<QAction*>(QStringLiteral("codeContextMenuOpenThread")) == nullptr, "a line without a thread offers none to open");
+		delete plainMenu;
+		auto* const threadMenu = menu_at(21U);
+		auto* const openThread = threadMenu->findChild<QAction*>(QStringLiteral("codeContextMenuOpenThread"));
+		expect(openThread != nullptr && openThread->isEnabled(), "line 22's menu offers its thread");
+		openThread->trigger();
+		process_events();
+		expect(cards->open_thread_id() == "review-thread:t22", "Open thread opens line 22's thread in the drawer");
+		delete threadMenu;
 		window.hide();
 	}
 

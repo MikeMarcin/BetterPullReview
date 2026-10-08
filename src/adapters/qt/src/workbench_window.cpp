@@ -7940,6 +7940,15 @@ namespace bpr::qt {
 			auto* const caption = menu->addAction(first == last ? tr("Line %1").arg(first + 1U) : tr("Lines %1–%2").arg(first + 1U).arg(last + 1U));
 			caption->setObjectName(QStringLiteral("codeContextMenuCaption"));
 			caption->setEnabled(false);
+			// [[BPR-1335]]. The line's thread, reachable without its marker.
+			const auto side = selection->PreferredLine.Side;
+			const auto line = selection->PreferredLine.Line;
+			if (thread_on_line(side, line).has_value()) {
+				auto* const open = menu->addAction(tr("Open thread"));
+				open->setObjectName(QStringLiteral("codeContextMenuOpenThread"));
+				open->setToolTip(tr("Open this line's thread in the drawer"));
+				connect(open, &QAction::triggered, this, [this, side, line] { go_to_thread_at(side, line); });
+			}
 		}
 		// Add comment and Suggest change start a new comment, never a reply.
 		const auto reply  = ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && ReviewEditor->shown_draft()->ReplyToThread.has_value();

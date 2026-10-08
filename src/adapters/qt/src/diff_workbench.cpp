@@ -473,11 +473,14 @@ namespace bpr::qt {
 			/// document, the font, the scale, the unified rows, the marker
 			/// column or the numbers' visibility change, and touches the layout
 			/// only when the width or the heading row actually changed.
-			void               refresh_gutter_width();
-			void               set_line_numbers_visible(bool aVisible);
-			void               set_gutter_colors(const QColor& aBackground, const QColor& aText);
-			void               paint_line_numbers(QPaintEvent* aEvent);
-			void               paint_markers(QPainter& aPainter);
+			void refresh_gutter_width();
+			void set_line_numbers_visible(bool aVisible);
+			void set_gutter_colors(const QColor& aBackground, const QColor& aText);
+			void paint_line_numbers(QPaintEvent* aEvent);
+			void paint_markers(QPainter& aPainter);
+			/// \brief [[BPR-1335]]. Prepares a line's number cell for a thread or
+			/// the "+"; true when the number gives way to a marker drawn later.
+			[[nodiscard]] auto paint_number_cell(QPainter& aPainter, std::uint32_t aLine, const QRectF& aCell) -> bool;
 			[[nodiscard]] auto painted_line_numbers() const noexcept -> std::uint64_t
 			{
 				return PaintedLineNumbers;
@@ -568,9 +571,69 @@ namespace bpr::qt {
 				update_gutter();
 			}
 
+			/// \brief [[BPR-1335]]. How the markers are drawn, when they are on.
+			void set_marker_style(const thread_marker_style aStyle)
+			{
+				if (MarkerStyle == aStyle) {
+					return;
+				}
+				MarkerStyle = aStyle;
+				refresh_gutter_width();
+				place_gutter();
+				viewport()->update();
+				update_gutter();
+			}
+
 			[[nodiscard]] auto marker_column_width() const -> int
 			{
-				return MarkerColumn && LineNumbersVisible ? MarkerColumnWidth : 0;
+				return markers_shown() && MarkerStyle == thread_marker_style::column ? MarkerColumnWidth : 0;
+			}
+
+			/// \brief Whether the gutter shows the threads at all.
+			[[nodiscard]] auto markers_shown() const noexcept -> bool
+			{
+				return MarkerColumn && LineNumbersVisible;
+			}
+
+			/// \brief [[BPR-1335]]. The thread on a line, if any, by bisection.
+			[[nodiscard]] auto mark_on(const std::uint32_t aLine) const -> const diff_line_mark*
+			{
+				const auto found = std::ranges::lower_bound(Marks, aLine, { }, &diff_line_mark::Line);
+				return found != Marks.end() && found->Line == aLine ? &*found : nullptr;
+			}
+
+			/// \brief [[BPR-1335]]. A line's number cell, in the gutter's coordinates.
+			[[nodiscard]] auto number_cell(const std::uint32_t aLine) const -> QRect
+			{
+				const auto row = line_row_rect(aLine);
+				if (row.isEmpty()) {
+					return { };
+				}
+				const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+				return QRect{ 0, row.top() + header, gutter_width() - marker_column_width(), row.height() };
+			}
+
+			/// \brief Where a line's marker or "+" box sits, in the gutter's
+			/// coordinates: centred in the column, or at the number's right end.
+			[[nodiscard]] auto marker_box(const std::uint32_t aLine) const -> QRect
+			{
+				if (!markers_shown()) {
+					return { };
+				}
+				const auto row = line_row_rect(aLine);
+				if (row.isEmpty()) {
+					return { };
+				}
+				const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+				if (MarkerStyle == thread_marker_style::column) {
+					const auto left = gutter_width() - MarkerColumnWidth + (MarkerColumnWidth - MarkerBox) / 2;
+					return QRect{ left, row.top() + header + (row.height() - MarkerBox) / 2, MarkerBox, MarkerBox };
+				}
+				// The box fits the row and the number column; at its right end,
+				// where the number's last digit is.
+				const auto numbers = gutter_width();
+				const auto side    = std::max(8, std::min({ MarkerBox, row.height(), numbers - GutterPadding }));
+				return QRect{ numbers - GutterPadding / 2 - side, row.top() + header + (row.height() - side) / 2, side, side };
 			}
 
 			void set_mark_theme(const feedback_mark_theme& aTheme)
@@ -594,7 +657,7 @@ namespace bpr::qt {
 
 			void set_add_hover(const std::optional<std::uint32_t> aLine)
 			{
-				const auto line = AddDispatch && marker_column_width() > 0 ? aLine : std::nullopt;
+				const auto line = AddDispatch && markers_shown() ? aLine : std::nullopt;
 				if (AddHover != line) {
 					AddHover = line;
 					update_gutter();
@@ -604,7 +667,9 @@ namespace bpr::qt {
 			/// \brief The line whose "+" a gutter point is over, if any.
 			[[nodiscard]] auto add_line_at(const QPoint aGutterPoint) const -> std::optional<std::uint32_t>
 			{
-				if (!AddDispatch || marker_column_width() == 0 || UnifiedRows != nullptr || aGutterPoint.x() < gutter_width() - MarkerColumnWidth
+				// [[BPR-1335]]. The column's "+" is in the column; without one, the
+				// whole number cell offers it.
+				if (!AddDispatch || !markers_shown() || UnifiedRows != nullptr || (marker_column_width() > 0 && aGutterPoint.x() < gutter_width() - marker_column_width())
 					|| mark_at(aGutterPoint) != nullptr) {
 					return std::nullopt;
 				}
@@ -624,7 +689,7 @@ namespace bpr::qt {
 				if (!AddHover.has_value()) {
 					return { };
 				}
-				return marker_rect(diff_line_mark{ .Line = *AddHover });
+				return marker_box(*AddHover);
 			}
 
 			void press_add(const std::uint32_t aLine)
@@ -634,26 +699,25 @@ namespace bpr::qt {
 				}
 			}
 
-			/// \brief Where a mark's marker sits, in the gutter's coordinates.
+			/// \brief What a pointer presses to reach a mark's thread, in the
+			/// gutter's coordinates: its marker, or with `number_tint` the
+			/// tinted number cell.
 			[[nodiscard]] auto marker_rect(const diff_line_mark& aMark) const -> QRect
 			{
-				if (marker_column_width() == 0) {
-					return { };
+				if (markers_shown() && MarkerStyle == thread_marker_style::number_tint) {
+					return number_cell(aMark.Line);
 				}
-				const auto row = line_row_rect(aMark.Line);
-				if (row.isEmpty()) {
-					return { };
-				}
-				const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
-				const auto left   = gutter_width() - MarkerColumnWidth + (MarkerColumnWidth - MarkerBox) / 2;
-				return QRect{ left, row.top() + header + (row.height() - MarkerBox) / 2, MarkerBox, MarkerBox };
+				return marker_box(aMark.Line);
 			}
 
 			/// \brief The mark whose marker is under a point of the gutter.
 			[[nodiscard]] auto mark_at(const QPoint aGutterPoint) const -> const diff_line_mark*
 			{
+				// A box reaches a little past its edge; a tinted cell is exact, so
+				// neighbouring lines' cells never overlap.
+				const auto reach = MarkerStyle == thread_marker_style::number_tint ? 0 : 2;
 				for (const auto& mark : Marks) {
-					if (marker_rect(mark).adjusted(-2, -2, 2, 2).contains(aGutterPoint)) {
+					if (marker_rect(mark).adjusted(-reach, -reach, reach, reach).contains(aGutterPoint)) {
 						return &mark;
 					}
 				}
@@ -797,7 +861,7 @@ namespace bpr::qt {
 						wash.setAlphaF(mark.Open ? (mark.Writing ? 0.14F : 0.18F) : 0.08F);
 						painter.fillRect(QRect{ 0, row.top(), viewport()->width(), row.height() }, wash);
 					}
-					if (marker_column_width() > 0) {
+					if (markers_shown()) {
 						continue;
 					}
 					painter.setBrush(mark.Kind == diff_line_mark_kind::new_thread
@@ -910,6 +974,7 @@ namespace bpr::qt {
 			std::optional<std::uint32_t>               ConversationAnchor;
 			std::vector<diff_line_mark>                Marks;
 			bool                                       MarkerColumn = false;
+			thread_marker_style                        MarkerStyle  = thread_marker_style::column;
 			std::function<void(std::uint32_t)>         AddDispatch;
 			std::optional<std::uint32_t>               AddHover;
 			feedback_mark_theme                        MarkTheme;
@@ -1245,6 +1310,12 @@ namespace bpr::qt {
 								painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(Gutter->width()), height }, wash);
 							}
 							const auto columnWidth = numbers / 2;
+							const auto row_index   = static_cast<std::uint32_t>(block.blockNumber());
+							if (paint_number_cell(painter, row_index, QRectF{ 0.0, top, static_cast<qreal>(numbers), height })) {
+								top += height;
+								block = block.next();
+								continue;
+							}
 							for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 								const auto number = side == core::diff_side::left ? row.Base : row.Head;
 								if (number) {
@@ -1254,7 +1325,7 @@ namespace bpr::qt {
 								}
 							}
 						}
-					} else {
+					} else if (!paint_number_cell(painter, static_cast<std::uint32_t>(block.blockNumber()), QRectF{ 0.0, top, static_cast<qreal>(numbers), height })) {
 						painter.drawText(0,
 										 qRound(top),
 										 right,
@@ -1270,14 +1341,50 @@ namespace bpr::qt {
 			paint_markers(painter);
 		}
 
+		auto source_pane::paint_number_cell(QPainter& aPainter, const std::uint32_t aLine, const QRectF& aCell) -> bool
+		{
+			if (!markers_shown() || MarkerStyle == thread_marker_style::column) {
+				return false;
+			}
+			// The "+" takes the number's place under the pointer.
+			if (AddHover == aLine) {
+				return true;
+			}
+			const auto* const mark = mark_on(aLine);
+			if (mark == nullptr) {
+				return false;
+			}
+			if (MarkerStyle == thread_marker_style::in_numbers) {
+				return true;
+			}
+			// number_tint: amber for a thread, blue for a new one, lighter
+			// when resolved; my draft is outlined, dashed. The number stays.
+			if (mark->Draft) {
+				aPainter.save();
+				aPainter.setRenderHint(QPainter::Antialiasing, true);
+				aPainter.setPen(QPen{ palette().color(QPalette::Active, QPalette::PlaceholderText), 1.2, Qt::DashLine });
+				aPainter.setBrush(Qt::NoBrush);
+				aPainter.drawRoundedRect(aCell.adjusted(1.5, 1.5, -1.5, -1.5), 3.0, 3.0);
+				aPainter.restore();
+				return false;
+			}
+			auto tint = mark->Kind == diff_line_mark_kind::new_thread ? NewThreadMarkColor : ThreadMarkColor;
+			tint.setAlphaF(mark->Resolved ? 0.12F : 0.30F);
+			aPainter.fillRect(aCell, tint);
+			return false;
+		}
+
 		void source_pane::paint_markers(QPainter& aPainter)
 		{
 			// [[BPR-1290]]. A thread's marker: its first post's label mark, a
 			// plain square, or a dashed one for my draft; a blue dot when it is
 			// new, faded when resolved, ringed amber while it is open.
-			if (marker_column_width() == 0) {
+			// [[BPR-1335]]. `in_numbers` draws the same marker, smaller, in
+			// the number's place; `number_tint` tinted the cell already.
+			if (!markers_shown()) {
 				return;
 			}
+			const auto glyphs = MarkerStyle != thread_marker_style::number_tint;
 			aPainter.save();
 			aPainter.setClipping(false);
 			aPainter.setRenderHint(QPainter::Antialiasing, true);
@@ -1313,6 +1420,9 @@ namespace bpr::qt {
 					wash.setAlphaF(0.18F);
 					aPainter.fillRect(QRect{ 0, row.top() + header, Gutter->width(), row.height() }, wash);
 					aPainter.fillRect(QRect{ 0, row.top() + header, 3, row.height() }, ThreadMarkColor);
+				}
+				if (!glyphs) {
+					continue;
 				}
 				aPainter.setOpacity(mark.Resolved && !mark.Open ? 0.5 : 1.0);
 				if (mark.Open && !mark.Writing) {
@@ -2181,6 +2291,22 @@ namespace bpr::qt {
 	auto diff_workbench::thread_markers() const noexcept -> bool
 	{
 		return ThreadMarkers;
+	}
+
+	void diff_workbench::set_thread_marker_style(const thread_marker_style aStyle)
+	{
+		if (MarkerStyle == aStyle) {
+			return;
+		}
+		MarkerStyle = aStyle;
+		for (auto* const source : { Left, Right, Unified }) {
+			pane(source)->set_marker_style(aStyle);
+		}
+	}
+
+	auto diff_workbench::thread_marker_style_in_use() const noexcept -> thread_marker_style
+	{
+		return MarkerStyle;
 	}
 
 	void diff_workbench::set_mark_theme(const feedback_mark_theme& aTheme)
@@ -3505,8 +3631,24 @@ namespace bpr::qt {
 					SelectionHeading = QStringLiteral("Change %1 of %2").arg(*index + 1U).arg(CurrentResult->Alignment.Groups.size());
 				}
 			}
+			if (const auto note = thread_note(); !note.isEmpty()) {
+				SelectionHeading += QStringLiteral(". ") + note;
+			}
 		}
 		update_line_details();
+	}
+
+	auto diff_workbench::thread_note() const -> QString
+	{
+		if (!Interaction.Selection.has_value()) {
+			return { };
+		}
+		const auto& preferred = Interaction.Selection->PreferredLine;
+		const auto* const mark = pane(preferred.Side == core::diff_side::left ? Left : Right)->mark_on(preferred.Line);
+		if (mark == nullptr || mark->Description.isEmpty()) {
+			return { };
+		}
+		return QStringLiteral("Thread: %1. The context menu opens it").arg(mark->Description);
 	}
 
 	void diff_workbench::queue_line_details()
@@ -3549,6 +3691,11 @@ namespace bpr::qt {
 		}
 		++Statistics.LineDetailsProjections;
 		Detail->present(core::line_details(*SemanticIndex, side, lines), *CurrentResult);
+		// [[BPR-1335]]. A thread on the current line is said with it, so a
+		// reader who never sees its tinted number still hears that it is there.
+		if (const auto note = thread_note(); !note.isEmpty()) {
+			Detail->setAccessibleDescription(Detail->accessibleDescription() + QStringLiteral("; ") + note);
+		}
 		Detail->setTabStopDistance(Left->tabStopDistance());
 	}
 

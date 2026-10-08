@@ -818,6 +818,166 @@ namespace {
 			   "the empty line after a final newline is numbered, and the gutter makes room for its number");
 	}
 
+	/// \brief [[BPR-1335]]. The thread markers' candidates: BPR-1290's column,
+	/// the marker in the number's place, and the tinted number.
+	///
+	/// \details The owner, 2026-10-08: "what I thought was pure waste I think
+	/// is reserved space for comment markers. I just think that space wastes
+	/// too much across both panes". Each style is measured, pressed and, with
+	/// `BPR_1335_RENDER_DIR` set, rendered in light and dark for the look.
+	void test_thread_marker_candidates()
+	{
+		auto left  = std::string{ };
+		auto right = std::string{ };
+		for (auto line = 1U; line <= 140U; ++line) {
+			const auto text = "\tconst auto value_" + std::to_string(line) + " = compute(" + std::to_string(line) + ");\n";
+			left += text;
+			right += line == 12U ? "\tconst auto value_12 = compute_twice(12);\n" : text;
+			if (line == 30U) {
+				right += "\tlog(value_30);\n";
+			}
+		}
+		const auto diff      = std::make_shared<const core::computed_file_diff>(computed(left, right, { }, 63U));
+		const auto directory = qEnvironmentVariable("BPR_1335_RENDER_DIR");
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+			auto workbench = qt::diff_workbench{ };
+			auto profile   = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(workbench);
+			workbench.adopt_appearance(profile);
+			profile.apply_code_font_to(workbench);
+			workbench.resize(1'260, 520);
+			workbench.show();
+			process_events();
+			const auto selected = context(*diff, 2U, 2U);
+			workbench.set_loading(selected);
+			workbench.publish(bpr::qt::test::prepare_publication({ .Context = selected, .Result = diff }));
+			settle_geometry(workbench);
+			workbench.scroll_controller()->home();
+			process_events();
+
+			const auto mark = [](const std::uint32_t aLine, const qt::diff_line_mark_kind aKind, const QString& aDescription) {
+				auto made        = qt::diff_line_mark{ };
+				made.Line        = aLine;
+				made.Kind        = aKind;
+				made.Description = aDescription;
+				made.SourceLine  = aLine;
+				return made;
+			};
+			auto rightMarks = std::vector<qt::diff_line_mark>{ };
+			rightMarks.push_back(mark(3U, qt::diff_line_mark_kind::thread, QStringLiteral("Line 4: 2 posts")));
+			rightMarks.push_back(mark(7U, qt::diff_line_mark_kind::new_thread, QStringLiteral("Line 8: 1 post, 1 new")));
+			rightMarks.push_back(mark(11U, qt::diff_line_mark_kind::thread, QStringLiteral("Line 12: 3 posts, open")));
+			rightMarks.back().Open = true;
+			rightMarks.push_back(mark(16U, qt::diff_line_mark_kind::thread, QStringLiteral("Line 17: resolved")));
+			rightMarks.back().Resolved = true;
+			rightMarks.push_back(mark(20U, qt::diff_line_mark_kind::thread, QStringLiteral("Line 21: your draft")));
+			rightMarks.back().Draft = true;
+			auto leftMarks          = std::vector<qt::diff_line_mark>{ };
+			leftMarks.push_back(mark(5U, qt::diff_line_mark_kind::thread, QStringLiteral("Line 6: 1 post")));
+			leftMarks.back().Side = core::diff_side::left;
+			workbench.set_line_marks(core::diff_side::right, rightMarks);
+			workbench.set_line_marks(core::diff_side::left, leftMarks);
+			auto pressed = std::vector<std::pair<core::diff_side, std::uint32_t>>{ };
+			auto added   = std::vector<std::uint32_t>{ };
+			workbench.set_line_mark_dispatch([&pressed](const core::diff_side aSide, const std::uint32_t aLine) { pressed.emplace_back(aSide, aLine); });
+			workbench.set_line_add_dispatch([&added](const std::uint32_t aLine) { added.push_back(aLine); });
+			workbench.set_thread_markers(true);
+			settle_geometry(workbench);
+
+			auto* const code    = workbench.right_pane();
+			auto* const base    = workbench.left_pane();
+			auto* const gutter  = gutter_of(code);
+			const auto  numbers = expected_gutter(*code, static_cast<std::uint32_t>(code->blockCount()));
+			const auto  y_of    = [&](const core::diff_side aSide, const std::uint32_t aLine) {
+				auto* const pane = aSide == core::diff_side::left ? base : code;
+				return static_cast<qreal>(gutter_of(pane)->mapFrom(&workbench, workbench.line_rect(aSide, aLine).center()).y());
+			};
+			for (const auto style : { qt::thread_marker_style::column, qt::thread_marker_style::in_numbers, qt::thread_marker_style::number_tint }) {
+				workbench.set_thread_marker_style(style);
+				settle_geometry(workbench);
+				workbench.scroll_controller()->home();
+				process_events();
+				const auto column = style == qt::thread_marker_style::column;
+				const auto name   = std::string{ column ? "column" : style == qt::thread_marker_style::in_numbers ? "in-numbers"
+																												  : "number-tint" };
+				std::cout << "bpr-1335 markers " << (mode == core::appearance_mode::dark ? "dark " : "light ") << name << " head=" << gutter->width()
+						  << " base=" << gutter_of(base)->width() << " numbers=" << numbers << '\n';
+				expect(gutter->width() == numbers + (column ? ExpectedMarkerColumn : 0)
+						   && gutter_of(base)->width() == expected_gutter(*base, static_cast<std::uint32_t>(base->blockCount())) + (column ? ExpectedMarkerColumn : 0),
+					   name + ": both gutters are their numbers, plus the marker column only when the style has one");
+
+				// A thread's marker, or its tinted number, opens it.
+				pressed.clear();
+				const auto  markerX = static_cast<qreal>(column ? gutter->width() - ExpectedMarkerColumn / 2 : gutter->width() - 6);
+				const auto  at      = QPointF{ markerX, y_of(core::diff_side::right, 7U) };
+				QMouseEvent markPress{ QEvent::MouseButtonPress, at, gutter->mapToGlobal(at), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(gutter, &markPress);
+				expect(pressed.size() == 1U && pressed.front() == std::pair{ core::diff_side::right, 7U }, name + ": pressing line 8's thread opens it");
+				if (style == qt::thread_marker_style::number_tint) {
+					pressed.clear();
+					const auto  left_end = QPointF{ 2.0, y_of(core::diff_side::right, 3U) };
+					QMouseEvent cellPress{ QEvent::MouseButtonPress, left_end, gutter->mapToGlobal(left_end), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+					QApplication::sendEvent(gutter, &cellPress);
+					expect(pressed.size() == 1U && pressed.front().second == 3U, name + ": anywhere on the tinted number opens its thread");
+				}
+				// The base side's thread is pressed in the base gutter.
+				pressed.clear();
+				auto* const baseGutter = gutter_of(base);
+				const auto  baseAt     = QPointF{ static_cast<qreal>(column ? baseGutter->width() - ExpectedMarkerColumn / 2 : baseGutter->width() - 6), y_of(core::diff_side::left, 5U) };
+				QMouseEvent basePress{ QEvent::MouseButtonPress, baseAt, baseGutter->mapToGlobal(baseAt), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(baseGutter, &basePress);
+				expect(pressed.size() == 1U && pressed.front() == std::pair{ core::diff_side::left, 5U }, name + ": the base side's thread opens from its gutter");
+
+				// The "+" on a head line without a thread, under the pointer.
+				added.clear();
+				const auto  plus = QPointF{ static_cast<qreal>(column ? gutter->width() - 8 : gutter->width() / 2), y_of(core::diff_side::right, 1U) };
+				QMouseEvent hover{ QEvent::MouseMove, plus, gutter->mapToGlobal(plus), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+				QApplication::sendEvent(gutter, &hover);
+				expect(!workbench.line_add_rect().isEmpty(), name + ": the pointer over line 2's gutter shows its \"+\"");
+				gutter->repaint();
+				if (!directory.isEmpty()) {
+					const auto crop = [](QWidget& aPane, const int aWidth) {
+						const auto image = aPane.grab().toImage();
+						const auto ratio = image.devicePixelRatio();
+						auto       part  = image.copy(0, 0, qRound(aWidth * ratio), qRound(std::min(aPane.height(), 400) * ratio));
+						part.setDevicePixelRatio(ratio);
+						return part;
+					};
+					const auto baseImage = crop(*base, gutter_of(base)->width() + 300);
+					const auto headImage = crop(*code, gutter->width() + 300);
+					const auto ratio     = headImage.devicePixelRatio();
+					auto       sheet     = QImage{ baseImage.width() + qRound(16 * ratio) + headImage.width(), std::max(baseImage.height(), headImage.height()), QImage::Format_ARGB32 };
+					sheet.setDevicePixelRatio(ratio);
+					sheet.fill(base->palette().color(QPalette::Window));
+					{
+						auto painter = QPainter{ &sheet };
+						painter.drawImage(QPointF{ 0.0, 0.0 }, baseImage);
+						painter.drawImage(QPointF{ baseImage.width() / ratio + 16.0, 0.0 }, headImage);
+					}
+					const auto path = QStringLiteral("%1/%2-%3.png").arg(directory, mode == core::appearance_mode::dark ? QStringLiteral("dark") : QStringLiteral("light"), QString::fromStdString(name));
+					expect(sheet.save(path, "PNG"), "the candidate render is written");
+				}
+				QMouseEvent press{ QEvent::MouseButtonPress, plus, gutter->mapToGlobal(plus), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(gutter, &press);
+				expect(added.size() == 1U && added.front() == 1U, name + ": pressing the \"+\" adds a comment on line 2");
+				QEvent leave{ QEvent::Leave };
+				QApplication::sendEvent(gutter, &leave);
+			}
+
+			// The selected line says it has a thread, whatever the style.
+			static_cast<void>(workbench.select_conversation_line(core::diff_side::right, 3U));
+			process_events();
+			auto* const detail = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffSelectedChangeDetail"));
+			expect(detail != nullptr && detail->accessibleDescription().contains(QStringLiteral("Thread: Line 4: 2 posts")),
+				   "a selected line with a thread says so in its accessible description");
+			static_cast<void>(workbench.select_conversation_line(core::diff_side::right, 1U));
+			process_events();
+			expect(!detail->accessibleDescription().contains(QStringLiteral("Thread:")), "a line without one does not");
+			workbench.hide();
+		}
+	}
+
 	void test_selected_composition()
 	{
 		auto announcements               = std::vector<accessible_announcement>{ };
@@ -4464,6 +4624,7 @@ auto main(int argc, char** argv) -> int
 	test_the_viewport_fill_survives_a_style_clearing_it();
 	test_the_gutter_sizes_to_its_longest_number();
 	test_hiding_the_numbers_returns_the_gutter_width_to_the_code();
+	test_thread_marker_candidates();
 	test_selected_composition();
 	test_nontext_publication_status();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();

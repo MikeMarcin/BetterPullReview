@@ -158,6 +158,19 @@ namespace bpr::qt {
 		new_thread,
 	};
 
+	/// \brief [[BPR-1335]]. Where a pane shows the threads on its lines.
+	///
+	/// \details Candidates for the owner's look. `column` is BPR-1290's
+	/// marker column right of the numbers, in both panes. The other two keep
+	/// no column: `in_numbers` draws the marker in the number's place, and
+	/// `number_tint` keeps the number and tints its cell. In both, the "+"
+	/// takes the number's place under the pointer.
+	enum class thread_marker_style : std::uint8_t {
+		column,
+		in_numbers,
+		number_tint,
+	};
+
 	struct diff_line_mark
 	{
 		std::uint32_t       Line = 0U;
@@ -327,6 +340,9 @@ namespace bpr::qt {
 		/// bar a tick per thread. Off, a mark is the 4 px bar at the code's edge.
 		void               set_thread_markers(bool aEnabled);
 		[[nodiscard]] auto thread_markers() const noexcept -> bool;
+		/// \brief [[BPR-1335]]. How the markers are drawn, when they are on.
+		void               set_thread_marker_style(thread_marker_style aStyle);
+		[[nodiscard]] auto thread_marker_style_in_use() const noexcept -> thread_marker_style;
 		void               set_mark_theme(const feedback_mark_theme& aTheme);
 		/// \brief The amber of a thread and the blue of a new one.
 		void set_mark_colours(const QColor& aThread, const QColor& aNew);
@@ -570,6 +586,8 @@ namespace bpr::qt {
 		void queue_line_details();
 		void update_selection_paint();
 		void announce_accessible_status(QString aText);
+		/// \brief [[BPR-1335]]. The sentence that names the current line's thread, or empty.
+		[[nodiscard]] auto thread_note() const -> QString;
 		void update_status(QString aText, bool aRoutine = false);
 		void emit_selection(bool aInteractive = false) noexcept;
 		void emit_reading_gesture() noexcept;
@@ -663,6 +681,7 @@ namespace bpr::qt {
 		bool                                OnePaneEnabled        = false;
 		/// [[BPR-1290]]. Thread markers in the gutter and ticks on the bar.
 		bool                                                ThreadMarkers = false;
+		thread_marker_style                                 MarkerStyle   = thread_marker_style::column;
 		std::function<void(core::diff_side, std::uint32_t)> LineMarkDispatch;
 		std::function<void(core::diff_side, std::uint32_t)> ThreadTickDispatch;
 		void                                                refresh_thread_ticks();
