@@ -329,3 +329,16 @@ Document unsupported platforms explicitly rather than weakening a gate.
 ## Adopted affected-installation qualification scope — 2026-10-07
 
 The owner selected qualification of their Git and restoration of exact file viewing, registered in [RFC-BPR-0065](RFC-BPR-0065-ghes-exact-file-comparison.md). This authorizes extending the exact Apple Git constraint only after direct acquisition, confinement, bounds and exact-object evidence for the precisely identified installation. The current admitted installation remains unchanged until that evidence; no arbitrary version range or new platform is qualified by adoption. Actor-login snapshot rejection has its own attributable reproducer and evidence-backed repair. Existing CLI/account/credential/confinement/cancellation contracts and historical accepted cards/plan exits remain intact. BPR-1319–1323 owns the new runtime/native/owner evidence; both private diagnostic logs remain outside commits.
+
+## Owner capability-based Git support amendment — 2026-10-07
+
+The later [RFC0065 owner amendment](RFC-BPR-0065-ghes-exact-file-comparison.md#owner-support-policy-amendment--later-2026-10-07)
+supersedes the exact Git-banner admission policy and the earlier
+installation-only extension above. Implement the required Git operations with
+bounded capability checks and a documented minimum only where necessary.
+The currently shipped gate remains historical/current behavior until the
+repair is integrated; this amendment itself is not native qualification.
+Existing CLI opt-in, process confinement, bounded stores, exact objects,
+credentials, account identity, cancellation and stale-result requirements
+remain. New installed-tool and real affected-PR evidence belongs to BPR-1320
+and BPR-1322; old accepted cards and immutable plans are unchanged.

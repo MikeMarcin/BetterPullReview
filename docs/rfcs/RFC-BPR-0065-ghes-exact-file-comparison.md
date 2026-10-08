@@ -214,6 +214,21 @@ arbitrary versions or waive native platform evidence or safety requirements.
 Actual Git/version facts remain missing implementation evidence. No material
 support choice remains unanswered, and no runtime acceptance is implied.
 
+### Owner support-policy amendment — later 2026-10-07
+
+The owner rejects admission based on equality to one exact Git executable
+version: “There's no reason to be so picky.” The current engineering mandate
+is supported required-operation and capability checks, with a documented
+minimum only where the operation requires it, rather than an exact vendor or
+banner allowlist. This supersedes the earlier exact-installation admission
+policy above. Direct installed-tool acquisition and confinement evidence,
+size/time limits, credential isolation and exact object identities remain
+required. Evidence for the local tool does not establish the owner's selected
+tool or the affected enterprise outcome. Actor-login provenance is a separate
+obligation; no normalization or alias rule follows from this support decision.
+The immutable imported draft and historical qualification evidence retain
+their original meaning.
+
 ## Acceptance criteria
 
 - **AC01:** The selected tool/version-probe facts and matching acquisition

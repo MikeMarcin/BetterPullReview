@@ -17,6 +17,20 @@ Registered on main under mandate four-drafts-r1 at baseline `f3e866e9b90505d4604
 
 The source Handoff below is retained as authoring history, not current execution state. Current acceptance is tracked by the new issue cards and [ledger](../verification/RFC-BPR-0062-0065.md). Existing Done cards and plan exits remain historical evidence for their exact candidates. Formal dependencies use accepted capabilities: the already implemented native Markdown reader and window layout ownership, without claiming closure of RFC-BPR-0036 or 0037.
 
+## Owner correction amendment — 2026-10-07
+
+The owner rejected the first attended Overview candidate and requested a
+compact enter/exit-full-view control at the reader's top-right, reclaiming the
+space consumed below the body. View source moves to the reader context menu;
+Overview no longer needs a separate Copy source control. Ordinary selection
+copying yields Markdown source text rather than an HTML clipboard payload.
+Exact source-mode byte copying and original provider-body authority remain.
+Rendered partial selections may serialize their selected native document
+fragment as Markdown; they do not claim byte-exact original offsets. Full
+selection can retain the original body. Original AC01–AC05, resizing,
+persistence and retained reading/file semantics remain in force, and a new
+exact candidate still needs the required owner/native observations.
+
 ## Problem and grounded current behavior
 
 The owner requested on 2026-10-07: “the summary panel on the pr overview is
