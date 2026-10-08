@@ -178,22 +178,23 @@ optimized tests-on tree (`dev` preset, `CMAKE_BUILD_TYPE=Release`):
   `application_private_review_native` failed once at the base and once with
   this change, and passed on the rerun.
 
-### After the rebase onto `9a8208fba` (2026-10-08)
+### After the rebase onto `ed337d92a` (2026-10-08)
 
-The branch was rebased four times while this card waited: onto `4cfc15256`,
-`e84d30975`, `76b4b4f99` and `9a8208fba`. The last two brought 62 upstream
-commits. They include BPR-1212 slice 1, BPR-1328, BPR-1329, BPR-1334, BPR-1336,
-BPR-1338, BPR-1339 and BPR-1341, with product changes to
-`github_application.cpp`, the fixture-access header, the workbench host and
-the large-review benchmark. Git merged the code without conflict. The only
+The branch was rebased five times while this card waited: onto `4cfc15256`,
+`e84d30975`, `76b4b4f99`, `9a8208fba` and `ed337d92a`. The last three brought
+66 upstream commits. They include BPR-1212 slice 1, BPR-1328, BPR-1329,
+BPR-1334, BPR-1336, BPR-1338, BPR-1339, BPR-1340 and BPR-1341, with product changes to
+`github_application.cpp`, the fixture-access header, the workbench and epoch
+hosts and the large-review benchmark. Git merged the code without conflict. The only
 conflict was the round-trip pin; both sides' cards are kept. The tree is the
 same macOS arm64 optimized tests-on tree (`dev` preset,
 `CMAKE_BUILD_TYPE=Release`), rebuilt at each merged head. The numbers below
 are at the final one.
 
-- **Round-trip pin.** Recomputed on the merged tree in `86817d6bc`, with a
-  BPR-1327 note over the BPR-1338 follow-up reseal: full application
-  `a24ce58c…`, production app manifest `3a7d3cf5…`, mutation pin unchanged.
+- **Round-trip pin.** Recomputed on the merged tree in `bbfbdee06`. The
+  BPR-1327 note sits over the BPR-1338 follow-up reseal and BPR-1340's
+  manifest value. Full application `a24ce58c…`, production app manifest
+  `beda7ead…`, mutation pin unchanged.
   `application_review_round_trip_composition_contract` and
   `architecture_boundaries` pass.
 - **Focused rows.** `core_comparison_preparation`, `application_diff_host`,
@@ -201,16 +202,16 @@ are at the final one.
   `gh_cli_git_smart_transport`, `github_provider`,
   `application_composition_contract` and
   `application_profile_window_review_restoration_public_path`: 8/8 pass.
-- **Large-review rows, `-j1`, budgets enforced.** 19/19 pass in 250.7 s,
-  with load 8.8 at the start and 8.4 at the end. Every report has
+- **Large-review rows, `-j1`, budgets enforced.** 19/19 pass in 245.0 s,
+  with load 9.2 at the start and 6.0 at the end. Every report has
   `BudgetsEnforced` true and empty `InputBudgetFailures`, `KnownInputMisses`
-  and `UnenforcedLimitMisses`. The largest pulse interval was 55.5 ms
+  and `UnenforcedLimitMisses`. The largest pulse interval was 54.2 ms
   (unavailable diff), against the 100 ms limit.
-  `application_large_review_prepared_open`: unprepared opens 73–81 ms, the
-  first open while its window was prepared 113 ms, and later prepared opens
-  18.2–18.8 ms. All 5 of 5 were answered by preparation. At `76b4b4f99`, under
-  load 18 to 9, the rows also passed 19/19 (281.5 s, largest pulse interval
-  66.9 ms).
+  `application_large_review_prepared_open`: unprepared opens 79–83 ms, the
+  first open while its window was prepared 123 ms, and later prepared opens
+  18.0–18.8 ms. All 5 of 5 were answered by preparation. The rows also passed
+  19/19 at `9a8208fba` (250.7 s, load 9, 55.5 ms) and at `76b4b4f99` (281.5 s,
+  load 18 to 9, 66.9 ms).
 - **Earlier run under load, at `e84d30975`.** 18 of 19 passed, with load
   rising from 4.6 to 41. `application_large_review_launch` failed "Mac fixture
   responsiveness budget exceeded", with every phase at about ten times its
