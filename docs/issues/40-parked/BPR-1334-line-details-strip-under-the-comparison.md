@@ -197,3 +197,12 @@ One new short session, `54a2166987592a13adcae6767089fe2c`, with state in
 `python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1334/line-details-frozen-v001/launch.py`.
 C1–C4 rest on the direct evidence above. C5 waits on the owner and is not
 self-certified.
+
+## Follow-up on main — 2026-10-08
+
+The windowless macOS bar (`desktop_menu_bar`) did not mirror View's new Line
+Details item, which broke `qt_profile_management_window`'s comparison with a
+window's View. The native empty-desktop course compares the same thing.
+BPR-1338's follow-up commit adds the item after One pane, checkable and
+disabled, and the row passes. Nothing else on this card changed, and its owner
+look is unaffected.

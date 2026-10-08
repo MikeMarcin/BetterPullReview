@@ -125,6 +125,11 @@ namespace bpr::qt {
 		onePane->setObjectName(QStringLiteral("desktopToggleOnePaneAction"));
 		onePane->setCheckable(true);
 		onePane->setEnabled(false);
+		// [[BPR-1334]]. Line Details, after One pane as in the window's menu.
+		auto* const lineDetails = ViewMenu->addAction(QStringLiteral("Line &Details"));
+		lineDetails->setObjectName(QStringLiteral("desktopToggleLineDetailsAction"));
+		lineDetails->setCheckable(true);
+		lineDetails->setEnabled(false);
 		// [[BPR-1295]]. Hide Drawers, after One pane as in the window's menu.
 		auto* const toggleDrawers = ViewMenu->addAction(QStringLiteral("Hide &Drawers"));
 		toggleDrawers->setObjectName(QStringLiteral("desktopToggleDrawersAction"));

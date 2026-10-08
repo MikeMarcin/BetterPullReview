@@ -241,7 +241,7 @@ BPR-1341's verification found two rows red on main after e8e1567c4.
   close, and requires every one of them to be disabled. Before this change,
   only its whole-bar description comparison caught the missing item.
 
-Evidence (macOS, `build/dev` Debug, offscreen, targets only):
+Evidence (macOS, `build/dev` Debug, offscreen, targets only, on `5ad22d37e`):
 `qt_profile_management_window`, `application_uiforetw_selected_diff_contract`
 and `application_review_round_trip_composition_contract` pass. As a
 failing-before control, `qt_profile_management_window` was run against main's
@@ -250,3 +250,13 @@ own commands". `test_profile_empty_desktop_native_menu_bar` compiles. Its run
 needs the owner's Aqua session (cocoa), so it was not run here and is owed on
 the owner's native run. `clang-format` and `git diff --check` pass on the
 changed files.
+
+Found while rebasing onto BPR-1334 (`5ad22d37e`): that card added Line
+Details to the window's View but not to the windowless bar. As a result,
+`qt_profile_management_window` failed at "with the window menu's own
+commands, in the window menu's own order". The native course would fail
+for the same reason. In a separate commit, the desktop bar now offers Line
+Details after One pane, checkable and disabled, and the row's View indices
+shift by one. The change is noted on BPR-1334's card.
+`qt_profile_management_window` and
+`application_profile_management_public_path` pass.
