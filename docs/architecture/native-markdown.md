@@ -102,7 +102,7 @@ platform context are in [the verification ledger](../verification/RFC-BPR-0036.m
 
 | Surface | Current path | Delivered behavior |
 | --- | --- | --- |
-| PR overview | `pull_request_overview_page.cpp`, `overview_description_view` | The shared renderer occupies the compact/expanded flow; the expanded viewport has no height cap and retains RFC0037 Return/Escape, source anchors and file focus. |
+| PR overview | `pull_request_overview_page.cpp`, `overview_description_view` | RFC0063 places the retained reader in a resizable, scrollable normal summary beside the independent Files viewport. The optional expanded viewport keeps the same documents, Return/Escape, source anchors and file focus. |
 | Public conversation, open thread | `conversation_open_card.cpp` (`thread_post_view`), `conversation_cards_view.cpp` | Since [[BPR-1290]] the drawer has no post list or body pane: each post of the open thread reads in place through the shared reader, as tall as its content, with View source and Copy source in its name row and its links through the window's admission with the post's identity. Review summaries, GraphQL roots/replies, REST roots/replies and issue comments are included. |
 | Closed notes in the drawer and Discuss | `conversation_cards_view.cpp` | One- or two-line navigation summaries of the first post; the open thread owns the complete public body. My draft's open note renders its body the same way; editing keeps its plain-text contract. |
 | AI side chat | `side_chat_panel.cpp` | Inventoried, outside initial delivery. |

@@ -66,7 +66,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// Fourteen since [[BPR-1301]]: the profile's Claude process wrapper, in
 	/// the profile row. A migrated row reads none and keeps every other field
 	/// it had. An agent-free build reads and writes it back unchanged.
-	inline constexpr std::int64_t workbench_settings_schema_version = 14;
+	inline constexpr std::int64_t workbench_settings_schema_version = 15;
 
 	/// \brief Owns the durable workbench layout database.
 	///

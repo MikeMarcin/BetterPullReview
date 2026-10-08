@@ -677,6 +677,8 @@ namespace bpr::application {
 		/// [[BPR-1301]]. The profile's Claude process wrapper, carried here
 		/// only because this record is what the store writes.
 		std::string ClaudeWrapper = { };
+		/// [[BPR-1313]]. This window's preferred summary share in ten-thousandths.
+		std::optional<std::uint32_t> SummaryFraction = { };
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -695,6 +697,7 @@ namespace bpr::application {
 		workbench_window_geometry Geometry;
 		/// [[BPR-1130]].
 		core::workbench_updates_line UpdatesLine                                       = core::workbench_updates_line::folded;
+		std::optional<std::uint32_t> SummaryFraction                                   = { };
 		auto                         operator<=>(const workbench_window_layout&) const = default;
 	};
 	struct workbench_profile_preferences
@@ -712,14 +715,16 @@ namespace bpr::application {
 	{
 		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers, aSettings.OnePane,
 				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home, aSettings.Geometry,
-				 aSettings.UpdatesLine };
+				 aSettings.UpdatesLine, aSettings.SummaryFraction };
 	}
 	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
 											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
 	{
-		return { aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers, aLayout.OnePane,
-				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home, aLayout.Geometry,
-				 aLayout.UpdatesLine };
+		auto result            = workbench_layout_settings{ aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers, aLayout.OnePane,
+															aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home, aLayout.Geometry,
+															aLayout.UpdatesLine };
+		result.SummaryFraction = aLayout.SummaryFraction;
+		return result;
 	}
 	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
 	{
@@ -730,13 +735,15 @@ namespace bpr::application {
 			&& (aLayout.OnePane == core::workbench_one_pane::disabled || aLayout.OnePane == core::workbench_one_pane::enabled)
 			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth)
 			&& valid(aLayout.Home) && valid(aLayout.Geometry)
+			&& (!aLayout.SummaryFraction || (*aLayout.SummaryFraction > 0 && *aLayout.SummaryFraction < 10000))
 			&& (aLayout.UpdatesLine == core::workbench_updates_line::folded || aLayout.UpdatesLine == core::workbench_updates_line::open);
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
 	{
 		return core::valid(aPreferences.WritingHooks) && core::storable_agent_wrapper(aPreferences.ClaudeWrapper) && valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
 			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ }
-		&& aPreferences.NewWindowDefaults.UpdatesLine == core::workbench_updates_line::folded;
+		&& aPreferences.NewWindowDefaults.UpdatesLine == core::workbench_updates_line::folded
+			&& !aPreferences.NewWindowDefaults.SummaryFraction;
 	}
 	inline constexpr std::size_t maximum_workbench_window_layouts = 32U;
 	enum class workbench_settings_failure : std::uint8_t {
@@ -820,6 +827,8 @@ namespace bpr::application {
 		std::uint32_t FilesWidth         = 0U;
 		std::uint32_t ConversationsWidth = 0U;
 		std::uint32_t RepositoriesWidth  = 0U;
+		/// Absent until the window layout is loaded; the nested optional carries Reset.
+		std::optional<std::optional<std::uint32_t>> SummaryFraction = { };
 
 		auto operator<=>(const workbench_layout_delta&) const = default;
 	};

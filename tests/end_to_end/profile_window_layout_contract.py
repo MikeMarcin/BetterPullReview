@@ -31,7 +31,7 @@ def main():
                 raise SystemExit(f"{phase} failed ({result.returncode})\n{result.stdout}\n{result.stderr}")
 
         run("seed")
-        first, second, width_a, width_b = map(int, (root / "layout-expectations.txt").read_text().split())
+        first, second, width_a, width_b, summary_a, summary_b = map(int, (root / "layout-expectations.txt").read_text().split())
         geometry = [list(map(int, row.split())) for row in
                     (root / "geometry-expectations.txt").read_text().splitlines()]
         settings = root / "state/v1/workbench-settings.sqlite3"
@@ -41,6 +41,9 @@ def main():
             rows = database.execute("SELECT window_id, files_width FROM window_layout").fetchall()
             if dict(rows) != {str(first): width_a, str(second): width_b}:
                 raise SystemExit(f"chosen layout rows disagree: {rows}")
+            summaries = dict(database.execute("SELECT window_id,summary_fraction FROM window_layout"))
+            if summaries != {str(first): summary_a, str(second): summary_b}:
+                raise SystemExit(f"per-window summary preferences disagree: {summaries}")
             panes = dict(database.execute("SELECT window_id, one_pane FROM window_layout"))
             if panes != {str(first): 1, str(second): 0}:
                 raise SystemExit(f"one-pane choices disagree: {panes}")

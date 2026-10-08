@@ -1546,6 +1546,49 @@ namespace {
 			   "draining layout terminals cannot republish a closing window");
 	}
 
+	void test_summary_fraction_load_hold_validation_and_orderly_drain()
+	{
+		auto durable                   = fake_settings{ };
+		durable.Stored.FilesWidth      = 410U;
+		durable.Stored.SummaryFraction = 5500U;
+		{
+			auto first = harness{ { }, &durable };
+			first.Host.restore();
+			first.Host.resize_summary(6500U);
+			first.Host.resize_summary(7000U);
+			expect(durable.Stores == 0U, "summary preference waits for the unread window record");
+			first.Host.shutdown_orderly();
+			first.settle();
+			expect(first.Host.is_quiescent() && durable.Stored.SummaryFraction == 7000U && durable.Stored.FilesWidth == 410U, "orderly close merges latest summary choice into the loaded record");
+		}
+		{
+			auto next = harness{ { }, &durable };
+			next.Host.restore();
+			next.settle();
+			expect(next.Host.layout().SummaryFraction == 7000U && next.Projections.Published.back().Layout->SummaryFraction == std::optional{ std::optional<std::uint32_t>{ 7000U } }, "restart projects window fraction");
+			const auto stores = durable.Stores;
+			next.Host.resize_summary(10000U);
+			next.settle();
+			expect(durable.Stores == stores && next.Host.layout().SummaryFraction == 7000U, "invalid summary share cannot alter or write the preference");
+			next.Host.resize_summary(std::nullopt);
+			next.settle();
+			expect(!durable.Stored.SummaryFraction && next.Projections.Published.back().Layout->SummaryFraction.has_value() && !*next.Projections.Published.back().Layout->SummaryFraction, "Reset persists and explicitly projects no preference");
+		}
+	}
+
+	void test_summary_reset_before_load_preserves_the_rest_of_the_record()
+	{
+		auto durable                   = fake_settings{ };
+		durable.Stored.FilesWidth      = 450U;
+		durable.Stored.SummaryFraction = 6500U;
+		auto first                     = harness{ { }, &durable };
+		first.Host.restore();
+		first.Host.resize_summary(std::nullopt);
+		first.Host.shutdown_orderly();
+		first.settle();
+		expect(!durable.Stored.SummaryFraction && durable.Stored.FilesWidth == 450U && first.Host.is_quiescent(), "startup Reset clears saved preference after load without overwriting other fields");
+	}
+
 	void test_geometry_load_observation_and_orderly_drain()
 	{
 		auto       value                = harness{ };
@@ -2188,6 +2231,8 @@ auto main() -> int
 	test_orderly_shutdown_flushes_latest_layout_serially();
 	test_orderly_shutdown_drains_layout_at_request_capacity();
 	test_geometry_load_observation_and_orderly_drain();
+	test_summary_fraction_load_hold_validation_and_orderly_drain();
+	test_summary_reset_before_load_preserves_the_rest_of_the_record();
 	test_orderly_shutdown_failure_and_forced_escalation();
 	test_the_signed_out_authority_is_valid_and_a_half_named_one_is_not();
 	test_invalid_limits_are_rejected();

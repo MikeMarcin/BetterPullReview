@@ -4908,6 +4908,9 @@ namespace bpr::qt {
 		}
 		if (aProjection.Layout) {
 			LayoutWidths = *aProjection.Layout;
+			if (aProjection.Layout->SummaryFraction) {
+				OverviewPage->set_summary_fraction(*aProjection.Layout->SummaryFraction);
+			}
 			++Statistics.LayoutUpdates;
 		}
 		if (aProjection.Behaviour) {
