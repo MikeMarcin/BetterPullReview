@@ -1090,6 +1090,18 @@ endfunction()
 # accessors. Neither adds a grant, target, credential, GitHub write, mutation
 # or publication path; mutation pin unchanged. Scoped self-review on BPR-1341
 # for the pin only; BPR-1336's and BPR-1338's own reviews stay on their cards.
+# BPR-1334 reseal: over the BPR-1329 reseal at 512c2836b; github_application.cpp,
+# main.cpp, the fixture-access header and github_public_path_fixture.cpp.
+# The composition forwards the window's explicit Line details height, or its
+# Reset, to WorkbenchHost::resize_line_details, which validates and stores it
+# in the local workbench settings only. The UIforETW focused-layout probes now
+# expect Line details shown, since it is on by default and no longer a review
+# detail. main.cpp's diff courses read the strip's rows instead of the old
+# detail text. The constructed line-details-v1 fixture joins the test-build
+# fixture enum, host-profile table, served-fixture table and --github-fixture
+# names. No grant, target, provider, credential, transport, GitHub write,
+# mutation or publication path changes; mutation pin unchanged. Reviewed on
+# BPR-1334.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
