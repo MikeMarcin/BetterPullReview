@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1340"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Updates timeline: head mark says date unavailable and comparison handles do not drag",
+  "created": "2026-10-08T21:03:23.180142+00:00",
+  "base": "54c5a5988de57d7f599d659060a769dece80d176"
+}
