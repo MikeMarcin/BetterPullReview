@@ -239,20 +239,30 @@ namespace bpr::e2e::large_review {
 		std::function<void(const active_input_measurement&)> OnDelivery;
 	};
 
+	/// [[BPR-1327]]. Opening files with preparation off and then on.
+	struct prepared_open_measurement
+	{
+		bool                Course = false;
+		std::vector<double> UnpreparedVisibleMs, PreparedVisibleMs;
+		double              PreparedFirstVisibleMs = -1;
+		std::uint64_t       PreparedHits           = 0U;
+	};
+
 	struct extended_measurement
 	{
-		bool                  AllocationProfile = false;
-		live_heap_observation Heap;
-		std::uint64_t         SampledPeakHeapGrowthLimitBytes = 0;
-		double                ProvisionalCaptureMs = 0, AcceptedCaptureMs = 0;
-		double                QApplicationStartupMs = 0, MainToHomeRenderMs = 0, MainToFirstSourceRenderMs = 0;
-		double                ProvisionalMetadataRenderMs = 0, AcceptedMetadataRenderMs = 0;
-		bool                  ProvisionalMetadataObserved = false, AcceptedMetadataObserved = false;
-		std::string           MetadataTitle;
-		bool                  ProviderCancelCourse = false, ProviderStopped = false;
-		std::size_t           ProviderHeldInputs = 0;
-		double                ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
-		bool                  PathologicalCourse = false, ExactGeneratedSource = false;
+		bool                      AllocationProfile = false;
+		prepared_open_measurement PreparedOpen;
+		live_heap_observation     Heap;
+		std::uint64_t             SampledPeakHeapGrowthLimitBytes = 0;
+		double                    ProvisionalCaptureMs = 0, AcceptedCaptureMs = 0;
+		double                    QApplicationStartupMs = 0, MainToHomeRenderMs = 0, MainToFirstSourceRenderMs = 0;
+		double                    ProvisionalMetadataRenderMs = 0, AcceptedMetadataRenderMs = 0;
+		bool                      ProvisionalMetadataObserved = false, AcceptedMetadataObserved = false;
+		std::string               MetadataTitle;
+		bool                      ProviderCancelCourse = false, ProviderStopped = false;
+		std::size_t               ProviderHeldInputs = 0;
+		double                    ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
+		bool                      PathologicalCourse = false, ExactGeneratedSource = false;
 		// [[BPR-0967]]. BudgetsEnforced is false where no numeric limit is
 		// justified for this platform and configuration; each limit missed
 		// there is named in UnenforcedLimitMisses. KnownInputMisses names the
@@ -284,19 +294,20 @@ namespace bpr::e2e::large_review {
 		std::vector<std::string>    InputBudgetFailures;
 		std::vector<latency_budget> CompletionBudgets;
 		bool                        FirstTabCourse = false, FirstTabExact = false;
-		bool                        CacheByteCourse = false, ByteEvictedDiff = false, ByteEvictedIndex = false, ByteRevisitExact = false, ByteSupersessionHeldExact = false;
-		std::size_t                 ByteHeldSourceObservations = 0U;
-		std::size_t                 ByteSelections = 0U, BytePeakCacheEntries = 0U, ByteSupersessionsWithWork = 0U;
-		std::uint64_t               ByteEntryBytes = 0U, ByteAdmittedBytes = 0U, BytePeakCacheBytes = 0U;
-		bool                        CacheEntryCourse = false, EntryEvictedDiff = false, EntryEvictedIndex = false, EntryRevisitExact = false;
-		std::size_t                 EntrySelections = 0U, EntryPeakCacheEntries = 0U;
-		std::uint64_t               EntryPeakCacheBytes = 0U;
-		bool                        LoadedCloseCourse = false, CloseStartedWithLiveComparison = false, ClosePreservedEpochStorage = false;
-		int                         CloseLeftDocumentBlocks = 0, CloseRightDocumentBlocks = 0;
-		bool                        ShutdownReleasedDiff = false, ShutdownReleasedIndex = false, DestroyReleasedWindow = false, DestroyReleasedDocuments = false;
-		bool                        HistoryCourse  = false;
-		std::size_t                 EpochsObserved = 0U, RetainedEpochsVerified = 0U, EpochSelections = 0U, EpochSelectionsWithOutstandingWork = 0U;
-		std::size_t                 HistoryPeakRows = 0U, HistoryModelResets = 0U;
+
+		bool          CacheByteCourse = false, ByteEvictedDiff = false, ByteEvictedIndex = false, ByteRevisitExact = false, ByteSupersessionHeldExact = false;
+		std::size_t   ByteHeldSourceObservations = 0U;
+		std::size_t   ByteSelections = 0U, BytePeakCacheEntries = 0U, ByteSupersessionsWithWork = 0U;
+		std::uint64_t ByteEntryBytes = 0U, ByteAdmittedBytes = 0U, BytePeakCacheBytes = 0U;
+		bool          CacheEntryCourse = false, EntryEvictedDiff = false, EntryEvictedIndex = false, EntryRevisitExact = false;
+		std::size_t   EntrySelections = 0U, EntryPeakCacheEntries = 0U;
+		std::uint64_t EntryPeakCacheBytes = 0U;
+		bool          LoadedCloseCourse = false, CloseStartedWithLiveComparison = false, ClosePreservedEpochStorage = false;
+		int           CloseLeftDocumentBlocks = 0, CloseRightDocumentBlocks = 0;
+		bool          ShutdownReleasedDiff = false, ShutdownReleasedIndex = false, DestroyReleasedWindow = false, DestroyReleasedDocuments = false;
+		bool          HistoryCourse  = false;
+		std::size_t   EpochsObserved = 0U, RetainedEpochsVerified = 0U, EpochSelections = 0U, EpochSelectionsWithOutstandingWork = 0U;
+		std::size_t   HistoryPeakRows = 0U, HistoryModelResets = 0U;
 		// Historical Debug thresholds are retained without relaxation and
 		// revalidated by the optimized Mac BPR-0967 integration course.
 		double                       HistoryInputIntervalLimitMs = 100.0;
@@ -989,6 +1000,77 @@ namespace bpr::e2e::large_review {
 			std::cerr << " displayed=" << result->Alignment.Key.LeftAnchor.Epoch.value() << ':' << result->Alignment.Key.RightAnchor.Epoch.value();
 		}
 		std::cerr << '\n';
+	}
+
+	/// \brief [[BPR-1327]]. Opening files with preparation off, then on.
+	///
+	/// \details The same window, review and kind of file both ways. With
+	/// preparation off each open resolves, reads and computes on demand. With
+	/// it on, the course opens a first file, waits until the window around it
+	/// is prepared, and opens the files after it: each must be answered by a
+	/// prepared comparison and appear sooner than any unprepared open did.
+	void run_prepared_open(app::github_application& aApplication, const fixture_manifest& aManifest,
+						   benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+	{
+		auto&      window  = aApplication.window();
+		auto&      surface = *window.comparison_surface();
+		const auto settled = [&] { return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U; };
+		// Prepared means the round this open started has returned and the diff
+		// host has computed what it handed over.
+		auto       rounds   = std::size_t{ 0U };
+		const auto prepared = [&] {
+			const auto work = access::diff_work_evidence(aApplication);
+			return work.PreparationRounds > rounds && work.Preparing == 0U && work.PreparationsInFlight == 0U
+				&& work.EpochOutstandingJobs == 0U;
+		};
+		const auto open = [&](const int aFile, const std::string& aPhase, const bool aWaitForPreparation) {
+			const auto path = source_path(aFile);
+			rounds          = access::diff_work_evidence(aApplication).PreparationRounds;
+			require(measure_wait(
+						aApplication, aBudget, aReport, aPhase.c_str(), [&] { select_file(window, path); },
+						[&] { return selected(surface, path) && settled() && (!aWaitForPreparation || prepared()); },
+						[&] { return selected(surface, path); }),
+					"prepared-open selection timed out");
+			const auto  found = std::ranges::find(aManifest.files, path.toStdString(), &fixture_file::path);
+			const auto& key   = surface.current_result()->Alignment.Key;
+			require(found != aManifest.files.end() && key.LeftBlob == core::parse_git_blob_oid(found->base.oid)
+						&& key.RightBlob == core::parse_git_blob_oid(found->head.oid),
+					"prepared-open showed the wrong stored blobs");
+			return aReport.Phases.back().VisibleMs;
+		};
+		enter_review(aApplication, aReport, aBudget);
+		access::set_preparation_enabled(aApplication, false);
+		for (int index = 0; index < 6; ++index) {
+			aReport.Extended.PreparedOpen.UnpreparedVisibleMs.push_back(open(300 + index, "unprepared_open_" + std::to_string(index), false));
+		}
+		require(access::diff_work_evidence(aApplication).PreparedHits == 0U, "an unprepared open was answered by preparation");
+		access::set_preparation_enabled(aApplication, true);
+		aReport.Extended.PreparedOpen.PreparedFirstVisibleMs = open(400, "prepared_first_open", true);
+		const auto window_prepared                           = access::diff_work_evidence(aApplication);
+		std::cerr << "prepared-open window: rounds=" << window_prepared.PreparationRounds << " resolutions=" << window_prepared.PreparedResolutions
+				  << " entries=" << window_prepared.PreparedEntries << " preparing=" << window_prepared.Preparing
+				  << " in_flight=" << window_prepared.PreparationsInFlight << " cache=" << window_prepared.CacheEntries << '\n';
+		require(window_prepared.PreparationRounds != 0U && window_prepared.PreparedEntries != 0U
+					&& window_prepared.PreparedEntries <= application::prepared_entry_capacity(application::diff_host_limits{ }),
+				"the window after the first file was not prepared within its share");
+		for (int index = 1; index < 6; ++index) {
+			const auto hits = access::diff_work_evidence(aApplication).PreparedHits;
+			aReport.Extended.PreparedOpen.PreparedVisibleMs.push_back(open(400 + index, "prepared_open_" + std::to_string(index), true));
+			require(access::diff_work_evidence(aApplication).PreparedHits == hits + 1U,
+					"a file in the prepared window was not answered by its prepared comparison");
+		}
+		aReport.Extended.PreparedOpen.PreparedHits = access::diff_work_evidence(aApplication).PreparedHits;
+		const auto slowestPrepared                 = *std::ranges::max_element(aReport.Extended.PreparedOpen.PreparedVisibleMs);
+		const auto fastestCold                     = *std::ranges::min_element(aReport.Extended.PreparedOpen.UnpreparedVisibleMs);
+		std::cerr << "prepared-open: unprepared_min_ms=" << fastestCold << " prepared_max_ms=" << slowestPrepared
+				  << " prepared_first_ms=" << aReport.Extended.PreparedOpen.PreparedFirstVisibleMs << '\n';
+		require(slowestPrepared < fastestCold, "a prepared open was no faster than every unprepared one");
+		aReport.ExactFinalSource = true;
+		aReport.WindowWidth      = window.width();
+		aReport.WindowHeight     = window.height();
+		aReport.DevicePixelRatio = window.devicePixelRatioF();
+		aReport.Rendered         = window.grab().save(QString::fromLocal8Bit(aImage));
+		require(aReport.Rendered, "prepared-open public window render failed");
 	}
 
 	/// \brief First-file selection must keep an epoch gesture made with no tab.
@@ -1755,7 +1837,7 @@ namespace bpr::e2e::large_review {
 			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
 			return EXIT_SUCCESS;
 		}
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness" && std::string_view{ argv[4] } != "--active-work" && std::string_view{ argv[4] } != "--pathological" && std::string_view{ argv[4] } != "--provider-cancel" && std::string_view{ argv[4] } != "--allocation-profile"))) {
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--prepared-open" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness" && std::string_view{ argv[4] } != "--active-work" && std::string_view{ argv[4] } != "--pathological" && std::string_view{ argv[4] } != "--provider-cancel" && std::string_view{ argv[4] } != "--allocation-profile"))) {
 			return EXIT_FAILURE;
 		}
 		// [[BPR-1265]]. The byte-pressure course runs only in an optimized
@@ -1806,6 +1888,7 @@ namespace bpr::e2e::large_review {
 		report.HistoryCourse                                               = argc == 5 && std::string_view{ argv[4] } == "--history";
 		report.CacheByteCourse                                             = argc == 5 && std::string_view{ argv[4] } == "--cache-bytes";
 		report.FirstTabCourse                                              = argc == 5 && std::string_view{ argv[4] } == "--first-tab";
+		report.Extended.PreparedOpen.Course                                = argc == 5 && std::string_view{ argv[4] } == "--prepared-open";
 		report.CacheEntryCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--cache-entries";
 		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse || report.CacheByteCourse;
@@ -1995,6 +2078,8 @@ namespace bpr::e2e::large_review {
 			sample_resources(report, application.get(), "review_loaded");
 			if (report.FirstTabCourse) {
 				run_first_tab(*application, manifest, report, budget, argv[3]);
+			} else if (report.Extended.PreparedOpen.Course) {
+				run_prepared_open(*application, manifest, report, budget, argv[3]);
 			} else if (report.CacheByteCourse) {
 				run_cache_bytes(*application, manifest, report, budget, argv[3]);
 			} else if (report.CacheEntryCourse) {
@@ -2431,6 +2516,7 @@ namespace bpr::e2e::large_review {
 			}
 			std::cout << (report.ActiveWorkCourse ? "LARGE_REVIEW_ACTIVE_WORK_MEASURED\n" : report.ResponsivenessCourse ? "LARGE_REVIEW_RESPONSIVENESS_MEASURED\n"
 							  : report.FirstTabCourse                                                                   ? "FIRST_TAB_COMPARISON_OK\n"
+							  : report.Extended.PreparedOpen.Course                                                     ? "LARGE_REVIEW_PREPARED_OPEN_OK\n"
 							  : report.CacheByteCourse                                                                  ? "LARGE_REVIEW_CACHE_BYTES_OK\n"
 							  : report.CacheEntryCourse                                                                 ? "LARGE_REVIEW_CACHE_ENTRIES_OK\n"
 							  : report.LoadedCloseCourse                                                                ? "LARGE_REVIEW_LOADED_CLOSE_OK\n"

@@ -793,9 +793,12 @@ namespace {
 		expect(std::ranges::all_of(window,
 								   [&value](const application::workbench_selected_diff_request& aRequest) {
 									   return aRequest.WorkbenchAuthority == authority()
-										   && aRequest.Diff == *value.SelectedDiffs.Context;
+										   && aRequest.Diff == *value.SelectedDiffs.Context
+										   && aRequest.Context.Request.value() != 0U
+										   && aRequest.Context.Session == core::application_session_id{ 7U }
+										   && aRequest.Context.Generation.value() != 0U;
 								   }),
-			   "every request names the comparison the port serves now");
+			   "every request names the comparison the port serves now, under a complete request identity");
 		value.Host.apply(core::select_workbench_file_intent{ .File = file(20U) });
 		value.settle();
 		window        = value.Host.preparation_window();

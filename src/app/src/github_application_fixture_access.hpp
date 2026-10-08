@@ -1081,6 +1081,7 @@ namespace bpr::app::detail {
 		std::size_t   PreparedResolutions   = 0U;
 		std::size_t   PreparedRemoteBlobs   = 0U;
 		std::size_t   PreparedRemoteBatches = 0U;
+		std::uint64_t PreparedHits          = 0U;
 	};
 
 	/// \brief Observes public-composition scaling without invoking any effect.
@@ -1133,6 +1134,9 @@ namespace bpr::app::detail {
 		/// \brief Samples existing diff-host work counters on the decision lane.
 		[[nodiscard]] static auto diff_work_evidence(const github_application& aApplication) noexcept
 			-> diff_work_fixture_evidence;
+		/// \brief [[BPR-1327]]. Turns preparation off or on in the active
+		/// window, so one course can measure opening files both ways.
+		static void               set_preparation_enabled(github_application& aApplication, bool aEnabled);
 		[[nodiscard]] static auto device_binding_store_idle(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto device_binding_durable(const github_application& aApplication) noexcept -> bool;
 		/// \brief [[BPR-1338]]. The last address the recording browser was handed; empty before any.

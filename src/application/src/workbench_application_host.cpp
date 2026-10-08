@@ -718,8 +718,12 @@ namespace bpr::application {
 				if (file.ContentKind == workbench_file_content_kind::binary) {
 					continue;
 				}
+				// Not a request this host tracks: the identity only has to be a
+				// valid one. An open of the file is answered under its own.
+				auto identity    = local_context();
+				identity.Request = core::request_id{ result.size() + 1U };
 				result.push_back(workbench_selected_diff_request{
-					.Context            = local_context(),
+					.Context            = identity,
 					.WorkbenchAuthority = *Authority,
 					.Diff               = *context,
 					.File               = file,

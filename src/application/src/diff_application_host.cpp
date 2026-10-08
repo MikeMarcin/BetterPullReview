@@ -585,6 +585,7 @@ namespace bpr::application {
 					// prepared. Answer from the cache when preparation stored
 					// it; otherwise compute it as an ordinary request.
 					if (const auto cached = lookup(request); cached.has_value()) {
+						PreparedHits += cached->Prepared ? 1U : 0U;
 						post_local(staged_diff_completion{
 							.Context  = request.Context,
 							.Options  = request.Options,
@@ -726,6 +727,7 @@ namespace bpr::application {
 				return;
 			}
 			if (const auto cached = lookup(aRequest); cached.has_value()) {
+				PreparedHits += cached->Prepared ? 1U : 0U;
 				post_local(staged_diff_completion{
 					.Context  = aRequest.Context,
 					.Options  = aRequest.Options,
@@ -1141,6 +1143,7 @@ namespace bpr::application {
 		std::shared_ptr<diff_job>                      PreparedJob;
 		std::optional<core::compute_file_diff_request> Adopted;
 		std::uint64_t                                  PreparedSequence         = 0U;
+		std::uint64_t                                  PreparedHits             = 0U;
 		bool                                           Closing                  = false;
 		bool                                           ProjectionDeliveryFailed = false;
 		bool                                           TurnActive               = false;
@@ -1251,6 +1254,11 @@ namespace bpr::application {
 	auto diff_application_host::preparing() const noexcept -> std::size_t
 	{
 		return Implementation->PreparedQueue.size() + (Implementation->PreparedJob ? 1U : 0U);
+	}
+
+	auto diff_application_host::prepared_hits() const noexcept -> std::uint64_t
+	{
+		return Implementation->PreparedHits;
 	}
 
 	auto diff_application_host::projection_delivery_failed() const noexcept

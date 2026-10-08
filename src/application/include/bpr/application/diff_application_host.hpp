@@ -63,6 +63,9 @@ namespace bpr::application {
 		[[nodiscard]] auto prepared_bytes() const noexcept -> std::uint64_t;
 		/// Prepared comparisons queued or being computed.
 		[[nodiscard]] auto preparing() const noexcept -> std::size_t;
+		/// Requests answered by a prepared comparison, from the cache or by
+		/// waiting for the one being prepared.
+		[[nodiscard]] auto prepared_hits() const noexcept -> std::uint64_t;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
 
 	private:

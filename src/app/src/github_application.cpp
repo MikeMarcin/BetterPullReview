@@ -14956,6 +14956,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || PreparationScheduled || Window == nullptr) {
 				return;
 			}
+#if defined(BPR_BUILD_TESTING)
+			if (PreparationDisabled) {
+				return;
+			}
+#endif
 			PreparationScheduled = true;
 			QTimer::singleShot(0, Window.get(), [this] {
 				PreparationScheduled = false;
@@ -16651,6 +16656,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		bool                                                      PreparationScheduled  = false;
 		std::atomic_size_t                                        PreparationsInFlight{ 0U };
 #if defined(BPR_BUILD_TESTING)
+		bool        PreparationDisabled   = false;
 		std::size_t PreparationRounds     = 0U;
 		std::size_t PreparedResolutions   = 0U;
 		std::size_t PreparedRemoteBlobs   = 0U;
@@ -18396,6 +18402,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 	}
 
+	void detail::github_application_fixture_access::set_preparation_enabled(github_application& aApplication, const bool aEnabled)
+	{
+		auto& implementation               = *aApplication.Implementation;
+		implementation.PreparationDisabled = !aEnabled;
+		if (aEnabled) {
+			implementation.schedule_preparation();
+		} else {
+			implementation.cancel_preparation();
+			if (implementation.DiffHost != nullptr) {
+				implementation.DiffHost->prepare({ });
+			}
+		}
+	}
+
 	auto detail::github_application_fixture_access::diff_work_evidence(
 		const github_application& aApplication) noexcept -> diff_work_fixture_evidence
 	{
@@ -18421,6 +18441,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.PreparedResolutions          = implementation.PreparedResolutions,
 			.PreparedRemoteBlobs          = implementation.PreparedRemoteBlobs,
 			.PreparedRemoteBatches        = implementation.PreparedRemoteBatches,
+			.PreparedHits                 = host.prepared_hits(),
 		};
 	}
 	auto detail::github_application_fixture_access::diff_work_evidence(
@@ -18452,6 +18473,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.PreparedResolutions          = implementation.PreparedResolutions,
 			.PreparedRemoteBlobs          = implementation.PreparedRemoteBlobs,
 			.PreparedRemoteBatches        = implementation.PreparedRemoteBatches,
+			.PreparedHits                 = host.prepared_hits(),
 		};
 	}
 

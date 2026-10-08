@@ -1287,6 +1287,20 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_tests_properties(application_large_review_cache_entries PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 240
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_ENTRIES_OK")
+    # [[BPR-1327]]. Opening files with preparation off, then on, in one window:
+    # every prepared open must be answered by its prepared comparison and show
+    # sooner than any unprepared open.
+    bpr_add_network_isolated_test(
+        NAME application_large_review_prepared_open
+        WINDOWS_UNCONTAINED
+        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+            $<TARGET_FILE:Git::Git>
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-prepared-open.json"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-prepared-open.png"
+            --prepared-open)
+    set_tests_properties(application_large_review_prepared_open PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_PREPARED_OPEN_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_loaded_close
         WINDOWS_UNCONTAINED
