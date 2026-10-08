@@ -1078,6 +1078,18 @@ endfunction()
 # identifiers only: no grant, target, provider, credential, GitHub write,
 # mutation or publication path changes; mutation pin unchanged. Reviewed on
 # BPR-1341.
+# The same seal also covers two pinned-scope commits that reached main after
+# the BPR-1212 slice 1 reseal without resealing: 7a35a4bed (BPR-1336) has View's
+# zoom commands step the profile's code zoom through the existing appearance
+# host and gives the comparison the zoomed code font; e8e1567c4 (BPR-1338)
+# opens a pull request's page in the composed browser from an address the core
+# admits against the accepted session's profile hostname (a Home queue row only
+# for the authenticated viewer, a Recently viewed row only if this window
+# published it), keeps the read host's markdown context across the comment
+# placement's re-projection, and adds two fixture-only recording-browser
+# accessors. Neither adds a grant, target, credential, GitHub write, mutation
+# or publication path; mutation pin unchanged. Scoped self-review on BPR-1341
+# for the pin only; BPR-1336's and BPR-1338's own reviews stay on their cards.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1096,7 +1108,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"767249a0c7c9fec1ac98ac3234a2ce222b43115766ec5d0800cae34b92801da1"
+		"cc254a3ce287208a62aa9aa1957fe6326b5a8a72b44f4cc225b6595c9f55d86d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1298,7 +1310,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "099f8e44ace468f833f998cc539411839a318349662f90e9a431ebc30d06fbb3"
+        "fb2284b53a936ccad471126bf2298b533484c9467343fde41e06c08b1a182116"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
