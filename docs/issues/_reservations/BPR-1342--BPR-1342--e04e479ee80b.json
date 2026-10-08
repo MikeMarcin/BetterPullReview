@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1342"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Open a review, or open it in a new window, from Home and its row menu",
+  "created": "2026-10-08T22:15:18.943814+00:00",
+  "base": "495f8752aa427be1a13150ac05d7408e2558bd8a"
+}
