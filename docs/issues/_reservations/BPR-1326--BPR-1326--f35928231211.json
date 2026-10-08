@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1326"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "P1 bug: published draft comment disappears after file switch",
+  "created": "2026-10-08T17:57:33.210484+00:00",
+  "base": "3f6cfe7285bf181fb6df4742f28725b5b7df44b7"
+}
