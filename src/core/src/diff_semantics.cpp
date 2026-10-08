@@ -964,13 +964,11 @@ namespace bpr::core {
 					other = std::move(*replaced);
 				}
 			}
-			if (aSide == diff_side::left) {
-				result.Rows.push_back(std::move(*selected));
-				result.Rows.push_back(std::move(other));
-			} else {
-				result.Rows.push_back(std::move(other));
-				result.Rows.push_back(std::move(*selected));
-			}
+			// Base first, whichever side was selected.
+			auto& base = aSide == diff_side::left ? *selected : other;
+			auto& head = aSide == diff_side::left ? other : *selected;
+			result.Rows.push_back(std::move(base));
+			result.Rows.push_back(std::move(head));
 		}
 		return result;
 	}
