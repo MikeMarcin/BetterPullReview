@@ -2077,8 +2077,15 @@ namespace {
 		run_one(effects, decisions);
 		auto intent = application::repository_addition_intent{ .Source = queue_window(1U), .Gesture = 1U, .Destination = session, .Text = "octo/app" };
 		host.apply(intent);
+		expect(!second->Published.back().Addition, "a sibling cannot receive another window's numeric Add gesture");
+		auto siblingIntent   = intent;
+		siblingIntent.Source = queue_window(2U);
+		siblingIntent.Text   = "octo/sibling";
+		host.apply(siblingIntent);
+		expect(second->Published.back().Addition && second->Published.back().Addition->Status == status::busy && !first->Published.back().Addition,
+			   "simultaneous equal-number gestures keep busy feedback on its source only");
 		effects.run_next();
-		expect(store.State.SavedRepositories.size() == 1U && first->Published.back().Addition->Status == status::saving, "durable effect is not yet a decision-lane confirmation");
+		expect(store.State.SavedRepositories.size() == 1U, "durable effect is not yet a decision-lane confirmation");
 		auto replacement = session;
 		++replacement.Generation;
 		host.adopt(replacement);

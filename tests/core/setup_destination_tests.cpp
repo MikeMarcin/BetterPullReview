@@ -72,6 +72,13 @@ int main()
 	resolved                      = resolve_setup_destination(pending, owner, disconnected);
 	expect(resolved && resolved->Profile == host_profile_id{ 3U } && resolved->Stage == setup_destination_stage::sign_in, "disconnected CLI profile does not grant authentication");
 
+	pending.Destination.Hostname = "github.com";
+	pending.Destination.Kind     = setup_destination_kind::repository;
+	resolved                     = resolve_setup_destination(pending, owner, anonymous);
+	expect(resolved && resolved->Stage == setup_destination_stage::sign_in,
+		   "repository authority never uses anonymous public preview");
+	pending.Destination.Kind = setup_destination_kind::pull_request;
+
 	// [[BPR-0987]]. The core decides what a link's location names in the
 	// receiving window, from that window's accepted facts alone.
 	expect(pull_request_file_digest("") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "the file digest is SHA-256 in lowercase hexadecimal");

@@ -35,6 +35,9 @@ namespace {
 		auto                                                open(core::host_profile_id, const core::setup_destination& aDestination) -> application::setup_destination_opening override
 		{
 			Opened.push_back(aDestination);
+			if (aDestination.Kind == core::setup_destination_kind::repository) {
+				return application::setup_destination_opening::repository_prepared;
+			}
 			return Navigate ? application::setup_destination_opening::navigated : application::setup_destination_opening::reading;
 		}
 		void present(const application::setup_destination_projection& aProjection) override
@@ -264,6 +267,40 @@ int main()
 	port.Navigate = false;
 	host.submit("o/r#46");
 	expect(port.Projection.Opened && !port.Projection.Navigated, "a new read is not navigated");
+
+	// Repository preparation uses the exact setup continuation, refuses anonymous
+	// preview and reports only preparedness, never a PR open or a save.
+	port.Profiles                       = { { core::host_profile_id{ 1U }, "github.com", false, true } };
+	const auto previewsBeforeRepository = port.Previews.size();
+	const auto openedBeforeRepository   = port.Opened.size();
+	host.submit_repository("octo/tools");
+	expect(host.pending() && host.pending()->Stage == core::setup_destination_stage::sign_in
+			   && host.pending()->Destination.Kind == core::setup_destination_kind::repository
+			   && !host.pending()->Destination.Number.valid() && port.Previews.size() == previewsBeforeRepository,
+		   "repository setup requires sign-in even on a preview-capable host and invents no PR");
+	const auto repositoryRequest = host.pending()->Request;
+	host.continue_setup(repositoryRequest);
+	host.cancel();
+	host.authenticated(repositoryRequest, core::host_profile_id{ 1U }, "github.com");
+	expect(port.Opened.size() == openedBeforeRepository && !port.Projection.RepositoryPrepared, "cancelled repository sign-in completion is inert");
+	const auto configurationsBeforeRepository = port.Configurations.size();
+	host.submit_repository("https://unknown.example/octo/tools/");
+	expect(host.pending() && host.pending()->Stage == core::setup_destination_stage::add_server && port.Configurations.size() == configurationsBeforeRepository,
+		   "an unknown repository URL retains its host for explicit server setup");
+	const auto unknownRequest = host.pending()->Request;
+	host.continue_setup(unknownRequest);
+	expect(port.Configurations.size() == configurationsBeforeRepository + 1U, "only explicit continuation configures the repository host");
+	host.cancel();
+	host.configured(unknownRequest);
+	expect(!host.pending() && port.Opened.size() == openedBeforeRepository, "cancelled server setup cannot prepare or save a repository");
+	port.Profiles = { { core::host_profile_id{ 1U }, "github.com", true } };
+	host.submit_repository("https://github.com/octo/tools");
+	expect(!host.pending() && port.Projection.RepositoryPrepared && !port.Projection.Opened
+			   && port.Opened.size() == openedBeforeRepository + 1U && port.Opened.back().Kind == core::setup_destination_kind::repository,
+		   "accepted exact-host setup returns to a repository draft without a pull-request open");
+	host.submit_repository("https://github.com/octo/tools/pull/1");
+	expect(!host.pending() && !port.Projection.RepositoryPrepared && port.Opened.size() == openedBeforeRepository + 1U,
+		   "repository setup refuses PR-shaped input");
 
 	return EXIT_SUCCESS;
 }

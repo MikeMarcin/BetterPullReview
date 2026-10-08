@@ -3257,7 +3257,7 @@ set_tests_properties(application_profile_second_window_close_public_path PROPERT
 # repository with thousands of unrelated open pull requests, two windows, and
 # only the bounded personal reads.
 bpr_add_executable(test_personal_discovery_public_path personal_discovery_public_path_tests.cpp)
-target_link_libraries(test_personal_discovery_public_path PRIVATE BetterPullReview::Composition)
+target_link_libraries(test_personal_discovery_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_compile_definitions(test_personal_discovery_public_path PRIVATE BPR_BUILD_TESTING=1)
 target_compile_features(test_personal_discovery_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_personal_discovery_public_path)

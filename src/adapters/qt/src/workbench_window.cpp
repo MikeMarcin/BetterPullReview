@@ -2973,12 +2973,29 @@ namespace bpr::qt {
 		layout->addWidget(QueueStatus);
 		// [[BPR-0990]]. What discovery last did, in one sentence, where Home
 		// already reports what the queue refused.
-		HomeDiscoveryStatus = new QLabel{ surface };
+		HomeRepositoryRow = new QWidget{ HomePage };
+		HomeRepositoryRow->setObjectName(QStringLiteral("homeRepositoryRow"));
+		auto* repositoryRow = new QBoxLayout{ QBoxLayout::LeftToRight, HomeRepositoryRow };
+		repositoryRow->setContentsMargins(24, 0, 24, 4);
+		HomeDiscoveryStatus = new QLabel{ HomeRepositoryRow };
 		HomeDiscoveryStatus->setObjectName(QStringLiteral("homeDiscoveryStatus"));
 		HomeDiscoveryStatus->setAccessibleName(QStringLiteral("My pull requests status"));
 		HomeDiscoveryStatus->setWordWrap(true);
 		HomeDiscoveryStatus->setVisible(false);
-		layout->addWidget(HomeDiscoveryStatus);
+		repositoryRow->addWidget(HomeDiscoveryStatus, 1);
+		AddSavedRepository = new QAction{ tr("Add repository"), this };
+		AddSavedRepository->setObjectName(QStringLiteral("addSavedRepository"));
+		connect(AddSavedRepository, &QAction::triggered, this, [this] { open_repository_addition(); });
+		HomeAddRepositoryButton = new QToolButton{ HomeRepositoryRow };
+		HomeAddRepositoryButton->setObjectName(QStringLiteral("homeAddRepositoryButton"));
+		HomeAddRepositoryButton->setDefaultAction(AddSavedRepository);
+		HomeAddRepositoryButton->setFocusPolicy(Qt::StrongFocus);
+		HomeAddRepositoryButton->setAccessibleDescription(tr("Add a repository to find my pull requests and review requests"));
+		repositoryRow->addWidget(HomeAddRepositoryButton, 0, Qt::AlignLeft);
+		if (auto* homeColumn = qobject_cast<QVBoxLayout*>(HomePage->layout())) {
+			homeColumn->insertWidget(homeColumn->indexOf(HomeCycles), HomeRepositoryRow);
+		}
+		HomeRepositoryRow->hide();
 
 		QueueLanding     = new review_landing_model{ surface };
 		QueueFilterModel = new review_landing_filter_model{ *QueueLanding, surface };
@@ -4049,7 +4066,7 @@ namespace bpr::qt {
 		}
 		// The models retain item identity. Keep only the queue's metadata here.
 		QueueProjection = application::queue_landing_projection{
-			.Status = aProjection.Status, .Rules = aProjection.Rules, .Preferences = aProjection.Preferences, .Session = aProjection.Session, .Online = aProjection.Online, .BackoffSeconds = aProjection.BackoffSeconds, .SavedRepositories = aProjection.SavedRepositories, .SavedServers = aProjection.SavedServers, .Failure = aProjection.Failure, .Discovery = aProjection.Discovery
+			.Status = aProjection.Status, .Rules = aProjection.Rules, .Preferences = aProjection.Preferences, .Session = aProjection.Session, .Online = aProjection.Online, .BackoffSeconds = aProjection.BackoffSeconds, .SavedRepositories = aProjection.SavedRepositories, .SavedServers = aProjection.SavedServers, .Failure = aProjection.Failure, .Discovery = aProjection.Discovery, .Addition = aProjection.Addition
 		};
 		QueueRules = aProjection.Rules;
 		if (aProjection.UpdatedItem) {
@@ -4118,6 +4135,9 @@ namespace bpr::qt {
 		++Statistics.QueueUpdates;
 		update_queue_rule_actions();
 		update_saved_repository_actions();
+		if (aProjection.Addition) {
+			present_repository_addition(*aProjection.Addition);
+		}
 		update_enterprise_server_actions();
 		update_discovery_controls();
 		update_pull_request_queue_actions();
@@ -4130,7 +4150,7 @@ namespace bpr::qt {
 		SavedRepositoriesEditor->setObjectName(QStringLiteral("savedRepositoriesEditor"));
 		SavedRepositoriesEditor->setAccessibleName(QStringLiteral("Saved repositories"));
 		SavedRepositoriesEditor->setAccessibleDescription(QStringLiteral(
-			"The repositories the drawer keeps for this account; add one as owner/name or remove the selected one"));
+			"Inspect or remove saved repositories, or open the shared Add repository dialog"));
 		auto* const controls = new QHBoxLayout{ SavedRepositoriesEditor };
 		controls->setContentsMargins(0, 0, 0, 0);
 		SavedRepositorySelector = new QComboBox{ SavedRepositoriesEditor };
@@ -4138,21 +4158,12 @@ namespace bpr::qt {
 		SavedRepositorySelector->setAccessibleName(QStringLiteral("Saved repositories list"));
 		SavedRepositorySelector->setAccessibleDescription(QStringLiteral("Select a saved repository to remove"));
 		controls->addWidget(SavedRepositorySelector, 1);
-		SavedRepositoryName = new QLineEdit{ SavedRepositoriesEditor };
-		SavedRepositoryName->setObjectName(QStringLiteral("savedRepositoryName"));
-		SavedRepositoryName->setAccessibleName(QStringLiteral("Repository to save"));
-		SavedRepositoryName->setAccessibleDescription(QStringLiteral("owner/name of a repository to keep in the drawer"));
-		SavedRepositoryName->setPlaceholderText(QStringLiteral("owner/name"));
-		SavedRepositoryName->setMaxLength(static_cast<int>(core::maximum_observer_rule_pattern_bytes));
-		controls->addWidget(SavedRepositoryName, 1);
-		AddSavedRepository = new QAction{ tr("Save repository"), this };
-		AddSavedRepository->setObjectName(QStringLiteral("addSavedRepository"));
 		RemoveSavedRepository = new QAction{ tr("Remove saved repository"), this };
 		RemoveSavedRepository->setObjectName(QStringLiteral("removeSavedRepository"));
 		AddSavedRepositoryButton = new QToolButton{ SavedRepositoriesEditor };
 		AddSavedRepositoryButton->setDefaultAction(AddSavedRepository);
 		AddSavedRepositoryButton->setObjectName(QStringLiteral("addSavedRepositoryButton"));
-		AddSavedRepositoryButton->setAccessibleName(QStringLiteral("Save repository"));
+		AddSavedRepositoryButton->setAccessibleName(QStringLiteral("Add repository"));
 		AddSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
 			"Keep the named repository in the drawer for this account; nothing changes on GitHub"));
 		controls->addWidget(AddSavedRepositoryButton);
@@ -4163,13 +4174,9 @@ namespace bpr::qt {
 		RemoveSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
 			"Stop keeping the selected repository in the drawer"));
 		controls->addWidget(RemoveSavedRepositoryButton);
-		connect(AddSavedRepository, &QAction::triggered, this, [this] {
-			dispatch_saved_repository(application::saved_repository_action::add);
-		});
 		connect(RemoveSavedRepository, &QAction::triggered, this, [this] {
 			dispatch_saved_repository(application::saved_repository_action::remove);
 		});
-		connect(SavedRepositoryName, &QLineEdit::textChanged, this, [this] { update_saved_repository_actions(); });
 		connect(SavedRepositorySelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 				[this] { update_saved_repository_actions(); });
 		aLayout.addWidget(SavedRepositoriesEditor);
@@ -4575,6 +4582,200 @@ namespace bpr::qt {
 		update_pull_request_queue_actions();
 	}
 
+	void workbench_window::set_repository_addition_dispatch(std::function<void(application::repository_addition_intent)> aDispatch)
+	{
+		RepositoryAdditionDispatch = std::move(aDispatch);
+		update_saved_repository_actions();
+	}
+
+	auto workbench_window::repository_addition_dialog() const noexcept -> QDialog* { return RepositoryAdditionDialog; }
+
+	void workbench_window::repository_addition_notice(const QString& aText)
+	{
+		if (!RepositoryAdditionStatus || RepositoryAdditionStatus->text() == aText) {
+			return;
+		}
+		RepositoryAdditionStatus->setText(aText);
+		RepositoryAdditionStatus->setVisible(!aText.isEmpty());
+		if (!aText.isEmpty()) {
+			QAccessibleAnnouncementEvent event{ RepositoryAdditionStatus, aText };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
+	}
+
+	void workbench_window::open_repository_addition()
+	{
+		if (!RepositoryAdditionDispatch) {
+			return;
+		}
+		if (!RepositoryAdditionDialog) {
+			RepositoryAdditionDialog = new QDialog{ this };
+			RepositoryAdditionDialog->setObjectName(QStringLiteral("repositoryAdditionDialog"));
+			RepositoryAdditionDialog->setAttribute(Qt::WA_WindowPropagation, true);
+			RepositoryAdditionDialog->setWindowTitle(tr("Add repository"));
+			RepositoryAdditionDialog->setWindowModality(Qt::WindowModal);
+			RepositoryAdditionDialog->setAccessibleDescription(tr("Find my pull requests and review requests in a repository saved for the displayed account"));
+			auto* layout          = new QVBoxLayout{ RepositoryAdditionDialog };
+			RepositoryDestination = new QLabel{ RepositoryAdditionDialog };
+			RepositoryDestination->setObjectName(QStringLiteral("repositoryAdditionDestination"));
+			RepositoryDestination->setTextFormat(Qt::PlainText);
+			RepositoryDestination->setWordWrap(true);
+			RepositoryDestination->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			RepositoryDestination->setAccessibleName(tr("Destination account and host"));
+			layout->addWidget(RepositoryDestination);
+			auto* purpose = new QLabel{ tr("Find my pull requests and review requests here"), RepositoryAdditionDialog };
+			purpose->setWordWrap(true);
+			layout->addWidget(purpose);
+			auto* label = new QLabel{ tr("&Repository"), RepositoryAdditionDialog };
+			layout->addWidget(label);
+			SavedRepositoryName = new QLineEdit{ RepositoryAdditionDialog };
+			SavedRepositoryName->setObjectName(QStringLiteral("savedRepositoryName"));
+			SavedRepositoryName->setAccessibleName(tr("Repository link or owner/name"));
+			SavedRepositoryName->setAccessibleDescription(tr("Enter owner/name for the displayed host, or a complete HTTPS repository link"));
+			SavedRepositoryName->setPlaceholderText(tr("owner/name or repository link"));
+			SavedRepositoryName->setMaxLength(4096);
+			label->setBuddy(SavedRepositoryName);
+			layout->addWidget(SavedRepositoryName);
+			RepositoryAdditionStatus = new QLabel{ RepositoryAdditionDialog };
+			RepositoryAdditionStatus->setObjectName(QStringLiteral("repositoryAdditionStatus"));
+			RepositoryAdditionStatus->setAccessibleName(tr("Repository addition status"));
+			RepositoryAdditionStatus->setTextFormat(Qt::PlainText);
+			RepositoryAdditionStatus->setWordWrap(true);
+			RepositoryAdditionStatus->hide();
+			layout->addWidget(RepositoryAdditionStatus);
+			RepositoryPrepareButton = new QPushButton{ tr("Choose account or set up server…"), RepositoryAdditionDialog };
+			RepositoryPrepareButton->setObjectName(QStringLiteral("repositoryAdditionPrepare"));
+			RepositoryPrepareButton->setAccessibleDescription(tr("Keep this draft while signing in or explicitly adding its server; return here before saving"));
+			RepositoryPrepareButton->setAutoDefault(false);
+			RepositoryPrepareButton->hide();
+			layout->addWidget(RepositoryPrepareButton, 0, Qt::AlignLeft);
+			auto* buttons       = new QDialogButtonBox{ QDialogButtonBox::Cancel, RepositoryAdditionDialog };
+			RepositoryAddButton = buttons->addButton(tr("Add repository"), QDialogButtonBox::AcceptRole);
+			RepositoryAddButton->setObjectName(QStringLiteral("repositoryAdditionAdd"));
+			RepositoryAddButton->setAccessibleDescription(tr("Save this repository locally for the displayed account; nothing changes on GitHub"));
+			RepositoryAddButton->setDefault(true);
+			buttons->button(QDialogButtonBox::Cancel)->setAccessibleDescription(tr("Discard this repository draft and return to the invoking action"));
+			layout->addWidget(buttons);
+			connect(buttons, &QDialogButtonBox::rejected, RepositoryAdditionDialog, &QDialog::reject);
+			connect(RepositoryAddButton, &QPushButton::clicked, this, [this] {
+				if (RepositorySaving || RepositoryPreparing || !RepositoryAdditionDispatch || RepositoryGesture == std::numeric_limits<std::uint64_t>::max()) {
+					return;
+				}
+				RepositoryPendingGesture = ++RepositoryGesture;
+				RepositoryAdditionDispatch({ .Gesture = RepositoryPendingGesture, .Destination = RepositoryDisplayedDestination, .Text = SavedRepositoryName->text().toStdString() });
+			});
+			connect(RepositoryPrepareButton, &QPushButton::clicked, this, [this] {
+				if (!SetupDestinationDispatch || RepositorySaving) {
+					return;
+				}
+				RepositoryPreparing      = true;
+				RepositoryPendingGesture = 0U;
+				RepositoryAdditionDialog->hide();
+				SetupDestinationDispatch(application::submit_repository_setup{ .Text = SavedRepositoryName->text().toStdString() });
+			});
+			connect(SavedRepositoryName, &QLineEdit::textChanged, this, [this] {
+				if (!RepositorySaving) {
+					repository_addition_notice({ });
+					RepositoryPrepareButton->hide();
+				}
+			});
+			connect(RepositoryAdditionDialog, &QDialog::finished, this, [this](int) {
+				const auto preparing     = RepositoryPreparing;
+				RepositoryPreparing      = false;
+				RepositorySaving         = false;
+				RepositoryPendingGesture = 0U;
+				SavedRepositoryName->clear();
+				if (preparing && SetupDestinationDispatch) {
+					SetupDestinationDispatch(application::cancel_setup_destination{ });
+				}
+				if (RepositoryInvoker) {
+					RepositoryInvoker->window()->activateWindow();
+					RepositoryInvoker->setFocus(Qt::OtherFocusReason);
+				}
+			});
+			RepositoryAdditionDialog->resize(480, 250);
+		}
+		if (!RepositoryPreparing && !RepositoryAdditionDialog->isVisible()) {
+			RepositoryInvoker = QApplication::focusWidget();
+			if (!RepositoryInvoker) {
+				RepositoryInvoker = HomeAddRepositoryButton;
+			}
+			repository_addition_notice({ });
+		}
+		RepositoryPreparing = false;
+		update_repository_destination();
+		RepositoryAdditionDialog->show();
+		SavedRepositoryName->setFocus(Qt::OtherFocusReason);
+		// The native button box may transfer its default while the retained
+		// dialog is hidden for setup. Every return restores the final Add gesture.
+		RepositoryAddButton->setDefault(true);
+	}
+
+	void workbench_window::update_repository_destination()
+	{
+		if (!RepositoryAdditionDialog) {
+			return;
+		}
+		if (RepositoryDisplayedDestination != QueueProjection.Session) {
+			RepositoryDisplayedDestination = QueueProjection.Session;
+			RepositoryPendingGesture       = 0U;
+			RepositorySaving               = false;
+			if (!SavedRepositoryName->text().isEmpty()) {
+				repository_addition_notice(tr("The destination changed. Check the account and host, then choose Add repository."));
+			}
+		}
+		const auto& destination = RepositoryDisplayedDestination;
+		RepositoryDestination->setText(destination.Account.empty()
+										   ? tr("Sign in to choose the account for this repository.")
+										   : tr("Save for @%1 on %2").arg(QString::fromStdString(destination.Account), QString::fromStdString(destination.Host)));
+		RepositoryAddButton->setEnabled(static_cast<bool>(RepositoryAdditionDispatch) && !RepositorySaving && !RepositoryPreparing);
+		SavedRepositoryName->setEnabled(!RepositorySaving);
+		RepositoryPrepareButton->setEnabled(!RepositorySaving && static_cast<bool>(SetupDestinationDispatch));
+	}
+
+	void workbench_window::present_repository_addition(const application::repository_addition_result& aResult)
+	{
+		if (RepositoryPendingGesture == 0U || aResult.Gesture != RepositoryPendingGesture || aResult.Destination != RepositoryDisplayedDestination) {
+			return;
+		}
+		using state      = core::repository_addition_status;
+		RepositorySaving = aResult.Status == state::saving;
+		if (RepositoryAdditionDialog) {
+			update_repository_destination();
+		}
+		QString notice;
+		switch (aResult.Status) {
+		case state::saving: notice = tr("Adding repository…"); break;
+		case state::saved:
+			notice = aResult.Target ? tr("Added %1/%2.").arg(QString::fromStdString(aResult.Target->Repository.Owner), QString::fromStdString(aResult.Target->Repository.Name)) : tr("Repository added.");
+			statusBar()->showMessage(notice, 6000);
+			if (RepositoryAdditionDialog && RepositoryAdditionDialog->isVisible()) {
+				repository_addition_notice(notice);
+				RepositoryAdditionDialog->accept();
+				if (settings()) {
+					settings()->hide();
+				}
+				choose_home(true);
+			}
+			RepositoryPendingGesture = 0U;
+			return;
+		case state::already_added:       notice = tr("This repository is already added."); break;
+		case state::invalid_input:       notice = tr("Enter owner/name or a complete HTTPS repository link without a pull-request path, query or fragment."); break;
+		case state::sign_in_required:    notice = tr("Sign in to the repository's host, then return here and choose Add repository."); break;
+		case state::destination_changed: notice = tr("This repository needs a different destination. Choose its account or explicitly set up its server, then return here and choose Add repository."); break;
+		case state::unavailable:         notice = tr("The repository could not be saved locally. Your input is kept; choose Add repository to retry."); break;
+		case state::busy:                notice = tr("Another repository change is being saved. Try Add repository again when it finishes."); break;
+		case state::collection_limit:    notice = tr("The saved repository limit has been reached. Remove a repository in Settings before adding another."); break;
+		}
+		if (RepositoryAdditionDialog && RepositoryAdditionDialog->isVisible()) {
+			repository_addition_notice(notice);
+			RepositoryPrepareButton->setVisible(aResult.Target.has_value() && (aResult.Status == state::sign_in_required || aResult.Status == state::destination_changed));
+		} else if (!RepositorySaving) {
+			statusBar()->showMessage(notice, 6000);
+		}
+	}
+
 	auto workbench_window::saved_repositories_editor() const noexcept -> QWidget*
 	{
 		return SavedRepositoriesEditor;
@@ -4628,22 +4829,13 @@ namespace bpr::qt {
 		if (AddSavedRepository == nullptr || RemoveSavedRepository == nullptr) {
 			return;
 		}
-		// An account is needed to save for: the queue session names it once
-		// a pull request has been opened signed in.
 		const auto account = QueueReady && static_cast<bool>(SavedRepositoryDispatch)
 			&& !QueueProjection.Session.Host.empty() && !QueueProjection.Session.Account.empty();
-		AddSavedRepository->setEnabled(
-			account
-			&& application::valid(application::saved_repository{
-				.Host       = QueueProjection.Session.Host,
-				.Account    = QueueProjection.Session.Account,
-				.Repository = SavedRepositoryName != nullptr ? SavedRepositoryName->text().trimmed().toStdString() : std::string{ },
-			}));
+		AddSavedRepository->setEnabled(static_cast<bool>(RepositoryAdditionDispatch));
 		RemoveSavedRepository->setEnabled(
 			account && SavedRepositorySelector != nullptr && SavedRepositorySelector->currentIndex() >= 0);
-		AddSavedRepository->setToolTip(account
-										   ? QStringLiteral("Keep this repository in the drawer; this never changes GitHub.")
-										   : QStringLiteral("Open a pull request signed in first, so there is an account to save for."));
+		AddSavedRepository->setToolTip(tr("Find my pull requests and review requests in a saved repository; nothing changes on GitHub."));
+		update_repository_destination();
 		RemoveSavedRepository->setToolTip(QStringLiteral("Stop keeping the selected repository in the drawer."));
 	}
 
@@ -9300,8 +9492,19 @@ namespace bpr::qt {
 				glyph->setAccessibleDescription(tip);
 			}
 		}
+		if (HomeRepositoryRow != nullptr) {
+			HomeRepositoryRow->setVisible(HomeAccount);
+			if (auto* row = qobject_cast<QBoxLayout*>(HomeRepositoryRow->layout())) {
+				row->setDirection(width() < 640 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+			}
+		}
 		if (HomeDiscoveryStatus != nullptr) {
-			const auto sentence = HomeAccount && session ? home_discovery_sentence(discovery) : QString{ };
+			const auto hasSaved = std::ranges::any_of(QueueProjection.SavedRepositories, [this](const auto& aSaved) {
+				return aSaved.Host == QueueProjection.Session.Host && aSaved.Account == QueueProjection.Session.Account;
+			});
+			const auto sentence = !HomeAccount ? QString{ } : !hasSaved ? tr("Add a repository to find my pull requests and review requests.")
+				: session                                               ? home_discovery_sentence(discovery)
+																		: tr("Personal discovery is unavailable. Saved repositories are kept.");
 			if (HomeDiscoveryStatus->text() != sentence) {
 				HomeDiscoveryStatus->setText(sentence);
 			}
@@ -9328,7 +9531,7 @@ namespace bpr::qt {
 		const auto saved = ref.has_value() && std::ranges::any_of(QueueProjection.SavedRepositories, [&ref](const application::saved_repository& aSaved) {
 							   return aSaved.Host == ref->Host && aSaved.Account == ref->Account && aSaved.Repository == ref->Repository;
 						   });
-		SavePullRequestRepository->setEnabled(ref.has_value() && !saved && static_cast<bool>(SavedRepositoryDispatch));
+		SavePullRequestRepository->setEnabled(ref.has_value() && !saved && !RepositorySaving && static_cast<bool>(RepositoryAdditionDispatch));
 		const auto saveTip = !ref.has_value() ? QStringLiteral("Open a pull request signed in to save its repository.")
 			: saved                           ? QStringLiteral("This pull request's repository is saved.")
 											  : QStringLiteral("Keep this repository so my pull requests in it are found; nothing changes on GitHub.");
@@ -9723,6 +9926,23 @@ namespace bpr::qt {
 
 	void workbench_window::present_setup_destination(const application::setup_destination_projection& aProjection)
 	{
+		if (RepositoryPreparing) {
+			SetupDestinationRequest = aProjection.Pending ? std::optional{ aProjection.Pending->Request } : std::nullopt;
+			if (aProjection.Pending && (aProjection.Pending->Stage == core::setup_destination_stage::add_server || aProjection.Pending->Stage == core::setup_destination_stage::sign_in)) {
+				open_sign_in(aProjection.Pending->Destination.Hostname);
+				if (aProjection.Pending->Stage == core::setup_destination_stage::add_server) {
+					open_enterprise_server_draft();
+					EnterpriseServerHostname->setText(QString::fromStdString(aProjection.Pending->Destination.Hostname));
+					update_enterprise_server_actions();
+				}
+			} else if (!aProjection.Pending) {
+				open_repository_addition();
+				repository_addition_notice(aProjection.RepositoryPrepared
+											   ? tr("Check the destination, then choose Add repository to save.")
+											   : tr("Setup cancelled or unavailable. This draft has not been saved."));
+			}
+			return;
+		}
 		ApplyingSetupProjection   = true;
 		SetupDestinationRequest   = aProjection.Pending ? std::optional{ aProjection.Pending->Request } : std::nullopt;
 		SetupDestinationNeedsHome = aProjection.Pending
@@ -10279,6 +10499,7 @@ namespace bpr::qt {
 		// the two selectors on one grid row above their two exact OIDs, the row
 		// order the composed control already walks.
 		if (HomeLanding != nullptr) {
+			append(HomeAddRepositoryButton);
 			append(HomeLanding->primary_button());
 			append(HomeLanding->secondary_button());
 			append(HomeLanding->tertiary_button());
@@ -10380,6 +10601,7 @@ namespace bpr::qt {
 	void workbench_window::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QMainWindow::resizeEvent(aEvent);
+		update_discovery_controls();
 		apply_strip_width();
 		update_dif_presentation();
 		dispatch_geometry();
@@ -10832,13 +11054,12 @@ namespace bpr::qt {
 		SavePullRequestRepository->setEnabled(false);
 		connect(SavePullRequestRepository, &QAction::triggered, this, [this] {
 			const auto ref = open_queue_ref();
-			if (!ref || !SavedRepositoryDispatch) {
+			if (!ref || !RepositoryAdditionDispatch || RepositoryGesture == std::numeric_limits<std::uint64_t>::max()) {
 				return;
 			}
-			SavedRepositoryDispatch(application::saved_repository_intent{
-				.Action     = application::saved_repository_action::add,
-				.Repository = { .Host = ref->Host, .Account = ref->Account, .Repository = ref->Repository },
-			});
+			RepositoryPendingGesture       = ++RepositoryGesture;
+			RepositoryDisplayedDestination = QueueProjection.Session;
+			RepositoryAdditionDispatch({ .Gesture = RepositoryPendingGesture, .Destination = RepositoryDisplayedDestination, .Text = ref->Repository });
 		});
 
 		ViewMenu = PrimaryMenuBar->addMenu(QStringLiteral("&View"));

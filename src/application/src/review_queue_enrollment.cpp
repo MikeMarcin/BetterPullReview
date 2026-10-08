@@ -504,7 +504,16 @@ namespace bpr::application {
 				found->Delivered      = Revision;
 				try {
 					if (current(selected.Context)) {
-						selected.Port->publish(selected.Context, *projection);
+						// The collection is shared; a gesture result belongs only to
+						// its exact originating attachment. Sibling gesture counters
+						// may have the same numeric value.
+						if (projection->Addition && projection->Addition->Source != selected.Context) {
+							auto scoped = *projection;
+							scoped.Addition.reset();
+							selected.Port->publish(selected.Context, scoped);
+						} else {
+							selected.Port->publish(selected.Context, *projection);
+						}
 					}
 				} catch (...) {
 					Failed = true;

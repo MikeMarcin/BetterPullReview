@@ -6701,6 +6701,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							cancel_restoration(true);
 							retire_cli_discovery();
 							SetupDestination->submit(aValue.Text);
+						} else if constexpr (std::is_same_v<intent_type, application::submit_repository_setup>) {
+							retire_cli_discovery();
+							SetupDestination->submit_repository(aValue.Text);
 						} else {
 							SetupDestination->cancel();
 						}
@@ -6917,6 +6920,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->set_saved_repository_dispatch(
 				[this](application::saved_repository_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {
+						QueueHost->apply(std::move(aIntent));
+					}
+				});
+			Window->set_repository_addition_dispatch(
+				[this](application::repository_addition_intent aIntent) {
+					if (!Closing && QueueHost != nullptr) {
+						aIntent.Source = DraftWindow;
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
@@ -12578,6 +12588,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// Accepted sessions cover both native credentials and token-free CLI leases.
 			const auto authenticated = session && session->Mode == core::github_access_mode::authenticated && session->Profile == aProfile
 				&& profile != nullptr && session->Host == profile->host() && profile->hostname() == aDestination.Hostname;
+			if (aDestination.Kind == core::setup_destination_kind::repository) {
+				return authenticated ? application::setup_destination_opening::repository_prepared
+									 : application::setup_destination_opening::unavailable;
+			}
 			PendingLinkLocation.reset();
 			if (!previewing && !authenticated) {
 				return application::setup_destination_opening::reading;

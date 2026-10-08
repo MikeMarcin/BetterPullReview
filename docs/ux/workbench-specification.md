@@ -296,10 +296,26 @@ column, and RFC-BPR-0032 gives it one job per row.
   repositories.", "Finding my pull requests in 1 saved repository…", a
   partial list with why ("…but the list may be missing some: more matched
   than one search returns."), a stale one with its failure, what it still
-  shows and how long GitHub asked to wait, or "Save a repository to find
-  the pull requests in it that need me." It says a clock time, never how
-  long ago, and nothing without an account session, whose Home already
-  carries the sign-in. Rows found before a failure stay.
+  shows and how long GitHub asked to wait. It says a clock time, never how
+  long ago. Rows found before a failure stay. **Add repository** occupies the
+  same row, above the lists, whenever Home has an account: empty, populated,
+  filtered, refreshing or unavailable. With no saved repository for the exact
+  account/host the sentence is "Add a repository to find my pull requests and
+  review requests." The row stacks at narrow widths. Signed-out Home keeps its
+  sign-in and public-reading entry without a repository onboarding row.
+- **Add repository** ([[BPR-1308]], [[BPR-1309]], RFC-BPR-0062) opens the same
+  native dialog from Home and Settings. It names the exact destination account
+  and host, explains personal discovery, and accepts a repository link or
+  owner/name for that host. Add reports progress, duplicate and persistence
+  refusal; a refusal keeps input for a fresh retry. A durable success returns
+  to Home with confirmation, then discovery reports its own empty, current,
+  offline, limited or unavailable result without undoing the save. A different
+  host requires explicit setup/sign-in while retaining the draft. Returning
+  requires a new Add gesture after checking the destination. Return chooses
+  the native default Add button; Escape cancels and restores the invoking
+  focus. The dialog inherits interface type and palette, wraps long destination
+  identities and politely announces progress/refusal. The open-PR shortcut
+  saves its known repository directly through the same host and durable store.
 - **The bar**, alone in the first row: one bordered field labelled Open,
   with the placeholder "Paste a link, or write owner/name#123", its shortcut
   printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
