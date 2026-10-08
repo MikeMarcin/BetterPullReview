@@ -1102,6 +1102,25 @@ endfunction()
 # names. No grant, target, provider, credential, transport, GitHub write,
 # mutation or publication path changes; mutation pin unchanged. Reviewed on
 # BPR-1334.
+# BPR-1334 reseal: over the BPR-1212 slice 1 reseal at 68978f145, whose pins
+# match. Two pinned-scope commits since then carried no reseal and are reviewed
+# here. 7a35a4bed (BPR-1336): github_application.cpp sends View's zoom steps to
+# the appearance host as step_code_zoom_intent and gives the comparison the
+# code font at its zoom; appearance and presentation only. e8e1567c4
+# (BPR-1338): Open on GitHub hands the existing composed browser a pull request
+# page that core admits from the accepted session's profile hostname and this
+# window's own queue or Recently viewed row (stale rows refuse); the
+# placement's re-projection keeps the read host's markdown context; two
+# fixture-only accessors read the recording browser. No GitHub request or
+# write. BPR-1334 itself: the composition forwards the window's explicit Line
+# details height, or Reset, to WorkbenchHost::resize_line_details, which stores
+# it in the local workbench settings only; the UIforETW focused-layout probe
+# hides Line details through View > Line Details beside the drawers and Review
+# details, so the comparison's height floors still measure the panes alone;
+# main.cpp's diff courses read the strip's rows; line-details-v1 joins the
+# test-build fixture tables. No grant, target, provider, credential, transport,
+# GitHub write, mutation or publication path changes in this range; mutation
+# pin unchanged. Reviewed on BPR-1334.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")

@@ -4,8 +4,8 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/diff_workbench.hpp"
-#include "bpr/qt/type_preview.hpp"
 #include "bpr/qt/line_details_pane.hpp"
+#include "bpr/qt/type_preview.hpp"
 
 #include <QAccessible>
 #include <QApplication>
@@ -4062,6 +4062,33 @@ namespace {
 		expect(strip->projection().Rows.size() == 6U && strip->gutter_text(0) == QStringLiteral("1")
 				   && strip->gutter_text(4) == QStringLiteral("3"),
 			   "a selection across three lines shows three pairs");
+
+		// [[BPR-1212]]'s keyboard line cursor: Down moves the current line and
+		// the strip follows; Shift+Down extends it and the strip shows both.
+		const auto press = [](QWidget& aSurface, const Qt::Key aKey, const Qt::KeyboardModifiers aModifiers) {
+			auto shortcut = QKeyEvent{ QEvent::ShortcutOverride, aKey, aModifiers };
+			shortcut.ignore();
+			QCoreApplication::sendEvent(&aSurface, &shortcut);
+			auto down = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+			down.ignore();
+			const auto taken = QCoreApplication::sendEvent(&aSurface, &down) && down.isAccepted();
+			auto       up    = QKeyEvent{ QEvent::KeyRelease, aKey, aModifiers };
+			QCoreApplication::sendEvent(&aSurface, &up);
+			process_events();
+			return taken;
+		};
+		workbench.left_pane()->setTextCursor(QTextCursor{ workbench.left_pane()->document() });
+		expect(workbench.select_conversation_line(core::diff_side::left, 0U), "the cursor starts on the first line");
+		workbench.left_pane()->setFocus();
+		process_events();
+		expect(press(*workbench.left_pane(), Qt::Key_Down, Qt::NoModifier), "Down is taken by the focused code pane");
+		expect(strip->projection().Rows.size() == 2U && strip->gutter_text(0) == QStringLiteral("2 \u2212")
+				   && block(0).text() == QString::fromStdString(longLeft),
+			   "Down moves the line cursor and Line details follows it");
+		expect(press(*workbench.left_pane(), Qt::Key_Down, Qt::ShiftModifier), "Shift+Down is taken");
+		expect(strip->projection().Rows.size() == 4U && strip->gutter_text(0) == QStringLiteral("2 \u2212")
+				   && strip->gutter_text(2) == QStringLiteral("3"),
+			   "Shift+Down extends the selection and Line details shows both lines");
 
 		// Hidden, it asks the core nothing; shown again, it catches up.
 		workbench.set_line_details_visible(false);
