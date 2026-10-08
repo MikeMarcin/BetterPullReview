@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0062"
 title: "Saved Repository Onboarding from Home"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Owner four-draft mandate"
 depends_on: ["RFC-BPR-0026"]
