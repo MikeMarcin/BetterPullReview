@@ -8,7 +8,7 @@ depends_on: ["BPR-1309"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r1"}
 parked_on: "human-review"
-acceptance: [{"criterion":"C1","outcome":"pass","revision":"8e2f855e9061b4ce9cc150c1668356c8301b9b01","evidence":{"kind":"artifact","detail":"72 actual-composition offscreen Home/dialog renders across six supported appearances and 100/125/200%; native palette inheritance asserted; long exact wrapped account/host, narrow geometry, accessible editable input, Return Add and Escape/discard/invoking focus pass Qt courses at three scales. Actual Home floor is 900 logical px, dialogs 360/480."}},{"criterion":"C2","outcome":"pending","revision":"8e2f855e9061b4ce9cc150c1668356c8301b9b01:9179cb17b777e2c38b00bad7eaed844067662f30af25780be5bbaa893119c194","evidence":{"kind":"artifact","detail":"Fresh ready/protected session 5317162ad2f023440b559ad4145ed579 sequence 6; BPR-1310-home-v001 and BPR-1310-addition-v001 each ask one Accept/Reject judgment. Both owner verdicts pending. Coordinator starts loopback server after cancelled child approval; owns intake."}}]
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"2f6fe7f1a","evidence":{"kind":"command","detail":"v002: worker 16/16 focused rows (settings x4 scales, workbench x3, home list x3, composed github x3, settings effect boundary, composed personal-discovery course, core boundary); integrator combined isolated HEAD+slice rerun passes these Home rows and clean-export boundaries; 180 offscreen renders inspected (Settings renders light offscreen in all modes, existing limitation). Frozen public course 15.93s + boundaries 3/3. Format/changed-line tidy pass."}},{"criterion":"C2","outcome":"pending","revision":"2f6fe7f1a:55e9ed376d79cdbabb5d1229314866b1f26a5f90bdf778a687adbe3736710d34:f884c2c31d80a9db5ed0dc14c2214d4ea4043dfd27b4d597af1733a13de5e198","evidence":{"kind":"artifact","detail":"v001 Rejects consumed (c0939eaa addition, 5b1c12d0 home; session 5317162a cursor 10). Fresh session 940f5d334de0b75c0cbd0acf966c5438 cursor 6: BPR-1310-home-v002 (e5ec7cbd...) and BPR-1310-repositories-v002 (59c3b03d...), one Accept/Reject each; owner verdicts pending."}}]
 ---
 
 # Verify rendered repository onboarding and prepare owner review
@@ -69,3 +69,40 @@ latest owner direction wins and the original criteria stay. The next round
 gives saved repositories their own Settings page with the shared dialog, and
 gives signed-in Home a clearer first-time call to action. C2 stays pending on
 a new frozen candidate and a fresh session; BPR-1311 keeps its dependency.
+
+## v002 candidates (dispatch r5, 2026-10-08)
+
+`2f6fe7f1a` responds to both rejections; the frontend-design skill was
+loaded first. Settings gains a **Repositories** page right after Accounts &
+hosts. It shows an "Saved for @account on host" line, the exact saved list,
+**Add repository** (the shared dialog) and **Remove** (also Delete or
+Backspace), using the existing saved-repository removal intent with no new
+schema. With nothing saved it shows "No repositories yet" and Add. Signed
+out, it lists the kept records with their account and host and disables
+Remove. Reviews & queue keeps only a pointer to the new page. Observer rules
+stay there because they are queue behaviour, not the saved list. Signed-in
+Home with no saved repository replaces the old row, directly under the Open
+bar, with the heading "Start with a repository", one sentence and a default
+**Add repository** button. That block retires after the first save; it never
+shows while the queue restores, for a filtered or empty queue, or signed out.
+
+Evidence. The worker ran 16 focused rows and all pass: Settings window at four
+scales, workbench window and Home list at three scales each, the composed
+GitHub rows, the Settings effect boundary, the composed personal-discovery
+course and the core boundary. That composed course covers the first-run call
+to action, invalid input, cancelled setup, duplicate, a real SQLite refusal
+and retry, offline saves, a sibling window, restart, and removal by button
+and by Delete. The integrator's combined check reran the Home rows against
+HEAD plus this slice in an isolated tree and they pass, as do the clean-export
+boundaries. Format and changed-line tidy pass. The worker inspected 180
+offscreen renders (six appearances, two widths, three scales). Settings
+renders light in every explicit mode offscreen, an existing limitation of the
+Settings top-level palette.
+
+The self-contained frozen root `artifacts/four-drafts-r1/home-frozen-v002/`
+(source archive `716e1f07…5ff2`, binary `55e9ed37…0d34`, launcher
+`f884c2c3…e198`) passes its public course in 15.93 s and its boundaries 3/3.
+The launcher refuses at once when its files are missing. Fresh session
+`940f5d334de0b75c0cbd0acf966c5438` (cursor 6) asks two separate questions:
+`BPR-1310-home-v002` on the first-time call to action and
+`BPR-1310-repositories-v002` on the Repositories page. C2 stays pending.
