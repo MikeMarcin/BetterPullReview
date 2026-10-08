@@ -326,15 +326,26 @@ column, and RFC-BPR-0032 gives it one job per row.
   partial list with why ("…but the list may be missing some: more matched
   than one search returns."), a stale one with its failure, what it still
   shows and how long GitHub asked to wait. It says a clock time, never how
-  long ago. Rows found before a failure stay. **Add repository** occupies the
-  same row, above the lists, whenever Home has an account: empty, populated,
-  filtered, refreshing or unavailable. With no saved repository for the exact
-  account/host the sentence is "Add a repository to find my pull requests and
-  review requests." The row stacks at narrow widths. Signed-out Home keeps its
-  sign-in and public-reading entry without a repository onboarding row.
+    long ago. Rows found before a failure stay. **Add repository** occupies the
+  same row, above the lists, whenever Home has an account and at least one
+  saved repository: populated, empty, filtered, refreshing or unavailable. The
+  row stacks at narrow widths.
+- **First repository** (RFC-BPR-0062; owner direction of 2026-10-07 asked for
+  a clearer first-time call to action). Once the queue is ready and the exact
+  displayed account/host has no saved repository, the row gives way, in the
+  same place under the bar, to a short heading "Start with a repository", the
+  sentence "Add a repository to find my pull requests and review requests."
+  and a default-styled **Add repository** button. It is not a card: no border
+  or fill, interface font and palette, so the button is Home's one emphasized
+  control. It opens the same dialog and disappears with the first durable save,
+  handing the keyboard to the ordinary row's Add repository. A filtered or
+  empty queue with saved repositories, or a queue still restoring, keeps the
+  ordinary row. Signed-out Home keeps its sign-in and public-reading entry
+  without either.
 - **Add repository** ([[BPR-1308]], [[BPR-1309]], RFC-BPR-0062) opens the same
-  native dialog from Home and Settings. It names the exact destination account
-  and host, explains personal discovery, and accepts a repository link or
+  native dialog from Home and Settings › Repositories. It names the exact
+  destination account and host, explains personal discovery, and accepts a
+  repository link or
   owner/name for that host. Add reports progress, duplicate and persistence
   refusal; a refusal keeps input for a fresh retry. A durable success returns
   to Home with confirmation, then discovery reports its own empty, current,
@@ -409,7 +420,8 @@ column, and RFC-BPR-0032 gives it one job per row.
   announces its expanded or collapsed state. An empty state is not shown, and
   when a signed-in window's ready queue is empty Needs me holds one sentence
   — "Nothing needs me. Pull requests from saved repositories and observer
-  rules appear here." — whose link opens Settings › Reviews & queue. No empty
+  rules appear here." — whose link opens Settings › Reviews & queue (which
+  points on to Settings › Repositories for the saved list). No empty
   box is drawn in any arrangement.
 - **Group** is a strip menu of None (the default), Organization, Repository
   and Account. A group is a neutral panel headed by an initial tile — round
@@ -430,8 +442,8 @@ column, and RFC-BPR-0032 gives it one job per row.
   group — each an exclusive choice listing every value of its vocabulary, so
   an item cannot be unticked into nothing. Repository and Bucket are no
   longer filters because Group and the state order do their work. The menu's
-  footer says that nothing there changes GitHub and offers the way to
-  Settings › Reviews & queue. These are the same typed controls Settings
+  footer says that nothing there changes GitHub and that observer rules are
+  in Settings › Reviews & queue, and offers the way there. These are the same typed controls Settings
   presents as queue defaults, not a mirror of them.
 - **Recently viewed** is the last panel in every arrangement, and Resume is
   its rows' action: on hover, on focus and in the row's menu. It is governed

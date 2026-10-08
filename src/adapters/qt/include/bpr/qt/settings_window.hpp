@@ -25,12 +25,15 @@ namespace bpr::qt {
 	/// \brief Names one page of the Settings window, in sidebar order.
 	///
 	/// \details The order is RFC-BPR-0018's: the pages a reviewer reaches first
-	/// come first. Accounts, reviews and appearance host live surfaces; other pages name
-	/// where a setting will live so a reviewer looking for it is told, rather
-	/// than shown an empty page.
+	/// come first. Accounts, repositories, reviews and appearance host live
+	/// surfaces; other pages name where a setting will live so a reviewer
+	/// looking for it is told, rather than shown an empty page. Repositories
+	/// follows Accounts & hosts because a saved repository belongs to one of
+	/// those accounts (RFC-BPR-0062, owner direction 2026-10-07).
 	enum class settings_page : std::uint8_t {
 		general,
 		accounts_and_hosts,
+		repositories,
 		reviews_and_queue,
 		appearance,
 		notifications,
@@ -38,7 +41,7 @@ namespace bpr::qt {
 		storage_and_privacy,
 	};
 
-	inline constexpr std::size_t settings_page_count = 7U;
+	inline constexpr std::size_t settings_page_count = 8U;
 
 	/// \brief [[BPR-1289]]. What a Settings search result holds besides the
 	/// name it shows (`Qt::DisplayRole`).

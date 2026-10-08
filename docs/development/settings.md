@@ -109,23 +109,43 @@ does not know, or one label twice, the row says how many were left out; the
 rest keep their order, and changing a chip or Reset saves the list as shown.
 
 Observer rules match local repository, author or path facts. Add/remove changes
-the local rule and its matched membership. **Add repository** opens the same
-native dialog as signed-in Home. Enter an HTTPS repository root or owner/name
-for the displayed host, check the exact account and host, then choose Add
-repository. The record belongs to that BPR profile and account. It starts the
-bounded authored/requested discovery owned by RFC-BPR-0026; it changes no GitHub
-subscription or review and opens no pull request. Saving succeeds only after
-local persistence accepts the record. A duplicate has its own confirmation;
-a refused save keeps the draft and accepted list for an explicit retry.
+the local rule and its matched membership. Observer rules stay on this page
+because they are queue behaviour over any repository, not the saved list.
+Saved repositories have their own page; **Open Repositories** under Saved
+repositories goes there.
+
+## Repositories
+
+This page follows Accounts & hosts in the sidebar and holds only the saved
+repositories (RFC-BPR-0062; owner direction of 2026-10-07 moved them off
+Reviews & queue). It names the exact account and host they are saved for, then
+lists that account's repositories by exact owner/name; a row's tooltip and
+accessible description repeat its host and account. Signed out there is no
+displayed account, so every kept record is listed with its account and host and
+Remove is unavailable until sign-in. With nothing saved the page says "No
+repositories yet" with Add repository instead of an empty list.
+
+**Add repository** opens the same native dialog as signed-in Home. Enter an
+HTTPS repository root or owner/name for the displayed host, check the exact
+account and host, then choose Add repository. The record belongs to that BPR
+profile and account. It starts the bounded authored/requested discovery owned
+by RFC-BPR-0026; it changes no GitHub subscription or review and opens no pull
+request. Saving succeeds only after local persistence accepts the record. A
+duplicate has its own confirmation; a refused save keeps the draft and accepted
+list for an explicit retry.
 
 A different repository host requires explicit account/server preparation.
 Preparation retains the draft; cancellation saves nothing, and returning from
 sign-in requires checking the destination and choosing Add repository again.
-Cancel or Escape discards the draft and restores the invoking focus. The list
-and Remove remain in Settings. Removing affects the local saved record only;
-failed changes preserve the accepted list. The open-PR Save Repository shortcut
-continues to save its known repository directly through the same persistence
-and result path.
+Cancel or Escape discards the draft and restores the invoking focus.
+
+**Remove** (or Delete/Backspace on the list) removes the selected exact record
+through the existing saved-repository intent and store. It affects the local
+saved record only; a failed change preserves the accepted list. Removing the
+last row leaves the empty state with the keyboard on Add repository, and Home
+shows its first-repository call to action again. The open-PR Save Repository
+shortcut continues to save its known repository directly through the same
+persistence and result path.
 
 ## Appearance
 
