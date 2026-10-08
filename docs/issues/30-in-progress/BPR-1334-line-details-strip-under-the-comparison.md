@@ -103,3 +103,32 @@ The existing Detail pane becomes **Line details**. No second pane is added.
   100 ms.
 - **C5 (owner).** The owner looks at a frozen build with long changed lines
   and answers Accept or Reject for "line details strip".
+
+## Checkpoint (2026-10-08, bpr-main-mac implementer)
+
+Branch `claude/line-details-strip`, rebased on `origin/main` at `5efe30739`.
+Commits: `0e4ef5ba1` (Line details), `c32e467e4` (fixture, course, row bands,
+one-line replacement rule), `ed2ab5f7d` (pin reseal over `512c2836b`).
+Design: `frontend-design:frontend-design` loaded first; the strip inherits the
+panes' code font, gutter roles and diff colours, with nothing added. The
+gutter shows line number and −/+ only, every wrapped line of a row wears the
+row's band, and the emphasis is the one strong mark.
+
+Verification at `c32e467e4` (dev, macOS arm64 Debug, offscreen), all passing:
+`core_diff_semantics`, `qt_diff_workbench_scale_{100,125,200}`,
+`qt_workbench_window_scale_100`, `qt_workbench_focus_order_scale_100`,
+`qt_settings_window`, `sqlite_workbench_settings_storage`,
+`application_workbench_host`, `application_diff_workbench_public_path`,
+`application_profile_window_layout_public_path`,
+`application_line_details_public_path`, `github_recorded_fixture_contract`,
+`github_contract_fixture_security`; format check passes. Failing-before
+controls (each mutation reverted after): range ignored, cursor hold removed,
+emphasis dropped, strip tied to Review details, profile column not written,
+held height dropped, UTF-8 back-off removed, emphasis unclipped, similar pairs
+read unchanged, one-line replacement rule off. Each fails its named check.
+
+Disk ran out twice during this card. Other worktrees' builds filled it, so the
+Debug tree was deleted after these runs. The optimized rows and the owner look
+run from one frozen tests-on Release build:
+`artifacts/bpr-1334/line-details-frozen-v001/` (source exported from
+`ed2ab5f7d`, archive sha256 `9da95165…`).
