@@ -572,6 +572,20 @@ auto main(int argc, char** argv) -> int
 		expect(settings.Overrides[4].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "Restore default brings back the shipped guidance");
 		panel->present_label_helper(application::review_label_helper::off);
 		expect(scope->text().startsWith("Off."), "and turning the helper off again says so");
+		// For a look at the row as drawn, when BPR_SETTINGS_RENDER_DIR is set.
+		if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
+			window.settings()->present(qt::settings_page::agents_and_context);
+			window.settings()->resize(900, 820);
+			panel->ensurePolished();
+			QApplication::processEvents();
+			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-feedback-off.png")), "the feedback row render is saved");
+			panel->present_label_helper(application::review_label_helper::on);
+			QApplication::processEvents();
+			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-feedback-on.png")), "the feedback row render is saved");
+			hook->setCurrentIndex(0);
+			QApplication::processEvents();
+			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-problem.png")), "the problem row render is saved");
+		}
 	}
 
 	test_adopting_a_panel_replaces_the_notice();
