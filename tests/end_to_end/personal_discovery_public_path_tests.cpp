@@ -236,12 +236,12 @@ try {
 	// says what would change that.
 	windowA->home_landing()->primary_button()->click();
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session");
-	// RFC-BPR-0062, owner direction 2026-10-07: the first-repository call to
-	// action, not the ordinary row, says what to do.
+	// RFC-BPR-0062, owner verdicts of 2026-10-07 and 2026-10-08: one button,
+	// not the ordinary row, and no Needs me lane that could hold nothing.
 	wait_for([&] { return windowA->home_repository_onboarding()->isVisible() && windowA->home_repository_onboarding_button()->isVisible()
-					   && !windowA->home_discovery_status()->isVisible()
-					   && windowA->home_repository_onboarding()->findChild<QLabel*>(QStringLiteral("homeRepositoryOnboardingSentence"))->text() == QStringLiteral("Add a repository to find my pull requests and review requests."); },
-			 "with nothing saved Home shows the first-repository call to action", diagnose);
+					   && windowA->home_repository_onboarding_button()->text() == QStringLiteral("Add a repository") && !windowA->home_discovery_status()->isVisible()
+					   && !windowA->home_list()->state_panel(qt::home_group::needs_you)->isVisible(); },
+			 "with nothing saved Home shows only the first-repository button and no empty lane", diagnose);
 	expect(discovery().Composed && discovery().Status.Account == viewer && evidence().DiscoverySearches == 0U && discovery().Statistics.Submitted == 0U,
 		   "the account session is adopted and nothing is searched");
 	expect(windowA->queue_refresh_action()->isVisible() && windowA->queue_refresh_action()->isEnabled(), "Home's refresh glyph can run for the account");
@@ -259,55 +259,89 @@ try {
 		expect(e2e::remove_course_root(temporary), "attended fixture removes its private root");
 		return EXIT_SUCCESS;
 	}
+	auto* const draft      = windowA->repository_addition_draft();
+	const auto  notice     = [&] { return draft->findChild<QLabel*>(QStringLiteral("repositoryAdditionStatus"))->text(); };
+	const auto  draftReady = [&] {
+		return windowA->settings()->isVisible() && windowA->settings()->current_page() == qt::settings_page::repositories && draft->isVisible()
+			&& windowA->saved_repository_name()->isEnabled();
+	};
+	const auto addDraft = [&](const QString& aText) {
+		windowA->saved_repository_name()->setText(aText);
+		draft->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"))->click();
+	};
+	const auto cancelDraft = [&] {
+		draft->findChild<QPushButton*>(QStringLiteral("repositoryAdditionCancel"))->click();
+		windowA->settings()->hide();
+	};
 	if (!renderDirectory.isEmpty()) {
-		// [[BPR-1310]] v002. Actual composition, offscreen: Home first run, the
-		// Repositories page empty, the dialog; then one durable save through the
-		// dialog and Home populated, the Repositories page populated.
+		// [[BPR-1310]] v003. Actual composition, offscreen: Home first run; the
+		// Repositories page empty, adding and refusing; two durable saves through
+		// the page; Home and the page populated; then every repository removed
+		// and Home with none again.
 		expect(QDir{ }.mkpath(renderDirectory), "render output directory exists");
-		const auto modes     = std::array{ core::appearance_mode::system, core::appearance_mode::light, core::appearance_mode::dark,
-										   core::appearance_mode::high_contrast_system, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark };
-		const auto renderAll = [&](const bool aPopulated) {
+		const auto modes = std::array{ core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_dark };
+		const auto each  = [&](const std::function<void(const QString&, int)>& aRender) {
 			for (const auto mode : modes) {
 				windowA->appearance_settings()->choose_mode(mode);
 				wait_for([&] { return owner->status().ProfileMode == mode; }, "rendered composed appearance is accepted");
 				for (const auto width : { 1100, 520 }) {
-					const auto prefix = renderDirectory + QStringLiteral("/%1-%2").arg(QString::fromUtf8(core::stable_name(mode))).arg(width);
-					windowA->settings()->hide();
-					windowA->home_action()->trigger();
-					windowA->resize(width, 760);
-					QApplication::processEvents();
-					expect(windowA->home_repository_onboarding()->isVisible() == !aPopulated, "the call to action follows the saved collection");
-					expect(windowA->grab().save(prefix + (aPopulated ? QStringLiteral("-home-populated.png") : QStringLiteral("-home-first-run.png"))), "real Home render saved");
-					windowA->settings()->present(qt::settings_page::repositories);
-					windowA->settings()->resize(width == 520 ? 620 : 860, 520);
-					QApplication::processEvents();
-					expect(windowA->saved_repositories_empty()->isVisible() == !aPopulated, "the page's empty state follows the saved collection");
-					expect(windowA->settings()->grab().save(prefix + (aPopulated ? QStringLiteral("-repositories-populated.png") : QStringLiteral("-repositories-empty.png"))), "real Repositories page render saved");
-					if (!aPopulated) {
-						windowA->settings()->hide();
-						windowA->open_repository_addition();
-						windowA->saved_repository_name()->setText(QStringLiteral("organization-with-a-long-name/repository-with-a-long-name"));
-						windowA->repository_addition_dialog()->resize(width == 520 ? 360 : 480, 270);
-						QApplication::processEvents();
-						expect(windowA->repository_addition_dialog()->palette().color(QPalette::Window) == windowA->palette().color(QPalette::Window), "dialog inherits the accepted profile appearance");
-						expect(windowA->repository_addition_dialog()->grab().save(prefix + QStringLiteral("-dialog.png")), "real dialog render saved");
-						windowA->repository_addition_dialog()->reject();
-					}
+					aRender(renderDirectory + QStringLiteral("/%1-%2").arg(QString::fromUtf8(core::stable_name(mode))).arg(width), width);
 				}
 			}
 		};
-		renderAll(false);
-		windowA->settings()->hide();
+		const auto home = [&](const QString& aPath, const int aWidth) {
+			windowA->settings()->hide();
+			windowA->home_action()->trigger();
+			windowA->resize(aWidth, 760);
+			QApplication::processEvents();
+			expect(windowA->grab().save(aPath), "real Home render saved");
+		};
+		const auto page = [&](const QString& aPath, const int aWidth) {
+			windowA->settings()->present(qt::settings_page::repositories);
+			windowA->settings()->resize(aWidth == 520 ? 560 : 860, 560);
+			QApplication::processEvents();
+			expect(windowA->settings()->grab().save(aPath), "real Repositories page render saved");
+		};
+		each([&](const QString& aPrefix, const int aWidth) {
+			home(aPrefix + QStringLiteral("-home-first-run.png"), aWidth);
+			expect(windowA->home_repository_onboarding()->isVisible(), "first run shows the button");
+			page(aPrefix + QStringLiteral("-repositories-empty.png"), aWidth);
+			expect(windowA->saved_repositories_empty()->isVisible(), "the page's card says it holds none");
+			windowA->home_repository_onboarding_button()->click();
+			wait_for(draftReady, "the button opens the page with the new-repository card");
+			windowA->saved_repository_name()->setText(QStringLiteral("organization-with-a-long-name/repository-with-a-long-name"));
+			page(aPrefix + QStringLiteral("-repositories-adding.png"), aWidth);
+			addDraft(QStringLiteral("https://github.com/organization-with-a-long-name/repository-with-a-long-name/pull/17"));
+			wait_for([&] { return notice().contains(QStringLiteral("without a pull-request path")); }, "render refusal is shown beside the field");
+			page(aPrefix + QStringLiteral("-repositories-refusal.png"), aWidth);
+			cancelDraft();
+		});
 		windowA->home_action()->trigger();
 		for (const auto* const name : { "octo-org/review-repository", "organization-with-a-long-name/repository-with-a-long-name" }) {
 			windowA->open_repository_addition();
-			windowA->saved_repository_name()->setText(QString::fromUtf8(name));
-			windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"))->click();
-			wait_for([&] { return !windowA->repository_addition_dialog()->isVisible() && discovery().Quiescent; }, "render fixture saves through the dialog", diagnose);
+			wait_for(draftReady, "render fixture opens the card");
+			addDraft(QString::fromUtf8(name));
+			wait_for([&] { return !draft->isVisible() && discovery().Quiescent; }, "render fixture saves through the page", diagnose);
 		}
 		wait_for([&] { return windowA->saved_repository_list()->count() == 2 && contains(state_rows(*windowA, qt::home_group::needs_you), "octo-org/review-repository#4003"); },
 				 "render fixture shows populated Home", diagnose);
-		renderAll(true);
+		each([&](const QString& aPrefix, const int aWidth) {
+			home(aPrefix + QStringLiteral("-home-populated.png"), aWidth);
+			expect(!windowA->home_repository_onboarding()->isVisible(), "populated Home shows the ordinary row");
+			page(aPrefix + QStringLiteral("-repositories-populated.png"), aWidth);
+		});
+		windowA->settings()->present(qt::settings_page::repositories);
+		while (windowA->saved_repository_list()->count() > 0) {
+			const auto remaining = windowA->saved_repository_list()->count();
+			windowA->saved_repository_list()->setCurrentRow(0);
+			windowA->remove_saved_repository_action()->trigger();
+			wait_for([&] { return windowA->saved_repository_list()->count() == remaining - 1 && discovery().Quiescent; }, "render fixture removes a repository", diagnose);
+		}
+		each([&](const QString& aPrefix, const int aWidth) {
+			home(aPrefix + QStringLiteral("-home-no-repositories.png"), aWidth);
+			expect(windowA->home_repository_onboarding()->isVisible() && !windowA->home_list()->state_panel(qt::home_group::needs_you)->isVisible(),
+				   "with every repository removed Home shows the button and no empty lane");
+		});
 		windowA->settings()->hide();
 		windowA->resize(1100, 760);
 		owner->begin_shutdown();
@@ -324,40 +358,38 @@ try {
 		} else {
 			windowA->findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->click();
 		}
-		wait_for([&] { return windowA->repository_addition_dialog() && windowA->repository_addition_dialog()->isVisible(); }, "Home opens shared addition");
+		wait_for([&] { return draftReady() && windowA->settings()->focusWidget() == windowA->saved_repository_name(); }, "Home opens Settings › Repositories with the field focused", [&] { std::cerr << "settings visible=" << windowA->settings()->isVisible() << " page=" << static_cast<int>(windowA->settings()->current_page()) << " draft=" << draft->isVisible()
+																																																	  << " enabled=" << windowA->saved_repository_name()->isEnabled() << " focus=" << (windowA->settings()->focusWidget() ? windowA->settings()->focusWidget()->objectName().toStdString() : std::string{ "none" }) << '\n'; });
 	};
-	const auto addDraft = [&](const QString& aText) {
-		windowA->saved_repository_name()->setText(aText);
-		windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"))->click();
-	};
-	const auto notice     = [&] { return windowA->repository_addition_dialog()->findChild<QLabel*>(QStringLiteral("repositoryAdditionStatus"))->text(); };
 	const auto savedCount = [&] { return windowA->saved_repository_list()->count(); };
 	openAddition();
 	addDraft(QStringLiteral("https://github.com/octo-org/empty-repository/pull/17"));
 	wait_for([&] { return notice().contains(QStringLiteral("without a pull-request path")); }, "PR-shaped repository input is refused");
 	expect(savedCount() == 0 && evidence().DiscoverySearches == 0U, "invalid input saves and searches nothing");
 	addDraft(QStringLiteral("https://unknown.example/octo-org/empty-repository"));
-	wait_for([&] { return windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->isVisible(); }, "foreign host requires explicit preparation");
-	windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->click();
+	wait_for([&] { return draft->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->isVisible(); }, "foreign host requires explicit preparation");
+	draft->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->click();
 	wait_for([&] { return windowA->sign_in_dialog() && windowA->sign_in_dialog()->isVisible() && windowA->enterprise_server_draft()->isVisible(); }, "explicit preparation opens server setup");
 	windowA->sign_in_dialog()->reject();
-	wait_for([&] { return windowA->repository_addition_dialog()->isVisible(); }, "cancelled setup returns to draft");
+	wait_for([&] { return draftReady() && notice().contains(QStringLiteral("not been saved")); }, "cancelled setup returns to the draft on Repositories");
 	expect(savedCount() == 0 && windowA->saved_repository_name()->text().contains(QStringLiteral("unknown.example")) && evidence().DiscoverySearches == 0U,
 		   "cancelled setup keeps draft without saving or discovering under another host");
-	windowA->repository_addition_dialog()->reject();
-	windowA->settings()->hide();
+	cancelDraft();
 
 	// Discovery needs no pull request: a repository saved from Home before
 	// anything is opened is searched at once. This one holds nothing for the
 	// viewer, so it costs the two searches and no detail read.
 	expect(windowA->home_repository_onboarding_button()->isVisible() && windowA->home_repository_onboarding_button()->isEnabled(), "Home offers its first-repository Add after sign-in with no PR");
 	windowA->home_repository_onboarding_button()->click();
-	wait_for([&] { return windowA->repository_addition_dialog() && windowA->repository_addition_dialog()->isVisible(); }, "Home opens the shared addition dialog");
+	wait_for(draftReady, "Home's button opens the page's new-repository card");
 	windowA->saved_repository_name()->setText(QStringLiteral("octo-org/empty-repository"));
 	wait_for([&] { return windowA->add_saved_repository_action()->isEnabled(); }, "an account session can save a repository before any pull request is opened");
 	const auto signedIn = evidence().AccountReadOperations.size();
-	windowA->repository_addition_dialog()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"))->click();
-	wait_for([&] { return !windowA->repository_addition_dialog()->isVisible(); }, "durable save closes the dialog");
+	auto       enter    = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+	QApplication::sendEvent(windowA->saved_repository_name(), &enter);
+	wait_for([&] { return !draft->isVisible() && windowA->settings()->findChild<QLabel*>(QStringLiteral("repositoriesConfirmation"))->text() == QStringLiteral("Added octo-org/empty-repository."); },
+			 "Return saves; the durable save closes the card into the list and confirms on the page");
+	windowA->settings()->hide();
 	wait_for([&] { return discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; }, "a saved repository is searched with no pull request opened", diagnose);
 	expect(evidence().DiscoverySearches == 2U && evidence().DiscoveryDetailReads == 0U
 			   && reads_since(evidence(), signedIn) == std::vector<std::string>{ "SearchPersonalPullRequests", "SearchPersonalPullRequests" },
@@ -370,7 +402,7 @@ try {
 	addDraft(QStringLiteral("https://github.com/octo-org/empty-repository/"));
 	wait_for([&] { return notice() == QStringLiteral("This repository is already added."); }, "canonical duplicate is shown through real store state");
 	expect(savedCount() == 1 && evidence().DiscoverySearches == 2U, "duplicate saves and searches nothing again");
-	windowA->repository_addition_dialog()->reject();
+	cancelDraft();
 
 	// A pull request opened by link is recently viewed, and nothing else.
 	submit(*windowA, 17);
@@ -508,13 +540,13 @@ try {
 	windowA->home_action()->trigger();
 	options.Offline->Offline = true;
 	addDraft(QStringLiteral("octo-org/offline-repository"));
-	wait_for([&] { return !windowA->repository_addition_dialog()->isVisible() && discovery().Quiescent && discovery().Status.Problem == application::queue_discovery_problem::offline; }, "offline save remains durable with accurate discovery", diagnose);
+	wait_for([&] { return !draft->isVisible() && discovery().Quiescent && discovery().Status.Problem == application::queue_discovery_problem::offline; }, "offline save remains durable with accurate discovery", diagnose);
 	expect(savedCount() == 3 && windowA->home_discovery_status()->text().contains(QStringLiteral("could not be reached")), "offline discovery keeps saved records and prior rows");
 	options.Offline->Offline = false;
 	options.RateLimit->Mode  = 2U;
 	openAddition();
 	addDraft(QStringLiteral("octo-org/limited-repository"));
-	wait_for([&] { return !windowA->repository_addition_dialog()->isVisible() && discovery().Quiescent && discovery().Status.Problem == application::queue_discovery_problem::secondary_rate_limited; }, "limited save remains durable with accurate discovery", diagnose);
+	wait_for([&] { return !draft->isVisible() && discovery().Quiescent && discovery().Status.Problem == application::queue_discovery_problem::secondary_rate_limited; }, "limited save remains durable with accurate discovery", diagnose);
 	expect(savedCount() == 4 && options.RateLimit->Responses > 0U && windowA->home_discovery_status()->text().contains(QStringLiteral("slow down")), "secondary limit keeps four saved records and communicates delay");
 	options.RateLimit->Mode = 0U;
 

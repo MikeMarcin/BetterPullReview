@@ -9173,12 +9173,15 @@ namespace {
 		process_events();
 		window.add_saved_repository_action()->trigger();
 		process_events();
-		auto* dialog = window.repository_addition_dialog();
-		auto* input  = window.saved_repository_name();
-		auto* add    = dialog->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"));
-		auto* notice = dialog->findChild<QLabel*>(QStringLiteral("repositoryAdditionStatus"));
-		expect(dialog->isVisible() && input->hasFocus() && !window.saved_repositories_editor()->isAncestorOf(input),
-			   "Settings opens the one native focused dialog, without a competing inline input");
+		auto* dialog    = window.repository_addition_draft();
+		auto* input     = window.saved_repository_name();
+		auto* add       = dialog->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd"));
+		auto* notice    = dialog->findChild<QLabel*>(QStringLiteral("repositoryAdditionStatus"));
+		auto* addOnPage = window.settings()->findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton"));
+		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::repositories && dialog->isVisible()
+				   && input->hasFocus() && window.saved_repositories_editor()->isAncestorOf(input) && !addOnPage->isVisible()
+				   && window.findChildren<QDialog*>(QStringLiteral("repositoryAdditionDialog")).isEmpty(),
+			   "Add repository opens Settings › Repositories with the new-repository card's field focused, and no dialog");
 		expect(dialog->findChild<QLabel*>(QStringLiteral("repositoryAdditionDestination"))->text() == QStringLiteral("Save for @reviewer on github.com"),
 			   "the final destination is shown before Add");
 		input->setText(QStringLiteral(" octo/tools "));
@@ -9217,13 +9220,17 @@ namespace {
 		projection.Addition = result;
 		window.publish(projection);
 		dialog->findChild<QPushButton*>(QStringLiteral("repositoryAdditionPrepare"))->click();
-		expect(!dialog->isVisible() && setups.size() == 1U && std::get<application::submit_repository_setup>(setups.back()).Text == input->text().toStdString(),
-			   "an explicit preparation gesture retains the draft outside the dialog");
+		expect(dialog->isVisibleTo(window.saved_repositories_editor()) && setups.size() == 1U && std::get<application::submit_repository_setup>(setups.back()).Text == input->text().toStdString()
+				   && !add->isEnabled(),
+			   "an explicit preparation gesture keeps the draft on its page and holds Add until setup returns");
 		window.present_setup_destination({ });
-		expect(dialog->isVisible() && input->text() == QStringLiteral("https://unknown.example/octo/tools") && additions.size() == 3U,
-			   "cancelled preparation returns to the unchanged draft and makes no Add gesture");
-		dialog->reject();
-		expect(input->text().isEmpty() && additions.size() == 3U, "dialog cancel discards the draft without saving");
+		process_events();
+		expect(dialog->isVisible() && window.settings()->current_page() == qt::settings_page::repositories
+				   && input->text() == QStringLiteral("https://unknown.example/octo/tools") && additions.size() == 3U,
+			   "cancelled preparation returns to the unchanged draft on Repositories and makes no Add gesture");
+		dialog->findChild<QPushButton*>(QStringLiteral("repositoryAdditionCancel"))->click();
+		process_events();
+		expect(!dialog->isVisible() && addOnPage->isVisible() && input->text().isEmpty() && additions.size() == 3U, "Cancel discards the draft without saving and shows Add repository again");
 		// Settings › Repositories: its own page, listing only the displayed
 		// account's records, removing through the existing typed intent.
 		projection.Session = { .Host = "github.com", .Account = "reviewer", .Generation = 4U };
@@ -9284,12 +9291,12 @@ namespace {
 		auto* invoker = window.findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton"));
 		invoker->setFocus(Qt::OtherFocusReason);
 		window.open_repository_addition();
-		dialog->resize(360, 290);
+		window.settings()->resize(560, 520);
 		process_events();
 		auto* destination = dialog->findChild<QLabel*>(QStringLiteral("repositoryAdditionDestination"));
 		expect(destination->text().contains(QStringLiteral("reviewer-with-a-long-account-identity")) && destination->text().contains(QStringLiteral("engineering.enterprise.example"))
-				   && destination->wordWrap() && destination->width() <= dialog->width(),
-			   "narrow dialog keeps the full account and host in wrapped plain text");
+				   && destination->wordWrap() && destination->width() <= dialog->width() && dialog->width() <= window.settings()->width(),
+			   "a narrow Settings window keeps the full account and host in wrapped plain text on the card");
 		input->setText(QStringLiteral("organization-with-a-long-name/repository-with-a-long-name"));
 		auto* accessible = QAccessible::queryAccessibleInterface(input);
 		expect(accessible && accessible->role() == QAccessible::EditableText && !accessible->text(QAccessible::Name).isEmpty() && !accessible->text(QAccessible::Description).isEmpty(),
@@ -9298,10 +9305,30 @@ namespace {
 		auto       enter          = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(input, &enter);
 		expect(additions.size() == beforeKeyboard + 1U && additions.back().Destination == projection.Session, "default Add completes by keyboard under the displayed exact destination");
-		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
-		QApplication::sendEvent(dialog, &escape);
+		// A durable save closes the card into the list and says so on the page.
+		auto saved          = application::repository_addition_result{ };
+		saved.Gesture       = additions.back().Gesture;
+		saved.Destination   = additions.back().Destination;
+		saved.Status        = core::repository_addition_status::saved;
+		saved.Target        = application::repository_addition_target{ .Hostname = "engineering.enterprise.example", .Repository = { "organization-with-a-long-name", "repository-with-a-long-name" } };
+		projection.Addition = saved;
+		window.publish(projection);
 		process_events();
-		expect(!dialog->isVisible() && input->text().isEmpty() && invoker->hasFocus(), "Escape discards the draft and restores the invoking focus");
+		auto* const confirmation = window.settings()->findChild<QLabel*>(QStringLiteral("repositoriesConfirmation"));
+		expect(!dialog->isVisible() && input->text().isEmpty() && invoker->isVisible() && invoker->hasFocus() && confirmation->isVisible()
+				   && confirmation->text() == QStringLiteral("Added organization-with-a-long-name/repository-with-a-long-name.")
+				   && window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::repositories,
+			   "a durable save closes the card, confirms on the page and returns the keyboard to Add repository");
+		projection.Addition.reset();
+		invoker->click();
+		process_events();
+		expect(dialog->isVisible() && input->hasFocus() && !confirmation->isVisible(), "Add repository on the page opens a fresh card");
+		input->setText(QStringLiteral("octo/discarded"));
+		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(input, &escape);
+		process_events();
+		expect(!dialog->isVisible() && input->text().isEmpty() && invoker->hasFocus() && window.settings()->isVisible(),
+			   "Escape discards the draft, keeps Settings open and returns the keyboard to Add repository");
 		window.hide();
 	}
 
@@ -10833,29 +10860,38 @@ namespace {
 		says({ .Host = "github.com", .Account = "octo-reviewer", .State = state::stale, .Problem = problem::offline, .Repositories = 1U },
 			 QStringLiteral("Not refreshed: GitHub could not be reached."),
 			 "an offline first refresh says so");
-		// With nothing saved, the row gives way to the first-repository call to
-		// action, which says what to do and offers the default-styled Add.
+		// With nothing saved, the row gives way to one default-styled button that
+		// opens Settings › Repositories with the repository field ready, and an
+		// empty queue shows no Needs me lane.
 		window.publish(discovery_projection({ .Host = "github.com", .Account = "octo-reviewer", .State = state::unavailable, .Problem = problem::no_saved_repository }));
 		process_events();
 		auto* const onboarding = window.home_repository_onboarding();
 		auto* const firstAdd   = window.home_repository_onboarding_button();
-		expect(onboarding->isVisible() && !label->isVisible() && !window.findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->isVisible()
-				   && onboarding->findChild<QLabel*>(QStringLiteral("homeRepositoryOnboardingSentence"))->text() == QStringLiteral("Add a repository to find my pull requests and review requests.")
+		auto* const rowAdd     = window.findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"));
+		expect(onboarding->isVisible() && !label->isVisible() && !rowAdd->isVisible()
+				   && onboarding->findChildren<QLabel*>().isEmpty() && firstAdd->text() == QStringLiteral("Add a repository")
 				   && firstAdd->isVisible() && firstAdd->isEnabled() && firstAdd->isDefault() && window.focus_order().contains(firstAdd)
 				   && !firstAdd->accessibleName().isEmpty() && !firstAdd->accessibleDescription().isEmpty(),
-			   "with nothing saved Home shows the first-repository call to action instead of the row");
-		firstAdd->setFocus(Qt::OtherFocusReason);
+			   "with nothing saved Home shows only the first-repository button instead of the row");
+		expect(window.home_list()->onboarding() && !window.home_list()->state_panel(qt::home_group::needs_you)->isVisible()
+				   && !window.home_list()->empty_sentence()->isVisible() && window.findChild<QWidget*>(QStringLiteral("homeReviewCycles"))->isVisible(),
+			   "the empty Needs me lane is not shown while nothing is saved; Review Cycles stays");
 		firstAdd->click();
 		process_events();
-		expect(window.repository_addition_dialog()->isVisible() && window.saved_repository_name()->hasFocus(), "the call to action opens the shared dialog, focused on its input");
-		window.repository_addition_dialog()->reject();
+		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::repositories
+				   && window.repository_addition_draft()->isVisible() && window.saved_repository_name()->hasFocus(),
+			   "the button opens Settings › Repositories with the repository field focused");
+		window.findChild<QPushButton*>(QStringLiteral("repositoryAdditionCancel"))->click();
+		window.settings()->hide();
+		window.activateWindow();
+		firstAdd->setFocus(Qt::OtherFocusReason);
 		process_events();
-		expect(firstAdd->hasFocus(), "cancel returns the keyboard to the call to action");
 		window.publish(discovery_projection(status));
 		process_events();
-		expect(!onboarding->isVisible() && label->isVisible() && window.findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->isVisible()
-				   && window.findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->hasFocus(),
-			   "a saved repository retires the call to action, and the ordinary Add repository takes its focus");
+		expect(!onboarding->isVisible() && label->isVisible() && rowAdd->isVisible() && rowAdd->hasFocus() && !window.home_list()->onboarding(),
+			   "a saved repository retires the first-repository button, and the ordinary Add repository takes its focus");
+		expect(window.home_list()->empty_sentence()->text().contains(QStringLiteral("href=\"repositories\"")),
+			   "the empty lane's link names saved repositories and opens Repositories");
 		auto filtered             = discovery_projection(status);
 		filtered.Preferences.Role = core::github_role::requested_reviewer;
 		window.publish(filtered);

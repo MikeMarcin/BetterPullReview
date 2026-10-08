@@ -429,20 +429,21 @@ namespace bpr::qt {
 			panel->hide();
 			if (group == home_group::needs_you) {
 				// RFC-BPR-0032: empty is a sentence, never a box. The link is the
-				// page the queue's saved repositories and rules are kept on.
+				// page the saved repositories are kept on (RFC-BPR-0062, owner
+				// verdict 2026-10-08); observer rules are reached from Filter.
 				EmptySentence = new QLabel{ content };
 				EmptySentence->setObjectName(QStringLiteral("homeEmptySentence"));
 				EmptySentence->setTextFormat(Qt::RichText);
 				EmptySentence->setText(QStringLiteral(
-					"Nothing needs me. Pull requests from <a href=\"reviews-and-queue\">saved repositories and "
-					"observer rules</a> appear here."));
+					"Nothing needs me. Pull requests from <a href=\"repositories\">saved repositories</a> and "
+					"observer rules appear here."));
 				EmptySentence->setWordWrap(true);
 				EmptySentence->setOpenExternalLinks(false);
 				EmptySentence->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
 				EmptySentence->setFocusPolicy(Qt::StrongFocus);
 				EmptySentence->setContentsMargins(sentence_inset, sentence_inset_vertical, sentence_inset, sentence_inset_vertical);
 				EmptySentence->setAccessibleName(home_all_empty_sentence());
-				EmptySentence->setAccessibleDescription(QStringLiteral("The link opens Settings, Reviews & queue"));
+				EmptySentence->setAccessibleDescription(QStringLiteral("The link opens Settings, Repositories"));
 				EmptySentence->installEventFilter(this);
 				EmptySentence->hide();
 				connect(EmptySentence, &QLabel::linkActivated, this, [this](const QString&) {
@@ -546,6 +547,16 @@ namespace bpr::qt {
 	void home_list::set_recent_action_dispatch(std::function<void(int aRow)> aDispatch)
 	{
 		RecentActionDispatch = std::move(aDispatch);
+	}
+
+	void home_list::set_onboarding(const bool aOnboarding)
+	{
+		Onboarding = aOnboarding;
+	}
+
+	auto home_list::onboarding() const noexcept -> bool
+	{
+		return Onboarding;
 	}
 
 	void home_list::set_queue_status(const bool aReady, const bool aAccount)
@@ -757,7 +768,7 @@ namespace bpr::qt {
 			}
 			panel->set_count(rows);
 			panel->set_summary(home_state_summary(group, items));
-			const auto sentence = group == home_group::needs_you && allEmpty;
+			const auto sentence = group == home_group::needs_you && allEmpty && !Onboarding;
 			// A list is shown by what it holds; whether its state belongs to this
 			// arrangement at all is the panel's to say. Hiding the list itself
 			// would take the keyboard from a row an activation had just made

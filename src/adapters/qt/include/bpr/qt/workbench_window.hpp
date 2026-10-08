@@ -526,8 +526,11 @@ namespace bpr::qt {
 		/// \brief The final Add gesture, correlated with its displayed accepted session.
 		void set_repository_addition_dispatch(std::function<void(application::repository_addition_intent)> aDispatch);
 		/// \brief Opens the shared Home/Settings draft; effects remain host-owned.
-		void               open_repository_addition();
-		[[nodiscard]] auto repository_addition_dialog() const noexcept -> QDialog*;
+		void open_repository_addition();
+		/// \brief Settings › Repositories' new-repository card; shown while a
+		/// repository is being added. There is no dialog (RFC-BPR-0062, owner
+		/// verdict 2026-10-08).
+		[[nodiscard]] auto repository_addition_draft() const noexcept -> QWidget*;
 		/// \brief [[BPR-0990]]. Where the Pull Request menu's Follow goes.
 		void set_queue_follow_dispatch(workbench_queue_follow_dispatch aDispatch);
 		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
@@ -1483,6 +1486,10 @@ namespace bpr::qt {
 		void update_repository_destination();
 		void present_repository_addition(const application::repository_addition_result& aResult);
 		void repository_addition_notice(const QString& aText);
+		/// \brief Discards the new-repository draft without saving.
+		void close_repository_draft();
+		/// \brief Sends the draft as one repository-addition gesture.
+		void submit_repository_addition();
 		// [[BPR-0990]]. Discovery's glyph and sentence, and the open pull
 		// request's Follow and Save repository.
 		void               update_discovery_controls();
@@ -1825,17 +1832,19 @@ namespace bpr::qt {
 		application::queue_landing_projection                        QueueProjection;
 		workbench_saved_repository_dispatch                          SavedRepositoryDispatch;
 		std::function<void(application::repository_addition_intent)> RepositoryAdditionDispatch;
-		QDialog*                                                     RepositoryAdditionDialog = nullptr;
+		QWidget*                                                     RepositoryDraft          = nullptr;
+		QPushButton*                                                 RepositoryCancelButton   = nullptr;
+		QLabel*                                                      RepositoriesConfirmation = nullptr;
 		QLabel*                                                      RepositoryDestination    = nullptr;
 		QLabel*                                                      RepositoryAdditionStatus = nullptr;
 		QPushButton*                                                 RepositoryAddButton      = nullptr;
 		QPushButton*                                                 RepositoryPrepareButton  = nullptr;
-		QPointer<QWidget>                                            RepositoryInvoker;
 		application::queue_session_id                                RepositoryDisplayedDestination;
 		std::uint64_t                                                RepositoryGesture        = 0U;
 		std::uint64_t                                                RepositoryPendingGesture = 0U;
 		bool                                                         RepositorySaving         = false;
 		bool                                                         RepositoryPreparing      = false;
+		bool                                                         RepositoryDraftOpen      = false;
 		workbench_saved_server_dispatch                              SavedServerDispatch;
 		workbench_review_reply_dispatch                              ReviewReplyDispatch;
 		/// [[BPR-1046]]. A Reply pressed while its thread's comparison was
