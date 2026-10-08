@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1313"
 title: "Persist each window summary fraction through its existing host"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0063"]
 depends_on: ["BPR-1312"]
 priority: "P1"
