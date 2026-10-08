@@ -1642,6 +1642,21 @@ namespace bpr::qt {
 				// [[BPR-1046]]. A reply still waiting for its comparison is
 				// given up by any later card gesture.
 				DeferredReply.reset();
+				// [[BPR-1326]]. Publish, Edit and Delete act on the editor's
+				// draft. On another line's saved draft they first choose that
+				// line, which brings its draft into the editor; nothing else
+				// is published, opened or deleted.
+				if ((aAction == card_action::publish_draft || aAction == card_action::edit_draft || aAction == card_action::delete_draft)
+					&& aIdentity != "draft:unpublished") {
+					const auto& cards = ConversationPanel->cards()->cards();
+					const auto  card  = std::ranges::find(cards, aIdentity, &thread_card::Id);
+					if (card != cards.end() && card->Draft && card->Side.has_value() && card->Line.value_or(0U) > 0U && ComparisonSurface != nullptr) {
+						const auto side = *card->Side;
+						const auto line = *card->Line - 1U;
+						static_cast<void>(ComparisonSurface->select_conversation_line(side, line));
+					}
+					return;
+				}
 				switch (aAction) {
 				case card_action::defect:
 					ConversationPanel->cards()->show_thread_menu(aIdentity);
@@ -6331,6 +6346,15 @@ namespace bpr::qt {
 			Finder->set_draft(std::move(draft));
 		}
 		resume_conversation_pick();
+	}
+
+	void workbench_window::present_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		ConversationPanel->cards()->set_saved_drafts(std::move(aDrafts));
+		apply_thread_marks();
 	}
 
 	void workbench_window::apply_thread_marks()

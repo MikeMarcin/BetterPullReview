@@ -9944,11 +9944,28 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return !Closing && aContext == DraftWindow && Profile->current_window(aContext);
 		}
 
+		/// \brief [[BPR-1326]]. Every unpublished draft the window holds, as
+		/// saved, so each shows at its line and not only the selected one.
+		void present_saved_drafts()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto drafts = std::vector<core::review_comment_draft>{ };
+			if (SharedDrafts) {
+				for (const auto& saved : SharedDrafts->recovery_snapshot()) {
+					drafts.push_back(saved.Draft);
+				}
+			}
+			Window->present_saved_drafts(std::move(drafts));
+		}
+
 		void accept_shared_draft(const core::revisioned_review_draft& aAccepted)
 		{
 			if (Closing || aAccepted.Scope != DraftScope) {
 				return;
 			}
+			present_saved_drafts();
 			ReviewDraft         = aAccepted.Draft;
 			ReviewDraftRevision = aAccepted.Revision;
 			if (Window && Window->review_editor()) {
@@ -10023,6 +10040,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 												 [this](const core::revisioned_review_draft& aAccepted) {
 													 if (!Closing && ReviewDraft && ReviewDraft->Id == aAccepted.Draft.Id) {
 														 accept_shared_draft(aAccepted);
+													 } else {
+														 present_saved_drafts();
 													 }
 												 });
 			if (!attached) {
@@ -10030,6 +10049,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return false;
 			}
 			DraftConsumer = *attached;
+			present_saved_drafts();
 			return true;
 		}
 
@@ -10043,6 +10063,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto owner    = SharedDrafts;
 				auto       complete = [this, owner, publishing, after = std::move(aAfter)](auto aCommit) {
 					if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+						present_saved_drafts();
 						const auto accepted = owner->read(DraftConsumer, publishing->Draft.Id);
 						if (accepted.Accepted && ReviewDraft && ReviewDraft->Id == publishing->Draft.Id) {
 							accept_shared_draft(*accepted.Accepted);
@@ -10528,6 +10549,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (Closing || !owner || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
 						return;
 					}
+					present_saved_drafts();
 					if (!SelectedSemanticSelection || SelectedSemanticSelection->PreferredLine != anchor) {
 						return;
 					}
@@ -10650,6 +10672,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						answer(false);
 						return;
 					}
+					present_saved_drafts();
 					const auto accepted = owner->read(DraftConsumer, aRevisionedCommand.Command.Id);
 					if (accepted.Accepted) {
 						finish_review_draft_command(aRevisionedCommand, accepted);
@@ -10912,6 +10935,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						return;
 					}
 					const auto adopted = aCommit && owner->adopt(owner->authority(), *aCommit);
+					if (adopted) {
+						present_saved_drafts();
+					}
 					if (!SelectedSemanticSelection || SelectedSemanticSelection->PreferredLine != anchor) {
 						if (SelectedSemanticSelection) {
 							present_review_draft(*SelectedSemanticSelection);
@@ -11109,7 +11135,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!PrivateDraftsReady && SharedDrafts && PrivateReview->binding()) {
 				PrivateDraftsReady = true;
 				const auto owner   = SharedDrafts;
-				PrivateReview->restore([this, owner](auto aCommit) { if(Closing || owner!=SharedDrafts){return;} if(aCommit && owner->adopt(owner->authority(),*aCommit)){if(SelectedSemanticSelection){present_review_draft(*SelectedSemanticSelection);}}else{PrivateDraftsReady=false;} });
+				PrivateReview->restore([this, owner](auto aCommit) { if(Closing || owner!=SharedDrafts){return;} if(aCommit && owner->adopt(owner->authority(),*aCommit)){present_saved_drafts();if(SelectedSemanticSelection){present_review_draft(*SelectedSemanticSelection);}}else{PrivateDraftsReady=false;} });
 			}
 		}
 		void adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen)
@@ -11117,6 +11143,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || !SharedDrafts || !SharedDrafts->adopt(SharedDrafts->authority(), aCommit)) {
 				return;
 			}
+			present_saved_drafts();
 			if (aOpen && !aCommit.records().empty()) {
 				const auto& value = aCommit.records().front().Draft;
 				const auto  read  = SharedDrafts->read(DraftConsumer, value.Draft.Id);
@@ -12206,6 +12233,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					SharedDrafts->detach(DraftConsumer);
 					SharedDrafts.reset();
 				}
+				present_saved_drafts();
 				ReviewDraft.reset();
 				ReviewDraftRevision = 0U;
 				ReviewProjection.clear();
@@ -16062,6 +16090,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			QString Typing;
 		};
 		std::optional<label_authoring_probe_state> LabelAuthoringProbe;
+		// [[BPR-1326]]. The published-comment file-switch course.
+		struct published_file_switch_probe_state
+		{
+			enum class phase {
+				awaiting_file,
+				awaiting_line_draft,
+				awaiting_body,
+				awaiting_published,
+				awaiting_other_file,
+				awaiting_return,
+				awaiting_settled,
+				awaiting_refreshed,
+				passed,
+				failed,
+			};
+			detail::published_file_switch_probe_evidence Evidence;
+			/// The line the comment is on, and the fixture's native post
+			/// count before it was written.
+			std::optional<core::source_line_ref> Anchor;
+			std::size_t                          NativeBefore = 0U;
+			/// Ticks spent waiting for the returned file's notes to settle.
+			std::size_t Waited = 0U;
+			phase       Phase  = phase::awaiting_file;
+			std::string Diagnostic;
+		};
+		std::optional<published_file_switch_probe_state> PublishedFileSwitchProbe;
 		struct defect_composition_probe_state
 		{
 			enum class phase {
@@ -25347,7 +25401,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			probe.Evidence.RefusedTextKept = mutations.NativePosts == probe.NativeBefore + 1U && mutations.FilePosts == 0U && !mutations.LastFile
 				&& mutations.LastBody == refusedBody.toStdString() && probe.Anchor && mutations.LastLine == probe.Anchor->Line + 1U && mutations.LastSide == "RIGHT"
 				&& draft->Anchor == *probe.Anchor && draft->Body == refusedBody.toStdString() && text() == refusedBody
-				&& std::ranges::none_of(cards->cards(), [&](const qt::thread_card& aCard) { return !aCard.Posts.empty() && aCard.Posts.front().Body == refusedBody; });
+				// [[BPR-1326]]. No thread holds it; my kept draft is a note of its own.
+				&& std::ranges::none_of(cards->cards(), [&](const qt::thread_card& aCard) { return !aCard.Draft && !aCard.Posts.empty() && aCard.Posts.front().Body == refusedBody; });
 			const auto* const mark               = editor->suggestion_mark_widget();
 			probe.Evidence.RefusedMarkedTextOnly = markState() == "textual_only" && mark->decision().Reason == core::suggestion_text_reason::inline_comment_unsupported;
 			render("editor-refused-text-only");
@@ -25588,6 +25643,298 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return { };
 		}
 		return implementation->LabelAuthoringProbe->Diagnostic;
+	}
+
+	auto detail::github_application_fixture_access::exercise_published_file_switch(
+		github_application& aApplication, const detail::published_file_switch_timing aTiming) -> detail::published_file_switch_probe_result
+	{
+		using result               = detail::published_file_switch_probe_result;
+		using state_type           = github_application::implementation::published_file_switch_probe_state;
+		using timing               = detail::published_file_switch_timing;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->PublishedFileSwitchProbe.has_value()) {
+			implementation->PublishedFileSwitchProbe.emplace();
+		}
+		auto& probe = *implementation->PublishedFileSwitchProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr
+			|| implementation->WorkbenchHost == nullptr || implementation->ReviewMutationHost == nullptr) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const cards  = window->conversation_panel() != nullptr ? window->conversation_panel()->cards() : nullptr;
+		auto* const editor = window->review_editor();
+		auto* const model  = window->conversation_model();
+		if (cards == nullptr || editor == nullptr || model == nullptr) {
+			return result::pending;
+		}
+		auto* const body = editor->body_editor();
+		const auto  fail = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		constexpr auto path    = std::string_view{ "src/engine/renderer.cpp" };
+		constexpr auto other   = std::string_view{ "src/engine/renderer.h" };
+		const auto     written = QStringLiteral("BPR-1326: this comment stays after a file switch.");
+		const auto     ready   = [&] {
+			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
+				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->PendingReviewMutation.has_value();
+		};
+		const auto byBody = [&](const qt::thread_card& aCard) { return !aCard.Draft && !aCard.Posts.empty() && aCard.Posts.front().Body == written; };
+		// What shows of the comment on the open file: the thread in the
+		// accepted pull request or the draft still saved; its note, measured,
+		// placed at its line and in the shown drawer; its gutter marker and
+		// its scroll-bar tick.
+		struct shown_facts
+		{
+			bool Kept   = false;
+			bool Note   = false;
+			bool Drawn  = false;
+			bool Marker = false;
+			bool Tick   = false;
+
+			[[nodiscard]] auto all() const noexcept -> bool { return Kept && Note && Drawn && Marker && Tick; }
+			[[nodiscard]] auto text() const -> std::string
+			{
+				return "kept=" + std::to_string(Kept ? 1 : 0) + " note=" + std::to_string(Note ? 1 : 0) + " drawn=" + std::to_string(Drawn ? 1 : 0)
+					+ " marker=" + std::to_string(Marker ? 1 : 0) + " tick=" + std::to_string(Tick ? 1 : 0);
+			}
+		};
+		const auto shown = [&]() -> shown_facts {
+			auto facts = shown_facts{ };
+			if (!probe.Anchor) {
+				return facts;
+			}
+			const auto line = probe.Anchor->Line;
+			const auto card = aTiming == timing::draft
+				? std::ranges::find_if(cards->cards(), [line](const qt::thread_card& aCard) { return aCard.Draft && aCard.Line == std::optional{ line + 1U }; })
+				: std::ranges::find_if(cards->cards(), byBody);
+			if (aTiming == timing::draft) {
+				facts.Kept = implementation->SharedDrafts && std::ranges::any_of(implementation->SharedDrafts->recovery_snapshot(), [&](const core::revisioned_review_draft& aSaved) {
+								 return aSaved.Draft.Anchor == *probe.Anchor && aSaved.Draft.Body == written.toStdString() && aSaved.Draft.State == core::review_draft_state::drafting;
+							 });
+			} else if (card != cards->cards().end()) {
+				facts.Kept = implementation->WindowRead && implementation->WindowRead->accepted_snapshot()
+					&& std::ranges::any_of(implementation->WindowRead->accepted_snapshot()->ReviewThreads, [&](const application::github_review_thread_record& aThread) {
+								 return "review-thread:" + std::string{ aThread.Thread.value() } == card->Id;
+							 });
+			}
+			facts.Note   = card != cards->cards().end() && card->Line == std::optional{ line + 1U };
+			facts.Drawn  = facts.Note && card->Placed && card->Rect.height() > 0 && cards->isVisibleTo(window);
+			facts.Marker = std::ranges::any_of(window->comparison_surface()->line_marks(core::diff_side::right), [line](const qt::diff_line_mark& aMark) { return aMark.Line == line; })
+				&& std::ranges::any_of(cards->line_marks(core::diff_side::right), [line](const qt::thread_line_mark& aMark) { return aMark.Line == line; });
+			facts.Tick = std::ranges::any_of(window->comparison_surface()->thread_ticks(), [line](const qt::diff_thread_tick& aTick) { return aTick.Side == core::diff_side::right && aTick.Line == line; });
+			return facts;
+		};
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed");
+			}
+			if (revealed == detail::fixture_file_reveal_result::shown) {
+				probe.Phase = state_type::phase::awaiting_line_draft;
+			}
+			return result::pending;
+		}
+		case state_type::phase::awaiting_line_draft: {
+			// The first current-head line no thread is on, chosen in Review.
+			auto line = std::optional<std::uint32_t>{ };
+			for (auto candidate = std::uint32_t{ 0U }; candidate < 32U && !line; ++candidate) {
+				if (window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate)
+					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
+					line = candidate;
+				}
+			}
+			const auto& draft = implementation->ReviewDraft;
+			note("line=" + std::to_string(line.value_or(0U)) + " draft=" + std::to_string(draft.has_value() ? 1 : 0)
+				 + " comment=" + std::to_string(window->comment_action()->isEnabled() ? 1 : 0));
+			if (!line || !draft || draft->ReplyToThread || !window->comment_action()->isEnabled()) {
+				return result::pending;
+			}
+			window->comment_action()->trigger();
+			QCoreApplication::processEvents();
+			if (body->isReadOnly()) {
+				return fail("comment-page-not-editable");
+			}
+			probe.Anchor       = draft->Anchor;
+			probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
+			body->setPlainText(written);
+			probe.Phase = state_type::phase::awaiting_body;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_body: {
+			const auto& draft = implementation->ReviewDraft;
+			note("draft=" + (draft ? draft->Body : std::string{ "-" }) + " publish=" + std::to_string(editor->publish_action()->isEnabled() ? 1 : 0));
+			if (!draft || draft->Body != written.toStdString() || !editor->publish_action()->isEnabled()
+				|| implementation->PrivateDraftCommandPending || implementation->PrivateDraftSelectionPending || !ready()) {
+				return result::pending;
+			}
+			if (!probe.Anchor || draft->Anchor != *probe.Anchor) {
+				return fail("draft-moved");
+			}
+			if (aTiming == timing::draft) {
+				// Not published: back from the comment's page to the code,
+				// where the draft is my note at its line.
+				if (auto* const page = window->findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage")); page != nullptr && page->isVisibleTo(window)) {
+					auto* const back = page->findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
+					if (back == nullptr) {
+						return fail("no-back");
+					}
+					back->click();
+					QCoreApplication::processEvents();
+					return result::pending;
+				}
+				const auto facts = shown();
+				note("draft=" + draft->Body + " " + facts.text());
+				if (!facts.all()) {
+					return result::pending;
+				}
+				probe.Evidence.Written     = implementation->Fixture->review_mutation_evidence().NativePosts == probe.NativeBefore;
+				probe.Evidence.ShownBefore = true;
+				probe.Phase                = state_type::phase::awaiting_other_file;
+				return result::pending;
+			}
+			// A slow server: the application's own refresh after Publish
+			// answers only once the other file shows.
+			if (aTiming == timing::late) {
+				window->github_refresh_action()->blockSignals(true);
+			}
+			editor->publish_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_published: {
+			const auto mutations = implementation->Fixture->review_mutation_evidence();
+			const auto facts     = shown();
+			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0) + " native=" + std::to_string(mutations.NativePosts) + " " + facts.text());
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore) {
+				return result::pending;
+			}
+			probe.Evidence.Written = mutations.NativePosts == probe.NativeBefore + 1U && mutations.LastPath == path
+				&& probe.Anchor && mutations.LastLine == probe.Anchor->Line + 1U;
+			if (!probe.Evidence.Written) {
+				return fail("published-not-exact");
+			}
+			// The late course leaves as soon as Publish answers.
+			if (aTiming == timing::settled) {
+				if (!facts.all() || !ready()) {
+					return result::pending;
+				}
+				probe.Evidence.ShownBefore = true;
+			}
+			probe.Phase = state_type::phase::awaiting_other_file;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_other_file: {
+			const auto revealed = reveal_fixture_file(aApplication, other);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)) + " ready=" + std::to_string(ready() ? 1 : 0));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("other-file-not-revealed");
+			}
+			if (revealed != detail::fixture_file_reveal_result::shown) {
+				return result::pending;
+			}
+			probe.Evidence.OtherFileShown = true;
+			if (window->github_refresh_action()->signalsBlocked()) {
+				window->github_refresh_action()->blockSignals(false);
+				window->github_refresh_action()->trigger();
+				return result::pending;
+			}
+			if (!ready()) {
+				return result::pending;
+			}
+			probe.Phase = state_type::phase::awaiting_return;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_return: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed-again");
+			}
+			if (revealed == detail::fixture_file_reveal_result::shown) {
+				probe.Waited = 0U;
+				probe.Phase  = state_type::phase::awaiting_settled;
+			}
+			return result::pending;
+		}
+		case state_type::phase::awaiting_settled: {
+			// Settled: nothing is being read, and the comment has had forty
+			// ticks (two seconds) to show.
+			const auto facts     = shown();
+			const auto selection = window->comparison_surface()->selection();
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " waited=" + std::to_string(probe.Waited) + " " + facts.text()
+				 + " selected=" + (selection ? std::to_string(selection->PreferredLine.Line) : std::string{ "-" }) + " notes=" + std::to_string(cards->cards().size()));
+			if (!ready() || (!facts.all() && ++probe.Waited < 40U)) {
+				return result::pending;
+			}
+			probe.Evidence.Kept             = facts.Kept;
+			probe.Evidence.ShownAfterReturn = facts.all();
+			if (probe.Evidence.ShownAfterReturn) {
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+			// Gone: say whether a later refresh brings it back, then fail.
+			window->github_refresh_action()->trigger();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_refreshed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_refreshed: {
+			const auto facts = shown();
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " waited=" + std::to_string(probe.Waited) + " " + facts.text());
+			if ((!ready() || !facts.all()) && ++probe.Waited < 80U) {
+				return result::pending;
+			}
+			return fail(facts.all() ? "gone-after-return refresh-restored=1" : "gone-after-return refresh-restored=0");
+		}
+		case state_type::phase::passed:
+			return result::passed;
+		case state_type::phase::failed:
+			break;
+		}
+		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::published_file_switch_evidence(
+		const github_application& aApplication) -> detail::published_file_switch_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->PublishedFileSwitchProbe.has_value()) {
+			return { };
+		}
+		return implementation->PublishedFileSwitchProbe->Evidence;
+	}
+
+	auto detail::github_application_fixture_access::published_file_switch_diagnostic(
+		const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->PublishedFileSwitchProbe.has_value()) {
+			return { };
+		}
+		return implementation->PublishedFileSwitchProbe->Diagnostic;
 	}
 
 	auto detail::github_application_fixture_access::threaded_reply_diagnostic(

@@ -661,6 +661,45 @@ namespace bpr::app::detail {
 		auto operator<=>(const label_authoring_probe_evidence&) const = default;
 	};
 
+	/// [[BPR-1326]]. The published-comment file-switch course over
+	/// `conventional-comments-v1`.
+	/// [[BPR-1326]]. What the file-switch course writes and when it leaves
+	/// the comment's file: published, once its thread shows (`settled`);
+	/// published, with the application's own refresh answering only once the
+	/// other file shows, as a slow server's does (`late`); or kept as my
+	/// unpublished draft (`draft`).
+	enum class published_file_switch_timing {
+		settled,
+		late,
+		draft,
+	};
+
+	enum class published_file_switch_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct published_file_switch_probe_evidence
+	{
+		/// A new inline comment on `src/engine/renderer.cpp` was published once
+		/// on its line, or, for `draft`, kept unpublished.
+		bool Written = false;
+		/// Before leaving the file, it showed as a note, a gutter marker and a
+		/// scroll-bar tick on its line (not asked of `late`).
+		bool ShownBefore = false;
+		/// Another file was opened and shown in Review.
+		bool OtherFileShown = false;
+		/// Back on `renderer.cpp`, the accepted pull request still holds the
+		/// thread, or the draft is still saved.
+		bool Kept = false;
+		/// Back on `renderer.cpp`, its note, gutter marker and scroll-bar tick
+		/// show again on the same line, whichever line is selected.
+		bool ShownAfterReturn = false;
+
+		auto operator<=>(const published_file_switch_probe_evidence&) const = default;
+	};
+
 	enum class defect_composition_probe {
 		seed,
 		reopen,
@@ -1317,6 +1356,17 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto label_authoring_evidence(const github_application& aApplication)
 			-> label_authoring_probe_evidence;
 		[[nodiscard]] static auto label_authoring_diagnostic(const github_application& aApplication)
+			-> std::string;
+		/// \brief [[BPR-1326]]. In Review on `src/engine/renderer.cpp`: a new
+		/// comment written, another file opened, and `renderer.cpp` opened
+		/// again; the comment must still show as a note, a gutter marker and a
+		/// scroll-bar tick. \p aTiming says whether it is published and when
+		/// the other file is opened.
+		[[nodiscard]] static auto exercise_published_file_switch(github_application& aApplication, published_file_switch_timing aTiming)
+			-> published_file_switch_probe_result;
+		[[nodiscard]] static auto published_file_switch_evidence(const github_application& aApplication)
+			-> published_file_switch_probe_evidence;
+		[[nodiscard]] static auto published_file_switch_diagnostic(const github_application& aApplication)
 			-> std::string;
 		[[nodiscard]] static auto dormant_live_provider_selection_evidence_for(
 			const github_application& aApplication)

@@ -1131,6 +1131,13 @@ namespace {
 		bpr::app::detail::label_authoring_probe_evidence LabelAuthoringEvidence;
 		std::string                                      LabelAuthoringDiagnostic;
 		std::optional<std::string>                       LabelAuthoringEvidenceDirectory;
+		// [[BPR-1326]]. `--published-file-switch-probe`, and
+		// `--published-file-switch-timing settled|late|draft`.
+		bool                                                   PublishedFileSwitchProbe  = false;
+		bpr::app::detail::published_file_switch_timing         PublishedFileSwitchTiming = bpr::app::detail::published_file_switch_timing::settled;
+		bool                                                   PublishedFileSwitchPassed = false;
+		bpr::app::detail::published_file_switch_probe_evidence PublishedFileSwitchEvidence;
+		std::string                                            PublishedFileSwitchDiagnostic;
 		std::optional<bpr::app::detail::defect_composition_probe>
 			DefectCompositionProbe;
 		// [[BPR-0654]]. `--overview-since-review`.
@@ -4722,6 +4729,13 @@ namespace {
 				   << evidence.TrackedOnlyByGesture << evidence.RelabelKeptDefect << evidence.ResolveOnlyEvidence << evidence.TourStopLabelled << '\n';
 			stream << "LABEL_AUTHORING_DIAGNOSTIC:" << QString::fromStdString(aRun.LabelAuthoringDiagnostic) << '\n';
 		}
+		if (aRun.PublishedFileSwitchProbe) {
+			const auto& evidence = aRun.PublishedFileSwitchEvidence;
+			stream << (aRun.PublishedFileSwitchPassed ? "PUBLISHED_FILE_SWITCH_OK\n" : "PUBLISHED_FILE_SWITCH_FAILED\n")
+				   << "PUBLISHED_FILE_SWITCH_EVIDENCE:" << evidence.Written << evidence.ShownBefore << evidence.OtherFileShown
+				   << evidence.Kept << evidence.ShownAfterReturn << '\n';
+			stream << "PUBLISHED_FILE_SWITCH_DIAGNOSTIC:" << QString::fromStdString(aRun.PublishedFileSwitchDiagnostic) << '\n';
+		}
 		if (aRun.ReviewRoundTripCompositionProbe) {
 			const auto& evidence = aRun.ReviewRoundTripCompositionEvidence;
 			stream << (aRun.ReviewRoundTripCompositionPassed
@@ -4785,7 +4799,7 @@ namespace {
 			&& !aRun.UIforEtwSelectedDiffProbe
 			&& !aRun.Appearance.Enabled
 			&& !aRun.ReviewRoundTripCompositionProbe && !aRun.ThreadedReplyProbe
-			&& !aRun.LabelAuthoringProbe
+			&& !aRun.LabelAuthoringProbe && !aRun.PublishedFileSwitchProbe
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
 			// public-path expectation matches its markers contiguously, so a
@@ -5320,6 +5334,27 @@ namespace {
 		aRun.LabelAuthoringEvidence = bpr::app::detail::github_application_fixture_access::label_authoring_evidence(aApplication);
 		aRun.LabelAuthoringPassed   = result == bpr::app::detail::label_authoring_probe_result::passed;
 		if (!aRun.LabelAuthoringPassed) {
+			fail_automated_run(aApplication, aRun);
+			return;
+		}
+		aRun.PresentationPassed = true;
+		transition_to_shutdown(aApplication, aRun);
+	}
+
+	// [[BPR-1326]]. One tick of the published-comment file-switch course.
+	void advance_published_file_switch_probe(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		const auto result = bpr::app::detail::github_application_fixture_access::exercise_published_file_switch(
+			aApplication, aRun.PublishedFileSwitchTiming);
+		aRun.PublishedFileSwitchDiagnostic = bpr::app::detail::github_application_fixture_access::published_file_switch_diagnostic(aApplication);
+		if (result == bpr::app::detail::published_file_switch_probe_result::pending) {
+			return;
+		}
+		aRun.PublishedFileSwitchEvidence = bpr::app::detail::github_application_fixture_access::published_file_switch_evidence(aApplication);
+		aRun.PublishedFileSwitchPassed   = result == bpr::app::detail::published_file_switch_probe_result::passed;
+		if (!aRun.PublishedFileSwitchPassed) {
 			fail_automated_run(aApplication, aRun);
 			return;
 		}
@@ -6091,6 +6126,10 @@ namespace {
 				// after a presentation check that needs a file selected first.
 				if (aRun->LabelAuthoringProbe) {
 					advance_label_authoring_probe(aApplication, *aRun);
+					break;
+				}
+				if (aRun->PublishedFileSwitchProbe) {
+					advance_published_file_switch_probe(aApplication, *aRun);
 					break;
 				}
 				if (aRun->ThreadedReplyProbe && aRun->ThreadedReplyStarted
@@ -8170,9 +8209,13 @@ auto main(int argc, char** argv) -> int
 			= has_argument(argc, argv, "--public-preview-unfetchable-first-head-course");
 		// [[BPR-1083]]. The label-authoring course types `:qu:`, so it needs
 		// the helper, and reads the pull request again after publishing.
-		const auto labelAuthoringProbe       = has_argument(argc, argv, "--label-authoring-probe");
-		fixtureOptions.LabelHelper           = has_argument(argc, argv, "--label-helper") || labelAuthoringProbe;
-		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || labelAuthoringProbe;
+		const auto labelAuthoringProbe    = has_argument(argc, argv, "--label-authoring-probe");
+		fixtureOptions.LabelHelper        = has_argument(argc, argv, "--label-helper") || labelAuthoringProbe;
+		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || labelAuthoringProbe;
+		// [[BPR-1326]]. The file-switch course reads again after publishing.
+		const auto publishedFileSwitchProbe  = has_argument(argc, argv, "--published-file-switch-probe");
+		const auto publishedFileSwitchTiming = argument_value(argc, argv, "--published-file-switch-timing");
+		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || publishedFileSwitchProbe;
 		fixtureOptions.SuppressDeviceBrowser = has_argument(
 			argc,
 			argv,
@@ -8812,6 +8855,11 @@ auto main(int argc, char** argv) -> int
 			QTextStream{ stdout } << "LABEL_AUTHORING_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
+		if ((publishedFileSwitchProbe && (fixtureName != "conventional-comments-v1" || attendedLaunch || selfTest || renderPath.has_value() || labelAuthoringProbe))
+			|| (publishedFileSwitchTiming.has_value() && (!publishedFileSwitchProbe || (*publishedFileSwitchTiming != "settled" && *publishedFileSwitchTiming != "late" && *publishedFileSwitchTiming != "draft")))) {
+			QTextStream{ stdout } << "PUBLISHED_FILE_SWITCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
 		if ((nativeNotificationProbe && nativeNotificationAttended)
 			|| (nativeNotificationRequestCut
 				&& nativeNotificationActivationCut)
@@ -9141,6 +9189,9 @@ auto main(int argc, char** argv) -> int
 								.ThreadedReplyProbe              = threadedReplyProbe,
 								.LabelAuthoringProbe             = labelAuthoringProbe,
 								.LabelAuthoringEvidenceDirectory = labelAuthoringEvidence.has_value() ? std::optional<std::string>{ std::string{ *labelAuthoringEvidence } } : std::nullopt,
+								.PublishedFileSwitchProbe        = publishedFileSwitchProbe,
+								.PublishedFileSwitchTiming       = publishedFileSwitchTiming == std::optional<std::string_view>{ "late" } ? bpr::app::detail::published_file_switch_timing::late : publishedFileSwitchTiming == std::optional<std::string_view>{ "draft" } ? bpr::app::detail::published_file_switch_timing::draft
+																																																																		   : bpr::app::detail::published_file_switch_timing::settled,
 								.DefectCompositionProbe          = defectCompositionProbe,
 								.OverviewSinceReviewRequested    = overviewSinceReview,
 								.ReviewBehaviourRequested        = reviewBehaviour,

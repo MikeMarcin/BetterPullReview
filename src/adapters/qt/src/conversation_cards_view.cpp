@@ -507,7 +507,7 @@ namespace bpr::qt {
 				}
 			}
 			forget_measurements_if([&roots](const std::string& aId) {
-				return !roots.contains(aId) && aId != draft_card_id;
+				return !roots.contains(aId) && !aId.starts_with(draft_card_id);
 			});
 			Retained = aConversations;
 			index_retained();
@@ -648,6 +648,16 @@ namespace bpr::qt {
 		if (affects) {
 			relayout();
 		}
+	}
+
+	void conversation_cards_view::set_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
+	{
+		if (SavedDrafts == aDrafts) {
+			return;
+		}
+		forget_measurements_if([](const std::string& aId) { return aId.starts_with(draft_card_id) && aId != draft_card_id; });
+		SavedDrafts = std::move(aDrafts);
+		relayout();
 	}
 
 	void conversation_cards_view::set_viewer_login(const QString& aLogin)
@@ -1344,26 +1354,39 @@ namespace bpr::qt {
 				}
 			}
 		}
-		// My unpublished note, at its line, while it is on this comparison. A
-		// reply is written inside its thread instead.
-		if (Scope == cards_scope::this_file && Draft.has_value() && CurrentComparison.has_value()
-			&& Draft->Anchor.Comparison == *CurrentComparison && !Draft->shared() && !Draft->ReplyToThread.has_value()
-			&& !Draft->Body.empty()) {
+		// My unpublished notes, each at its line while it is on this
+		// comparison: the editor's draft as the editor holds it, and every
+		// other draft as it was saved ([[BPR-1326]]). A reply is written
+		// inside its thread instead.
+		const auto noted = [this](const core::review_comment_draft& aDraft) {
+			return Scope == cards_scope::this_file && CurrentComparison.has_value() && aDraft.Anchor.Comparison == *CurrentComparison
+				&& !aDraft.shared() && !aDraft.ReplyToThread.has_value() && !aDraft.Body.empty();
+		};
+		auto drafts = std::vector<std::pair<std::string, const core::review_comment_draft*>>{ };
+		if (Draft.has_value() && noted(*Draft)) {
+			drafts.emplace_back(std::string{ draft_card_id }, &*Draft);
+		}
+		for (const auto& saved : SavedDrafts) {
+			if (noted(saved) && (!Draft.has_value() || (saved.Id != Draft->Id && saved.Anchor != Draft->Anchor))) {
+				drafts.emplace_back(std::string{ draft_card_id } + ":" + std::to_string(saved.Id.value()), &saved);
+			}
+		}
+		for (const auto& [id, draft] : drafts) {
 			auto card       = thread_card{ };
-			card.Id         = std::string{ draft_card_id };
+			card.Id         = id;
 			card.Kind       = QStringLiteral("Draft");
 			card.Draft      = true;
-			card.Side       = Draft->Anchor.Side;
-			card.Line       = Draft->Anchor.Line + 1U;
-			const auto mark = feedback_body_mark_of(Draft->Body);
+			card.Side       = draft->Anchor.Side;
+			card.Line       = draft->Anchor.Line + 1U;
+			const auto mark = feedback_body_mark_of(draft->Body);
 			card.Posts.push_back(card_post{
 				.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
-				.Body         = text(Draft->Body),
+				.Body         = text(draft->Body),
 				.Mine         = true,
 				.Label        = mark.Label,
 				.Emphasis     = mark.Emphasis,
 				.Name         = feedback_post_name(QStringLiteral("Your note, not published"), mark),
-				.HeaderLength = mark.Label.has_value() ? header_length_of(Draft->Body) : 0,
+				.HeaderLength = mark.Label.has_value() ? header_length_of(draft->Body) : 0,
 			});
 			Cards.push_back(std::move(card));
 		}
@@ -2475,7 +2498,7 @@ namespace bpr::qt {
 			}
 			return false;
 		case Qt::Key_R:
-			if (plain && !aEvent.modifiers().testFlag(Qt::ShiftModifier) && !Open.empty() && Open != draft_card_id && ActionDispatch) {
+			if (plain && !aEvent.modifiers().testFlag(Qt::ShiftModifier) && !Open.empty() && !Open.starts_with(draft_card_id) && ActionDispatch) {
 				const auto open = Open;
 				ActionDispatch(card_action::reply, open);
 				return true;

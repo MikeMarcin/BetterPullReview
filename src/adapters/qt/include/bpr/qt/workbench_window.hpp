@@ -605,6 +605,11 @@ namespace bpr::qt {
 		/// in file order. [[BPR-1129]]: the title row's comments toggle carries
 		/// their count.
 		void present_read_state(std::vector<thread_read_state> aState);
+		/// \brief [[BPR-1326]]. My unpublished drafts as they are saved. Each
+		/// on the shown comparison is a dashed note at its line with its
+		/// gutter marker and scroll-bar tick, whichever line is selected; the
+		/// selected line's draft is drawn as the editor holds it.
+		void present_saved_drafts(std::vector<core::review_comment_draft> aDrafts);
 		/// \brief [[BPR-0972]]. Adopts one thread's read state; empty means read.
 		///
 		/// \details The cards, the map and the gutter change for that thread

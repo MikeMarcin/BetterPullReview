@@ -1002,6 +1002,19 @@ endfunction()
 # environment, GitHub write, mutation or publication path changes; owner
 # protocol unchanged; mutation pin unchanged; no new src/app source. Reviewed
 # on BPR-1090.
+# BPR-1326 reseal (2026-10-08), over the BPR-1090 reseal above.
+# github_application.cpp: present_saved_drafts() hands the window every
+# unpublished draft the attached shared_draft_application_host already holds
+# (recovery_snapshot, read only) after each accepted draft, adoption, attach and
+# ledger retirement, so the drawer draws each draft at its line whichever line
+# is selected. Before, only the editor's selected-line draft was drawn, and a
+# file shown again selected its first change. Tests-on only: the
+# published-file-switch course and its fixture-access entry points; main.cpp
+# parses its two arguments and reports its markers; the label-authoring
+# course's refused-patch check skips draft notes, since the kept text is now
+# drawn as my draft and still no thread holds it. No grant, target, provider,
+# credential, storage write, mutation or publication path; mutation pin
+# unchanged; no new src/app source. Reviewed on BPR-1326.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1020,7 +1033,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"98f02f460e968e2b858c3a65499f0650dd1d10e7c474e0152fce23e8cc6c09eb"
+		"cbc61fa0a1a149f068b970dfa4eaac278c23326cbb50c511e0b2f326688d81b9"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1222,7 +1235,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a536c013d7c98055b81ff33e016d78c15b8bc94bd0dab3e87ab2a64cb0115957"
+        "89931e8c016a2d2aad60fc17b150ab7f82cdd07357c1ce971b2990c8fcbfca51"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

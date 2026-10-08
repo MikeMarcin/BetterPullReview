@@ -279,6 +279,12 @@ namespace bpr::qt {
 		void set_draft(
 			std::optional<core::review_comment_draft>   aDraft,
 			std::optional<core::file_comparison_digest> aCurrentComparison);
+		/// \brief [[BPR-1326]]. My other unpublished drafts, each drawn as a
+		/// dashed note at its line while it is on this comparison, as the
+		/// editor's draft is. The editor's draft is drawn from the editor.
+		/// \details The editor holds only the selected line's draft, so a draft
+		/// on any other line showed nothing until its line was chosen again.
+		void set_saved_drafts(std::vector<core::review_comment_draft> aDrafts);
 		void set_viewer_login(const QString& aLogin);
 		void set_thread_dispatch(card_thread_dispatch aDispatch);
 		void set_action_dispatch(card_action_dispatch aDispatch);
@@ -503,6 +509,7 @@ namespace bpr::qt {
 		std::vector<thread_card>                                    Cards;
 		std::optional<core::file_identity>                          AnchorFile;
 		std::optional<core::review_comment_draft>                   Draft;
+		std::vector<core::review_comment_draft>                     SavedDrafts;
 		std::optional<core::file_comparison_digest>                 CurrentComparison;
 		card_line_locator                                           Locator;
 		card_thread_dispatch                                        ThreadDispatch;

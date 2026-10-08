@@ -710,6 +710,35 @@ namespace {
 					   },
 					   comparison);
 		expect(std::ranges::none_of(view.cards(), &qt::thread_card::Draft), "a reply draft draws no note of its own");
+		// [[BPR-1326]]. My other saved drafts are notes at their lines,
+		// whichever line the editor holds; the editor's draft is drawn as the
+		// editor holds it, never twice.
+		const auto saved = [&comparison](const std::uint64_t aId, const std::uint32_t aLine, std::string aBody) {
+			auto value   = core::review_comment_draft{ };
+			value.Id     = core::review_draft_id{ aId };
+			value.Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = aLine };
+			value.Body   = std::move(aBody);
+			return value;
+		};
+		view.set_draft(saved(7U, 39U, "Edited in the editor."), comparison);
+		auto savedReply          = saved(9U, 4U, "A saved reply");
+		savedReply.ReplyToThread = std::string{ "early" };
+		auto savedPublished      = saved(11U, 6U, "Already published");
+		savedPublished.State     = core::review_draft_state::published;
+		view.set_saved_drafts({ saved(7U, 39U, "Saved before the edit."), saved(8U, 2U, "A draft on another line."), savedReply, saved(10U, 5U, ""), savedPublished });
+		QApplication::processEvents();
+		const auto bodyOf = [](const qt::thread_card& aCard) { return aCard.Posts.empty() ? QString{ } : aCard.Posts.front().Body; };
+		auto       notes  = std::vector<qt::thread_card>{ };
+		std::ranges::copy_if(view.cards(), std::back_inserter(notes), &qt::thread_card::Draft);
+		expect(notes.size() == 2U
+				   && std::ranges::any_of(notes, [&](const qt::thread_card& aCard) { return aCard.Line == std::optional<std::uint32_t>{ 40U } && bodyOf(aCard) == QStringLiteral("Edited in the editor."); })
+				   && std::ranges::any_of(notes, [&](const qt::thread_card& aCard) { return aCard.Line == std::optional<std::uint32_t>{ 3U } && bodyOf(aCard) == QStringLiteral("A draft on another line."); }),
+			   "a saved draft on another line is a note; the editor's draft shows its own text once; empty, reply and published drafts draw none");
+		expect(std::ranges::any_of(view.line_marks(core::diff_side::right), [](const qt::thread_line_mark& aMark) { return aMark.Draft && aMark.Line == 2U; }),
+			   "the saved draft has its gutter marker");
+		// Negative control: with no saved drafts only the editor's draft shows.
+		view.set_saved_drafts({ });
+		expect(std::ranges::count_if(view.cards(), &qt::thread_card::Draft) == 1, "negative control: without saved drafts only the editor's draft is a note");
 		view.set_draft(std::nullopt, std::nullopt);
 		lineY.clear();
 		view.refresh_geometry();
