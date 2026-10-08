@@ -52,3 +52,20 @@ mark, and fails without either half of the fix.
   from this defect and was not changed.
 - Windows confirmation is a station run (commands in the handoff), not an
   acceptance criterion here.
+
+## Windows station run (bpr-main-win, 2026-10-08)
+
+At `4cfc15256`, a clean tree that holds `15abd795b`, on Windows 11 with MSVC
+and Qt 6.11.2. Both trees rebuilt with no `warning C` line, and the rows ran
+`ctest -j1` on the offscreen platform.
+
+- `build/windows-dev-tour-cli` (`windows-dev`, Debug): 7 of 7 pass. These are
+  `qt_composed_inline_drawer_scale_100`, `_125` and `_200` (11.7, 12.7 and
+  18.2 s), `qt_conversation_cards_view`, and `qt_markdown_body_1_0`, `_1_25`
+  and `_2_0`.
+- `build/bpr0967-release` (MSVC `/O2`, tests on): the same 7 of 7 pass.
+
+Before the fix, on Windows, `qt_composed_inline_drawer_scale_100` failed at
+"each post's body fits its width and shows all of its lines". That was at
+`7fc367064`, built with the C4458 rename applied for the measurement. It was
+good at `d5c4b3659`.
