@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1328"
 title: "Change arrows continue to the next file instead of greying out"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
