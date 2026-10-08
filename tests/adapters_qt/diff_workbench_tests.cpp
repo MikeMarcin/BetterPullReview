@@ -3,6 +3,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/type_preview.hpp"
 
 #include <QAccessible>
 #include <QApplication>
@@ -14,10 +15,12 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QNativeGestureEvent>
 #include <QPainter>
 #include <QPalette>
 #include <QPixmap>
 #include <QPlainTextEdit>
+#include <QPointingDevice>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QString>
@@ -2105,6 +2108,188 @@ namespace {
 		return positions;
 	}
 
+	std::vector<QString>* ZoomAnnouncements = nullptr;
+
+	void capture_zoom_announcement(QAccessibleEvent* const aEvent)
+	{
+		if (ZoomAnnouncements != nullptr && aEvent != nullptr && aEvent->type() == QAccessible::Announcement) {
+			ZoomAnnouncements->push_back(static_cast<const QAccessibleAnnouncementEvent*>(aEvent)->message());
+		}
+	}
+
+	/// \brief [[BPR-1336]]. The comparison's zoom scales the panes, their gutters,
+	/// their tab stops and the detail pane, and keeps the reader's line where it
+	/// was; ⌘-scroll and pinch step it; a plain scroll still scrolls.
+	auto test_comparison_zoom_scales_and_holds_the_reading_line() -> void
+	{
+		auto left = std::string{ };
+		for (auto line = 0U; line < 2'000U; ++line) {
+			left += "\tline " + std::to_string(line) + " of the zoom fixture\n";
+		}
+		auto right = left;
+		right.replace(right.find("\tline 1200 of"), 13U, "\tLINE 1200 of");
+		const auto diff      = computed(left, right, { }, 61U);
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		auto profile = qt::appearance_profile{ };
+		auto code    = profile.typography().Code;
+		workbench.adopt_appearance(profile);
+		profile.apply_comparison_code_font_to(workbench);
+		const auto selected = context(diff, 92U, 92U);
+		workbench.set_loading(selected);
+		workbench.publish(qt::test::prepare_publication({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		}));
+		settle_geometry(workbench);
+		expect(workbench.select_conversation_line(core::diff_side::right, 1'200U), "the reader is on line 1201");
+		settle_geometry(workbench);
+		// Put the line well above the rail, so keeping the rail's line would
+		// move it, and keeping the top line would too.
+		const auto lineTop = [&workbench] { return workbench.line_rect(core::diff_side::right, 1'200U).top(); };
+		workbench.scroll_controller()->scroll_by(static_cast<qreal>(lineTop() - 120));
+		process_events();
+		const auto before = lineTop();
+		expect(before > 60 && before < 200, "the reader's line sits high in the viewport: " + std::to_string(before));
+
+		const auto gutter = [&workbench] {
+			return workbench.right_pane()->findChild<QWidget*>(QStringLiteral("diffSourceLineNumbers"))->width();
+		};
+		const auto size        = workbench.right_pane()->font().pointSizeF();
+		const auto gutterAt100 = gutter();
+		const auto held        = workbench.statistics().ReadingPositionsHeld;
+		auto       announced   = std::vector<QString>{ };
+		ZoomAnnouncements      = &announced;
+		const auto previous    = QAccessible::installUpdateHandler(capture_zoom_announcement);
+
+		code.ZoomPercent = 150U;
+		expect(profile.select_code_font(code).Changed, "a zoom changes presentation");
+		profile.apply_comparison_code_font_to(workbench);
+		const auto height = workbench.line_rect(core::diff_side::right, 1'200U).height();
+		expect(std::abs(lineTop() - before) <= height, "in the same turn, the reader's line is still where it was");
+		settle_geometry(workbench);
+		expect(std::abs(lineTop() - before) <= height, "and stays there once the geometry is remeasured: " + std::to_string(before) + " to " + std::to_string(lineTop()));
+		expect(workbench.statistics().ReadingPositionsHeld == held + 1U, "the remeasured geometry placed the held line once");
+		for (const auto* const pane : { workbench.left_pane(), workbench.right_pane(), workbench.detail_pane() }) {
+			expect(std::abs(pane->font().pointSizeF() - size * 1.5) < 0.01, "both panes and the detail pane show 150% of the code size");
+		}
+		expect(std::abs(workbench.right_pane()->tabStopDistance() - profile.comparison_tab_stop_distance()) < 0.01
+				   && profile.comparison_tab_stop_distance() > profile.code_tab_stop_distance() * 1.2,
+			   "the tab stop scales with the zoom");
+		const auto digits = QFontMetricsF{ workbench.right_pane()->font() }.horizontalAdvance(QStringLiteral("2000"));
+		expect(gutter() > gutterAt100 && gutter() >= digits,
+			   "the gutter widens to hold its four digits at the new size: " + std::to_string(gutterAt100) + " to " + std::to_string(gutter()));
+		expect(std::abs(profile.code_font().pointSizeF() - size) < 0.01, "the code font every other surface takes keeps the code size");
+
+		workbench.show_code_zoom(150U, core::zoomed_point_size(code));
+		auto* const pill = workbench.code_zoom_indicator();
+		expect(pill->isVisible() && pill->accessibleName() == QStringLiteral("Code zoom 150%, %1 pt").arg(qt::point_size_text(core::zoomed_point_size(code))),
+			   "the indicator shows the percentage and the size on screen");
+		expect(!announced.empty() && announced.back() == QStringLiteral("Code zoom 150%, %1 points").arg(qt::point_size_text(core::zoomed_point_size(code))),
+			   "and the same words are announced");
+		ZoomAnnouncements = nullptr;
+		static_cast<void>(QAccessible::installUpdateHandler(previous));
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		while (pill->isVisible() && timer.elapsed() < 3'000) {
+			QApplication::processEvents();
+			QThread::msleep(20);
+		}
+		expect(!pill->isVisible() && timer.elapsed() >= 1'000, "the indicator leaves by itself after a moment");
+
+		code.ZoomPercent = 100U;
+		expect(profile.select_code_font(code).Changed, "Actual Size changes presentation");
+		profile.apply_comparison_code_font_to(workbench);
+		settle_geometry(workbench);
+		expect(std::abs(lineTop() - before) <= height && gutter() == gutterAt100, "Actual Size brings the line, the size and the gutter back");
+
+		// ⌘-scroll and pinch.
+		auto steps = std::vector<core::code_zoom_step>{ };
+		workbench.set_code_zoom_dispatch([&steps](const core::code_zoom_step aStep) { steps.push_back(aStep); });
+		const auto wheel = [&](QWidget& aSurface, const int aAngle, const Qt::KeyboardModifiers aModifiers) {
+			auto event = QWheelEvent{ QPointF{ 8.0, 8.0 }, QPointF{ 8.0, 8.0 }, QPoint{ }, QPoint{ 0, aAngle }, Qt::NoButton, aModifiers, Qt::NoScrollPhase, false };
+			event.ignore();
+			QCoreApplication::sendEvent(&aSurface, &event);
+			return event.isAccepted();
+		};
+		const auto position = workbench.scroll_controller()->position();
+		expect(wheel(*workbench.right_pane()->viewport(), 120, Qt::ControlModifier) && steps == std::vector{ core::code_zoom_step::in },
+			   "a ⌘-scroll notch away zooms in one step");
+		for (auto part = 0; part < 3; ++part) {
+			expect(wheel(*workbench.left_pane()->viewport(), -40, Qt::ControlModifier), "a trackpad's small deltas are taken");
+		}
+		expect(steps.size() == 2U && steps.back() == core::code_zoom_step::out, "three small deltas make one step out");
+		expect(wheel(*workbench.link_map(), 120, Qt::ControlModifier) && steps.size() == 3U, "the connector zooms too");
+		expect(std::abs(workbench.scroll_controller()->position() - position) < 0.001 && std::abs(workbench.right_pane()->font().pointSizeF() - size) < 0.01,
+			   "⌘-scroll neither scrolls nor zooms a pane by itself");
+		expect(wheel(*workbench.right_pane()->viewport(), -120, Qt::NoModifier) && steps.size() == 3U
+				   && workbench.scroll_controller()->position() > position,
+			   "a plain scroll still scrolls and does not zoom");
+		const auto pinch = [&](const Qt::NativeGestureType aType, const qreal aValue) {
+			auto event = QNativeGestureEvent{ aType, QPointingDevice::primaryPointingDevice(), 2, QPointF{ 8.0, 8.0 }, QPointF{ 8.0, 8.0 }, QPointF{ 8.0, 8.0 }, aValue, QPointF{ } };
+			event.ignore();
+			QCoreApplication::sendEvent(workbench.right_pane()->viewport(), &event);
+			return event.isAccepted();
+		};
+		static_cast<void>(pinch(Qt::BeginNativeGesture, 0.0));
+		expect(pinch(Qt::ZoomNativeGesture, 0.10) && steps.size() == 3U, "a small pinch is not yet a step");
+		expect(pinch(Qt::ZoomNativeGesture, 0.10) && steps.size() == 4U && steps.back() == core::code_zoom_step::in, "a pinch out of 0.15 is one step in");
+		expect(pinch(Qt::ZoomNativeGesture, -0.35) && steps.size() == 6U && steps.back() == core::code_zoom_step::out, "pinching in 0.35 is two steps out");
+		static_cast<void>(pinch(Qt::EndNativeGesture, 0.0));
+		expect(workbench.statistics().CodeZoomGestures == 6U, "every step was counted");
+	}
+
+	/// \brief [[BPR-1336]]. The comparison at 100% and 150% with the zoom pill,
+	/// in the four themes, for the design page and the owner's look. Written
+	/// only when a directory is named.
+	auto test_code_zoom_design_captures() -> void
+	{
+		const auto directory = qEnvironmentVariable("BPR_CODE_ZOOM_CAPTURE_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		auto left = std::string{ };
+		for (auto line = 0U; line < 400U; ++line) {
+			left += "\tif (reader.line(" + std::to_string(line) + ") != expected) { return mismatch(" + std::to_string(line) + "); }\n";
+		}
+		auto right = left;
+		right.replace(right.find("mismatch(212)"), 13U, "report(212)  ");
+		const auto diff = computed(left, right, { }, 62U);
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			auto workbench = qt::diff_workbench{ };
+			workbench.resize(1'100, 560);
+			profile.apply_to(workbench);
+			workbench.adopt_appearance(profile);
+			profile.apply_comparison_code_font_to(workbench);
+			workbench.show();
+			const auto selected = context(diff, 93U, 93U);
+			workbench.set_loading(selected);
+			workbench.publish(qt::test::prepare_publication({ .Context = selected, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+			settle_geometry(workbench);
+			static_cast<void>(workbench.select_conversation_line(core::diff_side::right, 212U));
+			settle_geometry(workbench);
+			const auto name = core::stable_name(mode);
+			const auto save = [&](const QString& aStep) {
+				process_events();
+				expect(workbench.grab().save(QStringLiteral("%1/diff-zoom-%2-%3.png").arg(directory, QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())), aStep), "PNG"),
+					   "the zoom capture is written");
+			};
+			save(QStringLiteral("100"));
+			for (const auto zoom : { 150U, 67U }) {
+				auto code        = profile.typography().Code;
+				code.ZoomPercent = zoom;
+				static_cast<void>(profile.select_code_font(code));
+				profile.apply_comparison_code_font_to(workbench);
+				settle_geometry(workbench);
+				workbench.show_code_zoom(zoom, core::zoomed_point_size(code));
+				save(QString::number(zoom));
+			}
+		}
+	}
+
 	/// \brief Syntax and tab geometry preserve exact natural source correspondence.
 	auto test_tabbed_source_correspondence_survives_syntax_and_tab_width() -> void
 	{
@@ -3974,6 +4159,8 @@ auto main(int argc, char** argv) -> int
 	test_line_painting_stays_bounded_by_the_viewport();
 	test_syntax_spans_colour_the_panes();
 	test_tabbed_source_correspondence_survives_syntax_and_tab_width();
+	test_comparison_zoom_scales_and_holds_the_reading_line();
+	test_code_zoom_design_captures();
 	test_syntax_formatting_stays_bounded_by_the_viewport();
 	test_moved_blocks_carry_the_moved_role();
 	test_intraline_ranges_match_the_model();

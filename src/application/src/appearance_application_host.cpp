@@ -152,6 +152,12 @@ namespace bpr::application {
 			Implementation->Preferences->apply(Implementation->Consumer, std::move(aTypography));
 		}
 	}
+	void appearance_application_host::step_code_zoom(const core::code_zoom_step aStep)
+	{
+		if (!Implementation->Closing) {
+			Implementation->Preferences->step_code_zoom(Implementation->Consumer, aStep);
+		}
+	}
 	void appearance_application_host::classify(token_span_cache_key aKey) { Implementation->Classification.classify(std::move(aKey)); }
 	void appearance_application_host::cancel()
 	{

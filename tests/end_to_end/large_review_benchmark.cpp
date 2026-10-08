@@ -64,6 +64,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace bpr::e2e::large_review {
@@ -1261,6 +1262,16 @@ namespace bpr::e2e::large_review {
 		for (const auto* name : { "conversations_enter", "conversations_search", "conversations_search_clear", "conversations_leave", "conversations_pick" }) {
 			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
 		}
+		// [[BPR-1336]]. Each zoom command's dispatch and every turn of the
+		// remeasurement that follows it meet the 100 ms target; the whole
+		// relayout of the 20,000-line comparison completes as a revisit does.
+		for (const auto* name : { "diff_zoom_in", "diff_zoom_out", "diff_actual_size_from_125" }) {
+			const auto found = std::ranges::find(aReport.Phases, name, &phase_measurement::Name);
+			require(found != aReport.Phases.end(), "required zoom phase missing");
+			record(std::string{ name } + "_dispatch", found->ActionMs, aReport.InputIntervalLimitMs, !known_input_miss(name));
+			record(std::string{ name } + "_input_gap", found->MaxPulseIntervalMs, aReport.InputIntervalLimitMs, !known_input_miss(name));
+			phase(name, 1'000.0);
+		}
 		phase("conversations_pick_open", 2'500.0);
 		{
 			const auto found = std::ranges::find(aReport.Phases, "conversations_pick_open", &phase_measurement::Name);
@@ -1450,6 +1461,38 @@ namespace bpr::e2e::large_review {
 			require(surface.select_conversation_line(core::diff_side::right, far) && !surface.source_line_visible(core::diff_side::right, far + 1U), "a line out of view is selected");
 			require(measure_wait(aApplication, aBudget, aReport, "keyboard_line_reveal", [&] { key(Qt::Key_Down, Qt::NoModifier); }, [&] { return line() == far + 1U && surface.source_line_visible(core::diff_side::right, far + 1U) && quiet(aApplication) && rendered(); }), "Down from a line out of view did not reveal the next");
 			save_frame("keyboard_line_reveal");
+		}
+		// [[BPR-1336]]. Zoom In, Zoom Out and Actual Size on the 20,000-line
+		// comparison, each one public command through the profile's appearance
+		// host and store to both panes' new font and the remeasured geometry.
+		// The input target holds for each command's dispatch and for every
+		// turn of the remeasurement after it.
+		{
+			auto* const right      = surface.right_pane();
+			const auto  baseSize   = right->font().pointSizeF();
+			const auto  classified = aApplication.status().ClassificationSubmissions;
+			for (const auto& [name, action, factor] : {
+					 std::tuple{ "diff_zoom_in", window.zoom_in_action(), 1.1 },
+					 std::tuple{ "diff_zoom_out", window.zoom_out_action(), 1.0 },
+					 std::tuple{ "diff_actual_size_from_125", static_cast<QAction*>(nullptr), 1.0 },
+				 }) {
+				if (action == nullptr) {
+					// Actual Size needs a zoom to return from: two steps up, unmeasured.
+					window.zoom_in_action()->trigger();
+					window.zoom_in_action()->trigger();
+					require(measure_wait(aApplication, aBudget, aReport, "diff_zoom_setup", [] { }, [&] { return std::abs(right->font().pointSizeF() - baseSize * 1.25) < 0.01 && quiet(aApplication); }), "zoom setup did not settle");
+				}
+				auto* const command = action != nullptr ? action : window.actual_size_action();
+				require(command->isEnabled(), "the zoom command is offered");
+				const auto writes = aApplication.status().AppearanceDurableWrites;
+				require(measure_wait(aApplication, aBudget, aReport, name, [&] { command->trigger(); }, [&] { return std::abs(right->font().pointSizeF() - baseSize * factor) < 0.01
+																												  && aApplication.status().AppearanceDurableWrites > writes
+																												  && quiet(aApplication) && rendered(); }), "zoom did not persist, apply and remeasure");
+				save_frame(name);
+			}
+			verify_large(surface, aManifest);
+			require(surface.current_result()->Alignment.Key == comparison && aApplication.status().ClassificationSubmissions == classified,
+					"zoom changed comparison identity or reclassified source");
 		}
 	}
 

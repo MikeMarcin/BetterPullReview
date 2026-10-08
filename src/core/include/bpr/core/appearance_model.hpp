@@ -429,6 +429,8 @@ namespace bpr::core {
 		tab_width,
 		/// [[BPR-1107]]. Bounded as the ordinals of `white_space_drawing`.
 		white_space,
+		/// [[BPR-1336]]. The comparison's zoom, a percentage of the code size.
+		code_zoom,
 	};
 
 	/// \brief Names why one typography value is illegal.
@@ -561,9 +563,54 @@ namespace bpr::core {
 		bool                SyntaxBold   = true;
 		bool                SyntaxItalic = true;
 		white_space_drawing WhiteSpace   = white_space_drawing::selection;
+		/// [[BPR-1336]]. How large the comparison shows the code, as a
+		/// percentage of `Font.PointSizeCentipoints`. A multiplier rather than a
+		/// second size so that Actual Size returns to the size the reviewer
+		/// chose, and so that zooming the comparison never rewrites that size.
+		std::uint32_t ZoomPercent = 100U;
 
 		auto operator<=>(const code_font_settings&) const = default;
 	};
+
+	/// \brief [[BPR-1336]]. One zoom gesture on the comparison.
+	enum class code_zoom_step : std::uint8_t {
+		in,
+		out,
+		actual_size,
+	};
+
+	/// \brief The zoom at which the comparison shows the code at its own size.
+	inline constexpr std::uint32_t actual_code_zoom_percent = 100U;
+
+	/// \brief The zooms Zoom In and Zoom Out step through, ascending.
+	///
+	/// \details The browser ladder: fine steps near the code size, where a
+	/// reader adjusts, and wide ones far from it, where a reader who needs large
+	/// text gets there in few presses. The first and last are the bounds of
+	/// `typography_field::code_zoom`.
+	inline constexpr std::array<std::uint32_t, 13> code_zoom_steps{
+		50U, 67U, 75U, 80U, 90U, 100U, 110U, 125U, 150U, 175U, 200U, 250U, 300U
+	};
+
+	/// \brief The size the comparison shows the code at, in hundredths of a point.
+	///
+	/// \details The code size scaled by the zoom, rounded to the nearest
+	/// hundredth and held to the point-size bounds, so a zoom can never show a
+	/// size the code size row itself could not hold.
+	[[nodiscard]] auto zoomed_point_size(const code_font_settings& aCode) noexcept -> std::uint32_t;
+
+	/// \brief The zoom one gesture leads to from the current one.
+	///
+	/// \details Actual Size is always `actual_code_zoom_percent`. Zoom In is
+	/// the next step up whose shown size is larger than the current one, and
+	/// Zoom Out the next step down whose shown size is smaller, so a step never
+	/// lands on a size the clamp makes equal to the current one. A zoom between
+	/// two steps moves to the nearer step in the gesture's direction. With
+	/// nowhere to go the current zoom is returned unchanged.
+	[[nodiscard]] auto stepped_code_zoom(const code_font_settings& aCode, code_zoom_step aStep) noexcept -> std::uint32_t;
+
+	/// \brief Whether a gesture would change what the comparison shows.
+	[[nodiscard]] auto code_zoom_steps_from(const code_font_settings& aCode, code_zoom_step aStep) noexcept -> bool;
 
 	/// \brief Describes the complete typography settings record.
 	struct typography_settings

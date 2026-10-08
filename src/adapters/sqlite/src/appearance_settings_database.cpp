@@ -111,11 +111,20 @@ namespace bpr::adapters::sqlite::detail {
 		/// fresh installation has, Selection, which is Sublime Text's own.
 		constexpr auto MigratedWhiteSpace = core::code_font_settings{ }.WhiteSpace;
 
+		/// \brief [[BPR-1336]]. The one column version 9 adds, last.
+		constexpr std::string_view CodeZoomColumn = "code_zoom_percent";
+
+		/// \brief What a version-8 record carries into version 9: Actual Size,
+		/// so a reviewer who never zoomed sees the code at the size they chose.
+		constexpr auto MigratedCodeZoom = core::code_font_settings{ }.ZoomPercent;
+
 		/// \brief Returns every column the settings table declares, in order.
 		///
-		/// \details Version 7's shape without `aWhiteSpace`, which only the
-		/// version-7 step and the version-7 admission check ask for.
-		[[nodiscard]] auto settings_column_names(const bool aWhiteSpace = true) -> std::vector<std::string>
+		/// \details `aVersion` names a version from 7 on: version 7's shape
+		/// has neither trailing column, 8 adds white space and 9 the zoom. Only
+		/// the migration steps and the admission check of an older file ask for
+		/// an older shape.
+		[[nodiscard]] auto settings_column_names(const std::int64_t aVersion = appearance_settings_schema_version) -> std::vector<std::string>
 		{
 			auto names = std::vector<std::string>{ "singleton", "mode" };
 			for (std::size_t index = 0U; index < core::appearance_variant_count;
@@ -126,8 +135,11 @@ namespace bpr::adapters::sqlite::detail {
 			for (const auto scalar : ScalarColumnNames) {
 				names.emplace_back(scalar);
 			}
-			if (aWhiteSpace) {
+			if (aVersion >= 8) {
 				names.emplace_back(WhiteSpaceColumn);
+			}
+			if (aVersion >= 9) {
+				names.emplace_back(CodeZoomColumn);
 			}
 			return names;
 		}
@@ -154,7 +166,7 @@ namespace bpr::adapters::sqlite::detail {
 		/// assembled. `validate` compares the created table against
 		/// `settings_column_names` on every open, so the two cannot drift apart
 		/// without the next open refusing the file.
-		[[nodiscard]] auto settings_schema(const bool aWhiteSpace = true) -> std::string
+		[[nodiscard]] auto settings_schema(const std::int64_t aVersion = appearance_settings_schema_version) -> std::string
 		{
 			auto sql = std::string{
 				"CREATE TABLE appearance_settings("
@@ -181,10 +193,16 @@ namespace bpr::adapters::sqlite::detail {
 				   "CHECK(code_syntax_italic IN (0, 1)),"
 				   "dif_visibility INTEGER NOT NULL CHECK(dif_visibility IN (0, 1)),"
 				   "motion_mode INTEGER NOT NULL CHECK(motion_mode IN (0, 1, 2))";
-			if (aWhiteSpace) {
+			if (aVersion >= 8) {
 				sql += "," + std::string{ WhiteSpaceColumn } + " INTEGER NOT NULL CHECK("
 					+ std::string{ WhiteSpaceColumn } + " BETWEEN 0 AND "
 					+ std::to_string(core::white_space_drawing_count - 1U) + ")";
+			}
+			if (aVersion >= 9) {
+				const auto bounds = core::bounds_of(core::typography_field::code_zoom);
+				sql += "," + std::string{ CodeZoomColumn } + " INTEGER NOT NULL CHECK("
+					+ std::string{ CodeZoomColumn } + " BETWEEN " + std::to_string(bounds.Minimum)
+					+ " AND " + std::to_string(bounds.Maximum) + ")";
 			}
 			sql += ") STRICT";
 			return sql;
@@ -575,8 +593,9 @@ namespace bpr::adapters::sqlite::detail {
 			const auto columnCount = aVersion == 1 ? 14U : aVersion == 2 ? 15U
 				: aVersion >= 6                                          ? 18U
 																		 : 16U;
-			// Versions 7 and 8 carry a column per variant; 8 adds white space.
-			const auto current       = settings_column_names(aVersion >= 8);
+			// Versions 7 to 9 carry a column per variant; 8 adds white space and
+			// 9 the comparison's zoom.
+			const auto current       = settings_column_names(aVersion);
 			auto       settingsNames = std::vector<std::string_view>{ };
 			if (aVersion >= 7) {
 				for (const auto& name : current) {
@@ -693,7 +712,7 @@ namespace bpr::adapters::sqlite::detail {
 			const auto empty = core::export_theme(core::appearance_palette{ });
 			auto       names = std::vector<std::string>{ };
 			auto       carry = std::string{ "INSERT INTO appearance_settings(" }
-				+ joined(settings_column_names(false), ", ") + ") SELECT singleton, mode";
+				+ joined(settings_column_names(7), ", ") + ") SELECT singleton, mode";
 			for (std::size_t index = 0U; index < core::appearance_variant_count;
 				 ++index) {
 				names.emplace_back(core::stable_name(variant_at(index)));
@@ -710,7 +729,7 @@ namespace bpr::adapters::sqlite::detail {
 			for (const auto& statement : std::array{
 					 std::string{ "CREATE TABLE appearance_settings_previous AS SELECT * FROM appearance_settings" },
 					 std::string{ "DROP TABLE appearance_settings" },
-					 settings_schema(false) }) {
+					 settings_schema(7) }) {
 				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
 					return ran;
 				}
@@ -756,7 +775,7 @@ namespace bpr::adapters::sqlite::detail {
 			if (!rows || *rows != 0) {
 				return std::unexpected(failure::integrity_failure);
 			}
-			const auto previous = joined(settings_column_names(false), ", ");
+			const auto previous = joined(settings_column_names(7), ", ");
 			auto       carry    = std::string{ "INSERT INTO appearance_settings(" };
 			carry += previous;
 			carry += ", ";
@@ -769,7 +788,42 @@ namespace bpr::adapters::sqlite::detail {
 			for (const auto& statement : std::array{
 					 std::string{ "CREATE TABLE appearance_settings_previous AS SELECT * FROM appearance_settings" },
 					 std::string{ "DROP TABLE appearance_settings" },
-					 settings_schema(),
+					 settings_schema(8),
+					 carry,
+					 std::string{ "DROP TABLE appearance_settings_previous" } }) {
+				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
+					return ran;
+				}
+			}
+			return { };
+		}
+
+		/// \brief [[BPR-1336]]. Adds the comparison's zoom.
+		///
+		/// \details Carried across a fresh table as the version-8 step carries
+		/// its row, so the CHECK constraints are verified on the way through.
+		/// The new column takes Actual Size.
+		[[nodiscard]] auto migrate_to_version_9(::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			const auto rows = scalar_integer(aDatabase, "SELECT count(*) FROM appearance_settings WHERE singleton != 1");
+			if (!rows || *rows != 0) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			const auto previous = joined(settings_column_names(8), ", ");
+			auto       carry    = std::string{ "INSERT INTO appearance_settings(" };
+			carry += previous;
+			carry += ", ";
+			carry += CodeZoomColumn;
+			carry += ") SELECT ";
+			carry += previous;
+			carry += ", ";
+			carry += std::to_string(MigratedCodeZoom);
+			carry += " FROM appearance_settings_previous";
+			for (const auto& statement : std::array{
+					 std::string{ "CREATE TABLE appearance_settings_previous AS SELECT * FROM appearance_settings" },
+					 std::string{ "DROP TABLE appearance_settings" },
+					 settings_schema(9),
 					 carry,
 					 std::string{ "DROP TABLE appearance_settings_previous" } }) {
 				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
@@ -852,7 +906,15 @@ namespace bpr::adapters::sqlite::detail {
 					return migrated;
 				}
 			}
-			if (auto migrated = migrate_to_version_8(aDatabase, aStop); !migrated) {
+			// A version-8 file skips the version-8 step, which would carry the
+			// row across without its white-space column.
+			if (*current < 8) {
+				if (auto migrated = migrate_to_version_8(aDatabase, aStop); !migrated) {
+					rollback();
+					return migrated;
+				}
+			}
+			if (auto migrated = migrate_to_version_9(aDatabase, aStop); !migrated) {
 				rollback();
 				return migrated;
 			}
@@ -1057,6 +1119,7 @@ namespace bpr::adapters::sqlite::detail {
 				columns += ", " + variant_stored_column(variant_at(index));
 			}
 			columns += ", " + std::string{ WhiteSpaceColumn };
+			columns += ", " + std::string{ CodeZoomColumn };
 			auto statement = prepare(
 				aDatabase,
 				columns + " FROM appearance_settings WHERE singleton = 1");
@@ -1150,6 +1213,12 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(failure::integrity_failure);
 			}
 			settings.Typography.Code.WhiteSpace = static_cast<core::white_space_drawing>(whiteSpace);
+			const auto codeZoom                 = bounded(::sqlite3_column_int64(
+				statement->Value, static_cast<int>(2U + ScalarColumnNames.size() + 2U * core::appearance_variant_count)));
+			if (!codeZoom) {
+				return std::unexpected(codeZoom.error());
+			}
+			settings.Typography.Code.ZoomPercent = *codeZoom;
 
 			// A durable record can be written by another build or edited by hand.
 			// The core is the authority on typography legality, so a record it
@@ -1323,7 +1392,8 @@ namespace bpr::adapters::sqlite::detail {
 			&& integer(code.SyntaxBold ? 1 : 0) && integer(code.SyntaxItalic ? 1 : 0)
 			&& integer(static_cast<std::int64_t>(aSettings.Dif.Visibility))
 			&& integer(static_cast<std::int64_t>(aSettings.Dif.Motion))
-			&& integer(static_cast<std::int64_t>(code.WhiteSpace));
+			&& integer(static_cast<std::int64_t>(code.WhiteSpace))
+			&& integer(static_cast<std::int64_t>(code.ZoomPercent));
 		if (!bound) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}

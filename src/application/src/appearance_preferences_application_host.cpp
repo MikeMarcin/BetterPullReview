@@ -90,6 +90,11 @@ namespace bpr::application {
 			core::typography_settings Typography;
 		};
 
+		struct deferred_appearance_zoom
+		{
+			core::code_zoom_step Step = core::code_zoom_step::actual_size;
+		};
+
 		struct deferred_appearance_theme_import
 		{
 			std::string Path;
@@ -120,6 +125,7 @@ namespace bpr::application {
 														 deferred_appearance_observe,
 														 deferred_appearance_palette,
 														 deferred_appearance_typography,
+														 deferred_appearance_zoom,
 														 deferred_appearance_theme_import,
 														 deferred_appearance_cancel,
 														 deferred_appearance_shutdown,
@@ -350,6 +356,10 @@ namespace bpr::application {
 						apply_palette_now(aTyped.Palette, aTyped.Variant);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_typography>) {
 						apply_typography_now(std::move(aTyped.Typography));
+					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_zoom>) {
+						auto typography             = Settings.Typography;
+						typography.Code.ZoomPercent = core::stepped_code_zoom(typography.Code, aTyped.Step);
+						apply_typography_now(std::move(typography));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_import>) {
 						import_theme_now(std::move(aTyped.Path));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_cancel>) {
@@ -1363,6 +1373,11 @@ namespace bpr::application {
 	{
 		Implementation->enqueue(
 			deferred_appearance_typography{ .Typography = std::move(aTypography) }, aConsumer);
+	}
+
+	void appearance_preferences_application_host::step_code_zoom(appearance_consumer_id aConsumer, const core::code_zoom_step aStep)
+	{
+		Implementation->enqueue(deferred_appearance_zoom{ .Step = aStep }, aConsumer);
 	}
 
 	void appearance_preferences_application_host::import_theme_file(appearance_consumer_id aConsumer, std::string aPath)

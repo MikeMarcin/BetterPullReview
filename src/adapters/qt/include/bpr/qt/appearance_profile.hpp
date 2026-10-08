@@ -147,6 +147,14 @@ namespace bpr::qt {
 	[[nodiscard]] auto tab_stop_distance_of(const core::code_font_settings& aCode)
 		-> qreal;
 
+	/// \brief [[BPR-1336]]. The code record as the comparison shows it.
+	///
+	/// \details The code size replaced by `core::zoomed_point_size` and the
+	/// zoom spent, so building a font or a tab stop from the result gives the
+	/// comparison's own. Every other field is the record's.
+	[[nodiscard]] auto comparison_code_settings(const core::code_font_settings& aCode)
+		-> core::code_font_settings;
+
 	/// \brief Returns the typography a fresh installation starts from.
 	///
 	/// \details The core holds no default family because it cannot know one, so
@@ -313,6 +321,10 @@ namespace bpr::qt {
 			-> const core::typography_settings&;
 		[[nodiscard]] auto ui_font() const -> QFont;
 		[[nodiscard]] auto code_font() const -> QFont;
+		/// \brief [[BPR-1336]]. The code font at the comparison's zoom.
+		[[nodiscard]] auto comparison_code_font() const -> QFont;
+		/// \brief [[BPR-1336]]. The tab stop at the comparison's zoom.
+		[[nodiscard]] auto comparison_tab_stop_distance() const -> qreal;
 
 		/// \brief Returns the code font one syntax category asks to emphasise.
 		///
@@ -476,7 +488,15 @@ namespace bpr::qt {
 		/// because none of those is reachable from here.
 		void apply_code_font_to(QWidget& aSurface);
 
+		/// \brief [[BPR-1336]]. Applies the code font at the comparison's zoom.
+		///
+		/// \details What `apply_code_font_to` does, with the zoomed font and
+		/// tab stop: the comparison is the one surface the View menu's zoom
+		/// scales. Drawers, Overview and composers keep the code size.
+		void apply_comparison_code_font_to(QWidget& aSurface);
+
 	private:
+		void apply_code_font(QWidget& aSurface, const QFont& aFont, qreal aTabStopDistance);
 		void adopt_record(const application::appearance_settings& aSettings);
 		void rebuild();
 		void rebuild_typography();
@@ -485,7 +505,6 @@ namespace bpr::qt {
 			core::appearance_variant        aVariant);
 		auto adopt() -> bool;
 		auto publish() -> bool;
-		void apply_code_metrics(QWidget& aSurface) const;
 
 		/// \brief One variant's overrides over its own built-in profile.
 		using variant_overrides = std::array<
@@ -497,6 +516,7 @@ namespace bpr::qt {
 		core::typography_settings    Typography;
 		QFont                        UiFont;
 		QFont                        CodeFont;
+		QFont                        ComparisonFont;
 		/// \brief One override table per variant, indexed by variant ordinal.
 		///
 		/// \details RFC-BPR-0034. An override is a colour chosen against one

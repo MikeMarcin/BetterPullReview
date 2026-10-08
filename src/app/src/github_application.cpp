@@ -7753,6 +7753,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						dispatch_appearance_intent(std::move(aIntent));
 					});
 			}
+			// [[BPR-1336]]. View's zoom commands, keys and gestures step the
+			// profile's zoom through the same host as Settings.
+			Window->set_code_zoom_dispatch([this](const core::code_zoom_step aStep) {
+				dispatch_appearance_intent(application::step_code_zoom_intent{ .Step = aStep });
+			});
 			if (aConfig.MotionObserver) {
 				const auto weak    = std::weak_ptr<const int>{ WindowLifetime };
 				MotionSubscription = aConfig.MotionObserver->subscribe(
@@ -15151,6 +15156,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 											 intent,
 											 application::apply_typography_intent>) {
 						AppearanceHost->apply(std::move(aValue.Typography));
+					} else if constexpr (std::is_same_v<intent, application::step_code_zoom_intent>) {
+						AppearanceHost->step_code_zoom(aValue.Step);
 					} else if constexpr (std::is_same_v<
 											 intent,
 											 application::preview_appearance_palette_intent>) {
@@ -15314,9 +15321,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// rather than quietly wrong.
 			if (auto* const workbench = Window->comparison_surface();
 				workbench != nullptr) {
-				AppearanceProfile->apply_code_font_to(*workbench);
+				// [[BPR-1336]]. The comparison takes the code font at its zoom.
+				AppearanceProfile->apply_comparison_code_font_to(*workbench);
 				workbench->adopt_appearance(*AppearanceProfile);
 			}
+			Window->adopt_code_zoom(AppearanceProfile->typography().Code);
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {
 				overview->adopt_appearance(*AppearanceProfile);
 			}

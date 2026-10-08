@@ -626,6 +626,15 @@ namespace bpr::qt {
 			* static_cast<qreal>(aCode.TabWidth);
 	}
 
+	auto comparison_code_settings(const core::code_font_settings& aCode)
+		-> core::code_font_settings
+	{
+		auto zoomed                      = aCode;
+		zoomed.Font.PointSizeCentipoints = core::zoomed_point_size(aCode);
+		zoomed.ZoomPercent               = core::actual_code_zoom_percent;
+		return zoomed;
+	}
+
 	auto default_typography_settings() -> core::typography_settings
 	{
 		return default_typography_settings(bundled_code_font_available());
@@ -893,6 +902,16 @@ namespace bpr::qt {
 	auto appearance_profile::code_font() const -> QFont
 	{
 		return CodeFont;
+	}
+
+	auto appearance_profile::comparison_code_font() const -> QFont
+	{
+		return ComparisonFont;
+	}
+
+	auto appearance_profile::comparison_tab_stop_distance() const -> qreal
+	{
+		return tab_stop_distance_of(comparison_code_settings(Typography.Code));
 	}
 
 	auto appearance_profile::code_font_for(const bool aBold, const bool aItalic)
@@ -1196,37 +1215,42 @@ namespace bpr::qt {
 
 	void appearance_profile::apply_code_font_to(QWidget& aSurface)
 	{
+		apply_code_font(aSurface, CodeFont, code_tab_stop_distance());
+	}
+
+	void appearance_profile::apply_comparison_code_font_to(QWidget& aSurface)
+	{
+		apply_code_font(aSurface, ComparisonFont, comparison_tab_stop_distance());
+	}
+
+	void appearance_profile::apply_code_font(QWidget& aSurface, const QFont& aFont, const qreal aTabStopDistance)
+	{
 		const auto panes = aSurface.findChildren<QPlainTextEdit*>();
-		apply_code_metrics(aSurface);
-		for (auto* const pane : panes) {
-			apply_code_metrics(*pane);
+		if (auto* const surface = qobject_cast<QPlainTextEdit*>(&aSurface); surface != nullptr) {
+			surface->setTabStopDistance(aTabStopDistance);
 		}
-		aSurface.setFont(CodeFont);
 		for (auto* const pane : panes) {
-			pane->setFont(CodeFont);
+			pane->setTabStopDistance(aTabStopDistance);
+		}
+		aSurface.setFont(aFont);
+		for (auto* const pane : panes) {
+			pane->setFont(aFont);
 		}
 
 		// Published after the fonts so a subscriber that rebuilds on this event
 		// measures the typography that is already applied rather than the one
 		// being replaced.
-		auto published = code_typography_event{ code_tab_stop_distance() };
+		auto published = code_typography_event{ aTabStopDistance };
 		QCoreApplication::sendEvent(&aSurface, &published);
 
 		++Statistics.AppliedFontSurfaces;
 	}
 
-	void appearance_profile::apply_code_metrics(QWidget& aSurface) const
-	{
-		if (auto* const pane = qobject_cast<QPlainTextEdit*>(&aSurface);
-			pane != nullptr) {
-			pane->setTabStopDistance(code_tab_stop_distance());
-		}
-	}
-
 	void appearance_profile::rebuild_typography()
 	{
-		UiFont   = to_presentation_font(Typography.Ui.Font);
-		CodeFont = to_presentation_font(Typography.Code);
+		UiFont         = to_presentation_font(Typography.Ui.Font);
+		CodeFont       = to_presentation_font(Typography.Code);
+		ComparisonFont = to_presentation_font(comparison_code_settings(Typography.Code));
 	}
 
 	void appearance_profile::set_committed_palette(

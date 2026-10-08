@@ -2,6 +2,7 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
+#include "bpr/qt/type_preview.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
@@ -17,6 +18,7 @@
 #include <QLabel>
 #include <QMargins>
 #include <QMouseEvent>
+#include <QNativeGestureEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -44,6 +46,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <optional>
 #include <ranges>
@@ -326,6 +329,90 @@ namespace bpr::qt {
 		{
 			std::optional<std::uint32_t> Base;
 			std::optional<std::uint32_t> Head;
+		};
+
+		/// \brief [[BPR-1336]]. The zoom shown for a moment over the comparison.
+		///
+		/// \details A pill at the top centre of the panes: the percentage in the
+		/// interface font's semibold weight with tabular figures, so stepping
+		/// through the ladder does not make it twitch, then the size on screen
+		/// in the regular weight. It takes the window's own surface
+		/// and text roles, so every theme draws it in its own colours. It never
+		/// takes the pointer or the keyboard, and it appears and leaves without
+		/// animation: the code changing size is the motion.
+		class zoom_pill final : public QWidget
+		{
+		public:
+			explicit zoom_pill(QWidget* const aParent)
+				: QWidget{ aParent }
+			{
+				setObjectName(QStringLiteral("diffCodeZoomIndicator"));
+				setAttribute(Qt::WA_TransparentForMouseEvents);
+				setFocusPolicy(Qt::NoFocus);
+				hide();
+			}
+
+			void set_zoom(const QString& aPercent, const QString& aSize)
+			{
+				Percent = aPercent;
+				Size    = aSize;
+				setAccessibleName(QStringLiteral("Code zoom %1, %2").arg(Percent, Size));
+				const auto fonts = pill_fonts();
+				const auto width = QFontMetricsF{ fonts.first }.horizontalAdvance(Percent)
+					+ gap + QFontMetricsF{ fonts.second }.horizontalAdvance(Size);
+				const auto height = std::max(QFontMetricsF{ fonts.first }.height(), QFontMetricsF{ fonts.second }.height());
+				resize(static_cast<int>(std::ceil(width + 2.0 * inset_x)), static_cast<int>(std::ceil(height + 2.0 * inset_y)));
+				update();
+			}
+
+			[[nodiscard]] auto percent_text() const -> const QString& { return Percent; }
+			[[nodiscard]] auto size_text() const -> const QString& { return Size; }
+
+		protected:
+			void paintEvent(QPaintEvent*) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing);
+				const auto box  = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				auto       fill = palette().color(QPalette::Window);
+				fill.setAlpha(242);
+				auto edge = palette().color(QPalette::WindowText);
+				edge.setAlpha(48);
+				painter.setPen(QPen{ edge, 1.0 });
+				painter.setBrush(fill);
+				painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
+				const auto fonts = pill_fonts();
+				const auto text  = box.adjusted(inset_x, 0.0, -inset_x, 0.0);
+				painter.setFont(fonts.first);
+				painter.setPen(palette().color(QPalette::WindowText));
+				painter.drawText(text, Qt::AlignVCenter | Qt::AlignLeft, Percent);
+				const auto after = QFontMetricsF{ fonts.first }.horizontalAdvance(Percent) + gap;
+				// The window's own text colour for both, not the placeholder
+				// grey: the reader zooming may be the reader who needs contrast.
+				painter.setFont(fonts.second);
+				painter.drawText(text.adjusted(after, 0.0, 0.0, 0.0), Qt::AlignVCenter | Qt::AlignLeft, Size);
+			}
+
+		private:
+			static constexpr qreal inset_x = 14.0;
+			static constexpr qreal inset_y = 6.0;
+			static constexpr qreal gap     = 8.0;
+
+			/// The interface font, not the comparison's code font this widget
+			/// would otherwise inherit: the pill must not itself grow with the
+			/// zoom it reports.
+			[[nodiscard]] static auto pill_fonts() -> std::pair<QFont, QFont>
+			{
+				auto size = QApplication::font();
+				size.setFeature(QFont::Tag{ "tnum" }, 1U);
+				auto percent = size;
+				percent.setWeight(QFont::DemiBold);
+				percent.setPointSizeF(size.pointSizeF() * 1.35);
+				return { percent, size };
+			}
+
+			QString Percent;
+			QString Size;
 		};
 
 		/// \brief Reserves the gutter each pane numbers its own lines in.
@@ -769,6 +856,34 @@ namespace bpr::qt {
 			void changeEvent(QEvent* aEvent) override;
 			void showEvent(QShowEvent* aEvent) override;
 
+		public:
+			/// \brief [[BPR-1336]]. Hears that the pane has relaid out in a new font.
+			///
+			/// \details The pane does not wrap, so every line is one block of the
+			/// same height and its bar counts lines: a font change keeps the top
+			/// line and moves every line below it. The observer is told after the
+			/// relayout, while the pane still shows the old top line, which is
+			/// what lets it keep a line where the reader was looking.
+			void set_font_observer(std::function<void()> aObserver)
+			{
+				FontObserver = std::move(aObserver);
+			}
+			/// \brief The height of one row, from the pane's own layout.
+			[[nodiscard]] auto row_height() const -> qreal
+			{
+				const auto block = firstVisibleBlock();
+				return block.isValid() ? blockBoundingRect(block).height() : 0.0;
+			}
+			/// \brief Where a line's row starts in the viewport, if it is laid out.
+			[[nodiscard]] auto row_top(const std::uint32_t aLine) const -> std::optional<qreal>
+			{
+				const auto block = document()->findBlockByNumber(static_cast<int>(aLine));
+				if (!block.isValid() || !block.isVisible()) {
+					return std::nullopt;
+				}
+				return blockBoundingGeometry(block).translated(contentOffset()).top();
+			}
+
 		private:
 			void                                   update_gutter();
 			void                                   place_gutter();
@@ -803,6 +918,7 @@ namespace bpr::qt {
 			std::uint64_t                              PaintedWhiteSpace  = 0U;
 			std::optional<core::line_span>             SelectedLines;
 			core::white_space_drawing                  WhiteSpace = core::white_space_drawing::none;
+			std::function<void()>                      FontObserver;
 		};
 
 		/// \brief Paints one pane's own line numbers beside its own text.
@@ -1037,6 +1153,9 @@ namespace bpr::qt {
 			// has to move by exactly the same amount.
 			if (aEvent != nullptr && (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::DevicePixelRatioChange)) {
 				refresh_gutter_width();
+				if (FontObserver) {
+					FontObserver();
+				}
 			}
 			// A style change re-polishes the widget, which is the one path
 			// that can clear the viewport fill again (BPR-0475).
@@ -1780,6 +1899,18 @@ namespace bpr::qt {
 		for (auto* const source : { Left, Right, Unified }) {
 			source->installEventFilter(this);
 		}
+		// [[BPR-1336]]. ⌘-scroll and pinch over any code surface are zoom
+		// gestures. The controller lets a Control-modified wheel through, so
+		// this filter sees it whichever was installed first.
+		LinkMap->installEventFilter(this);
+		for (auto* const source : { Left, Right, Unified }) {
+			pane(source)->set_font_observer([this, source] { hold_reading_position(*source); });
+		}
+		ZoomIndicator      = new zoom_pill{ this };
+		ZoomIndicatorTimer = new QTimer{ this };
+		ZoomIndicatorTimer->setSingleShot(true);
+		ZoomIndicatorTimer->setInterval(1200);
+		connect(ZoomIndicatorTimer, &QTimer::timeout, ZoomIndicator, &QWidget::hide);
 
 		QWidget::setTabOrder(Left, LinkMap);
 		QWidget::setTabOrder(LinkMap, Right);
@@ -1835,8 +1966,9 @@ namespace bpr::qt {
 										   QTextDocument* const aLeft, QTextDocument* const aRight)
 	{
 		const auto previousSelection = Interaction.Selection;
-		CurrentResult                = aPublication.Result;
-		SemanticIndex                = aPublication.Index;
+		HeldLine.reset();
+		CurrentResult = aPublication.Result;
+		SemanticIndex = aPublication.Index;
 		// Built once here rather than searched per segment per repaint. The
 		// move table is keyed by segment identity and is unordered with
 		// respect to the segment list, so the alternative is a linear search
@@ -2713,6 +2845,13 @@ namespace bpr::qt {
 		const auto result = QWidget::event(aEvent);
 		switch (aEvent->type()) {
 		case QEvent::FontChange:
+			// [[BPR-1336]]. Heard before the panes are given the same font, so
+			// they still show the line the reader was looking at.
+			note_reading_position();
+			schedule_geometry_rebuild(
+				measured_geometry_change::font,
+				diff_geometry_rebuild_trigger::font_event);
+			break;
 		case QEvent::ApplicationFontChange:
 			schedule_geometry_rebuild(
 				measured_geometry_change::font,
@@ -2779,6 +2918,12 @@ namespace bpr::qt {
 	auto diff_workbench::eventFilter(QObject* const aWatched, QEvent* const aEvent)
 		-> bool
 	{
+		if ((aEvent->type() == QEvent::Wheel || aEvent->type() == QEvent::NativeGesture)
+			&& (aWatched == Left->viewport() || aWatched == Right->viewport() || aWatched == Unified->viewport()
+				|| aWatched == LinkMap || aWatched == UnifiedMap)
+			&& code_zoom_gesture(*aEvent)) {
+			return true;
+		}
 		if ((aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::ShortcutOverride)
 			&& (aWatched == Left || aWatched == Right || aWatched == Unified)
 			&& handle_line_key(static_cast<QPlainTextEdit*>(aWatched), aEvent)) {
@@ -3069,6 +3214,16 @@ namespace bpr::qt {
 			Statistics.GeometryRebuildHistoryOverflow = true;
 		}
 		synchronize_geometry_selection(revealSelection);
+		// [[BPR-1336]]. The font change already put the reader's line back
+		// where it was, by whole lines of the new height; the remeasured axis
+		// now lets the controller hold it there and bring the other pane along.
+		if (HeldLine && !OnePaneEnabled) {
+			const auto origin = HeldLine->Side == core::diff_side::left ? axis.left_line_origin(HeldLine->Top) : axis.right_line_origin(HeldLine->Top);
+			if (origin && Controller->reveal_pane_origin(HeldLine->Side, HeldLine->Top == 0U ? 0.0 : *origin)) {
+				++Statistics.ReadingPositionsHeld;
+			}
+		}
+		HeldLine.reset();
 	}
 
 	void diff_workbench::apply_frame(const comparison_scroll_frame& aFrame)
@@ -3645,6 +3800,167 @@ namespace bpr::qt {
 		pane(Unified)->set_line_marks(std::move(marks));
 		pane(Unified)->set_conversation_anchor(ConversationAnchor ? unified_row_for(ConversationAnchor->Side, ConversationAnchor->Line) : std::nullopt);
 		update_unified_link_map();
+	}
+
+	void diff_workbench::set_code_zoom_dispatch(std::function<void(core::code_zoom_step)> aDispatch)
+	{
+		CodeZoomDispatch = std::move(aDispatch);
+	}
+
+	auto diff_workbench::code_zoom_indicator() const noexcept -> QWidget*
+	{
+		return ZoomIndicator;
+	}
+
+	void diff_workbench::show_code_zoom(const std::uint32_t aPercent, const std::uint32_t aCentipoints)
+	{
+		const auto  size    = point_size_text(aCentipoints);
+		const auto  percent = QStringLiteral("%1%").arg(aPercent);
+		auto* const pill    = static_cast<zoom_pill*>(ZoomIndicator);
+		pill->set_zoom(percent, QStringLiteral("%1 pt").arg(size));
+		// Over the top centre of the code, or of the idle page in its place.
+		const auto area = Vertical->geometry();
+		ZoomIndicator->move(area.left() + (area.width() - ZoomIndicator->width()) / 2, area.top() + 12);
+		ZoomIndicator->raise();
+		ZoomIndicator->show();
+		ZoomIndicatorTimer->start();
+		announce_accessible_status(QStringLiteral("Code zoom %1, %2 points").arg(percent, size));
+	}
+
+	/// \brief [[BPR-1336]]. Turns ⌘-scroll and pinch into zoom steps.
+	///
+	/// \details One step for each wheel notch (120 eighths of a degree, a
+	/// trackpad's small deltas adding up to the same), and one for each 0.15 of
+	/// pinch. A reversal starts the count again, so a hesitant gesture does not
+	/// step against the reader's hand.
+	auto diff_workbench::code_zoom_gesture(QEvent& aEvent) -> bool
+	{
+		const auto dispatch = [this](const core::code_zoom_step aStep) {
+			++Statistics.CodeZoomGestures;
+			if (CodeZoomDispatch) {
+				CodeZoomDispatch(aStep);
+			}
+		};
+		if (aEvent.type() == QEvent::Wheel) {
+			auto& wheel = static_cast<QWheelEvent&>(aEvent);
+			if (!wheel.modifiers().testFlag(Qt::ControlModifier)) {
+				ZoomWheelAngle = 0;
+				return false;
+			}
+			const auto delta = wheel.angleDelta().y() != 0 ? wheel.angleDelta().y() : wheel.angleDelta().x();
+			if ((delta > 0 && ZoomWheelAngle < 0) || (delta < 0 && ZoomWheelAngle > 0)) {
+				ZoomWheelAngle = 0;
+			}
+			ZoomWheelAngle += delta;
+			constexpr auto notch = 120;
+			while (std::abs(ZoomWheelAngle) >= notch) {
+				const auto in = ZoomWheelAngle > 0;
+				ZoomWheelAngle += in ? -notch : notch;
+				dispatch(in ? core::code_zoom_step::in : core::code_zoom_step::out);
+			}
+			wheel.accept();
+			return true;
+		}
+		auto& gesture = static_cast<QNativeGestureEvent&>(aEvent);
+		switch (gesture.gestureType()) {
+		case Qt::BeginNativeGesture:
+		case Qt::EndNativeGesture:
+			ZoomPinch = 0.0;
+			return false;
+		case Qt::ZoomNativeGesture: {
+			if ((gesture.value() > 0.0 && ZoomPinch < 0.0) || (gesture.value() < 0.0 && ZoomPinch > 0.0)) {
+				ZoomPinch = 0.0;
+			}
+			ZoomPinch += gesture.value();
+			constexpr auto threshold = 0.15;
+			while (std::abs(ZoomPinch) >= threshold) {
+				const auto in = ZoomPinch > 0.0;
+				ZoomPinch += in ? -threshold : threshold;
+				dispatch(in ? core::code_zoom_step::in : core::code_zoom_step::out);
+			}
+			gesture.accept();
+			return true;
+		}
+		default:
+			return false;
+		}
+	}
+
+	/// \brief [[BPR-1336]]. Notes where the reader's line is before a font change.
+	///
+	/// \details The comparison is given a new code font before its panes are,
+	/// so here they still show the old one. The line noted is the reader's own
+	/// when it is on screen, and otherwise the one at the synchronization rail,
+	/// which is the line the controller keeps across any remeasurement. The
+	/// note lasts until the end of the turn: the panes' own font changes follow
+	/// it in the same turn or not at all.
+	void diff_workbench::note_reading_position()
+	{
+		Hold.reset();
+		if (!CurrentResult) {
+			return;
+		}
+		auto* const reference = OnePaneEnabled ? Unified
+			: Interaction.Selection && Interaction.Selection->PreferredLine.Side == core::diff_side::left
+			? Left
+			: Right;
+		const auto  previous  = pane(reference)->row_height();
+		const auto  height    = static_cast<qreal>(reference->viewport()->height());
+		if (previous <= 0.0 || height <= 0.0) {
+			return;
+		}
+		auto noted = reading_hold{ .Previous = previous };
+		if (Interaction.Selection) {
+			const auto& line = Interaction.Selection->PreferredLine;
+			const auto  row  = OnePaneEnabled ? unified_row_for(line.Side, line.Line) : std::optional{ line.Line };
+			const auto  top  = row ? pane(reference)->row_top(*row) : std::nullopt;
+			if (top && *top >= 0.0 && *top + previous <= height) {
+				noted.Offset = *top;
+				noted.Line   = line;
+			}
+		}
+		if (!noted.Line) {
+			noted.Offset = height * comparison_scroll_configuration{ }.SynchronizationRailFraction;
+		}
+		Hold = noted;
+		QTimer::singleShot(0, this, [this] { Hold.reset(); });
+	}
+
+	/// \brief [[BPR-1336]]. Keeps the noted line where it was in one pane.
+	///
+	/// \details Called by each pane after it relaid out in the new font and
+	/// before anything scrolled it, so it still shows its old top line. Each
+	/// pane is scrolled at once by whole lines of the new height, so the reader
+	/// never sees the line leave; the exact position follows from the
+	/// remeasured axis.
+	void diff_workbench::hold_reading_position(QPlainTextEdit& aPane)
+	{
+		const auto unified = &aPane == Unified;
+		if (!Hold || unified != OnePaneEnabled) {
+			return;
+		}
+		auto* const source  = pane(&aPane);
+		const auto  current = source->row_height();
+		const auto  origin  = source->visible_origin();
+		if (current <= 0.0 || !origin || qFuzzyCompare(current, Hold->Previous)) {
+			return;
+		}
+		const auto top   = static_cast<qreal>(origin->first);
+		const auto first = origin->second;
+		const auto side  = &aPane == Left ? core::diff_side::left : core::diff_side::right;
+		auto       row   = top + std::round((Hold->Offset - first) / Hold->Previous);
+		if (Hold->Line) {
+			if (unified) {
+				row = static_cast<qreal>(unified_row_for(Hold->Line->Side, Hold->Line->Line).value_or(static_cast<std::uint32_t>(row)));
+			} else if (Hold->Line->Side == side) {
+				row = static_cast<qreal>(Hold->Line->Line);
+			}
+		}
+		const auto newTop = static_cast<std::uint32_t>(std::max(0.0, row - std::round((Hold->Offset - first) / current)));
+		source->set_top_line(newTop);
+		if (Hold->Line && !unified && Hold->Line->Side == side) {
+			HeldLine = held_line{ .Side = side, .Top = newTop };
+		}
 	}
 
 	void diff_workbench::adopt_appearance(const appearance_profile& aProfile)
@@ -4303,6 +4619,7 @@ namespace bpr::qt {
 
 	void diff_workbench::clear_projection(QString aStatus)
 	{
+		HeldLine.reset();
 		RestoredReadingLine.reset();
 		PresentationReadingLine.reset();
 		PresentationReadingSide.reset();

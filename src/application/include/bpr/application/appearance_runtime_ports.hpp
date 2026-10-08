@@ -571,6 +571,18 @@ namespace bpr::application {
 		auto operator<=>(const apply_typography_intent&) const = default;
 	};
 
+	/// \brief [[BPR-1336]]. Asks for one zoom step of the comparison's code.
+	///
+	/// \details One gesture rather than a record: the host steps from the
+	/// record it holds, so repeated gestures cannot be computed from a stale
+	/// copy and collapse into one.
+	struct step_code_zoom_intent
+	{
+		core::code_zoom_step Step = core::code_zoom_step::actual_size;
+
+		auto operator<=>(const step_code_zoom_intent&) const = default;
+	};
+
 	/// \brief Offers one total semantic palette for an immediate local preview.
 	struct preview_appearance_palette_intent
 	{
@@ -633,6 +645,7 @@ namespace bpr::application {
 
 	using appearance_intent = std::variant<apply_dif_preferences_intent, select_appearance_mode_intent,
 										   apply_typography_intent,
+										   step_code_zoom_intent,
 										   preview_appearance_palette_intent,
 										   commit_appearance_palette_intent,
 										   cancel_appearance_palette_preview_intent,

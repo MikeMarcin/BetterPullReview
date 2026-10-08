@@ -222,6 +222,9 @@ namespace {
 			{ QStringLiteral("appearanceCodeSizeRow"),
 			  QStringLiteral("Code size"),
 			  aPanel.code_size_editor() },
+			{ QStringLiteral("appearanceCodeZoomRow"),
+			  QStringLiteral("Diff zoom"),
+			  aPanel.code_zoom_selector() },
 			{ QStringLiteral("appearanceCodeWeightRow"),
 			  QStringLiteral("Code weight"),
 			  aPanel.code_weight_editor() },
@@ -349,8 +352,9 @@ namespace {
 		show(panel);
 
 		const auto rows = type_rows(panel);
-		// [[BPR-1107]] adds White space beside Tab width, so eleven became twelve.
-		expect(rows.size() == 12U, "the Type card carries twelve rows");
+		// [[BPR-1107]] adds White space beside Tab width, so eleven became twelve,
+		// and [[BPR-1336]] Diff zoom under Code size, so thirteen.
+		expect(rows.size() == 13U, "the Type card carries thirteen rows");
 		for (const auto& row : rows) {
 			auto* const frame = panel.findChild<QWidget*>(row.Object);
 			expect(
@@ -605,11 +609,61 @@ namespace {
 		panel.hide();
 	}
 
+	/// \brief [[BPR-1336]]. The comparison's zoom is a row under Code size: one
+	/// item per core step, each saying the size it shows, the adopted zoom
+	/// shown without a gesture, and a choice leaving as a typography intent
+	/// that leaves Code size alone.
+	void test_diff_zoom_is_a_row_under_code_size()
+	{
+		auto recorded                                     = recorder{ };
+		auto panel                                        = qt::appearance_settings_panel{ recorded.sink() };
+		auto adopted                                      = legal_settings();
+		adopted.Typography.Code.Font.PointSizeCentipoints = 1'300U;
+		adopted.Typography.Code.ZoomPercent               = 125U;
+		panel.adopt(adopted);
+		show(panel);
+		recorded.clear();
+
+		auto* const selector = panel.code_zoom_selector();
+		expect(selector != nullptr && selector->count() == static_cast<int>(core::code_zoom_steps.size()),
+			   "the row offers one item per step of the core's ladder");
+		for (auto index = 0; index < selector->count(); ++index) {
+			expect(selector->itemData(index).toUInt() == core::code_zoom_steps.at(static_cast<std::size_t>(index)),
+				   "in the ladder's own order");
+		}
+		expect(selector->itemText(selector->findData(100U)) == QStringLiteral("100% (13 pt)")
+				   && selector->itemText(selector->findData(125U)) == QStringLiteral("125% (16.25 pt)")
+				   && selector->itemText(selector->findData(300U)) == QStringLiteral("300% (39 pt)"),
+			   "each item says the size it shows at the adopted code size");
+		expect(selector->currentData().toUInt() == 125U && !recorded.last_typography().has_value(),
+			   "the adopted zoom is shown, and showing it dispatches nothing");
+		auto* const row  = panel.findChild<QWidget*>(QStringLiteral("appearanceCodeZoomRow"));
+		auto* const size = panel.findChild<QWidget*>(QStringLiteral("appearanceCodeSizeRow"));
+		expect(row != nullptr && size != nullptr && row->parentWidget() == size->parentWidget()
+				   && row->geometry().top() > size->geometry().top()
+				   && row->geometry().top() - size->geometry().bottom() < row->geometry().height(),
+			   "the row sits directly beneath Code size on the Type card");
+
+		selector->setCurrentIndex(selector->findData(200U));
+		const auto offered = recorded.last_typography();
+		expect(offered.has_value() && offered->Code.ZoomPercent == 200U
+				   && offered->Code.Font.PointSizeCentipoints == 1'300U,
+			   "choosing 200% offers exactly that zoom and leaves Code size as it was");
+		recorded.clear();
+		panel.code_size_editor()->setValue(1'400);
+		const auto resized = recorded.last_typography();
+		expect(resized.has_value() && resized->Code.ZoomPercent == 200U && resized->Code.Font.PointSizeCentipoints == 1'400U,
+			   "a Code size gesture carries the zoom on");
+		panel.hide();
+	}
+
 	/// \brief [[BPR-1107]]. The Type card for the design page, in the four
 	/// themes. Written only when a directory is named.
 	void test_white_space_row_design_captures()
 	{
-		const auto directory = qEnvironmentVariable("BPR_WHITE_SPACE_CAPTURE_DIR");
+		// [[BPR-1336]]. The same card shows the Diff zoom row, so either
+		// capture directory writes it.
+		const auto directory = qEnvironmentVariable("BPR_WHITE_SPACE_CAPTURE_DIR", qEnvironmentVariable("BPR_CODE_ZOOM_CAPTURE_DIR"));
 		if (directory.isEmpty()) {
 			return;
 		}
@@ -1383,6 +1437,7 @@ auto main(int argc, char** argv) -> int
 	test_sizes_read_in_points_within_the_core_bounds();
 	test_tab_width_is_a_segment();
 	test_white_space_is_a_row_beside_tab_width();
+	test_diff_zoom_is_a_row_under_code_size();
 	test_white_space_row_design_captures();
 	test_font_gestures_translate_to_intents();
 	test_a_refusal_restores_and_reports();

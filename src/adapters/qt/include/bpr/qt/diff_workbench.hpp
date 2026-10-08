@@ -34,6 +34,7 @@ class QResizeEvent;
 class QScrollBar;
 class QSplitter;
 class QStackedLayout;
+class QTimer;
 class QWheelEvent;
 
 namespace bpr::qt {
@@ -128,7 +129,11 @@ namespace bpr::qt {
 		std::uint64_t CurrentLineBandsPainted = 0U;
 		/// [[BPR-1107]]. White space marks (dots and tab lines) the panes actually
 		/// drew, counted where they are drawn, as the boundary rules are.
-		std::uint64_t WhiteSpacePainted    = 0U;
+		std::uint64_t WhiteSpacePainted = 0U;
+		/// [[BPR-1336]]. Zoom gestures the code panes turned into steps, and
+		/// reading positions a font change kept on the reader's line.
+		std::uint64_t CodeZoomGestures     = 0U;
+		std::uint64_t ReadingPositionsHeld = 0U;
 		std::size_t   SemanticIndexEntries = 0U;
 		std::array<
 			diff_geometry_rebuild_cause,
@@ -442,6 +447,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto token_spans(core::diff_side aSide) const noexcept
 			-> const application::shared_token_spans&;
 
+		/// \brief [[BPR-1336]]. Where ⌘-scroll and pinch over the code send a step.
+		///
+		/// \details The panes decide nothing about zoom: a gesture leaves as one
+		/// step and the accepted zoom comes back as a font. Without a sink the
+		/// gesture is still consumed, so a pane never zooms itself.
+		void set_code_zoom_dispatch(std::function<void(core::code_zoom_step)> aDispatch);
+		/// \brief [[BPR-1336]]. Shows the accepted zoom for a moment and announces it.
+		void               show_code_zoom(std::uint32_t aPercent, std::uint32_t aCentipoints);
+		[[nodiscard]] auto code_zoom_indicator() const noexcept -> QWidget*;
+
 	protected:
 		[[nodiscard]] auto event(QEvent* aEvent) -> bool override;
 		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent)
@@ -473,6 +488,9 @@ namespace bpr::qt {
 		};
 
 		void               adopt_code_typography(const code_typography_event& aTypography);
+		void               note_reading_position();
+		void               hold_reading_position(QPlainTextEdit& aPane);
+		[[nodiscard]] auto code_zoom_gesture(QEvent& aEvent) -> bool;
 		void               update_diff_paint();
 		void               rebuild_unified_document();
 		void               update_unified_paint();
@@ -638,6 +656,30 @@ namespace bpr::qt {
 		void                                                refresh_thread_ticks();
 		/// [[BPR-1212]]. Return and Shift+Return in a code pane.
 		std::function<void(bool)> LineDraftDispatch;
+		/// [[BPR-1336]]. Zoom gestures, their partial accumulations, and the pill.
+		std::function<void(core::code_zoom_step)> CodeZoomDispatch;
+		int                                       ZoomWheelAngle     = 0;
+		qreal                                     ZoomPinch          = 0.0;
+		QWidget*                                  ZoomIndicator      = nullptr;
+		QTimer*                                   ZoomIndicatorTimer = nullptr;
+		/// [[BPR-1336]]. Where the reader's line sat when the code font changed:
+		/// the row height it was drawn at, its offset in the viewport and, when
+		/// it was on screen, the line itself. `HeldLine` is the top line the
+		/// font change scrolled to, placed exactly once the remeasured geometry
+		/// is in.
+		struct reading_hold
+		{
+			qreal                                Previous = 0.0;
+			qreal                                Offset   = 0.0;
+			std::optional<core::source_line_ref> Line;
+		};
+		std::optional<reading_hold> Hold;
+		struct held_line
+		{
+			core::diff_side Side = core::diff_side::left;
+			std::uint32_t   Top  = 0U;
+		};
+		std::optional<held_line> HeldLine;
 	};
 } // namespace bpr::qt
 

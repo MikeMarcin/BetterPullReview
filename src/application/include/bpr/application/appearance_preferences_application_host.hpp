@@ -45,6 +45,13 @@ namespace bpr::application {
 		/// customization is left exactly as it was.
 		void apply(appearance_consumer_id aConsumer, core::appearance_palette aPalette, core::appearance_variant aVariant);
 		void apply(appearance_consumer_id aConsumer, core::typography_settings aTypography);
+		/// \brief [[BPR-1336]]. Steps the comparison's zoom from the accepted record.
+		///
+		/// \details Stepped here, against the record this host holds, so two
+		/// gestures in quick succession are two steps even while the first is
+		/// still queued. The core picks the step; the result is validated and
+		/// persisted as any typography record is.
+		void step_code_zoom(appearance_consumer_id aConsumer, core::code_zoom_step aStep);
 		void import_theme_file(appearance_consumer_id aConsumer, std::string aPath);
 		void cancel_theme_import(appearance_consumer_id aConsumer);
 		void export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette);

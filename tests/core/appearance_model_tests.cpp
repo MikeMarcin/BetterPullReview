@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -281,6 +282,7 @@ namespace {
 		case typography_field::family:
 		case typography_field::tab_width:
 		case typography_field::white_space:
+		case typography_field::code_zoom:
 			expect(false, "only the shared numeric font fields are assignable here");
 			break;
 		}
@@ -594,6 +596,81 @@ namespace {
 		expect(std::ranges::count(rejections, typography_rejection{ .Target = typography_target::code_font, .Field = typography_field::white_space, .Reason = typography_reason::malformed_value }) == 1,
 			   "a value outside the vocabulary is refused as malformed");
 	}
+
+	/// [[BPR-1336]]. The comparison's zoom: a multiplier of the code size, its
+	/// ladder, its clamp and its bounds.
+	void test_code_zoom_steps_scale_and_clamp()
+	{
+		auto code                      = code_font_settings{ };
+		code.Font.Family               = "Code";
+		code.Font.PointSizeCentipoints = 1300U;
+		expect(code.ZoomPercent == actual_code_zoom_percent && zoomed_point_size(code) == 1300U,
+			   "a fresh record shows the code at its own size");
+		expect(std::ranges::is_sorted(code_zoom_steps) && std::ranges::adjacent_find(code_zoom_steps) == code_zoom_steps.end()
+				   && std::ranges::contains(code_zoom_steps, actual_code_zoom_percent),
+			   "the ladder ascends without repeats and passes through Actual Size");
+		expect(bounds_of(typography_field::code_zoom).Minimum == code_zoom_steps.front()
+				   && bounds_of(typography_field::code_zoom).Maximum == code_zoom_steps.back(),
+			   "the bounds are the ends of the ladder");
+
+		// Up the ladder from 100% to the top, one step a gesture, every size larger.
+		auto ladder = std::vector<std::uint32_t>{ code.ZoomPercent };
+		while (code_zoom_steps_from(code, code_zoom_step::in)) {
+			const auto before = zoomed_point_size(code);
+			code.ZoomPercent  = stepped_code_zoom(code, code_zoom_step::in);
+			expect(zoomed_point_size(code) > before, "each Zoom In shows a larger size");
+			ladder.push_back(code.ZoomPercent);
+		}
+		expect(ladder == std::vector<std::uint32_t>{ 100U, 110U, 125U, 150U, 175U, 200U, 250U, 300U },
+			   "Zoom In walks the ladder from Actual Size to its top");
+		expect(zoomed_point_size(code) == 3900U, "300% of 13 pt is 39 pt");
+		expect(stepped_code_zoom(code, code_zoom_step::in) == 300U, "Zoom In stops at the top");
+		code.ZoomPercent = 50U;
+		expect(!code_zoom_steps_from(code, code_zoom_step::out) && stepped_code_zoom(code, code_zoom_step::out) == 50U,
+			   "Zoom Out stops at the bottom");
+		expect(zoomed_point_size(code) == 650U, "50% of 13 pt is 6.5 pt");
+		expect(stepped_code_zoom(code, code_zoom_step::actual_size) == 100U && code_zoom_steps_from(code, code_zoom_step::actual_size),
+			   "Actual Size returns to 100%");
+		code.ZoomPercent = 100U;
+		expect(!code_zoom_steps_from(code, code_zoom_step::actual_size), "Actual Size at 100% changes nothing");
+		expect(stepped_code_zoom(code, code_zoom_step::out) == 90U, "Zoom Out from 100% is 90%");
+
+		// Off the ladder, the nearer step in the gesture's direction.
+		code.ZoomPercent = 115U;
+		expect(stepped_code_zoom(code, code_zoom_step::in) == 125U && stepped_code_zoom(code, code_zoom_step::out) == 110U,
+			   "a zoom between steps moves to the neighbouring step");
+
+		// The clamp: a 40 pt code size reaches 72 pt at 200% and no further.
+		code.Font.PointSizeCentipoints = 4000U;
+		code.ZoomPercent               = 175U;
+		expect(zoomed_point_size(code) == 7000U && stepped_code_zoom(code, code_zoom_step::in) == 200U,
+			   "Zoom In steps while the size can still grow");
+		code.ZoomPercent = 200U;
+		expect(zoomed_point_size(code) == bounds_of(typography_field::point_size).Maximum
+				   && !code_zoom_steps_from(code, code_zoom_step::in),
+			   "Zoom In is spent once the size is at the point-size maximum");
+		code.ZoomPercent = 300U;
+		expect(stepped_code_zoom(code, code_zoom_step::out) == 175U,
+			   "Zoom Out from a clamped zoom skips the steps that show the same 72 pt");
+		code.Font.PointSizeCentipoints = 600U;
+		code.ZoomPercent               = 90U;
+		expect(zoomed_point_size(code) == 600U && !code_zoom_steps_from(code, code_zoom_step::out),
+			   "a 6 pt code size cannot be zoomed below 6 pt");
+
+		// Validation.
+		auto settings             = typography_settings{ };
+		settings.Ui.Font.Family   = "UI";
+		settings.Code.Font.Family = "Code";
+		for (const auto zoom : code_zoom_steps) {
+			settings.Code.ZoomPercent = zoom;
+			expect(validate_typography(settings).empty(), "every step is legal");
+		}
+		for (const auto& [zoom, reason] : std::array{ std::pair{ 49U, typography_reason::below_minimum }, std::pair{ 301U, typography_reason::above_maximum } }) {
+			settings.Code.ZoomPercent = zoom;
+			expect(validate_typography(settings) == std::vector{ typography_rejection{ .Target = typography_target::code_font, .Field = typography_field::code_zoom, .Reason = reason } },
+				   "a zoom outside the ladder's ends is refused, naming the field");
+		}
+	}
 } // namespace
 
 int main()
@@ -609,5 +686,6 @@ int main()
 	test_every_violation_is_reported_in_order();
 	test_white_space_drawing_follows_the_choice();
 	test_white_space_vocabulary_is_closed();
+	test_code_zoom_steps_scale_and_clamp();
 	return EXIT_SUCCESS;
 }

@@ -69,6 +69,8 @@ namespace bpr::application {
 		/// Every other variant's stored colours survive the commit.
 		void apply(core::appearance_palette aPalette, core::appearance_variant aVariant);
 		void apply(core::typography_settings aTypography);
+		/// \brief [[BPR-1336]]. Steps the comparison's zoom; see the preferences host.
+		void step_code_zoom(core::code_zoom_step aStep);
 		/// \brief Imports one local document into a preview candidate.
 		///
 		/// \details The effect reads through the bounded document port, calls the

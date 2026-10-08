@@ -12,6 +12,7 @@
 #include <QFontDatabase>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
@@ -278,6 +279,8 @@ namespace bpr::qt {
 				return QStringLiteral("tab width");
 			case core::typography_field::white_space:
 				return QStringLiteral("white space");
+			case core::typography_field::code_zoom:
+				return QStringLiteral("zoom");
 			}
 			return { };
 		}
@@ -533,6 +536,30 @@ namespace bpr::qt {
 			QStringLiteral("Code size"),
 			QStringLiteral("The size of every diff, path and identifier, in points."),
 			CodeSize);
+
+		// [[BPR-1336]]. The comparison's zoom, under the size it multiplies. One
+		// item per step of the core's ladder, each saying the size it shows, so
+		// the row reads what View > Zoom In and Zoom Out do without a second
+		// number to reconcile.
+		CodeZoom = new QComboBox{ typeRows };
+		CodeZoom->setObjectName(QStringLiteral("appearanceCodeZoom"));
+		CodeZoom->setAccessibleName(QStringLiteral("Diff zoom"));
+		for (const auto zoom : core::code_zoom_steps) {
+			CodeZoom->addItem(QStringLiteral("%1%").arg(zoom), zoom);
+		}
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceCodeZoomRow"),
+			QStringLiteral("Diff zoom"),
+			QStringLiteral(
+				"Scales the code in the comparison, its line numbers and Line "
+				"details from Code size. View > Zoom In (%1), Zoom Out (%2) and "
+				"Actual Size (%3) change it; drawers keep Code size.")
+				.arg(QKeySequence{ QStringLiteral("Ctrl+=") }.toString(QKeySequence::NativeText),
+					 QKeySequence{ QStringLiteral("Ctrl+-") }.toString(QKeySequence::NativeText),
+					 QKeySequence{ QStringLiteral("Ctrl+Alt+0") }.toString(QKeySequence::NativeText)),
+			CodeZoom);
 
 		CodeWeight = new QSpinBox{ typeRows };
 		CodeWeight->setAccessibleName(QStringLiteral("Code font weight"));
@@ -823,6 +850,10 @@ namespace bpr::qt {
 		}
 		QObject::connect(
 			WhiteSpace, &QComboBox::currentIndexChanged, this, [onTypography](int) {
+				onTypography();
+			});
+		QObject::connect(
+			CodeZoom, &QComboBox::currentIndexChanged, this, [onTypography](int) {
 				onTypography();
 			});
 
@@ -1222,6 +1253,11 @@ namespace bpr::qt {
 		return UiLineHeight;
 	}
 
+	auto appearance_settings_panel::code_zoom_selector() const noexcept -> QComboBox*
+	{
+		return CodeZoom;
+	}
+
 	auto appearance_settings_panel::code_size_editor() const noexcept -> QSpinBox*
 	{
 		return CodeSize;
@@ -1478,6 +1514,25 @@ namespace bpr::qt {
 			QStringLiteral("Theme files (*.bprtheme)")));
 	}
 
+	/// \brief [[BPR-1336]]. The zoom the row shows, or the record's own when
+	/// the record's zoom is between steps and so has no item.
+	auto appearance_settings_panel::code_zoom() const -> std::uint32_t
+	{
+		const auto data = CodeZoom->currentData();
+		return data.isValid() ? data.toUInt() : AdoptedSettings.Typography.Code.ZoomPercent;
+	}
+
+	/// \brief [[BPR-1336]]. Selects the record's zoom and says what each step shows.
+	void appearance_settings_panel::show_code_zoom(const core::code_font_settings& aCode)
+	{
+		for (auto index = 0; index < CodeZoom->count(); ++index) {
+			auto step        = aCode;
+			step.ZoomPercent = CodeZoom->itemData(index).toUInt();
+			CodeZoom->setItemText(index, QStringLiteral("%1% (%2 pt)").arg(step.ZoomPercent).arg(point_size_text(core::zoomed_point_size(step))));
+		}
+		CodeZoom->setCurrentIndex(CodeZoom->findData(aCode.ZoomPercent));
+	}
+
 	auto appearance_settings_panel::composed_typography() const
 		-> core::typography_settings
 	{
@@ -1501,6 +1556,7 @@ namespace bpr::qt {
 				.SyntaxBold   = SyntaxBold->isChecked(),
 				.SyntaxItalic = SyntaxItalic->isChecked(),
 				.WhiteSpace   = static_cast<core::white_space_drawing>(WhiteSpace->currentData().toInt()),
+				.ZoomPercent  = code_zoom(),
 			},
 		};
 	}
@@ -1533,6 +1589,7 @@ namespace bpr::qt {
 			}
 		}
 		WhiteSpace->setCurrentIndex(WhiteSpace->findData(static_cast<int>(record.Typography.Code.WhiteSpace)));
+		show_code_zoom(record.Typography.Code);
 		Ligatures->setChecked(record.Typography.Code.Ligatures);
 		SyntaxBold->setChecked(record.Typography.Code.SyntaxBold);
 		SyntaxItalic->setChecked(record.Typography.Code.SyntaxItalic);

@@ -183,6 +183,16 @@ namespace {
 		::sqlite3* raw = nullptr;
 		expect(::sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK,
 			   "a legacy fixture opens raw");
+		// [[BPR-1336]]. Every version before 9 lacks the zoom column.
+		expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN code_zoom_percent", nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "a legacy down-edit drops the version-9 column");
+		if (aVersion == 8) {
+			for (const auto& statement : { std::string{ "UPDATE appearance_meta SET schema_format = 8" }, std::string{ "PRAGMA user_version = 8" } }) {
+				expect(::sqlite3_exec(raw, statement.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "a version-8 down-edit statement runs: " + statement);
+			}
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the legacy fixture closes");
+			return;
+		}
 		// [[BPR-1107]]. Every version before 8 lacks the white-space column.
 		expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN code_white_space", nullptr, nullptr, nullptr) == SQLITE_OK,
 			   "a legacy down-edit drops the version-8 column");
@@ -1335,6 +1345,71 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1336]]. Version 9 keeps the comparison's zoom: every step
+	/// round-trips, a version-8 file takes Actual Size, and a value outside the
+	/// ladder's ends is refused.
+	auto test_code_zoom_round_trips_migrates_and_refuses() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		{
+			const auto path     = scratch.file("zoom.sqlite3");
+			auto       database = appearance_settings_database::open(path, { });
+			expect(database.has_value(), "a fresh store opens");
+			for (const auto zoom : core::code_zoom_steps) {
+				auto settings                        = legal_baseline();
+				settings.Typography.Code.ZoomPercent = zoom;
+				expect(database->store(settings, { }).has_value(), "every zoom step stores");
+				const auto loaded = database->load({ });
+				expect(loaded.has_value() && loaded->has_value() && **loaded == settings,
+					   "and loads back exactly: " + std::to_string(zoom) + "%");
+			}
+			const auto columns = appearance_settings_columns(database->handle());
+			expect(columns.has_value() && std::ranges::find(*columns, std::string{ "appearance_settings.code_zoom_percent" }) != columns->end(),
+				   "the schema declares code_zoom_percent");
+		}
+		for (const auto version : { std::int64_t{ 8 }, std::int64_t{ 7 } }) {
+			const auto path                      = scratch.file("v" + std::to_string(version) + "-zoom.sqlite3");
+			auto       original                  = distinct_settings();
+			original.Typography.Code.ZoomPercent = 150U;
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value() && database->store(original, { }).has_value(), "a current record stores before the down-edit");
+			}
+			down_edit_to_version(path, version, core::appearance_variant::dark, true);
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(), "an older file opens and migrates forward: version " + std::to_string(version));
+			const auto loaded                    = migrated->load({ });
+			auto       expected                  = original;
+			expected.Typography.Code.ZoomPercent = core::actual_code_zoom_percent;
+			if (version < 8) {
+				expected.Typography.Code.WhiteSpace = core::code_font_settings{ }.WhiteSpace;
+			}
+			expect(loaded.has_value() && loaded->has_value() && **loaded == expected,
+				   "it keeps every value it had and takes Actual Size: version " + std::to_string(version));
+		}
+		{
+			const auto path = scratch.file("corrupt-zoom.sqlite3");
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value() && database->store(legal_baseline(), { }).has_value(), "a record stores");
+			}
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "the file opens raw");
+			expect(::sqlite3_exec(raw, "UPDATE appearance_settings SET code_zoom_percent = 301", nullptr, nullptr, nullptr) != SQLITE_OK
+					   && ::sqlite3_exec(raw, "UPDATE appearance_settings SET code_zoom_percent = 49", nullptr, nullptr, nullptr) != SQLITE_OK,
+				   "the table's CHECK refuses a zoom outside the ladder's ends");
+			expect(::sqlite3_exec(raw, "PRAGMA ignore_check_constraints = 1", nullptr, nullptr, nullptr) == SQLITE_OK
+					   && ::sqlite3_exec(raw, "UPDATE appearance_settings SET code_zoom_percent = 301", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "a value written past the CHECK stands in for a file edited by another tool");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the raw handle closes");
+			auto database = appearance_settings_database::open(path, { });
+			expect(database.has_value(), "the file still opens");
+			const auto loaded = database->load({ });
+			expect(!loaded.has_value() && loaded.error() == catalog_database_failure::integrity_failure,
+				   "and the reader refuses the record whole rather than clamping the zoom");
+		}
+	}
+
 	auto test_the_schema_stores_no_review_content() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -1407,6 +1482,7 @@ try {
 	test_version_five_dif_migration_and_corrupt_refusal();
 	test_legacy_refusal_preserves_schema_and_rows();
 	test_white_space_round_trips_migrates_and_refuses();
+	test_code_zoom_round_trips_migrates_and_refuses();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";
 	return EXIT_SUCCESS;

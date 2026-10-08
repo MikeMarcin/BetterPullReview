@@ -4,16 +4,21 @@
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QLabel>
+#include <QPlainTextEdit>
+#include <QSpinBox>
 #include <QTemporaryDir>
 #include <QThread>
 
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -202,6 +207,25 @@ try {
 		core::appearance_mode::high_contrast_light);
 	wait_for([&] { return work.Runtime->status().AppearanceDurableWrites > workWrites; }, "Work setting persists through owning host");
 	expect(original.Runtime->status().ProfileMode == core::appearance_mode::dark, "Work edit leaves Default appearance unchanged");
+	// [[BPR-1336]]. View > Zoom In, twice, zooms Work's comparison through its
+	// own appearance host and store; Settings shows the same zoom, Code size is
+	// unchanged, and Default keeps its code at its own size.
+	const auto zoomedBy = [](app::github_application& aRuntime, const double aFactor) {
+		auto* const panel = aRuntime.window().appearance_settings();
+		const auto  size  = panel->code_size_editor()->value() / 100.0;
+		return std::abs(aRuntime.window().comparison_surface()->right_pane()->font().pointSizeF() - size * aFactor) < 0.01;
+	};
+	wait_for([&] { return zoomedBy(*work.Runtime, 1.0) && work.Runtime->window().zoom_in_action()->isEnabled(); }, "Work's comparison starts at its code size with Zoom In offered");
+	const auto zoomWrites = work.Runtime->status().AppearanceDurableWrites;
+	const auto workSize   = work.Runtime->window().appearance_settings()->code_size_editor()->value();
+	work.Runtime->window().zoom_in_action()->trigger();
+	work.Runtime->window().zoom_in_action()->trigger();
+	wait_for([&] { return zoomedBy(*work.Runtime, 1.25) && work.Runtime->status().AppearanceDurableWrites > zoomWrites
+					   && work.Runtime->window().appearance_settings()->code_zoom_selector()->currentData().toUInt() == 125U; },
+			 "two Zoom Ins show Work's comparison at 125%, persisted and shown in Settings");
+	expect(work.Runtime->window().appearance_settings()->code_size_editor()->value() == workSize && work.Runtime->window().actual_size_action()->isEnabled(),
+		   "Code size is unchanged and Actual Size is offered");
+	expect(zoomedBy(*original.Runtime, 1.0), "Default's comparison keeps its own code size");
 	expect_refusal(root, core::bpr_profile_id{ 2U }, false, app::github_application_startup_failure::owner_busy);
 	work.Runtime->begin_shutdown();
 	wait_for([&] { return work.Runtime->status().ShutdownComplete; }, "Work drains before retained-lease test");
@@ -218,6 +242,7 @@ try {
 	expect(registry->save(*snapshot, renameRevision, { }).has_value(), "rename keeps stable root identity");
 	work = await_profile(root, core::bpr_profile_id{ 2U });
 	wait_for([&] { return work.Runtime->status().ProfileMode == core::appearance_mode::high_contrast_light; }, "renamed Work restores its same private store");
+	wait_for([&] { return zoomedBy(*work.Runtime, 1.25); }, "Work reopens with its comparison zoomed to 125%");
 	expect(work.Runtime->window().windowTitle().contains(QStringLiteral("Work / renamed")), "accepted rename is visible");
 	stop(work);
 	original = await_profile(root, core::default_bpr_profile_id);

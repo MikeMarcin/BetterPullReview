@@ -13,6 +13,7 @@
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/window_review_restoration_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
@@ -72,6 +73,7 @@ class QComboBox;
 class QEvent;
 class QElapsedTimer;
 class QHBoxLayout;
+class QKeyEvent;
 class QLabel;
 class QLineEdit;
 class QDialog;
@@ -91,6 +93,16 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	/// \brief [[BPR-1336]]. Whether an editable text field keeps a typed
+	/// Control+Alt character from the window's shortcuts.
+	///
+	/// \details Windows reports AltGr as Control+Alt, so on a German or Nordic
+	/// layout AltGr+0 types `}` and also matches Actual Size's Ctrl+Alt+0. A
+	/// field that would type the character claims the key. A key that types
+	/// nothing, or a read-only surface such as the code panes, leaves it to the
+	/// window.
+	[[nodiscard]] auto editor_keeps_typed_text(const QObject* aReceiver, const QKeyEvent& aEvent) -> bool;
+
 	class review_tour_editor;
 	enum class dif_clip_id : std::size_t;
 	class dif_catalog_provider;
@@ -831,6 +843,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto line_numbers_action() const noexcept -> QAction*;
 		[[nodiscard]] auto one_pane_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1336]]. View > Zoom In, Zoom Out and Actual Size.
+		[[nodiscard]] auto zoom_in_action() const noexcept -> QAction*;
+		[[nodiscard]] auto zoom_out_action() const noexcept -> QAction*;
+		[[nodiscard]] auto actual_size_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1336]]. Where a zoom step from the menu, a key, ⌘-scroll
+		/// or pinch goes: the profile's appearance host, which decides.
+		void set_code_zoom_dispatch(std::function<void(core::code_zoom_step)> aDispatch);
+		/// \brief [[BPR-1336]]. Adopts the accepted code record: the commands'
+		/// state and reasons, and the comparison's indicator when the zoom moved.
+		void               adopt_code_zoom(const core::code_font_settings& aCode);
 		[[nodiscard]] auto files_drawer() const noexcept
 			-> workbench_drawer_panel*;
 		/// \brief [[BPR-0658]]. The files drawer's tree and its order and filter.
@@ -1719,6 +1741,14 @@ namespace bpr::qt {
 
 		QAction* LineNumbersAction = nullptr;
 		QAction* OnePaneAction     = nullptr;
+		/// [[BPR-1336]]. The zoom commands, their sink, and the accepted code record.
+		QAction*                                  ZoomInAction     = nullptr;
+		QAction*                                  ZoomOutAction    = nullptr;
+		QAction*                                  ActualSizeAction = nullptr;
+		std::function<void(core::code_zoom_step)> CodeZoomDispatch;
+		std::optional<core::code_font_settings>   CodeZoom;
+		void                                      dispatch_code_zoom(core::code_zoom_step aStep);
+		void                                      apply_code_zoom();
 		/// [[BPR-1295]]. Hide Drawers, and the filter by which an editable
 		/// multi-line editor keeps its key.
 		QAction*                                                     ToggleDrawersAction  = nullptr;

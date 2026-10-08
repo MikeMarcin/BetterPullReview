@@ -647,6 +647,50 @@ namespace {
 		expect(harnessed.Settings.Stores == 1U, "adopted typography persists");
 	}
 
+	/// \brief [[BPR-1336]]. A zoom gesture steps from the record the host holds,
+	/// persists like any typography, leaves Code size alone, stops at the top,
+	/// resets with the code font and survives a restart.
+	void test_code_zoom_steps_from_the_accepted_record()
+	{
+		auto       h    = harness{ };
+		const auto size = h.Host.settings().Typography.Code.Font.PointSizeCentipoints;
+		h.Host.step_code_zoom(core::code_zoom_step::in);
+		h.Host.step_code_zoom(core::code_zoom_step::in);
+		h.settle();
+		expect(h.Host.settings().Typography.Code.ZoomPercent == 125U,
+			   "two gestures are two steps: 100% to 110% to 125%");
+		expect(h.Host.settings().Typography.Code.Font.PointSizeCentipoints == size,
+			   "zooming never rewrites Code size");
+		expect(h.Settings.Stored.has_value() && h.Settings.Stored->Typography.Code.ZoomPercent == 125U,
+			   "the zoom persists with the code font");
+		const auto& invalidation = *h.Projections.Published.back().Presentation;
+		expect(invalidation.Typography.has_value() && invalidation.Typography->Code.ZoomPercent == 125U,
+			   "and is published as a typography change");
+		h.Host.step_code_zoom(core::code_zoom_step::out);
+		h.settle();
+		expect(h.Host.settings().Typography.Code.ZoomPercent == 110U, "Zoom Out steps back down");
+		h.Host.step_code_zoom(core::code_zoom_step::actual_size);
+		h.settle();
+		expect(h.Host.settings().Typography.Code.ZoomPercent == 100U, "Actual Size returns to 100%");
+		for (auto step = 0; step < 20; ++step) {
+			h.Host.step_code_zoom(core::code_zoom_step::in);
+		}
+		h.settle();
+		const auto stores = h.Settings.Stores;
+		h.Host.step_code_zoom(core::code_zoom_step::in);
+		h.settle();
+		expect(h.Host.settings().Typography.Code.ZoomPercent == 300U && h.Settings.Stores == stores,
+			   "at the top a further step changes and stores nothing");
+		auto restarted            = harness{ };
+		restarted.Settings.Stored = h.Settings.Stored;
+		restarted.Host.restore();
+		restarted.settle();
+		expect(restarted.Host.settings().Typography.Code.ZoomPercent == 300U, "the zoom survives a new host lifetime");
+		h.Host.reset(application::appearance_reset_scope::code_font, core::appearance_variant::light);
+		h.settle();
+		expect(h.Host.settings().Typography.Code.ZoomPercent == 100U, "resetting the code font resets the zoom");
+	}
+
 	void test_palette_change_publishes_only_the_palette()
 	{
 		auto harnessed = harness{ };
@@ -1275,6 +1319,7 @@ auto main() -> int
 	test_settings_failures_are_reported();
 	test_mode_selection_persists_and_publishes_bounded_changes();
 	test_illegal_typography_is_refused_without_clamping();
+	test_code_zoom_steps_from_the_accepted_record();
 	test_palette_change_publishes_only_the_palette();
 	test_an_adopted_palette_records_the_variant_it_customises();
 	test_a_palette_reset_names_one_variant_and_spares_the_others();

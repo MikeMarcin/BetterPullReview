@@ -7594,6 +7594,124 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1336]]. View > Zoom In, Zoom Out and Actual Size: their
+	/// keys, their place in the menu, their states and reasons, that no key in
+	/// the window is bound twice, that ⌘0 is still Home, and that an editor
+	/// keeps an AltGr character.
+	void test_code_zoom_commands_keys_and_collisions()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		window.publish(every_primary_command_offered());
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const zoomIn     = window.zoom_in_action();
+		auto* const zoomOut    = window.zoom_out_action();
+		auto* const actualSize = window.actual_size_action();
+		expect(zoomIn != nullptr && zoomOut != nullptr && actualSize != nullptr, "the window has the three zoom commands");
+		expect(!zoomIn->isEnabled() && !zoomOut->isEnabled() && !actualSize->isEnabled()
+				   && zoomIn->statusTip() == QStringLiteral("The code size is not loaded yet."),
+			   "before the profile's code record arrives there is nothing to step from");
+
+		// Their place: together, in this order, in View.
+		const auto view  = window.view_menu()->actions();
+		const auto first = view.indexOf(zoomIn);
+		expect(first > 0 && view.indexOf(zoomOut) == first + 1 && view.indexOf(actualSize) == first + 2
+				   && view[first - 1]->isSeparator() && view[first + 3]->isSeparator(),
+			   "Zoom In, Zoom Out and Actual Size are one group of the View menu");
+		expect(zoomIn->text() == QStringLiteral("Zoom In") && zoomOut->text() == QStringLiteral("Zoom Out") && actualSize->text() == QStringLiteral("Actual Size"),
+			   "the commands carry the platform's own names");
+
+		// Their keys.
+		expect(zoomIn->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }
+				   && zoomOut->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+-") } }
+				   && actualSize->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+0") } },
+			   "⌘= and ⌘+ zoom in, ⌘− zooms out and ⌘⌥0 is Actual Size");
+		auto keys = QList<QKeySequence>{ };
+		for (const auto* const action : window.findChildren<QAction*>()) {
+			for (const auto& key : action->shortcuts()) {
+				expect(!keys.contains(key), "no key is bound twice in the assembled window: " + key.toString().toStdString());
+				keys.push_back(key);
+			}
+		}
+		// Widget-scoped QShortcuts (Esc in several places) are scoped by
+		// design; none may take a zoom key or Home's.
+		const auto zoomKeys = QList{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") }, QKeySequence{ QStringLiteral("Ctrl+-") },
+									 QKeySequence{ QStringLiteral("Ctrl+Alt+0") }, QKeySequence{ QStringLiteral("Ctrl+0") } };
+		for (const auto* const shortcut : window.findChildren<QShortcut*>()) {
+			for (const auto& key : shortcut->keys()) {
+				expect(!zoomKeys.contains(key), "no widget shortcut takes a zoom key or Home's: " + key.toString().toStdString());
+			}
+		}
+		expect(window.home_action()->shortcut() == QKeySequence{ QStringLiteral("Ctrl+0") }, "⌘0 is still Home");
+
+		auto steps = std::vector<core::code_zoom_step>{ };
+		window.set_code_zoom_dispatch([&steps](const core::code_zoom_step aStep) { steps.push_back(aStep); });
+		auto code                      = core::code_font_settings{ };
+		code.Font.Family               = "Code";
+		code.Font.PointSizeCentipoints = 1300U;
+		window.adopt_code_zoom(code);
+		expect(zoomIn->isEnabled() && zoomOut->isEnabled() && !actualSize->isEnabled(), "at 100% only Actual Size has nothing to do");
+		expect(zoomIn->statusTip() == QStringLiteral("Show the code in the comparison larger: 110% (14.30 pt).")
+				   && zoomOut->statusTip() == QStringLiteral("Show the code in the comparison smaller: 90% (11.70 pt).")
+				   && actualSize->statusTip() == QStringLiteral("The code in the comparison is at your code size, 13 pt."),
+			   "each command says where it leads, or why it is off");
+		expect(!window.comparison_surface()->code_zoom_indicator()->isVisible(), "adopting the first record shows no indicator");
+
+		// The keys, with the keyboard in a code pane.
+		window.comparison_surface()->right_pane()->setFocus(Qt::OtherFocusReason);
+		process_events();
+		auto homes = 0;
+		QObject::connect(window.home_action(), &QAction::triggered, &window, [&homes] { ++homes; });
+		window_key(window, Qt::Key_Equal, Qt::ControlModifier);
+		window_key(window, Qt::Key_Plus, Qt::ControlModifier);
+		window_key(window, Qt::Key_Minus, Qt::ControlModifier);
+		expect(steps == std::vector{ core::code_zoom_step::in, core::code_zoom_step::in, core::code_zoom_step::out },
+			   "⌘=, ⌘+ and ⌘− in the code pane are one step each");
+		window_key(window, Qt::Key_0, Qt::ControlModifier | Qt::AltModifier);
+		expect(steps.size() == 3U && homes == 0, "Actual Size at 100% sends nothing, and ⌘⌥0 is not Home");
+		code.ZoomPercent = 125U;
+		window.adopt_code_zoom(code);
+		auto* const pill = window.comparison_surface()->code_zoom_indicator();
+		expect(pill->isVisible() && pill->accessibleName() == QStringLiteral("Code zoom 125%, 16.25 pt"),
+			   "a moved zoom shows the indicator with the percentage and the size on screen");
+		window_key(window, Qt::Key_0, Qt::ControlModifier | Qt::AltModifier);
+		expect(steps.size() == 4U && steps.back() == core::code_zoom_step::actual_size && homes == 0,
+			   "⌘⌥0 is Actual Size once the zoom has moved");
+		window_key(window, Qt::Key_0, Qt::ControlModifier);
+		expect(steps.size() == 4U && homes == 1, "⌘0 is still Home, and no zoom");
+
+		// The clamps.
+		code.ZoomPercent = 300U;
+		window.adopt_code_zoom(code);
+		expect(!zoomIn->isEnabled() && zoomIn->statusTip() == QStringLiteral("The code in the comparison is as large as it goes: 300% (39 pt)."),
+			   "Zoom In at the top is off and says why");
+		window_key(window, Qt::Key_Equal, Qt::ControlModifier);
+		expect(steps.size() == 4U, "⌘= at the top sends nothing");
+		code.ZoomPercent = 50U;
+		window.adopt_code_zoom(code);
+		expect(!zoomOut->isEnabled() && zoomOut->statusTip() == QStringLiteral("The code in the comparison is as small as it goes: 50% (6.50 pt).")
+				   && actualSize->statusTip() == QStringLiteral("Show the code in the comparison at your code size, 13 pt."),
+			   "Zoom Out at the bottom is off and says why");
+
+		// AltGr on Windows arrives as Control+Alt: an editable field keeps the
+		// character it types, and nothing else claims the key.
+		const auto altGr = [](const QString& aText) {
+			return QKeyEvent{ QEvent::ShortcutOverride, Qt::Key_0, Qt::ControlModifier | Qt::AltModifier, aText };
+		};
+		auto field    = QLineEdit{ };
+		auto editor   = QPlainTextEdit{ };
+		auto readOnly = QLineEdit{ };
+		readOnly.setReadOnly(true);
+		expect(qt::editor_keeps_typed_text(&field, altGr(QStringLiteral("}"))) && qt::editor_keeps_typed_text(&editor, altGr(QStringLiteral("}"))),
+			   "an editable field keeps the } AltGr+0 types on a German layout");
+		expect(!qt::editor_keeps_typed_text(&field, altGr({ })) && !qt::editor_keeps_typed_text(&readOnly, altGr(QStringLiteral("}")))
+				   && !qt::editor_keeps_typed_text(window.comparison_surface()->right_pane(), altGr(QStringLiteral("}"))),
+			   "a key that types nothing, a read-only field and the code panes leave Ctrl+Alt+0 to Actual Size");
+	}
+
 	/// \brief [[BPR-1129]]. Option-R (Alt+R) composes the review and Option-C
 	/// (Alt+C) comments, from anywhere in the window with no visible entry row,
 	/// and Esc returns from either page to where it was.
@@ -13075,6 +13193,7 @@ auto main(int argc, char** argv) -> int
 	test_a_reply_waits_for_its_threads_own_comparison();
 	test_change_arrows_continue_across_files();
 	test_change_keys_are_named_and_yield_in_editors();
+	test_code_zoom_commands_keys_and_collisions();
 	test_defect_queue_navigation_and_semantic_dispatch();
 	test_thread_defect_menus_badges_and_navigation();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();

@@ -189,7 +189,31 @@ The built-in dark profile uses a charcoal editor surface, muted green comments, 
 
 Separate settings exist for interface and code fonts. Code settings include family, point size, weight, line height, tab width, ligatures, syntax bold, and syntax italics. The default code font on every platform is the bundled JetBrains Mono NL ([[BPR-1270]]); if it cannot be loaded, the fixed-width system font is. A profile that already stored its appearance keeps the code font it stored, and resetting the code font takes the default.
 
-Runtime code zoom preserves the top visible source line and does not silently overwrite saved font settings.
+The comparison has its own zoom ([[BPR-1336]]): **Diff zoom**, a percentage of
+Code size, stored per profile with the code font. View > Zoom In (⌘= or ⌘+,
+Ctrl+= or Ctrl++), Zoom Out (⌘−, Ctrl+−) and Actual Size (⌘⌥0, Ctrl+Alt+0)
+step it, as do ⌘-scroll (Ctrl+wheel) and pinch over the code: one step per
+wheel notch or per 0.15 of pinch. The steps are 50, 67, 75, 80, 90, 100, 110,
+125, 150, 175, 200, 250 and 300 percent. The core owns the steps, and the size
+shown, Code size times the zoom, is held to the 6 to 72 pt bounds. Zoom In is
+off when no further step would show a larger size, and Zoom Out when none
+would show a smaller one.
+
+Zoom never rewrites Code size, so Actual Size returns to the size the reviewer
+chose. It scales the comparison only: both panes and the one-pane document,
+their gutters (which re-width to their digits), their tab stops, the connector
+(remeasured) and the detail pane under them. Drawers, Overview and composers
+keep Code size. A pill at the top centre of the comparison shows the
+percentage and the size on screen for 1.2 seconds, without animation, and the
+same words are a polite accessibility announcement. Settings shows the zoom as
+the Diff zoom row under Code size, and the Type card's Reset returns it to
+100%.
+
+A font change keeps the reader's line in place. When the current line is on
+screen, it stays at its position in the viewport. Otherwise the line at the
+synchronization rail stays. Each pane is scrolled by whole lines of the new
+height in the same turn as the font change, so the line never leaves. The
+remeasured geometry then places the comparison exactly.
 
 The applied code typography is published as a fact in its own right rather than
 inferred from a font change. Tab width is not a font property, and Qt sends no
@@ -318,9 +342,10 @@ diagonally, light over dark, by clipping alone — no edge is drawn, so the edge
 is nothing but the change of palette — and their caption names the half in
 effect ("dark now", "light now"); a theme with overrides captions its count
 ("2 colours customised"). The six-way mode combo box is gone: the tiles are
-the control. **Type** is eleven one-line rows — interface family, size, weight
-and line height; code family, size and weight; tab width as a 2, 4, 8 segment;
-and ligatures, bold and italic syntax emphasis as switches — with sizes in
+the control. **Type** is thirteen one-line rows — interface family, size, weight
+and line height; code family, size, diff zoom and weight; tab width as a 2, 4,
+8 segment; white space; and ligatures, bold and italic syntax emphasis as
+switches — with sizes in
 points rather than hundredths, beside a labelled Preview painted by the review
 window's own code painter from the accepted typography and the theme on
 screen, captioned with the values in effect. **Colours** is the editor above.

@@ -2,10 +2,12 @@
 
 #include <QAction>
 #include <QKeySequence>
+#include <QList>
 #include <QMenu>
 #include <QVariant>
 
 #include <algorithm>
+#include <tuple>
 #include <utility>
 
 namespace bpr::qt {
@@ -131,6 +133,20 @@ namespace bpr::qt {
 		updatesLine->setObjectName(QStringLiteral("desktopToggleUpdatesLineAction"));
 		updatesLine->setCheckable(true);
 		updatesLine->setEnabled(false);
+		// [[BPR-1336]]. The window's zoom commands, after Updates Line as in the
+		// window's menu, with the window's keys.
+		ViewMenu->addSeparator();
+		for (const auto& [text, name, keys] : {
+				 std::tuple{ tr("Zoom In"), QStringLiteral("desktopZoomInCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } } },
+				 std::tuple{ tr("Zoom Out"), QStringLiteral("desktopZoomOutCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+-") } } },
+				 std::tuple{ tr("Actual Size"), QStringLiteral("desktopActualSizeCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+Alt+0") } } },
+			 }) {
+			auto* const zoom = ViewMenu->addAction(text);
+			zoom->setObjectName(name);
+			zoom->setShortcuts(keys);
+			zoom->setEnabled(false);
+		}
+		ViewMenu->addSeparator();
 		auto* const nextTab = ViewMenu->addAction(tr("Next Tab"));
 		nextTab->setObjectName(QStringLiteral("desktopNextDocumentTabAction"));
 		nextTab->setEnabled(false);

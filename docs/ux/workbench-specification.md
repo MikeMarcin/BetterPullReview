@@ -775,6 +775,21 @@ never invents enabled state.
 | Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
 | Conversations ([[BPR-1293]]) | `Ctrl+4` (⌘4) |
 | Find a conversation: go to Conversations, or back ([[BPR-1293]]) | `Ctrl+J` (⌘J) |
+| Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
+| Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |
+| Actual Size: the comparison's code at Code size ([[BPR-1336]]) | `Ctrl+Alt+0` (⌘⌥0) |
+
+Actual Size cannot take ⌘0 (`Ctrl+0`). That key is Home, and inside the open
+label menu it is Plain ([[BPR-1080]]). Actual Size takes ⌘⌥0 (`Ctrl+Alt+0`)
+instead. ⌘⌥ is the modifier pair the comparison control already uses for its
+own commands, and the label menu matches ⌘0 exactly, so ⌘⌥0 never chooses
+Plain. On Windows, AltGr arrives as `Ctrl+Alt`, and AltGr+0 types `}` on German
+and Nordic layouts. An editable text field that receives `Ctrl+Alt+0` with a
+typed character claims it in `ShortcutOverride`, so the character is typed and
+the zoom is left alone. The read-only code panes leave the key to Actual Size.
+The three zoom commands sit in View after Updates Line, between separators,
+and the resident desktop menu bar offers them disabled with the same keys
+([[BPR-0796]]).
 
 The code-pane keys act only while a code pane itself has keyboard focus
 ([[BPR-1212]]; owner Q1, 2026-10-06). They are not window shortcuts: the pane

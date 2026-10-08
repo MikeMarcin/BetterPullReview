@@ -692,6 +692,11 @@ namespace bpr::qt {
 		const comparison_scroll_receiver aReceiver,
 		QWheelEvent&                     aEvent) -> bool
 	{
+		// [[BPR-1336]]. Control (Command on macOS) with the wheel zooms the code
+		// rather than scrolling it; the comparison surface takes it from here.
+		if (aEvent.modifiers().testFlag(Qt::ControlModifier)) {
+			return false;
+		}
 		if (AxisSuspended) {
 			// Do not let a native pane scroll independently using stale geometry.
 			aEvent.accept();

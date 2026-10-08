@@ -283,6 +283,16 @@ namespace {
 		f.controls()->open_menu();
 		settle();
 		expect(overrides(f.menu()->label_button(core::feedback_label::issue), Qt::Key_0), "inside the open menu ⌘0 is the menu's own key");
+		{
+			// [[BPR-1336]]. ⌘⌥0 is the window's Actual Size, never Plain.
+			auto actualSize = QKeyEvent{ QEvent::ShortcutOverride, Qt::Key_0, Qt::ControlModifier | Qt::AltModifier };
+			actualSize.ignore();
+			QApplication::sendEvent(f.menu()->label_button(core::feedback_label::issue), &actualSize);
+			expect(!actualSize.isAccepted(), "inside the open menu ⌘⌥0 is not the menu's key");
+			key(f.menu(), Qt::Key_0, Qt::ControlModifier | Qt::AltModifier);
+			settle();
+			expect(f.text() == "question (blocking): Fix it." && f.menu()->isVisible(), "⌘⌥0 in the menu leaves the label and the menu as they were");
+		}
 		key(f.menu(), Qt::Key_0, Qt::ControlModifier);
 		settle();
 		expect(f.text() == "Fix it." && !f.menu()->isVisible(), "⌘0 in the menu makes the comment plain and closes it");

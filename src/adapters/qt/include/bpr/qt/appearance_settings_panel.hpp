@@ -203,6 +203,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto ui_weight_editor() const noexcept -> QSpinBox*;
 		[[nodiscard]] auto ui_line_height_editor() const noexcept -> QSpinBox*;
 		[[nodiscard]] auto code_size_editor() const noexcept -> QSpinBox*;
+		/// \brief [[BPR-1336]]. The comparison's zoom, one item per core step.
+		[[nodiscard]] auto code_zoom_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto code_weight_editor() const noexcept -> QSpinBox*;
 		/// \brief One segment of the 2, 4, 8 tab-width control, or none.
 		///
@@ -259,6 +261,8 @@ namespace bpr::qt {
 		/// \brief Queues one coalesced preview delivery of the latest candidate.
 		void offer_preview();
 		/// \brief Returns the record the controls currently express.
+		[[nodiscard]] auto code_zoom() const -> std::uint32_t;
+		void               show_code_zoom(const core::code_font_settings& aCode);
 		[[nodiscard]] auto composed_typography() const
 			-> core::typography_settings;
 		/// \brief Writes the adopted record into the controls.
@@ -304,6 +308,7 @@ namespace bpr::qt {
 		/// own bounds do not admit that width.
 		std::array<QAbstractButton*, 3U> TabWidths{ };
 		QComboBox*                       WhiteSpace     = nullptr;
+		QComboBox*                       CodeZoom       = nullptr;
 		QCheckBox*                       Ligatures      = nullptr;
 		QCheckBox*                       SyntaxBold     = nullptr;
 		QCheckBox*                       SyntaxItalic   = nullptr;

@@ -1,6 +1,8 @@
 #include "bpr/core/appearance_model.hpp"
 
 #include <algorithm>
+#include <cstdint>
+#include <ranges>
 
 namespace bpr::core {
 	namespace {
@@ -410,6 +412,9 @@ namespace bpr::core {
 			return typography_bounds{ .Minimum = 1U, .Maximum = 16U };
 		case typography_field::white_space:
 			return typography_bounds{ .Minimum = 0U, .Maximum = static_cast<std::uint32_t>(white_space_drawing_count - 1U) };
+		case typography_field::code_zoom:
+			// [[BPR-1336]]. Percent of the code size: the ends of the step ladder.
+			return typography_bounds{ .Minimum = code_zoom_steps.front(), .Maximum = code_zoom_steps.back() };
 		}
 
 		return typography_bounds{ };
@@ -466,6 +471,48 @@ namespace bpr::core {
 				.Reason = typography_reason::malformed_value,
 			});
 		}
+		append_rejection(
+			rejections,
+			check_bounds(
+				typography_target::code_font,
+				typography_field::code_zoom,
+				aSettings.Code.ZoomPercent));
 		return rejections;
+	}
+
+	auto zoomed_point_size(const code_font_settings& aCode) noexcept -> std::uint32_t
+	{
+		const auto bounds = bounds_of(typography_field::point_size);
+		const auto scaled = (static_cast<std::uint64_t>(aCode.Font.PointSizeCentipoints) * aCode.ZoomPercent + 50U) / 100U;
+		return static_cast<std::uint32_t>(std::clamp<std::uint64_t>(scaled, bounds.Minimum, bounds.Maximum));
+	}
+
+	auto stepped_code_zoom(const code_font_settings& aCode, const code_zoom_step aStep) noexcept -> std::uint32_t
+	{
+		if (aStep == code_zoom_step::actual_size) {
+			return actual_code_zoom_percent;
+		}
+		const auto shown = zoomed_point_size(aCode);
+		auto       probe = aCode;
+		const auto moves = [&](const std::uint32_t aZoom) {
+			probe.ZoomPercent = aZoom;
+			const auto size   = zoomed_point_size(probe);
+			return aStep == code_zoom_step::in ? size > shown : size < shown;
+		};
+		if (aStep == code_zoom_step::in) {
+			const auto found = std::ranges::find_if(code_zoom_steps, [&](const std::uint32_t aZoom) {
+				return aZoom > aCode.ZoomPercent && moves(aZoom);
+			});
+			return found == code_zoom_steps.end() ? aCode.ZoomPercent : *found;
+		}
+		const auto found = std::ranges::find_if(code_zoom_steps | std::views::reverse, [&](const std::uint32_t aZoom) {
+			return aZoom < aCode.ZoomPercent && moves(aZoom);
+		});
+		return found == (code_zoom_steps | std::views::reverse).end() ? aCode.ZoomPercent : *found;
+	}
+
+	auto code_zoom_steps_from(const code_font_settings& aCode, const code_zoom_step aStep) noexcept -> bool
+	{
+		return stepped_code_zoom(aCode, aStep) != aCode.ZoomPercent;
 	}
 } // namespace bpr::core

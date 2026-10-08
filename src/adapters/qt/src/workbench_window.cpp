@@ -3,6 +3,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
+#include "bpr/qt/type_preview.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include "bpr/core/review_comment_range.hpp"
@@ -818,6 +819,25 @@ namespace bpr::qt {
 			return false;
 		}
 
+#if defined(Q_OS_WIN)
+		/// \brief [[BPR-1336]]. Lets an editable field keep an AltGr character.
+		class typed_text_yield final : public QObject
+		{
+		public:
+			using QObject::QObject;
+
+		protected:
+			[[nodiscard]] auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::ShortcutOverride && editor_keeps_typed_text(aWatched, *static_cast<QKeyEvent*>(aEvent))) {
+					aEvent->accept();
+					return true;
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+		};
+#endif
+
 		/// \brief [[BPR-1295]]. Keeps Hide Drawers' key in an editable
 		/// multi-line editor.
 		///
@@ -917,6 +937,18 @@ namespace bpr::qt {
 			aAction->setToolTip(description);
 			aAction->setStatusTip(description);
 		}
+	}
+
+	auto editor_keeps_typed_text(const QObject* const aReceiver, const QKeyEvent& aEvent) -> bool
+	{
+		const auto altGr = Qt::ControlModifier | Qt::AltModifier;
+		if ((aEvent.modifiers() & altGr) != altGr || aEvent.text().isEmpty() || !aEvent.text().front().isPrint()) {
+			return false;
+		}
+		if (const auto* const line = qobject_cast<const QLineEdit*>(aReceiver); line != nullptr) {
+			return !line->isReadOnly();
+		}
+		return editable_multi_line(aReceiver);
 	}
 
 	workbench_window::workbench_window(
@@ -1925,6 +1957,8 @@ namespace bpr::qt {
 		// comment the right-click items do.
 		ComparisonSurface->set_line_draft_dispatch([this](const bool aSuggest) { static_cast<void>(comment_on_selected_lines(aSuggest)); });
 		ComparisonSurface->set_thread_tick_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { go_to_thread_at(aSide, aLine); });
+		// [[BPR-1336]]. ⌘-scroll and pinch take the same path as the menu.
+		ComparisonSurface->set_code_zoom_dispatch([this](const core::code_zoom_step aStep) { dispatch_code_zoom(aStep); });
 		ConversationPanel->cards()->set_marks_observer([this] {
 			apply_thread_marks();
 			present_reply_placement();
@@ -9561,6 +9595,83 @@ namespace bpr::qt {
 		return OnePaneAction;
 	}
 
+	auto workbench_window::zoom_in_action() const noexcept -> QAction*
+	{
+		return ZoomInAction;
+	}
+
+	auto workbench_window::zoom_out_action() const noexcept -> QAction*
+	{
+		return ZoomOutAction;
+	}
+
+	auto workbench_window::actual_size_action() const noexcept -> QAction*
+	{
+		return ActualSizeAction;
+	}
+
+	void workbench_window::set_code_zoom_dispatch(std::function<void(core::code_zoom_step)> aDispatch)
+	{
+		CodeZoomDispatch = std::move(aDispatch);
+		apply_code_zoom();
+	}
+
+	void workbench_window::dispatch_code_zoom(const core::code_zoom_step aStep)
+	{
+		if (CodeZoomDispatch && CodeZoom && core::code_zoom_steps_from(*CodeZoom, aStep)) {
+			CodeZoomDispatch(aStep);
+		}
+	}
+
+	void workbench_window::adopt_code_zoom(const core::code_font_settings& aCode)
+	{
+		const auto moved = CodeZoom && CodeZoom->ZoomPercent != aCode.ZoomPercent;
+		CodeZoom         = aCode;
+		apply_code_zoom();
+		if (moved && ComparisonSurface != nullptr) {
+			ComparisonSurface->show_code_zoom(aCode.ZoomPercent, core::zoomed_point_size(aCode));
+		}
+	}
+
+	/// \brief [[BPR-1336]]. Each zoom command's state and the reason for it.
+	///
+	/// \details The core says whether a step changes what is shown and what it
+	/// leads to; the words here only report it. Before the profile's code
+	/// record arrives there is nothing to step from.
+	void workbench_window::apply_code_zoom()
+	{
+		if (ZoomInAction == nullptr) {
+			return;
+		}
+		const auto size = [](const std::uint32_t aCentipoints) {
+			return point_size_text(aCentipoints) + QStringLiteral(" pt");
+		};
+		if (!CodeZoom || !CodeZoomDispatch) {
+			const auto reason = QStringLiteral("The code size is not loaded yet.");
+			for (auto* const action : { ZoomInAction, ZoomOutAction, ActualSizeAction }) {
+				describe_action(action, false, { }, reason);
+			}
+			return;
+		}
+		const auto& code    = *CodeZoom;
+		const auto  shown   = size(core::zoomed_point_size(code));
+		const auto  towards = [&](const core::code_zoom_step aStep) {
+			auto next        = code;
+			next.ZoomPercent = core::stepped_code_zoom(code, aStep);
+			return QStringLiteral("%1% (%2)").arg(next.ZoomPercent).arg(size(core::zoomed_point_size(next)));
+		};
+		describe_action(ZoomInAction, core::code_zoom_steps_from(code, core::code_zoom_step::in),
+						QStringLiteral("Show the code in the comparison larger: %1.").arg(towards(core::code_zoom_step::in)),
+						QStringLiteral("The code in the comparison is as large as it goes: %1% (%2).").arg(code.ZoomPercent).arg(shown));
+		describe_action(ZoomOutAction, core::code_zoom_steps_from(code, core::code_zoom_step::out),
+						QStringLiteral("Show the code in the comparison smaller: %1.").arg(towards(core::code_zoom_step::out)),
+						QStringLiteral("The code in the comparison is as small as it goes: %1% (%2).").arg(code.ZoomPercent).arg(shown));
+		const auto own = size(code.Font.PointSizeCentipoints);
+		describe_action(ActualSizeAction, core::code_zoom_steps_from(code, core::code_zoom_step::actual_size),
+						QStringLiteral("Show the code in the comparison at your code size, %1.").arg(own),
+						QStringLiteral("The code in the comparison is at your code size, %1.").arg(own));
+	}
+
 	auto workbench_window::files_drawer() const noexcept -> workbench_drawer_panel*
 	{
 		return Drawers[0].Panel;
@@ -12424,6 +12535,33 @@ namespace bpr::qt {
 		connect(UpdatesLineAction, &QAction::triggered, this, [this] {
 			dispatch_updates_line_toggle();
 		});
+		// [[BPR-1336]]. The comparison's zoom. Command-= and Command-+ (Ctrl+=
+		// and Ctrl++) zoom in and Command-minus zooms out, as every browser and
+		// editor does. Actual Size cannot take Command-0: that is Home, and
+		// Plain inside the label menu. Command-Option-0 (Ctrl+Alt+0) keeps the
+		// 0 and takes the modifier pair the comparison control already uses for
+		// its own commands; the label menu matches Command-0 exactly, so it
+		// never chooses Plain.
+		ViewMenu->addSeparator();
+		const auto zoomAction = [this](const QString& aText, const QString& aName, const QList<QKeySequence>& aKeys, const core::code_zoom_step aStep) {
+			auto* const action = new QAction{ aText, this };
+			action->setObjectName(aName);
+			action->setShortcuts(aKeys);
+			action->setShortcutContext(Qt::WindowShortcut);
+			action->setEnabled(false);
+			addAction(action);
+			ViewMenu->addAction(action);
+			connect(action, &QAction::triggered, this, [this, aStep] { dispatch_code_zoom(aStep); });
+			return action;
+		};
+		ZoomInAction     = zoomAction(tr("Zoom In"), QStringLiteral("zoomInCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }, core::code_zoom_step::in);
+		ZoomOutAction    = zoomAction(tr("Zoom Out"), QStringLiteral("zoomOutCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+-") } }, core::code_zoom_step::out);
+		ActualSizeAction = zoomAction(tr("Actual Size"), QStringLiteral("actualSizeCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+Alt+0") } }, core::code_zoom_step::actual_size);
+		apply_code_zoom();
+#if defined(Q_OS_WIN)
+		qApp->installEventFilter(new typed_text_yield{ this });
+#endif
+		ViewMenu->addSeparator();
 		// [[BPR-1132]]. The tab keys, window-owned: Ctrl+Tab and Ctrl+Shift+Tab
 		// move between the tabs (the Control key on macOS too, where Qt names
 		// it Meta), and Cmd-W (Ctrl+W) closes the active tab. Nothing had

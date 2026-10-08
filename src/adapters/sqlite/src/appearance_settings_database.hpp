@@ -37,7 +37,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// input rather than a column version 7 keeps.
 	/// Version 8 adds `code_white_space`, when the code panes draw white space
 	/// ([[BPR-1107]]); a version-7 record takes the fresh default, "selection".
-	inline constexpr std::int64_t appearance_settings_schema_version = 8;
+	/// Version 9 adds `code_zoom_percent`, the comparison's zoom ([[BPR-1336]]);
+	/// a version-8 record takes Actual Size, 100.
+	inline constexpr std::int64_t appearance_settings_schema_version = 9;
 
 	/// \brief Owns the durable appearance settings database.
 	///
