@@ -4,6 +4,8 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include <QTextEdit>
 
+#include "../support/resize_cursor_hold_check.hpp"
+
 #include "bpr/application/pull_request_overview.hpp"
 
 #include <QAbstractScrollArea>
@@ -805,6 +807,27 @@ namespace {
 		QApplication::sendEvent(grip, &doubleClick);
 		settle();
 		expect(!page.summary_fraction() && split->sizes()[0] < 150, "double-click resets to content-aware short sizing");
+	}
+
+	/// \brief [[BPR-1330]]. The owner, 2026-10-08: "The resize handle mouse
+	/// cursor on the overview page below summary seems to flicker to the
+	/// correct cursor and then return to the normal pointer like the drawer
+	/// resize handle used to". The summary seam keeps its vertical-resize
+	/// cursor while the pointer moves over it or rests under its tooltip.
+	void test_summary_seam_holds_its_cursor()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1000, 800);
+		auto projected = projection();
+		projected.Body = description(60).toStdString();
+		page.present(projected);
+		page.show();
+		settle();
+		auto* split = page.findChild<QSplitter*>(QStringLiteral("overviewSummarySplitter"));
+		expect(split != nullptr && split->count() == 2 && split->handle(1)->isVisible(), "the summary seam is shown for a long description");
+		expect(tests::resize_cursor_holds(*split->handle(1), Qt::SplitVCursor, "summary seam"),
+			   "the summary seam shows the vertical-resize cursor on arrival, after every move over it and under its tooltip, and stops once the pointer leaves");
+		page.hide();
 	}
 
 	void test_body_edits_clamp_retained_selection()
@@ -1669,6 +1692,7 @@ auto main(int argc, char** argv) -> int
 	test_collapse_all_and_expand_all_folders();
 	test_compact_descriptions();
 	test_resizable_summary();
+	test_summary_seam_holds_its_cursor();
 	test_retained_description_reader();
 	test_body_edits_clamp_retained_selection();
 	test_many_participants_scroll_without_compressing_or_overpainting();

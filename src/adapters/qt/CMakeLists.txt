@@ -48,6 +48,7 @@ add_library(
         src/workbench_strip.cpp
         src/document_tab_strip.cpp
         src/native_window_chrome.cpp
+        src/resize_handle_cursor.cpp
         src/epoch_line.cpp
         src/workbench_landing.cpp
         src/markdown_body_view.cpp
@@ -116,8 +117,8 @@ if(WIN32)
 endif()
 if(APPLE)
     enable_language(OBJCXX)
-    target_sources(better_pull_review_adapter_qt PRIVATE src/motion_observer_mac.mm src/release_update_menu_mac.mm src/menu_bar_status_item.cpp)
-    set_source_files_properties(src/motion_observer_mac.mm src/release_update_menu_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_sources(better_pull_review_adapter_qt PRIVATE src/motion_observer_mac.mm src/release_update_menu_mac.mm src/resize_handle_cursor_mac.mm src/menu_bar_status_item.cpp)
+    set_source_files_properties(src/motion_observer_mac.mm src/release_update_menu_mac.mm src/resize_handle_cursor_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     find_library(BPR_DIF_APPKIT_FRAMEWORK AppKit REQUIRED)
     target_link_libraries(better_pull_review_adapter_qt PRIVATE "${BPR_DIF_APPKIT_FRAMEWORK}")
     # native_window_chrome.cpp reaches the NSWindow through the Objective-C

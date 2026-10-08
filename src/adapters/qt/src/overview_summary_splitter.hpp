@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_ADAPTERS_QT_SRC_OVERVIEW_SUMMARY_SPLITTER_HPP
 #define BPR_SRC_ADAPTERS_QT_SRC_OVERVIEW_SUMMARY_SPLITTER_HPP
 
+#include "bpr/qt/resize_handle_cursor.hpp"
+
 #include <QAccessibleWidget>
 #include <QContextMenuEvent>
 #include <QKeyEvent>
@@ -208,6 +210,9 @@ namespace bpr::qt {
 		setToolTip(QStringLiteral("Resize summary · Up/Down: one line · Double-click: reset"));
 		setFocusPolicy(Qt::StrongFocus);
 		setCursor(Qt::SplitVCursor);
+		// [[BPR-1330]]. The cursor flickered back to the arrow here as it once
+		// did on the drawer seams; both now share one hold.
+		hold_resize_cursor(*this);
 	}
 	inline auto overview_summary_handle::allocation() const -> int { return Split.sizes().value(0); }
 	inline auto overview_summary_handle::shared_height() const -> int { return Split.shared_height(); }

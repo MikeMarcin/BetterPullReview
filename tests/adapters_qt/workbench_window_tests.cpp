@@ -1,3 +1,4 @@
+#include "../support/resize_cursor_hold_check.hpp"
 #include "../support/review_tour_fixture.hpp"
 #include "diff_publication_fixture.hpp"
 
@@ -2850,6 +2851,36 @@ namespace {
 				  << "', handle cursor " << static_cast<int>(handle->cursor().shape())
 				  << ", handle underMouse " << handle->underMouse() << "\n";
 		return false;
+	}
+
+	/// \brief [[BPR-1330]]. The drawer seams carry the same cursor hold as the
+	/// Overview summary seam, whose cursor the owner saw "flicker to the
+	/// correct cursor and then return to the normal pointer like the drawer
+	/// resize handle used to" ([[BPR-0739]]).
+	void test_the_drawer_seams_hold_their_cursor()
+	{
+		qt::workbench_window window{ [](core::workbench_interaction_intent) { }, { }, [](core::workbench_drawer, std::uint32_t) { } };
+		window.resize(1'600, 820);
+		window.show();
+		process_events();
+		auto opened      = both_files_enabled();
+		opened.Drawers   = drawer_states(core::workbench_drawer_state::expanded,
+										 core::workbench_drawer_state::expanded);
+		opened.Behaviour = drawer_controls_shown();
+		opened.Layout    = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 375U,
+		};
+		window.publish(opened);
+		process_events();
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const splitter = window.central_splitter();
+		expect(splitter->handle(3)->isVisible() && splitter->handle(2)->isVisible(), "Review shows the files and conversations seams");
+		expect(tests::resize_cursor_holds(*splitter->handle(3), Qt::SplitHCursor, "conversations seam"),
+			   "the conversations seam shows the horizontal-resize cursor on arrival, after every move over it and at rest, and stops once the pointer leaves");
+		expect(tests::resize_cursor_holds(*splitter->handle(2), Qt::SplitHCursor, "files seam"),
+			   "the files seam holds its cursor the same way");
 	}
 
 	void test_the_split_cursor_stays_over_a_resting_handle()
@@ -11861,6 +11892,7 @@ auto main(int argc, char** argv) -> int
 	test_the_conversations_drawer_narrows_below_its_default_in_read();
 	test_the_seam_is_centred_for_native_and_even_handle_widths();
 	test_the_split_cursor_stays_over_a_resting_handle();
+	test_the_drawer_seams_hold_their_cursor();
 	test_drawer_contents_use_incremental_model_signals();
 	test_file_rows_emit_only_semantic_user_selection();
 	test_the_files_drawer_shows_the_tree_over_its_list();

@@ -1,6 +1,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/resize_handle_cursor.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -12194,6 +12195,8 @@ namespace bpr::qt {
 		QSplitter* const      aParent)
 		: QSplitterHandle{ aOrientation, aParent }
 	{
+		// [[BPR-1330]]. The same cursor hold as the Overview summary seam.
+		hold_resize_cursor(*this);
 	}
 
 	auto workbench_splitter_handle::rule_edge() const -> int
