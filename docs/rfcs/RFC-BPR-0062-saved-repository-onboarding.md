@@ -17,6 +17,24 @@ Registered on main under mandate four-drafts-r1 at baseline `f3e866e9b90505d4604
 
 The source Handoff below is retained as authoring history, not current execution state. Current acceptance is tracked by the new issue cards and [ledger](../verification/RFC-BPR-0062-0065.md). Existing Done cards and plan exits remain historical evidence for their exact candidates. Formal dependencies use accepted capabilities: RFC-BPR-0026 for saved discovery.
 
+## Owner correction amendment — 2026-10-08
+
+The owner rejected both attended v001 candidates and then both v002
+candidates. Their notes, recorded verbatim on BPR-1310, ask for three things:
+repositories are managed on their own Settings › Repositories page, modelled
+on Accounts & hosts and not in a popup; the empty-queue link opens that page;
+and a first-time Home shows only a button that opens it. The owner also
+questions showing the Review Cycles "Needs me" lanes while nothing can
+populate them.
+
+This amends AC01, AC05 and AC06. The first repository may now be added
+through one Home button that opens Settings › Repositories ready for entry,
+and AC01's "without visiting Settings" is superseded. In AC05, Home and
+Settings share that one page in place of a shared dialog. In AC06, "the real
+Home and dialog" means the real Home and Repositories page. AC02–AC04, the
+direct-entry contract, the open-PR shortcut's direct save and every
+authority, persistence and no-mutation boundary are unchanged.
+
 ## Problem and grounded current behavior
 
 The owner asked on 2026-10-07 for a better onboarding flow for saved
