@@ -3625,6 +3625,20 @@ foreach(summary_scale IN ITEMS 1 1.25 2)
         TIMEOUT 90 PASS_REGULAR_EXPRESSION "OVERVIEW_SUMMARY_PUBLIC_PATH_OK")
 endforeach()
 
+# [[BPR-1328]]. The change arrows continue across files through the real
+# composition; `--attended` stops on a one-change file for the owner's look.
+bpr_add_executable(test_change_arrows_public_path change_arrows_across_files_public_path_tests.cpp)
+target_link_libraries(test_change_arrows_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_change_arrows_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_change_arrows_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_change_arrows_public_path)
+bpr_enable_warnings(test_change_arrows_public_path)
+bpr_add_network_isolated_test(NAME application_change_arrows_across_files WINDOWS_UNCONTAINED
+    COMMAND test_change_arrows_public_path)
+set_tests_properties(application_change_arrows_across_files PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CHANGE_ARROWS_RENDER_ROOT=${PROJECT_BINARY_DIR}/change-arrows-renders"
+    TIMEOUT 120 PASS_REGULAR_EXPRESSION "CHANGE_ARROWS_PUBLIC_PATH_OK")
+
 bpr_add_executable(test_profile_window_review_restoration_public_path profile_window_review_restoration_public_path_tests.cpp)
 target_link_libraries(test_profile_window_review_restoration_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_profile_window_review_restoration_public_path PRIVATE BPR_BUILD_TESTING=1)

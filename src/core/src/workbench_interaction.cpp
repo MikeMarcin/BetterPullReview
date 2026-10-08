@@ -102,49 +102,96 @@ namespace bpr::core {
 			};
 		}
 
+		/// \brief Describes one planned change-navigation outcome.
+		///
+		/// \details No rejection and no crossing is a step inside the open
+		/// comparison, which RFC-BPR-0004's diff intent takes.
+		struct change_plan
+		{
+			workbench_reason_code                    Rejection = workbench_reason_code::none;
+			std::optional<workbench_change_crossing> Crossing;
+		};
+
+		/// \brief [[BPR-1328]]. Continues past an end of the open comparison.
+		///
+		/// \details The file decision is exactly the one the matching file
+		/// command would make, so the change command crosses where Next or
+		/// Previous file would go and stops where it would stop. Going
+		/// forward enters the destination at its first change, going back at
+		/// its last. Where there is no file to cross into, `aEnd` names why.
+		[[nodiscard]] constexpr auto cross_or_stop(
+			const workbench_interaction_state& aState,
+			const change_navigation_direction  aDirection,
+			const workbench_reason_code        aEnd) noexcept
+			-> change_plan
+		{
+			const auto file = plan_navigation(aState, aDirection);
+			if (!file.Decision.has_value()) {
+				return { .Rejection = aEnd };
+			}
+			return {
+				.Crossing = workbench_change_crossing{
+					.File  = *file.Decision,
+					.Entry = forward(aDirection) ? workbench_change_entry::first_change
+												 : workbench_change_entry::last_change,
+				},
+			};
+		}
+
 		// This is the single definition of change-navigation legality. It reads
 		// the same bounded facts RFC-BPR-0004's `navigate_change` derives from
 		// the semantic index, and it names the two ends of the change order
 		// explicitly. Enablement is deliberately not derived from whether a
 		// navigation result carried a group: `at_start` and `at_end` both report
 		// the current group, so group presence cannot tell a step from a refusal.
+		//
+		// [[BPR-1328]]. The owner, 2026-10-08: "It doesn't feel good for next
+		// change arrows to get greyed out when there's only 1 change". Under
+		// the stop policy an end of the open comparison is not an end of the
+		// review: the command continues into the neighbouring actionable file,
+		// and is refused only at the first change of the first file and the
+		// last change of the last. The wrap policy still wraps inside the
+		// comparison, as it always did.
 		[[nodiscard]] constexpr auto plan_change_navigation(
 			const workbench_interaction_state& aState,
 			const change_navigation_direction  aDirection) noexcept
-			-> workbench_reason_code
+			-> change_plan
 		{
 			if (!aState.Navigation.has_value()) {
-				return workbench_reason_code::no_active_workbench;
+				return { .Rejection = workbench_reason_code::no_active_workbench };
 			}
 			if (!aState.Change.has_value()) {
-				return workbench_reason_code::no_open_comparison;
+				return { .Rejection = workbench_reason_code::no_open_comparison };
 			}
 
 			const auto& cursor = *aState.Change;
 			if (cursor.ChangeCount == 0U) {
 				// A retained selection against a comparison with no change order
-				// at all is the selection that order cannot resolve.
+				// at all is the selection that order cannot resolve. A file with
+				// no changes is passed through to its neighbour.
 				return cursor.Group.has_value()
-					? workbench_reason_code::invalid_change_selection
-					: workbench_reason_code::no_changes;
+					? change_plan{ .Rejection = workbench_reason_code::invalid_change_selection }
+					: cross_or_stop(aState, aDirection, workbench_reason_code::no_changes);
 			}
 			if (!cursor.Group.has_value()) {
 				// Change navigation enters a nonempty order from either end.
-				return workbench_reason_code::none;
+				return { };
 			}
 			if (cursor.Ordinal == 0U) {
-				return workbench_reason_code::invalid_change_selection;
+				return { .Rejection = workbench_reason_code::invalid_change_selection };
 			}
 
 			const auto available = forward(aDirection) ? cursor.NextAvailable
 													   : cursor.PreviousAvailable;
 			if (available
 				|| aState.NavigationPolicy == change_navigation_policy::wrap) {
-				return workbench_reason_code::none;
+				return { };
 			}
-			return forward(aDirection)
-				? workbench_reason_code::at_last_change
-				: workbench_reason_code::at_first_change;
+			return cross_or_stop(aState,
+								 aDirection,
+								 forward(aDirection)
+									 ? workbench_reason_code::at_last_change
+									 : workbench_reason_code::at_first_change);
 		}
 
 		// A drawer and the source panes' numbering both belong to the workbench
@@ -180,11 +227,12 @@ namespace bpr::core {
 			const change_navigation_direction  aDirection) noexcept
 			-> workbench_command_projection
 		{
-			const auto rejection = plan_change_navigation(aState, aDirection);
+			auto plan = plan_change_navigation(aState, aDirection);
 			return {
 				.Id             = aId,
-				.Enabled        = rejection == workbench_reason_code::none,
-				.DisabledReason = rejection,
+				.Enabled        = plan.Rejection == workbench_reason_code::none,
+				.DisabledReason = plan.Rejection,
+				.Crossing       = plan.Crossing,
 			};
 		}
 
@@ -523,6 +571,24 @@ namespace bpr::core {
 			return {
 				.Decision = plan.Decision,
 				.Reason   = plan.Rejection,
+			};
+		}
+
+		/// \brief [[BPR-1328]]. Decides a change command's crossing again.
+		[[nodiscard]] auto apply(
+			const workbench_interaction_state&   aState,
+			const cross_workbench_change_intent& aIntent)
+			-> workbench_interaction_output
+		{
+			const auto plan = plan_change_navigation(aState, aIntent.Direction);
+			if (!plan.Crossing.has_value()) {
+				// Refused at an end of the pull request, or a step still
+				// inside the open comparison that this intent does not take.
+				return { .Reason = plan.Rejection };
+			}
+			return {
+				.Decision    = plan.Crossing->File,
+				.ChangeEntry = plan.Crossing->Entry,
 			};
 		}
 

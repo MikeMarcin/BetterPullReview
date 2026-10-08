@@ -530,12 +530,12 @@ namespace bpr::qt {
 			case core::workbench_reason_code::no_changes:
 				return QStringLiteral(
 					"This comparison has no changes to navigate.");
+			// [[BPR-1328]]. The change commands continue across files, so
+			// their only ends are the pull request's.
 			case core::workbench_reason_code::at_first_change:
-				return QStringLiteral(
-					"This is the first change in this comparison.");
+				return QStringLiteral("First change in the pull request.");
 			case core::workbench_reason_code::at_last_change:
-				return QStringLiteral(
-					"This is the last change in this comparison.");
+				return QStringLiteral("Last change in the pull request.");
 			case core::workbench_reason_code::invalid_change_selection:
 				return QStringLiteral("The selected change is no longer available.");
 			case core::workbench_reason_code::invalid_change_cursor:
@@ -581,6 +581,56 @@ namespace bpr::qt {
 					"Open a pull request to review its changes.");
 			}
 			return reason_text(aReason);
+		}
+
+		/// \brief [[BPR-1328]]. The Files row a crossing change command enters.
+		///
+		/// \details The published file rows are the host's actionable order,
+		/// so the core's file decision names its row the way the host resolves
+		/// it: by ordinal, or from the matching end for a selection that left
+		/// the order. Used to name the destination and to tell the comparison
+		/// which file it is entering; the host still performs the move.
+		[[nodiscard]] auto crossing_row(
+			const workbench_drawer_model&          aFiles,
+			const core::workbench_change_crossing& aCrossing) -> QModelIndex
+		{
+			const auto rows = aFiles.rowCount();
+			if (rows == 0) {
+				return { };
+			}
+			const auto& decision = aCrossing.File;
+			if (decision.Ordinal.has_value()) {
+				const auto ordinal = *decision.Ordinal;
+				return ordinal == 0U || ordinal > static_cast<std::uint32_t>(rows)
+					? QModelIndex{ }
+					: aFiles.index(static_cast<int>(ordinal - 1U));
+			}
+			switch (decision.Target) {
+			case core::workbench_navigation_target::first_actionable:
+			case core::workbench_navigation_target::next_actionable:
+				return aFiles.index(0);
+			case core::workbench_navigation_target::last_actionable:
+			case core::workbench_navigation_target::previous_actionable:
+				return aFiles.index(rows - 1);
+			case core::workbench_navigation_target::exact_file:
+				break;
+			}
+			return decision.File.has_value() ? aFiles.index_for_file(*decision.File) : QModelIndex{ };
+		}
+
+		/// \brief [[BPR-1328]]. What a change command that crosses files says.
+		[[nodiscard]] auto crossing_text(
+			const core::workbench_change_crossing& aCrossing,
+			const QString&                         aDestination) -> QString
+		{
+			const auto forward = aCrossing.Entry == core::workbench_change_entry::first_change;
+			if (aDestination.isEmpty()) {
+				return forward ? QStringLiteral("Continue to the next file.")
+							   : QStringLiteral("Go back to the previous file.");
+			}
+			return (forward ? QStringLiteral("Continue to the next file: %1")
+							: QStringLiteral("Go back to the previous file: %1"))
+				.arg(aDestination);
 		}
 
 		// [[BPR-0733]]. One recently viewed row. The pull request is named by
@@ -714,6 +764,18 @@ namespace bpr::qt {
 			return escaped;
 		}
 
+		/// \brief [[BPR-1328]]. Previous and Next change's first keys:
+		/// Command-Up and Command-Down on macOS, Ctrl+Up and Ctrl+Down elsewhere.
+		[[nodiscard]] auto previous_change_key() -> QKeySequence
+		{
+			return QKeySequence{ QStringLiteral("Ctrl+Up") };
+		}
+
+		[[nodiscard]] auto next_change_key() -> QKeySequence
+		{
+			return QKeySequence{ QStringLiteral("Ctrl+Down") };
+		}
+
 		/// \brief [[BPR-1295]]. Whether a widget is an editable multi-line
 		/// editor: a composer, a reply, a note or a suggestion.
 		[[nodiscard]] auto editable_multi_line(const QObject* const aObject) -> bool
@@ -737,12 +799,19 @@ namespace bpr::qt {
 		/// nothing with it for now: Markdown bold would be its own card.
 		/// Claiming it in `ShortcutOverride` also keeps the native macOS menu
 		/// item from taking it, because Qt asks the focus object first.
+		///
+		/// [[BPR-1328]]. Command-Down and Command-Up (Ctrl+Down and Ctrl+Up)
+		/// are Next and Previous change, and in an editor they are its own
+		/// document end and start. The editor claims them in
+		/// `ShortcutOverride` too, and hands the key press to the editor alone,
+		/// so the caret moves as it always did.
 		class editor_key_yield final : public QObject
 		{
 		public:
-			editor_key_yield(QObject* const aParent, const QAction* const aAction)
+			editor_key_yield(QObject* const aParent, const QAction* const aAction, QList<QKeySequence> aNative)
 				: QObject{ aParent }
 				, Action{ aAction }
+				, Native{ std::move(aNative) }
 			{
 			}
 
@@ -750,9 +819,28 @@ namespace bpr::qt {
 			[[nodiscard]] auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
 			{
 				if ((aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress)
-					&& Action != nullptr && editable_multi_line(aWatched)) {
-					const auto* const key = static_cast<QKeyEvent*>(aEvent);
-					if (QKeySequence{ key->keyCombination() } == Action->shortcut()) {
+					&& editable_multi_line(aWatched)) {
+					const auto* const key      = static_cast<QKeyEvent*>(aEvent);
+					const auto        sequence = QKeySequence{ key->keyCombination() };
+					if (Action != nullptr && sequence == Action->shortcut()) {
+						aEvent->accept();
+						return true;
+					}
+					if (Native.contains(sequence)) {
+						// The editor claims the key against the window's command,
+						// acts on the press as it always did, and the press
+						// stops there: one it ignores, such as Command-Up on
+						// the first line, would otherwise travel on to the
+						// window. A press handed on is not spontaneous, so Qt
+						// asks the shortcut map again, and the claim answers.
+						if (aEvent->type() == QEvent::KeyPress) {
+							if (Forwarding) {
+								return false;
+							}
+							Forwarding = true;
+							QCoreApplication::sendEvent(aWatched, aEvent);
+							Forwarding = false;
+						}
 						aEvent->accept();
 						return true;
 					}
@@ -762,7 +850,30 @@ namespace bpr::qt {
 
 		private:
 			QPointer<const QAction> Action;
+			QList<QKeySequence>     Native;
+			bool                    Forwarding = false;
 		};
+
+		/// \brief [[BPR-1328]]. Describes one file or change arrow.
+		///
+		/// \details The owner kept the keys and asked that they be
+		/// discoverable, so the tooltip's first line is the command and its
+		/// key in the platform's own notation ("Next change (⌘↓)"). A second
+		/// line says where a crossing goes or why the arrow is disabled. The
+		/// status tip carries the sentence alone.
+		void describe_navigation_action(
+			QAction* const aAction,
+			const QString& aName,
+			const bool     aEnabled,
+			const QString& aEnabledText,
+			const QString& aDetail)
+		{
+			aAction->setEnabled(aEnabled);
+			const auto key   = aAction->shortcut().toString(QKeySequence::NativeText);
+			const auto title = key.isEmpty() ? aName : QStringLiteral("%1 (%2)").arg(aName, key);
+			aAction->setToolTip(aDetail.isEmpty() ? title : title + QLatin1Char{ '\n' } + aDetail);
+			aAction->setStatusTip(aDetail.isEmpty() ? aEnabledText : aDetail);
+		}
 
 		void describe_action(
 			QAction* const aAction,
@@ -1066,15 +1177,15 @@ namespace bpr::qt {
 			QStringLiteral("Show the repositories drawer at its saved width."),
 			QKeySequence{ QStringLiteral("Alt+Shift+R") });
 
-		const auto make = [this](const QString&      aText,
-								 const QString&      aName,
-								 const QString&      aAccessible,
-								 const QString&      aObjectName,
-								 const QString&      aPurpose,
-								 const QKeySequence& aShortcut) -> navigation_entry {
+		const auto make = [this](const QString&             aText,
+								 const QString&             aName,
+								 const QString&             aAccessible,
+								 const QString&             aObjectName,
+								 const QString&             aPurpose,
+								 const QList<QKeySequence>& aShortcuts) -> navigation_entry {
 			auto* const action = new QAction{ aText, this };
 			action->setObjectName(aObjectName);
-			action->setShortcut(aShortcut);
+			action->setShortcuts(aShortcuts);
 			// Window context keeps the shortcut live from anywhere in the window,
 			// including while focus is inside either drawer or comparison pane.
 			action->setShortcutContext(Qt::WindowShortcut);
@@ -1093,25 +1204,27 @@ namespace bpr::qt {
 							 QStringLiteral("Previous file"),
 							 QStringLiteral("previousWorkbenchFileAction"),
 							 QStringLiteral("Select the previous actionable file."),
-							 QKeySequence{ QStringLiteral("Alt+Up") });
+							 { QKeySequence{ QStringLiteral("Alt+Up") } });
 		Navigation[1] = make(QStringLiteral("&Next file"),
 							 QStringLiteral("Next file"),
 							 QStringLiteral("Next file"),
 							 QStringLiteral("nextWorkbenchFileAction"),
 							 QStringLiteral("Select the next actionable file."),
-							 QKeySequence{ QStringLiteral("Alt+Down") });
+							 { QKeySequence{ QStringLiteral("Alt+Down") } });
 		Navigation[2] = make(QStringLiteral("Pre&vious change"),
 							 QStringLiteral("Previous change"),
 							 QStringLiteral("Previous change"),
 							 QStringLiteral("previousWorkbenchChangeAction"),
 							 QStringLiteral("Select the previous semantic change."),
-							 QKeySequence{ QStringLiteral("Alt+PgUp") });
+							 // [[BPR-1328]]. Command-Up (Ctrl+Up) first, which the
+							 // tooltip names; Option-Page Up stays as before.
+							 { previous_change_key(), QKeySequence{ QStringLiteral("Alt+PgUp") } });
 		Navigation[3] = make(QStringLiteral("Ne&xt change"),
 							 QStringLiteral("Next change"),
 							 QStringLiteral("Next change"),
 							 QStringLiteral("nextWorkbenchChangeAction"),
 							 QStringLiteral("Select the next semantic change."),
-							 QKeySequence{ QStringLiteral("Alt+PgDown") });
+							 { next_change_key(), QKeySequence{ QStringLiteral("Alt+PgDown") } });
 
 		for (std::size_t index = 0U; index < Navigation.size(); ++index) {
 			connect(Navigation[index].Action,
@@ -11923,6 +12036,29 @@ namespace bpr::qt {
 			}
 			return;
 		}
+		const auto direction = aIndex == file_navigation_entries
+			? core::change_navigation_direction::previous
+			: core::change_navigation_direction::next;
+		// [[BPR-1328]]. At an end of the open comparison the core offered a
+		// crossing: the gesture goes to the workbench as a file move, and the
+		// comparison is told which file it will enter and from which end.
+		if (const auto offered = command(static_cast<core::workbench_command_id>(aIndex));
+			offered && offered->Enabled && offered->Crossing) {
+			if (!Dispatch) {
+				return;
+			}
+			const auto row = crossing_row(*Drawers[0].Panel->contents(), *offered->Crossing);
+			if (const auto file = Drawers[0].Panel->contents()->file_at(row);
+				file.has_value() && ComparisonSurface != nullptr) {
+				ComparisonSurface->enter_next_comparison(
+					*file,
+					offered->Crossing->Entry == core::workbench_change_entry::first_change
+						? core::change_navigation_direction::next
+						: core::change_navigation_direction::previous);
+			}
+			Dispatch(core::cross_workbench_change_intent{ .Direction = direction });
+			return;
+		}
 		if (!ChangeDispatch) {
 			return;
 		}
@@ -11930,9 +12066,7 @@ namespace bpr::qt {
 		// emitted intent and the enablement that offered it cannot disagree about
 		// stop versus wrap.
 		ChangeDispatch(core::navigate_diff_change_intent{
-			.Direction = aIndex == file_navigation_entries
-				? core::change_navigation_direction::previous
-				: core::change_navigation_direction::next,
+			.Direction = direction,
 			.Policy    = Commands.Policy,
 		});
 	}
@@ -12110,7 +12244,7 @@ namespace bpr::qt {
 		addAction(ShowConversationsAction);
 		ViewMenu->addAction(ShowConversationsAction);
 		connect(ShowConversationsAction, &QAction::triggered, this, [this] { toggle_conversations(); });
-		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction };
+		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, { previous_change_key(), next_change_key() } };
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			if (aNow != nullptr && editable_multi_line(aNow) && isAncestorOf(aNow)) {
 				aNow->installEventFilter(EditorKeyYield);
@@ -13087,12 +13221,22 @@ namespace bpr::qt {
 			const auto reason = projection
 				? projection->DisabledReason
 				: core::workbench_reason_code::no_active_workbench;
-			describe_action(Navigation[index].Action,
-							projection && projection->Enabled,
-							Navigation[index].Purpose,
-							index < file_navigation_entries
-								? reason_text(reason)
-								: change_reason_text(reason));
+			// [[BPR-1328]]. A change command that continues into the next
+			// file names the file.
+			const auto enabled = projection && projection->Enabled;
+			const auto detail  = !enabled
+				? (index < file_navigation_entries ? reason_text(reason) : change_reason_text(reason))
+				: projection->Crossing
+				? crossing_text(*projection->Crossing,
+								crossing_row(*Drawers[0].Panel->contents(), *projection->Crossing)
+									.data(Qt::DisplayRole)
+									.toString())
+				: QString{ };
+			describe_navigation_action(Navigation[index].Action,
+									   Navigation[index].Name,
+									   enabled,
+									   Navigation[index].Purpose,
+									   detail);
 		}
 
 		update_drawer_action(0U,

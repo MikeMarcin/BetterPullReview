@@ -8344,7 +8344,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || WorkbenchHost == nullptr) {
 				return;
 			}
-			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)) {
+			// [[BPR-1328]]. A change command crossing into the next file is a
+			// file gesture too.
+			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)
+				|| std::holds_alternative<core::cross_workbench_change_intent>(aIntent)) {
 				cancel_restoration(false, true);
 				abandon_tab_load();
 				// A file gesture immediately after returning from Discuss wins

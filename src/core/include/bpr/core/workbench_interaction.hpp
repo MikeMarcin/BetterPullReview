@@ -75,7 +75,12 @@ namespace bpr::core {
 		invalid_navigation_cursor,
 		no_open_comparison,
 		no_changes,
+		/// [[BPR-1328]]. The first change of the first actionable file: the
+		/// change commands continue into the neighbouring file, so the
+		/// first change of the open comparison is an end only when no
+		/// actionable file comes before it.
 		at_first_change,
+		/// [[BPR-1328]]. The last change of the last actionable file.
 		at_last_change,
 		invalid_change_selection,
 		invalid_change_cursor,
@@ -301,6 +306,21 @@ namespace bpr::core {
 		auto operator<=>(const toggle_workbench_updates_line_intent&) const = default;
 	};
 
+	/// \brief [[BPR-1328]]. A change command continuing into the neighbouring file.
+	///
+	/// \details A step inside the open comparison stays RFC-BPR-0004's diff
+	/// intent. This one is sent only when the command projection offered a
+	/// crossing, and the transition decides it again from the retained state:
+	/// it carries the file decision and the entry, refuses with the command's
+	/// own reason at an end of the pull request, and decides nothing when the
+	/// open comparison still has a change that way.
+	struct cross_workbench_change_intent
+	{
+		change_navigation_direction Direction = change_navigation_direction::next;
+
+		auto operator<=>(const cross_workbench_change_intent&) const = default;
+	};
+
 	using workbench_interaction_intent = std::variant<
 		select_workbench_file_intent,
 		navigate_workbench_file_intent,
@@ -313,7 +333,8 @@ namespace bpr::core {
 		toggle_workbench_one_pane_intent,
 		set_workbench_updates_line_intent,
 		toggle_workbench_updates_line_intent,
-		toggle_workbench_drawers_intent>;
+		toggle_workbench_drawers_intent,
+		cross_workbench_change_intent>;
 
 	enum class workbench_navigation_target : std::uint8_t {
 		exact_file,
@@ -340,6 +361,28 @@ namespace bpr::core {
 		auto operator<=>(const workbench_navigation_decision&) const = default;
 	};
 
+	/// \brief [[BPR-1328]]. Where change navigation enters a file it crosses into.
+	enum class workbench_change_entry : std::uint8_t {
+		first_change,
+		last_change,
+	};
+
+	/// \brief [[BPR-1328]]. The file a change command continues into.
+	///
+	/// \details At either end of the open comparison's change order, Next and
+	/// Previous change continue to the neighbouring actionable file, as
+	/// next-change does across files in Visual Studio Code. `File` is exactly
+	/// the decision the matching file command would make, and `Entry` names the
+	/// end of that file's change order to select once its comparison arrives:
+	/// the first change going forward, the last going back.
+	struct workbench_change_crossing
+	{
+		workbench_navigation_decision File;
+		workbench_change_entry        Entry = workbench_change_entry::first_change;
+
+		auto operator<=>(const workbench_change_crossing&) const = default;
+	};
+
 	enum class workbench_command_id : std::uint8_t {
 		previous_file,
 		next_file,
@@ -360,11 +403,15 @@ namespace bpr::core {
 	inline constexpr std::size_t workbench_command_count = 11U;
 
 	/// \brief Describes the workbench command projection record.
+	///
+	/// \details [[BPR-1328]]. `Crossing` is present only on an enabled change
+	/// command whose step leaves the open comparison for the neighbouring file.
 	struct workbench_command_projection
 	{
-		workbench_command_id  Id             = workbench_command_id::previous_file;
-		bool                  Enabled        = false;
-		workbench_reason_code DisabledReason = workbench_reason_code::no_active_workbench;
+		workbench_command_id                     Id             = workbench_command_id::previous_file;
+		bool                                     Enabled        = false;
+		workbench_reason_code                    DisabledReason = workbench_reason_code::no_active_workbench;
+		std::optional<workbench_change_crossing> Crossing;
 
 		auto operator<=>(const workbench_command_projection&) const = default;
 	};
@@ -467,7 +514,10 @@ namespace bpr::core {
 		std::optional<workbench_one_pane_delta>      OnePane;
 		std::optional<workbench_updates_line_delta>  UpdatesLine;
 		std::optional<workbench_command_delta>       Commands;
-		workbench_reason_code                        Reason = workbench_reason_code::none;
+		/// [[BPR-1328]]. With `Decision`, the end of the destination file's
+		/// change order a crossing change command enters.
+		std::optional<workbench_change_entry> ChangeEntry;
+		workbench_reason_code                 Reason = workbench_reason_code::none;
 
 		auto operator<=>(const workbench_interaction_output&) const = default;
 	};
@@ -519,8 +569,10 @@ namespace bpr::core {
 	/// change navigation exactly as for file navigation. A file navigation
 	/// command is enabled exactly when the matching navigate intent would produce
 	/// a decision, a change navigation command is enabled exactly when the
-	/// bounded change cursor still offers that step, so a widget can never offer
-	/// a navigation gesture that would be rejected. A drawer command is always
+	/// bounded change cursor still offers that step or, at an end of the open
+	/// comparison, the matching file command would move to a neighbouring file
+	/// ([[BPR-1328]]), so a widget can never offer a navigation gesture that
+	/// would be rejected. A drawer command is always
 	/// enabled: the room a drawer takes is the reviewer's to give back, and the
 	/// one refusal, Overview keeping its drawers collapsed ([[BPR-0727]]),
 	/// is explained by the gesture's reason rather than by a dead control,

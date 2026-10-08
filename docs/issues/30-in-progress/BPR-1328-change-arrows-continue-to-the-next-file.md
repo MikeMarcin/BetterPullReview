@@ -6,7 +6,7 @@ status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"found_by":"owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1328--BPR-1328--8bce629ab070.json","related_cards":["BPR-1202","BPR-1287"],"acceptance":["BPR-1328:C1","BPR-1328:C2","BPR-1328:C3"]}
+metadata: {"found_by":"owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1328--BPR-1328--8bce629ab070.json","related_cards":["BPR-1202","BPR-1287"],"acceptance":["BPR-1328:C1","BPR-1328:C2","BPR-1328:C3","BPR-1328:C4"]}
 ---
 
 # BPR-1328: Change arrows continue to the next file instead of greying out
@@ -42,6 +42,16 @@ The review bar carries two position groups, each a label and a pair of arrows.
   file and Next change wrap to the comparison's first change (and the reverse).
   Production always runs stop; only a fixture probe publishes wrap.
 
+Two follow-ups from the owner the same day, relayed by the coordinator:
+
+- The owner chose to keep the existing keys and make them discoverable: every
+  file and change arrow's tooltip names its shortcut in the platform's native
+  notation ("Next change (⌥PgDn)", "Next file (⌥↓)"; Ctrl/Alt elsewhere).
+- Then: "Actually can it be cmd+down for change or does that conflict". ⌘↓ and
+  ⌘↑ (Ctrl+Down and Ctrl+Up on Windows and Linux) become Next and Previous
+  change, with ⌥PgDn and ⌥PgUp kept as alternates. In text editors they keep
+  their native document end and start; in the code panes the change wins.
+
 ## Change
 
 Like Visual Studio Code's next change across files, the change arrows now
@@ -71,6 +81,25 @@ destination file and the entry end; the next accepted comparison of that file
 is entered through `navigate_change` from no selection, and an accepted
 comparison of any other file drops the request.
 
+**Keys and tooltips.** Next change is `Ctrl+Down` then `Alt+PgDown`, Previous
+change `Ctrl+Up` then `Alt+PgUp` (Qt's `Ctrl` is ⌘ on macOS); the file keys are
+unchanged. Each arrow's tooltip is "Name (key)" in `QKeySequence::NativeText`
+for its first key: "Next change (⌘↓)", "Previous change (⌘↑)", "Next file
+(⌥↓)", "Previous file (⌥↑)" on macOS, "Next change (Ctrl+Down)" elsewhere. A
+second line names a crossing's destination ("Continue to the next file: …") or
+the disabled reason; the status tip is that line, or the arrow's purpose.
+
+**Conflicts.** The window's own key table has no other holder of `Ctrl+Up`,
+`Ctrl+Down`, `Alt+PgUp` or `Alt+PgDown` (the Hide Drawers course's duplicate
+check now names all four). Among Qt's standard keys only `MoveToStartOfDocument`
+and `MoveToEndOfDocument` may hold them (macOS binds ⌘↑/⌘↓ there); the window
+test checks every standard key on the platform it runs on. An editable
+multi-line editor (composer, reply, suggestion, note) claims ⌘↓/⌘↑ in
+`ShortcutOverride`, as it claims ⌘B, and hands the press to the editor alone,
+so the caret moves exactly as an editor on its own moves it and an ignored
+press (⌘↑ on the first line) cannot travel on to the window. A read-only code
+pane does not claim them, so the change wins there.
+
 ## Acceptance
 
 - **C1.** The core enables a change command at an end of the open comparison
@@ -84,5 +113,9 @@ comparison of any other file drops the request.
   file at its last change. Tooltips name each destination and each end.
 - **C3.** Owner look, frozen build, one Accept/Reject: "change arrows continue
   to the next file".
+- **C4.** ⌘↓/⌘↑ (Ctrl+Down/Ctrl+Up) navigate changes from the code, stay the
+  editor's in an editable multi-line editor, and every arrow's tooltip names
+  its key natively; the owner looks at it in the same session, one
+  Accept/Reject.
 
 ## Execution record

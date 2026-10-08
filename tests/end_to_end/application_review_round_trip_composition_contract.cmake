@@ -1026,6 +1026,15 @@ endfunction()
 # storage write, GitHub write, mutation or publication path changes; mutation
 # pin unchanged; no new src/app source. Self-review on BPR-1212, not
 # independent review.
+# BPR-1328 reseal: a90419791 (BPR-1212 slice 2, which resealed over BPR-1326)
+# ..the BPR-1328 product commit; no other intervening pinned-scope change. github_application.cpp's
+# dispatch_workbench_intent treats the new core::cross_workbench_change_intent
+# (a change arrow continuing into the neighbouring file) as a file gesture,
+# exactly as it treats navigate_workbench_file_intent: it cancels a pending
+# restoration and abandons a tab load before the workbench host applies the
+# intent. No grant,
+# target, provider, credential, GitHub write, mutation or publication path;
+# mutation pin unchanged. Reviewed on BPR-1328.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1044,7 +1053,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"954dfbca2fe52030f7dbcafa79085fa04dc6277ca72cfb7837c086e449933cb9"
+		"8c684804a264438a398d3c18752c840f0db85d56a64368e26e7e288a5cedb618"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1246,7 +1255,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c2ebcee0da784588230e69660391d9e3472d8d8c6f07c1eb73dc0b0d75780492"
+        "06bb4584b89d43a5e51bae91ad5ae208cd840e42ef7a416bfef2f8d4a9d77b31"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

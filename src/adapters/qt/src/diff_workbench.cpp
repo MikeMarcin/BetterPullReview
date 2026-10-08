@@ -1767,6 +1767,21 @@ namespace bpr::qt {
 		rebuild_unified_document();
 		++Statistics.SemanticQueries;
 		static_cast<void>(core::reconcile_diff_interaction(Interaction, *SemanticIndex));
+		// [[BPR-1328]]. A change command that crossed into this file enters
+		// its change order from the end the core decided.
+		if (const auto entry = std::exchange(PendingChangeEntry, std::nullopt);
+			entry.has_value() && entry->File == CurrentResult->Alignment.Key.File
+			&& !CurrentResult->Alignment.Groups.empty()) {
+			Interaction.Selection.reset();
+			++Statistics.SemanticQueries;
+			static_cast<void>(core::transition(
+				Interaction,
+				*SemanticIndex,
+				core::navigate_diff_change_intent{
+					.Direction = entry->Direction,
+					.Policy    = core::change_navigation_policy::stop,
+				}));
+		}
 		if (!Interaction.Selection.has_value()) {
 			if (!CurrentResult->Alignment.Groups.empty()) {
 				++Statistics.SemanticQueries;
@@ -2855,6 +2870,13 @@ namespace bpr::qt {
 			emit_selection(true);
 		}
 		return changed;
+	}
+
+	void diff_workbench::enter_next_comparison(
+		const core::file_identity               aFile,
+		const core::change_navigation_direction aDirection)
+	{
+		PendingChangeEntry = pending_change_entry{ .File = aFile, .Direction = aDirection };
 	}
 
 	void diff_workbench::synchronize_geometry_selection(const bool aReveal)

@@ -695,6 +695,22 @@ its numbers; the tooltips keep the whole text. At 900 pixels the widest bar,
 a named comparison with newer material and open notes, needs 875 pixels on
 macOS with nothing yielded. The owner's verdict on this bar is pending.
 
+The change arrows continue across files ([[BPR-1328]]). At a file's last
+change, Next change goes to the first change of the next actionable file; at
+its first change, Previous change goes to the last change of the previous one.
+The destination is the file Next or Previous file would choose, and a file with
+no changes is passed through. A change arrow is disabled only at the first
+change of the first file ("First change in the pull request.") and the last
+change of the last ("Last change in the pull request."), so a file with one
+change keeps both arrows live. The stop-versus-wrap wrap policy still wraps
+inside the comparison. Each arrow's tooltip names it and its first key in the
+platform's notation ("Next change (⌘↓)", "Previous file (⌥↑)"); a second line
+names the file a crossing goes to ("Continue to the next file: …") or says why
+the arrow is disabled, and the status tip carries that line. Command-Down and
+Command-Up (Ctrl+Down and Ctrl+Up) are the change keys in the code panes and
+everywhere else in the window except an editable multi-line editor, which
+keeps them as its own document end and start.
+
 The four navigation arrows use the native style's silhouettes with foreground
 pixels derived from the row's live active and disabled `ButtonText` roles.
 Palette, font, style, and theme changes rebuild those modes. This presentation
@@ -725,8 +741,8 @@ never invents enabled state.
 |---|---|
 | Previous file | `Alt+Up` |
 | Next file | `Alt+Down` |
-| Previous review change | `Alt+PgUp` |
-| Next review change | `Alt+PgDown` |
+| Previous review change ([[BPR-1328]]) | `Ctrl+Up` (⌘↑), or `Alt+PgUp` |
+| Next review change ([[BPR-1328]]) | `Ctrl+Down` (⌘↓), or `Alt+PgDown` |
 | Toggle files drawer | `Alt+Shift+1` |
 | Toggle conversations drawer | `Alt+Shift+2` |
 | Toggle review details | `Alt+Shift+3` |

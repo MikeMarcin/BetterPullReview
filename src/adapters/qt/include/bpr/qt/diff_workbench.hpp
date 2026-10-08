@@ -340,6 +340,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto navigate_change(
 			core::change_navigation_direction aDirection,
 			core::change_navigation_policy    aPolicy) -> bool;
+		/// \brief [[BPR-1328]]. Enters `aFile`'s next comparison from one end.
+		///
+		/// \details A change command that crossed into the neighbouring file
+		/// selects that file's first change going forward and its last going
+		/// back. The next accepted comparison of `aFile` is entered exactly as
+		/// RFC-BPR-0004's `navigate_change` enters an order from no selection;
+		/// the next accepted comparison of any other file drops the request.
+		void enter_next_comparison(
+			core::file_identity               aFile,
+			core::change_navigation_direction aDirection);
 		[[nodiscard]] auto shared_scrollbar() const noexcept -> QScrollBar*;
 		[[nodiscard]] auto comparison_splitter() const noexcept
 			-> diff_comparison_splitter*;
@@ -553,7 +563,14 @@ namespace bpr::qt {
 		selection_sink                                   SelectionSink;
 		std::function<void()>                            ReadingGestureSink;
 		std::optional<core::source_line_ref>             RestoredReadingLine;
-		std::optional<core::source_line_ref>             PresentationReadingLine;
+		/// \brief [[BPR-1328]]. The file a crossing change command is entering.
+		struct pending_change_entry
+		{
+			core::file_identity               File;
+			core::change_navigation_direction Direction = core::change_navigation_direction::next;
+		};
+		std::optional<pending_change_entry>  PendingChangeEntry;
+		std::optional<core::source_line_ref> PresentationReadingLine;
 		/// A removed/added viewport row can belong to the opposite side from
 		/// the semantic selection. Keep its side after the pending reveal is
 		/// consumed so the next presentation flip measures the same document.
